@@ -16,10 +16,11 @@ type session struct {
 	*agent.Base
 	workDir string
 
-	mu         sync.Mutex
-	sessionRef string
-	pending    map[string]*request // by request ID
-	lastError  string
+	mu           sync.Mutex
+	sessionRef   string
+	pending      map[string]*request // by request ID
+	lastError    string
+	resumedUsage bool
 }
 
 // request is a permission request the agent is blocked on.
@@ -81,6 +82,14 @@ func (s *session) write(v any) error {
 // ---- reading ----
 
 type envelope struct {
+	Cost       *float64 `json:"total_cost_usd"`
+	ModelUsage map[string]struct {
+		Input      *int64 `json:"inputTokens"`
+		Output     *int64 `json:"outputTokens"`
+		Cached     *int64 `json:"cacheReadInputTokens"`
+		CacheWrite *int64 `json:"cacheCreationInputTokens"`
+	} `json:"modelUsage"`
+
 	Type      string `json:"type"`
 	Subtype   string `json:"subtype"`
 	SessionID string `json:"session_id"`
@@ -220,6 +229,41 @@ func resultText(raw json.RawMessage) string {
 }
 
 func (s *session) onResult(e *envelope) {
+	if !s.resumedUsage && (e.Cost != nil || len(e.ModelUsage) > 0) {
+		u := domain.Usage{CostKind: "usage_only", Source: "Claude CLI cumulative modelUsage; API-equivalent estimate"}
+		if e.Cost != nil {
+			u.CostUSD = e.Cost
+			u.CostKind = "estimated_api_equivalent"
+		}
+		if len(e.ModelUsage) > 0 {
+			var input, output, cached int64
+			complete := true
+			for _, m := range e.ModelUsage {
+				if m.Input == nil || m.Output == nil {
+					complete = false
+					break
+				}
+				input += *m.Input
+				output += *m.Output
+				if m.Cached != nil {
+					cached += *m.Cached
+					input += *m.Cached
+				}
+				if m.CacheWrite != nil {
+					input += *m.CacheWrite
+				}
+			}
+			if complete {
+				u.InputTokens = &input
+				u.OutputTokens = &output
+				u.CachedTokens = &cached
+			}
+		}
+		if u.Validate() == nil {
+			s.Emit(agent.Event{Kind: agent.KindUsage, Usage: &u})
+		}
+	}
+
 	if e.IsError || strings.HasPrefix(e.Subtype, "error") {
 		why := strings.TrimSpace(e.Result)
 		if why == "" {

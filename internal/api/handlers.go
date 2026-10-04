@@ -165,16 +165,17 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Title       string                 `json:"title"`
-		Description string                 `json:"description"`
-		Execution   domain.ExecutionConfig `json:"execution"`
+		Title         string                 `json:"title"`
+		Description   string                 `json:"description"`
+		Execution     domain.ExecutionConfig `json:"execution"`
+		Orchestration domain.Orchestration   `json:"orchestration"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	t, err := s.opt.Tasks.CreateTask(r.Context(), service.NewTask{
-		ProjectID: r.PathValue("pid"), Title: req.Title, Description: req.Description, Execution: req.Execution,
+		ProjectID: r.PathValue("pid"), Title: req.Title, Description: req.Description, Execution: req.Execution, Orchestration: req.Orchestration,
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -185,12 +186,13 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Title       *string                 `json:"title"`
-		Description *string                 `json:"description"`
-		State       *string                 `json:"state"`
-		Position    *float64                `json:"position"`
-		Execution   *domain.ExecutionConfig `json:"execution"`
-		Version     *int64                  `json:"version"`
+		Title         *string                 `json:"title"`
+		Description   *string                 `json:"description"`
+		State         *string                 `json:"state"`
+		Position      *float64                `json:"position"`
+		Execution     *domain.ExecutionConfig `json:"execution"`
+		Orchestration *domain.Orchestration   `json:"orchestration"`
+		Version       *int64                  `json:"version"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
@@ -204,7 +206,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	patch := service.TaskPatch{Title: req.Title, Description: req.Description, Position: req.Position, Execution: req.Execution, Version: *req.Version}
+	patch := service.TaskPatch{Title: req.Title, Description: req.Description, Position: req.Position, Execution: req.Execution, Orchestration: req.Orchestration, Version: *req.Version}
 	if req.State != nil {
 		st, err := domain.ParseTaskState(*req.State)
 		if err != nil {
@@ -300,6 +302,7 @@ func (s *Server) handleStartRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
+		RunnerID     string                  `json:"runnerId"`
 		AgentID      string                  `json:"agentId"`   // for this run only; the task's, project's and global choice otherwise
 		Model        string                  `json:"model"`     // ditto; belongs to agentId
 		Reasoning    string                  `json:"reasoning"` // ditto; belongs to agentId
@@ -316,7 +319,7 @@ func (s *Server) handleStartRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	run, err := s.opt.Runner.Start(r.Context(), runner.StartInput{
-		TaskID: r.PathValue("id"), AgentID: req.AgentID, Model: req.Model, Reasoning: req.Reasoning,
+		RunnerID: req.RunnerID, TaskID: r.PathValue("id"), AgentID: req.AgentID, Model: req.Model, Reasoning: req.Reasoning,
 		Instructions: req.Instructions, Resume: req.Resume, Policy: req.Policy,
 	})
 	if err != nil {

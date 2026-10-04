@@ -363,6 +363,12 @@ func (c *CLI) ResolveCommit(ctx context.Context, root, rev string) (string, erro
 	return c.optional(ctx, root, "rev-parse", "-q", "--verify", rev+"^{commit}")
 }
 
+// HeadCommit reads the checkout's current commit without accepting a revision
+// from a caller. ResolveCommit deliberately requires full refs or commit IDs.
+func (c *CLI) HeadCommit(ctx context.Context, root string) (string, error) {
+	return c.optional(ctx, root, "rev-parse", "-q", "--verify", "HEAD^{commit}")
+}
+
 // TreeOf implements Reader.
 func (c *CLI) TreeOf(ctx context.Context, root, commit string) (string, error) {
 	if !IsCommitID(commit) {

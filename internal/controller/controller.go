@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"devboard/internal/agent"
@@ -23,18 +24,23 @@ import (
 	"devboard/internal/events"
 	"devboard/internal/github"
 	"devboard/internal/gitrepo"
+	"devboard/internal/machine"
 	"devboard/internal/netprivate"
 	"devboard/internal/runner"
+	"devboard/internal/runnerwire"
 	"devboard/internal/service"
+	"devboard/internal/store"
 	"devboard/internal/store/sqlite"
 	"devboard/internal/webui"
 )
 
 // Controller is the long-running daemon.
 type Controller struct {
-	cfg     config.Config
-	log     *slog.Logger
-	version string
+	stopScheduler context.CancelFunc
+	schedulerDone chan struct{}
+	cfg           config.Config
+	log           *slog.Logger
+	version       string
 
 	release    func()
 	db         *sqlite.DB
@@ -113,7 +119,59 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	healthCtx, c.stopHealth = context.WithCancel(context.Background())
 	c.health.Watch(healthCtx, c.broker)
 
+	scheduler := &service.Scheduler{Deps: deps, Git: git}
+	handoffs := &service.Handoffs{Deps: deps, Git: git}
+	runs.Handoffs = handoffs
+	runnerRec, err := settings.RegisterRunner(ctx)
+	if err != nil {
+		return err
+	}
+	var capsMu sync.Mutex
+	var cachedCaps domain.RunnerCapabilities
+	var capsAt time.Time
+	distributed := &service.Runners{Deps: deps, Runs: runs, LocalID: runnerRec.ID, LocalCapabilities: func(ctx context.Context) domain.RunnerCapabilities {
+		capsMu.Lock()
+		if time.Since(capsAt) > 10*time.Second {
+			cachedCaps = machine.Capabilities(ctx, agents, c.cfg.DataDir)
+			capsAt = time.Now()
+		}
+		caps := cachedCaps
+		capsMu.Unlock()
+		caps.Repositories = nil
+		_ = c.db.View(ctx, func(tx store.Tx) error {
+			ps, e := tx.Projects().List(ctx)
+			for _, p := range ps {
+				caps.Repositories = append(caps.Repositories, p.ID)
+			}
+			return e
+		})
+		return caps
+	}}
+	scheduler.Runners = distributed
 	c.runner = runner.New(runner.Options{
+		RefreshRemotes: func(ctx context.Context, id string) error {
+			p, e := projects.Get(ctx, id)
+			if e != nil {
+				return e
+			}
+			if p.Repository == nil {
+				return nil
+			}
+			for _, r := range p.Repository.Remotes {
+				if !runnerwire.SafeRemote(r.URL) {
+					continue
+				}
+				result, e := git.Fetch(ctx, p.RepoPath, r.Name)
+				if e != nil {
+					return e
+				}
+				if result.Outcome != domain.OutcomeDone {
+					return fmt.Errorf("%w: cannot refresh remote %s: %s", domain.ErrConflict, r.Name, result.Message)
+				}
+			}
+			return nil
+		},
+		Distributed: distributed, Scheduler: scheduler, Handoffs: handoffs, RepositoryLock: gitControl.LockExecution,
 		Runs: runs, Tasks: tasks, Projects: projects, Settings: settings, Worktrees: worktrees, Git: git, Agents: agents,
 		Log: c.log, WorktreeRoot: worktreeRoot,
 	})
@@ -128,10 +186,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 
 	// This computer is a runner as soon as there is a controller on it.
-	runnerRec, err := settings.RegisterRunner(ctx)
-	if err != nil {
-		return fmt.Errorf("register this computer as a runner: %w", err)
-	}
+
 	c.log.Info("runner registered", "runner", runnerRec.ID, "name", runnerRec.Name, "os", runnerRec.OS, "arch", runnerRec.Arch)
 
 	// The token guards the API wherever it is reached from other than a loopback
@@ -142,6 +197,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("api token: %w", err)
 	}
 	apiOpts := api.Options{
+		Distributed: distributed,
+		Scheduler:   scheduler, Handoffs: handoffs,
 		Projects:     projects,
 		Tasks:        tasks,
 		Runs:         runs,
@@ -199,6 +256,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	c.serveErr = make(chan error, 1)
 	go func() { c.serveErr <- c.server.Serve(c.listener) }()
 
+	scheduleCtx, cancelSchedules := context.WithCancel(context.Background())
+	c.stopScheduler = cancelSchedules
+	c.schedulerDone = make(chan struct{})
+	go func() { defer close(c.schedulerDone); c.runner.ScheduleLoop(scheduleCtx) }()
 	c.log.Info("controller started",
 		"addr", c.listener.Addr().String(), "data_dir", c.cfg.DataDir,
 		"auth", c.cfg.AuthRequired(), "version", c.version)
@@ -269,6 +330,11 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 // broker and the database.
 func (c *Controller) teardown(ctx ...context.Context) error {
 	var err error
+	if c.stopScheduler != nil {
+		c.stopScheduler()
+		<-c.schedulerDone
+		c.stopScheduler = nil
+	}
 	if c.runner != nil {
 		stop := context.Background()
 		if len(ctx) > 0 {

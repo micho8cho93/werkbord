@@ -257,7 +257,12 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 	}
 	api.waitWaiting(run.ID, domain.WaitIdle)
 	b, _ := os.ReadFile(argsLog)
-	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	lines := []string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		if line != "--help" {
+			lines = append(lines, line)
+		} // capability discovery is not a session launch
+	}
 	if len(lines) != 2 || !strings.Contains(lines[0], "--session-id "+sessionRef) || !strings.Contains(lines[1], "--resume "+sessionRef) {
 		t.Fatalf("the agent was launched with:\n%s\nwant a fresh session, then a resume of %s", b, sessionRef)
 	}

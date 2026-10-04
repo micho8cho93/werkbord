@@ -25,12 +25,13 @@ type session struct {
 
 	nextID atomic.Int64
 
-	mu        sync.Mutex
-	calls     map[int64]chan rpcMessage
-	threadID  string
-	turnID    string // the turn in progress, if any
-	pending   map[string]*request
-	lastError string
+	mu           sync.Mutex
+	calls        map[int64]chan rpcMessage
+	threadID     string
+	turnID       string // the turn in progress, if any
+	pending      map[string]*request
+	lastError    string
+	resumedUsage bool
 }
 
 // request is a question the server sent and is waiting on.
@@ -280,6 +281,27 @@ type item struct {
 
 func (s *session) onNotification(method string, params json.RawMessage) {
 	switch method {
+	case "thread/tokenUsage/updated":
+		if s.resumedUsage {
+			return
+		}
+		var p struct {
+			TokenUsage struct {
+				Total struct {
+					Input  *int64 `json:"inputTokens"`
+					Output *int64 `json:"outputTokens"`
+					Cached *int64 `json:"cachedInputTokens"`
+				} `json:"total"`
+			} `json:"tokenUsage"`
+		}
+		if json.Unmarshal(params, &p) != nil {
+			return
+		}
+		u := domain.Usage{InputTokens: p.TokenUsage.Total.Input, OutputTokens: p.TokenUsage.Total.Output, CachedTokens: p.TokenUsage.Total.Cached, CostKind: "usage_only", Source: "Codex thread/tokenUsage/updated total"}
+		if u.Validate() == nil && (u.InputTokens != nil || u.OutputTokens != nil) {
+			s.Emit(agent.Event{Kind: agent.KindUsage, Usage: &u})
+		}
+
 	case "turn/started":
 		var p struct {
 			Turn struct {

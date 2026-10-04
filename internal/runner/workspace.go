@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"devboard/internal/domain"
+	"devboard/internal/gitrepo"
 	"devboard/internal/service"
 )
 
@@ -43,6 +44,10 @@ func (m *Manager) prepareWorkspace(ctx context.Context, project *service.Project
 	repo := fresh.Repository
 	if repo == nil || repo.HeadCommit == "" {
 		return nil, fmt.Errorf("%w: %s has no commits yet; make an initial commit before running an agent in it", domain.ErrInvalid, project.Name)
+	}
+
+	if last := latestWorkspaceRun(prior); last != nil && last.Remote {
+		return m.workspaceFromRemote(ctx, project, task, *last, repo)
 	}
 
 	for i := len(prior) - 1; i >= 0; i-- {
@@ -83,6 +88,61 @@ func (m *Manager) prepareWorkspace(ctx context.Context, project *service.Project
 		return nil, err
 	}
 	m.log().Info("worktree created", "worktree", wt.ID, "task", task.ID, "branch", branch, "path", path, "newBranch", added.BranchCreated)
+	return &workspace{wt: wt, created: true, branchCreated: added.BranchCreated, repoRoot: repo.RootPath}, nil
+}
+
+// workspaceFromRemote never falls back to an older local task checkout.
+func (m *Manager) workspaceFromRemote(ctx context.Context, project *service.ProjectDetail, task *domain.Task, last domain.Run, repo *domain.GitRepository) (*workspace, error) {
+	if last.Uncommitted == nil || *last.Uncommitted || last.HeadCommit == "" {
+		return nil, fmt.Errorf("%w: previous runner work is uncommitted or unknown; reconcile it on its owning runner before changing machines", domain.ErrConflict)
+	}
+	if domain.ValidateRefName(last.Branch) != nil {
+		return nil, domain.ErrInvalid
+	}
+	reader := &gitrepo.CLI{}
+	start, e := reader.ResolveCommit(ctx, repo.RootPath, "refs/remotes/origin/"+last.Branch)
+	if e != nil {
+		return nil, e
+	}
+	if start == "" {
+		return nil, fmt.Errorf("%w: previous runner branch unavailable; commit, push, and fetch it before changing machines", domain.ErrConflict)
+	}
+	preserved, e := reader.IsAncestor(ctx, repo.RootPath, last.HeadCommit, start)
+	if e != nil || !preserved {
+		return nil, fmt.Errorf("%w: published branch does not contain the prior runner commit; push its latest work first", domain.ErrConflict)
+	}
+	target, e := reader.DetectTarget(ctx, repo.RootPath)
+	if e != nil {
+		return nil, e
+	}
+	base, e := reader.ResolveCommit(ctx, repo.RootPath, "refs/remotes/origin/"+target.Name)
+	if e != nil {
+		return nil, e
+	}
+	if base == "" {
+		return nil, fmt.Errorf("%w: fresh shared target unavailable", domain.ErrConflict)
+	}
+	current, e := reader.IsAncestor(ctx, repo.RootPath, base, start)
+	if e != nil {
+		return nil, e
+	}
+	if !current {
+		return nil, fmt.Errorf("%w: previous runner branch is stale; reconcile with the fresh shared target", domain.ErrConflict)
+	}
+	branch := branchName(task) + "-from-" + idTail(last.ID)
+	path := filepath.Join(m.opt.WorktreeRoot, project.ID, worktreeDirName(task))
+	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+		return nil, e
+	}
+	wt, e := m.opt.Worktrees.Create(ctx, service.NewWorktree{ProjectID: project.ID, Path: path, Branch: branch, BaseRef: "origin/" + last.Branch})
+	if e != nil {
+		return nil, e
+	}
+	added, e := m.opt.Git.AddWorktree(ctx, repo.RootPath, path, branch, start)
+	if e != nil {
+		m.retire(ctx, repo.RootPath, wt, false)
+		return nil, e
+	}
 	return &workspace{wt: wt, created: true, branchCreated: added.BranchCreated, repoRoot: repo.RootPath}, nil
 }
 
@@ -190,5 +250,18 @@ func buildPrompt(task *domain.Task, instructions string, resuming bool) string {
 		sb.WriteString("\n\n")
 		sb.WriteString(instructions)
 	}
+	sb.WriteString(`
+
+When ending implementation or review, provide a compact handoff report. Include only evidence you actually have. Use <devboard-handoff> followed by a JSON object and </devboard-handoff>, with keys summary (string), decisions (string array), tests (string array with commands and results), results (string), knownIssues (string array), blockers (string array), questions (string array), nextAction (string). Do not invent test results or answers. Git evidence is captured by the controller.`)
 	return sb.String()
+}
+
+// A failed setup has no workspace and must not hide work from an earlier run.
+func latestWorkspaceRun(prior []domain.Run) *domain.Run {
+	for i := len(prior) - 1; i >= 0; i-- {
+		if prior[i].Remote && prior[i].Branch != "" || !prior[i].Remote && prior[i].WorktreeID != "" {
+			return &prior[i]
+		}
+	}
+	return nil
 }

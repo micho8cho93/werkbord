@@ -64,6 +64,8 @@ type SettingsRepo interface {
 
 // RunnerRepo persists the computers that can run agents.
 type RunnerRepo interface {
+	Get(ctx context.Context, id string) (*domain.Runner, error)
+	Save(ctx context.Context, r *domain.Runner) error
 	// UpsertLocal registers this computer, or refreshes its record: name, system,
 	// version and last-seen time change; its ID and creation time never do. It
 	// returns the stored runner.

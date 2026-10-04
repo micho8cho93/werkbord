@@ -136,3 +136,8 @@ func DefaultHostname(machine string) string {
 
 // StateDir is where the node's state lives under a Dev Board data directory.
 func StateDir(dataDir string) string { return filepath.Join(dataDir, "tailscale") }
+
+// Dial reaches a controller from an embedded runner node without a system VPN.
+func (b *tsBackend) Dial(ctx context.Context, network, address string) (net.Conn, error) {
+	return b.srv.Dial(ctx, network, address)
+}

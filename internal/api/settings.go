@@ -77,6 +77,15 @@ func (s *Server) handleSetProjectExecution(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handleListRunners(w http.ResponseWriter, r *http.Request) {
+	if s.opt.Distributed != nil {
+		rs, e := s.opt.Distributed.List(r.Context())
+		if e != nil {
+			s.fail(w, r, e)
+			return
+		}
+		writeJSON(w, 200, map[string]any{"runners": rs})
+		return
+	}
 	if !s.settingsReady(w) {
 		return
 	}

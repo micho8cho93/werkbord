@@ -332,9 +332,14 @@ type mergeFacts struct {
 	runID     string
 }
 
-// MergePlan checks a merge and changes nothing. The same check runs again, under
+// MergePlan refreshes distributed tracking refs and checks a merge. The same check runs again, under
 // the project's lock, when the merge is asked for.
 func (s *GitControl) MergePlan(ctx context.Context, projectID string, in MergeInput) (*domain.GitMergePlan, error) {
+	unlock, err := s.refreshReview(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	t, err := s.resolve(ctx, projectID)
 	if err != nil {
 		return nil, err
@@ -403,6 +408,21 @@ func (s *GitControl) planMerge(ctx context.Context, t *gitCtx, a *gitAssoc, in M
 	if !ti.LocalExists {
 		block(domain.BlockTargetMissing, "%s exists only on the remote on this computer. Check it out here first; Dev Board will not create it for you.", ti.Name)
 		return finish()
+	}
+	if len(a.remoteRuns) > 0 {
+		remoteSha, err := s.Git.ResolveCommit(ctx, t.root, "refs/remotes/origin/"+ti.Name)
+		if err != nil {
+			return nil, nil, err
+		}
+		if remoteSha != "" {
+			current, err := s.Git.IsAncestor(ctx, t.root, remoteSha, ti.Sha)
+			if err != nil {
+				return nil, nil, err
+			}
+			if !current {
+				block(domain.BlockTargetMoved, "The remote target advanced on another machine. Update %s locally, then review the merge again.", ti.Name)
+			}
+		}
 	}
 	plan.TargetSha = ti.Sha
 	if in.TargetSha != "" && in.TargetSha != ti.Sha {
@@ -641,6 +661,9 @@ func (s *GitControl) Merge(ctx context.Context, projectID string, in MergeInput)
 		return nil, err
 	}
 	defer unlock()
+	if err := s.refreshDistributed(ctx, projectID); err != nil {
+		return nil, err
+	}
 	if in.BranchSha == "" || in.TargetSha == "" {
 		return refuse(ActionMerge, "Nothing was merged.", []domain.GitBlocker{blocker(domain.BlockInvalidInput, "the commits you reviewed (branchSha and targetSha) must be given, so a merge is only made of what you looked at")}, nil), nil
 	}
@@ -1227,6 +1250,9 @@ func (s *GitControl) CreatePullRequest(ctx context.Context, projectID string, in
 		return nil, err
 	}
 	defer unlock()
+	if err := s.refreshDistributed(ctx, projectID); err != nil {
+		return nil, err
+	}
 	t, err := s.resolve(ctx, projectID)
 	if err != nil {
 		return nil, err

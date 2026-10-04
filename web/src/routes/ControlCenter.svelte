@@ -1,5 +1,8 @@
 <script lang="ts">
   import '../lib/git/git.css';
+ import { matchesScheduledExecution } from '../lib/control';
+ import ControlInfrastructure from '../lib/ControlInfrastructure.svelte';
+  import { schedulingLabels } from '../lib/scheduling';
   import { agentName, cardActivity, runElapsed, timeAgo } from '../lib/format';
   import { overviewHref } from '../lib/gitroute';
   import { basisLabel, severityLabel, severityTone } from '../lib/health';
@@ -14,21 +17,35 @@
   import { app } from '../lib/state.svelte';
   import type { AttentionReview, AttentionRun, Question } from '../lib/types';
 
+  // Clock and external Git changes can alter eligibility without a task event.
+  $effect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') app.refreshOverview();
+    }, 10000);
+    return () => clearInterval(timer);
+  });
   // The Control Center is the one place that looks across projects. Everything here is read from
-  // the controller's overview, which names each item's project and task; none of it is filtered on this side.
-  const runs = $derived(app.overview?.runs ?? []);
+  // the controller's overview, which names each item's project and task; the filters below narrow this global view.
+  let projectFilter=$state(''); let runnerFilter=$state(''); let agentFilter=$state('');
+ const matchRun=(r:import('../lib/types').Run)=>(!projectFilter||r.projectId===projectFilter)&&(!runnerFilter||r.runnerId===runnerFilter)&&(!agentFilter||r.agentId===agentFilter);
+ const matchProject=(id:string)=>(!projectFilter||id===projectFilter)&&(!runnerFilter||app.runners.some(r=>r.id===runnerFilter&&(r.kind==='local'||r.projects?.includes(id))));
+ const runs = $derived((app.overview?.runs ?? []).filter(x=>matchRun(x.run)));
+ const questions=$derived(app.questions.filter(q=>matchProject(q.projectId)&&(!runnerFilter&&!agentFilter||runs.some(r=>r.run.id===q.runId))));
   const blocked = $derived(runs.filter((r) => r.run.state === 'blocked'));
   const idle = $derived(runs.filter((r) => r.run.state === 'waiting_for_user' && r.run.waiting === 'idle'));
   const working = $derived(runs.filter((r) => r.run.state === 'running' || r.run.state === 'starting'));
   const loaded = $derived(app.connection === 'live' && app.overview !== null);
 
   // The exceptions: what needs a person. Everything else is quiet background activity, kept out of the way.
-  const failed = $derived(app.overview?.failed ?? []);
-  const reviewTasks = $derived(app.overview?.review ?? []);
-  const repository = $derived(app.overview?.repository ?? []);
+  const scheduled = $derived((app.overview?.orchestration ?? []).filter(x=>matchProject(x.task.projectId)&&matchesScheduledExecution(x.task,app.project(x.task.projectId)?.execution ?? {},app.globalExecution,runnerFilter,agentFilter)));
+  const scheduleBlocked = $derived(scheduled.filter((x) => x.decision.state === 'blocked' || x.decision.state === 'potentially_conflicting'));
+  const scheduleQuiet = $derived(scheduled.filter((x) => x.decision.state !== 'blocked' && x.decision.state !== 'potentially_conflicting'));
+  const failed = $derived((app.overview?.failed ?? []).filter(x=>matchRun(x.run)));
+  const reviewTasks = $derived((app.overview?.review ?? []).filter(x=>matchProject(x.task.projectId)&&(!runnerFilter&&!agentFilter||x.lastRun&&matchRun(x.lastRun))));
+  const repository = $derived((app.overview?.repository ?? []).filter(x=>matchProject(x.projectId)));
   const readyCount = $derived(idle.length + reviewTasks.length);
   const allClear = $derived(
-    loaded && app.questions.length === 0 && blocked.length === 0 && failed.length === 0 && readyCount === 0 && repository.length === 0,
+    loaded && questions.length === 0 && blocked.length === 0 && failed.length === 0 && readyCount === 0 && repository.length === 0 && scheduleBlocked.length === 0,
   );
   const reviewHref = (r: AttentionReview) => taskHref(r.task.projectId, r.task.id);
 
@@ -53,6 +70,7 @@
 </script>
 
 <div class="sections">
+ <ControlInfrastructure filtersOnly bind:project={projectFilter} bind:runner={runnerFilter} bind:agent={agentFilter} />
   <section class="notify-setting" aria-label="Browser notifications">
     <div>
       <strong>Browser notifications</strong>
@@ -68,7 +86,7 @@
     <section aria-labelledby="projects-h">
       <h2 id="projects-h">Projects</h2>
       <ul class="strip">
-        {#each app.overview.projects as p (p.projectId)}
+        {#each app.overview.projects.filter(p=>matchProject(p.projectId)) as p (p.projectId)}
           <li>
             <a class="card proj" href={projectHref(p.projectId)} onclick={() => app.enter(p.projectId)}>
               <ProjectAvatar id={p.projectId} name={p.name} size={30} />
@@ -89,20 +107,20 @@
     <p class="card clear" role="status">
       <strong>All clear.</strong>
       <span class="muted">
-        Nothing needs you{#if working.length}; {working.length === 1 ? '1 agent is' : `${working.length} agents are`} working{/if}.
+        Nothing needs you{#if working.length}; {working.length === 1 ? '1 run retains' : `${working.length} runs retain`} execution ownership{/if}.
       </span>
     </p>
   {/if}
 
   <!-- What an agent is blocked on comes first, and is hard to miss. -->
-  {#if app.questions.length}
-    <section class="needs" aria-labelledby="needs-input" data-count={app.questions.length}>
+  {#if questions.length}
+    <section class="needs" aria-labelledby="needs-input" data-count={questions.length}>
       <h2 id="needs-input">
         Needs input
-        <span class="n" aria-label={needsInputText(app.questions.length)}>{app.questions.length}</span>
+        <span class="n" aria-label={needsInputText(questions.length)}>{questions.length}</span>
       </h2>
       <ul class="list">
-        {#each app.questions as q (q.id)}
+        {#each questions as q (q.id)}
           {@const info = where(q)}
           <li class="card item ask">
             <div class="where">
@@ -119,6 +137,11 @@
     </section>
   {/if}
 
+{#if scheduleBlocked.length}
+ <section aria-labelledby="schedule-blocked"><h2 id="schedule-blocked">Blocked execution <span class="n b">{scheduleBlocked.length}</span></h2><ul class="list">
+ {#each scheduleBlocked as item (item.task.id)}<li class="card item"><div class="where"><a class="who" href={taskHref(item.task.projectId,item.task.id)}>{item.task.title}</a><span class="muted">{item.projectName}</span></div><p><strong>{schedulingLabels[item.decision.state]}</strong> · {item.decision.reason}</p></li>{/each}
+ </ul></section>
+ {/if}
   {#if blocked.length}
     <section class="blocked" aria-labelledby="blocked-h">
       <h2 id="blocked-h">
@@ -238,7 +261,7 @@
   <!-- Quiet, successful background activity: here if you want it, never competing with the above. -->
   {#if working.length}
     <details class="quiet">
-      <summary>Working now ({working.length})</summary>
+      <summary>Active runs ({working.length})</summary>
       <ul class="list">
         {#each working as r (r.run.id)}
           <li class="card item">
@@ -263,6 +286,8 @@
     </details>
   {/if}
 
+  <ControlInfrastructure project={projectFilter} runner={runnerFilter} agent={agentFilter} />
+
   {#if app.agents.length}
     <details class="quiet">
       <summary>Agents ({app.agents.length})</summary>
@@ -276,6 +301,11 @@
       </ul>
     </details>
   {/if}
+{#if scheduleQuiet.length}
+ <section aria-labelledby="scheduled-queue"><h2 id="scheduled-queue">Scheduled and queued <span class="n">{scheduleQuiet.length}</span></h2><ul class="list">
+ {#each scheduleQuiet as item (item.task.id)}<li class="card item"><div class="where"><a class="who" href={taskHref(item.task.projectId,item.task.id)}>{item.task.title}</a><span class="muted">{item.projectName}</span></div><p><strong>{schedulingLabels[item.decision.state]}</strong> · {item.decision.reason}</p></li>{/each}
+ </ul></section>
+ {/if}
 </div>
 
 <style>

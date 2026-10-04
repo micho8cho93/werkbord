@@ -1,5 +1,9 @@
 <script lang="ts">
   import { tick } from 'svelte';
+ import ScheduleFields from '../lib/ScheduleFields.svelte';
+ import RunHandoff from '../lib/RunHandoff.svelte';
+ import {editableOrchestration,emptyOrchestration,schedulingLabels} from '../lib/scheduling';
+ import type {Orchestration} from '../lib/types';
   import { ApiError, api } from '../lib/api';
   import { RunFeed } from '../lib/feed.svelte';
   import FeedView from '../lib/FeedView.svelte';
@@ -9,6 +13,7 @@
   import { blockerLine, interactionLabel, isNotable } from '../lib/policy';
   import QuestionCard from '../lib/QuestionCard.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
+ import RunUsage from '../lib/RunUsage.svelte';
   import { globalHref, projectHref, router } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
@@ -142,7 +147,12 @@
     }
   }
 
-  // Start
+let scheduling = $state(false);
+ let scheduleEdit = $state<Orchestration>(emptyOrchestration());
+ function editSchedule(){if(!task)return;scheduleEdit=editableOrchestration(task.orchestration??emptyOrchestration());scheduling=!scheduling;}
+ async function saveSchedule(o:Orchestration){if(!task)return;const t=await act(()=>api.editTask(task,{orchestration:o}));if(t){scope.upsertTask(t);scheduling=false;}else{throw new Error(actionError);}}
+ const decision=$derived(scope.decisions.find(d=>d.taskId===task?.id));
+ // Start
   let instructions = $state('');
   let resume = $state(false);
   /** What differs for this run only; empty means it gets what the task gets. */
@@ -173,7 +183,7 @@
       api.startRun(
         project.id,
         task.id,
-        { agentId: c.agent ?? '', model: c.model, reasoning: c.reasoning, interaction: c.interaction },
+        { runnerId:c.runner, agentId: c.agent ?? '', model: c.model, reasoning: c.reasoning, interaction: c.interaction },
         instructions.trim(),
         resume,
       ),
@@ -195,6 +205,7 @@
     if (!run || !text) return;
     const r = await act(() => api.sendInput(project.id, run.id, text));
     if (r) {
+      if(r.remote) app.notify('Message queued. Waiting for the runner to acknowledge delivery.');
       message = '';
       scope.upsertRun(r);
       nearBottom = true;
@@ -211,7 +222,7 @@
   async function finish() {
     if (!run) return;
     const r = await act(() => api.finishRun(project.id, run.id));
-    if (r) scope.upsertRun(r);
+    if (r) { scope.upsertRun(r); if(r.remote && !r.endedAt) app.notify('Finish requested. Ownership stays with the runner until it reports the result.'); }
   }
 
   // Stopping loses the agent's current work in progress, so it asks twice.
@@ -227,7 +238,7 @@
     clearTimeout(stopTimer);
     confirmingStop = false;
     const r = await act(() => api.stopRun(project.id, run.id));
-    if (r) scope.upsertRun(r);
+    if (r) { scope.upsertRun(r); if(r.remote && !r.endedAt) app.notify('Stop requested. Ownership stays with the runner until it reports the result.'); }
   }
 
   const pending = $derived(run ? scope.pendingFor(run.id) : []);
@@ -309,6 +320,14 @@
       {/if}
     </header>
 
+<section class="card start" aria-label="Scheduling and dependencies">
+ <div class="actions"><h2>Schedule and dependencies</h2><button class="btn small" onclick={editSchedule}>{scheduling?'Close':'Edit schedule'}</button></div>
+ {#if decision && task.orchestration?.enabled}<p><strong>{schedulingLabels[decision.state]}</strong> · {decision.reason}</p>{/if}
+ {#if task.orchestration?.runId}<p class="muted small">One-shot schedule dispatched. Save schedule settings to arm another attempt.</p>{/if}
+ {#if scheduling}<ScheduleFields bind:value={scheduleEdit} tasks={scope.tasks} taskId={task.id} onsave={saveSchedule} {busy} />
+ {:else if task.orchestration?.dependencies.length}<p class="muted small">Depends on: {task.orchestration.dependencies.map(id=>scope.tasks.find(t=>t.id===id)?.title??id).join(', ')}</p>{/if}
+ </section>
+
     {#if run && status}
       <section class="card runbar" data-tone={status.tone} aria-label="Agent session">
         <div class="runline">
@@ -319,7 +338,7 @@
               <span class="visually-hidden">Show run</span>
               <select class="select" value={viewId} onchange={(e) => (picked = e.currentTarget.value)}>
                 {#each [...history].reverse() as r, i (r.id)}
-                  <option value={r.id}>{i === 0 ? 'Latest' : `Earlier`} · {runStatus(r).label} · {timeAgo(r.createdAt, app.now)}</option>
+                  <option value={r.id}>{i === 0 ? 'Latest' : `Earlier`} · #{r.attempt??history.length-i} · {r.agentId}{r.model ? ` / ${r.model}` : ''} · {r.purpose??'implement'} · {runStatus(r).label} · {timeAgo(r.createdAt, app.now)}</option>
                 {/each}
               </select>
             </label>
@@ -347,7 +366,8 @@
         {:else}
           <p class="hint">{status.hint}</p>
         {/if}
-        {#if worktree}
+        <RunUsage {run} />
+ {#if worktree}
           <p class="where">
             <span class="muted">Working in</span> <code>{worktree.branch}</code>
             <button class="btn small quiet" onclick={copyPath} title={worktree.path}>{copied ? 'Copied' : 'Copy path'}</button>
@@ -366,6 +386,7 @@
       </section>
     {/if}
 
+{#if run && status && !status.active}<RunHandoff {run} {scope} inherited={effective} canContinue={canStart&&!isDone&&viewingLatest} />{/if}
     {#if actionError}
       <p class="error banner" role="alert">{actionError}</p>
     {/if}
@@ -479,6 +500,8 @@
 
   .page {
     display: grid;
+ grid-template-columns:minmax(0,1fr);
+ min-width:0;
     gap: 14px;
     max-width: 52rem;
     padding-bottom: 12px;
@@ -613,10 +636,11 @@
 
   .which {
     margin-left: auto;
+ min-width:0;max-width:100%;flex:1 1 18rem;
   }
 
   .which .select {
-    width: auto;
+    width: 100%;max-width:100%;
     min-height: 32px;
     font-size: 0.8rem;
   }

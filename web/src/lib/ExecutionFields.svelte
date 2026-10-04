@@ -39,7 +39,7 @@
   const hasBelow = $derived(inherited !== undefined);
   // The agent whose models and reasoning levels are offered: this level's own, else the one it would inherit.
   const agentForOptions = $derived(value.agent || inherited?.agent || '');
-  const options = $derived(agentForOptions ? app.agentOptions.get(agentForOptions) : undefined);
+  const options = $derived(app.runners.find(r=>r.id===value.runner)?.capabilities?.options.find(o=>o.agentId===agentForOptions) ?? (agentForOptions ? app.agentOptions.get(agentForOptions) : undefined));
   const models = $derived(modelChoices(options));
   const effectiveModel = $derived(value.model && value.model !== AGENT_DEFAULT ? value.model : (inherited?.model ?? ''));
   const reasoningList = $derived(reasoningChoices(options, effectiveModel));
@@ -61,8 +61,8 @@
   });
   const customProblem = $derived(customOpen && customName.trim() !== '' && !validModelName(customName.trim()) ? 'That does not look like a model name.' : '');
 
-  const usable = $derived(app.agents.filter((a) => a.available));
-  const unavailable = $derived(app.agents.filter((a) => !a.available && a.id === value.agent));
+  const usable = $derived(app.agents.filter((a) => a.available || app.runners.some(r => r.online && !r.disabled && r.capabilities?.agents.some(x => x.id === a.id && x.available))));
+  const unavailable = $derived(app.agents.filter((a) => !usable.some(x=>x.id===a.id) && a.id === value.agent));
 
   // Narrow screens keep the model and reasoning behind a disclosure.
   const wide = typeof matchMedia === 'function' ? matchMedia('(min-width: 700px)').matches : true;
@@ -116,6 +116,16 @@
 
 <div class="fields">
   <div class="field">
+    <label for="{idPrefix}-runner">Runner</label>
+    <select id="{idPrefix}-runner" class="select" {disabled} value={value.runner ?? ''} onchange={e=>set({runner:e.currentTarget.value})}>
+      <option value="">{hasBelow ? 'Same as project / defaults' : 'Automatic'}</option>
+      {#if hasBelow}<option value="automatic">Automatic</option>{/if}
+      {#each app.runners as r (r.id)}<option value={r.id}>{r.name} · {r.disabled ? 'Disabled' : r.online ? `${r.currentRuns}/${r.capacity} capacity` : 'Offline'}</option>{/each}
+      {#if value.runner && value.runner !== 'automatic' && !app.runners.some(r=>r.id===value.runner)}<option value={value.runner}>Unavailable runner ({value.runner})</option>{/if}
+    </select>
+    <p class="hint">A specific runner keeps the task queued when unavailable. Automatic uses eligible machines with automatic routing enabled.</p>
+  </div>
+  <div class="field">
     <label for="{idPrefix}-agent">Agent</label>
     <select id="{idPrefix}-agent" class="select" {disabled} value={value.agent ?? ''} onchange={chooseAgent}>
       <option value="">
@@ -129,7 +139,7 @@
       {/each}
     </select>
     {#if usable.length === 0}
-      <p class="hint">No coding agent is available on this computer yet. Install one under Settings → Agents.</p>
+      <p class="hint">No coding agent is available on an online runner yet. Check Settings → Agents and Runners.</p>
     {/if}
   </div>
 
@@ -237,11 +247,13 @@
 <style>
   .fields {
     display: grid;
+ grid-template-columns:minmax(0,1fr);
     gap: 12px;
   }
 
   .field {
     display: grid;
+ grid-template-columns:minmax(0,1fr);min-width:0;
     gap: 4px;
   }
 

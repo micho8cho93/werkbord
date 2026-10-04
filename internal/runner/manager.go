@@ -26,13 +26,19 @@ import (
 	"devboard/internal/domain"
 	"devboard/internal/gitrepo"
 	"devboard/internal/service"
+	"devboard/internal/store"
 )
 
 // Options configures a Manager. Everything without a default is required.
 type Options struct {
-	Runs     *service.Runs
-	Tasks    *service.Tasks
-	Projects *service.Projects
+	RefreshRemotes func(context.Context, string) error
+	Distributed    *service.Runners
+	Scheduler      *service.Scheduler
+	Handoffs       *service.Handoffs
+	RepositoryLock func(context.Context, string) (func(), error)
+	Runs           *service.Runs
+	Tasks          *service.Tasks
+	Projects       *service.Projects
 	// Settings supplies the global and project execution defaults. Without it only
 	// the task's own settings apply.
 	Settings  *service.Settings
@@ -119,10 +125,15 @@ func bg() context.Context { return context.Background() }
 // StartInput says which task to run, and what, if anything, is different about
 // this run from the task's own settings.
 type StartInput struct {
-	TaskID string
+	TaskID          string
+	ScheduleKey     string
+	ParentRunID     string
+	Purpose         string
+	SelectedContext string
 	// AgentID, Model and Reasoning choose for this run only; empty means use what
 	// the task, its project and the global defaults say (domain.ResolveExecution).
 	// Model and Reasoning belong to an agent, so naming either means naming AgentID.
+	RunnerID  string
 	AgentID   string
 	Model     string
 	Reasoning string
@@ -157,7 +168,11 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		return nil, err
 	}
 	defer m.wg.Done()
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.opt.SetupTimeout)
+	setupContext := context.WithoutCancel(ctx)
+	if in.ScheduleKey != "" {
+		setupContext = ctx
+	}
+	ctx, cancel := context.WithTimeout(setupContext, m.opt.SetupTimeout)
 	defer cancel()
 
 	// 1. Validate.
@@ -173,7 +188,34 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		return nil, err
 	}
 	defer unlock()
+	task, err = m.opt.Tasks.Get(ctx, in.TaskID)
+	if err != nil {
+		return nil, err
+	}
 
+	// Serialize starts across tasks as well as against Git Control actions.
+	projectUnlock, err := m.lock(ctx, "project:"+task.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer projectUnlock()
+	if m.opt.RepositoryLock != nil {
+		release, e := m.opt.RepositoryLock(ctx, task.ProjectID)
+		if e != nil {
+			return nil, e
+		}
+		defer release()
+	}
+	if m.opt.RefreshRemotes != nil {
+		if e := m.opt.RefreshRemotes(ctx, task.ProjectID); e != nil {
+			return nil, e
+		}
+	}
+	if m.opt.Scheduler != nil {
+		if err := m.opt.Scheduler.CheckStart(ctx, task.ID, in.ScheduleKey); err != nil {
+			return nil, err
+		}
+	}
 	project, err := m.opt.Projects.Get(ctx, task.ProjectID)
 	if err != nil {
 		return nil, err
@@ -181,6 +223,16 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	resolved, err := m.resolve(ctx, task, in)
 	if err != nil {
 		return nil, err
+	}
+	var selected *domain.Runner
+	if m.opt.Distributed != nil {
+		selected, resolved, err = m.opt.Distributed.Route(ctx, task, resolved)
+		if err != nil {
+			return nil, err
+		}
+		if selected.Kind == domain.RunnerRemote {
+			return m.startRemote(ctx, in, task, project, selected, resolved)
+		}
 	}
 	adapter, err := m.chooseAgent(ctx, resolved)
 	if err != nil {
@@ -206,6 +258,26 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	if in.Resume && resumeRef == "" {
 		return nil, fmt.Errorf("%w: there is no earlier %s session of this task to continue", domain.ErrInvalid, agentID)
 	}
+	if in.ParentRunID != "" {
+		if in.Resume {
+			return nil, fmt.Errorf("%w: handoff continuation starts a fresh conversation", domain.ErrInvalid)
+		}
+		if m.opt.Handoffs == nil {
+			return nil, fmt.Errorf("%w: handoffs unavailable", domain.ErrInvalid)
+		}
+		parent, e := m.opt.Runs.Get(ctx, in.ParentRunID)
+		if e != nil {
+			return nil, e
+		}
+		if parent.TaskID != task.ID || !parent.State.Terminal() {
+			return nil, fmt.Errorf("%w: parent must be a terminal run of this task", domain.ErrInvalid)
+		}
+		context, e := m.opt.Handoffs.Context(ctx, parent.ID, in.Purpose, in.SelectedContext)
+		if e != nil {
+			return nil, e
+		}
+		in.Instructions += "\n\n" + context
+	}
 	prompt := buildPrompt(task, in.Instructions, in.Resume)
 	// The run keeps a copy of what it started with: editing the task, its project
 	// or the defaults later does not change a session that is already working.
@@ -225,10 +297,22 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		}
 	}
 
+	// A manual start consumes an armed one-shot too, so a later scheduler tick
+	// cannot duplicate work the user deliberately started early.
+	manual := in.ScheduleKey == ""
+	if manual && task.Orchestration.Enabled && task.Orchestration.RunID == "" && !task.Orchestration.Missed && task.Orchestration.Error == "" {
+		in.ScheduleKey = task.Orchestration.Key
+	}
+	var runnerID string
+	var claim func(context.Context, store.Tx, *domain.Run) error
+	if selected != nil {
+		runnerID = selected.ID
+		claim = m.opt.Distributed.Claim(selected, nil)
+	}
 	// 3. Create the run.
 	run, err := m.opt.Runs.Create(ctx, service.NewRun{
 		TaskID: task.ID, AgentID: agentID, Prompt: prompt, WorktreeID: ws.wt.ID, Policy: policy,
-		Model: resolved.Model, Reasoning: resolved.Reasoning,
+		Model: resolved.Model, Reasoning: resolved.Reasoning, ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey, EnforceGates: m.opt.Scheduler != nil, Manual: manual, RunnerID: runnerID, Claim: claim,
 	})
 	if err != nil {
 		discard()
@@ -273,6 +357,16 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 // when the controller last stopped has no process; the message starts one that
 // continues the session.
 func (m *Manager) Send(ctx context.Context, runID, text string) error {
+	if m.opt.Distributed != nil {
+		r, e := m.opt.Runs.Get(ctx, runID)
+		if e != nil {
+			return e
+		}
+		if r.Remote {
+			_, e = m.opt.Distributed.Command(ctx, runID, "send", text)
+			return e
+		}
+	}
 	if text = trimMessage(text); text == "" {
 		return fmt.Errorf("%w: a message is required", domain.ErrInvalid)
 	}
@@ -293,6 +387,15 @@ func (m *Manager) Answer(ctx context.Context, questionID, answer string) (*domai
 	if err != nil {
 		return nil, err
 	}
+	if m.opt.Distributed != nil {
+		r, e := m.opt.Runs.Get(ctx, q.RunID)
+		if e != nil {
+			return nil, e
+		}
+		if r.Remote {
+			return m.opt.Distributed.Answer(ctx, questionID, answer)
+		}
+	}
 	l := m.liveRun(q.RunID)
 	if l == nil {
 		// The process is gone. Recovery and the end of a run close their
@@ -311,6 +414,15 @@ func (m *Manager) Answer(ctx context.Context, questionID, answer string) (*domai
 // no more to do, finishes, and the run completes. An agent that does not exit
 // in time is stopped instead.
 func (m *Manager) Finish(ctx context.Context, runID string) (*domain.Run, error) {
+	if m.opt.Distributed != nil {
+		r, e := m.opt.Runs.Get(ctx, runID)
+		if e != nil {
+			return nil, e
+		}
+		if r.Remote {
+			return m.opt.Distributed.Command(ctx, runID, "finish", "")
+		}
+	}
 	if l := m.liveRun(runID); l != nil {
 		return l.finish(ctx)
 	}
@@ -320,6 +432,15 @@ func (m *Manager) Finish(ctx context.Context, runID string) (*domain.Run, error)
 // Stop ends a session now. The agent and everything it started are killed and
 // the run is stopped. Whatever it changed in the worktree stays there.
 func (m *Manager) Stop(ctx context.Context, runID string) (*domain.Run, error) {
+	if m.opt.Distributed != nil {
+		r, e := m.opt.Runs.Get(ctx, runID)
+		if e != nil {
+			return nil, e
+		}
+		if r.Remote {
+			return m.opt.Distributed.Command(ctx, runID, "stop", "")
+		}
+	}
 	if l := m.liveRun(runID); l != nil {
 		return l.stop(ctx)
 	}
@@ -428,7 +549,7 @@ func (m *Manager) Recover(ctx context.Context) error {
 		return err
 	}
 	for _, r := range active {
-		if r.PID <= 0 {
+		if r.Remote || r.PID <= 0 {
 			continue
 		}
 		res, err := agent.Reap(r.PID, r.ProcessID, m.opt.ReapGrace)
@@ -590,7 +711,7 @@ func orDefault(s string) string {
 // start asks for, then the task's overrides, the project's defaults and the
 // global defaults. The first to set a field wins.
 func (m *Manager) resolve(ctx context.Context, task *domain.Task, in StartInput) (domain.Resolved, error) {
-	run := domain.ExecutionConfig{Agent: in.AgentID, Model: in.Model, Reasoning: in.Reasoning}
+	run := domain.ExecutionConfig{Runner: in.RunnerID, Agent: in.AgentID, Model: in.Model, Reasoning: in.Reasoning}
 	if in.Policy != nil {
 		run.Interaction = in.Policy.Normalized().Interaction
 	}

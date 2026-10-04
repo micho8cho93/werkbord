@@ -26,8 +26,9 @@ type TaskPatch struct {
 	// it leaves unset is inherited from the project and the global defaults. It
 	// applies to runs started afterwards: a run that is already working keeps what
 	// it started with.
-	Execution *domain.ExecutionConfig
-	Version   int64
+	Execution     *domain.ExecutionConfig
+	Orchestration *domain.Orchestration
+	Version       int64
 }
 
 // NewTask describes a task to add.
@@ -37,7 +38,8 @@ type NewTask struct {
 	Description string
 	// Execution is what the task overrides about how its runs are carried out;
 	// anything unset is inherited. A new task starts with no overrides.
-	Execution domain.ExecutionConfig
+	Execution     domain.ExecutionConfig
+	Orchestration domain.Orchestration
 }
 
 // Create adds a task with no overrides to the bottom of the project's Backlog.
@@ -62,7 +64,7 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 	now := s.now()
 	t := &domain.Task{
 		ID: domain.NewID(domain.PrefixTask), ProjectID: projectID, Title: title, Description: in.Description,
-		State: domain.TaskBacklog, Execution: exec, CreatedAt: now, UpdatedAt: now,
+		State: domain.TaskBacklog, Execution: exec, Orchestration: in.Orchestration, CreatedAt: now, UpdatedAt: now,
 	}
 	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
 		if _, err := tx.Projects().Get(ctx, projectID); err != nil {
@@ -73,6 +75,9 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 			return err
 		}
 		t.Position = max + 1
+		if err := configureOrchestration(ctx, tx, t, in.Orchestration); err != nil {
+			return err
+		}
 		if err := tx.Tasks().Create(ctx, t); err != nil {
 			return err
 		}
@@ -133,6 +138,11 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 				return err
 			}
 			t.Execution = exec
+		}
+		if patch.Orchestration != nil {
+			if err := configureOrchestration(ctx, tx, t, *patch.Orchestration); err != nil {
+				return err
+			}
 		}
 		t.UpdatedAt = s.now()
 		if err := tx.Tasks().Update(ctx, t); err != nil {

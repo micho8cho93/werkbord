@@ -14,7 +14,7 @@
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
 export type GlobalView = 'control' | 'projects' | 'settings' | 'onboarding';
-export type ProjectSection = 'board' | 'git' | 'activity' | 'defaults';
+export type ProjectSection = 'board' | 'calendar' | 'git' | 'activity' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding'>; label: string; short: string }[] = [
@@ -28,6 +28,7 @@ const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding'];
 
 export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] = [
   { id: 'board', label: 'Board' },
+  { id: 'calendar', label: 'Calendar' },
   { id: 'git', label: 'Git' },
   { id: 'activity', label: 'Activity' },
   // The project's defaults (agent, model, reasoning, interaction, priority). Its address says "defaults" so

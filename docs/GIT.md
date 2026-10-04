@@ -29,7 +29,7 @@ Code: `internal/gitrepo` (the Git engine), `internal/github` (the `gh` wrapper),
 The overview JSON keeps them apart (`local`, `remote`, and GitHub from its own endpoint), and so does
 the screen: *On this computer* and *On the remote* are separate blocks. Everything the overview says
 about a remote ("2 commits behind origin/main") is derived from remote-tracking refs, is labelled as
-being as of the last fetch, and is only updated by an explicit **Fetch**.
+being as of the last fetch, and is updated by **Fetch**. For projects with distributed runs, review comparisons and merge/PR checks also refresh tracking refs before inspecting shared work. See [RUNNERS.md](RUNNERS.md).
 
 **A local change is never presented as something that happened on a remote.** Every action returns a
 `GitActionResult` whose `local` and `remote` effects are separate:

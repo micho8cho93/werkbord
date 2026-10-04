@@ -226,6 +226,7 @@ func (a *Adapter) Start(ctx context.Context, req agent.StartRequest) (agent.Sess
 	s := newSession(agent.ProcSpec{
 		Command: a.cfg.Command, Args: args, Dir: req.WorkDir, Env: agent.SanitizedEnv(os.Environ()),
 	}, req.WorkDir)
+	s.resumedUsage = req.ResumeRef != ""
 	if err := s.Launch(); err != nil {
 		return nil, err
 	}

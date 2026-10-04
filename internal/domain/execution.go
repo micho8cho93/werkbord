@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// Priority says how soon the user wants a task looked at. Nothing schedules by
-// it yet: it orders the user's own attention, and is shown on the card.
+// Priority is a scheduling preference after due time and execution order.
+// It does not imply dependencies or change the earliest start time.
 type Priority string
 
 const (
@@ -50,6 +50,8 @@ const AgentDefault = "default"
 // This is what stops a task that switches from Claude Code to Codex from being
 // handed a project default of "opus".
 type ExecutionConfig struct {
+	// Runner is "automatic", a runner ID, or empty to inherit. No implicit fallback.
+	Runner string `json:"runner,omitempty"`
 	// Agent is the adapter ID ("claude-code", "codex").
 	Agent string `json:"agent,omitempty"`
 	// Model is one of the agent's model IDs or aliases, or AgentDefault.
@@ -94,6 +96,9 @@ func (c ExecutionConfig) IsZero() bool { return c == ExecutionConfig{} }
 // the last word on a model.
 func (c ExecutionConfig) Validate() error {
 	c = c.Normalized()
+	if c.Runner != "" && c.Runner != "automatic" && (!strings.HasPrefix(c.Runner, "rnr_") || len(c.Runner) > 100) {
+		return fmt.Errorf("%w: invalid runner ID", ErrInvalid)
+	}
 	if c.Agent != "" && !agentIDRE.MatchString(c.Agent) {
 		return fmt.Errorf("%w: %q is not an agent ID", ErrInvalid, c.Agent)
 	}
@@ -130,6 +135,7 @@ const (
 
 // Resolved is the outcome of resolving the hierarchy: what a run will use.
 type Resolved struct {
+	Runner string `json:"runner"`
 	// Agent is empty when no level chose one; the controller then uses the first
 	// agent that can be used.
 	Agent string `json:"agent"`
@@ -171,6 +177,12 @@ func ResolveExecution(levels ...Level) Resolved {
 	r := Resolved{
 		Interaction: InteractionInteractive, Priority: PriorityNormal,
 		Sources: ResolvedSources{Agent: SourceDefault, Model: SourceDefault, Reasoning: SourceDefault, Interaction: SourceDefault, Priority: SourceDefault},
+	}
+	for _, l := range levels {
+		if l.Config.Runner != "" {
+			r.Runner = l.Config.Runner
+			break
+		}
 	}
 	for _, l := range levels {
 		if l.Config.Agent != "" {

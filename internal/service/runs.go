@@ -21,6 +21,7 @@ import (
 // it meant. See domain.EventAgentStarted and its neighbours.
 type Runs struct {
 	Deps
+	Handoffs *Handoffs
 }
 
 // Limits on what an agent can make the controller store.
@@ -49,8 +50,16 @@ type NewRun struct {
 	Policy domain.ExecutionPolicy
 	// Model and Reasoning are what the agent is started with; empty means the
 	// agent's own default.
-	Model     string
-	Reasoning string
+	Model        string
+	Reasoning    string
+	ParentRunID  string
+	Purpose      string
+	ScheduleKey  string
+	EnforceGates bool
+	Manual       bool
+	RunnerID     string
+	Remote       bool
+	Claim        func(context.Context, store.Tx, *domain.Run) error
 }
 
 // Create records a new run in the starting state. It does not mean an agent is
@@ -73,6 +82,8 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 	r := &domain.Run{
 		ID: domain.NewID(domain.PrefixRun), TaskID: in.TaskID, AgentID: in.AgentID, State: domain.RunStarting,
 		WorktreeID: in.WorktreeID, Prompt: in.Prompt, Policy: in.Policy.Normalized(), Model: in.Model, Reasoning: in.Reasoning,
+		ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey,
+		RunnerID: in.RunnerID, Remote: in.Remote, Usage: domain.Usage{CostKind: "usage_only"},
 		Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
@@ -81,13 +92,65 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 			return err
 		}
 		r.ProjectID = task.ProjectID
+		r.Handoff = &domain.Handoff{Objective: task.Title + "\n" + task.Description}
+		r.Handoff.Normalize()
+		if in.EnforceGates {
+			x, e := scheduleRead(ctx, tx, task.ProjectID)
+			if e != nil {
+				return e
+			}
+			d := baseDecision(*task, x, now, in.Manual)
+			if d.State != "runnable" {
+				return fmt.Errorf("%w: %s", domain.ErrConflict, d.Reason)
+			}
+		}
+		if in.ParentRunID != "" {
+			parent, e := tx.Runs().Get(ctx, in.ParentRunID)
+			if e != nil {
+				return e
+			}
+			if parent.TaskID != task.ID || !parent.State.Terminal() {
+				return fmt.Errorf("%w: continuation requires a terminal run of this task", domain.ErrInvalid)
+			}
+		}
+		if in.ScheduleKey != "" {
+			o := &task.Orchestration
+			if !o.Enabled || o.Key != in.ScheduleKey || o.RunID != "" || o.Missed || o.Error != "" {
+				return fmt.Errorf("%w: schedule already claimed or changed", domain.ErrConflict)
+			}
+			x, e := scheduleRead(ctx, tx, task.ProjectID)
+			if e != nil {
+				return e
+			}
+			d := baseDecision(*task, x, now, in.Manual)
+			if d.State != "runnable" {
+				return fmt.Errorf("%w: %s", domain.ErrConflict, d.Reason)
+			}
+			o.RunID = r.ID
+			o.DispatchedAt = &now
+			task.UpdatedAt = now
+			if e := tx.Tasks().Update(ctx, task); e != nil {
+				return e
+			}
+			ev := newEvent(domain.EventTaskUpdated, task)
+			ev.ProjectID, ev.TaskID = task.ProjectID, task.ID
+			if e := em.emit(ev); e != nil {
+				return e
+			}
+		}
 		prior, err := tx.Runs().ListByTask(ctx, task.ID)
 		if err != nil {
 			return err
 		}
+		r.Attempt = len(prior) + 1
 		for _, p := range prior {
 			if !p.State.Terminal() {
 				return fmt.Errorf("task %s already has an active run (%s, %s): %w", task.ID, p.ID, p.State, domain.ErrConflict)
+			}
+		}
+		if in.Claim != nil {
+			if err := in.Claim(ctx, tx, r); err != nil {
+				return err
 			}
 		}
 		if err := tx.Runs().Create(ctx, r); err != nil {
@@ -175,6 +238,13 @@ func (s *Runs) End(ctx context.Context, id string, in Ended) (*domain.Run, error
 	if err != nil {
 		return nil, err
 	}
+	if s.Handoffs != nil {
+		if captured, e := s.Handoffs.Generate(ctx, r.ID); e == nil {
+			r = captured
+		} else {
+			s.log().Warn("handoff capture failed", "run", r.ID, "err", e)
+		}
+	}
 	return r, nil
 }
 
@@ -186,6 +256,13 @@ func (s *Runs) end(ctx context.Context, tx store.Tx, em *emitter, r *domain.Run,
 		return err
 	}
 	r.ExitCode = in.ExitCode
+	{
+		h, err := basicHandoff(ctx, tx, r, s.now())
+		if err != nil {
+			return err
+		}
+		r.Handoff = h
+	}
 	if err := cancelOpen(ctx, tx, em, r, why, s.now()); err != nil {
 		return err
 	}
@@ -194,6 +271,29 @@ func (s *Runs) end(ctx context.Context, tx store.Tx, em *emitter, r *domain.Run,
 	}
 	if err := emitRun(em, r, from); err != nil {
 		return err
+	}
+	if r.ScheduleKey != "" && r.State == domain.RunCompleted {
+		t, e := tx.Tasks().Get(ctx, r.TaskID)
+		if e != nil {
+			return e
+		}
+		if t.State != domain.TaskDone && t.State != domain.TaskReview {
+			max, e := tx.Tasks().MaxPosition(ctx, t.ProjectID, domain.TaskReview)
+			if e != nil {
+				return e
+			}
+			t.State = domain.TaskReview
+			t.Position = max + 1
+			t.UpdatedAt = s.now()
+			if e := tx.Tasks().Update(ctx, t); e != nil {
+				return e
+			}
+			ev := newEvent(domain.EventTaskUpdated, t)
+			ev.ProjectID, ev.TaskID = t.ProjectID, t.ID
+			if e := em.emit(ev); e != nil {
+				return e
+			}
+		}
 	}
 	kind := map[domain.RunState]domain.EventType{
 		domain.RunCompleted: domain.EventAgentCompleted,
@@ -764,6 +864,9 @@ func (s *Runs) RecoverAfterRestart(ctx context.Context) (int, error) {
 		}
 		for i := range active {
 			r := &active[i]
+			if r.Remote {
+				continue
+			}
 			// A run that is already idle or blocked, with no process, needs nothing.
 			idle := r.State == domain.RunWaitingForUser && r.Waiting == domain.WaitIdle
 			if (idle || r.State == domain.RunBlocked) && r.SessionRef != "" && r.PID == 0 {

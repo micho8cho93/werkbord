@@ -299,3 +299,8 @@ describe('the Control Center stays across projects', () => {
     expect(app.taskInfo('tsk_nope', 'prj_a')).toBeUndefined();
   });
 });
+
+ it('selects the later attempt when runs share a timestamp',()=>{
+  const first=run('one','task','project',{attempt:1});const second=run('two','task','project',{attempt:2});
+  expect(newer(first,second)).toBe(second);expect(newer(second,first)).toBe(second);
+ });

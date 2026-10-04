@@ -28,6 +28,7 @@
               {#if isNotable(run.policy)}· {interactionShort(run.policy)}{/if}
             </span>
           </div>
+          {#if run.parentRunId}<p class="small muted">Run #{run.attempt} · {run.purpose} from {scope.history.find(r=>r.id===run.parentRunId)?.agentId??'an earlier run'}{run.model?` · ${run.model}`:''}</p>{:else if run.attempt}<p class="small muted">Run #{run.attempt}{run.model?` · ${run.model}`:''}</p>{/if}
           {#if cardActivity(run)}<p class="activity" class:bad={run.state === 'failed'}>{cardActivity(run)}</p>{/if}
         </li>
       {/each}

@@ -40,6 +40,7 @@
     try {
       const settled = await api.answerQuestion(question, value);
       app.resolveQuestion(settled);
+      if(settled.state === "answered" && !settled.deliveredAt) app.notify("Answer saved. Waiting for the runner to acknowledge delivery.");
       text = '';
     } catch (err) {
       const failure = describeAnswerFailure(err);

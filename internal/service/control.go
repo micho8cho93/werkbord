@@ -16,13 +16,18 @@ import (
 // present it.
 type ControlCenter struct {
 	Deps
+	Scheduler *Scheduler
+	Runners   *Runners
 }
 
 // Overview is what the Control Center shows.
 type Overview struct {
+	Runners []domain.Runner `json:"runners"`
+	Usage   []UsageSummary  `json:"usage"`
 	// Projects has one entry per project, in registration order, with what is
 	// going on in it. A project with nothing going on has all-zero counts.
-	Projects []ProjectActivity `json:"projects"`
+	Projects      []ProjectActivity   `json:"projects"`
+	Orchestration []AttentionSchedule `json:"orchestration"`
 	// Questions are the pending questions of every project, oldest first.
 	Questions []AttentionQuestion `json:"questions"`
 	// Runs are the runs that still have a session, in every project, oldest first.
@@ -42,8 +47,11 @@ type Overview struct {
 
 // ProjectActivity counts what is happening in one project, by what it asks of the user.
 type ProjectActivity struct {
-	ProjectID string `json:"projectId"`
-	Name      string `json:"name"`
+	ProjectID         string `json:"projectId"`
+	Name              string `json:"name"`
+	Scheduled         int    `json:"scheduled"`
+	Queued            int    `json:"queued"`
+	WaitingDependency int    `json:"waitingDependency"`
 	// NeedsInput: runs waiting for an answer to a question.
 	NeedsInput int `json:"needsInput"`
 	// Blocked: runs that stopped rather than guess.
@@ -60,6 +68,12 @@ type ProjectActivity struct {
 	RepoAttention int `json:"repoAttention"`
 	// RepoRisk: open health findings of risk level or worse.
 	RepoRisk int `json:"repoRisk"`
+}
+
+type AttentionSchedule struct {
+	Task        domain.Task               `json:"task"`
+	ProjectName string                    `json:"projectName"`
+	Decision    domain.SchedulingDecision `json:"decision"`
 }
 
 // AttentionReview is a task waiting for review with where it belongs.
@@ -91,7 +105,7 @@ type AttentionRun struct {
 // Overview reads every project's active state.
 func (s *ControlCenter) Overview(ctx context.Context) (*Overview, error) {
 	out := &Overview{Projects: []ProjectActivity{}, Questions: []AttentionQuestion{}, Runs: []AttentionRun{},
-		Failed: []AttentionRun{}, Review: []AttentionReview{}, Repository: []domain.HealthFinding{}}
+		Orchestration: []AttentionSchedule{}, Failed: []AttentionRun{}, Review: []AttentionReview{}, Repository: []domain.HealthFinding{}}
 	now := s.now()
 	err := s.Store.View(ctx, func(tx store.Tx) error {
 		projects, err := tx.Projects().List(ctx)
@@ -168,7 +182,7 @@ func (s *ControlCenter) Overview(ctx context.Context) (*Overview, error) {
 				switch {
 				case activeTasks[task.ID]:
 					// Something is going on: it is in the running list, not an exception.
-				case ran && r.State == domain.RunFailed && (task.State == domain.TaskDoing || task.State == domain.TaskReview) &&
+				case ran && r.State == domain.RunFailed && task.State != domain.TaskDone && (task.State == domain.TaskDoing || task.State == domain.TaskReview || r.ScheduleKey != "") &&
 					r.EndedAt != nil && now.Sub(*r.EndedAt) <= failedWindow:
 					titles[task.ID] = task.Title
 					out.Failed = append(out.Failed, AttentionRun{Run: r, ProjectName: p.Name, TaskTitle: task.Title})
@@ -216,10 +230,59 @@ func (s *ControlCenter) Overview(ctx context.Context) (*Overview, error) {
 			}
 			out.Questions = append(out.Questions, AttentionQuestion{Question: q, ProjectName: names[q.ProjectID], TaskTitle: t, AgentID: agentOf[q.RunID]})
 		}
-		return nil
+		var usageErr error
+		out.Usage, usageErr = RecentUsage(ctx, tx, now)
+		return usageErr
 	})
 	if err != nil {
 		return nil, err
+	}
+	if s.Scheduler != nil {
+		for i := range out.Projects {
+			p := &out.Projects[i]
+			plan, e := s.Scheduler.Plan(ctx, p.ProjectID)
+			if e != nil {
+				return nil, e
+			}
+			byID := map[string]domain.Task{}
+			e = s.Store.View(ctx, func(tx store.Tx) error {
+				ts, e := tx.Tasks().ListByProject(ctx, p.ProjectID)
+				for _, t := range ts {
+					byID[t.ID] = t
+				}
+				return e
+			})
+			if e != nil {
+				return nil, e
+			}
+			for _, d := range plan {
+				t := byID[d.TaskID]
+				o := t.Orchestration
+				if !o.Enabled || o.RunID != "" || t.State == domain.TaskDone {
+					continue
+				}
+				out.Orchestration = append(out.Orchestration, AttentionSchedule{Task: t, ProjectName: p.Name, Decision: d})
+				switch d.State {
+				case "waiting_schedule":
+					p.Scheduled++
+				case "waiting_dependency":
+					p.WaitingDependency++
+				case "blocked":
+					p.Blocked++
+				default:
+					p.Queued++
+				}
+			}
+		}
+	}
+	if s.Runners != nil {
+		var e error
+		out.Runners, e = s.Runners.List(ctx)
+		if e != nil {
+			return nil, e
+		}
+	} else {
+		out.Runners = []domain.Runner{}
 	}
 	return out, nil
 }

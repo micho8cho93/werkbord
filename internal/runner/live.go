@@ -37,7 +37,8 @@ type live struct {
 	done      chan struct{}
 	closeOnce sync.Once
 
-	policy domain.ExecutionPolicy // the run's, fixed when it started
+	scheduled bool
+	policy    domain.ExecutionPolicy // the run's, fixed when it started
 
 	mu        sync.Mutex
 	questions map[string]string // question ID -> the adapter's ref for it
@@ -62,7 +63,7 @@ const maxTurnText = 16 << 10
 
 func newLive(m *Manager, run *domain.Run, sess agent.Session) *live {
 	return &live{
-		m: m, runID: run.ID, sess: sess, policy: run.Policy.Normalized(), done: make(chan struct{}),
+		m: m, runID: run.ID, sess: sess, scheduled: run.ScheduleKey != "", policy: run.Policy.Normalized(), done: make(chan struct{}),
 		questions: map[string]string{}, refs: map[string]string{},
 	}
 }
@@ -108,6 +109,10 @@ func (l *live) loop() {
 					if size >= opt.FlushBytes {
 						flush()
 					}
+				}
+			case agent.KindUsage:
+				if ev.Usage != nil {
+					_, _ = opt.Runs.SetUsage(bg(), l.runID, *ev.Usage)
 				}
 			case agent.KindSessionRef:
 				l.onSessionRef(ev.SessionRef)
@@ -264,8 +269,19 @@ func (l *live) onTurnEnd() {
 			// Not running (it is waiting on an approval, or over): an ordinary end of turn.
 		}
 	}
-	if _, err := l.m.opt.Runs.MarkIdle(bg(), l.runID); err != nil {
+	r, err := l.m.opt.Runs.MarkIdle(bg(), l.runID)
+	if err != nil {
 		l.m.log().Warn("cannot record the end of a turn", "run", l.runID, "err", err)
+		return
+	}
+	// One-shot scheduled runs release capacity after a completed turn. A question
+	// or blocker still keeps its normal policy state and is never auto-answered.
+	if l.scheduled && r.State == domain.RunWaitingForUser && r.Waiting == domain.WaitIdle {
+		go func() {
+			if _, err := l.m.Finish(bg(), l.runID); err != nil && !errors.Is(err, domain.ErrConflict) {
+				l.m.log().Warn("cannot finish scheduled turn", "run", l.runID, "err", err)
+			}
+		}()
 	}
 }
 

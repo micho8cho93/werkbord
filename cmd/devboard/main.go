@@ -49,6 +49,8 @@ commands:
   uninstall             remove the login service (your data stays)
   logs [-n N]           show the end of the controller's log
 
+  join <pairing-code>   pair and start this machine as a remote runner
+  runner                manage the remote runner service and repository bindings
   serve                 run the controller in the foreground
   migrate               apply database migrations and exit
   project add <path>    register an existing local Git repository
@@ -81,6 +83,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 	a := newApp(cfg, stdout, stderr)
 	ctx := context.Background()
 	switch args[0] {
+	case "join":
+		return cmdJoin(cfg, args[1:], stdout, stderr)
+	case "runner":
+		return cmdRunner(cfg, args[1:], stdout, stderr)
 	case "setup", "install":
 		return a.cmdSetup(ctx, args[1:])
 	case "start":

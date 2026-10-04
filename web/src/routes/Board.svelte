@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ApiError, api } from '../lib/api';
+  import {schedulingLabels} from '../lib/scheduling';
+ import { ApiError, api } from '../lib/api';
   import { agentName, cardActivity, oneLine, runElapsed, runStatus } from '../lib/format';
   import { compact, hasOverrides, priorityLabel, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
@@ -128,6 +129,7 @@
       <ul class="cards">
         {#each col.tasks as task (task.id)}
           {@const run = scope.latestRun[task.id]}
+ {@const decision=scope.decisions.find(d=>d.taskId===task.id)}
           {@const status = run ? runStatus(run) : undefined}
           {@const ask = run ? scope.pendingFor(run.id) : []}
           {@const eff = resolveFor(task.execution, project.execution, app.globalExecution)}
@@ -154,6 +156,9 @@
                 {/if}
               </div>
             {/if}
+{#if decision && task.orchestration?.enabled && !task.orchestration.runId}
+ <p class="meta" title={decision.reason}><strong>{schedulingLabels[decision.state]}</strong> · {oneLine(decision.reason,110)}</p>
+ {/if}
             <div class="foot">
               <label class="move">
                 <span class="visually-hidden">Move “{task.title}” to</span>

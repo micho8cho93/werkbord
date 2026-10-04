@@ -1,8 +1,9 @@
 # Devboard architecture
 
 Devboard is a **local-first control plane for coding agents**. One program, the
-controller, runs on your computer. It owns the repositories, the credentials, the
-database, the agent sessions and all development state. Phones, tablets and browsers
+controller, runs on your computer. It owns SQLite, the board, calendar, scheduler and
+user-facing application. Local or paired runners own their agent processes, Git clones,
+worktrees and credentials. Phones, tablets and browsers
 are remote controls for it. There is no hosted backend, no account system and no cloud
 database.
 
@@ -32,7 +33,7 @@ questions (§15), projects as the scope of the application (§16), per-task exec
 └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-It is a **modular monolith**: one binary (`bin/devboard`), one process, one SQLite file,
+The controller is a **modular monolith**: one binary (`bin/devboard`), one SQLite file,
 with package boundaries doing the job that service boundaries would do in a distributed
 system. No Docker, no Electron, no second language on the backend.
 
@@ -875,4 +876,39 @@ and policy on the run, and passes them to the adapter. See [EXECUTION.md](EXECUT
 and network; the CLI adds the service, version and PATH-parity checks, and runs what it can when the controller is
 down. Checks report states, never values: the token, the sign-in link and GitHub's code cannot reach a report.
 
-*Deferred, as before:* scheduling, calendar, hand-offs, multi-runner execution, economics, and any Brain.
+## 21. V1 orchestration
+
+Task.Orchestration is the shared source of truth for Board and Calendar, stored
+as JSON in the existing SQLite tasks table. The controller starts ScheduleLoop
+only after recovering runs, and cancels/joins it before shutting down the runner.
+Scheduler.Plan applies deterministic ordering and conservative Git gates. The
+runner shares GitControl's repository-action lock; Runs.Create atomically checks
+and consumes a schedule key with its new run. A unique index prevents duplicate
+dispatch. Dependencies are checked against a project-scoped graph, with cycle
+validation inside task edits. Project concurrency is persisted in settings.
+Runs snapshot their objective and store a structured handoff, parent run, purpose,
+and monotonically increasing attempt. Continuation reuses the worktree with a
+fresh agent conversation and bounded selected evidence. See [ORCHESTRATION.md](ORCHESTRATION.md)
+for API contracts, limits and the exact recovery/completion semantics.
+
+*Deferred:* multi-runner execution, recurring schedules, economics, and any Brain.
+
+## Multi-runner control plane
+
+`internal/service.Runners` pairs identities, applies owner-defined project permissions, chooses
+machines deterministically and claims capacity in the same serialized SQLite transaction that
+creates the Run and scheduled claim. Each Run records its owning runner, branch, base/head commits
+and normalized usage. Capacity counts starting, running, blocked and idle sessions; lost heartbeats
+change availability without releasing ownership. Existing local runs without a runner ID count toward
+the controller machine's capacity.
+
+`internal/runnerwire` defines only signed pairing and heartbeat/report messages. `internal/remote`
+is the separate runner process, backed by private atomic JSON identity and run journals rather than
+a replica of controller SQLite. It fetches authorized repository origins, creates unique worktrees,
+starts local adapters and journals observations before retransmission. Ordered observations and
+commands survive network interruptions. A new job cannot relaunch a journaled run after restart.
+
+`devboard join` embeds a separate private-network node and installs a separately named runner login
+service. Agent and Git authentication stay on the machine that executes. Runner keys have no access
+to board CRUD, project administration or any owner endpoint. These machines belong to one user;
+this is not a team or multi-user service. See [RUNNERS.md](RUNNERS.md) for the operational and security contract.

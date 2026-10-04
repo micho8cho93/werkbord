@@ -129,6 +129,7 @@ const (
 	// KindOutput is text for the activity feed: something the agent said, a tool
 	// it used, a notice.
 	KindOutput EventKind = "output"
+	KindUsage  EventKind = "usage"
 	// KindQuestion means the agent is blocked until Respond is called with the
 	// question's Ref.
 	KindQuestion EventKind = "question"
@@ -143,6 +144,7 @@ const (
 
 // Event is one normalised piece of agent behaviour.
 type Event struct {
+	Usage      *domain.Usage
 	Kind       EventKind
 	Stream     domain.OutputStream // KindOutput
 	Text       string              // KindOutput; for KindTurnEnd, a short summary if the agent gave one

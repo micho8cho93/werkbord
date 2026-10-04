@@ -35,6 +35,7 @@ export type Priority = 'low' | 'normal' | 'high';
  * sets either must set the agent too.
  */
 export interface ExecutionConfig {
+ runner?: string;
   agent?: string;
   model?: string;
   reasoning?: string;
@@ -83,6 +84,31 @@ export interface Project {
   repository?: GitRepository;
 }
 
+export interface Orchestration {
+ enabled: boolean;
+ scheduledAt?: string;
+ notBefore?: string;
+ deadline?: string;
+ timezone?: string;
+ executionOrder?: number;
+ dependencies: string[];
+ expectedPaths: string[];
+ targetCommit?: string;
+ missedPolicy?: 'run_late' | 'skip';
+ graceSeconds?: number;
+ key?: string;
+ dispatchedAt?: string;
+ runId?: string;
+ missed?: boolean;
+ error?: string;
+}
+export interface SchedulingDecision { taskId: string; state: 'runnable'|'queued'|'waiting_dependency'|'waiting_schedule'|'waiting_capacity'|'potentially_conflicting'|'blocked'; reason: string }
+export interface Handoff {
+ objective: string; summary: string; filesChanged: string[]; decisions: string[]; tests: string[];
+ results: string; gitState: string; knownIssues: string[]; blockers: string[]; questions: string[];
+ nextAction: string; generatedAt: string;
+}
+export interface AttentionSchedule { task: Task; projectName: string; decision: SchedulingDecision }
 export interface Task {
   id: string;
   projectId: string;
@@ -90,6 +116,7 @@ export interface Task {
   description: string;
   state: TaskState;
   position: number;
+  orchestration?: Orchestration;
   /** What this task overrides about how its runs are carried out; anything unset is inherited. */
   execution: ExecutionConfig;
   version: number;
@@ -98,6 +125,9 @@ export interface Task {
 }
 
 export interface Run {
+ runnerId?: string; remote?: boolean; branch?: string; baseCommit?: string; headCommit?: string; uncommitted?: boolean; usage?: Usage;
+ attempt?: number;
+ parentRunId?: string; purpose?: string; scheduleKey?: string; handoff?: Handoff;
   id: string;
   taskId: string;
   projectId: string;
@@ -198,10 +228,22 @@ export interface AgentOptions {
   note?: string;
 }
 
+export interface Usage {
+ inputTokens?: number; outputTokens?: number; cachedTokens?: number; apiCalls?: number;
+ costUsd?: number; costKind: 'actual_api' | 'estimated_api_equivalent' | 'usage_only'; source?: string; acceptance?: 'accepted' | 'rejected';
+}
+export interface UsageSummary {
+ projectId: string; runnerId: string; agentId: string; runs: number; retries: number; runtimeSeconds: number;
+ inputTokens: number; outputTokens: number; tokenRuns: number; actualCostUsd: number; estimatedCostUsd: number; costRuns: number; actualCostRuns: number; estimatedCostRuns: number; accepted: number; rejected: number;
+}
+export interface RoutingRule {name: string; contains?: string; retry: boolean; agent?: string; model?: string; reasoning?: string; minCpu?: number; minRamBytes?: number}
+export interface Pairing {code: string; expiresAt: string; projects: string[]; allowClone: boolean}
 export interface Runner {
+ disabled: boolean; capacity: number; automatic: boolean; projects: string[]; allowClone: boolean; currentRuns: number;
+ capabilities: {cloneEnabled?: boolean; cpu: number; ramBytes?: number; availableRamBytes?: number; storageBytes?: number; agents: Agent[]; options: AgentOptions[]; repositories: string[]; diagnostics?: string};
   id: string;
   name: string;
-  kind: 'local';
+  kind: 'local' | 'remote';
   hostname: string;
   os: string;
   arch: string;
@@ -332,6 +374,7 @@ export interface ControllerEvent {
 
 /** One project's activity, as counted by the Control Center. */
 export interface ProjectActivity {
+ scheduled?: number; queued?: number; waitingDependency?: number;
   projectId: string;
   name: string;
   needsInput: number;
@@ -370,6 +413,8 @@ export interface AttentionRun {
 
 /** What `GET /api/control-center` returns: what needs the user, and what is going on, in every project. */
 export interface Overview {
+ runners?: Runner[]; usage?: UsageSummary[];
+ orchestration?: AttentionSchedule[];
   projects: ProjectActivity[];
   questions: AttentionQuestion[];
   runs: AttentionRun[];

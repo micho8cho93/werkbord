@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { name }: { name: 'board' | 'control' | 'git' | 'activity' | 'projects' | 'settings' | 'defaults' } = $props();
+  let { name }: { name: 'board' | 'calendar' | 'control' | 'git' | 'activity' | 'projects' | 'settings' | 'defaults' } = $props();
 </script>
 
 <svg
@@ -17,7 +17,9 @@
     <rect x="3" y="4" width="5" height="16" rx="1.5" />
     <rect x="10" y="4" width="5" height="11" rx="1.5" />
     <rect x="17" y="4" width="4" height="7" rx="1.5" />
-  {:else if name === 'control'}
+  {:else if name === 'calendar'}
+ <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4M17 3v4M3 11h18M8 15h2M14 15h2" />
+ {:else if name === 'control'}
     <circle cx="12" cy="12" r="8" />
     <path d="M12 8v4l2.5 2.5" />
   {:else if name === 'activity'}

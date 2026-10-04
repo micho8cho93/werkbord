@@ -26,9 +26,9 @@ import (
 // READING looks at a project's real repository through the git executable, joins
 // what it finds with Dev Board's records (which branch belongs to which task and
 // run, which worktrees Dev Board made) and returns it in shapes made for a phone.
-// Reading never changes anything and never touches the network, except the
-// GitHub reads, which are separate calls so that GitHub being slow or signed out
-// cannot slow down or break the local picture.
+// Overview reading never changes anything or touches the network. Distributed
+// review comparisons refresh tracking refs first; GitHub reads, which are separate calls so that GitHub being slow or signed out
+// cannot slow down or break the local overview.
 //
 // ACTING (push, merge, delete, clean, open a pull request, fetch) is where
 // safety lives. Every action is the same four steps, in this order, under one
@@ -78,6 +78,11 @@ func (s *GitControl) lock(ctx context.Context, projectID string) (unlock func(),
 	}
 }
 
+// LockExecution shares repository-operation serialization with agent setup.
+func (s *GitControl) LockExecution(ctx context.Context, projectID string) (func(), error) {
+	return s.lock(ctx, projectID)
+}
+
 // gitCtx is a project and the repository it was just confirmed to still be.
 type gitCtx struct {
 	project domain.Project
@@ -124,12 +129,13 @@ func (s *GitControl) resolve(ctx context.Context, projectID string) (*gitCtx, er
 // gitAssoc is Dev Board's side of a branch: the worktrees it made, the runs that
 // used them and the tasks they belong to.
 type gitAssoc struct {
-	worktrees []domain.Worktree
-	byID      map[string]domain.Worktree
-	byBranch  map[string][]domain.Worktree
-	byPath    map[string]domain.Worktree // active records, by canonical path
-	runsByWT  map[string][]domain.Run
-	tasks     map[string]domain.Task
+	worktrees  []domain.Worktree
+	byID       map[string]domain.Worktree
+	byBranch   map[string][]domain.Worktree
+	byPath     map[string]domain.Worktree // active records, by canonical path
+	remoteRuns []domain.Run
+	runsByWT   map[string][]domain.Run
+	tasks      map[string]domain.Task
 }
 
 // canonPath resolves symlinks where it can, so a path Git printed and a path
@@ -177,6 +183,9 @@ func (s *GitControl) associations(ctx context.Context, projectID string) (*gitAs
 		}
 	}
 	for _, r := range runs {
+		if r.Remote && r.Branch != "" {
+			a.remoteRuns = append(a.remoteRuns, r)
+		}
 		if r.WorktreeID != "" {
 			a.runsByWT[r.WorktreeID] = append(a.runsByWT[r.WorktreeID], r)
 		}
@@ -191,6 +200,11 @@ func (s *GitControl) associations(ctx context.Context, projectID string) (*gitAs
 // runsOn is every run that used a worktree of this branch, oldest first.
 func (a *gitAssoc) runsOn(branch string) []domain.Run {
 	var out []domain.Run
+	for _, r := range a.remoteRuns {
+		if r.Branch == branch {
+			out = append(out, r)
+		}
+	}
 	for _, w := range a.byBranch[branch] {
 		out = append(out, a.runsByWT[w.ID]...)
 	}
@@ -383,7 +397,7 @@ func (s *GitControl) overview(ctx context.Context, t *gitCtx, a *gitAssoc) (*dom
 	}
 	remoteBranches := make([]domain.GitBranch, len(remoteOnly))
 	forEach(len(remoteOnly), gitWorkers, func(i int) {
-		remoteBranches[i] = s.remoteBranch(ctx, t, remoteOnly[i], tinfo, byRef, now, &nt)
+		remoteBranches[i] = s.remoteBranch(ctx, t, a, remoteOnly[i], tinfo, byRef, now, &nt)
 	})
 
 	sort.SliceStable(branches, func(i, j int) bool {
@@ -594,7 +608,7 @@ func (s *GitControl) localBranch(ctx context.Context, t *gitCtx, a *gitAssoc, r 
 }
 
 // remoteBranch describes a remote-tracking branch that no local branch tracks.
-func (s *GitControl) remoteBranch(ctx context.Context, t *gitCtx, r gitrepo.RefInfo, tinfo gitrepo.TargetInfo, byRef map[string]gitrepo.RefInfo, now time.Time, nt *notes) domain.GitBranch {
+func (s *GitControl) remoteBranch(ctx context.Context, t *gitCtx, a *gitAssoc, r gitrepo.RefInfo, tinfo gitrepo.TargetInfo, byRef map[string]gitrepo.RefInfo, now time.Time, nt *notes) domain.GitBranch {
 	b := domain.GitBranch{
 		Name: r.Name, Ref: r.Ref, Scope: domain.ScopeRemote, Remote: r.Remote, Sha: r.Sha, Subject: r.Subject, CommitDate: r.Date,
 		VsTarget: domain.GitVsTarget{Relation: domain.RelUnknown}, Attention: []domain.GitAttention{},
@@ -605,6 +619,7 @@ func (s *GitControl) remoteBranch(ctx context.Context, t *gitCtx, r gitrepo.RefI
 		b.Unusual = err.Error()
 	}
 	short := strings.TrimPrefix(r.Name, r.Remote+"/")
+	b.DevBoard = a.ownership(short)
 	if _, ok := byRef["refs/heads/"+short]; ok {
 		b.LocalName = short
 	}
@@ -766,6 +781,11 @@ func refFor(scope, name string) (string, error) {
 // files, with a page of them. The target defaults to the project's. scope names
 // whether branch is a local or a remote-tracking branch.
 func (s *GitControl) Compare(ctx context.Context, projectID, scope, branch, target string, offset, limit int) (*domain.GitComparison, error) {
+	unlock, err := s.refreshReview(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	t, err := s.resolve(ctx, projectID)
 	if err != nil {
 		return nil, err
@@ -853,6 +873,20 @@ func (s *GitControl) compareTarget(ctx context.Context, t *gitCtx, requested str
 		}
 		if ti.Name == "" {
 			return "", "", "", fmt.Errorf("%w: this repository has no target branch to compare with", domain.ErrNotFound)
+		}
+		a, err := s.associations(ctx, t.project.ID)
+		if err != nil {
+			return "", "", "", err
+		}
+		if len(a.remoteRuns) > 0 {
+			ref := "refs/remotes/origin/" + ti.Name
+			sha, err := s.Git.ResolveCommit(ctx, t.root, ref)
+			if err != nil {
+				return "", "", "", err
+			}
+			if sha != "" {
+				return ti.Name, ref, sha, nil
+			}
 		}
 		return ti.Name, ti.Ref, ti.Sha, nil
 	}

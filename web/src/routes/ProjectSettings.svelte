@@ -7,7 +7,10 @@
 
   let { project }: { project: Project } = $props();
 
-  // This project's defaults: they override the global ones, and each task can override them in turn.
+let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError=$state('');let concurrencySaved=$state(false);
+ $effect(()=>{let active=true;api.orchestrationSettings(project.id).then(s=>{if(active)concurrency=s.concurrencyLimit;},e=>{if(active)concurrencyError=e.message;});return ()=>{active=false;};});
+ async function saveConcurrency(){concurrencyBusy=true;concurrencyError='';concurrencySaved=false;try{await api.setOrchestrationSettings(project.id,concurrency);concurrencySaved=true;}catch(e){concurrencyError=e instanceof Error?e.message:String(e);}finally{concurrencyBusy=false;}}
+ // This project's defaults: they override the global ones, and each task can override them in turn.
   let draft = $state<ExecutionConfig>({});
   let draftFor = '';
   let saving = $state(false);
@@ -63,6 +66,11 @@
     </div>
   </section>
 
+<section class="card block">
+ <h3>Execution capacity</h3><label for="concurrency">Concurrent sessions in this project</label><input id="concurrency" class="input" type="number" min="1" max="16" bind:value={concurrency} />
+ <p class="muted small">Running, starting, blocked, and waiting sessions all occupy capacity. Unknown or overlapping file scope still runs sequentially.</p>
+ {#if concurrencyError}<p class="error" role="alert">{concurrencyError}</p>{/if}<div class="row"><button class="btn primary" disabled={concurrencyBusy} onclick={saveConcurrency}>Save capacity</button>{#if concurrencySaved}<span class="ok" role="status">Saved</span>{/if}</div>
+ </section>
   <section class="card block">
     <h3>Repository</h3>
     <p class="mono path">{project.repoPath}</p>

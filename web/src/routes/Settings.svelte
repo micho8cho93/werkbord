@@ -8,6 +8,8 @@
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import NetworkCard from '../lib/setup/NetworkCard.svelte';
   import SetupCard from '../lib/setup/SetupCard.svelte';
+ import RunnersPanel from '../lib/RunnersPanel.svelte';
+ import RoutingRules from '../lib/RoutingRules.svelte';
   import { app } from '../lib/state.svelte';
   import type { ExecutionConfig, Health, Runner } from '../lib/types';
 
@@ -80,6 +82,8 @@
     </div>
   </section>
 
+  <RunnersPanel />
+  <RoutingRules />
   <NetworkCard />
   <GitHubCard />
   <AgentsCard />

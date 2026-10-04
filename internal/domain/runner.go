@@ -5,13 +5,15 @@ import "time"
 // RunnerKind says where a runner's agents execute.
 type RunnerKind string
 
-// RunnerLocal is the computer the controller runs on: the only kind there is.
+// RunnerLocal is the computer the controller runs on: and can execute tasks itself.
 const RunnerLocal RunnerKind = "local"
+
+const RunnerRemote RunnerKind = "remote"
 
 // Runner is a computer that can run agents. The controller registers the one
 // it runs on when it starts, so that finishing setup always leaves a working
 // runner. Everything about a run (its worktree, its processes) happens on its
-// runner; today that is always this one.
+// runner, including paired remote machines.
 type Runner struct {
 	ID       string     `json:"id"`
 	Name     string     `json:"name"`
@@ -23,9 +25,31 @@ type Runner struct {
 	Version    string    `json:"version"`
 	CreatedAt  time.Time `json:"createdAt"`
 	LastSeenAt time.Time `json:"lastSeenAt"`
-	// Online is whether the controller that owns the runner is running now. It is
-	// not stored: for the local runner it is true whenever anyone is asking.
-	Online bool `json:"online"`
+	// Online is derived from a recent authenticated heartbeat; the local runner
+	// is online while its controller serves requests.
+	Online       bool               `json:"online"`
+	Disabled     bool               `json:"disabled"`
+	Removed      bool               `json:"removed"`
+	Capacity     int                `json:"capacity"`
+	Automatic    bool               `json:"automatic"`
+	Projects     []string           `json:"projects"`
+	AllowClone   bool               `json:"allowClone"`
+	Capabilities RunnerCapabilities `json:"capabilities"`
+	CurrentRuns  int                `json:"currentRuns"`
+	PublicKey    string             `json:"-"`
+	LastSequence int64              `json:"-"`
+}
+
+type RunnerCapabilities struct {
+	CloneEnabled      bool           `json:"cloneEnabled"`
+	CPU               int            `json:"cpu"`
+	RAMBytes          *int64         `json:"ramBytes,omitempty"`
+	AvailableRAMBytes *int64         `json:"availableRamBytes,omitempty"`
+	StorageBytes      *int64         `json:"storageBytes,omitempty"`
+	Agents            []Agent        `json:"agents"`
+	Options           []AgentOptions `json:"options"`
+	Repositories      []string       `json:"repositories"`
+	Diagnostics       string         `json:"diagnostics,omitempty"`
 }
 
 // Settings keys. Each value is one small JSON document.

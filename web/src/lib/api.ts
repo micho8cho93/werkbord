@@ -1,5 +1,8 @@
 import type {
-  Agent,
+  Handoff,
+ Orchestration,
+ SchedulingDecision,
+ Agent,
   AgentOptions,
   BranchScope,
   ExecutionConfig,
@@ -119,7 +122,8 @@ const inProject = (projectId: string) => `/api/projects/${enc(projectId)}`;
 
 /** What a task can be changed to. Fields left out are left alone. */
 export interface TaskEdit {
-  title?: string;
+  orchestration?: Orchestration;
+ title?: string;
   description?: string;
   state?: TaskState;
   /** Replaces the task's overrides: what is left out is inherited. */
@@ -128,6 +132,7 @@ export interface TaskEdit {
 
 /** What may differ for one run only: the task's, the project's and the global choices apply to the rest. */
 export interface RunChoice {
+ runnerId?: string;
   agentId?: string;
   model?: string;
   reasoning?: string;
@@ -135,7 +140,13 @@ export interface RunChoice {
 }
 
 export const api = {
-  health: () => request<Health>('GET', '/api/health'),
+schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET', `${inProject(projectId)}/schedule`).then(r => r.decisions),
+ orchestrationSettings: (projectId: string) => request<{concurrencyLimit: number}>('GET', `${inProject(projectId)}/orchestration`),
+ setOrchestrationSettings: (projectId: string, concurrencyLimit: number) => request<{concurrencyLimit: number}>('PUT', `${inProject(projectId)}/orchestration`, {concurrencyLimit}),
+ generateHandoff: (projectId: string, runId: string) => request<Run>('POST', `${inProject(projectId)}/runs/${enc(runId)}/handoff`),
+ saveHandoff: (run: Run, handoff: Handoff) => request<Run>('PUT', `${inProject(run.projectId)}/runs/${enc(run.id)}/handoff`, {version: run.version, handoff}),
+ continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, {runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})}),
+ health: () => request<Health>('GET', '/api/health'),
   listAgents: () => request<{ agents: Agent[] }>('GET', '/api/agents').then((r) => r.agents),
   /** What can be chosen for an agent; asks the agent, so slower than listAgents. */
   agentOptions: (agentId: string) => request<AgentOptions>('GET', `/api/agents/${enc(agentId)}/options`),
@@ -146,6 +157,13 @@ export const api = {
     request<{ execution: ExecutionConfig }>('PUT', '/api/settings/execution', execution).then((r) => r.execution ?? {}),
   setProjectExecution: (projectId: string, execution: ExecutionConfig) =>
     request<Project>('PUT', `${inProject(projectId)}/execution`, execution),
+  pairRunner: (projects: string[], allowClone: boolean) => request<import('./types').Pairing>('POST', '/api/runners/pair', {projects, allowClone}),
+  saveRunner: (runner: Runner) => request<Runner>('PUT', `/api/runners/${enc(runner.id)}`, {name: runner.name, capacity: runner.capacity, automatic: runner.automatic, disabled: runner.disabled, projects: runner.projects, allowClone: runner.allowClone}),
+  removeRunner: (id: string) => request<Runner>('DELETE', `/api/runners/${enc(id)}`),
+  routingRules: () => request<{rules: import('./types').RoutingRule[]}>('GET', '/api/routing-rules').then(r=>r.rules),
+  saveRoutingRules: (rules: import('./types').RoutingRule[]) => request<{rules: import('./types').RoutingRule[]}>('PUT', '/api/routing-rules', {rules}),
+  assessRun: (run: Run, acceptance: 'accepted'|'rejected') => request<Run>('PATCH', `${inProject(run.projectId)}/runs/${enc(run.id)}/assessment`, {acceptance}),
+  setUsage: (run: Run, usage: import('./types').Usage) => request<Run>('PUT', `${inProject(run.projectId)}/runs/${enc(run.id)}/usage`, usage),
   listRunners: () => request<{ runners: Runner[] }>('GET', '/api/runners').then((r) => r.runners),
   onboarding: () => request<Onboarding>('GET', '/api/onboarding'),
   completeOnboarding: (skipped: string[] = []) => request<Onboarding>('POST', '/api/onboarding/complete', { skipped }),
@@ -182,6 +200,7 @@ export const api = {
 
   startRun: (projectId: string, taskId: string, choice: RunChoice = {}, instructions = '', resume = false) =>
     request<Run>('POST', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`, {
+      ...(choice.runnerId ? { runnerId:choice.runnerId } : {}),
       ...(choice.agentId ? { agentId: choice.agentId } : {}),
       ...(choice.model ? { model: choice.model } : {}),
       ...(choice.reasoning ? { reasoning: choice.reasoning } : {}),

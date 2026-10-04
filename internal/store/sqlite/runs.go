@@ -14,7 +14,7 @@ import (
 type runRepo struct{ q queryer }
 
 const runCols = `id, task_id, project_id, agent_id, state, worktree_id, session_ref, reason, prompt, waiting,
-	activity, activity_at, exit_code, pid, process_id, version, created_at, updated_at, ended_at, policy, blocker, model, reasoning`
+	activity, activity_at, exit_code, pid, process_id, version, created_at, updated_at, ended_at, policy, blocker, model, reasoning, parent_run_id, purpose, schedule_key, handoff, attempt, distribution`
 
 // activeStates are the run states that still hold a session and a worktree.
 // The database's indexes and triggers use the same list.
@@ -25,10 +25,10 @@ func scanRun(s interface{ Scan(...any) error }) (*domain.Run, error) {
 	var worktree sql.NullString
 	var created, updated int64
 	var ended, activityAt, exitCode sql.NullInt64
-	var policy, blocker string
+	var policy, blocker, handoff, distribution string
 	if err := s.Scan(&r.ID, &r.TaskID, &r.ProjectID, &r.AgentID, &r.State, &worktree, &r.SessionRef, &r.Reason,
 		&r.Prompt, &r.Waiting, &r.Activity, &activityAt, &exitCode, &r.PID, &r.ProcessID,
-		&r.Version, &created, &updated, &ended, &policy, &blocker, &r.Model, &r.Reasoning); err != nil {
+		&r.Version, &created, &updated, &ended, &policy, &blocker, &r.Model, &r.Reasoning, &r.ParentRunID, &r.Purpose, &r.ScheduleKey, &handoff, &r.Attempt, &distribution); err != nil {
 		return nil, err
 	}
 	var err error
@@ -40,6 +40,12 @@ func scanRun(s interface{ Scan(...any) error }) (*domain.Run, error) {
 		if err := json.Unmarshal([]byte(blocker), r.Blocker); err != nil {
 			return nil, fmt.Errorf("decode blocker of run %s: %w", r.ID, err)
 		}
+	}
+	if err := json.Unmarshal([]byte(handoff), &r.Handoff); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(distribution), &r); err != nil {
+		return nil, err
 	}
 	r.WorktreeID = worktree.String
 	r.ActivityAt = fromNullMS(activityAt)
@@ -96,10 +102,10 @@ func (q runRepo) Create(ctx context.Context, r *domain.Run) error {
 		return err
 	}
 	_, err = q.q.ExecContext(ctx,
-		`INSERT INTO runs (`+runCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO runs (`+runCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ID, r.TaskID, r.ProjectID, r.AgentID, r.State, nullString(r.WorktreeID), r.SessionRef, r.Reason,
 		r.Prompt, r.Waiting, r.Activity, nullMS(r.ActivityAt), nullInt(r.ExitCode), r.PID, r.ProcessID,
-		r.Version, ms(r.CreatedAt), ms(r.UpdatedAt), nullMS(r.EndedAt), policy, blocker, r.Model, r.Reasoning)
+		r.Version, ms(r.CreatedAt), ms(r.UpdatedAt), nullMS(r.EndedAt), policy, blocker, r.Model, r.Reasoning, r.ParentRunID, r.Purpose, r.ScheduleKey, mustJSON(r.Handoff), r.Attempt, encodeDistribution(r))
 	if isFKViolation(err) {
 		return fmt.Errorf("run %s references a missing task, project or worktree: %w", r.ID, domain.ErrNotFound)
 	}
@@ -138,10 +144,10 @@ func (q runRepo) Update(ctx context.Context, r *domain.Run) error {
 	// The policy a run started with is fixed, so it is not written here.
 	res, err := q.q.ExecContext(ctx, `
 		UPDATE runs SET state = ?, worktree_id = ?, session_ref = ?, reason = ?, waiting = ?, activity = ?, activity_at = ?,
-			exit_code = ?, pid = ?, process_id = ?, blocker = ?, updated_at = ?, ended_at = ?, version = version + 1
+			exit_code = ?, pid = ?, process_id = ?, blocker = ?, handoff = ?, distribution = ?, updated_at = ?, ended_at = ?, version = version + 1
 		WHERE id = ? AND version = ?`,
 		r.State, nullString(r.WorktreeID), r.SessionRef, r.Reason, r.Waiting, r.Activity, nullMS(r.ActivityAt),
-		nullInt(r.ExitCode), r.PID, r.ProcessID, blocker, ms(r.UpdatedAt), nullMS(r.EndedAt), r.ID, r.Version)
+		nullInt(r.ExitCode), r.PID, r.ProcessID, blocker, mustJSON(r.Handoff), encodeDistribution(r), ms(r.UpdatedAt), nullMS(r.EndedAt), r.ID, r.Version)
 	if err != nil {
 		return runRule(err, r)
 	}
@@ -280,4 +286,16 @@ func (q questionRepo) ListPending(ctx context.Context) ([]domain.Question, error
 
 func (q questionRepo) ListByRun(ctx context.Context, runID string) ([]domain.Question, error) {
 	return q.list(ctx, `SELECT `+questionCols+` FROM questions WHERE run_id = ? ORDER BY asked_at, rowid`, runID)
+}
+
+func encodeDistribution(r *domain.Run) string {
+	return mustJSON(struct {
+		RunnerID    string       `json:"runnerId"`
+		Remote      bool         `json:"remote"`
+		Branch      string       `json:"branch"`
+		BaseCommit  string       `json:"baseCommit"`
+		HeadCommit  string       `json:"headCommit"`
+		Uncommitted *bool        `json:"uncommitted,omitempty"`
+		Usage       domain.Usage `json:"usage"`
+	}{r.RunnerID, r.Remote, r.Branch, r.BaseCommit, r.HeadCommit, r.Uncommitted, r.Usage})
 }

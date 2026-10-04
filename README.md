@@ -1,7 +1,7 @@
 # Devboard
 
 A local-first remote control for coding agents. The controller runs on your computer and
-owns your repositories, credentials, database and agent sessions. Your phone, tablet or
+owns the board, calendar and database. Your machines execute agents with their own repositories and credentials. Your phone, tablet or
 browser connects to it. There is no hosted backend and no Dev Board account.
 
 ## Install
@@ -26,12 +26,24 @@ Afterwards: `devboard status`, `open`, `doctor`, `start`, `stop`, `restart`, `up
 (Backlog, Doing, Review, Done) per project, and run **Claude Code** or **Codex** on a task. Each
 run is an interactive session in its own Git worktree: watch what the agent does, answer its
 questions and approve its actions from your phone, send follow-up messages, and finish or stop
-it. The controller owns the processes, so a closed browser does not interrupt anything.
+it. The selected runner owns the processes, so a closed browser does not interrupt anything.
 
-**Projects are the scope.** Each repository is a project with its own board, Git view, activity and
+**Projects are the scope.** Each repository is a project with its own board, Calendar, Git view, activity and
 runs, and inside one you see that project and nothing else. Switch with the project switcher (the
 project name at the top on a phone; Ctrl/⌘ K anywhere). The **Control Center** is the one view across
 all projects: what needs you, wherever it is.
+
+**Orchestration.** Schedule the same Board tasks in a day/week Calendar, queue work by order and priority,
+and add dependencies. The controller runs schedules from SQLite while your browser is closed, with explicit
+missed-time policies and durable claims that prevent duplicate dispatch after restart. Conservative repository
+checks and a project concurrency limit gate launches. Finished runs carry editable handoffs; *Continue with…*
+starts a fresh run with another agent/model for implementation, review or fixes. See [docs/ORCHESTRATION.md](docs/ORCHESTRATION.md).
+
+**Multiple runners.** Pair your own machines from Settings → Runners with `devboard join <code>`.
+Assign a task to a specific machine or use deterministic automatic routing based on repository access,
+agent availability, resources and capacity. Disconnected machines retain ownership until their work is
+reconciled. Control Center shows workloads and measured usage; unknown tokens and costs stay unknown.
+See [docs/RUNNERS.md](docs/RUNNERS.md) for pairing, repositories, recovery, routing rules and economics.
 
 **Git Control Center.** Each project's Git section shows what the agents' branches look like and lets you act
 on them from your phone: a repository summary (this computer and the remote, kept apart), the branches that

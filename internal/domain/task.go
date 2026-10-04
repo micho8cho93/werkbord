@@ -55,10 +55,11 @@ type Task struct {
 	// Execution is what this task overrides about how its runs are carried out:
 	// agent, model, reasoning, interaction and priority. A field that is not set
 	// is inherited from the project, then the global defaults (ResolveExecution).
-	Execution ExecutionConfig `json:"execution"`
-	Version   int64           `json:"version"`
-	CreatedAt time.Time       `json:"createdAt"`
-	UpdatedAt time.Time       `json:"updatedAt"`
+	Execution     ExecutionConfig `json:"execution"`
+	Orchestration Orchestration   `json:"orchestration"`
+	Version       int64           `json:"version"`
+	CreatedAt     time.Time       `json:"createdAt"`
+	UpdatedAt     time.Time       `json:"updatedAt"`
 }
 
 const (

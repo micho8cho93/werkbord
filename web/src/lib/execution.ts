@@ -144,7 +144,7 @@ export function summaryLine(r: Resolved, agents: readonly Agent[], options: Read
 
 /** Whether a task's own overrides are worth a mention on its card. */
 export function hasOverrides(c: ExecutionConfig | undefined): boolean {
-  return !!c && !!(c.agent || c.model || c.reasoning || c.interaction || c.priority);
+  return !!c && !!(c.runner || c.agent || c.model || c.reasoning || c.interaction || c.priority);
 }
 
 /** What the model picker offers for an agent: its list, and whether a name may be typed. */
@@ -166,6 +166,7 @@ export function reasoningChoices(options: AgentOptions | undefined, model: strin
 /** A config with empty fields removed, as it is stored: nothing set means inherit. */
 export function compact(c: ExecutionConfig): ExecutionConfig {
   const out: ExecutionConfig = {};
+ if (c.runner) out.runner=c.runner;
   if (c.agent) out.agent = c.agent;
   // A model and a reasoning level belong to an agent; without one they cannot be kept.
   if (c.agent && c.model) out.model = c.model;

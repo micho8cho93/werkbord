@@ -359,7 +359,7 @@ func TestInstructionsAreAddedToTheTask(t *testing.T) {
 	if _, err := e.mgr.Start(ctx, StartInput{TaskID: task.ID, AgentID: "fake", Instructions: "  Do not touch the tests. "}); err != nil {
 		t.Fatal(err)
 	}
-	if p := e.session().Req.Prompt; p != "Refactor\n\nDo the thing carefully.\n\nDo not touch the tests." {
+	if p := e.session().Req.Prompt; !strings.HasPrefix(p, "Refactor\n\nDo the thing carefully.\n\nDo not touch the tests.") || !strings.Contains(p, "<devboard-handoff>") {
 		t.Fatalf("prompt = %q", p)
 	}
 }

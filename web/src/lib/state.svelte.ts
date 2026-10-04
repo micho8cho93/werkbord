@@ -14,7 +14,7 @@ import { gitEvent } from './git/store.svelte';
 import { QuestionBook } from './questions';
 import { notifyEvent } from './notifications';
 import { ProjectScope } from './scope.svelte';
-import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, Onboarding, Overview, Project, Question } from './types';
+import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, Onboarding, Overview, Project, Question, Runner } from './types';
 
 export type Connection = 'connecting' | 'live' | 'offline' | 'unauthorized';
 
@@ -31,6 +31,7 @@ function loadLastProject(): string {
 /** Every event type the controller sends that the app reacts to. */
 const EVENT_TYPES = [
   'project.registered',
+  'settings.updated',
   'project.inspected',
   'project.updated',
   'settings.updated',
@@ -86,6 +87,7 @@ class AppState {
   connection = $state<Connection>('connecting');
   projects = $state<Project[]>([]);
   agents = $state<Agent[]>([]);
+ runners = $state<Runner[]>([]);
   /** The global execution defaults: the bottom level of the hierarchy (a project, then a task, override it). */
   globalExecution = $state<ExecutionConfig>({});
   /** Whether first-time setup has been done or skipped. Null until fetched. */
@@ -111,7 +113,7 @@ class AppState {
   readonly scopes = new SvelteMap<string, ProjectScope>();
 
   /** Runs that are blocked, anywhere: waiting for the user to settle something. */
-  blockedCount = $derived((this.overview?.runs ?? []).filter((r) => r.run.state === 'blocked').length);
+  blockedCount = $derived((this.overview?.runs ?? []).filter((r) => r.run.state === 'blocked').length + (this.overview?.orchestration ?? []).filter(x=>x.decision.state==='blocked'||x.decision.state==='potentially_conflicting').length);
   /** Runs that finished a turn and wait for the next message, anywhere. */
   idleCount = $derived(
     (this.overview?.runs ?? []).filter((r) => r.run.state === 'waiting_for_user' && r.run.waiting === 'idle').length,
@@ -213,6 +215,7 @@ class AppState {
       this.projects = projects;
       this.agents = agents;
       this.overview = overview;
+ this.runners=overview.runners??[];
       this.globalExecution = execution;
       if (onboarding) this.onboarding = onboarding;
       if (this.book.replace(sync, overview.questions.map((q) => q.question))) this.questions = this.book.pending;
@@ -268,6 +271,7 @@ class AppState {
       const sync = this.book.beginSync();
       const overview = await api.controlCenter();
       this.overview = overview;
+ this.runners=overview.runners??[];
       if (this.book.replace(sync, overview.questions.map((q) => q.question))) this.questions = this.book.pending;
     } catch (err) {
       this.handleError(err);

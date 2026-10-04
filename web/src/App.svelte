@@ -19,6 +19,8 @@
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import Activity from './routes/Activity.svelte';
   import Board from './routes/Board.svelte';
+ import Calendar from './routes/Calendar.svelte';
+ import ScheduleWatch from './lib/ScheduleWatch.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
   import Onboarding from './routes/Onboarding.svelte';
@@ -201,9 +203,12 @@
       {:else}
         <!-- Each project's page is its own: nothing typed or open in one carries over to another. -->
         {#key project.id}
+ <ScheduleWatch {scope} />
           {#if router.view === 'task'}
             <TaskDetail {scope} {project} />
-          {:else if router.view === 'git'}
+          {:else if router.view === 'calendar'}
+ <Calendar {scope} {project} />
+ {:else if router.view === 'git'}
             <Git {project} />
           {:else if router.view === 'activity'}
             <Activity {scope} {project} />

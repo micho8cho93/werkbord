@@ -19,18 +19,21 @@ import (
 
 // Options configures a Server.
 type Options struct {
-	Projects  *service.Projects
-	Tasks     *service.Tasks
-	Runs      *service.Runs
-	Control   *service.ControlCenter // the cross-project overview; built from Store if nil
-	Runner    *runner.Manager        // starts and drives agent sessions
-	Worktrees *service.Worktrees
-	Git       *service.GitControl // the Git Control Center; nil disables its endpoints
-	Health    *service.GitHealth  // repository health; nil disables its endpoints
-	Agents    *agent.Registry
-	Settings  *service.Settings    // global defaults, onboarding and the runner; nil disables those endpoints
-	Network   NetworkController    // the private network; nil disables its endpoints
-	GitHub    *service.GitHubSetup // connecting GitHub and choosing repositories; nil disables those endpoints
+	Distributed *service.Runners
+	Scheduler   *service.Scheduler
+	Handoffs    *service.Handoffs
+	Projects    *service.Projects
+	Tasks       *service.Tasks
+	Runs        *service.Runs
+	Control     *service.ControlCenter // the cross-project overview; built from Store if nil
+	Runner      *runner.Manager        // starts and drives agent sessions
+	Worktrees   *service.Worktrees
+	Git         *service.GitControl // the Git Control Center; nil disables its endpoints
+	Health      *service.GitHealth  // repository health; nil disables its endpoints
+	Agents      *agent.Registry
+	Settings    *service.Settings    // global defaults, onboarding and the runner; nil disables those endpoints
+	Network     NetworkController    // the private network; nil disables its endpoints
+	GitHub      *service.GitHubSetup // connecting GitHub and choosing repositories; nil disables those endpoints
 	// Doctor runs the health checks with the controller's live parts; nil disables /api/doctor.
 	Doctor func(context.Context) doctor.Report
 	// PrivateToken is the access token a phone presents on the private network. It
@@ -59,7 +62,7 @@ type Server struct {
 // New builds a Server.
 func New(opt Options) *Server {
 	if opt.Control == nil && opt.Store != nil {
-		opt.Control = &service.ControlCenter{Deps: service.Deps{Store: opt.Store}}
+		opt.Control = &service.ControlCenter{Deps: service.Deps{Store: opt.Store}, Scheduler: opt.Scheduler, Runners: opt.Distributed}
 	}
 	log := opt.Log
 	if log == nil {
@@ -84,6 +87,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings/execution", s.handleSetExecution)
 	mux.HandleFunc("GET /api/runners", s.handleListRunners)
+	mux.HandleFunc("POST /api/runners/pair", s.handlePairRunner)
+	mux.HandleFunc("PUT /api/runners/{id}", s.handleManageRunner)
+	mux.HandleFunc("DELETE /api/runners/{id}", s.handleManageRunner)
+	mux.HandleFunc("GET /api/routing-rules", s.handleRoutingRules)
+	mux.HandleFunc("PUT /api/routing-rules", s.handleRoutingRules)
+	mux.HandleFunc("PUT /api/projects/{pid}/runs/{id}/usage", s.handleRunUsage)
+	mux.HandleFunc("PATCH /api/projects/{pid}/runs/{id}/assessment", s.handleRunAssessment)
 	mux.HandleFunc("GET /api/doctor", s.handleDoctor)
 	mux.HandleFunc("GET /api/github", s.handleGitHubStatus)
 	mux.HandleFunc("POST /api/github/login", s.handleGitHubLogin)
@@ -106,6 +116,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{pid}/refresh", s.handleRefreshProject)
 	mux.HandleFunc("PUT /api/projects/{pid}/execution", s.handleSetProjectExecution)
 
+	mux.HandleFunc("GET /api/projects/{pid}/schedule", s.handleSchedule)
+	mux.HandleFunc("GET /api/projects/{pid}/orchestration", s.handleOrchestrationSettings)
+	mux.HandleFunc("PUT /api/projects/{pid}/orchestration", s.handleSetOrchestrationSettings)
+	mux.HandleFunc("POST /api/projects/{pid}/runs/{id}/handoff", s.handleGenerateHandoff)
+	mux.HandleFunc("PUT /api/projects/{pid}/runs/{id}/handoff", s.handleSaveHandoff)
+	mux.HandleFunc("POST /api/projects/{pid}/runs/{id}/continue", s.handleContinue)
 	mux.HandleFunc("GET /api/projects/{pid}/tasks", s.handleListTasks)
 	mux.HandleFunc("POST /api/projects/{pid}/tasks", s.handleCreateTask)
 	mux.HandleFunc("PATCH /api/projects/{pid}/tasks/{id}", s.handleUpdateTask)
@@ -159,7 +175,14 @@ func (s *Server) Handler() http.Handler {
 	}
 
 	var h http.Handler = mux
-	h = s.authenticate(h)
+	owner := s.authenticate(h)
+	h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/runner/join" || r.URL.Path == "/api/runner/sync" {
+			s.runnerProtocol(w, r)
+			return
+		}
+		owner.ServeHTTP(w, r)
+	})
 	h = s.checkOrigin(h)
 	h = s.checkHost(h)
 	h = securityHeaders(h)

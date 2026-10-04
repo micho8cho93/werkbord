@@ -21,6 +21,7 @@ import type { AgentOutput, ControllerEvent, Question, Run, Task } from './types'
 export function newer(a: Run | undefined, b: Run): Run {
   if (!a) return b;
   if (a.id === b.id) return a.version <= b.version ? b : a;
+ if(a.attempt&&b.attempt&&a.attempt!==b.attempt) return a.attempt>b.attempt?a:b;
   return a.createdAt >= b.createdAt ? a : b;
 }
 
@@ -30,7 +31,8 @@ const HISTORY_LIMIT = 200;
 export class ProjectScope {
   readonly projectId: string;
 
-  tasks = $state<Task[]>([]);
+  decisions = $state<import("./types").SchedulingDecision[]>([]);
+ tasks = $state<Task[]>([]);
   /** The most recent run of each task, by task ID. */
   latestRun = $state<Record<string, Run>>({});
   /** The project's runs, newest first. */
