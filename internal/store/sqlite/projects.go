@@ -61,6 +61,8 @@ func (r projectRepo) List(ctx context.Context) ([]domain.Project, error) {
 
 type gitRepoRepo struct{ q queryer }
 
+const gitRepoCols = `project_id, root_path, common_dir, current_branch, head_commit, default_branch, remotes, inspected_at`
+
 func (r gitRepoRepo) Upsert(ctx context.Context, g *domain.GitRepository) error {
 	remotes := g.Remotes
 	if remotes == nil {
@@ -71,36 +73,49 @@ func (r gitRepoRepo) Upsert(ctx context.Context, g *domain.GitRepository) error 
 		return err
 	}
 	_, err = r.q.ExecContext(ctx, `
-		INSERT INTO git_repositories (project_id, root_path, current_branch, head_commit, default_branch, remotes, inspected_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO git_repositories (`+gitRepoCols+`)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (project_id) DO UPDATE SET
 			root_path = excluded.root_path,
+			common_dir = excluded.common_dir,
 			current_branch = excluded.current_branch,
 			head_commit = excluded.head_commit,
 			default_branch = excluded.default_branch,
 			remotes = excluded.remotes,
 			inspected_at = excluded.inspected_at`,
-		g.ProjectID, g.RootPath, g.CurrentBranch, g.HeadCommit, g.DefaultBranch, rj, ms(g.InspectedAt))
-	if isFKViolation(err) {
+		g.ProjectID, g.RootPath, g.CommonDir, g.CurrentBranch, g.HeadCommit, g.DefaultBranch, rj, ms(g.InspectedAt))
+	switch {
+	case isUniqueViolation(err):
+		return fmt.Errorf("repository %s is already registered by another project: %w", g.CommonDir, domain.ErrDuplicate)
+	case isFKViolation(err):
 		return fmt.Errorf("project %s: %w", g.ProjectID, domain.ErrNotFound)
 	}
 	return err
 }
 
-func (r gitRepoRepo) Get(ctx context.Context, projectID string) (*domain.GitRepository, error) {
+func scanGitRepo(s interface{ Scan(...any) error }) (*domain.GitRepository, error) {
 	var g domain.GitRepository
 	var remotes string
 	var inspected int64
-	err := r.q.QueryRowContext(ctx, `
-		SELECT project_id, root_path, current_branch, head_commit, default_branch, remotes, inspected_at
-		FROM git_repositories WHERE project_id = ?`, projectID).
-		Scan(&g.ProjectID, &g.RootPath, &g.CurrentBranch, &g.HeadCommit, &g.DefaultBranch, &remotes, &inspected)
-	if err != nil {
-		return nil, notFound(err, "repository for project", projectID)
+	if err := s.Scan(&g.ProjectID, &g.RootPath, &g.CommonDir, &g.CurrentBranch, &g.HeadCommit, &g.DefaultBranch, &remotes, &inspected); err != nil {
+		return nil, err
 	}
 	if err := json.Unmarshal([]byte(remotes), &g.Remotes); err != nil {
-		return nil, fmt.Errorf("decode remotes for project %s: %w", projectID, err)
+		return nil, fmt.Errorf("decode remotes for project %s: %w", g.ProjectID, err)
 	}
 	g.InspectedAt = fromMS(inspected)
 	return &g, nil
+}
+
+func (r gitRepoRepo) Get(ctx context.Context, projectID string) (*domain.GitRepository, error) {
+	g, err := scanGitRepo(r.q.QueryRowContext(ctx, `SELECT `+gitRepoCols+` FROM git_repositories WHERE project_id = ?`, projectID))
+	return g, notFound(err, "repository for project", projectID)
+}
+
+func (r gitRepoRepo) GetByCommonDir(ctx context.Context, commonDir string) (*domain.GitRepository, error) {
+	if commonDir == "" {
+		return nil, fmt.Errorf("repository with empty common dir: %w", domain.ErrNotFound) // '' means unknown, never a match
+	}
+	g, err := scanGitRepo(r.q.QueryRowContext(ctx, `SELECT `+gitRepoCols+` FROM git_repositories WHERE common_dir = ?`, commonDir))
+	return g, notFound(err, "repository with common dir", commonDir)
 }

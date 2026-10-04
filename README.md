@@ -25,13 +25,22 @@ make build
 ./bin/devboard serve
 ```
 
-Open http://127.0.0.1:7420. In another terminal, register a repository:
+The API needs an access token even on this computer, because it will be able to start
+processes as you. The controller creates one on first start. Print a link that signs your
+browser in and open it:
+
+```bash
+./bin/devboard token --url
+```
+
+In another terminal, register a repository (the CLI finds the token by itself):
 
 ```bash
 ./bin/devboard project add ~/code/my-app
 ```
 
-Other commands: `devboard project list`, `devboard migrate`, `devboard version`. Run
+Other commands: `devboard project list`, `devboard token`, `devboard migrate`,
+`devboard version`. Run
 `devboard <command> -h` for flags.
 
 ## Development
@@ -47,7 +56,8 @@ make dev-api
 make dev-web
 ```
 
-Then open http://127.0.0.1:5173.
+Then open http://127.0.0.1:5173. The controller still requires its token, so the app asks
+for it once: paste the output of `devboard token`.
 
 Checks (Go tests, `go vet`, `gofmt`, `svelte-check`, ESLint, both builds):
 
@@ -59,9 +69,9 @@ make check
 
 By default the controller only listens on `127.0.0.1`. To reach it from a phone, put both
 devices on a private network such as Tailscale and bind to that address, e.g.
-`--addr 100.x.y.z:7420` (or `0.0.0.0:7420`). Off loopback a token is required: it is
-generated into `<data dir>/token` on first start. Open the app on the phone and paste it, or
-open `http://<host>:7420/#token=<token>` once. Then use "Add to Home Screen".
+`--addr 100.x.y.z:7420` (or `0.0.0.0:7420`). The token (see above) is what protects it:
+run `devboard token` on the computer and paste the result into the app on the phone, or open
+`http://<host>:7420/#token=<token>` there once. Then use "Add to Home Screen".
 
 ## Configuration
 
@@ -75,7 +85,7 @@ then flags.
 | `logLevel` | `DEVBOARD_LOG_LEVEL` | `--log-level` | `info` |
 | `logFormat` | `DEVBOARD_LOG_FORMAT` | `--log-format` | `text` (or `json`) |
 | `token` | `DEVBOARD_TOKEN` | — | generated when needed |
-| `requireToken` | `DEVBOARD_REQUIRE_TOKEN` | `--require-token` | `false` (always on off loopback) |
+| `requireToken` | `DEVBOARD_REQUIRE_TOKEN` | `--require-token` | `true`. `false` (or `--require-token=false`) allows tokenless access on `127.0.0.1` only, and logs a warning; off loopback the token is always required. Anything but `true`/`false` in the environment is an error |
 | `allowedHosts` | — | — | `[]` |
 | `shutdownTimeout` | — | — | `10s` |
 

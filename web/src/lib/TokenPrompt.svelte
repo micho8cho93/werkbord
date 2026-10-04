@@ -15,8 +15,8 @@
   <form class="card" onsubmit={submit}>
     <h1>Connect to your controller</h1>
     <p class="muted">
-      This controller requires an access token. Find it in the <code>token</code> file in the controller's data
-      directory.
+      This controller requires an access token. On the computer running it, run <code>devboard token</code> to print
+      it, or <code>devboard token --url</code> for a link that signs this browser in.
     </p>
     <label for="token" class="visually-hidden">Access token</label>
     <input

@@ -56,6 +56,11 @@ func isUniqueViolation(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
+// isAbort reports whether err is a trigger's RAISE(ABORT, msg) from a migration.
+func isAbort(err error, msg string) bool {
+	return err != nil && strings.Contains(err.Error(), msg)
+}
+
 // isFKViolation reports whether err is a FOREIGN KEY failure.
 func isFKViolation(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "FOREIGN KEY constraint failed")

@@ -118,7 +118,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		"addr", c.listener.Addr().String(), "data_dir", c.cfg.DataDir,
 		"auth", c.cfg.AuthRequired(), "version", c.version)
 	if c.cfg.AuthRequired() && c.cfg.Token == "" {
-		c.log.Info("API token required; it is stored in the data dir", "token_file", c.cfg.TokenPath())
+		c.log.Info("API token required; run `devboard token` to print it", "token_file", c.cfg.TokenPath())
+	}
+	if !c.cfg.AuthRequired() {
+		c.log.Warn("API authentication is disabled (requireToken=false): any program on this computer can use the API and, once agents run, start processes as you")
 	}
 	return nil
 }

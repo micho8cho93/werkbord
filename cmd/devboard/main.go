@@ -4,6 +4,7 @@
 //	devboard migrate               apply database migrations and exit
 //	devboard project add <path>    register an existing local Git repository
 //	devboard project list          list registered projects
+//	devboard token [--url]         print the API token (or a link that signs a browser in)
 //	devboard version               print the version
 //
 // Commands other than serve and migrate are HTTP clients of a running
@@ -36,6 +37,7 @@ commands:
   migrate               apply database migrations and exit
   project add <path>    register an existing local Git repository
   project list          list registered projects
+  token                 print the API token, or with --url a sign-in link for this computer
   version               print the version
 
 Run "devboard <command> -h" for command flags.
@@ -66,6 +68,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return cmdMigrate(cfg, args[1:], stdout, stderr)
 	case "project", "projects":
 		return cmdProject(cfg, args[1:], stdout, stderr)
+	case "token":
+		return cmdToken(cfg, args[1:], stdout, stderr)
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, version)
 		return nil
@@ -90,7 +94,8 @@ func cmdServe(cfg config.Config, args []string, stderr io.Writer) error {
 	commonFlags(fs, &cfg)
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "debug, info, warn or error")
 	fs.StringVar(&cfg.LogFormat, "log-format", cfg.LogFormat, "text or json")
-	fs.BoolVar(&cfg.RequireToken, "require-token", cfg.RequireToken, "require the API token even on loopback")
+	fs.BoolVar(&cfg.RequireToken, "require-token", cfg.RequireToken,
+		"require the API token on loopback too (the default; --require-token=false turns it off, and only ever applies to 127.0.0.1)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -124,6 +129,37 @@ func cmdMigrate(cfg config.Config, args []string, stdout, stderr io.Writer) erro
 		return err
 	}
 	fmt.Fprintf(stdout, "database %s is at schema version %d\n", cfg.DBPath(), v)
+	return nil
+}
+
+// cmdToken prints the API token so it can be pasted into the app on another
+// device, or with --url a link that signs a browser on this computer in.
+func cmdToken(cfg config.Config, args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("token", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	commonFlags(fs, &cfg)
+	asURL := fs.Bool("url", false, "print a sign-in link for a browser on this computer instead of the bare token")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return errors.New("usage: devboard token [--url]")
+	}
+	if !cfg.AuthRequired() {
+		return errors.New("API authentication is disabled for this configuration, so there is no token")
+	}
+	tok, err := cfg.ResolveToken(false)
+	if err != nil {
+		return err
+	}
+	if tok == "" {
+		return errors.New("no token yet: start the controller with `devboard serve` and it will create one")
+	}
+	if *asURL {
+		fmt.Fprintf(stdout, "http://%s/#token=%s\n", cfg.ClientAddr(), tok)
+	} else {
+		fmt.Fprintln(stdout, tok)
+	}
 	return nil
 }
 

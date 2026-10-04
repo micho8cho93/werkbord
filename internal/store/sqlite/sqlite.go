@@ -51,7 +51,10 @@ func Open(ctx context.Context, path string, log *slog.Logger) (*DB, error) {
 
 	wq := cloneValues(common)
 	wq.Add("_pragma", "journal_mode(WAL)")
-	wq.Add("_pragma", "synchronous(NORMAL)")
+	// FULL, not NORMAL: with NORMAL a committed transaction can be lost in a
+	// power cut, and records of worktrees (written before a directory is
+	// created, and after one is removed) would then disagree with the disk.
+	wq.Add("_pragma", "synchronous(FULL)")
 	wq.Set("_txlock", "immediate")
 	writer, err := sql.Open("sqlite", path+"?"+wq.Encode())
 	if err != nil {

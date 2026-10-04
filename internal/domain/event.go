@@ -14,6 +14,9 @@ const (
 	EventTaskCreated       EventType = "task.created"
 	EventTaskUpdated       EventType = "task.updated"
 	EventRunStateChanged   EventType = "run.state_changed"
+	EventWorktreeCreated   EventType = "worktree.created"
+	EventWorktreeRemoving  EventType = "worktree.removing"
+	EventWorktreeRemoved   EventType = "worktree.removed"
 	EventQuestionCreated   EventType = "question.created"
 	EventQuestionAnswered  EventType = "question.answered"
 )

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"devboard/internal/domain"
 )
@@ -55,6 +56,19 @@ func (q runRepo) Create(ctx context.Context, r *domain.Run) error {
 	if isFKViolation(err) {
 		return fmt.Errorf("run %s references a missing task, project or worktree: %w", r.ID, domain.ErrNotFound)
 	}
+	return worktreeRule(err, r)
+}
+
+// worktreeRule maps the database's run/worktree rules to domain errors.
+func worktreeRule(err error, r *domain.Run) error {
+	switch {
+	case isAbort(err, "belong to different projects"):
+		return fmt.Errorf("run %s (project %s) cannot use worktree %s: it belongs to another project: %w", r.ID, r.ProjectID, r.WorktreeID, domain.ErrInvalid)
+	case isAbort(err, "removed or being removed"):
+		return fmt.Errorf("run %s cannot be active on worktree %s: it is being removed or has been: %w", r.ID, r.WorktreeID, domain.ErrConflict)
+	case isUniqueViolation(err) && strings.Contains(err.Error(), "runs.worktree_id"):
+		return fmt.Errorf("worktree %s is already used by an active run: %w", r.WorktreeID, domain.ErrDuplicate)
+	}
 	return err
 }
 
@@ -69,7 +83,7 @@ func (q runRepo) Update(ctx context.Context, r *domain.Run) error {
 		WHERE id = ? AND version = ?`,
 		r.State, nullString(r.WorktreeID), r.SessionRef, r.Reason, ms(r.UpdatedAt), nullMS(r.EndedAt), r.ID, r.Version)
 	if err != nil {
-		return err
+		return worktreeRule(err, r)
 	}
 	if err := checkCAS(ctx, res, q.q, "runs", r.ID, r.Version); err != nil {
 		return err

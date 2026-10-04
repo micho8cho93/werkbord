@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -29,9 +30,12 @@ type Config struct {
 	// Token protects the API. It is required whenever Addr is not loopback
 	// and is generated into <data dir>/token on first use if not set.
 	Token string `json:"token,omitempty"`
-	// RequireToken forces token auth even on loopback (e.g. behind a local
-	// reverse proxy such as `tailscale serve`).
-	RequireToken bool `json:"requireToken,omitempty"`
+	// RequireToken makes the API demand the token on loopback too. It is on by
+	// default, because the API can start processes on this computer and anything
+	// local, including other users' programs, can reach a loopback port.
+	// Setting it to false is for people who accept that; it never applies to a
+	// non-loopback Addr, where the token is always required.
+	RequireToken bool `json:"requireToken"`
 	// AllowedHosts are extra Host header values accepted in loopback mode.
 	AllowedHosts []string `json:"allowedHosts,omitempty"`
 
@@ -63,6 +67,7 @@ func Default() Config {
 		DataDir:         defaultDataDir(),
 		LogLevel:        "info",
 		LogFormat:       "text",
+		RequireToken:    true,
 		ShutdownTimeout: Duration{10 * time.Second},
 	}
 }
@@ -84,7 +89,9 @@ func Load() (Config, error) {
 	if err := c.loadFile(filepath.Join(c.DataDir, "config.json")); err != nil {
 		return c, err
 	}
-	c.loadEnv()
+	if err := c.loadEnv(); err != nil {
+		return c, err
+	}
 	return c, nil
 }
 
@@ -106,7 +113,7 @@ func (c *Config) loadFile(path string) error {
 	return nil
 }
 
-func (c *Config) loadEnv() {
+func (c *Config) loadEnv() error {
 	set := func(key string, dst *string) {
 		if v := os.Getenv(key); v != "" {
 			*dst = v
@@ -117,9 +124,17 @@ func (c *Config) loadEnv() {
 	set("DEVBOARD_LOG_LEVEL", &c.LogLevel)
 	set("DEVBOARD_LOG_FORMAT", &c.LogFormat)
 	set("DEVBOARD_TOKEN", &c.Token)
-	if v := os.Getenv("DEVBOARD_REQUIRE_TOKEN"); v == "1" || strings.EqualFold(v, "true") {
-		c.RequireToken = true
+	// A security setting must not be guessed at: "off" or "no" could mean
+	// either, so anything that is not a plain boolean is an error rather than
+	// a silent default.
+	if v := os.Getenv("DEVBOARD_REQUIRE_TOKEN"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("DEVBOARD_REQUIRE_TOKEN=%q: want true or false", v)
+		}
+		c.RequireToken = b
 	}
+	return nil
 }
 
 // Validate checks the configuration for mistakes.
@@ -163,7 +178,8 @@ func (c Config) IsLoopback() bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// AuthRequired reports whether API requests must carry the token.
+// AuthRequired reports whether API requests must carry the token: always off
+// loopback, and on loopback unless RequireToken has been turned off.
 func (c Config) AuthRequired() bool { return c.RequireToken || !c.IsLoopback() }
 
 // ClientAddr is the address a local CLI should dial to reach the controller.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"devboard/internal/domain"
 	"devboard/internal/gitrepo"
@@ -16,6 +17,33 @@ import (
 type Projects struct {
 	Deps
 	Git gitrepo.Inspector
+
+	mu    sync.Mutex
+	locks map[string]chan struct{} // per project: at most one inspection at a time
+}
+
+// lock serialises inspections of one project. An inspection reads Git, then
+// writes what it read; two running at once can finish in the opposite order to
+// the one they read in, leaving the older snapshot stored as the latest. Other
+// projects are unaffected, and a caller that gives up while queued returns
+// without having started an inspection.
+func (s *Projects) lock(ctx context.Context, projectID string) (unlock func(), err error) {
+	s.mu.Lock()
+	if s.locks == nil {
+		s.locks = map[string]chan struct{}{}
+	}
+	l, ok := s.locks[projectID]
+	if !ok {
+		l = make(chan struct{}, 1)
+		s.locks[projectID] = l
+	}
+	s.mu.Unlock()
+	select {
+	case l <- struct{}{}:
+		return func() { <-l }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // ProjectDetail is a project with its latest repository snapshot.
@@ -50,6 +78,19 @@ func (s *Projects) Register(ctx context.Context, path, name string) (*ProjectDet
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
+		// The same repository can have several top-level paths (its linked
+		// worktrees), so identity comes from the shared Git directory.
+		if repo.CommonDir != "" {
+			if other, err := tx.Repositories().GetByCommonDir(ctx, repo.CommonDir); err == nil {
+				existing, err := tx.Projects().Get(ctx, other.ProjectID)
+				if err != nil {
+					return err
+				}
+				return fmt.Errorf("%s is the same repository as project %q (%s): %w", p.RepoPath, existing.Name, existing.RepoPath, domain.ErrDuplicate)
+			} else if !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
+		}
 		if err := tx.Projects().Create(ctx, p); err != nil {
 			return err
 		}
@@ -69,6 +110,12 @@ func (s *Projects) Register(ctx context.Context, path, name string) (*ProjectDet
 
 // Refresh re-inspects a project's repository and stores the new snapshot.
 func (s *Projects) Refresh(ctx context.Context, id string) (*ProjectDetail, error) {
+	unlock, err := s.lock(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+
 	var p *domain.Project
 	if err := s.Store.View(ctx, func(tx store.Tx) error {
 		var err error
@@ -80,6 +127,15 @@ func (s *Projects) Refresh(ctx context.Context, id string) (*ProjectDetail, erro
 	repo, err := s.Git.Inspect(ctx, p.RepoPath)
 	if err != nil {
 		return nil, err
+	}
+	// A project is the repository registered at RepoPath. If that directory was
+	// deleted and recreated inside another repository, Git now resolves it to
+	// the outer one; storing that snapshot would make the project silently
+	// describe, and later act on, a different repository.
+	if repo.RootPath != p.RepoPath {
+		return nil, fmt.Errorf("project %q is registered at %s, which now belongs to the repository at %s; "+
+			"restore the original repository or register the new location as a new project: %w",
+			p.Name, p.RepoPath, repo.RootPath, domain.ErrConflict)
 	}
 	repo.ProjectID = p.ID
 	err = s.update(ctx, func(tx store.Tx, em *emitter) error {

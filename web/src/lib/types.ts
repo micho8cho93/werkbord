@@ -22,6 +22,7 @@ export interface GitRemote {
 export interface GitRepository {
   projectId: string;
   rootPath: string;
+  commonDir: string;
   currentBranch: string;
   headCommit: string;
   defaultBranch: string;

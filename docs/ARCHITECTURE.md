@@ -79,7 +79,10 @@ GitRepository    │
 - **Project**: a registered local Git repository. `RepoPath` is the repository's
   top-level directory, absolute and symlink-resolved. The repository is never copied.
 - **GitRepository**: the last inspection snapshot of a project's repository (branch, HEAD,
-  origin/HEAD, remotes with any embedded credentials redacted). Refreshed on demand.
+  origin/HEAD, remotes with any embedded credentials redacted). Refreshed on demand. It
+  records the repository's **common directory** (the shared `.git`), which is the
+  repository's identity: a linked worktree has its own top-level path but the same common
+  directory, and `git_repositories.common_dir` is unique.
 - **Task**: a card on the board. Its `State` is one of exactly four workflow states:
   `backlog`, `doing`, `review`, `done`. Ordered within a column by `Position`.
 - **Run**: one execution attempt by an agent against a task. Its `State` is one of
@@ -87,7 +90,8 @@ GitRepository    │
 - **Question**: something an agent asked during a run; `pending` until answered or
   cancelled.
 - **Worktree**: a Git worktree created for a run so concurrent runs never share a
-  working directory.
+  working directory. Its row is the controller's only evidence that it owns a directory, so
+  it is constrained like a deletion target (see "Worktree safety" below).
 - **Agent**: a coding agent the controller can drive. Discovered from adapters at
   runtime, not persisted; runs store its ID.
 - **Event**: an append-only record of a change, with a strictly increasing `Seq`.
@@ -134,7 +138,14 @@ connection pool, so reads never wait for writes.
 **Project registration**: `POST /api/projects {path}` → `gitrepo.CLI.Inspect` checks the
 path exists, is a directory, is inside a non-bare Git repository and can be inspected
 (`rev-parse`, `symbolic-ref`, `config --get-regexp`). The top level is stored; registering
-the same repository twice (even via a subdirectory or symlink) returns 409.
+the same repository twice (even via a subdirectory, a symlink or a linked worktree) returns
+409. A repository whose `HEAD` names a missing object is rejected as damaged rather than
+reported as empty; a branch with no commits yet is still accepted.
+
+**Project refresh**: `POST /api/projects/{id}/refresh` re-inspects the stored path. If that
+path no longer resolves to the repository registered there (for example the directory was
+deleted and recreated inside another repository) the refresh returns 409 and the stored
+snapshot is left untouched, so a project never silently starts describing another repository.
 
 ## 5. Controller lifecycle
 
@@ -149,8 +160,9 @@ the same repository twice (even via a subdirectory or symlink) returns 409.
    with reason `interrupted: controller restarted`; `waiting_for_user` runs are kept,
    because the question is still answerable and a future adapter can resume the session
    from the stored `SessionRef`. Each change emits a `run.state_changed` event.
-5. **Resolve auth**: if a token is required (§10) it is read from config or
-   `<dataDir>/token`, generating one (mode 0600) on first use.
+5. **Resolve auth**: a token is required unless `requireToken` is off and the address is
+   loopback (§10); it is read from config or `<dataDir>/token`, generating one (mode 0600) on
+   first use. If auth is off the controller logs a warning.
 6. **Wire** broker, services, API and the embedded PWA; **listen**; serve.
 7. **On SIGINT/SIGTERM**: `http.Server.Shutdown` stops accepting connections and waits
    for in-flight requests (up to `shutdownTimeout`, default 10s). A shutdown hook closes
@@ -168,8 +180,11 @@ If any startup step fails, everything already started is torn down in reverse or
 - Location: `<dataDir>/devboard.db` (default `~/Library/Application Support/devboard` on
   macOS, `~/.config/devboard` on Linux). Directory 0700, file 0600.
 - Driver: `modernc.org/sqlite` (pure Go, so builds need no C toolchain). WAL mode,
-  `synchronous=NORMAL`, foreign keys on, `STRICT` tables, `CHECK` constraints on every
-  state column so the database itself rejects a fifth column or an unknown run state.
+  `synchronous=FULL` on the writer (a committed transaction survives a power cut; with
+  `NORMAL` it could roll back, and a record written before a directory is created or after
+  one is removed would then disagree with the disk), foreign keys on, `STRICT` tables,
+  `CHECK` constraints on every state column so the database itself rejects a fifth column
+  or an unknown run state.
 - **Migrations** are embedded SQL files `internal/store/sqlite/migrations/NNNN_name.sql`,
   contiguous from 1, each applied in its own transaction and recorded in
   `schema_migrations`. Migrations are forward-only; to change the schema, add a file.
@@ -227,8 +242,16 @@ so `GET /api/agents` returns an empty list.
   whose transactions begin with `BEGIN IMMEDIATE`, so `Update` calls queue in Go rather
   than fail with `SQLITE_BUSY` on lock upgrade. Readers use a separate 4-connection pool
   in query-only mode; WAL lets them run alongside the writer on a consistent snapshot.
-- **Optimistic concurrency for user-visible entities.** Tasks and runs carry a
+- **Optimistic concurrency for user-visible entities.** Tasks, runs and worktrees carry a
   `version`; updates are compare-and-swap.
+- **Inspections of one project are serialised.** An inspection reads Git and then writes what
+  it read; two overlapping could finish in the opposite order and leave the older snapshot
+  stored as the latest. `Projects.Refresh` takes a per-project lock (waiting honours the
+  caller's context; other projects are unaffected).
+- **Git processes are bounded.** At most 4 run at once (further requests queue, and give up
+  with their caller), each with a 10 s timeout, 1 MiB of kept output per stream, and a
+  1 s grace after a timeout: on timeout only git is killed, and a child it started could
+  otherwise hold the pipes open and block the request indefinitely.
 - **The broker never blocks.** Publishing is O(subscribers) non-blocking sends under one
   mutex; slow subscribers are dropped and catch up from the log.
 - **HTTP handlers are stateless** apart from SSE streams, each of which owns one
@@ -238,30 +261,87 @@ so `GET /api/agents` returns an empty list.
   rule holds. Agent processes are children of the controller, which is why restart
   recovery (§5) marks in-flight runs failed.
 
+### Worktree safety
+
+Removing a worktree deletes a directory, which cannot be undone, so the records that
+authorise it are constrained before any engine exists. Rules are enforced as low as they
+can be stated: in the database for anything a single row or two tables can decide, in
+`domain` for pure rules, and in `service.Worktrees` for what needs the filesystem or other
+projects. The engine must go through `service.Worktrees`; it must not write the table.
+
+- **Placement** (`domain.WorktreePlacement`, checked in the same transaction as the write): a
+  worktree must be strictly inside one configured directory (`Worktrees.Root`; nothing is
+  placeable if it is empty), must not be, contain or lie inside any registered repository's
+  working tree or Git directory (for *every* project), must not overlap another worktree that
+  is still on disk, and must be canonical: a path through a symlink is refused, because paths
+  are compared as text and a link would let a later deletion leave the directory.
+- **Shape** (domain and a database trigger): absolute, clean, not the root, no control
+  characters; branch and base ref obey `git check-ref-format` (a test keeps the validator at
+  least as strict as the installed Git) and may not start with `-`, so they cannot be taken
+  for options.
+- **Identity is fixed.** Only the removal state ever changes; id, project, path, branch and
+  base ref are immutable, and a removed worktree never becomes active again.
+- **Compare-and-swap.** `version` guards every change, as for tasks and runs.
+- **Removal is two steps**, because "nothing is using this" must not go stale before the
+  deletion: `BeginRemoval` (refused while a run uses the worktree; from then on no run can
+  start on it; cannot be cancelled), then the engine deletes the directory, then
+  `FinishRemoval`. A record stays `active` until then, so its path and branch stay reserved.
+  Creation is the mirror image: record first, directory second. A crash therefore leaves a
+  record without a directory (retry or reconcile), never a directory nobody has a record of.
+- **A record of a worktree that is still on disk cannot be deleted**, directly or by deleting
+  its project (which would cascade); doing so would orphan the directory and the run's work.
+- **Concurrent runs never share one:** at most one active run per worktree, a run's worktree
+  must belong to the run's project, and a run cannot become active on a removed or removing
+  worktree. At most one active worktree per branch per project (Git refuses a second
+  checkout of a branch; so does the record).
+
+A path that was used by a removed worktree is not reused: its record is kept as history.
+
 ## 10. Security assumptions
 
 The controller will eventually start processes with shell access on this computer, so
 the HTTP API is treated as a remote-execution surface from day one.
 
-- **Loopback by default.** The default address is `127.0.0.1:7420`. In this mode:
+- **Loopback by default.** The default address is `127.0.0.1:7420`, so the controller is not
+  reachable from the network unless you bind it elsewhere.
+- **A token is required by default, on loopback too** (`requireToken: true`). A loopback port
+  is open to every program on the computer, including other users' and anything running
+  inside a browser, and the API can start processes as you; being "local" is not an identity.
+  The token lives in `<dataDir>/token` (0600) and `devboard token` prints it (`--url` prints
+  a link that signs a browser in). The PWA accepts it once via `/#token=…` or a prompt and
+  keeps it in `localStorage`; `EventSource` cannot send headers, so the token is accepted as
+  `?access_token=` on `/api/events` only. Query strings are never logged. `/api/health` and the
+  static PWA shell are public; all data is not.
+  - Because the token is the defence, the `Host` allowlist below is not applied. A DNS-rebinding
+    page can send any `Host` it likes, but it runs on another origin and cannot read this
+    origin's token (a test covers it).
+- **Opting out** (`requireToken: false`, `DEVBOARD_REQUIRE_TOKEN=false`, `--require-token=false`)
+  is for people who accept that any local program may use the API. It applies **only** to a
+  loopback address: binding to any other address always requires the token, whatever the
+  setting says. The controller logs a warning at every start while it is off, and a
+  `DEVBOARD_REQUIRE_TOKEN` that is not `true` or `false` is an error rather than a guess. With
+  the token off, these protections apply instead:
   - requests whose `Host` is not `localhost`, `*.localhost`, a loopback IP or a configured
     `allowedHosts` entry are rejected (DNS-rebinding defence);
   - state-changing requests with an `Origin` that does not match `Host` are rejected
     (cross-site request defence; this check applies in every mode).
-- **Token required off loopback.** Binding to any non-loopback address (to reach the
-  controller from a phone over the LAN or a VPN such as Tailscale) requires a bearer
-  token. `requireToken: true` forces it on loopback too, e.g. behind `tailscale serve`.
-  The token lives in `<dataDir>/token` (0600). The PWA accepts it once via `/#token=…` or a
-  prompt and keeps it in `localStorage`; `EventSource` cannot send headers, so the token is
-  accepted as `?access_token=` on `/api/events` only. Query strings are never logged.
-  `/api/health` and the static PWA shell are public; all data is not.
+  Neither stops another program or user on the same computer.
 - **No TLS in the controller.** Plain HTTP on loopback is fine. For remote access, put the
   controller behind something that terminates TLS and authenticates the network (Tailscale
   is the expected setup). Exposing it directly to the internet is unsupported.
-- **Repository inspection is read-only.** Only plumbing commands that do not run hooks or
-  fsmonitor are used, with `GIT_OPTIONAL_LOCKS=0` and `GIT_TERMINAL_PROMPT=0`. Git's own
-  `safe.directory` protection still applies. Credentials embedded in `https://` remote URLs
-  are redacted before they are stored or shown.
+- **Repository inspection is read-only and never runs repository-supplied commands.** Only
+  plumbing commands that do not run hooks or fsmonitor are used, with `GIT_OPTIONAL_LOCKS=0`
+  and `GIT_TERMINAL_PROMPT=0`. A repository's own config is untrusted input: a partial clone
+  with a missing object makes even `rev-parse` lazily fetch from its promisor remote, which
+  runs `core.sshCommand` or `remote.<name>.uploadpack`. Inspection therefore sets
+  `GIT_NO_LAZY_FETCH=1` and `GIT_ALLOW_PROTOCOL=none`, overriding anything inherited from the
+  controller's environment. Git's own `safe.directory` protection still applies. Variables that select or
+  reconfigure a repository (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_CONFIG_COUNT`, …) are removed from
+  the environment of every git process, so inspecting a path always describes that path's
+  repository even if the controller was started from a Git hook. Credentials embedded in
+  remote URLs are redacted before they are stored or shown: for `http(s)`/`ftp` the whole
+  userinfo (a token is often the user name), for other schemes the password. The userinfo
+  ends at the last `@` of the authority.
 - **Untrusted text is data.** Task text and (later) agent output are rendered as text by
   Svelte, never as HTML. A strict CSP (`script-src 'self'`, `frame-ancestors 'none'`, …),
   `nosniff`, `no-referrer` and `X-Frame-Options: DENY` are set on every response.
@@ -292,12 +372,12 @@ the HTTP API is treated as a remote-execution surface from day one.
 | Area | Not built yet | Hook already in place |
 | --- | --- | --- |
 | Agent execution | Claude Code / Codex adapters, starting/stopping runs, streaming activity, answering questions | `agent.Adapter`, `Session`, `Registry`; `runs`/`questions` tables; run state machine; restart recovery |
-| Worktrees | Creating, cleaning up and garbage-collecting worktrees | `worktrees` table and repo; `Run.WorktreeID` |
+| Worktrees | Running `git worktree add/remove`, creating and deleting directories, garbage-collecting | `service.Worktrees` (validated, crash-ordered records), database rules (see "Worktree safety"); `Run.WorktreeID`. Not yet wired into the controller or exposed over HTTP |
 | Advanced Git | Branches, diffs, commits, push, PRs, GitHub integration | `gitrepo` package boundary |
 | Board interactions | Drag and drop, reordering within a column, task detail/editing UI, delete | `Position` and `PATCH /api/tasks/{id}` already accept title, description, state and position |
 | Projects | Unregistering, renaming | — |
 | Notifications | Web Push for "needs you" | Event log + SSE |
-| Pairing UX | QR code / link for phones | Token file + `/#token=` adoption |
+| Pairing UX | QR code for phones | Token file, `devboard token [--url]`, `/#token=` adoption |
 | Multi-user / accounts | None, by design | — |
 | Windows | Data-dir locking is a no-op on non-Unix | `lock_other.go` |
 | Event log retention | Compaction or pruning | `seq`-based resume makes it safe to add |

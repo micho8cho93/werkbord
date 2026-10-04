@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -27,26 +28,91 @@ func TestLoadPrecedence(t *testing.T) {
 	}
 }
 
-func TestAuthRequiredOffLoopback(t *testing.T) {
-	cases := map[string]bool{
-		"127.0.0.1:7420": false,
-		"localhost:7420": false,
-		"[::1]:7420":     false,
-		"0.0.0.0:7420":   true,
-		"192.168.1.2:80": true,
-		":7420":          true,
+var (
+	loopbackAddrs    = []string{"127.0.0.1:7420", "localhost:7420", "[::1]:7420"}
+	nonLoopbackAddrs = []string{"0.0.0.0:7420", "192.168.1.2:80", ":7420"}
+)
+
+// The API can start processes on this computer, so it is authenticated unless
+// someone deliberately turns that off.
+func TestTokenIsRequiredByDefault(t *testing.T) {
+	if !Default().RequireToken {
+		t.Error("Default().RequireToken = false")
 	}
-	for addr, want := range cases {
+	for _, addr := range append(append([]string{}, loopbackAddrs...), nonLoopbackAddrs...) {
 		c := Default()
 		c.Addr = addr
-		if got := c.AuthRequired(); got != want {
-			t.Errorf("AuthRequired(%s) = %v, want %v", addr, got, want)
+		if !c.AuthRequired() {
+			t.Errorf("AuthRequired(%s) = false with the default configuration", addr)
 		}
 	}
-	c := Default()
-	c.RequireToken = true
-	if !c.AuthRequired() {
-		t.Error("RequireToken should force auth on loopback")
+}
+
+// Opting out is for loopback only: a controller reachable from the network
+// is never unauthenticated, whatever the setting says.
+func TestOptingOutNeverAppliesOffLoopback(t *testing.T) {
+	for _, addr := range loopbackAddrs {
+		c := Default()
+		c.Addr, c.RequireToken = addr, false
+		if c.AuthRequired() {
+			t.Errorf("AuthRequired(%s) = true after opting out", addr)
+		}
+	}
+	for _, addr := range nonLoopbackAddrs {
+		c := Default()
+		c.Addr, c.RequireToken = addr, false
+		if !c.AuthRequired() {
+			t.Errorf("AuthRequired(%s) = false: opting out must not expose the network", addr)
+		}
+	}
+}
+
+func TestRequireTokenSources(t *testing.T) {
+	cases := []struct {
+		name    string
+		file    string // contents of config.json, "" for none
+		env     string
+		want    bool
+		wantErr bool
+	}{
+		{"nothing set", "", "", true, false},
+		{"file false", `{"requireToken": false}`, "", false, false},
+		{"file true", `{"requireToken": true}`, "", true, false},
+		{"file without the key", `{"logLevel": "warn"}`, "", true, false},
+		{"env false", "", "false", false, false},
+		{"env 0", "", "0", false, false},
+		{"env true", "", "true", true, false},
+		{"env 1", "", "1", true, false},
+		{"env beats file: on", `{"requireToken": false}`, "true", true, false},
+		{"env beats file: off", `{"requireToken": true}`, "false", false, false},
+		// Not understanding a setting must never quietly mean "unauthenticated".
+		{"env nonsense", "", "off", true, true},
+		{"env nonsense 2", "", "disabled", true, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("DEVBOARD_DATA_DIR", dir)
+			t.Setenv("DEVBOARD_REQUIRE_TOKEN", c.env)
+			if c.file != "" {
+				if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(c.file), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cfg, err := Load()
+			if c.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "DEVBOARD_REQUIRE_TOKEN") {
+					t.Fatalf("Load err = %v, want an error naming DEVBOARD_REQUIRE_TOKEN", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.RequireToken != c.want {
+				t.Errorf("RequireToken = %v, want %v", cfg.RequireToken, c.want)
+			}
+		})
 	}
 }
 

@@ -21,6 +21,7 @@ type Project struct {
 type GitRepository struct {
 	ProjectID     string      `json:"projectId"`
 	RootPath      string      `json:"rootPath"`
+	CommonDir     string      `json:"commonDir"`     // the shared .git directory: a repository's identity, since linked worktrees have their own RootPath
 	CurrentBranch string      `json:"currentBranch"` // empty when HEAD is detached
 	HeadCommit    string      `json:"headCommit"`    // empty in a repository with no commits
 	DefaultBranch string      `json:"defaultBranch"` // from origin/HEAD when known

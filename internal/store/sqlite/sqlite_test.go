@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -222,6 +223,99 @@ func TestEventsListAfter(t *testing.T) {
 func mustUpdate(t *testing.T, db *DB, fn func(store.Tx) error) {
 	t.Helper()
 	if err := db.Update(context.Background(), fn); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func snapshot(projectID, commonDir string) *domain.GitRepository {
+	return &domain.GitRepository{ProjectID: projectID, RootPath: "/r/" + projectID, CommonDir: commonDir, Remotes: []domain.GitRemote{}, InspectedAt: now()}
+}
+
+func TestRepositoryCommonDirIsUnique(t *testing.T) {
+	ctx := context.Background()
+	db, _ := openTemp(t)
+	a, b, c := seedProject(t, db), seedProject(t, db), seedProject(t, db)
+
+	err := db.Update(ctx, func(tx store.Tx) error {
+		if err := tx.Repositories().Upsert(ctx, snapshot(a.ID, "/repos/x/.git")); err != nil {
+			return err
+		}
+		// Refreshing a project's own snapshot is not a conflict.
+		if err := tx.Repositories().Upsert(ctx, snapshot(a.ID, "/repos/x/.git")); err != nil {
+			return err
+		}
+		// Unknown ('') identities may repeat: rows from before the migration.
+		if err := tx.Repositories().Upsert(ctx, snapshot(b.ID, "")); err != nil {
+			return err
+		}
+		return tx.Repositories().Upsert(ctx, snapshot(c.ID, ""))
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = db.Update(ctx, func(tx store.Tx) error { return tx.Repositories().Upsert(ctx, snapshot(b.ID, "/repos/x/.git")) })
+	if !errors.Is(err, domain.ErrDuplicate) {
+		t.Fatalf("second project with the same common dir: err = %v, want ErrDuplicate", err)
+	}
+
+	_ = db.View(ctx, func(tx store.Tx) error {
+		got, err := tx.Repositories().GetByCommonDir(ctx, "/repos/x/.git")
+		if err != nil || got.ProjectID != a.ID {
+			t.Errorf("GetByCommonDir = %+v, %v; want project %s", got, err, a.ID)
+		}
+		if _, err := tx.Repositories().GetByCommonDir(ctx, "/repos/none/.git"); !errors.Is(err, domain.ErrNotFound) {
+			t.Errorf("unknown common dir: err = %v, want ErrNotFound", err)
+		}
+		if _, err := tx.Repositories().GetByCommonDir(ctx, ""); !errors.Is(err, domain.ErrNotFound) {
+			t.Errorf("empty common dir must never match: err = %v", err)
+		}
+		return nil
+	})
+}
+
+// TestMigrationKeepsExistingRepositorySnapshots upgrades a version-1 database
+// that already has data, as a user's database would be.
+func TestMigrationKeepsExistingRepositorySnapshots(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := Migrations()
+	if err != nil || len(ms) < 2 {
+		t.Fatalf("migrations: %v, %v", len(ms), err)
+	}
+	if _, err := migrate(ctx, raw, ms[:1]); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO projects VALUES ('prj_old', 'old', '/repos/old', 1, 1)`,
+		`INSERT INTO git_repositories (project_id, root_path, current_branch, head_commit, default_branch, remotes, inspected_at)
+		 VALUES ('prj_old', '/repos/old', 'main', 'abc', 'main', '[]', 1)`,
+	} {
+		if _, err := raw.ExecContext(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = raw.Close()
+
+	db, err := Open(ctx, path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.View(ctx, func(tx store.Tx) error {
+		g, err := tx.Repositories().Get(ctx, "prj_old")
+		if err != nil {
+			return err
+		}
+		if g.HeadCommit != "abc" || g.CurrentBranch != "main" || g.CommonDir != "" {
+			t.Errorf("snapshot after migration = %+v", g)
+		}
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
 }

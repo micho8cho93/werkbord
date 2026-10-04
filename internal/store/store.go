@@ -49,9 +49,14 @@ type ProjectRepo interface {
 }
 
 // GitRepositoryRepo stores the latest inspection snapshot per project.
+//
+// Upsert returns domain.ErrDuplicate when another project's snapshot already
+// has the same non-empty CommonDir: two projects may not share a repository.
+// GetByCommonDir returns domain.ErrNotFound when no snapshot has it.
 type GitRepositoryRepo interface {
 	Upsert(ctx context.Context, r *domain.GitRepository) error
 	Get(ctx context.Context, projectID string) (*domain.GitRepository, error)
+	GetByCommonDir(ctx context.Context, commonDir string) (*domain.GitRepository, error)
 }
 
 // TaskRepo persists tasks. Update is compare-and-swap: it succeeds only if the
@@ -86,11 +91,24 @@ type QuestionRepo interface {
 }
 
 // WorktreeRepo persists worktrees created for runs.
+//
+// The database enforces what a row may say, whoever writes it: Create returns
+// domain.ErrInvalid for a malformed path, branch or base ref and
+// domain.ErrDuplicate for a path in use or a branch that already has an active
+// worktree in the project. Update is compare-and-swap like TaskRepo.Update and
+// changes only the removal state: RemovingSince can be set (never cleared)
+// while no active run uses the worktree, and State can become removed only
+// after that, in a later update. Violations return domain.ErrConflict, as does
+// an active run created on a worktree that is being or has been removed.
+// Records of active worktrees cannot be deleted, directly or by deleting their
+// project.
 type WorktreeRepo interface {
 	Create(ctx context.Context, w *domain.Worktree) error
 	Get(ctx context.Context, id string) (*domain.Worktree, error)
 	Update(ctx context.Context, w *domain.Worktree) error
 	ListByProject(ctx context.Context, projectID string) ([]domain.Worktree, error)
+	// ListActive returns every worktree still on disk, across projects.
+	ListActive(ctx context.Context) ([]domain.Worktree, error)
 }
 
 // EventRepo is the append-only event log.
