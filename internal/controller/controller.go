@@ -33,13 +33,15 @@ type Controller struct {
 	log     *slog.Logger
 	version string
 
-	release  func()
-	db       *sqlite.DB
-	broker   *events.Broker
-	runner   *runner.Manager
-	server   *http.Server
-	listener net.Listener
-	serveErr chan error
+	release    func()
+	db         *sqlite.DB
+	broker     *events.Broker
+	runner     *runner.Manager
+	health     *service.GitHealth
+	stopHealth context.CancelFunc
+	server     *http.Server
+	listener   net.Listener
+	serveErr   chan error
 }
 
 // New returns an unstarted controller.
@@ -86,6 +88,12 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	if !c.cfg.GitHub.Disabled {
 		gitControl.GitHub = &github.CLI{Binary: c.cfg.GitHub.Command}
 	}
+	// Repository health: recalculated when something that can change it happens, never on a timer.
+	c.health = &service.GitHealth{Deps: deps, Control: gitControl}
+	var healthCtx context.Context
+	healthCtx, c.stopHealth = context.WithCancel(context.Background())
+	c.health.Watch(healthCtx, c.broker)
+
 	agents, err := newAgents(c.cfg)
 	if err != nil {
 		return err
@@ -118,6 +126,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Runner:       c.runner,
 		Worktrees:    worktrees,
 		Git:          gitControl,
+		Health:       c.health,
 		Agents:       agents,
 		Store:        c.db,
 		Events:       c.broker,
@@ -214,6 +223,15 @@ func (c *Controller) teardown(ctx ...context.Context) error {
 			err = fmt.Errorf("stop agents: %w", e)
 		}
 		c.runner = nil
+	}
+	// The health watcher reads the database and publishes events: stop it before either goes.
+	if c.stopHealth != nil {
+		c.stopHealth()
+		c.stopHealth = nil
+	}
+	if c.health != nil {
+		c.health.Wait()
+		c.health = nil
 	}
 	if c.broker != nil {
 		c.broker.Close()

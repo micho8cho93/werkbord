@@ -48,14 +48,24 @@ export function activitySummary(a: ProjectActivity | undefined): string {
   const parts: string[] = [];
   if (a.needsInput) parts.push(`${a.needsInput} ${a.needsInput === 1 ? 'needs' : 'need'} input`);
   if (a.blocked) parts.push(`${a.blocked} blocked`);
+  if (a.failed) parts.push(`${a.failed} failed`);
+  if (a.repoRisk) parts.push(`${a.repoRisk} ${a.repoRisk === 1 ? 'repository risk' : 'repository risks'}`);
+  if (a.review) parts.push(`${a.review} to review`);
   if (a.idle) parts.push(`${a.idle} waiting`);
+  // Attention-level findings that are not already counted as risks.
+  const gitItems = a.repoAttention - a.repoRisk;
+  if (gitItems > 0) parts.push(`${gitItems} Git ${gitItems === 1 ? 'item' : 'items'}`);
   if (a.running) parts.push(`${a.running} running`);
   return parts.join(' · ');
 }
 
-/** How much of it needs the user: what the badge on the switcher counts. */
+/**
+ * How much of it needs the user: what the badge on the switcher counts. Questions, blocked and
+ * failed runs, runs waiting for a message, and repositories at risk. Not finished work waiting
+ * for review and not ordinary Git findings: they are listed, but they do not light a badge.
+ */
 export function attentionCount(a: ProjectActivity | undefined): number {
-  return a ? a.needsInput + a.blocked + a.idle : 0;
+  return a ? a.needsInput + a.blocked + a.idle + a.failed + a.repoRisk : 0;
 }
 
 /** Moves a highlighted row through a list of n, wrapping round at both ends. */

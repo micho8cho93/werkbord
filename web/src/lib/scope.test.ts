@@ -9,7 +9,7 @@ const db = vi.hoisted(() => ({
   latest: {} as Record<string, unknown[]>,
   history: {} as Record<string, unknown[]>,
   questions: {} as Record<string, unknown[]>,
-  overview: { projects: [], questions: [], runs: [] } as unknown,
+  overview: { projects: [], questions: [], runs: [], failed: [], review: [], repository: [] } as unknown,
   calls: [] as string[],
 }));
 
@@ -61,7 +61,7 @@ beforeEach(() => {
   db.latest = { prj_a: [run('run_a1', 'tsk_a1', 'prj_a')], prj_b: [run('run_b1', 'tsk_b1', 'prj_b', { state: 'blocked' })] };
   db.history = { prj_a: [run('run_a1', 'tsk_a1', 'prj_a')], prj_b: [run('run_b1', 'tsk_b1', 'prj_b', { state: 'blocked' })] };
   db.questions = { prj_a: [question('qst_a', 'run_a1', 'tsk_a1', 'prj_a')], prj_b: [] };
-  db.overview = { projects: [], questions: [], runs: [] };
+  db.overview = { projects: [], questions: [], runs: [], failed: [], review: [], repository: [] };
   db.calls = [];
   // `app` is one object for the whole page; each test starts it afresh.
   app.scopes.clear();
@@ -251,8 +251,8 @@ describe('switching projects', () => {
 describe('the Control Center stays across projects', () => {
   const overview = (): Overview => ({
     projects: [
-      { projectId: 'prj_a', name: 'Alpha', needsInput: 1, blocked: 0, idle: 0, running: 0 },
-      { projectId: 'prj_b', name: 'Beta', needsInput: 0, blocked: 1, idle: 1, running: 0 },
+      { projectId: 'prj_a', name: 'Alpha', needsInput: 1, blocked: 0, idle: 0, running: 0, failed: 0, review: 0, repoAttention: 0, repoRisk: 0 },
+      { projectId: 'prj_b', name: 'Beta', needsInput: 0, blocked: 1, idle: 1, running: 0, failed: 0, review: 0, repoAttention: 0, repoRisk: 0 },
     ],
     questions: [{ question: question('qst_ov', 'run_a1', 'tsk_a1', 'prj_a'), projectName: 'Alpha', taskTitle: 'Alpha task', agentId: 'fake' }],
     runs: [
@@ -260,6 +260,9 @@ describe('the Control Center stays across projects', () => {
       { run: run('run_b1', 'tsk_b1', 'prj_b', { state: 'blocked' }), projectName: 'Beta', taskTitle: 'Beta task' },
       { run: run('run_b2', 'tsk_b2', 'prj_b', { state: 'waiting_for_user', waiting: 'idle' }), projectName: 'Beta', taskTitle: 'Beta second' },
     ],
+    failed: [],
+    review: [],
+    repository: [],
   });
 
   it('counts what needs the user in every project, whichever one is open', async () => {
@@ -271,6 +274,18 @@ describe('the Control Center stays across projects', () => {
     expect(app.idleCount).toBe(1);
     expect(app.needsInput).toBe(1);
     expect(app.needsYou).toBe(3);
+  });
+
+  it('counts failures and repositories at risk too, but not finished work or ordinary findings', async () => {
+    const o = overview();
+    o.failed = [{ run: run('run_f', 'tsk_f', 'prj_a', { state: 'failed' }), projectName: 'Alpha', taskTitle: 'Failed task' }];
+    o.repository = [{ id: 'hf_1', projectId: 'prj_b', type: 'unresolved_conflicts', severity: 'critical' } as never];
+    o.review = [{ task: { id: 'tsk_r', projectId: 'prj_a', title: 'Ready' } as never, projectName: 'Alpha' }];
+    db.overview = o;
+    await app.refresh();
+    expect(app.failedCount).toBe(1);
+    expect(app.riskCount).toBe(1);
+    expect(app.needsYou).toBe(5); // 1 question + 1 blocked + 1 idle + 1 failed + 1 repository at risk; the task in Review is not counted
   });
 
   it('names the project and task of anything, even in a project that was never opened', async () => {

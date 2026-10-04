@@ -65,7 +65,9 @@ func newGitAPI(t *testing.T, token string) *gitAPI {
 		o.Tasks = &service.Tasks{Deps: deps}
 		o.Runs = &service.Runs{Deps: deps}
 		o.Worktrees = wts
-		o.Git = &service.GitControl{Deps: deps, Git: g, Worktrees: wts}
+		gc := &service.GitControl{Deps: deps, Git: g, Worktrees: wts}
+		o.Git = gc
+		o.Health = &service.GitHealth{Deps: deps, Control: gc}
 		if token != "" {
 			o.AuthRequired, o.Token = true, token
 		}
@@ -295,6 +297,7 @@ func TestGitEndpointsRequireTheToken(t *testing.T) {
 	for _, c := range []struct{ method, path string }{
 		{"GET", ""}, {"GET", "/pull-requests"}, {"GET", "/compare?branch=x"}, {"GET", "/diff"}, {"GET", "/changes"},
 		{"POST", "/push"}, {"POST", "/merge"}, {"POST", "/merge/plan"}, {"POST", "/branches/delete"}, {"POST", "/worktrees/clean"}, {"POST", "/pull-requests"}, {"POST", "/fetch"},
+		{"GET", "/health"}, {"POST", "/health/refresh"}, {"POST", "/health/findings/hf_x/dismiss"}, {"POST", "/health/findings/hf_x/reopen"},
 	} {
 		req, _ := http.NewRequest(c.method, g.path(g.project.ID, c.path), strings.NewReader("{}"))
 		resp, err := http.DefaultClient.Do(req)

@@ -54,6 +54,7 @@ const EVENT_TYPES = [
   'git.branch_deleted',
   'git.worktree_cleaned',
   'git.pull_request_created',
+  'git.health_changed',
 ];
 
 /** Events after which the Control Center's overview may be out of date. Agent output is not one of them. */
@@ -66,6 +67,7 @@ const OVERVIEW_EVENTS = new Set([
   'agent.blocked',
   'question.answered',
   'question.cancelled',
+  'git.health_changed',
 ]);
 
 type RunListener = (ev: ControllerEvent) => void;
@@ -105,8 +107,16 @@ class AppState {
   idleCount = $derived(
     (this.overview?.runs ?? []).filter((r) => r.run.state === 'waiting_for_user' && r.run.waiting === 'idle').length,
   );
-  /** What waits for the user, in every project: open questions, blocked runs, runs idle for a next message. Counted for the badge. */
-  needsYou = $derived(this.questions.length + this.blockedCount + this.idleCount);
+  /** Runs that failed on a task still waiting on them, anywhere. */
+  failedCount = $derived((this.overview?.failed ?? []).length);
+  /** Repositories at risk or worse: the open findings the Control Center lists. Ordinary "attention" findings are not counted here. */
+  riskCount = $derived((this.overview?.repository ?? []).length);
+  /**
+   * What waits for the user, in every project: open questions, blocked runs, failed runs, runs idle for
+   * a next message, and repositories at risk. Counted for the badge. Housekeeping and ordinary
+   * repository findings are not: a badge that is always lit is a badge nobody reads.
+   */
+  needsYou = $derived(this.questions.length + this.blockedCount + this.idleCount + this.failedCount + this.riskCount);
   /** How many questions are waiting for an answer: what the "needs input" signals count. */
   needsInput = $derived(this.questions.length);
 

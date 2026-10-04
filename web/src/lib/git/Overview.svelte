@@ -24,6 +24,7 @@
   import type { Project } from '../types';
   import BranchCard from './BranchCard.svelte';
   import Chips from './Chips.svelte';
+  import HealthPanel from './HealthPanel.svelte';
   import ResultCard from './ResultCard.svelte';
   import { sheets } from './sheets.svelte';
   import type { GitStore } from './store.svelte';
@@ -87,6 +88,9 @@
         <button class="btn small quiet" onclick={() => (store.lastResult = null)}>Dismiss</button>
       </div>
     {/if}
+
+    <!-- 0. Is anything wrong? Healthy, or what: the findings, and what to do about each. -->
+    <HealthPanel {project} {store} />
 
     <!-- 1. Repository summary: this computer, and the remote, apart. -->
     <section class="card g-card summary" aria-label="Repository">

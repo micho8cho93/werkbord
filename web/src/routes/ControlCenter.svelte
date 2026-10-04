@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { agentName, cardActivity, runElapsed } from '../lib/format';
+  import '../lib/git/git.css';
+  import { agentName, cardActivity, runElapsed, timeAgo } from '../lib/format';
+  import { overviewHref } from '../lib/gitroute';
+  import { basisLabel, severityLabel, severityTone } from '../lib/health';
   import { interactionShort, isNotable } from '../lib/policy';
   import ProjectAvatar from '../lib/ProjectAvatar.svelte';
   import { activitySummary } from '../lib/projects';
@@ -8,7 +11,7 @@
   import RunBadge from '../lib/RunBadge.svelte';
   import { projectHref, taskHref } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
-  import type { AttentionRun, Question } from '../lib/types';
+  import type { AttentionReview, AttentionRun, Question } from '../lib/types';
 
   // The Control Center is the one place that looks across projects. Everything here is read from
   // the controller's overview, which names each item's project and task; none of it is filtered on this side.
@@ -17,6 +20,16 @@
   const idle = $derived(runs.filter((r) => r.run.state === 'waiting_for_user' && r.run.waiting === 'idle'));
   const working = $derived(runs.filter((r) => r.run.state === 'running' || r.run.state === 'starting'));
   const loaded = $derived(app.connection === 'live' && app.overview !== null);
+
+  // The exceptions: what needs a person. Everything else is quiet background activity, kept out of the way.
+  const failed = $derived(app.overview?.failed ?? []);
+  const reviewTasks = $derived(app.overview?.review ?? []);
+  const repository = $derived(app.overview?.repository ?? []);
+  const readyCount = $derived(idle.length + reviewTasks.length);
+  const allClear = $derived(
+    loaded && app.questions.length === 0 && blocked.length === 0 && failed.length === 0 && readyCount === 0 && repository.length === 0,
+  );
+  const reviewHref = (r: AttentionReview) => taskHref(r.task.projectId, r.task.id);
 
   const where = (q: Question) => app.taskInfo(q.taskId, q.projectId);
   const agentOf = (q: Question) => {
@@ -46,13 +59,24 @@
     </section>
   {/if}
 
+  <!-- This view is for exceptions: what needs an answer, what is stuck, what failed, what is ready, and where a
+       repository is at risk. Successful background activity is kept out of the way, below. -->
+  {#if allClear}
+    <p class="card clear" role="status">
+      <strong>All clear.</strong>
+      <span class="muted">
+        Nothing needs you{#if working.length}; {working.length === 1 ? '1 agent is' : `${working.length} agents are`} working{/if}.
+      </span>
+    </p>
+  {/if}
+
   <!-- What an agent is blocked on comes first, and is hard to miss. -->
-  <section class="needs" aria-labelledby="needs-input" data-count={app.questions.length}>
-    <h2 id="needs-input">
-      Needs input
-      {#if app.questions.length}<span class="n" aria-label={needsInputText(app.questions.length)}>{app.questions.length}</span>{/if}
-    </h2>
-    {#if app.questions.length}
+  {#if app.questions.length}
+    <section class="needs" aria-labelledby="needs-input" data-count={app.questions.length}>
+      <h2 id="needs-input">
+        Needs input
+        <span class="n" aria-label={needsInputText(app.questions.length)}>{app.questions.length}</span>
+      </h2>
       <ul class="list">
         {#each app.questions as q (q.id)}
           {@const info = where(q)}
@@ -68,10 +92,8 @@
           </li>
         {/each}
       </ul>
-    {:else}
-      <p class="card empty">{loaded ? 'No agent is waiting for an answer.' : 'Loading…'}</p>
-    {/if}
-  </section>
+    </section>
+  {/if}
 
   {#if blocked.length}
     <section class="blocked" aria-labelledby="blocked-h">
@@ -99,9 +121,36 @@
     </section>
   {/if}
 
-  {#if idle.length}
+  {#if failed.length}
+    <section class="failed" aria-labelledby="failed-h">
+      <h2 id="failed-h">
+        Failed
+        <span class="n f" aria-label="{failed.length} failed">{failed.length}</span>
+      </h2>
+      <ul class="list">
+        {#each failed as r (r.run.id)}
+          <li class="card item fail">
+            <div class="where">
+              <a class="who" href={href(r)}>{r.taskTitle}</a>
+              <span class="project-chip">
+                <ProjectAvatar id={r.run.projectId} name={r.projectName} size={16} />
+                {r.projectName} · {agentName(app.agents, r.run.agentId)}{#if r.run.endedAt} · {timeAgo(r.run.endedAt, app.now)}{/if}
+              </span>
+            </div>
+            {#if cardActivity(r.run)}<p class="summary">{cardActivity(r.run)}</p>{/if}
+            <a class="btn small go" href={href(r)}>Look at it</a>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
+  {#if readyCount}
     <section aria-labelledby="ready">
-      <h2 id="ready">Ready for your next message</h2>
+      <h2 id="ready">
+        Ready for review
+        <span class="n r" aria-label="{readyCount} ready for review">{readyCount}</span>
+      </h2>
       <ul class="list">
         {#each idle as r (r.run.id)}
           <li class="card item">
@@ -115,13 +164,57 @@
             {#if cardActivity(r.run)}<p class="activity">{cardActivity(r.run)}</p>{/if}
           </li>
         {/each}
+        {#each reviewTasks as r (r.task.id)}
+          <li class="card item">
+            <div class="where">
+              <a class="who" href={reviewHref(r)}>{r.task.title}</a>
+              <span class="project-chip">
+                <ProjectAvatar id={r.task.projectId} name={r.projectName} size={16} />
+                {r.projectName}{#if r.lastRun} · {agentName(app.agents, r.lastRun.agentId)}{/if} · in Review
+              </span>
+            </div>
+          </li>
+        {/each}
       </ul>
     </section>
   {/if}
 
-  <section>
-    <h2>Running</h2>
-    {#if working.length}
+  <!-- Only a risk or worse is listed here. Ordinary findings and housekeeping are in the project's Git screen. -->
+  {#if repository.length}
+    <section class="risk" aria-labelledby="risk-h">
+      <h2 id="risk-h">
+        Repository risk
+        <span class="n k" aria-label="{repository.length} at risk">{repository.length}</span>
+      </h2>
+      <ul class="list">
+        {#each repository as f (f.id)}
+          <li class="card item repo" data-severity={f.severity}>
+            <div class="where">
+              <span class="g-chip" data-tone={severityTone(f.severity)}>{severityLabel(f.severity)}</span>
+              <span class="project-chip">
+                <ProjectAvatar id={f.projectId} name={f.projectName || '?'} size={16} />
+                {f.projectName}
+              </span>
+              <span class="muted small">{basisLabel(f.basis)}</span>
+            </div>
+            <p class="summary">{f.title}</p>
+            <p class="muted small">{f.explanation}</p>
+            <p class="small"><strong>Next:</strong> {f.action.label}</p>
+            <a class="btn small go" href={overviewHref(f.projectId)} onclick={() => app.enter(f.projectId)}>Open Git</a>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
+  {#if !loaded}
+    <p class="card empty">Loading…</p>
+  {/if}
+
+  <!-- Quiet, successful background activity: here if you want it, never competing with the above. -->
+  {#if working.length}
+    <details class="quiet">
+      <summary>Working now ({working.length})</summary>
       <ul class="list">
         {#each working as r (r.run.id)}
           <li class="card item">
@@ -143,14 +236,12 @@
           </li>
         {/each}
       </ul>
-    {:else}
-      <p class="card empty">{loaded ? 'No agent is working right now.' : 'Loading…'}</p>
-    {/if}
-  </section>
+    </details>
+  {/if}
 
-  <section>
-    <h2>Agents</h2>
-    {#if app.agents.length}
+  {#if app.agents.length}
+    <details class="quiet">
+      <summary>Agents ({app.agents.length})</summary>
       <ul class="list">
         {#each app.agents as a (a.id)}
           <li class="card item row">
@@ -159,10 +250,8 @@
           </li>
         {/each}
       </ul>
-    {:else}
-      <p class="card empty">{loaded ? 'No agents are configured.' : 'Loading…'}</p>
-    {/if}
-  </section>
+    </details>
+  {/if}
 </div>
 
 <style>
@@ -273,6 +362,84 @@
   .go {
     justify-self: start;
     text-decoration: none;
+  }
+
+  .needs h2,
+  .failed h2,
+  .risk h2,
+  #ready {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .failed h2 {
+    color: var(--danger);
+  }
+
+  .risk h2 {
+    color: var(--block);
+  }
+
+  .n.f {
+    background: var(--danger);
+    color: #fff;
+  }
+
+  .n.k {
+    background: var(--block);
+    color: #fff;
+  }
+
+  .n.r {
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+
+  .item.fail {
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+    border-left: 4px solid var(--danger);
+    background: color-mix(in srgb, var(--danger) 5%, var(--surface));
+  }
+
+  .item.repo {
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--block) 45%, var(--border));
+    border-left: 4px solid var(--block);
+    background: color-mix(in srgb, var(--block) 5%, var(--surface));
+  }
+
+  .item.repo[data-severity='critical'] {
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+    border-left-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+  }
+
+  .item.repo p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .clear {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 14px;
+    border-left: 4px solid var(--ok);
+  }
+
+  .quiet summary {
+    cursor: pointer;
+    padding: 8px 2px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .quiet[open] > summary {
+    margin-bottom: 8px;
   }
 
   .needs h2 {

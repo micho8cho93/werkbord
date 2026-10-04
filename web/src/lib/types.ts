@@ -193,6 +193,21 @@ export interface ProjectActivity {
   blocked: number;
   idle: number;
   running: number;
+  /** Runs that failed on a task still waiting on them. */
+  failed: number;
+  /** Tasks waiting for review with nothing running. */
+  review: number;
+  /** Open repository-health findings of attention level or worse. */
+  repoAttention: number;
+  /** ... of risk level or worse. */
+  repoRisk: number;
+}
+
+export interface AttentionReview {
+  task: Task;
+  projectName: string;
+  /** The task's latest run, if it ever ran: who did the work. */
+  lastRun?: Run;
 }
 
 export interface AttentionQuestion {
@@ -213,6 +228,12 @@ export interface Overview {
   projects: ProjectActivity[];
   questions: AttentionQuestion[];
   runs: AttentionRun[];
+  /** Runs that failed on a task still waiting on them, newest first. */
+  failed: AttentionRun[];
+  /** Tasks waiting for review with nothing running, oldest first. */
+  review: AttentionReview[];
+  /** Open repository-health findings that are a risk or worse, in every project, worst first. */
+  repository: HealthFinding[];
 }
 
 // ---- the Git Control Center (internal/domain/gitstate.go) ----
@@ -614,4 +635,130 @@ export interface GitHubState {
   repo?: string;
   pullRequests: GitHubPR[];
   fetchedAt: string;
+}
+
+// ---- repository health (internal/domain/health.go) ----
+//
+// What Git state needs attention, as findings. Each says what is wrong, why, the evidence,
+// the next step, and whether Dev Board can do it. Nothing here is ever executed by the
+// health system: an action opens the same confirmation as anywhere else in the Git screen.
+
+export type HealthSeverity = 'info' | 'attention' | 'risk' | 'critical';
+export type HealthState = 'open' | 'resolved' | 'dismissed';
+/** Whether a signal is a fact (deterministic) or a reasoned guess (heuristic, worded as "may"). */
+export type HealthBasis = 'deterministic' | 'heuristic';
+export type HealthCategory = 'uncommitted' | 'unsynced' | 'branch' | 'worktree' | 'orchestration' | 'operation';
+
+export type HealthFindingType =
+  | 'uncommitted_work'
+  | 'unpushed_commits'
+  | 'branch_not_pushed'
+  | 'remote_ahead'
+  | 'upstream_diverged'
+  | 'remote_branch_deleted'
+  | 'remote_state_stale'
+  | 'merged_branch_present'
+  | 'branch_content_on_target'
+  | 'abandoned_branch'
+  | 'stale_branch'
+  | 'branch_far_behind'
+  | 'task_done_unmerged'
+  | 'finished_work_unmerged'
+  | 'missing_branch_for_task'
+  | 'branch_overlap'
+  | 'branch_conflict'
+  | 'orphaned_worktree'
+  | 'worktree_without_run'
+  | 'worktree_retained_after_done'
+  | 'worktree_metadata_mismatch'
+  | 'operation_interrupted'
+  | 'unresolved_conflicts'
+  | 'automation_blocked'
+  | 'repository_unreadable';
+
+export type HealthActionKind =
+  | 'review_changes'
+  | 'push_branch'
+  | 'sync_branch'
+  | 'merge_branch'
+  | 'delete_branch'
+  | 'clean_worktree'
+  | 'finish_operation'
+  | 'fetch'
+  | 'create_task'
+  | 'ask_agent'
+  | 'inspect';
+
+export interface HealthEvidence {
+  label: string;
+  value: string;
+}
+
+export interface HealthSubject {
+  branch?: string;
+  /** Other branches involved, for an overlap. */
+  related?: string[];
+  worktreeId?: string;
+  worktreePath?: string;
+  taskId?: string;
+  taskTitle?: string;
+  runId?: string;
+}
+
+export interface HealthAction {
+  kind: HealthActionKind;
+  label: string;
+  detail?: string;
+  /** Dev Board has a guarded operation for this and what it needs is true now. It is never run automatically. */
+  canPerform: boolean;
+  /** Why not, and what to do instead. */
+  reason?: string;
+  destructive?: boolean;
+  branch?: string;
+  worktreeId?: string;
+  taskTitle?: string;
+  taskDescription?: string;
+}
+
+export interface HealthFinding {
+  id: string;
+  projectId: string;
+  projectName?: string;
+  type: HealthFindingType;
+  category: HealthCategory;
+  severity: HealthSeverity;
+  basis: HealthBasis;
+  title: string;
+  explanation: string;
+  subject: HealthSubject;
+  evidence: HealthEvidence[];
+  action: HealthAction;
+  state: HealthState;
+  detectedAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+  dismissedAt?: string;
+  dismissedSeverity?: HealthSeverity;
+}
+
+export interface HealthSummary {
+  state: 'healthy' | 'attention' | 'risk' | 'critical';
+  /** "Healthy", or what is wrong: "1 risk · 3 items need attention". */
+  headline: string;
+  counts: { info: number; attention: number; risk: number; critical: number };
+  needsAttention: number;
+  dismissed: number;
+  /** 0-100. Secondary: the findings say what is wrong; a number cannot. */
+  score: number;
+}
+
+export interface RepositoryHealth {
+  projectId: string;
+  summary: HealthSummary;
+  /** Open findings, worst first. Info ones are housekeeping. */
+  findings: HealthFinding[];
+  dismissed: HealthFinding[];
+  /** Findings that stopped being true in the last day. */
+  resolved: HealthFinding[];
+  check?: { projectId: string; checkedAt: string; durationMs: number; error?: string };
 }

@@ -23,6 +23,15 @@ delete a branch Dev Board made, clean a Dev Board worktree and open a pull reque
 refuses rather than guesses. Nothing is ever forced, and **an agent finishing a run never merges**. See
 [docs/GIT.md](docs/GIT.md) for the safety model.
 
+**Repository health.** The Git screen leads with *Healthy*, or with what is wrong (`1 risk · 3 items need attention`):
+findings that say what, why, the evidence, the next step, and whether Dev Board can do it. They are worked out from
+Git metadata and Dev Board's own records, never by a model, are recalculated when something changes (not on a timer),
+and never act on their own. The Control Center is for exceptions: needs input, blocked, failed, ready for review, and
+repository risk. See [docs/HEALTH.md](docs/HEALTH.md).
+
+**Versions.** Each milestone is a minor version, tagged `vMAJOR.MINOR.PATCH` (this one is v0.6.0). See
+[docs/VERSIONING.md](docs/VERSIONING.md).
+
 **Interaction policy.** Each task says how its agent may deal with you: *Ask me when needed* (the
 default), *Work autonomously*, or *Work autonomously — stop if blocked*. See below.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

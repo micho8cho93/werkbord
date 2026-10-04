@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"sort"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/store"
@@ -25,6 +27,17 @@ type Overview struct {
 	Questions []AttentionQuestion `json:"questions"`
 	// Runs are the runs that still have a session, in every project, oldest first.
 	Runs []AttentionRun `json:"runs"`
+	// Failed are runs that ended in failure on a task still waiting on them: its
+	// latest run failed and the task is in Doing or Review. Newest first. Moving the
+	// task on (to Done, or back to the Backlog) or running it again clears it.
+	Failed []AttentionRun `json:"failed"`
+	// Review are tasks in the Review column with nothing running and no failure:
+	// finished work waiting for a person. Oldest first.
+	Review []AttentionReview `json:"review"`
+	// Repository are the open repository-health findings that are a risk or
+	// worse, in every project, worst first. Housekeeping and ordinary
+	// "attention" items are counted per project but not listed here.
+	Repository []domain.HealthFinding `json:"repository"`
 }
 
 // ProjectActivity counts what is happening in one project, by what it asks of the user.
@@ -39,7 +52,26 @@ type ProjectActivity struct {
 	Idle int `json:"idle"`
 	// Running: runs that are working.
 	Running int `json:"running"`
+	// Failed: runs that failed on a task still waiting on them.
+	Failed int `json:"failed"`
+	// Review: tasks waiting for review with nothing running.
+	Review int `json:"review"`
+	// RepoAttention: open health findings of attention level or worse.
+	RepoAttention int `json:"repoAttention"`
+	// RepoRisk: open health findings of risk level or worse.
+	RepoRisk int `json:"repoRisk"`
 }
+
+// AttentionReview is a task waiting for review with where it belongs.
+type AttentionReview struct {
+	Task        domain.Task `json:"task"`
+	ProjectName string      `json:"projectName"`
+	// LastRun is the task's latest run, if it ever ran: who did the work.
+	LastRun *domain.Run `json:"lastRun,omitempty"`
+}
+
+// failedWindow is how long a failure stays on the Control Center if nobody deals with it.
+const failedWindow = 14 * 24 * time.Hour
 
 // AttentionQuestion is a pending question with where it belongs.
 type AttentionQuestion struct {
@@ -58,7 +90,9 @@ type AttentionRun struct {
 
 // Overview reads every project's active state.
 func (s *ControlCenter) Overview(ctx context.Context) (*Overview, error) {
-	out := &Overview{Projects: []ProjectActivity{}, Questions: []AttentionQuestion{}, Runs: []AttentionRun{}}
+	out := &Overview{Projects: []ProjectActivity{}, Questions: []AttentionQuestion{}, Runs: []AttentionRun{},
+		Failed: []AttentionRun{}, Review: []AttentionReview{}, Repository: []domain.HealthFinding{}}
+	now := s.now()
 	err := s.Store.View(ctx, func(tx store.Tx) error {
 		projects, err := tx.Projects().List(ctx)
 		if err != nil {
@@ -107,6 +141,67 @@ func (s *ControlCenter) Overview(ctx context.Context) (*Overview, error) {
 				a.Idle++
 			default:
 				a.Running++
+			}
+		}
+
+		// What stopped without being dealt with, and what is finished and waits for a person.
+		activeTasks := map[string]bool{}
+		for _, r := range runs {
+			activeTasks[r.TaskID] = true
+		}
+		for _, p := range projects {
+			tasks, err := tx.Tasks().ListByProject(ctx, p.ID)
+			if err != nil {
+				return err
+			}
+			latest, err := tx.Runs().ListLatestByProject(ctx, p.ID)
+			if err != nil {
+				return err
+			}
+			lastRun := make(map[string]domain.Run, len(latest))
+			for _, r := range latest {
+				lastRun[r.TaskID] = r
+			}
+			a := &out.Projects[index[p.ID]]
+			for _, task := range tasks {
+				r, ran := lastRun[task.ID]
+				switch {
+				case activeTasks[task.ID]:
+					// Something is going on: it is in the running list, not an exception.
+				case ran && r.State == domain.RunFailed && (task.State == domain.TaskDoing || task.State == domain.TaskReview) &&
+					r.EndedAt != nil && now.Sub(*r.EndedAt) <= failedWindow:
+					titles[task.ID] = task.Title
+					out.Failed = append(out.Failed, AttentionRun{Run: r, ProjectName: p.Name, TaskTitle: task.Title})
+					a.Failed++
+				case task.State == domain.TaskReview:
+					item := AttentionReview{Task: task, ProjectName: p.Name}
+					if ran {
+						rc := r
+						item.LastRun = &rc
+					}
+					out.Review = append(out.Review, item)
+					a.Review++
+				}
+			}
+		}
+		sort.SliceStable(out.Failed, func(i, j int) bool { return out.Failed[i].Run.EndedAt.After(*out.Failed[j].Run.EndedAt) })
+		sort.SliceStable(out.Review, func(i, j int) bool { return out.Review[i].Task.UpdatedAt.Before(out.Review[j].Task.UpdatedAt) })
+
+		// Repository health is read as it was last worked out: a database read, no Git.
+		findings, err := tx.Health().ListOpen(ctx, domain.HealthAttention)
+		if err != nil {
+			return err
+		}
+		for _, f := range findings {
+			i, ok := index[f.ProjectID]
+			if !ok {
+				continue
+			}
+			out.Projects[i].RepoAttention++
+			if f.Severity.Rank() >= domain.HealthRisk.Rank() {
+				out.Projects[i].RepoRisk++
+				f.ProjectName = names[f.ProjectID]
+				out.Repository = append(out.Repository, f)
 			}
 		}
 

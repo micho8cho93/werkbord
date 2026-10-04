@@ -487,6 +487,47 @@ func TestMergeSimulation(t *testing.T) {
 	}
 }
 
+// A squash merge puts a branch's content on the target under different commits, so by history the
+// branch is unmerged. Merging it in memory then changes nothing, and the merged tree is the target's.
+func TestMergeSimulationTreeShowsWhetherAMergeChangesAnything(t *testing.T) {
+	repo := plainRepo(t)
+	g := &CLI{}
+	ctx := context.Background()
+	run(t, repo, "checkout", "-q", "-b", "feature")
+	commit(t, repo, "feature.txt", "one\n", "feature 1")
+	commit(t, repo, "feature.txt", "one\ntwo\n", "feature 2")
+	run(t, repo, "checkout", "-q", "-b", "other", "main")
+	commit(t, repo, "other.txt", "x\n", "other")
+	run(t, repo, "checkout", "-q", "main")
+	run(t, repo, "merge", "--squash", "feature")
+	run(t, repo, "commit", "-q", "-m", "squash feature")
+	mainSha := sha(t, repo, "main")
+	mainTree, err := g.TreeOf(ctx, repo, mainSha)
+	if err != nil || mainTree == "" {
+		t.Fatalf("tree of main: %q, %v", mainTree, err)
+	}
+
+	// By history the branch is not merged, yet merging it adds nothing.
+	sim, err := g.MergeSimulation(ctx, repo, mainSha, sha(t, repo, "feature"))
+	if err != nil || !sim.Supported || sim.Conflicts {
+		t.Fatalf("squash-merged branch: %+v, %v", sim, err)
+	}
+	if sim.Tree != mainTree {
+		t.Errorf("merged tree %s should equal the target's %s: the branch adds nothing", sim.Tree, mainTree)
+	}
+	// A branch with something new does change it.
+	sim, err = g.MergeSimulation(ctx, repo, mainSha, sha(t, repo, "other"))
+	if err != nil || sim.Tree == "" || sim.Tree == mainTree {
+		t.Errorf("a branch with new content must change the tree: %+v, %v", sim, err)
+	}
+	if _, err := g.TreeOf(ctx, repo, "main"); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("a tree is read from a full commit ID: %v", err)
+	}
+	if tree, err := g.TreeOf(ctx, repo, strings.Repeat("0", 40)); err != nil || tree != "" {
+		t.Errorf("an unknown commit has no tree: %q, %v", tree, err)
+	}
+}
+
 func isClean(t *testing.T, dir string) bool {
 	t.Helper()
 	return gitOut(t, dir, "status", "--porcelain") == ""

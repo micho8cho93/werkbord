@@ -24,6 +24,7 @@ type Options struct {
 	Runner    *runner.Manager        // starts and drives agent sessions
 	Worktrees *service.Worktrees
 	Git       *service.GitControl // the Git Control Center; nil disables its endpoints
+	Health    *service.GitHealth  // repository health; nil disables its endpoints
 	Agents    *agent.Registry
 	Store     store.Store       // for health checks and event replay
 	Events    events.Subscriber // live event source
@@ -115,6 +116,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{pid}/git/worktrees/clean-plan", s.handleGitCleanPlan)
 	mux.HandleFunc("POST /api/projects/{pid}/git/worktrees/clean", s.handleGitClean)
 	mux.HandleFunc("POST /api/projects/{pid}/git/pull-requests", s.handleGitCreatePR)
+
+	// Repository health: what Git state needs attention. Reading is a database read; the
+	// refresh looks at Git (never the network) and changes nothing in the repository.
+	mux.HandleFunc("GET /api/projects/{pid}/git/health", s.handleRepoHealth)
+	mux.HandleFunc("POST /api/projects/{pid}/git/health/refresh", s.handleRepoHealthRefresh)
+	mux.HandleFunc("POST /api/projects/{pid}/git/health/findings/{id}/dismiss", s.handleRepoHealthDismiss)
+	mux.HandleFunc("POST /api/projects/{pid}/git/health/findings/{id}/reopen", s.handleRepoHealthReopen)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such endpoint")
 	})

@@ -13,6 +13,7 @@ import type {
   GitOverview,
   Health,
   Overview,
+  RepositoryHealth,
   Project,
   Question,
   Run,
@@ -195,6 +196,15 @@ export const api = {
       request<GitActionResult>('POST', `${inProject(projectId)}/git/worktrees/clean`, { worktreeId, headSha }),
     createPullRequest: (projectId: string, p: { branch: string; expectedSha: string; title: string; body: string; draft: boolean }) =>
       request<GitActionResult>('POST', `${inProject(projectId)}/git/pull-requests`, p),
+
+    // Repository health. Reading is a database read; refresh looks at Git (never the network)
+    // and changes nothing in the repository. Dismissing only says "I know".
+    health: (projectId: string) => request<RepositoryHealth>('GET', `${inProject(projectId)}/git/health`),
+    refreshHealth: (projectId: string) => request<RepositoryHealth>('POST', `${inProject(projectId)}/git/health/refresh`),
+    dismissFinding: (projectId: string, id: string) =>
+      request<RepositoryHealth>('POST', `${inProject(projectId)}/git/health/findings/${enc(id)}/dismiss`),
+    reopenFinding: (projectId: string, id: string) =>
+      request<RepositoryHealth>('POST', `${inProject(projectId)}/git/health/findings/${enc(id)}/reopen`),
   },
 };
 

@@ -64,6 +64,8 @@ type Reader interface {
 	WorkingDiff(ctx context.Context, dir string, paths []string, kind WorkingKind, window DiffWindow) (*domain.GitFileDiff, error)
 	// MergeSimulation merges two commits in memory and reports whether it conflicts.
 	MergeSimulation(ctx context.Context, root, targetSha, branchSha string) (MergeSimulation, error)
+	// TreeOf returns the ID of the tree a commit holds, or "" when there is no such commit.
+	TreeOf(ctx context.Context, root, commit string) (string, error)
 	// LastFetch is when the repository last fetched from any remote, or zero.
 	LastFetch(commonDir string) time.Time
 }
@@ -359,6 +361,14 @@ func (c *CLI) ResolveCommit(ctx context.Context, root, rev string) (string, erro
 		return "", err
 	}
 	return c.optional(ctx, root, "rev-parse", "-q", "--verify", rev+"^{commit}")
+}
+
+// TreeOf implements Reader.
+func (c *CLI) TreeOf(ctx context.Context, root, commit string) (string, error) {
+	if !IsCommitID(commit) {
+		return "", fmt.Errorf("%w: a tree is read from a full commit ID", domain.ErrInvalid)
+	}
+	return c.optional(ctx, root, "rev-parse", "-q", "--verify", commit+"^{tree}")
 }
 
 // IsAncestor implements Reader.
@@ -1038,6 +1048,9 @@ type MergeSimulation struct {
 	Conflicts bool
 	Files     []string
 	Unrelated bool
+	// Tree is the ID of the tree the merge produced, when it was clean. Comparing it
+	// with the target's tree says whether the merge would change anything at all.
+	Tree string
 }
 
 // MergeSimulation implements Reader.
@@ -1050,6 +1063,7 @@ func (c *CLI) MergeSimulation(ctx context.Context, root, targetSha, branchSha st
 		"merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", targetSha, branchSha)
 	sim.Supported = true
 	if err == nil {
+		sim.Tree, _, _ = strings.Cut(string(out), "\x00")
 		return sim, nil
 	}
 	var ge *gitError

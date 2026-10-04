@@ -292,6 +292,13 @@ func (s *GitControl) Overview(ctx context.Context, projectID string) (*domain.Gi
 	if err != nil {
 		return nil, err
 	}
+	return s.overview(ctx, t, a)
+}
+
+// overview is Overview for a project already resolved and associated, which is what
+// the health check has in hand and needs the same facts from.
+func (s *GitControl) overview(ctx context.Context, t *gitCtx, a *gitAssoc) (*domain.GitOverview, error) {
+	projectID := t.project.ID
 	now := s.now()
 	var nt notes
 

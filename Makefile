@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
 BIN     := bin/devboard
 
-.PHONY: all build web web-embed go-build test lint check dev-api dev-web clean
+.PHONY: all build web web-embed go-build test lint check dev-api dev-web clean tag
 
 all: check build
 
@@ -48,6 +48,13 @@ dev-api:
 
 dev-web: web/node_modules
 	cd web && $(NPM) run dev -- --host 127.0.0.1
+
+## tag: annotated version tag on HEAD, e.g. make tag VERSION=v0.7.0 (see docs/VERSIONING.md)
+tag:
+	@echo "$(VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "VERSION must look like v0.7.0"; exit 1; }
+	@[ -z "$$(git status --porcelain)" ] || { echo "the working tree is not clean: commit first"; exit 1; }
+	@! git rev-parse -q --verify "refs/tags/$(VERSION)" >/dev/null || { echo "$(VERSION) already exists"; exit 1; }
+	git tag -a $(VERSION) -m "$(VERSION) — $$(git log -1 --format=%s)"
 
 clean:
 	rm -rf bin web/dist

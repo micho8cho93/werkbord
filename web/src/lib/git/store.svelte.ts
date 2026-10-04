@@ -6,7 +6,7 @@
 
 import { ApiError, api } from '../api';
 import { nowISO } from '../format';
-import type { ControllerEvent, GitActionResult, GitHubState, GitOverview } from '../types';
+import type { ControllerEvent, GitActionResult, GitHubState, GitOverview, RepositoryHealth } from '../types';
 
 /** Events after which what Git shows may be out of date. */
 const GIT_AFFECTING = new Set([
@@ -18,7 +18,10 @@ const GIT_AFFECTING = new Set([
   'project.inspected',
 ]);
 
-export const isGitEvent = (type: string): boolean => type.startsWith('git.') || GIT_AFFECTING.has(type);
+/** Health announces its own changes; they refresh the health, not the whole overview. */
+export const HEALTH_EVENT = 'git.health_changed';
+
+export const isGitEvent = (type: string): boolean => type !== HEALTH_EVENT && (type.startsWith('git.') || GIT_AFFECTING.has(type));
 
 class GitStore {
   readonly projectId: string;
@@ -29,9 +32,14 @@ class GitStore {
   error = $state('');
   /** The result of the last action, shown on the overview until dismissed. */
   lastResult = $state<GitActionResult | null>(null);
+  /** What needs attention in this repository. Worked out by the controller from Git metadata, never by a model. */
+  health = $state<RepositoryHealth | null>(null);
+  healthLoading = $state(false);
+  healthError = $state('');
 
   private loadId = 0;
   private ghId = 0;
+  private healthId = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   /** Whether a screen is looking: nothing is fetched for a project nobody has opened Git in. */
   private watchers = 0;
@@ -45,6 +53,7 @@ class GitStore {
     this.watchers++;
     if (!this.overview && !this.loading) void this.load();
     else if (this.stale) void this.load();
+    if (!this.health && !this.healthLoading) void this.loadHealth();
     return () => {
       this.watchers = Math.max(0, this.watchers - 1);
     };
@@ -84,9 +93,56 @@ class GitStore {
     }
   }
 
-  /** Both, after an action or on request. */
+  /**
+   * What the controller last worked out. Cheap: it reads what was stored, and only looks at Git
+   * again if something that can change the answer happened, or the last look is a few minutes old.
+   */
+  async loadHealth(): Promise<void> {
+    await this.fetchHealth(() => api.git.health(this.projectId));
+  }
+
+  /** Looks at the repository again now. Git metadata only: no network, nothing changed. */
+  async refreshHealth(): Promise<void> {
+    await this.fetchHealth(() => api.git.refreshHealth(this.projectId));
+  }
+
+  /** The user says they know about a finding: hidden until it gets worse. */
+  async dismissFinding(id: string): Promise<void> {
+    await this.fetchHealth(() => api.git.dismissFinding(this.projectId, id));
+  }
+
+  async reopenFinding(id: string): Promise<void> {
+    await this.fetchHealth(() => api.git.reopenFinding(this.projectId, id));
+  }
+
+  private async fetchHealth(call: () => Promise<RepositoryHealth>): Promise<void> {
+    const id = ++this.healthId;
+    this.healthLoading = true;
+    try {
+      const h = await call();
+      if (id !== this.healthId) return;
+      this.health = h;
+      this.healthError = '';
+    } catch (err) {
+      if (id !== this.healthId) return;
+      this.healthError = describe(err);
+    } finally {
+      if (id === this.healthId) this.healthLoading = false;
+    }
+  }
+
+  /** Everything, after an action or on an explicit refresh: the repository, GitHub, and its health. */
   async reloadAll(): Promise<void> {
-    await Promise.all([this.load(), this.loadGitHub()]);
+    await Promise.all([this.load(), this.loadGitHub(), this.refreshHealth()]);
+  }
+
+  /** The controller says health changed (a finding opened, resolved or got worse): read it again. */
+  healthChanged(): void {
+    if (this.watchers === 0) {
+      this.health = null; // read afresh the next time someone looks
+      return;
+    }
+    void this.loadHealth();
   }
 
   /** The repository, a task or a run changed. Refetch soon, once for a burst, and only if someone is looking. */
@@ -120,7 +176,9 @@ export function gitStore(projectId: string): GitStore {
 
 /** Called for every event of the stream: the project's Git data is refetched if the event can have changed it. */
 export function gitEvent(ev: ControllerEvent): void {
-  if (ev.projectId && isGitEvent(ev.type)) stores.get(ev.projectId)?.touched();
+  if (!ev.projectId) return;
+  if (ev.type === HEALTH_EVENT) stores.get(ev.projectId)?.healthChanged();
+  else if (isGitEvent(ev.type)) stores.get(ev.projectId)?.touched();
 }
 
 export type { GitStore };

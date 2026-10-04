@@ -7,7 +7,7 @@ are remote controls for it. There is no hosted backend, no account system and no
 database.
 
 This document describes the system as built: the foundation, the agent runtime (§8, §14),
-questions (§15), projects as the scope of the application (§16), per-task execution policies (§17) and the Git Control Center (§18). Sections marked *Deferred* name things that are intentionally not implemented yet.
+questions (§15), projects as the scope of the application (§16), per-task execution policies (§17), the Git Control Center (§18) and repository health (§19). Sections marked *Deferred* name things that are intentionally not implemented yet.
 
 ---
 
@@ -40,7 +40,7 @@ system. No Docker, no Electron, no second language on the backend.
 
 | Package | Owns | May depend on | Must not |
 | --- | --- | --- | --- |
-| `internal/domain` | Entity types, state enums, validation, the run state machine, sentinel errors | stdlib only | Know about SQL, HTTP, Git or agents |
+| `internal/domain` | Entity types, state enums, validation, the run state machine, sentinel errors, and the pure rules (Git state words, repository-health findings and their lifecycle) | stdlib only | Know about SQL, HTTP, Git or agents |
 | `internal/store` | Persistence **interfaces** (`Store`, `Tx`, one repo per aggregate) | `domain` | Contain an implementation |
 | `internal/store/sqlite` | The SQLite implementation and versioned migrations | `domain`, `store` | Contain business rules beyond integrity constraints |
 | `internal/events` | Live fan-out of committed events (`Publisher`, `Subscriber`, `Broker`) | `domain` | Be relied on for durability |
@@ -50,7 +50,7 @@ system. No Docker, no Electron, no second language on the backend.
 | `internal/agent/claude`, `internal/agent/codex` | One adapter each: the agent's protocol → normalised events | `agent`, `domain` | Know about runs, tasks or the database |
 | `internal/agent/fake` | A scriptable in-memory adapter for tests | `agent`, `domain` | Be used outside tests |
 | `internal/runner` | Agent processes: starting runs, the live-session goroutines, input, stop, recovery, shutdown | `service`, `agent`, `gitrepo` | Write the store except through `service` |
-| `internal/service` | Use cases: register project, create/move task, recover runs, and `GitControl` (what to show of Git, and every safety check before an action) | all of the above via interfaces | Speak HTTP |
+| `internal/service` | Use cases: register project, create/move task, recover runs, `GitControl` (what to show of Git, and every safety check before an action) and `GitHealth` (what Git state needs attention: gathers facts, keeps findings' lives, watches events) | all of the above via interfaces | Speak HTTP |
 | `internal/api` | HTTP routing, JSON, SSE, auth and security middleware | `service`, `store`, `events`, `agent`, `runner` | Contain business rules |
 | `internal/webui` | Serving the embedded PWA build | stdlib | — |
 | `internal/controller` | Wiring and lifecycle | everything | — |
@@ -237,8 +237,12 @@ If any startup step fails, everything already started is torn down in reverse or
   recreates every index and trigger that hung off `runs`, counting `blocked` as an active state (so a
   blocked run still owns its worktree). A test upgrades a populated version-5 database to prove nothing
   is lost.
+- Migration 0007 adds `health_findings` (the memory of what repository health found: identity, severity and
+  state in columns, the wording and evidence as JSON, with `CHECK`s that keep a finding's state and its
+  timestamps consistent) and `health_checks` (when each project was last checked). They are a memory, not the
+  source of truth: the findings are recomputed from Git, and these rows give them a life (§19).
 - What survives a restart: projects, repository snapshots, tasks (with versions and
-  order), runs, questions, worktrees and the full event log.
+  order), runs, questions, worktrees, repository-health findings and the full event log.
 
 ## 7. Event architecture
 
@@ -493,6 +497,13 @@ the HTTP API is treated as a remote-execution surface from day one.
   pending questions with one-tap answers, is docked at the bottom within thumb reach. Actions: send a message,
   finish, stop (asks twice), edit the task (title, description, interaction), and start or re-run with an agent
   choice, an interaction for that run, extra instructions and optionally "continue the previous conversation".
+- **The Control Center is for exceptions** (§19): Needs input, Blocked, Failed, Ready for review and Repository
+  risk, in that order, with an explicit *All clear* when there are none; successful background activity and the
+  agent list are folded away. The badge counts questions, blocked and failed runs, runs waiting for a message and
+  repositories at risk, not finished work or ordinary findings.
+- `src/lib/health.ts` holds the logic of the Git screen's *Repository health* card (severity wording, grouping, and
+  what each recommended action does: only an action Dev Board `canPerform` becomes a button, and the buttons that
+  change the repository open the existing confirmation sheets).
 - `src/lib/feed.ts`, `format.ts`, `policy.ts`, `projects.ts` and `location.ts` hold the logic that turns events
   into the feed, run data into labels, and addresses into pages; they are framework-free and unit-tested with
   vitest (`npm test`), as is the project scope.
@@ -661,8 +672,11 @@ written. Tests cover each route with another project's IDs, the removed routes, 
 
 The only reads that cross projects are global on purpose: `GET /api/projects`, `GET /api/agents`, the
 unscoped event stream and **`GET /api/control-center`**. The latter is one consistent snapshot of what needs
-the user anywhere: per-project counts (needs input, blocked, idle, running), every pending question and every
-active run, each naming its project and task so a client needs nothing else to show it. Answering from the
+the user anywhere: per-project counts (needs input, blocked, idle, running, failed, to review, repository
+attention and risk), every pending question and every active run, the **exceptions** (runs that failed on a task
+still waiting on them, tasks in Review with nothing running, and open repository-health findings that are a risk
+or worse), each naming its project and task so a client needs nothing else to show it. It reads stored findings,
+so drawing it runs no Git. Answering from the
 Control Center goes through the question's own project.
 
 **Frontend.** A project's data lives in its own `ProjectScope`, filled only from the scoped endpoints, and the
@@ -756,9 +770,57 @@ web (Git screens)  ──▶  api/git.go  ──▶  service.GitControl  ──�
   IDs; deletion is conditional on the expected commit; every output and run time is bounded.
 - **Audit**: `git.fetched`, `git.pushed`, `git.merged`, `git.branch_deleted`, `git.worktree_cleaned` and
   `git.pull_request_created` are events like any other, written only for what happened; the web app refetches
-  Git when they, or a task, run or worktree event, arrive.
+  Git when they, or a task, run or worktree event, arrive. `git.health_changed` (§19) is the one Git event that is
+  not an action: it announces that a project's open health findings changed.
 - **Phone first.** The screens drill down: overview (repository summary, branches that need you with Dev Board's
   on top, pull requests, recent commits, working changes, worktrees, all branches) → a branch (state, actions,
   commits, changed files) → a file's diff, a window at a time. The address says which screen
   (`#/p/<id>/git/branch/local/<name>/file?path=…`), so Back, reload and shared links work. Review, Merge, Push
   and Delete are one tap from the list: they open a bottom sheet that shows the controller's own check.
+
+## 19. Repository health
+
+*"I have had several coding agents working all day. What Git state now needs my attention?"* Repository health
+answers it with **findings**, not a score. **The full description, including every rule and whether its signal is
+deterministic or heuristic, is [HEALTH.md](HEALTH.md); this is the shape.**
+
+```
+events (run/task/worktree/git.*) ─▶ GitHealth.Watch (debounce 3 s) ─┐
+web "Check now" / old report ─▶ api/githealth.go ─▶ GitHealth.Refresh ◀┘
+                                         │ gather: GitControl.overview (Git metadata) + records (tasks, runs, worktrees)
+                                         │         + in-memory merges (merge-tree) + index.lock stat
+                                         ▼
+                              domain.EvaluateHealth  (pure rules)  ─▶ []HealthFinding
+                                         ▼
+                              domain.ReconcileHealth (pure) ─▶ store: health_findings, health_checks ─▶ git.health_changed (only on change)
+```
+
+- **Pure rules over gathered facts.** `domain.EvaluateHealth(HealthInput)` runs no Git and reads no file, so each rule is
+  tested with a hand-built input. `service.GitHealth` gathers the facts: the Git overview (which already joins
+  branches with tasks, runs and worktree records), the records, an in-memory merge per unmerged Dev Board branch (to
+  recognise a squash merge by content), file lists and in-memory merges for overlapping branches, and the age of
+  `index.lock`.
+- **Deterministic vs heuristic is a field**, not a vibe: each finding carries its `basis`, the screen shows it, and
+  a test fails a heuristic finding that says "will conflict". Only Git's own in-memory merge may say two branches
+  conflict.
+- **Findings have a life.** Identity is derived from project + rule + subject, so recalculating the same problem
+  is the same finding: it keeps `detectedAt`, resolves when it stops being true, and can be dismissed until it gets
+  worse. If the repository cannot be read, that is one finding and the others are left alone rather than reported
+  as fixed.
+- **Cheap, no model, no network, no writes to the repository.** A recalculation is tens of milliseconds. It runs
+  when an event that can change the answer arrives (after a quiet period), when asked, when a screen asks for a
+  report older than two minutes, and once at start: never on a timer. It publishes `git.health_changed` only when
+  the set of open findings changed. Tests check the repository is byte-for-byte unchanged and that the network
+  and any model are never used.
+- **Never acts.** Each finding recommends an action and says whether Dev Board `canPerform` it. A button opens the
+  existing confirmation sheet; destructive steps are flagged; steps Dev Board refuses to do (pull, rebase,
+  resolving conflicts) say so and say what to do. "Create task" and "Ask an agent to investigate" only add a
+  prefilled card to the board.
+- **Quiet by design.** An agent with a live session is never flagged; finished, pushed work waiting for review is
+  normal; housekeeping (`info`) is folded away and never counted; your own branches are yours. HEALTH.md §7 lists
+  what is deliberately not reported, and a test pins each.
+- **In the Control Center**, only a *risk* or *critical* finding is listed (*Repository risk*), alongside Needs input,
+  Blocked, Failed and Ready for review; attention-level findings are counted on the project's strip and live on
+  its Git screen.
+- **Lifecycle of the process**: the controller starts the watcher after wiring the services and, on shutdown,
+  cancels it and waits for any recalculation to finish before the broker and database close.

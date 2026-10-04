@@ -36,6 +36,7 @@ type Tx interface {
 	Runs() RunRepo
 	Questions() QuestionRepo
 	Worktrees() WorktreeRepo
+	Health() HealthRepo
 	Events() EventRepo
 }
 
@@ -125,6 +126,32 @@ type WorktreeRepo interface {
 	ListByProject(ctx context.Context, projectID string) ([]domain.Worktree, error)
 	// ListActive returns every worktree still on disk, across projects.
 	ListActive(ctx context.Context) ([]domain.Worktree, error)
+}
+
+// HealthRepo persists repository health findings: the memory of what was found,
+// not the source of truth about the repository (see domain.HealthFinding).
+//
+// A finding is identified by (project, ID). Upsert writes the whole finding,
+// state included, and the database refuses a finding whose state and timestamps
+// disagree (an open finding cannot carry a resolution time, a dismissed one must
+// say how severe it was when dismissed).
+type HealthRepo interface {
+	// Upsert inserts or replaces a finding.
+	Upsert(ctx context.Context, f *domain.HealthFinding) error
+	// Get returns one finding, or domain.ErrNotFound.
+	Get(ctx context.Context, projectID, id string) (*domain.HealthFinding, error)
+	// ListByProject returns a project's findings, worst first. With no states
+	// given, every state is returned.
+	ListByProject(ctx context.Context, projectID string, states ...domain.HealthState) ([]domain.HealthFinding, error)
+	// ListOpen returns the open findings of every project that are at least as
+	// severe as min, worst first, then oldest first.
+	ListOpen(ctx context.Context, min domain.HealthSeverity) ([]domain.HealthFinding, error)
+	// DeleteResolvedBefore forgets findings that resolved before t, and returns how many.
+	DeleteResolvedBefore(ctx context.Context, t time.Time) (int, error)
+	// GetCheck returns when a project's health was last worked out, or
+	// domain.ErrNotFound if it never was.
+	GetCheck(ctx context.Context, projectID string) (*domain.HealthCheck, error)
+	SetCheck(ctx context.Context, c domain.HealthCheck) error
 }
 
 // EventRepo is the append-only event log.

@@ -158,4 +158,5 @@ func (t *txn) Tasks() store.TaskRepo                 { return taskRepo{t.q} }
 func (t *txn) Runs() store.RunRepo                   { return runRepo{t.q} }
 func (t *txn) Questions() store.QuestionRepo         { return questionRepo{t.q} }
 func (t *txn) Worktrees() store.WorktreeRepo         { return worktreeRepo{t.q} }
+func (t *txn) Health() store.HealthRepo              { return healthRepo{t.q} }
 func (t *txn) Events() store.EventRepo               { return eventRepo{t.q} }

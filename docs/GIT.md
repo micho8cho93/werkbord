@@ -8,6 +8,9 @@ operation runs the installed `git` executable (and, for GitHub, the user's own `
 **Safety is more important than convenience.** Where a safe answer cannot be established, the
 controller refuses and says why. It does not try to be clever.
 
+**What needs your attention** across all of this is worked out by repository health, which reads the same Git
+metadata and never acts: see [HEALTH.md](HEALTH.md).
+
 Code: `internal/gitrepo` (the Git engine), `internal/github` (the `gh` wrapper),
 `internal/service/gitcontrol.go` and `gitactions.go` (what to show, and every safety check),
 `internal/api/git.go` (HTTP), `internal/domain/gitstate.go` (the types and the pure rules),
@@ -324,6 +327,7 @@ A project can reach only its own repository; another project's IDs are 404.
 | `POST …/git/branches/delete-plan` · `…/git/branches/delete` `{branch, branchSha, deleteRemote}` | Check · delete |
 | `POST …/git/worktrees/clean-plan` · `…/git/worktrees/clean` `{worktreeId, headSha}` | Check · remove |
 | `POST …/git/pull-requests` `{branch, expectedSha, title, body, draft}` | Open a pull request |
+| `GET …/git/health` · `POST …/git/health/refresh` · `POST …/git/health/findings/{id}/dismiss` · `…/reopen` | Repository health: what needs attention, recalculating it, and saying you know. Read-only with respect to the repository: see [HEALTH.md](HEALTH.md) |
 
 Request bodies with unknown fields are refused, so there is no flag to send that Dev Board does not
 define (there is no `force`). A malformed input is 400, an unknown project, branch or worktree 404, a
@@ -358,6 +362,7 @@ linked worktrees), the real `git`, and, for GitHub, a stand-in `gh` script; no m
   request refusals and failures, **actions serialised**, and that nothing merges on its own.
 * `internal/api`: routing, error mapping, project scoping and the token on every Git route.
 * `internal/runner`: a finished run does not merge.
+* Repository health has its own tests, on the same kind of real repositories: see HEALTH.md §11.
 * `web/src/lib`: wording, chips, which actions are offered, and the drill-down routes.
 
 Run everything with `make check`.

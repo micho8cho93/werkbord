@@ -246,3 +246,33 @@ func TestOptOutDoesNotExposeANetworkListener(t *testing.T) {
 		t.Errorf("GET on a network listener with RequireToken=false and no token = %d, want 401", got)
 	}
 }
+
+// Repository health is part of the running controller: its endpoints exist, and
+// stopping the controller stops its watcher without hanging or leaving it writing
+// to a database that is closing.
+func TestRepositoryHealthStartsAndStopsWithTheController(t *testing.T) {
+	ctx := context.Background()
+	c := New(testConfig(t), slog.New(slog.DiscardHandler), "test")
+	if err := c.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	base := "http://" + c.Addr()
+	// No such project: the endpoint is there, and answers for the project.
+	if got := status(t, "GET", base+"/api/projects/prj_nope/git/health", "", nil); got != http.StatusNotFound {
+		t.Fatalf("health endpoint = %d, want 404 for an unknown project (503 means it is not wired)", got)
+	}
+	done := make(chan error, 1)
+	go func() {
+		sctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		done <- c.Shutdown(sctx)
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("shutdown: %v", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("shutdown hung: the health watcher was not stopped")
+	}
+}

@@ -46,7 +46,19 @@ describe('finding a project quickly', () => {
 });
 
 describe('what a project asks of the user', () => {
-  const a = (over: Partial<ProjectActivity> = {}): ProjectActivity => ({ projectId: 'p', name: 'P', needsInput: 0, blocked: 0, idle: 0, running: 0, ...over });
+  const a = (over: Partial<ProjectActivity> = {}): ProjectActivity => ({
+    projectId: 'p',
+    name: 'P',
+    needsInput: 0,
+    blocked: 0,
+    idle: 0,
+    running: 0,
+    failed: 0,
+    review: 0,
+    repoAttention: 0,
+    repoRisk: 0,
+    ...over,
+  });
 
   it('is said in a few words, and nothing when quiet', () => {
     expect(activitySummary(undefined)).toBe('');
@@ -55,10 +67,27 @@ describe('what a project asks of the user', () => {
     expect(activitySummary(a({ needsInput: 2 }))).toBe('2 need input');
   });
 
+  it('puts exceptions before activity, and counts Git findings once', () => {
+    expect(activitySummary(a({ failed: 1, review: 2, running: 4 }))).toBe('1 failed · 2 to review · 4 running');
+    // A risk is also an attention-level finding: it must not be said twice.
+    expect(activitySummary(a({ repoAttention: 3, repoRisk: 1 }))).toBe('1 repository risk · 2 Git items');
+    expect(activitySummary(a({ repoAttention: 1 }))).toBe('1 Git item');
+    expect(activitySummary(a({ repoAttention: 2, repoRisk: 2 }))).toBe('2 repository risks');
+    expect(activitySummary(a({ needsInput: 1, blocked: 1, failed: 1, repoRisk: 1, repoAttention: 1, review: 1, idle: 1, running: 1 }))).toBe(
+      '1 needs input · 1 blocked · 1 failed · 1 repository risk · 1 to review · 1 waiting · 1 running',
+    );
+  });
+
   it('counts what needs the user, not what is merely running', () => {
     expect(attentionCount(undefined)).toBe(0);
     expect(attentionCount(a({ running: 5 }))).toBe(0);
     expect(attentionCount(a({ needsInput: 1, blocked: 1, idle: 1, running: 5 }))).toBe(3);
+  });
+
+  it('lights the badge for failures and repository risk, not for housekeeping or finished work', () => {
+    expect(attentionCount(a({ failed: 2, repoRisk: 1 }))).toBe(3);
+    expect(attentionCount(a({ review: 4 }))).toBe(0);
+    expect(attentionCount(a({ repoAttention: 6 }))).toBe(0);
   });
 });
 
