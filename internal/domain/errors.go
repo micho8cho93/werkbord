@@ -15,4 +15,8 @@ var (
 	// ErrAgent means an agent could not be started or failed to answer. Unlike
 	// an unexpected error its message is meant for the user.
 	ErrAgent = errors.New("agent failed")
+	// ErrGit means the git executable failed. Its message says what it ran and
+	// what it reported, which is what the user needs to see; it is only ever
+	// produced for a repository on this computer.
+	ErrGit = errors.New("git failed")
 )

@@ -19,6 +19,7 @@ import (
 	"devboard/internal/api"
 	"devboard/internal/config"
 	"devboard/internal/events"
+	"devboard/internal/github"
 	"devboard/internal/gitrepo"
 	"devboard/internal/runner"
 	"devboard/internal/service"
@@ -81,6 +82,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	tasks := &service.Tasks{Deps: deps}
 	runs := &service.Runs{Deps: deps}
 	worktrees := &service.Worktrees{Deps: deps, Root: worktreeRoot}
+	gitControl := &service.GitControl{Deps: deps, Git: git, Worktrees: worktrees}
+	if !c.cfg.GitHub.Disabled {
+		gitControl.GitHub = &github.CLI{Binary: c.cfg.GitHub.Command}
+	}
 	agents, err := newAgents(c.cfg)
 	if err != nil {
 		return err
@@ -112,6 +117,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Runs:         runs,
 		Runner:       c.runner,
 		Worktrees:    worktrees,
+		Git:          gitControl,
 		Agents:       agents,
 		Store:        c.db,
 		Events:       c.broker,

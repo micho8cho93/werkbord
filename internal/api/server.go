@@ -23,6 +23,7 @@ type Options struct {
 	Control   *service.ControlCenter // the cross-project overview; built from Store if nil
 	Runner    *runner.Manager        // starts and drives agent sessions
 	Worktrees *service.Worktrees
+	Git       *service.GitControl // the Git Control Center; nil disables its endpoints
 	Agents    *agent.Registry
 	Store     store.Store       // for health checks and event replay
 	Events    events.Subscriber // live event source
@@ -95,6 +96,25 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{pid}/questions/{id}/answer", s.handleAnswerQuestion)
 
 	mux.HandleFunc("GET /api/projects/{pid}/worktrees/{id}", s.handleGetWorktree)
+
+	// The Git Control Center. Reads never change anything; the POSTs are the explicit
+	// actions, each of which checks again before it acts (see service.GitControl).
+	mux.HandleFunc("GET /api/projects/{pid}/git", s.handleGitOverview)
+	mux.HandleFunc("GET /api/projects/{pid}/git/pull-requests", s.handleGitPullRequests)
+	mux.HandleFunc("GET /api/projects/{pid}/git/commits", s.handleGitCommits)
+	mux.HandleFunc("GET /api/projects/{pid}/git/compare", s.handleGitCompare)
+	mux.HandleFunc("GET /api/projects/{pid}/git/diff", s.handleGitDiff)
+	mux.HandleFunc("GET /api/projects/{pid}/git/changes", s.handleGitChanges)
+	mux.HandleFunc("GET /api/projects/{pid}/git/changes/diff", s.handleGitChangeDiff)
+	mux.HandleFunc("POST /api/projects/{pid}/git/fetch", s.handleGitFetch)
+	mux.HandleFunc("POST /api/projects/{pid}/git/push", s.handleGitPush)
+	mux.HandleFunc("POST /api/projects/{pid}/git/merge/plan", s.handleGitMergePlan)
+	mux.HandleFunc("POST /api/projects/{pid}/git/merge", s.handleGitMerge)
+	mux.HandleFunc("POST /api/projects/{pid}/git/branches/delete-plan", s.handleGitDeletePlan)
+	mux.HandleFunc("POST /api/projects/{pid}/git/branches/delete", s.handleGitDelete)
+	mux.HandleFunc("POST /api/projects/{pid}/git/worktrees/clean-plan", s.handleGitCleanPlan)
+	mux.HandleFunc("POST /api/projects/{pid}/git/worktrees/clean", s.handleGitClean)
+	mux.HandleFunc("POST /api/projects/{pid}/git/pull-requests", s.handleGitCreatePR)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such endpoint")
 	})

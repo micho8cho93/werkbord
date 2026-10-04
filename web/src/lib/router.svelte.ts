@@ -10,6 +10,8 @@ class Router {
   /** The project the address names. Empty on a global page, and on an old link that names none. */
   projectId = $state<string>(parse(location.hash).projectId);
   taskId = $state<string>(parse(location.hash).taskId);
+  /** Git's drill-down, below `git/`; empty everywhere else. */
+  sub = $state<string>(parse(location.hash).sub ?? '');
 
   constructor() {
     window.addEventListener('hashchange', () => this.read());
@@ -20,10 +22,13 @@ class Router {
     this.view = loc.view;
     this.projectId = loc.projectId;
     this.taskId = loc.taskId;
+    this.sub = loc.sub ?? '';
   }
 
   get location(): Location {
-    return { view: this.view, projectId: this.projectId, taskId: this.taskId };
+    return this.sub
+      ? { view: this.view, projectId: this.projectId, taskId: this.taskId, sub: this.sub }
+      : { view: this.view, projectId: this.projectId, taskId: this.taskId };
   }
 
   /** Goes to a page. Adds a history entry, unless `replace` is set, which is for settling an address. */

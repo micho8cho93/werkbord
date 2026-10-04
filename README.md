@@ -15,16 +15,25 @@ runs, and inside one you see that project and nothing else. Switch with the proj
 project name at the top on a phone; Ctrl/⌘ K anywhere). The **Control Center** is the one view across
 all projects: what needs you, wherever it is.
 
+**Git Control Center.** Each project's Git section shows what the agents' branches look like and lets you act
+on them from your phone: a repository summary (this computer and the remote, kept apart), the branches that
+need you (Dev Board's first, with their task and run), pull requests from GitHub, recent commits, working
+changes, and a drill-down from a branch to its changed files to a file's diff. You can fetch, push, merge,
+delete a branch Dev Board made, clean a Dev Board worktree and open a pull request, each after a check that
+refuses rather than guesses. Nothing is ever forced, and **an agent finishing a run never merges**. See
+[docs/GIT.md](docs/GIT.md) for the safety model.
+
 **Interaction policy.** Each task says how its agent may deal with you: *Ask me when needed* (the
 default), *Work autonomously*, or *Work autonomously — stop if blocked*. See below.
-Advanced Git features (diffs, commits, push) are not built yet. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Requirements
 
 - Go 1.26+ (no C toolchain needed: SQLite is pure Go)
 - Node 20+ and npm, to build the web app
 - `git` on `PATH`
+- Optionally the [GitHub CLI](https://cli.github.com) (`gh`), signed in, for pull requests. Dev Board holds no GitHub
+  credentials of its own and everything local works without it
 - To run agents: the `claude` and/or `codex` CLI, installed and signed in (`devboard serve` lists
   what it found at `/api/agents`; the Control Center shows it)
 
@@ -106,6 +115,7 @@ then flags.
 | `shutdownTimeout` | — | — | `10s` |
 | `worktreesDir` | `DEVBOARD_WORKTREES_DIR` | — | `<data dir>/worktrees` |
 | `agents` | — | — | per-agent settings, below |
+| `github` | — | — | `{"command": "gh", "disabled": false}`: the GitHub CLI to use for pull requests, or turn the integration off |
 
 ### Agents
 
@@ -148,7 +158,8 @@ working. On the board a task in *Doing* shows one of **Running**, **Needs input*
 
 Agents run as you, in a Git worktree under `worktreesDir` on a branch named
 `devboard/<task>-<id>`, so your own checkout is never touched. The work stays there when the run
-ends; Devboard does not delete it.
+ends; Devboard never deletes it by itself (you clean a worktree, and delete a merged branch, from the Git section, and only
+when nothing would be lost).
 
 ## Layout
 
@@ -159,11 +170,12 @@ internal/store        persistence interfaces; sqlite/ implementation and migrati
 internal/service      use cases
 internal/api          HTTP API, SSE, auth and security middleware
 internal/events       live event fan-out
-internal/gitrepo      Git boundary (repository inspection, worktrees)
+internal/gitrepo      Git boundary (inspection, worktrees, and the Git Control Center's reads and guarded writes)
+internal/github       GitHub boundary: the user's own `gh` CLI, for pull requests
 internal/agent        agent adapter boundary, process handling, execution-policy rules; claude/ and codex/ adapters
 internal/runner       owns agent processes: start, stream, input, stop, recovery
 internal/controller   wiring and lifecycle
 internal/webui        embedded PWA
 web/                  Svelte 5 + TypeScript PWA (a global store, plus one scope per project)
-docs/                 architecture
+docs/                 architecture, and the Git safety model (GIT.md)
 ```

@@ -10,6 +10,7 @@
 
 import { SvelteMap } from 'svelte/reactivity';
 import { ApiError, api, eventsURL } from './api';
+import { gitEvent } from './git/store.svelte';
 import { QuestionBook } from './questions';
 import { ProjectScope } from './scope.svelte';
 import type { Agent, ControllerEvent, Overview, Project, Question } from './types';
@@ -44,6 +45,15 @@ const EVENT_TYPES = [
   'agent.completed',
   'agent.failed',
   'agent.stopped',
+  'worktree.created',
+  'worktree.removing',
+  'worktree.removed',
+  'git.fetched',
+  'git.pushed',
+  'git.merged',
+  'git.branch_deleted',
+  'git.worktree_cleaned',
+  'git.pull_request_created',
 ];
 
 /** Events after which the Control Center's overview may be out of date. Agent output is not one of them. */
@@ -313,6 +323,7 @@ class AppState {
 
     // A project's events go to that project's scope, which takes nothing else.
     if (ev.projectId) this.scopes.get(ev.projectId)?.apply(ev);
+    gitEvent(ev);
 
     switch (ev.type) {
       case 'project.registered':

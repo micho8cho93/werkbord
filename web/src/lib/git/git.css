@@ -1,0 +1,269 @@
+/* Shared by the Git screens. Phone first: one column of cards, big tap targets, no tables. */
+
+.g-page {
+  display: grid;
+  gap: 14px;
+  max-width: 46rem;
+  min-width: 0;
+}
+
+.g-section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.g-section > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px;
+}
+
+.g-section > header .count {
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+
+.g-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.g-card {
+  padding: 12px 14px;
+  min-width: 0;
+}
+
+.g-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.g-small {
+  font-size: 0.82rem;
+}
+
+.g-wrap {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.g-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 4px;
+  color: var(--text-2);
+  text-decoration: none;
+  font-weight: 550;
+}
+
+.g-back:hover {
+  color: var(--text);
+}
+
+/* A chip: a fact about a branch, in a few words. */
+.g-chip {
+  --tone: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--border));
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--tone);
+  white-space: nowrap;
+}
+
+.g-chip[data-tone='work'] {
+  --tone: var(--accent);
+}
+.g-chip[data-tone='ask'] {
+  --tone: var(--warn);
+}
+.g-chip[data-tone='ok'] {
+  --tone: var(--ok);
+}
+.g-chip[data-tone='bad'] {
+  --tone: var(--danger);
+}
+.g-chip[data-tone='block'] {
+  --tone: var(--block);
+}
+
+/* Local and remote are never mixed into one list: each has its own labelled block. */
+.g-scope {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.g-scope h3 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-2);
+}
+
+.g-kv {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 12px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.g-kv dt {
+  color: var(--text-2);
+}
+
+.g-kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.g-file {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.g-file:last-child {
+  border-bottom: 0;
+}
+
+.g-file:hover {
+  background: var(--surface-2);
+}
+
+.g-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 4px;
+  font: 700 0.72rem/1 var(--mono);
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+
+.g-glyph[data-status='added'],
+.g-glyph[data-status='untracked'] {
+  color: var(--ok);
+}
+.g-glyph[data-status='deleted'],
+.g-glyph[data-status='conflicted'] {
+  color: var(--danger);
+}
+.g-glyph[data-status='modified'],
+.g-glyph[data-status='renamed'],
+.g-glyph[data-status='copied'] {
+  color: var(--accent);
+}
+
+.g-path {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+
+.g-path .dir {
+  color: var(--text-2);
+}
+
+.g-nums {
+  font: 0.78rem/1 var(--mono);
+  white-space: nowrap;
+}
+
+.g-nums .add {
+  color: var(--ok);
+}
+.g-nums .del {
+  color: var(--danger);
+}
+
+.g-commit {
+  display: grid;
+  gap: 1px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.g-commit:last-child {
+  border-bottom: 0;
+}
+
+.g-commit .subject {
+  overflow-wrap: anywhere;
+}
+
+.g-commit .meta {
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+
+.g-commit code {
+  color: var(--text-2);
+}
+
+.g-notice {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.88rem;
+}
+
+.g-notice[data-tone='bad'] {
+  border-left-color: var(--danger);
+}
+.g-notice[data-tone='ok'] {
+  border-left-color: var(--ok);
+}
+.g-notice[data-tone='neutral'] {
+  border-left-color: var(--text-2);
+}
+
+.g-bullets {
+  margin: 4px 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 3px;
+}
+
+/* A row of buttons that wraps and stays reachable by thumb. */
+.g-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.g-actions .btn {
+  flex: 1 1 auto;
+  min-width: 7rem;
+}

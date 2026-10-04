@@ -214,3 +214,404 @@ export interface Overview {
   questions: AttentionQuestion[];
   runs: AttentionRun[];
 }
+
+// ---- the Git Control Center (internal/domain/gitstate.go) ----
+//
+// Local state and remote state are kept apart on purpose: what is known of a remote
+// comes from remote-tracking refs, which are only as fresh as the last fetch, and
+// from GitHub, which is asked separately and can be unavailable.
+
+export interface GitCommit {
+  sha: string;
+  subject: string;
+  author: string;
+  date: string;
+  merge?: boolean;
+}
+
+export interface GitCommitPage {
+  items: GitCommit[];
+  total: number;
+  truncated: boolean;
+}
+
+export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'typechange' | 'conflicted' | 'untracked';
+
+export interface GitFileChange {
+  path: string;
+  oldPath?: string;
+  status: FileStatus;
+}
+
+export interface GitChangeCounts {
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  conflicted: number;
+}
+
+export interface GitWorkingTree {
+  branch: string;
+  head: string;
+  detached: boolean;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+  staged: GitFileChange[];
+  unstaged: GitFileChange[];
+  untracked: GitFileChange[];
+  conflicted: GitFileChange[];
+  counts: GitChangeCounts;
+  clean: boolean;
+  truncated: boolean;
+  operation?: string;
+}
+
+export type UpstreamState = 'none' | 'gone' | 'in_sync' | 'ahead' | 'behind' | 'diverged';
+export type TargetRelation = 'target' | 'same' | 'merged' | 'behind' | 'ahead' | 'diverged' | 'unknown';
+export type TaskPhase = 'none' | 'active' | 'review' | 'completed' | 'idle';
+
+export interface GitUpstream {
+  name?: string;
+  state: UpstreamState;
+  ahead: number;
+  behind: number;
+}
+
+export interface GitVsTarget {
+  ahead: number;
+  behind: number;
+  relation: TargetRelation;
+}
+
+export interface GitBranchWorktree {
+  path: string;
+  primary: boolean;
+  owned: boolean;
+  worktreeId?: string;
+  missing?: boolean;
+  locked?: boolean;
+  dirty?: GitChangeCounts;
+  operation?: string;
+}
+
+export interface GitBranchOwnership {
+  created: boolean;
+  namespace: boolean;
+  worktreeIds?: string[];
+  taskId?: string;
+  taskTitle?: string;
+  taskState?: TaskState;
+  phase: TaskPhase;
+  runId?: string;
+  runState?: RunState;
+  runWaiting?: WaitingKind;
+  agentId?: string;
+  activeRun: boolean;
+}
+
+export type AttentionKind =
+  | 'review'
+  | 'unpushed'
+  | 'diverged'
+  | 'behind'
+  | 'cleanup'
+  | 'stale'
+  | 'dirty'
+  | 'no_remote'
+  | 'gone'
+  | 'missing'
+  | 'operation';
+
+export interface GitAttention {
+  kind: AttentionKind;
+  severity: 'action' | 'warn' | 'info';
+  message: string;
+}
+
+export type BranchScope = 'local' | 'remote';
+
+export interface GitBranch {
+  name: string;
+  ref: string;
+  scope: BranchScope;
+  remote?: string;
+  sha: string;
+  subject: string;
+  commitDate: string;
+  head: boolean;
+  target: boolean;
+  protected: boolean;
+  unusual?: string;
+  localName?: string;
+  upstream: GitUpstream;
+  vsTarget: GitVsTarget;
+  merged: boolean;
+  notPushed: number;
+  stale: boolean;
+  staleWhy?: string;
+  worktree?: GitBranchWorktree;
+  devboard: GitBranchOwnership;
+  attention: GitAttention[];
+}
+
+export interface GitWorktree {
+  path: string;
+  head?: string;
+  branch?: string;
+  detached: boolean;
+  primary: boolean;
+  locked?: boolean;
+  prunable?: boolean;
+  missing?: boolean;
+  owned: boolean;
+  worktreeId?: string;
+  dirty?: GitChangeCounts;
+  operation?: string;
+  taskId?: string;
+  taskTitle?: string;
+  runId?: string;
+  runState?: RunState;
+  activeRun: boolean;
+}
+
+export interface GitTarget {
+  name: string;
+  source: string;
+  sha?: string;
+  localExists: boolean;
+  checkedOut?: string;
+  upstream: GitUpstream;
+}
+
+export interface GitHead {
+  branch: string;
+  commit: string;
+  subject?: string;
+  detached: boolean;
+  unborn: boolean;
+}
+
+export interface GitLocal {
+  name: string;
+  rootPath: string;
+  head: GitHead;
+  target: GitTarget;
+  workingTree: GitWorkingTree;
+  recentCommits: GitCommit[];
+}
+
+export interface GitSync {
+  branch: string;
+  upstream: GitUpstream;
+  notPushed: GitCommitPage;
+  notPulled: GitCommitPage;
+  basis: string;
+}
+
+export interface GitRemoteInfo {
+  remotes: GitRemote[];
+  lastFetchedAt?: string;
+  sync?: GitSync;
+  github: { detected: boolean; host?: string; repo?: string; remote?: string };
+}
+
+export interface GitSummary {
+  branches: number;
+  devboard: number;
+  needsYou: number;
+  warnings: number;
+  mergeable: number;
+  cleanup: number;
+  unpushed: number;
+  worktrees: number;
+  dirtyTrees: number;
+}
+
+export interface GitOverview {
+  projectId: string;
+  generatedAt: string;
+  local: GitLocal;
+  remote: GitRemoteInfo;
+  branches: GitBranch[];
+  worktrees: GitWorktree[];
+  summary: GitSummary;
+  notes?: string[];
+}
+
+export interface GitDiffFile {
+  path: string;
+  oldPath?: string;
+  status: FileStatus;
+  additions: number;
+  deletions: number;
+  binary?: boolean;
+}
+
+export interface GitComparison {
+  branch: string;
+  branchSha: string;
+  target: string;
+  targetSha: string;
+  mergeBase?: string;
+  basis: string;
+  ahead: number;
+  behind: number;
+  relation: TargetRelation;
+  unique: GitCommitPage;
+  missing: GitCommitPage;
+  files: GitDiffFile[];
+  filesTotal: number;
+  offset: number;
+  limit: number;
+  additions: number;
+  deletions: number;
+  binaryFiles: number;
+  truncated: boolean;
+}
+
+export interface GitFileDiff {
+  path: string;
+  oldPath?: string;
+  status?: FileStatus;
+  binary: boolean;
+  additions: number;
+  deletions: number;
+  diff: string;
+  offset: number;
+  lines: number;
+  totalLines: number;
+  hasMore: boolean;
+  truncated: boolean;
+}
+
+export interface WorkingChanges {
+  path: string;
+  primary: boolean;
+  owned: boolean;
+  worktreeId?: string;
+  tree: GitWorkingTree;
+  taskId?: string;
+  taskTitle?: string;
+}
+
+export type ActionOutcome =
+  | 'done'
+  | 'refused'
+  | 'noop'
+  | 'conflict'
+  | 'rejected'
+  | 'unavailable'
+  | 'auth_failed'
+  | 'failed'
+  | 'unverified';
+
+export interface GitBlocker {
+  code: string;
+  message: string;
+}
+
+export interface GitConflictCheck {
+  method: 'simulation' | 'overlap' | 'none';
+  result: 'clean' | 'conflicts' | 'possible' | 'unknown';
+  files?: string[];
+  note: string;
+}
+
+export interface GitMergePlan {
+  branch: string;
+  branchSha: string;
+  target: string;
+  targetSha: string;
+  strategy: 'merge' | 'ff-only';
+  targetWorktree?: string;
+  ahead: number;
+  behind: number;
+  relation: TargetRelation;
+  fastForwardable: boolean;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
+  conflicts: GitConflictCheck;
+  blockers: GitBlocker[];
+  warnings: string[];
+  canMerge: boolean;
+  checkedAt: string;
+}
+
+export interface GitDeletePlan {
+  branch: string;
+  branchSha: string;
+  target: string;
+  merged: boolean;
+  mergedVia?: 'ancestry' | 'pull_request';
+  remoteExists: boolean;
+  remoteRef?: string;
+  remoteSha?: string;
+  blockers: GitBlocker[];
+  warnings: string[];
+  canDelete: boolean;
+  canDeleteRemote: boolean;
+  checkedAt: string;
+}
+
+export interface GitCleanPlan {
+  worktreeId: string;
+  path: string;
+  branch: string;
+  head?: string;
+  missing: boolean;
+  dirty?: GitChangeCounts;
+  blockers: GitBlocker[];
+  warnings: string[];
+  canClean: boolean;
+  checkedAt: string;
+}
+
+export interface GitActionResult {
+  action: string;
+  outcome: ActionOutcome;
+  ok: boolean;
+  message: string;
+  blockers?: GitBlocker[];
+  warnings?: string[];
+  /** What changed on this computer. */
+  local?: { ref?: string; before?: string; after?: string; note?: string };
+  /** What the remote itself confirmed, when it was asked. `verified` is true only then. */
+  remote?: { remote?: string; ref?: string; sha?: string; verified: boolean; checkedAt: string; note?: string };
+  pullRequest?: GitHubPR;
+  git?: string;
+}
+
+export interface GitHubPR {
+  number: number;
+  title: string;
+  url: string;
+  state: 'open' | 'closed' | 'merged';
+  draft: boolean;
+  headBranch: string;
+  baseBranch: string;
+  headSha?: string;
+  author?: string;
+  crossRepo?: boolean;
+  review?: 'approved' | 'changes_requested' | 'review_required';
+  mergeable?: 'mergeable' | 'conflicting';
+  checks: { state: 'passing' | 'failing' | 'pending' | 'none'; total: number; passed: number; failed: number; pending: number };
+  createdAt?: string;
+  updatedAt?: string;
+  mergedAt?: string;
+  closedAt?: string;
+  taskId?: string;
+  taskTitle?: string;
+  runId?: string;
+}
+
+export interface GitHubState {
+  available: boolean;
+  reason?: 'no_remote' | 'not_github' | 'gh_missing' | 'unauthenticated' | 'error';
+  message?: string;
+  host?: string;
+  repo?: string;
+  pullRequests: GitHubPR[];
+  fetchedAt: string;
+}

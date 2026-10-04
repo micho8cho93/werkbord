@@ -218,6 +218,9 @@ func (e *gitError) Error() string {
 	return fmt.Sprintf("git %s: exit %d: %s", strings.Join(e.args, " "), e.code, e.stderr)
 }
 
+// Is lets callers recognise any failed git command as domain.ErrGit.
+func (e *gitError) Is(target error) bool { return target == domain.ErrGit }
+
 func isNotRepo(err error) bool {
 	var ge *gitError
 	return errors.As(err, &ge) && strings.Contains(strings.ToLower(ge.stderr), "not a git repository")
@@ -294,6 +297,29 @@ func gitEnv(base []string) []string {
 		"GIT_NO_LAZY_FETCH=1", "GIT_ALLOW_PROTOCOL=none")
 }
 
+// networkProtocols are the transports a fetch or push may use. ext:: is the one
+// that is left out: it runs an arbitrary command named in the remote's URL, and a
+// repository's config is not a place to take that from. file is there for remotes
+// that are directories, which includes every remote in the tests.
+const networkProtocols = "file:git:ssh:http:https"
+
+// networkEnv is gitEnv for the few commands that talk to a remote, and only
+// those: the user starts them explicitly (a fetch, a push). It still never
+// prompts, because nobody is at a terminal to answer; credentials come from
+// whatever the user has set up for Git (a credential helper, an ssh agent), which
+// is kept.
+func networkEnv(base []string) []string {
+	env := make([]string, 0, len(base)+4)
+	for _, kv := range base {
+		if !isRepoLocalEnv(kv) {
+			env = append(env, kv)
+		}
+	}
+	return append(env,
+		"GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "LC_ALL=C",
+		"GIT_ALLOW_PROTOCOL="+networkProtocols)
+}
+
 const (
 	defaultMaxOutput = 1 << 20
 	defaultMaxProcs  = 4
@@ -308,17 +334,25 @@ const (
 var errOutputTooLarge = errors.New("output too large")
 
 // capWriter keeps at most max bytes. Past that it stops the command, because
-// a process blocked writing to a pipe nobody reads would never exit.
+// a process blocked writing to a pipe nobody reads would never exit. With
+// truncate set the bytes that fit are kept and the overflow is not an error:
+// the caller asked for "as much as fits" (a diff), and is told it was cut.
 type capWriter struct {
 	buf      bytes.Buffer
 	max      int64
 	cancel   context.CancelFunc
 	exceeded bool
+	truncate bool
 }
 
 func (w *capWriter) Write(p []byte) (int, error) {
 	if int64(w.buf.Len())+int64(len(p)) > w.max {
 		w.exceeded = true
+		if w.truncate {
+			if room := w.max - int64(w.buf.Len()); room > 0 {
+				w.buf.Write(p[:room])
+			}
+		}
 		w.cancel()
 		return 0, errOutputTooLarge
 	}
@@ -353,19 +387,63 @@ func (c *CLI) git(ctx context.Context, dir string, args ...string) (string, erro
 }
 
 func (c *CLI) gitTimeout(ctx context.Context, dir string, timeout time.Duration, args ...string) (string, error) {
+	out, _, err := c.run(ctx, dir, runOpts{timeout: timeout}, args...)
+	return strings.TrimSpace(string(out)), err
+}
+
+// runOpts tunes one git invocation.
+type runOpts struct {
+	timeout time.Duration
+	// maxOut bounds each output stream. Zero means the CLI's MaxOutput.
+	maxOut int64
+	// truncate returns the output that fit, with truncated set, instead of failing
+	// when there is more of it.
+	truncate bool
+	// network lets the command use a transport (fetch, push, ls-remote). Everything
+	// else runs with transports switched off (see gitEnv).
+	network bool
+	// env is added last, so it wins.
+	env []string
+}
+
+// readOnlyConfig is passed to every command. None of these can change what a
+// command means for a repository that is not trying to run code: they close the
+// ways a repository's own configuration makes a read run a program of its
+// choosing (an fsmonitor hook), or start work in the background (auto gc and
+// maintenance, after a fetch).
+var readOnlyConfig = []string{
+	"-c", "core.fsmonitor=false",
+	"-c", "core.untrackedCache=false",
+	"-c", "gc.auto=0",
+	"-c", "maintenance.auto=false",
+	"-c", "submodule.recurse=false",
+	"-c", "status.submoduleSummary=false",
+}
+
+// run is the one place git is started. It returns the raw stdout (git's own
+// bytes, not trimmed: a path can end in a space), whether it was truncated, and
+// an error that is a *gitError for a non-zero exit.
+func (c *CLI) run(ctx context.Context, dir string, o runOpts, args ...string) ([]byte, bool, error) {
 	bin := c.Binary
 	if bin == "" {
 		bin = "git"
 	}
-	maxOut := c.MaxOutput
+	maxOut := o.maxOut
+	if maxOut <= 0 {
+		maxOut = c.MaxOutput
+	}
 	if maxOut <= 0 {
 		maxOut = defaultMaxOutput
+	}
+	timeout := o.timeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
 	}
 	cmdline := "git " + strings.Join(args, " ")
 
 	release, err := c.acquire(ctx)
 	if err != nil {
-		return "", fmt.Errorf("%s: waiting for a free slot: %w", cmdline, err)
+		return nil, false, fmt.Errorf("%s: waiting for a free slot: %w", cmdline, err)
 	}
 	defer release()
 
@@ -373,28 +451,38 @@ func (c *CLI) gitTimeout(ctx context.Context, dir string, timeout time.Duration,
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	full := append([]string{"-C", dir}, args...)
+	full := append([]string{"-C", dir}, readOnlyConfig...)
+	full = append(full, args...)
 	cmd := exec.CommandContext(ctx, bin, full...)
-	cmd.Env = gitEnv(os.Environ())
+	if o.network {
+		cmd.Env = networkEnv(os.Environ())
+		detach(cmd)
+	} else {
+		cmd.Env = gitEnv(os.Environ())
+	}
+	cmd.Env = append(cmd.Env, o.env...)
 	cmd.WaitDelay = waitDelay
-	stdout, stderr := &capWriter{max: maxOut, cancel: cancel}, &capWriter{max: maxOut, cancel: cancel}
+	stdout := &capWriter{max: maxOut, cancel: cancel, truncate: o.truncate}
+	stderr := &capWriter{max: maxOut, cancel: cancel}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	err = cmd.Run()
 
 	switch {
+	case stdout.exceeded && o.truncate:
+		return stdout.buf.Bytes(), true, nil
 	case stdout.exceeded || stderr.exceeded:
-		return "", fmt.Errorf("%s: %w (more than %d bytes)", cmdline, errOutputTooLarge, maxOut)
+		return nil, false, fmt.Errorf("%s: %w (more than %d bytes)", cmdline, errOutputTooLarge, maxOut)
 	case ctx.Err() != nil:
-		return "", fmt.Errorf("%s: %w", cmdline, ctx.Err())
+		return nil, false, fmt.Errorf("%s: %w", cmdline, ctx.Err())
 	case errors.Is(err, exec.ErrWaitDelay):
-		return "", fmt.Errorf("%s: a process it started kept its output open", cmdline)
+		return nil, false, fmt.Errorf("%s: a process it started kept its output open", cmdline)
 	}
 	if err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
-			return "", &gitError{args: args, code: ee.ExitCode(), stderr: strings.TrimSpace(stderr.buf.String())}
+			return stdout.buf.Bytes(), false, &gitError{args: args, code: ee.ExitCode(), stderr: strings.TrimSpace(stderr.buf.String())}
 		}
-		return "", fmt.Errorf("run git: %w", err)
+		return nil, false, fmt.Errorf("run git: %w", err)
 	}
-	return strings.TrimSpace(stdout.buf.String()), nil
+	return stdout.buf.Bytes(), false, nil
 }

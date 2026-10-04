@@ -18,6 +18,16 @@ const (
 	EventWorktreeRemoving  EventType = "worktree.removing"
 	EventWorktreeRemoved   EventType = "worktree.removed"
 
+	// Git events are the audit trail of what the Git Control Center changed. They
+	// are only written for something that happened (a refused action leaves no
+	// event), and the payload is a GitActionResult plus the commits involved.
+	EventGitFetched       EventType = "git.fetched"
+	EventGitPushed        EventType = "git.pushed"
+	EventGitMerged        EventType = "git.merged"
+	EventGitBranchDeleted EventType = "git.branch_deleted"
+	EventGitTreeCleaned   EventType = "git.worktree_cleaned"
+	EventGitPRCreated     EventType = "git.pull_request_created"
+
 	// Question events. A question is announced by agent.question (payload:
 	// {question}) and closed by exactly one of these, whose payload is also
 	// {question}, carrying the question's final state. They are self-contained

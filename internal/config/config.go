@@ -47,6 +47,18 @@ type Config struct {
 	// Agents tunes the coding agents, by adapter ID ("claude-code", "codex").
 	// Agents not mentioned use their defaults.
 	Agents map[string]AgentConfig `json:"agents,omitempty"`
+	// GitHub tunes the optional GitHub integration, which runs the user's own
+	// GitHub CLI. Dev Board has no GitHub account or token of its own.
+	GitHub GitHubConfig `json:"github,omitempty"`
+}
+
+// GitHubConfig is the user's choices for the GitHub integration.
+type GitHubConfig struct {
+	// Command is the GitHub CLI executable, if it is not on PATH as "gh".
+	Command string `json:"command,omitempty"`
+	// Disabled turns the integration off: no pull requests are shown or opened.
+	// Everything local keeps working either way.
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 // AgentConfig is the user's choices for one coding agent. Fields that do not
@@ -250,6 +262,9 @@ func (c Config) Validate() error {
 	}
 	if c.WorktreesDir != "" && !filepath.IsAbs(c.WorktreesDir) {
 		return fmt.Errorf("worktreesDir %q must be an absolute path", c.WorktreesDir)
+	}
+	if strings.ContainsAny(c.GitHub.Command, "\x00\n") {
+		return errors.New("github.command contains a control character")
 	}
 	return c.validateAgents()
 }

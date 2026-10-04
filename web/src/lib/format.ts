@@ -94,3 +94,8 @@ export function oneLine(text: string, max = 160): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
+
+/** The current time as the controller writes times. */
+export function nowISO(): string {
+  return new Date().toISOString();
+}

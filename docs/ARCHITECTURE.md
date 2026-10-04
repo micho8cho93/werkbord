@@ -7,7 +7,7 @@ are remote controls for it. There is no hosted backend, no account system and no
 database.
 
 This document describes the system as built: the foundation, the agent runtime (§8, §14),
-questions (§15), projects as the scope of the application (§16) and per-task execution policies (§17). Sections marked *Deferred* name things that are intentionally not implemented yet.
+questions (§15), projects as the scope of the application (§16), per-task execution policies (§17) and the Git Control Center (§18). Sections marked *Deferred* name things that are intentionally not implemented yet.
 
 ---
 
@@ -44,12 +44,13 @@ system. No Docker, no Electron, no second language on the backend.
 | `internal/store` | Persistence **interfaces** (`Store`, `Tx`, one repo per aggregate) | `domain` | Contain an implementation |
 | `internal/store/sqlite` | The SQLite implementation and versioned migrations | `domain`, `store` | Contain business rules beyond integrity constraints |
 | `internal/events` | Live fan-out of committed events (`Publisher`, `Subscriber`, `Broker`) | `domain` | Be relied on for durability |
-| `internal/gitrepo` | The Git boundary (`Inspector`; `Worktrees`, which makes and removes linked worktrees; CLI implementation) | `domain` | Touch a repository's own checkout or run its hooks |
+| `internal/gitrepo` | The Git boundary: `Inspector`; `Worktrees` (makes and removes linked worktrees: all the agent runner may use); `Reader` and `Operator` (the Git Control Center's reads and guarded writes); one CLI implementation | `domain` | Run a repository's hooks, force anything, or decide whether an action *should* happen |
+| `internal/github` | The GitHub boundary: the user's own `gh` CLI, for pull requests | `domain` | Hold a GitHub credential, account or token |
 | `internal/agent` | The agent boundary (`Adapter`, `Session`, `Registry`), process groups, the event queue | `domain` | Leak protocol details of a specific agent |
 | `internal/agent/claude`, `internal/agent/codex` | One adapter each: the agent's protocol → normalised events | `agent`, `domain` | Know about runs, tasks or the database |
 | `internal/agent/fake` | A scriptable in-memory adapter for tests | `agent`, `domain` | Be used outside tests |
 | `internal/runner` | Agent processes: starting runs, the live-session goroutines, input, stop, recovery, shutdown | `service`, `agent`, `gitrepo` | Write the store except through `service` |
-| `internal/service` | Use cases: register project, create/move task, recover runs | all of the above via interfaces | Speak HTTP |
+| `internal/service` | Use cases: register project, create/move task, recover runs, and `GitControl` (what to show of Git, and every safety check before an action) | all of the above via interfaces | Speak HTTP |
 | `internal/api` | HTTP routing, JSON, SSE, auth and security middleware | `service`, `store`, `events`, `agent`, `runner` | Contain business rules |
 | `internal/webui` | Serving the embedded PWA build | stdlib | — |
 | `internal/controller` | Wiring and lifecycle | everything | — |
@@ -504,8 +505,8 @@ the HTTP API is treated as a remote-execution surface from day one.
 | Area | Not built yet | Hook already in place |
 | --- | --- | --- |
 | Agent execution | More agents; an "interrupt this turn" action that keeps the session; token/cost reporting; policies such as "completed run → Review" | `agent.Adapter`; the runner and adapters are built (§8, §14) |
-| Worktrees | Garbage-collecting worktrees of finished tasks; diff/commit/push from a run | `service.Worktrees` records and `gitrepo.Worktrees` engine; a worktree is kept until someone removes it |
-| Advanced Git | Branches, diffs, commits, push, PRs, GitHub integration | `gitrepo` package boundary |
+| Worktrees | Garbage-collecting worktrees of finished tasks automatically | `service.Worktrees` records and `gitrepo.Worktrees` engine; a worktree is kept until a person cleans it in the Git Control Center (§18) |
+| Git | Committing, stashing or discarding for the user; pulling or fast-forwarding the target; merging a pull request on GitHub; rebasing; conflict resolution; force pushes of any kind; tags; submodules (see `docs/GIT.md` §7) | `gitrepo.Operator` is the place a new guarded operation goes, and `service.GitControl` the place its checks go |
 | Board interactions | Drag and drop, reordering within a column, delete | `Position` and `PATCH /api/projects/{pid}/tasks/{id}` already accept title, description, state, position and policy; the task page edits title, description and interaction |
 | Projects | Unregistering, renaming | — |
 | Calendar | Everything | `PROJECT_SECTIONS` in the web app: one more section of a project |
@@ -722,3 +723,42 @@ it holds its worktree, and the database enforces that.
 reply the agent was given) in the same transaction, so the activity feed shows what was asked and how it was
 dealt with, and "who decided" is never ambiguous.
 
+## 18. The Git Control Center
+
+A project's Git section lets someone orchestrating many agents see and control the Git state those agents
+produce, from a phone, without GitHub or a terminal. It is not a clone of GitHub and does not reimplement
+Git: every operation runs the installed `git`, and GitHub is reached only through the user's own `gh`.
+**The full description and the safety model are in [GIT.md](GIT.md); this is the shape.**
+
+```
+web (Git screens)  ──▶  api/git.go  ──▶  service.GitControl  ──▶  gitrepo.Control (Inspector + Reader + Operator) ──▶ git
+                                              │  └──▶ github.Client ──▶ gh (the user's own sign-in; optional)
+                                              └──▶ store (tasks, runs, worktree records, the event log)
+```
+
+- **Local, remote and GitHub are three sources, never mixed.** The overview is local and never touches the
+  network; what it says of a remote comes from remote-tracking refs and is labelled "as of the last fetch";
+  pull requests are a separate call that can fail without affecting the rest. An action's result reports its
+  *local effect* and the *remote's confirmation* separately, and a push, a pull request or a remote deletion is
+  only reported done after the remote itself was asked and agreed.
+- **Ownership.** A branch is Dev Board's only if its name is under `devboard/` *and* a worktree record of the
+  project names exactly that branch. Only such branches are ever deleted, and only after proving nothing
+  unmerged would be lost; only directories Dev Board's records name, inside its own worktree directory, that
+  Git lists as worktrees and that hold nothing uncommitted, are ever removed.
+- **Actions** (fetch, push, merge, delete, clean a worktree, open a pull request) each run under one lock per
+  project and in four steps: look again, compare with the commit IDs the user was looking at, check every
+  condition (refusing with the reasons), then do one guarded operation. Merging, deleting and cleaning also
+  have a *plan* call that changes nothing, which the phone shows before asking to confirm.
+- **No agent merges.** The runner's Git interface has no merge or push (a test pins its method set), and a run
+  finishing changes nothing in Git. Only a person's confirmed tap merges.
+- **The engine cannot do more than it says**: no force, reset, checkout, clean or rebase; no hooks for writes;
+  no repository-configured programs for reads; no `ext::` transport; revisions are only full refs or commit
+  IDs; deletion is conditional on the expected commit; every output and run time is bounded.
+- **Audit**: `git.fetched`, `git.pushed`, `git.merged`, `git.branch_deleted`, `git.worktree_cleaned` and
+  `git.pull_request_created` are events like any other, written only for what happened; the web app refetches
+  Git when they, or a task, run or worktree event, arrive.
+- **Phone first.** The screens drill down: overview (repository summary, branches that need you with Dev Board's
+  on top, pull requests, recent commits, working changes, worktrees, all branches) → a branch (state, actions,
+  commits, changed files) → a file's diff, a window at a time. The address says which screen
+  (`#/p/<id>/git/branch/local/<name>/file?path=…`), so Back, reload and shared links work. Review, Merge, Push
+  and Delete are one tap from the list: they open a bottom sheet that shows the controller's own check.

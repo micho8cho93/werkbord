@@ -63,7 +63,7 @@
 
   // A new page starts at its top, not wherever the last one was scrolled to.
   $effect(() => {
-    void [router.view, router.projectId, router.taskId];
+    void [router.view, router.projectId, router.taskId, router.sub];
     window.scrollTo(0, 0);
   });
 

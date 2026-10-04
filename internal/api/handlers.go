@@ -65,6 +65,10 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, domain.ErrAgent):
 		// The message says why the agent could not start, which is what the user needs.
 		writeError(w, http.StatusBadGateway, "agent_failed", err.Error())
+	case errors.Is(err, domain.ErrGit):
+		writeError(w, http.StatusBadGateway, "git_failed", err.Error())
+	case errors.Is(err, context.DeadlineExceeded):
+		writeError(w, http.StatusGatewayTimeout, "timeout", "git took too long to answer")
 	case errors.Is(err, context.Canceled):
 		// Client went away; nothing useful to send.
 	default:

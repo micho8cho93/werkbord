@@ -1,6 +1,16 @@
 import type {
   Agent,
+  BranchScope,
   ExecutionPolicy,
+  GitActionResult,
+  GitCleanPlan,
+  GitCommitPage,
+  GitComparison,
+  GitDeletePlan,
+  GitFileDiff,
+  GitHubState,
+  GitMergePlan,
+  GitOverview,
   Health,
   Overview,
   Project,
@@ -10,6 +20,7 @@ import type {
   Task,
   TaskState,
   Worktree,
+  WorkingChanges,
 } from './types';
 
 const TOKEN_KEY = 'devboard.token';
@@ -150,7 +161,67 @@ export const api = {
   answerQuestion: (q: Pick<Question, 'projectId' | 'id'>, answer: string) =>
     request<Question>('POST', `${inProject(q.projectId)}/questions/${enc(q.id)}/answer`, { answer }),
   getWorktree: (projectId: string, id: string) => request<Worktree>('GET', `${inProject(projectId)}/worktrees/${enc(id)}`),
+
+  // The Git Control Center. Reads change nothing. Every action answers with a GitActionResult
+  // whose `outcome` says what happened: a refusal is an answer, not an error.
+  git: {
+    overview: (projectId: string) => request<GitOverview>('GET', `${inProject(projectId)}/git`),
+    /** Asked separately: GitHub being slow or signed out must not hold up the local picture. */
+    pullRequests: (projectId: string) => request<GitHubState>('GET', `${inProject(projectId)}/git/pull-requests`),
+    commits: (projectId: string, scope: BranchScope, branch: string, skip = 0, limit = 30) =>
+      request<GitCommitPage>('GET', `${inProject(projectId)}/git/commits${query({ scope, branch, skip, limit })}`),
+    compare: (projectId: string, scope: BranchScope, branch: string, offset = 0, limit = 50, target = '') =>
+      request<GitComparison>('GET', `${inProject(projectId)}/git/compare${query({ scope, branch, target, offset, limit })}`),
+    /** A window onto one file's diff between two commits the comparison reported. */
+    diff: (projectId: string, from: string, to: string, path: string, oldPath = '', offset = 0, lines = 400) =>
+      request<GitFileDiff>('GET', `${inProject(projectId)}/git/diff${query({ from, to, path, oldPath, offset, lines })}`),
+    changes: (projectId: string, worktree = '') =>
+      request<WorkingChanges>('GET', `${inProject(projectId)}/git/changes${query({ worktree })}`),
+    changeDiff: (projectId: string, worktree: string, kind: string, path: string, oldPath = '', offset = 0, lines = 400) =>
+      request<GitFileDiff>('GET', `${inProject(projectId)}/git/changes/diff${query({ worktree, kind, path, oldPath, offset, lines })}`),
+
+    fetch: (projectId: string) => request<GitActionResult>('POST', `${inProject(projectId)}/git/fetch`),
+    push: (projectId: string, branch: string, expectedSha: string) =>
+      request<GitActionResult>('POST', `${inProject(projectId)}/git/push`, { branch, expectedSha }),
+    mergePlan: (projectId: string, m: MergeRequest) => request<GitMergePlan>('POST', `${inProject(projectId)}/git/merge/plan`, m),
+    merge: (projectId: string, m: MergeRequest) => request<GitActionResult>('POST', `${inProject(projectId)}/git/merge`, m),
+    deletePlan: (projectId: string, d: DeleteRequest) =>
+      request<GitDeletePlan>('POST', `${inProject(projectId)}/git/branches/delete-plan`, d),
+    deleteBranch: (projectId: string, d: DeleteRequest) =>
+      request<GitActionResult>('POST', `${inProject(projectId)}/git/branches/delete`, d),
+    cleanPlan: (projectId: string, worktreeId: string, headSha: string) =>
+      request<GitCleanPlan>('POST', `${inProject(projectId)}/git/worktrees/clean-plan`, { worktreeId, headSha }),
+    clean: (projectId: string, worktreeId: string, headSha: string) =>
+      request<GitActionResult>('POST', `${inProject(projectId)}/git/worktrees/clean`, { worktreeId, headSha }),
+    createPullRequest: (projectId: string, p: { branch: string; expectedSha: string; title: string; body: string; draft: boolean }) =>
+      request<GitActionResult>('POST', `${inProject(projectId)}/git/pull-requests`, p),
+  },
 };
+
+/** What a merge is asked of: the commits the user reviewed travel with it, so a branch that moved is refused. */
+export interface MergeRequest {
+  branch: string;
+  branchSha: string;
+  target: string;
+  targetSha: string;
+  strategy: 'merge' | 'ff-only';
+}
+
+export interface DeleteRequest {
+  branch: string;
+  branchSha: string;
+  deleteRemote?: boolean;
+}
+
+/** A query string from the values that are set. Branch names and paths are data: they are always encoded. */
+export function query(params: Record<string, string | number | undefined>): string {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === '' || v === 0) continue;
+    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+  }
+  return parts.length ? `?${parts.join('&')}` : '';
+}
 
 /** URL for the event stream. EventSource cannot send headers, so the token goes in the query. */
 export function eventsURL(): string {

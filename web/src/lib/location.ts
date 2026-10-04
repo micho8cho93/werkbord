@@ -6,6 +6,7 @@
 //   global          #/control          the Control Center: what needs you, in every project
 //                   #/projects         every registered repository, and registering one
 //   in a project    #/p/<id>/board     (also: git, activity)
+//                   #/p/<id>/git/...   Git drills down: branch, file, changes (see gitroute.ts)
 //                   #/p/<id>/task/<id> a task, which belongs to the board
 //
 // A project's own pages are listed once, in PROJECT_SECTIONS. The shell, the
@@ -33,6 +34,8 @@ export interface Location {
   projectId: string;
   /** Set on a task's page. */
   taskId: string;
+  /** Git's drill-down: whatever follows `git/` in the address, with its query. Absent on every other page. */
+  sub?: string;
 }
 
 const isGlobal = (v: string): v is GlobalView => GLOBAL_VIEWS.some((g) => g.id === v);
@@ -47,7 +50,8 @@ function decode(s: string): string {
 }
 
 export function parse(hash: string): Location {
-  const parts = hash.replace(/^#\/?/, '').split(/[?&]/)[0].split('/');
+  const full = hash.replace(/^#\/?/, '');
+  const parts = full.split(/[?&]/)[0].split('/');
   const [first = '', second = '', third = '', fourth = ''] = parts;
 
   if (isGlobal(first)) return { view: first, projectId: '', taskId: '' };
@@ -58,6 +62,13 @@ export function parse(hash: string): Location {
       const taskId = decode(fourth);
       // A task page without a task is the board.
       return taskId ? { view: 'task', projectId, taskId } : { view: 'board', projectId, taskId: '' };
+    }
+    if (third === 'git') {
+      // Git has screens of its own below it. Everything after `git/`, and the query, is theirs to read.
+      const q = full.indexOf('?');
+      const rest = full.split(/[?]/)[0].split('/').slice(3).join('/');
+      const sub = rest + (q === -1 ? '' : full.slice(q));
+      return sub ? { view: 'git', projectId, taskId: '', sub } : { view: 'git', projectId, taskId: '' };
     }
     return { view: isSection(third) ? third : 'board', projectId, taskId: '' };
   }
@@ -90,6 +101,7 @@ export function taskHref(projectId: string, taskId: string): string {
 export function hrefOf(loc: Location): string {
   if (loc.view === 'task') return taskHref(loc.projectId, loc.taskId);
   if (isGlobal(loc.view)) return globalHref(loc.view);
+  if (loc.view === 'git' && loc.sub) return `${projectHref(loc.projectId, 'git')}/${loc.sub}`;
   return projectHref(loc.projectId, loc.view);
 }
 

@@ -129,6 +129,15 @@ button {
   font-weight: 550;
 }
 
+a.btn {
+  color: var(--text);
+  text-decoration: none;
+}
+
+a.btn.primary {
+  color: var(--accent-text);
+}
+
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
