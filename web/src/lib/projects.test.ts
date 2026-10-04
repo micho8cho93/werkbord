@@ -3,7 +3,7 @@ import { activitySummary, attentionCount, filterProjects, projectColor, projectH
 import type { Project, ProjectActivity } from './types';
 
 const project = (id: string, name: string, repoPath = `/code/${name}`): Project => ({
-  id, name, repoPath, createdAt: '2026-10-04T10:00:00Z', updatedAt: '2026-10-04T10:00:00Z',
+  id, name, repoPath, execution: {}, createdAt: '2026-10-04T10:00:00Z', updatedAt: '2026-10-04T10:00:00Z',
 });
 
 describe('telling projects apart', () => {

@@ -65,6 +65,7 @@ type env struct {
 	db        *sqlite.DB
 	bus       *events.Broker
 	projects  *service.Projects
+	settings  *service.Settings
 	tasks     *service.Tasks
 	runs      *service.Runs
 	worktrees *service.Worktrees
@@ -93,6 +94,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	if err := e.agents.Register(e.adapter); err != nil {
 		t.Fatal(err)
 	}
+	e.projects.Catalog, e.settings.Catalog, e.tasks.Catalog = e.agents, e.agents, e.agents
 	e.git = &gitrepo.CLI{}
 	p, err := e.projects.Register(ctx, e.repo, "demo")
 	if err != nil {
@@ -117,8 +119,13 @@ func (e *env) open() {
 	e.db = db
 	e.bus = events.NewBroker()
 	deps := service.Deps{Store: db, Bus: e.bus}
-	e.projects = &service.Projects{Deps: deps, Git: &gitrepo.CLI{}}
-	e.tasks = &service.Tasks{Deps: deps}
+	var cat service.AgentCatalog
+	if e.agents != nil {
+		cat = e.agents // after a restart; the first time the registry does not exist yet
+	}
+	e.projects = &service.Projects{Deps: deps, Git: &gitrepo.CLI{}, Catalog: cat}
+	e.settings = &service.Settings{Deps: deps, Catalog: cat}
+	e.tasks = &service.Tasks{Deps: deps, Catalog: cat}
 	e.runs = &service.Runs{Deps: deps}
 	e.worktrees = &service.Worktrees{Deps: deps, Root: e.root}
 	e.sub = e.bus.Subscribe(100000)
@@ -126,7 +133,7 @@ func (e *env) open() {
 
 func (e *env) newManager(opts ...envOpt) *Manager {
 	o := Options{
-		Runs: e.runs, Tasks: e.tasks, Projects: e.projects, Worktrees: e.worktrees, Git: e.git, Agents: e.agents,
+		Runs: e.runs, Tasks: e.tasks, Projects: e.projects, Settings: e.settings, Worktrees: e.worktrees, Git: e.git, Agents: e.agents,
 		WorktreeRoot: e.root, FlushInterval: 10 * time.Millisecond, SetupTimeout: 30 * time.Second,
 		StopTimeout: 5 * time.Second, FinishTimeout: 2 * time.Second, ReapGrace: time.Second,
 	}

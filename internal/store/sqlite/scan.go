@@ -106,3 +106,22 @@ func decodePolicy(s string) (domain.ExecutionPolicy, error) {
 	}
 	return p.Normalized(), nil
 }
+
+// encodeExecution stores an execution configuration as JSON: only what is set.
+func encodeExecution(c domain.ExecutionConfig) (string, error) {
+	c = c.Normalized()
+	if err := c.Validate(); err != nil {
+		return "", err
+	}
+	return toJSON(c)
+}
+
+// decodeExecution reads one back. Fields a newer build wrote that this one does
+// not know are ignored.
+func decodeExecution(s string) (domain.ExecutionConfig, error) {
+	var c domain.ExecutionConfig
+	if err := json.Unmarshal([]byte(s), &c); err != nil {
+		return c, fmt.Errorf("decode execution config %q: %w", s, err)
+	}
+	return c, nil
+}

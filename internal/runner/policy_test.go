@@ -22,7 +22,7 @@ import (
 func (e *env) taskWith(title string, p domain.InteractionPolicy) *domain.Task {
 	e.t.Helper()
 	tk, err := e.tasks.CreateTask(ctx, service.NewTask{ProjectID: e.project.ID, Title: title, Description: "Do the thing carefully.",
-		Policy: domain.ExecutionPolicy{Interaction: p}})
+		Execution: domain.ExecutionConfig{Interaction: p}})
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -80,9 +80,9 @@ func TestRunKeepsTheTaskPolicyItStartedWith(t *testing.T) {
 	}
 
 	// Editing the task changes what the next run does, not the one that is working.
-	stop := domain.ExecutionPolicy{Interaction: domain.InteractionAutonomousStopIfBlocked}
+	stop := domain.ExecutionConfig{Interaction: domain.InteractionAutonomousStopIfBlocked}
 	cur, _ := e.tasks.Get(ctx, task.ID) // the run moved the card to Doing, so it is a version on
-	if _, err := e.tasks.Update(ctx, task.ID, service.TaskPatch{Policy: &stop, Version: cur.Version}); err != nil {
+	if _, err := e.tasks.Update(ctx, task.ID, service.TaskPatch{Execution: &stop, Version: cur.Version}); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.run(run.ID).Policy.Interaction; got != domain.InteractionAutonomous {
@@ -108,8 +108,8 @@ func TestRunKeepsTheTaskPolicyItStartedWith(t *testing.T) {
 	if third.Policy.Interaction != domain.InteractionInteractive || e.session().Req.Policy.Interaction != domain.InteractionInteractive {
 		t.Fatalf("override ignored: %+v", third.Policy)
 	}
-	if got, _ := e.tasks.Get(ctx, task.ID); got.Policy.Interaction != domain.InteractionAutonomousStopIfBlocked {
-		t.Fatalf("the override changed the task: %+v", got.Policy)
+	if got, _ := e.tasks.Get(ctx, task.ID); got.Execution.Interaction != domain.InteractionAutonomousStopIfBlocked {
+		t.Fatalf("the override changed the task: %+v", got.Execution)
 	}
 	bad := domain.ExecutionPolicy{Interaction: "reckless"}
 	if _, err := e.mgr.Start(ctx, StartInput{TaskID: e.task("other").ID, AgentID: "fake", Policy: &bad}); !errors.Is(err, domain.ErrInvalid) {

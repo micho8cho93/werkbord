@@ -75,6 +75,7 @@ func Open(ctx context.Context, path string, log *slog.Logger) (*DB, error) {
 		_ = writer.Close()
 		return nil, err
 	}
+	backupBeforeUpgrade(ctx, writer, path, len(ms), log)
 	applied, err := migrate(ctx, writer, ms)
 	if err != nil {
 		_ = writer.Close()
@@ -156,6 +157,8 @@ func (t *txn) Projects() store.ProjectRepo           { return projectRepo{t.q} }
 func (t *txn) Repositories() store.GitRepositoryRepo { return gitRepoRepo{t.q} }
 func (t *txn) Tasks() store.TaskRepo                 { return taskRepo{t.q} }
 func (t *txn) Runs() store.RunRepo                   { return runRepo{t.q} }
+func (t *txn) Settings() store.SettingsRepo          { return settingsRepo{t.q} }
+func (t *txn) Runners() store.RunnerRepo             { return runnerRepo{t.q} }
 func (t *txn) Questions() store.QuestionRepo         { return questionRepo{t.q} }
 func (t *txn) Worktrees() store.WorktreeRepo         { return worktreeRepo{t.q} }
 func (t *txn) Health() store.HealthRepo              { return healthRepo{t.q} }

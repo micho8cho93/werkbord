@@ -12,9 +12,12 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"devboard/internal/domain"
 )
 
 // DefaultAddr is loopback-only on purpose; see docs/ARCHITECTURE.md, Security.
@@ -47,9 +50,29 @@ type Config struct {
 	// Agents tunes the coding agents, by adapter ID ("claude-code", "codex").
 	// Agents not mentioned use their defaults.
 	Agents map[string]AgentConfig `json:"agents,omitempty"`
+	// Network tunes the private network (see internal/netprivate).
+	Network NetworkConfig `json:"network,omitempty"`
 	// GitHub tunes the optional GitHub integration, which runs the user's own
 	// GitHub CLI. Dev Board has no GitHub account or token of its own.
 	GitHub GitHubConfig `json:"github,omitempty"`
+}
+
+// NetworkConfig is the user's choices for the private network that lets a phone
+// reach the controller. Whether it is on is normally chosen in the app (and by
+// `devboard setup`); the settings here are for pinning it from outside the app.
+type NetworkConfig struct {
+	// Enabled, if set, decides whether the private network is on, whatever the app
+	// has stored: true for a headless server that must always join, false to forbid
+	// it. Leave it out to let the app decide.
+	Enabled *bool `json:"enabled,omitempty"`
+	// Hostname is this controller's name on the tailnet. Default: "devboard-" and
+	// this computer's name.
+	Hostname string `json:"hostname,omitempty"`
+	// ControlURL is a self-hosted coordination server (Headscale) to use instead
+	// of Tailscale's.
+	ControlURL string `json:"controlUrl,omitempty"`
+	// AuthKey is never read from this file: a key written to disk is a key that
+	// leaks. Set DEVBOARD_TS_AUTHKEY (or TS_AUTHKEY) to sign in without a browser.
 }
 
 // GitHubConfig is the user's choices for the GitHub integration.
@@ -67,8 +90,15 @@ type GitHubConfig struct {
 type AgentConfig struct {
 	// Command is the executable, if it is not on PATH under its usual name.
 	Command string `json:"command,omitempty"`
-	// Model overrides the agent's own default model.
+	// Model overrides the agent's own default model: it is what "Agent default"
+	// means for this agent on this computer.
 	Model string `json:"model,omitempty"`
+	// Models lists the models to offer when the agent cannot list its own, or
+	// when you want a shorter list. Leave it out to use what the agent reports.
+	// A model that is not listed can still be typed in.
+	Models []ModelChoice `json:"models,omitempty"`
+	// Reasoning lists the reasoning levels to offer, replacing what the agent reports.
+	Reasoning []string `json:"reasoning,omitempty"`
 	// PermissionMode (Claude Code): acceptEdits (the default), manual, plan,
 	// auto, dontAsk or bypassPermissions.
 	PermissionMode string `json:"permissionMode,omitempty"`
@@ -76,6 +106,13 @@ type AgentConfig struct {
 	ApprovalPolicy string `json:"approvalPolicy,omitempty"`
 	// Sandbox (Codex): read-only, workspace-write (the default) or danger-full-access.
 	Sandbox string `json:"sandbox,omitempty"`
+}
+
+// ModelChoice is a model to offer in the pickers.
+type ModelChoice struct {
+	ID          string `json:"id"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // Agent IDs the configuration knows about; they match the adapters' IDs.
@@ -89,6 +126,8 @@ var (
 	codexApprovalPolicies = []string{"untrusted", "on-request", "never"}
 	codexSandboxes        = []string{"read-only", "workspace-write", "danger-full-access"}
 )
+
+var hostnameRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
 
 func oneOf(v string, allowed []string) bool {
 	if v == "" {
@@ -105,6 +144,19 @@ func oneOf(v string, allowed []string) bool {
 // validateAgents checks the agent settings.
 func (c Config) validateAgents() error {
 	for id, a := range c.Agents {
+		for _, m := range a.Models {
+			if !domain.ValidModelName(m.ID) {
+				return fmt.Errorf("agents.%s.models: %q is not a usable model name", id, m.ID)
+			}
+		}
+		for _, r := range a.Reasoning {
+			if !domain.ValidReasoning(r) {
+				return fmt.Errorf("agents.%s.reasoning: %q is not a usable reasoning level", id, r)
+			}
+		}
+		if a.Model != "" && !domain.ValidModelName(a.Model) {
+			return fmt.Errorf("agents.%s.model: %q is not a usable model name", id, a.Model)
+		}
 		switch id {
 		case AgentClaudeCode:
 			if a.ApprovalPolicy != "" || a.Sandbox != "" {
@@ -231,6 +283,15 @@ func (c *Config) loadEnv() error {
 	set("DEVBOARD_LOG_FORMAT", &c.LogFormat)
 	set("DEVBOARD_TOKEN", &c.Token)
 	set("DEVBOARD_WORKTREES_DIR", &c.WorktreesDir)
+	set("DEVBOARD_NETWORK_HOSTNAME", &c.Network.Hostname)
+	set("DEVBOARD_NETWORK_CONTROL_URL", &c.Network.ControlURL)
+	if v := os.Getenv("DEVBOARD_NETWORK"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("DEVBOARD_NETWORK=%q: want true or false", v)
+		}
+		c.Network.Enabled = &b
+	}
 	// A security setting must not be guessed at: "off" or "no" could mean
 	// either, so anything that is not a plain boolean is an error rather than
 	// a silent default.
@@ -262,6 +323,12 @@ func (c Config) Validate() error {
 	}
 	if c.WorktreesDir != "" && !filepath.IsAbs(c.WorktreesDir) {
 		return fmt.Errorf("worktreesDir %q must be an absolute path", c.WorktreesDir)
+	}
+	if h := c.Network.Hostname; h != "" && !hostnameRE.MatchString(h) {
+		return fmt.Errorf("network.hostname %q: want a DNS label (letters, digits and hyphens, up to 63 characters)", h)
+	}
+	if u := c.Network.ControlURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
+		return fmt.Errorf("network.controlUrl %q: want an http(s) URL", u)
 	}
 	if strings.ContainsAny(c.GitHub.Command, "\x00\n") {
 		return errors.New("github.command contains a control character")

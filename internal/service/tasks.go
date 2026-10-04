@@ -12,6 +12,7 @@ import (
 // Tasks manages tasks on project boards.
 type Tasks struct {
 	Deps
+	Catalog AgentCatalog // checks the agent in an execution config; nil checks only its shape
 }
 
 // TaskPatch is a partial update. Nil fields are left unchanged. Version must
@@ -21,10 +22,12 @@ type TaskPatch struct {
 	Description *string
 	State       *domain.TaskState
 	Position    *float64
-	// Policy replaces the task's execution policy. It applies to runs started
-	// afterwards: a run that is already working keeps the policy it started with.
-	Policy  *domain.ExecutionPolicy
-	Version int64
+	// Execution replaces the task's overrides of the execution defaults: whatever
+	// it leaves unset is inherited from the project and the global defaults. It
+	// applies to runs started afterwards: a run that is already working keeps what
+	// it started with.
+	Execution *domain.ExecutionConfig
+	Version   int64
 }
 
 // NewTask describes a task to add.
@@ -32,11 +35,12 @@ type NewTask struct {
 	ProjectID   string
 	Title       string
 	Description string
-	// Policy is how the task's runs are carried out; unset means interactive.
-	Policy domain.ExecutionPolicy
+	// Execution is what the task overrides about how its runs are carried out;
+	// anything unset is inherited. A new task starts with no overrides.
+	Execution domain.ExecutionConfig
 }
 
-// Create adds an interactive task to the bottom of the project's Backlog.
+// Create adds a task with no overrides to the bottom of the project's Backlog.
 func (s *Tasks) Create(ctx context.Context, projectID, title, description string) (*domain.Task, error) {
 	return s.CreateTask(ctx, NewTask{ProjectID: projectID, Title: title, Description: description})
 }
@@ -51,13 +55,14 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 	if err := domain.ValidateTaskDescription(in.Description); err != nil {
 		return nil, err
 	}
-	if err := in.Policy.Validate(); err != nil {
+	exec := in.Execution.Normalized()
+	if err := validateExecution(ctx, s.Catalog, exec); err != nil {
 		return nil, err
 	}
 	now := s.now()
 	t := &domain.Task{
 		ID: domain.NewID(domain.PrefixTask), ProjectID: projectID, Title: title, Description: in.Description,
-		State: domain.TaskBacklog, Policy: in.Policy.Normalized(), CreatedAt: now, UpdatedAt: now,
+		State: domain.TaskBacklog, Execution: exec, CreatedAt: now, UpdatedAt: now,
 	}
 	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
 		if _, err := tx.Projects().Get(ctx, projectID); err != nil {
@@ -122,11 +127,12 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 		if patch.Position != nil {
 			t.Position = *patch.Position
 		}
-		if patch.Policy != nil {
-			if err := patch.Policy.Validate(); err != nil {
+		if patch.Execution != nil {
+			exec := patch.Execution.Normalized()
+			if err := validateExecution(ctx, s.Catalog, exec); err != nil {
 				return err
 			}
-			t.Policy = patch.Policy.Normalized()
+			t.Execution = exec
 		}
 		t.UpdatedAt = s.now()
 		if err := tx.Tasks().Update(ctx, t); err != nil {

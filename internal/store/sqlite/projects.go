@@ -4,28 +4,38 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"devboard/internal/domain"
 )
 
 type projectRepo struct{ q queryer }
 
-const projectCols = `id, name, repo_path, created_at, updated_at`
+const projectCols = `id, name, repo_path, created_at, updated_at, execution`
 
 func scanProject(s interface{ Scan(...any) error }) (*domain.Project, error) {
 	var p domain.Project
 	var created, updated int64
-	if err := s.Scan(&p.ID, &p.Name, &p.RepoPath, &created, &updated); err != nil {
+	var execution string
+	if err := s.Scan(&p.ID, &p.Name, &p.RepoPath, &created, &updated, &execution); err != nil {
 		return nil, err
 	}
 	p.CreatedAt, p.UpdatedAt = fromMS(created), fromMS(updated)
+	var err error
+	if p.Execution, err = decodeExecution(execution); err != nil {
+		return nil, fmt.Errorf("project %s: %w", p.ID, err)
+	}
 	return &p, nil
 }
 
 func (r projectRepo) Create(ctx context.Context, p *domain.Project) error {
-	_, err := r.q.ExecContext(ctx,
-		`INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?)`,
-		p.ID, p.Name, p.RepoPath, ms(p.CreatedAt), ms(p.UpdatedAt))
+	execution, err := encodeExecution(p.Execution)
+	if err != nil {
+		return err
+	}
+	_, err = r.q.ExecContext(ctx,
+		`INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?)`,
+		p.ID, p.Name, p.RepoPath, ms(p.CreatedAt), ms(p.UpdatedAt), execution)
 	if isUniqueViolation(err) {
 		return fmt.Errorf("project with path %s: %w", p.RepoPath, domain.ErrDuplicate)
 	}
@@ -57,6 +67,21 @@ func (r projectRepo) List(ctx context.Context) ([]domain.Project, error) {
 		out = append(out, *p)
 	}
 	return out, rows.Err()
+}
+
+func (r projectRepo) SetExecution(ctx context.Context, id string, cfg domain.ExecutionConfig, at time.Time) error {
+	execution, err := encodeExecution(cfg)
+	if err != nil {
+		return err
+	}
+	res, err := r.q.ExecContext(ctx, `UPDATE projects SET execution = ?, updated_at = ? WHERE id = ?`, execution, ms(at), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("project %s: %w", id, domain.ErrNotFound)
+	}
+	return nil
 }
 
 type gitRepoRepo struct{ q queryer }

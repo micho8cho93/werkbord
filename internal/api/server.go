@@ -4,11 +4,13 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"devboard/internal/agent"
+	"devboard/internal/doctor"
 	"devboard/internal/events"
 	"devboard/internal/runner"
 	"devboard/internal/service"
@@ -26,11 +28,19 @@ type Options struct {
 	Git       *service.GitControl // the Git Control Center; nil disables its endpoints
 	Health    *service.GitHealth  // repository health; nil disables its endpoints
 	Agents    *agent.Registry
-	Store     store.Store       // for health checks and event replay
-	Events    events.Subscriber // live event source
-	Log       *slog.Logger
-	Version   string
-	Web       http.Handler // serves the PWA; nil disables it
+	Settings  *service.Settings    // global defaults, onboarding and the runner; nil disables those endpoints
+	Network   NetworkController    // the private network; nil disables its endpoints
+	GitHub    *service.GitHubSetup // connecting GitHub and choosing repositories; nil disables those endpoints
+	// Doctor runs the health checks with the controller's live parts; nil disables /api/doctor.
+	Doctor func(context.Context) doctor.Report
+	// PrivateToken is the access token a phone presents on the private network. It
+	// is put in the link and QR code that open Dev Board there, and nowhere else.
+	PrivateToken string
+	Store        store.Store       // for health checks and event replay
+	Events       events.Subscriber // live event source
+	Log          *slog.Logger
+	Version      string
+	Web          http.Handler // serves the PWA; nil disables it
 
 	// AuthRequired makes every /api request except /api/health present Token.
 	AuthRequired bool
@@ -70,6 +80,23 @@ func (s *Server) Handler() http.Handler {
 	// computer, the event stream, and the Control Center.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/agents", s.handleListAgents)
+	mux.HandleFunc("GET /api/agents/{id}/options", s.handleAgentOptions)
+	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
+	mux.HandleFunc("PUT /api/settings/execution", s.handleSetExecution)
+	mux.HandleFunc("GET /api/runners", s.handleListRunners)
+	mux.HandleFunc("GET /api/doctor", s.handleDoctor)
+	mux.HandleFunc("GET /api/github", s.handleGitHubStatus)
+	mux.HandleFunc("POST /api/github/login", s.handleGitHubLogin)
+	mux.HandleFunc("POST /api/github/login/cancel", s.handleGitHubLoginCancel)
+	mux.HandleFunc("GET /api/github/repos", s.handleGitHubRepos)
+	mux.HandleFunc("POST /api/github/repos/add", s.handleGitHubAddRepo)
+	mux.HandleFunc("GET /api/network", s.handleNetworkStatus)
+	mux.HandleFunc("POST /api/network/enable", s.handleNetworkEnable)
+	mux.HandleFunc("POST /api/network/disable", s.handleNetworkDisable)
+	mux.HandleFunc("GET /api/network/phone", s.handlePhoneLink)
+	mux.HandleFunc("GET /api/onboarding", s.handleGetOnboarding)
+	mux.HandleFunc("POST /api/onboarding/complete", s.handleCompleteOnboarding)
+	mux.HandleFunc("POST /api/onboarding/reset", s.handleResetOnboarding)
 	mux.HandleFunc("GET /api/control-center", s.handleControlCenter)
 	mux.HandleFunc("GET /api/events", s.handleEvents) // ?project=<id> narrows it to one project
 
@@ -77,6 +104,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects", s.handleRegisterProject)
 	mux.HandleFunc("GET /api/projects/{pid}", s.handleGetProject)
 	mux.HandleFunc("POST /api/projects/{pid}/refresh", s.handleRefreshProject)
+	mux.HandleFunc("PUT /api/projects/{pid}/execution", s.handleSetProjectExecution)
 
 	mux.HandleFunc("GET /api/projects/{pid}/tasks", s.handleListTasks)
 	mux.HandleFunc("POST /api/projects/{pid}/tasks", s.handleCreateTask)

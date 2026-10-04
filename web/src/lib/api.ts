@@ -1,23 +1,32 @@
 import type {
   Agent,
+  AgentOptions,
   BranchScope,
-  ExecutionPolicy,
+  ExecutionConfig,
   GitActionResult,
   GitCleanPlan,
   GitCommitPage,
   GitComparison,
   GitDeletePlan,
   GitFileDiff,
+  GitHubLogin,
   GitHubState,
+  GitHubStatusInfo,
   GitMergePlan,
   GitOverview,
   Health,
+  InteractionPolicy,
+  NetworkStatus,
+  Onboarding,
   Overview,
+  PhoneLink,
+  RepoList,
   RepositoryHealth,
   Project,
   Question,
   Run,
   RunEventsPage,
+  Runner,
   Task,
   TaskState,
   Worktree,
@@ -113,12 +122,48 @@ export interface TaskEdit {
   title?: string;
   description?: string;
   state?: TaskState;
-  policy?: ExecutionPolicy;
+  /** Replaces the task's overrides: what is left out is inherited. */
+  execution?: ExecutionConfig;
+}
+
+/** What may differ for one run only: the task's, the project's and the global choices apply to the rest. */
+export interface RunChoice {
+  agentId?: string;
+  model?: string;
+  reasoning?: string;
+  interaction?: InteractionPolicy;
 }
 
 export const api = {
   health: () => request<Health>('GET', '/api/health'),
   listAgents: () => request<{ agents: Agent[] }>('GET', '/api/agents').then((r) => r.agents),
+  /** What can be chosen for an agent; asks the agent, so slower than listAgents. */
+  agentOptions: (agentId: string) => request<AgentOptions>('GET', `/api/agents/${enc(agentId)}/options`),
+
+  // Defaults and first-time setup.
+  getSettings: () => request<{ execution: ExecutionConfig }>('GET', '/api/settings').then((r) => r.execution ?? {}),
+  setGlobalExecution: (execution: ExecutionConfig) =>
+    request<{ execution: ExecutionConfig }>('PUT', '/api/settings/execution', execution).then((r) => r.execution ?? {}),
+  setProjectExecution: (projectId: string, execution: ExecutionConfig) =>
+    request<Project>('PUT', `${inProject(projectId)}/execution`, execution),
+  listRunners: () => request<{ runners: Runner[] }>('GET', '/api/runners').then((r) => r.runners),
+  onboarding: () => request<Onboarding>('GET', '/api/onboarding'),
+  completeOnboarding: (skipped: string[] = []) => request<Onboarding>('POST', '/api/onboarding/complete', { skipped }),
+  resetOnboarding: () => request<Onboarding>('POST', '/api/onboarding/reset', {}),
+
+  // The private network that lets a phone reach this controller.
+  network: () => request<NetworkStatus>('GET', '/api/network'),
+  enableNetwork: () => request<NetworkStatus>('POST', '/api/network/enable', {}),
+  disableNetwork: () => request<NetworkStatus>('POST', '/api/network/disable', {}),
+  phoneLink: () => request<PhoneLink>('GET', '/api/network/phone'),
+
+  // GitHub, through the user's own GitHub CLI. Optional.
+  github: () => request<GitHubStatusInfo>('GET', '/api/github'),
+  githubLogin: () => request<GitHubLogin>('POST', '/api/github/login', {}),
+  githubCancelLogin: () => request<GitHubStatusInfo>('POST', '/api/github/login/cancel', {}),
+  githubRepos: () => request<RepoList>('GET', '/api/github/repos'),
+  githubAddRepo: (fullName: string, path = '') =>
+    request<{ project: Project; cloned: boolean }>('POST', '/api/github/repos/add', { fullName, path }),
 
   // Global: the projects, and the one view that looks across all of them.
   listProjects: () => request<{ projects: Project[] }>('GET', '/api/projects').then((r) => r.projects),
@@ -129,18 +174,20 @@ export const api = {
   refreshProject: (projectId: string) => request<Project>('POST', `${inProject(projectId)}/refresh`),
 
   listTasks: (projectId: string) => request<{ tasks: Task[] }>('GET', `${inProject(projectId)}/tasks`).then((r) => r.tasks),
-  createTask: (projectId: string, title: string, description = '', policy?: ExecutionPolicy) =>
-    request<Task>('POST', `${inProject(projectId)}/tasks`, { title, description, ...(policy ? { policy } : {}) }),
+  createTask: (projectId: string, title: string, description = '', execution?: ExecutionConfig) =>
+    request<Task>('POST', `${inProject(projectId)}/tasks`, { title, description, ...(execution ? { execution } : {}) }),
   editTask: (task: Task, edit: TaskEdit) =>
     request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, { ...edit, version: task.version }),
   moveTask: (task: Task, state: TaskState) => api.editTask(task, { state }),
 
-  startRun: (projectId: string, taskId: string, agentId: string, instructions = '', resume = false, policy?: ExecutionPolicy) =>
+  startRun: (projectId: string, taskId: string, choice: RunChoice = {}, instructions = '', resume = false) =>
     request<Run>('POST', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`, {
-      agentId,
+      ...(choice.agentId ? { agentId: choice.agentId } : {}),
+      ...(choice.model ? { model: choice.model } : {}),
+      ...(choice.reasoning ? { reasoning: choice.reasoning } : {}),
       instructions,
       resume,
-      ...(policy ? { policy } : {}),
+      ...(choice.interaction ? { policy: { interaction: choice.interaction } } : {}),
     }),
   listTaskRuns: (projectId: string, taskId: string) =>
     request<{ runs: Run[] }>('GET', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`).then((r) => r.runs),

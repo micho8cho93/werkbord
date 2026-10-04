@@ -13,57 +13,57 @@ var bg = context.Background()
 func TestTaskPolicy(t *testing.T) {
 	f := newRunFixture(t)
 
-	// The default is interactive, and it is a stored value, not an absence.
-	if f.task.Policy.Interaction != domain.InteractionInteractive {
-		t.Fatalf("default = %+v", f.task.Policy)
+	// A task starts overriding nothing: it inherits its interaction policy.
+	if !f.task.Execution.IsZero() {
+		t.Fatalf("default = %+v", f.task.Execution)
 	}
 
 	task, err := f.tasks.CreateTask(bg, NewTask{ProjectID: f.project.ID, Title: "Autonomous",
-		Policy: domain.ExecutionPolicy{Interaction: domain.InteractionAutonomous}})
+		Execution: domain.ExecutionConfig{Interaction: domain.InteractionAutonomous}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got, _ := f.tasks.Get(bg, task.ID)
-	if got.Policy.Interaction != domain.InteractionAutonomous {
-		t.Fatalf("stored policy = %+v", got.Policy)
+	if got.Execution.Interaction != domain.InteractionAutonomous {
+		t.Fatalf("stored policy = %+v", got.Execution)
 	}
-	if _, err := f.tasks.CreateTask(bg, NewTask{ProjectID: f.project.ID, Title: "x", Policy: domain.ExecutionPolicy{Interaction: "yolo"}}); !errors.Is(err, domain.ErrInvalid) {
+	if _, err := f.tasks.CreateTask(bg, NewTask{ProjectID: f.project.ID, Title: "x", Execution: domain.ExecutionConfig{Interaction: "yolo"}}); !errors.Is(err, domain.ErrInvalid) {
 		t.Fatalf("unknown policy on create: %v", err)
 	}
 
 	// Editing the policy is a compare-and-swap update like any other; the rest of the task is untouched.
-	stop := domain.ExecutionPolicy{Interaction: domain.InteractionAutonomousStopIfBlocked}
-	updated, err := f.tasks.Update(bg, task.ID, TaskPatch{Policy: &stop, Version: got.Version})
+	stop := domain.ExecutionConfig{Interaction: domain.InteractionAutonomousStopIfBlocked}
+	updated, err := f.tasks.Update(bg, task.ID, TaskPatch{Execution: &stop, Version: got.Version})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Policy.Interaction != domain.InteractionAutonomousStopIfBlocked || updated.Title != "Autonomous" || updated.Version != got.Version+1 {
+	if updated.Execution.Interaction != domain.InteractionAutonomousStopIfBlocked || updated.Title != "Autonomous" || updated.Version != got.Version+1 {
 		t.Fatalf("updated = %+v", updated)
 	}
-	if _, err := f.tasks.Update(bg, task.ID, TaskPatch{Policy: &stop, Version: got.Version}); !errors.Is(err, domain.ErrConflict) {
+	if _, err := f.tasks.Update(bg, task.ID, TaskPatch{Execution: &stop, Version: got.Version}); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("stale edit: %v", err)
 	}
-	bad := domain.ExecutionPolicy{Interaction: "yolo"}
-	if _, err := f.tasks.Update(bg, task.ID, TaskPatch{Policy: &bad, Version: updated.Version}); !errors.Is(err, domain.ErrInvalid) {
+	bad := domain.ExecutionConfig{Interaction: "yolo"}
+	if _, err := f.tasks.Update(bg, task.ID, TaskPatch{Execution: &bad, Version: updated.Version}); !errors.Is(err, domain.ErrInvalid) {
 		t.Fatalf("unknown policy on update: %v", err)
 	}
-	if again, _ := f.tasks.Get(bg, task.ID); again.Policy.Interaction != domain.InteractionAutonomousStopIfBlocked || again.Version != updated.Version {
+	if again, _ := f.tasks.Get(bg, task.ID); again.Execution.Interaction != domain.InteractionAutonomousStopIfBlocked || again.Version != updated.Version {
 		t.Fatalf("a refused edit changed the task: %+v", again)
 	}
 	// Changing something else leaves the policy alone.
 	title := "Renamed"
 	renamed, err := f.tasks.Update(bg, task.ID, TaskPatch{Title: &title, Version: updated.Version})
-	if err != nil || renamed.Policy.Interaction != domain.InteractionAutonomousStopIfBlocked {
+	if err != nil || renamed.Execution.Interaction != domain.InteractionAutonomousStopIfBlocked {
 		t.Fatalf("renamed = %+v, %v", renamed, err)
 	}
 	// And the policy is carried in the events, so every client sees it.
 	f.drain()
-	if _, err := f.tasks.Update(bg, task.ID, TaskPatch{Policy: &domain.ExecutionPolicy{Interaction: domain.InteractionInteractive}, Version: renamed.Version}); err != nil {
+	if _, err := f.tasks.Update(bg, task.ID, TaskPatch{Execution: &domain.ExecutionConfig{Interaction: domain.InteractionInteractive}, Version: renamed.Version}); err != nil {
 		t.Fatal(err)
 	}
 	evs := f.drain()
 	wantTypes(t, evs, domain.EventTaskUpdated)
-	if tk := payload[domain.Task](t, evs[0]); tk.Policy.Interaction != domain.InteractionInteractive {
+	if tk := payload[domain.Task](t, evs[0]); tk.Execution.Interaction != domain.InteractionInteractive {
 		t.Fatalf("event task = %+v", tk)
 	}
 }

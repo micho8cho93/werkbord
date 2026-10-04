@@ -4,17 +4,18 @@
   import { RunFeed } from '../lib/feed.svelte';
   import FeedView from '../lib/FeedView.svelte';
   import { agentName, runElapsed, runStatus, timeAgo } from '../lib/format';
-  import InteractionPicker from '../lib/InteractionPicker.svelte';
+  import { agentLabel, compact, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
+  import ExecutionFields from '../lib/ExecutionFields.svelte';
   import { blockerLine, interactionLabel, isNotable } from '../lib/policy';
   import QuestionCard from '../lib/QuestionCard.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
-  import { projectHref, router } from '../lib/router.svelte';
+  import { globalHref, projectHref, router } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
   import {
     TASK_STATES,
     TASK_STATE_LABELS,
-    type InteractionPolicy,
+    type ExecutionConfig,
     type Project,
     type Run,
     type TaskState,
@@ -26,6 +27,10 @@
   // Everything on this page belongs to one project, and is read and changed through it.
   const task = $derived(scope.tasks.find((t) => t.id === router.taskId));
   const latest = $derived(scope.latestRun[router.taskId]);
+  /** What this task's runs get: its own overrides, then the project's defaults, then yours. */
+  const effective = $derived(resolveFor(task?.execution, project.execution, app.globalExecution));
+  /** What it would get if the task itself set nothing: shown as "Same as …" while editing. */
+  const below = $derived(resolveFor({}, project.execution, app.globalExecution));
 
   // ---- which run is shown: the latest, unless the user picked an earlier one ----
   let history = $state<Run[]>([]);
@@ -116,18 +121,18 @@
   let editing = $state(false);
   let editTitle = $state('');
   let editDescription = $state('');
-  let editInteraction = $state<InteractionPolicy>('interactive');
+  let editExecution = $state<ExecutionConfig>({});
   function startEditing() {
     if (!task) return;
     editTitle = task.title;
     editDescription = task.description;
-    editInteraction = task.policy.interaction;
+    editExecution = { ...task.execution };
     editing = true;
   }
   async function saveEdit() {
     if (!task || !editTitle.trim()) return;
     const t = await act(() =>
-      api.editTask(task, { title: editTitle.trim(), description: editDescription, policy: { interaction: editInteraction } }),
+      api.editTask(task, { title: editTitle.trim(), description: editDescription, execution: compact(editExecution) }),
     );
     if (t) {
       scope.upsertTask(t);
@@ -138,39 +143,47 @@
   }
 
   // Start
-  let agentId = $state('');
   let instructions = $state('');
   let resume = $state(false);
-  /** The interaction for the run about to start; the task's own unless the user picks another here. */
-  let runInteraction = $state<InteractionPolicy>('interactive');
-  let runInteractionFor = '';
+  /** What differs for this run only; empty means it gets what the task gets. */
+  let runChoice = $state<ExecutionConfig>({});
+  let showRunOptions = $state(false);
+  let runChoiceFor = '';
   const available = $derived(app.agents.filter((a) => a.available));
+  // A new task starts from a clean choice.
   $effect(() => {
-    if (!available.some((a) => a.id === agentId)) agentId = available[0]?.id ?? '';
-  });
-  $effect(() => {
-    // Follows the task's own policy until the user chooses differently for this run.
-    const t = task;
-    const key = t ? `${t.id}:${t.version}:${t.policy.interaction}` : '';
-    if (t && key !== runInteractionFor) {
-      runInteractionFor = key;
-      runInteraction = t.policy.interaction;
+    const id = task?.id ?? '';
+    if (id !== runChoiceFor) {
+      runChoiceFor = id;
+      runChoice = {};
     }
   });
-  const canResume = $derived(!!latest && !!latest.sessionRef && latest.agentId === agentId);
+  /** The agent the run will use: chosen here, else the task's effective one, else the first that works. */
+  const startAgent = $derived(runChoice.agent || effective.agent || available[0]?.id || '');
+  const startingAgentReady = $derived(available.some((a) => a.id === startAgent));
+  const canResume = $derived(!!latest && !!latest.sessionRef && latest.agentId === startAgent);
   $effect(() => {
     if (!canResume) resume = false;
   });
 
   async function start() {
-    if (!task || !agentId) return;
+    if (!task || !startingAgentReady) return;
+    const c = compact(runChoice);
     const r = await act(() =>
-      api.startRun(project.id, task.id, agentId, instructions.trim(), resume, { interaction: runInteraction }),
+      api.startRun(
+        project.id,
+        task.id,
+        { agentId: c.agent ?? '', model: c.model, reasoning: c.reasoning, interaction: c.interaction },
+        instructions.trim(),
+        resume,
+      ),
     );
     if (r) {
       scope.upsertRun(r);
       instructions = '';
       resume = false;
+      runChoice = {};
+      showRunOptions = false;
       nearBottom = true;
     }
   }
@@ -265,8 +278,9 @@
         </details>
       {/if}
       <p class="interaction">
-        <span class="muted">Interaction:</span>
-        <strong>{interactionLabel(task.policy)}</strong>
+        <span class="muted">Runs with:</span>
+        <strong>{summaryLine(effective, app.agents, app.agentOptions) || 'the first agent that works'}</strong>
+        <span class="muted">· {interactionLabel({ interaction: effective.interaction })}{effective.priority !== 'normal' ? ` · ${priorityLabel(effective.priority)} priority` : ''}</span>
         <button class="btn small quiet" onclick={() => (editing ? (editing = false) : startEditing())}>{editing ? 'Cancel' : 'Edit task'}</button>
       </p>
       {#if editing}
@@ -285,7 +299,7 @@
             <span>Description</span>
             <textarea class="input" rows="3" bind:value={editDescription}></textarea>
           </label>
-          <InteractionPicker name="edit-interaction" bind:value={editInteraction} />
+          <ExecutionFields bind:value={editExecution} inherited={below} idPrefix="edit-task" />
           <p class="muted small">A change applies to runs started after it; a run that is already working keeps its own.</p>
           <div class="actions">
             <button class="btn primary" type="submit" disabled={busy || !editTitle.trim()}>Save</button>
@@ -299,7 +313,7 @@
       <section class="card runbar" data-tone={status.tone} aria-label="Agent session">
         <div class="runline">
           <RunBadge {run} />
-          <span class="muted">{agentName(app.agents, run.agentId)} · {runElapsed(run, app.now)}</span>
+          <span class="muted">{agentName(app.agents, run.agentId)}{run.model ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.models, run.model)}` : ''}{run.reasoning ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.reasoning, run.reasoning)}` : ''} · {runElapsed(run, app.now)}</span>
           {#if history.length > 1}
             <label class="which">
               <span class="visually-hidden">Show run</span>
@@ -311,7 +325,7 @@
             </label>
           {/if}
         </div>
-        {#if isNotable(run.policy) || run.policy.interaction !== task.policy.interaction}
+        {#if isNotable(run.policy) || run.policy.interaction !== effective.interaction}
           <p class="small muted">This run: {interactionLabel(run.policy)}</p>
         {/if}
         {#if run.state === 'blocked' && run.blocker}
@@ -376,18 +390,19 @@
           <p class="error">
             No coding agent is ready. {app.agents.map((a) => `${a.name}: ${a.detail ?? 'unavailable'}`).join(' · ')}
           </p>
+          {#each app.agents.filter((a) => a.guidance) as a (a.id)}<p class="muted small">{a.name}: {a.guidance}</p>{/each}
+          <p class="small"><a href={globalHref('settings')}>Open Settings</a> to set up an agent.</p>
         {:else}
-          <label class="field">
-            <span>Agent</span>
-            <select class="select" bind:value={agentId}>
-              {#each app.agents as a (a.id)}
-                <option value={a.id} disabled={!a.available}>
-                  {a.name}{a.version ? ` ${a.version}` : ''}{a.available ? '' : ` — ${a.detail ?? 'unavailable'}`}
-                </option>
-              {/each}
-            </select>
-          </label>
-          <InteractionPicker name="run-interaction" legend="Interaction for this run" bind:value={runInteraction} />
+          <p class="muted small">
+            This run uses <strong>{summaryLine(resolveFor(task.execution, project.execution, app.globalExecution, compact(runChoice)), app.agents, app.agentOptions) || `${agentLabel(app.agents, startAgent)} with its own defaults`}</strong>
+            {#if !runChoice.agent && effective.agent}<span>(chosen by {sourceLabel(effective.sources.agent)})</span>{/if}.
+          </p>
+          <button type="button" class="options-toggle" aria-expanded={showRunOptions} onclick={() => (showRunOptions = !showRunOptions)}>
+            {showRunOptions ? 'Hide options' : 'Change for this run'}
+          </button>
+          {#if showRunOptions}
+            <ExecutionFields bind:value={runChoice} inherited={effective} idPrefix="run" showPriority={false} />
+          {/if}
           <label class="field">
             <span>Extra instructions <span class="muted">(optional)</span></span>
             <textarea class="input" rows="2" placeholder="Anything to add to the task…" bind:value={instructions}></textarea>
@@ -398,7 +413,10 @@
               <span>Continue the previous conversation</span>
             </label>
           {/if}
-          <button class="btn primary" disabled={busy || !agentId} onclick={start}>{busy ? 'Starting…' : 'Start agent'}</button>
+          <button class="btn primary" disabled={busy || !startingAgentReady} onclick={start}>{busy ? 'Starting…' : 'Start agent'}</button>
+          {#if !startingAgentReady && startAgent}
+            <p class="error">{agentLabel(app.agents, startAgent)} cannot be used right now: {app.agents.find((a) => a.id === startAgent)?.detail ?? 'unavailable'}. Change the agent above, or fix it under Settings.</p>
+          {/if}
         {/if}
       </section>
     {:else if canStart && isDone}
@@ -449,6 +467,16 @@
 {/if}
 
 <style>
+  .options-toggle {
+    justify-self: start;
+    min-height: 36px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font-weight: 550;
+  }
+
   .page {
     display: grid;
     gap: 14px;

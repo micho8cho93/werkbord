@@ -20,6 +20,8 @@ type session struct {
 	*agent.Base
 	workDir string
 	cfg     Config
+	// model and reasoning are the run's choices: empty is the agent's default.
+	model, reasoning string
 
 	nextID atomic.Int64
 
@@ -66,8 +68,8 @@ type rpcError struct {
 
 func (e *rpcError) Error() string { return fmt.Sprintf("%s (code %d)", e.Message, e.Code) }
 
-func newSession(spec agent.ProcSpec, workDir string, cfg Config) *session {
-	s := &session{Base: agent.NewBase(spec), workDir: workDir, cfg: cfg, calls: map[int64]chan rpcMessage{}, pending: map[string]*request{}}
+func newSession(spec agent.ProcSpec, workDir string, cfg Config, model, reasoning string) *session {
+	s := &session{Base: agent.NewBase(spec), workDir: workDir, cfg: cfg, model: model, reasoning: reasoning, calls: map[int64]chan rpcMessage{}, pending: map[string]*request{}}
 	s.OnLine = s.onLine
 	s.Failure = func() string {
 		s.mu.Lock()
@@ -142,8 +144,8 @@ func (s *session) handshake(ctx context.Context, resumeRef, instructions string)
 	params := map[string]any{
 		"cwd": s.workDir, "approvalPolicy": s.cfg.ApprovalPolicy, "sandbox": s.cfg.Sandbox, "serviceName": "devboard",
 	}
-	if s.cfg.Model != "" {
-		params["model"] = s.cfg.Model
+	if m := s.effectiveModel(); m != "" {
+		params["model"] = m
 	}
 	if instructions != "" {
 		params["developerInstructions"] = instructions
@@ -167,6 +169,15 @@ func (s *session) handshake(ctx context.Context, resumeRef, instructions string)
 	s.threadID = resp.Thread.ID
 	s.mu.Unlock()
 	return nil
+}
+
+// effectiveModel is the run's model, else the one configured as Codex's default
+// here, else "" (Codex's own).
+func (s *session) effectiveModel() string {
+	if s.model != "" {
+		return s.model
+	}
+	return s.cfg.Model
 }
 
 // Send implements agent.Session. A message sent while a turn is running steers
@@ -194,7 +205,11 @@ func (s *session) Send(ctx context.Context, text string) error {
 			ID string `json:"id"`
 		} `json:"turn"`
 	}
-	if err := s.call(ctx, "turn/start", map[string]any{"threadId": thread, "input": input}, &resp); err != nil {
+	start := map[string]any{"threadId": thread, "input": input}
+	if s.reasoning != "" {
+		start["effort"] = s.reasoning // it applies to this turn and the ones after it
+	}
+	if err := s.call(ctx, "turn/start", start, &resp); err != nil {
 		return err
 	}
 	s.mu.Lock()

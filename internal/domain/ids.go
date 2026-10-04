@@ -13,6 +13,7 @@ const (
 	PrefixRun      = "run"
 	PrefixQuestion = "qst"
 	PrefixWorktree = "wt"
+	PrefixRunner   = "rnr"
 )
 
 var idEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)

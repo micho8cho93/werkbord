@@ -1,7 +1,6 @@
-//go:build !unix
+//go:build !unix && !windows
 
 package controller
 
-// acquireLock is a no-op on platforms without flock. Windows support is not a
-// goal yet; see docs/ARCHITECTURE.md.
+// acquireLock is a no-op on platforms without a lock this code knows how to take.
 func acquireLock(string) (func(), error) { return func() {}, nil }

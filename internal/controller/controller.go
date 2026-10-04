@@ -18,9 +18,12 @@ import (
 	"devboard/internal/agent/codex"
 	"devboard/internal/api"
 	"devboard/internal/config"
+	"devboard/internal/doctor"
+	"devboard/internal/domain"
 	"devboard/internal/events"
 	"devboard/internal/github"
 	"devboard/internal/gitrepo"
+	"devboard/internal/netprivate"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store/sqlite"
@@ -40,8 +43,12 @@ type Controller struct {
 	health     *service.GitHealth
 	stopHealth context.CancelFunc
 	server     *http.Server
-	listener   net.Listener
-	serveErr   chan error
+	network    *networkControl
+	// networkBackend replaces the embedded Tailscale node; tests use it so that no
+	// real network is joined.
+	networkBackend netprivate.Backend
+	listener       net.Listener
+	serveErr       chan error
 }
 
 // New returns an unstarted controller.
@@ -58,6 +65,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	defer func() {
 		if err != nil {
+			if c.network != nil {
+				_ = c.network.Stop(context.Background())
+				c.network = nil
+			}
 			c.teardown()
 		}
 	}()
@@ -78,15 +89,23 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	agents, err := NewAgents(c.cfg)
+	if err != nil {
+		return err
+	}
 	git := &gitrepo.CLI{}
 	deps := service.Deps{Store: c.db, Bus: c.broker, Log: c.log}
-	projects := &service.Projects{Deps: deps, Git: git}
-	tasks := &service.Tasks{Deps: deps}
+	settings := &service.Settings{Deps: deps, Catalog: agents, Version: c.version}
+	projects := &service.Projects{Deps: deps, Git: git, Catalog: agents}
+	tasks := &service.Tasks{Deps: deps, Catalog: agents}
 	runs := &service.Runs{Deps: deps}
 	worktrees := &service.Worktrees{Deps: deps, Root: worktreeRoot}
 	gitControl := &service.GitControl{Deps: deps, Git: git, Worktrees: worktrees}
+	setup := &service.GitHubSetup{Deps: deps, Projects: projects}
 	if !c.cfg.GitHub.Disabled {
-		gitControl.GitHub = &github.CLI{Binary: c.cfg.GitHub.Command}
+		cli := &github.CLI{Binary: c.cfg.GitHub.Command}
+		gitControl.GitHub = cli
+		setup.CLI, setup.Login = cli, &github.LoginSession{CLI: cli}
 	}
 	// Repository health: recalculated when something that can change it happens, never on a timer.
 	c.health = &service.GitHealth{Deps: deps, Control: gitControl}
@@ -94,12 +113,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	healthCtx, c.stopHealth = context.WithCancel(context.Background())
 	c.health.Watch(healthCtx, c.broker)
 
-	agents, err := newAgents(c.cfg)
-	if err != nil {
-		return err
-	}
 	c.runner = runner.New(runner.Options{
-		Runs: runs, Tasks: tasks, Projects: projects, Worktrees: worktrees, Git: git, Agents: agents,
+		Runs: runs, Tasks: tasks, Projects: projects, Settings: settings, Worktrees: worktrees, Git: git, Agents: agents,
 		Log: c.log, WorktreeRoot: worktreeRoot,
 	})
 	for _, w := range c.cfg.RiskyAgentSettings() {
@@ -112,14 +127,21 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("recover runs: %w", err)
 	}
 
-	token := ""
-	if c.cfg.AuthRequired() {
-		if token, err = c.cfg.ResolveToken(true); err != nil {
-			return fmt.Errorf("api token: %w", err)
-		}
+	// This computer is a runner as soon as there is a controller on it.
+	runnerRec, err := settings.RegisterRunner(ctx)
+	if err != nil {
+		return fmt.Errorf("register this computer as a runner: %w", err)
 	}
+	c.log.Info("runner registered", "runner", runnerRec.ID, "name", runnerRec.Name, "os", runnerRec.OS, "arch", runnerRec.Arch)
 
-	srv := api.New(api.Options{
+	// The token guards the API wherever it is reached from other than a loopback
+	// that was left open on purpose, and the private network is such a place, so
+	// there is always one.
+	token, err := c.cfg.ResolveToken(true)
+	if err != nil {
+		return fmt.Errorf("api token: %w", err)
+	}
+	apiOpts := api.Options{
 		Projects:     projects,
 		Tasks:        tasks,
 		Runs:         runs,
@@ -128,6 +150,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Git:          gitControl,
 		Health:       c.health,
 		Agents:       agents,
+		Settings:     settings,
+		GitHub:       setup,
 		Store:        c.db,
 		Events:       c.broker,
 		Log:          c.log,
@@ -136,7 +160,27 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		AuthRequired: c.cfg.AuthRequired(),
 		Token:        token,
 		AllowedHosts: c.cfg.AllowedHosts,
-	})
+		PrivateToken: token,
+	}
+	if !c.cfg.AuthRequired() {
+		apiOpts.Token = ""
+	}
+	// What is served on the private network never trusts the network: it demands
+	// the token even when loopback has been opened without one.
+	privateOpts := apiOpts
+	privateOpts.AuthRequired, privateOpts.Token = true, token
+	privateHandler := &lateHandler{}
+	c.network = newNetworkControl(c.cfg, settings, privateHandler, c.broker.Close, c.networkBackend, c.log)
+	apiOpts.Network, privateOpts.Network = c.network, c.network
+	nw := c.network // not c.network: that is cleared when the controller shuts down
+	env := doctor.Env{
+		Config: c.cfg, Agents: agents, GitHub: setup, Settings: settings, Projects: projects, Git: git,
+		Network: func() (netprivate.Status, bool) { return nw.Status(), true },
+	}
+	apiOpts.Doctor = func(ctx context.Context) doctor.Report { return doctor.Run(ctx, c.version, env.Standard()...) }
+	privateOpts.Doctor = apiOpts.Doctor
+	privateHandler.set(api.New(privateOpts).Handler())
+	srv := api.New(apiOpts)
 
 	c.server = &http.Server{
 		Handler:           srv.Handler(),
@@ -158,6 +202,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	c.log.Info("controller started",
 		"addr", c.listener.Addr().String(), "data_dir", c.cfg.DataDir,
 		"auth", c.cfg.AuthRequired(), "version", c.version)
+	if err := c.network.StartIfWanted(ctx); err != nil {
+		return fmt.Errorf("private network: %w", err)
+	}
 	if c.cfg.AuthRequired() && c.cfg.Token == "" {
 		c.log.Info("API token required; run `devboard token` to print it", "token_file", c.cfg.TokenPath())
 	}
@@ -166,6 +213,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	return nil
 }
+
+// SetNetworkBackend replaces the embedded private network node before Start: for
+// tests, which must not join a real network.
+func (c *Controller) SetNetworkBackend(b netprivate.Backend) { c.networkBackend = b }
 
 // Addr returns the bound listen address (useful when Addr used port 0).
 func (c *Controller) Addr() string {
@@ -198,6 +249,10 @@ func (c *Controller) Run(ctx context.Context) error {
 // data-dir lock.
 func (c *Controller) Shutdown(ctx context.Context) error {
 	var err error
+	if c.network != nil {
+		err = c.network.Stop(ctx)
+		c.network = nil
+	}
 	if c.server != nil {
 		if e := c.server.Shutdown(ctx); e != nil {
 			err = fmt.Errorf("http shutdown: %w", e)
@@ -262,15 +317,15 @@ func prepareWorktreeRoot(dir string) (string, error) {
 	return root, nil
 }
 
-// newAgents registers the adapters. Both are always registered, even if the
+// NewAgents registers the adapters. Both are always registered, even if the
 // agent is not installed: the API then says why it cannot be used, which is
 // more helpful than leaving it out.
-func newAgents(cfg config.Config) (*agent.Registry, error) {
+func NewAgents(cfg config.Config) (*agent.Registry, error) {
 	r := agent.NewRegistry()
 	cl, cx := cfg.Agents[config.AgentClaudeCode], cfg.Agents[config.AgentCodex]
 	for _, a := range []agent.Adapter{
-		claude.New(claude.Config{Command: cl.Command, Model: cl.Model, PermissionMode: cl.PermissionMode}),
-		codex.New(codex.Config{Command: cx.Command, Model: cx.Model, ApprovalPolicy: cx.ApprovalPolicy, Sandbox: cx.Sandbox}),
+		claude.New(claude.Config{Command: cl.Command, Model: cl.Model, PermissionMode: cl.PermissionMode, Models: choices(cl.Models), Reasoning: cl.Reasoning}),
+		codex.New(codex.Config{Command: cx.Command, Model: cx.Model, ApprovalPolicy: cx.ApprovalPolicy, Sandbox: cx.Sandbox, Models: choices(cx.Models), Reasoning: cx.Reasoning}),
 	} {
 		if err := r.Register(a); err != nil {
 			return nil, err
@@ -278,3 +333,25 @@ func newAgents(cfg config.Config) (*agent.Registry, error) {
 	}
 	return r, nil
 }
+
+// choices converts the models listed in config.json to the form pickers use.
+func choices(in []config.ModelChoice) []domain.AgentOption {
+	out := make([]domain.AgentOption, 0, len(in))
+	for _, m := range in {
+		name := m.Name
+		if name == "" {
+			name = m.ID
+		}
+		out = append(out, domain.AgentOption{ID: m.ID, Name: name, Description: m.Description})
+	}
+	return out
+}
+
+// lateHandler lets the private network be built before the handler it serves,
+// which needs the network (to report its status). It is set once, before any
+// request can reach it: the network starts after the controller is built.
+type lateHandler struct{ h http.Handler }
+
+func (l *lateHandler) set(h http.Handler) { l.h = h }
+
+func (l *lateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) { l.h.ServeHTTP(w, r) }

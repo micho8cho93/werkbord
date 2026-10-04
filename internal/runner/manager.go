@@ -30,9 +30,12 @@ import (
 
 // Options configures a Manager. Everything without a default is required.
 type Options struct {
-	Runs      *service.Runs
-	Tasks     *service.Tasks
-	Projects  *service.Projects
+	Runs     *service.Runs
+	Tasks    *service.Tasks
+	Projects *service.Projects
+	// Settings supplies the global and project execution defaults. Without it only
+	// the task's own settings apply.
+	Settings  *service.Settings
 	Worktrees *service.Worktrees
 	Git       gitrepo.Worktrees
 	Agents    *agent.Registry
@@ -113,16 +116,22 @@ func (m *Manager) log() *slog.Logger {
 // bg is the context for work that must not be tied to a request.
 func bg() context.Context { return context.Background() }
 
-// StartInput says which task to run, with which agent.
+// StartInput says which task to run, and what, if anything, is different about
+// this run from the task's own settings.
 type StartInput struct {
-	TaskID  string
-	AgentID string
+	TaskID string
+	// AgentID, Model and Reasoning choose for this run only; empty means use what
+	// the task, its project and the global defaults say (domain.ResolveExecution).
+	// Model and Reasoning belong to an agent, so naming either means naming AgentID.
+	AgentID   string
+	Model     string
+	Reasoning string
 	// Instructions are added to the task's own text in the agent's first message.
 	Instructions string
 	// Resume continues the task's previous session with this agent, instead of
 	// beginning a new conversation, in the same worktree.
 	Resume bool
-	// Policy overrides, for this run only, the execution policy the task carries.
+	// Policy overrides, for this run only, the interaction policy the task carries.
 	// Nil means the task's own.
 	Policy *domain.ExecutionPolicy
 }
@@ -152,9 +161,6 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	defer cancel()
 
 	// 1. Validate.
-	if in.AgentID == "" {
-		return nil, fmt.Errorf("%w: agentId is required", domain.ErrInvalid)
-	}
 	task, err := m.opt.Tasks.Get(ctx, in.TaskID)
 	if err != nil {
 		return nil, err
@@ -172,8 +178,16 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	if err != nil {
 		return nil, err
 	}
-	adapter, err := m.opt.Agents.Available(ctx, in.AgentID)
+	resolved, err := m.resolve(ctx, task, in)
 	if err != nil {
+		return nil, err
+	}
+	adapter, err := m.chooseAgent(ctx, resolved)
+	if err != nil {
+		return nil, err
+	}
+	agentID := adapter.ID()
+	if err := m.checkReasoning(ctx, agentID, resolved.Reasoning); err != nil {
 		return nil, err
 	}
 	prior, err := m.opt.Runs.ListByTask(ctx, task.ID)
@@ -185,20 +199,17 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		if !r.State.Terminal() {
 			return nil, fmt.Errorf("task %q already has an active run (%s, %s): %w", task.Title, r.ID, r.State, domain.ErrConflict)
 		}
-		if in.Resume && r.AgentID == in.AgentID && r.SessionRef != "" {
+		if in.Resume && r.AgentID == agentID && r.SessionRef != "" {
 			resumeRef = r.SessionRef
 		}
 	}
 	if in.Resume && resumeRef == "" {
-		return nil, fmt.Errorf("%w: there is no earlier %s session of this task to continue", domain.ErrInvalid, in.AgentID)
+		return nil, fmt.Errorf("%w: there is no earlier %s session of this task to continue", domain.ErrInvalid, agentID)
 	}
 	prompt := buildPrompt(task, in.Instructions, in.Resume)
-	// The run keeps a copy of its policy: editing the task later does not change
-	// a session that is already working.
-	policy := task.Policy.Normalized()
-	if in.Policy != nil {
-		policy = in.Policy.Normalized()
-	}
+	// The run keeps a copy of what it started with: editing the task, its project
+	// or the defaults later does not change a session that is already working.
+	policy := resolved.Policy()
 	if err := policy.Validate(); err != nil {
 		return nil, err
 	}
@@ -215,19 +226,25 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	}
 
 	// 3. Create the run.
-	run, err := m.opt.Runs.Create(ctx, service.NewRun{TaskID: task.ID, AgentID: in.AgentID, Prompt: prompt, WorktreeID: ws.wt.ID, Policy: policy})
+	run, err := m.opt.Runs.Create(ctx, service.NewRun{
+		TaskID: task.ID, AgentID: agentID, Prompt: prompt, WorktreeID: ws.wt.ID, Policy: policy,
+		Model: resolved.Model, Reasoning: resolved.Reasoning,
+	})
 	if err != nil {
 		discard()
 		return nil, err
 	}
 
 	// 4. Launch.
-	sess, err := adapter.Start(ctx, agent.StartRequest{RunID: run.ID, WorkDir: ws.wt.Path, Prompt: prompt, ResumeRef: resumeRef, Policy: policy})
+	sess, err := adapter.Start(ctx, agent.StartRequest{
+		RunID: run.ID, WorkDir: ws.wt.Path, Prompt: prompt, ResumeRef: resumeRef, Policy: policy,
+		Model: resolved.Model, Reasoning: resolved.Reasoning,
+	})
 	if err != nil {
-		m.log().Warn("agent failed to start", "run", run.ID, "agent", in.AgentID, "err", err)
-		_, _ = m.opt.Runs.End(bg(), run.ID, service.Ended{State: domain.RunFailed, Reason: truncateReason("could not start " + in.AgentID + ": " + err.Error())})
+		m.log().Warn("agent failed to start", "run", run.ID, "agent", agentID, "err", err)
+		_, _ = m.opt.Runs.End(bg(), run.ID, service.Ended{State: domain.RunFailed, Reason: truncateReason("could not start " + agentID + ": " + err.Error())})
 		discard()
-		return nil, fmt.Errorf("could not start %s: %w", in.AgentID, errors.Join(domain.ErrAgent, err))
+		return nil, fmt.Errorf("could not start %s: %w", agentID, errors.Join(domain.ErrAgent, err))
 	}
 
 	// 5. Running, and the card moves: one transaction.
@@ -247,7 +264,7 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 
 	// 6. From here the run is the controller's, not the caller's.
 	l.start()
-	m.log().Info("agent started", "run", run.ID, "task", task.ID, "agent", in.AgentID, "pid", info.PID, "worktree", ws.wt.Path)
+	m.log().Info("agent started", "run", run.ID, "task", task.ID, "agent", agentID, "model", orDefault(resolved.Model), "reasoning", orDefault(resolved.Reasoning), "pid", info.PID, "worktree", ws.wt.Path)
 	return started, nil
 }
 
@@ -366,7 +383,10 @@ func (m *Manager) resume(ctx context.Context, runID, text string) error {
 		return fmt.Errorf("the worktree of run %s is gone, so its session cannot continue: %w", runID, domain.ErrConflict)
 	}
 
-	sess, err := adapter.Start(ctx, agent.StartRequest{RunID: run.ID, WorkDir: wt.Path, Prompt: text, ResumeRef: run.SessionRef, Policy: run.Policy})
+	sess, err := adapter.Start(ctx, agent.StartRequest{
+		RunID: run.ID, WorkDir: wt.Path, Prompt: text, ResumeRef: run.SessionRef, Policy: run.Policy,
+		Model: run.Model, Reasoning: run.Reasoning,
+	})
 	if err != nil {
 		return fmt.Errorf("could not resume %s: %w", run.AgentID, errors.Join(domain.ErrAgent, err))
 	}
@@ -557,4 +577,68 @@ func trimMessage(s string) string {
 		s = s[:cut]
 	}
 	return s
+}
+
+func orDefault(s string) string {
+	if s == "" {
+		return "agent default"
+	}
+	return s
+}
+
+// resolve applies the execution hierarchy to a run about to start: what this
+// start asks for, then the task's overrides, the project's defaults and the
+// global defaults. The first to set a field wins.
+func (m *Manager) resolve(ctx context.Context, task *domain.Task, in StartInput) (domain.Resolved, error) {
+	run := domain.ExecutionConfig{Agent: in.AgentID, Model: in.Model, Reasoning: in.Reasoning}
+	if in.Policy != nil {
+		run.Interaction = in.Policy.Normalized().Interaction
+	}
+	run = run.Normalized()
+	if err := run.Validate(); err != nil {
+		return domain.Resolved{}, err
+	}
+	var lv service.Levels
+	if m.opt.Settings != nil {
+		var err error
+		if lv, err = m.opt.Settings.Levels(ctx, task.ProjectID); err != nil {
+			return domain.Resolved{}, err
+		}
+	}
+	return lv.Resolve(task.Execution, run), nil
+}
+
+// chooseAgent returns the adapter for a resolved configuration: the agent that
+// was chosen, which must be usable, or the first usable one if nothing chose.
+func (m *Manager) chooseAgent(ctx context.Context, r domain.Resolved) (agent.Adapter, error) {
+	if r.Agent == "" {
+		return m.opt.Agents.FirstAvailable(ctx)
+	}
+	a, err := m.opt.Agents.Available(ctx, r.Agent)
+	if err != nil {
+		if r.Sources.Agent != domain.SourceRun && r.Sources.Agent != domain.SourceDefault {
+			return nil, fmt.Errorf("the %s settings choose %s: %w", r.Sources.Agent, r.Agent, err)
+		}
+		return nil, err
+	}
+	return a, nil
+}
+
+// checkReasoning refuses a reasoning level the agent does not have, with the
+// ones it does, rather than starting an agent that would fail on it.
+func (m *Manager) checkReasoning(ctx context.Context, agentID, reasoning string) error {
+	if reasoning == "" {
+		return nil
+	}
+	opts, ok := m.opt.Agents.Options(ctx, agentID)
+	if !ok || opts.HasReasoning(reasoning) {
+		return nil
+	}
+	var have []string
+	for _, o := range opts.Reasoning {
+		if o.ID != domain.AgentDefault {
+			have = append(have, o.ID)
+		}
+	}
+	return fmt.Errorf("%w: %s has no reasoning level %q (it offers %s)", domain.ErrInvalid, agentID, reasoning, strings.Join(have, ", "))
 }

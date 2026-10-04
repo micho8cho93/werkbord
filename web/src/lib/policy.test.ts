@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_POLICY, INTERACTION_OPTIONS, blockerLine, interactionLabel, interactionShort, isInteraction, isNotable, policyForRun } from './policy';
+import { DEFAULT_POLICY, INTERACTION_OPTIONS, blockerLine, interactionLabel, interactionShort, isInteraction, isNotable } from './policy';
 import type { Run } from './types';
 
 describe('the interaction choices', () => {
@@ -31,15 +31,6 @@ describe('the interaction choices', () => {
     expect(isNotable({ interaction: 'interactive' })).toBe(false);
     expect(isNotable(undefined)).toBe(false);
     expect(isNotable({ interaction: 'autonomous' })).toBe(true);
-  });
-});
-
-describe('policyForRun', () => {
-  it('is the task\'s policy unless the user chose another for this run', () => {
-    const task = { policy: { interaction: 'autonomous' as const } };
-    expect(policyForRun(task)).toEqual({ interaction: 'autonomous' });
-    expect(policyForRun(task, 'interactive')).toEqual({ interaction: 'interactive' });
-    expect(policyForRun(undefined)).toEqual({ interaction: 'interactive' });
   });
 });
 

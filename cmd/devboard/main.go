@@ -1,5 +1,10 @@
 // Command devboard runs the local controller and talks to it.
 //
+//	devboard setup                 install and start everything, then open the app
+//	devboard start | stop | restart | status
+//	devboard open [--phone]        open the app (on this computer, or the address for a phone)
+//	devboard doctor                check that everything works
+//	devboard update                install the latest release
 //	devboard serve                 run the controller in the foreground
 //	devboard migrate               apply database migrations and exit
 //	devboard project add <path>    register an existing local Git repository
@@ -7,7 +12,9 @@
 //	devboard token [--url]         print the API token (or a link that signs a browser in)
 //	devboard version               print the version
 //
-// Commands other than serve and migrate are HTTP clients of a running
+// The service commands manage the controller as a background service (launchd,
+// systemd, a scheduled task, or a detached process), never starting a second one.
+// Commands other than those and serve and migrate are HTTP clients of a running
 // controller: the controller is the only process that writes the database.
 package main
 
@@ -33,7 +40,16 @@ var version = "dev"
 const usage = `usage: devboard <command> [flags]
 
 commands:
-  serve                 run the controller
+  setup                 install the service, start Dev Board and open it (safe to run again)
+  start | stop | restart  control the background controller
+  status                what is running, and where
+  open [--phone] [--qr] open the app; --phone shows the address (and QR code) for your phone
+  doctor                check the controller, database, Git, agents, network and GitHub
+  update                install the latest release
+  uninstall             remove the login service (your data stays)
+  logs [-n N]           show the end of the controller's log
+
+  serve                 run the controller in the foreground
   migrate               apply database migrations and exit
   project add <path>    register an existing local Git repository
   project list          list registered projects
@@ -45,7 +61,8 @@ Run "devboard <command> -h" for command flags.
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		if !errors.Is(err, flag.ErrHelp) {
+		var quiet silentError
+		if !errors.Is(err, flag.ErrHelp) && !errors.As(err, &quiet) {
 			fmt.Fprintln(os.Stderr, "devboard:", err)
 		}
 		os.Exit(1)
@@ -61,7 +78,29 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	a := newApp(cfg, stdout, stderr)
+	ctx := context.Background()
 	switch args[0] {
+	case "setup", "install":
+		return a.cmdSetup(ctx, args[1:])
+	case "start":
+		return a.cmdStart(ctx, args[1:])
+	case "stop":
+		return a.cmdStop(ctx, args[1:])
+	case "restart":
+		return a.cmdRestart(ctx, args[1:])
+	case "status":
+		return a.cmdStatus(ctx, args[1:])
+	case "open":
+		return a.cmdOpen(ctx, args[1:])
+	case "doctor":
+		return a.cmdDoctor(ctx, args[1:])
+	case "update":
+		return a.cmdUpdate(ctx, args[1:])
+	case "uninstall":
+		return a.cmdUninstall(ctx, args[1:])
+	case "logs":
+		return a.cmdLogs(ctx, args[1:])
 	case "serve":
 		return cmdServe(cfg, args[1:], stderr)
 	case "migrate":

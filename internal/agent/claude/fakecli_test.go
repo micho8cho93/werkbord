@@ -42,6 +42,15 @@ func fakeMain() int {
 		fmt.Println("9.9.9 (Claude Code)")
 		return 0
 	}
+	if len(args) > 0 && args[0] == "--help" {
+		fmt.Println("Usage: claude [options]")
+		if os.Getenv("FAKE_CLAUDE_NO_EFFORT") == "" {
+			fmt.Println("  --effort <level>                      Effort level for the current session")
+			fmt.Println("                                        (low, medium, high, xhigh, max)")
+		}
+		fmt.Println("  --model <model>                       Model for the current session.")
+		return 0
+	}
 	if len(args) > 1 && args[0] == "auth" && args[1] == "status" {
 		if os.Getenv("FAKE_CLAUDE_LOGGED_OUT") != "" {
 			fmt.Println(`{"loggedIn": false}`)

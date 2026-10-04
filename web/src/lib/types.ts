@@ -26,6 +26,22 @@ export interface ExecutionPolicy {
   interaction: InteractionPolicy;
 }
 
+export type Priority = 'low' | 'normal' | 'high';
+
+/**
+ * How work is carried out, at one level of the hierarchy: global defaults, a project, a task.
+ * A field that is not there is not set at that level, and the next level decides. `model` and
+ * `reasoning` may be `default` (the agent's own default), and belong to an `agent`: a level that
+ * sets either must set the agent too.
+ */
+export interface ExecutionConfig {
+  agent?: string;
+  model?: string;
+  reasoning?: string;
+  interaction?: InteractionPolicy;
+  priority?: Priority;
+}
+
 /** Why a run stopped rather than guess. Persisted on the run. */
 export interface Blocker {
   summary: string;
@@ -60,6 +76,8 @@ export interface Project {
   id: string;
   name: string;
   repoPath: string;
+  /** The project's defaults for how its tasks are carried out. */
+  execution: ExecutionConfig;
   createdAt: string;
   updatedAt: string;
   repository?: GitRepository;
@@ -72,8 +90,8 @@ export interface Task {
   description: string;
   state: TaskState;
   position: number;
-  /** How runs of this task are carried out by default. */
-  policy: ExecutionPolicy;
+  /** What this task overrides about how its runs are carried out; anything unset is inherited. */
+  execution: ExecutionConfig;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -84,6 +102,9 @@ export interface Run {
   taskId: string;
   projectId: string;
   agentId: string;
+  /** What the agent was started with; absent means the agent's own default. */
+  model?: string;
+  reasoning?: string;
   state: RunState;
   worktreeId?: string;
   sessionRef?: string;
@@ -137,12 +158,136 @@ export interface Question {
   closedAt?: string;
 }
 
+export type SignIn = 'signed_in' | 'signed_out' | 'unknown';
+
 export interface Agent {
   id: string;
   name: string;
+  /** The executable was found and runs. */
+  installed: boolean;
+  signIn?: SignIn;
+  /** It can be started now. */
   available: boolean;
   version?: string;
   detail?: string;
+  /** What to do next when it is not available: how to install it, or sign in. Never done for you. */
+  guidance?: string;
+  docsUrl?: string;
+}
+
+/** One choice in an agent's list of models or reasoning levels. */
+export interface AgentOption {
+  id: string;
+  name: string;
+  description?: string;
+  /** The option the agent itself uses when nothing is passed. */
+  default?: boolean;
+  /** On a model: the reasoning levels it supports, when the agent says. */
+  reasoning?: string[];
+}
+
+/** What can be chosen for an agent. The first of each list is always "Agent default". */
+export interface AgentOptions {
+  agentId: string;
+  models: AgentOption[];
+  reasoning: AgentOption[];
+  modelsSource: 'agent' | 'configured' | 'builtin';
+  reasoningSource: 'agent' | 'configured' | 'builtin';
+  /** A model that is not listed may still be typed in. */
+  customModels: boolean;
+  note?: string;
+}
+
+export interface Runner {
+  id: string;
+  name: string;
+  kind: 'local';
+  hostname: string;
+  os: string;
+  arch: string;
+  version: string;
+  createdAt: string;
+  lastSeenAt: string;
+  online: boolean;
+}
+
+export interface Onboarding {
+  completedAt?: string;
+  skipped?: string[];
+}
+
+export type NetworkState = 'off' | 'starting' | 'needs_login' | 'needs_approval' | 'connected' | 'error';
+
+export interface NetworkStatus {
+  state: NetworkState;
+  enabled: boolean;
+  /** Where to sign in, while `needs_login`. A one-time link for the user. */
+  authUrl?: string;
+  hostname?: string;
+  ips?: string[];
+  /** The address to open on a phone. Carries no token. */
+  url?: string;
+  https: boolean;
+  httpsHint?: string;
+  tailnet?: string;
+  health?: string[];
+  error?: string;
+  /** Who decided: the user in the app, nobody yet, or config.json. */
+  choice: 'on' | 'off' | 'unset' | 'pinned_on' | 'pinned_off';
+}
+
+/** What a phone needs: the address, and a link and QR code that open it already signed in. */
+export interface PhoneLink {
+  url: string;
+  link: string;
+  qrSvg: string;
+  https: boolean;
+}
+
+export type GitHubConnection = 'disabled' | 'missing' | 'signed_out' | 'signing_in' | 'signed_in' | 'error';
+
+export interface GitHubLogin {
+  state: 'idle' | 'pending' | 'done' | 'failed';
+  /** The one-time code to enter on GitHub. */
+  code?: string;
+  url?: string;
+  error?: string;
+}
+
+export interface GitHubStatusInfo {
+  state: GitHubConnection;
+  account?: { host: string; login: string; name?: string };
+  version?: string;
+  message?: string;
+  guidance?: string;
+  login: GitHubLogin;
+}
+
+/** A repository the user can reach on GitHub, with what this computer knows about it. */
+export interface RepoChoice {
+  fullName: string;
+  owner: string;
+  name: string;
+  description?: string;
+  private: boolean;
+  fork: boolean;
+  archived: boolean;
+  defaultBranch?: string;
+  pushedAt?: string;
+  url: string;
+  canPush: boolean;
+  /** Clones found on this computer. Empty: GitHub only, it would have to be cloned first. */
+  localPaths: string[];
+  /** Set when it is already a Dev Board project. */
+  project?: { id: string; name: string; path: string };
+}
+
+export interface RepoList {
+  account: { host: string; login: string; name?: string };
+  repos: RepoChoice[];
+  truncated: boolean;
+  /** Where a repository that is only on GitHub would be cloned. */
+  cloneDir: string;
 }
 
 export interface Worktree {

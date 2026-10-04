@@ -77,8 +77,8 @@ describe('links', () => {
 // entry to it is all the shell, the switcher and the tab bar need.
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
-    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['board', 'git', 'activity']);
-    expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects']);
+    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['board', 'git', 'activity', 'defaults']);
+    expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'settings']);
   });
 
   it('keeps any listed section when switching projects', () => {

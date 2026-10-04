@@ -11,6 +11,8 @@ type EventType string
 const (
 	EventProjectRegistered EventType = "project.registered"
 	EventProjectInspected  EventType = "project.inspected"
+	EventProjectUpdated    EventType = "project.updated"  // its execution defaults changed; payload: the project
+	EventSettingsUpdated   EventType = "settings.updated" // a global setting changed; payload: {key}
 	EventTaskCreated       EventType = "task.created"
 	EventTaskUpdated       EventType = "task.updated"
 	EventRunStateChanged   EventType = "run.state_changed"

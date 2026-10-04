@@ -47,6 +47,10 @@ type NewRun struct {
 	// Policy is the execution policy the run is started with: the task's, unless
 	// the user chose another for this run. Unset means interactive.
 	Policy domain.ExecutionPolicy
+	// Model and Reasoning are what the agent is started with; empty means the
+	// agent's own default.
+	Model     string
+	Reasoning string
 }
 
 // Create records a new run in the starting state. It does not mean an agent is
@@ -68,7 +72,8 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 	now := s.now()
 	r := &domain.Run{
 		ID: domain.NewID(domain.PrefixRun), TaskID: in.TaskID, AgentID: in.AgentID, State: domain.RunStarting,
-		WorktreeID: in.WorktreeID, Prompt: in.Prompt, Policy: in.Policy.Normalized(), Version: 1, CreatedAt: now, UpdatedAt: now,
+		WorktreeID: in.WorktreeID, Prompt: in.Prompt, Policy: in.Policy.Normalized(), Model: in.Model, Reasoning: in.Reasoning,
+		Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
 		task, err := tx.Tasks().Get(ctx, in.TaskID)

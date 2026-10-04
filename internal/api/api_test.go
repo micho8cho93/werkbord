@@ -35,6 +35,7 @@ func newTestServer(t *testing.T, mutate func(*Options)) *httptest.Server {
 		Projects: &service.Projects{Deps: deps, Git: &gitrepo.CLI{}},
 		Tasks:    &service.Tasks{Deps: deps},
 		Runs:     &service.Runs{Deps: deps},
+		Settings: &service.Settings{Deps: deps, Version: "test"},
 		Agents:   agent.NewRegistry(),
 		Store:    db,
 		Events:   bus,

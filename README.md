@@ -2,7 +2,25 @@
 
 A local-first remote control for coding agents. The controller runs on your computer and
 owns your repositories, credentials, database and agent sessions. Your phone, tablet or
-browser connects to it. There is no hosted backend and no account.
+browser connects to it. There is no hosted backend and no Dev Board account.
+
+## Install
+
+macOS or Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/micho8cho93/dev-board/main/scripts/install.sh | sh
+```
+
+That is the whole install. It downloads the release for your computer, checks it against its published
+checksum, and runs `devboard setup`: it creates the data directory and database, installs a background service
+that starts when you log in, registers this computer as your first runner, joins your own private network so a
+phone can reach it (signing you in through the browser if needed), and opens Dev Board in your browser. There
+you connect GitHub (optional), see which coding agents it found, and pick repositories. It needs no account of
+Dev Board's own, no Docker, no root and no hosted database. On Windows (experimental) use `install.ps1`; see
+[docs/INSTALL.md](docs/INSTALL.md) for every option, upgrades, and what is installed where.
+
+Afterwards: `devboard status`, `open`, `doctor`, `start`, `stop`, `restart`, `update`.
 
 **Status.** You can register local Git repositories, keep a four-column board
 (Backlog, Doing, Review, Done) per project, and run **Claude Code** or **Codex** on a task. Each
@@ -24,12 +42,21 @@ refuses rather than guesses. Nothing is ever forced, and **an agent finishing a 
 [docs/GIT.md](docs/GIT.md) for the safety model.
 
 **Repository health.** The Git screen leads with *Healthy*, or with what is wrong (`1 risk · 3 items need attention`):
-findings that say what, why, the evidence, the next step, and whether Dev Board can do it. They are worked out from
+findings that say what, why, the evidence, the next step, and whether Dev Board can do it. A finding can open an editable Backlog task, or an editable investigation task where you choose the agent and interaction policy before starting it. They are worked out from
 Git metadata and Dev Board's own records, never by a model, are recalculated when something changes (not on a timer),
 and never act on their own. The Control Center is for exceptions: needs input, blocked, failed, ready for review, and
 repository risk. See [docs/HEALTH.md](docs/HEALTH.md).
 
-**Versions.** Each milestone is a minor version, tagged `vMAJOR.MINOR.PATCH` (this one is v0.6.0). See
+**Setup and defaults.** First-run setup is a single page, not a wizard: this computer (already your runner),
+phone access, GitHub, your coding agents, your repositories. Each task has an agent, a model, a reasoning level,
+an interaction policy and a priority, set globally, per project, and per task; the task wins. Left alone, the
+agent picks its own model and reasoning. See [docs/EXECUTION.md](docs/EXECUTION.md).
+
+**Phone access.** Dev Board embeds a Tailscale node, so your phone reaches the controller without you setting up a
+VPN, a tunnel or certificates, and without any server of Dev Board's own. Nothing is exposed to the Internet. See
+[docs/PHONE.md](docs/PHONE.md).
+
+**Versions.** Each milestone is a minor version, tagged `vMAJOR.MINOR.PATCH` (this one is v0.7.0). See
 [docs/VERSIONING.md](docs/VERSIONING.md).
 
 **Interaction policy.** Each task says how its agent may deal with you: *Ask me when needed* (the
@@ -38,13 +65,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Requirements
 
-- Go 1.26+ (no C toolchain needed: SQLite is pure Go)
+To run it, only what the installer checks for: `git` on `PATH`, and, to run agents, the `claude` and/or `codex`
+CLI, installed and signed in (Dev Board shows what it found, says how to install what is missing, and never
+installs an agent without you or asks for an API key). The [GitHub CLI](https://cli.github.com) (`gh`) is
+optional: it is how Dev Board uses your own GitHub identity, and everything local works without it.
+
+To build from source:
+
+- Go 1.27.1+ (no C toolchain needed: SQLite is pure Go; Tailscale is embedded as a Go library)
 - Node 20+ and npm, to build the web app
-- `git` on `PATH`
-- Optionally the [GitHub CLI](https://cli.github.com) (`gh`), signed in, for pull requests. Dev Board holds no GitHub
-  credentials of its own and everything local works without it
-- To run agents: the `claude` and/or `codex` CLI, installed and signed in (`devboard serve` lists
-  what it found at `/api/agents`; the Control Center shows it)
 
 ## Build and run
 
@@ -101,11 +130,20 @@ make check
 
 ## Using it from your phone
 
-By default the controller only listens on `127.0.0.1`. To reach it from a phone, put both
-devices on a private network such as Tailscale and bind to that address, e.g.
-`--addr 100.x.y.z:7420` (or `0.0.0.0:7420`). The token (see above) is what protects it:
-run `devboard token` on the computer and paste the result into the app on the phone, or open
-`http://<host>:7420/#token=<token>` there once. Then use "Add to Home Screen".
+`devboard setup` (run by the installer) turns on phone access: Dev Board joins your own Tailscale network from
+inside the controller and serves the app there, over HTTPS when your tailnet has certificates turned on. Sign in
+to Tailscale once when it asks (a free account is enough), install the Tailscale app on your phone with the same
+account, and scan the QR code from `devboard open --qr`, or from Settings, to open Dev Board already signed in.
+Then "Add to Home Screen". Details, the security model and troubleshooting: [docs/PHONE.md](docs/PHONE.md).
+
+The controller on this computer still listens on `127.0.0.1` only; the private network is a second door that
+only your devices can reach, and it demands the access token like any other. Nothing is exposed to the Internet.
+
+Browser notifications are optional and can be enabled in the Control Center. They are generated
+by the connected browser for questions, blocked or failed runs, completed work and important
+repository risks. The controller does not run a push relay: if the browser or installed app is
+closed, backgrounded by the operating system, or disconnected long enough to suspend its event
+stream, agents keep running on the controller but notifications may wait until the app reconnects.
 
 ## Configuration
 
@@ -121,6 +159,9 @@ then flags.
 | `token` | `DEVBOARD_TOKEN` | — | generated when needed |
 | `requireToken` | `DEVBOARD_REQUIRE_TOKEN` | `--require-token` | `true`. `false` (or `--require-token=false`) allows tokenless access on `127.0.0.1` only, and logs a warning; off loopback the token is always required. Anything but `true`/`false` in the environment is an error |
 | `allowedHosts` | — | — | `[]` |
+| `network.enabled` | `DEVBOARD_NETWORK` | — | unset: the app decides (`devboard setup` turns it on). `true` always joins the private network, `false` never does |
+| `network.hostname` | `DEVBOARD_NETWORK_HOSTNAME` | — | `devboard-<this computer's name>` |
+| `network.controlUrl` | `DEVBOARD_NETWORK_CONTROL_URL` | — | Tailscale's. A self-hosted Headscale URL, if you run one |
 | `shutdownTimeout` | — | — | `10s` |
 | `worktreesDir` | `DEVBOARD_WORKTREES_DIR` | — | `<data dir>/worktrees` |
 | `agents` | — | — | per-agent settings, below |
@@ -134,13 +175,16 @@ started. Tune them in `config.json`:
 ```json
 {
   "agents": {
-    "claude-code": { "command": "claude", "model": "sonnet", "permissionMode": "acceptEdits" },
+    "claude-code": { "command": "claude", "permissionMode": "acceptEdits" },
     "codex":       { "command": "codex",  "model": "gpt-5.5", "approvalPolicy": "on-request", "sandbox": "workspace-write" }
   }
 }
 ```
 
-Everything is optional. Whatever an agent asks permission for reaches you as a question, so the
+Everything is optional. `model` here is what "Agent default" means for that agent on this computer. `models` (a
+list of `{"id", "name", "description"}`) and `reasoning` (a list of level names) replace the choices the app offers
+when you do not want what the agent reports; a model that is not listed can still be typed in. Whatever an agent
+asks permission for reaches you as a question, so the
 defaults let it edit files in its worktree and ask about the rest. `permissionMode`
 (`acceptEdits`, `manual`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), `approvalPolicy`
 (`untrusted`, `on-request`, `never`) and `sandbox` (`read-only`, `workspace-write`,
@@ -173,7 +217,7 @@ when nothing would be lost).
 ## Layout
 
 ```
-cmd/devboard          CLI and daemon entry point
+cmd/devboard          CLI: setup, service commands, doctor, update; and the controller (`serve`)
 internal/domain       entities, states, rules (no dependencies)
 internal/store        persistence interfaces; sqlite/ implementation and migrations
 internal/service      use cases
@@ -184,7 +228,12 @@ internal/github       GitHub boundary: the user's own `gh` CLI, for pull request
 internal/agent        agent adapter boundary, process handling, execution-policy rules; claude/ and codex/ adapters
 internal/runner       owns agent processes: start, stream, input, stop, recovery
 internal/controller   wiring and lifecycle
+internal/netprivate   the embedded Tailscale node: private address, sign-in state, QR codes
+internal/daemon       the background service: launchd, systemd, Task Scheduler, or a detached process
+internal/doctor       `devboard doctor`'s checks (never prints a secret)
+internal/update       finds, checksums and installs a newer release
+scripts/              install.sh, install.ps1, release build, installer tests
 internal/webui        embedded PWA
 web/                  Svelte 5 + TypeScript PWA (a global store, plus one scope per project)
-docs/                 architecture, and the Git safety model (GIT.md)
+docs/                 architecture; the Git safety model (GIT.md); install, phone access, execution defaults
 ```

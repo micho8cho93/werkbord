@@ -37,6 +37,8 @@ type Tx interface {
 	Questions() QuestionRepo
 	Worktrees() WorktreeRepo
 	Health() HealthRepo
+	Settings() SettingsRepo
+	Runners() RunnerRepo
 	Events() EventRepo
 }
 
@@ -48,6 +50,25 @@ type ProjectRepo interface {
 	Get(ctx context.Context, id string) (*domain.Project, error)
 	GetByPath(ctx context.Context, repoPath string) (*domain.Project, error)
 	List(ctx context.Context) ([]domain.Project, error)
+	// SetExecution replaces the project's default execution configuration.
+	SetExecution(ctx context.Context, id string, cfg domain.ExecutionConfig, at time.Time) error
+}
+
+// SettingsRepo stores the app's own small settings as JSON documents by key
+// (see domain.SettingExecution). Get returns domain.ErrNotFound for a key that
+// was never set, and leaves dst alone.
+type SettingsRepo interface {
+	Get(ctx context.Context, key string, dst any) error
+	Set(ctx context.Context, key string, value any, at time.Time) error
+}
+
+// RunnerRepo persists the computers that can run agents.
+type RunnerRepo interface {
+	// UpsertLocal registers this computer, or refreshes its record: name, system,
+	// version and last-seen time change; its ID and creation time never do. It
+	// returns the stored runner.
+	UpsertLocal(ctx context.Context, r *domain.Runner) (*domain.Runner, error)
+	List(ctx context.Context) ([]domain.Runner, error)
 }
 
 // GitRepositoryRepo stores the latest inspection snapshot per project.

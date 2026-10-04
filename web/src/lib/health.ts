@@ -115,7 +115,7 @@ export type ActionPlan =
   | { type: 'sheet'; sheet: 'push' | 'merge' | 'delete'; branch: string }
   | { type: 'clean'; worktreeId: string; branch: string }
   | { type: 'link'; href: string }
-  | { type: 'task'; title: string; description: string }
+  | { type: 'task'; title: string; description: string; askAgent: boolean }
   | { type: 'fetch' }
   /** Dev Board cannot do this: the reason says why and what to do instead. */
   | { type: 'manual'; reason: string; detail: string };
@@ -141,7 +141,7 @@ export function actionPlan(f: HealthFinding, projectId: string): ActionPlan {
       return { type: 'fetch' };
     case 'create_task':
     case 'ask_agent':
-      return { type: 'task', title: a.taskTitle ?? f.title, description: taskDescription(f) };
+      return { type: 'task', title: a.taskTitle ?? f.title, description: taskDescription(f), askAgent: a.kind === 'ask_agent' };
     default:
       return manual();
   }
@@ -149,9 +149,15 @@ export function actionPlan(f: HealthFinding, projectId: string): ActionPlan {
 
 /** The description of a task made from a finding: what was seen and what to check, with the evidence. */
 export function taskDescription(f: HealthFinding): string {
-  const lines = [f.action.taskDescription ?? f.explanation, '', 'Evidence:'];
+  const lines = [f.action.taskDescription ?? f.explanation, '', 'Repository health context:', `- Finding: ${f.title}`, `- Confidence: ${f.basis === 'deterministic' ? 'deterministic Git or Dev Board evidence' : 'heuristic; verify before acting'}`];
+  if (f.subject.branch) lines.push(`- Branch: ${f.subject.branch}`);
+  if (f.subject.worktreePath) lines.push(`- Affected worktree: ${f.subject.worktreePath}`);
+  if (f.subject.taskTitle) lines.push(`- Related task: ${f.subject.taskTitle}${f.subject.taskId ? ` (${f.subject.taskId})` : ''}`);
+  if (f.subject.runId) lines.push(`- Related run: ${f.subject.runId}`);
+  if (f.subject.related?.length) lines.push(`- Related branches: ${f.subject.related.join(', ')}`);
+  lines.push('', 'Evidence:');
   for (const e of f.evidence) lines.push(`- ${e.label}: ${e.value}`);
-  lines.push('', `Found by repository health (${f.basis === 'deterministic' ? 'a fact from Git' : 'a guess from patterns'}): ${f.title}`);
+  lines.push('', `Recommended outcome: ${f.action.detail || f.action.label}.`, 'Inspect the current repository state before proposing changes. Do not merge to the default branch automatically.');
   return lines.join('\n');
 }
 

@@ -180,8 +180,8 @@ false, `reason` says why and the card says what to do yourself.
 | `sync_branch` | | Never | Dev Board does not pull, rebase or force-push |
 | `finish_operation` | | Never | Dev Board never resolves conflicts or aborts an operation in a checkout |
 | `fetch` | Fetch | Always | |
-| `create_task` | A task prefilled with the finding and its evidence | Always: it adds a card to the board and starts nothing | |
-| `ask_agent` | Same as `create_task`, titled as an investigation | Always. An agent runs only when you press Run on the task | |
+| `create_task` | An editable task form prefilled with the finding, repository context and evidence | Always: it adds a card to the board and starts nothing | |
+| `ask_agent` | The same editable form, with an agent and interaction-policy choice | Always. It starts the chosen agent after you submit; the finding does not grant extra permissions | |
 | `inspect` | | Never | Says what to check |
 
 `merge_branch` and `push_branch` use only what the overview knows. The operation itself looks again and refuses

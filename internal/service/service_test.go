@@ -42,7 +42,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Cleanup(func() { _ = db.Close() })
 	bus := events.NewBroker()
 	deps := Deps{Store: db, Bus: bus}
-	return &fixture{deps: deps, bus: bus, projects: &Projects{Deps: deps, Git: fakeGit{}}, tasks: &Tasks{deps}, runs: &Runs{deps}}
+	return &fixture{deps: deps, bus: bus, projects: &Projects{Deps: deps, Git: fakeGit{}}, tasks: &Tasks{Deps: deps}, runs: &Runs{Deps: deps}}
 }
 
 func TestRegisterProject(t *testing.T) {

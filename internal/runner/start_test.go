@@ -75,7 +75,11 @@ func TestStartRefusesWhatCannotRun(t *testing.T) {
 	}{
 		{"unknown task", func(e *env, _ *domain.Task) StartInput { return StartInput{TaskID: "tsk_nope", AgentID: "fake"} }, domain.ErrNotFound},
 		{"unknown agent", func(e *env, t *domain.Task) StartInput { return StartInput{TaskID: t.ID, AgentID: "gemini"} }, domain.ErrNotFound},
-		{"no agent named", func(e *env, t *domain.Task) StartInput { return StartInput{TaskID: t.ID} }, domain.ErrInvalid},
+		{"a model without an agent", func(e *env, t *domain.Task) StartInput { return StartInput{TaskID: t.ID, Model: "opus"} }, domain.ErrInvalid},
+		{"no agent can be used", func(e *env, t *domain.Task) StartInput {
+			e.adapter.Info = domain.Agent{ID: "fake", Name: "Fake", Detail: "not installed"}
+			return StartInput{TaskID: t.ID}
+		}, domain.ErrConflict},
 		{"agent unavailable", func(e *env, t *domain.Task) StartInput {
 			e.adapter.Info = domain.Agent{ID: "fake", Name: "Fake", Detail: "not signed in"}
 			return StartInput{TaskID: t.ID, AgentID: "fake"}

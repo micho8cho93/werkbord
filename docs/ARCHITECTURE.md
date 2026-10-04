@@ -7,7 +7,7 @@ are remote controls for it. There is no hosted backend, no account system and no
 database.
 
 This document describes the system as built: the foundation, the agent runtime (§8, §14),
-questions (§15), projects as the scope of the application (§16), per-task execution policies (§17), the Git Control Center (§18) and repository health (§19). Sections marked *Deferred* name things that are intentionally not implemented yet.
+questions (§15), projects as the scope of the application (§16), per-task execution policies (§17), the Git Control Center (§18) and repository health (§19) and installation, the private network and execution defaults (§20). Sections marked *Deferred* name things that are intentionally not implemented yet.
 
 ---
 
@@ -824,3 +824,55 @@ web "Check now" / old report ─▶ api/githealth.go ─▶ GitHealth.Refresh �
   its Git screen.
 - **Lifecycle of the process**: the controller starts the watcher after wiring the services and, on shutdown,
   cancels it and waits for any recalculation to finish before the broker and database close.
+
+## 20. Install, private network and execution defaults
+
+**One command to a working system.** `scripts/install.sh` downloads a release, verifies its checksum and runs
+`devboard setup`, which prepares the data directory, token and database, installs the controller as a *user*
+service (`internal/daemon`: launchd, a systemd user unit, a scheduled task, or a detached process where none
+exists), starts it, and shows that this computer is registered as the first runner. `start`, `stop`, `restart`,
+`status` and `open` manage the one controller the service owns: before starting anything they ask the controller
+whether it is already answering, so a controller started by hand is never duplicated. The service is given the
+`PATH` setup ran with, because agents are found through it. The database is copied before any migration that has
+something to change (`<data dir>/backups`, newest five kept), and `devboard update` verifies a download, runs it
+once to confirm its version, replaces the executable atomically, restarts the controller, and restores the old
+executable if the new one does not come up.
+
+**Runner.** `runners` records computers that can run agents. The controller registers *this* computer, as the one
+`local` runner, every time it starts (`Settings.RegisterRunner`), with nothing to configure; a unique index keeps it
+one. Runs do not yet name a runner: multi-runner execution is deferred.
+
+**Private network** (`internal/netprivate`). The controller embeds a Tailscale node (`tsnet`, userspace: no root, no
+TUN, no system Tailscale) when the user has turned phone access on (`settings.network`, or `config.network.enabled`
+which overrides it). A `Manager` brings the node up in the background and keeps a `Status` (`off`, `starting`,
+`needs_login` with the sign-in link, `needs_approval`, `connected` with the address, `error`); once connected it
+serves the app on the tailnet only (443 with Tailscale-issued certificates when the tailnet has HTTPS, else 80).
+The tailnet listeners use a *second* `api.Server` built with `AuthRequired: true`, so the access token is demanded
+there even when loopback was opened with `requireToken=false`. Funnel (public ingress) is never used, Tailscale's
+log upload is switched off, and the sign-in link is never logged. The node sits behind a small `Backend`
+interface, so the manager is tested with a fake and, separately, against a real node talking to Tailscale's own
+in-process test control server and DERP relay (sign-in link, completing it, serving, a second node reaching it,
+identity across a restart). `GET /api/network/phone` returns the address and a link and QR code (SVG) that carry
+the token in the URL fragment.
+
+**GitHub** (`service.GitHubSetup`, `internal/github`) is optional and goes through the user's own `gh`: status
+(`gh api user`), sign-in (`gh auth login --web`, whose one-time code the app shows), the repositories the user can
+reach, and which of them already exist on this computer. The local search reads `.git/config` of repositories under
+the usual code directories (no git, no network); *on this computer* (access to a clone) and *GitHub only* (metadata)
+are separate fields. Adding a GitHub-only repository clones it with git using `gh auth git-credential` as a
+credential helper for that command only, and sets the same helper on that clone only. Dev Board stores nothing
+about itself in GitHub and never holds a GitHub credential.
+
+**Execution defaults** (`domain.ExecutionConfig`, `ResolveExecution`). Agent, model, reasoning, interaction and
+priority are set at three levels (global, project, task) and optionally for one run; the first level that sets a
+field wins. Model and reasoning belong to an agent: a level that sets either must set the agent, and a level's
+model only applies when its agent is the one that won. `agent.Optioner` lets an adapter report models and reasoning
+levels (Codex asks its own app-server, Claude Code its `--help` for efforts, plus aliases), with "Agent default"
+always first and unlisted names allowed. The runner resolves at start, records the resolved agent, model, reasoning
+and policy on the run, and passes them to the adapter. See [EXECUTION.md](EXECUTION.md).
+
+**Doctor** (`internal/doctor`). Checks run inside the controller (`GET /api/doctor`) so they see its PATH, agents
+and network; the CLI adds the service, version and PATH-parity checks, and runs what it can when the controller is
+down. Checks report states, never values: the token, the sign-in link and GitHub's code cannot reach a report.
+
+*Deferred, as before:* scheduling, calendar, hand-offs, multi-runner execution, economics, and any Brain.

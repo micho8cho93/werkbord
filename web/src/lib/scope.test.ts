@@ -25,6 +25,8 @@ vi.mock('./api', () => {
       listProjects: () => Promise.resolve(db.projects),
       listAgents: () => Promise.resolve([]),
       controlCenter: () => Promise.resolve(db.overview),
+      getSettings: () => Promise.resolve({}),
+      onboarding: () => Promise.resolve({ completedAt: '2026-10-04T10:00:00Z' }),
       listTasks: (p: string) => call('tasks', p, db.tasks),
       listProjectRuns: (p: string) => call('runs', p, db.latest),
       listActivity: (p: string) => call('activity', p, db.history),
@@ -39,7 +41,7 @@ import { app } from './state.svelte';
 const T0 = '2026-10-04T10:00:00Z';
 const policy = { interaction: 'interactive' as const };
 const task = (id: string, projectId: string, over: Partial<Task> = {}): Task => ({
-  id, projectId, title: `task ${id}`, description: '', state: 'backlog', position: 1, policy, version: 1, createdAt: T0, updatedAt: T0, ...over,
+  id, projectId, title: `task ${id}`, description: '', state: 'backlog', position: 1, execution: {}, version: 1, createdAt: T0, updatedAt: T0, ...over,
 });
 const run = (id: string, taskId: string, projectId: string, over: Partial<Run> = {}): Run => ({
   id, taskId, projectId, agentId: 'fake', state: 'running', policy, version: 1, createdAt: T0, updatedAt: T0, ...over,
@@ -47,7 +49,7 @@ const run = (id: string, taskId: string, projectId: string, over: Partial<Run> =
 const question = (id: string, runId: string, taskId: string, projectId: string, over: Partial<Question> = {}): Question => ({
   id, runId, taskId, projectId, kind: 'clarification', prompt: `q ${id}`, allowFreeText: true, state: 'pending', askedAt: T0, ...over,
 });
-const project = (id: string, name: string): Project => ({ id, name, repoPath: `/code/${name}`, createdAt: T0, updatedAt: T0 });
+const project = (id: string, name: string): Project => ({ id, name, repoPath: `/code/${name}`, execution: {}, createdAt: T0, updatedAt: T0 });
 let seq = 0;
 const event = (type: string, projectId: string, payload: unknown, extra: Partial<ControllerEvent> = {}): ControllerEvent => ({
   seq: ++seq, type, projectId, payload, createdAt: T0, ...extra,

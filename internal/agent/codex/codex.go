@@ -29,8 +29,14 @@ const ID = "codex"
 type Config struct {
 	// Command is the executable; default "codex", found on PATH.
 	Command string
-	// Model overrides Codex's configured model when set.
+	// Model overrides Codex's configured model when set. It is what "Agent
+	// default" means for this agent on this computer: a run that chooses no model
+	// of its own gets it.
 	Model string
+	// Models and Reasoning are the choices the user listed in config.json. They
+	// replace what Codex reports about itself.
+	Models    []domain.AgentOption
+	Reasoning []string
 	// ApprovalPolicy is when Codex asks before acting: "untrusted", "on-request"
 	// (the default) or "never". Asking is how a command outside the sandbox, or
 	// a change outside the worktree, reaches the user as a question.
@@ -47,6 +53,10 @@ type Adapter struct {
 	mu       sync.Mutex
 	detected domain.Agent
 	detectAt time.Time
+
+	optMu   sync.Mutex
+	optCach domain.AgentOptions
+	optAt   time.Time
 }
 
 var _ agent.Adapter = (*Adapter)(nil)
@@ -83,25 +93,38 @@ func (a *Adapter) Detect(ctx context.Context) domain.Agent {
 	return a.detected
 }
 
+// docsURL is where Codex's own installation instructions live.
+const docsURL = "https://github.com/openai/codex"
+
 func (a *Adapter) detect(ctx context.Context) domain.Agent {
-	info := domain.Agent{ID: ID, Name: "Codex"}
+	info := domain.Agent{ID: ID, Name: "Codex", DocsURL: docsURL}
 	path, err := exec.LookPath(a.cfg.Command)
 	if err != nil {
 		info.Detail = fmt.Sprintf("%q was not found on PATH", a.cfg.Command)
+		info.Guidance = "Install Codex (`npm install -g @openai/codex` or `brew install --cask codex`), then run `codex login` to sign in with your ChatGPT account."
 		return info
 	}
 	out, err := run(ctx, path, "--version")
 	if err != nil {
 		info.Detail = "could not run `" + a.cfg.Command + " --version`: " + err.Error()
+		info.Guidance = "Reinstall Codex: " + docsURL
 		return info
 	}
+	info.Installed = true
 	info.Version = versionRE.FindString(out)
 
 	// `login status` exits non-zero when nobody is signed in. Any other failure
 	// (an older version without the command) is not evidence of anything.
-	if out, err := run(ctx, path, "login", "status"); err != nil && strings.Contains(strings.ToLower(out), "not logged in") {
+	info.SignIn = domain.SignInUnknown
+	out, err = run(ctx, path, "login", "status")
+	switch {
+	case err != nil && strings.Contains(strings.ToLower(out), "not logged in"):
+		info.SignIn = domain.SignedOut
 		info.Detail = "not signed in: run `" + a.cfg.Command + " login`"
+		info.Guidance = "Run `" + a.cfg.Command + " login` in a terminal and follow the prompts. Dev Board uses your own Codex sign-in and never asks for a key."
 		return info
+	case err == nil && strings.Contains(strings.ToLower(out), "logged in"):
+		info.SignIn = domain.SignedIn
 	}
 	info.Available = true
 	return info
@@ -123,7 +146,7 @@ var startTimeout = 60 * time.Second
 func (a *Adapter) Start(ctx context.Context, req agent.StartRequest) (agent.Session, error) {
 	s := newSession(agent.ProcSpec{
 		Command: a.cfg.Command, Args: []string{"app-server"}, Dir: req.WorkDir, Env: agent.SanitizedEnv(os.Environ()),
-	}, req.WorkDir, a.cfg)
+	}, req.WorkDir, a.cfg, req.Model, req.Reasoning)
 	if err := s.Launch(); err != nil {
 		return nil, err
 	}

@@ -100,10 +100,14 @@ func (k WaitingKind) Valid() bool { return k == WaitNone || k == WaitQuestion ||
 // for the next message (RunWaitingForUser, WaitIdle), and the session only
 // ends when the process exits, the user finishes it, or the user stops it.
 type Run struct {
-	ID         string      `json:"id"`
-	TaskID     string      `json:"taskId"`
-	ProjectID  string      `json:"projectId"`
-	AgentID    string      `json:"agentId"`
+	ID        string `json:"id"`
+	TaskID    string `json:"taskId"`
+	ProjectID string `json:"projectId"`
+	AgentID   string `json:"agentId"`
+	// Model and Reasoning are what the agent was started with. Empty means the
+	// agent's own default: nothing was passed.
+	Model      string      `json:"model,omitempty"`
+	Reasoning  string      `json:"reasoning,omitempty"`
 	State      RunState    `json:"state"`
 	WorktreeID string      `json:"worktreeId,omitempty"`
 	SessionRef string      `json:"sessionRef,omitempty"` // agent-specific handle used to resume a conversation

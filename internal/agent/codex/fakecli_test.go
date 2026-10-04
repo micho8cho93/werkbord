@@ -223,6 +223,26 @@ func fakeMain() int {
 			record(method, params)
 			reply(m["id"], msg{"thread": msg{"id": threadID, "status": msg{"type": "idle"}, "turns": []any{}}})
 			notify("thread/started", msg{"thread": msg{"id": threadID}})
+		case "model/list":
+			record(method, params)
+			if os.Getenv("FAKE_CODEX_NO_MODELS") != "" {
+				out(msg{"id": m["id"], "error": msg{"code": -32601, "message": "unknown method model/list"}})
+				break
+			}
+			effort := func(id, d string) msg { return msg{"reasoningEffort": id, "description": d} }
+			if params["cursor"] == nil {
+				reply(m["id"], msg{"nextCursor": "page-2", "data": []msg{
+					{"id": "m-big", "model": "big-model", "displayName": "Big", "description": "the big one", "hidden": false, "isDefault": true,
+						"defaultReasoningEffort": "medium", "supportedReasoningEfforts": []msg{effort("low", "fast"), effort("medium", "balanced"), effort("high", "deep")}},
+					{"id": "m-old", "model": "old-model", "displayName": "Old", "description": "", "hidden": true, "isDefault": false,
+						"defaultReasoningEffort": "low", "supportedReasoningEfforts": []msg{effort("low", "fast")}},
+				}})
+			} else {
+				reply(m["id"], msg{"nextCursor": nil, "data": []msg{
+					{"id": "m-small", "model": "small-model", "displayName": "", "description": "cheap", "hidden": false, "isDefault": false,
+						"defaultReasoningEffort": "low", "supportedReasoningEfforts": []msg{effort("low", "fast"), effort("xhigh", "very deep")}},
+				}})
+			}
 		case "thread/resume":
 			record(method, params)
 			threadID = fmt.Sprint(params["threadId"])

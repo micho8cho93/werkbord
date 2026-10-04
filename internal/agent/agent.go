@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"devboard/internal/domain"
@@ -58,6 +59,22 @@ type StartRequest struct {
 	// nothing else with it: enforcement is the controller's, not the adapter's.
 	// It applies on a resumed session too.
 	Policy domain.ExecutionPolicy
+	// Model and Reasoning are the resolved choices for the run (see
+	// domain.ResolveExecution). Empty means the agent's own default: the adapter
+	// passes nothing and the agent decides. An adapter with a model configured in
+	// config.json treats that as the agent's default.
+	Model     string
+	Reasoning string
+}
+
+// Optioner is implemented by adapters that can say which models and reasoning
+// levels the agent offers. It is optional: an agent that cannot say gets
+// whatever the user configured, and always the choice of "Agent default".
+type Optioner interface {
+	// Options lists what can be chosen, asking the agent where it can be asked.
+	// It may cache what it learns. It never fails: if the agent cannot be asked it
+	// returns a fallback and says so in Note. The caller adds "Agent default".
+	Options(ctx context.Context) domain.AgentOptions
 }
 
 // Session is a live agent process.
@@ -210,6 +227,49 @@ func (r *Registry) Detect(ctx context.Context) []domain.Agent {
 		out = append(out, a.Detect(ctx))
 	}
 	return out
+}
+
+// Known reports whether an adapter with this ID is registered.
+func (r *Registry) Known(id string) bool {
+	_, err := r.Get(id)
+	return err == nil
+}
+
+// Options lists what can be chosen for an agent: its models and reasoning
+// levels, always beginning with "Agent default". The bool is false for an
+// unknown agent. An adapter that cannot say gets only the default, and may be
+// given any model name: the agent has the last word.
+func (r *Registry) Options(ctx context.Context, id string) (domain.AgentOptions, bool) {
+	a, err := r.Get(id)
+	if err != nil {
+		return domain.AgentOptions{}, false
+	}
+	opts := domain.AgentOptions{AgentID: id, CustomModels: true, ModelsSource: domain.OptionsBuiltIn, ReasoningSource: domain.OptionsBuiltIn}
+	if o, ok := a.(Optioner); ok {
+		opts = o.Options(ctx)
+		opts.AgentID = id
+	}
+	return opts.WithAgentDefault(), true
+}
+
+// FirstAvailable returns the first adapter, in ID order, that can be used now.
+// It is what "no agent chosen" means. If none can, the error says why for each.
+func (r *Registry) FirstAvailable(ctx context.Context) (Adapter, error) {
+	var why []string
+	for _, info := range r.Detect(ctx) {
+		if info.Available {
+			return r.Get(info.ID)
+		}
+		reason := info.Detail
+		if reason == "" {
+			reason = "unavailable"
+		}
+		why = append(why, info.Name+": "+reason)
+	}
+	if len(why) == 0 {
+		return nil, fmt.Errorf("no coding agent is registered: %w", domain.ErrConflict)
+	}
+	return nil, fmt.Errorf("no coding agent can be used (%s): %w", strings.Join(why, "; "), domain.ErrConflict)
 }
 
 // Available returns the named adapter if it can be used now, and otherwise an

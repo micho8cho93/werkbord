@@ -12,15 +12,16 @@ reports it.
 | v0.3.0 | `553e904` | The local coding-agent runtime |
 | v0.4.0 | `516a780` | Project as the scope of the app; per-task execution policies |
 | v0.5.0 | `e85f596` | The Git Control Center |
-| v0.6.0 | the "Add repository health" commit | Repository health; the Control Center for exceptions |
+| v0.6.0 | `4297a29` | Repository health; the Control Center for exceptions |
+| v0.7.0 | the "Add one-command install" commit | One-command install and setup, background service, embedded private networking, GitHub connection, execution defaults (agent, model, reasoning, interaction, priority) |
 
 ## Tagging a new version
 
 After committing a milestone:
 
 ```bash
-make tag VERSION=v0.7.0        # annotated tag on HEAD, message = version + commit subject
-git push origin v0.7.0
+make tag VERSION=v0.8.0        # annotated tag on HEAD, message = version + commit subject
+git push origin v0.8.0
 ```
 
 `make tag` refuses a malformed version, a tag that exists, and a dirty working tree.

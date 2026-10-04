@@ -52,8 +52,10 @@ type Task struct {
 	Description string    `json:"description"`
 	State       TaskState `json:"state"`
 	Position    float64   `json:"position"` // ordering within a column; lower is higher on the board
-	// Policy is how runs of this task are carried out by default.
-	Policy    ExecutionPolicy `json:"policy"`
+	// Execution is what this task overrides about how its runs are carried out:
+	// agent, model, reasoning, interaction and priority. A field that is not set
+	// is inherited from the project, then the global defaults (ResolveExecution).
+	Execution ExecutionConfig `json:"execution"`
 	Version   int64           `json:"version"`
 	CreatedAt time.Time       `json:"createdAt"`
 	UpdatedAt time.Time       `json:"updatedAt"`

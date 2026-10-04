@@ -13,19 +13,26 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects';
-export type ProjectSection = 'board' | 'git' | 'activity';
+export type GlobalView = 'control' | 'projects' | 'settings' | 'onboarding';
+export type ProjectSection = 'board' | 'git' | 'activity' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
-export const GLOBAL_VIEWS: readonly { id: GlobalView; label: string; short: string }[] = [
+export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding'>; label: string; short: string }[] = [
   { id: 'control', label: 'Control Center', short: 'Control' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
+  { id: 'settings', label: 'Settings', short: 'Settings' },
 ];
+
+/** A page that is not in the navigation: first-time setup, which opens by itself and is left by finishing it. */
+const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding'];
 
 export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] = [
   { id: 'board', label: 'Board' },
   { id: 'git', label: 'Git' },
   { id: 'activity', label: 'Activity' },
+  // The project's defaults (agent, model, reasoning, interaction, priority). Its address says "defaults" so
+  // that it cannot be mistaken for the app's own Settings page, which is global.
+  { id: 'defaults', label: 'Settings' },
 ];
 
 export interface Location {
@@ -38,7 +45,7 @@ export interface Location {
   sub?: string;
 }
 
-const isGlobal = (v: string): v is GlobalView => GLOBAL_VIEWS.some((g) => g.id === v);
+const isGlobal = (v: string): v is GlobalView => GLOBAL_VIEWS.some((g) => g.id === v) || (HIDDEN_GLOBAL as readonly string[]).includes(v);
 const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v);
 
 function decode(s: string): string {

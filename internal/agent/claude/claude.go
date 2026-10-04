@@ -32,7 +32,13 @@ type Config struct {
 	// Command is the executable; default "claude", found on PATH.
 	Command string
 	// Model is passed as --model when set (an alias like "sonnet" or a full name).
+	// It is what "Agent default" means for this agent on this computer: a run that
+	// chooses no model of its own gets it.
 	Model string
+	// Models and Reasoning are the choices the user listed in config.json. They
+	// replace the built-in aliases and the levels the CLI reports about itself.
+	Models    []domain.AgentOption
+	Reasoning []string
 	// PermissionMode is passed as --permission-mode; default "acceptEdits",
 	// which lets the agent edit files in its worktree without asking while
 	// commands and everything else still go to the user as questions.
@@ -46,6 +52,10 @@ type Adapter struct {
 	mu       sync.Mutex
 	detected domain.Agent
 	detectAt time.Time
+
+	effortMu sync.Mutex
+	effort   []string // reasoning levels the installed CLI says --effort takes; nil if it has no such flag
+	effortAt time.Time
 }
 
 var _ agent.Adapter = (*Adapter)(nil)
@@ -83,33 +93,86 @@ func (a *Adapter) Detect(ctx context.Context) domain.Agent {
 	return a.detected
 }
 
+// docsURL is where Claude Code's own installation instructions live.
+const docsURL = "https://docs.anthropic.com/en/docs/claude-code/setup"
+
 func (a *Adapter) detect(ctx context.Context) domain.Agent {
-	info := domain.Agent{ID: ID, Name: "Claude Code"}
+	info := domain.Agent{ID: ID, Name: "Claude Code", DocsURL: docsURL}
 	path, err := exec.LookPath(a.cfg.Command)
 	if err != nil {
 		info.Detail = fmt.Sprintf("%q was not found on PATH", a.cfg.Command)
+		info.Guidance = "Install Claude Code (https://claude.ai/install.sh, or `npm install -g @anthropic-ai/claude-code`), then run `claude` once to sign in."
 		return info
 	}
 	out, err := run(ctx, path, "--version")
 	if err != nil {
 		info.Detail = "could not run `" + a.cfg.Command + " --version`: " + err.Error()
+		info.Guidance = "Reinstall Claude Code: " + docsURL
 		return info
 	}
+	info.Installed = true
 	info.Version = versionRE.FindString(out)
 
 	// Signed in? Older versions have no `auth status`; then assume yes and let a
 	// real failure show up when a session starts.
+	info.SignIn = domain.SignInUnknown
 	if out, err := run(ctx, path, "auth", "status"); err == nil {
 		var st struct {
 			LoggedIn *bool `json:"loggedIn"`
 		}
-		if json.Unmarshal([]byte(out), &st) == nil && st.LoggedIn != nil && !*st.LoggedIn {
-			info.Detail = "not signed in: run `" + a.cfg.Command + " auth login`"
-			return info
+		if json.Unmarshal([]byte(out), &st) == nil && st.LoggedIn != nil {
+			if *st.LoggedIn {
+				info.SignIn = domain.SignedIn
+			} else {
+				info.SignIn = domain.SignedOut
+				info.Detail = "not signed in: run `" + a.cfg.Command + " auth login`"
+				info.Guidance = "Run `" + a.cfg.Command + " auth login` in a terminal and follow the prompts. Dev Board uses your own Claude account and never asks for a key."
+				return info
+			}
 		}
 	}
 	info.Available = true
 	return info
+}
+
+// effortRE finds the reasoning levels in the CLI's own help for --effort, e.g.
+// "--effort <level>  Effort level for the current session (low, medium, high)".
+var effortRE = regexp.MustCompile(`(?s)--effort\s+<[^>]+>.*?\(([a-z, ]+)\)`)
+
+// effortLevels asks the installed CLI which levels --effort takes: the CLI
+// knows, and its list changes. nil means it has no such flag (an older version).
+// It costs a process, so it is only asked when someone wants the options, and
+// remembered for as long as a detection is.
+func (a *Adapter) effortLevels(ctx context.Context) []string {
+	a.effortMu.Lock()
+	defer a.effortMu.Unlock()
+	if !a.effortAt.IsZero() && time.Since(a.effortAt) < detectTTL {
+		return a.effort
+	}
+	a.effort, a.effortAt = a.askEffortLevels(ctx), time.Now()
+	return a.effort
+}
+
+func (a *Adapter) askEffortLevels(ctx context.Context) []string {
+	path, err := exec.LookPath(a.cfg.Command)
+	if err != nil {
+		return nil
+	}
+	out, err := run(ctx, path, "--help")
+	if err != nil && out == "" {
+		return nil
+	}
+	m := effortRE.FindStringSubmatch(out)
+	if m == nil {
+		return nil
+	}
+	var levels []string
+	for _, l := range strings.Split(m[1], ",") {
+		if l = strings.TrimSpace(l); l != "" {
+			levels = append(levels, l)
+		}
+	}
+	return levels
 }
 
 func run(ctx context.Context, path string, args ...string) (string, error) {
@@ -130,8 +193,20 @@ func (a *Adapter) Start(ctx context.Context, req agent.StartRequest) (agent.Sess
 	if a.cfg.PermissionMode != "" {
 		args = append(args, "--permission-mode", a.cfg.PermissionMode)
 	}
-	if a.cfg.Model != "" {
-		args = append(args, "--model", a.cfg.Model)
+	// A model chosen for the run wins; otherwise the one configured as this agent's
+	// default; otherwise Claude Code's own.
+	model := req.Model
+	if model == "" {
+		model = a.cfg.Model
+	}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	if req.Reasoning != "" {
+		if !a.supportsEffort(ctx) {
+			return nil, fmt.Errorf("this version of Claude Code has no --effort option, so the reasoning level %q cannot be set: update Claude Code, or choose \"Agent default\"", req.Reasoning)
+		}
+		args = append(args, "--effort", req.Reasoning)
 	}
 	// Standing instructions go in the system prompt, where they stay in force
 	// across turns (and resumes), not into a message that scrolls away.

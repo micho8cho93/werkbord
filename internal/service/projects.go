@@ -16,7 +16,8 @@ import (
 // Projects registers and describes local repositories.
 type Projects struct {
 	Deps
-	Git gitrepo.Inspector
+	Git     gitrepo.Inspector
+	Catalog AgentCatalog // checks the agent in an execution config; nil checks only its shape
 
 	mu    sync.Mutex
 	locks map[string]chan struct{} // per project: at most one inspection at a time
@@ -192,4 +193,30 @@ func (s *Projects) List(ctx context.Context) ([]ProjectDetail, error) {
 		return nil
 	})
 	return out, err
+}
+
+// SetExecution replaces a project's default execution configuration: what its
+// tasks use unless they override it. What it leaves unset comes from the global
+// defaults.
+func (s *Projects) SetExecution(ctx context.Context, id string, cfg domain.ExecutionConfig) (*ProjectDetail, error) {
+	cfg = cfg.Normalized()
+	if err := validateExecution(ctx, s.Catalog, cfg); err != nil {
+		return nil, err
+	}
+	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
+		if err := tx.Projects().SetExecution(ctx, id, cfg, s.now()); err != nil {
+			return err
+		}
+		p, err := tx.Projects().Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		ev := newEvent(domain.EventProjectUpdated, p)
+		ev.ProjectID = id
+		return em.emit(ev)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, id)
 }

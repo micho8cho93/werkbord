@@ -8,6 +8,7 @@
   import { activitySummary } from '../lib/projects';
   import QuestionCard from '../lib/QuestionCard.svelte';
   import { needsInputText } from '../lib/questions';
+  import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
   import RunBadge from '../lib/RunBadge.svelte';
   import { projectHref, taskHref } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
@@ -37,9 +38,32 @@
     return r ? agentName(app.agents, r.run.agentId) : '';
   };
   const href = (r: AttentionRun) => taskHref(r.run.projectId, r.run.taskId);
+  let permission = $state(notificationPermission());
+  let optedIn = $state(notificationsEnabled());
+
+  async function toggleNotifications() {
+    if (optedIn) {
+      disableNotifications();
+      optedIn = false;
+      return;
+    }
+    permission = await enableNotifications();
+    optedIn = permission === 'granted';
+  }
 </script>
 
 <div class="sections">
+  <section class="notify-setting" aria-label="Browser notifications">
+    <div>
+      <strong>Browser notifications</strong>
+      <p class="muted small">Optional alerts for questions, blocked or failed runs, review, and important repository risks. They work only while this browser can stay connected; there is no push relay.</p>
+    </div>
+    {#if permission === 'unsupported'}
+      <span class="muted small">Not supported here</span>
+    {:else}
+      <button class="btn small" onclick={toggleNotifications}>{optedIn ? 'Turn off' : permission === 'denied' ? 'Blocked by browser' : 'Enable alerts'}</button>
+    {/if}
+  </section>
   {#if app.overview && app.overview.projects.length > 1}
     <section aria-labelledby="projects-h">
       <h2 id="projects-h">Projects</h2>
@@ -264,6 +288,23 @@
   section {
     display: grid;
     gap: 8px;
+  }
+
+  .notify-setting {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .notify-setting p { margin: 3px 0 0; }
+
+  @media (max-width: 520px) {
+    .notify-setting { grid-template-columns: 1fr; }
+    .notify-setting .btn { justify-self: start; }
   }
 
   .list {

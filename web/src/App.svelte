@@ -21,7 +21,10 @@
   import Board from './routes/Board.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
+  import Onboarding from './routes/Onboarding.svelte';
+  import ProjectSettings from './routes/ProjectSettings.svelte';
   import Projects from './routes/Projects.svelte';
+  import Settings from './routes/Settings.svelte';
   import TaskDetail from './routes/TaskDetail.svelte';
 
   const loaded = $derived(app.projects.length > 0 || app.overview !== null);
@@ -35,7 +38,9 @@
   const title = $derived(
     inside
       ? (PROJECT_SECTIONS.find((s) => s.id === activeSection)?.label ?? 'Task')
-      : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? ''),
+      : router.view === 'onboarding'
+        ? 'Set up'
+        : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? ''),
   );
   const statusLabel = $derived(
     { connecting: 'Connecting', live: 'Live', offline: 'Controller offline', unauthorized: 'Token required' }[
@@ -54,6 +59,17 @@
       app.lastProjectId,
     );
     if (hrefOf(fixed) !== hrefOf(loc)) router.go(fixed, true);
+  });
+
+  // First-time setup opens by itself, once, until it is finished or skipped. It is a page like any other: nothing is
+  // blocked behind it, and a computer that already has projects never sees it.
+  let setupOffered = false;
+  $effect(() => {
+    if (!loaded && app.onboarding === null) return;
+    if (app.needsOnboarding && !setupOffered && router.view !== 'onboarding') {
+      setupOffered = true;
+      router.go({ view: 'onboarding', projectId: '', taskId: '' });
+    }
   });
 
   // Being in a project makes it the current one and has its data ready, fetched the first time.
@@ -141,9 +157,14 @@
           <h1>{title}</h1>
           {#if project}<SwitcherButton variant="chip" />{/if}
         {/if}
-        <span class="status" data-state={app.connection} title={statusLabel}>
-          <span class="dot" aria-hidden="true"></span>
-          <span class="status-label">{statusLabel}</span>
+        <span class="top-end">
+          <a class="gear" href={globalHref('settings')} aria-label="Settings: defaults, phone access, GitHub, agents" aria-current={router.view === 'settings' ? 'page' : undefined}>
+            <Icon name="settings" />
+          </a>
+          <span class="status" data-state={app.connection} title={statusLabel}>
+            <span class="dot" aria-hidden="true"></span>
+            <span class="status-label">{statusLabel}</span>
+          </span>
         </span>
       </header>
       <NeedsInputBanner />
@@ -164,6 +185,10 @@
         <ControlCenter />
       {:else if router.view === 'projects'}
         <Projects />
+      {:else if router.view === 'settings'}
+        <Settings />
+      {:else if router.view === 'onboarding'}
+        <Onboarding />
       {:else if !router.projectId}
         <p class="card empty">{loaded ? 'Opening…' : 'Loading…'}</p>
       {:else if !project}
@@ -182,6 +207,8 @@
             <Git {project} />
           {:else if router.view === 'activity'}
             <Activity {scope} {project} />
+          {:else if router.view === 'defaults'}
+            <ProjectSettings {project} />
           {:else}
             <Board {scope} {project} />
           {/if}
@@ -294,6 +321,26 @@
     border-left: 3px solid var(--accent);
     border-radius: var(--radius);
     font-size: 0.9rem;
+  }
+
+  .top-end {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+  }
+
+  .gear {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+  }
+
+  .gear[aria-current='page'] {
+    color: var(--accent);
   }
 
   .status {

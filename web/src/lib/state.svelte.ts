@@ -12,8 +12,9 @@ import { SvelteMap } from 'svelte/reactivity';
 import { ApiError, api, eventsURL } from './api';
 import { gitEvent } from './git/store.svelte';
 import { QuestionBook } from './questions';
+import { notifyEvent } from './notifications';
 import { ProjectScope } from './scope.svelte';
-import type { Agent, ControllerEvent, Overview, Project, Question } from './types';
+import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, Onboarding, Overview, Project, Question } from './types';
 
 export type Connection = 'connecting' | 'live' | 'offline' | 'unauthorized';
 
@@ -31,6 +32,8 @@ function loadLastProject(): string {
 const EVENT_TYPES = [
   'project.registered',
   'project.inspected',
+  'project.updated',
+  'settings.updated',
   'task.created',
   'task.updated',
   'run.state_changed',
@@ -83,6 +86,12 @@ class AppState {
   connection = $state<Connection>('connecting');
   projects = $state<Project[]>([]);
   agents = $state<Agent[]>([]);
+  /** The global execution defaults: the bottom level of the hierarchy (a project, then a task, override it). */
+  globalExecution = $state<ExecutionConfig>({});
+  /** Whether first-time setup has been done or skipped. Null until fetched. */
+  onboarding = $state<Onboarding | null>(null);
+  /** What can be chosen for each agent, fetched when a picker needs it. */
+  readonly agentOptions = new SvelteMap<string, AgentOptions>();
   /** What needs the user, in every project. Null until first fetched. */
   overview = $state<Overview | null>(null);
   /** Questions still waiting for the user, in every project, oldest first. Kept by `book`. */
@@ -194,10 +203,18 @@ class AppState {
   async refresh(): Promise<void> {
     try {
       const sync = this.book.beginSync();
-      const [projects, agents, overview] = await Promise.all([api.listProjects(), api.listAgents(), api.controlCenter()]);
+      const [projects, agents, overview, execution, onboarding] = await Promise.all([
+        api.listProjects(),
+        api.listAgents(),
+        api.controlCenter(),
+        api.getSettings().catch(() => ({}) as ExecutionConfig),
+        api.onboarding().catch(() => null),
+      ]);
       this.projects = projects;
       this.agents = agents;
       this.overview = overview;
+      this.globalExecution = execution;
+      if (onboarding) this.onboarding = onboarding;
       if (this.book.replace(sync, overview.questions.map((q) => q.question))) this.questions = this.book.pending;
       this.error = '';
       // Projects already open catch up on what they missed.
@@ -214,6 +231,31 @@ class AppState {
       this.handleError(err);
     }
   }
+
+  /**
+   * Fetches what can be chosen for an agent (its models and reasoning levels), once: asking can start a
+   * process, so it is remembered. `force` asks again, after the user has installed or updated the agent.
+   */
+  async loadAgentOptions(agentId: string, force = false): Promise<AgentOptions | undefined> {
+    if (!agentId) return undefined;
+    if (!force && this.agentOptions.has(agentId)) return this.agentOptions.get(agentId);
+    try {
+      const o = await api.agentOptions(agentId);
+      this.agentOptions.set(agentId, o);
+      return o;
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 404) this.handleError(err);
+      return undefined;
+    }
+  }
+
+  /** Saves the global defaults, and has them in effect everywhere at once. */
+  async saveGlobalExecution(cfg: ExecutionConfig): Promise<void> {
+    this.globalExecution = await api.setGlobalExecution(cfg);
+  }
+
+  /** Whether the setup flow should be offered: nobody has finished or skipped it, and there is nothing to lose by it. */
+  needsOnboarding = $derived(this.onboarding !== null && !this.onboarding.completedAt);
 
   /** Fetches the Control Center's overview: soon, and once for a burst of events. */
   refreshOverview(): void {
@@ -331,6 +373,11 @@ class AppState {
   private apply(ev: ControllerEvent): void {
     if (ev.runId) this.listeners.get(ev.runId)?.forEach((fn) => fn(ev));
 
+    const info = ev.taskId && ev.projectId ? this.taskInfo(ev.taskId, ev.projectId) : undefined;
+    const projectName = info?.projectName || this.project(ev.projectId ?? '')?.name || 'Dev Board';
+    const readyForReview = !!ev.taskId && !!ev.projectId && this.scopes.get(ev.projectId)?.tasks.some((t) => t.id === ev.taskId && t.state === 'review');
+    notifyEvent(ev, projectName, info?.title || 'Task', readyForReview);
+
     // A project's events go to that project's scope, which takes nothing else.
     if (ev.projectId) this.scopes.get(ev.projectId)?.apply(ev);
     gitEvent(ev);
@@ -338,8 +385,19 @@ class AppState {
     switch (ev.type) {
       case 'project.registered':
       case 'project.inspected':
+      case 'project.updated':
         void api.listProjects().then(
           (ps) => (this.projects = ps),
+          (err) => this.handleError(err),
+        );
+        break;
+      case 'settings.updated':
+        // Another device changed the defaults, or finished setup: follow it.
+        void Promise.all([api.getSettings(), api.onboarding()]).then(
+          ([execution, onboarding]) => {
+            this.globalExecution = execution;
+            this.onboarding = onboarding;
+          },
           (err) => this.handleError(err),
         );
         break;

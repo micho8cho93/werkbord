@@ -17,6 +17,9 @@ type Adapter struct {
 	Name      string // the ID; defaults to "fake"
 	Info      domain.Agent
 	StartFunc func(req agent.StartRequest) error // returns an error to make Start fail
+	// Opts is what Options reports; nil means the agent offers no models or
+	// reasoning levels beyond "Agent default".
+	Opts *domain.AgentOptions
 
 	mu       sync.Mutex
 	sessions []*Session
@@ -39,6 +42,16 @@ func (a *Adapter) Detect(context.Context) domain.Agent {
 		info = domain.Agent{ID: a.ID(), Name: "Fake agent", Available: true, Version: "0.0.0"}
 	}
 	return info
+}
+
+var _ agent.Optioner = (*Adapter)(nil)
+
+// Options implements agent.Optioner.
+func (a *Adapter) Options(context.Context) domain.AgentOptions {
+	if a.Opts != nil {
+		return *a.Opts
+	}
+	return domain.AgentOptions{AgentID: a.ID(), CustomModels: true, ModelsSource: domain.OptionsBuiltIn, ReasoningSource: domain.OptionsBuiltIn}
 }
 
 // Start implements agent.Adapter.

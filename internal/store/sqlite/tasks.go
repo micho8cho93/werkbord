@@ -10,18 +10,18 @@ import (
 
 type taskRepo struct{ q queryer }
 
-const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, policy`
+const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution`
 
 func scanTask(s interface{ Scan(...any) error }) (*domain.Task, error) {
 	var t domain.Task
 	var created, updated int64
-	var policy string
-	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &policy); err != nil {
+	var execution string
+	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution); err != nil {
 		return nil, err
 	}
 	t.CreatedAt, t.UpdatedAt = fromMS(created), fromMS(updated)
 	var err error
-	if t.Policy, err = decodePolicy(policy); err != nil {
+	if t.Execution, err = decodeExecution(execution); err != nil {
 		return nil, fmt.Errorf("task %s: %w", t.ID, err)
 	}
 	return &t, nil
@@ -31,13 +31,13 @@ func (r taskRepo) Create(ctx context.Context, t *domain.Task) error {
 	if t.Version == 0 {
 		t.Version = 1
 	}
-	policy, err := encodePolicy(t.Policy)
+	execution, err := encodeExecution(t.Execution)
 	if err != nil {
 		return err
 	}
 	_, err = r.q.ExecContext(ctx,
 		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), policy)
+		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), execution)
 	if isFKViolation(err) {
 		return fmt.Errorf("project %s: %w", t.ProjectID, domain.ErrNotFound)
 	}
@@ -68,14 +68,14 @@ func (r taskRepo) ListByProject(ctx context.Context, projectID string) ([]domain
 }
 
 func (r taskRepo) Update(ctx context.Context, t *domain.Task) error {
-	policy, err := encodePolicy(t.Policy)
+	execution, err := encodeExecution(t.Execution)
 	if err != nil {
 		return err
 	}
 	res, err := r.q.ExecContext(ctx, `
-		UPDATE tasks SET title = ?, description = ?, state = ?, position = ?, policy = ?, updated_at = ?, version = version + 1
+		UPDATE tasks SET title = ?, description = ?, state = ?, position = ?, execution = ?, updated_at = ?, version = version + 1
 		WHERE id = ? AND version = ?`,
-		t.Title, t.Description, t.State, t.Position, policy, ms(t.UpdatedAt), t.ID, t.Version)
+		t.Title, t.Description, t.State, t.Position, execution, ms(t.UpdatedAt), t.ID, t.Version)
 	if err != nil {
 		return err
 	}

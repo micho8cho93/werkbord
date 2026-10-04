@@ -1,7 +1,7 @@
 // What the interface says about execution policies. No framework code here, so
 // it can be tested on its own.
 
-import type { ExecutionPolicy, InteractionPolicy, Run, Task } from './types';
+import type { ExecutionPolicy, InteractionPolicy, Run } from './types';
 
 export interface InteractionOption {
   value: InteractionPolicy;
@@ -61,11 +61,6 @@ export function interactionShort(p: ExecutionPolicy | undefined): string {
 /** Whether a task or run deserves a mention on a card: the default does not. */
 export function isNotable(p: ExecutionPolicy | undefined): boolean {
   return !!p && p.interaction !== 'interactive';
-}
-
-/** The policy a run will start with: the task's, unless the user chose another for it. */
-export function policyForRun(task: Pick<Task, 'policy'> | undefined, chosen?: InteractionPolicy): ExecutionPolicy {
-  return { interaction: chosen ?? task?.policy?.interaction ?? 'interactive' };
 }
 
 /** A line for a blocked run: what is in the way, in the user's terms. */

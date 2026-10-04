@@ -94,7 +94,7 @@ describe('card text', () => {
   });
 
   it('names agents, falling back to the id', () => {
-    const agents = [{ id: 'codex', name: 'Codex', available: true }];
+    const agents = [{ id: 'codex', name: 'Codex', installed: true, available: true }];
     expect(agentName(agents, 'codex')).toBe('Codex');
     expect(agentName(agents, 'unknown')).toBe('unknown');
   });

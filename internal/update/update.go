@@ -1,0 +1,354 @@
+// Package update finds, downloads, verifies and installs a newer devboard.
+//
+// Releases live where the installer gets them: a GitHub releases page, laid out as
+//
+//	<base>/latest                       redirects to <base>/tag/<tag>
+//	<base>/download/<tag>/<asset>       a release asset
+//
+// with one archive per platform, devboard_<version>_<os>_<arch>.tar.gz (.zip on
+// Windows), and a checksums.txt (sha256sum format) beside them. Nothing is
+// installed unless its checksum matches, and nothing is run before that.
+package update
+
+import (
+	"archive/tar"
+	"archive/zip"
+	"bufio"
+	"compress/gzip"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// DefaultBase is where releases are published.
+const DefaultBase = "https://github.com/micho8cho93/dev-board/releases"
+
+// Source is a place releases come from.
+type Source struct {
+	// Base is the releases URL, without a trailing slash. Empty means DefaultBase,
+	// or DEVBOARD_RELEASE_URL if set (for a mirror, or a test).
+	Base string
+	HTTP *http.Client
+}
+
+func (s Source) base() string {
+	switch {
+	case s.Base != "":
+		return strings.TrimSuffix(s.Base, "/")
+	case os.Getenv("DEVBOARD_RELEASE_URL") != "":
+		return strings.TrimSuffix(os.Getenv("DEVBOARD_RELEASE_URL"), "/")
+	}
+	return DefaultBase
+}
+
+func (s Source) client() *http.Client {
+	if s.HTTP != nil {
+		return s.HTTP
+	}
+	return &http.Client{Timeout: 10 * time.Minute}
+}
+
+// Latest returns the newest release's tag, found by following /latest: that needs
+// no API and no credentials, and is not subject to API rate limits.
+func (s Source) Latest(ctx context.Context) (string, error) {
+	c := *s.client()
+	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.base()+"/latest", nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("look for the latest release: %w", err)
+	}
+	defer resp.Body.Close()
+	loc := resp.Header.Get("Location")
+	if resp.StatusCode < 300 || resp.StatusCode >= 400 || loc == "" {
+		return "", fmt.Errorf("look for the latest release: %s did not point at a release (HTTP %d)", s.base()+"/latest", resp.StatusCode)
+	}
+	u, err := url.Parse(loc)
+	if err != nil {
+		return "", err
+	}
+	tag := path.Base(u.Path)
+	if !tagRE.MatchString(tag) {
+		return "", fmt.Errorf("the latest release is called %q, which is not a version", tag)
+	}
+	return tag, nil
+}
+
+var tagRE = regexp.MustCompile(`^v\d+\.\d+\.\d+([-+][0-9A-Za-z.-]+)?$`)
+
+// ValidTag reports whether s is a release tag such as v1.2.3.
+func ValidTag(s string) bool { return tagRE.MatchString(s) }
+
+// AssetName is the archive for a platform.
+func AssetName(tag, goos, goarch string) string {
+	ext := ".tar.gz"
+	if goos == "windows" {
+		ext = ".zip"
+	}
+	return fmt.Sprintf("devboard_%s_%s_%s%s", strings.TrimPrefix(tag, "v"), goos, goarch, ext)
+}
+
+const (
+	maxArchive   = 300 << 20
+	maxChecksums = 1 << 20
+	maxBinary    = 300 << 20
+)
+
+func (s Source) get(ctx context.Context, rawURL string, limit int64, dst io.Writer) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := s.client().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s: HTTP %d", rawURL, resp.StatusCode)
+	}
+	n, err := io.Copy(dst, io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return err
+	}
+	if n > limit {
+		return fmt.Errorf("%s is larger than %d bytes", rawURL, limit)
+	}
+	return nil
+}
+
+// Download fetches the archive for a platform into dir and verifies it against
+// the release's checksums. It returns the archive's path. An archive whose
+// checksum is missing from the list, or does not match, is deleted and refused.
+func (s Source) Download(ctx context.Context, tag, goos, goarch, dir string) (string, error) {
+	asset := AssetName(tag, goos, goarch)
+	base := s.base() + "/download/" + tag + "/"
+	var sums strings.Builder
+	if err := s.get(ctx, base+"checksums.txt", maxChecksums, &sums); err != nil {
+		return "", fmt.Errorf("download the checksums: %w", err)
+	}
+	want, ok := checksumFor(sums.String(), asset)
+	if !ok {
+		return "", fmt.Errorf("the checksums for %s do not list %s: this release has no build for %s/%s", tag, asset, goos, goarch)
+	}
+	dest := filepath.Join(dir, asset)
+	f, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.New()
+	err = s.get(ctx, base+asset, maxArchive, io.MultiWriter(f, h))
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(dest)
+		return "", fmt.Errorf("download %s: %w", asset, err)
+	}
+	if got := hex.EncodeToString(h.Sum(nil)); !strings.EqualFold(got, want) {
+		_ = os.Remove(dest)
+		return "", fmt.Errorf("%s does not match its checksum (expected %s, got %s): not installing it", asset, want, got)
+	}
+	return dest, nil
+}
+
+// checksumFor finds a file's sha256 in sha256sum output.
+func checksumFor(list, name string) (string, bool) {
+	sc := bufio.NewScanner(strings.NewReader(list))
+	for sc.Scan() {
+		f := strings.Fields(sc.Text())
+		if len(f) == 2 && len(f[0]) == 64 && strings.TrimPrefix(f[1], "*") == name {
+			return f[0], true
+		}
+	}
+	return "", false
+}
+
+// BinaryName is the executable's name inside an archive for a platform.
+func BinaryName(goos string) string {
+	if goos == "windows" {
+		return "devboard.exe"
+	}
+	return "devboard"
+}
+
+// ExtractBinary takes the devboard executable out of an archive and writes it into
+// dir. Only that one file is read, by name, and never from a path the archive
+// chooses, so a hostile archive cannot write elsewhere.
+func ExtractBinary(archive, goos, dir string) (string, error) {
+	want := BinaryName(goos)
+	dest := filepath.Join(dir, want)
+	write := func(r io.Reader) error {
+		f, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+		if err != nil {
+			return err
+		}
+		n, err := io.Copy(f, io.LimitReader(r, maxBinary+1))
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		if err == nil && n > maxBinary {
+			err = errors.New("the executable in the archive is implausibly large")
+		}
+		if err != nil {
+			_ = os.Remove(dest)
+		}
+		return err
+	}
+	if strings.HasSuffix(archive, ".zip") {
+		zr, err := zip.OpenReader(archive)
+		if err != nil {
+			return "", err
+		}
+		defer zr.Close()
+		for _, zf := range zr.File {
+			if path.Base(zf.Name) == want && !zf.FileInfo().IsDir() {
+				rc, err := zf.Open()
+				if err != nil {
+					return "", err
+				}
+				defer rc.Close()
+				return dest, write(rc)
+			}
+		}
+		return "", fmt.Errorf("%s has no %s", filepath.Base(archive), want)
+	}
+	f, err := os.Open(archive)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return "", err
+	}
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return "", fmt.Errorf("%s has no %s", filepath.Base(archive), want)
+		}
+		if err != nil {
+			return "", err
+		}
+		if hdr.Typeflag == tar.TypeReg && path.Base(hdr.Name) == want {
+			return dest, write(tr)
+		}
+	}
+}
+
+// Replace puts the executable at newBin in the place of the one at current, so
+// the next start runs it, and keeps the old one beside it as current + ".prev".
+// On Unix a running executable can be replaced by renaming over it; on Windows it
+// can only be renamed aside, so it is.
+func Replace(current, newBin string) (prev string, err error) {
+	dir := filepath.Dir(current)
+	prev = current + ".prev"
+	staged := filepath.Join(dir, "."+filepath.Base(current)+".new")
+	if err := copyFile(newBin, staged, 0o755); err != nil {
+		return "", fmt.Errorf("cannot write to %s (%w): reinstall with the install script, or use sudo", dir, err)
+	}
+	defer os.Remove(staged)
+	_ = os.Remove(prev)
+	if runtime.GOOS == "windows" {
+		if err := os.Rename(current, prev); err != nil {
+			return "", err
+		}
+		if err := os.Rename(staged, current); err != nil {
+			_ = os.Rename(prev, current)
+			return "", err
+		}
+		return prev, nil
+	}
+	if err := copyFile(current, prev, 0o755); err != nil {
+		return "", fmt.Errorf("keep the old version: %w", err)
+	}
+	if err := os.Rename(staged, current); err != nil {
+		return "", err
+	}
+	return prev, nil
+}
+
+// Restore puts the old executable back.
+func Restore(current, prev string) error {
+	if runtime.GOOS == "windows" {
+		_ = os.Remove(current)
+	}
+	return os.Rename(prev, current)
+}
+
+func copyFile(src, dst string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+// ---- versions ----
+
+var semverRE = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$`)
+
+// Release reports whether v is a release version (v1.2.3, optionally with a
+// pre-release part), as opposed to a build from source ("dev", "v1.2.3-4-gabc-dirty").
+func Release(v string) bool {
+	m := semverRE.FindStringSubmatch(v)
+	return m != nil && !strings.Contains(v, "-dirty") && !gitDescribeRE.MatchString(v)
+}
+
+var gitDescribeRE = regexp.MustCompile(`-\d+-g[0-9a-f]+`)
+
+// Compare orders two versions: -1, 0 or 1. A pre-release is older than its release.
+// Versions that are not versions compare as equal.
+func Compare(a, b string) int {
+	ma, mb := semverRE.FindStringSubmatch(a), semverRE.FindStringSubmatch(b)
+	if ma == nil || mb == nil {
+		return 0
+	}
+	for i := 1; i <= 3; i++ {
+		x, _ := strconv.Atoi(ma[i])
+		y, _ := strconv.Atoi(mb[i])
+		if x != y {
+			if x < y {
+				return -1
+			}
+			return 1
+		}
+	}
+	switch pa, pb := ma[4], mb[4]; {
+	case pa == pb:
+		return 0
+	case pa == "":
+		return 1
+	case pb == "":
+		return -1
+	case pa < pb:
+		return -1
+	}
+	return 1
+}

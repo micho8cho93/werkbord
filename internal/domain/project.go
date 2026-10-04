@@ -9,11 +9,15 @@ import (
 // Project is a registered local Git repository. The repository itself is
 // never copied; RepoPath points at the user's existing checkout.
 type Project struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	RepoPath  string    `json:"repoPath"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	RepoPath string `json:"repoPath"`
+	// Execution is the project's defaults for how its tasks are carried out; each
+	// task can override them, and what a project does not set comes from the
+	// global defaults.
+	Execution ExecutionConfig `json:"execution"`
+	CreatedAt time.Time       `json:"createdAt"`
+	UpdatedAt time.Time       `json:"updatedAt"`
 }
 
 // GitRepository is the inspected metadata of a project's repository. It is a

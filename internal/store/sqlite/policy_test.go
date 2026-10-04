@@ -6,46 +6,172 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/store"
 )
 
-func TestTaskPolicyDefaultsAndPersists(t *testing.T) {
+func TestTaskExecutionDefaultsAndPersists(t *testing.T) {
 	db, _ := openTemp(t)
 	p := seedProject(t, db)
 
-	// A task created without a policy is interactive: the default is stored, not left empty.
+	// A task created with nothing set overrides nothing: it inherits everything.
 	plain := mustTask(t, db, p.ID)
-	if got := mustGetTask(t, db, plain.ID); got.Policy.Interaction != domain.InteractionInteractive {
-		t.Fatalf("default policy = %+v", got.Policy)
+	if got := mustGetTask(t, db, plain.ID); !got.Execution.IsZero() {
+		t.Fatalf("default execution = %+v", got.Execution)
 	}
 
-	// A chosen policy is stored, and can be changed.
+	// What is chosen is stored, and can be changed or cleared.
 	task := &domain.Task{ID: domain.NewID(domain.PrefixTask), ProjectID: p.ID, Title: "auto", State: domain.TaskBacklog, Position: 2,
-		Policy: domain.ExecutionPolicy{Interaction: domain.InteractionAutonomousStopIfBlocked}, CreatedAt: now(), UpdatedAt: now()}
+		Execution: domain.ExecutionConfig{Agent: "codex", Model: "gpt-x", Reasoning: "high", Interaction: domain.InteractionAutonomousStopIfBlocked, Priority: domain.PriorityHigh},
+		CreatedAt: now(), UpdatedAt: now()}
 	mustUpdate(t, db, func(tx store.Tx) error { return tx.Tasks().Create(ctx, task) })
-	if got := mustGetTask(t, db, task.ID); got.Policy.Interaction != domain.InteractionAutonomousStopIfBlocked {
-		t.Fatalf("stored policy = %+v", got.Policy)
+	if got := mustGetTask(t, db, task.ID); got.Execution != task.Execution {
+		t.Fatalf("stored execution = %+v", got.Execution)
 	}
-	task.Policy = domain.ExecutionPolicy{Interaction: domain.InteractionAutonomous}
+	task.Execution = domain.ExecutionConfig{Interaction: domain.InteractionAutonomous}
 	mustUpdate(t, db, func(tx store.Tx) error { return tx.Tasks().Update(ctx, task) })
-	if got := mustGetTask(t, db, task.ID); got.Policy.Interaction != domain.InteractionAutonomous || got.Version != 2 {
-		t.Fatalf("changed policy = %+v", got)
+	if got := mustGetTask(t, db, task.ID); got.Execution != task.Execution || got.Version != 2 {
+		t.Fatalf("changed execution = %+v", got)
 	}
 
-	// An unknown policy is refused before it reaches the database, and the database
+	// An unknown value is refused before it reaches the database, and the database
 	// refuses one that gets there by another way.
-	bad := &domain.Task{ID: domain.NewID(domain.PrefixTask), ProjectID: p.ID, Title: "x", State: domain.TaskBacklog, Position: 3,
-		Policy: domain.ExecutionPolicy{Interaction: "reckless"}, CreatedAt: now(), UpdatedAt: now()}
-	if err := db.Update(ctx, func(tx store.Tx) error { return tx.Tasks().Create(ctx, bad) }); !errors.Is(err, domain.ErrInvalid) {
-		t.Errorf("unknown policy: err = %v", err)
+	for name, cfg := range map[string]domain.ExecutionConfig{
+		"interaction":         {Interaction: "reckless"},
+		"priority":            {Priority: "yesterday"},
+		"model without agent": {Model: "x"},
+		"model like a flag":   {Agent: "codex", Model: "--dangerous"},
+	} {
+		bad := &domain.Task{ID: domain.NewID(domain.PrefixTask), ProjectID: p.ID, Title: "x", State: domain.TaskBacklog, Position: 3,
+			Execution: cfg, CreatedAt: now(), UpdatedAt: now()}
+		if err := db.Update(ctx, func(tx store.Tx) error { return tx.Tasks().Create(ctx, bad) }); !errors.Is(err, domain.ErrInvalid) {
+			t.Errorf("%s: err = %v", name, err)
+		}
 	}
-	if _, err := db.writer.ExecContext(ctx, `UPDATE tasks SET policy = '{"interaction":"reckless"}' WHERE id = ?`, plain.ID); err == nil {
-		t.Error("the database accepted an unknown interaction policy")
+	for _, v := range []string{`{"interaction":"reckless"}`, `{"priority":"yesterday"}`, `not json`} {
+		if _, err := db.writer.ExecContext(ctx, `UPDATE tasks SET execution = ? WHERE id = ?`, v, plain.ID); err == nil {
+			t.Errorf("the database accepted execution %s", v)
+		}
 	}
-	if _, err := db.writer.ExecContext(ctx, `UPDATE tasks SET policy = 'not json' WHERE id = ?`, plain.ID); err == nil {
-		t.Error("the database accepted a policy that is not JSON")
+}
+
+func TestProjectExecutionAndSettingsPersist(t *testing.T) {
+	db, _ := openTemp(t)
+	p := seedProject(t, db)
+	if got := mustGetProject(t, db, p.ID); !got.Execution.IsZero() {
+		t.Fatalf("a new project overrides %+v", got.Execution)
+	}
+	cfg := domain.ExecutionConfig{Agent: "claude-code", Model: "opus", Reasoning: "high", Priority: domain.PriorityLow}
+	mustUpdate(t, db, func(tx store.Tx) error { return tx.Projects().SetExecution(ctx, p.ID, cfg, now()) })
+	if got := mustGetProject(t, db, p.ID); got.Execution != cfg {
+		t.Fatalf("project execution = %+v", got.Execution)
+	}
+	if err := db.Update(ctx, func(tx store.Tx) error {
+		return tx.Projects().SetExecution(ctx, "prj_missing", cfg, now())
+	}); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("unknown project: err = %v", err)
+	}
+	if err := db.Update(ctx, func(tx store.Tx) error {
+		return tx.Projects().SetExecution(ctx, p.ID, domain.ExecutionConfig{Priority: "soon"}, now())
+	}); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("bad priority: err = %v", err)
+	}
+
+	// Settings: unset is not found, set round-trips, set again replaces.
+	var got domain.ExecutionConfig
+	if err := db.View(ctx, func(tx store.Tx) error { return tx.Settings().Get(ctx, domain.SettingExecution, &got) }); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unset setting: err = %v", err)
+	}
+	mustUpdate(t, db, func(tx store.Tx) error { return tx.Settings().Set(ctx, domain.SettingExecution, cfg, now()) })
+	mustUpdate(t, db, func(tx store.Tx) error {
+		return tx.Settings().Set(ctx, domain.SettingExecution, domain.ExecutionConfig{Interaction: domain.InteractionAutonomous}, now())
+	})
+	if err := db.View(ctx, func(tx store.Tx) error { return tx.Settings().Get(ctx, domain.SettingExecution, &got) }); err != nil || got.Interaction != domain.InteractionAutonomous || got.Agent != "" {
+		t.Fatalf("setting = %+v, %v", got, err)
+	}
+}
+
+func TestLocalRunnerIsRegisteredOnce(t *testing.T) {
+	db, _ := openTemp(t)
+	first := &domain.Runner{ID: "rnr_a", Name: "mac", Kind: domain.RunnerLocal, Hostname: "mac", OS: "darwin", Arch: "arm64", Version: "1", CreatedAt: now(), LastSeenAt: now()}
+	var a, b *domain.Runner
+	mustUpdate(t, db, func(tx store.Tx) (err error) { a, err = tx.Runners().UpsertLocal(ctx, first); return })
+	// A later start refreshes the record but is the same runner.
+	second := &domain.Runner{ID: "rnr_b", Name: "mac-2", Kind: domain.RunnerLocal, Hostname: "mac-2", OS: "darwin", Arch: "arm64", Version: "2", CreatedAt: now().Add(5 * time.Second), LastSeenAt: now().Add(5 * time.Second)}
+	mustUpdate(t, db, func(tx store.Tx) (err error) { b, err = tx.Runners().UpsertLocal(ctx, second); return })
+	if a.ID != "rnr_a" || b.ID != "rnr_a" || b.Name != "mac-2" || b.Version != "2" || !b.CreatedAt.Equal(a.CreatedAt) || !b.LastSeenAt.After(a.LastSeenAt) {
+		t.Fatalf("runner = %+v then %+v", a, b)
+	}
+	var all []domain.Runner
+	if err := db.View(ctx, func(tx store.Tx) (err error) { all, err = tx.Runners().List(ctx); return }); err != nil || len(all) != 1 {
+		t.Fatalf("runners = %+v, %v", all, err)
+	}
+}
+
+// TestMigrationToExecutionConfig upgrades a version-7 database: a task's chosen
+// interaction policy becomes its override, one that was only ever the default
+// becomes "inherit", and nothing else about the task changes.
+func TestMigrationToExecutionConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v7.db")
+	raw, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw.SetMaxOpenConns(1)
+	ms, err := Migrations()
+	if err != nil || len(ms) < 8 {
+		t.Fatalf("migrations: %d, %v", len(ms), err)
+	}
+	if _, err := migrate(ctx, raw, ms[:7]); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO projects (id, name, repo_path, created_at, updated_at) VALUES ('prj_1', 'old', '/repos/old', 1, 1)`,
+		`INSERT INTO tasks (id, project_id, title, description, state, position, version, created_at, updated_at, policy) VALUES
+		 ('tsk_plain', 'prj_1', 'Plain', '', 'backlog', 1, 1, 1, 1, '{"interaction":"interactive"}'),
+		 ('tsk_auto', 'prj_1', 'Auto', 'd', 'doing', 2, 4, 1, 1, '{"interaction":"autonomous"}'),
+		 ('tsk_stop', 'prj_1', 'Stop', '', 'review', 3, 1, 1, 1, '{"interaction":"autonomous_stop_if_blocked"}')`,
+		`INSERT INTO runs (id, task_id, project_id, agent_id, state, version, created_at, updated_at) VALUES ('run_1', 'tsk_auto', 'prj_1', 'codex', 'completed', 1, 1, 1)`,
+	} {
+		if _, err := raw.ExecContext(ctx, q); err != nil {
+			t.Fatalf("seed v7: %v\n%s", err, q)
+		}
+	}
+	_ = raw.Close()
+
+	db, err := Open(ctx, path, nil)
+	if err != nil {
+		t.Fatalf("upgrade: %v", err)
+	}
+	defer db.Close()
+	want := map[string]domain.InteractionPolicy{"tsk_plain": "", "tsk_auto": domain.InteractionAutonomous, "tsk_stop": domain.InteractionAutonomousStopIfBlocked}
+	for id, interaction := range want {
+		tk := mustGetTask(t, db, id)
+		if tk.Execution != (domain.ExecutionConfig{Interaction: interaction}) {
+			t.Errorf("%s: execution = %+v, want interaction %q only", id, tk.Execution, interaction)
+		}
+	}
+	if tk := mustGetTask(t, db, "tsk_auto"); tk.Title != "Auto" || tk.Description != "d" || tk.Version != 4 || tk.State != domain.TaskDoing {
+		t.Errorf("task changed by the migration: %+v", tk)
+	}
+	if err := db.View(ctx, func(tx store.Tx) error {
+		r, err := tx.Runs().Get(ctx, "run_1")
+		if err != nil || r.Model != "" || r.Reasoning != "" || r.AgentID != "codex" {
+			t.Errorf("run after the migration = %+v, %v", r, err)
+		}
+		p, err := tx.Projects().Get(ctx, "prj_1")
+		if err != nil || !p.Execution.IsZero() {
+			t.Errorf("project after the migration = %+v, %v", p, err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var col int
+	if err := db.writer.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name = 'policy'`).Scan(&col); err != nil || col != 0 {
+		t.Errorf("tasks.policy still exists: %d, %v", col, err)
 	}
 }
 
@@ -289,7 +415,7 @@ func TestMigrationToExecutionPolicyKeepsEverything(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if tk.Policy.Interaction != domain.InteractionInteractive || tk.Version != 3 || tk.State != domain.TaskDoing {
+		if !tk.Execution.IsZero() || tk.Version != 3 || tk.State != domain.TaskDoing {
 			t.Errorf("task after the migration = %+v", tk)
 		}
 		w, err := tx.Worktrees().Get(ctx, "wt_1")
@@ -335,4 +461,13 @@ func TestMigrationToExecutionPolicyKeepsEverything(t *testing.T) {
 			t.Errorf("deleting a run left its question behind")
 		}
 	}
+}
+
+func mustGetProject(t *testing.T, db *DB, id string) *domain.Project {
+	t.Helper()
+	var p *domain.Project
+	if err := db.View(ctx, func(tx store.Tx) (err error) { p, err = tx.Projects().Get(ctx, id); return }); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }

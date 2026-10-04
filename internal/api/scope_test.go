@@ -352,34 +352,34 @@ func TestPolicyOverHTTP(t *testing.T) {
 	pid := rs.project.ID
 	base := rs.url + "/api/projects/" + pid
 
-	// The default is interactive, and shown.
+	// A new task overrides nothing, and the JSON says so.
 	plain := rs.taskIn(t, pid, "plain")
-	if plain.Policy.Interaction != domain.InteractionInteractive {
-		t.Fatalf("default = %+v", plain.Policy)
+	if !plain.Execution.IsZero() {
+		t.Fatalf("default = %+v", plain.Execution)
 	}
 	var raw map[string]any
 	do(t, "POST", base+"/tasks", `{"title":"raw"}`, &raw)
-	if p, _ := raw["policy"].(map[string]any); p["interaction"] != "interactive" {
-		t.Fatalf("the JSON does not say the policy: %v", raw)
+	if _, ok := raw["execution"].(map[string]any); !ok {
+		t.Fatalf("the JSON does not carry the task's execution overrides: %v", raw)
 	}
 
 	// Chosen at creation, and edited afterwards.
 	var task domain.Task
-	if code := do(t, "POST", base+"/tasks", `{"title":"auto","policy":{"interaction":"autonomous"}}`, &task); code != 201 || task.Policy.Interaction != domain.InteractionAutonomous {
+	if code := do(t, "POST", base+"/tasks", `{"title":"auto","execution":{"interaction":"autonomous"}}`, &task); code != 201 || task.Execution.Interaction != domain.InteractionAutonomous {
 		t.Fatalf("create = %d %+v", code, task)
 	}
 	var edited domain.Task
-	if code := do(t, "PATCH", base+"/tasks/"+task.ID, `{"policy":{"interaction":"autonomous_stop_if_blocked"},"version":1}`, &edited); code != 200 ||
-		edited.Policy.Interaction != domain.InteractionAutonomousStopIfBlocked || edited.Title != "auto" || edited.Version != 2 {
+	if code := do(t, "PATCH", base+"/tasks/"+task.ID, `{"execution":{"interaction":"autonomous_stop_if_blocked"},"version":1}`, &edited); code != 200 ||
+		edited.Execution.Interaction != domain.InteractionAutonomousStopIfBlocked || edited.Title != "auto" || edited.Version != 2 {
 		t.Fatalf("edit = %d %+v", code, edited)
 	}
 	var e apiError
-	for _, body := range []string{`{"title":"x","policy":{"interaction":"yolo"}}`, `{"title":"x","policy":{"interaction":"autonomous","permissions":"all"}}`, `{"title":"x","policy":"autonomous"}`} {
+	for _, body := range []string{`{"title":"x","execution":{"interaction":"yolo"}}`, `{"title":"x","execution":{"interaction":"autonomous","permissions":"all"}}`, `{"title":"x","execution":"autonomous"}`, `{"title":"x","policy":{"interaction":"autonomous"}}`} {
 		if code := do(t, "POST", base+"/tasks", body, &e); code != 400 || e.Error.Code != "invalid" {
 			t.Errorf("POST %s = %d %+v", body, code, e)
 		}
 	}
-	if code := do(t, "PATCH", base+"/tasks/"+task.ID, `{"policy":{"interaction":"yolo"},"version":2}`, &e); code != 400 || e.Error.Code != "invalid" {
+	if code := do(t, "PATCH", base+"/tasks/"+task.ID, `{"execution":{"interaction":"yolo"},"version":2}`, &e); code != 400 || e.Error.Code != "invalid" {
 		t.Errorf("edit to an unknown policy = %d %+v", code, e)
 	}
 
@@ -409,7 +409,7 @@ func TestABlockedRunOverHTTP(t *testing.T) {
 	pid := rs.project.ID
 	base := rs.url + "/api/projects/" + pid
 	var task domain.Task
-	do(t, "POST", base+"/tasks", `{"title":"careful","policy":{"interaction":"autonomous_stop_if_blocked"}}`, &task)
+	do(t, "POST", base+"/tasks", `{"title":"careful","execution":{"interaction":"autonomous_stop_if_blocked"}}`, &task)
 	run := rs.startIn(t, pid, task)
 	rs.adapter.Last().Ask("q", "Which database?", "sqlite", "postgres")
 	waitFor(t, "the run to be blocked", func() bool { return rs.getRun(t, run.ID).State == domain.RunBlocked })
@@ -448,7 +448,7 @@ func TestAnAutonomousRunDoesNotInterruptOverHTTP(t *testing.T) {
 	rs := newRunsServer(t)
 	pid := rs.project.ID
 	var task domain.Task
-	do(t, "POST", rs.url+"/api/projects/"+pid+"/tasks", `{"title":"hands off","policy":{"interaction":"autonomous"}}`, &task)
+	do(t, "POST", rs.url+"/api/projects/"+pid+"/tasks", `{"title":"hands off","execution":{"interaction":"autonomous"}}`, &task)
 	run := rs.startIn(t, pid, task)
 	s := rs.adapter.Last()
 

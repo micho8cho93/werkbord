@@ -1,8 +1,9 @@
 <script lang="ts">
   import { ApiError, api } from '../lib/api';
   import { agentName, cardActivity, oneLine, runElapsed, runStatus } from '../lib/format';
-  import InteractionPicker from '../lib/InteractionPicker.svelte';
-  import { interactionShort, isNotable } from '../lib/policy';
+  import { compact, hasOverrides, priorityLabel, resolveFor, summaryLine } from '../lib/execution';
+  import ExecutionFields from '../lib/ExecutionFields.svelte';
+  import { interactionShort } from '../lib/policy';
   import { kindLabel } from '../lib/questions';
   import RunBadge from '../lib/RunBadge.svelte';
   import { globalHref, taskHref } from '../lib/router.svelte';
@@ -11,7 +12,7 @@
   import {
     TASK_STATES,
     TASK_STATE_LABELS,
-    type InteractionPolicy,
+    type ExecutionConfig,
     type Project,
     type Task,
     type TaskState,
@@ -22,8 +23,12 @@
   // On a phone one column is visible at a time; this is the one shown.
   let activeColumn = $state<TaskState>('backlog');
   let newTitle = $state('');
-  let newInteraction = $state<InteractionPolicy>('interactive');
+  /** What the new task overrides; empty means it inherits everything from the project and your defaults. */
+  let newExecution = $state<ExecutionConfig>({});
   let showOptions = $state(false);
+  /** What a task here gets if it sets nothing itself: the project's defaults over your global ones. */
+  const inherited = $derived(resolveFor({}, project.execution, app.globalExecution));
+  const optionsNote = $derived(hasOverrides(compact(newExecution)) ? summaryLine(resolveFor(compact(newExecution), project.execution, app.globalExecution), app.agents, app.agentOptions) || 'Customised' : '');
   let busy = $state(false);
   let notice = $state('');
 
@@ -43,8 +48,9 @@
     if (!title) return;
     busy = true;
     try {
-      scope.upsertTask(await api.createTask(project.id, title, '', { interaction: newInteraction }));
+      scope.upsertTask(await api.createTask(project.id, title, '', compact(newExecution)));
       newTitle = '';
+      newExecution = {};
       notice = '';
     } catch (err) {
       notice = err instanceof Error ? err.message : String(err);
@@ -110,11 +116,11 @@
             <button class="btn primary" type="submit" disabled={busy || !newTitle.trim()}>Add</button>
           </div>
           <button type="button" class="options-toggle" aria-expanded={showOptions} onclick={() => (showOptions = !showOptions)}>
-            {showOptions ? 'Hide options' : 'Interaction'}
-            {#if !showOptions && newInteraction !== 'interactive'}<span class="chosen">· {interactionShort({ interaction: newInteraction })}</span>{/if}
+            {showOptions ? 'Hide options' : 'Options'}
+            {#if !showOptions && optionsNote}<span class="chosen">· {optionsNote}</span>{/if}
           </button>
           {#if showOptions}
-            <InteractionPicker name="new-interaction" bind:value={newInteraction} />
+            <ExecutionFields bind:value={newExecution} {inherited} idPrefix="new-task" />
           {/if}
         </form>
       {/if}
@@ -124,6 +130,7 @@
           {@const run = scope.latestRun[task.id]}
           {@const status = run ? runStatus(run) : undefined}
           {@const ask = run ? scope.pendingFor(run.id) : []}
+          {@const eff = resolveFor(task.execution, project.execution, app.globalExecution)}
           <li class="card task" data-tone={status?.tone} data-needs={status?.needsInput}>
             <a class="title" href={taskHref(project.id, task.id)}>{task.title}</a>
             {#if run && status}
@@ -160,8 +167,14 @@
                   {/each}
                 </select>
               </label>
-              {#if isNotable(task.policy)}
-                <span class="policy" title="Interaction: {interactionShort(task.policy)}">{interactionShort(task.policy)}</span>
+              {#if eff.priority !== 'normal'}
+                <span class="policy" data-priority={eff.priority} title="Priority: {priorityLabel(eff.priority)}">{priorityLabel(eff.priority)} priority</span>
+              {/if}
+              {#if eff.interaction !== 'interactive'}
+                <span class="policy" title="Interaction: {interactionShort({ interaction: eff.interaction })}">{interactionShort({ interaction: eff.interaction })}</span>
+              {/if}
+              {#if task.execution.agent || task.execution.model || task.execution.reasoning}
+                <span class="policy" title="Set on this task">{summaryLine(eff, app.agents, app.agentOptions)}</span>
               {/if}
             </div>
           </li>
@@ -387,6 +400,10 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 10px;
+  }
+
+  .policy[data-priority='high'] {
+    color: var(--danger);
   }
 
   .policy {

@@ -38,8 +38,9 @@ func newRunsServer(t *testing.T) *runsServer {
 			t.Fatal(err)
 		}
 		deps := o.Runs.Deps
+		o.Projects.Catalog, o.Tasks.Catalog, o.Settings.Catalog = reg, reg, reg
 		mgr := runner.New(runner.Options{
-			Runs: o.Runs, Tasks: o.Tasks, Projects: o.Projects, Worktrees: &service.Worktrees{Deps: deps, Root: root},
+			Runs: o.Runs, Tasks: o.Tasks, Projects: o.Projects, Settings: o.Settings, Worktrees: &service.Worktrees{Deps: deps, Root: root},
 			Git: &gitrepo.CLI{}, Agents: reg, WorktreeRoot: root, FlushInterval: 10 * time.Millisecond, FinishTimeout: time.Second,
 		})
 		t.Cleanup(func() { _ = mgr.Shutdown(context.Background()) })
@@ -78,6 +79,13 @@ func (rs *runsServer) start(t *testing.T, task domain.Task) domain.Run {
 		t.Fatalf("start run: %d", code)
 	}
 	return run
+}
+
+func (rs *runsServer) finish(t *testing.T, run domain.Run) {
+	t.Helper()
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/finish", ``, nil); code != 200 {
+		t.Fatalf("finish: %d", code)
+	}
 }
 
 func (rs *runsServer) getRun(t *testing.T, id string) domain.Run {
@@ -269,8 +277,11 @@ func TestStartRunErrors(t *testing.T) {
 	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"gemini"}`); code != 404 || e.Error.Code != "not_found" {
 		t.Errorf("unknown agent: %d %+v", code, e)
 	}
-	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{}`); code != 400 || e.Error.Code != "invalid" {
-		t.Errorf("no agent: %d %+v", code, e)
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"model":"opus"}`); code != 400 || e.Error.Code != "invalid" {
+		t.Errorf("a model without an agent: %d %+v", code, e)
+	}
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"fake","reasoning":"--sneaky"}`); code != 400 || e.Error.Code != "invalid" {
+		t.Errorf("a reasoning level that looks like a flag: %d %+v", code, e)
 	}
 	if code := post("/api/projects/"+rs.project.ID+"/tasks/tsk_missing/runs", `{"agentId":"fake"}`); code != 404 {
 		t.Errorf("unknown task: %d", code)

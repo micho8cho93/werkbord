@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
 BIN     := bin/devboard
 
-.PHONY: all build web web-embed go-build test lint check dev-api dev-web clean tag
+.PHONY: all build web web-embed go-build test lint check dev-api dev-web clean tag dist test-install
 
 all: check build
 
@@ -34,6 +34,7 @@ test: web/node_modules
 ## lint: gofmt, go vet, svelte-check, eslint
 lint: web/node_modules
 	@out=$$(gofmt -l cmd internal); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	@for f in scripts/*.sh; do sh -n $$f || exit 1; done
 	$(GO) vet ./...
 	cd web && $(NPM) run check && $(NPM) run lint
 
@@ -56,6 +57,14 @@ tag:
 	@! git rev-parse -q --verify "refs/tags/$(VERSION)" >/dev/null || { echo "$(VERSION) already exists"; exit 1; }
 	git tag -a $(VERSION) -m "$(VERSION) — $$(git log -1 --format=%s)"
 
+## dist: release archives and checksums for every platform, e.g. make dist VERSION=v0.7.0 (what CI publishes)
+dist: web web-embed
+	scripts/build-release.sh $(VERSION) dist
+
+## test-install: run the installer against a release server on this computer (installs nothing outside a temp dir)
+test-install: web web-embed
+	scripts/test-install.sh
+
 clean:
-	rm -rf bin web/dist
+	rm -rf bin web/dist dist
 	find internal/webui/dist -mindepth 1 ! -name .gitkeep -delete

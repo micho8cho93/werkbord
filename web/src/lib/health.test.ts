@@ -135,10 +135,16 @@ describe('what tapping an action does', () => {
     expect(p.type).toBe('task');
     if (p.type === 'task') {
       expect(p.title).toBe('Coordinate a and b');
+      expect(p.askAgent).toBe(false);
       expect(p.description).toContain('a and b both change server.go.');
       expect(p.description).toContain('Shared files: server.go');
-      expect(p.description).toContain('a guess from patterns');
+      expect(p.description).toContain('heuristic; verify before acting');
     }
+  });
+
+  it('keeps an investigation distinct so the UI can ask for an agent and policy', () => {
+    const p = actionPlan(finding({}, { kind: 'ask_agent', taskTitle: 'Investigate the branch', taskDescription: 'Check the branch.' }), 'prj_1');
+    expect(p).toMatchObject({ type: 'task', askAgent: true, title: 'Investigate the branch' });
   });
 
   it('never offers a button for what Dev Board cannot do, and says why', () => {
@@ -178,7 +184,7 @@ describe('describing a finding', () => {
     const d = taskDescription(finding());
     expect(d).toContain('The agent left files uncommitted.');
     expect(d).toContain('- Files: 2 modified');
-    expect(d).toContain('a fact from Git');
+    expect(d).toContain('deterministic Git or Dev Board evidence');
   });
 
   it('groups by project', () => {
