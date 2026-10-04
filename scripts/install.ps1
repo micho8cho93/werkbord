@@ -34,7 +34,10 @@ switch -Regex ($archName) {
 if ([Environment]::OSVersion.Platform -ne 'Win32NT' -and -not $env:DEVBOARD_ARCH) { Fail 'this is the Windows installer; on macOS and Linux use install.sh' }
 
 # ---- which release ----
+# A release is named by its product's tag (werkbord-v1.2.3; the earliest releases were a
+# bare v1.2.3). The executable reports the bare version, v1.2.3.
 $tag = $env:DEVBOARD_VERSION
+$explicit = [bool]$tag
 if (-not $tag) {
   Write-Host 'Looking for the latest release...'
   # /latest answers with a redirect to /tag/<version>; read it without following it.
@@ -48,14 +51,24 @@ if (-not $tag) {
     $tag = ($loc.ToString().TrimEnd('/') -split '/')[-1]
   } finally { $client.Dispose() }
 }
-if ($tag -match '^\d+\.\d+\.\d+$') { $tag = "v$tag" }
-if ($tag -notmatch '^v\d+\.\d+\.\d+') { Fail "`"$tag`" is not a release version (expected something like v1.2.3)" }
+if ($tag -match '^werkbord-team-') { Fail "`"$tag`" is a Werkbord Team release. This installer is for the individual product; Team has its own." }
+if ($tag -match '^werkbord-(v\d+\.\d+\.\d+.*)$') {
+  $version = $Matches[1]
+} elseif ($tag -match '^v?(\d+)\.(\d+)\.\d+') {
+  $version = "v$($tag.TrimStart('v'))"
+  if ($explicit) {
+    # Asked for by version: releases before 0.8.0 have the bare tag, later ones the product tag.
+    if ([int]$Matches[1] -eq 0 -and [int]$Matches[2] -lt 8) { $tag = $version } else { $tag = "werkbord-$version" }
+  }
+} else {
+  Fail "`"$tag`" is not a release version (expected something like v1.2.3)"
+}
 
-$asset = "devboard_$($tag.TrimStart('v'))_windows_$arch.zip"
+$asset = "devboard_$($version.TrimStart('v'))_windows_$arch.zip"
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("devboard-install-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
-  Write-Host "Installing Dev Board $tag for windows/$arch"
+  Write-Host "Installing Dev Board $version for windows/$arch"
   Invoke-WebRequest -UseBasicParsing -Uri "$Base/download/$tag/checksums.txt" -OutFile (Join-Path $tmp 'checksums.txt')
   $want = $null
   foreach ($line in Get-Content (Join-Path $tmp 'checksums.txt')) {
@@ -72,7 +85,7 @@ try {
   $exe = Get-ChildItem -Path (Join-Path $tmp 'unpack') -Recurse -Filter 'devboard.exe' | Select-Object -First 1
   if (-not $exe) { Fail "$asset does not contain devboard.exe" }
   $reported = (& $exe.FullName version 2>$null | Out-String).Trim()
-  if ($reported -ne $tag) { Fail "the downloaded executable says it is `"$reported`", not $tag: not installing it" }
+  if ($reported -ne $version) { Fail "the downloaded executable says it is `"$reported`", not $version: not installing it" }
 
   $dir = if ($env:DEVBOARD_INSTALL_DIR) { $env:DEVBOARD_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Programs\Devboard' }
   New-Item -ItemType Directory -Force -Path $dir | Out-Null

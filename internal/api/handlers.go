@@ -2,39 +2,26 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
 
 	"devboard/internal/domain"
+	"devboard/internal/httpkit"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 )
 
 const maxBodyBytes = 1 << 20
 
-type errorBody struct {
-	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	} `json:"error"`
-}
+type errorBody = httpkit.ErrorBody
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
+func writeJSON(w http.ResponseWriter, status int, v any) { httpkit.WriteJSON(w, status, v) }
 
 func writeError(w http.ResponseWriter, status int, code, msg string) {
-	var b errorBody
-	b.Error.Code, b.Error.Message = code, msg
-	writeJSON(w, status, b)
+	httpkit.WriteError(w, status, code, msg)
 }
 
 // fail maps domain errors to HTTP responses. Unexpected errors are logged and
@@ -78,14 +65,8 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func decode(w http.ResponseWriter, r *http.Request, dst any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		return fmt.Errorf("%w: request body: %v", domain.ErrInvalid, err)
-	}
-	if dec.Decode(&struct{}{}) != io.EOF {
-		return fmt.Errorf("%w: request body must be a single JSON object", domain.ErrInvalid)
+	if err := httpkit.DecodeJSON(w, r, dst, maxBodyBytes); err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrInvalid, err)
 	}
 	return nil
 }

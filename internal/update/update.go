@@ -8,6 +8,13 @@
 // with one archive per platform, devboard_<version>_<os>_<arch>.tar.gz (.zip on
 // Windows), and a checksums.txt (sha256sum format) beside them. Nothing is
 // installed unless its checksum matches, and nothing is run before that.
+//
+// The repository releases more than one product, so a release is named by a tag
+// that says whose it is: werkbord-v1.2.3 for this program (releases before 0.8.0
+// used a bare v1.2.3). The program itself reports the bare version, v1.2.3; the
+// tag is only how a release is found and downloaded. /latest must stay pointed at
+// this product's newest release, which is why the other products' releases are
+// published with "latest" turned off (see docs/VERSIONING.md).
 package update
 
 import (
@@ -90,18 +97,47 @@ func (s Source) Latest(ctx context.Context) (string, error) {
 	return tag, nil
 }
 
-var tagRE = regexp.MustCompile(`^v\d+\.\d+\.\d+([-+][0-9A-Za-z.-]+)?$`)
+// TagPrefix starts the tag of every release of this product, from FirstProductTag on.
+const TagPrefix = "werkbord-"
 
-// ValidTag reports whether s is a release tag such as v1.2.3.
+// FirstProductTag is the first version released under a product tag; earlier
+// releases are tagged with the bare version.
+const FirstProductTag = "v0.8.0"
+
+var tagRE = regexp.MustCompile(`^(?:werkbord-)?v\d+\.\d+\.\d+([-+][0-9A-Za-z.-]+)?$`)
+
+// ValidTag reports whether s is a release tag of this product: werkbord-v1.2.3,
+// or the bare v1.2.3 of the earliest releases. Another product's tag (such as
+// werkbord-team-v1.2.3) is not one.
 func ValidTag(s string) bool { return tagRE.MatchString(s) }
 
-// AssetName is the archive for a platform.
+// VersionOf is the version a release tag names, which is what the program
+// reports about itself: werkbord-v1.2.3 and v1.2.3 are both v1.2.3.
+func VersionOf(tag string) string { return strings.TrimPrefix(tag, TagPrefix) }
+
+// TagFor is the tag of the release of a version (v1.2.3 or 1.2.3). A full tag is
+// returned as it is.
+func TagFor(version string) string {
+	if strings.HasPrefix(version, TagPrefix) {
+		return version
+	}
+	v := version
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
+	}
+	if Compare(v, FirstProductTag) < 0 {
+		return v
+	}
+	return TagPrefix + v
+}
+
+// AssetName is the archive for a platform in the release with this tag.
 func AssetName(tag, goos, goarch string) string {
 	ext := ".tar.gz"
 	if goos == "windows" {
 		ext = ".zip"
 	}
-	return fmt.Sprintf("devboard_%s_%s_%s%s", strings.TrimPrefix(tag, "v"), goos, goarch, ext)
+	return fmt.Sprintf("devboard_%s_%s_%s%s", strings.TrimPrefix(VersionOf(tag), "v"), goos, goarch, ext)
 }
 
 const (

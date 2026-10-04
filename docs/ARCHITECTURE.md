@@ -7,6 +7,10 @@ worktrees and credentials. Phones, tablets and browsers
 are remote controls for it. There is no hosted backend, no account system and no cloud
 database.
 
+The repository also builds **Werkbord Team**, a separate product that coordinates a team and never executes anything;
+this document is about the individual product, and [PRODUCTS.md](PRODUCTS.md) explains how the two relate. Nothing here
+depends on Team, and a test keeps it so.
+
 This document describes the system as built: the foundation, the agent runtime (§8, §14),
 questions (§15), projects as the scope of the application (§16), per-task execution policies (§17), the Git Control Center (§18) and repository health (§19) and installation, the private network and execution defaults (§20). Sections marked *Deferred* name things that are intentionally not implemented yet.
 
@@ -43,7 +47,9 @@ system. No Docker, no Electron, no second language on the backend.
 | --- | --- | --- | --- |
 | `internal/domain` | Entity types, state enums, validation, the run state machine, sentinel errors, and the pure rules (Git state words, repository-health findings and their lifecycle) | stdlib only | Know about SQL, HTTP, Git or agents |
 | `internal/store` | Persistence **interfaces** (`Store`, `Tx`, one repo per aggregate) | `domain` | Contain an implementation |
-| `internal/store/sqlite` | The SQLite implementation and versioned migrations | `domain`, `store` | Contain business rules beyond integrity constraints |
+| `internal/store/sqlite` | The SQLite schema, migrations and repositories; opening, migrating and backing up the file is `internal/sqlitekit` | `domain`, `store`, `sqlitekit` | Contain business rules beyond integrity constraints |
+| `internal/sqlitekit` | **Shared with Werkbord Team.** Opens a SQLite database (one writer, readers, WAL), runs versioned migrations, backs up before an upgrade | stdlib, the SQLite driver | Know any product's schema |
+| `internal/httpkit` | **Shared with Werkbord Team.** JSON responses and error envelope, strict body decoding, request logging, panic recovery, security headers | stdlib | Hold a route or a rule |
 | `internal/events` | Live fan-out of committed events (`Publisher`, `Subscriber`, `Broker`) | `domain` | Be relied on for durability |
 | `internal/gitrepo` | The Git boundary: `Inspector`; `Worktrees` (makes and removes linked worktrees: all the agent runner may use); `Reader` and `Operator` (the Git Control Center's reads and guarded writes); one CLI implementation | `domain` | Run a repository's hooks, force anything, or decide whether an action *should* happen |
 | `internal/github` | The GitHub boundary: the user's own `gh` CLI, for pull requests | `domain` | Hold a GitHub credential, account or token |
@@ -52,7 +58,7 @@ system. No Docker, no Electron, no second language on the backend.
 | `internal/agent/fake` | A scriptable in-memory adapter for tests | `agent`, `domain` | Be used outside tests |
 | `internal/runner` | Agent processes: starting runs, the live-session goroutines, input, stop, recovery, shutdown | `service`, `agent`, `gitrepo` | Write the store except through `service` |
 | `internal/service` | Use cases: register project, create/move task, recover runs, `GitControl` (what to show of Git, and every safety check before an action) and `GitHealth` (what Git state needs attention: gathers facts, keeps findings' lives, watches events) | all of the above via interfaces | Speak HTTP |
-| `internal/api` | HTTP routing, JSON, SSE, auth and security middleware | `service`, `store`, `events`, `agent`, `runner` | Contain business rules |
+| `internal/api` | HTTP routing, JSON, SSE and auth; the response and security helpers are `internal/httpkit` | `service`, `store`, `events`, `agent`, `runner`, `httpkit` | Contain business rules |
 | `internal/webui` | Serving the embedded PWA build | stdlib | — |
 | `internal/controller` | Wiring and lifecycle | everything | — |
 | `internal/config`, `internal/logging` | Settings and the slog logger | stdlib | — |

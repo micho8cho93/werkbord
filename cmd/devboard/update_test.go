@@ -22,7 +22,7 @@ import (
 // prints its own version, like the real one does for `devboard version`.
 func publishRelease(t *testing.T, tag string, tamper bool) *httptest.Server {
 	t.Helper()
-	script := "#!/bin/sh\n[ \"$1\" = version ] && echo " + tag + "\nexit 0\n"
+	script := "#!/bin/sh\n[ \"$1\" = version ] && echo " + update.VersionOf(tag) + "\nexit 0\n"
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
@@ -217,5 +217,35 @@ func TestUpdateDowngradeAndBadVersionNeedCare(t *testing.T) {
 	e.out.Reset()
 	if err := e.app.cmdUpdate(bg, nil); err != nil || !strings.Contains(e.output(), "newer than the latest release") {
 		t.Fatalf("%v\n%s", err, e.output())
+	}
+}
+
+// Releases are named by a product tag, but the program reports the bare version.
+func TestUpdateInstallsAReleaseNamedByAProductTag(t *testing.T) {
+	e := newTestEnv(t)
+	setVersion(t, "v0.8.0")
+	publishRelease(t, "werkbord-v0.8.1", false)
+	bin, _ := e.app.executable()
+
+	e.out.Reset()
+	if err := e.app.cmdUpdate(bg, []string{"--check"}); err != nil || !strings.Contains(e.output(), "Update available: v0.8.0 → v0.8.1") {
+		t.Fatalf("check: %v\n%s", err, e.output())
+	}
+	e.out.Reset()
+	if err := e.app.cmdUpdate(bg, nil); err != nil {
+		t.Fatalf("update: %v\n%s", err, e.output())
+	}
+	if b, _ := os.ReadFile(bin); !strings.Contains(string(b), "v0.8.1") {
+		t.Fatalf("the binary was not replaced: %s", b)
+	}
+	if !strings.Contains(e.output(), "Installed v0.8.1 over v0.8.0") {
+		t.Fatalf("output:\n%s", e.output())
+	}
+
+	// --version takes the bare version too, and finds the release by its product tag.
+	setVersion(t, "v0.8.0")
+	e.out.Reset()
+	if err := e.app.cmdUpdate(bg, []string{"--version", "v0.8.1", "--force"}); err != nil {
+		t.Fatalf("update --version: %v\n%s", err, e.output())
 	}
 }

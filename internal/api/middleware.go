@@ -2,79 +2,11 @@ package api
 
 import (
 	"crypto/subtle"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
-
-// statusRecorder captures the response status for logging. Unwrap lets
-// http.ResponseController reach the underlying Flusher for SSE.
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (r *statusRecorder) WriteHeader(code int) {
-	if r.status == 0 {
-		r.status = code
-	}
-	r.ResponseWriter.WriteHeader(code)
-}
-
-func (r *statusRecorder) Write(b []byte) (int, error) {
-	if r.status == 0 {
-		r.status = http.StatusOK
-	}
-	return r.ResponseWriter.Write(b)
-}
-
-func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
-
-func (s *Server) logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		rec := &statusRecorder{ResponseWriter: w}
-		next.ServeHTTP(rec, r)
-		level := slog.LevelDebug
-		if r.Method != http.MethodGet || rec.status >= 500 {
-			level = slog.LevelInfo
-		}
-		// The query string is never logged: it may carry the access token.
-		s.log.Log(r.Context(), level, "http request",
-			"method", r.Method, "path", r.URL.Path, "status", rec.status, "duration", time.Since(start).Round(time.Microsecond))
-	})
-}
-
-func (s *Server) recoverPanics(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if v := recover(); v != nil {
-				if v == http.ErrAbortHandler {
-					panic(v)
-				}
-				s.log.Error("panic in handler", "path", r.URL.Path, "panic", v)
-				writeError(w, http.StatusInternalServerError, "internal", "internal error")
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
-func securityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h := w.Header()
-		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("X-Frame-Options", "DENY")
-		h.Set("Content-Security-Policy",
-			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "+
-				"connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
-		next.ServeHTTP(w, r)
-	})
-}
 
 // checkHost defends against DNS rebinding when the API is unauthenticated:
 // a malicious page cannot reach 127.0.0.1 through a hostname it controls.

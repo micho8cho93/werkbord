@@ -12,6 +12,7 @@ import (
 	"devboard/internal/agent"
 	"devboard/internal/doctor"
 	"devboard/internal/events"
+	"devboard/internal/httpkit"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
@@ -185,8 +186,8 @@ func (s *Server) Handler() http.Handler {
 	})
 	h = s.checkOrigin(h)
 	h = s.checkHost(h)
-	h = securityHeaders(h)
-	h = s.logRequests(h)
-	h = s.recoverPanics(h)
+	h = httpkit.SecurityHeaders(httpkit.DefaultCSP, h)
+	h = httpkit.LogRequests(s.log, h)
+	h = httpkit.RecoverPanics(s.log, h)
 	return h
 }

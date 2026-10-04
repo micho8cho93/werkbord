@@ -113,9 +113,12 @@ have not been run on a Windows machine.
 ## Building a release
 
 ```bash
-make dist VERSION=v0.7.0     # dist/devboard_0.7.0_<os>_<arch>.tar.gz|zip and checksums.txt
+make dist                    # dist/devboard_<version>_<os>_<arch>.tar.gz|zip and checksums.txt; the version is cmd/devboard/VERSION
 make test-install            # the installer, end to end, against a release server on this computer
 ```
 
-Pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml`, which checks, builds those archives and publishes
-them as a GitHub release, which is where `install.sh` and `devboard update` look.
+Pushing a tag `werkbord-vX.Y.Z` (the individual product's tag; see [VERSIONING.md](VERSIONING.md)) runs
+`.github/workflows/release.yml`, which checks that the tag agrees with `cmd/devboard/VERSION`, runs the checks, builds those
+archives and publishes them as the GitHub release marked *latest*, which is where `install.sh` and `devboard update` look.
+`DEVBOARD_VERSION` takes `v1.2.3` or the tag `werkbord-v1.2.3`. Werkbord Team is released and installed separately, with
+its own tag (`werkbord-team-vX.Y.Z`) and installer; see [TEAM.md](TEAM.md).

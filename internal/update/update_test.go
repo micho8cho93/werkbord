@@ -221,3 +221,44 @@ func TestVersions(t *testing.T) {
 		t.Error("ValidTag is wrong")
 	}
 }
+
+func TestProductTagsAreFoundAndOtherProductsAreNot(t *testing.T) {
+	// A release is named by its product's tag, but the program reports the bare version.
+	ts := releaseServer(t, "werkbord-v0.8.0", nil, "")
+	tag, err := Source{Base: ts.URL}.Latest(bg)
+	if err != nil || tag != "werkbord-v0.8.0" || VersionOf(tag) != "v0.8.0" {
+		t.Fatalf("latest = %q (%s), %v", tag, VersionOf(tag), err)
+	}
+	// Were a Team release ever to be the latest, it must be refused, never installed over this program.
+	team := releaseServer(t, "werkbord-team-v0.1.0", nil, "")
+	if _, err := (Source{Base: team.URL}).Latest(bg); err == nil || !strings.Contains(err.Error(), "not a version") {
+		t.Fatalf("a Team release was accepted as this product's latest: %v", err)
+	}
+	for tag, want := range map[string]bool{
+		"werkbord-v0.8.0": true, "werkbord-v1.2.3-rc1": true, "v0.7.0": true,
+		"werkbord-team-v0.1.0": false, "team-v1.0.0": false, "werkbord-1.2.3": false, "werkbord-v1.2": false,
+		"werkbord-werkbord-v1.2.3": false, "werkbord-v1.2.3/x": false, "../werkbord-v1.2.3": false,
+	} {
+		if ValidTag(tag) != want {
+			t.Errorf("ValidTag(%q) = %v, want %v", tag, !want, want)
+		}
+	}
+}
+
+func TestTagForAndAssetNames(t *testing.T) {
+	for in, want := range map[string]string{
+		"v0.8.0": "werkbord-v0.8.0", "0.8.0": "werkbord-v0.8.0", "v1.4.2": "werkbord-v1.4.2",
+		"werkbord-v0.9.0": "werkbord-v0.9.0",
+		"v0.7.0":          "v0.7.0", // released before product tags: the bare tag is the only one that exists
+	} {
+		if got := TagFor(in); got != want {
+			t.Errorf("TagFor(%q) = %q, want %q", in, got, want)
+		}
+	}
+	// The archive is named by the version, whichever way the tag was spelled.
+	for _, tag := range []string{"werkbord-v1.0.0", "v1.0.0"} {
+		if got := AssetName(tag, "linux", "amd64"); got != "devboard_1.0.0_linux_amd64.tar.gz" {
+			t.Errorf("AssetName(%q) = %q", tag, got)
+		}
+	}
+}

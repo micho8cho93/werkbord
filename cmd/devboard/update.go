@@ -37,15 +37,18 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 	if !update.Release(version) && !*force && !*check {
 		return fmt.Errorf("this devboard (%s) was built from source, not installed from a release: update it from the source tree (git pull && make build), or use --force to install the latest release over it", version)
 	}
-	target := *want
-	if target == "" {
+	var tag string // how the release is found: werkbord-v1.2.3
+	if *want == "" {
 		var err error
-		if target, err = src.Latest(ctx); err != nil {
+		if tag, err = src.Latest(ctx); err != nil {
 			return err
 		}
-	} else if !update.ValidTag(target) {
-		return fmt.Errorf("%q is not a version: want something like v1.2.3", target)
+	} else if !update.ValidTag(*want) {
+		return fmt.Errorf("%q is not a version: want something like v1.2.3", *want)
+	} else {
+		tag = update.TagFor(*want)
 	}
+	target := update.VersionOf(tag) // what the program reports: v1.2.3
 
 	cmp := update.Compare(version, target)
 	switch {
@@ -78,7 +81,7 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 	defer os.RemoveAll(tmp)
 
 	a.printf("Downloading %s…\n", target)
-	archive, err := src.Download(ctx, target, runtime.GOOS, runtime.GOARCH, tmp)
+	archive, err := src.Download(ctx, tag, runtime.GOOS, runtime.GOARCH, tmp)
 	if err != nil {
 		return err
 	}

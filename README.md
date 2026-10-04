@@ -4,6 +4,11 @@ A local-first remote control for coding agents. The controller runs on your comp
 owns the board, calendar and database. Your machines execute agents with their own repositories and credentials. Your phone, tablet or
 browser connects to it. There is no hosted backend and no Dev Board account.
 
+Werkbord is two products in one repository: this one, **individual Werkbord** (the `devboard` program), and
+**Werkbord Team**, a separately installed and versioned workspace that coordinates a team's members and projects
+without ever running anything on anyone's computer. See [docs/PRODUCTS.md](docs/PRODUCTS.md) and
+[docs/TEAM.md](docs/TEAM.md). The rest of this README is about the individual product.
+
 ## Install
 
 macOS or Linux:
@@ -118,6 +123,9 @@ Other commands: `devboard project list`, `devboard token`, `devboard migrate`,
 `devboard version`. Run
 `devboard <command> -h` for flags.
 
+Werkbord Team is built and run separately (it needs Go only): `make build-team`, then `./bin/werkbord-team serve`.
+See [docs/TEAM.md](docs/TEAM.md).
+
 ## Development
 
 Run the controller and the Vite dev server (with hot reload, proxying `/api`) in two
@@ -134,11 +142,15 @@ make dev-web
 Then open http://127.0.0.1:5173. The controller still requires its token, so the app asks
 for it once: paste the output of `devboard token`.
 
-Checks (Go tests, `go vet`, `gofmt`, `svelte-check`, ESLint, both builds):
+Checks (Go tests, `go vet`, `gofmt`, `svelte-check`, ESLint, both builds; this covers both products and the
+architecture tests that keep them separate):
 
 ```bash
 make check
 ```
+
+Every implementation commit bumps the changed product's `VERSION` file and gets a product tag
+(`werkbord-vX.Y.Z` or `werkbord-team-vX.Y.Z`): see [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## Using it from your phone
 
@@ -229,7 +241,12 @@ when nothing would be lost).
 ## Layout
 
 ```
-cmd/devboard          CLI: setup, service commands, doctor, update; and the controller (`serve`)
+cmd/devboard          CLI: setup, service commands, doctor, update; and the controller (`serve`). Individual Werkbord.
+cmd/werkbord-team     Werkbord Team: its own program, version and installer (docs/PRODUCTS.md)
+internal/team         everything specific to Team: domain, store, service, api, console (nothing else may import it)
+internal/sqlitekit    shared: open, migrate and back up a SQLite database (both products)
+internal/httpkit      shared: JSON responses, strict decoding, request logging, security headers (both products)
+internal/archtest     tests that enforce the boundary between the two products
 internal/domain       entities, states, rules (no dependencies)
 internal/store        persistence interfaces; sqlite/ implementation and migrations
 internal/service      use cases

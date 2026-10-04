@@ -1,0 +1,36 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #dfe3e8;
+  --accent: #2b59c3; --accent-text: #ffffff; --danger: #b3261e; --ok-bg: #e7f3ea; --warn-bg: #fff4d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14171b; --panel: #1c2026; --text: #e7eaee; --muted: #9aa4b1; --line: #2c333c;
+          --accent: #6f9bff; --accent-text: #0d1117; --danger: #ff8a80; --ok-bg: #1e3326; --warn-bg: #3a3118; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+#app { max-width: 56rem; margin: 0 auto; padding: 1rem 16px 3rem; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; padding: .5rem 0 1rem; }
+header h1 { font-size: 1.15rem; margin: 0; }
+header .who { margin-left: auto; color: var(--muted); }
+nav { display: flex; gap: .25rem; border-bottom: 1px solid var(--line); margin-bottom: 1rem; }
+nav button { background: none; border: 0; border-bottom: 2px solid transparent; padding: .5rem .75rem; font: inherit; color: var(--muted); cursor: pointer; }
+nav button[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
+.note { background: var(--warn-bg); border-radius: 8px; padding: .6rem .8rem; margin-bottom: 1rem; font-size: .9rem; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+.panel h2 { font-size: 1rem; margin: 0 0 .75rem; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .5rem 0; border-top: 1px solid var(--line); }
+.row:first-of-type { border-top: 0; }
+.row .grow { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+.muted { color: var(--muted); font-size: .9rem; }
+.badge { font-size: .75rem; border: 1px solid var(--line); border-radius: 99px; padding: 0 .5rem; color: var(--muted); }
+form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }
+label { display: grid; gap: .2rem; font-size: .85rem; color: var(--muted); flex: 1 1 10rem; }
+input, select, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: .4rem .5rem; width: 100%; }
+button.primary, button.plain, button.danger { font: inherit; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.danger { color: var(--danger); }
+a.link, button.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-align: left; }
+.secret { background: var(--ok-bg); border-radius: 8px; padding: .75rem; margin-bottom: 1rem; }
+.secret code { display: block; overflow-wrap: anywhere; margin: .4rem 0; user-select: all; }
+.error { color: var(--danger); margin: .5rem 0; }

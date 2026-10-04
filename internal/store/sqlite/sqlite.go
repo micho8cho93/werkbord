@@ -1,5 +1,7 @@
 // Package sqlite implements store.Store on SQLite using the pure-Go
-// modernc.org/sqlite driver, so the controller builds without cgo.
+// modernc.org/sqlite driver, so the controller builds without cgo. Opening,
+// migrating and backing up the database is the shared internal/sqlitekit; this
+// package is the schema and the repositories.
 //
 // Concurrency model: one writer connection (all Update calls queue on it and
 // take the write lock up front with BEGIN IMMEDIATE) and a small pool of
@@ -10,21 +12,15 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"fmt"
 	"log/slog"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
 
-	_ "modernc.org/sqlite" // registers the "sqlite" driver
-
+	"devboard/internal/sqlitekit"
 	"devboard/internal/store"
 )
 
 // DB is a store.Store backed by a SQLite file.
 type DB struct {
+	pool   *sqlitekit.Pool
 	writer *sql.DB
 	reader *sql.DB
 	log    *slog.Logger
@@ -38,111 +34,39 @@ func Open(ctx context.Context, path string, log *slog.Logger) (*DB, error) {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	if strings.ContainsRune(path, '?') {
-		return nil, fmt.Errorf("database path must not contain '?': %q", path)
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return nil, fmt.Errorf("create database directory: %w", err)
-	}
-
-	common := url.Values{}
-	common.Add("_pragma", "foreign_keys(1)")
-	common.Add("_pragma", "busy_timeout(5000)")
-
-	wq := cloneValues(common)
-	wq.Add("_pragma", "journal_mode(WAL)")
-	// FULL, not NORMAL: with NORMAL a committed transaction can be lost in a
-	// power cut, and records of worktrees (written before a directory is
-	// created, and after one is removed) would then disagree with the disk.
-	wq.Add("_pragma", "synchronous(FULL)")
-	wq.Set("_txlock", "immediate")
-	writer, err := sql.Open("sqlite", path+"?"+wq.Encode())
-	if err != nil {
-		return nil, err
-	}
-	writer.SetMaxOpenConns(1)
-	writer.SetConnMaxLifetime(0)
-
-	if err := writer.PingContext(ctx); err != nil {
-		_ = writer.Close()
-		return nil, fmt.Errorf("open database %s: %w", path, err)
-	}
-	// The file may hold secrets-adjacent data (repo paths, agent output).
-	_ = os.Chmod(path, 0o600)
-
 	ms, err := Migrations()
 	if err != nil {
-		_ = writer.Close()
 		return nil, err
 	}
-	backupBeforeUpgrade(ctx, writer, path, len(ms), log)
-	applied, err := migrate(ctx, writer, ms)
+	pool, err := sqlitekit.Open(ctx, path, sqlitekit.Options{
+		Migrations: ms, Product: productName, BackupPrefix: backupPrefix, Log: log,
+	})
 	if err != nil {
-		_ = writer.Close()
 		return nil, err
 	}
-	if applied > 0 {
-		log.Info("database migrated", "path", path, "applied", applied, "version", len(ms))
-	}
-
-	rq := cloneValues(common)
-	rq.Set("_query_only", "1")
-	reader, err := sql.Open("sqlite", path+"?"+rq.Encode())
-	if err != nil {
-		_ = writer.Close()
-		return nil, err
-	}
-	reader.SetMaxOpenConns(4)
-
-	return &DB{writer: writer, reader: reader, log: log}, nil
-}
-
-func cloneValues(v url.Values) url.Values {
-	out := url.Values{}
-	for k, vs := range v {
-		out[k] = append([]string(nil), vs...)
-	}
-	return out
+	return &DB{pool: pool, writer: pool.Writer, reader: pool.Reader, log: log}, nil
 }
 
 // SchemaVersion reports the applied migration version.
 func (d *DB) SchemaVersion(ctx context.Context) (int, error) {
-	return schemaVersion(ctx, d.reader)
+	return d.pool.SchemaVersion(ctx)
 }
 
 // View implements store.Store.
 func (d *DB) View(ctx context.Context, fn func(store.Tx) error) error {
-	tx, err := d.reader.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	return fn(&txn{q: tx})
+	return d.pool.View(ctx, func(tx *sql.Tx) error { return fn(&txn{q: tx}) })
 }
 
 // Update implements store.Store.
 func (d *DB) Update(ctx context.Context, fn func(store.Tx) error) error {
-	tx, err := d.writer.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := fn(&txn{q: tx}); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return d.pool.Update(ctx, func(tx *sql.Tx) error { return fn(&txn{q: tx}) })
 }
 
 // Ping implements store.Store.
-func (d *DB) Ping(ctx context.Context) error {
-	var one int
-	return d.reader.QueryRowContext(ctx, "SELECT 1").Scan(&one)
-}
+func (d *DB) Ping(ctx context.Context) error { return d.pool.Ping(ctx) }
 
 // Close implements store.Store.
-func (d *DB) Close() error {
-	return errors.Join(d.reader.Close(), d.writer.Close())
-}
+func (d *DB) Close() error { return d.pool.Close() }
 
 // queryer is satisfied by *sql.Tx.
 type queryer interface {

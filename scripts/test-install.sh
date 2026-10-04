@@ -33,22 +33,22 @@ contains() { case "$1" in *"$2"*) return 0 ;; esac; return 1; }
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "unsupported test machine"; exit 1 ;; esac
 
-# ---- two releases, and a tampered one ----
+# ---- two releases, and a tampered one (named by their product tag, as GitHub has them) ----
 mkdir -p "$WORK/releases"
 for v in v9.0.1 v9.0.2; do
-  PLATFORMS="$os/$arch" scripts/build-release.sh "$v" "$WORK/build-$v" >/dev/null
-  mkdir -p "$WORK/releases/$v"
-  cp "$WORK/build-$v"/* "$WORK/releases/$v/"
+  PLATFORMS="$os/$arch" scripts/build-release.sh werkbord "$v" "$WORK/build-$v" >/dev/null
+  mkdir -p "$WORK/releases/werkbord-$v"
+  cp "$WORK/build-$v"/* "$WORK/releases/werkbord-$v/"
 done
 # v9.0.3: the archive is not what its checksum says (tampered in transit).
-mkdir -p "$WORK/releases/v9.0.3"
-cp "$WORK/releases/v9.0.2"/devboard_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/v9.0.3/devboard_9.0.3_${os}_${arch}.tar.gz"
-printf '%s  devboard_9.0.3_%s_%s.tar.gz\n' "$(printf 'something else' | shasum -a 256 2>/dev/null | cut -d' ' -f1 || printf 'something else' | sha256sum | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/v9.0.3/checksums.txt"
+mkdir -p "$WORK/releases/werkbord-v9.0.3"
+cp "$WORK/releases/werkbord-v9.0.2"/devboard_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/werkbord-v9.0.3/devboard_9.0.3_${os}_${arch}.tar.gz"
+printf '%s  devboard_9.0.3_%s_%s.tar.gz\n' "$(printf 'something else' | shasum -a 256 2>/dev/null | cut -d' ' -f1 || printf 'something else' | sha256sum | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-v9.0.3/checksums.txt"
 # v9.0.4: a correctly checksummed archive whose executable is some other version.
-mkdir -p "$WORK/releases/v9.0.4"
-cp "$WORK/releases/v9.0.2"/devboard_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz"
-sum=$(shasum -a 256 "$WORK/releases/v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz")
-printf '%s  devboard_9.0.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/v9.0.4/checksums.txt"
+mkdir -p "$WORK/releases/werkbord-v9.0.4"
+cp "$WORK/releases/werkbord-v9.0.2"/devboard_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/werkbord-v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz"
+sum=$(shasum -a 256 "$WORK/releases/werkbord-v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz")
+printf '%s  devboard_9.0.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-v9.0.4/checksums.txt"
 ok "built the test releases"
 
 # ---- a releases page, laid out like GitHub's ----
@@ -77,7 +77,7 @@ srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
 open(os.path.join(root, "..", "port"), "w").write(str(srv.server_address[1]))
 srv.serve_forever()
 PY
-python3 "$WORK/server.py" "$WORK/releases" v9.0.2 &
+python3 "$WORK/server.py" "$WORK/releases" werkbord-v9.0.2 &
 SERVER_PID=$!
 i=0; while [ ! -f "$WORK/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
 PORT=$(cat "$WORK/port")
@@ -120,6 +120,8 @@ if out=$(DEVBOARD_OS=Windows_NT $SH scripts/install.sh 2>&1); then bad "Windows 
 contains "$out" "install.ps1" || bad "it should point Windows users at install.ps1" "$out"
 if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=latest $SH scripts/install.sh 2>&1); then bad "a version that is not one was accepted"; fi
 if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=v9.9.9 $SH scripts/install.sh 2>&1); then bad "a release that does not exist was installed"; fi
+if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=werkbord-team-v0.1.0 $SH scripts/install.sh 2>&1); then bad "a Werkbord Team release was installed as the individual product"; fi
+contains "$out" "Werkbord Team release" || bad "it should say a Team release is not for this installer" "$out"
 ok "explains a platform or version it cannot install"
 
 # ---- 4. a clean machine, all the way to a running controller ----

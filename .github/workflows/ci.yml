@@ -21,14 +21,17 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Tests, lint and build
+      - name: Tests, lint and build (both products and the shared packages)
         run: make check
-      - name: Installer, against a local release server
-        run: make test-install
-      - name: Every release platform builds
+      - name: Individual product runs without Team (a copy of the repository with every Team file removed)
+        run: make web web-embed verify-isolation
+      - name: Installers, against a local release server
+        run: make test-install test-install-team
+      - name: Every release platform builds, for both products
         if: matrix.os == 'ubuntu-latest'
         run: |
           make web web-embed
           for p in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
             CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/devboard
+            CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/werkbord-team
           done

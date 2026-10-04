@@ -14,7 +14,7 @@
 #   curl -fsSL .../install.sh | sh -s -- --no-network
 #
 # Environment:
-#   DEVBOARD_VERSION      install this release (e.g. v1.2.3) instead of the latest
+#   DEVBOARD_VERSION      install this release (e.g. v1.2.3, or its tag werkbord-v1.2.3) instead of the latest
 #   DEVBOARD_INSTALL_DIR  where the executable goes (default ~/.local/bin)
 #   DEVBOARD_BASE_URL     where releases are (default: this project's GitHub releases)
 #   DEVBOARD_NO_SETUP=1   only install the executable
@@ -73,23 +73,33 @@ command -v tar >/dev/null 2>&1 || fail "tar is needed to unpack the download"
 
 # ---- which release ----
 
+# A release is named by its product's tag (werkbord-v1.2.3; the earliest releases
+# were a bare v1.2.3). The executable reports the bare version, v1.2.3.
 tag=${DEVBOARD_VERSION:-}
+explicit=${tag:+1}
 if [ -z "$tag" ]; then
   say "Looking for the latest release..."
   url=$(resolve_latest) || fail "could not look up the latest release at $BASE/latest"
   tag=${url##*/}
 fi
 case "$tag" in
-  v[0-9]*.[0-9]*.[0-9]*) ;;
-  [0-9]*.[0-9]*.[0-9]*) tag="v$tag" ;;
+  werkbord-v[0-9]*.[0-9]*.[0-9]*) version=v${tag#werkbord-v} ;;
+  v[0-9]*.[0-9]*.[0-9]*|[0-9]*.[0-9]*.[0-9]*)
+    version=v${tag#v}
+    if [ -n "$explicit" ]; then
+      # Asked for by version: releases before 0.8.0 have the bare tag, later ones the product tag.
+      num=${version#v}; major=${num%%.*}; rest=${num#*.}; minor=${rest%%.*}
+      if [ "$major" -eq 0 ] && [ "$minor" -lt 8 ]; then tag=$version; else tag=werkbord-$version; fi
+    fi ;;
+  werkbord-team-*) fail "\"$tag\" is a Werkbord Team release. This installer is for the individual product; Team has its own (scripts/install-team.sh)" ;;
   *) fail "\"$tag\" is not a release version (expected something like v1.2.3)" ;;
 esac
 
-asset="devboard_${tag#v}_${os}_${arch}.tar.gz"
+asset="devboard_${version#v}_${os}_${arch}.tar.gz"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/devboard-install.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
-say "Installing Dev Board $tag for $os/$arch"
+say "Installing Dev Board $version for $os/$arch"
 fetch "$BASE/download/$tag/checksums.txt" "$tmp/checksums.txt" || fail "could not download the checksums for $tag"
 want=$(awk -v f="$asset" '{ n=$2; sub(/^\*/, "", n); if (n == f) print $1 }' "$tmp/checksums.txt")
 [ -n "$want" ] || fail "release $tag has no build for $os/$arch"
@@ -109,7 +119,7 @@ bin=$(find "$tmp/unpack" -type f -name devboard | head -1)
 [ -n "$bin" ] || fail "$asset does not contain devboard"
 chmod +x "$bin"
 reported=$("$bin" version 2>/dev/null || true)
-[ "$reported" = "$tag" ] || fail "the downloaded executable says it is \"$reported\", not $tag: not installing it"
+[ "$reported" = "$version" ] || fail "the downloaded executable says it is \"$reported\", not $version: not installing it"
 
 dir=${DEVBOARD_INSTALL_DIR:-"$HOME/.local/bin"}
 mkdir -p "$dir" || fail "cannot create $dir (set DEVBOARD_INSTALL_DIR to somewhere you can write)"
