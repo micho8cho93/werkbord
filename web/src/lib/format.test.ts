@@ -4,14 +4,14 @@ import type { Run } from './types';
 
 const run = (over: Partial<Run> = {}): Run => ({
   id: 'run_1', taskId: 'tsk_1', projectId: 'prj_1', agentId: 'claude-code', state: 'running', version: 1,
-  createdAt: '2026-10-04T10:00:00Z', updatedAt: '2026-10-04T10:00:00Z', ...over,
+  policy: { interaction: 'interactive' }, createdAt: '2026-10-04T10:00:00Z', updatedAt: '2026-10-04T10:00:00Z', ...over,
 });
 
 describe('runStatus', () => {
   it('says whether the agent needs the user, and for what', () => {
-    expect(runStatus(run({ state: 'running' }))).toMatchObject({ label: 'Working', tone: 'work', needsInput: false, active: true });
+    expect(runStatus(run({ state: 'running' }))).toMatchObject({ label: 'Running', tone: 'work', needsInput: false, active: true });
     expect(runStatus(run({ state: 'starting' }))).toMatchObject({ label: 'Starting', needsInput: false, active: true });
-    expect(runStatus(run({ state: 'waiting_for_user', waiting: 'question' }))).toMatchObject({ label: 'Needs your answer', tone: 'ask', needsInput: true });
+    expect(runStatus(run({ state: 'waiting_for_user', waiting: 'question' }))).toMatchObject({ label: 'Needs input', tone: 'ask', needsInput: true });
     expect(runStatus(run({ state: 'waiting_for_user', waiting: 'idle' }))).toMatchObject({ label: 'Waiting for you', tone: 'idle', needsInput: true });
   });
 
@@ -19,6 +19,36 @@ describe('runStatus', () => {
     expect(runStatus(run({ state: 'completed' }))).toMatchObject({ label: 'Completed', tone: 'ok', active: false, needsInput: false });
     expect(runStatus(run({ state: 'failed', reason: 'exited with status 2' }))).toMatchObject({ label: 'Failed', tone: 'bad', active: false, hint: 'exited with status 2' });
     expect(runStatus(run({ state: 'stopped', reason: 'stopped by user' }))).toMatchObject({ label: 'Stopped', tone: 'neutral', active: false });
+  });
+});
+
+// A task in Doing is, at a glance, Running, Needs input, Blocked or Failed: four states of the run,
+// each told apart by label and by tone, and none of them a column.
+describe('the four states of a task in Doing', () => {
+  const states = {
+    running: runStatus(run({ state: 'running' })),
+    needsInput: runStatus(run({ state: 'waiting_for_user', waiting: 'question' })),
+    blocked: runStatus(run({ state: 'blocked', blocker: { summary: 'Which provider?', source: 'question', raisedAt: '2026-10-04T10:01:00Z' } })),
+    failed: runStatus(run({ state: 'failed', reason: 'exit 1' })),
+  };
+
+  it('are told apart by wording and by tone', () => {
+    expect(Object.values(states).map((s) => s.label)).toEqual(['Running', 'Needs input', 'Blocked', 'Failed']);
+    expect(new Set(Object.values(states).map((s) => s.tone)).size).toBe(4);
+  });
+
+  it('say whether the user is wanted', () => {
+    expect(states.running.needsInput).toBe(false);
+    expect(states.needsInput.needsInput).toBe(true);
+    expect(states.blocked).toMatchObject({ tone: 'block', needsInput: true, active: true });
+    expect(states.failed).toMatchObject({ needsInput: false, active: false });
+  });
+
+  it('puts the blocker, not the activity, on a blocked card', () => {
+    const blocked = run({ state: 'blocked', activity: 'editing main.go', blocker: { summary: 'Which provider?', source: 'report', raisedAt: '2026-10-04T10:01:00Z' } });
+    expect(cardActivity(blocked)).toBe('Which provider?');
+    expect(cardActivity(run({ state: 'blocked' }))).toBe('');
+    expect(cardActivity(run({ state: 'running', activity: 'editing main.go' }))).toBe('editing main.go');
   });
 });
 

@@ -13,9 +13,15 @@ const (
 	RunStarting       RunState = "starting"
 	RunRunning        RunState = "running"
 	RunWaitingForUser RunState = "waiting_for_user"
-	RunCompleted      RunState = "completed"
-	RunFailed         RunState = "failed"
-	RunStopped        RunState = "stopped"
+	// RunBlocked: the run's policy forbids guessing and the agent reached a
+	// decision it could not safely infer, so it stopped. The session is still
+	// there (a message that settles the matter resumes it) but nobody is being
+	// asked a question: Run.Blocker says what is in the way. It is execution
+	// state, never a Kanban column: the task stays wherever the user put it.
+	RunBlocked   RunState = "blocked"
+	RunCompleted RunState = "completed"
+	RunFailed    RunState = "failed"
+	RunStopped   RunState = "stopped"
 )
 
 // runTransitions is the complete set of allowed state changes. Terminal states
@@ -24,10 +30,14 @@ const (
 // A waiting run can complete: a session is interactive, so the normal way for
 // one to end is that the agent is idle, the user finishes it, and the process
 // exits cleanly.
+//
+// A blocked run is like an idle waiting one: it has a session and ends the same
+// ways, and a message sent to it resumes it.
 var runTransitions = map[RunState][]RunState{
 	RunStarting:       {RunRunning, RunFailed, RunStopped},
-	RunRunning:        {RunWaitingForUser, RunCompleted, RunFailed, RunStopped},
+	RunRunning:        {RunWaitingForUser, RunBlocked, RunCompleted, RunFailed, RunStopped},
 	RunWaitingForUser: {RunRunning, RunCompleted, RunFailed, RunStopped},
+	RunBlocked:        {RunRunning, RunCompleted, RunFailed, RunStopped},
 	RunCompleted:      nil,
 	RunFailed:         nil,
 	RunStopped:        nil,
@@ -38,6 +48,10 @@ func (s RunState) Valid() bool {
 	_, ok := runTransitions[s]
 	return ok
 }
+
+// Active reports whether the run still has a session (or can be resumed): it
+// has not reached a final state. Active runs hold their worktree.
+func (s RunState) Active() bool { return s.Valid() && !s.Terminal() }
 
 // Terminal reports whether no further transitions are possible.
 func (s RunState) Terminal() bool {
@@ -96,13 +110,19 @@ type Run struct {
 	Reason     string      `json:"reason,omitempty"`     // why the run ended, for failed/stopped runs
 	Prompt     string      `json:"prompt,omitempty"`     // the first message sent to the agent
 	Waiting    WaitingKind `json:"waiting,omitempty"`    // set only while State is RunWaitingForUser
-	Activity   string      `json:"activity,omitempty"`   // latest one-line activity, for cards
-	ActivityAt *time.Time  `json:"activityAt,omitempty"`
-	ExitCode   *int        `json:"exitCode,omitempty"`
-	Version    int64       `json:"version"`
-	CreatedAt  time.Time   `json:"createdAt"`
-	UpdatedAt  time.Time   `json:"updatedAt"`
-	EndedAt    *time.Time  `json:"endedAt,omitempty"`
+	// Policy is the execution policy the run was started with. It is a copy:
+	// editing the task afterwards does not change a run that is working.
+	Policy ExecutionPolicy `json:"policy"`
+	// Blocker is set while State is RunBlocked, and stays on the run if it ends
+	// that way. It is cleared when the run is resumed.
+	Blocker    *Blocker   `json:"blocker,omitempty"`
+	Activity   string     `json:"activity,omitempty"` // latest one-line activity, for cards
+	ActivityAt *time.Time `json:"activityAt,omitempty"`
+	ExitCode   *int       `json:"exitCode,omitempty"`
+	Version    int64      `json:"version"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	EndedAt    *time.Time `json:"endedAt,omitempty"`
 
 	// PID and ProcessID identify the agent process so that one a crashed
 	// controller left behind can be found and stopped. ProcessID is an opaque
@@ -122,6 +142,19 @@ func (r *Run) Transition(next RunState, reason string, now time.Time) error {
 	return r.move(next, WaitNone, reason, now)
 }
 
+// Block moves the run to RunBlocked and records why.
+func (r *Run) Block(b Blocker, now time.Time) error {
+	if err := b.Validate(); err != nil {
+		return err
+	}
+	if err := r.move(RunBlocked, WaitNone, "", now); err != nil {
+		return err
+	}
+	b.RaisedAt = now
+	r.Blocker = &b
+	return nil
+}
+
 // WaitFor moves the run to RunWaitingForUser and records what it waits for.
 func (r *Run) WaitFor(kind WaitingKind, now time.Time) error {
 	if kind == WaitNone || !kind.Valid() {
@@ -138,6 +171,9 @@ func (r *Run) move(next RunState, kind WaitingKind, reason string, now time.Time
 	r.Waiting = kind
 	r.Reason = reason
 	r.UpdatedAt = now
+	if next == RunRunning {
+		r.Blocker = nil // the user settled it, or the agent went on regardless
+	}
 	if next.Terminal() {
 		t := now
 		r.EndedAt = &t

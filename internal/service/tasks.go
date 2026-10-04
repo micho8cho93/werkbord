@@ -21,22 +21,43 @@ type TaskPatch struct {
 	Description *string
 	State       *domain.TaskState
 	Position    *float64
-	Version     int64
+	// Policy replaces the task's execution policy. It applies to runs started
+	// afterwards: a run that is already working keeps the policy it started with.
+	Policy  *domain.ExecutionPolicy
+	Version int64
 }
 
-// Create adds a task to the bottom of the project's Backlog.
+// NewTask describes a task to add.
+type NewTask struct {
+	ProjectID   string
+	Title       string
+	Description string
+	// Policy is how the task's runs are carried out; unset means interactive.
+	Policy domain.ExecutionPolicy
+}
+
+// Create adds an interactive task to the bottom of the project's Backlog.
 func (s *Tasks) Create(ctx context.Context, projectID, title, description string) (*domain.Task, error) {
-	title, err := domain.ValidateTaskTitle(title)
+	return s.CreateTask(ctx, NewTask{ProjectID: projectID, Title: title, Description: description})
+}
+
+// CreateTask adds a task to the bottom of the project's Backlog.
+func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error) {
+	projectID := in.ProjectID
+	title, err := domain.ValidateTaskTitle(in.Title)
 	if err != nil {
 		return nil, err
 	}
-	if err := domain.ValidateTaskDescription(description); err != nil {
+	if err := domain.ValidateTaskDescription(in.Description); err != nil {
+		return nil, err
+	}
+	if err := in.Policy.Validate(); err != nil {
 		return nil, err
 	}
 	now := s.now()
 	t := &domain.Task{
-		ID: domain.NewID(domain.PrefixTask), ProjectID: projectID, Title: title, Description: description,
-		State: domain.TaskBacklog, CreatedAt: now, UpdatedAt: now,
+		ID: domain.NewID(domain.PrefixTask), ProjectID: projectID, Title: title, Description: in.Description,
+		State: domain.TaskBacklog, Policy: in.Policy.Normalized(), CreatedAt: now, UpdatedAt: now,
 	}
 	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
 		if _, err := tx.Projects().Get(ctx, projectID); err != nil {
@@ -101,6 +122,12 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 		if patch.Position != nil {
 			t.Position = *patch.Position
 		}
+		if patch.Policy != nil {
+			if err := patch.Policy.Validate(); err != nil {
+				return err
+			}
+			t.Policy = patch.Policy.Normalized()
+		}
 		t.UpdatedAt = s.now()
 		if err := tx.Tasks().Update(ctx, t); err != nil {
 			return err
@@ -111,6 +138,20 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 	})
 	if err != nil {
 		return nil, err
+	}
+	return t, nil
+}
+
+// GetIn returns a task of the given project. A task that belongs to another
+// project is reported as not found, exactly like one that does not exist, so
+// that a request scoped to one project can never reveal another's.
+func (s *Tasks) GetIn(ctx context.Context, projectID, id string) (*domain.Task, error) {
+	t, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if t.ProjectID != projectID {
+		return nil, fmt.Errorf("task %s: %w", id, domain.ErrNotFound)
 	}
 	return t, nil
 }

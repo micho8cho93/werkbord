@@ -143,7 +143,7 @@ func fakeMain() int {
 			result(false, "")
 		case strings.HasPrefix(prompt, "askme"):
 			input := map[string]any{"questions": []any{
-				map[string]any{"question": "Which colour?", "header": "Colour", "multiSelect": false, "options": []any{map[string]any{"label": "Red", "description": ""}, map[string]any{"label": "Blue", "description": ""}}},
+				map[string]any{"question": "Which colour?", "header": "Colour", "multiSelect": false, "options": []any{map[string]any{"label": "Red", "description": ""}, map[string]any{"label": "Blue", "description": "calm and cool"}}},
 				map[string]any{"question": "Which size?", "header": "Size", "multiSelect": false, "options": []any{map[string]any{"label": "S", "description": ""}, map[string]any{"label": "L", "description": ""}}},
 			}}
 			resp := ask("req-ask", map[string]any{"subtype": "can_use_tool", "tool_name": "AskUserQuestion", "input": input, "requires_user_interaction": true})

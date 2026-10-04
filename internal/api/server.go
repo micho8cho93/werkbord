@@ -20,7 +20,8 @@ type Options struct {
 	Projects  *service.Projects
 	Tasks     *service.Tasks
 	Runs      *service.Runs
-	Runner    *runner.Manager // starts and drives agent sessions
+	Control   *service.ControlCenter // the cross-project overview; built from Store if nil
+	Runner    *runner.Manager        // starts and drives agent sessions
 	Worktrees *service.Worktrees
 	Agents    *agent.Registry
 	Store     store.Store       // for health checks and event replay
@@ -45,6 +46,9 @@ type Server struct {
 
 // New builds a Server.
 func New(opt Options) *Server {
+	if opt.Control == nil && opt.Store != nil {
+		opt.Control = &service.ControlCenter{Deps: service.Deps{Store: opt.Store}}
+	}
 	log := opt.Log
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -56,28 +60,41 @@ func New(opt Options) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
+	// Everything that belongs to a project is reached through that project: the
+	// project in the path is checked against the thing asked for, and a mismatch
+	// is a 404 exactly like a thing that does not exist, so no request scoped to
+	// one project can read or act on another's. The few routes outside /projects
+	// are global on purpose: the project list, the agents installed on this
+	// computer, the event stream, and the Control Center.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/agents", s.handleListAgents)
+	mux.HandleFunc("GET /api/control-center", s.handleControlCenter)
+	mux.HandleFunc("GET /api/events", s.handleEvents) // ?project=<id> narrows it to one project
+
 	mux.HandleFunc("GET /api/projects", s.handleListProjects)
 	mux.HandleFunc("POST /api/projects", s.handleRegisterProject)
-	mux.HandleFunc("GET /api/projects/{id}", s.handleGetProject)
-	mux.HandleFunc("POST /api/projects/{id}/refresh", s.handleRefreshProject)
-	mux.HandleFunc("GET /api/projects/{id}/tasks", s.handleListTasks)
-	mux.HandleFunc("POST /api/projects/{id}/tasks", s.handleCreateTask)
-	mux.HandleFunc("PATCH /api/tasks/{id}", s.handleUpdateTask)
-	mux.HandleFunc("GET /api/tasks/{id}/runs", s.handleListTaskRuns)
-	mux.HandleFunc("POST /api/tasks/{id}/runs", s.handleStartRun)
-	mux.HandleFunc("GET /api/projects/{id}/runs", s.handleListProjectRuns)
-	mux.HandleFunc("GET /api/runs", s.handleListRuns)
-	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
-	mux.HandleFunc("GET /api/runs/{id}/events", s.handleRunEvents)
-	mux.HandleFunc("POST /api/runs/{id}/input", s.handleRunInput)
-	mux.HandleFunc("POST /api/runs/{id}/finish", s.handleFinishRun)
-	mux.HandleFunc("POST /api/runs/{id}/stop", s.handleStopRun)
-	mux.HandleFunc("GET /api/worktrees/{id}", s.handleGetWorktree)
-	mux.HandleFunc("GET /api/questions", s.handleListQuestions)
-	mux.HandleFunc("POST /api/questions/{id}/answer", s.handleAnswerQuestion)
-	mux.HandleFunc("GET /api/agents", s.handleListAgents)
-	mux.HandleFunc("GET /api/events", s.handleEvents)
+	mux.HandleFunc("GET /api/projects/{pid}", s.handleGetProject)
+	mux.HandleFunc("POST /api/projects/{pid}/refresh", s.handleRefreshProject)
+
+	mux.HandleFunc("GET /api/projects/{pid}/tasks", s.handleListTasks)
+	mux.HandleFunc("POST /api/projects/{pid}/tasks", s.handleCreateTask)
+	mux.HandleFunc("PATCH /api/projects/{pid}/tasks/{id}", s.handleUpdateTask)
+	mux.HandleFunc("GET /api/projects/{pid}/tasks/{id}/runs", s.handleListTaskRuns)
+	mux.HandleFunc("POST /api/projects/{pid}/tasks/{id}/runs", s.handleStartRun)
+
+	mux.HandleFunc("GET /api/projects/{pid}/runs", s.handleListProjectRuns) // the latest run of each task: the board
+	mux.HandleFunc("GET /api/projects/{pid}/activity", s.handleProjectActivity)
+	mux.HandleFunc("GET /api/projects/{pid}/runs/{id}", s.handleGetRun)
+	mux.HandleFunc("GET /api/projects/{pid}/runs/{id}/events", s.handleRunEvents)
+	mux.HandleFunc("POST /api/projects/{pid}/runs/{id}/input", s.handleRunInput)
+	mux.HandleFunc("POST /api/projects/{pid}/runs/{id}/finish", s.handleFinishRun)
+	mux.HandleFunc("POST /api/projects/{pid}/runs/{id}/stop", s.handleStopRun)
+
+	mux.HandleFunc("GET /api/projects/{pid}/questions", s.handleListQuestions)
+	mux.HandleFunc("GET /api/projects/{pid}/questions/{id}", s.handleGetQuestion)
+	mux.HandleFunc("POST /api/projects/{pid}/questions/{id}/answer", s.handleAnswerQuestion)
+
+	mux.HandleFunc("GET /api/projects/{pid}/worktrees/{id}", s.handleGetWorktree)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such endpoint")
 	})

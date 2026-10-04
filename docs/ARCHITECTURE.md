@@ -6,8 +6,8 @@ database, the agent sessions and all development state. Phones, tablets and brow
 are remote controls for it. There is no hosted backend, no account system and no cloud
 database.
 
-This document describes the system as built: the foundation plus the agent runtime (§8,
-§14). Sections marked *Deferred* name things that are intentionally not implemented yet.
+This document describes the system as built: the foundation, the agent runtime (§8, §14),
+questions (§15), projects as the scope of the application (§16) and per-task execution policies (§17). Sections marked *Deferred* name things that are intentionally not implemented yet.
 
 ---
 
@@ -87,15 +87,20 @@ GitRepository    │
   repository's identity: a linked worktree has its own top-level path but the same common
   directory, and `git_repositories.common_dir` is unique.
 - **Task**: a card on the board. Its `State` is one of exactly four workflow states:
-  `backlog`, `doing`, `review`, `done`. Ordered within a column by `Position`.
+  `backlog`, `doing`, `review`, `done`. Ordered within a column by `Position`. It carries an
+  execution `Policy` (§17): how its runs are carried out, interactive by default.
 - **Run**: one interactive agent session working on a task. Its `State` is one of
-  `starting`, `running`, `waiting_for_user`, `completed`, `failed`, `stopped`. While it waits,
-  `Waiting` says what for: `question` (blocked on an answer) or `idle` (the agent finished a turn
-  and awaits the next message). It also records the prompt, the agent's resumable `SessionRef`,
+  `starting`, `running`, `waiting_for_user`, `blocked`, `completed`, `failed`, `stopped`. While it
+  waits, `Waiting` says what for: `question` (blocked on an answer) or `idle` (the agent finished a
+  turn and awaits the next message). `blocked` is different: the run's policy forbids guessing and
+  the agent stopped at a decision it could not safely make; `Blocker` says what (§17). A run keeps a
+  copy of the `Policy` it started with. It also records the prompt, the agent's resumable `SessionRef`,
   its latest one-line `Activity`, the process exit code and, internally, the process's PID and
   identity.
-- **Question**: something an agent asked during a run (`ask`) or a permission it needs
-  (`approval`); `pending` until answered or cancelled.
+- **Question**: something an agent asked during a run: a `clarification`, `decision`, `approval`,
+  `selection` or `instruction`. It is self-contained (run, task and project IDs, prompt, optional
+  `context`, optional `options`, `allowFreeText`) and has a state: `pending`, `answered` or
+  `cancelled` (see §15).
 - **Worktree**: a Git worktree created for a run so concurrent runs never share a
   working directory. Its row is the controller's only evidence that it owns a directory, so
   it is constrained like a deletion target (see "Worktree safety" below).
@@ -120,14 +125,20 @@ Run transitions are enforced by `domain.Run.Transition` and `WaitFor`:
 
 ```
 starting ──▶ running ◀──────────────▶ waiting_for_user ──▶ completed
-   │            │  ╲                     │       (finishing an idle session)
-   │            ▼   ╲─▶ completed        │
+   │         ▲  │ ╲                       │       (finishing an idle session)
+   │         │  │  ╲─▶ completed          │
+   │         │  ▼                         │
+   │         └─ blocked ─▶ completed      │
    └────────────┴──────────────▶ failed | stopped   (terminal states have no exits;
                                                        a retry is a new Run)
 ```
 
 The database enforces the pairing too: `waiting` is set exactly while the state is
 `waiting_for_user`, and an ended run has no process.
+
+A **blocked run is execution state, never a Kanban column**: the task stays in *Doing* (or wherever the
+user put it) while its run is blocked, exactly as it does while the run fails. There is no fifth column;
+the board distinguishes *Running*, *Needs input*, *Blocked* and *Failed* on the card.
 
 **Policy that connects the two** (explicit in `service`, not implicit in the enums): a task moves
 to *Doing* in the same transaction that marks its run *running* (and again when the user resumes
@@ -138,7 +149,7 @@ a run ends: that is the user's call.
 
 **A write** (e.g. moving a task from a phone):
 
-1. PWA sends `PATCH /api/tasks/{id}` with `{state, version}`.
+1. PWA sends `PATCH /api/projects/{pid}/tasks/{id}` with `{state, version}`.
 2. `api` decodes and validates the shape, then calls `service.Tasks.Update`.
 3. The service opens one `store.Update` transaction: reads the task, checks the
    version, applies domain validation, writes the task (compare-and-swap on `version`)
@@ -213,7 +224,18 @@ If any startup step fails, everything already started is torn down in reverse or
   contiguous from 1, each applied in its own transaction and recorded in
   `schema_migrations`. Migrations are forward-only; to change the schema, add a file.
 - Timestamps are Unix milliseconds (UTC). Small list fields (remotes, question options)
-  are JSON columns because they are always read and written whole.
+  are JSON columns because they are always read and written whole. So is the execution policy
+  (`tasks.policy`, `runs.policy`, `{"interaction": …}`), with only the interaction mode constrained
+  by a `CHECK`, so that finer-grained permissions can become further fields without a migration; and a
+  run's `blocker`.
+- A migration that must rebuild a table other tables refer to (SQLite cannot change a `CHECK` in place,
+  and dropping a parent table with foreign keys on cascades into its children) starts with
+  `-- migrate:foreign-keys-off`: the migrator turns them off on its connection, outside the
+  transaction, runs the file, runs `PRAGMA foreign_key_check` and refuses to commit if anything
+  dangles, then turns them back on. Migration 0006 does this to add `blocked` to `runs.state`, and
+  recreates every index and trigger that hung off `runs`, counting `blocked` as an active state (so a
+  blocked run still owns its worktree). A test upgrades a populated version-5 database to prove nothing
+  is lost.
 - What survives a restart: projects, repository snapshots, tasks (with versions and
   order), runs, questions, worktrees and the full event log.
 
@@ -238,18 +260,20 @@ Events are **durable first, live second**.
   HTTP requests, which are easier to authenticate, retry and test. A WebSocket can be
   added later for interactive agent I/O if SSE + POST proves insufficient.
 - Event types: `project.registered`, `project.inspected`, `task.created`, `task.updated`,
-  `worktree.created|removing|removed`, `run.state_changed`, `question.answered`, and the agent
-  events below.
+  `worktree.created|removing|removed`, `run.state_changed`, `question.answered|cancelled`, and the agent
+  events below. `GET /api/events?project=<id>` carries only that project's events, filtered before
+  anything is written (§16).
 - **Agent events** are the activity timeline of a run (they carry `runId`): `agent.started`,
   `agent.output` (`{stream, text}`; streams `assistant`, `tool`, `user`, `system`, `stderr`),
   `agent.question`, `agent.waiting` (the agent finished its turn, or the session was
-  interrupted), `agent.resumed`, `agent.completed`, `agent.failed`, `agent.stopped`. Every state
+  interrupted), `agent.blocked` (`{blocker}`: the run stopped rather than guess), `agent.resumed`,
+  `agent.completed`, `agent.failed`, `agent.stopped`. Every state
   change emits `run.state_changed` (carrying the run, which is what clients cache) *and* one of
   these, in the same transaction. `agent.waiting` means "idle, awaiting a message";
   `agent.question` means "blocked on an answer".
 - Output is written in batches (150 ms or 64 KiB) because each write is a durable transaction,
   each event's text is capped at 16 KiB, and a run keeps at most 16 MiB of output.
-- A run's history is `GET /api/runs/{id}/events` (paged backwards from the newest), served from an
+- A run's history is `GET /api/projects/{pid}/runs/{id}/events` (paged backwards from the newest), served from an
   index on `events(run_id, seq)`.
 - *Deferred*: event-log compaction or retention. The log grows without bound; at the
   expected volume (a person's tasks and runs) this is fine for a long time.
@@ -260,7 +284,9 @@ Claude Code and Codex expose different protocols. Each has an `agent.Adapter` th
 its protocol into one vocabulary (`internal/agent/agent.go` has the full contract):
 
 - `Detect` — installed, version, signed in? Cached for 30 s so `GET /api/agents` is cheap.
-- `Start(StartRequest{RunID, WorkDir, Prompt, ResumeRef})` → `Session`. The context bounds
+- `Start(StartRequest{RunID, WorkDir, Prompt, ResumeRef, Policy})` → `Session`. The adapter receives
+  the run's normalised execution policy and passes `agent.Instructions(Policy)` through its agent's
+  channel for standing instructions (§17); it does nothing else with it. The context bounds
   start-up only; the process belongs to the controller. A process that dies within moments of
   starting fails `Start` instead of looking like a session that ran.
 - `Session.Events()` — `output`, `question`, `question_closed`, `turn_end`, `session_ref`. The
@@ -276,14 +302,15 @@ up front (`--session-id`), so it is stored before the agent says anything; `--re
 one. Permission requests (`control_request`/`can_use_tool`) become approval questions; the
 `AskUserQuestion` tool becomes ask questions, put to the user one at a time. Unsupported control
 requests are refused rather than ignored, because an unanswered request hangs the session.
-Default `--permission-mode acceptEdits`.
+Default `--permission-mode acceptEdits`. Policy instructions go in `--append-system-prompt`.
 
 **Codex** (`internal/agent/codex`): `codex app-server`, JSON-RPC over stdio. `thread/start` (or
 `thread/resume`) then `turn/start` per message; a message during a turn uses `turn/steer`.
 Command and file-change approvals and `item/tool/requestUserInput` become questions; requests the
 controller cannot honour get a JSON-RPC error. Secret inputs (`isSecret`) are never collected.
 Defaults `approvalPolicy=on-request`, `sandbox=workspace-write`, passed explicitly so they
-override the user's own `~/.codex/config.toml`.
+override the user's own `~/.codex/config.toml`. Policy instructions go in `developerInstructions` of
+`thread/start` and `thread/resume`.
 
 Both were checked against the installed CLIs (Claude Code 2.1, Codex 0.155): Codex's generated
 protocol schema, and `internal/agent/live`, an opt-in test (`DEVBOARD_LIVE_AGENTS=1`) that runs
@@ -419,7 +446,9 @@ the HTTP API is treated as a remote-execution surface from day one.
   without asking is their own permission system's (Claude Code's `permissionMode`, default
   `acceptEdits`; Codex's `approvalPolicy`/`sandbox`, default `on-request`/`workspace-write`).
   Whatever they ask goes to the user as a question, so the API token is what authorises running
-  code on this computer. Settings that remove the asking (`bypassPermissions`, `never`,
+  code on this computer. **An execution policy never changes any of this** (§17): "autonomous" decides who
+  answers conversational questions, not what an agent may do, and a permission request is put to the user
+  under every policy. Settings that remove the asking (`bypassPermissions`, `never`,
   `danger-full-access`) are allowed and logged as warnings at every start. Process IDs are never
   sent to clients, answers to agents' questions are stored and shown in the activity feed (so
   agents' requests for secrets are refused), and recovery signals a recorded process only after
@@ -435,31 +464,39 @@ the HTTP API is treated as a remote-execution surface from day one.
 ## 11. Frontend
 
 - Svelte 5 (runes) + TypeScript + Vite, built to static files and embedded into the Go
-  binary with `go:embed`. ~21 KB gzipped JS.
-- Three primary surfaces, hash-routed: **Board**, **Control Center**, **Git**, plus the **task
-  page** (`#/task/<id>`), which belongs to the Board.
-- **Phone first.** Under 900 px: sticky top bar, bottom tab bar within thumb reach (with
-  safe-area insets), and the board shows one column at a time behind a four-way segmented
-  control. From 900 px: a side rail replaces the tab bar and all four columns sit side by
-  side. Inputs use 16 px text on touch devices to stop iOS zooming.
+  binary with `go:embed`. ~41 KB gzipped JS.
+- **Project is the scope** (§16). Two kinds of page, hash-routed: global (`#/control` the Control Center,
+  `#/projects` the list of repositories and registering one) and in a project (`#/p/<id>/board`, `git`,
+  `activity`, and `#/p/<id>/task/<id>`, which belongs to the board). The list of a project's sections lives in
+  one place (`PROJECT_SECTIONS` in `src/lib/location.ts`); the side rail, the tab bar and the switcher are
+  built from it, so Calendar (V1) is one more entry, not a navigation rewrite.
+- **Phone first.** Under 900 px: sticky top bar with the project's name as its heading (tap to switch), bottom
+  tab bar within thumb reach (Control Center, then the project's sections, with safe-area insets), and the board
+  shows one column at a time behind a four-way segmented control. From 900 px: a side rail replaces the tab
+  bar, with the project switcher at its head, the global pages, and the current project's sections under its
+  name, and all four columns sit side by side. Inputs use 16 px text on touch devices to stop iOS zooming.
 - **PWA**: web manifest, PNG + SVG icons, and a service worker that caches the shell
   (network-first for navigation, cache-first for content-hashed assets) and never caches
   `/api/*`. State always comes from the controller.
-- `src/lib/state.svelte.ts` is a cache of controller state: filled over HTTP, kept current
-  by the event stream, refetched on every (re)connect. It holds every project's tasks, the latest
-  run of each task, pending questions and the agents.
-- **Cards** show, for a task with a run: the agent, a status (Working / Needs your answer /
-  Waiting for you / Failed / …), elapsed time, a live one-line activity, and a coloured edge when
-  input is required. **The task page** shows the session as an activity feed, not a terminal:
-  messages, runs of tool use folded into one line, stderr tucked into a collapsed "diagnostics"
-  item, questions with their outcome, and a few lifecycle markers. The reply box, or the pending
-  questions with one-tap answers, is docked at the bottom within thumb reach. Actions: send a
-  message, finish, stop (asks twice), and start or re-run with an agent choice, extra
-  instructions and optionally "continue the previous conversation". The Control Center lists what
-  needs the user across projects.
-- `src/lib/feed.ts` and `format.ts` hold the logic that turns events into the feed and run data
-  into labels; they are framework-free and unit-tested with vitest (`npm test`).
-- Types in `src/lib/types.ts` mirror the Go JSON by hand. *Deferred*: generating them from
+- `src/lib/state.svelte.ts` is the global cache: the connection, the projects, the agents, the Control Center's
+  overview and the questions waiting anywhere. What belongs to a project is in that project's `ProjectScope`
+  (`src/lib/scope.svelte.ts`), one per project visited. Both are filled over HTTP, kept current by the event
+  stream, and refetched on every (re)connect.
+- **Cards** show, for a task with a run: the agent, a status — *Running*, *Needs input*, *Blocked*, *Failed*
+  (and *Waiting for you* once an agent finished a turn) — elapsed time, a live one-line activity or, when it
+  asks, the question, or, when blocked, the blocker; a coloured edge when the user is wanted; and the task's
+  interaction mode when it is not the default. **The task page** shows the session as an activity feed, not a
+  terminal: messages, runs of tool use folded into one line, stderr tucked into a collapsed "diagnostics"
+  item, questions with their outcome (and, for one the policy answered, saying so), and a few lifecycle
+  markers. A blocked run shows its blocker, with the agent's options as one-tap replies. The reply box, or the
+  pending questions with one-tap answers, is docked at the bottom within thumb reach. Actions: send a message,
+  finish, stop (asks twice), edit the task (title, description, interaction), and start or re-run with an agent
+  choice, an interaction for that run, extra instructions and optionally "continue the previous conversation".
+- `src/lib/feed.ts`, `format.ts`, `policy.ts`, `projects.ts` and `location.ts` hold the logic that turns events
+  into the feed, run data into labels, and addresses into pages; they are framework-free and unit-tested with
+  vitest (`npm test`), as is the project scope.
+- Pending questions are kept by `QuestionBook` (`src/lib/questions.ts`), which merges fetched lists
+  and stream events so a question seen closed never comes back. Types in `src/lib/types.ts` mirror the Go JSON by hand. *Deferred*: generating them from
   the Go structs (e.g. with `tygo`).
 
 ## 12. Intentionally deferred
@@ -469,8 +506,11 @@ the HTTP API is treated as a remote-execution surface from day one.
 | Agent execution | More agents; an "interrupt this turn" action that keeps the session; token/cost reporting; policies such as "completed run → Review" | `agent.Adapter`; the runner and adapters are built (§8, §14) |
 | Worktrees | Garbage-collecting worktrees of finished tasks; diff/commit/push from a run | `service.Worktrees` records and `gitrepo.Worktrees` engine; a worktree is kept until someone removes it |
 | Advanced Git | Branches, diffs, commits, push, PRs, GitHub integration | `gitrepo` package boundary |
-| Board interactions | Drag and drop, reordering within a column, task detail/editing UI, delete | `Position` and `PATCH /api/tasks/{id}` already accept title, description, state and position |
+| Board interactions | Drag and drop, reordering within a column, delete | `Position` and `PATCH /api/projects/{pid}/tasks/{id}` already accept title, description, state, position and policy; the task page edits title, description and interaction |
 | Projects | Unregistering, renaming | — |
+| Calendar | Everything | `PROJECT_SECTIONS` in the web app: one more section of a project |
+| Task permissions | What an agent may do to the filesystem, Git or network, per task | `ExecutionPolicy` is a struct stored as JSON on tasks and runs, so fields can be added without a migration (§17) |
+| Interrupting an agent | Forcing a turn to stop (Claude `interrupt`, Codex `turn/interrupt`); today a blocked run's agent is *told* to stop and the controller records and shows the block either way | `agent.Session` |
 | Notifications | Web Push for "needs you" | Event log + SSE |
 | Pairing UX | QR code for phones | Token file, `devboard token [--url]`, `/#token=` adoption |
 | Multi-user / accounts | None, by design | — |
@@ -499,13 +539,13 @@ data, the phone layout (one column at a time, bottom navigation), and Svelte 5 f
 
 ## 14. Running a task
 
-`POST /api/tasks/{id}/runs {agentId, instructions?, resume?}` → `runner.Manager.Start`:
+`POST /api/projects/{pid}/tasks/{id}/runs {agentId, instructions?, resume?, policy?}` → `runner.Manager.Start`:
 
 1. **Validate**: the task exists and is not in Done, the agent exists and `Detect` says it is
    usable (not installed / not signed in → 409 with the reason), and the task has no active run.
 2. **Prepare the worktree**: re-inspect the repository (it must still be the registered one and
    have a commit), then reuse the task's worktree or make one (§9, "The engine").
-3. **Create the run** in `starting`. At this point nothing says an agent is running.
+3. **Create the run** in `starting`, with a copy of its execution policy (the task's, unless the request gave one). At this point nothing says an agent is running.
 4. **Launch** the agent in the worktree with the task as its first message (title, description,
    then any instructions). On failure: the run is marked `failed` with the agent's own message
    (502 `agent_failed`), the card does not move, and a worktree made for this attempt is removed.
@@ -518,11 +558,167 @@ HTTP request. Resuming (`resume: true`) passes the previous session's `SessionRe
 sending a message to a run that is waiting but has no process (after a restart), which starts a
 new process for the *same run* (`MarkStarted` with `resumed`).
 
-Other endpoints: `GET /api/tasks/{id}/runs`, `GET /api/projects/{id}/runs` (latest run per
-task, for the board), `GET /api/runs/{id}`, `GET /api/runs/{id}/events?before&limit`,
-`POST /api/runs/{id}/input|finish|stop`, `POST /api/questions/{id}/answer`,
+Other endpoints (all under `/api/projects/{pid}`, see §16): `GET …/tasks/{id}/runs`, `GET …/runs` (latest run per
+task, for the board), `GET …/activity`, `GET …/runs/{id}`, `GET …/runs/{id}/events?before&limit`,
+`POST …/runs/{id}/input|finish|stop`, `POST …/questions/{id}/answer`,
 `GET /api/worktrees/{id}`.
 
 **Configuration** (`config.json`): `worktreesDir`, and per agent (`claude-code`, `codex`):
 `command`, `model`, plus `permissionMode` (Claude Code) or `approvalPolicy` and `sandbox` (Codex).
 Unknown agents, settings on the wrong agent and invalid values are errors at start-up.
+
+
+## 15. Questions: the agent asks, the user answers
+
+An agent may pause and ask for **clarification, a decision, approval, a choice between
+alternatives, or more instructions**. Adapters report each as one normalised `agent.Question`
+(`Ref`, `Kind`, `Prompt`, `Context`, `Options`, `AllowFreeText`); the controller never sees the
+agent's protocol.
+
+```
+agent asks ─▶ adapter emits Question ─▶ RecordQuestion: persist + run → waiting_for_user/question
+          + agent.question event ─▶ every client (SSE) and GET /api/projects/{pid}/questions show "Needs input"
+user answers ─▶ POST /api/projects/{pid}/questions/{id}/answer
+   1. AcceptAnswer     the answer is persisted (state answered); nothing else moves yet
+   2. Session.Respond  delivered to the SAME session that asked
+   3. ConfirmDelivery  deliveredAt set; when nothing else holds the agent up → run running
+```
+
+The task stays in **Doing**: there is no "Needs input" column. Only the run waits.
+
+**Persisted fields**: id, run, task, project, kind, prompt, context, options, allowFreeText, state,
+answer, answeredBy (`user`, or `policy` when the run's execution policy replied for the user, §17), cancelReason, askedAt, answeredAt, deliveredAt, closedAt. The database rejects a question
+whose fields contradict its state (migration 0005).
+
+**Validation**: a question without options always takes free text; an approval always has options.
+An answer is checked against the question *before* anything is stored: it must be non-blank, and one
+of the options unless free text is allowed (a choice is recorded as spelled).
+
+**Surviving disconnection.** The controller, not a browser, holds the state. A client that opens,
+refreshes or reconnects reads `GET /api/control-center` (every pending question, oldest first) and, in a project, `GET /api/projects/{pid}/questions` and resumes the event
+stream from its last `seq`; every question event carries the whole question. Nothing depends on a
+client having seen the event.
+
+**Races** (all decided by the run's lock, so they are deterministic):
+
+| Situation | Outcome |
+| --- | --- |
+| Same answer sent twice (lost reply, double tap, two devices) | Both succeed; delivered once; one `question.answered` |
+| Different answers at once | One wins; the others get 409 `question_answered` with the question (and winner's answer) |
+| Agent withdrew it / no longer has it | `cancelled` (`withdrawn`); 409 `question_closed`; the run resumes if nothing else is open |
+| Agent exits, fails or is stopped while waiting | Every open question `cancelled` (`run_ended`) with an event each |
+| Answer arrives after the process ended | 409 `question_closed`, saying the agent stopped |
+| Process dies between steps 1 and 2 | Answer kept on a `cancelled` question, `deliveredAt` empty |
+| Controller restarts | Open questions `cancelled` (`interrupted`); the run is idle and a message resumes the session |
+| Delivery fails on a live agent that is now stuck | The run is failed (it would wait forever); the answer is kept |
+| Several questions open | Independent; the run resumes when the last is delivered |
+
+**Events** (durable, in the log): `agent.question` (asked), then exactly one of `question.answered`
+or `question.cancelled`; payload `{question}`; envelope carries project, task and run. A future
+notifier needs nothing else.
+
+**UI**: a banner under the top bar on every page, a count in the tab title and (for an installed
+app) the icon badge, Control Center leading with pending questions, the question on its Board card,
+and on the task page a docked alert with the prompt, folded context, big choices and a text box only
+where free text is allowed. Failures are explained, not shown as 409s.
+
+*Deferred*: push notifications (the events above are their source); multi-select answers.
+
+
+## 16. Projects are the scope
+
+A user may register many repositories, but when they enter one they see that project's information and
+nothing else. There is no global board with filters: each project has its own board, Git view, activity
+(run history), tasks, runs, questions and repository state, and the boundary is drawn in the API and the
+domain, not left to the frontend.
+
+```
+Global                      Control Center (aggregates actionable state across every project)
+                            Projects (every repository; registering one)
+Project A                   Board · Git · Activity       (Calendar will be a further section)
+Project B                   Board · Git · Activity
+```
+
+**API.** Everything that belongs to a project is reached *through* it:
+
+```
+GET|POST   /api/projects/{pid}/tasks            PATCH /api/projects/{pid}/tasks/{id}
+GET|POST   /api/projects/{pid}/tasks/{id}/runs  GET   /api/projects/{pid}/runs        (latest run per task)
+GET        /api/projects/{pid}/activity         (run history, newest first)
+GET        /api/projects/{pid}/runs/{id}[/events]   POST …/runs/{id}/input|finish|stop
+GET        /api/projects/{pid}/questions[/{id}]     POST …/questions/{id}/answer
+GET        /api/projects/{pid}/worktrees/{id}       GET  /api/events?project={pid}
+```
+
+The routes that took a bare task, run, question or worktree ID (`/api/tasks/{id}`, `/api/runs/{id}`,
+`/api/questions`, …) no longer exist. The project in the path is checked against the thing asked for
+(`Tasks.GetIn`, `Runs.GetIn`, `Runs.GetQuestionIn`, `Worktrees.GetIn`), and a mismatch is a **404 identical
+to the one for an ID that does not exist**, so a request scoped to one project can neither read nor act on
+another's, and cannot even learn that it exists. Lists are filtered by the database (`WHERE project_id = ?`,
+with indexes), not by the caller, and the event stream can be narrowed to one project before anything is
+written. Tests cover each route with another project's IDs, the removed routes, the lists and the stream.
+
+The only reads that cross projects are global on purpose: `GET /api/projects`, `GET /api/agents`, the
+unscoped event stream and **`GET /api/control-center`**. The latter is one consistent snapshot of what needs
+the user anywhere: per-project counts (needs input, blocked, idle, running), every pending question and every
+active run, each naming its project and task so a client needs nothing else to show it. Answering from the
+Control Center goes through the question's own project.
+
+**Frontend.** A project's data lives in its own `ProjectScope`, filled only from the scoped endpoints, and the
+scope refuses events and entities that name another project. Switching is therefore looking at another scope:
+no page reload, nothing filtered, and a project already visited is there at once (the switcher fetches the
+others ahead of time). The switcher (the project's name in the top bar on a phone; the head of the rail, or
+Ctrl/⌘ K, on a computer) lists projects with what each asks of the user and filters as you type; it keeps the
+section you are in (Board, Git or Activity), leaves a task page for the new project's board, and from a global
+page enters the new project at its board. The active project is unmistakable: its name is the page heading, the
+top of the page is its colour (derived from its ID), and its section links hang off a bar in that colour. What
+needs the user in *other* projects is never hidden: the banner, the tab title and badge, and the Control Center
+all count every project, and a badge on the switcher says how much waits elsewhere.
+
+
+## 17. Execution policy
+
+Each task has an **execution policy**, the default for its runs, and each run keeps a copy of the one it
+started with (a run can be started with another, for that run only; editing a task never changes a run that is
+working). It is a struct, `{"interaction": …}`, stored as JSON, so that finer-grained permissions can be added
+as fields in V1 without a migration. Today it has one field:
+
+| Interaction | What the user asked for | What happens |
+| --- | --- | --- |
+| `interactive` (default; "Ask me when needed") | The agent may ask. | Unchanged: asks → the run is `waiting_for_user` → the question is persisted → the user answers → the same session continues. No instructions are added. |
+| `autonomous` ("Work autonomously") | No routine questions. | The agent is told to investigate the repository itself, decide, and carry on until it considers the task done. If it asks an ordinary question anyway, the controller **answers for the user** with a reply telling it to decide for itself, records the question as answered by the policy, and the run keeps working. |
+| `autonomous_stop_if_blocked` | As above, but never guess. | As above, plus the agent is told that when it reaches a decision it cannot safely infer it must stop and end its turn with a one-line `DEVBOARD_BLOCKED {…}` report. If it asks a question instead, the controller does not put it to the user: the run becomes **`blocked`** with a persisted, structured `Blocker`, and the agent is told to stop. |
+
+**One place.** `internal/agent/policy.go` is the only code that knows what a policy means: `Instructions(policy)`
+(the text), `HandleQuestion` (what the controller does with a question) and `ParseBlocker` (reading a report).
+The runner and the adapters call it; nothing else appends policy text to a prompt. Adapters receive the
+normalised policy in `StartRequest` and translate it to their agent's channel (§8), on resumed sessions too.
+
+**The controller is authoritative, not the prompt.** Instructions are a request. What the controller *does*
+does not depend on the agent complying: a question that a policy does not allow is intercepted in the
+runner (`live.onQuestion`) whatever the agent was told, and a blocker is recorded the moment it is asked or
+reported. An agent that keeps asking after being told to decide gets at most 8 answers per session, after which
+the question goes to the user. *Deferred*: forcibly interrupting a turn; today a blocked run's agent is told
+to stop and, if it does not, the run still shows as blocked and the user can stop it.
+
+**Autonomous does not mean unrestricted.** A policy changes who answers *conversational* questions. It grants
+and removes no capability: Claude's `permissionMode` and Codex's `approvalPolicy`/`sandbox` stay as configured,
+and the instructions say so and forbid destructive Git and filesystem changes the task does not call for.
+**A permission request (an approval) is never answered, swallowed or blocked by any policy**: `HandleQuestion`
+returns "ask the user" for an approval whatever the policy and however many replies were given, the domain
+refuses to record an approval as answered by a policy (`Question.AcceptFromPolicy`), and the tests assert both
+at every layer. Under `autonomous_stop_if_blocked` an approval is still an approval, not a blocker: the run
+waits for the user, as it always has.
+
+**Blocked.** A blocked run has a session and no question. `Run.Blocker` (`summary`, `detail`, `options`,
+`source` = `question` or `report`, the question's `kind`, `raisedAt`) is persisted on the run, announced by
+`agent.blocked` and shown on the card, the task page and the Control Center. The user settles it by sending a
+message (the same session continues and the blocker is cleared; the log keeps it), or finishes or stops the
+run. It survives a controller restart like an idle run (its question, if any, was answered by the policy
+before the process went), and a message resumes the session under the same policy. A blocked run is *active*:
+it holds its worktree, and the database enforces that.
+
+**Audit.** A question a policy answered is recorded as asked and answered (`answeredBy: "policy"`, answer = the
+reply the agent was given) in the same transaction, so the activity feed shows what was asked and how it was
+dealt with, and "who decided" is never ambiguous.
+

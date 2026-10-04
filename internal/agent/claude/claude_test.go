@@ -251,8 +251,11 @@ func TestApprovalIsAllowed(t *testing.T) {
 func TestApprovalIsDeniedWithTheUsersWords(t *testing.T) {
 	s, _ := start(t, Config{}, "bash please")
 	q := next(t, s, kind(agent.KindQuestion)).Question
-	if !strings.Contains(q.Prompt, "$ npm test") || !strings.Contains(q.Prompt, "run the tests") {
-		t.Fatalf("prompt = %q", q.Prompt)
+	if q.Prompt != "Run this command?" || !strings.Contains(q.Context, "$ npm test") || !strings.Contains(q.Context, "run the tests") {
+		t.Fatalf("question = %+v; the command is the context, not the question", q)
+	}
+	if q.AllowFreeText {
+		t.Fatal("an approval is answered Allow or Deny")
 	}
 	if err := s.Respond(context.Background(), q.Ref, "Deny"); err != nil {
 		t.Fatal(err)
@@ -277,13 +280,19 @@ func TestFreeTextAnswerToAnApprovalDenies(t *testing.T) {
 func TestAskUserQuestionIsAskedOneAtATime(t *testing.T) {
 	s, _ := start(t, Config{}, "askme")
 	first := next(t, s, kind(agent.KindQuestion)).Question
-	if first.Kind != domain.QuestionAsk || first.Prompt != "(1 of 2) Which colour?" || len(first.Options) != 2 || first.Options[1] != "Blue" {
+	if first.Kind != domain.QuestionSelection || !first.AllowFreeText || first.Prompt != "(1 of 2) Which colour?" || len(first.Options) != 2 || first.Options[1] != "Blue" {
 		t.Fatalf("first = %+v", first)
+	}
+	if first.Context != "Blue: calm and cool" {
+		t.Fatalf("what the options mean is what lets the user choose between them: context = %q", first.Context)
 	}
 	if err := s.Respond(context.Background(), first.Ref, "Blue"); err != nil {
 		t.Fatal(err)
 	}
 	second := next(t, s, kind(agent.KindQuestion)).Question
+	if second.Context != "" || second.Kind != domain.QuestionSelection || !second.AllowFreeText {
+		t.Fatalf("second = %+v", second)
+	}
 	if second.Prompt != "(2 of 2) Which size?" || second.Ref == first.Ref {
 		t.Fatalf("second = %+v", second)
 	}
@@ -453,5 +462,47 @@ func TestSummarizeTool(t *testing.T) {
 	}
 	if got := summarizeTool("Bash", map[string]any{"command": strings.Repeat("x", 1000)}, "/w"); len([]rune(got)) > 310 {
 		t.Errorf("a long command is not clipped: %d runes", len([]rune(got)))
+	}
+}
+
+// The run's policy reaches Claude Code as standing instructions in its system
+// prompt, from the one place that words them; interactive runs add nothing.
+func TestPolicyBecomesSystemPromptInstructions(t *testing.T) {
+	for _, tc := range []struct {
+		interaction domain.InteractionPolicy
+		resume      string
+		want        bool
+	}{
+		{domain.InteractionInteractive, "", false},
+		{"", "", false},
+		{domain.InteractionAutonomous, "", true},
+		{domain.InteractionAutonomousStopIfBlocked, "", true},
+		{domain.InteractionAutonomousStopIfBlocked, "abc-123", true}, // a resumed session is just as bound
+	} {
+		argsFile := filepath.Join(t.TempDir(), "args")
+		t.Setenv("FAKE_CLAUDE_ARGS_FILE", argsFile)
+		dir, _ := filepath.EvalSymlinks(t.TempDir())
+		pol := domain.ExecutionPolicy{Interaction: tc.interaction}
+		s, err := New(Config{Command: fakeClaude(t)}).Start(context.Background(), agent.StartRequest{WorkDir: dir, Prompt: "hello", ResumeRef: tc.resume, Policy: pol})
+		if err != nil {
+			t.Fatal(err)
+		}
+		collect(t, s)
+		_ = s.Stop(context.Background())
+		for range s.Events() {
+		}
+		b, _ := os.ReadFile(argsFile)
+		args := string(b)
+		has := strings.Contains(args, "--append-system-prompt\n"+agent.Instructions(pol))
+		if tc.want != has || (tc.want && agent.Instructions(pol) == "") {
+			t.Errorf("policy %q: instructions passed = %v, want %v\n%s", tc.interaction, has, tc.want, args)
+		}
+		if !tc.want && strings.Contains(args, "append-system-prompt") {
+			t.Errorf("policy %q passed a system prompt:\n%s", tc.interaction, args)
+		}
+		// A policy only talks; it never changes what the agent may do.
+		if !strings.Contains(args, "--permission-mode\nacceptEdits") || strings.Contains(args, "bypass") || strings.Contains(args, "dangerously") || strings.Contains(args, "allowedTools") {
+			t.Errorf("policy %q altered the permission settings:\n%s", tc.interaction, args)
+		}
 	}
 }

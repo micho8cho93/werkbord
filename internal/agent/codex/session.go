@@ -125,7 +125,10 @@ func (s *session) send(v any) error {
 	return s.WriteLine(b)
 }
 
-func (s *session) handshake(ctx context.Context, resumeRef string) error {
+// handshake opens the thread. instructions, if any, are the run's standing
+// instructions from its execution policy: Codex keeps them as developer
+// instructions for the thread, which is also what a resumed thread needs again.
+func (s *session) handshake(ctx context.Context, resumeRef, instructions string) error {
 	if err := s.call(ctx, "initialize", map[string]any{
 		"clientInfo":   map[string]any{"name": "devboard", "title": "Devboard", "version": "1"},
 		"capabilities": map[string]any{"experimentalApi": true}, // request_user_input is experimental
@@ -141,6 +144,9 @@ func (s *session) handshake(ctx context.Context, resumeRef string) error {
 	}
 	if s.cfg.Model != "" {
 		params["model"] = s.cfg.Model
+	}
+	if instructions != "" {
+		params["developerInstructions"] = instructions
 	}
 	method := "thread/start"
 	if resumeRef != "" {
@@ -425,11 +431,11 @@ func (s *session) onServerRequest(m rpcMessage) {
 			Reason  string `json:"reason"`
 		}
 		_ = json.Unmarshal(m.Params, &p)
-		prompt := "Run this command?\n$ " + clip(p.Command, 1500)
+		detail := "$ " + clip(p.Command, 1500)
 		if p.Reason != "" {
-			prompt += "\n" + clip(p.Reason, 500)
+			detail += "\n\n" + clip(p.Reason, 500)
 		}
-		s.openApproval(m, ref, prompt)
+		s.openApproval(m, ref, "Run this command?", detail)
 
 	case "item/fileChange/requestApproval":
 		var p struct {
@@ -437,14 +443,14 @@ func (s *session) onServerRequest(m rpcMessage) {
 			GrantRoot string `json:"grantRoot"`
 		}
 		_ = json.Unmarshal(m.Params, &p)
-		prompt := "Apply these file changes?"
+		var detail []string
 		if p.Reason != "" {
-			prompt += "\n" + clip(p.Reason, 500)
+			detail = append(detail, clip(p.Reason, 500))
 		}
 		if p.GrantRoot != "" {
-			prompt += "\nThis lets Codex write under " + p.GrantRoot + " for the rest of the session."
+			detail = append(detail, "This lets Codex write under "+p.GrantRoot+" for the rest of the session.")
 		}
-		s.openApproval(m, ref, prompt)
+		s.openApproval(m, ref, "Apply these file changes?", strings.Join(detail, "\n\n"))
 
 	case "item/tool/requestUserInput":
 		var p struct {
@@ -479,12 +485,13 @@ func (s *session) onServerRequest(m rpcMessage) {
 	}
 }
 
-func (s *session) openApproval(m rpcMessage, ref, prompt string) {
+func (s *session) openApproval(m rpcMessage, ref, prompt, detail string) {
 	s.mu.Lock()
 	s.pending[ref] = &request{id: m.ID, method: m.Method}
 	s.mu.Unlock()
 	s.Emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{
-		Ref: ref, Kind: domain.QuestionApproval, Prompt: prompt, Options: []string{"Allow", "Allow for this session", "Deny"},
+		Ref: ref, Kind: domain.QuestionApproval, Prompt: prompt, Context: detail,
+		Options: []string{domain.AnswerAllow, "Allow for this session", domain.AnswerDeny},
 	}})
 }
 
@@ -501,8 +508,12 @@ func (s *session) emitInput(ref string, req *request) {
 	for _, o := range q.Options {
 		opts = append(opts, o.Label)
 	}
+	kind := domain.QuestionClarification
+	if len(opts) > 0 {
+		kind = domain.QuestionSelection
+	}
 	s.Emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{
-		Ref: ref + "#" + strconv.Itoa(req.next), Kind: domain.QuestionAsk, Prompt: prompt, Options: opts,
+		Ref: ref + "#" + strconv.Itoa(req.next), Kind: kind, Prompt: prompt, Options: opts, AllowFreeText: true,
 	}})
 }
 

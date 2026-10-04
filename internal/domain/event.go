@@ -17,7 +17,13 @@ const (
 	EventWorktreeCreated   EventType = "worktree.created"
 	EventWorktreeRemoving  EventType = "worktree.removing"
 	EventWorktreeRemoved   EventType = "worktree.removed"
-	EventQuestionAnswered  EventType = "question.answered" // answered, or cancelled when the run ended first
+
+	// Question events. A question is announced by agent.question (payload:
+	// {question}) and closed by exactly one of these, whose payload is also
+	// {question}, carrying the question's final state. They are self-contained
+	// and durable, so a notifier can be built later from the log alone.
+	EventQuestionAnswered  EventType = "question.answered"  // the user's answer was recorded
+	EventQuestionCancelled EventType = "question.cancelled" // it can no longer be answered; the question says why
 
 	// Agent events describe what happens inside a run. They are the activity
 	// timeline; every state change among them is accompanied by a
@@ -27,6 +33,7 @@ const (
 	EventAgentOutput    EventType = "agent.output"    // payload: AgentOutput
 	EventAgentQuestion  EventType = "agent.question"  // the agent is blocked on an answer; payload: {question}
 	EventAgentWaiting   EventType = "agent.waiting"   // the agent finished its turn and awaits a message
+	EventAgentBlocked   EventType = "agent.blocked"   // the run stopped rather than guess; payload: {blocker}
 	EventAgentResumed   EventType = "agent.resumed"   // the user's message or answer reached the agent
 	EventAgentCompleted EventType = "agent.completed" // the session ended normally
 	EventAgentFailed    EventType = "agent.failed"    // setup, the process or the agent failed

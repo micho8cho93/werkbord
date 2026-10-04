@@ -85,14 +85,55 @@ func migrate(ctx context.Context, db *sql.DB, ms []Migration) (applied int, err 
 	return applied, nil
 }
 
+// foreignKeysOff is the first line of a migration that has to rebuild a table
+// other tables refer to. SQLite cannot change a CHECK constraint or a column in
+// place, and dropping a parent table with foreign keys on would cascade into its
+// children, so such a migration runs with them off.
+const foreignKeysOff = "-- migrate:foreign-keys-off"
+
 func applyMigration(ctx context.Context, db *sql.DB, m Migration) error {
-	tx, err := db.BeginTx(ctx, nil)
+	// foreign_keys cannot be changed inside a transaction, so it is set on a
+	// connection held for the whole migration, and restored afterwards. The writer
+	// pool has one connection, so nothing else can be using the database.
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	off := strings.HasPrefix(strings.TrimSpace(m.SQL), foreignKeysOff)
+	if off {
+		if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+			return fmt.Errorf("migration %04d_%s: %w", m.Version, m.Name, err)
+		}
+		defer func() { _, _ = conn.ExecContext(context.WithoutCancel(ctx), `PRAGMA foreign_keys = ON`) }()
+	}
+
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, m.SQL); err != nil {
 		return fmt.Errorf("migration %04d_%s: %w", m.Version, m.Name, err)
+	}
+	if off {
+		// What the rebuild must not break: every reference still resolves.
+		rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
+		if err != nil {
+			return fmt.Errorf("migration %04d_%s: check foreign keys: %w", m.Version, m.Name, err)
+		}
+		var table string
+		broken := rows.Next()
+		if broken {
+			var rowid sql.NullInt64
+			var parent string
+			var fk int
+			_ = rows.Scan(&table, &rowid, &parent, &fk)
+		}
+		_ = rows.Close()
+		if broken {
+			return fmt.Errorf("migration %04d_%s: it would leave a row in %s pointing at a row that does not exist", m.Version, m.Name, table)
+		}
 	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`,

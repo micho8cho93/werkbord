@@ -4,14 +4,28 @@
   import { RunFeed } from '../lib/feed.svelte';
   import FeedView from '../lib/FeedView.svelte';
   import { agentName, runElapsed, runStatus, timeAgo } from '../lib/format';
+  import InteractionPicker from '../lib/InteractionPicker.svelte';
+  import { blockerLine, interactionLabel, isNotable } from '../lib/policy';
   import QuestionCard from '../lib/QuestionCard.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
-  import { router } from '../lib/router.svelte';
+  import { projectHref, router } from '../lib/router.svelte';
+  import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
-  import { TASK_STATES, TASK_STATE_LABELS, type Run, type TaskState, type Worktree } from '../lib/types';
+  import {
+    TASK_STATES,
+    TASK_STATE_LABELS,
+    type InteractionPolicy,
+    type Project,
+    type Run,
+    type TaskState,
+    type Worktree,
+  } from '../lib/types';
 
-  const task = $derived(app.allTasks.find((t) => t.id === router.taskId));
-  const latest = $derived(app.latestRun[router.taskId]);
+  let { scope, project }: { scope: ProjectScope; project: Project } = $props();
+
+  // Everything on this page belongs to one project, and is read and changed through it.
+  const task = $derived(scope.tasks.find((t) => t.id === router.taskId));
+  const latest = $derived(scope.latestRun[router.taskId]);
 
   // ---- which run is shown: the latest, unless the user picked an earlier one ----
   let history = $state<Run[]>([]);
@@ -26,7 +40,7 @@
     void latest?.id; // a new run makes a new entry in the history
     picked = '';
     if (!id) return;
-    api.listTaskRuns(id).then((rs) => (history = rs), (err) => app.handleError(err));
+    api.listTaskRuns(project.id, id).then((rs) => (history = rs), (err) => app.handleError(err));
   });
 
   // ---- the activity stream of the shown run ----
@@ -37,7 +51,7 @@
       feed = null;
       return;
     }
-    const f = new RunFeed(id);
+    const f = new RunFeed(project.id, id);
     feed = f;
     const stopWatching = app.watchRun(id, (ev) => f.push(ev));
     const stopReconnect = app.onReconnect(() => void f.load());
@@ -53,7 +67,7 @@
   $effect(() => {
     const id = run?.worktreeId;
     worktree = null;
-    if (id) api.getWorktree(id).then((w) => (worktree = w), () => (worktree = null));
+    if (id) api.getWorktree(project.id, id).then((w) => (worktree = w), () => (worktree = null));
   });
 
   // ---- keeping the newest activity in view, unless the reader scrolled away ----
@@ -94,17 +108,54 @@
   async function move(state: TaskState) {
     if (!task || state === task.state) return;
     const t = await act(() => api.moveTask(task, state));
-    if (t) app.upsertTask(t);
-    else await app.refresh();
+    if (t) scope.upsertTask(t);
+    else await scope.load().catch((err) => app.handleError(err));
+  }
+
+  // Edit the task: its words, and how its runs are carried out.
+  let editing = $state(false);
+  let editTitle = $state('');
+  let editDescription = $state('');
+  let editInteraction = $state<InteractionPolicy>('interactive');
+  function startEditing() {
+    if (!task) return;
+    editTitle = task.title;
+    editDescription = task.description;
+    editInteraction = task.policy.interaction;
+    editing = true;
+  }
+  async function saveEdit() {
+    if (!task || !editTitle.trim()) return;
+    const t = await act(() =>
+      api.editTask(task, { title: editTitle.trim(), description: editDescription, policy: { interaction: editInteraction } }),
+    );
+    if (t) {
+      scope.upsertTask(t);
+      editing = false;
+    } else if (actionError.includes('modified') || actionError.includes('version')) {
+      await scope.load().catch((err) => app.handleError(err));
+    }
   }
 
   // Start
   let agentId = $state('');
   let instructions = $state('');
   let resume = $state(false);
+  /** The interaction for the run about to start; the task's own unless the user picks another here. */
+  let runInteraction = $state<InteractionPolicy>('interactive');
+  let runInteractionFor = '';
   const available = $derived(app.agents.filter((a) => a.available));
   $effect(() => {
     if (!available.some((a) => a.id === agentId)) agentId = available[0]?.id ?? '';
+  });
+  $effect(() => {
+    // Follows the task's own policy until the user chooses differently for this run.
+    const t = task;
+    const key = t ? `${t.id}:${t.version}:${t.policy.interaction}` : '';
+    if (t && key !== runInteractionFor) {
+      runInteractionFor = key;
+      runInteraction = t.policy.interaction;
+    }
   });
   const canResume = $derived(!!latest && !!latest.sessionRef && latest.agentId === agentId);
   $effect(() => {
@@ -113,9 +164,11 @@
 
   async function start() {
     if (!task || !agentId) return;
-    const r = await act(() => api.startRun(task.id, agentId, instructions.trim(), resume));
+    const r = await act(() =>
+      api.startRun(project.id, task.id, agentId, instructions.trim(), resume, { interaction: runInteraction }),
+    );
     if (r) {
-      app.upsertRun(r);
+      scope.upsertRun(r);
       instructions = '';
       resume = false;
       nearBottom = true;
@@ -124,16 +177,17 @@
 
   // Message
   let message = $state('');
-  async function send() {
-    const text = message.trim();
+  async function sendText(text: string) {
+    text = text.trim();
     if (!run || !text) return;
-    const r = await act(() => api.sendInput(run.id, text));
+    const r = await act(() => api.sendInput(project.id, run.id, text));
     if (r) {
       message = '';
-      app.upsertRun(r);
+      scope.upsertRun(r);
       nearBottom = true;
     }
   }
+  const send = () => sendText(message);
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -143,8 +197,8 @@
 
   async function finish() {
     if (!run) return;
-    const r = await act(() => api.finishRun(run.id));
-    if (r) app.upsertRun(r);
+    const r = await act(() => api.finishRun(project.id, run.id));
+    if (r) scope.upsertRun(r);
   }
 
   // Stopping loses the agent's current work in progress, so it asks twice.
@@ -159,12 +213,17 @@
     }
     clearTimeout(stopTimer);
     confirmingStop = false;
-    const r = await act(() => api.stopRun(run.id));
-    if (r) app.upsertRun(r);
+    const r = await act(() => api.stopRun(project.id, run.id));
+    if (r) scope.upsertRun(r);
   }
 
-  const pending = $derived(app.questions.filter((q) => q.runId === run?.id));
-  const canMessage = $derived(viewingLatest && !!run && (run.state === 'running' || (run.state === 'waiting_for_user' && run.waiting === 'idle')));
+  const pending = $derived(run ? scope.pendingFor(run.id) : []);
+  const isBlocked = $derived(viewingLatest && run?.state === 'blocked');
+  const canMessage = $derived(
+    viewingLatest &&
+      !!run &&
+      (run.state === 'running' || run.state === 'blocked' || (run.state === 'waiting_for_user' && run.waiting === 'idle')),
+  );
   const canStart = $derived(!latest || !runStatus(latest).active);
   const isDone = $derived(task?.state === 'done');
 
@@ -182,10 +241,10 @@
 </script>
 
 <div class="page">
-  <a class="back" href="#/board">← Board</a>
+  <a class="back" href={projectHref(project.id, 'board')}>← Board</a>
 
   {#if !task}
-    <p class="card empty">{app.projects.length || app.connection !== 'live' ? 'This task was not found.' : 'Loading…'}</p>
+    <p class="card empty">{scope.loaded ? 'This task was not found in this project.' : 'Loading…'}</p>
   {:else}
     <header class="head">
       <div class="title-row">
@@ -205,6 +264,35 @@
           <p>{task.description}</p>
         </details>
       {/if}
+      <p class="interaction">
+        <span class="muted">Interaction:</span>
+        <strong>{interactionLabel(task.policy)}</strong>
+        <button class="btn small quiet" onclick={() => (editing ? (editing = false) : startEditing())}>{editing ? 'Cancel' : 'Edit task'}</button>
+      </p>
+      {#if editing}
+        <form
+          class="card edit"
+          onsubmit={(e) => {
+            e.preventDefault();
+            void saveEdit();
+          }}
+        >
+          <label class="field">
+            <span>Title</span>
+            <input class="input" maxlength="200" bind:value={editTitle} required />
+          </label>
+          <label class="field">
+            <span>Description</span>
+            <textarea class="input" rows="3" bind:value={editDescription}></textarea>
+          </label>
+          <InteractionPicker name="edit-interaction" bind:value={editInteraction} />
+          <p class="muted small">A change applies to runs started after it; a run that is already working keeps its own.</p>
+          <div class="actions">
+            <button class="btn primary" type="submit" disabled={busy || !editTitle.trim()}>Save</button>
+            <button class="btn" type="button" onclick={() => (editing = false)}>Cancel</button>
+          </div>
+        </form>
+      {/if}
     </header>
 
     {#if run && status}
@@ -223,7 +311,28 @@
             </label>
           {/if}
         </div>
-        <p class="hint">{status.hint}</p>
+        {#if isNotable(run.policy) || run.policy.interaction !== task.policy.interaction}
+          <p class="small muted">This run: {interactionLabel(run.policy)}</p>
+        {/if}
+        {#if run.state === 'blocked' && run.blocker}
+          <div class="blocker" role="group" aria-label="Why the run is blocked">
+            <p class="what">{blockerLine(run)}</p>
+            {#if run.blocker.detail}<p class="detail">{run.blocker.detail}</p>{/if}
+            {#if run.blocker.options?.length && isBlocked}
+              <div class="options">
+                {#each run.blocker.options as o (o)}
+                  <button class="btn" disabled={busy} onclick={() => sendText(o)}>{o}</button>
+                {/each}
+              </div>
+            {/if}
+            <p class="small muted">
+              {run.blocker.source === 'question' ? 'The agent asked, and this run does not put questions to you.' : 'The agent reported that it could not go on.'}
+              Raised {timeAgo(run.blocker.raisedAt, app.now)}.
+            </p>
+          </div>
+        {:else}
+          <p class="hint">{status.hint}</p>
+        {/if}
         {#if worktree}
           <p class="where">
             <span class="muted">Working in</span> <code>{worktree.branch}</code>
@@ -232,7 +341,7 @@
         {/if}
         {#if viewingLatest && status.active}
           <div class="actions">
-            {#if run.state === 'waiting_for_user' && run.waiting === 'idle'}
+            {#if (run.state === 'waiting_for_user' && run.waiting === 'idle') || run.state === 'blocked'}
               <button class="btn small" disabled={busy} onclick={finish}>Finish session</button>
             {/if}
             <button class="btn small danger" class:armed={confirmingStop} disabled={busy} onclick={stop}>
@@ -278,6 +387,7 @@
               {/each}
             </select>
           </label>
+          <InteractionPicker name="run-interaction" legend="Interaction for this run" bind:value={runInteraction} />
           <label class="field">
             <span>Extra instructions <span class="muted">(optional)</span></span>
             <textarea class="input" rows="2" placeholder="Anything to add to the task…" bind:value={instructions}></textarea>
@@ -298,10 +408,10 @@
 </div>
 
 {#if run && viewingLatest && (pending.length > 0 || canMessage)}
-  <div class="dock">
+  <div class="dock" class:asking={pending.length > 0} class:blocked={isBlocked && pending.length === 0}>
     <div class="dock-inner">
       {#if pending.length > 0}
-        <div class="questions">
+        <div class="questions" role="region" aria-label="The agent is waiting for your answer">
           {#each pending as q (q.id)}
             <QuestionCard question={q} />
           {/each}
@@ -319,7 +429,11 @@
             id="message"
             class="input"
             rows="1"
-            placeholder={run.state === 'running' ? 'Add a message — it is queued for the agent' : 'Reply to the agent'}
+            placeholder={isBlocked
+              ? 'Tell the agent how to proceed'
+              : run.state === 'running'
+                ? 'Add a message — it is queued for the agent'
+                : 'Reply to the agent'}
             bind:value={message}
             onkeydown={onKey}
           ></textarea>
@@ -404,6 +518,54 @@
 
   .runbar[data-tone='ask'] {
     border-left-color: var(--warn);
+  }
+
+  .runbar[data-tone='block'] {
+    border-left-color: var(--block);
+  }
+
+  .interaction {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    font-size: 0.85rem;
+  }
+
+  .small {
+    font-size: 0.8rem;
+  }
+
+  .edit {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  /* Why the run stopped rather than guess, and the choices the agent saw. */
+  .blocker {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--block) 9%, var(--surface));
+  }
+
+  .blocker .what {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .blocker .detail {
+    font-size: 0.88rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .runbar[data-tone='ok'] {
@@ -515,6 +677,17 @@
 
   .dock-inner {
     max-width: 52rem;
+  }
+
+  /* An agent is blocked: the dock is an alert, not a reply box. */
+  .dock.asking {
+    border-top: 3px solid var(--warn);
+    background: color-mix(in srgb, var(--warn) 8%, var(--bg));
+  }
+
+  .dock.blocked {
+    border-top: 3px solid var(--block);
+    background: color-mix(in srgb, var(--block) 7%, var(--bg));
   }
 
   .questions {

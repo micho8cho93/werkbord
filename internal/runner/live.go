@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -36,10 +37,13 @@ type live struct {
 	done      chan struct{}
 	closeOnce sync.Once
 
+	policy domain.ExecutionPolicy // the run's, fixed when it started
+
 	mu        sync.Mutex
 	questions map[string]string // question ID -> the adapter's ref for it
 	refs      map[string]string // the adapter's ref -> question ID
 	sessRef   string
+	replies   int // questions the policy has answered for the user in this session
 
 	mode        atomic.Int32
 	rmu         sync.Mutex // guards the two below
@@ -49,11 +53,16 @@ type live struct {
 	// owned by loop
 	outBytes int64
 	capped   bool
+	turn     []byte // what the agent said in the turn in progress, for a blocker report at its end
 }
+
+// maxTurnText bounds how much of a turn's speech is kept to look for a blocker
+// report, which is always at the end of it.
+const maxTurnText = 16 << 10
 
 func newLive(m *Manager, run *domain.Run, sess agent.Session) *live {
 	return &live{
-		m: m, runID: run.ID, sess: sess, done: make(chan struct{}),
+		m: m, runID: run.ID, sess: sess, policy: run.Policy.Normalized(), done: make(chan struct{}),
 		questions: map[string]string{}, refs: map[string]string{},
 	}
 }
@@ -92,6 +101,7 @@ func (l *live) loop() {
 			}
 			switch ev.Kind {
 			case agent.KindOutput:
+				l.hear(ev)
 				if item, ok := l.admit(ev); ok {
 					pending = append(pending, item)
 					size += len(item.Text)
@@ -117,6 +127,18 @@ func (l *live) loop() {
 	}
 	flush()
 	l.conclude(l.sess.Wait())
+}
+
+// hear keeps the end of what the agent says during a turn. Only a run that must
+// stop when blocked has any use for it.
+func (l *live) hear(ev agent.Event) {
+	if ev.Stream != domain.StreamAssistant || l.policy.Interaction != domain.InteractionAutonomousStopIfBlocked {
+		return
+	}
+	l.turn = append(append(l.turn, ev.Text...), '\n')
+	if over := len(l.turn) - maxTurnText; over > 0 {
+		l.turn = append(l.turn[:0], l.turn[over:]...)
+	}
 }
 
 // admit applies the per-run output budget: past it, output is dropped, once
@@ -153,7 +175,16 @@ func (l *live) onQuestion(q *agent.Question) {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	rec, _, err := l.m.opt.Runs.RecordQuestion(bg(), l.runID, service.NewQuestion{Kind: q.Kind, Prompt: q.Prompt, Options: q.Options})
+
+	// The run's policy decides whether this goes to the user at all. It never
+	// swallows an approval: see agent.HandleQuestion.
+	if h := agent.HandleQuestion(l.policy, *q, l.replies); h.Action != agent.ActionAsk && l.reply(q, h) {
+		return
+	}
+
+	rec, _, err := l.m.opt.Runs.RecordQuestion(bg(), l.runID, service.NewQuestion{
+		Kind: q.Kind, Prompt: q.Prompt, Context: q.Context, Options: q.Options, AllowFreeText: q.AllowFreeText,
+	})
 	if err != nil {
 		if l.mode.Load() == modeNone {
 			// An agent blocked on a question nobody can see would hang for good.
@@ -162,6 +193,45 @@ func (l *live) onQuestion(q *agent.Question) {
 		return
 	}
 	l.questions[rec.ID], l.refs[q.Ref] = q.Ref, rec.ID
+}
+
+// reply deals with a question on the user's behalf, as its run's policy says:
+// the agent is told to decide for itself, or, if the run must stop when blocked,
+// to stop, and the run becomes blocked. The question is recorded, as answered by
+// the policy, so the activity feed shows what was asked and what was done.
+//
+// It reports false if the policy could not deal with it here (the run is not in
+// a state to be answered for, because it is already waiting on an approval), and
+// the question should be put to the user after all. The caller holds l.mu.
+func (l *live) reply(q *agent.Question, h agent.Handling) bool {
+	runs := l.m.opt.Runs
+	rec, _, err := runs.RecordReplied(bg(), l.runID, service.NewQuestion{
+		Kind: q.Kind, Prompt: q.Prompt, Context: q.Context, Options: q.Options, AllowFreeText: q.AllowFreeText,
+	}, service.Replied{Reply: h.Reply, Blocker: h.Blocker})
+	if err != nil {
+		if errors.Is(err, domain.ErrConflict) {
+			return false
+		}
+		if l.mode.Load() == modeNone {
+			l.abort("could not record a question from the agent: " + err.Error())
+		}
+		return true
+	}
+	if h.Action == agent.ActionReply {
+		l.replies++
+	}
+	l.m.log().Info("answered an agent's question for the user", "run", l.runID, "policy", l.policy.Interaction, "blocked", h.Action == agent.ActionBlock)
+
+	dctx, cancel := context.WithTimeout(bg(), deliverTimeout)
+	defer cancel()
+	if err := l.sess.Respond(dctx, q.Ref, rec.Answer); err != nil {
+		_ = l.undelivered(rec, q.Ref, err)
+		return true
+	}
+	if _, err := runs.ConfirmDelivery(bg(), rec.ID); err != nil {
+		l.m.log().Warn("cannot record that a reply reached the agent", "run", l.runID, "question", rec.ID, "err", err)
+	}
+	return true
 }
 
 func (l *live) onQuestionClosed(ref string) {
@@ -173,7 +243,7 @@ func (l *live) onQuestionClosed(ref string) {
 	if id == "" {
 		return
 	}
-	if err := l.m.opt.Runs.CancelQuestion(bg(), id); err != nil {
+	if _, err := l.m.opt.Runs.CancelQuestion(bg(), id, domain.CancelWithdrawn); err != nil {
 		l.m.log().Warn("cannot cancel a withdrawn question", "run", l.runID, "question", id, "err", err)
 	}
 }
@@ -181,6 +251,19 @@ func (l *live) onQuestionClosed(ref string) {
 func (l *live) onTurnEnd() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	text := string(l.turn)
+	l.turn = l.turn[:0]
+
+	// A run that must stop when blocked ends its turn with a report when it cannot
+	// go on: the run is blocked, not idle.
+	if l.policy.Interaction == domain.InteractionAutonomousStopIfBlocked {
+		if b, ok := agent.ParseBlocker(text); ok {
+			if _, err := l.m.opt.Runs.Block(bg(), l.runID, b); err == nil {
+				return
+			}
+			// Not running (it is waiting on an approval, or over): an ordinary end of turn.
+		}
+	}
 	if _, err := l.m.opt.Runs.MarkIdle(bg(), l.runID); err != nil {
 		l.m.log().Warn("cannot record the end of a turn", "run", l.runID, "err", err)
 	}
@@ -257,25 +340,101 @@ func (l *live) send(ctx context.Context, text string) error {
 	return nil
 }
 
-func (l *live) answer(ctx context.Context, questionID, answer string) error {
+// deliverTimeout bounds handing an answer to the agent. It does not depend on
+// the request that carried the answer: a client that disconnects must not leave
+// an answer half-delivered.
+const deliverTimeout = 30 * time.Second
+
+// answer gives the user's answer to the agent: record it, deliver it to this
+// session, then let the run go on.
+//
+//  1. The answer is recorded, so a crash cannot lose it.
+//  2. It is delivered to the session that asked.
+//  3. Delivery is recorded; when no other question holds the agent up, the run
+//     is running again.
+//
+// All three happen under the run's lock, so competing answers are decided one
+// at a time: the first is recorded, and each later one finds the question
+// settled and is told how (see settled). If the agent cannot take the answer
+// the question is cancelled, keeping what the user wrote, and the caller gets a
+// *domain.QuestionClosedError saying what became of it.
+func (l *live) answer(ctx context.Context, questionID, answer string) (*domain.Question, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	runs := l.m.opt.Runs
+
+	// Read it under the lock: whoever answered first has finished by now.
+	q, err := runs.GetQuestion(ctx, questionID)
+	if err != nil {
+		return nil, err
+	}
+	if !q.Pending() {
+		return settled(q, answer)
+	}
 	if err := l.ending(); err != nil {
-		return err
+		return nil, err
 	}
-	ref, ok := l.questions[questionID]
-	if !ok {
-		return fmt.Errorf("question %s is not open: %w", questionID, domain.ErrConflict)
+	ref, open := l.questions[questionID]
+	if !open {
+		// Recorded as open, but this session does not have it: the agent has moved on.
+		cancelled, err := runs.CancelQuestion(bg(), questionID, domain.CancelWithdrawn)
+		if err != nil {
+			return nil, err
+		}
+		return nil, &domain.QuestionClosedError{Question: cancelled}
 	}
-	if err := l.sess.Respond(ctx, ref, answer); err != nil {
-		return err
+
+	accepted, err := runs.AcceptAnswer(bg(), questionID, answer)
+	if err != nil {
+		return nil, err
+	}
+	dctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), deliverTimeout)
+	defer cancel()
+	if err := l.sess.Respond(dctx, ref, accepted.Answer); err != nil {
+		return nil, l.undelivered(accepted, ref, err)
 	}
 	delete(l.questions, questionID)
 	delete(l.refs, ref)
-	if _, _, err := l.m.opt.Runs.AnswerQuestion(bg(), questionID, answer); err != nil {
-		return fmt.Errorf("the answer reached the agent but could not be recorded: %w", err)
+	delivered, err := runs.ConfirmDelivery(bg(), questionID)
+	if err != nil {
+		return nil, fmt.Errorf("the answer reached the agent but could not be recorded: %w", err)
 	}
-	return nil
+	return delivered, nil
+}
+
+// undelivered deals with an answer that was recorded but that the agent did not
+// take. The question is cancelled, keeping the answer, unless the agent is stuck
+// waiting for it and cannot be unblocked; then the run is ended, which cancels it.
+func (l *live) undelivered(q *domain.Question, ref string, err error) error {
+	var why domain.CancelReason
+	switch {
+	case errors.Is(err, agent.ErrEnded):
+		why = domain.CancelRunEnded
+	case errors.Is(err, agent.ErrUnknownQuestion):
+		why = domain.CancelWithdrawn
+	default:
+		// The agent still waits on a request it will not get an answer to.
+		l.abort("could not deliver an answer to the agent: " + err.Error())
+		return fmt.Errorf("%w: could not deliver your answer: %v", domain.ErrAgent, err)
+	}
+	delete(l.questions, q.ID)
+	delete(l.refs, ref)
+	cancelled, cerr := l.m.opt.Runs.CancelQuestion(bg(), q.ID, why)
+	if cerr != nil {
+		return fmt.Errorf("the agent did not take the answer (%v) and the question could not be closed: %w", err, cerr)
+	}
+	return &domain.QuestionClosedError{Question: cancelled}
+}
+
+// settled answers a request to answer a question that is no longer pending. A
+// repeat of the answer already given is a success, so a client that never heard
+// the first reply can simply retry. Anything else is a conflict that carries the
+// question as it now is.
+func settled(q *domain.Question, answer string) (*domain.Question, error) {
+	if q.DeliveredAt != nil && q.SameAnswer(answer) {
+		return q, nil
+	}
+	return nil, &domain.QuestionClosedError{Question: q}
 }
 
 func (l *live) finish(ctx context.Context) (*domain.Run, error) {

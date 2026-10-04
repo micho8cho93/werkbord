@@ -28,9 +28,28 @@ const (
 // expected Seq (the broker does not guarantee order across concurrent
 // writers), the gap is filled from the database. A subscriber that falls too
 // far behind is disconnected and catches up by reconnecting.
+//
+// With ?project=<id> the stream carries only that project's events: the filter
+// is applied here, before anything is written, so a client that asks for one
+// project is never sent another's. The sequence numbers keep their gaps, and a
+// resume point (an id the client saw) is still valid.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rc := http.NewResponseController(w)
+
+	project := r.URL.Query().Get("project")
+	if project != "" {
+		if _, err := s.opt.Projects.Get(ctx, project); err != nil {
+			s.fail(w, r, err)
+			return
+		}
+	}
+	write := func(e domain.Event) error {
+		if project != "" && e.ProjectID != project {
+			return nil
+		}
+		return writeEvent(w, e)
+	}
 
 	after, explicit, err := resumePoint(r)
 	if err != nil {
@@ -72,7 +91,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			for _, e := range page {
-				if err := writeEvent(w, e); err != nil {
+				if err := write(e); err != nil {
 					return err
 				}
 				after = e.Seq
@@ -101,7 +120,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			case e.Seq <= after:
 				continue
 			case e.Seq == after+1:
-				if writeEvent(w, e) != nil || rc.Flush() != nil {
+				if write(e) != nil || rc.Flush() != nil {
 					return
 				}
 				after = e.Seq

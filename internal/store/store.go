@@ -78,8 +78,12 @@ type RunRepo interface {
 	Get(ctx context.Context, id string) (*domain.Run, error)
 	Update(ctx context.Context, r *domain.Run) error
 	ListByTask(ctx context.Context, taskID string) ([]domain.Run, error)
-	// ListActive returns all runs not in a terminal state, oldest first.
+	// ListActive returns all runs not in a terminal state (including blocked
+	// ones), oldest first.
 	ListActive(ctx context.Context) ([]domain.Run, error)
+	// ListByProject returns up to limit of the project's runs, newest first: its
+	// run history.
+	ListByProject(ctx context.Context, projectID string, limit int) ([]domain.Run, error)
 	// TouchActivity records a run's latest activity without changing its
 	// version: activity changes many times a second and is not a state change,
 	// so it must not make a concurrent state change fail its compare-and-swap.
@@ -95,7 +99,10 @@ type QuestionRepo interface {
 	Create(ctx context.Context, q *domain.Question) error
 	Get(ctx context.Context, id string) (*domain.Question, error)
 	Update(ctx context.Context, q *domain.Question) error
+	// ListPending returns every pending question, across projects, oldest first.
 	ListPending(ctx context.Context) ([]domain.Question, error)
+	// ListPendingByProject returns one project's pending questions, oldest first.
+	ListPendingByProject(ctx context.Context, projectID string) ([]domain.Question, error)
 	ListByRun(ctx context.Context, runID string) ([]domain.Question, error)
 }
 

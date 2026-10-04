@@ -77,7 +77,7 @@ func TestStatePersistsAcrossRestart(t *testing.T) {
 	task := &domain.Task{ID: domain.NewID(domain.PrefixTask), ProjectID: p.ID, Title: "t", State: domain.TaskDoing, Position: 1, CreatedAt: now(), UpdatedAt: now()}
 	wt := &domain.Worktree{ID: domain.NewID(domain.PrefixWorktree), ProjectID: p.ID, Path: "/tmp/wt1", Branch: "devboard/t", BaseRef: "origin/main", State: domain.WorktreeActive, CreatedAt: now(), UpdatedAt: now()}
 	run := &domain.Run{ID: domain.NewID(domain.PrefixRun), TaskID: task.ID, ProjectID: p.ID, AgentID: "claude-code", State: domain.RunWaitingForUser, Waiting: domain.WaitQuestion, WorktreeID: wt.ID, CreatedAt: now(), UpdatedAt: now()}
-	q := &domain.Question{ID: domain.NewID(domain.PrefixQuestion), RunID: run.ID, Prompt: "Push the tag?", Options: []string{"Yes", "No"}, Status: domain.QuestionPending, CreatedAt: now()}
+	q := &domain.Question{ID: domain.NewID(domain.PrefixQuestion), RunID: run.ID, TaskID: task.ID, ProjectID: p.ID, Kind: domain.QuestionDecision, Prompt: "Push the tag?", Context: "v1.2.0 on main", Options: []string{"Yes", "No"}, State: domain.QuestionPending, AskedAt: now()}
 	ev, _ := domain.NewEvent(domain.EventAgentQuestion, map[string]string{"questionId": q.ID})
 	ev.RunID = run.ID
 

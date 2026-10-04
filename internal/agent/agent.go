@@ -52,6 +52,12 @@ type StartRequest struct {
 	WorkDir   string // the run's worktree: the agent's working directory
 	Prompt    string // the first message
 	ResumeRef string // a SessionRef from an earlier session, to continue that conversation
+	// Policy is the run's execution policy, normalized. An adapter passes
+	// Instructions(Policy) to its agent through whatever channel the agent has for
+	// standing instructions (a system prompt, developer instructions), and does
+	// nothing else with it: enforcement is the controller's, not the adapter's.
+	// It applies on a resumed session too.
+	Policy domain.ExecutionPolicy
 }
 
 // Session is a live agent process.
@@ -62,10 +68,11 @@ type Session interface {
 	// queued or steers the turn, as the agent supports; while it waits it begins
 	// the next turn.
 	Send(ctx context.Context, text string) error
-	// Respond answers a Question delivered earlier, by the Ref it carried. For an
-	// approval the answer is one of the question's options, "Allow" or "Deny"
-	// (anything else denies). It returns ErrUnknownQuestion if the question is no
-	// longer open.
+	// Respond answers a Question delivered earlier, by the Ref it carried. The
+	// controller has already checked the answer against the question: for an
+	// approval it is one of the question's options. It returns ErrUnknownQuestion
+	// if the question is no longer open, and ErrEnded if the process is gone; in
+	// both cases the agent did not receive it.
 	Respond(ctx context.Context, ref, answer string) error
 	// Close ends the session gracefully: no more messages, the agent finishes and
 	// exits. The caller still has to Wait; Stop if it does not exit.
@@ -127,12 +134,24 @@ type Event struct {
 	SessionRef string              // KindSessionRef
 }
 
-// Question is something the agent needs answered before it can continue.
+// Question is something the agent needs answered before it can continue, in
+// the one form every adapter reports it. Adapters translate their protocol's
+// permission requests and questions into it; the controller never sees the
+// protocol. Everything but Ref is shown to the user as it is.
 type Question struct {
-	Ref     string // adapter-defined, unique among the session's open questions
-	Kind    domain.QuestionKind
+	// Ref is adapter-defined and unique among the session's open questions. It is
+	// how Respond and KindQuestionClosed name the question.
+	Ref  string
+	Kind domain.QuestionKind
+	// Prompt is the question in a sentence or two; Context is what the user needs
+	// to judge it (the command, the plan, the file), as plain text.
 	Prompt  string
-	Options []string // suggested one-tap answers; free text is also accepted for QuestionAsk
+	Context string
+	// Options are the suggested answers. AllowFreeText says whether a typed
+	// answer is also accepted; set it only if the agent can use one. A question
+	// without options takes free text whatever this says.
+	Options       []string
+	AllowFreeText bool
 }
 
 // Result is how a session ended. State is domain.RunCompleted when the process

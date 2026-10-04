@@ -1,7 +1,5 @@
 <script lang="ts">
-  import type { Route } from './router.svelte';
-
-  let { name }: { name: Route } = $props();
+  let { name }: { name: 'board' | 'control' | 'git' | 'activity' | 'projects' } = $props();
 </script>
 
 <svg
@@ -22,6 +20,13 @@
   {:else if name === 'control'}
     <circle cx="12" cy="12" r="8" />
     <path d="M12 8v4l2.5 2.5" />
+  {:else if name === 'activity'}
+    <path d="M3 12h4l3-7 4 14 3-7h4" />
+  {:else if name === 'projects'}
+    <rect x="3" y="3" width="8" height="8" rx="2" />
+    <rect x="13" y="3" width="8" height="8" rx="2" />
+    <rect x="3" y="13" width="8" height="8" rx="2" />
+    <rect x="13" y="13" width="8" height="8" rx="2" />
   {:else}
     <circle cx="6" cy="6" r="2.2" />
     <circle cx="6" cy="18" r="2.2" />

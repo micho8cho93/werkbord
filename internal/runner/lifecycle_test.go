@@ -190,7 +190,7 @@ func TestMessageRefusals(t *testing.T) {
 
 	e.session().OnSend = func(string) error { return errors.New("pipe broke") }
 	qs, _ := e.runs.ListPendingQuestions(ctx)
-	if err := e.mgr.Answer(ctx, qs[0].ID, "A"); err != nil {
+	if _, err := e.mgr.Answer(ctx, qs[0].ID, "A"); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.mgr.Send(ctx, run.ID, "will fail"); err == nil || !strings.Contains(err.Error(), "pipe broke") {
@@ -222,12 +222,12 @@ func TestQuestionAndAnswer(t *testing.T) {
 		t.Fatalf("pending = %+v, %v", pending, err)
 	}
 	q := pending[0]
-	if q.RunID != run.ID || q.Prompt != "Use Postgres or SQLite?" || q.Kind != domain.QuestionAsk || len(q.Options) != 2 {
+	if q.RunID != run.ID || q.Prompt != "Use Postgres or SQLite?" || q.Kind != domain.QuestionSelection || !q.AllowFreeText || len(q.Options) != 2 || q.TaskID == "" || q.ProjectID == "" {
 		t.Fatalf("question = %+v", q)
 	}
 	_ = waiting
 
-	if err := e.mgr.Answer(ctx, q.ID, "SQLite"); err != nil {
+	if _, err := e.mgr.Answer(ctx, q.ID, "SQLite"); err != nil {
 		t.Fatal(err)
 	}
 	if got := s.Responses(); len(got) != 1 || got[0].Ref != "ref-1" || got[0].Answer != "SQLite" {
@@ -251,10 +251,10 @@ func TestQuestionAndAnswer(t *testing.T) {
 		t.Fatalf("timeline = %v", got)
 	}
 
-	if err := e.mgr.Answer(ctx, q.ID, "again"); !errors.Is(err, domain.ErrConflict) {
+	if _, err := e.mgr.Answer(ctx, q.ID, "again"); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("answering twice: err = %v", err)
 	}
-	if err := e.mgr.Answer(ctx, "qst_nope", "x"); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := e.mgr.Answer(ctx, "qst_nope", "x"); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("unknown question: err = %v", err)
 	}
 }
@@ -271,13 +271,13 @@ func TestParallelApprovalsEachNeedAnAnswer(t *testing.T) {
 		t.Fatalf("kind = %s", qs[0].Kind)
 	}
 
-	if err := e.mgr.Answer(ctx, qs[0].ID, "Allow"); err != nil {
+	if _, err := e.mgr.Answer(ctx, qs[0].ID, "Allow"); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.run(run.ID); got.State != domain.RunWaitingForUser || got.Waiting != domain.WaitQuestion {
 		t.Fatalf("run = %+v; one approval is still open", got)
 	}
-	if err := e.mgr.Answer(ctx, qs[1].ID, "Deny"); err != nil {
+	if _, err := e.mgr.Answer(ctx, qs[1].ID, "Deny"); err != nil {
 		t.Fatal(err)
 	}
 	if e.run(run.ID).State != domain.RunRunning {
@@ -300,7 +300,7 @@ func TestQuestionWithdrawnByTheAgent(t *testing.T) {
 	}
 }
 
-func TestAnswerThatTheAgentRejectsIsNotRecorded(t *testing.T) {
+func TestAnswerThatTheAgentDoesNotRecogniseClosesTheQuestion(t *testing.T) {
 	e := newEnv(t)
 	run := e.start(e.task("Stale"))
 	e.session().Ask("r", "Proceed?")
@@ -311,11 +311,17 @@ func TestAnswerThatTheAgentRejectsIsNotRecorded(t *testing.T) {
 	if err := e.session().Respond(ctx, "r", "x"); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.mgr.Answer(ctx, qs[0].ID, "Yes"); !errors.Is(err, agent.ErrUnknownQuestion) {
+	_, err := e.mgr.Answer(ctx, qs[0].ID, "Yes")
+	var closed *domain.QuestionClosedError
+	if !errors.As(err, &closed) || !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("err = %v", err)
 	}
-	if got, _ := e.runs.GetQuestion(ctx, qs[0].ID); got.Status != domain.QuestionPending {
-		t.Fatalf("question = %+v; an answer the agent did not receive is not an answer", got)
+	got, _ := e.runs.GetQuestion(ctx, qs[0].ID)
+	if got.State != domain.QuestionCancelled || got.CancelReason != domain.CancelWithdrawn || got.Answer != "Yes" || got.DeliveredAt != nil {
+		t.Fatalf("question = %+v; an answer the agent did not receive is kept, but it was not delivered", got)
+	}
+	if e.run(run.ID).State != domain.RunRunning {
+		t.Fatal("nothing is waiting on the user any more, so the run is not blocked")
 	}
 }
 
@@ -732,7 +738,7 @@ func TestRunHistorySurvivesReopeningTheDatabase(t *testing.T) {
 	e.session().Ask("r", "Proceed?")
 	e.waitWaiting(run.ID, domain.WaitQuestion)
 	qs, _ := e.runs.ListPendingQuestions(ctx)
-	if err := e.mgr.Answer(ctx, qs[0].ID, "yes"); err != nil {
+	if _, err := e.mgr.Answer(ctx, qs[0].ID, "yes"); err != nil {
 		t.Fatal(err)
 	}
 	e.session().Exit(0, "")
@@ -746,7 +752,7 @@ func TestRunHistorySurvivesReopeningTheDatabase(t *testing.T) {
 		t.Fatalf("run = %+v, %v", got, err)
 	}
 	q, _ := e.runs.GetQuestion(ctx, qs[0].ID)
-	if q.Status != domain.QuestionAnswered || q.Answer != "yes" || q.RunID != run.ID {
+	if q.State != domain.QuestionAnswered || q.Answer != "yes" || q.DeliveredAt == nil || q.RunID != run.ID {
 		t.Fatalf("question = %+v", q)
 	}
 	evs, err := e.runs.Events(ctx, run.ID, 0, 1000)

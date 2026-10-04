@@ -137,7 +137,7 @@ func (a *Adapter) Start(ctx context.Context, req agent.StartRequest) (agent.Sess
 
 	hctx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
-	if err := s.handshake(hctx, req.ResumeRef); err != nil {
+	if err := s.handshake(hctx, req.ResumeRef, agent.Instructions(req.Policy)); err != nil {
 		return fail(err)
 	}
 	s.Emit(agent.Event{Kind: agent.KindSessionRef, SessionRef: s.thread()})

@@ -122,6 +122,9 @@ type StartInput struct {
 	// Resume continues the task's previous session with this agent, instead of
 	// beginning a new conversation, in the same worktree.
 	Resume bool
+	// Policy overrides, for this run only, the execution policy the task carries.
+	// Nil means the task's own.
+	Policy *domain.ExecutionPolicy
 }
 
 // Start runs an agent on a task:
@@ -190,6 +193,15 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		return nil, fmt.Errorf("%w: there is no earlier %s session of this task to continue", domain.ErrInvalid, in.AgentID)
 	}
 	prompt := buildPrompt(task, in.Instructions, in.Resume)
+	// The run keeps a copy of its policy: editing the task later does not change
+	// a session that is already working.
+	policy := task.Policy.Normalized()
+	if in.Policy != nil {
+		policy = in.Policy.Normalized()
+	}
+	if err := policy.Validate(); err != nil {
+		return nil, err
+	}
 
 	// 2. Prepare the worktree.
 	ws, err := m.prepareWorkspace(ctx, project, task, prior)
@@ -203,14 +215,14 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	}
 
 	// 3. Create the run.
-	run, err := m.opt.Runs.Create(ctx, service.NewRun{TaskID: task.ID, AgentID: in.AgentID, Prompt: prompt, WorktreeID: ws.wt.ID})
+	run, err := m.opt.Runs.Create(ctx, service.NewRun{TaskID: task.ID, AgentID: in.AgentID, Prompt: prompt, WorktreeID: ws.wt.ID, Policy: policy})
 	if err != nil {
 		discard()
 		return nil, err
 	}
 
 	// 4. Launch.
-	sess, err := adapter.Start(ctx, agent.StartRequest{RunID: run.ID, WorkDir: ws.wt.Path, Prompt: prompt, ResumeRef: resumeRef})
+	sess, err := adapter.Start(ctx, agent.StartRequest{RunID: run.ID, WorkDir: ws.wt.Path, Prompt: prompt, ResumeRef: resumeRef, Policy: policy})
 	if err != nil {
 		m.log().Warn("agent failed to start", "run", run.ID, "agent", in.AgentID, "err", err)
 		_, _ = m.opt.Runs.End(bg(), run.ID, service.Ended{State: domain.RunFailed, Reason: truncateReason("could not start " + in.AgentID + ": " + err.Error())})
@@ -253,18 +265,27 @@ func (m *Manager) Send(ctx context.Context, runID, text string) error {
 	return m.resume(ctx, runID, text)
 }
 
-// Answer gives the agent the user's answer to one of its questions.
-func (m *Manager) Answer(ctx context.Context, questionID, answer string) error {
+// Answer gives the agent the user's answer to one of its questions and returns
+// the question as it then stands. The answer goes to the session that asked.
+//
+// Answering a question twice with the same answer succeeds both times. An
+// answer to a question that is no longer open, because another client answered
+// it first or the agent has gone, is a *domain.QuestionClosedError.
+func (m *Manager) Answer(ctx context.Context, questionID, answer string) (*domain.Question, error) {
 	q, err := m.opt.Runs.GetQuestion(ctx, questionID)
 	if err != nil {
-		return err
-	}
-	if q.Status != domain.QuestionPending {
-		return fmt.Errorf("question %s is already %s: %w", q.ID, q.Status, domain.ErrConflict)
+		return nil, err
 	}
 	l := m.liveRun(q.RunID)
 	if l == nil {
-		return fmt.Errorf("the agent that asked is no longer running, so this cannot be answered: %w", domain.ErrConflict)
+		// The process is gone. Recovery and the end of a run close their
+		// questions, so a pending one here means one of them has not finished.
+		if q.Pending() {
+			if q, err = m.opt.Runs.CancelQuestion(bg(), q.ID, domain.CancelRunEnded); err != nil {
+				return nil, err
+			}
+		}
+		return settled(q, answer)
 	}
 	return l.answer(ctx, questionID, answer)
 }
@@ -288,8 +309,8 @@ func (m *Manager) Stop(ctx context.Context, runID string) (*domain.Run, error) {
 	return m.endOffline(ctx, runID, domain.RunStopped, "stopped by user")
 }
 
-// endOffline ends a run that has no process: one that is waiting since the
-// controller last stopped. A run that is starting is not ended here, because
+// endOffline ends a run that has no process: one that is waiting or blocked since
+// the controller last stopped. A run that is starting is not ended here, because
 // its process is about to exist.
 func (m *Manager) endOffline(ctx context.Context, runID string, state domain.RunState, reason string) (*domain.Run, error) {
 	run, err := m.opt.Runs.Get(ctx, runID)
@@ -299,7 +320,7 @@ func (m *Manager) endOffline(ctx context.Context, runID string, state domain.Run
 	switch {
 	case run.State.Terminal():
 		return nil, fmt.Errorf("run %s has already ended (%s): %w", runID, run.State, domain.ErrConflict)
-	case run.State != domain.RunWaitingForUser:
+	case run.State != domain.RunWaitingForUser && run.State != domain.RunBlocked:
 		return nil, fmt.Errorf("run %s is %s and has no session to end yet: %w", runID, run.State, domain.ErrConflict)
 	}
 	return m.opt.Runs.End(bg(), runID, service.Ended{State: state, Reason: reason})
@@ -330,7 +351,7 @@ func (m *Manager) resume(ctx context.Context, runID, text string) error {
 	switch {
 	case run.State.Terminal():
 		return fmt.Errorf("run %s has ended (%s) and cannot take a message: %w", runID, run.State, domain.ErrConflict)
-	case run.State != domain.RunWaitingForUser || run.Waiting != domain.WaitIdle || run.SessionRef == "":
+	case !resumable(run):
 		return fmt.Errorf("run %s is %s and has no session that can be resumed: %w", runID, run.State, domain.ErrConflict)
 	}
 	adapter, err := m.opt.Agents.Available(ctx, run.AgentID)
@@ -345,7 +366,7 @@ func (m *Manager) resume(ctx context.Context, runID, text string) error {
 		return fmt.Errorf("the worktree of run %s is gone, so its session cannot continue: %w", runID, domain.ErrConflict)
 	}
 
-	sess, err := adapter.Start(ctx, agent.StartRequest{RunID: run.ID, WorkDir: wt.Path, Prompt: text, ResumeRef: run.SessionRef})
+	sess, err := adapter.Start(ctx, agent.StartRequest{RunID: run.ID, WorkDir: wt.Path, Prompt: text, ResumeRef: run.SessionRef, Policy: run.Policy})
 	if err != nil {
 		return fmt.Errorf("could not resume %s: %w", run.AgentID, errors.Join(domain.ErrAgent, err))
 	}
@@ -365,6 +386,16 @@ func (m *Manager) resume(ctx context.Context, runID, text string) error {
 	l.start()
 	m.log().Info("agent session resumed", "run", run.ID, "agent", run.AgentID, "pid", info.PID)
 	return nil
+}
+
+// resumable reports whether a run is between turns with a session an agent can
+// pick up again: idle, or blocked on something the user's message will settle. A
+// run waiting for an answer is not: its question died with its process.
+func resumable(r *domain.Run) bool {
+	if r.SessionRef == "" {
+		return false
+	}
+	return r.State == domain.RunBlocked || (r.State == domain.RunWaitingForUser && r.Waiting == domain.WaitIdle)
 }
 
 // Recover cleans up after a controller that did not shut down cleanly: it stops

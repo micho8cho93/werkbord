@@ -144,7 +144,7 @@ func TestDefaultConfigurationRequiresAToken(t *testing.T) {
 	defer c.Shutdown(ctx)
 	base := "http://" + c.Addr()
 
-	for _, path := range []string{"/api/projects", "/api/runs", "/api/events", "/api/agents"} {
+	for _, path := range []string{"/api/projects", "/api/control-center", "/api/events", "/api/agents"} {
 		if got := status(t, "GET", base+path, "", nil); got != http.StatusUnauthorized {
 			t.Errorf("GET %s without a token = %d, want 401", path, got)
 		}

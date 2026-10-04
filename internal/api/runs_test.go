@@ -74,7 +74,7 @@ func (rs *runsServer) task(t *testing.T, title string) domain.Task {
 func (rs *runsServer) start(t *testing.T, task domain.Task) domain.Run {
 	t.Helper()
 	var run domain.Run
-	if code := do(t, "POST", rs.url+"/api/tasks/"+task.ID+"/runs", `{"agentId":"fake"}`, &run); code != 201 {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"fake"}`, &run); code != 201 {
 		t.Fatalf("start run: %d", code)
 	}
 	return run
@@ -83,7 +83,7 @@ func (rs *runsServer) start(t *testing.T, task domain.Task) domain.Run {
 func (rs *runsServer) getRun(t *testing.T, id string) domain.Run {
 	t.Helper()
 	var run domain.Run
-	if code := do(t, "GET", rs.url+"/api/runs/"+id, "", &run); code != 200 {
+	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+id, "", &run); code != 200 {
 		t.Fatalf("get run: %d", code)
 	}
 	return run
@@ -138,29 +138,29 @@ func TestRunLifecycleOverHTTP(t *testing.T) {
 		t.Fatalf("board runs = %+v", board.Runs)
 	}
 	var taskRuns struct{ Runs []domain.Run }
-	if code := do(t, "GET", rs.url+"/api/tasks/"+task.ID+"/runs", "", &taskRuns); code != 200 || len(taskRuns.Runs) != 1 {
+	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", "", &taskRuns); code != 200 || len(taskRuns.Runs) != 1 {
 		t.Fatalf("task runs = %d %+v", code, taskRuns)
 	}
 
 	// The question, and sending a message while it is open.
 	var qs struct{ Questions []domain.Question }
-	do(t, "GET", rs.url+"/api/questions", "", &qs)
+	do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/questions", "", &qs)
 	if len(qs.Questions) != 1 || qs.Questions[0].Prompt != "Which auth provider?" || len(qs.Questions[0].Options) != 2 {
 		t.Fatalf("questions = %+v", qs)
 	}
 	var apiErr apiError
-	if code := do(t, "POST", rs.url+"/api/runs/"+run.ID+"/input", `{"text":"hello"}`, &apiErr); code != 409 || apiErr.Error.Code != "conflict" {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/input", `{"text":"hello"}`, &apiErr); code != 409 || apiErr.Error.Code != "conflict" {
 		t.Fatalf("message while a question is open: %d %+v", code, apiErr)
 	}
 
 	var answered domain.Question
-	if code := do(t, "POST", rs.url+"/api/questions/"+qs.Questions[0].ID+"/answer", `{"answer":"OAuth"}`, &answered); code != 200 || answered.Status != domain.QuestionAnswered || answered.Answer != "OAuth" {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/questions/"+qs.Questions[0].ID+"/answer", `{"answer":"OAuth"}`, &answered); code != 200 || answered.State != domain.QuestionAnswered || answered.Answer != "OAuth" {
 		t.Fatalf("answer = %d %+v", code, answered)
 	}
 	if got := s.Responses(); len(got) != 1 || got[0].Answer != "OAuth" {
 		t.Fatalf("agent got %+v", got)
 	}
-	if code := do(t, "POST", rs.url+"/api/questions/"+qs.Questions[0].ID+"/answer", `{"answer":"again"}`, &apiErr); code != 409 {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/questions/"+qs.Questions[0].ID+"/answer", `{"answer":"again"}`, &apiErr); code != 409 {
 		t.Fatalf("answering twice: %d", code)
 	}
 
@@ -168,7 +168,7 @@ func TestRunLifecycleOverHTTP(t *testing.T) {
 	s.TurnEnd()
 	waitFor(t, "the agent to wait", func() bool { return rs.getRun(t, run.ID).Waiting == domain.WaitIdle })
 	var after domain.Run
-	if code := do(t, "POST", rs.url+"/api/runs/"+run.ID+"/input", `{"text":"Use OAuth with Google."}`, &after); code != 200 || after.State != domain.RunRunning {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/input", `{"text":"Use OAuth with Google."}`, &after); code != 200 || after.State != domain.RunRunning {
 		t.Fatalf("input = %d %+v", code, after)
 	}
 	if got := s.Sent(); len(got) != 1 || got[0] != "Use OAuth with Google." {
@@ -179,21 +179,21 @@ func TestRunLifecycleOverHTTP(t *testing.T) {
 	s.TurnEnd()
 	waitFor(t, "the agent to wait", func() bool { return rs.getRun(t, run.ID).Waiting == domain.WaitIdle })
 	var done domain.Run
-	if code := do(t, "POST", rs.url+"/api/runs/"+run.ID+"/finish", "", &done); code != 200 || done.State != domain.RunCompleted {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/finish", "", &done); code != 200 || done.State != domain.RunCompleted {
 		t.Fatalf("finish = %d %+v", code, done)
 	}
-	if code := do(t, "POST", rs.url+"/api/runs/"+run.ID+"/stop", "", &apiErr); code != 409 {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/stop", "", &apiErr); code != 409 {
 		t.Fatalf("stop after finish: %d", code)
 	}
-	if code := do(t, "POST", rs.url+"/api/runs/"+run.ID+"/input", `{"text":"late"}`, &apiErr); code != 409 {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/input", `{"text":"late"}`, &apiErr); code != 409 {
 		t.Fatalf("input after finish: %d", code)
 	}
 
-	// Active runs are empty now.
-	var active struct{ Runs []domain.Run }
-	do(t, "GET", rs.url+"/api/runs", "", &active)
-	if len(active.Runs) != 0 {
-		t.Fatalf("active = %+v", active.Runs)
+	// Nothing is active now.
+	var cc service.Overview
+	do(t, "GET", rs.url+"/api/control-center", "", &cc)
+	if len(cc.Runs) != 0 {
+		t.Fatalf("active = %+v", cc.Runs)
 	}
 }
 
@@ -201,14 +201,14 @@ func TestWorktreeOfARunIsReadable(t *testing.T) {
 	rs := newRunsServer(t)
 	run := rs.start(t, rs.task(t, "Where is my work"))
 	var wt domain.Worktree
-	if code := do(t, "GET", rs.url+"/api/worktrees/"+run.WorktreeID, "", &wt); code != 200 {
+	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/worktrees/"+run.WorktreeID, "", &wt); code != 200 {
 		t.Fatalf("get worktree: %d", code)
 	}
 	if wt.ID != run.WorktreeID || !strings.HasPrefix(wt.Branch, "devboard/where-is-my-work-") || wt.State != domain.WorktreeActive || !filepath.IsAbs(wt.Path) {
 		t.Fatalf("worktree = %+v", wt)
 	}
 	var e apiError
-	if code := do(t, "GET", rs.url+"/api/worktrees/wt_missing", "", &e); code != 404 {
+	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/worktrees/wt_missing", "", &e); code != 404 {
 		t.Fatalf("unknown worktree: %d", code)
 	}
 }
@@ -221,7 +221,7 @@ func TestRunActivityHistoryPages(t *testing.T) {
 	}
 	waitFor(t, "output", func() bool {
 		var page struct{ Events []domain.Event }
-		do(t, "GET", rs.url+"/api/runs/"+run.ID+"/events?limit=1000", "", &page)
+		do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/events?limit=1000", "", &page)
 		return len(page.Events) >= 13 // run, task..., started, 10 outputs
 	})
 
@@ -230,7 +230,7 @@ func TestRunActivityHistoryPages(t *testing.T) {
 		HasMore bool
 	}
 	var newest page
-	if code := do(t, "GET", rs.url+"/api/runs/"+run.ID+"/events?limit=4", "", &newest); code != 200 || len(newest.Events) != 4 || !newest.HasMore {
+	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/events?limit=4", "", &newest); code != 200 || len(newest.Events) != 4 || !newest.HasMore {
 		t.Fatalf("newest = %d %+v", code, newest)
 	}
 	var last domain.AgentOutput
@@ -239,7 +239,7 @@ func TestRunActivityHistoryPages(t *testing.T) {
 		t.Fatalf("the newest page must end with the latest event: %+v", last)
 	}
 	var older page
-	do(t, "GET", rs.url+"/api/runs/"+run.ID+"/events?limit=1000&before="+itoa(newest.Events[0].Seq), "", &older)
+	do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/events?limit=1000&before="+itoa(newest.Events[0].Seq), "", &older)
 	if older.HasMore || len(older.Events) == 0 || older.Events[len(older.Events)-1].Seq >= newest.Events[0].Seq {
 		t.Fatalf("older = %+v", older)
 	}
@@ -249,11 +249,11 @@ func TestRunActivityHistoryPages(t *testing.T) {
 
 	var apiErr apiError
 	for _, q := range []string{"limit=0", "limit=abc", "limit=5000", "before=-1"} {
-		if code := do(t, "GET", rs.url+"/api/runs/"+run.ID+"/events?"+q, "", &apiErr); code != 400 || apiErr.Error.Code != "invalid" {
+		if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/events?"+q, "", &apiErr); code != 400 || apiErr.Error.Code != "invalid" {
 			t.Errorf("?%s: %d %+v", q, code, apiErr)
 		}
 	}
-	if code := do(t, "GET", rs.url+"/api/runs/run_missing/events", "", &apiErr); code != 404 {
+	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/runs/run_missing/events", "", &apiErr); code != 404 {
 		t.Errorf("unknown run: %d", code)
 	}
 }
@@ -266,25 +266,25 @@ func TestStartRunErrors(t *testing.T) {
 	var e apiError
 	post := func(path, body string) int { return do(t, "POST", rs.url+path, body, &e) }
 
-	if code := post("/api/tasks/"+task.ID+"/runs", `{"agentId":"gemini"}`); code != 404 || e.Error.Code != "not_found" {
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"gemini"}`); code != 404 || e.Error.Code != "not_found" {
 		t.Errorf("unknown agent: %d %+v", code, e)
 	}
-	if code := post("/api/tasks/"+task.ID+"/runs", `{}`); code != 400 || e.Error.Code != "invalid" {
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{}`); code != 400 || e.Error.Code != "invalid" {
 		t.Errorf("no agent: %d %+v", code, e)
 	}
-	if code := post("/api/tasks/tsk_missing/runs", `{"agentId":"fake"}`); code != 404 {
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/tsk_missing/runs", `{"agentId":"fake"}`); code != 404 {
 		t.Errorf("unknown task: %d", code)
 	}
-	if code := post("/api/tasks/"+task.ID+"/runs", `{"agentId":"fake","surprise":1}`); code != 400 {
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"fake","surprise":1}`); code != 400 {
 		t.Errorf("unknown field: %d", code)
 	}
-	if code := post("/api/tasks/"+task.ID+"/runs", `{"agentId":"fake","resume":true}`); code != 400 {
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"fake","resume":true}`); code != 400 {
 		t.Errorf("nothing to resume: %d", code)
 	}
 
 	// An agent that cannot start: the user is told why, and nothing is running.
 	rs.adapter.StartFunc = func(agent.StartRequest) error { return errors.New("claude exited immediately: unknown option") }
-	if code := post("/api/tasks/"+task.ID+"/runs", `{"agentId":"fake"}`); code != 502 || e.Error.Code != "agent_failed" || !strings.Contains(e.Error.Message, "unknown option") {
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"fake"}`); code != 502 || e.Error.Code != "agent_failed" || !strings.Contains(e.Error.Message, "unknown option") {
 		t.Errorf("agent failed to start: %d %+v", code, e)
 	}
 	var tasks struct{ Tasks []domain.Task }
@@ -295,13 +295,13 @@ func TestStartRunErrors(t *testing.T) {
 	rs.adapter.StartFunc = nil
 
 	rs.start(t, task)
-	if code := post("/api/tasks/"+task.ID+"/runs", `{"agentId":"fake"}`); code != 409 {
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"fake"}`); code != 409 {
 		t.Errorf("second active run: %d", code)
 	}
 
 	rs.adapter.Info = domain.Agent{ID: "fake", Name: "Fake", Detail: "not signed in"}
 	other := rs.task(t, "Other")
-	if code := post("/api/tasks/"+other.ID+"/runs", `{"agentId":"fake"}`); code != 409 || !strings.Contains(e.Error.Message, "not signed in") {
+	if code := post("/api/projects/"+rs.project.ID+"/tasks/"+other.ID+"/runs", `{"agentId":"fake"}`); code != 409 || !strings.Contains(e.Error.Message, "not signed in") {
 		t.Errorf("unavailable agent: %d %+v", code, e)
 	}
 }
@@ -310,26 +310,26 @@ func TestRunActionErrors(t *testing.T) {
 	rs := newRunsServer(t)
 	var e apiError
 	for _, c := range []struct{ path, body string }{
-		{"/api/runs/run_missing/input", `{"text":"hi"}`},
-		{"/api/runs/run_missing/finish", ``},
-		{"/api/runs/run_missing/stop", ``},
-		{"/api/questions/qst_missing/answer", `{"answer":"x"}`},
+		{"/runs/run_missing/input", `{"text":"hi"}`},
+		{"/runs/run_missing/finish", ``},
+		{"/runs/run_missing/stop", ``},
+		{"/questions/qst_missing/answer", `{"answer":"x"}`},
 	} {
-		if code := do(t, "POST", rs.url+c.path, c.body, &e); code != 404 {
+		if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+c.path, c.body, &e); code != 404 {
 			t.Errorf("POST %s: %d, want 404", c.path, code)
 		}
 	}
 	run := rs.start(t, rs.task(t, "Bad input"))
-	if code := do(t, "POST", rs.url+"/api/runs/"+run.ID+"/input", `{"text":"   "}`, &e); code != 400 {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/input", `{"text":"   "}`, &e); code != 400 {
 		t.Errorf("blank message: %d", code)
 	}
-	if code := do(t, "POST", rs.url+"/api/runs/"+run.ID+"/input", `not json`, &e); code != 400 {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/input", `not json`, &e); code != 400 {
 		t.Errorf("bad body: %d", code)
 	}
-	if code := do(t, "GET", rs.url+"/api/runs/run_missing", "", &e); code != 404 {
+	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/runs/run_missing", "", &e); code != 404 {
 		t.Errorf("get unknown run: %d", code)
 	}
-	if code := do(t, "GET", rs.url+"/api/tasks/tsk_missing/runs", "", &e); code != 404 {
+	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/tasks/tsk_missing/runs", "", &e); code != 404 {
 		t.Errorf("runs of unknown task: %d", code)
 	}
 	if code := do(t, "GET", rs.url+"/api/projects/prj_missing/runs", "", &e); code != 404 {
@@ -338,7 +338,7 @@ func TestRunActionErrors(t *testing.T) {
 
 	// Stop works, and answers with the stopped run.
 	var stopped domain.Run
-	if code := do(t, "POST", rs.url+"/api/runs/"+run.ID+"/stop", "", &stopped); code != 200 || stopped.State != domain.RunStopped {
+	if code := do(t, "POST", rs.url+"/api/projects/"+rs.project.ID+"/runs/"+run.ID+"/stop", "", &stopped); code != 200 || stopped.State != domain.RunStopped {
 		t.Errorf("stop: %d %+v", code, stopped)
 	}
 }
@@ -346,7 +346,7 @@ func TestRunActionErrors(t *testing.T) {
 func TestExecutionIsUnavailableWithoutARunner(t *testing.T) {
 	ts := newTestServer(t, nil)
 	var e apiError
-	for _, path := range []string{"/api/tasks/t/runs", "/api/runs/r/input", "/api/runs/r/finish", "/api/runs/r/stop", "/api/questions/q/answer"} {
+	for _, path := range []string{"/api/projects/p/tasks/t/runs", "/api/projects/p/runs/r/input", "/api/projects/p/runs/r/finish", "/api/projects/p/runs/r/stop", "/api/projects/p/questions/q/answer"} {
 		if code := do(t, "POST", ts.URL+path, `{}`, &e); code != 503 || e.Error.Code != "unavailable" {
 			t.Errorf("POST %s: %d %+v", path, code, e)
 		}

@@ -10,6 +10,8 @@
   --ok: #2f8f55;
   --warn: #b7791f;
   --danger: #c2413b;
+  /* A run stopped rather than guess: neither working, nor asking, nor failed. */
+  --block: #7b4fc0;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.06);
@@ -33,6 +35,7 @@
     --ok: #5fb37a;
     --warn: #e0a84a;
     --danger: #ef6b64;
+    --block: #b595f2;
     --shadow: none;
     color-scheme: dark;
   }
@@ -224,6 +227,15 @@ button {
 
 .badge[data-tone='ask'] {
   --tone: var(--warn);
+}
+
+.badge[data-tone='block'] {
+  --tone: var(--block);
+}
+
+.badge[data-tone='block'] .dot {
+  border-radius: 2px;
+  transform: rotate(45deg);
 }
 
 .badge[data-tone='idle'] {

@@ -9,6 +9,14 @@ browser connects to it. There is no hosted backend and no account.
 run is an interactive session in its own Git worktree: watch what the agent does, answer its
 questions and approve its actions from your phone, send follow-up messages, and finish or stop
 it. The controller owns the processes, so a closed browser does not interrupt anything.
+
+**Projects are the scope.** Each repository is a project with its own board, Git view, activity and
+runs, and inside one you see that project and nothing else. Switch with the project switcher (the
+project name at the top on a phone; Ctrl/⌘ K anywhere). The **Control Center** is the one view across
+all projects: what needs you, wherever it is.
+
+**Interaction policy.** Each task says how its agent may deal with you: *Ask me when needed* (the
+default), *Work autonomously*, or *Work autonomously — stop if blocked*. See below.
 Advanced Git features (diffs, commits, push) are not built yet. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -44,7 +52,8 @@ In another terminal, register a repository (the CLI finds the token by itself):
 ./bin/devboard project add ~/code/my-app
 ```
 
-Then open the board, tap a task and press *Start agent*.
+Then open the board, tap a task and press *Start agent*. A project's page is
+`#/p/<project id>/board`; `#/control` is the Control Center.
 
 Other commands: `devboard project list`, `devboard token`, `devboard migrate`,
 `devboard version`. Run
@@ -120,6 +129,23 @@ defaults let it edit files in its worktree and ask about the rest. `permissionMo
 warnings. Devboard's Codex defaults override your own `~/.codex/config.toml` for approvals and the
 sandbox, and its model setting is left to Codex unless you set `model`.
 
+### Interaction: asking, autonomous, stop if blocked
+
+Choose it when you create or edit a task (and, for one run, when you start it):
+
+| Choice | The agent |
+| --- | --- |
+| **Ask me when needed** (default) | May stop and ask you. The run waits for your answer, then the same session carries on. |
+| **Work autonomously** | Investigates the repository, makes reasonable decisions and carries on until it thinks the task is done. If it asks an ordinary question anyway, Devboard tells it to decide for itself and the run keeps going. |
+| **Work autonomously — stop if blocked** | As above, but a decision it cannot safely make stops the run: it becomes **Blocked**, with the reason (and any options the agent saw), instead of a guess. Reply to unblock it, or finish or stop it. |
+
+**Autonomous never means unrestricted.** This setting is about conversation only. What an agent may do
+is still decided by its own permission settings above, and a request for permission (run this command,
+apply these changes) always comes to you, under every choice; Devboard never grants one on your behalf.
+A run keeps the policy it started with, so editing a task changes its next run, not one that is
+working. On the board a task in *Doing* shows one of **Running**, **Needs input**, **Blocked** or
+**Failed**; these describe the run, and there is no extra column.
+
 Agents run as you, in a Git worktree under `worktreesDir` on a branch named
 `devboard/<task>-<id>`, so your own checkout is never touched. The work stays there when the run
 ends; Devboard does not delete it.
@@ -134,10 +160,10 @@ internal/service      use cases
 internal/api          HTTP API, SSE, auth and security middleware
 internal/events       live event fan-out
 internal/gitrepo      Git boundary (repository inspection, worktrees)
-internal/agent        agent adapter boundary, process handling; claude/ and codex/ adapters
+internal/agent        agent adapter boundary, process handling, execution-policy rules; claude/ and codex/ adapters
 internal/runner       owns agent processes: start, stream, input, stop, recovery
 internal/controller   wiring and lifecycle
 internal/webui        embedded PWA
-web/                  Svelte 5 + TypeScript PWA
+web/                  Svelte 5 + TypeScript PWA (a global store, plus one scope per project)
 docs/                 architecture
 ```

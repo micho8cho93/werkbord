@@ -85,3 +85,24 @@ func checkCAS(ctx context.Context, res sql.Result, q queryer, table, id string, 
 	}
 	return fmt.Errorf("%s %s was modified concurrently (expected version %d): %w", table, id, version, domain.ErrConflict)
 }
+
+// encodePolicy stores an execution policy as JSON. It is normalized first, so
+// an unset policy is stored as the default rather than as an empty value the
+// database would refuse.
+func encodePolicy(p domain.ExecutionPolicy) (string, error) {
+	p = p.Normalized()
+	if err := p.Validate(); err != nil {
+		return "", err
+	}
+	return toJSON(p)
+}
+
+// decodePolicy reads one back. Fields a newer build wrote that this one does not
+// know are ignored, and fields it does know but the row lacks take their default.
+func decodePolicy(s string) (domain.ExecutionPolicy, error) {
+	var p domain.ExecutionPolicy
+	if err := json.Unmarshal([]byte(s), &p); err != nil {
+		return p, fmt.Errorf("decode execution policy %q: %w", s, err)
+	}
+	return p.Normalized(), nil
+}

@@ -55,8 +55,9 @@ done
 `
 
 type client struct {
-	t    *testing.T
-	base string
+	t       *testing.T
+	base    string
+	project string // set once the test has registered a project
 }
 
 func (c client) do(method, path, body string, out any) int {
@@ -80,7 +81,7 @@ func (c client) do(method, path, body string, out any) int {
 func (c client) run(id string) domain.Run {
 	c.t.Helper()
 	var r domain.Run
-	if code := c.do("GET", "/api/runs/"+id, "", &r); code != 200 {
+	if code := c.do("GET", "/api/projects/"+c.project+"/runs/"+id, "", &r); code != 200 {
 		c.t.Fatalf("get run: %d", code)
 	}
 	return r
@@ -103,7 +104,7 @@ func (c client) waitWaiting(id string, kind domain.WaitingKind) domain.Run {
 func (c client) outputs(id string) []string {
 	c.t.Helper()
 	var page struct{ Events []domain.Event }
-	c.do("GET", "/api/runs/"+id+"/events?limit=1000", "", &page)
+	c.do("GET", "/api/projects/"+c.project+"/runs/"+id+"/events?limit=1000", "", &page)
 	var out []string
 	for _, ev := range page.Events {
 		if ev.Type == domain.EventAgentOutput {
@@ -162,7 +163,7 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 	if err := c.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
-	api := client{t, "http://" + c.Addr()}
+	api := client{t: t, base: "http://" + c.Addr()}
 
 	// Both agents are listed, with what is wrong with the one that is missing.
 	var agents struct{ Agents []domain.Agent }
@@ -179,6 +180,7 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 	if code := api.do("POST", "/api/projects", `{"path":`+quote(repo)+`}`, &project); code != 201 {
 		t.Fatalf("register: %d", code)
 	}
+	api.project = project.ID
 	var task domain.Task
 	api.do("POST", "/api/projects/"+project.ID+"/tasks", `{"title":"Clean the build","description":"remove stale output"}`, &task)
 
@@ -186,13 +188,13 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 	var apiErr struct {
 		Error struct{ Code, Message string }
 	}
-	if code := api.do("POST", "/api/tasks/"+task.ID+"/runs", `{"agentId":"codex"}`, &apiErr); code != 409 || !strings.Contains(apiErr.Error.Message, "not found") {
+	if code := api.do("POST", "/api/projects/"+project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"codex"}`, &apiErr); code != 409 || !strings.Contains(apiErr.Error.Message, "not found") {
 		t.Fatalf("codex: %d %+v", code, apiErr)
 	}
 
 	// Start, talk, get asked, approve.
 	var run domain.Run
-	if code := api.do("POST", "/api/tasks/"+task.ID+"/runs", `{"agentId":"claude-code"}`, &run); code != 201 || run.State != domain.RunRunning {
+	if code := api.do("POST", "/api/projects/"+project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"claude-code"}`, &run); code != 201 || run.State != domain.RunRunning {
 		t.Fatalf("start: %d %+v", code, run)
 	}
 	if run.PID != 0 {
@@ -203,16 +205,16 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 		t.Fatalf("the agent process (%d) is not running", pid)
 	}
 	api.waitWaiting(run.ID, domain.WaitIdle)
-	if code := api.do("POST", "/api/runs/"+run.ID+"/input", `{"text":"ask"}`, nil); code != 200 {
+	if code := api.do("POST", "/api/projects/"+project.ID+"/runs/"+run.ID+"/input", `{"text":"ask"}`, nil); code != 200 {
 		t.Fatalf("input: %d", code)
 	}
 	api.waitWaiting(run.ID, domain.WaitQuestion)
 	var qs struct{ Questions []domain.Question }
-	api.do("GET", "/api/questions", "", &qs)
-	if len(qs.Questions) != 1 || qs.Questions[0].Kind != domain.QuestionApproval || !strings.Contains(qs.Questions[0].Prompt, "rm -rf build") {
+	api.do("GET", "/api/projects/"+project.ID+"/questions", "", &qs)
+	if len(qs.Questions) != 1 || qs.Questions[0].Kind != domain.QuestionApproval || !strings.Contains(qs.Questions[0].Context, "rm -rf build") {
 		t.Fatalf("questions = %+v", qs.Questions)
 	}
-	api.do("POST", "/api/questions/"+qs.Questions[0].ID+"/answer", `{"answer":"Allow"}`, nil)
+	api.do("POST", "/api/projects/"+project.ID+"/questions/"+qs.Questions[0].ID+"/answer", `{"answer":"Allow"}`, nil)
 	idle := api.waitWaiting(run.ID, domain.WaitIdle)
 	if got := strings.Join(api.outputs(run.ID), "|"); !strings.Contains(got, "assistant:command allowed") {
 		t.Fatalf("outputs = %s", got)
@@ -242,7 +244,7 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c2.Shutdown(ctx)
-	api = client{t, "http://" + c2.Addr()}
+	api = client{t: t, base: "http://" + c2.Addr(), project: api.project}
 	if got := api.run(run.ID); got.State != domain.RunWaitingForUser || got.Waiting != domain.WaitIdle || got.SessionRef != sessionRef {
 		t.Fatalf("after restart: %+v", got)
 	}
@@ -250,7 +252,7 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 		t.Fatalf("history lost across the restart: %s", got)
 	}
 
-	if code := api.do("POST", "/api/runs/"+run.ID+"/input", `{"text":"carry on"}`, nil); code != 200 {
+	if code := api.do("POST", "/api/projects/"+project.ID+"/runs/"+run.ID+"/input", `{"text":"carry on"}`, nil); code != 200 {
 		t.Fatalf("input after restart: %d", code)
 	}
 	api.waitWaiting(run.ID, domain.WaitIdle)
@@ -264,7 +266,7 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 	}
 
 	var done domain.Run
-	if code := api.do("POST", "/api/runs/"+run.ID+"/finish", "", &done); code != 200 || done.State != domain.RunCompleted {
+	if code := api.do("POST", "/api/projects/"+project.ID+"/runs/"+run.ID+"/finish", "", &done); code != 200 || done.State != domain.RunCompleted {
 		t.Fatalf("finish: %d %+v", code, done)
 	}
 	if !strings.Contains(strings.Join(api.outputs(run.ID), "|"), "user:carry on") {
@@ -290,14 +292,14 @@ func TestWorktreesLiveInTheConfiguredDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Shutdown(context.Background())
-	api := client{t, "http://" + c.Addr()}
+	api := client{t: t, base: "http://" + c.Addr()}
 
 	var project struct{ ID string }
 	api.do("POST", "/api/projects", `{"path":`+quote(commit(t))+`}`, &project)
 	var task domain.Task
 	api.do("POST", "/api/projects/"+project.ID+"/tasks", `{"title":"Where do I live"}`, &task)
 	var run domain.Run
-	if code := api.do("POST", "/api/tasks/"+task.ID+"/runs", `{"agentId":"claude-code"}`, &run); code != 201 {
+	if code := api.do("POST", "/api/projects/"+project.ID+"/tasks/"+task.ID+"/runs", `{"agentId":"claude-code"}`, &run); code != 201 {
 		t.Fatalf("start: %d", code)
 	}
 	root, _ := filepath.EvalSymlinks(cfg.WorktreesDir)

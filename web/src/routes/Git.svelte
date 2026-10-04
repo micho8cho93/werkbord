@@ -3,146 +3,74 @@
   import { app } from '../lib/state.svelte';
   import type { Project } from '../lib/types';
 
-  let path = $state('');
-  let name = $state('');
-  let busy = $state(false);
-  let formError = $state('');
-  let refreshing = $state<string>('');
+  let { project }: { project: Project } = $props();
 
-  async function register(e: SubmitEvent) {
-    e.preventDefault();
-    busy = true;
-    formError = '';
-    try {
-      const p = await api.registerProject(path.trim(), name.trim());
-      path = '';
-      name = '';
-      await app.refresh();
-      app.selectProject(p.id);
-    } catch (err) {
-      formError = err instanceof Error ? err.message : String(err);
-    } finally {
-      busy = false;
-    }
-  }
+  let refreshing = $state(false);
+  let error = $state('');
 
-  async function refresh(p: Project) {
-    refreshing = p.id;
+  async function refresh() {
+    refreshing = true;
+    error = '';
     try {
-      await api.refreshProject(p.id);
-      await app.refresh();
+      app.upsertProject(await api.refreshProject(project.id));
     } catch (err) {
-      app.handleError(err);
+      error = err instanceof Error ? err.message : String(err);
     } finally {
-      refreshing = '';
+      refreshing = false;
     }
   }
 
   const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  const repo = $derived(project.repository);
 </script>
 
 <div class="layout">
-  <section class="card register">
-    <h2>Register a repository</h2>
-    <p class="muted">
-      Point Devboard at an existing Git checkout on this computer. Nothing is copied; the controller only reads its
-      metadata.
-    </p>
-    <form onsubmit={register}>
-      <label>
-        <span>Path</span>
-        <input
-          class="input mono"
-          placeholder="/Users/you/code/my-app"
-          autocapitalize="off"
-          autocomplete="off"
-          spellcheck="false"
-          required
-          bind:value={path}
-        />
-      </label>
-      <label>
-        <span>Name <span class="muted">(optional)</span></span>
-        <input class="input" placeholder="Defaults to the folder name" maxlength="120" bind:value={name} />
-      </label>
-      {#if formError}<p class="error" role="alert">{formError}</p>{/if}
-      <button class="btn primary" type="submit" disabled={busy || !path.trim()}>
-        {busy ? 'Checking…' : 'Register'}
-      </button>
-    </form>
-  </section>
+  <article class="card repo">
+    <header>
+      <h2>Repository</h2>
+      <button class="btn" onclick={refresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+    </header>
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+    <dl>
+      <dt>Path</dt>
+      <dd class="mono">{project.repoPath}</dd>
+      {#if repo}
+        <dt>Branch</dt>
+        <dd>{repo.currentBranch || 'detached HEAD'}</dd>
+        <dt>HEAD</dt>
+        <dd class="mono">{repo.headCommit ? repo.headCommit.slice(0, 12) : 'no commits'}</dd>
+        {#if repo.defaultBranch}
+          <dt>Default</dt>
+          <dd>{repo.defaultBranch}</dd>
+        {/if}
+        <dt>Remotes</dt>
+        <dd>
+          {#each repo.remotes as r (r.name)}
+            <div class="mono">{r.name} · {r.url}</div>
+          {:else}
+            <span class="muted">none</span>
+          {/each}
+        </dd>
+        <dt>Inspected</dt>
+        <dd>{fmt.format(new Date(repo.inspectedAt))}</dd>
+      {:else}
+        <dt>State</dt>
+        <dd class="muted">Not inspected yet.</dd>
+      {/if}
+    </dl>
+  </article>
 
-  <section class="repos">
-    <h2>Repositories</h2>
-    {#each app.projects as p (p.id)}
-      {@const repo = p.repository}
-      <article class="card repo">
-        <header>
-          <h3>{p.name}</h3>
-          <button class="btn" onclick={() => refresh(p)} disabled={refreshing === p.id}>
-            {refreshing === p.id ? 'Refreshing…' : 'Refresh'}
-          </button>
-        </header>
-        <dl>
-          <dt>Path</dt>
-          <dd class="mono">{p.repoPath}</dd>
-          {#if repo}
-            <dt>Branch</dt>
-            <dd>{repo.currentBranch || 'detached HEAD'}</dd>
-            <dt>HEAD</dt>
-            <dd class="mono">{repo.headCommit ? repo.headCommit.slice(0, 12) : 'no commits'}</dd>
-            {#if repo.defaultBranch}
-              <dt>Default</dt>
-              <dd>{repo.defaultBranch}</dd>
-            {/if}
-            <dt>Remotes</dt>
-            <dd>
-              {#each repo.remotes as r (r.name)}
-                <div class="mono">{r.name} · {r.url}</div>
-              {:else}
-                <span class="muted">none</span>
-              {/each}
-            </dd>
-            <dt>Inspected</dt>
-            <dd>{fmt.format(new Date(repo.inspectedAt))}</dd>
-          {/if}
-        </dl>
-      </article>
-    {:else}
-      <p class="card empty">No repositories registered.</p>
-    {/each}
-  </section>
+  <p class="muted note">
+    Each run works in its own worktree on a branch named <code>devboard/…</code>, so this checkout is never touched. Diffs, commits and
+    pushing are not built yet.
+  </p>
 </div>
 
 <style>
   .layout {
     display: grid;
-    gap: 20px;
-    max-width: 1100px;
-  }
-
-  .register {
-    display: grid;
-    gap: 10px;
-    padding: 16px;
-  }
-
-  form {
-    display: grid;
-    gap: 12px;
-  }
-
-  label {
-    display: grid;
-    gap: 4px;
-    font-size: 0.9rem;
-    font-weight: 550;
-  }
-
-  .repos {
-    display: grid;
-    gap: 10px;
-    align-content: start;
+    gap: 14px;
+    max-width: 44rem;
   }
 
   .repo {
@@ -156,11 +84,6 @@
     justify-content: space-between;
     gap: 12px;
     margin-bottom: 10px;
-  }
-
-  h3 {
-    font-size: 1rem;
-    overflow-wrap: anywhere;
   }
 
   dl {
@@ -180,10 +103,7 @@
     overflow-wrap: anywhere;
   }
 
-  @media (min-width: 900px) {
-    .layout {
-      grid-template-columns: 360px minmax(0, 1fr);
-      align-items: start;
-    }
+  .note {
+    font-size: 0.85rem;
   }
 </style>

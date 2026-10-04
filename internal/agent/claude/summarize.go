@@ -93,26 +93,53 @@ func clip(s string, max int) string {
 	return string(r[:max]) + "…"
 }
 
-// approvalPrompt is what the user is asked when the agent wants a tool.
-func approvalPrompt(tool string, input map[string]any, workDir string) string {
+// approvalRequest says what the agent wants to do, as a short question and
+// the detail the user needs to judge it. The question is the same for every
+// tool of a kind; the specifics (the command, the plan, the change) are context.
+func approvalRequest(tool string, input map[string]any, workDir string) (prompt, detail string) {
 	str := func(k string) string { v, _ := input[k].(string); return strings.TrimSpace(v) }
 	switch tool {
 	case "Bash":
-		p := "Run this command?\n$ " + clip(str("command"), 1500)
+		detail = "$ " + clip(str("command"), 1500)
 		if d := str("description"); d != "" {
-			p += "\n" + clip(d, 300)
+			detail += "\n\n" + clip(d, 300)
 		}
-		return p
-	case "Write", "Edit", "MultiEdit", "NotebookEdit":
-		verb := map[string]string{"Write": "Write to", "NotebookEdit": "Edit notebook"}[tool]
-		if verb == "" {
-			verb = "Edit"
+		return "Run this command?", detail
+	case "Write":
+		return "Write to " + relativeTo(workDir, str("file_path")) + "?", clip(str("content"), 1500)
+	case "Edit":
+		return "Edit " + relativeTo(workDir, str("file_path")) + "?", changeDetail(str("old_string"), str("new_string"))
+	case "MultiEdit":
+		detail = ""
+		if edits, ok := input["edits"].([]any); ok && len(edits) > 0 {
+			if first, ok := edits[0].(map[string]any); ok {
+				o, _ := first["old_string"].(string)
+				n, _ := first["new_string"].(string)
+				detail = changeDetail(strings.TrimSpace(o), strings.TrimSpace(n))
+			}
+			if len(edits) > 1 {
+				detail += fmt.Sprintf("\n… and %d more changes", len(edits)-1)
+			}
 		}
-		return verb + " " + relativeTo(workDir, firstNonEmpty(str("file_path"), str("notebook_path"))) + "?"
+		return "Edit " + relativeTo(workDir, str("file_path")) + "?", detail
+	case "NotebookEdit":
+		return "Edit notebook " + relativeTo(workDir, firstNonEmpty(str("notebook_path"), str("file_path"))) + "?", clip(str("new_source"), 1500)
 	case "ExitPlanMode":
-		return "Approve this plan?\n" + clip(str("plan"), 4000)
+		return "Approve this plan?", clip(str("plan"), 8000)
 	}
-	return fmt.Sprintf("Allow %s?\n%s", tool, summarizeTool(tool, input, workDir))
+	return fmt.Sprintf("Allow %s?", tool), summarizeTool(tool, input, workDir)
+}
+
+// changeDetail shows an edit as the text removed and the text added.
+func changeDetail(oldText, newText string) string {
+	var b strings.Builder
+	if oldText != "" {
+		b.WriteString("Replace:\n" + clip(oldText, 700) + "\n\n")
+	}
+	if newText != "" {
+		b.WriteString("With:\n" + clip(newText, 700))
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func firstNonEmpty(vals ...string) string {

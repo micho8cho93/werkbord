@@ -1,20 +1,38 @@
 // The router: the current page, kept in step with the address bar. Hash routing
 // means the shell works from any static host and from the service worker cache.
 
-import { parse, type Route } from './location';
+import { hrefOf, parse, type Location, type View } from './location';
 
-export { ROUTES, taskHref, type Route } from './location';
+export * from './location';
 
 class Router {
-  current = $state<Route>(parse(location.hash).route);
+  view = $state<View>(parse(location.hash).view);
+  /** The project the address names. Empty on a global page, and on an old link that names none. */
+  projectId = $state<string>(parse(location.hash).projectId);
   taskId = $state<string>(parse(location.hash).taskId);
 
   constructor() {
-    window.addEventListener('hashchange', () => {
-      const loc = parse(location.hash);
-      this.current = loc.route;
-      this.taskId = loc.taskId;
-    });
+    window.addEventListener('hashchange', () => this.read());
+  }
+
+  private read() {
+    const loc = parse(location.hash);
+    this.view = loc.view;
+    this.projectId = loc.projectId;
+    this.taskId = loc.taskId;
+  }
+
+  get location(): Location {
+    return { view: this.view, projectId: this.projectId, taskId: this.taskId };
+  }
+
+  /** Goes to a page. Adds a history entry, unless `replace` is set, which is for settling an address. */
+  go(loc: Location, replace = false): void {
+    const href = hrefOf(loc);
+    if (location.hash === href) return;
+    if (replace) history.replaceState(null, '', location.pathname + location.search + href);
+    else location.hash = href;
+    this.read();
   }
 }
 

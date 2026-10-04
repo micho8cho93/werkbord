@@ -141,6 +141,19 @@ func (s *Worktrees) Get(ctx context.Context, id string) (*domain.Worktree, error
 	return w, err
 }
 
+// GetIn returns a worktree of the given project; one of another project is
+// reported as not found, as if it did not exist.
+func (s *Worktrees) GetIn(ctx context.Context, projectID, id string) (*domain.Worktree, error) {
+	w, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if w.ProjectID != projectID {
+		return nil, fmt.Errorf("worktree %s: %w", id, domain.ErrNotFound)
+	}
+	return w, nil
+}
+
 // ListByProject returns a project's worktrees, oldest first.
 func (s *Worktrees) ListByProject(ctx context.Context, projectID string) ([]domain.Worktree, error) {
 	var out []domain.Worktree

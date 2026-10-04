@@ -14,17 +14,32 @@ import (
 type runRepo struct{ q queryer }
 
 const runCols = `id, task_id, project_id, agent_id, state, worktree_id, session_ref, reason, prompt, waiting,
-	activity, activity_at, exit_code, pid, process_id, version, created_at, updated_at, ended_at`
+	activity, activity_at, exit_code, pid, process_id, version, created_at, updated_at, ended_at, policy, blocker`
+
+// activeStates are the run states that still hold a session and a worktree.
+// The database's indexes and triggers use the same list.
+const activeStates = `('starting', 'running', 'waiting_for_user', 'blocked')`
 
 func scanRun(s interface{ Scan(...any) error }) (*domain.Run, error) {
 	var r domain.Run
 	var worktree sql.NullString
 	var created, updated int64
 	var ended, activityAt, exitCode sql.NullInt64
+	var policy, blocker string
 	if err := s.Scan(&r.ID, &r.TaskID, &r.ProjectID, &r.AgentID, &r.State, &worktree, &r.SessionRef, &r.Reason,
 		&r.Prompt, &r.Waiting, &r.Activity, &activityAt, &exitCode, &r.PID, &r.ProcessID,
-		&r.Version, &created, &updated, &ended); err != nil {
+		&r.Version, &created, &updated, &ended, &policy, &blocker); err != nil {
 		return nil, err
+	}
+	var err error
+	if r.Policy, err = decodePolicy(policy); err != nil {
+		return nil, fmt.Errorf("run %s: %w", r.ID, err)
+	}
+	if blocker != "" {
+		r.Blocker = &domain.Blocker{}
+		if err := json.Unmarshal([]byte(blocker), r.Blocker); err != nil {
+			return nil, fmt.Errorf("decode blocker of run %s: %w", r.ID, err)
+		}
 	}
 	r.WorktreeID = worktree.String
 	r.ActivityAt = fromNullMS(activityAt)
@@ -34,6 +49,14 @@ func scanRun(s interface{ Scan(...any) error }) (*domain.Run, error) {
 	}
 	r.CreatedAt, r.UpdatedAt, r.EndedAt = fromMS(created), fromMS(updated), fromNullMS(ended)
 	return &r, nil
+}
+
+// encodeBlocker stores a blocker as JSON; no blocker is the empty string.
+func encodeBlocker(b *domain.Blocker) (string, error) {
+	if b == nil {
+		return "", nil
+	}
+	return toJSON(b)
 }
 
 func nullInt(v *int) sql.NullInt64 {
@@ -64,11 +87,19 @@ func (q runRepo) Create(ctx context.Context, r *domain.Run) error {
 	if r.Version == 0 {
 		r.Version = 1
 	}
-	_, err := q.q.ExecContext(ctx,
-		`INSERT INTO runs (`+runCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	policy, err := encodePolicy(r.Policy)
+	if err != nil {
+		return err
+	}
+	blocker, err := encodeBlocker(r.Blocker)
+	if err != nil {
+		return err
+	}
+	_, err = q.q.ExecContext(ctx,
+		`INSERT INTO runs (`+runCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ID, r.TaskID, r.ProjectID, r.AgentID, r.State, nullString(r.WorktreeID), r.SessionRef, r.Reason,
 		r.Prompt, r.Waiting, r.Activity, nullMS(r.ActivityAt), nullInt(r.ExitCode), r.PID, r.ProcessID,
-		r.Version, ms(r.CreatedAt), ms(r.UpdatedAt), nullMS(r.EndedAt))
+		r.Version, ms(r.CreatedAt), ms(r.UpdatedAt), nullMS(r.EndedAt), policy, blocker)
 	if isFKViolation(err) {
 		return fmt.Errorf("run %s references a missing task, project or worktree: %w", r.ID, domain.ErrNotFound)
 	}
@@ -80,6 +111,8 @@ func runRule(err error, r *domain.Run) error {
 	switch {
 	case isAbort(err, "waiting is set exactly"):
 		return fmt.Errorf("run %s: state %s with waiting %q: %w", r.ID, r.State, r.Waiting, domain.ErrInvalid)
+	case isAbort(err, "CHECK constraint failed") && r.State == domain.RunBlocked:
+		return fmt.Errorf("run %s is blocked but records no blocker: %w", r.ID, domain.ErrInvalid)
 	case isAbort(err, "an ended run has no process"):
 		return fmt.Errorf("run %s has ended but still records process %d: %w", r.ID, r.PID, domain.ErrInvalid)
 	case isAbort(err, "belong to different projects"):
@@ -98,12 +131,17 @@ func (q runRepo) Get(ctx context.Context, id string) (*domain.Run, error) {
 }
 
 func (q runRepo) Update(ctx context.Context, r *domain.Run) error {
+	blocker, err := encodeBlocker(r.Blocker)
+	if err != nil {
+		return err
+	}
+	// The policy a run started with is fixed, so it is not written here.
 	res, err := q.q.ExecContext(ctx, `
 		UPDATE runs SET state = ?, worktree_id = ?, session_ref = ?, reason = ?, waiting = ?, activity = ?, activity_at = ?,
-			exit_code = ?, pid = ?, process_id = ?, updated_at = ?, ended_at = ?, version = version + 1
+			exit_code = ?, pid = ?, process_id = ?, blocker = ?, updated_at = ?, ended_at = ?, version = version + 1
 		WHERE id = ? AND version = ?`,
 		r.State, nullString(r.WorktreeID), r.SessionRef, r.Reason, r.Waiting, r.Activity, nullMS(r.ActivityAt),
-		nullInt(r.ExitCode), r.PID, r.ProcessID, ms(r.UpdatedAt), nullMS(r.EndedAt), r.ID, r.Version)
+		nullInt(r.ExitCode), r.PID, r.ProcessID, blocker, ms(r.UpdatedAt), nullMS(r.EndedAt), r.ID, r.Version)
 	if err != nil {
 		return runRule(err, r)
 	}
@@ -120,7 +158,7 @@ func (q runRepo) ListByTask(ctx context.Context, taskID string) ([]domain.Run, e
 
 func (q runRepo) TouchActivity(ctx context.Context, id, activity string, at time.Time) error {
 	_, err := q.q.ExecContext(ctx, `UPDATE runs SET activity = ?, activity_at = ?
-		WHERE id = ? AND state IN ('starting', 'running', 'waiting_for_user')`, activity, ms(at), id)
+		WHERE id = ? AND state IN `+activeStates, activity, ms(at), id)
 	return err
 }
 
@@ -132,26 +170,36 @@ func (q runRepo) ListLatestByProject(ctx context.Context, projectID string) ([]d
 }
 
 func (q runRepo) ListActive(ctx context.Context) ([]domain.Run, error) {
-	return q.list(ctx, `SELECT `+runCols+` FROM runs
-		WHERE state IN ('starting', 'running', 'waiting_for_user') ORDER BY created_at`)
+	return q.list(ctx, `SELECT `+runCols+` FROM runs WHERE state IN `+activeStates+` ORDER BY created_at, rowid`)
+}
+
+func (q runRepo) ListByProject(ctx context.Context, projectID string, limit int) ([]domain.Run, error) {
+	return q.list(ctx, `SELECT `+runCols+` FROM runs WHERE project_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?`, projectID, limit)
 }
 
 type questionRepo struct{ q queryer }
 
-const questionCols = `id, run_id, kind, prompt, options, status, answer, created_at, answered_at`
+const questionCols = `id, run_id, task_id, project_id, kind, prompt, context, options, allow_free_text,
+	state, answer, cancel_reason, asked_at, answered_at, delivered_at, closed_at, answered_by`
 
 func scanQuestion(s interface{ Scan(...any) error }) (*domain.Question, error) {
 	var qn domain.Question
 	var options string
-	var created int64
-	var answered sql.NullInt64
-	if err := s.Scan(&qn.ID, &qn.RunID, &qn.Kind, &qn.Prompt, &options, &qn.Status, &qn.Answer, &created, &answered); err != nil {
+	var free int
+	var asked int64
+	var answered, delivered, closed sql.NullInt64
+	if err := s.Scan(&qn.ID, &qn.RunID, &qn.TaskID, &qn.ProjectID, &qn.Kind, &qn.Prompt, &qn.Context, &options, &free,
+		&qn.State, &qn.Answer, &qn.CancelReason, &asked, &answered, &delivered, &closed, &qn.AnsweredBy); err != nil {
 		return nil, err
+	}
+	if qn.Answer == "" {
+		qn.AnsweredBy = "" // the column defaults to 'user'; it only means something once there is an answer
 	}
 	if err := json.Unmarshal([]byte(options), &qn.Options); err != nil {
 		return nil, fmt.Errorf("decode options for question %s: %w", qn.ID, err)
 	}
-	qn.CreatedAt, qn.AnsweredAt = fromMS(created), fromNullMS(answered)
+	qn.AllowFreeText = free != 0
+	qn.AskedAt, qn.AnsweredAt, qn.DeliveredAt, qn.ClosedAt = fromMS(asked), fromNullMS(answered), fromNullMS(delivered), fromNullMS(closed)
 	return &qn, nil
 }
 
@@ -173,9 +221,6 @@ func (q questionRepo) list(ctx context.Context, query string, args ...any) ([]do
 }
 
 func (q questionRepo) Create(ctx context.Context, qn *domain.Question) error {
-	if qn.Kind == "" {
-		qn.Kind = domain.QuestionAsk
-	}
 	opts := qn.Options
 	if opts == nil {
 		opts = []string{}
@@ -184,8 +229,13 @@ func (q questionRepo) Create(ctx context.Context, qn *domain.Question) error {
 	if err != nil {
 		return err
 	}
-	_, err = q.q.ExecContext(ctx, `INSERT INTO questions (`+questionCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		qn.ID, qn.RunID, qn.Kind, qn.Prompt, oj, qn.Status, qn.Answer, ms(qn.CreatedAt), nullMS(qn.AnsweredAt))
+	free := 0
+	if qn.AllowFreeText {
+		free = 1
+	}
+	_, err = q.q.ExecContext(ctx, `INSERT INTO questions (`+questionCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		qn.ID, qn.RunID, qn.TaskID, qn.ProjectID, qn.Kind, qn.Prompt, qn.Context, oj, free,
+		qn.State, qn.Answer, qn.CancelReason, ms(qn.AskedAt), nullMS(qn.AnsweredAt), nullMS(qn.DeliveredAt), nullMS(qn.ClosedAt), answeredBy(qn))
 	if isFKViolation(err) {
 		return fmt.Errorf("run %s: %w", qn.RunID, domain.ErrNotFound)
 	}
@@ -197,9 +247,12 @@ func (q questionRepo) Get(ctx context.Context, id string) (*domain.Question, err
 	return qn, notFound(err, "question", id)
 }
 
+// Update writes the fields of a question that change as it is answered or
+// cancelled. Who asked what is fixed once it is asked.
 func (q questionRepo) Update(ctx context.Context, qn *domain.Question) error {
-	res, err := q.q.ExecContext(ctx, `UPDATE questions SET status = ?, answer = ?, answered_at = ? WHERE id = ?`,
-		qn.Status, qn.Answer, nullMS(qn.AnsweredAt), qn.ID)
+	res, err := q.q.ExecContext(ctx, `UPDATE questions SET state = ?, answer = ?, cancel_reason = ?,
+		answered_at = ?, delivered_at = ?, closed_at = ?, answered_by = ? WHERE id = ?`,
+		qn.State, qn.Answer, qn.CancelReason, nullMS(qn.AnsweredAt), nullMS(qn.DeliveredAt), nullMS(qn.ClosedAt), answeredBy(qn), qn.ID)
 	if err != nil {
 		return err
 	}
@@ -209,10 +262,22 @@ func (q questionRepo) Update(ctx context.Context, qn *domain.Question) error {
 	return nil
 }
 
+// answeredBy is what to store for who answered: the user unless a policy did.
+func answeredBy(qn *domain.Question) domain.AnsweredBy {
+	if qn.AnsweredBy == domain.AnsweredByPolicy {
+		return domain.AnsweredByPolicy
+	}
+	return domain.AnsweredByUser
+}
+
+func (q questionRepo) ListPendingByProject(ctx context.Context, projectID string) ([]domain.Question, error) {
+	return q.list(ctx, `SELECT `+questionCols+` FROM questions WHERE project_id = ? AND state = 'pending' ORDER BY asked_at, rowid`, projectID)
+}
+
 func (q questionRepo) ListPending(ctx context.Context) ([]domain.Question, error) {
-	return q.list(ctx, `SELECT `+questionCols+` FROM questions WHERE status = 'pending' ORDER BY created_at`)
+	return q.list(ctx, `SELECT `+questionCols+` FROM questions WHERE state = 'pending' ORDER BY asked_at, rowid`)
 }
 
 func (q questionRepo) ListByRun(ctx context.Context, runID string) ([]domain.Question, error) {
-	return q.list(ctx, `SELECT `+questionCols+` FROM questions WHERE run_id = ? ORDER BY created_at`, runID)
+	return q.list(ctx, `SELECT `+questionCols+` FROM questions WHERE run_id = ? ORDER BY asked_at, rowid`, runID)
 }

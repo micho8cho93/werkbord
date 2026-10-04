@@ -210,98 +210,11 @@ func TestMarkStartedLeavesDoneCardsAndMovesReviewCards(t *testing.T) {
 	}
 }
 
-func TestQuestionsAndAnswers(t *testing.T) {
-	f := newRunFixture(t)
-	ctx := context.Background()
-	r := f.running(t)
-
-	q1, run, err := f.runs.RecordQuestion(ctx, r.ID, NewQuestion{Kind: domain.QuestionApproval, Prompt: "Run npm test?", Options: []string{"Allow", " ", "Deny"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if run.State != domain.RunWaitingForUser || run.Waiting != domain.WaitQuestion || q1.Status != domain.QuestionPending || len(q1.Options) != 2 {
-		t.Fatalf("run = %+v, q = %+v", run, q1)
-	}
-	evs := f.drain()
-	wantTypes(t, evs, domain.EventRunStateChanged, domain.EventAgentQuestion)
-
-	// Parallel tool calls ask for several approvals at once.
-	q2, _, err := f.runs.RecordQuestion(ctx, r.ID, NewQuestion{Prompt: "Which branch?"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if q2.Kind != domain.QuestionAsk {
-		t.Fatalf("kind defaults to ask: %+v", q2)
-	}
-	wantTypes(t, f.drain(), domain.EventAgentQuestion) // no state change: it was already waiting
-
-	if _, _, err := f.runs.AnswerQuestion(ctx, q1.ID, "   "); !errors.Is(err, domain.ErrInvalid) {
-		t.Fatalf("blank answer: err = %v", err)
-	}
-	if _, run, err = f.runs.AnswerQuestion(ctx, q1.ID, "Allow"); err != nil {
-		t.Fatal(err)
-	}
-	if run.State != domain.RunWaitingForUser {
-		t.Fatalf("one question is still open, the run must keep waiting: %+v", run)
-	}
-	wantTypes(t, f.drain(), domain.EventQuestionAnswered, domain.EventAgentOutput)
-
-	if _, _, err := f.runs.AnswerQuestion(ctx, q1.ID, "Allow"); !errors.Is(err, domain.ErrConflict) {
-		t.Fatalf("answering twice: err = %v", err)
-	}
-	answered, run, err := f.runs.AnswerQuestion(ctx, q2.ID, "main")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if answered.Status != domain.QuestionAnswered || answered.Answer != "main" || answered.AnsweredAt == nil {
-		t.Fatalf("answered = %+v", answered)
-	}
-	if run.State != domain.RunRunning || run.Waiting != domain.WaitNone {
-		t.Fatalf("the last answer resumes the run: %+v", run)
-	}
-	evs = f.drain()
-	wantTypes(t, evs, domain.EventQuestionAnswered, domain.EventAgentOutput, domain.EventRunStateChanged, domain.EventAgentResumed)
-	if out := payload[domain.AgentOutput](t, evs[1]); out.Stream != domain.StreamUser || out.Text != "main" {
-		t.Fatalf("the answer should appear in the activity as the user's words: %+v", out)
-	}
-	if left, _ := f.runs.ListPendingQuestions(ctx); len(left) != 0 {
-		t.Fatalf("pending = %+v", left)
-	}
-	if _, _, err := f.runs.AnswerQuestion(ctx, "qst_missing", "x"); !errors.Is(err, domain.ErrNotFound) {
-		t.Fatalf("unknown question: err = %v", err)
-	}
-}
-
 func TestQuestionRefusedWhenNotRunning(t *testing.T) {
 	f := newRunFixture(t)
 	r := f.newRun(t) // still starting
 	if _, _, err := f.runs.RecordQuestion(context.Background(), r.ID, NewQuestion{Prompt: "?"}); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestWithdrawnQuestionReleasesTheRun(t *testing.T) {
-	f := newRunFixture(t)
-	ctx := context.Background()
-	r := f.running(t)
-	q, _, err := f.runs.RecordQuestion(ctx, r.ID, NewQuestion{Prompt: "?"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.drain()
-	if err := f.runs.CancelQuestion(ctx, q.ID); err != nil {
-		t.Fatal(err)
-	}
-	got, _ := f.runs.Get(ctx, r.ID)
-	if got.State != domain.RunRunning {
-		t.Fatalf("the agent gave up waiting, so it is working again: %+v", got)
-	}
-	if stored, _ := f.runs.GetQuestion(ctx, q.ID); stored.Status != domain.QuestionCancelled {
-		t.Fatalf("question = %+v", stored)
-	}
-	wantTypes(t, f.drain(), domain.EventQuestionAnswered, domain.EventRunStateChanged, domain.EventAgentResumed)
-	if err := f.runs.CancelQuestion(ctx, q.ID); err != nil {
-		t.Fatalf("cancelling twice is harmless: %v", err)
 	}
 }
 
@@ -409,10 +322,10 @@ func TestEnd(t *testing.T) {
 				ended.ExitCode == nil || *ended.ExitCode != 3 || ended.Waiting != domain.WaitNone {
 				t.Fatalf("ended = %+v", ended)
 			}
-			if stored, _ := f.runs.GetQuestion(ctx, q.ID); stored.Status != domain.QuestionCancelled {
+			if stored, _ := f.runs.GetQuestion(ctx, q.ID); stored.State != domain.QuestionCancelled || stored.CancelReason != domain.CancelRunEnded {
 				t.Fatalf("a question nobody can answer any more must be cancelled: %+v", stored)
 			}
-			wantTypes(t, f.drain(), domain.EventQuestionAnswered, domain.EventRunStateChanged, tc.event)
+			wantTypes(t, f.drain(), domain.EventQuestionCancelled, domain.EventRunStateChanged, tc.event)
 
 			if _, err := f.runs.End(ctx, r.ID, Ended{State: domain.RunFailed}); !errors.Is(err, domain.ErrTransition) {
 				t.Fatalf("ending twice: err = %v", err)

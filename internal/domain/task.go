@@ -52,9 +52,11 @@ type Task struct {
 	Description string    `json:"description"`
 	State       TaskState `json:"state"`
 	Position    float64   `json:"position"` // ordering within a column; lower is higher on the board
-	Version     int64     `json:"version"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	// Policy is how runs of this task are carried out by default.
+	Policy    ExecutionPolicy `json:"policy"`
+	Version   int64           `json:"version"`
+	CreatedAt time.Time       `json:"createdAt"`
+	UpdatedAt time.Time       `json:"updatedAt"`
 }
 
 const (

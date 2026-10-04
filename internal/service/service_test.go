@@ -135,7 +135,7 @@ func TestRecoverAfterRestart(t *testing.T) {
 		return r
 	}
 	running, resumable, stranded, done := mk(domain.RunRunning, "sess-1"), mk(domain.RunWaitingForUser, "sess-2"), mk(domain.RunWaitingForUser, ""), mk(domain.RunCompleted, "")
-	q := &domain.Question{ID: domain.NewID(domain.PrefixQuestion), RunID: resumable.ID, Prompt: "ok?", Status: domain.QuestionPending, CreatedAt: now}
+	q := &domain.Question{ID: domain.NewID(domain.PrefixQuestion), RunID: resumable.ID, TaskID: resumable.TaskID, ProjectID: p.ID, Kind: domain.QuestionClarification, Prompt: "ok?", AllowFreeText: true, State: domain.QuestionPending, AskedAt: now}
 	err := f.deps.Store.Update(ctx, func(tx store.Tx) error {
 		return errors.Join(tx.Runs().Create(ctx, running), tx.Runs().Create(ctx, resumable), tx.Runs().Create(ctx, stranded),
 			tx.Runs().Create(ctx, done), tx.Questions().Create(ctx, q))

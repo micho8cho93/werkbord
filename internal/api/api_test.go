@@ -126,16 +126,16 @@ func TestProjectRegistrationAndTasks(t *testing.T) {
 	if code := do(t, "POST", ts.URL+"/api/projects/"+p.ID+"/tasks", `{"title":"Write docs"}`, &task); code != 201 || task.State != "backlog" {
 		t.Fatalf("create task: %d %+v", code, task)
 	}
-	if code := do(t, "PATCH", ts.URL+"/api/tasks/"+task.ID, `{"state":"doing","version":1}`, &task); code != 200 || task.State != "doing" || task.Version != 2 {
+	if code := do(t, "PATCH", ts.URL+"/api/projects/"+p.ID+"/tasks/"+task.ID, `{"state":"doing","version":1}`, &task); code != 200 || task.State != "doing" || task.Version != 2 {
 		t.Fatalf("move task: %d %+v", code, task)
 	}
-	if code := do(t, "PATCH", ts.URL+"/api/tasks/"+task.ID, `{"state":"review","version":1}`, nil); code != 409 {
+	if code := do(t, "PATCH", ts.URL+"/api/projects/"+p.ID+"/tasks/"+task.ID, `{"state":"review","version":1}`, nil); code != 409 {
 		t.Fatalf("stale move: %d", code)
 	}
-	if code := do(t, "PATCH", ts.URL+"/api/tasks/"+task.ID, `{"state":"blocked","version":2}`, nil); code != 400 {
+	if code := do(t, "PATCH", ts.URL+"/api/projects/"+p.ID+"/tasks/"+task.ID, `{"state":"blocked","version":2}`, nil); code != 400 {
 		t.Fatalf("unknown state: %d", code)
 	}
-	if code := do(t, "PATCH", ts.URL+"/api/tasks/"+task.ID, `{"state":"review"}`, nil); code != 400 {
+	if code := do(t, "PATCH", ts.URL+"/api/projects/"+p.ID+"/tasks/"+task.ID, `{"state":"review"}`, nil); code != 400 {
 		t.Fatalf("missing version: %d", code)
 	}
 	var list struct{ Tasks []json.RawMessage }

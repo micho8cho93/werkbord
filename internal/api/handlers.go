@@ -40,7 +40,20 @@ func writeError(w http.ResponseWriter, status int, code, msg string) {
 // fail maps domain errors to HTTP responses. Unexpected errors are logged and
 // reported generically so internals do not leak to clients.
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	var closed *domain.QuestionClosedError
 	switch {
+	case errors.As(err, &closed):
+		// The body carries the question as it now is, so a client that lost a
+		// race (or a reply) can show what really happened without asking again.
+		var b errorBody
+		b.Error.Code, b.Error.Message = "question_closed", err.Error()
+		if closed.AlreadyAnswered() {
+			b.Error.Code = "question_answered"
+		}
+		writeJSON(w, http.StatusConflict, struct {
+			errorBody
+			Question *domain.Question `json:"question"`
+		}{b, closed.Question})
 	case errors.Is(err, domain.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, domain.ErrDuplicate):
@@ -120,7 +133,7 @@ func (s *Server) handleRegisterProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
-	p, err := s.opt.Projects.Get(r.Context(), r.PathValue("id"))
+	p, err := s.opt.Projects.Get(r.Context(), r.PathValue("pid"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -129,7 +142,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRefreshProject(w http.ResponseWriter, r *http.Request) {
-	p, err := s.opt.Projects.Refresh(r.Context(), r.PathValue("id"))
+	p, err := s.opt.Projects.Refresh(r.Context(), r.PathValue("pid"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -138,7 +151,7 @@ func (s *Server) handleRefreshProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
-	ts, err := s.opt.Tasks.List(r.Context(), r.PathValue("id"))
+	ts, err := s.opt.Tasks.List(r.Context(), r.PathValue("pid"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -148,14 +161,17 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
+		Title       string                 `json:"title"`
+		Description string                 `json:"description"`
+		Policy      domain.ExecutionPolicy `json:"policy"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	t, err := s.opt.Tasks.Create(r.Context(), r.PathValue("id"), req.Title, req.Description)
+	t, err := s.opt.Tasks.CreateTask(r.Context(), service.NewTask{
+		ProjectID: r.PathValue("pid"), Title: req.Title, Description: req.Description, Policy: req.Policy,
+	})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -165,11 +181,12 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Title       *string  `json:"title"`
-		Description *string  `json:"description"`
-		State       *string  `json:"state"`
-		Position    *float64 `json:"position"`
-		Version     *int64   `json:"version"`
+		Title       *string                 `json:"title"`
+		Description *string                 `json:"description"`
+		State       *string                 `json:"state"`
+		Position    *float64                `json:"position"`
+		Policy      *domain.ExecutionPolicy `json:"policy"`
+		Version     *int64                  `json:"version"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
@@ -179,7 +196,11 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, fmt.Errorf("%w: version is required", domain.ErrInvalid))
 		return
 	}
-	patch := service.TaskPatch{Title: req.Title, Description: req.Description, Position: req.Position, Version: *req.Version}
+	if _, err := s.opt.Tasks.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id")); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	patch := service.TaskPatch{Title: req.Title, Description: req.Description, Position: req.Position, Policy: req.Policy, Version: *req.Version}
 	if req.State != nil {
 		st, err := domain.ParseTaskState(*req.State)
 		if err != nil {
@@ -197,6 +218,10 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListTaskRuns(w http.ResponseWriter, r *http.Request) {
+	if _, err := s.opt.Tasks.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id")); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	runs, err := s.opt.Runs.ListByTask(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.fail(w, r, err)
@@ -206,12 +231,38 @@ func (s *Server) handleListTaskRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListProjectRuns(w http.ResponseWriter, r *http.Request) {
-	runs, err := s.opt.Runs.ListLatestByProject(r.Context(), r.PathValue("id"))
+	runs, err := s.opt.Runs.ListLatestByProject(r.Context(), r.PathValue("pid"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+}
+
+// handleProjectActivity lists the project's runs, newest first: its run history.
+func (s *Server) handleProjectActivity(w http.ResponseWriter, r *http.Request) {
+	limit, err := intParam(r, "limit", 100, 1, 500)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	runs, err := s.opt.Runs.History(r.Context(), r.PathValue("pid"), limit)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+}
+
+// handleControlCenter is the one read that is not scoped to a project: what
+// needs the user, and what is going on, in every project.
+func (s *Server) handleControlCenter(w http.ResponseWriter, r *http.Request) {
+	o, err := s.opt.Control.Overview(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, o)
 }
 
 // handleGetWorktree says where a run's work is: its branch and directory.
@@ -220,7 +271,7 @@ func (s *Server) handleGetWorktree(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "unavailable", "worktrees are not enabled")
 		return
 	}
-	wt, err := s.opt.Worktrees.Get(r.Context(), r.PathValue("id"))
+	wt, err := s.opt.Worktrees.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -229,7 +280,7 @@ func (s *Server) handleGetWorktree(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
-	run, err := s.opt.Runs.Get(r.Context(), r.PathValue("id"))
+	run, err := s.opt.Runs.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -245,16 +296,21 @@ func (s *Server) handleStartRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		AgentID      string `json:"agentId"`
-		Instructions string `json:"instructions"`
-		Resume       bool   `json:"resume"`
+		AgentID      string                  `json:"agentId"`
+		Instructions string                  `json:"instructions"`
+		Resume       bool                    `json:"resume"`
+		Policy       *domain.ExecutionPolicy `json:"policy"` // for this run only; the task's otherwise
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
+	if _, err := s.opt.Tasks.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id")); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	run, err := s.opt.Runner.Start(r.Context(), runner.StartInput{
-		TaskID: r.PathValue("id"), AgentID: req.AgentID, Instructions: req.Instructions, Resume: req.Resume,
+		TaskID: r.PathValue("id"), AgentID: req.AgentID, Instructions: req.Instructions, Resume: req.Resume, Policy: req.Policy,
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -273,6 +329,10 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	before, err := intParam(r, "before", 0, 0, 1<<62)
 	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if _, err := s.opt.Runs.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id")); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -311,16 +371,24 @@ func (s *Server) handleRunInput(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	id := r.PathValue("id")
-	if err := s.opt.Runner.Send(r.Context(), id, req.Text); err != nil {
+	run, err := s.opt.Runs.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id"))
+	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	s.respondWithRun(w, r, id)
+	if err := s.opt.Runner.Send(r.Context(), run.ID, req.Text); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.respondWithRun(w, r, run.ID)
 }
 
 func (s *Server) handleFinishRun(w http.ResponseWriter, r *http.Request) {
 	if !s.runnerReady(w) {
+		return
+	}
+	if _, err := s.opt.Runs.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id")); err != nil {
+		s.fail(w, r, err)
 		return
 	}
 	run, err := s.opt.Runner.Finish(r.Context(), r.PathValue("id"))
@@ -333,6 +401,10 @@ func (s *Server) handleFinishRun(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStopRun(w http.ResponseWriter, r *http.Request) {
 	if !s.runnerReady(w) {
+		return
+	}
+	if _, err := s.opt.Runs.GetIn(r.Context(), r.PathValue("pid"), r.PathValue("id")); err != nil {
+		s.fail(w, r, err)
 		return
 	}
 	run, err := s.opt.Runner.Stop(r.Context(), r.PathValue("id"))
@@ -354,12 +426,20 @@ func (s *Server) handleAnswerQuestion(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	id := r.PathValue("id")
-	if err := s.opt.Runner.Answer(r.Context(), id, req.Answer); err != nil {
+	if _, err := s.opt.Runs.GetQuestionIn(r.Context(), r.PathValue("pid"), r.PathValue("id")); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	q, err := s.opt.Runs.GetQuestion(r.Context(), id)
+	q, err := s.opt.Runner.Answer(r.Context(), r.PathValue("id"), req.Answer)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, q)
+}
+
+func (s *Server) handleGetQuestion(w http.ResponseWriter, r *http.Request) {
+	q, err := s.opt.Runs.GetQuestionIn(r.Context(), r.PathValue("pid"), r.PathValue("id"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -386,17 +466,8 @@ func (s *Server) respondWithRun(w http.ResponseWriter, r *http.Request, id strin
 	writeJSON(w, http.StatusOK, run)
 }
 
-func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
-	runs, err := s.opt.Runs.ListActive(r.Context())
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
-}
-
 func (s *Server) handleListQuestions(w http.ResponseWriter, r *http.Request) {
-	qs, err := s.opt.Runs.ListPendingQuestions(r.Context())
+	qs, err := s.opt.Runs.ListPendingQuestionsIn(r.Context(), r.PathValue("pid"))
 	if err != nil {
 		s.fail(w, r, err)
 		return

@@ -14,12 +14,16 @@ export class RunFeed {
 
   private builder = new FeedBuilder();
 
-  constructor(readonly runId: string) {}
+  /** A run is only read through its project, so a feed needs both. */
+  constructor(
+    readonly projectId: string,
+    readonly runId: string,
+  ) {}
 
   /** Loads the newest page. Safe to call again after a reconnect: events already shown are skipped. */
   async load(): Promise<void> {
     try {
-      const page = await api.runEvents(this.runId);
+      const page = await api.runEvents(this.projectId, this.runId);
       if (this.builder.apply(page.events)) this.items = this.builder.items;
       if (this.builder.firstSeq === 0 || this.loading) this.hasMore = page.hasMore;
       this.error = '';
@@ -34,7 +38,7 @@ export class RunFeed {
     if (this.loadingOlder || !this.hasMore) return;
     this.loadingOlder = true;
     try {
-      const page = await api.runEvents(this.runId, this.builder.firstSeq);
+      const page = await api.runEvents(this.projectId, this.runId, this.builder.firstSeq);
       if (this.builder.apply(page.events)) this.items = this.builder.items;
       this.hasMore = page.hasMore;
     } catch (err) {

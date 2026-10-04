@@ -1,18 +1,26 @@
 // Application state shared by all views. The controller is the source of
 // truth: this module holds a cache that is filled over HTTP and kept current
 // by the event stream.
+//
+// The cache is split the way the application is. What is global lives here: the
+// connection, the projects, the agents installed on this computer and the Control
+// Center's overview. What belongs to a project lives in that project's
+// ProjectScope (see scope.svelte.ts), one per project visited, and is never
+// mixed with another's.
 
+import { SvelteMap } from 'svelte/reactivity';
 import { ApiError, api, eventsURL } from './api';
-import { oneLine } from './format';
-import type { Agent, AgentOutput, ControllerEvent, Project, Question, Run, Task } from './types';
+import { QuestionBook } from './questions';
+import { ProjectScope } from './scope.svelte';
+import type { Agent, ControllerEvent, Overview, Project, Question } from './types';
 
 export type Connection = 'connecting' | 'live' | 'offline' | 'unauthorized';
 
-const SELECTED_KEY = 'devboard.project';
+const LAST_PROJECT_KEY = 'devboard.project';
 
-function loadSelected(): string {
+function loadLastProject(): string {
   try {
-    return localStorage.getItem(SELECTED_KEY) ?? '';
+    return localStorage.getItem(LAST_PROJECT_KEY) ?? '';
   } catch {
     return '';
   }
@@ -26,44 +34,75 @@ const EVENT_TYPES = [
   'task.updated',
   'run.state_changed',
   'question.answered',
+  'question.cancelled',
   'agent.started',
   'agent.output',
   'agent.question',
   'agent.waiting',
+  'agent.blocked',
   'agent.resumed',
   'agent.completed',
   'agent.failed',
   'agent.stopped',
 ];
 
+/** Events after which the Control Center's overview may be out of date. Agent output is not one of them. */
+const OVERVIEW_EVENTS = new Set([
+  'project.registered',
+  'task.created',
+  'task.updated',
+  'run.state_changed',
+  'agent.question',
+  'agent.blocked',
+  'question.answered',
+  'question.cancelled',
+]);
+
 type RunListener = (ev: ControllerEvent) => void;
+
+/** Where something belongs, for showing it outside its project. */
+export interface TaskInfo {
+  title: string;
+  projectId: string;
+  projectName: string;
+}
 
 class AppState {
   connection = $state<Connection>('connecting');
   projects = $state<Project[]>([]);
-  selectedProjectId = $state<string>(loadSelected());
-  /** Tasks of every project: the control center names the work of all of them. */
-  allTasks = $state<Task[]>([]);
-  /** The most recent run of each task, by task ID, across projects. */
-  latestRun = $state<Record<string, Run>>({});
-  questions = $state<Question[]>([]);
   agents = $state<Agent[]>([]);
+  /** What needs the user, in every project. Null until first fetched. */
+  overview = $state<Overview | null>(null);
+  /** Questions still waiting for the user, in every project, oldest first. Kept by `book`. */
+  questions = $state<Question[]>([]);
   error = $state<string>('');
+  /** A message that outlives whatever raised it, such as "already answered on another device". */
+  notice = $state<string>('');
+  /** The project last visited: where a link that names none goes, and what the tabs point at on a global page. */
+  lastProjectId = $state<string>(loadLastProject());
+  /** Whether the project switcher is open. */
+  switcherOpen = $state(false);
 
   /** The time, updated every second while the page is visible, for elapsed times. */
   now = $state(Date.now());
 
-  tasks = $derived(this.allTasks.filter((t) => t.projectId === this.selectedProjectId));
-  selectedProject = $derived(this.projects.find((p) => p.id === this.selectedProjectId));
-  /** Runs that still have a session: working, or waiting for the user. */
-  activeRuns = $derived(
-    Object.values(this.latestRun)
-      .filter((r) => r.state === 'starting' || r.state === 'running' || r.state === 'waiting_for_user')
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-  );
-  /** How many runs are blocked on the user. */
-  needsYou = $derived(this.activeRuns.filter((r) => r.state === 'waiting_for_user').length);
+  /** One scope per project visited. */
+  readonly scopes = new SvelteMap<string, ProjectScope>();
 
+  /** Runs that are blocked, anywhere: waiting for the user to settle something. */
+  blockedCount = $derived((this.overview?.runs ?? []).filter((r) => r.run.state === 'blocked').length);
+  /** Runs that finished a turn and wait for the next message, anywhere. */
+  idleCount = $derived(
+    (this.overview?.runs ?? []).filter((r) => r.run.state === 'waiting_for_user' && r.run.waiting === 'idle').length,
+  );
+  /** What waits for the user, in every project: open questions, blocked runs, runs idle for a next message. Counted for the badge. */
+  needsYou = $derived(this.questions.length + this.blockedCount + this.idleCount);
+  /** How many questions are waiting for an answer: what the "needs input" signals count. */
+  needsInput = $derived(this.questions.length);
+
+  private book = new QuestionBook();
+  private noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  private overviewTimer: ReturnType<typeof setTimeout> | undefined;
   private source: EventSource | null = null;
   private listeners = new Map<string, RunListener[]>();
   private reconnectHandlers: (() => void)[] = [];
@@ -78,38 +117,71 @@ class AppState {
     });
   }
 
-  selectProject(id: string): void {
-    this.selectedProjectId = id;
+  // ---- projects ----
+
+  project(id: string): Project | undefined {
+    return this.projects.find((p) => p.id === id);
+  }
+
+  /** Replaces a project returned by the controller (after a refresh), or adds it. */
+  upsertProject(p: Project): void {
+    const i = this.projects.findIndex((x) => x.id === p.id);
+    if (i === -1) this.projects.push(p);
+    else this.projects[i] = p;
+  }
+
+  /**
+   * Makes a project the one being worked in: remembers it, and has its data (a scope)
+   * ready, fetching it the first time. A project already visited is there at once, so
+   * switching back to it needs no loading. It must not be called while rendering.
+   */
+  enter(projectId: string): ProjectScope | undefined {
+    if (!projectId) return undefined;
+    this.lastProjectId = projectId;
     try {
-      localStorage.setItem(SELECTED_KEY, id);
+      localStorage.setItem(LAST_PROJECT_KEY, projectId);
     } catch {
       // Not persisted in private mode.
     }
+    let scope = this.scopes.get(projectId);
+    if (!scope) {
+      scope = new ProjectScope(projectId);
+      this.scopes.set(projectId, scope);
+    }
+    if (!scope.loaded && !scope.loading) void scope.load().catch((err) => this.handleError(err));
+    return scope;
   }
+
+  /**
+   * Has a project's data fetched ahead of its being opened (as the switcher does for the
+   * projects it lists), without making it the current project. Nothing is shown from it
+   * until it is entered; it only means that switching to it finds it ready.
+   */
+  warm(projectId: string): void {
+    if (!projectId || this.scopes.has(projectId)) return;
+    const scope = new ProjectScope(projectId);
+    this.scopes.set(projectId, scope);
+    void scope.load().catch((err) => this.handleError(err));
+  }
+
+  /** The data of a project, if it has been entered. */
+  scope(projectId: string): ProjectScope | undefined {
+    return this.scopes.get(projectId);
+  }
+
+  // ---- refreshing ----
 
   async refresh(): Promise<void> {
     try {
-      const [projects, active, agents, questions] = await Promise.all([
-        api.listProjects(),
-        api.listActiveRuns(),
-        api.listAgents(),
-        api.listPendingQuestions(),
-      ]);
+      const sync = this.book.beginSync();
+      const [projects, agents, overview] = await Promise.all([api.listProjects(), api.listAgents(), api.controlCenter()]);
       this.projects = projects;
       this.agents = agents;
-      this.questions = questions;
-      if (!projects.some((p) => p.id === this.selectedProjectId)) {
-        this.selectedProjectId = projects[0]?.id ?? '';
-      }
-      const [tasks, runs] = await Promise.all([
-        Promise.all(projects.map((p) => api.listTasks(p.id))),
-        Promise.all(projects.map((p) => api.listProjectRuns(p.id))),
-      ]);
-      this.allTasks = tasks.flat();
-      const latest: Record<string, Run> = {};
-      for (const r of [...runs.flat(), ...active]) latest[r.taskId] = newer(latest[r.taskId], r);
-      this.latestRun = latest;
+      this.overview = overview;
+      if (this.book.replace(sync, overview.questions.map((q) => q.question))) this.questions = this.book.pending;
       this.error = '';
+      // Projects already open catch up on what they missed.
+      await Promise.all([...this.scopes.values()].map((s) => s.load().catch((err) => this.handleError(err))));
     } catch (err) {
       this.handleError(err);
     }
@@ -123,24 +195,51 @@ class AppState {
     }
   }
 
-  async loadQuestions(): Promise<void> {
+  /** Fetches the Control Center's overview: soon, and once for a burst of events. */
+  refreshOverview(): void {
+    clearTimeout(this.overviewTimer);
+    this.overviewTimer = setTimeout(() => void this.loadOverview(), 250);
+  }
+
+  private async loadOverview(): Promise<void> {
     try {
-      this.questions = await api.listPendingQuestions();
+      const sync = this.book.beginSync();
+      const overview = await api.controlCenter();
+      this.overview = overview;
+      if (this.book.replace(sync, overview.questions.map((q) => q.question))) this.questions = this.book.pending;
     } catch (err) {
       this.handleError(err);
     }
   }
 
-  /** Replace or insert a task returned by a mutation, without waiting for its event. */
-  upsertTask(task: Task): void {
-    const i = this.allTasks.findIndex((t) => t.id === task.id);
-    if (i === -1) this.allTasks.push(task);
-    else if (this.allTasks[i].version <= task.version) this.allTasks[i] = task;
+  /** A question is settled (answered here or elsewhere, or closed): stop offering it, wherever it is shown, without waiting for its event. */
+  resolveQuestion(q: Pick<Question, 'id' | 'projectId'>): void {
+    this.book.resolve(q);
+    this.questions = this.book.pending;
+    this.scopes.get(q.projectId)?.resolveQuestion(q);
   }
 
-  /** Same for a run: ignores one older than what is already known. */
-  upsertRun(run: Run): void {
-    this.latestRun[run.taskId] = newer(this.latestRun[run.taskId], run);
+  /** Where a task is and what it is called, for showing it outside its project, as the banner and the Control Center do. */
+  taskInfo(taskId: string, projectId: string): TaskInfo | undefined {
+    const project = this.project(projectId);
+    const title =
+      this.scopes.get(projectId)?.tasks.find((t) => t.id === taskId)?.title ??
+      this.overview?.questions.find((q) => q.question.taskId === taskId)?.taskTitle ??
+      this.overview?.runs.find((r) => r.run.taskId === taskId)?.taskTitle;
+    if (title === undefined) return undefined;
+    return { title, projectId, projectName: project?.name ?? '' };
+  }
+
+  /** Shows a message app-wide for a while. */
+  notify(message: string, ms = 9000): void {
+    this.notice = message;
+    clearTimeout(this.noticeTimer);
+    this.noticeTimer = setTimeout(() => (this.notice = ''), ms);
+  }
+
+  dismissNotice(): void {
+    clearTimeout(this.noticeTimer);
+    this.notice = '';
   }
 
   /** Calls fn for every event of one run, until the returned function is called. */
@@ -212,44 +311,27 @@ class AppState {
   private apply(ev: ControllerEvent): void {
     if (ev.runId) this.listeners.get(ev.runId)?.forEach((fn) => fn(ev));
 
+    // A project's events go to that project's scope, which takes nothing else.
+    if (ev.projectId) this.scopes.get(ev.projectId)?.apply(ev);
+
     switch (ev.type) {
       case 'project.registered':
       case 'project.inspected':
-        void api.listProjects().then((ps) => {
-          this.projects = ps;
-          if (!this.selectedProjectId && ps.length) this.selectProject(ps[0].id);
-        }, (err) => this.handleError(err));
+        void api.listProjects().then(
+          (ps) => (this.projects = ps),
+          (err) => this.handleError(err),
+        );
         break;
-      case 'task.created':
-      case 'task.updated':
-        this.upsertTask(ev.payload as Task);
-        break;
-      case 'run.state_changed':
-        this.upsertRun((ev.payload as { run: Run }).run);
-        break;
-      case 'agent.output': {
-        // The card's activity line follows what the agent does, ahead of the next state change.
-        const out = ev.payload as AgentOutput;
-        const run = ev.taskId ? this.latestRun[ev.taskId] : undefined;
-        if (run && run.id === ev.runId && (out.stream === 'assistant' || out.stream === 'tool')) {
-          run.activity = oneLine(out.text);
-          run.activityAt = ev.createdAt;
-        }
-        break;
-      }
       case 'agent.question':
       case 'question.answered':
-        void this.loadQuestions();
+      case 'question.cancelled': {
+        // Each carries the whole question, so no refetch is needed for the list; the overview is refreshed for the names.
+        if (this.book.apply(ev)) this.questions = this.book.pending;
         break;
+      }
     }
+    if (OVERVIEW_EVENTS.has(ev.type)) this.refreshOverview();
   }
-}
-
-/** The more recently created of two runs of one task; on a tie, the later version. */
-function newer(a: Run | undefined, b: Run): Run {
-  if (!a) return b;
-  if (a.id === b.id) return a.version <= b.version ? b : a;
-  return a.createdAt >= b.createdAt ? a : b;
 }
 
 export const app = new AppState();

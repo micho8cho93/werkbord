@@ -65,7 +65,7 @@ func (a *shellAdapter) Start(_ context.Context, req agent.StartRequest) (agent.S
 			s.Emit(agent.Event{Kind: agent.KindTurnEnd})
 		case strings.HasPrefix(text, "ask:"):
 			parts := strings.SplitN(text, ":", 3)
-			s.Emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{Ref: parts[1], Kind: domain.QuestionAsk, Prompt: parts[2], Options: []string{"Yes", "No"}}})
+			s.Emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{Ref: parts[1], Kind: domain.QuestionDecision, Prompt: parts[2], Options: []string{"Yes", "No"}, AllowFreeText: true}})
 		case strings.HasPrefix(text, "child:"):
 			pid, _ := strconv.Atoi(strings.TrimPrefix(text, "child:"))
 			s.mu.Lock()
@@ -148,7 +148,7 @@ func TestRealProcessConversation(t *testing.T) {
 	}
 	e.waitWaiting(run.ID, domain.WaitQuestion)
 	qs, _ := e.runs.ListPendingQuestions(ctx)
-	if err := e.mgr.Answer(ctx, qs[0].ID, "Yes"); err != nil {
+	if _, err := e.mgr.Answer(ctx, qs[0].ID, "Yes"); err != nil {
 		t.Fatal(err)
 	}
 	e.waitWaiting(run.ID, domain.WaitIdle)

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { FeedItem } from './feed';
+  import { answerLine, closedText, contextSummary, kindNoun } from './questions';
 
   let {
     items,
@@ -64,13 +65,24 @@
         {#if item.detail}<span class="detail">{item.detail}</span>{/if}
       </li>
     {:else if item.kind === 'question'}
-      <li class="asked" data-status={item.question.status}>
-        <span class="who">{item.question.kind === 'approval' ? 'Asked permission' : 'Asked you'}</span>
-        <p class="text">{item.question.prompt}</p>
-        {#if item.question.status === 'answered'}
-          <p class="reply">You answered: <strong>{item.question.answer}</strong></p>
-        {:else if item.question.status === 'cancelled'}
-          <p class="reply muted">No longer needed.</p>
+      {@const q = item.question}
+      <li class="asked" data-state={q.state}>
+        <span class="who">{q.kind === 'approval' ? 'Asked permission' : `${kindNoun(q.kind)} for you`}</span>
+        <p class="text">{q.prompt}</p>
+        {#if q.context}
+          <details class="ctx">
+            <summary>{contextSummary(q.context)}</summary>
+            <pre>{q.context}</pre>
+          </details>
+        {/if}
+        {#if q.state === 'answered' && q.answeredBy === 'policy'}
+          <p class="reply policy">{answerLine(q)}</p>
+        {:else if q.state === 'answered'}
+          <p class="reply">You answered: <strong>{q.answer}</strong></p>
+        {:else if q.state === 'cancelled'}
+          <p class="reply muted">
+            {#if q.answer}You answered “{q.answer}”. {/if}{closedText(q)}
+          </p>
         {:else}
           <p class="reply pending">Waiting for your answer.</p>
         {/if}
@@ -205,6 +217,10 @@
     --tone: var(--accent);
   }
 
+  .marker[data-tone='block'] {
+    --tone: var(--block);
+  }
+
   .marker .label {
     font-weight: 650;
   }
@@ -224,8 +240,8 @@
     border-radius: var(--radius);
   }
 
-  .asked[data-status='answered'],
-  .asked[data-status='cancelled'] {
+  .asked[data-state='answered'],
+  .asked[data-state='cancelled'] {
     border-color: var(--border);
   }
 
@@ -237,8 +253,25 @@
     color: var(--warn);
   }
 
-  .asked[data-status='answered'] .who,
-  .asked[data-status='cancelled'] .who {
+  .asked[data-state='answered'] .who,
+  .asked[data-state='cancelled'] .who {
+    color: var(--text-2);
+  }
+
+  .ctx summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .ctx pre {
+    margin: 6px 0 0;
+    max-height: 12rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: 0.8rem/1.45 var(--mono);
     color: var(--text-2);
   }
 
@@ -248,6 +281,12 @@
 
   .reply {
     font-size: 0.85rem;
+  }
+
+  /* The controller answered for you, as the run's policy says: said plainly, and not in your voice. */
+  .reply.policy {
+    color: var(--text-2);
+    font-style: italic;
   }
 
   .reply.pending {

@@ -10,15 +10,20 @@ import (
 
 type taskRepo struct{ q queryer }
 
-const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at`
+const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, policy`
 
 func scanTask(s interface{ Scan(...any) error }) (*domain.Task, error) {
 	var t domain.Task
 	var created, updated int64
-	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated); err != nil {
+	var policy string
+	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &policy); err != nil {
 		return nil, err
 	}
 	t.CreatedAt, t.UpdatedAt = fromMS(created), fromMS(updated)
+	var err error
+	if t.Policy, err = decodePolicy(policy); err != nil {
+		return nil, fmt.Errorf("task %s: %w", t.ID, err)
+	}
 	return &t, nil
 }
 
@@ -26,9 +31,13 @@ func (r taskRepo) Create(ctx context.Context, t *domain.Task) error {
 	if t.Version == 0 {
 		t.Version = 1
 	}
-	_, err := r.q.ExecContext(ctx,
-		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt))
+	policy, err := encodePolicy(t.Policy)
+	if err != nil {
+		return err
+	}
+	_, err = r.q.ExecContext(ctx,
+		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), policy)
 	if isFKViolation(err) {
 		return fmt.Errorf("project %s: %w", t.ProjectID, domain.ErrNotFound)
 	}
@@ -59,10 +68,14 @@ func (r taskRepo) ListByProject(ctx context.Context, projectID string) ([]domain
 }
 
 func (r taskRepo) Update(ctx context.Context, t *domain.Task) error {
+	policy, err := encodePolicy(t.Policy)
+	if err != nil {
+		return err
+	}
 	res, err := r.q.ExecContext(ctx, `
-		UPDATE tasks SET title = ?, description = ?, state = ?, position = ?, updated_at = ?, version = version + 1
+		UPDATE tasks SET title = ?, description = ?, state = ?, position = ?, policy = ?, updated_at = ?, version = version + 1
 		WHERE id = ? AND version = ?`,
-		t.Title, t.Description, t.State, t.Position, ms(t.UpdatedAt), t.ID, t.Version)
+		t.Title, t.Description, t.State, t.Position, policy, ms(t.UpdatedAt), t.ID, t.Version)
 	if err != nil {
 		return err
 	}

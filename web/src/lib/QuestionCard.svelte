@@ -1,58 +1,103 @@
 <script lang="ts">
   import { api } from './api';
+  import { timeAgo } from './format';
+  import {
+    choicesOf,
+    contextIsLong,
+    contextSummary,
+    describeAnswerFailure,
+    freeTextHint,
+    isAllow,
+    isDeny,
+    kindLabel,
+    takesText,
+  } from './questions';
   import { app } from './state.svelte';
   import type { Question } from './types';
 
-  let { question }: { question: Question } = $props();
+  let { question, showMeta = true }: { question: Question; showMeta?: boolean } = $props();
 
   let text = $state('');
+  /** The choice being sent, so its button can say so. */
+  let sending = $state('');
   let busy = $state(false);
   let error = $state('');
 
-  const approval = $derived(question.kind === 'approval');
-  /** An approval is one tap; anything else can also take a typed answer. */
-  const options = $derived(question.options?.length ? question.options : approval ? ['Allow', 'Deny'] : []);
+  const choices = $derived(choicesOf(question));
+  const typed = $derived(takesText(question));
+  /** An approval with two choices is one tap each, side by side, like a dialog. */
+  const dialog = $derived(question.kind === 'approval' && choices.length <= 3);
+  const long = $derived(question.context ? contextIsLong(question.context) : false);
+  /** Several lines of text suit a clarification or an instruction; a short reply suits the rest. */
+  const multiline = $derived(question.kind === 'clarification' || question.kind === 'instruction');
 
   async function answer(value: string) {
     value = value.trim();
     if (!value || busy) return;
     busy = true;
+    sending = value;
     error = '';
     try {
-      await api.answerQuestion(question.id, value);
+      const settled = await api.answerQuestion(question, value);
+      app.resolveQuestion(settled);
       text = '';
-      await app.loadQuestions();
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      const failure = describeAnswerFailure(err);
+      if (failure.settled) {
+        // Someone else answered, or the agent moved on: say so, and stop offering it.
+        app.resolveQuestion(question);
+        app.notify(failure.message);
+      } else {
+        error = failure.message; // the typed answer stays, so trying again is one tap
+      }
     } finally {
       busy = false;
+      sending = '';
     }
   }
 
-  const isDeny = (o: string) => /^(deny|no|decline|reject)/i.test(o);
-  const isAllow = (o: string) => /^(allow|yes|approve|accept)$/i.test(o);
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || !multiline)) {
+      e.preventDefault();
+      void answer(text);
+    }
+  }
 </script>
 
-<div class="ask" data-kind={question.kind}>
+<div class="ask" data-kind={question.kind} role="group" aria-label="{kindLabel(question.kind)}: {question.prompt}">
+  {#if showMeta}
+    <div class="meta">
+      <span class="kind">{kindLabel(question.kind)}</span>
+      <time datetime={question.askedAt}>asked {timeAgo(question.askedAt, app.now)}</time>
+    </div>
+  {/if}
+
   <p class="prompt">{question.prompt}</p>
 
-  {#if options.length}
-    <div class="options">
-      {#each options as o (o)}
+  {#if question.context}
+    <details class="context" open={!long}>
+      <summary>{contextSummary(question.context)}</summary>
+      <pre>{question.context}</pre>
+    </details>
+  {/if}
+
+  {#if choices.length}
+    <div class="choices" class:dialog>
+      {#each choices as o (o)}
         <button
-          class="btn small"
+          class="btn choice"
           class:primary={isAllow(o)}
           class:danger={isDeny(o)}
           disabled={busy}
           onclick={() => answer(o)}
         >
-          {o}
+          {sending === o ? 'Sending…' : o}
         </button>
       {/each}
     </div>
   {/if}
 
-  {#if !approval}
+  {#if typed}
     <form
       class="free"
       onsubmit={(e) => {
@@ -60,15 +105,29 @@
         void answer(text);
       }}
     >
-      <label class="visually-hidden" for="answer-{question.id}">{options.length ? 'Or type your own answer' : 'Your answer'}</label>
-      <input
-        id="answer-{question.id}"
-        class="input"
-        placeholder={options.length ? 'Or type your own answer' : 'Your answer'}
-        autocomplete="off"
-        bind:value={text}
-      />
-      <button class="btn small primary" type="submit" disabled={busy || !text.trim()}>Answer</button>
+      <label class="visually-hidden" for="answer-{question.id}">{freeTextHint(question)}</label>
+      {#if multiline}
+        <textarea
+          id="answer-{question.id}"
+          class="input"
+          rows="2"
+          placeholder={freeTextHint(question)}
+          bind:value={text}
+          onkeydown={onKey}
+        ></textarea>
+      {:else}
+        <input
+          id="answer-{question.id}"
+          class="input"
+          placeholder={freeTextHint(question)}
+          autocomplete="off"
+          bind:value={text}
+          onkeydown={onKey}
+        />
+      {/if}
+      <button class="btn primary" type="submit" disabled={busy || !text.trim()}>
+        {busy && sending === text.trim() ? 'Sending…' : 'Send'}
+      </button>
     </form>
   {/if}
 
@@ -81,29 +140,107 @@
   .ask {
     display: grid;
     gap: 10px;
+    min-width: 0;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+  }
+
+  .kind {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--warn);
+  }
+
+  .meta time {
+    font-size: 0.78rem;
+    color: var(--text-2);
   }
 
   .prompt {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font-weight: 550;
+    font-size: 1.02rem;
+    font-weight: 600;
+    line-height: 1.35;
   }
 
-  .ask[data-kind='approval'] .prompt {
-    font-family: var(--mono);
-    font-size: 0.88rem;
-    font-weight: 500;
+  .context {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    min-width: 0;
   }
 
-  .options,
-  .free {
-    display: flex;
-    flex-wrap: wrap;
+  .context summary {
+    cursor: pointer;
+    padding: 7px 10px;
+    min-height: 32px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .context pre {
+    margin: 0;
+    padding: 0 10px 10px;
+    max-height: 14rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: 0.82rem/1.45 var(--mono);
+    color: var(--text);
+  }
+
+  .choices {
+    display: grid;
     gap: 8px;
   }
 
+  .choices.dialog {
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  }
+
+  /* Big enough to hit with a thumb, and a wrong tap is as costly as a right one. */
+  .choice {
+    min-height: 46px;
+    justify-content: flex-start;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    padding-block: 8px;
+  }
+
+  .choices.dialog .choice {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .free {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+
   .free .input {
-    flex: 1 1 180px;
-    min-height: 34px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .free textarea.input {
+    padding-block: 9px;
+    resize: vertical;
+    min-height: 56px;
+  }
+
+  .free .btn {
+    min-height: 46px;
   }
 </style>

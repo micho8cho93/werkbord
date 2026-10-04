@@ -1,4 +1,16 @@
-import type { Agent, Health, Project, Question, Run, RunEventsPage, Task, TaskState, Worktree } from './types';
+import type {
+  Agent,
+  ExecutionPolicy,
+  Health,
+  Overview,
+  Project,
+  Question,
+  Run,
+  RunEventsPage,
+  Task,
+  TaskState,
+  Worktree,
+} from './types';
 
 const TOKEN_KEY = 'devboard.token';
 
@@ -8,6 +20,8 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** For a refused answer: the question as it now stands (answered elsewhere, or closed). */
+    readonly question?: Question,
   ) {
     super(message);
   }
@@ -46,7 +60,7 @@ export function adoptTokenFromURL(): void {
   const m = /(?:^#|&)token=([^&]+)/.exec(location.hash);
   if (!m) return;
   setToken(decodeURIComponent(m[1]));
-  history.replaceState(null, '', location.pathname + '#/board');
+  history.replaceState(null, '', location.pathname + '#/');
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -64,51 +78,78 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (!res.ok) {
     let code = 'http_error';
     let message = `${res.status} ${res.statusText}`;
+    let question: Question | undefined;
     try {
-      const data = (await res.json()) as { error?: { code: string; message: string } };
+      const data = (await res.json()) as { error?: { code: string; message: string }; question?: Question };
       if (data.error) ({ code, message } = data.error);
+      question = data.question;
     } catch {
       // Non-JSON error body.
     }
-    throw new ApiError(res.status, code, message);
+    throw new ApiError(res.status, code, message, question);
   }
   return (await res.json()) as T;
 }
 
+const enc = encodeURIComponent;
+
+/** Everything that belongs to a project is asked for through it: there is no way to name a task, run or question without its project. */
+const inProject = (projectId: string) => `/api/projects/${enc(projectId)}`;
+
+/** What a task can be changed to. Fields left out are left alone. */
+export interface TaskEdit {
+  title?: string;
+  description?: string;
+  state?: TaskState;
+  policy?: ExecutionPolicy;
+}
+
 export const api = {
   health: () => request<Health>('GET', '/api/health'),
+  listAgents: () => request<{ agents: Agent[] }>('GET', '/api/agents').then((r) => r.agents),
 
+  // Global: the projects, and the one view that looks across all of them.
   listProjects: () => request<{ projects: Project[] }>('GET', '/api/projects').then((r) => r.projects),
   registerProject: (path: string, name: string) => request<Project>('POST', '/api/projects', { path, name }),
-  refreshProject: (id: string) => request<Project>('POST', `/api/projects/${encodeURIComponent(id)}/refresh`),
+  controlCenter: () => request<Overview>('GET', '/api/control-center'),
 
-  listTasks: (projectId: string) =>
-    request<{ tasks: Task[] }>('GET', `/api/projects/${encodeURIComponent(projectId)}/tasks`).then((r) => r.tasks),
-  createTask: (projectId: string, title: string, description = '') =>
-    request<Task>('POST', `/api/projects/${encodeURIComponent(projectId)}/tasks`, { title, description }),
-  moveTask: (task: Task, state: TaskState) =>
-    request<Task>('PATCH', `/api/tasks/${encodeURIComponent(task.id)}`, { state, version: task.version }),
+  // In a project.
+  refreshProject: (projectId: string) => request<Project>('POST', `${inProject(projectId)}/refresh`),
 
-  startRun: (taskId: string, agentId: string, instructions = '', resume = false) =>
-    request<Run>('POST', `/api/tasks/${encodeURIComponent(taskId)}/runs`, { agentId, instructions, resume }),
-  listTaskRuns: (taskId: string) =>
-    request<{ runs: Run[] }>('GET', `/api/tasks/${encodeURIComponent(taskId)}/runs`).then((r) => r.runs),
-  listProjectRuns: (projectId: string) =>
-    request<{ runs: Run[] }>('GET', `/api/projects/${encodeURIComponent(projectId)}/runs`).then((r) => r.runs),
-  getRun: (id: string) => request<Run>('GET', `/api/runs/${encodeURIComponent(id)}`),
-  runEvents: (id: string, before = 0, limit = 200) =>
-    request<RunEventsPage>('GET', `/api/runs/${encodeURIComponent(id)}/events?limit=${limit}${before ? `&before=${before}` : ''}`),
-  sendInput: (id: string, text: string) =>
-    request<Run>('POST', `/api/runs/${encodeURIComponent(id)}/input`, { text }),
-  finishRun: (id: string) => request<Run>('POST', `/api/runs/${encodeURIComponent(id)}/finish`),
-  stopRun: (id: string) => request<Run>('POST', `/api/runs/${encodeURIComponent(id)}/stop`),
-  answerQuestion: (id: string, answer: string) =>
-    request<Question>('POST', `/api/questions/${encodeURIComponent(id)}/answer`, { answer }),
-  getWorktree: (id: string) => request<Worktree>('GET', `/api/worktrees/${encodeURIComponent(id)}`),
+  listTasks: (projectId: string) => request<{ tasks: Task[] }>('GET', `${inProject(projectId)}/tasks`).then((r) => r.tasks),
+  createTask: (projectId: string, title: string, description = '', policy?: ExecutionPolicy) =>
+    request<Task>('POST', `${inProject(projectId)}/tasks`, { title, description, ...(policy ? { policy } : {}) }),
+  editTask: (task: Task, edit: TaskEdit) =>
+    request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, { ...edit, version: task.version }),
+  moveTask: (task: Task, state: TaskState) => api.editTask(task, { state }),
 
-  listActiveRuns: () => request<{ runs: Run[] }>('GET', '/api/runs').then((r) => r.runs),
-  listPendingQuestions: () => request<{ questions: Question[] }>('GET', '/api/questions').then((r) => r.questions),
-  listAgents: () => request<{ agents: Agent[] }>('GET', '/api/agents').then((r) => r.agents),
+  startRun: (projectId: string, taskId: string, agentId: string, instructions = '', resume = false, policy?: ExecutionPolicy) =>
+    request<Run>('POST', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`, {
+      agentId,
+      instructions,
+      resume,
+      ...(policy ? { policy } : {}),
+    }),
+  listTaskRuns: (projectId: string, taskId: string) =>
+    request<{ runs: Run[] }>('GET', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`).then((r) => r.runs),
+  /** The latest run of each task: what the board's cards show. */
+  listProjectRuns: (projectId: string) => request<{ runs: Run[] }>('GET', `${inProject(projectId)}/runs`).then((r) => r.runs),
+  /** The project's run history, newest first. */
+  listActivity: (projectId: string, limit = 100) =>
+    request<{ runs: Run[] }>('GET', `${inProject(projectId)}/activity?limit=${limit}`).then((r) => r.runs),
+  getRun: (projectId: string, id: string) => request<Run>('GET', `${inProject(projectId)}/runs/${enc(id)}`),
+  runEvents: (projectId: string, id: string, before = 0, limit = 200) =>
+    request<RunEventsPage>('GET', `${inProject(projectId)}/runs/${enc(id)}/events?limit=${limit}${before ? `&before=${before}` : ''}`),
+  sendInput: (projectId: string, id: string, text: string) =>
+    request<Run>('POST', `${inProject(projectId)}/runs/${enc(id)}/input`, { text }),
+  finishRun: (projectId: string, id: string) => request<Run>('POST', `${inProject(projectId)}/runs/${enc(id)}/finish`),
+  stopRun: (projectId: string, id: string) => request<Run>('POST', `${inProject(projectId)}/runs/${enc(id)}/stop`),
+
+  listPendingQuestions: (projectId: string) =>
+    request<{ questions: Question[] }>('GET', `${inProject(projectId)}/questions`).then((r) => r.questions),
+  answerQuestion: (q: Pick<Question, 'projectId' | 'id'>, answer: string) =>
+    request<Question>('POST', `${inProject(q.projectId)}/questions/${enc(q.id)}/answer`, { answer }),
+  getWorktree: (projectId: string, id: string) => request<Worktree>('GET', `${inProject(projectId)}/worktrees/${enc(id)}`),
 };
 
 /** URL for the event stream. EventSource cannot send headers, so the token goes in the query. */

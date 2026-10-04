@@ -133,6 +133,11 @@ func (a *Adapter) Start(ctx context.Context, req agent.StartRequest) (agent.Sess
 	if a.cfg.Model != "" {
 		args = append(args, "--model", a.cfg.Model)
 	}
+	// Standing instructions go in the system prompt, where they stay in force
+	// across turns (and resumes), not into a message that scrolls away.
+	if text := agent.Instructions(req.Policy); text != "" {
+		args = append(args, "--append-system-prompt", text)
+	}
 	ref := req.ResumeRef
 	if ref != "" {
 		args = append(args, "--resume", ref)

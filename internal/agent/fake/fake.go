@@ -93,6 +93,11 @@ type Session struct {
 	// OnSend, if set, is called with each message the user sends, before Send
 	// returns; returning an error makes Send fail.
 	OnSend func(text string) error
+	// OnRespond, if set, is called with each answer before it is accepted, outside
+	// the session's lock; returning an error makes Respond fail with it, and it
+	// may block, to hold a delivery open. Whatever it returns, an answer the
+	// session accepted is not given twice.
+	OnRespond func(ref, answer string) error
 	// OnClose and OnStop decide what happens when the controller ends the
 	// session. By default both end it: Close successfully, Stop as a failure
 	// (the controller reports it as stopped).
@@ -124,20 +129,28 @@ func (s *Session) Ref(ref string) { s.emit(agent.Event{Kind: agent.KindSessionRe
 // TurnEnd reports that the agent finished its turn.
 func (s *Session) TurnEnd() { s.emit(agent.Event{Kind: agent.KindTurnEnd}) }
 
-// Ask makes the agent ask a question and wait.
+// Ask makes the agent ask a question and wait. With options it is a selection
+// and a typed answer is also accepted; without, a clarification.
 func (s *Session) Ask(ref, prompt string, options ...string) {
-	s.mu.Lock()
-	s.open[ref] = true
-	s.mu.Unlock()
-	s.emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{Ref: ref, Kind: domain.QuestionAsk, Prompt: prompt, Options: options}})
+	kind := domain.QuestionClarification
+	if len(options) > 0 {
+		kind = domain.QuestionSelection
+	}
+	s.AskQuestion(agent.Question{Ref: ref, Kind: kind, Prompt: prompt, Options: options, AllowFreeText: true})
 }
 
-// RequestApproval makes the agent ask for permission and wait.
+// RequestApproval makes the agent ask for permission and wait. The answer must
+// be "Allow" or "Deny".
 func (s *Session) RequestApproval(ref, prompt string) {
+	s.AskQuestion(agent.Question{Ref: ref, Kind: domain.QuestionApproval, Prompt: prompt, Options: []string{domain.AnswerAllow, domain.AnswerDeny}})
+}
+
+// AskQuestion makes the agent ask exactly the question given, and wait.
+func (s *Session) AskQuestion(q agent.Question) {
 	s.mu.Lock()
-	s.open[ref] = true
+	s.open[q.Ref] = true
 	s.mu.Unlock()
-	s.emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{Ref: ref, Kind: domain.QuestionApproval, Prompt: prompt, Options: []string{"Allow", "Deny"}}})
+	s.emit(agent.Event{Kind: agent.KindQuestion, Question: &q})
 }
 
 // WithdrawQuestion reports that the agent no longer needs an answer.
@@ -221,6 +234,14 @@ func (s *Session) Send(_ context.Context, text string) error {
 
 // Respond implements agent.Session.
 func (s *Session) Respond(_ context.Context, ref, answer string) error {
+	s.mu.Lock()
+	fn := s.OnRespond
+	s.mu.Unlock()
+	if fn != nil {
+		if err := fn(ref, answer); err != nil {
+			return err
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ended {

@@ -208,7 +208,7 @@ func TestCommandApproval(t *testing.T) {
 		t.Run(tc.answer, func(t *testing.T) {
 			s, _ := start(t, Config{}, "run the tests")
 			q := next(t, s, kind(agent.KindQuestion)).Question
-			if q.Kind != domain.QuestionApproval || !strings.Contains(q.Prompt, "$ npm test") || !strings.Contains(q.Prompt, "run the tests") {
+			if q.Kind != domain.QuestionApproval || q.Prompt != "Run this command?" || !strings.Contains(q.Context, "$ npm test") || !strings.Contains(q.Context, "run the tests") {
 				t.Fatalf("question = %+v", q)
 			}
 			if len(q.Options) != 3 || q.Options[1] != "Allow for this session" {
@@ -238,7 +238,7 @@ func TestCommandApproval(t *testing.T) {
 func TestFileChangeApproval(t *testing.T) {
 	s, _ := start(t, Config{}, "patch it")
 	q := next(t, s, kind(agent.KindQuestion)).Question
-	if q.Kind != domain.QuestionApproval || !strings.Contains(q.Prompt, "Apply these file changes?") || !strings.Contains(q.Prompt, "/w/vendor") {
+	if q.Kind != domain.QuestionApproval || q.Prompt != "Apply these file changes?" || !strings.Contains(q.Context, "/w/vendor") {
 		t.Fatalf("question = %+v; it must say what access the change grants", q)
 	}
 	if err := s.Respond(context.Background(), q.Ref, "Allow"); err != nil {
@@ -256,7 +256,7 @@ func TestFileChangeApproval(t *testing.T) {
 func TestRequestUserInputIsAskedOneAtATime(t *testing.T) {
 	s, _ := start(t, Config{}, "ask me things")
 	first := next(t, s, kind(agent.KindQuestion)).Question
-	if first.Kind != domain.QuestionAsk || !strings.Contains(first.Prompt, "(1 of 2)") || !strings.Contains(first.Prompt, "Pick a colour") || len(first.Options) != 2 {
+	if first.Kind != domain.QuestionSelection || !first.AllowFreeText || !strings.Contains(first.Prompt, "(1 of 2)") || !strings.Contains(first.Prompt, "Pick a colour") || len(first.Options) != 2 {
 		t.Fatalf("first = %+v", first)
 	}
 	if err := s.Respond(context.Background(), first.Ref, "Blue"); err != nil {
@@ -410,6 +410,56 @@ func TestHumanize(t *testing.T) {
 	} {
 		if got := humanize(in); got != want {
 			t.Errorf("humanize(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// The run's policy reaches Codex as developer instructions on the thread, on a
+// new thread and a resumed one alike; interactive runs add nothing, and the
+// approval policy and sandbox stay as configured.
+func TestPolicyBecomesDeveloperInstructions(t *testing.T) {
+	for _, tc := range []struct {
+		interaction domain.InteractionPolicy
+		resume      string
+		want        bool
+	}{
+		{domain.InteractionInteractive, "", false},
+		{domain.InteractionAutonomous, "", true},
+		{domain.InteractionAutonomousStopIfBlocked, "", true},
+		{domain.InteractionAutonomousStopIfBlocked, "thread-old", true},
+	} {
+		logFile := filepath.Join(t.TempDir(), "log")
+		t.Setenv("FAKE_CODEX_LOG", logFile)
+		dir, _ := filepath.EvalSymlinks(t.TempDir())
+		pol := domain.ExecutionPolicy{Interaction: tc.interaction}
+		s, err := New(Config{Command: fakeCodex(t), ApprovalPolicy: "on-request", Sandbox: "workspace-write"}).
+			Start(context.Background(), agent.StartRequest{WorkDir: dir, Prompt: "hello", ResumeRef: tc.resume, Policy: pol})
+		if err != nil {
+			t.Fatal(err)
+		}
+		collect(t, s)
+		_ = s.Stop(context.Background())
+		for range s.Events() {
+		}
+
+		b, _ := os.ReadFile(logFile)
+		var thread map[string]any
+		for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+			var rec struct {
+				Method string
+				Params map[string]any
+			}
+			_ = json.Unmarshal([]byte(line), &rec)
+			if rec.Method == "thread/start" || rec.Method == "thread/resume" {
+				thread = rec.Params
+			}
+		}
+		got, present := thread["developerInstructions"]
+		if present != tc.want || (tc.want && got != agent.Instructions(pol)) {
+			t.Errorf("policy %q (resume %q): developerInstructions = %v (present %v), want present=%v", tc.interaction, tc.resume, got, present, tc.want)
+		}
+		if thread["approvalPolicy"] != "on-request" || thread["sandbox"] != "workspace-write" {
+			t.Errorf("policy %q altered the approval settings: %v", tc.interaction, thread)
 		}
 	}
 }

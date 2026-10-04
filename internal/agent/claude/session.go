@@ -263,8 +263,10 @@ func (s *session) onControlRequest(e *envelope) {
 	s.mu.Lock()
 	s.pending[req.id] = req
 	s.mu.Unlock()
+	prompt, detail := approvalRequest(req.tool, req.input, s.workDir)
 	s.Emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{
-		Ref: req.id, Kind: domain.QuestionApproval, Prompt: approvalPrompt(req.tool, req.input, s.workDir), Options: []string{"Allow", "Deny"},
+		Ref: req.id, Kind: domain.QuestionApproval, Prompt: prompt, Context: detail,
+		Options: []string{domain.AnswerAllow, domain.AnswerDeny},
 	}})
 }
 
@@ -294,12 +296,23 @@ func (s *session) emitAsk(req *request) {
 	if len(req.questions) > 1 {
 		prompt = fmt.Sprintf("(%d of %d) %s", req.next+1, len(req.questions), prompt)
 	}
+	// The options' descriptions are what lets the user choose between them.
 	opts := make([]string, 0, len(q.Options))
+	var described []string
 	for _, o := range q.Options {
 		opts = append(opts, o.Label)
+		if d := strings.TrimSpace(o.Description); d != "" {
+			described = append(described, o.Label+": "+d)
+		}
 	}
+	kind := domain.QuestionClarification
+	if len(opts) > 0 {
+		kind = domain.QuestionSelection
+	}
+	// Claude's own interface always offers "Other", so a typed answer is accepted.
 	s.Emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{
-		Ref: askRef(req.id, req.next), Kind: domain.QuestionAsk, Prompt: prompt, Options: opts,
+		Ref: askRef(req.id, req.next), Kind: kind, Prompt: prompt, Context: strings.Join(described, "\n"),
+		Options: opts, AllowFreeText: true,
 	}})
 }
 

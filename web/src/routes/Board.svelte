@@ -1,34 +1,49 @@
 <script lang="ts">
   import { ApiError, api } from '../lib/api';
-  import { agentName, cardActivity, runElapsed, runStatus } from '../lib/format';
+  import { agentName, cardActivity, oneLine, runElapsed, runStatus } from '../lib/format';
+  import InteractionPicker from '../lib/InteractionPicker.svelte';
+  import { interactionShort, isNotable } from '../lib/policy';
+  import { kindLabel } from '../lib/questions';
   import RunBadge from '../lib/RunBadge.svelte';
-  import { taskHref } from '../lib/router.svelte';
+  import { globalHref, taskHref } from '../lib/router.svelte';
+  import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
-  import { TASK_STATES, TASK_STATE_LABELS, type Task, type TaskState } from '../lib/types';
+  import {
+    TASK_STATES,
+    TASK_STATE_LABELS,
+    type InteractionPolicy,
+    type Project,
+    type Task,
+    type TaskState,
+  } from '../lib/types';
+
+  let { scope, project }: { scope: ProjectScope; project: Project } = $props();
 
   // On a phone one column is visible at a time; this is the one shown.
   let activeColumn = $state<TaskState>('backlog');
   let newTitle = $state('');
+  let newInteraction = $state<InteractionPolicy>('interactive');
+  let showOptions = $state(false);
   let busy = $state(false);
   let notice = $state('');
 
   const columns = $derived(
     TASK_STATES.map((state) => ({
       state,
-      tasks: app.tasks.filter((t) => t.state === state).sort((a, b) => a.position - b.position),
+      tasks: scope.tasks.filter((t) => t.state === state).sort((a, b) => a.position - b.position),
     })),
   );
 
-  /** Tasks whose agent is waiting on the user, for the line under the column switcher. */
-  const waiting = $derived(app.tasks.filter((t) => app.latestRun[t.id]?.state === 'waiting_for_user').length);
+  /** Tasks whose agent needs the user: a question, a next message, or a decision it would not guess. */
+  const waiting = $derived(scope.taskCount((r) => runStatus(r).needsInput));
 
   async function addTask(e: SubmitEvent) {
     e.preventDefault();
     const title = newTitle.trim();
-    if (!title || !app.selectedProjectId) return;
+    if (!title) return;
     busy = true;
     try {
-      app.upsertTask(await api.createTask(app.selectedProjectId, title));
+      scope.upsertTask(await api.createTask(project.id, title, '', { interaction: newInteraction }));
       newTitle = '';
       notice = '';
     } catch (err) {
@@ -41,12 +56,12 @@
   async function move(task: Task, state: TaskState) {
     if (state === task.state) return;
     try {
-      app.upsertTask(await api.moveTask(task, state));
+      scope.upsertTask(await api.moveTask(task, state));
       notice = '';
     } catch (err) {
       if (err instanceof ApiError && err.code === 'conflict') {
         notice = 'This task changed on another device. The board has been refreshed.';
-        await app.refresh();
+        await scope.load().catch((e) => app.handleError(e));
       } else {
         notice = err instanceof Error ? err.message : String(err);
       }
@@ -54,84 +69,85 @@
   }
 </script>
 
-{#if app.projects.length === 0}
-  <div class="card empty">
-    <p>No projects yet.</p>
-    <p>Register a local Git repository in <a href="#/git">Git</a> to get a board.</p>
-  </div>
-{:else}
-  <div class="toolbar">
-    <label class="visually-hidden" for="project">Project</label>
-    <select
-      id="project"
-      class="select project"
-      value={app.selectedProjectId}
-      onchange={(e) => app.selectProject(e.currentTarget.value)}
+<div class="segments" role="tablist" aria-label="Columns">
+  {#each columns as col (col.state)}
+    <button
+      role="tab"
+      aria-selected={activeColumn === col.state}
+      aria-controls="col-{col.state}"
+      onclick={() => (activeColumn = col.state)}
     >
-      {#each app.projects as p (p.id)}
-        <option value={p.id}>{p.name}</option>
-      {/each}
-    </select>
-  </div>
+      {TASK_STATE_LABELS[col.state]}
+      <span class="count">{col.tasks.length}</span>
+    </button>
+  {/each}
+</div>
 
-  <div class="segments" role="tablist" aria-label="Columns">
-    {#each columns as col (col.state)}
-      <button
-        role="tab"
-        aria-selected={activeColumn === col.state}
-        aria-controls="col-{col.state}"
-        onclick={() => (activeColumn = col.state)}
-      >
-        {TASK_STATE_LABELS[col.state]}
+{#if waiting > 0}
+  <p class="waiting" role="status">
+    <span class="badge" data-tone="ask"><span class="dot" aria-hidden="true"></span>{waiting} {waiting === 1 ? 'task needs' : 'tasks need'} you</span>
+    <a href={globalHref('control')}>Open Control Center</a>
+  </p>
+{/if}
+
+{#if notice}
+  <p class="error notice" role="status">{notice}</p>
+{/if}
+
+<div class="columns">
+  {#each columns as col (col.state)}
+    <section id="col-{col.state}" class="column" data-active={activeColumn === col.state} aria-label={TASK_STATE_LABELS[col.state]}>
+      <header class="column-head">
+        <h2>{TASK_STATE_LABELS[col.state]}</h2>
         <span class="count">{col.tasks.length}</span>
-      </button>
-    {/each}
-  </div>
+      </header>
 
-  {#if waiting > 0}
-    <p class="waiting" role="status">
-      <span class="badge" data-tone="ask"><span class="dot" aria-hidden="true"></span>{waiting} {waiting === 1 ? 'task needs' : 'tasks need'} you</span>
-      <a href="#/control">Open Control Center</a>
-    </p>
-  {/if}
-
-  {#if notice}
-    <p class="error notice" role="status">{notice}</p>
-  {/if}
-
-  <div class="columns">
-    {#each columns as col (col.state)}
-      <section id="col-{col.state}" class="column" data-active={activeColumn === col.state} aria-label={TASK_STATE_LABELS[col.state]}>
-        <header class="column-head">
-          <h2>{TASK_STATE_LABELS[col.state]}</h2>
-          <span class="count">{col.tasks.length}</span>
-        </header>
-
-        {#if col.state === 'backlog'}
-          <form class="add" onsubmit={addTask}>
+      {#if col.state === 'backlog'}
+        <form class="add" onsubmit={addTask}>
+          <div class="add-row">
             <label class="visually-hidden" for="new-task">New task</label>
             <input id="new-task" class="input" placeholder="Add a task" maxlength="200" bind:value={newTitle} />
             <button class="btn primary" type="submit" disabled={busy || !newTitle.trim()}>Add</button>
-          </form>
-        {/if}
+          </div>
+          <button type="button" class="options-toggle" aria-expanded={showOptions} onclick={() => (showOptions = !showOptions)}>
+            {showOptions ? 'Hide options' : 'Interaction'}
+            {#if !showOptions && newInteraction !== 'interactive'}<span class="chosen">· {interactionShort({ interaction: newInteraction })}</span>{/if}
+          </button>
+          {#if showOptions}
+            <InteractionPicker name="new-interaction" bind:value={newInteraction} />
+          {/if}
+        </form>
+      {/if}
 
-        <ul class="cards">
-          {#each col.tasks as task (task.id)}
-            {@const run = app.latestRun[task.id]}
-            {@const status = run ? runStatus(run) : undefined}
-            <li class="card task" data-tone={status?.tone} data-needs={status?.needsInput}>
-              <a class="title" href={taskHref(task.id)}>{task.title}</a>
-              {#if run && status}
-                <div class="run">
-                  <div class="run-line">
-                    <RunBadge {run} />
-                    <span class="muted meta">{agentName(app.agents, run.agentId)} · {runElapsed(run, app.now)}</span>
-                  </div>
-                  {#if cardActivity(run)}
-                    <p class="activity" class:bad={run.state === 'failed'}>{cardActivity(run)}</p>
-                  {/if}
+      <ul class="cards">
+        {#each col.tasks as task (task.id)}
+          {@const run = scope.latestRun[task.id]}
+          {@const status = run ? runStatus(run) : undefined}
+          {@const ask = run ? scope.pendingFor(run.id) : []}
+          <li class="card task" data-tone={status?.tone} data-needs={status?.needsInput}>
+            <a class="title" href={taskHref(project.id, task.id)}>{task.title}</a>
+            {#if run && status}
+              <div class="run">
+                <div class="run-line">
+                  <RunBadge {run} />
+                  <span class="muted meta">{agentName(app.agents, run.agentId)} · {runElapsed(run, app.now)}</span>
                 </div>
-              {/if}
+                {#if ask.length}
+                  <p class="asking">
+                    <strong>{ask.length > 1 ? `${ask.length} questions` : kindLabel(ask[0].kind)}:</strong>
+                    {oneLine(ask[0].prompt, 120)}
+                  </p>
+                {:else if run.state === 'blocked'}
+                  <p class="blocked">
+                    <strong>Blocked:</strong>
+                    {oneLine(cardActivity(run), 120)}
+                  </p>
+                {:else if cardActivity(run)}
+                  <p class="activity" class:bad={run.state === 'failed'}>{cardActivity(run)}</p>
+                {/if}
+              </div>
+            {/if}
+            <div class="foot">
               <label class="move">
                 <span class="visually-hidden">Move “{task.title}” to</span>
                 <select
@@ -144,26 +160,20 @@
                   {/each}
                 </select>
               </label>
-            </li>
-          {:else}
-            <li class="none muted">Nothing here.</li>
-          {/each}
-        </ul>
-      </section>
-    {/each}
-  </div>
-{/if}
+              {#if isNotable(task.policy)}
+                <span class="policy" title="Interaction: {interactionShort(task.policy)}">{interactionShort(task.policy)}</span>
+              {/if}
+            </div>
+          </li>
+        {:else}
+          <li class="none muted">{scope.loaded ? 'Nothing here.' : 'Loading…'}</li>
+        {/each}
+      </ul>
+    </section>
+  {/each}
+</div>
 
 <style>
-  .toolbar {
-    margin-bottom: 12px;
-  }
-
-  .project {
-    max-width: 320px;
-    font-weight: 600;
-  }
-
   .segments {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -220,9 +230,30 @@
   }
 
   .add {
-    display: flex;
+    display: grid;
     gap: 8px;
     margin-bottom: 12px;
+  }
+
+  .add-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .options-toggle {
+    justify-self: start;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 550;
+  }
+
+  .options-toggle .chosen {
+    color: var(--text-2);
+    font-weight: 500;
   }
 
   .cards {
@@ -279,6 +310,10 @@
     border-left: 3px solid var(--danger);
   }
 
+  .task[data-tone='block'] {
+    border-left: 3px solid var(--block);
+  }
+
   .run {
     display: grid;
     gap: 3px;
@@ -307,6 +342,37 @@
     color: var(--danger);
   }
 
+  /* What the agent is asking, right on the card. */
+  .asking {
+    font-size: 0.84rem;
+    line-height: 1.35;
+    color: var(--text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .asking strong {
+    color: var(--warn);
+  }
+
+  /* Stopped rather than guess: what is in the way, right on the card. */
+  .blocked {
+    font-size: 0.84rem;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .blocked strong {
+    color: var(--block);
+  }
+
   .waiting {
     display: flex;
     flex-wrap: wrap;
@@ -314,6 +380,22 @@
     gap: 4px 12px;
     margin-bottom: 12px;
     font-size: 0.9rem;
+  }
+
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+
+  .policy {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-2);
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
   }
 
   .move {

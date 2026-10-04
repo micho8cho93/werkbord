@@ -3,7 +3,7 @@
 // not a terminal: the point is to show what happened and what needs doing.
 // No framework code here, so it can be tested on its own.
 
-import type { AgentOutput, ControllerEvent, Question } from './types';
+import type { AgentOutput, Blocker, ControllerEvent, Question } from './types';
 
 export interface ToolLine {
   seq: number;
@@ -15,8 +15,21 @@ export type FeedItem =
   | { kind: 'tools'; seq: number; lines: ToolLine[] }
   | { kind: 'notice'; seq: number; text: string }
   | { kind: 'diagnostics'; seq: number; lines: ToolLine[] }
-  | { kind: 'marker'; seq: number; tone: 'ok' | 'bad' | 'neutral' | 'info'; text: string; detail?: string; at: string }
+  | { kind: 'marker'; seq: number; tone: 'ok' | 'bad' | 'neutral' | 'info' | 'block'; text: string; detail?: string; at: string }
   | { kind: 'question'; seq: number; question: Question; at: string };
+
+/** The line an agent ends its turn with when it is blocked; see agent.BlockerMarker in the controller. */
+const BLOCKER_MARKER = 'DEVBOARD_BLOCKED';
+
+/** Text with any blocker-report lines taken out. */
+export function withoutBlockerReport(text: string): string {
+  if (!text.includes(BLOCKER_MARKER)) return text;
+  return text
+    .split('\n')
+    .filter((line) => !line.trim().startsWith(BLOCKER_MARKER))
+    .join('\n')
+    .trim();
+}
 
 /**
  * Builds a feed incrementally. Events may be applied more than once or out of
@@ -52,8 +65,11 @@ export class FeedBuilder {
   }
 
   private history: ControllerEvent[] = [];
+  /** Whether the run is blocked at the point of the feed being built, to tell what ends it. */
+  private blocked = false;
 
   private reset() {
+    this.blocked = false;
     this.items = [];
     this.seen = new Set();
     this.history = [];
@@ -76,7 +92,9 @@ export class FeedBuilder {
         this.items.push({ kind: 'question', seq: ev.seq, question: q, at: ev.createdAt });
         break;
       }
-      case 'question.answered': {
+      case 'question.answered':
+      case 'question.cancelled': {
+        // Either way the question is closed; the item shows what became of it.
         const q = (ev.payload as { question: Question }).question;
         this.items = this.items.map((item) => (item.kind === 'question' && item.question.id === q.id ? { ...item, question: q } : item));
         break;
@@ -91,6 +109,28 @@ export class FeedBuilder {
         if (p.reason === 'interrupted') {
           this.items.push({ kind: 'marker', seq: ev.seq, tone: 'neutral', text: 'Session interrupted', detail: 'Send a message to continue the conversation.', at: ev.createdAt });
         }
+        break;
+      }
+      case 'agent.blocked': {
+        this.blocked = true;
+        const b = (ev.payload as { blocker?: Blocker }).blocker;
+        this.items.push({
+          kind: 'marker',
+          seq: ev.seq,
+          tone: 'block',
+          text: 'Blocked: the agent stopped rather than guess',
+          detail: b?.summary,
+          at: ev.createdAt,
+        });
+        break;
+      }
+      case 'agent.resumed': {
+        // Leaving the blocked state is worth saying; ordinary resumes are visible as the message that caused them.
+        const via = (ev.payload as { via?: string }).via;
+        if (via === 'message' && this.blocked) {
+          this.items.push({ kind: 'marker', seq: ev.seq, tone: 'info', text: 'Unblocked by your message', at: ev.createdAt });
+        }
+        this.blocked = false;
         break;
       }
       case 'agent.completed':
@@ -110,7 +150,9 @@ export class FeedBuilder {
   }
 
   private output(ev: ControllerEvent, out: AgentOutput) {
-    const text = out.text ?? '';
+    let text = out.text ?? '';
+    // A blocker report is for the controller: the feed shows it as the "Blocked" marker, not as raw text.
+    if (out.stream === 'assistant') text = withoutBlockerReport(text);
     if (text.trim() === '') return;
     const last = this.items[this.items.length - 1];
     switch (out.stream) {

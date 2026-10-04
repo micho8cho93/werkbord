@@ -3,7 +3,7 @@
 
 import type { Agent, Run } from './types';
 
-export type Tone = 'work' | 'ask' | 'idle' | 'ok' | 'bad' | 'neutral';
+export type Tone = 'work' | 'ask' | 'block' | 'idle' | 'ok' | 'bad' | 'neutral';
 
 export interface RunStatus {
   label: string;
@@ -16,16 +16,28 @@ export interface RunStatus {
   hint: string;
 }
 
-/** How a run is described: one place, so the card, the detail and the control center agree. */
+/**
+ * How a run is described: one place, so the card, the detail and the control center agree.
+ * A task in Doing is, at a glance, one of: Running, Needs input, Blocked, Failed. These
+ * are states of the run, not columns of the board.
+ */
 export function runStatus(run: Run): RunStatus {
   switch (run.state) {
     case 'starting':
       return { label: 'Starting', tone: 'work', needsInput: false, active: true, hint: 'Preparing the agent…' };
     case 'running':
-      return { label: 'Working', tone: 'work', needsInput: false, active: true, hint: 'The agent is working.' };
+      return { label: 'Running', tone: 'work', needsInput: false, active: true, hint: 'The agent is working.' };
+    case 'blocked':
+      return {
+        label: 'Blocked',
+        tone: 'block',
+        needsInput: true,
+        active: true,
+        hint: 'The agent stopped rather than guess. Tell it how to proceed, or stop the run.',
+      };
     case 'waiting_for_user':
       return run.waiting === 'question'
-        ? { label: 'Needs your answer', tone: 'ask', needsInput: true, active: true, hint: 'The agent is blocked until you answer.' }
+        ? { label: 'Needs input', tone: 'ask', needsInput: true, active: true, hint: 'The agent is waiting for your answer.' }
         : { label: 'Waiting for you', tone: 'idle', needsInput: true, active: true, hint: 'The agent finished its turn and is waiting for your next message.' };
     case 'completed':
       return { label: 'Completed', tone: 'ok', needsInput: false, active: false, hint: 'The session is finished.' };
@@ -71,6 +83,7 @@ export function agentName(agents: Agent[], id: string): string {
 
 /** The line a card shows under the run's status: what it is doing, or why it ended badly. */
 export function cardActivity(run: Run): string {
+  if (run.state === 'blocked') return run.blocker?.summary ?? '';
   if (run.state === 'failed' || run.state === 'stopped') return run.reason ?? '';
   if (run.state === 'completed') return '';
   return run.activity ?? '';
