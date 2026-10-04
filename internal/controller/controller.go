@@ -10,13 +10,17 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"devboard/internal/agent"
+	"devboard/internal/agent/claude"
+	"devboard/internal/agent/codex"
 	"devboard/internal/api"
 	"devboard/internal/config"
 	"devboard/internal/events"
 	"devboard/internal/gitrepo"
+	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store/sqlite"
 	"devboard/internal/webui"
@@ -31,6 +35,7 @@ type Controller struct {
 	release  func()
 	db       *sqlite.DB
 	broker   *events.Broker
+	runner   *runner.Manager
 	server   *http.Server
 	listener net.Listener
 	serveErr chan error
@@ -66,12 +71,31 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	c.broker = events.NewBroker()
 
+	worktreeRoot, err := prepareWorktreeRoot(c.cfg.WorktreesPath())
+	if err != nil {
+		return err
+	}
+	git := &gitrepo.CLI{}
 	deps := service.Deps{Store: c.db, Bus: c.broker, Log: c.log}
-	projects := &service.Projects{Deps: deps, Git: &gitrepo.CLI{}}
+	projects := &service.Projects{Deps: deps, Git: git}
 	tasks := &service.Tasks{Deps: deps}
 	runs := &service.Runs{Deps: deps}
+	worktrees := &service.Worktrees{Deps: deps, Root: worktreeRoot}
+	agents, err := newAgents(c.cfg)
+	if err != nil {
+		return err
+	}
+	c.runner = runner.New(runner.Options{
+		Runs: runs, Tasks: tasks, Projects: projects, Worktrees: worktrees, Git: git, Agents: agents,
+		Log: c.log, WorktreeRoot: worktreeRoot,
+	})
+	for _, w := range c.cfg.RiskyAgentSettings() {
+		c.log.Warn("agent setting lets it act without asking", "setting", w)
+	}
 
-	if _, err := runs.RecoverAfterRestart(ctx); err != nil {
+	// Stop agent processes the previous controller left behind, and settle the
+	// runs they belonged to, before anything can be asked of them.
+	if err := c.runner.Recover(ctx); err != nil {
 		return fmt.Errorf("recover runs: %w", err)
 	}
 
@@ -86,7 +110,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Projects:     projects,
 		Tasks:        tasks,
 		Runs:         runs,
-		Agents:       agent.NewRegistry(), // no adapters yet
+		Runner:       c.runner,
+		Worktrees:    worktrees,
+		Agents:       agents,
 		Store:        c.db,
 		Events:       c.broker,
 		Log:          c.log,
@@ -163,13 +189,26 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 			_ = c.server.Close()
 		}
 	}
-	err = errors.Join(err, c.teardown())
+	err = errors.Join(err, c.teardown(ctx))
 	c.log.Info("controller stopped")
 	return err
 }
 
-func (c *Controller) teardown() error {
+// teardown stops what Start started, in reverse order: agents first, while the
+// database is still there to record how their runs ended, then the event
+// broker and the database.
+func (c *Controller) teardown(ctx ...context.Context) error {
 	var err error
+	if c.runner != nil {
+		stop := context.Background()
+		if len(ctx) > 0 {
+			stop = ctx[0]
+		}
+		if e := c.runner.Shutdown(stop); e != nil {
+			err = fmt.Errorf("stop agents: %w", e)
+		}
+		c.runner = nil
+	}
 	if c.broker != nil {
 		c.broker.Close()
 	}
@@ -182,4 +221,36 @@ func (c *Controller) teardown() error {
 		c.release = nil
 	}
 	return err
+}
+
+// prepareWorktreeRoot creates the directory worktrees live in and returns its
+// canonical path: worktree records are compared as text, so a symlink in the
+// root (macOS's /var, for one) would make every path look different from what
+// is on disk.
+func prepareWorktreeRoot(dir string) (string, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("create worktree directory: %w", err)
+	}
+	root, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve worktree directory %s: %w", dir, err)
+	}
+	return root, nil
+}
+
+// newAgents registers the adapters. Both are always registered, even if the
+// agent is not installed: the API then says why it cannot be used, which is
+// more helpful than leaving it out.
+func newAgents(cfg config.Config) (*agent.Registry, error) {
+	r := agent.NewRegistry()
+	cl, cx := cfg.Agents[config.AgentClaudeCode], cfg.Agents[config.AgentCodex]
+	for _, a := range []agent.Adapter{
+		claude.New(claude.Config{Command: cl.Command, Model: cl.Model, PermissionMode: cl.PermissionMode}),
+		codex.New(codex.Config{Command: cx.Command, Model: cx.Model, ApprovalPolicy: cx.ApprovalPolicy, Sandbox: cx.Sandbox}),
+	} {
+		if err := r.Register(a); err != nil {
+			return nil, err
+		}
+	}
+	return r, nil
 }

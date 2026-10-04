@@ -1,25 +1,19 @@
-// Minimal hash router for the three primary surfaces. Hash routing means the
-// shell works from any static host and from the service worker cache.
+// The router: the current page, kept in step with the address bar. Hash routing
+// means the shell works from any static host and from the service worker cache.
 
-export type Route = 'board' | 'control' | 'git';
+import { parse, type Route } from './location';
 
-export const ROUTES: { id: Route; label: string }[] = [
-  { id: 'board', label: 'Board' },
-  { id: 'control', label: 'Control Center' },
-  { id: 'git', label: 'Git' },
-];
-
-function parse(hash: string): Route {
-  const id = hash.replace(/^#\/?/, '').split(/[/?&]/)[0];
-  return ROUTES.some((r) => r.id === id) ? (id as Route) : 'board';
-}
+export { ROUTES, taskHref, type Route } from './location';
 
 class Router {
-  current = $state<Route>(parse(location.hash));
+  current = $state<Route>(parse(location.hash).route);
+  taskId = $state<string>(parse(location.hash).taskId);
 
   constructor() {
     window.addEventListener('hashchange', () => {
-      this.current = parse(location.hash);
+      const loc = parse(location.hash);
+      this.current = loc.route;
+      this.taskId = loc.taskId;
     });
   }
 }

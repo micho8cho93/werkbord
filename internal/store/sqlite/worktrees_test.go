@@ -83,13 +83,16 @@ func mustTask(t *testing.T, db *DB, projectID string) *domain.Task {
 
 func createRun(db *DB, projectID, taskID, worktreeID string, state domain.RunState) (*domain.Run, error) {
 	r := &domain.Run{ID: domain.NewID(domain.PrefixRun), TaskID: taskID, ProjectID: projectID, AgentID: "x", State: state, WorktreeID: worktreeID, CreatedAt: now(), UpdatedAt: now()}
+	if state == domain.RunWaitingForUser {
+		r.Waiting = domain.WaitIdle
+	}
 	return r, db.Update(ctx, func(tx store.Tx) error { return tx.Runs().Create(ctx, r) })
 }
 
 func finishRun(t *testing.T, db *DB, r *domain.Run) {
 	t.Helper()
 	if err := db.Update(ctx, func(tx store.Tx) error {
-		r.State = domain.RunCompleted
+		r.State, r.Waiting = domain.RunCompleted, domain.WaitNone
 		r.UpdatedAt = now()
 		return tx.Runs().Update(ctx, r)
 	}); err != nil {

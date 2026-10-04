@@ -1,6 +1,6 @@
-// Package gitrepo is the Git boundary. Today it only inspects repositories;
-// worktree management, diffs and pushes will be added behind the same kind of
-// interface when runs need them.
+// Package gitrepo is the Git boundary. It inspects repositories (read-only)
+// and manages the linked worktrees agents run in. Diffs, commits and pushes
+// will be added behind the same kind of interface when they are needed.
 package gitrepo
 
 import (
@@ -47,6 +47,10 @@ type CLI struct {
 	Timeout   time.Duration // per command; defaults to 10s
 	MaxOutput int64         // bytes kept per output stream; defaults to 1 MiB
 	MaxProcs  int           // git processes running at once; defaults to 4
+	// WriteTimeout bounds a command that changes a repository, such as
+	// checking out a worktree, which takes as long as the repository is big.
+	// Defaults to 2 minutes.
+	WriteTimeout time.Duration
 
 	slotsOnce sync.Once
 	slots     chan struct{}
@@ -341,13 +345,17 @@ func (c *CLI) acquire(ctx context.Context) (release func(), err error) {
 }
 
 func (c *CLI) git(ctx context.Context, dir string, args ...string) (string, error) {
-	bin := c.Binary
-	if bin == "" {
-		bin = "git"
-	}
 	timeout := c.Timeout
 	if timeout <= 0 {
 		timeout = 10 * time.Second
+	}
+	return c.gitTimeout(ctx, dir, timeout, args...)
+}
+
+func (c *CLI) gitTimeout(ctx context.Context, dir string, timeout time.Duration, args ...string) (string, error) {
+	bin := c.Binary
+	if bin == "" {
+		bin = "git"
 	}
 	maxOut := c.MaxOutput
 	if maxOut <= 0 {

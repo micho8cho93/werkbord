@@ -1,82 +1,81 @@
 <script lang="ts">
-  import { api } from '../lib/api';
+  import { agentName, cardActivity, runElapsed } from '../lib/format';
+  import QuestionCard from '../lib/QuestionCard.svelte';
+  import RunBadge from '../lib/RunBadge.svelte';
+  import { taskHref } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
-  import type { Agent, Question, Run } from '../lib/types';
+  import type { Run } from '../lib/types';
 
-  let runs = $state<Run[]>([]);
-  let questions = $state<Question[]>([]);
-  let agents = $state<Agent[]>([]);
-  let loaded = $state(false);
+  const titleOf = (run: Run) => app.allTasks.find((t) => t.id === run.taskId)?.title ?? 'Task';
+  const projectOf = (run: Run) => app.projects.find((p) => p.id === run.projectId)?.name ?? '';
 
-  // Reload whenever the event stream reports a change.
-  $effect(() => {
-    void app.revision;
-    Promise.all([api.listActiveRuns(), api.listPendingQuestions(), api.listAgents()]).then(
-      ([r, q, a]) => {
-        runs = r;
-        questions = q;
-        agents = a;
-        loaded = true;
-      },
-      (err) => app.handleError(err),
-    );
-  });
-
-  const runLabel: Record<string, string> = {
-    starting: 'Starting',
-    running: 'Running',
-    waiting_for_user: 'Waiting for you',
-  };
+  /** Runs waiting for a message rather than an answer: they need you, but nothing is blocked on a question. */
+  const idle = $derived(app.activeRuns.filter((r) => r.state === 'waiting_for_user' && r.waiting === 'idle'));
+  const working = $derived(app.activeRuns.filter((r) => r.state !== 'waiting_for_user'));
+  const loaded = $derived(app.connection === 'live');
 </script>
 
 <div class="sections">
   <section>
     <h2>Needs you</h2>
-    {#if questions.length}
+    {#if app.questions.length || idle.length}
       <ul class="list">
-        {#each questions as q (q.id)}
+        {#each app.questions as q (q.id)}
+          {@const run = Object.values(app.latestRun).find((r) => r.id === q.runId)}
+          <li class="card item ask">
+            {#if run}
+              <a class="who" href={taskHref(run.taskId)}>{titleOf(run)}</a>
+              <p class="muted small">{projectOf(run)} · {agentName(app.agents, run.agentId)}</p>
+            {/if}
+            <QuestionCard question={q} />
+          </li>
+        {/each}
+        {#each idle as run (run.id)}
           <li class="card item">
-            <p>{q.prompt}</p>
-            <p class="muted small">Run <code>{q.runId}</code></p>
+            <a class="who" href={taskHref(run.taskId)}>{titleOf(run)}</a>
+            <p class="muted small">{projectOf(run)} · {agentName(app.agents, run.agentId)} · finished its turn, waiting for your next message</p>
+            {#if cardActivity(run)}<p class="activity">{cardActivity(run)}</p>{/if}
           </li>
         {/each}
       </ul>
     {:else}
-      <p class="card empty">{loaded ? 'No questions waiting.' : 'Loading…'}</p>
+      <p class="card empty">{loaded ? 'Nothing is waiting for you.' : 'Loading…'}</p>
     {/if}
   </section>
 
   <section>
-    <h2>Active runs</h2>
-    {#if runs.length}
+    <h2>Working</h2>
+    {#if working.length}
       <ul class="list">
-        {#each runs as r (r.id)}
-          <li class="card item row">
-            <span><code>{r.id}</code> · {r.agentId}</span>
-            <span class="pill">{runLabel[r.state] ?? r.state}</span>
+        {#each working as run (run.id)}
+          <li class="card item">
+            <a class="who" href={taskHref(run.taskId)}>{titleOf(run)}</a>
+            <div class="line">
+              <RunBadge {run} />
+              <span class="muted small">{projectOf(run)} · {agentName(app.agents, run.agentId)} · {runElapsed(run, app.now)}</span>
+            </div>
+            {#if cardActivity(run)}<p class="activity">{cardActivity(run)}</p>{/if}
           </li>
         {/each}
       </ul>
     {:else}
-      <p class="card empty">{loaded ? 'No runs in progress.' : 'Loading…'}</p>
+      <p class="card empty">{loaded ? 'No agent is working right now.' : 'Loading…'}</p>
     {/if}
   </section>
 
   <section>
     <h2>Agents</h2>
-    {#if agents.length}
+    {#if app.agents.length}
       <ul class="list">
-        {#each agents as a (a.id)}
+        {#each app.agents as a (a.id)}
           <li class="card item row">
-            <span>{a.name}</span>
+            <span>{a.name}{#if a.version}<span class="muted small"> {a.version}</span>{/if}</span>
             <span class="pill" data-ok={a.available}>{a.available ? 'Ready' : (a.detail ?? 'Unavailable')}</span>
           </li>
         {/each}
       </ul>
     {:else}
-      <p class="card empty">
-        {loaded ? 'No agent adapters are installed in this build yet. Agent execution is coming in a later phase.' : 'Loading…'}
-      </p>
+      <p class="card empty">{loaded ? 'No agents are configured.' : 'Loading…'}</p>
     {/if}
   </section>
 </div>
@@ -104,7 +103,37 @@
   .item {
     padding: 12px;
     display: grid;
-    gap: 4px;
+    gap: 6px;
+  }
+
+  .item.ask {
+    border-left: 3px solid var(--warn);
+  }
+
+  .who {
+    font-weight: 600;
+    color: inherit;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .who:hover {
+    text-decoration: underline;
+  }
+
+  .line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 10px;
+  }
+
+  .activity {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .row {
@@ -120,11 +149,14 @@
 
   .pill {
     flex: none;
+    max-width: 60%;
     padding: 2px 8px;
     border-radius: 999px;
     background: var(--surface-2);
     font-size: 0.78rem;
     font-weight: 600;
+    text-align: right;
+    overflow-wrap: anywhere;
   }
 
   .pill[data-ok='true'] {

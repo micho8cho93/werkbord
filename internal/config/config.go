@@ -40,6 +40,100 @@ type Config struct {
 	AllowedHosts []string `json:"allowedHosts,omitempty"`
 
 	ShutdownTimeout Duration `json:"shutdownTimeout"`
+
+	// WorktreesDir is where the Git worktrees agents work in are created.
+	// Default: <data dir>/worktrees.
+	WorktreesDir string `json:"worktreesDir,omitempty"`
+	// Agents tunes the coding agents, by adapter ID ("claude-code", "codex").
+	// Agents not mentioned use their defaults.
+	Agents map[string]AgentConfig `json:"agents,omitempty"`
+}
+
+// AgentConfig is the user's choices for one coding agent. Fields that do not
+// apply to an agent are rejected, so a typo or a misplaced setting is an error
+// rather than something silently ignored.
+type AgentConfig struct {
+	// Command is the executable, if it is not on PATH under its usual name.
+	Command string `json:"command,omitempty"`
+	// Model overrides the agent's own default model.
+	Model string `json:"model,omitempty"`
+	// PermissionMode (Claude Code): acceptEdits (the default), manual, plan,
+	// auto, dontAsk or bypassPermissions.
+	PermissionMode string `json:"permissionMode,omitempty"`
+	// ApprovalPolicy (Codex): untrusted, on-request (the default) or never.
+	ApprovalPolicy string `json:"approvalPolicy,omitempty"`
+	// Sandbox (Codex): read-only, workspace-write (the default) or danger-full-access.
+	Sandbox string `json:"sandbox,omitempty"`
+}
+
+// Agent IDs the configuration knows about; they match the adapters' IDs.
+const (
+	AgentClaudeCode = "claude-code"
+	AgentCodex      = "codex"
+)
+
+var (
+	claudePermissionModes = []string{"acceptEdits", "manual", "plan", "auto", "dontAsk", "bypassPermissions"}
+	codexApprovalPolicies = []string{"untrusted", "on-request", "never"}
+	codexSandboxes        = []string{"read-only", "workspace-write", "danger-full-access"}
+)
+
+func oneOf(v string, allowed []string) bool {
+	if v == "" {
+		return true
+	}
+	for _, a := range allowed {
+		if v == a {
+			return true
+		}
+	}
+	return false
+}
+
+// validateAgents checks the agent settings.
+func (c Config) validateAgents() error {
+	for id, a := range c.Agents {
+		switch id {
+		case AgentClaudeCode:
+			if a.ApprovalPolicy != "" || a.Sandbox != "" {
+				return fmt.Errorf("agents.%s: approvalPolicy and sandbox are Codex settings; use permissionMode", id)
+			}
+			if !oneOf(a.PermissionMode, claudePermissionModes) {
+				return fmt.Errorf("agents.%s.permissionMode %q: want one of %s", id, a.PermissionMode, strings.Join(claudePermissionModes, ", "))
+			}
+		case AgentCodex:
+			if a.PermissionMode != "" {
+				return fmt.Errorf("agents.%s: permissionMode is a Claude Code setting; use approvalPolicy and sandbox", id)
+			}
+			if !oneOf(a.ApprovalPolicy, codexApprovalPolicies) {
+				return fmt.Errorf("agents.%s.approvalPolicy %q: want one of %s", id, a.ApprovalPolicy, strings.Join(codexApprovalPolicies, ", "))
+			}
+			if !oneOf(a.Sandbox, codexSandboxes) {
+				return fmt.Errorf("agents.%s.sandbox %q: want one of %s", id, a.Sandbox, strings.Join(codexSandboxes, ", "))
+			}
+		default:
+			return fmt.Errorf("agents.%s: unknown agent (known: %s, %s)", id, AgentClaudeCode, AgentCodex)
+		}
+	}
+	return nil
+}
+
+// RiskyAgentSettings lists settings that let an agent act without asking, for
+// the controller to warn about at start-up.
+func (c Config) RiskyAgentSettings() []string {
+	var out []string
+	if a, ok := c.Agents[AgentClaudeCode]; ok && a.PermissionMode == "bypassPermissions" {
+		out = append(out, "agents.claude-code.permissionMode=bypassPermissions: Claude Code runs every tool without asking")
+	}
+	if a, ok := c.Agents[AgentCodex]; ok {
+		if a.Sandbox == "danger-full-access" {
+			out = append(out, "agents.codex.sandbox=danger-full-access: Codex commands are not sandboxed")
+		}
+		if a.ApprovalPolicy == "never" {
+			out = append(out, "agents.codex.approvalPolicy=never: Codex never asks before acting")
+		}
+	}
+	return out
 }
 
 // Duration is a time.Duration that marshals as a string like "10s".
@@ -124,6 +218,7 @@ func (c *Config) loadEnv() error {
 	set("DEVBOARD_LOG_LEVEL", &c.LogLevel)
 	set("DEVBOARD_LOG_FORMAT", &c.LogFormat)
 	set("DEVBOARD_TOKEN", &c.Token)
+	set("DEVBOARD_WORKTREES_DIR", &c.WorktreesDir)
 	// A security setting must not be guessed at: "off" or "no" could mean
 	// either, so anything that is not a plain boolean is an error rather than
 	// a silent default.
@@ -153,7 +248,18 @@ func (c Config) Validate() error {
 	if c.ShutdownTimeout.Duration <= 0 {
 		return errors.New("shutdownTimeout must be positive")
 	}
-	return nil
+	if c.WorktreesDir != "" && !filepath.IsAbs(c.WorktreesDir) {
+		return fmt.Errorf("worktreesDir %q must be an absolute path", c.WorktreesDir)
+	}
+	return c.validateAgents()
+}
+
+// WorktreesPath is where agent worktrees are created.
+func (c Config) WorktreesPath() string {
+	if c.WorktreesDir != "" {
+		return filepath.Clean(c.WorktreesDir)
+	}
+	return filepath.Join(c.DataDir, "worktrees")
 }
 
 // DBPath is the SQLite database location.

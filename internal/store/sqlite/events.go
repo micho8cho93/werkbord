@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"math"
 	"time"
 
 	"devboard/internal/domain"
@@ -36,9 +37,27 @@ func (r eventRepo) ListAfter(ctx context.Context, after int64, limit int) ([]dom
 	if limit <= 0 {
 		limit = 500
 	}
-	rows, err := r.q.QueryContext(ctx, `
+	return r.list(ctx, `
 		SELECT seq, type, project_id, task_id, run_id, payload, created_at
 		FROM events WHERE seq > ? ORDER BY seq LIMIT ?`, after, limit)
+}
+
+func (r eventRepo) ListByRun(ctx context.Context, runID string, before int64, limit int) ([]domain.Event, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	if before <= 0 {
+		before = math.MaxInt64
+	}
+	out, err := r.list(ctx, `
+		SELECT seq, type, project_id, task_id, run_id, payload, created_at FROM (
+			SELECT * FROM events WHERE run_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?
+		) ORDER BY seq`, runID, before, limit)
+	return out, err
+}
+
+func (r eventRepo) list(ctx context.Context, query string, args ...any) ([]domain.Event, error) {
+	rows, err := r.q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

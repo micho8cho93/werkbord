@@ -26,9 +26,10 @@ web-embed:
 go-build:
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/devboard
 
-## test: Go tests
-test:
+## test: Go tests and web unit tests
+test: web/node_modules
 	$(GO) test ./...
+	cd web && $(NPM) test
 
 ## lint: gofmt, go vet, svelte-check, eslint
 lint: web/node_modules

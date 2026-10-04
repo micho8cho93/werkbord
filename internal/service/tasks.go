@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/store"
@@ -114,6 +115,17 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 	return t, nil
 }
 
+// Get returns a task.
+func (s *Tasks) Get(ctx context.Context, id string) (*domain.Task, error) {
+	var t *domain.Task
+	err := s.Store.View(ctx, func(tx store.Tx) error {
+		var err error
+		t, err = tx.Tasks().Get(ctx, id)
+		return err
+	})
+	return t, err
+}
+
 // List returns a project's tasks ordered by column and position.
 func (s *Tasks) List(ctx context.Context, projectID string) ([]domain.Task, error) {
 	var out []domain.Task
@@ -126,4 +138,29 @@ func (s *Tasks) List(ctx context.Context, projectID string) ([]domain.Task, erro
 		return err
 	})
 	return out, err
+}
+
+// moveTaskToDoing is the policy that connects a run to its card: a task whose
+// agent starts or resumes working belongs in Doing. A task already in Doing, or
+// finished in Done, is left where it is. The move is part of the caller's
+// transaction, so card and run never disagree.
+func moveTaskToDoing(ctx context.Context, tx store.Tx, em *emitter, taskID string, now time.Time) error {
+	t, err := tx.Tasks().Get(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if t.State == domain.TaskDoing || t.State == domain.TaskDone {
+		return nil
+	}
+	max, err := tx.Tasks().MaxPosition(ctx, t.ProjectID, domain.TaskDoing)
+	if err != nil {
+		return err
+	}
+	t.State, t.Position, t.UpdatedAt = domain.TaskDoing, max+1, now
+	if err := tx.Tasks().Update(ctx, t); err != nil {
+		return err
+	}
+	ev := newEvent(domain.EventTaskUpdated, t)
+	ev.ProjectID, ev.TaskID = t.ProjectID, t.ID
+	return em.emit(ev)
 }

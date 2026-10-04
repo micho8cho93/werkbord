@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,33 +121,60 @@ func TestRecoverAfterRestart(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	p, _ := f.projects.Register(ctx, "/repos/svc", "")
-	task, _ := f.tasks.Create(ctx, p.ID, "t", "")
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	mk := func(state domain.RunState) *domain.Run {
-		return &domain.Run{ID: domain.NewID(domain.PrefixRun), TaskID: task.ID, ProjectID: p.ID, AgentID: "x", State: state, CreatedAt: now, UpdatedAt: now}
+	mk := func(state domain.RunState, ref string) *domain.Run {
+		task, _ := f.tasks.Create(ctx, p.ID, "t", "")
+		r := &domain.Run{ID: domain.NewID(domain.PrefixRun), TaskID: task.ID, ProjectID: p.ID, AgentID: "x", State: state, SessionRef: ref, PID: 77, CreatedAt: now, UpdatedAt: now}
+		if state == domain.RunWaitingForUser {
+			r.Waiting = domain.WaitQuestion
+		}
+		if state.Terminal() {
+			r.PID = 0
+		}
+		return r
 	}
-	running, waiting, done := mk(domain.RunRunning), mk(domain.RunWaitingForUser), mk(domain.RunCompleted)
+	running, resumable, stranded, done := mk(domain.RunRunning, "sess-1"), mk(domain.RunWaitingForUser, "sess-2"), mk(domain.RunWaitingForUser, ""), mk(domain.RunCompleted, "")
+	q := &domain.Question{ID: domain.NewID(domain.PrefixQuestion), RunID: resumable.ID, Prompt: "ok?", Status: domain.QuestionPending, CreatedAt: now}
 	err := f.deps.Store.Update(ctx, func(tx store.Tx) error {
-		return errors.Join(tx.Runs().Create(ctx, running), tx.Runs().Create(ctx, waiting), tx.Runs().Create(ctx, done))
+		return errors.Join(tx.Runs().Create(ctx, running), tx.Runs().Create(ctx, resumable), tx.Runs().Create(ctx, stranded),
+			tx.Runs().Create(ctx, done), tx.Questions().Create(ctx, q))
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	n, err := f.runs.RecoverAfterRestart(ctx)
-	if err != nil || n != 1 {
-		t.Fatalf("recovered %d, err %v; want 1", n, err)
+	if err != nil || n != 3 {
+		t.Fatalf("recovered %d, err %v; want 3 (every non-terminal run had lost its process)", n, err)
 	}
-	active, _ := f.runs.ListActive(ctx)
-	if len(active) != 1 || active[0].ID != waiting.ID {
-		t.Fatalf("active after recovery = %+v", active)
-	}
-	_ = f.deps.Store.View(ctx, func(tx store.Tx) error {
-		r, _ := tx.Runs().Get(ctx, running.ID)
-		if r.State != domain.RunFailed || r.EndedAt == nil || r.Reason != interruptedReason {
-			t.Errorf("interrupted run = %+v", r)
+	get := func(id string) *domain.Run {
+		r, err := f.runs.Get(ctx, id)
+		if err != nil {
+			t.Fatal(err)
 		}
-		return nil
-	})
+		return r
+	}
+	if r := get(running.ID); r.State != domain.RunFailed || r.EndedAt == nil || r.Reason != interruptedReason || r.PID != 0 {
+		t.Errorf("a run that was working lost it: %+v", r)
+	}
+	if r := get(stranded.ID); r.State != domain.RunFailed {
+		t.Errorf("a waiting run that cannot be resumed has nothing left: %+v", r)
+	}
+	r := get(resumable.ID)
+	if r.State != domain.RunWaitingForUser || r.Waiting != domain.WaitIdle || r.PID != 0 || !strings.Contains(r.Activity, "send a message to resume") {
+		t.Errorf("a waiting run with a session is kept, and can be resumed by a message: %+v", r)
+	}
+	pending, _ := f.runs.ListPendingQuestions(ctx)
+	if len(pending) != 0 {
+		t.Errorf("a question whose request died with the process cannot be answered: %+v", pending)
+	}
+	if got := get(done.ID); got.State != domain.RunCompleted {
+		t.Errorf("a finished run was touched: %+v", got)
+	}
+
+	// Recovery is idempotent: the kept run is not recovered again and again.
+	if n, err := f.runs.RecoverAfterRestart(ctx); err != nil || n != 0 {
+		t.Fatalf("second recovery: %d, %v", n, err)
+	}
 }

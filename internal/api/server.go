@@ -10,21 +10,24 @@ import (
 
 	"devboard/internal/agent"
 	"devboard/internal/events"
+	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
 )
 
 // Options configures a Server.
 type Options struct {
-	Projects *service.Projects
-	Tasks    *service.Tasks
-	Runs     *service.Runs
-	Agents   *agent.Registry
-	Store    store.Store       // for health checks and event replay
-	Events   events.Subscriber // live event source
-	Log      *slog.Logger
-	Version  string
-	Web      http.Handler // serves the PWA; nil disables it
+	Projects  *service.Projects
+	Tasks     *service.Tasks
+	Runs      *service.Runs
+	Runner    *runner.Manager // starts and drives agent sessions
+	Worktrees *service.Worktrees
+	Agents    *agent.Registry
+	Store     store.Store       // for health checks and event replay
+	Events    events.Subscriber // live event source
+	Log       *slog.Logger
+	Version   string
+	Web       http.Handler // serves the PWA; nil disables it
 
 	// AuthRequired makes every /api request except /api/health present Token.
 	AuthRequired bool
@@ -61,8 +64,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/projects/{id}/tasks", s.handleListTasks)
 	mux.HandleFunc("POST /api/projects/{id}/tasks", s.handleCreateTask)
 	mux.HandleFunc("PATCH /api/tasks/{id}", s.handleUpdateTask)
+	mux.HandleFunc("GET /api/tasks/{id}/runs", s.handleListTaskRuns)
+	mux.HandleFunc("POST /api/tasks/{id}/runs", s.handleStartRun)
+	mux.HandleFunc("GET /api/projects/{id}/runs", s.handleListProjectRuns)
 	mux.HandleFunc("GET /api/runs", s.handleListRuns)
+	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
+	mux.HandleFunc("GET /api/runs/{id}/events", s.handleRunEvents)
+	mux.HandleFunc("POST /api/runs/{id}/input", s.handleRunInput)
+	mux.HandleFunc("POST /api/runs/{id}/finish", s.handleFinishRun)
+	mux.HandleFunc("POST /api/runs/{id}/stop", s.handleStopRun)
+	mux.HandleFunc("GET /api/worktrees/{id}", s.handleGetWorktree)
 	mux.HandleFunc("GET /api/questions", s.handleListQuestions)
+	mux.HandleFunc("POST /api/questions/{id}/answer", s.handleAnswerQuestion)
 	mux.HandleFunc("GET /api/agents", s.handleListAgents)
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {

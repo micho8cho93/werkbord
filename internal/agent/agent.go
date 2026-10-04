@@ -1,18 +1,30 @@
 // Package agent is the boundary between the controller and coding agents.
 //
-// Claude Code, Codex and future agents speak different protocols (stream-JSON
-// over stdio, JSON-RPC, plain text). Each gets an Adapter that translates its
-// protocol into the small vocabulary below. The controller only ever talks to
-// Adapters and Sessions; it never parses agent output itself.
+// Claude Code and Codex speak different protocols (stream-JSON over stdio,
+// JSON-RPC over stdio). Each gets an Adapter that translates its protocol into
+// the small vocabulary below. The controller only ever talks to Adapters and
+// Sessions; it never parses agent output itself.
 //
-// No adapters are implemented yet. The interface is intentionally limited to
-// what both Claude Code and Codex are known to support today: start a session
-// in a directory with a prompt, stream output, ask the user a question, resume
-// a previous session, and stop.
+// A Session is interactive: the agent works on a turn, reports TurnEnd, and
+// waits for the next message from Send. It ends when its process exits, which
+// the controller causes with Close (graceful) or Stop (terminate).
+//
+// Contract for implementers:
+//
+//   - The agent process belongs to the controller, not to the caller of Start.
+//     The context passed to Start bounds start-up only; cancelling it after
+//     Start has returned must not affect the process.
+//   - Events never blocks the agent and never loses a control event. Output may
+//     be dropped, with a notice, if the consumer falls far behind.
+//   - Events is closed only after the process has exited and its output has been
+//     delivered. Wait then returns without blocking for long.
+//   - Methods are safe for concurrent use. After the process has ended, Send and
+//     Respond fail with ErrEnded.
 package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -25,56 +37,111 @@ type Adapter interface {
 	// ID is the stable key stored on runs, e.g. "claude-code".
 	ID() string
 	// Detect reports whether the agent can be used on this machine (installed,
-	// signed in) without starting a session.
+	// signed in) and its version, without starting a session. It is cheap enough
+	// to call on every request: adapters cache what is expensive to find out.
 	Detect(ctx context.Context) domain.Agent
-	// Start launches a session. The returned Session is owned by the caller,
-	// which must eventually call Wait.
+	// Start launches the agent in req.WorkDir and delivers req.Prompt as its
+	// first message. It returns once the process is running; failures that
+	// happen later arrive as events and in the Result.
 	Start(ctx context.Context, req StartRequest) (Session, error)
 }
 
 // StartRequest describes a session to launch.
 type StartRequest struct {
 	RunID     string
-	WorkDir   string // the run's worktree; the agent must not leave it
-	Prompt    string
-	ResumeRef string // a SessionRef from an earlier run, to continue that conversation
+	WorkDir   string // the run's worktree: the agent's working directory
+	Prompt    string // the first message
+	ResumeRef string // a SessionRef from an earlier session, to continue that conversation
 }
 
 // Session is a live agent process.
 type Session interface {
-	// Updates delivers normalised output until the session ends, then closes.
-	Updates() <-chan Update
-	// Answer replies to a question previously delivered as an Update.
-	Answer(ctx context.Context, questionRef, answer string) error
-	// Stop asks the agent to end. Wait still reports the outcome.
+	// Events delivers normalised events until the process has ended, then closes.
+	Events() <-chan Event
+	// Send delivers a message from the user. While the agent is working it is
+	// queued or steers the turn, as the agent supports; while it waits it begins
+	// the next turn.
+	Send(ctx context.Context, text string) error
+	// Respond answers a Question delivered earlier, by the Ref it carried. For an
+	// approval the answer is one of the question's options, "Allow" or "Deny"
+	// (anything else denies). It returns ErrUnknownQuestion if the question is no
+	// longer open.
+	Respond(ctx context.Context, ref, answer string) error
+	// Close ends the session gracefully: no more messages, the agent finishes and
+	// exits. The caller still has to Wait; Stop if it does not exit.
+	Close(ctx context.Context) error
+	// Stop terminates the process and everything it started. It returns when the
+	// process is gone.
 	Stop(ctx context.Context) error
-	// Wait blocks until the session has ended.
+	// Wait blocks until the session has ended and returns how.
 	Wait() Result
+	// Process identifies the agent's process, so that one a crashed controller
+	// left behind can be found later.
+	Process() ProcessInfo
 }
 
-// UpdateKind classifies an Update.
-type UpdateKind string
+// ProcessInfo identifies a process across controller restarts.
+type ProcessInfo struct {
+	PID int
+	// ID distinguishes this process from a later one with the same PID. It is
+	// empty if it could not be determined, in which case the process is never
+	// signalled after a restart.
+	ID string
+}
 
-const (
-	UpdateOutput     UpdateKind = "output"      // progress text or a tool action, for the activity feed
-	UpdateQuestion   UpdateKind = "question"    // the agent is blocked until the user answers
-	UpdateSessionRef UpdateKind = "session_ref" // the agent's resumable session handle became known
+// Errors returned by Sessions. They wrap the domain sentinels so that callers
+// can map them without knowing about adapters.
+var (
+	// ErrEnded is returned by Send, Respond and Close once the process has ended.
+	ErrEnded = fmt.Errorf("%w: the agent session has ended", domain.ErrConflict)
+	// ErrUnknownQuestion is returned by Respond for a ref that is not open.
+	ErrUnknownQuestion = fmt.Errorf("%w: that question is not open", domain.ErrConflict)
 )
 
-// Update is one normalised piece of agent output.
-type Update struct {
-	Kind        UpdateKind
-	Text        string   // output text, or the question prompt
-	Options     []string // suggested answers, for questions
-	QuestionRef string   // adapter-defined handle passed back to Answer
-	SessionRef  string
+// EventKind classifies an Event.
+type EventKind string
+
+const (
+	// KindOutput is text for the activity feed: something the agent said, a tool
+	// it used, a notice.
+	KindOutput EventKind = "output"
+	// KindQuestion means the agent is blocked until Respond is called with the
+	// question's Ref.
+	KindQuestion EventKind = "question"
+	// KindQuestionClosed means a question was withdrawn without an answer (the
+	// agent gave up on it, or something else resolved it).
+	KindQuestionClosed EventKind = "question_closed"
+	// KindTurnEnd means the agent finished its turn and waits for a message.
+	KindTurnEnd EventKind = "turn_end"
+	// KindSessionRef reports the agent's resumable session handle.
+	KindSessionRef EventKind = "session_ref"
+)
+
+// Event is one normalised piece of agent behaviour.
+type Event struct {
+	Kind       EventKind
+	Stream     domain.OutputStream // KindOutput
+	Text       string              // KindOutput; for KindTurnEnd, a short summary if the agent gave one
+	Question   *Question           // KindQuestion
+	Ref        string              // KindQuestionClosed: the question's Ref
+	SessionRef string              // KindSessionRef
 }
 
-// Result is how a session ended. State is RunCompleted, RunFailed or
-// RunStopped.
+// Question is something the agent needs answered before it can continue.
+type Question struct {
+	Ref     string // adapter-defined, unique among the session's open questions
+	Kind    domain.QuestionKind
+	Prompt  string
+	Options []string // suggested one-tap answers; free text is also accepted for QuestionAsk
+}
+
+// Result is how a session ended. State is domain.RunCompleted when the process
+// exited successfully and domain.RunFailed otherwise. The controller replaces
+// it with domain.RunStopped when it was the one that asked the process to end.
 type Result struct {
-	State  domain.RunState
-	Reason string
+	State    domain.RunState
+	Reason   string // why it failed; empty on success
+	ExitCode int    // -1 if the process was killed by a signal
 }
 
 // Registry holds the adapters available to the controller.
@@ -125,3 +192,23 @@ func (r *Registry) Detect(ctx context.Context) []domain.Agent {
 	}
 	return out
 }
+
+// Available returns the named adapter if it can be used now, and otherwise an
+// error saying why (domain.ErrNotFound for an unknown ID, domain.ErrConflict
+// for one that is installed wrongly or not signed in).
+func (r *Registry) Available(ctx context.Context, id string) (Adapter, error) {
+	a, err := r.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	if info := a.Detect(ctx); !info.Available {
+		reason := info.Detail
+		if reason == "" {
+			reason = "unavailable"
+		}
+		return nil, fmt.Errorf("agent %q cannot be used: %s: %w", id, reason, domain.ErrConflict)
+	}
+	return a, nil
+}
+
+var errNotUnix = errors.New("agent processes are only supported on Unix systems")

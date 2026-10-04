@@ -1,4 +1,4 @@
-import type { Agent, Health, Project, Question, Run, Task, TaskState } from './types';
+import type { Agent, Health, Project, Question, Run, RunEventsPage, Task, TaskState, Worktree } from './types';
 
 const TOKEN_KEY = 'devboard.token';
 
@@ -88,6 +88,23 @@ export const api = {
     request<Task>('POST', `/api/projects/${encodeURIComponent(projectId)}/tasks`, { title, description }),
   moveTask: (task: Task, state: TaskState) =>
     request<Task>('PATCH', `/api/tasks/${encodeURIComponent(task.id)}`, { state, version: task.version }),
+
+  startRun: (taskId: string, agentId: string, instructions = '', resume = false) =>
+    request<Run>('POST', `/api/tasks/${encodeURIComponent(taskId)}/runs`, { agentId, instructions, resume }),
+  listTaskRuns: (taskId: string) =>
+    request<{ runs: Run[] }>('GET', `/api/tasks/${encodeURIComponent(taskId)}/runs`).then((r) => r.runs),
+  listProjectRuns: (projectId: string) =>
+    request<{ runs: Run[] }>('GET', `/api/projects/${encodeURIComponent(projectId)}/runs`).then((r) => r.runs),
+  getRun: (id: string) => request<Run>('GET', `/api/runs/${encodeURIComponent(id)}`),
+  runEvents: (id: string, before = 0, limit = 200) =>
+    request<RunEventsPage>('GET', `/api/runs/${encodeURIComponent(id)}/events?limit=${limit}${before ? `&before=${before}` : ''}`),
+  sendInput: (id: string, text: string) =>
+    request<Run>('POST', `/api/runs/${encodeURIComponent(id)}/input`, { text }),
+  finishRun: (id: string) => request<Run>('POST', `/api/runs/${encodeURIComponent(id)}/finish`),
+  stopRun: (id: string) => request<Run>('POST', `/api/runs/${encodeURIComponent(id)}/stop`),
+  answerQuestion: (id: string, answer: string) =>
+    request<Question>('POST', `/api/questions/${encodeURIComponent(id)}/answer`, { answer }),
+  getWorktree: (id: string) => request<Worktree>('GET', `/api/worktrees/${encodeURIComponent(id)}`),
 
   listActiveRuns: () => request<{ runs: Run[] }>('GET', '/api/runs').then((r) => r.runs),
   listPendingQuestions: () => request<{ questions: Question[] }>('GET', '/api/questions').then((r) => r.questions),

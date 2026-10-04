@@ -76,9 +76,9 @@ func TestStatePersistsAcrossRestart(t *testing.T) {
 	p := seedProject(t, db)
 	task := &domain.Task{ID: domain.NewID(domain.PrefixTask), ProjectID: p.ID, Title: "t", State: domain.TaskDoing, Position: 1, CreatedAt: now(), UpdatedAt: now()}
 	wt := &domain.Worktree{ID: domain.NewID(domain.PrefixWorktree), ProjectID: p.ID, Path: "/tmp/wt1", Branch: "devboard/t", BaseRef: "origin/main", State: domain.WorktreeActive, CreatedAt: now(), UpdatedAt: now()}
-	run := &domain.Run{ID: domain.NewID(domain.PrefixRun), TaskID: task.ID, ProjectID: p.ID, AgentID: "claude-code", State: domain.RunWaitingForUser, WorktreeID: wt.ID, CreatedAt: now(), UpdatedAt: now()}
+	run := &domain.Run{ID: domain.NewID(domain.PrefixRun), TaskID: task.ID, ProjectID: p.ID, AgentID: "claude-code", State: domain.RunWaitingForUser, Waiting: domain.WaitQuestion, WorktreeID: wt.ID, CreatedAt: now(), UpdatedAt: now()}
 	q := &domain.Question{ID: domain.NewID(domain.PrefixQuestion), RunID: run.ID, Prompt: "Push the tag?", Options: []string{"Yes", "No"}, Status: domain.QuestionPending, CreatedAt: now()}
-	ev, _ := domain.NewEvent(domain.EventQuestionCreated, map[string]string{"questionId": q.ID})
+	ev, _ := domain.NewEvent(domain.EventAgentQuestion, map[string]string{"questionId": q.ID})
 	ev.RunID = run.ID
 
 	err := db.Update(ctx, func(tx store.Tx) error {

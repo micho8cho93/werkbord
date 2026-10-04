@@ -12,4 +12,7 @@ var (
 	ErrInvalid    = errors.New("invalid")
 	ErrDuplicate  = errors.New("already exists")
 	ErrTransition = errors.New("invalid state transition")
+	// ErrAgent means an agent could not be started or failed to answer. Unlike
+	// an unexpected error its message is meant for the user.
+	ErrAgent = errors.New("agent failed")
 )

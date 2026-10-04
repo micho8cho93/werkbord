@@ -1,5 +1,8 @@
 <script lang="ts">
   import { ApiError, api } from '../lib/api';
+  import { agentName, cardActivity, runElapsed, runStatus } from '../lib/format';
+  import RunBadge from '../lib/RunBadge.svelte';
+  import { taskHref } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
   import { TASK_STATES, TASK_STATE_LABELS, type Task, type TaskState } from '../lib/types';
 
@@ -15,6 +18,9 @@
       tasks: app.tasks.filter((t) => t.state === state).sort((a, b) => a.position - b.position),
     })),
   );
+
+  /** Tasks whose agent is waiting on the user, for the line under the column switcher. */
+  const waiting = $derived(app.tasks.filter((t) => app.latestRun[t.id]?.state === 'waiting_for_user').length);
 
   async function addTask(e: SubmitEvent) {
     e.preventDefault();
@@ -40,7 +46,7 @@
     } catch (err) {
       if (err instanceof ApiError && err.code === 'conflict') {
         notice = 'This task changed on another device. The board has been refreshed.';
-        await app.loadTasks();
+        await app.refresh();
       } else {
         notice = err instanceof Error ? err.message : String(err);
       }
@@ -82,6 +88,13 @@
     {/each}
   </div>
 
+  {#if waiting > 0}
+    <p class="waiting" role="status">
+      <span class="badge" data-tone="ask"><span class="dot" aria-hidden="true"></span>{waiting} {waiting === 1 ? 'task needs' : 'tasks need'} you</span>
+      <a href="#/control">Open Control Center</a>
+    </p>
+  {/if}
+
   {#if notice}
     <p class="error notice" role="status">{notice}</p>
   {/if}
@@ -104,8 +117,21 @@
 
         <ul class="cards">
           {#each col.tasks as task (task.id)}
-            <li class="card task">
-              <p class="title">{task.title}</p>
+            {@const run = app.latestRun[task.id]}
+            {@const status = run ? runStatus(run) : undefined}
+            <li class="card task" data-tone={status?.tone} data-needs={status?.needsInput}>
+              <a class="title" href={taskHref(task.id)}>{task.title}</a>
+              {#if run && status}
+                <div class="run">
+                  <div class="run-line">
+                    <RunBadge {run} />
+                    <span class="muted meta">{agentName(app.agents, run.agentId)} · {runElapsed(run, app.now)}</span>
+                  </div>
+                  {#if cardActivity(run)}
+                    <p class="activity" class:bad={run.state === 'failed'}>{cardActivity(run)}</p>
+                  {/if}
+                </div>
+              {/if}
               <label class="move">
                 <span class="visually-hidden">Move “{task.title}” to</span>
                 <select
@@ -216,6 +242,84 @@
   .title {
     font-weight: 550;
     overflow-wrap: anywhere;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* The whole card opens the task; the move control stays tappable above it. */
+  .task {
+    position: relative;
+  }
+
+  .title::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius);
+  }
+
+  .task:hover {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+
+  .task[data-needs='true'] {
+    border-left: 3px solid var(--warn);
+  }
+
+  .task[data-tone='work'],
+  .task[data-tone='idle'] {
+    border-left: 3px solid var(--accent);
+  }
+
+  .task[data-needs='true'][data-tone='ask'] {
+    border-left-color: var(--warn);
+  }
+
+  .task[data-tone='bad'] {
+    border-left: 3px solid var(--danger);
+  }
+
+  .run {
+    display: grid;
+    gap: 3px;
+  }
+
+  .run-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 10px;
+  }
+
+  .meta {
+    font-size: 0.8rem;
+  }
+
+  .activity {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .activity.bad {
+    color: var(--danger);
+  }
+
+  .waiting {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+  }
+
+  .move {
+    position: relative;
+    z-index: 1;
+    justify-self: start;
   }
 
   .move .select {

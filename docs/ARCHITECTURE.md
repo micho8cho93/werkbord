@@ -6,8 +6,8 @@ database, the agent sessions and all development state. Phones, tablets and brow
 are remote controls for it. There is no hosted backend, no account system and no cloud
 database.
 
-This document describes the foundation as built. Sections marked *Deferred* name
-things that are intentionally not implemented yet.
+This document describes the system as built: the foundation plus the agent runtime (§8,
+§14). Sections marked *Deferred* name things that are intentionally not implemented yet.
 
 ---
 
@@ -26,7 +26,7 @@ things that are intentionally not implemented yet.
 │      │               │   └──▶ events.Publisher ──▶ events.Broker ──┐                  │
 │      └───────────────┼──────────────────────────────────────────────┘ (live signal)   │
 │                      ├──▶ gitrepo.Inspector ──▶ git CLI ──▶ your existing checkouts   │
-│                      └──▶ agent.Adapter (interface only, no adapters yet)             │
+│                      └──▶ runner.Manager ──▶ agent.Adapter ──▶ claude / codex process │
 │                                                                                       │
 │  domain: Project · Task · Run · Agent · Question · Worktree · GitRepository · Event  │
 └───────────────────────────────────────────────────────────────────────────────────────┘
@@ -44,10 +44,13 @@ system. No Docker, no Electron, no second language on the backend.
 | `internal/store` | Persistence **interfaces** (`Store`, `Tx`, one repo per aggregate) | `domain` | Contain an implementation |
 | `internal/store/sqlite` | The SQLite implementation and versioned migrations | `domain`, `store` | Contain business rules beyond integrity constraints |
 | `internal/events` | Live fan-out of committed events (`Publisher`, `Subscriber`, `Broker`) | `domain` | Be relied on for durability |
-| `internal/gitrepo` | The Git boundary (`Inspector`, CLI implementation) | `domain` | Write to repositories (today) |
-| `internal/agent` | The agent boundary (`Adapter`, `Session`, `Registry`) | `domain` | Leak protocol details of a specific agent |
+| `internal/gitrepo` | The Git boundary (`Inspector`; `Worktrees`, which makes and removes linked worktrees; CLI implementation) | `domain` | Touch a repository's own checkout or run its hooks |
+| `internal/agent` | The agent boundary (`Adapter`, `Session`, `Registry`), process groups, the event queue | `domain` | Leak protocol details of a specific agent |
+| `internal/agent/claude`, `internal/agent/codex` | One adapter each: the agent's protocol → normalised events | `agent`, `domain` | Know about runs, tasks or the database |
+| `internal/agent/fake` | A scriptable in-memory adapter for tests | `agent`, `domain` | Be used outside tests |
+| `internal/runner` | Agent processes: starting runs, the live-session goroutines, input, stop, recovery, shutdown | `service`, `agent`, `gitrepo` | Write the store except through `service` |
 | `internal/service` | Use cases: register project, create/move task, recover runs | all of the above via interfaces | Speak HTTP |
-| `internal/api` | HTTP routing, JSON, SSE, auth and security middleware | `service`, `store`, `events`, `agent` | Contain business rules |
+| `internal/api` | HTTP routing, JSON, SSE, auth and security middleware | `service`, `store`, `events`, `agent`, `runner` | Contain business rules |
 | `internal/webui` | Serving the embedded PWA build | stdlib | — |
 | `internal/controller` | Wiring and lifecycle | everything | — |
 | `internal/config`, `internal/logging` | Settings and the slog logger | stdlib | — |
@@ -63,7 +66,7 @@ system. No Docker, no Electron, no second language on the backend.
 - **Git operations** — `gitrepo.Inspector`. Implemented by shelling out to `git`, because
   that respects the user's own Git config, credentials helpers and `safe.directory`
   rules. Services are tested with a fake.
-- **Agent execution** — `agent.Adapter` → `agent.Session`. See §8.
+- **Agent execution** — `agent.Adapter` → `agent.Session`, driven by `runner.Manager`. See §8 and §14.
 
 ## 3. Domain model
 
@@ -85,10 +88,14 @@ GitRepository    │
   directory, and `git_repositories.common_dir` is unique.
 - **Task**: a card on the board. Its `State` is one of exactly four workflow states:
   `backlog`, `doing`, `review`, `done`. Ordered within a column by `Position`.
-- **Run**: one execution attempt by an agent against a task. Its `State` is one of
-  `starting`, `running`, `waiting_for_user`, `completed`, `failed`, `stopped`.
-- **Question**: something an agent asked during a run; `pending` until answered or
-  cancelled.
+- **Run**: one interactive agent session working on a task. Its `State` is one of
+  `starting`, `running`, `waiting_for_user`, `completed`, `failed`, `stopped`. While it waits,
+  `Waiting` says what for: `question` (blocked on an answer) or `idle` (the agent finished a turn
+  and awaits the next message). It also records the prompt, the agent's resumable `SessionRef`,
+  its latest one-line `Activity`, the process exit code and, internally, the process's PID and
+  identity.
+- **Question**: something an agent asked during a run (`ask`) or a permission it needs
+  (`approval`); `pending` until answered or cancelled.
 - **Worktree**: a Git worktree created for a run so concurrent runs never share a
   working directory. Its row is the controller's only evidence that it owns a directory, so
   it is constrained like a deletion target (see "Worktree safety" below).
@@ -104,17 +111,28 @@ can sit in *Doing* while its latest run failed; a run can complete while the tas
 in *Review* for a human. Policies that connect the two (e.g. "a completed run moves the
 task to Review") will be explicit service code, not an implicit coupling of enums.
 
-Run transitions are enforced by `domain.Run.Transition`:
+A run is a **session**, not a job. The agent works a turn, then waits for the next message
+(`waiting_for_user`/`idle`); it asks questions (`waiting_for_user`/`question`) when it needs a
+decision or permission. The session ends when the process exits, the user finishes it, or the user
+stops it.
+
+Run transitions are enforced by `domain.Run.Transition` and `WaitFor`:
 
 ```
-starting ──▶ running ──▶ completed
-   │            │  ▲
-   │            ▼  │
-   │     waiting_for_user
-   │            │
-   └────────────┴──────▶ failed | stopped     (terminal states have no exits;
-                                                a retry is a new Run)
+starting ──▶ running ◀──────────────▶ waiting_for_user ──▶ completed
+   │            │  ╲                     │       (finishing an idle session)
+   │            ▼   ╲─▶ completed        │
+   └────────────┴──────────────▶ failed | stopped   (terminal states have no exits;
+                                                       a retry is a new Run)
 ```
+
+The database enforces the pairing too: `waiting` is set exactly while the state is
+`waiting_for_user`, and an ended run has no process.
+
+**Policy that connects the two** (explicit in `service`, not implicit in the enums): a task moves
+to *Doing* in the same transaction that marks its run *running* (and again when the user resumes
+work on it from Review); a task already in Doing or Done is left alone. Nothing moves a card when
+a run ends: that is the user's call.
 
 ## 4. Data flow
 
@@ -155,11 +173,14 @@ snapshot is left untouched, so a project never silently starts describing anothe
 2. **Lock the data directory** with an exclusive `flock` on `controller.lock`. A second
    controller on the same data dir fails fast. The OS releases the lock if the process dies.
 3. **Open SQLite and migrate** (see §6). A database from a newer build is refused.
-4. **Recover** state left by the previous process (`service.Runs.RecoverAfterRestart`):
-   runs that were `starting`/`running` have lost their process and are marked `failed`
-   with reason `interrupted: controller restarted`; `waiting_for_user` runs are kept,
-   because the question is still answerable and a future adapter can resume the session
-   from the stored `SessionRef`. Each change emits a `run.state_changed` event.
+4. **Recover** state left by the previous process (`runner.Manager.Recover`). First, any agent
+   process still running for a recorded run is stopped, but only if the PID still has the
+   recorded start-time identity and leads its own process group, so a PID reused by an unrelated
+   program is never signalled. Then `service.Runs.RecoverAfterRestart` settles the runs: those that
+   were `starting`/`running` are marked `failed` (`interrupted: controller restarted`); a run that
+   was waiting is kept if it has a `SessionRef` (its pending questions are cancelled, since the
+   requests died with the process, and it becomes `idle`: a message resumes it) and failed
+   otherwise. Each change emits `run.state_changed` and an `agent.*` event.
 5. **Resolve auth**: a token is required unless `requireToken` is off and the address is
    loopback (§10); it is read from config or `<dataDir>/token`, generating one (mode 0600) on
    first use. If auth is off the controller logs a warning.
@@ -167,7 +188,10 @@ snapshot is left untouched, so a project never silently starts describing anothe
 7. **On SIGINT/SIGTERM**: `http.Server.Shutdown` stops accepting connections and waits
    for in-flight requests (up to `shutdownTimeout`, default 10s). A shutdown hook closes
    the event broker first, which ends every SSE stream, so long-lived connections do not
-   hold shutdown hostage. Then the database is closed and the lock released.
+   hold shutdown hostage. Then `runner.Manager.Shutdown` stops every agent process (SIGTERM to
+   its process group, SIGKILL after 5 s) and records the outcome while the database is still
+   open: working runs fail with `interrupted: controller shut down`, waiting runs are kept
+   resumable. Only then are the database closed and the lock released.
 
 If any startup step fails, everything already started is torn down in reverse order.
 
@@ -213,28 +237,63 @@ Events are **durable first, live second**.
 - SSE (not WebSocket) because the traffic is server→client; commands go over ordinary
   HTTP requests, which are easier to authenticate, retry and test. A WebSocket can be
   added later for interactive agent I/O if SSE + POST proves insufficient.
-- Event types today: `project.registered`, `project.inspected`, `task.created`,
-  `task.updated`, `run.state_changed` (recovery), and reserved `question.created` /
-  `question.answered`.
+- Event types: `project.registered`, `project.inspected`, `task.created`, `task.updated`,
+  `worktree.created|removing|removed`, `run.state_changed`, `question.answered`, and the agent
+  events below.
+- **Agent events** are the activity timeline of a run (they carry `runId`): `agent.started`,
+  `agent.output` (`{stream, text}`; streams `assistant`, `tool`, `user`, `system`, `stderr`),
+  `agent.question`, `agent.waiting` (the agent finished its turn, or the session was
+  interrupted), `agent.resumed`, `agent.completed`, `agent.failed`, `agent.stopped`. Every state
+  change emits `run.state_changed` (carrying the run, which is what clients cache) *and* one of
+  these, in the same transaction. `agent.waiting` means "idle, awaiting a message";
+  `agent.question` means "blocked on an answer".
+- Output is written in batches (150 ms or 64 KiB) because each write is a durable transaction,
+  each event's text is capped at 16 KiB, and a run keeps at most 16 MiB of output.
+- A run's history is `GET /api/runs/{id}/events` (paged backwards from the newest), served from an
+  index on `events(run_id, seq)`.
 - *Deferred*: event-log compaction or retention. The log grows without bound; at the
   expected volume (a person's tasks and runs) this is fine for a long time.
 
 ## 8. Agent adapter boundary
 
-Claude Code, Codex and future agents expose different protocols. Each will get an
-`agent.Adapter` that translates its protocol into a small, shared vocabulary:
+Claude Code and Codex expose different protocols. Each has an `agent.Adapter` that translates
+its protocol into one vocabulary (`internal/agent/agent.go` has the full contract):
 
-- `Detect` — is the agent installed and signed in? (No session started.)
-- `Start(StartRequest{RunID, WorkDir, Prompt, ResumeRef})` → `Session`
-- `Session.Updates()` — `output` (activity), `question` (blocks on the user),
-  `session_ref` (a resumable handle became known)
-- `Session.Answer`, `Session.Stop`, `Session.Wait() → Result{State, Reason}`
+- `Detect` — installed, version, signed in? Cached for 30 s so `GET /api/agents` is cheap.
+- `Start(StartRequest{RunID, WorkDir, Prompt, ResumeRef})` → `Session`. The context bounds
+  start-up only; the process belongs to the controller. A process that dies within moments of
+  starting fails `Start` instead of looking like a session that ran.
+- `Session.Events()` — `output`, `question`, `question_closed`, `turn_end`, `session_ref`. The
+  queue behind it never blocks the agent and never drops a control event (output past a backlog of
+  4096 is dropped, with a notice).
+- `Session.Send` (a message: the next turn if waiting, otherwise queued or steering),
+  `Respond` (answer a question), `Close` (graceful end), `Stop` (terminate the process group),
+  `Wait` → `Result{State, Reason, ExitCode}`, `Process` (PID and identity).
 
-The interface is deliberately limited to what both Claude Code and Codex support today:
-start in a directory with a prompt, stream output, ask a question, resume a session, stop.
-It does not model tools, models, token accounting or permissions; those get added when a
-real adapter needs them, not speculatively. The registry currently holds **no adapters**,
-so `GET /api/agents` returns an empty list.
+**Claude Code** (`internal/agent/claude`): `claude -p --input-format stream-json
+--output-format stream-json --verbose --permission-prompt-tool stdio`. The session ID is chosen
+up front (`--session-id`), so it is stored before the agent says anything; `--resume` continues
+one. Permission requests (`control_request`/`can_use_tool`) become approval questions; the
+`AskUserQuestion` tool becomes ask questions, put to the user one at a time. Unsupported control
+requests are refused rather than ignored, because an unanswered request hangs the session.
+Default `--permission-mode acceptEdits`.
+
+**Codex** (`internal/agent/codex`): `codex app-server`, JSON-RPC over stdio. `thread/start` (or
+`thread/resume`) then `turn/start` per message; a message during a turn uses `turn/steer`.
+Command and file-change approvals and `item/tool/requestUserInput` become questions; requests the
+controller cannot honour get a JSON-RPC error. Secret inputs (`isSecret`) are never collected.
+Defaults `approvalPolicy=on-request`, `sandbox=workspace-write`, passed explicitly so they
+override the user's own `~/.codex/config.toml`.
+
+Both were checked against the installed CLIs (Claude Code 2.1, Codex 0.155): Codex's generated
+protocol schema, and `internal/agent/live`, an opt-in test (`DEVBOARD_LIVE_AGENTS=1`) that runs
+the real agents through round trips, approvals and resume. The default tests use scripted fakes
+that speak the same protocols.
+
+**Process handling** (`internal/agent/process*.go`, `base.go`): each agent runs in its own
+process group; stdout and stderr are read by goroutines with line-length limits; stdin writes have
+a deadline; when the agent exits, anything it started in its group is killed; a grandchild holding a
+pipe open cannot delay the end. `Stop` is SIGTERM, then SIGKILL after a grace period.
 
 ## 9. Concurrency approach
 
@@ -256,10 +315,12 @@ so `GET /api/agents` returns an empty list.
   mutex; slow subscribers are dropped and catch up from the log.
 - **HTTP handlers are stateless** apart from SSE streams, each of which owns one
   subscription and ends when the client leaves or the broker closes.
-- **Future runs**: each run will be a goroutine owning one `agent.Session` and one
-  worktree; state changes still go through `service` → `store.Update`, so the single-writer
-  rule holds. Agent processes are children of the controller, which is why restart
-  recovery (§5) marks in-flight runs failed.
+- **Runs**: each live run has one goroutine (`runner.live`) that is the only reader of its
+  session's events; user actions (message, answer, finish, stop) take the run's lock, which that
+  goroutine also holds while recording a question or the end of a turn, so an answer and the next
+  question are recorded in the order they happened. State changes still go through `service` →
+  `store.Update`, so the single-writer rule holds. Starting a run is serialised per task, so two
+  requests cannot launch two agents.
 
 ### Worktree safety
 
@@ -296,6 +357,16 @@ projects. The engine must go through `service.Worktrees`; it must not write the 
   checkout of a branch; so does the record).
 
 A path that was used by a removed worktree is not reused: its record is kept as history.
+
+**The engine** (`gitrepo.Worktrees`, driven by `runner`) follows that order. A task keeps one
+worktree and one branch (`devboard/<title-slug>-<task-id-tail>`) across its runs, so a retry,
+follow-up or resumed session continues from the same files; each worktree gets a fresh
+directory name, based on the repository's current HEAD commit. A worktree whose directory
+vanished is retired and replaced on the same branch. If starting an agent fails, a worktree made
+for that attempt is removed again, with its branch. Git hooks are disabled for these operations
+(`core.hooksPath=/dev/null`): `git worktree add` would otherwise run the repository's
+`post-checkout` hook unasked. A partial clone's missing objects are not fetched (inspection's
+`GIT_NO_LAZY_FETCH` also applies here), so such a repository may fail to check out.
 
 ## 10. Security assumptions
 
@@ -342,7 +413,18 @@ the HTTP API is treated as a remote-execution surface from day one.
   remote URLs are redacted before they are stored or shown: for `http(s)`/`ftp` the whole
   userinfo (a token is often the user name), for other schemes the password. The userinfo
   ends at the last `@` of the authority.
-- **Untrusted text is data.** Task text and (later) agent output are rendered as text by
+- **Agents run as you.** Claude Code and Codex are started with your environment (minus
+  variables that would point Git at another repository), in a worktree, with your own
+  credentials and configuration, because that is what makes them useful. What they may do
+  without asking is their own permission system's (Claude Code's `permissionMode`, default
+  `acceptEdits`; Codex's `approvalPolicy`/`sandbox`, default `on-request`/`workspace-write`).
+  Whatever they ask goes to the user as a question, so the API token is what authorises running
+  code on this computer. Settings that remove the asking (`bypassPermissions`, `never`,
+  `danger-full-access`) are allowed and logged as warnings at every start. Process IDs are never
+  sent to clients, answers to agents' questions are stored and shown in the activity feed (so
+  agents' requests for secrets are refused), and recovery signals a recorded process only after
+  checking its identity.
+- **Untrusted text is data.** Task text and agent output are rendered as text by
   Svelte, never as HTML. A strict CSP (`script-src 'self'`, `frame-ancestors 'none'`, …),
   `nosniff`, `no-referrer` and `X-Frame-Options: DENY` are set on every response.
 - **Errors do not leak internals.** Unexpected errors are logged in full and returned as a
@@ -354,7 +436,8 @@ the HTTP API is treated as a remote-execution surface from day one.
 
 - Svelte 5 (runes) + TypeScript + Vite, built to static files and embedded into the Go
   binary with `go:embed`. ~21 KB gzipped JS.
-- Three primary surfaces, hash-routed: **Board**, **Control Center**, **Git**.
+- Three primary surfaces, hash-routed: **Board**, **Control Center**, **Git**, plus the **task
+  page** (`#/task/<id>`), which belongs to the Board.
 - **Phone first.** Under 900 px: sticky top bar, bottom tab bar within thumb reach (with
   safe-area insets), and the board shows one column at a time behind a four-way segmented
   control. From 900 px: a side rail replaces the tab bar and all four columns sit side by
@@ -363,7 +446,19 @@ the HTTP API is treated as a remote-execution surface from day one.
   (network-first for navigation, cache-first for content-hashed assets) and never caches
   `/api/*`. State always comes from the controller.
 - `src/lib/state.svelte.ts` is a cache of controller state: filled over HTTP, kept current
-  by the event stream, refetched on every (re)connect.
+  by the event stream, refetched on every (re)connect. It holds every project's tasks, the latest
+  run of each task, pending questions and the agents.
+- **Cards** show, for a task with a run: the agent, a status (Working / Needs your answer /
+  Waiting for you / Failed / …), elapsed time, a live one-line activity, and a coloured edge when
+  input is required. **The task page** shows the session as an activity feed, not a terminal:
+  messages, runs of tool use folded into one line, stderr tucked into a collapsed "diagnostics"
+  item, questions with their outcome, and a few lifecycle markers. The reply box, or the pending
+  questions with one-tap answers, is docked at the bottom within thumb reach. Actions: send a
+  message, finish, stop (asks twice), and start or re-run with an agent choice, extra
+  instructions and optionally "continue the previous conversation". The Control Center lists what
+  needs the user across projects.
+- `src/lib/feed.ts` and `format.ts` hold the logic that turns events into the feed and run data
+  into labels; they are framework-free and unit-tested with vitest (`npm test`).
 - Types in `src/lib/types.ts` mirror the Go JSON by hand. *Deferred*: generating them from
   the Go structs (e.g. with `tygo`).
 
@@ -371,8 +466,8 @@ the HTTP API is treated as a remote-execution surface from day one.
 
 | Area | Not built yet | Hook already in place |
 | --- | --- | --- |
-| Agent execution | Claude Code / Codex adapters, starting/stopping runs, streaming activity, answering questions | `agent.Adapter`, `Session`, `Registry`; `runs`/`questions` tables; run state machine; restart recovery |
-| Worktrees | Running `git worktree add/remove`, creating and deleting directories, garbage-collecting | `service.Worktrees` (validated, crash-ordered records), database rules (see "Worktree safety"); `Run.WorktreeID`. Not yet wired into the controller or exposed over HTTP |
+| Agent execution | More agents; an "interrupt this turn" action that keeps the session; token/cost reporting; policies such as "completed run → Review" | `agent.Adapter`; the runner and adapters are built (§8, §14) |
+| Worktrees | Garbage-collecting worktrees of finished tasks; diff/commit/push from a run | `service.Worktrees` records and `gitrepo.Worktrees` engine; a worktree is kept until someone removes it |
 | Advanced Git | Branches, diffs, commits, push, PRs, GitHub integration | `gitrepo` package boundary |
 | Board interactions | Drag and drop, reordering within a column, task detail/editing UI, delete | `Position` and `PATCH /api/tasks/{id}` already accept title, description, state and position |
 | Projects | Unregistering, renaming | — |
@@ -400,3 +495,34 @@ local-first brief instead, and diverges deliberately:
 Ideas from the earlier plan that carry over unchanged: compare-and-swap writes, a worktree per
 run, trust rules (agents never move tasks to Done or merge), untrusted text treated as
 data, the phone layout (one column at a time, bottom navigation), and Svelte 5 for the UI.
+
+
+## 14. Running a task
+
+`POST /api/tasks/{id}/runs {agentId, instructions?, resume?}` → `runner.Manager.Start`:
+
+1. **Validate**: the task exists and is not in Done, the agent exists and `Detect` says it is
+   usable (not installed / not signed in → 409 with the reason), and the task has no active run.
+2. **Prepare the worktree**: re-inspect the repository (it must still be the registered one and
+   have a commit), then reuse the task's worktree or make one (§9, "The engine").
+3. **Create the run** in `starting`. At this point nothing says an agent is running.
+4. **Launch** the agent in the worktree with the task as its first message (title, description,
+   then any instructions). On failure: the run is marked `failed` with the agent's own message
+   (502 `agent_failed`), the card does not move, and a worktree made for this attempt is removed.
+5. **Mark running and move the task to Doing**, in one transaction, with `agent.started`.
+6. **Stream and persist**: the live-run goroutine turns the agent's events into state and
+   `agent.*` events, recording each in the database before the browser can see it.
+
+Setup is carried through even if the caller disconnects; after step 5 nothing depends on the
+HTTP request. Resuming (`resume: true`) passes the previous session's `SessionRef`; so does
+sending a message to a run that is waiting but has no process (after a restart), which starts a
+new process for the *same run* (`MarkStarted` with `resumed`).
+
+Other endpoints: `GET /api/tasks/{id}/runs`, `GET /api/projects/{id}/runs` (latest run per
+task, for the board), `GET /api/runs/{id}`, `GET /api/runs/{id}/events?before&limit`,
+`POST /api/runs/{id}/input|finish|stop`, `POST /api/questions/{id}/answer`,
+`GET /api/worktrees/{id}`.
+
+**Configuration** (`config.json`): `worktreesDir`, and per agent (`claude-code`, `codex`):
+`command`, `model`, plus `permissionMode` (Claude Code) or `approvalPolicy` and `sandbox` (Codex).
+Unknown agents, settings on the wrong agent and invalid values are errors at start-up.

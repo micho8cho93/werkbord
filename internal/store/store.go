@@ -9,6 +9,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"devboard/internal/domain"
 )
@@ -79,6 +80,14 @@ type RunRepo interface {
 	ListByTask(ctx context.Context, taskID string) ([]domain.Run, error)
 	// ListActive returns all runs not in a terminal state, oldest first.
 	ListActive(ctx context.Context) ([]domain.Run, error)
+	// TouchActivity records a run's latest activity without changing its
+	// version: activity changes many times a second and is not a state change,
+	// so it must not make a concurrent state change fail its compare-and-swap.
+	// It does nothing for a run that has ended.
+	TouchActivity(ctx context.Context, id, activity string, at time.Time) error
+	// ListLatestByProject returns each of the project's tasks' most recent run,
+	// oldest first. Tasks that have never run are absent.
+	ListLatestByProject(ctx context.Context, projectID string) ([]domain.Run, error)
 }
 
 // QuestionRepo persists agent questions.
@@ -119,4 +128,8 @@ type EventRepo interface {
 	ListAfter(ctx context.Context, after int64, limit int) ([]domain.Event, error)
 	// LatestSeq returns the highest Seq, or 0 for an empty log.
 	LatestSeq(ctx context.Context) (int64, error)
+	// ListByRun returns up to limit of a run's events that precede seq
+	// `before` (0 means from the end of the log): the newest such events, in
+	// ascending order. To page backwards, pass the first Seq of the previous page.
+	ListByRun(ctx context.Context, runID string, before int64, limit int) ([]domain.Event, error)
 }

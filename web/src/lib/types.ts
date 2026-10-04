@@ -14,6 +14,9 @@ export const TASK_STATE_LABELS: Record<TaskState, string> = {
 
 export type RunState = 'starting' | 'running' | 'waiting_for_user' | 'completed' | 'failed' | 'stopped';
 
+/** What a run in `waiting_for_user` is waiting for: an answer, or the next message. */
+export type WaitingKind = 'question' | 'idle';
+
 export interface GitRemote {
   name: string;
   url: string;
@@ -58,7 +61,14 @@ export interface Run {
   agentId: string;
   state: RunState;
   worktreeId?: string;
+  sessionRef?: string;
   reason?: string;
+  prompt?: string;
+  waiting?: WaitingKind;
+  /** The latest thing the agent did, as one line. */
+  activity?: string;
+  activityAt?: string;
+  exitCode?: number;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -68,6 +78,7 @@ export interface Run {
 export interface Question {
   id: string;
   runId: string;
+  kind: 'ask' | 'approval';
   prompt: string;
   options?: string[];
   status: 'pending' | 'answered' | 'cancelled';
@@ -81,6 +92,29 @@ export interface Agent {
   available: boolean;
   version?: string;
   detail?: string;
+}
+
+export interface Worktree {
+  id: string;
+  projectId: string;
+  path: string;
+  branch: string;
+  baseRef: string;
+  state: 'active' | 'removed';
+}
+
+export type OutputStream = 'assistant' | 'tool' | 'user' | 'system' | 'stderr';
+
+/** Payload of an `agent.output` event. */
+export interface AgentOutput {
+  stream: OutputStream;
+  text: string;
+}
+
+/** One page of a run's activity, oldest first. */
+export interface RunEventsPage {
+  events: ControllerEvent[];
+  hasMore: boolean;
 }
 
 export interface Health {

@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"devboard/internal/domain"
+	"devboard/internal/runner"
 	"devboard/internal/service"
 )
 
@@ -47,6 +49,9 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, domain.ErrInvalid), errors.Is(err, domain.ErrTransition):
 		writeError(w, http.StatusBadRequest, "invalid", err.Error())
+	case errors.Is(err, domain.ErrAgent):
+		// The message says why the agent could not start, which is what the user needs.
+		writeError(w, http.StatusBadGateway, "agent_failed", err.Error())
 	case errors.Is(err, context.Canceled):
 		// Client went away; nothing useful to send.
 	default:
@@ -189,6 +194,196 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
+}
+
+func (s *Server) handleListTaskRuns(w http.ResponseWriter, r *http.Request) {
+	runs, err := s.opt.Runs.ListByTask(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+}
+
+func (s *Server) handleListProjectRuns(w http.ResponseWriter, r *http.Request) {
+	runs, err := s.opt.Runs.ListLatestByProject(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+}
+
+// handleGetWorktree says where a run's work is: its branch and directory.
+func (s *Server) handleGetWorktree(w http.ResponseWriter, r *http.Request) {
+	if s.opt.Worktrees == nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable", "worktrees are not enabled")
+		return
+	}
+	wt, err := s.opt.Worktrees.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wt)
+}
+
+func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
+	run, err := s.opt.Runs.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, run)
+}
+
+// handleStartRun starts an agent on a task. The response comes once the agent
+// is running or has failed to start; the session itself does not depend on this
+// request from then on.
+func (s *Server) handleStartRun(w http.ResponseWriter, r *http.Request) {
+	if !s.runnerReady(w) {
+		return
+	}
+	var req struct {
+		AgentID      string `json:"agentId"`
+		Instructions string `json:"instructions"`
+		Resume       bool   `json:"resume"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	run, err := s.opt.Runner.Start(r.Context(), runner.StartInput{
+		TaskID: r.PathValue("id"), AgentID: req.AgentID, Instructions: req.Instructions, Resume: req.Resume,
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, run)
+}
+
+// handleRunEvents returns a run's activity: the newest `limit` events (default
+// 200) before `before`, oldest first, and whether older ones exist.
+func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
+	limit, err := intParam(r, "limit", 200, 1, 1000)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	before, err := intParam(r, "before", 0, 0, 1<<62)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	evs, err := s.opt.Runs.Events(r.Context(), r.PathValue("id"), int64(before), limit+1)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	more := len(evs) > limit
+	if more {
+		evs = evs[len(evs)-limit:]
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"events": evs, "hasMore": more})
+}
+
+func intParam(r *http.Request, name string, def, min, max int) (int, error) {
+	v := r.URL.Query().Get(name)
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < min || n > max {
+		return 0, fmt.Errorf("%w: %s must be a number from %d to %d", domain.ErrInvalid, name, min, max)
+	}
+	return n, nil
+}
+
+func (s *Server) handleRunInput(w http.ResponseWriter, r *http.Request) {
+	if !s.runnerReady(w) {
+		return
+	}
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.opt.Runner.Send(r.Context(), id, req.Text); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.respondWithRun(w, r, id)
+}
+
+func (s *Server) handleFinishRun(w http.ResponseWriter, r *http.Request) {
+	if !s.runnerReady(w) {
+		return
+	}
+	run, err := s.opt.Runner.Finish(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, run)
+}
+
+func (s *Server) handleStopRun(w http.ResponseWriter, r *http.Request) {
+	if !s.runnerReady(w) {
+		return
+	}
+	run, err := s.opt.Runner.Stop(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, run)
+}
+
+func (s *Server) handleAnswerQuestion(w http.ResponseWriter, r *http.Request) {
+	if !s.runnerReady(w) {
+		return
+	}
+	var req struct {
+		Answer string `json:"answer"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.opt.Runner.Answer(r.Context(), id, req.Answer); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	q, err := s.opt.Runs.GetQuestion(r.Context(), id)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, q)
+}
+
+// runnerReady reports whether agent execution is wired in, and answers the
+// request if it is not.
+func (s *Server) runnerReady(w http.ResponseWriter) bool {
+	if s.opt.Runner == nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable", "agent execution is not enabled")
+		return false
+	}
+	return true
+}
+
+func (s *Server) respondWithRun(w http.ResponseWriter, r *http.Request, id string) {
+	run, err := s.opt.Runs.Get(r.Context(), id)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, run)
 }
 
 func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {

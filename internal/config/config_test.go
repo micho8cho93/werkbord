@@ -143,3 +143,87 @@ func TestResolveTokenGeneratesOnce(t *testing.T) {
 		t.Fatalf("token file mode = %v", info.Mode().Perm())
 	}
 }
+
+func TestAgentSettingsAreLoadedFromTheConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DEVBOARD_DATA_DIR", dir)
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{
+		"worktreesDir": "/srv/worktrees",
+		"agents": {
+			"claude-code": {"command": "/opt/claude", "model": "opus", "permissionMode": "plan"},
+			"codex": {"approvalPolicy": "untrusted", "sandbox": "read-only"}
+		}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	cl, cx := c.Agents[AgentClaudeCode], c.Agents[AgentCodex]
+	if cl.Command != "/opt/claude" || cl.Model != "opus" || cl.PermissionMode != "plan" || cx.ApprovalPolicy != "untrusted" || cx.Sandbox != "read-only" {
+		t.Fatalf("agents = %+v", c.Agents)
+	}
+	if c.WorktreesPath() != "/srv/worktrees" {
+		t.Fatalf("worktrees = %s", c.WorktreesPath())
+	}
+}
+
+func TestWorktreesDefaultToTheDataDirectory(t *testing.T) {
+	c := Default()
+	c.DataDir = "/data/devboard"
+	if got := c.WorktreesPath(); got != "/data/devboard/worktrees" {
+		t.Fatalf("WorktreesPath = %s", got)
+	}
+	t.Setenv("DEVBOARD_WORKTREES_DIR", "/elsewhere")
+	t.Setenv("DEVBOARD_DATA_DIR", t.TempDir())
+	loaded, err := Load()
+	if err != nil || loaded.WorktreesPath() != "/elsewhere" {
+		t.Fatalf("env override: %v, %v", loaded.WorktreesPath(), err)
+	}
+}
+
+func TestInvalidAgentSettingsAreRejected(t *testing.T) {
+	cases := map[string]Config{
+		"unknown agent":           {Agents: map[string]AgentConfig{"gemini": {}}},
+		"bad claude mode":         {Agents: map[string]AgentConfig{AgentClaudeCode: {PermissionMode: "yolo"}}},
+		"codex setting on claude": {Agents: map[string]AgentConfig{AgentClaudeCode: {Sandbox: "read-only"}}},
+		"claude setting on codex": {Agents: map[string]AgentConfig{AgentCodex: {PermissionMode: "plan"}}},
+		"bad codex approval":      {Agents: map[string]AgentConfig{AgentCodex: {ApprovalPolicy: "sometimes"}}},
+		"bad codex sandbox":       {Agents: map[string]AgentConfig{AgentCodex: {Sandbox: "open"}}},
+	}
+	for name, extra := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := Default()
+			c.Agents = extra.Agents
+			if err := c.Validate(); err == nil {
+				t.Fatal("expected an error: a typo in a safety setting must not be silently ignored")
+			}
+		})
+	}
+	c := Default()
+	c.WorktreesDir = "relative/path"
+	if err := c.Validate(); err == nil {
+		t.Fatal("a relative worktrees directory must be rejected")
+	}
+}
+
+func TestRiskyAgentSettingsAreReported(t *testing.T) {
+	c := Default()
+	if got := c.RiskyAgentSettings(); len(got) != 0 {
+		t.Fatalf("defaults are not risky: %v", got)
+	}
+	c.Agents = map[string]AgentConfig{
+		AgentClaudeCode: {PermissionMode: "bypassPermissions"},
+		AgentCodex:      {ApprovalPolicy: "never", Sandbox: "danger-full-access"},
+	}
+	if got := c.RiskyAgentSettings(); len(got) != 3 {
+		t.Fatalf("risky = %v", got)
+	}
+	c.Agents = map[string]AgentConfig{AgentClaudeCode: {PermissionMode: "acceptEdits"}, AgentCodex: {ApprovalPolicy: "on-request", Sandbox: "workspace-write"}}
+	if got := c.RiskyAgentSettings(); len(got) != 0 {
+		t.Fatalf("risky = %v", got)
+	}
+}

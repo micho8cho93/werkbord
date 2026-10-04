@@ -20,10 +20,14 @@ const (
 
 // runTransitions is the complete set of allowed state changes. Terminal states
 // have no outgoing edges: a new attempt is a new Run.
+//
+// A waiting run can complete: a session is interactive, so the normal way for
+// one to end is that the agent is idle, the user finishes it, and the process
+// exits cleanly.
 var runTransitions = map[RunState][]RunState{
 	RunStarting:       {RunRunning, RunFailed, RunStopped},
 	RunRunning:        {RunWaitingForUser, RunCompleted, RunFailed, RunStopped},
-	RunWaitingForUser: {RunRunning, RunFailed, RunStopped},
+	RunWaitingForUser: {RunRunning, RunCompleted, RunFailed, RunStopped},
 	RunCompleted:      nil,
 	RunFailed:         nil,
 	RunStopped:        nil,
@@ -59,34 +63,85 @@ func ParseRunState(s string) (RunState, error) {
 	return st, nil
 }
 
+// WaitingKind says what a run in RunWaitingForUser is waiting for.
+type WaitingKind string
+
+const (
+	// WaitNone is the value for every state except RunWaitingForUser.
+	WaitNone WaitingKind = ""
+	// WaitQuestion: the agent asked something (or needs an approval) and is
+	// blocked until a Question is answered.
+	WaitQuestion WaitingKind = "question"
+	// WaitIdle: the agent finished its turn, or its session was interrupted,
+	// and is ready for the next message.
+	WaitIdle WaitingKind = "idle"
+)
+
+// Valid reports whether k is a known waiting kind.
+func (k WaitingKind) Valid() bool { return k == WaitNone || k == WaitQuestion || k == WaitIdle }
+
 // Run is one execution attempt by an agent against a task.
+//
+// A run is an interactive session, not a job: after each turn the agent waits
+// for the next message (RunWaitingForUser, WaitIdle), and the session only
+// ends when the process exits, the user finishes it, or the user stops it.
 type Run struct {
-	ID         string     `json:"id"`
-	TaskID     string     `json:"taskId"`
-	ProjectID  string     `json:"projectId"`
-	AgentID    string     `json:"agentId"`
-	State      RunState   `json:"state"`
-	WorktreeID string     `json:"worktreeId,omitempty"`
-	SessionRef string     `json:"sessionRef,omitempty"` // agent-specific handle used to resume a conversation
-	Reason     string     `json:"reason,omitempty"`     // why the run ended, for failed/stopped runs
-	Version    int64      `json:"version"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	UpdatedAt  time.Time  `json:"updatedAt"`
-	EndedAt    *time.Time `json:"endedAt,omitempty"`
+	ID         string      `json:"id"`
+	TaskID     string      `json:"taskId"`
+	ProjectID  string      `json:"projectId"`
+	AgentID    string      `json:"agentId"`
+	State      RunState    `json:"state"`
+	WorktreeID string      `json:"worktreeId,omitempty"`
+	SessionRef string      `json:"sessionRef,omitempty"` // agent-specific handle used to resume a conversation
+	Reason     string      `json:"reason,omitempty"`     // why the run ended, for failed/stopped runs
+	Prompt     string      `json:"prompt,omitempty"`     // the first message sent to the agent
+	Waiting    WaitingKind `json:"waiting,omitempty"`    // set only while State is RunWaitingForUser
+	Activity   string      `json:"activity,omitempty"`   // latest one-line activity, for cards
+	ActivityAt *time.Time  `json:"activityAt,omitempty"`
+	ExitCode   *int        `json:"exitCode,omitempty"`
+	Version    int64       `json:"version"`
+	CreatedAt  time.Time   `json:"createdAt"`
+	UpdatedAt  time.Time   `json:"updatedAt"`
+	EndedAt    *time.Time  `json:"endedAt,omitempty"`
+
+	// PID and ProcessID identify the agent process so that one a crashed
+	// controller left behind can be found and stopped. ProcessID is an opaque
+	// token that distinguishes the process from a later one that reuses the
+	// PID. Neither is shown to clients.
+	PID       int    `json:"-"`
+	ProcessID string `json:"-"`
 }
 
 // Transition moves the run to next, enforcing the state machine. It updates
-// timestamps but does not persist anything.
+// timestamps but does not persist anything. Use WaitFor to enter
+// RunWaitingForUser, which also records what the run is waiting for.
 func (r *Run) Transition(next RunState, reason string, now time.Time) error {
+	if next == RunWaitingForUser {
+		return fmt.Errorf("%w: use WaitFor to wait for the user", ErrInvalid)
+	}
+	return r.move(next, WaitNone, reason, now)
+}
+
+// WaitFor moves the run to RunWaitingForUser and records what it waits for.
+func (r *Run) WaitFor(kind WaitingKind, now time.Time) error {
+	if kind == WaitNone || !kind.Valid() {
+		return fmt.Errorf("%w: run %s cannot wait for %q", ErrInvalid, r.ID, kind)
+	}
+	return r.move(RunWaitingForUser, kind, "", now)
+}
+
+func (r *Run) move(next RunState, kind WaitingKind, reason string, now time.Time) error {
 	if !r.State.CanTransitionTo(next) {
 		return fmt.Errorf("%w: run %s cannot go from %s to %s", ErrTransition, r.ID, r.State, next)
 	}
 	r.State = next
+	r.Waiting = kind
 	r.Reason = reason
 	r.UpdatedAt = now
 	if next.Terminal() {
 		t := now
 		r.EndedAt = &t
+		r.PID, r.ProcessID = 0, ""
 	}
 	return nil
 }

@@ -33,7 +33,8 @@ func TestRunTransitions(t *testing.T) {
 		{RunStarting, RunWaitingForUser, false},
 		{RunRunning, RunWaitingForUser, true},
 		{RunWaitingForUser, RunRunning, true},
-		{RunWaitingForUser, RunCompleted, false},
+		{RunWaitingForUser, RunCompleted, true}, // finishing an idle session
+		{RunStarting, RunCompleted, false},
 		{RunRunning, RunCompleted, true},
 		{RunRunning, RunStopped, true},
 		{RunCompleted, RunRunning, false},
@@ -84,5 +85,41 @@ func TestNewIDHasPrefixAndIsUnique(t *testing.T) {
 			t.Fatalf("duplicate id %q", id)
 		}
 		seen[id] = true
+	}
+}
+
+func TestRunWaitingKinds(t *testing.T) {
+	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	r := &Run{ID: "run_x", State: RunRunning}
+	if err := r.Transition(RunWaitingForUser, "", now); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("Transition into waiting must demand a kind: err = %v", err)
+	}
+	if err := r.WaitFor(WaitNone, now); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("WaitFor(none): err = %v", err)
+	}
+	if err := r.WaitFor(WaitQuestion, now); err != nil || r.State != RunWaitingForUser || r.Waiting != WaitQuestion {
+		t.Fatalf("WaitFor: %+v, %v", r, err)
+	}
+	if err := r.Transition(RunRunning, "", now); err != nil || r.Waiting != WaitNone {
+		t.Fatalf("leaving the waiting state must clear what it waited for: %+v, %v", r, err)
+	}
+	r.PID, r.ProcessID = 42, "start-time"
+	if err := r.Transition(RunStopped, "stopped", now); err != nil || r.PID != 0 || r.ProcessID != "" {
+		t.Fatalf("an ended run must not keep a process: %+v, %v", r, err)
+	}
+	starting := &Run{ID: "run_y", State: RunStarting}
+	if err := starting.WaitFor(WaitIdle, now); !errors.Is(err, ErrTransition) {
+		t.Fatalf("starting -> waiting: err = %v", err)
+	}
+}
+
+func TestOutputStreams(t *testing.T) {
+	for _, s := range []OutputStream{StreamAssistant, StreamTool, StreamUser, StreamSystem, StreamStderr} {
+		if !s.Valid() {
+			t.Errorf("%q should be valid", s)
+		}
+	}
+	if OutputStream("stdout").Valid() || OutputStream("").Valid() {
+		t.Error("unknown streams must be invalid")
 	}
 }

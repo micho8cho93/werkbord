@@ -6,8 +6,9 @@
   import Board from './routes/Board.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
+  import TaskDetail from './routes/TaskDetail.svelte';
 
-  const title = $derived(ROUTES.find((r) => r.id === router.current)?.label ?? '');
+  const title = $derived(router.taskId ? 'Task' : (ROUTES.find((r) => r.id === router.current)?.label ?? ''));
   const statusLabel = $derived(
     { connecting: 'Connecting', live: 'Live', offline: 'Controller offline', unauthorized: 'Token required' }[
       app.connection
@@ -26,6 +27,7 @@
           <a href="#/{r.id}" class="rail-link" aria-current={router.current === r.id ? 'page' : undefined}>
             <Icon name={r.id} />
             {r.label}
+            {#if r.id === 'control' && app.needsYou > 0}<span class="count" aria-label="{app.needsYou} waiting for you">{app.needsYou}</span>{/if}
           </a>
         {/each}
       </nav>
@@ -43,7 +45,9 @@
       {#if app.error}
         <p class="error banner" role="alert">{app.error}</p>
       {/if}
-      {#if router.current === 'board'}
+      {#if router.taskId}
+        <TaskDetail />
+      {:else if router.current === 'board'}
         <Board />
       {:else if router.current === 'control'}
         <ControlCenter />
@@ -55,7 +59,10 @@
     <nav class="tabbar" aria-label="Primary">
       {#each ROUTES as r (r.id)}
         <a href="#/{r.id}" class="tab" aria-current={router.current === r.id ? 'page' : undefined}>
-          <Icon name={r.id} />
+          <span class="icon">
+            <Icon name={r.id} />
+            {#if r.id === 'control' && app.needsYou > 0}<span class="count" aria-label="{app.needsYou} waiting for you">{app.needsYou}</span>{/if}
+          </span>
           <span>{r.id === 'control' ? 'Control' : r.label}</span>
         </a>
       {/each}
@@ -159,6 +166,34 @@
 
   .tab[aria-current='page'] {
     color: var(--accent);
+  }
+
+  .icon {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--warn);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+  }
+
+  .icon .count {
+    position: absolute;
+    top: -6px;
+    left: 60%;
+  }
+
+  .rail-link .count {
+    margin-left: auto;
   }
 
   /* Tablet and desktop: persistent side rail, no tab bar. */
