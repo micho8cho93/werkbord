@@ -1,0 +1,118 @@
+package service
+
+import (
+	"context"
+	"testing"
+
+	"devboard/internal/agent"
+	"devboard/internal/domain"
+	"devboard/internal/runnerwire"
+)
+
+// PoC-1: a second question from an already-blocked remote run wedges the whole runner sync.
+func TestPoC_SecondQuestionWhileBlockedWedgesSync(t *testing.T) {
+	rt := newRunnerTest(t)
+	ctx := context.Background()
+	task := rt.task(t)
+	selected, resolved, e := rt.svc.Route(ctx, task, domain.Resolved{Runner: rt.runner.ID, Agent: "codex"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	job := &runnerwire.Job{TargetBranch: "main"}
+	run, e := rt.f.runs.Create(ctx, NewRun{TaskID: task.ID, AgentID: resolved.Agent, Prompt: "work",
+		Policy: domain.ExecutionPolicy{Interaction: domain.InteractionAutonomousStopIfBlocked},
+		RunnerID: selected.ID, Remote: true, Claim: rt.svc.Claim(selected, job)})
+	if e != nil {
+		t.Fatal(e)
+	}
+	q := func(seq int64, ref string) runnerwire.Observation {
+		return runnerwire.Observation{Seq: seq, Kind: "event", Event: &agent.Event{Kind: agent.KindQuestion,
+			Question: &agent.Question{Ref: ref, Kind: domain.QuestionClarification, Prompt: "which db?"}}}
+	}
+	// started, q1 => policy blocks the run
+	if _, e := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run), q(2, "q1")}}}); e != nil {
+		t.Fatalf("first sync: %v", e)
+	}
+	got, _ := rt.f.runs.Get(ctx, run.ID)
+	t.Logf("state after q1: %s", got.State)
+	// the agent, told to stop, asks one more question before ending its turn
+	obs := []runnerwire.Observation{q(3, "q2")}
+	for i := 0; i < 3; i++ {
+		_, e = rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: obs}})
+		t.Logf("retry %d => err=%v", i, e)
+	}
+	if e == nil {
+		t.Fatal("expected wedged sync")
+	}
+	// even a bare heartbeat from the same runner still works, but ack never advances:
+	reply, e2 := rt.sync(nil)
+	t.Logf("heartbeat err=%v acks=%v", e2, reply.Acks)
+	// now try to deliver an unrelated, valid report for another run: blocked behind the poison
+	task2 := rt.task(t)
+	run2 := rt.start(t, task2)
+	_, e3 := rt.sync([]runnerwire.Report{
+		{RunID: run.ID, Observations: obs},
+		{RunID: run2.ID, Observations: []runnerwire.Observation{rt.started(run2)}},
+	})
+	r2, _ := rt.f.runs.Get(ctx, run2.ID)
+	t.Logf("other run report err=%v; other run state=%s", e3, r2.State)
+}
+
+// PoC-8: event parity between a local and a remote run that gets blocked.
+func TestPoC_RemoteBlockedRunEmitsNoBlockedOrStartedEvent(t *testing.T) {
+	rt := newRunnerTest(t)
+	ctx := context.Background()
+	task := rt.task(t)
+	selected, resolved, _ := rt.svc.Route(ctx, task, domain.Resolved{Runner: rt.runner.ID, Agent: "codex"})
+	run, e := rt.f.runs.Create(ctx, NewRun{TaskID: task.ID, AgentID: resolved.Agent, Prompt: "work",
+		Policy: domain.ExecutionPolicy{Interaction: domain.InteractionAutonomousStopIfBlocked},
+		RunnerID: selected.ID, Remote: true, Claim: rt.svc.Claim(selected, &runnerwire.Job{TargetBranch: "main"})})
+	if e != nil {
+		t.Fatal(e)
+	}
+	say := agent.Event{Kind: agent.KindOutput, Stream: domain.StreamAssistant, Text: "stuck\nDEVBOARD_BLOCKED {\"summary\":\"need the prod DB password\"}"}
+	obs := []runnerwire.Observation{rt.started(run),
+		{Seq: 2, Kind: "event", Event: &say},
+		{Seq: 3, Kind: "event", Event: &agent.Event{Kind: agent.KindTurnEnd}}}
+	if _, e := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: obs}}); e != nil {
+		t.Fatal(e)
+	}
+	got, _ := rt.f.runs.Get(ctx, run.ID)
+	evs, _ := rt.f.runs.Events(ctx, run.ID, 0, 100)
+	types := map[domain.EventType]int{}
+	for _, ev := range evs {
+		types[ev.Type]++
+	}
+	t.Logf("remote run state=%s; events=%v", got.State, types)
+}
+
+// PoC-10: every usage snapshot / session-ref / state change re-logs the whole Run (prompt + handoff) to the event log.
+func TestPoC_UsageUpdatesRelogWholePrompt(t *testing.T) {
+	rt := newRunnerTest(t)
+	ctx := context.Background()
+	task := rt.task(t)
+	selected, resolved, _ := rt.svc.Route(ctx, task, domain.Resolved{Runner: rt.runner.ID, Agent: "codex"})
+	prompt := make([]byte, 30<<10)
+	for i := range prompt {
+		prompt[i] = 'p'
+	}
+	run, e := rt.f.runs.Create(ctx, NewRun{TaskID: task.ID, AgentID: resolved.Agent, Prompt: string(prompt),
+		RunnerID: selected.ID, Remote: true, Claim: rt.svc.Claim(selected, &runnerwire.Job{TargetBranch: "main"})})
+	if e != nil {
+		t.Fatal(e)
+	}
+	obs := []runnerwire.Observation{rt.started(run)}
+	for i := 0; i < 100; i++ {
+		in := int64(1000 + i*500)
+		obs = append(obs, runnerwire.Observation{Seq: int64(2 + i), Kind: "event", Event: &agent.Event{Kind: agent.KindUsage, Usage: &domain.Usage{InputTokens: &in, CostKind: "usage_only"}}})
+	}
+	if _, e := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: obs}}); e != nil {
+		t.Fatal(e)
+	}
+	evs, _ := rt.f.runs.Events(ctx, run.ID, 0, 1000)
+	total := 0
+	for _, ev := range evs {
+		total += len(ev.Payload)
+	}
+	t.Logf("100 usage snapshots on a 30KB-prompt run => %d events, %.1f MB of event-log payload", len(evs), float64(total)/1e6)
+}

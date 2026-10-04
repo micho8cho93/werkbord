@@ -1,0 +1,40 @@
+package remote
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"devboard/internal/agent"
+	"devboard/internal/runnerwire"
+	"context"
+	"devboard/internal/domain"
+)
+
+// PoC-6: runner loses its journal while the controller still lists the run as active => relaunch.
+func TestPoC_RunnerJournalLossRelaunchesAcceptedJob(t *testing.T) {
+	e := workerFixture(t)
+	run := e.start()
+	if n := len(e.fake.Sessions()); n != 1 {
+		t.Fatalf("sessions=%d", n)
+	}
+	got, _ := e.runs.Get(testCtx, run.ID)
+	t.Logf("controller state before: %s", got.State)
+	// the first process is still running; the journal directory is lost (disk restore, cleanup, reinstall)
+	if err := os.RemoveAll(filepath.Join(e.worker.Dir, "runs")); err != nil {
+		t.Fatal(err)
+	}
+	registry := agent.NewRegistry()
+	registry.Register(e.fake)
+	w2 := &Worker{Dir: e.worker.Dir, Identity: e.worker.Identity, Agents: registry, Client: e.server.Client(), Now: e.worker.Now,
+		Bindings: e.worker.Bindings, Capabilities: e.worker.Capabilities, Prepare: e.worker.Prepare}
+	if err := w2.Load(testCtx); err != nil {
+		t.Fatal(err)
+	}
+	_ = w2.Tick(testCtx) // first tick after "restart"
+	waitFor(t, func() bool { return len(e.fake.Sessions()) >= 2 })
+	t.Logf("sessions launched for the SAME run id after journal loss: %d", len(e.fake.Sessions()))
+	_ = runnerwire.Lease
+	_ = context.Background
+	_ = domain.RunRunning
+}

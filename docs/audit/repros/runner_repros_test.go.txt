@@ -1,0 +1,134 @@
+package runner
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"devboard/internal/domain"
+	"devboard/internal/gitrepo"
+	"devboard/internal/runnerwire"
+	"devboard/internal/service"
+)
+
+// PoC-2: an unreachable remote silently stalls every scheduled task, with one fetch per tick.
+func TestPoC_UnreachableRemoteSilentlyStallsSchedule(t *testing.T) {
+	var fetches atomic.Int64
+	repoPath := ""
+	e := newEnv(t, withOptions(func(o *Options) {
+		o.RefreshRemotes = func(ctx context.Context, id string) error { // identical to controller.go:152-173
+			fetches.Add(1)
+			g := &gitrepo.CLI{}
+			for _, name := range []string{"origin"} {
+				result, err := g.Fetch(ctx, repoPath, name)
+				_ = result
+				if err != nil {
+					return err
+				}
+				if result.Outcome != domain.OutcomeDone {
+					return fmt.Errorf("%w: cannot refresh remote %s: %s", domain.ErrConflict, name, result.Message)
+				}
+			}
+			return nil
+		}
+	}))
+	repoPath = e.repo
+	git(t, e.repo, "remote", "add", "origin", "https://127.0.0.1:1/x.git")
+	now := time.Now().UTC()
+	e.orchestrate(&now)
+	task := e.arm(e.task("nightly"), domain.Orchestration{})
+	var last error
+	start := time.Now()
+	for i := 0; i < 5; i++ {
+		last = e.mgr.ScheduleOnce(ctx)
+	}
+	t.Logf("5 ticks in %v, ScheduleOnce err=%v, fetch attempts=%d", time.Since(start), last, fetches.Load())
+	plan, _ := e.mgr.opt.Scheduler.Plan(ctx, e.project.ID)
+	t.Logf("plan decision shown to user: %+v", plan)
+	tk, _ := e.tasks.Get(ctx, task.ID)
+	t.Logf("task.Orchestration.Error=%q Missed=%v RunID=%q", tk.Orchestration.Error, tk.Orchestration.Missed, tk.Orchestration.RunID)
+	rs, _ := e.runs.ListByTask(ctx, task.ID)
+	t.Logf("runs=%d", len(rs))
+}
+
+
+// PoC-3: user (or a cleaner) deletes the task's worktree directory: task can never start again.
+func TestPoC_MissingWorktreeDirBlocksTaskForever(t *testing.T) {
+	e := newEnv(t)
+	now := time.Now().UTC()
+	e.orchestrate(&now)
+	task := e.task("feature")
+	r1 := e.start(task)
+	e.session().Close(ctx)
+	e.waitState(r1.ID, domain.RunCompleted)
+	wt, _ := e.worktrees.Get(ctx, e.run(r1.ID).WorktreeID)
+	if err := os.RemoveAll(wt.Path); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("removed worktree dir %s", filepath.Base(wt.Path))
+	_, err := e.mgr.Start(ctx, StartInput{TaskID: task.ID, AgentID: "fake"})
+	t.Logf("manual restart error: %v", err)
+	task, _ = e.tasks.Get(ctx, task.ID)
+	task = e.arm(task, domain.Orchestration{})
+	for i := 0; i < 3; i++ {
+		_ = e.mgr.ScheduleOnce(ctx)
+	}
+	plan, _ := e.mgr.opt.Scheduler.Plan(ctx, e.project.ID)
+	t.Logf("plan: %+v", plan)
+	_ = service.Scheduler{}
+	_ = runnerwire.Lease
+}
+
+
+// PoC-4: untracked secret-bearing files are copied into the next agent's prompt.
+func TestPoC_HandoffContextLeaksUntrackedSecrets(t *testing.T) {
+	e := newEnv(t)
+	now := time.Now().UTC()
+	e.orchestrate(&now)
+	task := e.task("feature")
+	r1 := e.start(task)
+	wt, _ := e.worktrees.Get(ctx, e.run(r1.ID).WorktreeID)
+	_ = os.WriteFile(filepath.Join(wt.Path, ".env.local"), []byte("STRIPE_SECRET_KEY=sk_live_PoC1234567890\n"), 0o600)
+	e.session().Close(ctx)
+	e.waitState(r1.ID, domain.RunCompleted)
+	time.Sleep(300 * time.Millisecond)
+	out, err := e.mgr.opt.Handoffs.Context(ctx, r1.ID, "review", "")
+	t.Logf("err=%v leaked=%v", err, strings.Contains(out, "sk_live_PoC1234567890"))
+	if i := strings.Index(out, "sk_live"); i >= 0 {
+		t.Logf("...%s...", out[max(0, i-80):min(len(out), i+40)])
+	}
+}
+
+// PoC-7: cost of one Plan() (== one Control Center / schedule API read, and one scheduler tick) with many runnable tasks.
+func TestPoC_PlanCostGrowsWithQueuedTasks(t *testing.T) {
+	e := newEnv(t)
+	now := time.Now().UTC()
+	e.orchestrate(&now)
+	for _, n := range []int{1, 10, 40, 100} {
+		for i := len(mustList(e)); i < n; i++ {
+			e.arm(e.task(fmt.Sprintf("queued-%d", i)), domain.Orchestration{})
+		}
+		start := time.Now()
+		plan, err := e.mgr.opt.Scheduler.Plan(ctx, e.project.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runnable := 0
+		for _, d := range plan {
+			if d.State == "runnable" {
+				runnable++
+			}
+		}
+		t.Logf("tasks=%3d runnable=%3d Plan() took %v", n, runnable, time.Since(start).Round(time.Millisecond))
+	}
+}
+
+func mustList(e *env) []domain.Task {
+	ts, _ := e.tasks.List(ctx, e.project.ID)
+	return ts
+}

@@ -1,0 +1,55 @@
+package sqlite
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"devboard/internal/domain"
+	"devboard/internal/store"
+)
+
+// PoC-9: per-second scheduler / Control Center reads with a long run history.
+func TestPoC_RunHistoryReadCost(t *testing.T) {
+	db, _ := openTemp(t)
+	p := seedProject(t, db)
+	prompt := strings.Repeat("x", 20<<10)
+	h := &domain.Handoff{Objective: "o", Summary: strings.Repeat("s", 8<<10)}
+	const tasks, per = 200, 100
+	ids := make([]string, 0, tasks)
+	for i := 0; i < tasks; i++ {
+		ids = append(ids, mustTask(t, db, p.ID).ID)
+	}
+	base := time.Now().Add(-20 * 24 * time.Hour)
+	n := 0
+	if err := db.Update(ctx, func(tx store.Tx) error {
+		for _, id := range ids {
+			for j := 0; j < per; j++ {
+				r := newRun(p.ID, id, domain.RunCompleted)
+				now := base.Add(time.Duration(n) * time.Minute)
+				r.CreatedAt, r.UpdatedAt, r.Prompt, r.Handoff, r.Attempt = now.UTC().Truncate(time.Millisecond), now.UTC().Truncate(time.Millisecond), prompt, h, j+1
+				end := r.CreatedAt.Add(time.Minute)
+				r.EndedAt = &end
+				if err := tx.Runs().Create(ctx, r); err != nil {
+					return err
+				}
+				n++
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("runs=%d", n)
+	time1 := func(name string, f func(tx store.Tx) error) {
+		s := time.Now()
+		if err := db.View(ctx, f); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("%-28s %v", name, time.Since(s).Round(time.Millisecond))
+	}
+	time1("ListLatestByProject", func(tx store.Tx) error { _, e := tx.Runs().ListLatestByProject(ctx, p.ID); return e })
+	time1("ListActive", func(tx store.Tx) error { _, e := tx.Runs().ListActive(ctx); return e })
+	time1("ListByProject(500)", func(tx store.Tx) error { _, e := tx.Runs().ListByProject(ctx, p.ID, 500); return e })
+	time1("ListByTask (1 task)", func(tx store.Tx) error { _, e := tx.Runs().ListByTask(ctx, ids[0]); return e })
+}
