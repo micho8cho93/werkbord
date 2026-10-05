@@ -81,6 +81,16 @@ func newHandoffWorld(t *testing.T, repo string, remotes ...string) *handoffWorld
 			}
 			projects = append(projects, map[string]any{"id": "prj_norepo", "name": "no repo"})
 			_ = json.NewEncoder(rw).Encode(map[string]any{"projects": projects})
+		case r.Method == "GET" && strings.HasSuffix(r.URL.Path, "/runs"):
+			_ = json.NewEncoder(rw).Encode(map[string]any{"runs": []any{}})
+		case r.Method == "GET" && strings.HasSuffix(r.URL.Path, "/git/compare"):
+			if r.URL.Query().Get("commitLimit") != "200" {
+				http.Error(rw, "incomplete commit report", 400)
+				return
+			}
+			_ = json.NewEncoder(rw).Encode(map[string]any{"branchSha": strings.Repeat("a", 40), "target": "main", "ahead": 1, "behind": 0, "unique": map[string]any{"items": []any{map[string]any{"sha": strings.Repeat("a", 40), "subject": "Client-reported commit", "author": "Bo"}}}, "files": []any{map[string]any{"path": "login.go"}}, "filesTotal": 1})
+		case r.Method == "GET" && strings.HasSuffix(r.URL.Path, "/git/pull-requests"):
+			_ = json.NewEncoder(rw).Encode(map[string]any{"available": true, "pullRequests": []any{map[string]any{"number": 42, "url": "https://github.com/acme/shop/pull/42", "headBranch": "wb-1-authentication-error", "baseBranch": "main", "state": "open", "draft": true}}})
 		case r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/tasks"):
 			var b map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&b)
@@ -212,5 +222,31 @@ func TestHandoffExplainsWhatIsMissing(t *testing.T) {
 	// An explicit local project skips the matching.
 	if _, _, err := runCLI(t, w.env(w.boToken), "handoff", "--ticket", "WB-1", "--runner", w.local.URL, "--local-project", "prj_a"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestHandoffDeveloperClientReportsCommitsAndPullRequest(t *testing.T) {
+	w := newHandoffWorld(t, "https://github.com/acme/shop", "https://github.com/acme/shop")
+	if _, _, err := runCLI(t, w.env(w.boToken), "handoff", "--ticket", "WB-1", "--runner", w.local.URL, "--report"); err != nil {
+		t.Fatal(err)
+	}
+	pid, tid, err := findTicket(context.Background(), w.local.Client(), w.teamURL, w.boToken, "", "WB-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ticket struct {
+		Commits []struct {
+			Subject string `json:"subject"`
+		} `json:"commits"`
+		PullRequest *struct {
+			Number int  `json:"number"`
+			Draft  bool `json:"draft"`
+		} `json:"pullRequest"`
+	}
+	if err := doJSON(context.Background(), w.local.Client(), "GET", w.teamURL+"/api/team/v1/projects/"+pid+"/tickets/"+tid, w.boToken, nil, &ticket); err != nil {
+		t.Fatal(err)
+	}
+	if len(ticket.Commits) != 1 || ticket.Commits[0].Subject != "Client-reported commit" || ticket.PullRequest == nil || ticket.PullRequest.Number != 42 || !ticket.PullRequest.Draft {
+		t.Fatalf("bridge lost metadata: %+v", ticket)
 	}
 }

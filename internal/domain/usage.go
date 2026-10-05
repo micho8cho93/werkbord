@@ -7,6 +7,7 @@ import (
 
 // Unknown measurements stay nil. Cost is denominated in USD only when reported.
 type Usage struct {
+	Partial      bool     `json:"partial,omitempty"`
 	InputTokens  *int64   `json:"inputTokens,omitempty"`
 	OutputTokens *int64   `json:"outputTokens,omitempty"`
 	CachedTokens *int64   `json:"cachedTokens,omitempty"`
@@ -50,4 +51,52 @@ type RoutingRule struct {
 	Reasoning   string `json:"reasoning,omitempty"`
 	MinCPU      int    `json:"minCpu,omitempty"`
 	MinRAMBytes int64  `json:"minRamBytes,omitempty"`
+}
+
+// MergeUsage retains known cumulative measurements across incomplete snapshots.
+func MergeUsage(old, next Usage) Usage {
+	max := func(a, b *int64) *int64 {
+		if b == nil || a != nil && *a > *b {
+			return a
+		}
+		return b
+	}
+	next.InputTokens = max(old.InputTokens, next.InputTokens)
+	next.OutputTokens = max(old.OutputTokens, next.OutputTokens)
+	next.CachedTokens = max(old.CachedTokens, next.CachedTokens)
+	next.APICalls = max(old.APICalls, next.APICalls)
+	if next.CostUSD == nil || old.CostUSD != nil && (old.CostKind != next.CostKind || *old.CostUSD > *next.CostUSD) {
+		next.CostUSD, next.CostKind, next.Source = old.CostUSD, old.CostKind, old.Source
+	}
+	if next.Source == "" {
+		next.Source = old.Source
+	}
+	next.Partial = old.Partial || next.Partial
+	next.Acceptance = old.Acceptance
+	return next
+}
+
+// UsageAfterBaseline reports only verifiable increments in cumulative counters.
+// Unknown baseline fields cannot be attributed to the resumed invocation.
+func UsageAfterBaseline(base, now Usage) Usage {
+	delta := func(a, b *int64) *int64 {
+		if a == nil || b == nil || *b < *a {
+			return nil
+		}
+		v := *b - *a
+		return &v
+	}
+	now.InputTokens = delta(base.InputTokens, now.InputTokens)
+	now.OutputTokens = delta(base.OutputTokens, now.OutputTokens)
+	now.CachedTokens = delta(base.CachedTokens, now.CachedTokens)
+	now.APICalls = delta(base.APICalls, now.APICalls)
+	if base.CostUSD != nil && now.CostUSD != nil && base.CostKind == now.CostKind && *now.CostUSD >= *base.CostUSD {
+		v := *now.CostUSD - *base.CostUSD
+		now.CostUSD = &v
+	} else {
+		now.CostUSD = nil
+		now.CostKind = "usage_only"
+	}
+	now.Partial = true
+	return now
 }

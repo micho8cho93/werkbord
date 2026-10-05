@@ -354,9 +354,9 @@ func TestEventQueueDropsOnlyOutput(t *testing.T) {
 
 func TestSanitizedEnv(t *testing.T) {
 	in := []string{"PATH=/bin", "HOME=/h", "GIT_DIR=/x/.git", "GIT_WORK_TREE=/x", "GIT_CONFIG_COUNT=1",
-		"GIT_CONFIG_KEY_0=core.sshCommand", "GIT_CONFIG_VALUE_0=evil", "GIT_AUTHOR_NAME=me", "ANTHROPIC_API_KEY=k"}
+		"GIT_CONFIG_KEY_0=core.sshCommand", "GIT_CONFIG_VALUE_0=evil", "GIT_AUTHOR_NAME=me", "ANTHROPIC_API_KEY=k", "DEVBOARD_TOKEN=controller-secret", "WERKBORD_API_KEY=controller-key", "TS_AUTHKEY=join-secret"}
 	got := strings.Join(SanitizedEnv(in), " ")
-	for _, gone := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"} {
+	for _, gone := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "DEVBOARD_TOKEN", "WERKBORD_API_KEY", "TS_AUTHKEY"} {
 		if strings.Contains(got, gone) {
 			t.Errorf("%s survived: %s", gone, got)
 		}

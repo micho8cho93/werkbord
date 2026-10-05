@@ -189,3 +189,36 @@ func TestPublishedContinuationRequiresLatestOwnedCommitAndFreshTarget(t *testing
 		t.Fatal("stale prior branch admitted after fresh fetch")
 	}
 }
+
+func TestIntendedBranchContinuationRetainsCommitsAndRefusesForeignWorktree(t *testing.T) {
+	e := workerFixture(t)
+	w := &Worker{Dir: t.TempDir(), Bindings: map[string]string{e.project.ID: e.project.RepoPath}, records: map[string]*Record{}}
+	j := runnerwire.Job{Run: domain.Run{ID: "run_ticket_first", RunnerID: "rnr_ticket", ProjectID: e.project.ID}, WorkBranch: "ticket-branch", TargetBranch: "main"}
+	path, branch, _, err := w.prepare(testCtx, j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(path, "ticket.txt"), []byte("retained ticket work"), 0600)
+	runGit(t, path, "add", ".")
+	runGit(t, path, "commit", "-m", "ticket work")
+	head := strings.TrimSpace(runGit(t, path, "rev-parse", "HEAD"))
+	w.records[j.Run.ID] = &Record{Job: j, Path: path, Phase: "ended"}
+	j.Run.ID = "run_ticket_second"
+	j.PreviousBranch = branch
+	j.PreviousCommit = head
+	next, got, _, err := w.prepare(testCtx, j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != branch {
+		t.Fatal("ticket branch changed")
+	}
+	if data, err := os.ReadFile(filepath.Join(next, "ticket.txt")); err != nil || string(data) != "retained ticket work" {
+		t.Fatalf("lost work: %q %v", data, err)
+	}
+	// A checked-out branch absent from this worker's journal cannot be removed.
+	j.Run.ID = "run_ticket_third"
+	if _, _, _, err := w.prepare(testCtx, j); err == nil {
+		t.Fatal("foreign worktree removed")
+	}
+}

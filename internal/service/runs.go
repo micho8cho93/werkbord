@@ -27,7 +27,7 @@ type Runs struct {
 // Limits on what an agent can make the controller store.
 const (
 	maxOutputBytes   = 16 << 10 // one output event
-	maxPromptBytes   = 100 << 10
+	maxPromptBytes   = 512 << 10
 	maxQuestionBytes = 8 << 10
 	maxContextBytes  = 16 << 10
 	maxOptions       = 10
@@ -166,9 +166,10 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 
 // Started describes the process that now backs a run.
 type Started struct {
-	PID        int
-	ProcessID  string // identifies the process across restarts; see domain.Run.ProcessID
-	SessionRef string // the agent's resumable handle, if already known
+	UsagePartial bool
+	PID          int
+	ProcessID    string // identifies the process across restarts; see domain.Run.ProcessID
+	SessionRef   string // the agent's resumable handle, if already known
 	// Resumed is set when the process continues an existing run (a waiting run
 	// whose process was lost) rather than beginning one.
 	Resumed bool
@@ -193,6 +194,9 @@ func (s *Runs) MarkStarted(ctx context.Context, id string, in Started) (*domain.
 			return err
 		}
 		r.PID, r.ProcessID = in.PID, in.ProcessID
+		if in.Resumed || in.UsagePartial {
+			r.Usage.Partial = true
+		}
 		if in.SessionRef != "" {
 			r.SessionRef = in.SessionRef
 		}
@@ -1042,7 +1046,12 @@ func (s *Runs) ListPendingQuestions(ctx context.Context) ([]domain.Question, err
 // ---- events and helpers ----
 
 func emitRun(em *emitter, r *domain.Run, from domain.RunState) error {
-	ev := newEvent(domain.EventRunStateChanged, map[string]any{"run": r, "from": from})
+	snapshot := *r
+	snapshot.Prompt = ""
+	if !r.State.Terminal() || from == r.State {
+		snapshot.Handoff = nil
+	}
+	ev := newEvent(domain.EventRunStateChanged, map[string]any{"run": &snapshot, "from": from, "compact": true})
 	runIDs(&ev, r)
 	return em.emit(ev)
 }

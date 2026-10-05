@@ -1,0 +1,138 @@
+// Runs only against a disposable workspace: creates projects/members and renews its owner token.
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const os = require('node:os');
+const base = process.env.TEAM_BROWSER_URL || 'http://127.0.0.1:17430';
+const artifacts = process.env.BROWSER_ARTIFACT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'werkbord-browser-'));
+fs.mkdirSync(artifacts, { recursive: true });
+const tokenFile = process.env.TEAM_BROWSER_TOKEN_FILE;
+let token = process.env.TEAM_BROWSER_TOKEN || (tokenFile && fs.readFileSync(tokenFile, 'utf8').match(/wbt_[a-zA-Z0-9]+/)[0]);
+if (!token)
+    throw Error('Set TEAM_BROWSER_TOKEN or TEAM_BROWSER_TOKEN_FILE for a disposable sole-owner workspace.');
+async function api(method, path, data, credential = token) {
+    const res = await fetch(base + '/api/team/v1' + path, { method, headers: { Authorization: 'Bearer ' + credential, 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined });
+    const text = await res.text();
+    let body;
+    try {
+        body = JSON.parse(text);
+    }
+    catch { }
+    ;
+    if (res.status >= 400)
+        throw Error(method + ' ' + path + ' ' + res.status + ' ' + text);
+    return body;
+}
+(async () => {
+    const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) });
+    let errors = [];
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    page.on('pageerror', e => errors.push(e.message));
+    page.setDefaultTimeout(10000);
+    const p = await api('POST', '/projects', { name: 'Alpha ' + Date.now(), repository: 'https://github.com/acme/shop' });
+    const q = await api('POST', '/projects', { name: 'Beta ' + Date.now(), repository: 'https://github.com/acme/shop-b' });
+    let k = await api('POST', `/projects/${p.id}/tickets`, { title: 'Concurrent ticket', description: 'Original description', requirements: 'Original context', status: 'available' });
+    k = await api('POST', `/projects/${p.id}/tickets/${k.id}/claim`);
+    await page.goto(base + '/#token=' + token);
+    await page.getByRole('button', { name: 'New token', exact: true }).first().click();
+    await page.getByText('Your token', { exact: true }).waitFor();
+    const fresh = await page.locator('.secret code').first().textContent();
+    assert.notEqual(fresh, token);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('werkbord-team-token')), fresh);
+    assert.equal((await fetch(base + '/api/team/v1/me', { headers: { Authorization: 'Bearer ' + token } })).status, 401);
+    token = fresh;
+    fs.writeFileSync(path.join(artifacts, 'active-token.txt'), token, { mode: 0o600 });
+    await page.reload();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).waitFor();
+    console.log('PASS self rotation, credential persistence, sole owner, reload');
+    await page.goto(base + `/?tab=board&project=${p.id}&ticket=${k.id}`);
+    await page.getByText('Edit this ticket', { exact: true }).click();
+    const editTitle = page.locator(`[name="e-title-${k.id}"]`);
+    await editTitle.fill('Draft title');
+    await page.locator(`[name="e-desc-${k.id}"]`).fill('');
+    const req = page.locator(`[name="e-reqs-${k.id}"]`);
+    await req.fill('Draft requirements');
+    await req.press('Tab');
+    await req.focus();
+    await req.evaluate(e => e.setSelectionRange(5, 5));
+    const ctx2 = await browser.newContext();
+    const other = await ctx2.newPage();
+    await other.goto(base + '/#token=' + token);
+    await other.getByRole('button', { name: 'Sign out', exact: true }).waitFor();
+    const changed = await api('PATCH', `/projects/${p.id}/tickets/${k.id}`, { title: 'Other client title', description: 'Other client description', version: k.version });
+    await page.getByText(/Someone changed this ticket/).waitFor();
+    assert.equal(await editTitle.inputValue(), 'Draft title');
+    assert.equal(await page.locator(`[name="e-desc-${k.id}"]`).inputValue(), '');
+    assert.equal(await req.inputValue(), 'Draft requirements');
+    assert.equal(await req.evaluate(e => document.activeElement === e && e.selectionStart === 5), true);
+    assert.equal(await req.evaluate(e => e.closest('details').open), true);
+    const response = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().includes(k.id));
+    await page.locator(`[data-ticket-id="${k.id}"]`).getByRole('button', { name: 'Save', exact: true }).click();
+    assert.equal((await response).status(), 409);
+    const unchanged = await api('GET', `/projects/${p.id}/tickets/${k.id}`);
+    assert.equal(unchanged.title, changed.title);
+    await page.getByRole('button', { name: 'Load latest version', exact: true }).click();
+    await page.waitForFunction(id => document.querySelector('[name="e-title-' + id + '"]')?.value === 'Other client title', k.id);
+    console.log('PASS concurrent editors, stale-version rejection, intentional empty text, disclosure, keyboard focus, conflict recovery');
+    // Independent drafts survive navigation without carrying into another project.
+    await page.goto(base + `/?tab=board&project=${p.id}`);
+    await page.locator('[name="t-title"]').fill('Alpha draft');
+    await page.locator('[name="project-switch"]').selectOption(q.id);
+    await page.locator('[name="t-title"]').waitFor();
+    await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === '');
+    await page.locator('[name="t-title"]').fill('Beta draft');
+    await page.locator('[name="project-switch"]').selectOption(p.id);
+    await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
+    await page.getByRole('button', { name: 'Activity', exact: true }).click();
+    await page.getByRole('button', { name: 'Board', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
+    console.log('PASS project-scoped drafts and round-trip navigation');
+    // Actual reported commits are visible from Board details.
+    await api('PUT', `/projects/${p.id}/tickets/${k.id}/git`, { commits: [{ sha: 'a'.repeat(40), subject: 'Verified browser commit', author: 'Ada', committedAt: new Date().toISOString() }], pullRequest: { number: 7, url: 'https://github.com/acme/shop/pull/7', state: 'open', draft: true, mergeable: 'conflicting', baseBranch: 'main', ahead: 8, behind: 3 } });
+    await page.getByRole('button', { name: 'Other client title', exact: true }).click();
+    await page.getByText('Verified browser commit', { exact: false }).waitFor();
+    assert(page.url().includes('ticket=' + k.id));
+    await page.goBack();
+    await page.waitForFunction(() => !new URL(location.href).searchParams.has('ticket'));
+    await page.goForward();
+    await page.getByText('Verified browser commit', { exact: false }).waitFor();
+    await page.getByText('Record branch and pull request', { exact: true }).click();
+    await page.locator(`[name="g-state-${k.id}"]`).selectOption('closed');
+    await api('POST', '/members', { name: 'Refresh trigger ' + Date.now() });
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator(`[name="g-state-${k.id}"]`).inputValue(), 'closed');
+    console.log('PASS Board commits, direct links, browser back/forward, select draft retention');
+    // Reconnect leaves edits in place and refreshes authoritative server state.
+    if (!await editTitle.isVisible())
+        await page.getByText('Edit this ticket', { exact: true }).click();
+    await ctx.setOffline(true);
+    await page.locator(`[name="e-title-${k.id}"]`).fill('Reconnect draft');
+    await ctx.setOffline(false);
+    await api('POST', '/members', { name: 'Reconnect trigger ' + Date.now() });
+    await page.waitForTimeout(1000);
+    assert.equal(await editTitle.inputValue(), 'Reconnect draft');
+    console.log('PASS reconnect draft recovery');
+    await api('POST', `/projects/${p.id}/tickets/${k.id}/submit`, {});
+    await page.getByRole('button', { name: 'Mark done', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Mark done', exact: true }).isDisabled(), true);
+    await page.getByRole('button', { name: 'Reviews', exact: true }).click();
+    await page.getByText(/pull request is still open/).first().waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Mark done', exact: true }).first().isDisabled(), true);
+    console.log('PASS consistent open-PR completion restriction in Board and Reviews');
+    await page.getByRole('button', { name: 'Board', exact: true }).click();
+    await page.locator('[name="t-title"]').waitFor();
+    await page.getByRole('button', { name: 'Other client title', exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, 'desktop.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(200);
+    if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, 'mobile.png') });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2);
+    assert.equal(overflow, false, 'mobile document overflows');
+    assert.deepEqual(errors, []);
+    console.log('PASS desktop/mobile layout, no JavaScript errors');
+    await browser.close();
+    console.log('Artifacts: ' + artifacts);
+})().catch(e => { console.error(e.message); process.exit(1); });

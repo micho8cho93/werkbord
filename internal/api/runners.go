@@ -154,3 +154,15 @@ func (s *Server) handleRunAssessment(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, out)
 }
+
+func (s *Server) handleRevokeRunner(w http.ResponseWriter, r *http.Request) {
+	if s.opt.Distributed == nil {
+		writeError(w, 503, "unavailable", "runner management unavailable")
+		return
+	}
+	if err := s.opt.Distributed.Revoke(r.Context(), r.PathValue("id")); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "revoked", "message": "Identity fenced immediately; active ownership released after 120 seconds. Work remains unverified."})
+}

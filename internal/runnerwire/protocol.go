@@ -15,6 +15,8 @@ import (
 	"devboard/internal/domain"
 )
 
+const Protocol = 1
+
 const Lease = 90 * time.Second
 const OnlineWindow = 30 * time.Second
 
@@ -36,6 +38,9 @@ type Join struct {
 	Version   string `json:"version"`
 }
 type Job struct {
+	Protocol          int               `json:"protocol"`
+	WorkBranch        string            `json:"workBranch,omitempty"`
+	Rejected          string            `json:"rejected,omitempty"`
 	PreviousCommit    string            `json:"previousCommit,omitempty"`
 	PreviousPublished bool              `json:"previousPublished,omitempty"`
 	PreviousBranch    string            `json:"previousBranch,omitempty"`
@@ -60,7 +65,7 @@ type Command struct {
 }
 type Observation struct {
 	Seq         int64         `json:"seq"`
-	Kind        string        `json:"kind"` // started, event, ended, command, workspace
+	Kind        string        `json:"kind"` // accepted, started, event, ended, command, workspace
 	Event       *agent.Event  `json:"event,omitempty"`
 	Result      *agent.Result `json:"result,omitempty"`
 	CommandID   string        `json:"commandId,omitempty"`
@@ -76,20 +81,27 @@ type Report struct {
 	Observations []Observation `json:"observations"`
 }
 type Sync struct {
-	RunnerID     string                    `json:"runnerId"`
-	Sequence     int64                     `json:"sequence"`
-	At           time.Time                 `json:"at"`
-	Capabilities domain.RunnerCapabilities `json:"capabilities"`
-	Reports      []Report                  `json:"reports"`
+	Protocol           int                       `json:"protocol"`
+	Version            string                    `json:"version,omitempty"`
+	ControllerSequence int64                     `json:"controllerSequence,omitempty"`
+	RunnerID           string                    `json:"runnerId"`
+	Sequence           int64                     `json:"sequence"`
+	At                 time.Time                 `json:"at"`
+	Capabilities       domain.RunnerCapabilities `json:"capabilities"`
+	Reports            []Report                  `json:"reports"`
 }
 type SyncReply struct {
-	Jobs         []Job            `json:"jobs"`
-	Acks         map[string]int64 `json:"acks"`
-	LeaseSeconds int              `json:"leaseSeconds"`
-	Projects     []string         `json:"projects"`
-	AllowClone   bool             `json:"allowClone"`
-	Capacity     int              `json:"capacity"`
-	Disabled     bool             `json:"disabled"`
+	Protocol     int               `json:"protocol"`
+	Sequence     int64             `json:"sequence"`
+	StateLost    bool              `json:"stateLost,omitempty"`
+	Rejected     map[string]string `json:"rejected"`
+	Jobs         []Job             `json:"jobs"`
+	Acks         map[string]int64  `json:"acks"`
+	LeaseSeconds int               `json:"leaseSeconds"`
+	Projects     []string          `json:"projects"`
+	AllowClone   bool              `json:"allowClone"`
+	Capacity     int               `json:"capacity"`
+	Disabled     bool              `json:"disabled"`
 }
 
 func Signature(key ed25519.PrivateKey, body []byte) string {

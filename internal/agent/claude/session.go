@@ -16,11 +16,12 @@ type session struct {
 	*agent.Base
 	workDir string
 
-	mu           sync.Mutex
-	sessionRef   string
-	pending      map[string]*request // by request ID
-	lastError    string
-	resumedUsage bool
+	mu            sync.Mutex
+	sessionRef    string
+	pending       map[string]*request // by request ID
+	lastError     string
+	usageBaseline *domain.Usage
+	resumedUsage  bool
 }
 
 // request is a permission request the agent is blocked on.
@@ -229,7 +230,7 @@ func resultText(raw json.RawMessage) string {
 }
 
 func (s *session) onResult(e *envelope) {
-	if !s.resumedUsage && (e.Cost != nil || len(e.ModelUsage) > 0) {
+	if e.Cost != nil || len(e.ModelUsage) > 0 {
 		u := domain.Usage{CostKind: "usage_only", Source: "Claude CLI cumulative modelUsage; API-equivalent estimate"}
 		if e.Cost != nil {
 			u.CostUSD = e.Cost
@@ -257,6 +258,15 @@ func (s *session) onResult(e *envelope) {
 				u.InputTokens = &input
 				u.OutputTokens = &output
 				u.CachedTokens = &cached
+			}
+		}
+		if s.resumedUsage {
+			if s.usageBaseline == nil {
+				baseline := u
+				s.usageBaseline = &baseline
+				u = domain.Usage{Partial: true, CostKind: "usage_only", Source: u.Source}
+			} else {
+				u = domain.UsageAfterBaseline(*s.usageBaseline, u)
 			}
 		}
 		if u.Validate() == nil {

@@ -252,6 +252,23 @@ func TestReviewsListsWhatAReviewerMayDecide(t *testing.T) {
 		!strings.Contains(second.Blocker, "still open") || second.Links.PullRequest != prURL {
 		t.Fatalf("%+v", second)
 	}
+	// Board uses the identical gate, including open PRs and self-review.
+	for _, actor := range []Actor{tm.di, tm.bo, tm.cy} {
+		board, err := tm.svc.Board(bg, actor, tm.pid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		reviews, err := tm.svc.Reviews(bg, actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range reviews.Items {
+			reason, exists := board.Completion[item.Ticket.ID]
+			if !exists || reason != item.Blocker || (reason == "") != item.CanComplete {
+				t.Fatalf("Board/Reviews disagree for %s: board=%q review=%+v", actor.Member.ID, reason, item)
+			}
+		}
+	}
 	// Once the pull request is merged on the Git host and the merge is recorded, the reviewer may finish it.
 	merged := openPR()
 	merged.State = domain.PRMerged

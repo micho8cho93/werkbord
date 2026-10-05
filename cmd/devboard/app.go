@@ -30,6 +30,8 @@ type app struct {
 
 	// daemon returns the service manager for this system.
 	daemon func(ctx context.Context) daemon.Manager
+	// runnerDaemon manages the separate runner process after a binary update.
+	runnerDaemon func(ctx context.Context) daemon.Manager
 	// installed returns the manager and whether the service is installed.
 	installed func(ctx context.Context) (daemon.Manager, bool)
 	// executable is the path of the running devboard.
@@ -61,6 +63,9 @@ func newApp(cfg config.Config, out, errOut io.Writer) *app {
 	}
 	a.daemon = func(ctx context.Context) daemon.Manager {
 		return daemon.Detect(ctx, daemon.Options{DataDir: cfg.DataDir})
+	}
+	a.runnerDaemon = func(ctx context.Context) daemon.Manager {
+		return daemon.Detect(ctx, daemon.Options{DataDir: runnerDir(cfg), Label: "dev.devboard.runner"})
 	}
 	a.installed = func(ctx context.Context) (daemon.Manager, bool) {
 		return daemon.Installed(ctx, daemon.Options{DataDir: cfg.DataDir})
@@ -262,7 +267,11 @@ func (a *app) start(ctx context.Context, say bool) error {
 }
 
 func (a *app) cmdStop(ctx context.Context, args []string) error {
-	if err := noArgs("stop", args); err != nil {
+	force, err := interruptionFlags("stop", args, a.errOut)
+	if err != nil {
+		return err
+	}
+	if err := a.checkInterruption(ctx, force); err != nil {
 		return err
 	}
 	return a.stop(ctx, true)
@@ -301,7 +310,11 @@ func (a *app) stop(ctx context.Context, say bool) error {
 }
 
 func (a *app) cmdRestart(ctx context.Context, args []string) error {
-	if err := noArgs("restart", args); err != nil {
+	force, err := interruptionFlags("restart", args, a.errOut)
+	if err != nil {
+		return err
+	}
+	if err := a.checkInterruption(ctx, force); err != nil {
 		return err
 	}
 	if err := a.stop(ctx, false); err != nil {

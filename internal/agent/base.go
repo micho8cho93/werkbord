@@ -231,6 +231,9 @@ func SanitizedEnv(env []string) []string {
 	out := make([]string, 0, len(env)+1)
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
+		if domain.IsControllerSecret(kv) {
+			continue
+		}
 		if strings.HasPrefix(name, "GIT_CONFIG_KEY_") || strings.HasPrefix(name, "GIT_CONFIG_VALUE_") {
 			continue
 		}

@@ -30,6 +30,8 @@ type Store interface {
 
 // Tx exposes the repositories bound to one transaction.
 type Tx interface {
+	// Savepoint rolls back only fn on failure, retaining other work in this transaction.
+	Savepoint(context.Context, func() error) error
 	Projects() ProjectRepo
 	Repositories() GitRepositoryRepo
 	Tasks() TaskRepo
@@ -177,8 +179,13 @@ type HealthRepo interface {
 	SetCheck(ctx context.Context, c domain.HealthCheck) error
 }
 
-// EventRepo is the append-only event log.
+// EventRepo is the sequenced event log; terminal transcript retention is bounded.
 type EventRepo interface {
+	ListAfterProject(ctx context.Context, projectID string, after int64, limit int) ([]domain.Event, error)
+	// ReplayFloor is the latest event removed by retention. Older clients resnapshot.
+	ReplayFloor(ctx context.Context) (int64, error)
+	// Prune removes at most 10,000 old terminal-run events; active evidence is retained.
+	Prune(ctx context.Context, now time.Time) (int, error)
 	// Append assigns e.Seq and e.CreatedAt (if zero) and stores e.
 	Append(ctx context.Context, e *domain.Event) error
 	// ListAfter returns up to limit events with Seq > after, in order.

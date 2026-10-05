@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
@@ -19,7 +20,7 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
 
   $effect(() => {
     const key = project.id + JSON.stringify(project.execution ?? {});
-    if (key !== draftFor) {
+    if (key !== draftFor && untrack(() => !draftFor || !draftFor.startsWith(project.id) || project.id + JSON.stringify(draft) === draftFor)) {
       draftFor = key;
       draft = { ...(project.execution ?? {}) };
     }
@@ -36,6 +37,7 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
     saved = false;
     try {
       app.upsertProject(await api.setProjectExecution(project.id, compact(draft)));
+      draftFor = project.id + JSON.stringify(compact(draft));
       saved = true;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);

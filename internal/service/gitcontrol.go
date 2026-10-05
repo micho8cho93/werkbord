@@ -781,6 +781,15 @@ func refFor(scope, name string) (string, error) {
 // files, with a page of them. The target defaults to the project's. scope names
 // whether branch is a local or a remote-tracking branch.
 func (s *GitControl) Compare(ctx context.Context, projectID, scope, branch, target string, offset, limit int) (*domain.GitComparison, error) {
+	return s.CompareWithCommitLimit(ctx, projectID, scope, branch, target, offset, limit, uniqueCommitsShow)
+}
+
+// CompareWithCommitLimit allows metadata clients to request a bounded complete
+// commit report, without increasing the work done by ordinary review screens.
+func (s *GitControl) CompareWithCommitLimit(ctx context.Context, projectID, scope, branch, target string, offset, limit, commitLimit int) (*domain.GitComparison, error) {
+	if commitLimit < 1 || commitLimit > 200 {
+		return nil, fmt.Errorf("%w: commit limit must be 1–200", domain.ErrInvalid)
+	}
 	unlock, err := s.refreshReview(ctx, projectID)
 	if err != nil {
 		return nil, err
@@ -824,7 +833,7 @@ func (s *GitControl) Compare(ctx context.Context, projectID, scope, branch, targ
 	if branchSha == targetSha {
 		cmp.Relation = domain.RelSame
 	}
-	if cmp.Unique, err = s.Git.Commits(ctx, t.root, branchSha, []string{targetSha}, 0, uniqueCommitsShow, true); err != nil {
+	if cmp.Unique, err = s.Git.Commits(ctx, t.root, branchSha, []string{targetSha}, 0, commitLimit, true); err != nil {
 		return nil, err
 	}
 	if cmp.Missing, err = s.Git.Commits(ctx, t.root, targetSha, []string{branchSha}, 0, missingCommitShow, true); err != nil {

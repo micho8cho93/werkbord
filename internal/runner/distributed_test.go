@@ -36,7 +36,7 @@ func TestManagerRoutesWithoutStartingControllerProcessAndRetainsOwnership(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	heartbeat := runnerwire.Sync{RunnerID: remote.ID, Sequence: 1, At: now, Capabilities: domain.RunnerCapabilities{CPU: 8, Agents: []domain.Agent{{ID: "fake", Available: true}}, Repositories: []string{e.project.ID}}}
+	heartbeat := runnerwire.Sync{Protocol: runnerwire.Protocol, RunnerID: remote.ID, Sequence: 1, At: now, Capabilities: domain.RunnerCapabilities{CPU: 8, Agents: []domain.Agent{{ID: "fake", Available: true}}, Repositories: []string{e.project.ID}}}
 	body, _ := json.Marshal(heartbeat)
 	if _, err := distributed.Sync(ctx, body, runnerwire.Signature(key, body)); err != nil {
 		t.Fatal(err)

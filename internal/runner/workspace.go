@@ -74,15 +74,43 @@ func (m *Manager) prepareWorkspace(ctx context.Context, project *service.Project
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create the worktree directory: %w", err)
 	}
-	base := repo.CurrentBranch
+	base := task.BaseBranch
+	if base != "" {
+		reader := &gitrepo.CLI{}
+		head, err := reader.ResolveCommit(ctx, repo.RootPath, "refs/heads/"+base)
+		if err != nil {
+			return nil, err
+		}
+		if head == "" {
+			remoteRef := "refs/remotes/origin/" + base
+			head, err = reader.ResolveCommit(ctx, repo.RootPath, remoteRef)
+			if err != nil {
+				return nil, err
+			}
+			if head == "" {
+				return nil, fmt.Errorf("%w: intended base %s is unavailable; fetch or restore that branch", domain.ErrConflict, base)
+			}
+			base = remoteRef
+		}
+	}
+	if base == "" {
+		base = repo.DefaultBranch
+	}
+	if base == "" {
+		base = repo.CurrentBranch
+	}
 	if base == "" {
 		base = repo.HeadCommit
+	}
+	startPoint := base
+	if task.Orchestration.TargetCommit != "" {
+		startPoint = task.Orchestration.TargetCommit
 	}
 	wt, err := m.opt.Worktrees.Create(ctx, service.NewWorktree{ProjectID: project.ID, Path: path, Branch: branch, BaseRef: base})
 	if err != nil {
 		return nil, err
 	}
-	added, err := m.opt.Git.AddWorktree(ctx, repo.RootPath, path, branch, repo.HeadCommit)
+	added, err := m.opt.Git.AddWorktree(ctx, repo.RootPath, path, branch, startPoint)
 	if err != nil {
 		m.retire(ctx, repo.RootPath, wt, false)
 		return nil, err
@@ -115,6 +143,9 @@ func (m *Manager) workspaceFromRemote(ctx context.Context, project *service.Proj
 	if e != nil {
 		return nil, e
 	}
+	if task.BaseBranch != "" {
+		target.Name = task.BaseBranch
+	}
 	base, e := reader.ResolveCommit(ctx, repo.RootPath, "refs/remotes/origin/"+target.Name)
 	if e != nil {
 		return nil, e
@@ -130,6 +161,19 @@ func (m *Manager) workspaceFromRemote(ctx context.Context, project *service.Proj
 		return nil, fmt.Errorf("%w: previous runner branch is stale; reconcile with the fresh shared target", domain.ErrConflict)
 	}
 	branch := branchName(task) + "-from-" + idTail(last.ID)
+	if task.WorkBranch != "" {
+		branch = task.WorkBranch
+		head, e := reader.ResolveCommit(ctx, repo.RootPath, "refs/heads/"+branch)
+		if e != nil {
+			return nil, e
+		}
+		if head != "" {
+			contains, e := reader.IsAncestor(ctx, repo.RootPath, last.HeadCommit, head)
+			if e != nil || !contains {
+				return nil, fmt.Errorf("%w: intended local branch lacks the prior runner commit; reconcile it with origin/%s", domain.ErrConflict, branch)
+			}
+		}
+	}
 	path := filepath.Join(m.opt.WorktreeRoot, project.ID, worktreeDirName(task))
 	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
 		return nil, e
@@ -185,6 +229,9 @@ func dirExists(path string) bool {
 // for a task, so work committed in an earlier run is found again, and the task
 // ID's tail keeps two tasks with similar titles apart.
 func branchName(task *domain.Task) string {
+	if task.WorkBranch != "" {
+		return task.WorkBranch
+	}
 	return "devboard/" + slug(task.Title) + "-" + idTail(task.ID)
 }
 

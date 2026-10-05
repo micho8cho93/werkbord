@@ -27,7 +27,10 @@ func (m *Manager) startRemote(ctx context.Context, in StartInput, task *domain.T
 	if remote != "" && !runnerwire.SafeRemote(remote) {
 		return nil, fmt.Errorf("%w: remote URL contains credentials or an unsupported transport", domain.ErrInvalid)
 	}
-	target := repo.DefaultBranch
+	target := task.BaseBranch
+	if target == "" {
+		target = repo.DefaultBranch
+	}
 	if target == "" {
 		target = repo.CurrentBranch
 	}
@@ -83,6 +86,15 @@ func (m *Manager) startRemote(ctx context.Context, in StartInput, task *domain.T
 	if manual && task.Orchestration.Enabled && task.Orchestration.RunID == "" && !task.Orchestration.Missed && task.Orchestration.Error == "" {
 		in.ScheduleKey = task.Orchestration.Key
 	}
-	job := &runnerwire.Job{RemoteURL: remote, TargetBranch: target, ExpectedCommit: task.Orchestration.TargetCommit, AllowClone: selected.AllowClone, PreviousBranch: previous, PreviousCommit: previousCommit, PreviousPublished: published}
+	if m.opt.Scheduler != nil {
+		note, e := m.opt.Scheduler.DependencyContext(ctx, task.ID)
+		if e != nil {
+			return nil, e
+		}
+		if note != "" {
+			in.Instructions += "\n\n" + note
+		}
+	}
+	job := &runnerwire.Job{WorkBranch: task.WorkBranch, RemoteURL: remote, TargetBranch: target, ExpectedCommit: task.Orchestration.TargetCommit, AllowClone: selected.AllowClone, PreviousBranch: previous, PreviousCommit: previousCommit, PreviousPublished: published}
 	return m.opt.Runs.Create(ctx, service.NewRun{TaskID: task.ID, AgentID: resolved.Agent, Prompt: buildPrompt(task, in.Instructions, false), Policy: resolved.Policy(), Model: resolved.Model, Reasoning: resolved.Reasoning, ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey, EnforceGates: m.opt.Scheduler != nil, Manual: manual, RunnerID: selected.ID, Remote: true, Claim: m.opt.Distributed.Claim(selected, job)})
 }

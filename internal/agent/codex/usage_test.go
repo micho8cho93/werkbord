@@ -19,3 +19,18 @@ func TestTokenUsageSnapshotKeepsZeroAndUnknownSeparate(t *testing.T) {
 		t.Fatalf("snapshot inflated or unknown cache fabricated %+v", ev.Usage)
 	}
 }
+
+func TestResumedUsageKeepsOnlyMeasuredDeltaAndMarksPartial(t *testing.T) {
+	s := newSession(agent.ProcSpec{}, "", Config{}, "", "")
+	s.resumedUsage = true
+	s.onNotification("thread/tokenUsage/updated", json.RawMessage(`{"tokenUsage":{"total":{"inputTokens":120,"outputTokens":8}}}`))
+	first := next(t, s, kind(agent.KindUsage))
+	if !first.Usage.Partial || first.Usage.InputTokens != nil {
+		t.Fatalf("historic usage billed to resume: %+v", first.Usage)
+	}
+	s.onNotification("thread/tokenUsage/updated", json.RawMessage(`{"tokenUsage":{"total":{"inputTokens":150,"outputTokens":20}}}`))
+	delta := next(t, s, kind(agent.KindUsage))
+	if !delta.Usage.Partial || *delta.Usage.InputTokens != 30 || *delta.Usage.OutputTokens != 12 {
+		t.Fatalf("missing trustworthy resumed delta: %+v", delta.Usage)
+	}
+}

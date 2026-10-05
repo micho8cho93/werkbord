@@ -85,6 +85,7 @@ export interface Project {
 }
 
 export interface Orchestration {
+ rearm?: boolean;
  enabled: boolean;
  scheduledAt?: string;
  notBefore?: string;
@@ -229,6 +230,7 @@ export interface AgentOptions {
 }
 
 export interface Usage {
+ partial?: boolean;
  inputTokens?: number; outputTokens?: number; cachedTokens?: number; apiCalls?: number;
  costUsd?: number; costKind: 'actual_api' | 'estimated_api_equivalent' | 'usage_only'; source?: string; acceptance?: 'accepted' | 'rejected';
 }

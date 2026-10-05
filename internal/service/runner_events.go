@@ -33,15 +33,40 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 		if e := tx.Runs().Update(ctx, r); e != nil {
 			return e
 		}
-		return emitRun(em, r, from)
+		if e := emitRun(em, r, from); e != nil {
+			return e
+		}
+		if from != r.State {
+			kind := domain.EventAgentWaiting
+			if r.State == domain.RunRunning {
+				kind = domain.EventAgentStarted
+			}
+			if r.State == domain.RunBlocked {
+				kind = domain.EventAgentBlocked
+			}
+			return emitAgent(em, kind, r, map[string]any{"blocker": r.Blocker})
+		}
+		return nil
 	}
 	switch ob.Kind {
+	case "accepted":
+		if r.State != domain.RunStarting || j.Ack != 0 {
+			return fmt.Errorf("%w: invalid job acceptance", domain.ErrConflict)
+		}
+		return nil
 	case "started":
 		if r.State != domain.RunStarting {
 			return fmt.Errorf("%w: duplicate start", domain.ErrConflict)
 		}
-		if ob.Branch != "devboard/"+r.RunnerID+"/"+r.ID {
+		expectedBranch := j.WorkBranch
+		if expectedBranch == "" {
+			expectedBranch = "devboard/" + r.RunnerID + "/" + r.ID
+		}
+		if ob.Branch != expectedBranch {
 			return fmt.Errorf("%w: invalid owned branch", domain.ErrInvalid)
+		}
+		if ob.BaseCommit != "" && !validCommit(ob.BaseCommit) {
+			return domain.ErrInvalid
 		}
 		r.Branch, r.BaseCommit = ob.Branch, ob.BaseCommit
 		if e := r.Transition(domain.RunRunning, "", now); e != nil {
@@ -55,6 +80,9 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 		if ob.Result == nil || !ob.Result.State.Terminal() {
 			return domain.ErrInvalid
 		}
+		if ob.HeadCommit != "" && !validCommit(ob.HeadCommit) {
+			return domain.ErrInvalid
+		}
 		r.HeadCommit = ob.HeadCommit
 		r.Uncommitted = ob.Uncommitted
 		if ob.Usage != nil {
@@ -62,7 +90,7 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 				return e
 			}
 			acceptance := r.Usage.Acceptance
-			r.Usage = *ob.Usage
+			r.Usage = domain.MergeUsage(r.Usage, *ob.Usage)
 			r.Usage.Acceptance = acceptance
 		}
 		code := ob.Result.ExitCode
@@ -190,7 +218,12 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 			q := s.Runs.newQuestion(r.ID, NewQuestion{Kind: qIn.Kind, Prompt: qIn.Prompt, Context: qIn.Context, Options: qIn.Options, AllowFreeText: qIn.AllowFreeText})
 			q.ProjectID, q.TaskID = r.ProjectID, r.TaskID
 			handling := agent.HandleQuestion(r.Policy, *qIn, j.Replies)
-			if r.State != domain.RunRunning && !(r.State == domain.RunWaitingForUser && r.Waiting == domain.WaitQuestion) {
+			if r.State == domain.RunBlocked {
+				handling.Reply = agent.StopReply()
+				handling.Action = agent.ActionBlock
+				handling.Blocker = nil
+			}
+			if r.State != domain.RunRunning && r.State != domain.RunBlocked && !(r.State == domain.RunWaitingForUser && r.Waiting == domain.WaitQuestion) {
 				return fmt.Errorf("%w: cannot ask in %s", domain.ErrConflict, r.State)
 			}
 			if r.State == domain.RunRunning {
@@ -206,7 +239,7 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 				return e
 			}
 			if handling.Action != agent.ActionAsk {
-				if e := q.Accept(handling.Reply, now); e != nil {
+				if e := q.AcceptFromPolicy(handling.Reply, now); e != nil {
 					return e
 				}
 				q.AnsweredBy = domain.AnsweredByPolicy
@@ -280,7 +313,7 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 				return e
 			}
 			acceptance := r.Usage.Acceptance
-			r.Usage = *ev.Usage
+			r.Usage = domain.MergeUsage(r.Usage, *ev.Usage)
 			r.Usage.Acceptance = acceptance
 			return persist()
 		default:

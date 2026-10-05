@@ -26,6 +26,17 @@ Dev Board's own, no Docker, no root and no hosted database. On Windows (experime
 [docs/INSTALL.md](docs/INSTALL.md) for every option, upgrades, and what is installed where.
 
 Afterwards: `devboard status`, `open`, `doctor`, `start`, `stop`, `restart`, `update`.
+Stop/restart/update refuse to interrupt active local agents or unresolved runner journals without
+`--force`. `devboard token --rotate` atomically replaces a file-managed API token and takes effect
+without restarting; reconnect browsers with the new token. Environment/configuration-managed tokens
+must be rotated at their source.
+
+Updates snapshot SQLite as well as the executable. A failed restart restores both and retains the
+failed database for inspection. To restore manually with the controller stopped, use
+`devboard db restore /path/to/backup.db` or `devboard db restore --latest`; use `--force` before the
+backup argument only when deliberately interrupting active work. Database restoration requires remote
+runner ownership recovery. Agents and Git helpers do not inherit controller configuration secrets;
+they still run as your user and can read files your user can read.
 
 **Status.** You can register local Git repositories, keep a four-column board
 (Backlog, Doing, Review, Done) per project, and run **Claude Code** or **Codex** on a task. Each

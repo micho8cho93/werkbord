@@ -83,7 +83,12 @@ func (s *Server) handleGitCompare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	c, err := s.opt.Git.Compare(r.Context(), r.PathValue("pid"), q.Get("scope"), q.Get("branch"), q.Get("target"), offset, limit)
+	commitLimit, err := intParam(r, "commitLimit", 50, 1, 200)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	c, err := s.opt.Git.CompareWithCommitLimit(r.Context(), r.PathValue("pid"), q.Get("scope"), q.Get("branch"), q.Get("target"), offset, limit, commitLimit)
 	if err != nil {
 		s.fail(w, r, err)
 		return

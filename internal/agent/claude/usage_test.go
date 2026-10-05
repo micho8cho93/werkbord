@@ -24,3 +24,21 @@ func TestCumulativeModelUsageAndCostAreEstimates(t *testing.T) {
 		t.Fatalf("cumulative results added twice %+v", ev.Usage)
 	}
 }
+
+func TestResumedCostExcludesHistoricalBaseline(t *testing.T) {
+	s := newSession(agent.ProcSpec{}, "")
+	s.resumedUsage = true
+	var first, second envelope
+	json.Unmarshal([]byte(`{"type":"result","total_cost_usd":0.5}`), &first)
+	s.onResult(&first)
+	ev := next(t, s, kind(agent.KindUsage))
+	if !ev.Usage.Partial || ev.Usage.CostUSD != nil {
+		t.Fatal(ev.Usage)
+	}
+	json.Unmarshal([]byte(`{"type":"result","total_cost_usd":0.7}`), &second)
+	s.onResult(&second)
+	ev = next(t, s, kind(agent.KindUsage))
+	if !ev.Usage.Partial || ev.Usage.CostUSD == nil || *ev.Usage.CostUSD < 0.199 || *ev.Usage.CostUSD > 0.201 {
+		t.Fatal(ev.Usage)
+	}
+}

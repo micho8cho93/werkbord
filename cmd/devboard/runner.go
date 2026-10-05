@@ -247,7 +247,11 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 		if e != nil {
 			return e
 		}
-		return json.NewEncoder(out).Encode(st)
+		var last json.RawMessage
+		if data, err := os.ReadFile(filepath.Join(dir, "last-error.json")); err == nil {
+			last = data
+		}
+		return json.NewEncoder(out).Encode(map[string]any{"service": st, "lastSyncError": last})
 	case "stop":
 		return manager.Stop(context.Background())
 	case "start":
@@ -278,7 +282,7 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 		if e != nil {
 			return e
 		}
-		worker := &remote.Worker{Dir: dir, Identity: identity, Agents: agents, AllowClone: identity.AllowClone, Bindings: map[string]string{}}
+		worker := &remote.Worker{Version: version, Dir: dir, Identity: identity, Agents: agents, AllowClone: identity.AllowClone, Bindings: map[string]string{}}
 		if sub == "resolve" {
 			if len(positional) != 1 || !*confirmed {
 				return fmt.Errorf("inspect the machine first, then: devboard runner resolve <run-id> --confirm-stopped (stop the runner service before resolving)")

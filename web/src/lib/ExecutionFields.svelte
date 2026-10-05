@@ -1,6 +1,8 @@
 <script lang="ts">
   import {
     AGENT_DEFAULT,
+    executionAgents,
+    eligibleRunners,
     PRIORITY_OPTIONS,
     agentLabel,
     compact,
@@ -13,6 +15,7 @@
     type Resolved,
   } from './execution';
   import { INTERACTION_OPTIONS, PERMISSIONS_NOTE, interactionLabel } from './policy';
+  import { router } from './router.svelte';
   import { app } from './state.svelte';
   import type { ExecutionConfig, InteractionPolicy, Priority } from './types';
 
@@ -39,7 +42,8 @@
   const hasBelow = $derived(inherited !== undefined);
   // The agent whose models and reasoning levels are offered: this level's own, else the one it would inherit.
   const agentForOptions = $derived(value.agent || inherited?.agent || '');
-  const options = $derived(app.runners.find(r=>r.id===value.runner)?.capabilities?.options.find(o=>o.agentId===agentForOptions) ?? (agentForOptions ? app.agentOptions.get(agentForOptions) : undefined));
+  const environment = $derived(eligibleRunners(app.runners, router.projectId, value.runner || inherited?.runner, true));
+  const options = $derived(environment.find(r => r.capabilities?.agents.some(a => a.id === agentForOptions && a.available))?.capabilities?.options.find(o => o.agentId === agentForOptions) ?? (agentForOptions ? app.agentOptions.get(agentForOptions) : undefined));
   const models = $derived(modelChoices(options));
   const effectiveModel = $derived(value.model && value.model !== AGENT_DEFAULT ? value.model : (inherited?.model ?? ''));
   const reasoningList = $derived(reasoningChoices(options, effectiveModel));
@@ -61,7 +65,7 @@
   });
   const customProblem = $derived(customOpen && customName.trim() !== '' && !validModelName(customName.trim()) ? 'That does not look like a model name.' : '');
 
-  const usable = $derived(app.agents.filter((a) => a.available || app.runners.some(r => r.online && !r.disabled && r.capabilities?.agents.some(x => x.id === a.id && x.available))));
+  const usable = $derived(executionAgents(app.agents, app.runners, router.projectId, value.runner || inherited?.runner, true));
   const unavailable = $derived(app.agents.filter((a) => !usable.some(x=>x.id===a.id) && a.id === value.agent));
 
   // Narrow screens keep the model and reasoning behind a disclosure.

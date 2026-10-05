@@ -86,7 +86,7 @@ const prFields = "number,title,url,state,isDraft,headRefName,baseRefName,headRef
 func ghEnv(base []string) []string {
 	env := make([]string, 0, len(base)+6)
 	for _, kv := range base {
-		if !strings.HasPrefix(kv, "GH_REPO=") {
+		if !strings.HasPrefix(kv, "GH_REPO=") && !domain.IsControllerSecret(kv) {
 			env = append(env, kv)
 		}
 	}

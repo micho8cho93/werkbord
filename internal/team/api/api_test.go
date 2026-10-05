@@ -249,3 +249,32 @@ func TestTheConsoleIsServedWithSecurityHeaders(t *testing.T) {
 		}
 	}
 }
+
+func TestSoleOwnerCanRotateTheirCredentialAndContinue(t *testing.T) {
+	ts := newServer(t)
+	old := client{t: t, base: ts.URL, token: ownerToken}
+	me := old.want(200, "GET", v1+"/me", nil)
+	id := me["member"].(map[string]any)["id"].(string)
+	next := old.want(200, "POST", v1+"/members/"+id+"/token", nil)
+	fresh := client{t: t, base: ts.URL, token: next["token"].(string)}
+	old.want(401, "GET", v1+"/me", nil)
+	fresh.want(200, "GET", v1+"/me", nil)
+}
+
+func TestPartialPRFieldsKeepPreviouslyReportedEvidence(t *testing.T) {
+	ts := newServer(t)
+	owner := client{t: t, base: ts.URL, token: ownerToken}
+	p := owner.want(201, "POST", v1+"/projects", map[string]any{"name": "Shop", "repository": "https://github.com/acme/shop"})
+	pid := p["id"].(string)
+	path := v1 + "/projects/" + pid + "/tickets"
+	k := owner.want(201, "POST", path, map[string]any{"title": "Work", "status": "available"})
+	tid := k["id"].(string)
+	path += "/" + tid
+	owner.want(200, "POST", path+"/claim", nil)
+	owner.want(200, "PUT", path+"/git", map[string]any{"pullRequest": map[string]any{"number": 7, "url": "https://github.com/acme/shop/pull/7", "state": "open", "draft": true, "mergeable": "conflicting", "baseBranch": "main", "ahead": 8, "behind": 3}})
+	changed := owner.want(200, "PUT", path+"/git", map[string]any{"pullRequest": map[string]any{"state": "closed"}})
+	pr := changed["pullRequest"].(map[string]any)
+	if pr["draft"] != true || pr["baseBranch"] != "main" || pr["mergeable"] != "conflicting" || pr["behind"] != float64(3) || pr["number"] != float64(7) {
+		t.Fatalf("partial edit erased PR facts: %v", pr)
+	}
+}

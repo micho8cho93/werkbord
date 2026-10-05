@@ -7,7 +7,7 @@
 // run starts; this copy only lets the interface say, before the run, what it will
 // get and where that comes from.
 
-import type { Agent, AgentOption, AgentOptions, ExecutionConfig, InteractionPolicy, Priority } from './types';
+import type { Agent, AgentOption, AgentOptions, ExecutionConfig, InteractionPolicy, Priority, Runner } from './types';
 
 /** The model or reasoning value that means "pass nothing: the agent's own default". */
 export const AGENT_DEFAULT = 'default';
@@ -20,6 +20,7 @@ export interface Level {
 }
 
 export interface Resolved {
+  runner: string;
   /** Empty when no level chose one: the controller then uses the first agent that can be used. */
   agent: string;
   /** Empty means the agent's default. */
@@ -37,6 +38,7 @@ export interface Resolved {
  */
 export function resolveExecution(...levels: Level[]): Resolved {
   const r: Resolved = {
+    runner: '',
     agent: '',
     model: '',
     reasoning: '',
@@ -44,6 +46,7 @@ export function resolveExecution(...levels: Level[]): Resolved {
     priority: 'normal',
     sources: { agent: 'default', model: 'default', reasoning: 'default', interaction: 'default', priority: 'default' },
   };
+  for (const l of levels) { if (l.config.runner) { r.runner = l.config.runner; break; } }
   for (const l of levels) {
     if (l.config.agent) {
       r.agent = l.config.agent;
@@ -179,4 +182,18 @@ export function compact(c: ExecutionConfig): ExecutionConfig {
 /** Whether a model name is shaped like one, as the controller will insist: nothing that could pass for a flag. */
 export function validModelName(s: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._:/[\]+@-]{0,99}$/.test(s);
+}
+
+/** Availability is evaluated in the chosen execution environment, including inherited runners. */
+export function eligibleRunners(runners: readonly Runner[], projectId: string, runner = '', includeBusy = false): Runner[] {
+  return runners.filter(r => r.online && !r.disabled && (includeBusy || r.currentRuns < r.capacity) &&
+    (runner && runner !== 'automatic' ? r.id === runner : r.automatic) &&
+    (r.kind === 'local' || (!projectId || r.projects.includes(projectId)) &&
+      (!projectId && (r.capabilities?.repositories.length ?? 0) > 0 || r.capabilities?.repositories.includes(projectId) || r.allowClone && r.capabilities?.cloneEnabled)));
+}
+export function executionAgents(agents: readonly Agent[], runners: readonly Runner[], projectId: string, runner = '', includeBusy = false): Agent[] {
+  if (runners.length === 0) return agents.filter(a => a.available);
+  const found = new Map<string, Agent>();
+  for (const r of eligibleRunners(runners, projectId, runner, includeBusy)) for (const a of r.capabilities?.agents ?? []) if (a.available) found.set(a.id, a);
+  return [...found.values()];
 }

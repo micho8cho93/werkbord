@@ -288,7 +288,7 @@ func isRepoLocalEnv(kv string) bool {
 func gitEnv(base []string) []string {
 	env := make([]string, 0, len(base)+5)
 	for _, kv := range base {
-		if !isRepoLocalEnv(kv) {
+		if !isRepoLocalEnv(kv) && !domain.IsControllerSecret(kv) {
 			env = append(env, kv)
 		}
 	}
@@ -311,7 +311,7 @@ const networkProtocols = "file:git:ssh:http:https"
 func networkEnv(base []string) []string {
 	env := make([]string, 0, len(base)+4)
 	for _, kv := range base {
-		if !isRepoLocalEnv(kv) {
+		if !isRepoLocalEnv(kv) && !domain.IsControllerSecret(kv) {
 			env = append(env, kv)
 		}
 	}

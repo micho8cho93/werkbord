@@ -207,6 +207,9 @@ func (s *Runners) Manage(ctx context.Context, id string, in domain.Runner, remov
 // Route ranks by project affinity, free capacity, RAM, CPU, and finally ID.
 // Priority/order are applied by the durable scheduler before this decision.
 func (s *Runners) Route(ctx context.Context, task *domain.Task, resolved domain.Resolved) (*domain.Runner, domain.Resolved, error) {
+	return s.RouteWithReservations(ctx, task, resolved, nil)
+}
+func (s *Runners) RouteWithReservations(ctx context.Context, task *domain.Task, resolved domain.Resolved, reserved map[string]int) (*domain.Runner, domain.Resolved, error) {
 	list, e := s.List(ctx)
 	if e != nil {
 		return nil, resolved, e
@@ -273,6 +276,7 @@ func (s *Runners) Route(ctx context.Context, task *domain.Task, resolved domain.
 	candidates := []domain.Runner{}
 	reasons := []string{}
 	for _, r := range list {
+		r.CurrentRuns += reserved[r.ID]
 		if resolved.Runner != "" && resolved.Runner != "automatic" && r.ID != resolved.Runner {
 			continue
 		}
@@ -403,6 +407,7 @@ func (s *Runners) Claim(selected *domain.Runner, job *runnerwire.Job) func(conte
 			return fmt.Errorf("%w: selected runner is at capacity", domain.ErrConflict)
 		}
 		if job != nil {
+			job.Protocol = runnerwire.Protocol
 			job.Run = *run
 			job.Questions = map[string]string{}
 			job.Commands = []runnerwire.Command{}
@@ -461,60 +466,86 @@ func (s *Runners) SetRules(ctx context.Context, rules []domain.RoutingRule) erro
 // only this identity's already-authorized jobs. Duplicate observations are inert.
 func (s *Runners) Sync(ctx context.Context, body []byte, signature string) (runnerwire.SyncReply, error) {
 	var in runnerwire.Sync
-	out := runnerwire.SyncReply{Jobs: []runnerwire.Job{}, Acks: map[string]int64{}, LeaseSeconds: int(runnerwire.Lease.Seconds())}
+	out := runnerwire.SyncReply{Protocol: runnerwire.Protocol, Rejected: map[string]string{}, Jobs: []runnerwire.Job{}, Acks: map[string]int64{}, LeaseSeconds: int(runnerwire.Lease.Seconds())}
 	if e := json.Unmarshal(body, &in); e != nil {
 		return out, domain.ErrInvalid
 	}
 	if len(in.Reports) > 128 || len(in.Capabilities.Agents) > 10 || len(in.Capabilities.Options) > 10 || len(in.Capabilities.Repositories) > 100 || len(in.Capabilities.Diagnostics) > 2000 {
 		return out, domain.ErrInvalid
 	}
+
+	// Authenticate on the read pool before acquiring the single writer.
+	var identity *domain.Runner
+	if err := s.Store.View(ctx, func(tx store.Tx) error { var err error; identity, err = tx.Runners().Get(ctx, in.RunnerID); return err }); err != nil || identity.Removed || !runnerwire.Verify(identity.PublicKey, signature, body) {
+		return out, fmt.Errorf("%w: runner revoked, unknown, or invalid signature", domain.ErrNotFound)
+	}
+	if in.Protocol != runnerwire.Protocol {
+		return out, fmt.Errorf("%w: incompatible runner protocol; update the runner (required %d)", domain.ErrConflict, runnerwire.Protocol)
+	}
 	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
 		r, e := tx.Runners().Get(ctx, in.RunnerID)
-		if e != nil {
+		if e != nil || r.Removed || r.PublicKey != identity.PublicKey {
 			return domain.ErrNotFound
 		}
-		if r.Removed || !runnerwire.Verify(r.PublicKey, signature, body) {
-			return fmt.Errorf("%w: invalid runner authentication", domain.ErrNotFound)
+		if in.At.Before(s.now().Add(-2*time.Minute)) || in.At.After(s.now().Add(2*time.Minute)) {
+			return fmt.Errorf("%w: runner clock skew; controller time %s", domain.ErrConflict, s.now().Format(time.RFC3339))
 		}
-		if in.Sequence <= r.LastSequence || in.At.Before(s.now().Add(-2*time.Minute)) || in.At.After(s.now().Add(2*time.Minute)) {
-			return fmt.Errorf("%w: stale runner request", domain.ErrConflict)
+		if in.Sequence <= r.LastSequence {
+			return fmt.Errorf("%w: stale runner sequence; inspect identity restore or duplicate runner; re-pair with a new identity", domain.ErrConflict)
 		}
-		for _, report := range in.Reports {
-			if len(report.Observations) > 200 {
-				return domain.ErrInvalid
-			}
-			run, e := tx.Runs().Get(ctx, report.RunID)
-			if e != nil {
-				return e
-			}
-			if !run.Remote || run.RunnerID != r.ID {
-				return fmt.Errorf("%w: run belongs to another runner", domain.ErrNotFound)
-			}
-			job, e := loadJob(ctx, tx, run.ID)
-			if e != nil {
-				return e
-			}
-			for _, ob := range report.Observations {
-				if ob.Seq <= job.Ack {
-					continue
+		out.StateLost = in.ControllerSequence > r.LastSequence
+		out.Sequence = in.Sequence
+		if !out.StateLost {
+			for _, report := range in.Reports {
+				eventCount := len(em.events)
+				e := tx.Savepoint(ctx, func() error {
+					return s.applyReport(ctx, tx, em, r, report, &out)
+				})
+				if e != nil {
+					em.events = em.events[:eventCount]
+					if !errors.Is(e, domain.ErrInvalid) && !errors.Is(e, domain.ErrConflict) && !errors.Is(e, domain.ErrNotFound) && !errors.Is(e, domain.ErrTransition) && !errors.Is(e, domain.ErrDuplicate) {
+						return e
+					}
+					reason := truncate("Runner report rejected: "+e.Error()+"; inspect this runner, then resolve locally or revoke its identity", 1000)
+					out.Rejected[report.RunID] = reason
+					run, getErr := tx.Runs().Get(ctx, report.RunID)
+					if getErr == nil && run.Remote && run.RunnerID == r.ID {
+						job, jobErr := loadJob(ctx, tx, run.ID)
+						if jobErr == nil {
+							job.Rejected = reason
+							for _, ob := range report.Observations {
+								if ob.Seq > job.Ack {
+									job.Ack = ob.Seq
+								}
+							}
+							enqueue(job, "stop", "", "", "")
+							if e := saveJob(ctx, tx, job, s.now()); e != nil {
+								return e
+							}
+							out.Acks[run.ID] = job.Ack
+						}
+						run.Reason = reason
+						if e := tx.Runs().Update(ctx, run); e != nil {
+							return e
+						}
+						if e := emitOutput(em, run, domain.AgentOutput{Stream: domain.StreamSystem, Text: reason}); e != nil {
+							return e
+						}
+						if e := emitRun(em, run, run.State); e != nil {
+							return e
+						}
+					}
 				}
-				if ob.Seq != job.Ack+1 {
-					return fmt.Errorf("%w: observation gap", domain.ErrConflict)
-				}
-				if e := s.observe(ctx, tx, em, run, job, ob); e != nil {
-					return e
-				}
-				job.Ack = ob.Seq
 			}
-			job.Run = *run
-			if e := saveJob(ctx, tx, job, s.now()); e != nil {
-				return e
-			}
-			out.Acks[run.ID] = job.Ack
 		}
+
 		r.LastSequence = in.Sequence
 		r.LastSeenAt = s.now()
 		r.Capabilities = in.Capabilities
+		r.Version = truncate(in.Version, 100)
+		if out.StateLost {
+			r.Capabilities.Diagnostics = "Controller database was restored; this runner must quarantine work and be recovered or revoked."
+		}
 		// Capability reports are observations, not permission grants.
 		filtered := []string{}
 		for _, p := range r.Capabilities.Repositories {
@@ -545,7 +576,12 @@ func (s *Runners) Sync(ctx context.Context, body []byte, signature string) (runn
 					return e
 				}
 			}
-			out.Jobs = append(out.Jobs, *job)
+			if job.Rejected != "" {
+				out.Rejected[run.ID] = job.Rejected
+			}
+			if !out.StateLost {
+				out.Jobs = append(out.Jobs, *job)
+			}
 			out.Acks[run.ID] = job.Ack
 		}
 		out.Projects = r.Projects
@@ -564,4 +600,96 @@ func enqueue(j *runnerwire.Job, kind, ref, text, question string) {
 		}
 	}
 	j.Commands = append(j.Commands, runnerwire.Command{ID: domain.NewID("cmd"), Kind: kind, Ref: ref, Text: text, QuestionID: question})
+}
+
+func (s *Runners) applyReport(ctx context.Context, tx store.Tx, em *emitter, runner *domain.Runner, report runnerwire.Report, out *runnerwire.SyncReply) error {
+	if len(report.Observations) > 200 {
+		return domain.ErrInvalid
+	}
+	run, err := tx.Runs().Get(ctx, report.RunID)
+	if err != nil {
+		return err
+	}
+	if !run.Remote || run.RunnerID != runner.ID {
+		return fmt.Errorf("%w: run belongs to another runner", domain.ErrNotFound)
+	}
+	job, err := loadJob(ctx, tx, run.ID)
+	if err != nil {
+		return err
+	}
+	for _, ob := range report.Observations {
+		if ob.Seq <= job.Ack {
+			continue
+		}
+		if ob.Seq != job.Ack+1 {
+			return fmt.Errorf("%w: observation gap", domain.ErrConflict)
+		}
+		if job.Rejected != "" && ob.Kind != "ended" {
+			job.Ack = ob.Seq
+			continue
+		}
+		if err := s.observe(ctx, tx, em, run, job, ob); err != nil {
+			return err
+		}
+		job.Ack = ob.Seq
+	}
+	job.Run = *run
+	if err := saveJob(ctx, tx, job, s.now()); err != nil {
+		return err
+	}
+	out.Acks[run.ID] = job.Ack
+	return nil
+}
+
+// Revoke immediately fences the credential. Capacity remains reserved until all
+// leases and in-flight requests have expired. It never reassigns an execution.
+func (s *Runners) Revoke(ctx context.Context, id string) error {
+	return s.update(ctx, func(tx store.Tx, em *emitter) error {
+		r, err := tx.Runners().Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		if r.Kind == domain.RunnerLocal {
+			return domain.ErrInvalid
+		}
+		r.Removed, r.Disabled = true, true
+		if err := tx.Runners().Save(ctx, r); err != nil {
+			return err
+		}
+		if err := tx.Settings().Set(ctx, "runner-revoked:"+id, s.now().Add(runnerwire.Lease+runnerwire.OnlineWindow), s.now()); err != nil {
+			return err
+		}
+		return em.emit(newEvent(domain.EventSettingsUpdated, map[string]string{"key": "runners"}))
+	})
+}
+func (s *Runners) ReleaseRevoked(ctx context.Context) error {
+	return s.update(ctx, func(tx store.Tx, em *emitter) error {
+		runs, err := tx.Runs().ListActive(ctx)
+		if err != nil {
+			return err
+		}
+		for _, run := range runs {
+			if !run.Remote {
+				continue
+			}
+			r, err := tx.Runners().Get(ctx, run.RunnerID)
+			if err != nil {
+				return err
+			}
+			if !r.Removed {
+				continue
+			}
+			var fence time.Time
+			if err := tx.Settings().Get(ctx, "runner-revoked:"+r.ID, &fence); err != nil {
+				return err
+			}
+			if s.now().Before(fence) {
+				continue
+			}
+			if err := s.Runs.end(ctx, tx, em, &run, Ended{State: domain.RunFailed, Reason: "runner revoked; work on that machine is unverified"}, domain.CancelRunEnded); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

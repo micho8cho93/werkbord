@@ -133,8 +133,9 @@ in `internal/team/domain/roles.go` and needs no schema change and no handler cha
 
 Not built yet, by design: licensing and payment, remote execution of any kind (never), a Team update command, a
 Windows installer, HTTPS (put Team behind a TLS proxy), ownership transfer, comments and chat (Team coordinates; it is
-not a messenger), a Team-side automatic reporter in the individual Werkbord (members report with the API or console
-today).
+not a messenger), a Team-side automatic reporter in the individual Werkbord. Members can use the developer-owned
+`werkbord-team handoff --report` / `--watch` client; the individual product stores only generic task
+provenance and has no Team configuration, credential, API or background bridge.
 
 ## Running and building
 

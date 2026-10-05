@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
  import ScheduleFields from '../lib/ScheduleFields.svelte';
  import RunHandoff from '../lib/RunHandoff.svelte';
  import {editableOrchestration,emptyOrchestration,schedulingLabels} from '../lib/scheduling';
@@ -8,7 +8,7 @@
   import { RunFeed } from '../lib/feed.svelte';
   import FeedView from '../lib/FeedView.svelte';
   import { agentName, runElapsed, runStatus, timeAgo } from '../lib/format';
-  import { agentLabel, compact, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
+  import { agentLabel, compact, executionAgents, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
   import { blockerLine, interactionLabel, isNotable } from '../lib/policy';
   import QuestionCard from '../lib/QuestionCard.svelte';
@@ -124,11 +124,13 @@
 
   // Edit the task: its words, and how its runs are carried out.
   let editing = $state(false);
+  let editVersion = $state(0);
   let editTitle = $state('');
   let editDescription = $state('');
   let editExecution = $state<ExecutionConfig>({});
   function startEditing() {
     if (!task) return;
+    editVersion = task.version;
     editTitle = task.title;
     editDescription = task.description;
     editExecution = { ...task.execution };
@@ -137,7 +139,7 @@
   async function saveEdit() {
     if (!task || !editTitle.trim()) return;
     const t = await act(() =>
-      api.editTask(task, { title: editTitle.trim(), description: editDescription, execution: compact(editExecution) }),
+      api.editTask({ ...task, version: editVersion }, { title: editTitle.trim(), description: editDescription, execution: compact(editExecution) }),
     );
     if (t) {
       scope.upsertTask(t);
@@ -159,13 +161,14 @@ let scheduling = $state(false);
   let runChoice = $state<ExecutionConfig>({});
   let showRunOptions = $state(false);
   let runChoiceFor = '';
-  const available = $derived(app.agents.filter((a) => a.available));
+  const available = $derived(executionAgents(app.agents, app.runners, project.id, runChoice.runner || effective.runner));
   // A new task starts from a clean choice.
   $effect(() => {
     const id = task?.id ?? '';
     if (id !== runChoiceFor) {
       runChoiceFor = id;
       runChoice = {};
+      untrack(() => { editing = false; scheduling = false; instructions = ""; message = ""; showRunOptions = false; });
     }
   });
   /** The agent the run will use: chosen here, else the task's effective one, else the first that works. */
@@ -559,7 +562,7 @@ let scheduling = $state(false);
     display: grid;
     gap: 8px;
     padding: 12px;
-    border-left: 3px solid var(--text-2);
+    border-left: 1px solid var(--text-2);
   }
 
   .runbar[data-tone='work'],

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
@@ -25,7 +25,7 @@
   // Follows the stored defaults until the user starts editing; another device's change shows up here.
   $effect(() => {
     const key = JSON.stringify(app.globalExecution);
-    if (key !== draftFor) {
+    if (key !== draftFor && untrack(() => !draftFor || JSON.stringify(draft) === draftFor)) {
       draftFor = key;
       draft = { ...app.globalExecution };
     }
@@ -45,6 +45,7 @@
     saved = false;
     try {
       await app.saveGlobalExecution(compact(draft));
+      draftFor = JSON.stringify(compact(draft));
       saved = true;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // TaskState is a task's position in the workflow. It is deliberately separate
@@ -46,6 +47,9 @@ func ParseTaskState(s string) (TaskState, error) {
 // updates, so two devices (or a device and an agent) cannot silently
 // overwrite each other.
 type Task struct {
+	SourceRef   string    `json:"sourceRef,omitempty"`
+	WorkBranch  string    `json:"workBranch,omitempty"`
+	BaseBranch  string    `json:"baseBranch,omitempty"`
 	ID          string    `json:"id"`
 	ProjectID   string    `json:"projectId"`
 	Title       string    `json:"title"`
@@ -64,7 +68,7 @@ type Task struct {
 
 const (
 	maxTitleLen       = 200
-	maxDescriptionLen = 20000
+	maxDescriptionLen = 256000
 )
 
 // ValidateTaskTitle trims and checks a title.
@@ -73,7 +77,7 @@ func ValidateTaskTitle(title string) (string, error) {
 	if title == "" {
 		return "", fmt.Errorf("%w: task title is required", ErrInvalid)
 	}
-	if len(title) > maxTitleLen {
+	if !utf8.ValidString(title) || utf8.RuneCountInString(title) > maxTitleLen {
 		return "", fmt.Errorf("%w: task title is longer than %d characters", ErrInvalid, maxTitleLen)
 	}
 	return title, nil

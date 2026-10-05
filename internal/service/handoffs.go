@@ -209,6 +209,9 @@ func (s *Handoffs) Generate(ctx context.Context, runID string) (*domain.Run, err
 		if cur.State.Active() || cur.Version == version {
 			return saved, err
 		}
+		if cur.Handoff != nil {
+			return cur, nil
+		}
 		version = cur.Version
 	}
 }
@@ -240,7 +243,9 @@ func (s *Handoffs) Save(ctx context.Context, id string, version int64, h domain.
 		if e := tx.Runs().Update(ctx, r); e != nil {
 			return e
 		}
-		return emitRun(em, r, r.State)
+		ev := newEvent(domain.EventRunStateChanged, map[string]any{"run": r, "from": r.State})
+		runIDs(&ev, r)
+		return em.emit(ev)
 	})
 	return r, err
 }
@@ -286,6 +291,7 @@ func (s *Handoffs) Context(ctx context.Context, id, purpose, selected string) (s
 		if e != nil {
 			return "", e
 		}
+		out += "\n\nUntracked file contents are excluded. Review them locally and include only selected, non-sensitive context explicitly."
 		budget := 20000
 		add := func(label string, d *domain.GitFileDiff) {
 			if d == nil || budget <= 0 {
@@ -315,7 +321,7 @@ func (s *Handoffs) Context(ctx context.Context, id, purpose, selected string) (s
 		for _, group := range []struct {
 			kind  gitrepo.WorkingKind
 			files []domain.GitFileChange
-		}{{gitrepo.WorkingStaged, st.Staged}, {gitrepo.WorkingUnstaged, st.Unstaged}, {gitrepo.WorkingUntracked, st.Untracked}} {
+		}{{gitrepo.WorkingStaged, st.Staged}, {gitrepo.WorkingUnstaged, st.Unstaged}} {
 			for i, f := range group.files {
 				if i >= 5 || budget <= 0 {
 					break

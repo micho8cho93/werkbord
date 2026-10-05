@@ -147,6 +147,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		})
 		return caps
 	}}
+	catalog := service.ExecutionCatalog{Local: agents, Runners: distributed}
+	settings.Catalog, projects.Catalog, tasks.Catalog = catalog, catalog, catalog
 	scheduler.Runners = distributed
 	c.runner = runner.New(runner.Options{
 		RefreshRemotes: func(ctx context.Context, id string) error {
@@ -216,6 +218,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Web:          webui.Handler(),
 		AuthRequired: c.cfg.AuthRequired(),
 		Token:        token,
+		TokenSource:  func() string { value, _ := c.cfg.ResolveToken(false); return value },
 		AllowedHosts: c.cfg.AllowedHosts,
 		PrivateToken: token,
 	}

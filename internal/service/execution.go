@@ -90,3 +90,70 @@ func (l Levels) Resolve(task domain.ExecutionConfig, run domain.ExecutionConfig)
 		domain.Level{Source: domain.SourceGlobal, Config: l.Global},
 	)
 }
+
+// ExecutionCatalog permits storing choices advertised by the user's paired
+// machines. Routing still rechecks one machine's complete capability at launch.
+type ExecutionCatalog struct {
+	Local   AgentCatalog
+	Runners *Runners
+}
+
+func (c ExecutionCatalog) Known(id string) bool {
+	if c.Local != nil && c.Local.Known(id) {
+		return true
+	}
+	if c.Runners == nil {
+		return false
+	}
+	runners, err := c.Runners.List(context.Background())
+	if err != nil {
+		return false
+	}
+	for _, r := range runners {
+		for _, a := range r.Capabilities.Agents {
+			if a.ID == id {
+				return true
+			}
+		}
+	}
+	return false
+}
+func (c ExecutionCatalog) Options(ctx context.Context, id string) (domain.AgentOptions, bool) {
+	out := domain.AgentOptions{AgentID: id}
+	known := false
+	models, reasons := map[string]bool{}, map[string]bool{}
+	add := func(o domain.AgentOptions) {
+		known = true
+		out.CustomModels = out.CustomModels || o.CustomModels
+		for _, m := range o.Models {
+			if !models[m.ID] {
+				out.Models = append(out.Models, m)
+				models[m.ID] = true
+			}
+		}
+		for _, v := range o.Reasoning {
+			if !reasons[v.ID] {
+				out.Reasoning = append(out.Reasoning, v)
+				reasons[v.ID] = true
+			}
+		}
+	}
+	if c.Local != nil {
+		if o, ok := c.Local.Options(ctx, id); ok {
+			add(o)
+		}
+	}
+	if c.Runners != nil {
+		runners, err := c.Runners.List(ctx)
+		if err == nil {
+			for _, r := range runners {
+				for _, o := range r.Capabilities.Options {
+					if o.AgentID == id {
+						add(o)
+					}
+				}
+			}
+		}
+	}
+	return out.WithAgentDefault(), known
+}

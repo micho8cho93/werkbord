@@ -88,6 +88,10 @@ func TestMissedSchedulePolicies(t *testing.T) {
 		t.Fatalf("%+v %v", changed, e)
 	}
 	changed, e = f.tasks.Update(context.Background(), skip.ID, TaskPatch{Version: changed.Version, Orchestration: &domain.Orchestration{Enabled: true}})
+	if e != nil || !changed.Orchestration.Missed || changed.Orchestration.Key != skip.Orchestration.Key {
+		t.Fatalf("ordinary edit rearmed work: %+v %v", changed, e)
+	}
+	changed, e = f.tasks.Update(context.Background(), skip.ID, TaskPatch{Version: changed.Version, Orchestration: &domain.Orchestration{Enabled: true, Rearm: true}})
 	if e != nil || changed.Orchestration.Missed || changed.Orchestration.Key == skip.Orchestration.Key {
 		t.Fatalf("rearm: %+v %v", changed, e)
 	}

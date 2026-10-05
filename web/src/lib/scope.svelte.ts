@@ -133,7 +133,11 @@ export class ProjectScope {
         this.upsertTask(ev.payload as Task);
         return true;
       case 'run.state_changed':
-        this.upsertRun((ev.payload as { run: Run }).run);
+        {
+          const data = ev.payload as { run: Run; compact?: boolean };
+          const prior = this.history.find(r => r.id === data.run.id) ?? this.latestRun[data.run.taskId];
+          this.upsertRun(data.compact ? { ...prior, ...data.run, prompt: prior?.prompt ?? '', handoff: data.run.handoff ?? prior?.handoff } : data.run);
+        }
         return true;
       case 'agent.output': {
         // The card's activity line follows what the agent does, ahead of the next state change.

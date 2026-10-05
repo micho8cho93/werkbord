@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from "./api";
   import ExecutionFields from "./ExecutionFields.svelte";
-  import { compact, type Resolved } from "./execution";
+  import { compact, executionAgents, type Resolved } from "./execution";
   import { app } from "./state.svelte";
   import type { ProjectScope } from "./scope.svelte";
   import type { ExecutionConfig, Handoff, Run } from "./types";
@@ -21,6 +21,7 @@
       run,
   );
   let editing = $state(false);
+  let editVersion = $state(0);
   let draft = $state<Handoff | null>(null);
   let busy = $state(false);
   let error = $state("");
@@ -36,6 +37,7 @@
   function edit() {
     const h = current.handoff;
     if (!h) return;
+    editVersion = current.version;
     draft = structuredClone($state.snapshot(h));
     decisions = h.decisions.join("\n");
     tests = h.tests.join("\n");
@@ -66,7 +68,7 @@
     error = "";
     try {
       scope.upsertRun(
-        await api.saveHandoff(current, {
+        await api.saveHandoff({ ...current, version: editVersion }, {
           ...draft,
           decisions: lines(decisions),
           tests: lines(tests),
@@ -269,7 +271,7 @@
         </p>
         <button
           class="btn primary"
-          disabled={busy || !app.agents.some((a) => a.available)}
+          disabled={busy || !executionAgents(app.agents, app.runners, run.projectId, choice.runner || inherited.runner).some(a => !choice.agent && !inherited.agent || a.id === (choice.agent || inherited.agent))}
           >{busy
             ? "Starting…"
             : purpose === "review"

@@ -512,18 +512,40 @@ func TestGitBoundsConcurrentProcesses(t *testing.T) {
 // must give up when its caller does, rather than start git afterwards.
 func TestGitWaitingForASlotHonoursContext(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "log")
-	bin := fakeBinary(t, fmt.Sprintf("echo start >> %s\nsleep 1\n", log))
+	release := filepath.Join(filepath.Dir(log), "release")
+	bin := fakeBinary(t, fmt.Sprintf("echo start >> %s\nwhile [ ! -f %s ]; do sleep 0.01; done\n", log, release))
 	c := &CLI{Binary: bin, MaxProcs: 1}
 
-	go func() { _, _ = c.git(context.Background(), t.TempDir(), "rev-parse") }()
-	time.Sleep(200 * time.Millisecond) // let the first call take the only slot
+	done := make(chan struct{})
+	root := t.TempDir()
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer firstCancel()
+	go func() { defer close(done); _, _ = c.git(firstCtx, root, "rev-parse") }()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if raw, _ := os.ReadFile(log); strings.Contains(string(raw), "start") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("first Git process did not start")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	defer os.WriteFile(release, nil, 0600)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 	if _, err := c.git(ctx, t.TempDir(), "rev-parse"); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v, want context.DeadlineExceeded", err)
 	}
-	time.Sleep(1200 * time.Millisecond) // were the second call to run late, it would log now
+	if err := os.WriteFile(release, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first Git process did not finish")
+	}
 	if raw, _ := os.ReadFile(log); strings.Count(string(raw), "start") != 1 {
 		t.Errorf("git was started %d times, want 1:\n%s", strings.Count(string(raw), "start"), raw)
 	}

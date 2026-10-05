@@ -360,6 +360,7 @@ class AppState {
     };
     const onEvent = (msg: MessageEvent<string>) => this.apply(JSON.parse(msg.data) as ControllerEvent);
     for (const type of EVENT_TYPES) es.addEventListener(type, onEvent);
+    es.addEventListener('resync_required', () => { void this.refresh().then(() => this.reconnectHandlers.forEach(fn => fn())); });
   }
 
   private async diagnose(): Promise<void> {

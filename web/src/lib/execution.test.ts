@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   AGENT_DEFAULT,
+ executionAgents,
+ eligibleRunners,
   compact,
   hasOverrides,
   modelChoices,
@@ -10,7 +12,7 @@ import {
   summaryLine,
   validModelName,
 } from './execution';
-import type { Agent, AgentOptions } from './types';
+import type { Agent, AgentOptions, Runner } from './types';
 
 const agents: Agent[] = [
   { id: 'claude-code', name: 'Claude Code', installed: true, available: true },
@@ -138,4 +140,21 @@ describe('wording and choices', () => {
     for (const ok of ['opus', 'gpt-5.5', 'claude-opus-4-1-20250805', 'sonnet[1m]', 'us.anthropic.claude:0']) expect(validModelName(ok)).toBe(true);
     for (const bad of ['', '--yolo', '-m', 'two words', 'a\nb', ' x', 'x'.repeat(101)]) expect(validModelName(bad)).toBe(false);
   });
+});
+
+
+describe('execution environment eligibility', () => {
+ const remote: Runner={id:'remote',name:'Remote',kind:'remote',hostname:'peer',os:'linux',arch:'amd64',version:'dev',createdAt:'',lastSeenAt:'',online:true,disabled:false,automatic:true,capacity:2,currentRuns:0,projects:['project'],allowClone:false,capabilities:{cpu:4,repositories:['project'],agents:[{id:'remote-agent',name:'Remote agent',available:true,installed:true}],options:[]}};
+ it('offers a remote agent absent from the controller and honors the inherited runner', () => {
+  const resolved=resolveFor({}, {runner:'remote',agent:'remote-agent'}, {});
+  expect(resolved.runner).toBe('remote');
+  expect(executionAgents([], [remote], 'project', resolved.runner).map(a=>a.id)).toEqual(['remote-agent']);
+ });
+ it('refuses offline, unauthorized, unavailable repository and full runners', () => {
+  for(const r of [{...remote,online:false},{...remote,projects:['other']},{...remote,currentRuns:2},{...remote,capabilities:{...remote.capabilities,repositories:[]}}]) expect(eligibleRunners([r],'project','remote')).toEqual([]);
+  expect(eligibleRunners([{...remote,allowClone:true,capabilities:{...remote.capabilities,repositories:[],cloneEnabled:true}}],'project','remote')).toHaveLength(1);
+ });
+ it('offers remote capabilities when editing global defaults without a project scope', () => {
+  expect(executionAgents([], [remote], '', 'remote')).toHaveLength(1);
+ });
 });

@@ -50,7 +50,6 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 	if !s.opt.AuthRequired {
 		return next
 	}
-	want := []byte(s.opt.Token)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/health" {
 			next.ServeHTTP(w, r) // the PWA shell itself is public; its data is not
@@ -62,6 +61,7 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 		} else if r.URL.Path == "/api/events" {
 			got = r.URL.Query().Get("access_token") // EventSource cannot set headers
 		}
+		want := []byte(s.currentToken())
 		if len(want) == 0 || subtle.ConstantTimeCompare([]byte(got), want) != 1 {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid token")
 			return
@@ -84,4 +84,11 @@ func isLocalHost(hostport string) bool {
 	}
 	ip := net.ParseIP(h)
 	return ip != nil && ip.IsLoopback()
+}
+
+func (s *Server) currentToken() string {
+	if s.opt.TokenSource != nil {
+		return s.opt.TokenSource()
+	}
+	return s.opt.Token
 }

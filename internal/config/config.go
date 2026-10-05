@@ -406,8 +406,46 @@ func (c Config) ResolveToken(create bool) (string, error) {
 	if err := os.MkdirAll(c.DataDir, 0o700); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(c.TokenPath(), []byte(tok+"\n"), 0o600); err != nil {
+	if err := writeToken(c.TokenPath(), tok); err != nil {
 		return "", err
 	}
 	return tok, nil
+}
+
+// RotateToken atomically replaces a file-managed credential. Configured tokens
+// are explicit operator configuration and cannot be silently overridden.
+func (c Config) RotateToken() (string, error) {
+	if c.Token != "" {
+		return "", fmt.Errorf("the API token is fixed in configuration; change that credential at its source and restart the controller")
+	}
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	tok := hex.EncodeToString(raw[:])
+	if err := os.MkdirAll(c.DataDir, 0700); err != nil {
+		return "", err
+	}
+	return tok, writeToken(c.TokenPath(), tok)
+}
+func writeToken(path, token string) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".token-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if err = f.Chmod(0600); err == nil {
+		_, err = f.WriteString(token + "\n")
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Rename(f.Name(), path)
 }

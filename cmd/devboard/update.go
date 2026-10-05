@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"devboard/internal/controller"
 	"devboard/internal/update"
 )
 
@@ -97,25 +98,63 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 	}
 
 	_, wasUp := a.healthy(ctx)
+	if err := a.checkInterruption(ctx, *force); err != nil {
+		return err
+	}
+	if wasUp {
+		if err := a.stop(ctx, false); err != nil {
+			return err
+		}
+	}
+	unlock, err := controller.LockController(a.cfg.LockPath())
+	if err != nil {
+		return err
+	}
+	snapshot, err := a.snapshotDatabase(ctx)
+	if err != nil {
+		unlock()
+		if wasUp {
+			_ = a.start(ctx, false)
+		}
+		return fmt.Errorf("cannot back up the database before updating: %w", err)
+	}
+	unlock()
 	prev, err := update.Replace(self, fresh)
 	if err != nil {
+		if wasUp {
+			_ = a.start(ctx, false)
+		}
 		return err
 	}
 	a.printf("Installed %s over %s.\n", target, version)
 	if !wasUp {
 		a.printf("Start it with `devboard start`. A copy of the old version is at %s.\n", prev)
-		return nil
-	}
-	if err := a.stop(ctx, false); err != nil {
-		return err
+		return a.restartUpdatedRunner(ctx)
 	}
 	if err := a.start(ctx, false); err != nil {
+		// Finish rollback even if the update's caller interrupted or timed out.
+		recoveryCtx, recoveryCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer recoveryCancel()
 		// The new controller did not come up: go back to the one that did.
 		a.printf("The new version did not start: putting %s back.\n", version)
 		if rerr := update.Restore(self, prev); rerr != nil {
 			return fmt.Errorf("%w; and the old version could not be put back: %v (it is at %s)", err, rerr, prev)
 		}
-		if serr := a.start(ctx, false); serr != nil {
+		if snapshot != "" {
+			if stopErr := a.stop(recoveryCtx, false); stopErr != nil {
+				return fmt.Errorf("%w; cannot stop failed controller before restoring data: %v", err, stopErr)
+			}
+			unlock, lockErr := controller.LockController(a.cfg.LockPath())
+			if lockErr != nil {
+				return lockErr
+			}
+			restoreErr := a.restoreDatabase(recoveryCtx, snapshot)
+			unlock()
+			if restoreErr != nil {
+				return fmt.Errorf("%w; database restore failed: %v (backup: %s)", err, restoreErr, snapshot)
+			}
+		}
+		if serr := a.start(recoveryCtx, false); serr != nil {
 			return fmt.Errorf("%w; the old version was put back but does not start either (%v): your data was backed up before the upgrade, in %s", err, serr, a.cfg.DataDir+string(os.PathSeparator)+"backups")
 		}
 		return fmt.Errorf("the update to %s failed and %s is running again: %w", target, version, err)
@@ -123,5 +162,24 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 	v, _ := a.healthy(ctx)
 	a.printf("Dev Board %s is running again.\n", v)
 	_ = os.Remove(prev)
+	return a.restartUpdatedRunner(ctx)
+}
+
+func (a *app) restartUpdatedRunner(ctx context.Context) error {
+	if _, err := os.Stat(runnerDir(a.cfg) + string(os.PathSeparator) + "identity.json"); os.IsNotExist(err) || a.runnerDaemon == nil {
+		return nil
+	}
+	m := a.runnerDaemon(ctx)
+	state, err := m.Status(ctx)
+	if err != nil {
+		return fmt.Errorf("updated successfully, but could not check the runner service: %w; use devboard runner stop, then devboard runner start", err)
+	}
+	if !state.Running {
+		return nil
+	}
+	if err := m.Restart(ctx); err != nil {
+		return fmt.Errorf("updated successfully, but the runner service could not restart: %w; use devboard runner stop, then devboard runner start", err)
+	}
+	a.printf("Runner service restarted on the updated executable.\n")
 	return nil
 }

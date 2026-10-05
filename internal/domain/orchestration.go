@@ -11,6 +11,7 @@ import (
 // Orchestration belongs to a Task, never to a separate calendar job. Key names
 // one explicitly armed, one-shot attempt. Dispatch metadata is controller-owned.
 type Orchestration struct {
+	Rearm          bool       `json:"rearm,omitempty"`
 	Enabled        bool       `json:"enabled"`
 	ScheduledAt    *time.Time `json:"scheduledAt,omitempty"`
 	NotBefore      *time.Time `json:"notBefore,omitempty"`

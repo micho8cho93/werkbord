@@ -133,6 +133,9 @@ func (e *workerEnv) start() *domain.Run {
 	if err := e.worker.Tick(testCtx); err != nil {
 		e.t.Fatal(err)
 	}
+	if err := e.worker.Tick(testCtx); err != nil {
+		e.t.Fatal(err)
+	}
 	waitFor(e.t, func() bool {
 		e.worker.mu.Lock()
 		defer e.worker.mu.Unlock()

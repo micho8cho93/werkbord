@@ -206,10 +206,28 @@ werkbord-team handoff --server https://team.example.com --ticket WB-142 --runner
 ```
 
 `handoff` fetches the ticket from Team, finds the project in **your** Werkbord whose Git remote is the Team project's
-repository (`--local-project` overrides), and creates a task there; you start the run from your Werkbord as usual. It
+repository (`--local-project` overrides), and creates or reuses a task with a durable source link.
+Re-importing preserves your local edits. The imported task uses the ticket branch and intended base.
+The local title accepts 200 Unicode code points; a longer prefixed title is truncated safely while the
+full title remains in the description. Context accepts up to 256,000 UTF-8 bytes; oversized handoffs
+receive an explicit error and can be downloaded instead. You start the run from Werkbord as usual. It
 refuses a `--runner` that is not on this computer (`localhost`, `127.0.0.1`, `::1`): a handoff only ever goes to your own
 Werkbord. Your Team token goes only to the Team server and your Werkbord token only to your Werkbord; redirects are not
 followed. Without `--runner` it prints the handoff (`--out FILE`, mode 0600, or `--prompt` for the text alone).
+
+Add `--report` to copy branch, actual commits and matching pull-request metadata back to Team. Add
+`--watch` to keep doing that every 15 seconds from this developer-owned foreground client; stop with
+Ctrl-C. Unchanged metadata is not sent repeatedly. Push/fetch work executed on another runner before
+reporting it from your controller. Reports are bounded to 200 commits and 200 changed files and fail
+explicitly if incomplete. Neither server connects to the other; this client alone carries metadata.
+Team never receives Git, GitHub or agent credentials.
+
+Console drafts keep the version against which editing started. A stale save returns a conflict and
+keeps the draft, including deliberately empty fields; **Load latest version** supports recovery after
+copying the draft. Drafts, disclosures and keyboard focus survive refreshes and reconnects; drafts
+belong to their project and ticket. Board and Reviews use the same completion gates. Board ticket
+links use `?tab=board&project=ID&ticket=ID` and support browser back/forward. Renewing your own token
+adopts and persists the replacement before refreshing; the previous token stops authenticating.
 
 ### Git metadata, reported not discovered
 

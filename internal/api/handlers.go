@@ -146,6 +146,9 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		SourceRef     string                 `json:"sourceRef"`
+		WorkBranch    string                 `json:"workBranch"`
+		BaseBranch    string                 `json:"baseBranch"`
 		Title         string                 `json:"title"`
 		Description   string                 `json:"description"`
 		Execution     domain.ExecutionConfig `json:"execution"`
@@ -156,6 +159,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.opt.Tasks.CreateTask(r.Context(), service.NewTask{
+		SourceRef: req.SourceRef, WorkBranch: req.WorkBranch, BaseBranch: req.BaseBranch,
 		ProjectID: r.PathValue("pid"), Title: req.Title, Description: req.Description, Execution: req.Execution, Orchestration: req.Orchestration,
 	})
 	if err != nil {

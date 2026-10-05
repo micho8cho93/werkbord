@@ -92,7 +92,10 @@ replayed; the recovered process is stopped and its terminal report makes that ou
 Stop/finish/replies on an offline machine are queued and remain pending until acknowledged.
 
 Controller restart preserves remote runs. Runner restart never launches an already accepted job a
-second time. It reconciles known process identities and reports stopped work. If a crash occurred
+second time. New jobs first receive a durable acceptance acknowledgement; only a later
+heartbeat may execute them. A missing journal for accepted work is quarantined, never relaunched.
+Jobs created before this acceptance contract are also quarantined after an upgrade. It reconciles
+known process identities and reports stopped work. If a crash occurred
 between launch and recording its process identity, the run remains uncertain. Inspect that runner,
 ensure no processes remain, stop the runner service, then explicitly resolve:
 
@@ -102,10 +105,24 @@ devboard runner resolve <run-id> --confirm-stopped
 devboard runner start
 ```
 
-The next heartbeat reports the failure and releases ownership. There is deliberately no controller-side
-force reassignment while a runner might still be executing. Disabling a remote runner or revoking
-project access queues stops for its active work. Removal revokes its key and is allowed only after
-all its runs end. History is retained. Local disable prevents new launches.
+The next heartbeat reports the failure and releases ownership. A rejected run is isolated from
+other reports and heartbeat renewal, stopped on its runner, and quarantined with a diagnostic.
+A restored controller database quarantines that identity durably; recover or revoke it and re-pair.
+Do not clear journals or copy an identity onto another machine to recover it.
+
+Settings → Runners → Revoke identity handles a permanently lost machine. It immediately rejects
+its signatures and holds capacity for 120 seconds (lease plus the in-flight request allowance).
+Its unresolved runs then become failed with **unverified work**, retained for inspection. Revocation
+never launches a replacement run. Inspect the owning machine and reconcile its branch before retrying.
+Disabling a runner or revoking project access queues stops; ordinary removal still requires all
+runs to end. History is retained. Local disable prevents new launches.
+
+Controller and runner must both use protocol 1 (Werkbord 0.9.0). Upgrade idle services together;
+legacy jobs with unknown acceptance require owner recovery. `devboard update` restarts an already
+running runner service after a successful binary replacement. A version/protocol mismatch or clock
+skew is an actionable sync error; `devboard runner status` exposes the last connection error, and
+Settings displays runner recovery diagnostics. Clone preparation allows eight minutes, fetch two,
+and total preparation ten; progress appears in the run output. Leases use a monotonic clock.
 
 Useful commands: `devboard runner start`, `stop`, `status`, and `serve`. Runner state is in
 `<data-dir>/runner`, separate from controller SQLite and services. Settings allows rename, capacity,
@@ -127,9 +144,10 @@ Cost categories remain separate:
 
 Codex reports cumulative input/output/cached token counts from app-server notifications; it does not
 supply an actual charge here. Claude's `modelUsage` and `total_cost_usd` supply cumulative token and
-client-side API-equivalent estimates, including subagents. Resumed adapter sessions leave these
-measurements unknown because their lifetime totals cannot be safely attributed to just the new Run.
-Fresh handoff runs can report their own usage. API-call counts stay unknown unless explicitly reported.
+client-side API-equivalent estimates, including subagents. Resumed adapter sessions establish a
+baseline and report only verifiable later increments, marked **Partial**. Counts before that baseline
+remain unknown; lifetime measurements are never charged to a second run. Incomplete updates retain
+previously known cumulative counts and cost provenance. Fresh handoff runs report their own usage. API-call counts stay unknown unless explicitly reported.
 Owner-only usage and assessment endpoints support recording other reliable measurements with provenance.
 See [Codex's notification schema](https://raw.githubusercontent.com/openai/codex/main/codex-rs/app-server-protocol/schema/json/v2/ThreadTokenUsageUpdatedNotification.json)
 and [Claude's cost tracking documentation](https://code.claude.com/docs/en/agent-sdk/cost-tracking).
@@ -155,3 +173,20 @@ capacity races, command acknowledgement, lost pairing responses, unique worktree
 fresh remote targets, stale branches, cross-runner ownership and unknown/reported usage without any
 hosted service or real agent calls. Live multi-machine private-network sign-in still depends on your
 network and each machine's installed/authenticated CLIs.
+
+## Scheduling and retained evidence
+
+Ordinary schedule editing, including disabling and enabling it, preserves the existing attempt.
+Use **Rearm another attempt** to clear a missed/failed/consumed dispatch and authorize another run.
+Pre-launch conflicts are recorded and do not retry every second or fetch every queued task.
+Git inspection follows capacity/scope filtering; runner capacity is shared across projects and queued
+reservations. Projects take turns at shared capacity. A completed dependency whose task is not Done
+is explicitly described as integration unverified; downstream context includes its branch evidence.
+An imported task's explicit base branch controls its worktree and scheduler checks.
+
+Untracked file contents are excluded from generated handoff prompts. Filenames may be shown as
+Git evidence; review files and manually add selected non-secret context when it is needed. A deleted
+task worktree can be recreated from its preserved branch. Compact state/usage events omit repeated
+prompts. Terminal transcript output is retained for 30 days, other terminal run events for a year;
+active run output, stored runs and handoff summaries remain. A browser whose replay cursor predates
+retention reloads authoritative state instead of replaying an incomplete history.

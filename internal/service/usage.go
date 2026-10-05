@@ -24,7 +24,7 @@ func (s *Runs) SetUsage(ctx context.Context, id string, u domain.Usage) (*domain
 			return e
 		}
 		u.Acceptance = r.Usage.Acceptance
-		r.Usage = u
+		r.Usage = domain.MergeUsage(r.Usage, u)
 		r.UpdatedAt = s.now()
 		if e := tx.Runs().Update(ctx, r); e != nil {
 			return e

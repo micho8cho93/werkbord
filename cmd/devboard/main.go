@@ -9,7 +9,7 @@
 //	devboard migrate               apply database migrations and exit
 //	devboard project add <path>    register an existing local Git repository
 //	devboard project list          list registered projects
-//	devboard token [--url]         print the API token (or a link that signs a browser in)
+//	devboard token [--url] [--rotate] print the API token (or a link that signs a browser in)
 //	devboard version               print the version
 //
 // The service commands manage the controller as a background service (launchd,
@@ -55,7 +55,8 @@ commands:
   migrate               apply database migrations and exit
   project add <path>    register an existing local Git repository
   project list          list registered projects
-  token                 print the API token, or with --url a sign-in link for this computer
+  token                 print the API token (--url: sign-in link; --rotate: replace file-managed token)
+  db restore            restore a compatible database backup with the controller stopped
   version               print the version
 
 Run "devboard <command> -h" for command flags.
@@ -113,6 +114,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return cmdMigrate(cfg, args[1:], stdout, stderr)
 	case "project", "projects":
 		return cmdProject(cfg, args[1:], stdout, stderr)
+	case "db":
+		return a.cmdDB(ctx, args[1:])
 	case "token":
 		return cmdToken(cfg, args[1:], stdout, stderr)
 	case "version", "--version", "-v":
@@ -183,17 +186,21 @@ func cmdToken(cfg config.Config, args []string, stdout, stderr io.Writer) error 
 	fs := flag.NewFlagSet("token", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	commonFlags(fs, &cfg)
+	rotate := fs.Bool("rotate", false, "replace the file-managed API credential; existing clients must sign in again")
 	asURL := fs.Bool("url", false, "print a sign-in link for a browser on this computer instead of the bare token")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: devboard token [--url]")
+		return errors.New("usage: devboard token [--url] [--rotate]")
 	}
 	if !cfg.AuthRequired() {
 		return errors.New("API authentication is disabled for this configuration, so there is no token")
 	}
 	tok, err := cfg.ResolveToken(false)
+	if *rotate {
+		tok, err = cfg.RotateToken()
+	}
 	if err != nil {
 		return err
 	}

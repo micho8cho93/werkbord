@@ -33,6 +33,9 @@ type TaskPatch struct {
 
 // NewTask describes a task to add.
 type NewTask struct {
+	SourceRef   string
+	WorkBranch  string
+	BaseBranch  string
 	ProjectID   string
 	Title       string
 	Description string
@@ -50,6 +53,16 @@ func (s *Tasks) Create(ctx context.Context, projectID, title, description string
 // CreateTask adds a task to the bottom of the project's Backlog.
 func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error) {
 	projectID := in.ProjectID
+	if len(in.SourceRef) > 2000 {
+		return nil, domain.ErrInvalid
+	}
+	for _, branch := range []string{in.WorkBranch, in.BaseBranch} {
+		if branch != "" {
+			if err := domain.ValidateRefName(branch); err != nil {
+				return nil, err
+			}
+		}
+	}
 	title, err := domain.ValidateTaskTitle(in.Title)
 	if err != nil {
 		return nil, err
@@ -63,12 +76,28 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 	}
 	now := s.now()
 	t := &domain.Task{
+		SourceRef: in.SourceRef, WorkBranch: in.WorkBranch, BaseBranch: in.BaseBranch,
 		ID: domain.NewID(domain.PrefixTask), ProjectID: projectID, Title: title, Description: in.Description,
 		State: domain.TaskBacklog, Execution: exec, Orchestration: in.Orchestration, CreatedAt: now, UpdatedAt: now,
 	}
 	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
 		if _, err := tx.Projects().Get(ctx, projectID); err != nil {
 			return err
+		}
+		if in.SourceRef != "" || in.WorkBranch != "" {
+			all, err := tx.Tasks().ListByProject(ctx, projectID)
+			if err != nil {
+				return err
+			}
+			for _, existing := range all {
+				if in.SourceRef != "" && existing.SourceRef == in.SourceRef {
+					t = &existing
+					return nil
+				}
+				if in.WorkBranch != "" && existing.WorkBranch == in.WorkBranch {
+					return fmt.Errorf("%w: branch %s is associated with another task (%s)", domain.ErrConflict, in.WorkBranch, existing.ID)
+				}
+			}
 		}
 		max, err := tx.Tasks().MaxPosition(ctx, projectID, t.State)
 		if err != nil {

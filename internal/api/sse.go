@@ -37,6 +37,8 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rc := http.NewResponseController(w)
 
+	credential := s.currentToken()
+	credentialValid := func() bool { return !s.opt.AuthRequired || credential == s.currentToken() && credential != "" }
 	project := r.URL.Query().Get("project")
 	if project != "" {
 		if _, err := s.opt.Projects.Get(ctx, project); err != nil {
@@ -45,6 +47,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	write := func(e domain.Event) error {
+		if !credentialValid() {
+			return fmt.Errorf("credential replaced")
+		}
 		if project != "" && e.ProjectID != project {
 			return nil
 		}
@@ -81,11 +86,31 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	catchUp := func() error {
+		count := 0
+		resnapshot := func() error {
+			var latest int64
+			err := s.opt.Store.View(ctx, func(tx store.Tx) error { var e error; latest, e = tx.Events().LatestSeq(ctx); return e })
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(w, "id: %d\nevent: resync_required\ndata: {}\n\n", latest); err != nil {
+				return err
+			}
+			after = latest
+			return rc.Flush()
+		}
+		var floor int64
+		if err := s.opt.Store.View(ctx, func(tx store.Tx) error { var e error; floor, e = tx.Events().ReplayFloor(ctx); return e }); err != nil {
+			return err
+		}
+		if after < floor {
+			return resnapshot()
+		}
 		for {
 			var page []domain.Event
 			if err := s.opt.Store.View(ctx, func(tx store.Tx) error {
 				var err error
-				page, err = tx.Events().ListAfter(ctx, after, sseReplayPage)
+				page, err = tx.Events().ListAfterProject(ctx, project, after, sseReplayPage)
 				return err
 			}); err != nil {
 				return err
@@ -95,6 +120,10 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 					return err
 				}
 				after = e.Seq
+			}
+			count += len(page)
+			if count >= 5000 {
+				return resnapshot()
 			}
 			if len(page) < sseReplayPage {
 				return rc.Flush()
@@ -130,6 +159,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case <-heartbeat.C:
+			if !credentialValid() {
+				return
+			}
 			if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil || rc.Flush() != nil {
 				return
 			}

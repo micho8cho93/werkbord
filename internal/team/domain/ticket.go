@@ -97,12 +97,13 @@ func (s TicketStatus) Held() bool { return s == TicketInProgress || s == TicketR
 // PullRequest is what the team knows about a ticket's pull request. Team never
 // asks GitHub: the developer's own Werkbord, signed in to GitHub as them, reports it.
 type PullRequest struct {
-	Number     int       `json:"number,omitempty"`
-	URL        string    `json:"url"`
-	State      PRState   `json:"state"`
-	Draft      bool      `json:"draft,omitempty"`
-	Mergeable  Mergeable `json:"mergeable"`
-	BaseBranch string    `json:"baseBranch,omitempty"`
+	Fields     map[string]bool `json:"-"` // optional patch presence; never persisted
+	Number     int             `json:"number,omitempty"`
+	URL        string          `json:"url"`
+	State      PRState         `json:"state"`
+	Draft      bool            `json:"draft,omitempty"`
+	Mergeable  Mergeable       `json:"mergeable"`
+	BaseBranch string          `json:"baseBranch,omitempty"`
 	// Behind is how many commits the branch is behind the base branch; -1 when unknown.
 	Behind     int       `json:"behind"`
 	Ahead      int       `json:"ahead"`

@@ -114,6 +114,6 @@ func (r runnerRepo) Save(ctx context.Context, in *domain.Runner) error {
 	if err != nil {
 		return err
 	}
-	_, err = r.q.ExecContext(ctx, `INSERT INTO runners (`+runnerCols+`) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,last_seen_at=excluded.last_seen_at,metadata=excluded.metadata`, in.ID, in.Name, in.Kind, in.Hostname, in.OS, in.Arch, in.Version, ms(in.CreatedAt), ms(in.LastSeenAt), raw)
+	_, err = r.q.ExecContext(ctx, `INSERT INTO runners (`+runnerCols+`) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,version=excluded.version,last_seen_at=excluded.last_seen_at,metadata=excluded.metadata`, in.ID, in.Name, in.Kind, in.Hostname, in.OS, in.Arch, in.Version, ms(in.CreatedAt), ms(in.LastSeenAt), raw)
 	return err
 }

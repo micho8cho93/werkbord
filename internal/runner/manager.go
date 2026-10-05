@@ -99,11 +99,12 @@ func (o *Options) defaults() {
 type Manager struct {
 	opt Options
 
-	mu      sync.Mutex
-	live    map[string]*live // by run ID
-	locks   map[string]chan struct{}
-	closing bool
-	wg      sync.WaitGroup // in-flight starts and resumes
+	mu             sync.Mutex
+	live           map[string]*live // by run ID
+	locks          map[string]chan struct{}
+	scheduleCursor int
+	closing        bool
+	wg             sync.WaitGroup // in-flight starts and resumes
 }
 
 // New returns a Manager. It starts nothing: call Recover once before serving.
@@ -206,7 +207,7 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		}
 		defer release()
 	}
-	if m.opt.RefreshRemotes != nil {
+	if m.opt.RefreshRemotes != nil && in.ScheduleKey == "" {
 		if e := m.opt.RefreshRemotes(ctx, task.ProjectID); e != nil {
 			return nil, e
 		}
@@ -278,6 +279,15 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		}
 		in.Instructions += "\n\n" + context
 	}
+	if m.opt.Scheduler != nil {
+		note, e := m.opt.Scheduler.DependencyContext(ctx, task.ID)
+		if e != nil {
+			return nil, e
+		}
+		if note != "" {
+			in.Instructions += "\n\n" + note
+		}
+	}
 	prompt := buildPrompt(task, in.Instructions, in.Resume)
 	// The run keeps a copy of what it started with: editing the task, its project
 	// or the defaults later does not change a session that is already working.
@@ -338,7 +348,7 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		return nil, fmt.Errorf("%w: the controller is shutting down", domain.ErrConflict)
 	}
 	info := sess.Process()
-	started, err := m.opt.Runs.MarkStarted(bg(), run.ID, service.Started{PID: info.PID, ProcessID: info.ID})
+	started, err := m.opt.Runs.MarkStarted(bg(), run.ID, service.Started{PID: info.PID, ProcessID: info.ID, UsagePartial: in.Resume})
 	if err != nil {
 		m.log().Error("cannot record that the agent started", "run", run.ID, "err", err)
 		m.abandon(l, "the controller could not record the session: "+err.Error())

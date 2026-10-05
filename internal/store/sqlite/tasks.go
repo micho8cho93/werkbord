@@ -11,13 +11,13 @@ import (
 
 type taskRepo struct{ q queryer }
 
-const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution, orchestration`
+const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution, orchestration, source_ref, work_branch, base_branch`
 
 func scanTask(s interface{ Scan(...any) error }) (*domain.Task, error) {
 	var t domain.Task
 	var created, updated int64
 	var execution, orchestration string
-	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution, &orchestration); err != nil {
+	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution, &orchestration, &t.SourceRef, &t.WorkBranch, &t.BaseBranch); err != nil {
 		return nil, err
 	}
 	t.CreatedAt, t.UpdatedAt = fromMS(created), fromMS(updated)
@@ -41,8 +41,8 @@ func (r taskRepo) Create(ctx context.Context, t *domain.Task) error {
 		return err
 	}
 	_, err = r.q.ExecContext(ctx,
-		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), execution, mustJSON(t.Orchestration))
+		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), execution, mustJSON(t.Orchestration), t.SourceRef, t.WorkBranch, t.BaseBranch)
 	if isFKViolation(err) {
 		return fmt.Errorf("project %s: %w", t.ProjectID, domain.ErrNotFound)
 	}

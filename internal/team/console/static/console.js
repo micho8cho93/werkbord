@@ -35,7 +35,7 @@ try {
   const inv = /(?:^|[#&])invite=([^&]+)/.exec(location.hash);
   if (tok) sessionStorage.setItem('werkbord-team-token', decodeURIComponent(tok[1]));
   if (inv) state.invite = decodeURIComponent(inv[1]);
-  if (tok || inv) history.replaceState(null, '', location.pathname); // tokens and codes never stay in the address bar
+  if (tok || inv) history.replaceState(null, '', location.pathname + location.search); // tokens and codes never stay in the address bar
   state.token = sessionStorage.getItem('werkbord-team-token');
   state.projectId = sessionStorage.getItem('werkbord-team-project');
   const t = sessionStorage.getItem('werkbord-team-tab');
@@ -43,6 +43,11 @@ try {
 } catch (_) { /* storage can be unavailable; the sign-in form still works for the session */ }
 
 function remember() {
+  captureDrafts();
+  const q = new URLSearchParams(); q.set("tab", state.tab);
+  if (state.projectId) q.set("project", state.projectId);
+  if (state.ticketId) q.set("ticket", state.ticketId);
+  history.pushState(null, "", location.pathname + "?" + q.toString());
   try {
     sessionStorage.setItem('werkbord-team-tab', state.tab);
     if (state.projectId) sessionStorage.setItem('werkbord-team-project', state.projectId);
@@ -62,15 +67,17 @@ function h(tag, attrs, ...kids) {
 }
 
 async function api(method, path, body, opts) {
+  const credential = state.token;
   const res = await fetch('/api/team/v1' + path, {
     method,
-    headers: { ...(state.token ? { Authorization: 'Bearer ' + state.token } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { ...(credential ? { Authorization: 'Bearer ' + credential } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
     signal: opts && opts.signal,
   });
+  if (res.status === 401 && state.token && state.token !== credential) return api(method, path, body, opts);
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && state.token) { signOut(); throw new Error('Your token is not valid any more. Sign in again.'); }
+  if (res.status === 401 && state.token && state.token === credential) { signOut(); throw new Error('Your token is not valid any more. Sign in again.'); }
   if (!res.ok) {
     const err = new Error(data.error ? data.error.message : 'Request failed (' + res.status + ')');
     err.status = res.status;
@@ -85,6 +92,7 @@ function pcan(permission) { return !!(state.data && state.data.board.can.include
 function signOut() {
   try { sessionStorage.removeItem('werkbord-team-token'); } catch (_) {}
   stopSync();
+  drafts.clear(); draftVersions.clear(); renderedScope = "";
   Object.assign(state, { token: null, me: null, ov: null, secret: null, data: null, ticketId: null, handoff: null });
   render();
 }
@@ -125,22 +133,59 @@ function extLink(u, label) { return isHTTPS(u) ? h('a', { href: safeHref(u), tar
 function sum(list, f) { return list.reduce((n, x) => n + f(x), 0); }
 function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many || one + 's'); }
 
-// Inputs keep what was typed when the page re-renders because someone else changed something.
-// Only fields the person has touched are kept; the rest show the fresh data.
-app.addEventListener('input', (e) => { if (e.target && e.target.dataset) e.target.dataset.dirty = '1'; });
+// Drafts belong to the exact screen and project; refreshed data never changes
+// the version against which a ticket edit began.
+const drafts = new Map();
+const draftVersions = new Map();
+let renderedScope = '';
+function screenScope() { return [state.tab, state.projectId || '', state.ticketId || ''].join(':'); }
+function touched(e) {
+ const el = e.target;
+ if (!el || !el.name || el.name === 'project-switch') return;
+ el.dataset.dirty = '1';
+ const form = el.closest('[data-ticket-version]');
+ if (form && !draftVersions.has(form.dataset.ticketId)) draftVersions.set(form.dataset.ticketId, Number(form.dataset.ticketVersion));
+}
+app.addEventListener('input', touched);
+app.addEventListener('change', touched);
 function snapshot(root) {
-  const keep = {};
-  for (const el of root.querySelectorAll('[name]')) if (el.dataset.dirty === '1' || el === document.activeElement) keep[el.name] = { v: el.type === 'checkbox' ? el.checked : el.value, focus: el === document.activeElement, at: el.selectionStart };
-  return keep;
+ const keep = { fields: {}, details: {}, focus: null, scroll: { x: window.scrollX, y: window.scrollY } };
+ for (const el of root.querySelectorAll('[name]')) {
+  if (el.dataset.dirty === '1') keep.fields[el.name] = { v: el.type === 'checkbox' ? el.checked : el.value };
+  if (el === document.activeElement) keep.focus = { name: el.name, start: el.selectionStart, end: el.selectionEnd };
+ }
+ for (const [key, el] of disclosures(root)) keep.details[key] = el.open;
+ return keep;
 }
-function restore(root, keep) {
-  for (const el of root.querySelectorAll('[name]')) {
-    const k = keep[el.name];
-    if (!k) continue;
-    if (el.type === 'checkbox') el.checked = k.v; else if (k.v !== '' && el.tagName !== 'SELECT') el.value = k.v;
-    if (k.focus) { el.focus(); try { if (k.at != null) el.setSelectionRange(k.at, k.at); } catch (_) {} }
-  }
+function disclosures(root) {
+ const counts = new Map();
+ return [...root.querySelectorAll('details')].map(el => {
+  const label = el.querySelector('summary')?.textContent || '';
+  const n = counts.get(label) || 0;
+  counts.set(label, n + 1);
+  return [label + ':' + n, el];
+ });
 }
+function captureDrafts() { if (renderedScope) drafts.set(renderedScope, snapshot(app)); }
+function restore(root, keep, focus) {
+ if (!keep) return;
+ for (const el of root.querySelectorAll('[name]')) {
+  const k = keep.fields[el.name];
+  if (k) { if (el.type === 'checkbox') el.checked = k.v; else el.value = k.v; el.dataset.dirty = '1'; }
+ }
+ for (const [key, el] of disclosures(root)) if (key in keep.details) el.open = keep.details[key];
+ if (focus && keep.focus) for (const el of root.querySelectorAll('[name]')) if (el.name === keep.focus.name) {
+  el.focus({ preventScroll: true });
+  try { if (keep.focus.start != null) el.setSelectionRange(keep.focus.start, keep.focus.end); } catch (_) {}
+ }
+ if (focus && keep.scroll) window.scrollTo(keep.scroll.x, keep.scroll.y);
+}
+function discardTicketDraft(id) {
+ draftVersions.delete(id);
+ for (const keep of drafts.values()) for (const name of Object.keys(keep.fields)) if (name.endsWith('-' + id)) delete keep.fields[name];
+ for (const el of app.querySelectorAll('[name]')) if (el.name.endsWith('-' + id)) delete el.dataset.dirty;
+}
+function ticketVersion(k) { return draftVersions.get(k.id) || k.version; }
 
 // The connection banner and the toasts live outside #app, so a re-render never removes them.
 const banner = h('p', { class: 'banner', role: 'status', hidden: true }, 'Reconnecting… what you see may be out of date. It will refresh by itself when the connection is back.');
@@ -182,6 +227,7 @@ let rendering = Promise.resolve();
 function render() { rendering = rendering.then(renderNow, renderNow); return rendering; }
 
 async function renderNow() {
+  const requestedScope = screenScope();
   if (!state.token) { stopSync(); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
   try {
     [state.me, state.ov] = await Promise.all([api('GET', '/me'), api('GET', '/overview')]);
@@ -212,7 +258,10 @@ async function renderNow() {
     state.error = e.message; body = h('p', { class: 'error' }, e.message);
   }
   startSync();
-  const keep = snapshot(app);
+  if (requestedScope !== screenScope() && requestedScope.split(":")[1]) return;
+  const previousScope = renderedScope;
+  captureDrafts();
+  const keep = drafts.get(screenScope());
   app.classList.toggle('wide', state.tab === 'board');
   const ov = state.ov;
   const counts = {
@@ -236,7 +285,8 @@ async function renderNow() {
     state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
     secretBox(),
     body));
-  restore(app, keep);
+  restore(app, keep, previousScope === screenScope());
+  renderedScope = screenScope();
 }
 
 function unreachable() {
@@ -435,7 +485,9 @@ function membersPanels(members) {
     h('div', { class: 'grow' }, h('strong', {}, m.name), ' ', h('span', { class: 'muted' }, m.email || '')),
     h('span', { class: 'badge' }, m.role),
     (m.id === state.me.member.id || can('members.manage'))
-      ? h('button', { class: 'plain', onclick: () => act(async () => { const r = await api('POST', '/members/' + m.id + '/token'); state.secret = { kind: 'token', name: r.member.name, token: r.token }; }) }, 'New token') : '',
+      ? h('button', { class: 'plain', onclick: () => act(async () => { const r = await api('POST', '/members/' + m.id + '/token'); const self = r.member.id === state.me.member.id;
+          if (self) { stopSync(); state.token = r.token; try { sessionStorage.setItem('werkbord-team-token', r.token); } catch (_) {} }
+          state.secret = { kind: 'token', name: r.member.name, self, token: r.token }; }) }, 'New token') : '',
     (can('members.manage') && m.role !== 'owner')
       ? h('button', { class: 'danger', onclick: () => confirm('Remove ' + m.name + ' from the workspace? Anything they are working on goes back on the board.') && act(() => api('DELETE', '/members/' + m.id)) }, 'Remove') : ''));
   const panels = [h('div', { class: 'panel' }, h('h2', {}, 'Members (' + members.length + ')'), rows)];
@@ -484,6 +536,7 @@ async function loadProject() {
   const id = state.projectId;
   const board = await api('GET', '/projects/' + id + '/board');
   const d = { id, board, tab: state.tab };
+  if (state.ticketId) d.ticket = await api("GET", "/projects/" + id + "/tickets/" + state.ticketId);
   if (state.tab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
   if (state.tab === 'activity') d.activity = await api('GET', '/projects/' + id + '/activity?limit=100');
   if (state.tab === 'people') {
@@ -635,7 +688,7 @@ function boardTab(d) {
   const parts = [];
   if (state.ticketId) {
     const k = b.tickets.find((x) => x.id === state.ticketId);
-    if (k) parts.push(ticketPanel(d, k)); else state.ticketId = null;
+    if (k) parts.push(ticketPanel(d, d.ticket || k)); else state.ticketId = null;
   }
   parts.push(h('div', { class: 'board' }, cols));
   if (pcan('tickets.create') && !b.project.archived) parts.push(newTicketForm(d));
@@ -653,7 +706,7 @@ function card(d, k) {
   }
   return h('article', { class: 'card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : '') },
     h('div', { class: 'muted small' }, k.key),
-    h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; render(); } }, k.title),
+    h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
     k.assigneeId ? h('div', { class: 'owner' }, mine ? 'You' : personName(d, k.assigneeId), k.status === 'in_progress' ? ' · active' : '') : '',
     flags.length ? h('div', { class: 'flags' }, flags) : '',
     (k.status === 'available' && d.board.member && pcan('tickets.claim'))
@@ -698,7 +751,9 @@ function ticketPanel(d, k) {
   if (k.status === 'in_progress' && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Take it back'));
   if (k.status === 'review' && pcan('tickets.review')) {
     const note = h('input', { name: 'rc-note-' + k.id, placeholder: 'What should change? (optional)', maxlength: 1000 });
-    actions.push(h('button', { class: 'primary', onclick: run('POST', '/complete') }, 'Mark done'),
+    const blocker = b.completion[k.id];
+    if (blocker) actions.push(h('p', { class: 'muted' }, blocker));
+    actions.push(h('button', { class: 'primary', disabled: !!blocker, onclick: run('POST', '/complete') }, 'Mark done'),
       h('span', { class: 'inline' }, note, h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/request-changes', { note: note.value })) }, 'Request changes')));
   }
   if (k.status === 'done' && pcan('tickets.reopen')) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'available' }) }, 'Reopen'));
@@ -728,7 +783,7 @@ function ticketPanel(d, k) {
   return h('div', { class: 'panel ticket' },
     h('div', { class: 'ticket-head' },
       h('h2', {}, k.key + ' · ' + k.title),
-      h('button', { class: 'plain', onclick: () => { state.ticketId = null; state.handoff = null; render(); } }, 'Close')),
+      h('button', { class: 'plain', onclick: () => { state.ticketId = null; state.handoff = null; remember(); render(); } }, 'Close')),
     h('div', { class: 'actions' }, actions),
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
     h('div', { class: 'two' },
@@ -758,7 +813,8 @@ function editTicket(k, path) {
   const desc = h('textarea', { name: 'e-desc-' + k.id, rows: 3 }); desc.value = k.description;
   const reqs = h('textarea', { name: 'e-reqs-' + k.id, rows: 3 }); reqs.value = k.requirements;
   return h('details', {}, h('summary', {}, 'Edit this ticket'),
-    h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, version: k.version })); } },
+    ticketVersion(k) !== k.version ? h('div', { role: 'alert' }, h('p', { class: 'error' }, 'Someone changed this ticket while you were editing. Your draft is kept. Copy your text before loading their version and combining the changes.'), h('button', { class: 'plain', type: 'button', onclick: () => { discardTicketDraft(k.id); render(); } }, 'Load latest version')) : '',
+    h('form', { class: 'stack', 'data-ticket-id': k.id, 'data-ticket-version': k.version, onsubmit: (e) => { e.preventDefault(); act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, version: ticketVersion(k) }).then(() => discardTicketDraft(k.id)));  } },
       field('Title', title), field('Description', desc), field('Requirements and context', reqs), h('button', { class: 'plain' }, 'Save')));
 }
 
@@ -787,7 +843,8 @@ function gitForm(k, path) {
 }
 
 function handoffBox(hf) {
-  const cmd = 'WERKBORD_TEAM_TOKEN=<your token> werkbord-team handoff --server ' + location.origin + ' --ticket ' + hf.ticket.key + ' --runner http://127.0.0.1:7420';
+  const quote = s => "'" + s.replaceAll("'", "'\"'\"'") + "'";
+  const cmd = 'werkbord-team handoff --server ' + quote(location.origin) + ' --project ' + quote(hf.project.id) + ' --ticket ' + quote(hf.ticket.id) + ' --runner http://127.0.0.1:7420';
   const json = JSON.stringify(hf, null, 2);
   return h('div', { class: 'handoff' },
     h('strong', {}, 'Open ' + hf.ticket.key + ' in your own Werkbord'),
@@ -802,7 +859,7 @@ function handoffBox(hf) {
         document.body.append(a); a.click(); a.remove(); } }, 'Download handoff'),
       h('button', { class: 'plain', onclick: () => { state.handoff = null; render(); } }, 'Hide')),
     h('details', {}, h('summary', {}, 'Or from a terminal on your computer'),
-      h('p', { class: 'muted' }, 'This creates the task in the Werkbord running on your own computer (a localhost address only), using your own tokens. Your tokens stay in your environment, not in the command.'),
+      h('p', { class: 'muted' }, 'This creates the task in the Werkbord running on your own computer (a localhost address only), using WERKBORD_TEAM_TOKEN and DEVBOARD_TOKEN from your environment. Set both first. Run it again with --report after work, or add --watch to keep metadata synchronized from your computer. Repeated imports reuse your task.'),
       h('code', {}, cmd), copy(cmd, 'Copy command')),
     h('details', {}, h('summary', {}, 'Task text'), h('pre', {}, hf.prompt)));
 }
@@ -890,4 +947,12 @@ function peopleTab(d) {
   return h('div', {}, panels);
 }
 
+function readLocation() {
+ const q = new URLSearchParams(location.search);
+ if (q.has('tab') && TABS.some(x => x[0] === q.get('tab'))) state.tab = q.get('tab');
+ if (q.has('project')) state.projectId = q.get('project');
+ state.ticketId = q.get('ticket');
+}
+readLocation();
+window.addEventListener('popstate', () => { captureDrafts(); readLocation(); state.data = null; state.handoff = null; render(); });
 render();

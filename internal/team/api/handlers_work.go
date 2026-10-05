@@ -108,26 +108,28 @@ func (s *Server) handleAssignTicket(w http.ResponseWriter, r *http.Request) {
 // pullRequestIn is a pull request as a client reports it. Behind is a pointer so
 // that leaving it out means "not known" and not "up to date".
 type pullRequestIn struct {
-	Number     int    `json:"number"`
-	URL        string `json:"url"`
-	State      string `json:"state"`
-	Draft      bool   `json:"draft"`
-	Mergeable  string `json:"mergeable"`
-	BaseBranch string `json:"baseBranch"`
-	Behind     *int   `json:"behind"`
-	Ahead      int    `json:"ahead"`
+	Number     *int    `json:"number"`
+	URL        *string `json:"url"`
+	State      *string `json:"state"`
+	Draft      *bool   `json:"draft"`
+	Mergeable  *string `json:"mergeable"`
+	BaseBranch *string `json:"baseBranch"`
+	Behind     *int    `json:"behind"`
+	Ahead      *int    `json:"ahead"`
 }
 
+func val[T any](p *T, fallback T) T {
+	if p != nil {
+		return *p
+	}
+	return fallback
+}
 func (p *pullRequestIn) domain() *domain.PullRequest {
 	if p == nil {
 		return nil
 	}
-	behind := -1
-	if p.Behind != nil {
-		behind = *p.Behind
-	}
-	return &domain.PullRequest{Number: p.Number, URL: p.URL, State: domain.PRState(p.State), Draft: p.Draft, Mergeable: domain.Mergeable(p.Mergeable),
-		BaseBranch: p.BaseBranch, Behind: behind, Ahead: p.Ahead}
+	return &domain.PullRequest{Number: val(p.Number, 0), URL: val(p.URL, ""), State: domain.PRState(val(p.State, "")), Draft: val(p.Draft, false), Mergeable: domain.Mergeable(val(p.Mergeable, "")), BaseBranch: val(p.BaseBranch, ""), Behind: val(p.Behind, -1), Ahead: val(p.Ahead, 0),
+		Fields: map[string]bool{"number": p.Number != nil, "url": p.URL != nil, "state": p.State != nil, "draft": p.Draft != nil, "mergeable": p.Mergeable != nil, "baseBranch": p.BaseBranch != nil, "behind": p.Behind != nil, "ahead": p.Ahead != nil}}
 }
 
 func (s *Server) handleSubmitTicket(w http.ResponseWriter, r *http.Request) {

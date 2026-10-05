@@ -166,6 +166,33 @@ func branchRecord(projectID, name, reporter string, now time.Time, st *BranchSta
 // applyPullRequest validates a reported pull request and sets it on the ticket.
 // It reports whether this is a pull request the ticket did not have before.
 func (s *Service) applyPullRequest(k *domain.Ticket, a Actor, in domain.PullRequest, now time.Time) (created bool, err error) {
+	if old := k.PullRequest; old != nil && in.Fields != nil && (!in.Fields["url"] || old.URL == in.URL) {
+		if !in.Fields["url"] {
+			in.URL = old.URL
+		}
+		if !in.Fields["number"] {
+			in.Number = old.Number
+		}
+		if !in.Fields["state"] {
+			in.State = old.State
+		}
+		if !in.Fields["draft"] {
+			in.Draft = old.Draft
+		}
+		if !in.Fields["mergeable"] {
+			in.Mergeable = old.Mergeable
+		}
+		if !in.Fields["baseBranch"] {
+			in.BaseBranch = old.BaseBranch
+		}
+		if !in.Fields["behind"] {
+			in.Behind = old.Behind
+		}
+		if !in.Fields["ahead"] {
+			in.Ahead = old.Ahead
+		}
+	}
+	in.Fields = nil
 	pr, err := domain.CleanPullRequest(in)
 	if err != nil {
 		return false, err

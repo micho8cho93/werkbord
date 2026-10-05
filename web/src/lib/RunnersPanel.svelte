@@ -40,6 +40,13 @@
     catch (e) { error = e instanceof Error ? e.message : String(e); }
     finally { busy = ''; }
   }
+  async function revoke(r: Runner) {
+    if (!confirm(`Revoke ${r.name}? Its credential is fenced immediately. Active capacity releases after 120 seconds. Inspect any work on that machine before running the task again.`)) return;
+    busy = r.id;
+    try { await api.revokeRunner(r.id); await refresh(); }
+    catch (e) { error = e instanceof Error ? e.message : String(e); }
+    finally { busy = ""; }
+  }
   async function remove(r: Runner) {
     busy = r.id;
     try { await api.removeRunner(r.id); await refresh(); }
@@ -90,11 +97,11 @@
             <fieldset><legend>Authorized projects</legend>{#each app.projects as p (p.id)}<label class="check"><input type="checkbox" bind:group={r.projects} value={p.id} />{p.name} <code>{p.id}</code></label>{/each}</fieldset>
             <label class="check"><input type="checkbox" bind:checked={r.allowClone} />Allow cloning (runner must also opt in)</label>
           {/if}
-          <div class="heading"><button class="btn primary" disabled={!!busy} onclick={() => save(r)}>{busy === r.id ? 'Saving…' : 'Save runner'}</button>{#if r.kind === 'remote'}<button class="btn" disabled={!!busy || r.currentRuns > 0} onclick={() => remove(r)}>Remove runner</button>{/if}</div>
+          <div class="heading"><button class="btn primary" disabled={!!busy} onclick={() => save(r)}>{busy === r.id ? 'Saving…' : 'Save runner'}</button>{#if r.kind === 'remote'}<button class="btn" disabled={!!busy || r.currentRuns > 0} onclick={() => remove(r)}>Remove runner</button><button class="btn" disabled={!!busy} onclick={() => revoke(r)}>Revoke lost runner</button>{/if}</div>
           <dl><dt>CPU</dt><dd>{r.capabilities?.cpu || 'Unknown'} logical cores</dd><dt>RAM / available</dt><dd>{size(r.capabilities?.ramBytes)} / {size(r.capabilities?.availableRamBytes)}</dd><dt>Free storage</dt><dd>{size(r.capabilities?.storageBytes)}</dd><dt>Last seen</dt><dd>{r.kind === 'local' ? 'This controller is online' : r.lastSeenAt.startsWith('0001') ? 'Waiting for first heartbeat' : new Date(r.lastSeenAt).toLocaleString()}</dd></dl>
           {#if r.capabilities?.diagnostics}<p class="error">{r.capabilities.diagnostics}</p>{/if}
           {#each r.capabilities?.agents ?? [] as a (a.id)}<p class="muted">{a.name} {a.version ?? ''} · {a.available ? 'Available' : a.detail || 'Unavailable'}</p>{/each}
-          {#if r.kind === 'remote'}<p class="muted">An offline runner keeps ownership of its runs. Reconnect it to stop work; removal is available after every run ends.</p>{/if}
+          {#if r.kind === 'remote'}<p class="muted">An offline runner keeps ownership of its runs. Reconnect it to stop work; removal is available after every run ends. For a permanently lost machine, revoke its identity and wait for the fence window.</p>{/if}
         </div>
       </details>
     </div>

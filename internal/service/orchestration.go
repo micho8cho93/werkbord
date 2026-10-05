@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -33,14 +34,16 @@ func configureOrchestration(ctx context.Context, tx store.Tx, task *domain.Task,
 		}
 		seen[id] = true
 	}
-	o.Key = ""
-	o.RunID = ""
-	o.DispatchedAt = nil
-	o.Missed = false
-	o.Error = ""
-	if o.Enabled {
-		o.Key = domain.NewID("schedule")
+	old := task.Orchestration
+	if o.Rearm || old.Key == "" {
+		o.Key, o.RunID, o.DispatchedAt, o.Missed, o.Error = "", "", nil, false, ""
+		if o.Enabled {
+			o.Key = domain.NewID("schedule")
+		}
+	} else {
+		o.Key, o.RunID, o.DispatchedAt, o.Missed, o.Error = old.Key, old.RunID, old.DispatchedAt, old.Missed, old.Error
 	}
+	o.Rearm = false
 	task.Orchestration = o
 	replaced := false
 	for i := range tasks {
@@ -235,7 +238,7 @@ func baseDecision(task domain.Task, x scheduleSnapshot, now time.Time, manual bo
 		}
 	}
 	if len(x.active) >= x.limit {
-		return set("waiting_capacity", fmt.Sprintf("Project concurrency limit (%d) is occupied", x.limit))
+		return set("waiting_capacity", fmt.Sprintf("Project concurrency limit (%d) is occupied by run %s on runner %s; ownership remains reserved while disconnected", x.limit, x.active[0].ID, x.active[0].RunnerID))
 	}
 	for _, r := range x.active {
 		var other domain.Task
@@ -286,10 +289,19 @@ func (s *Scheduler) inspect(ctx context.Context, t domain.Task, x scheduleSnapsh
 		return "blocked", "Cannot inspect target: " + err.Error()
 	}
 	targetSHA := target.Sha
+	if t.BaseBranch != "" {
+		targetSHA, err = s.Git.ResolveCommit(ctx, x.project.RepoPath, "refs/heads/"+t.BaseBranch)
+		if err == nil && targetSHA == "" {
+			targetSHA, err = s.Git.ResolveCommit(ctx, x.project.RepoPath, "refs/remotes/origin/"+t.BaseBranch)
+		}
+		if err != nil || targetSHA == "" {
+			return "blocked", "Intended base branch is unavailable; fetch or restore " + t.BaseBranch
+		}
+	}
 	if targetSHA == "" {
 		targetSHA = status.Head
 	}
-	if targetSHA != "" && status.Head != "" {
+	if t.BaseBranch == "" && targetSHA != "" && status.Head != "" {
 		_, behind, e := s.Git.Divergence(ctx, x.project.RepoPath, status.Head, targetSHA)
 		if e != nil {
 			return "blocked", "Cannot inspect repository checkout ancestry: " + e.Error()
@@ -304,10 +316,10 @@ func (s *Scheduler) inspect(ctx context.Context, t domain.Task, x scheduleSnapsh
 	if old, ok := x.latest[t.ID]; ok && old.WorktreeID != "" {
 		if w, ok := x.worktrees[old.WorktreeID]; ok && w.State == domain.WorktreeActive {
 			st, e := s.Git.Status(ctx, w.Path)
-			if e != nil {
+			if e != nil && !directoryMissing(w.Path) {
 				return "blocked", "Cannot inspect previous worktree: " + e.Error()
 			}
-			if st.Operation != "" || st.Counts.Conflicted > 0 {
+			if st != nil && (st.Operation != "" || st.Counts.Conflicted > 0) {
 				return "blocked", "Previous worktree has an operation or conflicts"
 			}
 			if targetSHA != "" {
@@ -322,6 +334,11 @@ func (s *Scheduler) inspect(ctx context.Context, t domain.Task, x scheduleSnapsh
 		}
 	}
 	for _, r := range x.active {
+		if r.Remote {
+			// The scope gate already serialized unknown or overlapping paths.
+			// A remote worktree is owned by its runner and cannot be inspected here.
+			continue
+		}
 		w, ok := x.worktrees[r.WorktreeID]
 		if !ok {
 			return "potentially_conflicting", "Active run has no inspectable worktree"
@@ -425,19 +442,23 @@ func (s *Scheduler) Plan(ctx context.Context, projectID string) ([]domain.Schedu
 	out := []domain.SchedulingDecision{}
 	slots := x.limit - len(x.active)
 	selected := []domain.Task{}
+	reserved := map[string]int{}
 	for _, t := range x.tasks {
 		d := baseDecision(t, x, s.now(), false)
-		if d.State == "runnable" {
-			if state, reason := s.inspect(ctx, t, x); state != "" {
-				d.State, d.Reason = state, reason
-			}
+		runnerID := ""
+		if d.State == "runnable" && slots <= 0 {
+			d.State, d.Reason = "queued", "Earlier runnable tasks have priority"
 		}
 
 		if d.State == "runnable" && s.Runners != nil {
 			resolved := domain.ResolveExecution(domain.Level{Source: domain.SourceTask, Config: t.Execution}, domain.Level{Source: domain.SourceProject, Config: x.project.Execution}, domain.Level{Source: domain.SourceGlobal, Config: global})
-			if _, _, e := s.Runners.Route(ctx, &t, resolved); e != nil {
+			if runner, _, e := s.Runners.RouteWithReservations(ctx, &t, resolved, reserved); e != nil {
 				d.State = "queued"
 				d.Reason = e.Error()
+			} else if runner.CurrentRuns >= runner.Capacity {
+				d.State, d.Reason = "waiting_capacity", "Earlier tasks reserved the selected runner capacity"
+			} else {
+				runnerID = runner.ID
 			}
 		}
 		if d.State == "runnable" {
@@ -451,9 +472,22 @@ func (s *Scheduler) Plan(ctx context.Context, projectID string) ([]domain.Schedu
 					}
 				}
 				if d.State == "runnable" {
+					if state, reason := s.inspect(ctx, t, x); state != "" {
+						d.State, d.Reason = state, reason
+					}
+				}
+				if d.State == "runnable" {
 					slots--
+					if runnerID != "" {
+						reserved[runnerID]++
+					}
 					selected = append(selected, t)
 				}
+			}
+		}
+		if d.State == "runnable" {
+			if note := dependencyContext(t, x); note != "" {
+				d.Reason += "; " + note
 			}
 		}
 		out = append(out, d)
@@ -512,4 +546,38 @@ func (s *Scheduler) RecordDispatchError(ctx context.Context, taskID, key, reason
 		ev.ProjectID, ev.TaskID = t.ProjectID, t.ID
 		return em.emit(ev)
 	})
+}
+
+func directoryMissing(path string) bool { _, err := os.Stat(path); return os.IsNotExist(err) }
+
+func dependencyContext(task domain.Task, x scheduleSnapshot) string {
+	notes := []string{}
+	for _, id := range task.Orchestration.Dependencies {
+		run, ok := x.latest[id]
+		if !ok || run.State != domain.RunCompleted || run.Branch == "" {
+			continue
+		}
+		for _, dep := range x.tasks {
+			if dep.ID == id && dep.State != domain.TaskDone {
+				notes = append(notes, fmt.Sprintf("Dependency %s completed on branch %s, but integration into the base branch is unverified. Inspect its commits before relying on them; they are not automatically included in this worktree.", dep.Title, run.Branch))
+			}
+		}
+	}
+	return strings.Join(notes, "\n")
+}
+func (s *Scheduler) DependencyContext(ctx context.Context, taskID string) (string, error) {
+	var note string
+	err := s.Store.View(ctx, func(tx store.Tx) error {
+		task, err := tx.Tasks().Get(ctx, taskID)
+		if err != nil {
+			return err
+		}
+		x, err := scheduleRead(ctx, tx, task.ProjectID)
+		if err != nil {
+			return err
+		}
+		note = dependencyContext(*task, x)
+		return nil
+	})
+	return note, err
 }

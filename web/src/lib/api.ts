@@ -159,6 +159,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
     request<Project>('PUT', `${inProject(projectId)}/execution`, execution),
   pairRunner: (projects: string[], allowClone: boolean) => request<import('./types').Pairing>('POST', '/api/runners/pair', {projects, allowClone}),
   saveRunner: (runner: Runner) => request<Runner>('PUT', `/api/runners/${enc(runner.id)}`, {name: runner.name, capacity: runner.capacity, automatic: runner.automatic, disabled: runner.disabled, projects: runner.projects, allowClone: runner.allowClone}),
+  revokeRunner: (id: string) => request('POST', `/api/runners/${enc(id)}/revoke`),
   removeRunner: (id: string) => request<Runner>('DELETE', `/api/runners/${enc(id)}`),
   routingRules: () => request<{rules: import('./types').RoutingRule[]}>('GET', '/api/routing-rules').then(r=>r.rules),
   saveRoutingRules: (rules: import('./types').RoutingRule[]) => request<{rules: import('./types').RoutingRule[]}>('PUT', '/api/routing-rules', {rules}),

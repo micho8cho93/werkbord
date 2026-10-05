@@ -34,7 +34,8 @@ type Board struct {
 	Role domain.ProjectRole         `json:"role"`
 	Can  []domain.ProjectPermission `json:"can"`
 	// Member is whether the actor is on the project (and so may hold tickets).
-	Member bool `json:"member"`
+	Member     bool              `json:"member"`
+	Completion map[string]string `json:"completion"`
 }
 
 type statusColumn struct {
@@ -60,6 +61,11 @@ func (s *Service) Board(ctx context.Context, a Actor, projectID string) (Board, 
 		b = Board{Project: x.Project, Revision: x.Project.Revision, Statuses: columns(), Role: x.Role, Can: x.Role.Permissions(), Member: x.Member}
 		if b.Tickets, err = tx.Tickets(ctx, a.Workspace.ID, projectID); err != nil {
 			return err
+		}
+		b.Completion = map[string]string{}
+		for _, k := range b.Tickets {
+			_, reason := canComplete(k, x.Role, a.Member.ID)
+			b.Completion[k.ID] = reason
 		}
 		b.People, err = people(ctx, tx, a.Workspace.ID, projectID)
 		return err

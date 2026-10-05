@@ -87,3 +87,19 @@ func (t *txn) Questions() store.QuestionRepo         { return questionRepo{t.q} 
 func (t *txn) Worktrees() store.WorktreeRepo         { return worktreeRepo{t.q} }
 func (t *txn) Health() store.HealthRepo              { return healthRepo{t.q} }
 func (t *txn) Events() store.EventRepo               { return eventRepo{t.q} }
+
+func (t *txn) Savepoint(ctx context.Context, fn func() error) error {
+	if _, err := t.q.ExecContext(ctx, "SAVEPOINT runner_report"); err != nil {
+		return err
+	}
+	err := fn()
+	if err != nil {
+		if _, rollbackErr := t.q.ExecContext(ctx, "ROLLBACK TO runner_report"); rollbackErr != nil {
+			return rollbackErr
+		}
+	}
+	if _, releaseErr := t.q.ExecContext(ctx, "RELEASE runner_report"); releaseErr != nil {
+		return releaseErr
+	}
+	return err
+}

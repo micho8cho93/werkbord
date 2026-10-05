@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"devboard/internal/agent"
 	"devboard/internal/domain"
@@ -24,16 +25,19 @@ import (
 )
 
 type Identity struct {
-	Controller string   `json:"controller"`
-	RunnerID   string   `json:"runnerId"`
-	PrivateKey []byte   `json:"privateKey"`
-	Sequence   int64    `json:"sequence"`
-	Projects   []string `json:"projects"`
-	AllowClone bool     `json:"allowClone"`
+	Controller         string   `json:"controller"`
+	RunnerID           string   `json:"runnerId"`
+	PrivateKey         []byte   `json:"privateKey"`
+	Sequence           int64    `json:"sequence"`
+	RequiresRecovery   bool     `json:"requiresRecovery,omitempty"`
+	ControllerSequence int64    `json:"controllerSequence,omitempty"`
+	Projects           []string `json:"projects"`
+	AllowClone         bool     `json:"allowClone"`
 }
 type Record struct {
+	Diagnostic     string                   `json:"diagnostic,omitempty"`
 	Job            runnerwire.Job           `json:"job"`
-	Phase          string                   `json:"phase"` // accepted, preparing, launching, active, uncertain, ended
+	Phase          string                   `json:"phase"` // accepted, ready, preparing, launching, active, uncertain, ended
 	Process        agent.ProcessInfo        `json:"process"`
 	Path           string                   `json:"path,omitempty"`
 	Next           int64                    `json:"next"`
@@ -46,6 +50,7 @@ type Record struct {
 type Worker struct {
 	Git          func(context.Context, string, ...string) (string, error)
 	LoadBindings func() map[string]string
+	Version      string
 	Dir          string
 	Identity     Identity
 	Bindings     map[string]string
@@ -63,6 +68,7 @@ type Worker struct {
 	disabled        bool
 	stopKind        map[string]string
 	workspaceCursor int
+	preparing       map[string]context.CancelFunc
 	wg              sync.WaitGroup
 }
 
@@ -70,7 +76,7 @@ func (w *Worker) now() time.Time {
 	if w.Now != nil {
 		return w.Now()
 	}
-	return time.Now().UTC()
+	return time.Now()
 }
 func (w *Worker) journalPath(id string) string { return filepath.Join(w.Dir, "runs", id+".json") }
 func (w *Worker) save(r *Record) error         { return AtomicJSON(w.journalPath(r.Job.Run.ID), r) }
@@ -95,6 +101,7 @@ func (w *Worker) Load(ctx context.Context) error {
 	w.records = map[string]*Record{}
 	w.sessions = map[string]agent.Session{}
 	w.stopKind = map[string]string{}
+	w.preparing = map[string]context.CancelFunc{}
 	files, e := os.ReadDir(filepath.Join(w.Dir, "runs"))
 	if os.IsNotExist(e) {
 		return nil
@@ -121,10 +128,10 @@ func (w *Worker) Load(ctx context.Context) error {
 			r.Commands = map[string]bool{}
 		}
 		w.records[r.Job.Run.ID] = r
-		if r.Phase == "ended" {
+		if r.Phase == "ended" || r.Phase == "uncertain" {
 			continue
 		}
-		safe := r.Phase == "accepted" || r.Phase == "preparing"
+		safe := r.Phase == "accepted" || r.Phase == "ready" || r.Phase == "preparing"
 		if r.Process.PID > 0 {
 			result, e := agent.Reap(r.Process.PID, r.Process.ID, 5*time.Second)
 			safe = e == nil && result != agent.ReapForeign
@@ -159,11 +166,17 @@ func (w *Worker) capabilities(ctx context.Context) domain.RunnerCapabilities {
 	}
 	for _, r := range w.records {
 		if r.Phase == "uncertain" {
-			c.Diagnostics += "Run " + r.Job.Run.ID + " has uncertain process ownership; inspect this machine and use devboard runner resolve --confirm-stopped. "
+			c.Diagnostics += "Run " + r.Job.Run.ID + ": " + r.Diagnostic + "; uncertain process ownership; inspect this machine and use devboard runner resolve --confirm-stopped. "
 		}
+	}
+	if w.Identity.RequiresRecovery {
+		c.Diagnostics += "Controller state was restored; revoke and re-pair this identity after inspecting its machine. "
 	}
 	if len(c.Diagnostics) > 2000 {
 		c.Diagnostics = c.Diagnostics[:2000]
+		for !utf8.ValidString(c.Diagnostics) && len(c.Diagnostics) > 0 {
+			c.Diagnostics = c.Diagnostics[:len(c.Diagnostics)-1]
+		}
 	}
 	return c
 }
@@ -182,11 +195,18 @@ func (w *Worker) post(ctx context.Context, path string, body []byte, signed bool
 	}
 	res, e := client.Do(req)
 	if e != nil {
-		return fmt.Errorf("controller connection failed")
+		return fmt.Errorf("controller connection failed: %w", e)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 && res.StatusCode != 201 {
-		return fmt.Errorf("controller refused runner request (HTTP %d)", res.StatusCode)
+		var refusal struct {
+			Error struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		_ = json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&refusal)
+		return fmt.Errorf("controller refused runner request (HTTP %d): %s %s", res.StatusCode, refusal.Error.Code, refusal.Error.Message)
 	}
 	return json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(dst)
 }
@@ -222,18 +242,24 @@ func (w *Worker) Tick(ctx context.Context) error {
 		w.mu.Unlock()
 		return e
 	}
-	in := runnerwire.Sync{RunnerID: w.Identity.RunnerID, Sequence: w.Identity.Sequence, At: w.now(), Capabilities: caps, Reports: []runnerwire.Report{}}
-	budget := 2 << 20
+	in := runnerwire.Sync{Protocol: runnerwire.Protocol, Version: w.Version, ControllerSequence: w.Identity.ControllerSequence, RunnerID: w.Identity.RunnerID, Sequence: w.Identity.Sequence, At: w.now(), Capabilities: caps, Reports: []runnerwire.Report{}}
+	const reportBudget = 2 << 20
+	budget := reportBudget
 	for id, r := range w.records {
+		if r.Phase == "uncertain" {
+			continue
+		}
 		if len(in.Reports) >= 128 {
 			break
 		}
 		n := 0
 		for n < len(r.Pending) && n < 200 {
 			encoded, err := json.Marshal(r.Pending[n])
-			if err != nil {
-				w.mu.Unlock()
-				return err
+			if err != nil || len(encoded) > reportBudget {
+				r.Next = r.Job.Ack
+				w.quarantineLocked(id, "observation cannot be encoded within the runner message limit; inspect this run and resolve or revoke")
+				n = 0
+				break
 			}
 			if len(encoded) > budget {
 				break
@@ -254,7 +280,14 @@ func (w *Worker) Tick(ctx context.Context) error {
 	e = w.post(ctx, "/api/runner/sync", body, true, &reply)
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if e == nil && reply.Protocol != runnerwire.Protocol {
+		e = fmt.Errorf("incompatible controller protocol; update controller and runner")
+	}
+	if e == nil && (reply.LeaseSeconds <= 0 || reply.LeaseSeconds > int(runnerwire.Lease.Seconds())) {
+		e = fmt.Errorf("invalid controller lease")
+	}
 	if e != nil {
+		_ = AtomicJSON(filepath.Join(w.Dir, "last-error.json"), map[string]any{"at": w.now(), "error": e.Error()})
 		if !w.lease.IsZero() && !w.now().Before(w.lease) {
 			for id, sess := range w.sessions {
 				w.stopKind[id] = "lease expired"
@@ -263,10 +296,32 @@ func (w *Worker) Tick(ctx context.Context) error {
 		}
 		return e
 	}
-	if reply.LeaseSeconds <= 0 || reply.LeaseSeconds > int(runnerwire.Lease.Seconds()) {
-		return fmt.Errorf("invalid controller lease")
-	}
+	_ = os.Remove(filepath.Join(w.Dir, "last-error.json"))
 	w.lease = w.now().Add(time.Duration(reply.LeaseSeconds) * time.Second)
+	w.Identity.ControllerSequence = reply.Sequence
+	if e := AtomicJSON(filepath.Join(w.Dir, "identity.json"), w.Identity); e != nil {
+		return e
+	}
+	if reply.StateLost {
+		w.Identity.RequiresRecovery = true
+		if e := AtomicJSON(filepath.Join(w.Dir, "identity.json"), w.Identity); e != nil {
+			return e
+		}
+		for id, r := range w.records {
+			if ack, ok := reply.Acks[id]; ok {
+				r.Next = ack
+				r.Job.Ack = ack
+			}
+			w.quarantineLocked(id, "controller database restored; inspect and recover or revoke runner")
+		}
+		return nil
+	}
+	for id, reason := range reply.Rejected {
+		if r := w.records[id]; r != nil {
+			r.Next = reply.Acks[id]
+		}
+		w.quarantineLocked(id, reason)
+	}
 	w.Identity.Projects = reply.Projects
 	w.disabled = reply.Disabled
 	for id, ack := range reply.Acks {
@@ -289,14 +344,40 @@ func (w *Worker) Tick(ctx context.Context) error {
 		}
 		r := w.records[j.Run.ID]
 		if r == nil {
-			r = &Record{Job: j, Phase: "accepted", Commands: map[string]bool{}, Pending: []runnerwire.Observation{}}
+			r = &Record{Job: j, Phase: "accepted", Next: j.Ack, Commands: map[string]bool{}, Pending: []runnerwire.Observation{}}
 			w.records[j.Run.ID] = r
 			if e := w.save(r); e != nil {
 				return e
 			}
+			if w.Identity.RequiresRecovery || j.Protocol != runnerwire.Protocol || j.Run.State != domain.RunStarting || j.Ack != 0 || j.Rejected != "" {
+				w.quarantineLocked(j.Run.ID, "controller lists accepted work but this machine has no journal; inspect the machine and resolve or revoke")
+				continue
+			}
 			if reply.Disabled || !contains(reply.Projects, j.Run.ProjectID) {
 				w.endLocked(r, agent.Result{State: domain.RunFailed, Reason: "runner or project disabled before launch", ExitCode: -1})
 				continue
+			}
+			// Accept durably and wait for the controller acknowledgement before execution.
+			if e := w.appendLocked(r, runnerwire.Observation{Kind: "accepted"}); e != nil {
+				return e
+			}
+		}
+		r.Job = j
+		if j.Protocol != runnerwire.Protocol {
+			w.quarantineLocked(j.Run.ID, "legacy job has no durable acceptance contract; inspect this machine, then resolve or revoke before creating a new run")
+			continue
+		}
+		if r.Phase == "uncertain" {
+			r.Next = j.Ack
+			if e := w.save(r); e != nil {
+				return e
+			}
+			continue
+		}
+		if r.Phase == "accepted" && j.Ack > 0 {
+			r.Phase = "ready"
+			if e := w.save(r); e != nil {
+				return e
 			}
 			w.wg.Add(1)
 			go func() { defer w.wg.Done(); w.launch(j.Run.ID) }()
@@ -328,27 +409,40 @@ func contains(ss []string, s string) bool {
 	return false
 }
 func (w *Worker) appendLocked(r *Record, ob runnerwire.Observation) error {
+	if r.Phase == "uncertain" {
+		return nil
+	}
 	r.Next++
 	ob.Seq = r.Next
 	r.Pending = append(r.Pending, ob)
 	return w.save(r)
 }
 func (w *Worker) endLocked(r *Record, res agent.Result) error {
+	if r.Phase == "uncertain" {
+		return nil
+	}
 	r.Phase = "ended"
 	return w.appendLocked(r, runnerwire.Observation{Kind: "ended", Result: &res})
 }
 func (w *Worker) launch(id string) {
 	w.mu.Lock()
 	r := w.records[id]
-	r.Phase = "preparing"
-	e := w.save(r)
-	j := r.Job
-	w.mu.Unlock()
-	if e != nil {
+	if r.Phase != "ready" {
+		w.mu.Unlock()
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	r.Phase = "preparing"
+	e := w.save(r)
+	if e != nil {
+		w.mu.Unlock()
+		return
+	}
+	j := r.Job
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	w.preparing[id] = cancel
+	w.mu.Unlock()
 	defer cancel()
+	defer func() { w.mu.Lock(); delete(w.preparing, id); w.mu.Unlock() }()
 	prep := w.Prepare
 	if prep == nil {
 		prep = w.prepare
@@ -373,6 +467,10 @@ func (w *Worker) launch(id string) {
 		w.mu.Unlock()
 		return
 	}
+	if r.Phase == "uncertain" {
+		w.mu.Unlock()
+		return
+	}
 	r.Path = path
 	r.Phase = "launching"
 	e = w.save(r)
@@ -387,9 +485,16 @@ func (w *Worker) launch(id string) {
 		w.mu.Unlock()
 		return
 	}
-	r.Phase = "active"
+	quarantined := r.Phase == "uncertain"
+	if !quarantined {
+		r.Phase = "active"
+	}
 	r.Process = sess.Process()
 	w.sessions[id] = sess
+	if quarantined {
+		_ = w.save(r)
+		go sess.Stop(context.Background())
+	}
 	if e := w.appendLocked(r, runnerwire.Observation{Kind: "started", Branch: branch, BaseCommit: base}); e != nil {
 		w.stopKind[id] = "journal write failed"
 		go sess.Stop(context.Background())
@@ -433,6 +538,10 @@ func (w *Worker) launch(id string) {
 		res.Reason = reason
 	}
 	delete(w.sessions, id)
+	if r.Phase == "uncertain" {
+		_ = w.save(r)
+		return
+	}
 	r.Phase = "ended"
 	r.WorkspaceHead, r.WorkspaceDirty = head, uncommitted
 	_ = w.appendLocked(r, runnerwire.Observation{Kind: "ended", Result: &res, HeadCommit: head, Uncommitted: uncommitted})
@@ -487,6 +596,9 @@ func (w *Worker) Run(ctx context.Context) error {
 	defer func() {
 		w.mu.Lock()
 		w.lease = time.Time{}
+		for _, cancel := range w.preparing {
+			cancel()
+		}
 		for id, s := range w.sessions {
 			w.stopKind[id] = "runner shutting down"
 			go s.Stop(context.Background())
@@ -498,7 +610,9 @@ func (w *Worker) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		_ = w.Tick(ctx)
+		if err := w.Tick(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, "Runner sync:", err)
+		}
 		select {
 		case <-ctx.Done():
 			return nil
@@ -520,5 +634,23 @@ func (w *Worker) Resolve(id string) error {
 	if r == nil || r.Phase != "uncertain" {
 		return fmt.Errorf("run does not have uncertain ownership")
 	}
+	r.Phase = "resolved"
 	return w.endLocked(r, agent.Result{State: domain.RunFailed, Reason: "owner confirmed the execution has stopped on its runner", ExitCode: -1})
+}
+
+func (w *Worker) quarantineLocked(id, reason string) {
+	r := w.records[id]
+	if r == nil {
+		return
+	}
+	r.Phase, r.Diagnostic = "uncertain", reason
+	r.Pending = nil
+	if cancel := w.preparing[id]; cancel != nil {
+		cancel()
+	}
+	_ = w.save(r)
+	if sess := w.sessions[id]; sess != nil {
+		w.stopKind[id] = reason
+		go sess.Stop(context.Background())
+	}
 }

@@ -48,6 +48,7 @@ type Options struct {
 
 	// AuthRequired makes every /api request except /api/health present Token.
 	AuthRequired bool
+	TokenSource  func() string // live file-managed credentials; empty on read errors fails closed
 	Token        string
 	// AllowedHosts are extra Host values accepted when auth is not required.
 	AllowedHosts []string
@@ -91,6 +92,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/runners/pair", s.handlePairRunner)
 	mux.HandleFunc("PUT /api/runners/{id}", s.handleManageRunner)
 	mux.HandleFunc("DELETE /api/runners/{id}", s.handleManageRunner)
+	mux.HandleFunc("POST /api/runners/{id}/revoke", s.handleRevokeRunner)
 	mux.HandleFunc("GET /api/routing-rules", s.handleRoutingRules)
 	mux.HandleFunc("PUT /api/routing-rules", s.handleRoutingRules)
 	mux.HandleFunc("PUT /api/projects/{pid}/runs/{id}/usage", s.handleRunUsage)

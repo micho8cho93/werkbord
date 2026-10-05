@@ -73,7 +73,7 @@ func (rt *runnerTest) caps() domain.RunnerCapabilities {
 }
 func (rt *runnerTest) sync(reports []runnerwire.Report) (runnerwire.SyncReply, error) {
 	rt.sequence++
-	in := runnerwire.Sync{RunnerID: rt.runner.ID, Sequence: rt.sequence, At: rt.now, Capabilities: rt.caps(), Reports: reports}
+	in := runnerwire.Sync{Protocol: runnerwire.Protocol, RunnerID: rt.runner.ID, Sequence: rt.sequence, At: rt.now, Capabilities: rt.caps(), Reports: reports}
 	body, _ := json.Marshal(in)
 	return rt.svc.Sync(context.Background(), body, runnerwire.Signature(rt.key, body))
 }
@@ -109,8 +109,9 @@ func TestWorkspaceReportsOnlyReconcileOwnedTerminalGitMetadata(t *testing.T) {
 	clean := false
 	commit := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	workspace := runnerwire.Observation{Seq: 1, Kind: "workspace", HeadCommit: commit, Uncommitted: &clean}
-	if _, err := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{workspace}}}); !errors.Is(err, domain.ErrInvalid) {
-		t.Fatalf("active workspace changed: %v", err)
+	poisoned := rt.start(t, rt.task(t))
+	if reply, err := rt.sync([]runnerwire.Report{{RunID: poisoned.ID, Observations: []runnerwire.Observation{workspace}}}); err != nil || reply.Rejected[poisoned.ID] == "" {
+		t.Fatalf("invalid active workspace not isolated: %+v %v", reply, err)
 	}
 	result := agent.Result{State: domain.RunCompleted}
 	if _, err := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run), {Seq: 2, Kind: "ended", Result: &result}}}}); err != nil {
@@ -139,8 +140,8 @@ func TestWorkspaceReportsOnlyReconcileOwnedTerminalGitMetadata(t *testing.T) {
 		t.Fatal("duplicate workspace report reapplied")
 	}
 	workspace.Seq, workspace.HeadCommit = 4, "--bad-revision"
-	if _, err := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{workspace}}}); !errors.Is(err, domain.ErrInvalid) {
-		t.Fatalf("unsafe commit admitted: %v", err)
+	if reply, err := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{workspace}}}); err != nil || reply.Rejected[run.ID] == "" {
+		t.Fatalf("unsafe commit admitted: %+v %v", reply, err)
 	}
 }
 
@@ -334,7 +335,7 @@ func TestRunnerCannotImpersonateReplayOrReportAnotherRun(t *testing.T) {
 	run := rt.start(t, rt.task(t))
 	ctx := context.Background()
 	rt.sequence++
-	body, _ := json.Marshal(runnerwire.Sync{RunnerID: rt.runner.ID, Sequence: rt.sequence, At: rt.now})
+	body, _ := json.Marshal(runnerwire.Sync{Protocol: runnerwire.Protocol, RunnerID: rt.runner.ID, Sequence: rt.sequence, At: rt.now})
 	_, other, _ := ed25519.GenerateKey(rand.Reader)
 	if _, e := rt.svc.Sync(ctx, body, runnerwire.Signature(other, body)); !errors.Is(e, domain.ErrNotFound) {
 		t.Fatalf("impersonation accepted: %v", e)
@@ -350,14 +351,14 @@ func TestRunnerCannotImpersonateReplayOrReportAnotherRun(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e := rt.sync([]runnerwire.Report{{RunID: foreign.ID, Observations: []runnerwire.Observation{rt.started(run)}}}); !errors.Is(e, domain.ErrNotFound) {
-		t.Fatalf("other run report accepted: %v", e)
+	if reply, e := rt.sync([]runnerwire.Report{{RunID: foreign.ID, Observations: []runnerwire.Observation{rt.started(run)}}}); e != nil || reply.Rejected[foreign.ID] == "" {
+		t.Fatalf("other run report accepted: %+v %v", reply, e)
 	}
-	// All changes are rolled back on a gap, including a valid first observation.
+	// Only this report rolls back on a gap; the heartbeat is still accepted.
 	bad := rt.started(run)
 	bad.Seq = 3
-	if _, e := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run), bad}}}); !errors.Is(e, domain.ErrConflict) {
-		t.Fatalf("gap accepted: %v", e)
+	if reply, e := rt.sync([]runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run), bad}}}); e != nil || reply.Rejected[run.ID] == "" {
+		t.Fatalf("gap accepted: %+v %v", reply, e)
 	}
 	got, _ := rt.f.runs.Get(ctx, run.ID)
 	if got.State != domain.RunStarting {

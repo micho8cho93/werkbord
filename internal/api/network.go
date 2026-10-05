@@ -86,8 +86,12 @@ func (s *Server) handlePhoneLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	link := st.URL
-	if s.opt.PrivateToken != "" {
-		link = strings.TrimSuffix(st.URL, "/") + "/#token=" + s.opt.PrivateToken
+	privateToken := s.opt.PrivateToken
+	if s.opt.TokenSource != nil {
+		privateToken = s.currentToken()
+	}
+	if privateToken != "" {
+		link = strings.TrimSuffix(st.URL, "/") + "/#token=" + privateToken
 	}
 	svg, err := netprivate.QRSVG(link)
 	if err != nil {

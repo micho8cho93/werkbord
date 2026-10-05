@@ -2,10 +2,8 @@ package runner
 
 import (
 	"context"
-	"errors"
+	"devboard/internal/store"
 	"time"
-
-	"devboard/internal/domain"
 )
 
 // ScheduleOnce executes a snapshot's runnable tasks. Start rechecks every gate
@@ -18,7 +16,19 @@ func (m *Manager) ScheduleOnce(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, p := range projects {
+	if m.opt.Distributed != nil {
+		if err := m.opt.Distributed.ReleaseRevoked(ctx); err != nil {
+			return err
+		}
+	}
+	m.mu.Lock()
+	start := m.scheduleCursor
+	if len(projects) > 0 {
+		m.scheduleCursor = (start + 1) % len(projects)
+	}
+	m.mu.Unlock()
+	for i := range projects {
+		p := projects[(start+i)%len(projects)]
 		plan, err := m.opt.Scheduler.Plan(ctx, p.ID)
 		if err != nil {
 			return err
@@ -45,7 +55,7 @@ func (m *Manager) ScheduleOnce(ctx context.Context) error {
 				continue
 			}
 			_, err = m.Start(ctx, StartInput{TaskID: t.ID, ScheduleKey: o.Key})
-			if err != nil && !errors.Is(err, domain.ErrConflict) {
+			if err != nil {
 				// Pre-launch failures are durable and require an explicit rearm; no retry storm.
 				if e := m.opt.Scheduler.RecordDispatchError(ctx, t.ID, o.Key, err.Error(), false); e != nil {
 					return e
@@ -60,9 +70,21 @@ func (m *Manager) ScheduleOnce(ctx context.Context) error {
 func (m *Manager) ScheduleLoop(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	nextRetention := time.Time{}
 	for {
 		if ctx.Err() != nil {
 			return
+		}
+		if time.Now().After(nextRetention) {
+			n := 0
+			err := m.opt.Runs.Store.Update(ctx, func(tx store.Tx) error { var e error; n, e = tx.Events().Prune(ctx, time.Now().UTC()); return e })
+			if err != nil {
+				m.log().Warn("event retention failed", "err", err)
+			}
+			nextRetention = time.Now().Add(24 * time.Hour)
+			if n >= 10000 {
+				nextRetention = time.Now().Add(time.Minute)
+			}
 		}
 		if err := m.ScheduleOnce(ctx); err != nil && ctx.Err() == nil {
 			m.log().Warn("scheduler tick failed", "err", err)

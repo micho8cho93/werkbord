@@ -14,6 +14,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"devboard/internal/team/domain"
 )
@@ -38,6 +39,8 @@ flags:
   --local-project ID    which of your local Werkbord projects (default: the one whose remote is this repository)
   --out FILE            write the handoff JSON to FILE instead of stdout
   --prompt              print only the task text
+  --watch               keep Git metadata synchronized from this computer until interrupted
+  --report              synchronize your associated task's branch/commits/PR back to Team
 
 Secrets come from the environment, never from flags, so they do not end up in shell history:
   WERKBORD_TEAM_TOKEN   your Team token (required)
@@ -45,7 +48,7 @@ Secrets come from the environment, never from flags, so they do not end up in sh
 `
 
 // maxLocalDescription is the individual Werkbord's limit on a task description.
-const maxLocalDescription = 20000
+const maxLocalDescription = 256000
 
 func cmdHandoff(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("handoff", flag.ContinueOnError)
@@ -57,6 +60,8 @@ func cmdHandoff(ctx context.Context, args []string, stdout, stderr io.Writer) er
 	runner := fs.String("runner", "", "")
 	localProject := fs.String("local-project", "", "")
 	out := fs.String("out", "", "")
+	watch := fs.Bool("watch", false, "keep synchronizing metadata every fifteen seconds from this developer-owned client")
+	report := fs.Bool("report", false, "synchronize branch, commits and pull request from your local Werkbord")
 	promptOnly := fs.Bool("prompt", false, "")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -87,6 +92,9 @@ func cmdHandoff(ctx context.Context, args []string, stdout, stderr io.Writer) er
 	}
 
 	if *runner == "" {
+		if *watch || *report {
+			return errors.New("--report and --watch require --runner")
+		}
 		return writeHandoff(h, *out, *promptOnly, stdout)
 	}
 	base, err := parseBase(*runner)
@@ -112,12 +120,42 @@ func cmdHandoff(ctx context.Context, args []string, stdout, stderr io.Writer) er
 	var task struct {
 		ID string `json:"id"`
 	}
-	body := map[string]any{"title": h.Ticket.Key + ": " + h.Ticket.Title, "description": h.Prompt}
+	title := []rune(h.Ticket.Key + ": " + h.Ticket.Title)
+	if len(title) > 200 {
+		title = title[:200]
+	}
+	if !utf8.ValidString(h.Prompt) {
+		return errors.New("invalid UTF-8 handoff")
+	}
+	source := team + "/?tab=board&project=" + url.QueryEscape(pid) + "&ticket=" + url.QueryEscape(tid)
+	body := map[string]any{"title": string(title), "description": h.Prompt, "sourceRef": source, "workBranch": h.Git.Branch, "baseBranch": h.Git.BaseBranch}
 	if err := doJSON(ctx, hc, http.MethodPost, base+"/api/projects/"+lp+"/tasks", local, body, &task); err != nil {
 		return fmt.Errorf("creating the task in your local Werkbord: %w", err)
 	}
+	if *report {
+		if err := reportLocalWork(ctx, hc, base, local, lp, task.ID, team, token, pid, tid, h.Git.Branch, h.Git.BaseBranch); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "Synchronized Git metadata for %s from your Werkbord.\n", h.Ticket.Key)
+	}
 	fmt.Fprintf(stdout, "Opened %s in your Werkbord at %s as task %s.\n", h.Ticket.Key, base, task.ID)
 	fmt.Fprintf(stdout, "Work on branch %s. Start the run from your Werkbord; this ticket is yours, and nothing here ran on anyone else's machine.\n", h.Git.Branch)
+	if *watch {
+		fmt.Fprintln(stdout, "Watching this task's Git metadata from your computer. Stop with Ctrl-C. Push and fetch branches executed on remote runners before reporting them.")
+		lastReport := ""
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			if err := reportLocalWorkChanged(ctx, hc, base, local, lp, task.ID, team, token, pid, tid, h.Git.Branch, h.Git.BaseBranch, &lastReport); err != nil {
+				fmt.Fprintln(stderr, "Metadata sync:", err)
+			}
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
+			}
+		}
+	}
 	return nil
 }
 
@@ -129,6 +167,7 @@ type handoff struct {
 		Title string `json:"title"`
 	} `json:"ticket"`
 	Git struct {
+		BaseBranch string `json:"baseBranch"`
 		Repository string `json:"repository"`
 		Branch     string `json:"branch"`
 	} `json:"git"`
@@ -318,4 +357,108 @@ func findLocalProject(ctx context.Context, hc *http.Client, base, token, reposit
 		return match[0], nil
 	}
 	return "", fmt.Errorf("%d of your local projects use %s; pass --local-project", len(match), repository)
+}
+
+// reportLocalWork runs only in the developer-owned client. Both servers retain
+// their boundary: the individual API supplies Git facts; Team stores reports.
+func reportLocalWork(ctx context.Context, hc *http.Client, base, local, project, task, team, token, pid, tid, intended, intendedBase string) error {
+	return reportLocalWorkChanged(ctx, hc, base, local, project, task, team, token, pid, tid, intended, intendedBase, nil)
+}
+func reportLocalWorkChanged(ctx context.Context, hc *http.Client, base, local, project, task, team, token, pid, tid, intended, intendedBase string, previous *string) error {
+	var runs struct {
+		Runs []struct {
+			Branch string `json:"branch"`
+			Remote bool   `json:"remote"`
+		} `json:"runs"`
+	}
+	if err := doJSON(ctx, hc, http.MethodGet, base+"/api/projects/"+project+"/tasks/"+task+"/runs", local, nil, &runs); err != nil {
+		return err
+	}
+	branch, scope := intended, "local"
+	if len(runs.Runs) > 0 {
+		last := runs.Runs[len(runs.Runs)-1]
+		if last.Branch != "" {
+			branch = last.Branch
+		}
+		if last.Remote {
+			scope = "remote"
+		}
+	}
+	var compare struct {
+		BranchSHA string `json:"branchSha"`
+		Target    string `json:"target"`
+		Ahead     int    `json:"ahead"`
+		Behind    int    `json:"behind"`
+		Unique    struct {
+			Truncated bool `json:"truncated"`
+			Total     int  `json:"total"`
+			Items     []struct {
+				SHA     string    `json:"sha"`
+				Subject string    `json:"subject"`
+				Author  string    `json:"author"`
+				Date    time.Time `json:"date"`
+			} `json:"items"`
+		} `json:"unique"`
+		Truncated  bool `json:"truncated"`
+		FilesTotal int  `json:"filesTotal"`
+		Files      []struct {
+			Path string `json:"path"`
+		} `json:"files"`
+	}
+	localBase := base + "/api/projects/" + project
+	if err := doJSON(ctx, hc, http.MethodGet, localBase+"/git/compare?scope="+scope+"&branch="+url.QueryEscape(branch)+"&limit=200&commitLimit=200&target="+url.QueryEscape(intendedBase), local, nil, &compare); err != nil {
+		return fmt.Errorf("cannot inspect ticket branch in your Werkbord; commit/push and fetch remote runner work first: %w", err)
+	}
+	if compare.Unique.Truncated {
+		return fmt.Errorf("ticket branch has %d commits, beyond the 200-commit reporting limit; split the work before synchronizing", compare.Unique.Total)
+	}
+	if compare.Truncated || compare.FilesTotal > len(compare.Files) {
+		return fmt.Errorf("ticket branch has more than 200 changed files; split the work before synchronizing")
+	}
+	commits := []map[string]any{}
+	for _, c := range compare.Unique.Items {
+		commits = append(commits, map[string]any{"sha": c.SHA, "subject": c.Subject, "author": c.Author, "committedAt": c.Date})
+	}
+	files := []string{}
+	for _, f := range compare.Files {
+		files = append(files, f.Path)
+	}
+	body := map[string]any{"branch": branch, "commits": commits, "state": map[string]any{"headSha": compare.BranchSHA, "baseBranch": compare.Target, "ahead": compare.Ahead, "behind": compare.Behind, "files": files}}
+	var prs struct {
+		Available    bool `json:"available"`
+		PullRequests []struct {
+			Number     int    `json:"number"`
+			URL        string `json:"url"`
+			State      string `json:"state"`
+			Draft      bool   `json:"draft"`
+			HeadBranch string `json:"headBranch"`
+			BaseBranch string `json:"baseBranch"`
+			Mergeable  string `json:"mergeable"`
+			CrossRepo  bool   `json:"crossRepo"`
+		} `json:"pullRequests"`
+	}
+	if err := doJSON(ctx, hc, http.MethodGet, localBase+"/git/pull-requests", local, nil, &prs); err != nil {
+		return fmt.Errorf("reading pull request metadata: %w", err)
+	}
+	if prs.Available {
+		for _, pr := range prs.PullRequests {
+			if pr.HeadBranch == branch && !pr.CrossRepo {
+				body["pullRequest"] = map[string]any{"number": pr.Number, "url": pr.URL, "state": pr.State, "draft": pr.Draft, "baseBranch": pr.BaseBranch, "mergeable": pr.Mergeable, "ahead": compare.Ahead, "behind": compare.Behind}
+				break
+			}
+		}
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	if previous != nil && *previous == string(encoded) {
+		return nil
+	}
+	var result json.RawMessage
+	err = doJSON(ctx, hc, http.MethodPut, team+"/api/team/v1/projects/"+pid+"/tickets/"+tid+"/git", token, body, &result)
+	if err == nil && previous != nil {
+		*previous = string(encoded)
+	}
+	return err
 }

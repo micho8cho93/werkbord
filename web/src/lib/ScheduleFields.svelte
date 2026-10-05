@@ -43,11 +43,12 @@
         : value.dependencies.filter((x) => x !== id),
     };
   }
-  async function save() {
+  async function save(rearm = false) {
     try {
       error = "";
       const o: Orchestration = {
         ...value,
+        rearm,
         timezone: zone,
         scheduledAt: instantFromWall(scheduled, zone, occurrence),
         notBefore: instantFromWall(notBefore, zone, occurrence),
@@ -79,7 +80,7 @@
     ></label
   >
   <p class="muted small">
-    One attempt per schedule. Saving these settings rearms it. Your browser can
+    One attempt per schedule. Saving edits keeps the same attempt. Use Rearm to request another execution. Your browser can
     be closed.
   </p>
   <div class="fields">
@@ -190,6 +191,7 @@
   <button class="btn primary" disabled={busy}
     >{busy ? "Saving…" : "Save schedule and dependencies"}</button
   >
+<button type="button" class="btn" disabled={busy} onclick={() => { if (confirm("Rearm this schedule for one additional execution?")) void save(true); }}>Rearm for another execution</button>
 </form>
 
 <style>
