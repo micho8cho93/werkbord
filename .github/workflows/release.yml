@@ -37,6 +37,8 @@ jobs:
       - name: Which product, and does the tag agree with its VERSION file
         id: product
         run: |
+          # checkout fetches the tag as a bare ref; fetch the real tag objects so "annotated" can be checked
+          git fetch --force --tags origin
           product=$(scripts/product.sh from-tag "$GITHUB_REF_NAME")
           scripts/verify-tag.sh "$product" "$GITHUB_REF_NAME" "$GITHUB_SHA"
           version=$(scripts/product.sh "$product" version)
