@@ -41,7 +41,7 @@ import (
 )
 
 // DefaultBase is where releases are published.
-const DefaultBase = "https://github.com/micho8cho93/dev-board/releases"
+const DefaultBase = "https://github.com/micho8cho93/werkbord/releases"
 
 // Source is a place releases come from.
 type Source struct {

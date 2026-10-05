@@ -1,7 +1,7 @@
 #!/bin/sh
 # Dev Board installer for macOS and Linux.
 #
-#   curl -fsSL https://raw.githubusercontent.com/micho8cho93/dev-board/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.sh | sh
 #
 # It downloads the release for this computer, checks it against the release's
 # published checksums, puts it in ~/.local/bin, and runs `devboard setup`: the data
@@ -22,7 +22,7 @@
 #                         passed on to setup (see `devboard setup -h`)
 set -eu
 
-REPO="micho8cho93/dev-board"
+REPO="micho8cho93/werkbord"
 BASE=${DEVBOARD_BASE_URL:-"https://github.com/$REPO/releases"}
 BASE=${BASE%/}
 

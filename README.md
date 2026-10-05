@@ -14,7 +14,7 @@ without ever running anything on anyone's computer. See [docs/PRODUCTS.md](docs/
 macOS or Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/micho8cho93/dev-board/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.sh | sh
 ```
 
 That is the whole install. It downloads the release for your computer, checks it against its published

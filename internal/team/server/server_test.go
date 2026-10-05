@@ -41,6 +41,11 @@ func TestShutdownDoesNotWaitForOpenSyncRequests(t *testing.T) {
 	ran := make(chan error, 1)
 	go func() { ran <- Run(ctx, cfg, slog.New(slog.DiscardHandler), "test") }()
 	base := "http://" + addr
+	// One request per connection: a pooled client sometimes dials a spare connection it never uses, and
+	// net/http only treats such a never-used connection as idle after five seconds, which would make
+	// the shutdown below look slow for a reason that has nothing to do with the open sync request.
+	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
+	defer client.CloseIdleConnections()
 	var up bool
 	for i := 0; i < 100 && !up; i++ {
 		if res, err := http.Get(base + "/api/team/v1/health"); err == nil {
@@ -57,7 +62,7 @@ func TestShutdownDoesNotWaitForOpenSyncRequests(t *testing.T) {
 	// Hold a real wait open: since equals the current revision, so nothing answers it.
 	req, _ := http.NewRequest("GET", base+"/api/team/v1/sync?wait=0", nil)
 	req.Header.Set("Authorization", "Bearer "+created.Token)
-	res, err := http.DefaultClient.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +74,7 @@ func TestShutdownDoesNotWaitForOpenSyncRequests(t *testing.T) {
 		defer close(long)
 		req, _ := http.NewRequest("GET", fmt.Sprintf("%s/api/team/v1/sync?since=%d&after=0&wait=20", base, body.Revision), nil)
 		req.Header.Set("Authorization", "Bearer "+created.Token)
-		if res, err := http.DefaultClient.Do(req); err == nil {
+		if res, err := client.Do(req); err == nil {
 			res.Body.Close()
 		}
 	}()

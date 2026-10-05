@@ -1,7 +1,7 @@
 # Installing Dev Board
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/micho8cho93/dev-board/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.sh | sh
 ```
 
 macOS and Linux, Intel and ARM. No account, no Docker, no root, no hosted database.
@@ -101,7 +101,7 @@ Tailscale admin console under Machines, where you can remove it.
 ## Windows (experimental)
 
 ```powershell
-irm https://raw.githubusercontent.com/micho8cho93/dev-board/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.ps1 | iex
 ```
 
 It installs `devboard.exe` under `%LOCALAPPDATA%\Programs\Devboard`, adds it to your PATH and runs setup, with a

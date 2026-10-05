@@ -32,7 +32,7 @@ func (s *Systemd) unitPath() string {
 
 var unitTmpl = template.Must(template.New("unit").Parse(`[Unit]
 Description=Dev Board controller
-Documentation=https://github.com/micho8cho93/dev-board
+Documentation=https://github.com/micho8cho93/werkbord
 After=network-online.target
 
 [Service]

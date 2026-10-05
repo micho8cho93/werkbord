@@ -1,6 +1,6 @@
 # Dev Board installer for Windows (experimental).
 #
-#   irm https://raw.githubusercontent.com/micho8cho93/dev-board/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.ps1 | iex
 #
 # Downloads the release for this computer, checks it against the release's
 # published checksums, installs devboard.exe under %LOCALAPPDATA%\Programs\Devboard
@@ -19,7 +19,7 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$Repo = 'micho8cho93/dev-board'
+$Repo = 'micho8cho93/werkbord'
 $Base = if ($env:DEVBOARD_BASE_URL) { $env:DEVBOARD_BASE_URL.TrimEnd('/') } else { "https://github.com/$Repo/releases" }
 
 function Fail($msg) { Write-Error "devboard install: $msg"; exit 1 }

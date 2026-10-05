@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -188,7 +189,28 @@ func (s *Handoffs) Generate(ctx context.Context, runID string) (*domain.Run, err
 			}
 		}
 	}
-	return s.Save(ctx, r.ID, r.Version, *h)
+	// The handoff is derived from the finished run and its worktree, not from the run row, so a
+	// version bump while the git work above was running (the runner's end-of-run bookkeeping)
+	// must not discard it: save against the version now current, a few times at most.
+	version := r.Version
+	for attempt := 0; ; attempt++ {
+		saved, err := s.Save(ctx, r.ID, version, *h)
+		if err == nil || attempt >= 3 || !errors.Is(err, domain.ErrConflict) {
+			return saved, err
+		}
+		var cur *domain.Run
+		if e := s.Store.View(ctx, func(tx store.Tx) error {
+			var e error
+			cur, e = tx.Runs().Get(ctx, r.ID)
+			return e
+		}); e != nil {
+			return nil, e
+		}
+		if cur.State.Active() || cur.Version == version {
+			return saved, err
+		}
+		version = cur.Version
+	}
 }
 func (s *Handoffs) Save(ctx context.Context, id string, version int64, h domain.Handoff) (*domain.Run, error) {
 	h.Normalize()
