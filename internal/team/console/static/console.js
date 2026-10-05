@@ -66,6 +66,12 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 
+// The Werkbord mark and wordmark, and "team": the head of every screen.
+function brand() {
+  return h('div', { class: 'brand' }, h('img', { src: 'mark.svg', alt: '', width: 30, height: 22 }), h('span', { class: 'wm' }, 'werkbord'), h('span', { class: 'prod' }, 'team'));
+}
+function initial(name) { return h('span', { class: 'av', 'aria-hidden': 'true' }, (String(name || '?').trim()[0] || '?').toUpperCase()); }
+
 async function api(method, path, body, opts) {
   const credential = state.token;
   const res = await fetch('/api/team/v1' + path, {
@@ -271,14 +277,14 @@ async function renderNow() {
     repository: sum(ov.projects, (p) => p.problems),
   };
   app.replaceChildren(h('div', {},
-    h('header', {},
-      h('h1', {}, 'Werkbord Team'),
-      h('span', {}, state.me.workspace.name),
-      h('span', { class: 'who' }, state.me.member.name + ' · ' + state.me.member.role + ' ',
+    h('header', { class: 'top' },
+      brand(),
+      h('div', { class: 'ws' }, h('span', { class: 'lab' }, 'workspace'), h('h1', {}, state.me.workspace.name)),
+      h('div', { class: 'who' }, initial(state.me.member.name), h('span', { class: 'name' }, state.me.member.name), h('span', { class: 'chip' }, state.me.member.role),
         h('button', { class: 'link', onclick: signOut }, 'Sign out'))),
     h('p', { class: 'note' }, 'Team coordinates the work. It does not run anything: every member uses their own computer, ',
       'their own Werkbord runner and their own Git, GitHub and agent credentials.'),
-    h('nav', { 'aria-label': 'Werkbord Team' }, TABS.map(([id, label]) =>
+    h('nav', { class: 'tabs', 'aria-label': 'Werkbord Team' }, TABS.map(([id, label]) =>
       h('button', { 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, label,
         badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'board' ? 'quiet' : ''), ''))),
     state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
@@ -297,8 +303,8 @@ function unreachable() {
 
 function signIn() {
   const input = h('input', { type: 'password', autocomplete: 'off', placeholder: 'wbt_…', required: true, 'aria-label': 'Token' });
-  return h('div', {},
-    h('header', {}, h('h1', {}, 'Werkbord Team')),
+  return h('div', { class: 'gate' },
+    h('header', { class: 'top' }, brand()),
     h('div', { class: 'panel' },
       h('h2', {}, 'Sign in'),
       state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
@@ -355,7 +361,7 @@ function joinScreen() {
         field('Your name', name), field('Email (optional)', email), h('button', { class: 'primary' }, 'Join')),
       h('p', { class: 'muted' }, 'Already have a token? ', h('button', { class: 'link', onclick: () => { state.error = ''; render_signin(); } }, 'Sign in first'), '.'));
   }
-  return h('div', {}, h('header', {}, h('h1', {}, 'Werkbord Team')), h('div', { class: 'panel' }, content));
+  return h('div', { class: 'gate' }, h('header', { class: 'top' }, brand()), h('div', { class: 'panel' }, content));
 }
 
 function render_signin() { const code = state.invite; state.invite = null; app.replaceChildren(signIn()); state.invite = code; }
@@ -685,12 +691,13 @@ function boardTab(d) {
       h('p', { class: 'muted small' }, STATUS_HELP[s.status]),
       items.map((k) => card(d, k)));
   });
-  const parts = [];
+  // An open ticket sits beside the board, so the board stays in view while you work on it.
+  let open = null;
   if (state.ticketId) {
     const k = b.tickets.find((x) => x.id === state.ticketId);
-    if (k) parts.push(ticketPanel(d, d.ticket || k)); else state.ticketId = null;
+    if (k) open = ticketPanel(d, d.ticket || k); else state.ticketId = null;
   }
-  parts.push(h('div', { class: 'board' }, cols));
+  const parts = [h('div', { class: 'tboard' + (open ? ' with-ticket' : '') }, h('div', { class: 'board' }, cols), open || '')];
   if (pcan('tickets.create') && !b.project.archived) parts.push(newTicketForm(d));
   return h('div', {}, parts);
 }
@@ -707,7 +714,7 @@ function card(d, k) {
   return h('article', { class: 'card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : '') },
     h('div', { class: 'muted small' }, k.key),
     h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
-    k.assigneeId ? h('div', { class: 'owner' }, mine ? 'You' : personName(d, k.assigneeId), k.status === 'in_progress' ? ' · active' : '') : '',
+    k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId), k.status === 'in_progress' ? ' · active' : '') : '',
     flags.length ? h('div', { class: 'flags' }, flags) : '',
     (k.status === 'available' && d.board.member && pcan('tickets.claim'))
       ? h('button', { class: 'primary small', onclick: () => act(() => api('POST', projectPath(k) + '/claim')) }, 'Claim') : '');
