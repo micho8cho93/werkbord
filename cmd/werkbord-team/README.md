@@ -17,6 +17,13 @@ werkbord-team serve                                          # http://127.0.0.1:
 Open the sign-in link that `workspace create` printed, then add members from the Members tab; each gets their own
 token. Roles are Owner (everything) and Member (sees the team and the projects they are on).
 
+Create a project, then **invite people to it** from its *People & invites* tab: they open the link, pick a name, and
+are on the project. The project's **board** (Backlog, Available, In Progress, Review, Done) is shared and updates for
+everyone as it changes. A member **claims** an available ticket (only one person can), and **Open in my runner** hands
+that ticket's context to *their own* Werkbord; it never connects to anyone else's. The branch for ticket `WB-142` is
+`wb-142-<title>`. Team records who holds what and the branches and pull requests developers report; it never runs Git,
+merges, or touches a computer.
+
 Settings: `--addr` / `WERKBORD_TEAM_ADDR` (default `127.0.0.1:7430`), `--data-dir` / `WERKBORD_TEAM_DATA_DIR`.
 Team serves plain HTTP: to reach it from other computers put it behind HTTPS or a private network.
 

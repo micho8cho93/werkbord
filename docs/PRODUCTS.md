@@ -102,24 +102,36 @@ All of it goes under `internal/team/`, and the program under `cmd/werkbord-team/
 | `internal/team/console` | Team's web console (static files, no build step). |
 | `internal/team/config`, `internal/team/server` | Settings, and wiring and lifecycle. |
 
-Billing, licensing, SSO, audit logs, and anything else only the paid product has belong here too. Do **not**
+Billing, licensing, SSO, audit logs, and anything else only the paid product has belong here too. The `workspace`,
+`project`, `ticket`, `invite` and `activity` concepts all live in `internal/team/domain`; the ticket workflow is
+`internal/team/service/tickets.go`, repository awareness is `internal/team/service/repostate.go`. Do **not**
 add a `teamMode` flag, a Team-only branch, or a Team import to an individual package, and do not add Team screens or
 API routes to `web/` or `internal/api`. If an individual package needs to change so Team can reuse it, the change makes
 it more general and stays free of Team's concepts.
 
 ## What Team has today
 
-The foundation: a **workspace** with exactly one **owner**, **members**, **projects**, **project membership**, and
-**roles** (Owner and Member). See [TEAM.md](TEAM.md) for the model, the API and how to run it. It reuses the shared
-packages above and the individual product's ideas (token-authenticated API, SQLite, graceful shutdown), but none of
-its code beyond the shared plumbing.
+A **workspace** with exactly one **owner**, **members**, **projects**, **project membership**, and **roles** (Owner and
+Member); and, on top of that, the collaborative workflow: **project roles** (owner, reviewer, member), **invite links**,
+a shared **board** (Backlog, Available, In Progress, Review, Done), **tickets** that members claim atomically, **Git
+metadata** members' own Werkbords report (branch, commits, pull request), **repository awareness** (behind, conflicting,
+stale, overlapping branches), an **activity** history, and **"Open in my runner"**, which hands a ticket's context to the
+member who holds it for use in their own Werkbord. See [TEAM.md](TEAM.md) for the model, the API and how to run it. It
+reuses the shared packages above and the individual product's ideas (token-authenticated API, SQLite, graceful shutdown),
+but none of its code beyond the shared plumbing.
+
+The workflow respects the rule above: Team stores *reports* (a developer's Werkbord says "my branch is 3 commits behind");
+it does not run Git, call GitHub, or reach a runner. The hand-off to a runner is the member's own action, on their own
+computer (`werkbord-team handoff`, which only addresses a loopback Werkbord), and the individual product needed no change
+for it.
 
 Roles are permission tables, not checks for a name: services ask `Role.Can(permission)`, so adding a role is one entry
 in `internal/team/domain/roles.go` and needs no schema change and no handler change.
 
 Not built yet, by design: licensing and payment, remote execution of any kind (never), a Team update command, a
-Windows installer, HTTPS (put Team behind a TLS proxy), project-scoped roles, ownership transfer, work items shared in
-the workspace.
+Windows installer, HTTPS (put Team behind a TLS proxy), ownership transfer, comments and chat (Team coordinates; it is
+not a messenger), a Team-side automatic reporter in the individual Werkbord (members report with the API or console
+today).
 
 ## Running and building
 

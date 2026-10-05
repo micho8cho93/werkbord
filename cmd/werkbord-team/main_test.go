@@ -80,7 +80,7 @@ func TestWorkspaceCreateMakesAnOwnerTokenThatSignsIn(t *testing.T) {
 
 func TestMigrateReportsTheSchemaVersion(t *testing.T) {
 	out, _, err := runCLI(t, map[string]string{"WERKBORD_TEAM_DATA_DIR": t.TempDir()}, "migrate")
-	if err != nil || !strings.Contains(out, "schema version 1") {
+	if err != nil || !strings.Contains(out, "schema version 2") {
 		t.Fatalf("%q %v", out, err)
 	}
 }

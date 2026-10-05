@@ -4,6 +4,7 @@
 //	werkbord-team workspace create   start a workspace and print its owner's token
 //	werkbord-team serve              run the server in the foreground
 //	werkbord-team migrate            apply database migrations and exit
+//	werkbord-team handoff            open a ticket you hold in your own local Werkbord
 //	werkbord-team version            print the version
 //
 // Team is a separate product from the individual Werkbord (cmd/devboard): its own
@@ -37,6 +38,7 @@ commands:
   workspace create   start a workspace; prints the owner's token (once)
   serve              run the Team server in the foreground
   migrate            apply database migrations and exit
+  handoff            open a ticket you hold in your own local Werkbord
   version            print the version
 
 Run "werkbord-team <command> -h" for command flags.
@@ -66,6 +68,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return cmdMigrate(ctx, cfg, args[1:], stdout, stderr)
 	case "workspace":
 		return cmdWorkspace(ctx, cfg, args[1:], stdout, stderr)
+	case "handoff":
+		return cmdHandoff(ctx, args[1:], stdout, stderr)
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, version)
 		return nil

@@ -169,7 +169,13 @@ func (s *Server) handleListProjectMembers(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleAddProjectMember(w http.ResponseWriter, r *http.Request) {
-	if err := s.opt.Service.AddProjectMember(r.Context(), actorOf(r), r.PathValue("id"), r.PathValue("memberId")); err != nil {
+	var in struct {
+		Role string `json:"role"`
+	}
+	if r.ContentLength != 0 && !s.decode(w, r, &in) {
+		return
+	}
+	if err := s.opt.Service.AddProjectMember(r.Context(), actorOf(r), r.PathValue("id"), r.PathValue("memberId"), domain.ProjectRole(in.Role)); err != nil {
 		s.fail(w, r, err)
 		return
 	}

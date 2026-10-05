@@ -79,9 +79,36 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/team/v1/projects/{id}/members", s.handleListProjectMembers)
 	api.HandleFunc("PUT /api/team/v1/projects/{id}/members/{memberId}", s.handleAddProjectMember)
 	api.HandleFunc("DELETE /api/team/v1/projects/{id}/members/{memberId}", s.handleRemoveProjectMember)
+	// the board and its tickets
+	api.HandleFunc("GET /api/team/v1/projects/{id}/board", s.handleBoard)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/people", s.handleProjectPeople)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/sync", s.handleSync)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets", s.handleCreateTicket)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/tickets/{tid}", s.handleGetTicket)
+	api.HandleFunc("PATCH /api/team/v1/projects/{id}/tickets/{tid}", s.handleUpdateTicket)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/move", s.handleMoveTicket)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/claim", s.handleClaimTicket)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/release", s.handleReleaseTicket)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/assign", s.handleAssignTicket)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/submit", s.handleSubmitTicket)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/request-changes", s.handleRequestChanges)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/complete", s.handleCompleteTicket)
+	api.HandleFunc("PUT /api/team/v1/projects/{id}/tickets/{tid}/git", s.handleReportGit)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/handoff", s.handleHandoff)
+	// repository awareness, activity and invites
+	api.HandleFunc("GET /api/team/v1/projects/{id}/repository", s.handleRepositoryState)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/repository/branches", s.handleReportBranches)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/activity", s.handleActivity)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/invites", s.handleListInvites)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/invites", s.handleCreateInvite)
+	api.HandleFunc("DELETE /api/team/v1/projects/{id}/invites/{inviteId}", s.handleRevokeInvite)
+	api.HandleFunc("POST /api/team/v1/invites/join", s.handleJoinInvite)
 	api.HandleFunc("/api/team/v1/", func(w http.ResponseWriter, r *http.Request) {
 		httpkit.WriteError(w, http.StatusNotFound, "not_found", "no such endpoint")
 	})
+	// Redeeming an invite is the one thing a person without an account can do: the
+	// invite code is their credential.
+	mux.HandleFunc("POST /api/team/v1/invites/redeem", s.handleRedeemInvite)
 	mux.Handle("/api/team/v1/", s.authenticate(api))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {

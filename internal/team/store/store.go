@@ -194,13 +194,13 @@ func (t *Tx) SetMemberToken(ctx context.Context, workspaceID, id, hash string) e
 
 // ---- projects ----
 
-const projectCols = `id, workspace_id, name, description, repository, archived, created_at, updated_at`
+const projectCols = `id, workspace_id, name, description, repository, archived, created_at, updated_at, revision`
 
 func scanProject(s interface{ Scan(...any) error }) (domain.Project, error) {
 	var p domain.Project
 	var archived int
 	var created, updated int64
-	err := s.Scan(&p.ID, &p.WorkspaceID, &p.Name, &p.Description, &p.Repository, &archived, &created, &updated)
+	err := s.Scan(&p.ID, &p.WorkspaceID, &p.Name, &p.Description, &p.Repository, &archived, &created, &updated, &p.Revision)
 	p.Archived, p.CreatedAt, p.UpdatedAt = archived == 1, fromMS(created), fromMS(updated)
 	return p, err
 }
@@ -214,8 +214,8 @@ func b2i(b bool) int {
 
 // InsertProject stores a new project.
 func (t *Tx) InsertProject(ctx context.Context, p domain.Project) error {
-	_, err := t.q.ExecContext(ctx, `INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.ID, p.WorkspaceID, p.Name, p.Description, p.Repository, b2i(p.Archived), ms(p.CreatedAt), ms(p.UpdatedAt))
+	_, err := t.q.ExecContext(ctx, `INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, p.WorkspaceID, p.Name, p.Description, p.Repository, b2i(p.Archived), ms(p.CreatedAt), ms(p.UpdatedAt), p.Revision)
 	if isUnique(err) {
 		return fmt.Errorf("%w: a project named %q already exists in this workspace", domain.ErrConflict, p.Name)
 	}
@@ -270,10 +270,35 @@ func (t *Tx) UpdateProject(ctx context.Context, p domain.Project) error {
 // no-op, so the call can be repeated safely.
 func (t *Tx) AddProjectMember(ctx context.Context, workspaceID string, pm domain.ProjectMember) error {
 	_, err := t.q.ExecContext(ctx,
-		`INSERT INTO project_members (project_id, member_id, workspace_id, added_by, added_at) VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO project_members (project_id, member_id, workspace_id, added_by, added_at, role) VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (project_id, member_id) DO NOTHING`,
-		pm.ProjectID, pm.MemberID, workspaceID, pm.AddedBy, ms(pm.AddedAt))
+		pm.ProjectID, pm.MemberID, workspaceID, pm.AddedBy, ms(pm.AddedAt), string(roleOrDefault(pm.Role)))
 	return err
+}
+
+func roleOrDefault(r domain.ProjectRole) domain.ProjectRole {
+	if r == "" {
+		return domain.ProjectContributor
+	}
+	return r
+}
+
+// SetProjectMemberRole changes a member's role on a project.
+func (t *Tx) SetProjectMemberRole(ctx context.Context, workspaceID, projectID, memberID string, role domain.ProjectRole) error {
+	res, err := t.q.ExecContext(ctx, `UPDATE project_members SET role = ? WHERE workspace_id = ? AND project_id = ? AND member_id = ?`,
+		string(role), workspaceID, projectID, memberID)
+	return affected(res, err, "project member")
+}
+
+// ProjectRole returns a member's role on a project and whether they are on it.
+func (t *Tx) ProjectRole(ctx context.Context, workspaceID, projectID, memberID string) (domain.ProjectRole, bool, error) {
+	var role string
+	err := t.q.QueryRowContext(ctx, `SELECT role FROM project_members WHERE workspace_id = ? AND project_id = ? AND member_id = ?`,
+		workspaceID, projectID, memberID).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return domain.ProjectRole(role), err == nil, err
 }
 
 // RemoveProjectMember takes a member off a project; it reports whether they were on it.
@@ -296,7 +321,7 @@ func (t *Tx) IsProjectMember(ctx context.Context, workspaceID, projectID, member
 
 // ProjectMembers lists who is on a project, owner first and then by name.
 func (t *Tx) ProjectMembers(ctx context.Context, workspaceID, projectID string) ([]domain.ProjectMember, error) {
-	rows, err := t.q.QueryContext(ctx, `SELECT pm.project_id, pm.member_id, pm.added_by, pm.added_at
+	rows, err := t.q.QueryContext(ctx, `SELECT pm.project_id, pm.member_id, pm.role, pm.added_by, pm.added_at
 		FROM project_members pm JOIN members m ON m.id = pm.member_id AND m.workspace_id = pm.workspace_id
 		WHERE pm.workspace_id = ? AND pm.project_id = ?
 		ORDER BY (m.role = 'owner') DESC, m.name COLLATE NOCASE, m.id`, workspaceID, projectID)
@@ -308,10 +333,11 @@ func (t *Tx) ProjectMembers(ctx context.Context, workspaceID, projectID string) 
 	for rows.Next() {
 		var pm domain.ProjectMember
 		var added int64
-		if err := rows.Scan(&pm.ProjectID, &pm.MemberID, &pm.AddedBy, &added); err != nil {
+		var role string
+		if err := rows.Scan(&pm.ProjectID, &pm.MemberID, &role, &pm.AddedBy, &added); err != nil {
 			return nil, err
 		}
-		pm.AddedAt = fromMS(added)
+		pm.Role, pm.AddedAt = domain.ProjectRole(role), fromMS(added)
 		out = append(out, pm)
 	}
 	return out, rows.Err()

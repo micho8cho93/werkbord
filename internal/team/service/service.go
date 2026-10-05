@@ -25,10 +25,11 @@ import (
 type Service struct {
 	db  *store.DB
 	now func() time.Time
+	hub *hub
 }
 
 // New builds a Service on a database.
-func New(db *store.DB) *Service { return &Service{db: db, now: time.Now} }
+func New(db *store.DB) *Service { return &Service{db: db, now: time.Now, hub: &hub{}} }
 
 // stamp is the current time as stored: UTC, to the millisecond, so what a call
 // returns is exactly what a later read returns.
@@ -201,7 +202,8 @@ func (s *Service) RemoveMember(ctx context.Context, a Actor, memberID string) er
 	if err := a.require(domain.PermMembersManage, "remove members"); err != nil {
 		return err
 	}
-	return s.db.Update(ctx, func(tx *store.Tx) error {
+	var changed []string
+	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		m, err := tx.Member(ctx, a.Workspace.ID, memberID)
 		if err != nil {
 			return err
@@ -209,8 +211,28 @@ func (s *Service) RemoveMember(ctx context.Context, a Actor, memberID string) er
 		if m.Role == domain.RoleOwner {
 			return fmt.Errorf("%w: the owner cannot be removed from their workspace", domain.ErrConflict)
 		}
+		// Whatever they were working on goes back on its board first.
+		projects, err := tx.ProjectsOfMemberWithHeldTickets(ctx, a.Workspace.ID, memberID)
+		if err != nil {
+			return err
+		}
+		for _, pid := range projects {
+			if err := s.releaseAll(ctx, tx, a.Workspace.ID, pid, memberID, a.Member.ID, "left the workspace"); err != nil {
+				return err
+			}
+			if _, err := tx.BumpRevision(ctx, a.Workspace.ID, pid); err != nil {
+				return err
+			}
+			changed = append(changed, pid)
+		}
 		return tx.DeleteMember(ctx, a.Workspace.ID, memberID)
 	})
+	if err == nil {
+		for _, pid := range changed {
+			s.hub.notify(pid)
+		}
+	}
+	return err
 }
 
 // ReissueToken gives a member a new token and invalidates the old one. Anyone may
@@ -306,7 +328,7 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 		if err := tx.InsertProject(ctx, p); err != nil {
 			return err
 		}
-		return tx.AddProjectMember(ctx, a.Workspace.ID, domain.ProjectMember{ProjectID: p.ID, MemberID: a.Member.ID, AddedBy: a.Member.ID, AddedAt: now})
+		return tx.AddProjectMember(ctx, a.Workspace.ID, domain.ProjectMember{ProjectID: p.ID, MemberID: a.Member.ID, Role: domain.ProjectOwner, AddedBy: a.Member.ID, AddedAt: now})
 	})
 	return p, err
 }
@@ -379,30 +401,74 @@ func (s *Service) ListProjectMembers(ctx context.Context, a Actor, projectID str
 	return out, err
 }
 
-// AddProjectMember puts a member of the workspace on a project. Repeating it does nothing.
-func (s *Service) AddProjectMember(ctx context.Context, a Actor, projectID, memberID string) error {
-	return s.db.Update(ctx, func(tx *store.Tx) error {
-		if _, err := s.visibleProject(ctx, tx, a, projectID); err != nil {
-			return err
+// Person is a member as seen on one project: who they are and their role there.
+type Person struct {
+	domain.Member
+	ProjectRole domain.ProjectRole `json:"projectRole"`
+}
+
+// ListProjectPeople lists the people on a project with their project roles, the
+// workspace owner first and then by name.
+func (s *Service) ListProjectPeople(ctx context.Context, a Actor, projectID string) ([]Person, error) {
+	var out []Person
+	err := s.view(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+		out, err = people(ctx, tx, a.Workspace.ID, projectID)
+		return err
+	})
+	return out, err
+}
+
+func people(ctx context.Context, tx *store.Tx, workspaceID, projectID string) ([]Person, error) {
+	pms, err := tx.ProjectMembers(ctx, workspaceID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Person, 0, len(pms))
+	for _, pm := range pms {
+		m, err := tx.Member(ctx, workspaceID, pm.MemberID)
+		if err != nil {
+			return nil, err
 		}
-		if err := a.require(domain.PermProjectMembersManage, "change who is on a project"); err != nil {
+		out = append(out, Person{Member: m, ProjectRole: pm.Role})
+	}
+	return out, nil
+}
+
+// AddProjectMember puts a member of the workspace on a project, as a plain
+// member unless role says otherwise. Repeating it does nothing, except that a
+// role given for someone already on the project changes their role.
+func (s *Service) AddProjectMember(ctx context.Context, a Actor, projectID, memberID string, role domain.ProjectRole) error {
+	if role != "" && !role.Valid() {
+		_, err := domain.ParseProjectRole(string(role))
+		return err
+	}
+	return s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+		if err := x.require(domain.PPMembersManage, "change who is on a project"); err != nil {
 			return err
 		}
 		if _, err := tx.Member(ctx, a.Workspace.ID, memberID); err != nil {
 			return err
 		}
-		return tx.AddProjectMember(ctx, a.Workspace.ID, domain.ProjectMember{ProjectID: projectID, MemberID: memberID, AddedBy: a.Member.ID, AddedAt: s.stamp()})
+		_, on, err := tx.ProjectRole(ctx, a.Workspace.ID, projectID, memberID)
+		if err != nil {
+			return err
+		}
+		if !on {
+			return tx.AddProjectMember(ctx, a.Workspace.ID, domain.ProjectMember{ProjectID: projectID, MemberID: memberID, Role: role, AddedBy: a.Member.ID, AddedAt: s.stamp()})
+		}
+		if role == "" {
+			return nil
+		}
+		return tx.SetProjectMemberRole(ctx, a.Workspace.ID, projectID, memberID, role)
 	})
 }
 
-// RemoveProjectMember takes a member off a project. The owner has a place on
-// every project they create, but nothing forces them to keep it.
+// RemoveProjectMember takes a member off a project. Any ticket they were working
+// on goes back on the board, available. The owner has a place on every project
+// they create, but nothing forces them to keep it.
 func (s *Service) RemoveProjectMember(ctx context.Context, a Actor, projectID, memberID string) error {
-	return s.db.Update(ctx, func(tx *store.Tx) error {
-		if _, err := s.visibleProject(ctx, tx, a, projectID); err != nil {
-			return err
-		}
-		if err := a.require(domain.PermProjectMembersManage, "change who is on a project"); err != nil {
+	return s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+		if err := x.require(domain.PPMembersManage, "change who is on a project"); err != nil {
 			return err
 		}
 		removed, err := tx.RemoveProjectMember(ctx, a.Workspace.ID, projectID, memberID)
@@ -412,6 +478,21 @@ func (s *Service) RemoveProjectMember(ctx context.Context, a Actor, projectID, m
 		if !removed {
 			return fmt.Errorf("%w: that member is not on this project", domain.ErrNotFound)
 		}
-		return nil
+		return s.releaseAll(ctx, tx, a.Workspace.ID, projectID, memberID, a.Member.ID, "left the project")
 	})
+}
+
+// releaseAll puts back the tickets a member holds in progress on a project and records it.
+func (s *Service) releaseAll(ctx context.Context, tx *store.Tx, workspaceID, projectID, memberID, actorID, why string) error {
+	now := s.stamp()
+	released, err := tx.ReleaseHeld(ctx, workspaceID, projectID, memberID, now)
+	if err != nil {
+		return err
+	}
+	for _, k := range released {
+		if err := tx.AddActivity(ctx, workspaceID, domain.Activity{ProjectID: projectID, TicketID: k.ID, TicketKey: k.Key, ActorID: actorID, Kind: domain.ActTicketReleased, Detail: why, CreatedAt: now}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -56,22 +56,25 @@ func (m Member) Can(p Permission) bool { return m.Role.Can(p) }
 // shares, not a checkout: Repository is only where the code lives, and each
 // member's own Werkbord decides where they have it.
 type Project struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspaceId"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	Repository  string    `json:"repository,omitempty"`
-	Archived    bool      `json:"archived"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Repository  string `json:"repository,omitempty"`
+	Archived    bool   `json:"archived"`
+	// Revision moves whenever the project's board or reported repository state changes.
+	Revision  int64     `json:"revision"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // ProjectMember records that a member takes part in a project.
 type ProjectMember struct {
-	ProjectID string    `json:"projectId"`
-	MemberID  string    `json:"memberId"`
-	AddedBy   string    `json:"addedBy"`
-	AddedAt   time.Time `json:"addedAt"`
+	ProjectID string      `json:"projectId"`
+	MemberID  string      `json:"memberId"`
+	Role      ProjectRole `json:"role"`
+	AddedBy   string      `json:"addedBy"`
+	AddedAt   time.Time   `json:"addedAt"`
 }
 
 func invalid(format string, a ...any) error {

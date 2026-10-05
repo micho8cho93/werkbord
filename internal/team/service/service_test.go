@@ -195,7 +195,7 @@ func TestRemovingAMemberSignsThemOutAndOffTheirProjects(t *testing.T) {
 	owner, _ := w.workspace("Acme", "Ada")
 	bo, boToken := w.member(owner, "Bo")
 	p := w.project(owner, "Billing")
-	if err := w.svc.AddProjectMember(bg, owner, p.ID, bo.Member.ID); err != nil {
+	if err := w.svc.AddProjectMember(bg, owner, p.ID, bo.Member.ID, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -252,10 +252,10 @@ func TestProjectsAreVisibleToTheirPeopleAndTheOwner(t *testing.T) {
 	if ps, err := w.svc.ListProjects(bg, bo); err != nil || len(ps) != 0 {
 		t.Fatalf("a member on no project sees %v %v", ps, err)
 	}
-	if err := w.svc.AddProjectMember(bg, owner, billing.ID, bo.Member.ID); err != nil {
+	if err := w.svc.AddProjectMember(bg, owner, billing.ID, bo.Member.ID, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.svc.AddProjectMember(bg, owner, billing.ID, bo.Member.ID); err != nil {
+	if err := w.svc.AddProjectMember(bg, owner, billing.ID, bo.Member.ID, ""); err != nil {
 		t.Fatalf("adding someone twice should do nothing, not fail: %v", err)
 	}
 	ps, err := w.svc.ListProjects(bg, bo)
@@ -270,12 +270,12 @@ func TestProjectsAreVisibleToTheirPeopleAndTheOwner(t *testing.T) {
 	wantErr(t, err, domain.ErrNotFound)
 	_, err = w.svc.ListProjectMembers(bg, cy, billing.ID)
 	wantErr(t, err, domain.ErrNotFound)
-	wantErr(t, w.svc.AddProjectMember(bg, cy, billing.ID, cy.Member.ID), domain.ErrNotFound) // cannot add themselves
+	wantErr(t, w.svc.AddProjectMember(bg, cy, billing.ID, cy.Member.ID, ""), domain.ErrNotFound) // cannot add themselves
 	wantErr(t, w.svc.RemoveProjectMember(bg, cy, billing.ID, bo.Member.ID), domain.ErrNotFound)
 	// Bo is on it, so they know it exists, and may not change it.
 	_, err = w.svc.UpdateProject(bg, bo, billing.ID, ProjectPatch{Name: ptr("Mine")})
 	wantErr(t, err, domain.ErrForbidden)
-	wantErr(t, w.svc.AddProjectMember(bg, bo, billing.ID, cy.Member.ID), domain.ErrForbidden)
+	wantErr(t, w.svc.AddProjectMember(bg, bo, billing.ID, cy.Member.ID, ""), domain.ErrForbidden)
 	wantErr(t, w.svc.RemoveProjectMember(bg, bo, billing.ID, owner.Member.ID), domain.ErrForbidden)
 
 	ms, err := w.svc.ListProjectMembers(bg, bo, billing.ID)
@@ -352,7 +352,7 @@ func TestWorkspacesAreIsolatedFromEachOther(t *testing.T) {
 	wantErr(t, err, domain.ErrNotFound)
 	_, err = w.svc.UpdateProject(bg, rival, p.ID, ProjectPatch{Archived: ptr(true)})
 	wantErr(t, err, domain.ErrNotFound)
-	wantErr(t, w.svc.AddProjectMember(bg, rival, p.ID, rival.Member.ID), domain.ErrNotFound)
+	wantErr(t, w.svc.AddProjectMember(bg, rival, p.ID, rival.Member.ID, ""), domain.ErrNotFound)
 	wantErr(t, w.svc.RemoveMember(bg, rival, acme.Member.ID), domain.ErrNotFound)
 	_, err = w.svc.ReissueToken(bg, rival, acme.Member.ID)
 	wantErr(t, err, domain.ErrNotFound) // Rival's owner may reissue tokens, but only for Rival's members
@@ -362,7 +362,7 @@ func TestWorkspacesAreIsolatedFromEachOther(t *testing.T) {
 
 	// Putting Acme's member on Rival's project must fail even though both IDs are real.
 	rp := w.project(rival, "Search")
-	wantErr(t, w.svc.AddProjectMember(bg, rival, rp.ID, acme.Member.ID), domain.ErrNotFound)
+	wantErr(t, w.svc.AddProjectMember(bg, rival, rp.ID, acme.Member.ID, ""), domain.ErrNotFound)
 	// And the database refuses it too, whatever the service does.
 	err = w.db.Update(bg, func(tx *store.Tx) error {
 		return tx.AddProjectMember(bg, rival.Workspace.ID, domain.ProjectMember{ProjectID: rp.ID, MemberID: acme.Member.ID, AddedBy: rival.Member.ID})
