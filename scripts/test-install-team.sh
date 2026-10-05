@@ -58,12 +58,16 @@ class H(http.server.SimpleHTTPRequestHandler):
         return os.path.join(root, p.lstrip("/"))
     def log_message(self, *a): pass
 srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
-open(os.path.join(root, "..", "port"), "w").write(str(srv.server_address[1]))
+tmp = os.path.join(root, "..", "port.tmp")
+open(tmp, "w").write(str(srv.server_address[1]))
+os.rename(tmp, os.path.join(root, "..", "port"))
 srv.serve_forever()
 PY
 python3 "$WORK/server.py" "$WORK/releases" &
 SERVER_PID=$!
-i=0; while [ ! -s "$WORK/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+# Python can take several seconds to start on a busy CI machine: wait up to 30s, and say so if it never comes up.
+i=0; while [ ! -s "$WORK/port" ] && kill -0 "$SERVER_PID" 2>/dev/null && [ $i -lt 300 ]; do sleep 0.1; i=$((i + 1)); done
+[ -s "$WORK/port" ] || bad "the test release server did not start (python3 $(python3 --version 2>&1), pid $SERVER_PID)"
 PORT=$(cat "$WORK/port")
 export WERKBORD_TEAM_BASE_URL="http://127.0.0.1:$PORT"
 export WERKBORD_TEAM_FEED_URL="http://127.0.0.1:$PORT/feed.atom"
