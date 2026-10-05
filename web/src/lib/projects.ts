@@ -74,3 +74,8 @@ export function stepIndex(current: number, delta: 1 | -1, n: number): number {
   if (current < 0) return delta > 0 ? 0 : n - 1;
   return (current + delta + n) % n;
 }
+
+/** A repository path as people say it: the home directory shown as `~`. */
+export function shortPath(path: string): string {
+  return path.replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~').replace(/^[A-Za-z]:\\Users\\[^\\]+(?=\\|$)/, '~');
+}

@@ -6,7 +6,7 @@
   import type { GitFileChange, Project, WorkingChanges } from '../types';
   import type { ChangeKind } from '../gitroute';
 
-  // What is uncommitted in one checkout: the project's own, or a worktree Dev Board made.
+  // What is uncommitted in one checkout: the project's own, or a worktree Werkbord made.
   // An agent's unfinished work lives here, not on its branch, until it is committed.
 
   let { project, worktree }: { project: Project; worktree: string } = $props();
@@ -63,7 +63,7 @@
       </div>
     </header>
 
-    {#if data.tree.operation}<p class="g-notice" data-tone="bad">A {data.tree.operation} is unfinished here. Dev Board will not merge into, or remove, a checkout in this state.</p>{/if}
+    {#if data.tree.operation}<p class="g-notice" data-tone="bad">A {data.tree.operation} is unfinished here. Werkbord will not merge into, or remove, a checkout in this state.</p>{/if}
 
     {#if data.tree.conflicted.length}
       <section class="g-section">

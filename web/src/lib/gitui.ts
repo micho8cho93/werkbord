@@ -153,9 +153,9 @@ export const dirtyTotal = (c: GitChangeCounts): number => c.staged + c.unstaged 
 
 /** Who made the branch, for the line under its name. */
 export function originLabel(b: GitBranch): string {
-  if (b.devboard.created) return b.devboard.taskTitle ? `Dev Board · ${b.devboard.taskTitle}` : 'Created by Dev Board';
-  if (b.devboard.namespace) return 'Has Dev Board’s name, but Dev Board has no record of making it';
-  return b.scope === 'remote' ? 'On the remote only' : 'Not created by Dev Board';
+  if (b.devboard.created) return b.devboard.taskTitle ? `Werkbord · ${b.devboard.taskTitle}` : 'Created by Werkbord';
+  if (b.devboard.namespace) return 'Has Werkbord’s name, but Werkbord has no record of making it';
+  return b.scope === 'remote' ? 'On the remote only' : 'Not created by Werkbord';
 }
 
 export function phaseLabel(p: GitBranch['devboard']['phase']): string {
@@ -177,7 +177,7 @@ export type BranchFilter = 'attention' | 'devboard' | 'local' | 'remote' | 'merg
 
 export const BRANCH_FILTERS: readonly { id: BranchFilter; label: string }[] = [
   { id: 'attention', label: 'Needs you' },
-  { id: 'devboard', label: 'Dev Board' },
+  { id: 'devboard', label: 'Werkbord' },
   { id: 'local', label: 'Local' },
   { id: 'remote', label: 'Remote' },
   { id: 'merged', label: 'Merged' },

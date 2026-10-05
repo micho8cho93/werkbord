@@ -1,7 +1,7 @@
 // Service worker: makes the shell installable and opens instantly.
 // API responses are never cached; state always comes from the controller.
-const CACHE = 'devboard-shell-v1';
-const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'werkbord-shell-v2';
+const SHELL = ['/', '/manifest.webmanifest', '/theme.js', '/favicon.svg', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

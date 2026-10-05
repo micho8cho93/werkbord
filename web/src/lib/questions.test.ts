@@ -77,8 +77,8 @@ describe('how questions are described', () => {
   });
 
   it('puts the count in the tab title and the banner', () => {
-    expect(pageTitle(0)).toBe('Devboard');
-    expect(pageTitle(3)).toBe('(3) Needs input · Devboard');
+    expect(pageTitle(0)).toBe('Werkbord');
+    expect(pageTitle(3)).toBe('(3) Needs input · Werkbord');
     expect(needsInputText(1)).toBe('1 question needs your input');
     expect(needsInputText(2)).toBe('2 questions need your input');
   });

@@ -322,7 +322,7 @@ export interface RepoChoice {
   canPush: boolean;
   /** Clones found on this computer. Empty: GitHub only, it would have to be cloned first. */
   localPaths: string[];
-  /** Set when it is already a Dev Board project. */
+  /** Set when it is already a Werkbord project. */
   project?: { id: string; name: string; path: string };
 }
 
@@ -832,7 +832,7 @@ export interface GitHubState {
 // ---- repository health (internal/domain/health.go) ----
 //
 // What Git state needs attention, as findings. Each says what is wrong, why, the evidence,
-// the next step, and whether Dev Board can do it. Nothing here is ever executed by the
+// the next step, and whether Werkbord can do it. Nothing here is ever executed by the
 // health system: an action opens the same confirmation as anywhere else in the Git screen.
 
 export type HealthSeverity = 'info' | 'attention' | 'risk' | 'critical';
@@ -901,7 +901,7 @@ export interface HealthAction {
   kind: HealthActionKind;
   label: string;
   detail?: string;
-  /** Dev Board has a guarded operation for this and what it needs is true now. It is never run automatically. */
+  /** Werkbord has a guarded operation for this and what it needs is true now. It is never run automatically. */
   canPerform: boolean;
   /** Why not, and what to do instead. */
   reason?: string;

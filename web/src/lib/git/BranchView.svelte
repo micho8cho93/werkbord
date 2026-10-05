@@ -172,8 +172,8 @@
           {#each branch.attention as a (a.kind)}<li class="g-small g-wrap">{a.message}</li>{/each}
         </ul>
       {/if}
-      {#if branch.unusual}<p class="g-notice g-small" data-tone="bad">Dev Board will not act on this branch: {branch.unusual}.</p>{/if}
-      {#if branch.protected && branch.scope === 'local'}<p class="g-small muted">Protected: Dev Board never deletes this branch.</p>{/if}
+      {#if branch.unusual}<p class="g-notice g-small" data-tone="bad">Werkbord will not act on this branch: {branch.unusual}.</p>{/if}
+      {#if branch.protected && branch.scope === 'local'}<p class="g-small muted">Protected: Werkbord never deletes this branch.</p>{/if}
     </section>
 
     {#if changing.length || hasTask || branch.devboard.runId}

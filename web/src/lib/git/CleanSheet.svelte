@@ -3,7 +3,7 @@
   import { ApiError, api } from '../api';
   import type { GitActionResult, GitCleanPlan } from '../types';
   import ResultCard from './ResultCard.svelte';
-  import Sheet from './Sheet.svelte';
+  import Sheet from '../Sheet.svelte';
   import { sheets } from './sheets.svelte';
   import type { GitStore } from './store.svelte';
 
@@ -43,12 +43,12 @@
     <ResultCard {result} />
   {:else if plan}
     <p class="g-wrap">
-      Remove the directory Dev Board made for <strong>{label}</strong>.
+      Remove the directory Werkbord made for <strong>{label}</strong>.
     </p>
     <p class="mono g-small g-wrap">{plan.path}</p>
     <p class="g-small muted">
       The branch is kept, with all its commits. Only a directory with nothing uncommitted in it, that no run is using, is ever removed:
-      Dev Board never discards uncommitted work.
+      Werkbord never discards uncommitted work.
     </p>
     {#if plan.missing}<p class="g-notice g-small">The directory is already gone; this only forgets the record of it.</p>{/if}
     {#if plan.blockers.length}

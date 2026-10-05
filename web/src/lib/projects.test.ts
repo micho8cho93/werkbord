@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activitySummary, attentionCount, filterProjects, projectColor, projectHue, projectInitial, stepIndex } from './projects';
+import { activitySummary, attentionCount, filterProjects, projectColor, projectHue, projectInitial, shortPath, stepIndex } from './projects';
 import type { Project, ProjectActivity } from './types';
 
 const project = (id: string, name: string, repoPath = `/code/${name}`): Project => ({
@@ -99,5 +99,15 @@ describe('moving through the switcher with the keyboard', () => {
     expect(stepIndex(-1, 1, 3)).toBe(0);
     expect(stepIndex(-1, -1, 3)).toBe(2);
     expect(stepIndex(0, 1, 0)).toBe(-1);
+  });
+});
+
+describe('shortPath', () => {
+  it('shows the home directory as ~ and leaves other paths alone', () => {
+    expect(shortPath('/Users/ada/code/my-app')).toBe('~/code/my-app');
+    expect(shortPath('/home/bo/src')).toBe('~/src');
+    expect(shortPath('/Users/ada')).toBe('~');
+    expect(shortPath('C:\\Users\\cy\\repo')).toBe('~\\repo');
+    expect(shortPath('/srv/repos/api')).toBe('/srv/repos/api');
   });
 });

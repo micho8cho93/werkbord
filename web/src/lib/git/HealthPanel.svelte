@@ -92,9 +92,9 @@
     <details class="fold how">
       <summary>How this is worked out</summary>
       <p class="g-small">
-        From Git metadata and Dev Board’s own records only: no AI is asked and nothing goes over the network. It is looked at again when something
+        From Git metadata and Werkbord’s own records only: no AI is asked and nothing goes over the network. It is looked at again when something
         changes here (a run, a task, a Git action), when you press Check now, and when this screen is a few minutes old.
-        Dev Board never acts on a finding: a button only opens the same confirmation as anywhere else.
+        Werkbord never acts on a finding: a button only opens the same confirmation as anywhere else.
       </p>
       <p class="g-small">
         <strong>Git says so</strong> is a fact about the repository as of the last check. <strong>A guess</strong> is a pattern, such as two

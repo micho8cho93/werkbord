@@ -103,8 +103,10 @@ class AppState {
   notice = $state<string>('');
   /** The project last visited: where a link that names none goes, and what the tabs point at on a global page. */
   lastProjectId = $state<string>(loadLastProject());
-  /** Whether the project switcher is open. */
+  /** Whether the Jump to palette (projects, sections, tasks) is open. */
   switcherOpen = $state(false);
+  /** Whether the New task dialog is open, and the project it adds to. */
+  newTaskOpen = $state(false);
 
   /** The time, updated every second while the page is visible, for elapsed times. */
   now = $state(Date.now());
@@ -379,7 +381,7 @@ class AppState {
     if (ev.runId) this.listeners.get(ev.runId)?.forEach((fn) => fn(ev));
 
     const info = ev.taskId && ev.projectId ? this.taskInfo(ev.taskId, ev.projectId) : undefined;
-    const projectName = info?.projectName || this.project(ev.projectId ?? '')?.name || 'Dev Board';
+    const projectName = info?.projectName || this.project(ev.projectId ?? '')?.name || 'Werkbord';
     const readyForReview = !!ev.taskId && !!ev.projectId && this.scopes.get(ev.projectId)?.tasks.some((t) => t.id === ev.taskId && t.state === 'review');
     notifyEvent(ev, projectName, info?.title || 'Task', readyForReview);
 

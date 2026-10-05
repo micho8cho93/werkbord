@@ -30,6 +30,7 @@
     idPrefix,
     showPriority = true,
     disabled = false,
+    dense = false,
   }: {
     value?: ExecutionConfig;
     /** What applies if this level sets nothing: the levels below it, resolved. Without it there is no level below. */
@@ -37,6 +38,8 @@
     idPrefix: string;
     showPriority?: boolean;
     disabled?: boolean;
+    /** Two columns of bare pickers, no explanations: for a dialog or a side panel where everything shows at once. */
+    dense?: boolean;
   } = $props();
 
   const hasBelow = $derived(inherited !== undefined);
@@ -118,7 +121,7 @@
   const noAgentYet = $derived(!agentForOptions);
 </script>
 
-<div class="fields">
+<div class="fields" class:compact={dense}>
   <div class="field">
     <label for="{idPrefix}-runner">Runner</label>
     <select id="{idPrefix}-runner" class="select" {disabled} value={value.runner ?? ''} onchange={e=>set({runner:e.currentTarget.value})}>
@@ -143,7 +146,7 @@
       {/each}
     </select>
     {#if usable.length === 0}
-      <p class="hint">No coding agent is available on an online runner yet. Check Settings → Agents and Runners.</p>
+      <p class="hint keep">No coding agent is available on an online runner yet. Check Settings → Agents and Runners.</p>
     {/if}
   </div>
 
@@ -180,14 +183,7 @@
     </div>
   {/if}
 
-  <details class="advanced" open={wide || hasAdvanced}>
-    <summary>
-      Model and reasoning
-      {#if value.model || value.reasoning}
-        <span class="chosen">· {[value.model && optionLabel(options?.models, value.model), value.reasoning && optionLabel(options?.reasoning, value.reasoning)].filter(Boolean).join(' · ')}</span>
-      {/if}
-    </summary>
-
+  {#snippet modelFields()}
     {#if noAgentYet}
       <p class="hint">Choose an agent first: models and reasoning levels belong to an agent.</p>
     {:else}
@@ -245,7 +241,22 @@
         {#if reasoningList.length <= 1}<p class="hint">This agent does not list reasoning levels, so only its default is offered.</p>{/if}
       </div>
     {/if}
+  {/snippet}
+
+  {#if dense}
+    {@render modelFields()}
+  {:else}
+  <details class="advanced" open={wide || hasAdvanced}>
+    <summary>
+      Model and reasoning
+      {#if value.model || value.reasoning}
+        <span class="chosen">· {[value.model && optionLabel(options?.models, value.model), value.reasoning && optionLabel(options?.reasoning, value.reasoning)].filter(Boolean).join(' · ')}</span>
+      {/if}
+    </summary>
+
+    {@render modelFields()}
   </details>
+  {/if}
 </div>
 
 <style>
@@ -262,12 +273,12 @@
   }
 
   label {
-    font-size: 0.9rem;
-    font-weight: 550;
+    font-size: 13px;
+    font-weight: 500;
   }
 
   .hint {
-    font-size: 0.8rem;
+    font-size: 12px;
     color: var(--text-2);
   }
 
@@ -296,5 +307,33 @@
 
   .advanced > :global(.field) {
     margin-top: 8px;
+  }
+
+  .compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+  }
+
+  .compact label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+
+  .compact .hint:not(.keep) {
+    display: none;
+  }
+
+  .compact .hint.keep {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: 520px) {
+    .compact {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 </style>

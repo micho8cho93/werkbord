@@ -60,7 +60,7 @@
 
 <div class="onboarding">
   <header class="welcome">
-    <h2 class="title">Welcome to Dev Board</h2>
+    <h2 class="title">Welcome to Werkbord</h2>
     <p class="lede">
       A few things make it work for you. None is required to start: skip what you do not need now, and find it all again under Settings.
     </p>
@@ -73,7 +73,7 @@
 
   <SetupCard title="This computer" status={runner ? 'done' : 'wait'} summary={runner ? `${runner.name} · ${runner.os}/${runner.arch}` : 'Registering…'}>
     <p class="muted">
-      It is ready to run coding agents: Dev Board set it up as your first runner when it was installed. Your repositories, credentials
+      It is ready to run coding agents: Werkbord set it up as your first runner when it was installed. Your repositories, credentials
       and sessions stay on it.
     </p>
   </SetupCard>
@@ -86,7 +86,7 @@
   <footer class="done">
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <button class="btn primary big" disabled={finishing} onclick={finish}>
-      {finishing ? 'Opening…' : app.projects.length > 0 ? 'Open Dev Board' : 'Continue without a project'}
+      {finishing ? 'Opening…' : app.projects.length > 0 ? 'Open Werkbord' : 'Continue without a project'}
     </button>
     <p class="muted small">You can come back to any of this under Settings.</p>
   </footer>

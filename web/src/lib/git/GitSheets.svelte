@@ -14,7 +14,7 @@
 <!-- A sheet is made fresh each time it opens, so nothing from the last one carries over. -->
 {#key s}
   {#if s?.kind === 'merge'}
-    <MergeSheet {projectId} {store} branchName={s.branch} />
+    <MergeSheet {projectId} {store} branchName={s.branch} onmerged={s.onmerged} />
   {:else if s?.kind === 'push'}
     <PushSheet {projectId} {store} branchName={s.branch} />
   {:else if s?.kind === 'pr'}

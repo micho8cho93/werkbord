@@ -54,7 +54,7 @@ export function basisLabel(b: HealthBasis): string {
 
 export function basisHint(b: HealthBasis): string {
   return b === 'deterministic'
-    ? 'This comes from Git metadata or Dev Board’s own records: it is a fact about the repository as of the last check.'
+    ? 'This comes from Git metadata or Werkbord’s own records: it is a fact about the repository as of the last check.'
     : 'This is inferred from a pattern, not proven by Git. It may be wrong; look before acting on it.';
 }
 
@@ -117,12 +117,12 @@ export type ActionPlan =
   | { type: 'link'; href: string }
   | { type: 'task'; title: string; description: string; askAgent: boolean }
   | { type: 'fetch' }
-  /** Dev Board cannot do this: the reason says why and what to do instead. */
+  /** Werkbord cannot do this: the reason says why and what to do instead. */
   | { type: 'manual'; reason: string; detail: string };
 
 export function actionPlan(f: HealthFinding, projectId: string): ActionPlan {
   const a = f.action;
-  const manual = (): ActionPlan => ({ type: 'manual', reason: a.reason ?? 'Dev Board cannot do this for you.', detail: a.detail ?? '' });
+  const manual = (): ActionPlan => ({ type: 'manual', reason: a.reason ?? 'Werkbord cannot do this for you.', detail: a.detail ?? '' });
   if (!a.canPerform) return manual();
   switch (a.kind) {
     case 'push_branch':
@@ -149,7 +149,7 @@ export function actionPlan(f: HealthFinding, projectId: string): ActionPlan {
 
 /** The description of a task made from a finding: what was seen and what to check, with the evidence. */
 export function taskDescription(f: HealthFinding): string {
-  const lines = [f.action.taskDescription ?? f.explanation, '', 'Repository health context:', `- Finding: ${f.title}`, `- Confidence: ${f.basis === 'deterministic' ? 'deterministic Git or Dev Board evidence' : 'heuristic; verify before acting'}`];
+  const lines = [f.action.taskDescription ?? f.explanation, '', 'Repository health context:', `- Finding: ${f.title}`, `- Confidence: ${f.basis === 'deterministic' ? 'deterministic Git or Werkbord evidence' : 'heuristic; verify before acting'}`];
   if (f.subject.branch) lines.push(`- Branch: ${f.subject.branch}`);
   if (f.subject.worktreePath) lines.push(`- Affected worktree: ${f.subject.worktreePath}`);
   if (f.subject.taskTitle) lines.push(`- Related task: ${f.subject.taskTitle}${f.subject.taskId ? ` (${f.subject.taskId})` : ''}`);
@@ -161,7 +161,7 @@ export function taskDescription(f: HealthFinding): string {
   return lines.join('\n');
 }
 
-/** The button label for an action: what it does, and whether it is a step Dev Board will take (after confirmation). */
+/** The button label for an action: what it does, and whether it is a step Werkbord will take (after confirmation). */
 export function actionLabel(f: HealthFinding): string {
   return f.action.label;
 }

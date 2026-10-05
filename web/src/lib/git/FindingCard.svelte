@@ -20,7 +20,7 @@
 
   // One finding: what is wrong, why, what it rests on, and the next step. The step is only ever
   // offered, never taken: a button opens the same confirmation as anywhere else in the Git screen
-  // (which checks again when confirmed); a step Dev Board cannot do says so and says what to do.
+  // (which checks again when confirmed); a step Werkbord cannot do says so and says what to do.
 
   let {
     finding,
@@ -143,11 +143,11 @@
 
   <div class="next">
     {#if plan.type === 'manual'}
-      <!-- Dev Board cannot do this one: say what to do, and why it is not a button. -->
+      <!-- Werkbord cannot do this one: say what to do, and why it is not a button. -->
       <div class="manual g-small">
         <p class="g-wrap"><strong>{finding.action.label}</strong></p>
         {#if plan.detail}<p class="g-wrap">{plan.detail}</p>{/if}
-        <p class="muted g-wrap">Not something Dev Board does for you: {plan.reason}.</p>
+        <p class="muted g-wrap">Not something Werkbord does for you: {plan.reason}.</p>
       </div>
     {:else if plan.type === 'link'}
       <a class="btn small" class:primary={finding.severity !== 'info'} href={plan.href}>{finding.action.label}</a>

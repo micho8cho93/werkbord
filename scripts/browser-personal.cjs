@@ -19,7 +19,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     page.on('pageerror', e => errors.push(e.message));
     page.setDefaultTimeout(10000);
     await page.goto(base + '/#token=' + token);
-    await page.getByRole('heading', { name: 'Welcome to Dev Board', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Welcome to Werkbord', exact: true }).waitFor();
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.screenshot({ path: path.join(artifacts, 'onboarding-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
@@ -53,7 +53,6 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.goto(base + `/#/p/${p.id}/task/${task.id}`);
         await page.getByRole('button', { name: 'Start agent', exact: true }).waitFor();
         assert.equal(await page.getByRole('button', { name: 'Start agent', exact: true }).isEnabled(), true);
-        await page.getByText('Change for this run', { exact: true }).click();
         assert.equal(await page.locator('select[id$="model"] option[value="remote-model"]').count() > 0, true);
         assert.equal(await page.locator('select[id$="reasoning"] option[value="remote-reason"]').count() > 0, true);
         const startResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/runs'));

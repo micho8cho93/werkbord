@@ -26,7 +26,7 @@
 
 <SetupCard title="Coding agents" {status} {summary}>
   <p class="muted">
-    Dev Board runs the agents you already have, signed in with your own account. It never asks for an API key and never installs an
+    Werkbord runs the agents you already have, signed in with your own account. It never asks for an API key and never installs an
     agent without you.
   </p>
   <ul class="agents">

@@ -43,7 +43,7 @@
   const attention = $derived((o?.branches ?? []).filter(needsAttention));
   const SHOW_ATTENTION = 6;
   let showAllAttention = $state(false);
-  // Dev Board's own branches first, unless there are none, when everything is shown.
+  // Werkbord's own branches first, unless there are none, when everything is shown.
   let chosen = $state<BranchFilter | null>(null);
   const filter = $derived<BranchFilter>(chosen ?? ((o?.summary.devboard ?? 0) > 0 ? 'devboard' : 'all'));
   const listed = $derived(filterBranches(o?.branches ?? [], filter));
@@ -180,7 +180,7 @@
             <details>
               <summary>{sync.notPulled.total} commit{sync.notPulled.total === 1 ? '' : 's'} on the remote not pulled</summary>
               {#each sync.notPulled.items as c (c.sha)}<div class="g-small"><span class="mono">{shortSha(c.sha)}</span> {c.subject}</div>{/each}
-              <p class="g-small muted">Dev Board does not pull. Update your checkout from your terminal.</p>
+              <p class="g-small muted">Werkbord does not pull. Update your checkout from your terminal.</p>
             </details>
           {/if}
         </div>
@@ -188,7 +188,7 @@
 
       <div class="counts g-row" aria-label="Summary">
         <Chips chips={[
-          { text: `${o.summary.devboard} Dev Board branch${o.summary.devboard === 1 ? '' : 'es'}`, tone: 'work' },
+          { text: `${o.summary.devboard} Werkbord branch${o.summary.devboard === 1 ? '' : 'es'}`, tone: 'work' },
           ...(o.summary.mergeable ? [{ text: `${o.summary.mergeable} ready to review`, tone: 'ask' as const }] : []),
           ...(o.summary.cleanup ? [{ text: `${o.summary.cleanup} to clean up`, tone: 'ok' as const }] : []),
           ...(o.summary.unpushed ? [{ text: `${o.summary.unpushed} with unpushed work`, tone: 'ask' as const }] : []),
@@ -203,7 +203,7 @@
       {/if}
     </section>
 
-    <!-- 2. Branches needing attention: Dev Board's own first. -->
+    <!-- 2. Branches needing attention: Werkbord's own first. -->
     <section class="g-section" aria-label="Branches needing attention">
       <header>
         <h2>Needs you</h2>
@@ -323,7 +323,7 @@
             <li class="card g-card wt">
               <div class="g-row">
                 <strong class="g-wrap">{w.branch || 'detached'}</strong>
-                {#if w.owned}<span class="g-chip" data-tone="work">Dev Board</span>{/if}
+                {#if w.owned}<span class="g-chip" data-tone="work">Werkbord</span>{/if}
                 {#if w.missing}<span class="g-chip" data-tone="bad">directory gone</span>{/if}
                 {#if w.locked}<span class="g-chip">locked</span>{/if}
                 {#if w.activeRun}<span class="g-chip" data-tone="work">agent working</span>{/if}

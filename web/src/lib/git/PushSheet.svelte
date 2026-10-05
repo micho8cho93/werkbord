@@ -4,7 +4,7 @@
   import { shortSha, upstreamLabel } from '../gitui';
   import type { GitActionResult } from '../types';
   import ResultCard from './ResultCard.svelte';
-  import Sheet from './Sheet.svelte';
+  import Sheet from '../Sheet.svelte';
   import { sheets } from './sheets.svelte';
   import type { GitStore } from './store.svelte';
 

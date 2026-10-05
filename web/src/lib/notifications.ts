@@ -3,7 +3,7 @@ import type { ControllerEvent } from './types';
 const ENABLED_KEY = 'devboard.notifications.enabled';
 const SEEN_KEY = 'devboard.notifications.seen';
 
-/** Browser notifications are optional, local to this browser and never sent through a Dev Board service. */
+/** Browser notifications are optional, local to this browser and never sent through a Werkbord service. */
 export function notificationsEnabled(): boolean {
   try {
     return localStorage.getItem(ENABLED_KEY) === 'true';

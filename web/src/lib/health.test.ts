@@ -147,12 +147,12 @@ describe('what tapping an action does', () => {
     expect(p).toMatchObject({ type: 'task', askAgent: true, title: 'Investigate the branch' });
   });
 
-  it('never offers a button for what Dev Board cannot do, and says why', () => {
+  it('never offers a button for what Werkbord cannot do, and says why', () => {
     const p = actionPlan(
-      finding({}, { kind: 'finish_operation', canPerform: false, reason: 'Dev Board never resolves conflicts', detail: 'Run git merge --abort' }),
+      finding({}, { kind: 'finish_operation', canPerform: false, reason: 'Werkbord never resolves conflicts', detail: 'Run git merge --abort' }),
       'prj_1',
     );
-    expect(p).toEqual({ type: 'manual', reason: 'Dev Board never resolves conflicts', detail: 'Run git merge --abort' });
+    expect(p).toEqual({ type: 'manual', reason: 'Werkbord never resolves conflicts', detail: 'Run git merge --abort' });
     // Even a kind that has a sheet is manual when it cannot be done.
     expect(actionPlan(finding({}, { kind: 'push_branch', branch: 'x', canPerform: false, reason: 'diverged' }), 'prj_1').type).toBe('manual');
   });
@@ -184,7 +184,7 @@ describe('describing a finding', () => {
     const d = taskDescription(finding());
     expect(d).toContain('The agent left files uncommitted.');
     expect(d).toContain('- Files: 2 modified');
-    expect(d).toContain('deterministic Git or Dev Board evidence');
+    expect(d).toContain('deterministic Git or Werkbord evidence');
   });
 
   it('groups by project', () => {

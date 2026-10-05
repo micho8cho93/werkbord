@@ -1,470 +1,684 @@
 <script lang="ts">
-  import {schedulingLabels} from '../lib/scheduling';
- import { ApiError, api } from '../lib/api';
-  import { agentName, cardActivity, oneLine, runElapsed, runStatus } from '../lib/format';
-  import { compact, hasOverrides, priorityLabel, resolveFor, summaryLine } from '../lib/execution';
-  import ExecutionFields from '../lib/ExecutionFields.svelte';
-  import { interactionShort } from '../lib/policy';
-  import { kindLabel } from '../lib/questions';
-  import RunBadge from '../lib/RunBadge.svelte';
-  import { globalHref, taskHref } from '../lib/router.svelte';
+  import { untrack } from 'svelte';
+  import { ApiError, api } from '../lib/api';
+  import { dropAction } from '../lib/board';
+  import TaskCard from '../lib/board/TaskCard.svelte';
+  import { agentLabel, resolveFor, type Resolved } from '../lib/execution';
+  import { runStatus } from '../lib/format';
+  import GitSheets from '../lib/git/GitSheets.svelte';
+  import { sheets } from '../lib/git/sheets.svelte';
+  import { gitStore } from '../lib/git/store.svelte';
+  import Icon from '../lib/Icon.svelte';
+  import { router } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
-  import {
-    TASK_STATES,
-    TASK_STATE_LABELS,
-    type ExecutionConfig,
-    type Project,
-    type Task,
-    type TaskState,
-  } from '../lib/types';
+  import { TASK_STATES, TASK_STATE_LABELS, type GitBranch, type Priority, type Project, type Task, type TaskState } from '../lib/types';
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
 
-  // On a phone one column is visible at a time; this is the one shown.
-  let activeColumn = $state<TaskState>('backlog');
-  let newTitle = $state('');
-  /** What the new task overrides; empty means it inherits everything from the project and your defaults. */
-  let newExecution = $state<ExecutionConfig>({});
-  let showOptions = $state(false);
-  /** What a task here gets if it sets nothing itself: the project's defaults over your global ones. */
-  const inherited = $derived(resolveFor({}, project.execution, app.globalExecution));
-  const optionsNote = $derived(hasOverrides(compact(newExecution)) ? summaryLine(resolveFor(compact(newExecution), project.execution, app.globalExecution), app.agents, app.agentOptions) || 'Customised' : '');
-  let busy = $state(false);
-  let notice = $state('');
+  // Branches, for the review column: what can be merged from the card. Loaded while the board is open.
+  const git = $derived(gitStore(project.id));
+  $effect(() => git.watch());
+
+  // ---- filters ----
+  let agentFilter = $state('');
+  let runnerFilter = $state('');
+  let priorityFilter = $state<Priority | ''>('');
+  const filtering = $derived(!!(agentFilter || runnerFilter || priorityFilter));
+
+  const effectiveOf = (t: Task): Resolved => resolveFor(t.execution, project.execution, app.globalExecution);
+
+  function shown(t: Task): boolean {
+    if (!filtering) return true;
+    const run = scope.latestRun[t.id];
+    const eff = effectiveOf(t);
+    if (agentFilter && (run?.agentId ?? eff.agent) !== agentFilter) return false;
+    if (runnerFilter && (run?.runnerId ?? eff.runner) !== runnerFilter) return false;
+    if (priorityFilter && eff.priority !== priorityFilter) return false;
+    return true;
+  }
+
+  const DONE_LIMIT = 20;
+  let showAllDone = $state(false);
 
   const columns = $derived(
-    TASK_STATES.map((state) => ({
-      state,
-      tasks: scope.tasks.filter((t) => t.state === state).sort((a, b) => a.position - b.position),
-    })),
+    TASK_STATES.map((state) => {
+      const all = scope.tasks.filter((t) => t.state === state && shown(t));
+      const sorted =
+        state === 'done' ? all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) : all.sort((a, b) => a.position - b.position);
+      const limited = state === 'done' && !showAllDone ? sorted.slice(0, DONE_LIMIT) : sorted;
+      return { state, tasks: limited, total: sorted.length };
+    }),
   );
 
-  /** Tasks whose agent needs the user: a question, a next message, or a decision it would not guess. */
-  const waiting = $derived(scope.taskCount((r) => runStatus(r).needsInput));
-
-  async function addTask(e: SubmitEvent) {
-    e.preventDefault();
-    const title = newTitle.trim();
-    if (!title) return;
-    busy = true;
-    try {
-      scope.upsertTask(await api.createTask(project.id, title, '', compact(newExecution)));
-      newTitle = '';
-      newExecution = {};
-      notice = '';
-    } catch (err) {
-      notice = err instanceof Error ? err.message : String(err);
-    } finally {
-      busy = false;
+  // ---- the legend: what the agents are doing, at a glance ----
+  const legend = $derived.by(() => {
+    let running = 0,
+      needs = 0,
+      blocked = 0,
+      ready = 0;
+    for (const t of scope.tasks) {
+      const r = scope.latestRun[t.id];
+      const s = r ? runStatus(r) : undefined;
+      if (s?.tone === 'work') running++;
+      else if (s?.tone === 'ask' || s?.tone === 'idle') needs++;
+      else if (s?.tone === 'block') blocked++;
+      if (t.state === 'review' && !s?.active) ready++;
     }
+    return [
+      { tone: 'work', n: running, label: 'running' },
+      { tone: 'ask', n: needs, label: 'needs you' },
+      { tone: 'block', n: blocked, label: 'blocked' },
+      { tone: 'ok', n: ready, label: 'ready for review' },
+    ];
+  });
+
+  // ---- what can be merged from the board: the task's own branch, while it is not merged yet ----
+  function branchOf(task: Task): GitBranch | undefined {
+    const run = scope.latestRun[task.id];
+    return git.overview?.branches.find(
+      (b) => b.scope === 'local' && !b.target && (b.devboard.taskId === task.id || (!!run?.branch && b.name === run.branch)),
+    );
   }
 
+  function mergeable(task: Task): boolean {
+    const run = scope.latestRun[task.id];
+    if (run?.remote) return false;
+    const b = branchOf(task);
+    return !!b && !b.merged && b.vsTarget.ahead > 0;
+  }
+
+  // ---- actions ----
   async function move(task: Task, state: TaskState) {
-    if (state === task.state) return;
     try {
       scope.upsertTask(await api.moveTask(task, state));
-      notice = '';
     } catch (err) {
       if (err instanceof ApiError && err.code === 'conflict') {
-        notice = 'This task changed on another device. The board has been refreshed.';
+        app.notify('This task changed on another device. The board has been refreshed.');
         await scope.load().catch((e) => app.handleError(e));
-      } else {
-        notice = err instanceof Error ? err.message : String(err);
-      }
+      } else app.notify(err instanceof Error ? err.message : String(err));
     }
   }
+
+  async function start(task: Task) {
+    try {
+      const r = await api.startRun(project.id, task.id);
+      scope.upsertRun(r);
+      app.notify(`${agentLabel(app.agents, r.agentId)} started on “${task.title}”.`, 4000);
+    } catch (err) {
+      app.notify(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function merge(task: Task) {
+    if (!git.overview) await git.load();
+    const b = branchOf(task);
+    if (!b) {
+      app.notify('This task has no branch to merge.');
+      return;
+    }
+    sheets.open({ kind: 'merge', branch: b.name, onmerged: () => void move(task, 'done') });
+  }
+
+  // ---- drag and drop: the rules of the work, not of the furniture ----
+  let dragging = $state<Task | null>(null);
+  let over = $state<TaskState | ''>('');
+
+  function onDragStart(e: DragEvent, task: Task) {
+    dragging = task;
+    e.dataTransfer?.setData('text/plain', task.id);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function onDragEnd() {
+    dragging = null;
+    over = '';
+  }
+
+  function onDragOver(e: DragEvent, state: TaskState) {
+    if (!dragging) return;
+    e.preventDefault();
+    over = state;
+  }
+
+  function onDrop(e: DragEvent, state: TaskState) {
+    e.preventDefault();
+    const task = dragging;
+    onDragEnd();
+    if (!task) return;
+    const run = scope.latestRun[task.id];
+    switch (dropAction(task, run, state, mergeable(task))) {
+      case 'start':
+        void start(task);
+        break;
+      case 'merge':
+        void merge(task);
+        break;
+      case 'move':
+        void move(task, state);
+        break;
+    }
+  }
+
+  /** What a drop on a column would do, said on the column while dragging. */
+  function dropHint(state: TaskState): string {
+    if (!dragging || state === dragging.state) return '';
+    const run = scope.latestRun[dragging.id];
+    const a = dropAction(dragging, run, state, mergeable(dragging));
+    return a === 'start' ? 'Drop to start an agent' : a === 'merge' ? 'Drop to merge' : `Move to ${TASK_STATE_LABELS[state]}`;
+  }
+
+  // ---- quick add, in Backlog ----
+  let adding = $state(false);
+  let newTitle = $state('');
+  let addBusy = $state(false);
+  let addInput = $state<HTMLInputElement>();
+
+  $effect(() => {
+    if (adding) untrack(() => addInput?.focus());
+  });
+
+  async function quickAdd(e: SubmitEvent) {
+    e.preventDefault();
+    const title = newTitle.trim();
+    if (!title || addBusy) return;
+    addBusy = true;
+    try {
+      scope.upsertTask(await api.createTask(project.id, title));
+      newTitle = '';
+    } catch (err) {
+      app.notify(err instanceof Error ? err.message : String(err));
+    } finally {
+      addBusy = false;
+      addInput?.focus();
+    }
+  }
+
+  // On a phone one column shows at a time.
+  let activeColumn = $state<TaskState>('doing');
+  $effect(() => {
+    // Start on the column where things are happening; Backlog when nothing is.
+    untrack(() => {
+      if (scope.tasks.length && !scope.tasks.some((t) => t.state === 'doing')) activeColumn = 'backlog';
+    });
+  });
 </script>
 
-<div class="segments" role="tablist" aria-label="Columns">
-  {#each columns as col (col.state)}
-    <button
-      role="tab"
-      aria-selected={activeColumn === col.state}
-      aria-controls="col-{col.state}"
-      onclick={() => (activeColumn = col.state)}
-    >
-      {TASK_STATE_LABELS[col.state]}
-      <span class="count">{col.tasks.length}</span>
-    </button>
-  {/each}
-</div>
-
-{#if waiting > 0}
-  <p class="waiting" role="status">
-    <span class="badge" data-tone="ask"><span class="dot" aria-hidden="true"></span>{waiting} {waiting === 1 ? 'task needs' : 'tasks need'} you</span>
-    <a href={globalHref('control')}>Open Control Center</a>
-  </p>
-{/if}
-
-{#if notice}
-  <p class="error notice" role="status">{notice}</p>
-{/if}
-
-<div class="columns">
-  {#each columns as col (col.state)}
-    <section id="col-{col.state}" class="column" data-active={activeColumn === col.state} aria-label={TASK_STATE_LABELS[col.state]}>
-      <header class="column-head">
-        <h2>{TASK_STATE_LABELS[col.state]}</h2>
-        <span class="count">{col.tasks.length}</span>
-      </header>
-
-      {#if col.state === 'backlog'}
-        <form class="add" onsubmit={addTask}>
-          <div class="add-row">
-            <label class="visually-hidden" for="new-task">New task</label>
-            <input id="new-task" class="input" placeholder="Add a task" maxlength="200" bind:value={newTitle} />
-            <button class="btn primary" type="submit" disabled={busy || !newTitle.trim()}>Add</button>
-          </div>
-          <button type="button" class="options-toggle" aria-expanded={showOptions} onclick={() => (showOptions = !showOptions)}>
-            {showOptions ? 'Hide options' : 'Options'}
-            {#if !showOptions && optionsNote}<span class="chosen">· {optionsNote}</span>{/if}
-          </button>
-          {#if showOptions}
-            <ExecutionFields bind:value={newExecution} {inherited} idPrefix="new-task" />
-          {/if}
-        </form>
+<div class="view">
+  <div class="bar">
+    <div class="filters" role="group" aria-label="Filter the board">
+      {#if app.agents.length > 1}
+        <label class="filter" class:on={agentFilter}>
+          <span>Agent</span>
+          <select bind:value={agentFilter} aria-label="Filter by agent">
+            <option value="">any</option>
+            {#each app.agents as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+          </select>
+        </label>
       {/if}
+      {#if app.runners.length > 1}
+        <label class="filter" class:on={runnerFilter}>
+          <span>Runner</span>
+          <select bind:value={runnerFilter} aria-label="Filter by runner">
+            <option value="">any</option>
+            {#each app.runners as r (r.id)}<option value={r.id}>{r.kind === 'local' ? 'this computer' : r.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
+      <label class="filter" class:on={priorityFilter}>
+        <span>Priority</span>
+        <select bind:value={priorityFilter} aria-label="Filter by priority">
+          <option value="">any</option>
+          <option value="high">high</option>
+          <option value="normal">normal</option>
+          <option value="low">low</option>
+        </select>
+      </label>
+      {#if filtering}
+        <button class="btn quiet small" onclick={() => ((agentFilter = ''), (runnerFilter = ''), (priorityFilter = ''))}>Clear</button>
+      {/if}
+    </div>
+    <ul class="legend" aria-label="Agents at a glance">
+      {#each legend as l (l.tone)}
+        <li class:zero={l.n === 0}><span class="dot" data-tone={l.tone}></span>{l.n} {l.label}</li>
+      {/each}
+    </ul>
+  </div>
 
-      <ul class="cards">
-        {#each col.tasks as task (task.id)}
-          {@const run = scope.latestRun[task.id]}
- {@const decision=scope.decisions.find(d=>d.taskId===task.id)}
-          {@const status = run ? runStatus(run) : undefined}
-          {@const ask = run ? scope.pendingFor(run.id) : []}
-          {@const eff = resolveFor(task.execution, project.execution, app.globalExecution)}
-          <li class="card task" data-tone={status?.tone} data-needs={status?.needsInput}>
-            <a class="title" href={taskHref(project.id, task.id)}>{task.title}</a>
-            {#if run && status}
-              <div class="run">
-                <div class="run-line">
-                  <RunBadge {run} />
-                  <span class="muted meta">{agentName(app.agents, run.agentId)} · {runElapsed(run, app.now)}</span>
-                </div>
-                {#if ask.length}
-                  <p class="asking">
-                    <strong>{ask.length > 1 ? `${ask.length} questions` : kindLabel(ask[0].kind)}:</strong>
-                    {oneLine(ask[0].prompt, 120)}
-                  </p>
-                {:else if run.state === 'blocked'}
-                  <p class="blocked">
-                    <strong>Blocked:</strong>
-                    {oneLine(cardActivity(run), 120)}
-                  </p>
-                {:else if cardActivity(run)}
-                  <p class="activity" class:bad={run.state === 'failed'}>{cardActivity(run)}</p>
-                {/if}
-              </div>
-            {/if}
-{#if decision && task.orchestration?.enabled && !task.orchestration.runId}
- <p class="meta" title={decision.reason}><strong>{schedulingLabels[decision.state]}</strong> · {oneLine(decision.reason,110)}</p>
- {/if}
-            <div class="foot">
-              <label class="move">
-                <span class="visually-hidden">Move “{task.title}” to</span>
-                <select
-                  class="select"
-                  value={task.state}
-                  onchange={(e) => move(task, e.currentTarget.value as TaskState)}
-                >
-                  {#each TASK_STATES as s (s)}
-                    <option value={s}>{TASK_STATE_LABELS[s]}</option>
-                  {/each}
-                </select>
-              </label>
-              {#if eff.priority !== 'normal'}
-                <span class="policy" data-priority={eff.priority} title="Priority: {priorityLabel(eff.priority)}">{priorityLabel(eff.priority)} priority</span>
-              {/if}
-              {#if eff.interaction !== 'interactive'}
-                <span class="policy" title="Interaction: {interactionShort({ interaction: eff.interaction })}">{interactionShort({ interaction: eff.interaction })}</span>
-              {/if}
-              {#if task.execution.agent || task.execution.model || task.execution.reasoning}
-                <span class="policy" title="Set on this task">{summaryLine(eff, app.agents, app.agentOptions)}</span>
-              {/if}
+  <div class="pills" role="tablist" aria-label="Columns">
+    {#each columns as col (col.state)}
+      <button role="tab" class="pill" aria-selected={activeColumn === col.state} aria-controls="col-{col.state}" onclick={() => (activeColumn = col.state)}>
+        {TASK_STATE_LABELS[col.state]}<span class="mono">{col.total}</span>
+      </button>
+    {/each}
+  </div>
+
+  <div class="cols">
+    {#each columns as col (col.state)}
+      {@const hint = dropHint(col.state)}
+      <section
+        id="col-{col.state}"
+        class="col tray"
+        class:over={over === col.state && !!hint}
+        class:target={!!hint}
+        data-active={activeColumn === col.state}
+        aria-label={TASK_STATE_LABELS[col.state]}
+        ondragover={(e) => onDragOver(e, col.state)}
+        ondragleave={() => (over = over === col.state ? '' : over)}
+        ondrop={(e) => onDrop(e, col.state)}
+      >
+        <header class="ch">
+          <h2>{TASK_STATE_LABELS[col.state]}</h2>
+          <span class="chip">{col.total}</span>
+          {#if col.state === 'backlog'}
+            <button class="btn quiet small icon add" onclick={() => (adding = !adding)} aria-label="Add a task to Backlog" aria-expanded={adding} title="Add a task">
+              <Icon name="plus" />
+            </button>
+          {/if}
+        </header>
+
+        {#if hint}<p class="drop-hint" aria-live="polite">{hint}</p>{/if}
+
+        {#if col.state === 'backlog' && adding}
+          <form class="quick" onsubmit={quickAdd}>
+            <label class="visually-hidden" for="quick-add">New task title</label>
+            <input
+              id="quick-add"
+              class="input"
+              placeholder="Task title, then Enter"
+              maxlength="200"
+              bind:this={addInput}
+              bind:value={newTitle}
+              onkeydown={(e) => {
+                if (e.key === 'Escape') {
+                  adding = false;
+                  newTitle = '';
+                }
+              }}
+            />
+            <div class="quick-row">
+              <button class="btn small primary" type="submit" disabled={addBusy || !newTitle.trim()}>Add</button>
+              <button class="btn small quiet" type="button" onclick={() => ((app.newTaskOpen = true), (adding = false))}>More options…</button>
             </div>
-          </li>
-        {:else}
-          <li class="none muted">{scope.loaded ? 'Nothing here.' : 'Loading…'}</li>
-        {/each}
-      </ul>
-    </section>
-  {/each}
+          </form>
+        {/if}
+
+        <ul class="list">
+          {#each col.tasks as task (task.id)}
+            {@const run = scope.latestRun[task.id]}
+            <TaskCard
+              {task}
+              {run}
+              {scope}
+              effective={effectiveOf(task)}
+              selected={router.taskId === task.id}
+              mergeable={mergeable(task)}
+              branch={branchOf(task)}
+              onstart={start}
+              onmerge={merge}
+              onmove={move}
+              ondragstart={onDragStart}
+              ondragend={onDragEnd}
+            />
+          {:else}
+            <li class="none">
+              {#if !scope.loaded}Loading…
+              {:else if filtering}Nothing matches the filters.
+              {:else if col.state === 'backlog'}Nothing waiting. Add a task with <kbd class="key">N</kbd>.
+              {:else if col.state === 'doing'}No agent is working. Start one from Backlog.
+              {:else if col.state === 'review'}Finished work lands here for you to review.
+              {:else}Merged work lands here.{/if}
+            </li>
+          {/each}
+          {#if col.state === 'done' && col.total > DONE_LIMIT}
+            <li class="more"><button class="btn quiet small" onclick={() => (showAllDone = !showAllDone)}>{showAllDone ? 'Show recent only' : `Show all ${col.total}`}</button></li>
+          {/if}
+        </ul>
+      </section>
+    {/each}
+  </div>
+
+  <button class="fab" type="button" onclick={() => (app.newTaskOpen = true)} aria-label="New task"><Icon name="plus" size={22} /></button>
 </div>
+
+<GitSheets projectId={project.id} store={git} />
 
 <style>
-  .segments {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+  .view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    min-height: 56px;
+    padding: 10px 24px;
+  }
+
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* A filter is a raised button that is also a picker. */
+  .filter {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
     gap: 4px;
-    padding: 4px;
-    margin-bottom: 12px;
-    background: var(--surface-2);
-    border-radius: var(--radius);
-  }
-
-  .segments button {
-    min-height: 38px;
-    padding: 0 4px;
-    border: 0;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-sh);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .filter span {
+    color: var(--text-2);
+  }
+
+  .filter span::after {
+    content: ':';
+  }
+
+  .filter select {
+    appearance: none;
+    field-sizing: content;
+    border: 0;
     background: transparent;
-    color: var(--text-2);
-    font-size: 0.85rem;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .segments button[aria-selected='true'] {
-    background: var(--surface);
+    font-weight: 500;
+    font-size: 12px;
     color: var(--text);
-    box-shadow: var(--shadow);
+    cursor: pointer;
+    padding: 0;
   }
 
-  .count {
-    margin-left: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
+  .filter select:focus-visible {
+    outline: none;
+  }
+
+  .filter:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .filter.on {
+    background: var(--surface-2);
+    box-shadow: var(--press-sh);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
     color: var(--text-2);
   }
 
-  .notice {
-    margin-bottom: 12px;
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
   }
 
-  .columns {
-    display: block;
+  .legend .zero {
+    opacity: 0.6;
   }
 
-  .column {
+  .pills {
     display: none;
   }
 
-  .column[data-active='true'] {
-    display: block;
+  .cols {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    padding: 0 24px 24px;
   }
 
-  .column-head {
-    display: none;
+  .col {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 10px 6px 6px 10px;
+    transition: box-shadow 0.15s;
+  }
+
+  .col.target {
+    box-shadow:
+      var(--tray-sh),
+      0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  .col.over {
+    box-shadow:
+      var(--tray-sh),
+      0 0 0 2px var(--accent);
+  }
+
+  .ch {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+    padding: 0 4px 8px 4px;
+  }
+
+  .ch h2 {
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text);
   }
 
   .add {
+    margin-left: auto;
+    margin-right: 4px;
+  }
+
+  .drop-hint {
+    flex: none;
+    margin: 0 4px 8px 0;
+    padding: 6px 8px;
+    border: 1px dashed var(--accent);
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    text-align: center;
+  }
+
+  .quick {
+    flex: none;
     display: grid;
     gap: 8px;
-    margin-bottom: 12px;
+    margin: 0 4px 10px 0;
   }
 
-  .add-row {
+  .quick .input {
+    background: var(--surface);
+  }
+
+  .quick-row {
     display: flex;
-    gap: 8px;
+    gap: 6px;
   }
 
-  .options-toggle {
-    justify-self: start;
-    min-height: 32px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--accent);
-    font-size: 0.85rem;
-    font-weight: 550;
-  }
-
-  .options-toggle .chosen {
-    color: var(--text-2);
-    font-weight: 500;
-  }
-
-  .cards {
+  .list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     list-style: none;
     margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 8px;
-  }
-
-  .task {
-    display: grid;
+    padding: 2px 4px 6px 0;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
-    padding: 12px;
-  }
-
-  .title {
-    font-weight: 550;
-    overflow-wrap: anywhere;
-    color: inherit;
-    text-decoration: none;
-  }
-
-  /* The whole card opens the task; the move control stays tappable above it. */
-  .task {
-    position: relative;
-  }
-
-  .title::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius);
-  }
-
-  .task:hover {
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  }
-
-  .task[data-needs='true'] {
-    border-left: 3px solid var(--warn);
-  }
-
-  .task[data-tone='work'],
-  .task[data-tone='idle'] {
-    border-left: 3px solid var(--accent);
-  }
-
-  .task[data-needs='true'][data-tone='ask'] {
-    border-left-color: var(--warn);
-  }
-
-  .task[data-tone='bad'] {
-    border-left: 3px solid var(--danger);
-  }
-
-  .task[data-tone='block'] {
-    border-left: 3px solid var(--block);
-  }
-
-  .run {
-    display: grid;
-    gap: 3px;
-  }
-
-  .run-line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 2px 10px;
-  }
-
-  .meta {
-    font-size: 0.8rem;
-  }
-
-  .activity {
-    font-size: 0.82rem;
-    color: var(--text-2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .activity.bad {
-    color: var(--danger);
-  }
-
-  /* What the agent is asking, right on the card. */
-  .asking {
-    font-size: 0.84rem;
-    line-height: 1.35;
-    color: var(--text);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .asking strong {
-    color: var(--warn);
-  }
-
-  /* Stopped rather than guess: what is in the way, right on the card. */
-  .blocked {
-    font-size: 0.84rem;
-    line-height: 1.35;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .blocked strong {
-    color: var(--block);
-  }
-
-  .waiting {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 12px;
-    margin-bottom: 12px;
-    font-size: 0.9rem;
-  }
-
-  .foot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 10px;
-  }
-
-  .policy[data-priority='high'] {
-    color: var(--danger);
-  }
-
-  .policy {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-2);
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--surface-2);
-  }
-
-  .move {
-    position: relative;
-    z-index: 1;
-    justify-self: start;
-  }
-
-  .move .select {
-    min-height: 34px;
-    width: auto;
-    font-size: 0.85rem;
-    color: var(--text-2);
+    scrollbar-gutter: stable;
   }
 
   .none {
-    padding: 16px 4px;
-    font-size: 0.9rem;
+    padding: 18px 8px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--text-2);
   }
 
-  /* Wide screens: all four columns side by side. */
-  @media (min-width: 900px) {
-    .segments {
+  .more {
+    display: flex;
+    justify-content: center;
+  }
+
+  .fab {
+    display: none;
+  }
+
+  /* Narrow desktop: columns keep a readable width and the board scrolls sideways. */
+  @media (min-width: 900px) and (max-width: 1180px) {
+    .cols {
+      grid-template-columns: repeat(4, minmax(240px, 1fr));
+      overflow-x: auto;
+    }
+  }
+
+  /* Phone: one column at a time, chosen from pills; a floating New task button in thumb reach. */
+  @media (max-width: 899px) {
+    .bar {
+      padding: 4px 16px 8px;
+      min-height: 0;
+      order: 2;
+    }
+
+    .filters {
       display: none;
     }
 
-    .columns {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-      align-items: start;
+    .legend {
+      font-size: 13px;
+      gap: 6px 14px;
     }
 
-    .column,
-    .column[data-active] {
-      display: block;
-      padding: 12px;
-      background: var(--surface-2);
-      border-radius: var(--radius);
-      min-height: 200px;
+    .legend .zero {
+      display: none;
     }
 
-    .column-head {
+    .pills {
+      order: 1;
       display: flex;
-      align-items: baseline;
-      gap: 6px;
-      margin-bottom: 10px;
+      gap: 8px;
+      padding: 4px 16px 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex: none;
+    }
+
+    .pill {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 40px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-2);
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .pill .mono {
+      font-size: 12px;
+    }
+
+    .pill[aria-selected='true'] {
+      background: linear-gradient(#2b2b2b, #0f0f0f);
+      border-color: var(--text);
+      color: #f5f5f2;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        0 1px 2px rgba(21, 21, 21, 0.35);
+    }
+
+    :global(:root[data-theme='dark']) .pill[aria-selected='true'] {
+      background: linear-gradient(#ffffff, #dcdcd7);
+      color: #0b0b0c;
+    }
+
+    .view {
+      height: auto;
+    }
+
+    .cols {
+      order: 3;
+      display: block;
+      padding: 0 16px 96px;
+    }
+
+    .col {
+      display: none;
+      background: none;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    .col[data-active='true'] {
+      display: flex;
+    }
+
+    .ch {
+      display: none;
+    }
+
+    .list {
+      overflow: visible;
+      padding: 0;
+    }
+
+    .fab {
+      position: fixed;
+      right: 16px;
+      bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
+      z-index: 6;
+      display: grid;
+      place-items: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
+      border: 1px solid var(--pri-bd);
+      background: var(--pri-bg);
+      box-shadow: var(--pri-sh);
+      color: var(--accent-text);
+    }
+  }
+
+  @media (max-width: 899px) and (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme='light'])) .pill[aria-selected='true'] {
+      background: linear-gradient(#ffffff, #dcdcd7);
+      color: #0b0b0c;
     }
   }
 </style>

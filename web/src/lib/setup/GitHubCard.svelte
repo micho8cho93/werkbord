@@ -81,8 +81,8 @@
     <p class="muted">Checking…</p>
   {:else if gh.state === 'signed_in'}
     <p>
-      Dev Board can list your repositories and show pull requests and checks, using your own GitHub sign-in (through the GitHub CLI).
-      Nothing about Dev Board is stored in GitHub.
+      Werkbord can list your repositories and show pull requests and checks, using your own GitHub sign-in (through the GitHub CLI).
+      Nothing about Werkbord is stored in GitHub.
     </p>
     <p class="muted small">To disconnect, run <code>gh auth logout</code> in a terminal.</p>
   {:else if gh.state === 'signing_in'}

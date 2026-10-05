@@ -163,7 +163,7 @@ describe('the actions offered', () => {
     expect(branchActions(branch(merged), ctx).find((a) => a.id === 'delete')?.danger).toBe(true);
   });
 
-  it('never offer deletion for what Dev Board did not create, or for protected or target branches', () => {
+  it('never offer deletion for what Werkbord did not create, or for protected or target branches', () => {
     const merged = { merged: true, notPushed: 0, vsTarget: { ahead: 0, behind: 1, relation: 'merged' as const } };
     expect(ids(branch({ ...merged, devboard: { created: false, namespace: true, phase: 'none', activeRun: false } }))).not.toContain('delete');
     expect(ids(branch({ ...merged, protected: true }))).not.toContain('delete');

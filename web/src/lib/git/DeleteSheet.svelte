@@ -4,7 +4,7 @@
   import { shortSha } from '../gitui';
   import type { GitActionResult, GitDeletePlan } from '../types';
   import ResultCard from './ResultCard.svelte';
-  import Sheet from './Sheet.svelte';
+  import Sheet from '../Sheet.svelte';
   import { sheets } from './sheets.svelte';
   import type { GitStore } from './store.svelte';
 

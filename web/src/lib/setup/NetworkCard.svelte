@@ -90,9 +90,9 @@
     </div>
     {#if phone}
       <div class="qr">
-        <QrImage svg={phone.qrSvg} size={176} label="QR code that opens Dev Board on your phone" />
+        <QrImage svg={phone.qrSvg} size={176} label="QR code that opens Werkbord on your phone" />
         <p class="muted small">
-          Scan this with your phone's camera to open Dev Board already signed in. It carries your access token: keep it to
+          Scan this with your phone's camera to open Werkbord already signed in. It carries your access token: keep it to
           yourself. The phone needs the Tailscale app, signed in to the same account.
         </p>
       </div>
@@ -102,7 +102,7 @@
     {/if}
     {#if net.health?.length}<p class="hint">Tailscale reports: {net.health.join('; ')}</p>{/if}
   {:else if net.state === 'needs_login'}
-    <p>Sign in to reach Dev Board from your phone. A free Tailscale account is enough; Dev Board has no account of its own and runs no servers.</p>
+    <p>Sign in to reach Werkbord from your phone. A free Tailscale account is enough; Werkbord has no account of its own and runs no servers.</p>
     {#if net.authUrl}
       <a class="btn primary" href={net.authUrl} target="_blank" rel="noopener noreferrer">Sign in with Tailscale</a>
     {/if}
@@ -117,7 +117,7 @@
     <div class="row"><button class="btn" disabled={busy} onclick={restart}>Try again</button></div>
   {:else}
     <p>
-      Reach Dev Board from your phone, privately. It joins your own Tailscale network from inside Dev Board: nothing is exposed to the
+      Reach Werkbord from your phone, privately. It joins your own Tailscale network from inside Werkbord: nothing is exposed to the
       internet, and there is nothing to configure.
     </p>
     {#if net.choice === 'pinned_off'}

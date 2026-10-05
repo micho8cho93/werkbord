@@ -93,7 +93,7 @@
     {#if runner}
       <p class="muted">It is registered as your runner and {runner.online ? 'online' : 'offline'}. Agents run here, in Git worktrees, as you.</p>
     {/if}
-    {#if health}<p class="muted small">Dev Board {health.version} · database {health.database}. Run <code>devboard doctor</code> in a terminal to check everything.</p>{/if}
+    {#if health}<p class="muted small">Werkbord {health.version} · database {health.database}. Run <code>devboard doctor</code> in a terminal to check everything.</p>{/if}
     <div class="row"><button class="btn small" onclick={runSetupAgain}>Run setup again</button></div>
   </SetupCard>
 </div>

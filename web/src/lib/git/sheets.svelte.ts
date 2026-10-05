@@ -1,7 +1,8 @@
 // Which action sheet is open. One at a time, from anywhere on the Git screens.
 
 export type SheetState =
-  | { kind: 'merge'; branch: string }
+  /** `onmerged` runs once the merge is done: the board uses it to move the card to Done. */
+  | { kind: 'merge'; branch: string; onmerged?: () => void }
   | { kind: 'push'; branch: string }
   | { kind: 'pr'; branch: string }
   | { kind: 'delete'; branch: string }

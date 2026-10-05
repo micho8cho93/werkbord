@@ -18,10 +18,10 @@
 {#if others.length > 0 && !onControlCenter && first}
   <div role="status">
     <a class="banner" {href}>
-      <span class="pulse" aria-hidden="true"></span>
+      <span class="num pend" aria-hidden="true">{others.length}</span>
       <span class="text">
         <strong>{needsInputText(others.length)}</strong>
-        <span class="what">{title}: {oneLine(first.prompt, 90)}</span>
+        <span class="what">{title}: {oneLine(first.prompt, 110)}</span>
       </span>
       <span class="go">{others.length === 1 ? 'Answer' : 'Review'} →</span>
     </a>
@@ -29,36 +29,39 @@
 {/if}
 
 <style>
+  /* Amber is the colour of "needs you": a quiet strip, loud only in its one colour. */
   .banner {
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 46px;
-    padding: 8px 16px;
-    background: var(--warn);
-    color: #1a1204;
+    gap: 12px;
+    min-height: 40px;
+    padding: 6px 24px;
+    background: color-mix(in srgb, var(--amber) 14%, var(--bg));
+    border-bottom: 1px solid color-mix(in srgb, var(--amber) 45%, var(--border));
+    color: var(--text);
     text-decoration: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--warn) 70%, #000);
+    font-size: 13px;
   }
 
-  .pulse {
-    flex: none;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #1a1204;
-    animation: ping 1.4s ease-in-out infinite;
+  .banner:hover {
+    background: color-mix(in srgb, var(--amber) 20%, var(--bg));
   }
 
   .text {
-    display: grid;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
     min-width: 0;
     flex: 1;
-    line-height: 1.25;
+  }
+
+  strong {
+    flex: none;
+    font-weight: 600;
   }
 
   .what {
-    font-size: 0.82rem;
+    color: var(--text-2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -66,25 +69,22 @@
 
   .go {
     flex: none;
-    font-weight: 700;
-    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--warn-text);
   }
 
-  @keyframes ping {
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    50% {
-      transform: scale(0.6);
-      opacity: 0.5;
-    }
-  }
-
-  @media (min-width: 900px) {
+  @media (max-width: 899px) {
     .banner {
-      padding-inline: 24px;
+      padding: 8px 16px;
+    }
+
+    .text {
+      display: grid;
+      gap: 0;
+    }
+
+    .what {
+      font-size: 12px;
     }
   }
 </style>

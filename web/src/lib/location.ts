@@ -33,8 +33,11 @@ export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] 
   { id: 'activity', label: 'Activity' },
   // The project's defaults (agent, model, reasoning, interaction, priority). Its address says "defaults" so
   // that it cannot be mistaken for the app's own Settings page, which is global.
-  { id: 'defaults', label: 'Settings' },
+  { id: 'defaults', label: 'Project settings' },
 ];
+
+/** The sections shown as the project's tabs. Its settings are reached from the gear in the project header. */
+export const PROJECT_TABS = PROJECT_SECTIONS.filter((s) => s.id !== 'defaults');
 
 export interface Location {
   view: View;

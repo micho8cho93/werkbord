@@ -54,7 +54,7 @@
   <section class="card register">
     <h2>Register a repository</h2>
     <p class="muted">
-      Point Devboard at an existing Git checkout on this computer. Nothing is copied; the controller only reads its
+      Point Werkbord at an existing Git checkout on this computer. Nothing is copied; the controller only reads its
       metadata. Each repository becomes a project with its own board, Git view and activity.
     </p>
     <form onsubmit={register}>

@@ -5,7 +5,7 @@
   import { shortSha } from '../gitui';
   import type { GitActionResult, GitMergePlan } from '../types';
   import ResultCard from './ResultCard.svelte';
-  import Sheet from './Sheet.svelte';
+  import Sheet from '../Sheet.svelte';
   import { sheets } from './sheets.svelte';
   import type { GitStore } from './store.svelte';
 
@@ -13,7 +13,7 @@
   // here is the controller's own check: the commits you reviewed, Git's own simulation of
   // the merge, and every reason it would refuse. Nothing is merged without this screen.
 
-  let { projectId, store, branchName }: { projectId: string; store: GitStore; branchName: string } = $props();
+  let { projectId, store, branchName, onmerged }: { projectId: string; store: GitStore; branchName: string; onmerged?: () => void } = $props();
 
   const o = $derived(store.overview);
   // The commits the user was looking at when they opened this: the merge is made of those,
@@ -56,6 +56,7 @@
     try {
       result = await api.git.merge(projectId, request);
       store.lastResult = result;
+      if (result.ok) onmerged?.();
       await store.reloadAll();
     } catch (err) {
       error = err instanceof ApiError ? err.message : String(err);

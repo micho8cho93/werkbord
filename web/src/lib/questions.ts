@@ -69,7 +69,7 @@ export function contextSummary(context: string): string {
 /** Says how a question the controller answered for the user, as the run's policy said, was dealt with. */
 export function answerLine(q: Question): string {
   return q.answeredBy === 'policy'
-    ? 'You were not asked: this run does not put routine questions to you, so Devboard told the agent to settle it itself.'
+    ? 'You were not asked: this run does not put routine questions to you, so Werkbord told the agent to settle it itself.'
     : `You answered: ${q.answer ?? ''}`;
 }
 
@@ -118,7 +118,7 @@ export function describeAnswerFailure(err: unknown): AnswerFailure {
 }
 
 /** The page title, which shows on a tab or a notification badge even when the app is in the background. */
-export function pageTitle(pending: number, base = 'Devboard'): string {
+export function pageTitle(pending: number, base = 'Werkbord'): string {
   return pending > 0 ? `(${pending}) Needs input · ${base}` : base;
 }
 
