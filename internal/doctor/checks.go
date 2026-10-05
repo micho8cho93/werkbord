@@ -57,18 +57,18 @@ func (e Env) database(ctx context.Context) []Check {
 			Fix: "Check that " + e.Config.DBPath() + " is readable. Copies made before upgrades are in " + sqlite.BackupDir(e.Config.DBPath()) + "."}}
 	case !info.Exists:
 		return []Check{{ID: "database", Name: "database", Status: Warn, Summary: "not created yet (" + e.Config.DBPath() + ")",
-			Fix: "It is created the first time the controller starts: run `devboard start`."}}
+			Fix: "It is created the first time the controller starts: run `werkbord start`."}}
 	case info.NewerThanBuild:
 		return []Check{{ID: "database", Name: "database", Status: Fail,
 			Summary: fmt.Sprintf("schema v%d is newer than this build understands (v%d)", info.Version, info.Latest),
-			Fix:     "This devboard is older than the one that wrote the database. Run `devboard update`."}}
+			Fix:     "This werkbord is older than the one that wrote the database. Run `werkbord update`."}}
 	case info.Integrity != "ok":
 		return []Check{{ID: "database", Name: "database", Status: Fail, Summary: "SQLite reports damage: " + clip(info.Integrity, 120),
 			Fix: "Stop the controller and restore the newest copy in " + sqlite.BackupDir(e.Config.DBPath()) + "."}}
 	case info.Version < info.Latest:
 		return []Check{{ID: "database", Name: "database", Status: Warn,
 			Summary: fmt.Sprintf("schema v%d, behind this build's v%d; it is upgraded (after a backup) when the controller starts", info.Version, info.Latest),
-			Fix:     "Run `devboard restart`."}}
+			Fix:     "Run `werkbord restart`."}}
 	}
 	return []Check{{ID: "database", Name: "database", Status: OK,
 		Summary: fmt.Sprintf("schema v%d (current), %s, integrity ok", info.Version, size(info.Size))}}
@@ -114,7 +114,7 @@ func (e Env) git(ctx context.Context) []Check {
 	defer cancel()
 	out, err := exec.CommandContext(cctx, bin, "--version").Output()
 	if err != nil {
-		return []Check{{ID: "git", Name: "git", Status: Fail, Summary: "not found on PATH", Fix: "Install Git (https://git-scm.com/downloads): Dev Board works through it."}}
+		return []Check{{ID: "git", Name: "git", Status: Fail, Summary: "not found on PATH", Fix: "Install Git (https://git-scm.com/downloads): Werkbord works through it."}}
 	}
 	v := strings.TrimSpace(string(out))
 	m := gitVersionRE.FindStringSubmatch(v)
@@ -157,7 +157,7 @@ func (e Env) agents(ctx context.Context) []Check {
 	}
 	if usable == 0 {
 		out = append(out, Check{ID: "agent", Name: "agent", Status: Fail, Summary: "no coding agent can be used",
-			Fix: "Install and sign in to Claude Code or Codex (see above). Dev Board uses your own account and never asks for an API key."})
+			Fix: "Install and sign in to Claude Code or Codex (see above). Werkbord uses your own account and never asks for an API key."})
 	}
 	return out
 }
@@ -182,21 +182,21 @@ func (e Env) network(ctx context.Context) []Check {
 	c := Check{ID: "network", Name: "network"}
 	switch st.State {
 	case netprivate.StateOff:
-		c.Status, c.Summary = Warn, "private network is off: Dev Board is reachable on this computer only"
-		c.Fix = "To use it from your phone, run `devboard open --phone` or turn on phone access in Settings."
+		c.Status, c.Summary = Warn, "private network is off: Werkbord is reachable on this computer only"
+		c.Fix = "To use it from your phone, run `werkbord open --phone` or turn on phone access in Settings."
 	case netprivate.StateStarting:
 		c.Status, c.Summary = Warn, "private network is starting"
 		c.Fix = "Give it a few seconds and run doctor again."
 	case netprivate.StateNeedsLogin:
 		// The sign-in link is a credential for the user, so it is not printed here.
 		c.Status, c.Summary = Warn, "private network is waiting for you to sign in"
-		c.Fix = "Run `devboard open --phone`, or open Dev Board and use \"Sign in\" under Settings → Phone access."
+		c.Fix = "Run `werkbord open --phone`, or open Werkbord and use \"Sign in\" under Settings → Phone access."
 	case netprivate.StateNeedsApproval:
 		c.Status, c.Summary = Warn, "private network is waiting for your tailnet's admin to approve this device"
 		c.Fix = "Approve it at https://login.tailscale.com/admin/machines."
 	case netprivate.StateError:
 		c.Status, c.Summary = Fail, "private network failed: "+clip(st.Error, 160)
-		c.Fix = "Run `devboard restart`. If it persists, turn phone access off and on in Settings."
+		c.Fix = "Run `werkbord restart`. If it persists, turn phone access off and on in Settings."
 	case netprivate.StateConnected:
 		c.Status, c.Summary = OK, "connected at "+st.URL
 		if !st.HTTPS {
@@ -255,7 +255,7 @@ func (e Env) runner(ctx context.Context) []Check {
 			return []Check{{ID: "runner", Name: "runner", Status: OK, Summary: fmt.Sprintf("this computer (%s, %s/%s) is registered and online", r.Name, r.OS, r.Arch)}}
 		}
 	}
-	return []Check{{ID: "runner", Name: "runner", Status: Fail, Summary: "this computer is not registered as a runner", Fix: "Run `devboard restart`: the controller registers it when it starts."}}
+	return []Check{{ID: "runner", Name: "runner", Status: Fail, Summary: "this computer is not registered as a runner", Fix: "Run `werkbord restart`: the controller registers it when it starts."}}
 }
 
 func (e Env) projects(ctx context.Context) []Check {
@@ -267,7 +267,7 @@ func (e Env) projects(ctx context.Context) []Check {
 		return []Check{{ID: "projects", Name: "projects", Status: Fail, Summary: "cannot list projects: " + err.Error()}}
 	}
 	if len(ps) == 0 {
-		return []Check{{ID: "projects", Name: "projects", Status: Warn, Summary: "none configured yet", Fix: "Add one from the app, or run `devboard project add <path>`."}}
+		return []Check{{ID: "projects", Name: "projects", Status: Warn, Summary: "none configured yet", Fix: "Add one from the app, or run `werkbord project add <path>`."}}
 	}
 	var bad []string
 	for _, p := range ps {

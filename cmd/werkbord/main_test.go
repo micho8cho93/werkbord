@@ -44,7 +44,7 @@ func runCLI(args ...string) (stdout string, err error) {
 func TestTokenCommand(t *testing.T) {
 	dir := tokenEnv(t)
 
-	if _, err := runCLI("token"); err == nil || !strings.Contains(err.Error(), "devboard serve") {
+	if _, err := runCLI("token"); err == nil || !strings.Contains(err.Error(), "werkbord serve") {
 		t.Fatalf("before the controller has run: err = %v, want a hint to start it", err)
 	}
 

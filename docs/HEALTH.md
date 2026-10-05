@@ -2,7 +2,7 @@
 
 The question this answers is: **"I have had several coding agents working all day. What Git state now needs
 my attention?"** It is a list of *findings*, each saying what is wrong, why, the evidence, and the next
-useful step, and whether Dev Board can take that step. It is not a score. A score exists, but it is a
+useful step, and whether Werkbord can take that step. It is not a score. A score exists, but it is a
 footnote: a number cannot say what is wrong.
 
 Code: `internal/domain/health.go` (the finding entity, severities, thresholds, lifecycle, the rule registry),
@@ -22,11 +22,11 @@ keeps findings' lives, watches for events), `internal/api/githealth.go` (HTTP),
 2. **Be conservative.** A rule fires on what its evidence supports and no more. "These branches change the
    same files and may conflict" is what file lists support. "These branches conflict" is said only when
    Git's own in-memory merge says so. A test fails any heuristic finding that says "will conflict".
-3. **Say how sure.** Every finding has a `basis`: **deterministic** (a fact Git or Dev Board's records state
+3. **Say how sure.** Every finding has a `basis`: **deterministic** (a fact Git or Werkbord's records state
    outright) or **heuristic** (a reasoned guess, worded as a possibility). The screen shows which
    ("Git says so" / "A guess"). Section 3 lists every rule's basis.
 4. **Do not become noise.** Quiet is the default. See §7, which lists what is deliberately *not* reported.
-5. **Cheap, and no model.** Health uses Git metadata and Dev Board's own records. It never calls Codex or
+5. **Cheap, and no model.** Health uses Git metadata and Werkbord's own records. It never calls Codex or
    Claude, never touches the network, and never changes the repository. See §5.
 6. **Never act.** A finding recommends a step. Nothing is executed by the health system. A button opens the
    same confirmation sheet a person would reach from the branch list, and that operation checks everything
@@ -60,7 +60,7 @@ then items needing attention.
 no guess about anyone's intent). *Heuristic* means it infers intent or likely behaviour from a pattern, so it
 can be wrong, and the finding says "may" or "looks like". Thresholds are in section 8.
 
-Scope: **Dev Board's own branches** (created by Dev Board: a `devboard/` name *and* a worktree record naming
+Scope: **Werkbord's own branches** (created by Werkbord: a `devboard/` name *and* a worktree record naming
 exactly that branch) are what the branch rules are about. Beyond them, health looks at the target branch and
 the branch your own checkout is on, and at your checkout's working state. Your other branches are yours.
 
@@ -73,24 +73,24 @@ the branch your own checkout is on, and at your checkout's working state. Your o
 | `upstream_diverged` | unsynced | deterministic | The local branch and its upstream each have commits the other lacks | attention–risk | sync_branch |
 | `remote_branch_deleted` | unsynced | deterministic | The upstream branch was deleted while the local branch still has commits not in the target | attention | review_changes |
 | `remote_state_stale` | unsynced | deterministic | The repository never fetched, or not for a week, so every remote comparison is out of date | info | fetch |
-| `merged_branch_present` | branch | deterministic | A Dev Board branch whose commits are all in the target (ancestry) is still present | info | delete_branch |
+| `merged_branch_present` | branch | deterministic | A Werkbord branch whose commits are all in the target (ancestry) is still present | info | delete_branch |
 | `branch_content_on_target` | branch | deterministic | Git's in-memory merge of the branch into the target changes nothing: its content is already there (squash or rebase merge, or superseded) | info | delete_branch |
-| `abandoned_branch` | branch | heuristic | A Dev Board branch with no live run, no task waiting on its review, and no activity for days | info–attention | review_changes |
+| `abandoned_branch` | branch | heuristic | A Werkbord branch with no live run, no task waiting on its review, and no activity for days | info–attention | review_changes |
 | `stale_branch` | branch | deterministic | Unmerged work untouched for two weeks while the target moved on | attention | review_changes |
 | `branch_far_behind` | branch | deterministic | An unmerged branch lacks many commits the target has | attention–risk | review_changes |
 | `task_done_unmerged` | orchestration | deterministic | A task is Done but its branch has commits that are not in the target and would change it | attention–risk | merge_branch |
 | `finished_work_unmerged` | orchestration | heuristic | A run finished a day or more ago and its commits are not in the target, and nothing says they are unwanted | attention | merge_branch |
 | `missing_branch_for_task` | orchestration | deterministic | An active task's worktree record names a branch Git does not have | risk | ask_agent |
-| `branch_overlap` | orchestration | heuristic | Two in-flight Dev Board branches change some of the same files | attention | create_task |
+| `branch_overlap` | orchestration | heuristic | Two in-flight Werkbord branches change some of the same files | attention | create_task |
 | `branch_conflict` | orchestration | deterministic | Git's in-memory merge of two in-flight branches reports conflicts | risk | create_task |
-| `orphaned_worktree` | worktree | deterministic | Git lists a worktree inside Dev Board's worktree directory that no Dev Board record owns | attention | inspect |
-| `worktree_without_run` | worktree | deterministic | A Dev Board worktree record exists and no run ever used it | attention | clean_worktree |
+| `orphaned_worktree` | worktree | deterministic | Git lists a worktree inside Werkbord's worktree directory that no Werkbord record owns | attention | inspect |
+| `worktree_without_run` | worktree | deterministic | A Werkbord worktree record exists and no run ever used it | attention | clean_worktree |
 | `worktree_retained_after_done` | worktree | deterministic | A clean worktree is kept for a task that is Done | info | clean_worktree |
 | `worktree_metadata_mismatch` | worktree | deterministic | A worktree record disagrees with Git: unknown to it, on another branch or detached, directory gone, or a removal never finished | attention | clean_worktree (directory gone) or ask_agent |
 | `operation_interrupted` | operation | deterministic | A merge, rebase, cherry-pick or revert is unfinished in a checkout no agent is using | attention–risk | finish_operation |
 | `unresolved_conflicts` | operation | deterministic | Files are in conflict in a checkout no agent is using | risk–critical | finish_operation |
-| `automation_blocked` | operation | deterministic | Something about the repository prevents Dev Board's own operations: no usable target, a detached HEAD, a stale lock | info–attention | inspect |
-| `repository_unreadable` | operation | deterministic | Dev Board cannot read the repository at all | risk | inspect |
+| `automation_blocked` | operation | deterministic | Something about the repository prevents Werkbord's own operations: no usable target, a detached HEAD, a stale lock | info–attention | inspect |
+| `repository_unreadable` | operation | deterministic | Werkbord cannot read the repository at all | risk | inspect |
 
 Notes on how a few of these are established:
 
@@ -106,11 +106,11 @@ Notes on how a few of these are established:
   involved. Only the ten most recently active branches are compared.
 * **`branch_content_on_target` is how squash and rebase merges are recognised without GitHub.** By history such
   a branch is unmerged. Merging it in memory and getting exactly the target's tree proves it adds nothing.
-  That is deterministic ("merging it would change nothing"), but it is not proof of *why*, and Dev Board still
+  That is deterministic ("merging it would change nothing"), but it is not proof of *why*, and Werkbord still
   only deletes a branch it can show is merged by history or by GitHub's word, so the finding says when it cannot.
 * **`task_done_unmerged` stays quiet about squash merges** (it defers to `branch_content_on_target`), and
   downgrades from risk to attention when the remote branch was deleted, which usually follows a merged pull
-  request. Without GitHub, Dev Board cannot see a pull request merge, and says so in the finding.
+  request. Without GitHub, Werkbord cannot see a pull request merge, and says so in the finding.
 * **`abandoned_branch` and `finished_work_unmerged` are guesses.** They infer from inactivity. They are worded
   as possibilities ("may be waiting on you") and are attention at most.
 * **Remote facts are as of the last fetch.** `unpushed_commits`, `remote_ahead` and `remote_branch_deleted` read
@@ -140,8 +140,8 @@ failed). The database refuses a finding whose state and timestamps disagree.
 
 ## 5. Cost: how and when it is recalculated
 
-A recalculation reads Git metadata (refs, worktree list, status of Dev Board's worktrees, ancestry counts) and
-Dev Board's records, runs the pure rules, and stores the result. On a real repository it takes tens of
+A recalculation reads Git metadata (refs, worktree list, status of Werkbord's worktrees, ancestry counts) and
+Werkbord's records, runs the pure rules, and stores the result. On a real repository it takes tens of
 milliseconds. The expensive-looking parts are bounded: at most 20 in-memory merges to recognise squash merges,
 and at most 10 branches / 45 pairs for overlaps, each examined only if the file lists intersect.
 
@@ -166,19 +166,19 @@ test points the remote at an unreachable host and asserts nothing is contacted),
 
 ## 6. Actions: the next useful step
 
-Every finding has an action: `kind`, `label`, `detail`, and **`canPerform`**: does Dev Board have a guarded
-operation for this, and is what it needs true now? `canPerform` never means Dev Board will do it. When it is
+Every finding has an action: `kind`, `label`, `detail`, and **`canPerform`**: does Werkbord have a guarded
+operation for this, and is what it needs true now? `canPerform` never means Werkbord will do it. When it is
 false, `reason` says why and the card says what to do yourself.
 
-| Kind | Opens | Dev Board can | When it cannot |
+| Kind | Opens | Werkbord can | When it cannot |
 | --- | --- | --- | --- |
 | `review_changes` | The branch, or the uncommitted changes of a worktree or your checkout | Always (it is navigation) | |
-| `push_branch` | Push sheet (never forces) | If the branch name is usable, there is a remote (origin, or the only one), and the branch tracks a branch of the same name and is not behind | Diverged or behind: Dev Board never forces, pulls or rebases |
+| `push_branch` | Push sheet (never forces) | If the branch name is usable, there is a remote (origin, or the only one), and the branch tracks a branch of the same name and is not behind | Diverged or behind: Werkbord never forces, pulls or rebases |
 | `merge_branch` | Merge sheet (checks for conflicts with Git first) | If the target exists locally, is checked out, has no unfinished operation or tracked changes, the branch has something to merge, and no agent is on it | Otherwise the card falls back to Review and says why |
-| `delete_branch` | Delete sheet (refuses unless nothing is lost) | A Dev Board branch, not protected, no agent, merged by history, checked out nowhere | Not merged by history (a squash merge): delete it yourself once sure |
-| `clean_worktree` | Clean sheet (refuses unless nothing is uncommitted) | A Dev Board worktree, clean, not locked, no live run, still on its recorded branch. A directory already gone can be cleaned: only the record is retired | Uncommitted work, locked, or no longer matching its record |
-| `sync_branch` | | Never | Dev Board does not pull, rebase or force-push |
-| `finish_operation` | | Never | Dev Board never resolves conflicts or aborts an operation in a checkout |
+| `delete_branch` | Delete sheet (refuses unless nothing is lost) | A Werkbord branch, not protected, no agent, merged by history, checked out nowhere | Not merged by history (a squash merge): delete it yourself once sure |
+| `clean_worktree` | Clean sheet (refuses unless nothing is uncommitted) | A Werkbord worktree, clean, not locked, no live run, still on its recorded branch. A directory already gone can be cleaned: only the record is retired | Uncommitted work, locked, or no longer matching its record |
+| `sync_branch` | | Never | Werkbord does not pull, rebase or force-push |
+| `finish_operation` | | Never | Werkbord never resolves conflicts or aborts an operation in a checkout |
 | `fetch` | Fetch | Always | |
 | `create_task` | An editable task form prefilled with the finding, repository context and evidence | Always: it adds a card to the board and starts nothing | |
 | `ask_agent` | The same editable form, with an agent and interaction-policy choice | Always. It starts the chosen agent after you submit; the finding does not grant extra permissions | |
@@ -263,7 +263,7 @@ Under `/api/projects/{pid}/git`, token required, scoped to the project (another 
   at least one case that fires it** (a test fails if a rule has none) and **many cases where it must stay silent
   despite a nearby condition** (a test fails if there are fewer than 20). Every finding any case produces must
   be well formed: documented rule, matching category and basis, concise title, explanation, evidence, a next
-  action, and a stated reason when Dev Board cannot do it; a heuristic never says "will conflict". Also: which
+  action, and a stated reason when Werkbord cannot do it; a heuristic never says "will conflict". Also: which
   signals are heuristic, actions offered only when they could run, a busy day with nothing wrong is Healthy,
   finding ids, summary and headline wording, sort order, and the whole lifecycle (`ReconcileHealth`).
 * `internal/service/githealth_test.go`: the same rules on **real temporary repositories**, a real bare remote
@@ -291,5 +291,5 @@ Under `/api/projects/{pid}/git`, token required, scoped to the project (another 
   is not on the target may share files that are inherited. A branch that contains another is skipped.
 * Overlap and conflict detection needs agents' work to be visible: committed, or uncommitted in their worktrees.
 * A user's own branches and other people's remote branches are not examined.
-* The rules know Dev Board's records for up to the 2,000 most recent runs of a project.
+* The rules know Werkbord's records for up to the 2,000 most recent runs of a project.
 * There is no notification when a finding opens (push notifications are deferred; `git.health_changed` is their source).

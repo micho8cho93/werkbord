@@ -126,7 +126,7 @@ func (a *Adapter) detect(ctx context.Context) domain.Agent {
 			} else {
 				info.SignIn = domain.SignedOut
 				info.Detail = "not signed in: run `" + a.cfg.Command + " auth login`"
-				info.Guidance = "Run `" + a.cfg.Command + " auth login` in a terminal and follow the prompts. Dev Board uses your own Claude account and never asks for a key."
+				info.Guidance = "Run `" + a.cfg.Command + " auth login` in a terminal and follow the prompts. Werkbord uses your own Claude account and never asks for a key."
 				return info
 			}
 		}

@@ -77,7 +77,7 @@ func TestLatestFollowsTheRedirect(t *testing.T) {
 func TestDownloadVerifiesTheChecksum(t *testing.T) {
 	archive := tarGz(t, map[string]string{"devboard": "#!/bin/sh\necho v1.0.0\n"})
 	asset := AssetName("v1.0.0", "linux", "amd64")
-	if asset != "devboard_1.0.0_linux_amd64.tar.gz" || AssetName("v1.0.0", "windows", "arm64") != "devboard_1.0.0_windows_arm64.zip" {
+	if asset != "werkbord_1.0.0_linux_amd64.tar.gz" || AssetName("v1.0.0", "windows", "arm64") != "werkbord_1.0.0_windows_arm64.zip" {
 		t.Fatalf("asset names = %s", asset)
 	}
 	good := fmt.Sprintf("%s  %s\n%s  other.tar.gz\n", sum(archive), asset, strings.Repeat("0", 64))
@@ -98,6 +98,22 @@ func TestDownloadVerifiesTheChecksum(t *testing.T) {
 	if entries, _ := os.ReadDir(dir2); len(entries) != 0 {
 		t.Fatalf("a refused download was kept: %v", entries)
 	}
+
+	// A release from before the rename has only the old name, with the old executable name inside.
+	old := LegacyAssetName("v0.9.0", "linux", "amd64")
+	if old != "devboard_0.9.0_linux_amd64.tar.gz" {
+		t.Fatalf("legacy asset = %s", old)
+	}
+	legacy := releaseServer(t, "v0.9.0", map[string][]byte{old: archive}, fmt.Sprintf("%s  %s\n", sum(archive), old))
+	dir3 := t.TempDir()
+	got, err := Source{Base: legacy.URL}.Download(bg, "v0.9.0", "linux", "amd64", dir3)
+	if err != nil || filepath.Base(got) != old {
+		t.Fatalf("legacy download = %q, %v", got, err)
+	}
+	bin, err := ExtractBinary(got, "linux", dir3)
+	if err != nil || filepath.Base(bin) != "werkbord" {
+		t.Fatalf("legacy extract = %q, %v", bin, err)
+	}
 	// An archive the checksums do not list is refused, and the error says the platform has no build.
 	unlisted := releaseServer(t, "v1.0.0", map[string][]byte{asset: archive}, strings.Repeat("0", 64)+"  other.tar.gz\n")
 	if _, err := (Source{Base: unlisted.URL}).Download(bg, "v1.0.0", "linux", "amd64", t.TempDir()); err == nil || !strings.Contains(err.Error(), "no build for linux/amd64") {
@@ -117,7 +133,7 @@ func TestExtractBinaryOnlyReadsTheExecutableByName(t *testing.T) {
 	_ = os.WriteFile(arch, tarGz(t, map[string]string{"README.md": "hi", "devboard_1.0.0_linux_amd64/devboard": "BIN", "../../evil": "x"}), 0o600)
 	out := t.TempDir()
 	bin, err := ExtractBinary(arch, "linux", out)
-	if err != nil || bin != filepath.Join(out, "devboard") {
+	if err != nil || bin != filepath.Join(out, "werkbord") {
 		t.Fatalf("extract = %q, %v", bin, err)
 	}
 	if b, _ := os.ReadFile(bin); string(b) != "BIN" {
@@ -139,13 +155,13 @@ func TestExtractBinaryOnlyReadsTheExecutableByName(t *testing.T) {
 	// Zip, for Windows.
 	var zb bytes.Buffer
 	zw := zip.NewWriter(&zb)
-	w, _ := zw.Create("devboard.exe")
+	w, _ := zw.Create("werkbord.exe")
 	_, _ = w.Write([]byte("EXE"))
 	_ = zw.Close()
 	zpath := filepath.Join(dir, "a.zip")
 	_ = os.WriteFile(zpath, zb.Bytes(), 0o600)
 	zout := t.TempDir()
-	if bin, err := ExtractBinary(zpath, "windows", zout); err != nil || filepath.Base(bin) != "devboard.exe" {
+	if bin, err := ExtractBinary(zpath, "windows", zout); err != nil || filepath.Base(bin) != "werkbord.exe" {
 		t.Fatalf("zip = %q, %v", bin, err)
 	}
 }
@@ -263,7 +279,7 @@ func TestTagForAndAssetNames(t *testing.T) {
 	}
 	// The archive is named by the version, whichever way the tag was spelled.
 	for _, tag := range []string{"werkbord-v1.0.0", "v1.0.0"} {
-		if got := AssetName(tag, "linux", "amd64"); got != "devboard_1.0.0_linux_amd64.tar.gz" {
+		if got := AssetName(tag, "linux", "amd64"); got != "werkbord_1.0.0_linux_amd64.tar.gz" {
 			t.Errorf("AssetName(%q) = %q", tag, got)
 		}
 	}

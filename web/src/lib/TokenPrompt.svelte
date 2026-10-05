@@ -17,8 +17,8 @@
     <div class="brand"><Mark height={22} /><span class="wm">werkbord</span></div>
     <h1>Connect to your controller</h1>
     <p class="muted">
-      This controller requires an access token. On the computer running it, run <code>devboard token</code> to print
-      it, or <code>devboard token --url</code> for a link that signs this browser in.
+      This controller requires an access token. On the computer running it, run <code>werkbord token</code> to print
+      it, or <code>werkbord token --url</code> for a link that signs this browser in.
     </p>
     <label for="token" class="visually-hidden">Access token</label>
     <input

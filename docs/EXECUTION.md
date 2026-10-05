@@ -41,11 +41,11 @@ a task can ask for the agent's own default even when its project names a model.
 
 ## Models and reasoning levels come from the agent
 
-Dev Board does not carry a list of model names:
+Werkbord does not carry a list of model names:
 
 - **Codex** reports its own models, with the reasoning levels each supports, through its app-server
   (`model/list`), so the list is whatever your installed Codex says it is, and follows its updates.
-- **Claude Code** cannot list models; Dev Board offers its aliases (`sonnet`, `opus`, `haiku`, which always mean
+- **Claude Code** cannot list models; Werkbord offers its aliases (`sonnet`, `opus`, `haiku`, which always mean
   the latest of that family) and reads the `--effort` levels from the CLI's own help.
 - Either way, **a name that is not listed can be typed in** ("Other…"); the agent has the last word. A name must
   look like a model (letters, digits and `._:/[]+@-`, not starting with `-`), because it is passed on a command line.

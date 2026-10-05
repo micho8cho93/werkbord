@@ -7,12 +7,14 @@
 #   scripts/product.sh from-tag <tag>          which product a release tag belongs to
 #
 # Products and fields:
-#   werkbord        the individual product  (cmd/devboard, executable "devboard")
+#   werkbord        the individual product  (cmd/werkbord, executable "werkbord")
 #   werkbord-team   the Team product        (cmd/werkbord-team)
 #
 #   cmd             the directory of the product's main package; its VERSION file lives there
 #   binary          the executable's name
 #   asset           the prefix of the release archives:   <asset>_<version>_<os>_<arch>.tar.gz
+#   legacy-asset    an older name the same archives are also published under, for the
+#                   updaters and installers of releases from before a rename (empty if none)
 #   readme          the README packed into the archives
 #   tag-prefix      what every release tag starts with:    werkbord-v
 #   version         the version in the VERSION file, without a "v": 0.8.0
@@ -39,8 +41,8 @@ fi
 product=${1:-}
 field=${2:-}
 case "$product" in
-  werkbord)      cmd=cmd/devboard;       binary=devboard;      asset=devboard;      readme=README.md ;;
-  werkbord-team) cmd=cmd/werkbord-team;  binary=werkbord-team; asset=werkbord-team; readme=cmd/werkbord-team/README.md ;;
+  werkbord)      cmd=cmd/werkbord;       binary=werkbord;      asset=werkbord;      legacy=devboard; readme=README.md ;;
+  werkbord-team) cmd=cmd/werkbord-team;  binary=werkbord-team; asset=werkbord-team; legacy="";      readme=cmd/werkbord-team/README.md ;;
   *) die "unknown product \"$product\" (want werkbord or werkbord-team)" ;;
 esac
 prefix="$product-v"
@@ -59,6 +61,7 @@ case "$field" in
   cmd) echo "$cmd" ;;
   binary) echo "$binary" ;;
   asset) echo "$asset" ;;
+  legacy-asset) echo "$legacy" ;;
   readme) echo "$readme" ;;
   tag-prefix) echo "$prefix" ;;
   version) version; echo ;;

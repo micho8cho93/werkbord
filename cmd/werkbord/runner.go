@@ -51,7 +51,7 @@ func privateRunnerClient(ctx context.Context, cfg config.Config, out io.Writer, 
 	}
 	_ = uAddr
 	host, _ := os.Hostname()
-	backend := netprivate.NewTailscale(netprivate.TailscaleOptions{Dir: filepath.Join(runnerDir(cfg), "tailscale"), Hostname: netprivate.DefaultHostname(host) + "-runner", ControlURL: cfg.Network.ControlURL, AuthKey: os.Getenv("DEVBOARD_TS_AUTHKEY")})
+	backend := netprivate.NewTailscale(netprivate.TailscaleOptions{Dir: filepath.Join(runnerDir(cfg), "tailscale"), Hostname: netprivate.HostnameFor(filepath.Join(runnerDir(cfg), "tailscale"), host) + "-runner", ControlURL: cfg.Network.ControlURL, AuthKey: config.Getenv("TS_AUTHKEY")})
 	if e := backend.Start(ctx); e != nil {
 		return nil, nil, e
 	}
@@ -102,10 +102,10 @@ func cmdJoin(cfg config.Config, args []string, out, errOut io.Writer) error {
 		return e
 	}
 	if len(positional) != 1 {
-		return fmt.Errorf("usage: devboard join <pairing-code> [--name NAME] [--allow-clone] [--foreground]")
+		return fmt.Errorf("usage: werkbord join <pairing-code> [--name NAME] [--allow-clone] [--foreground]")
 	}
 	if _, e := loadIdentity(cfg); e == nil {
-		return fmt.Errorf("this machine is already paired: use devboard runner start or devboard runner serve")
+		return fmt.Errorf("this machine is already paired: use werkbord runner start or werkbord runner serve")
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return e
 	}
@@ -193,7 +193,7 @@ func cmdJoin(cfg config.Config, args []string, out, errOut io.Writer) error {
 
 func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: devboard runner <serve|start|stop|status|repo|resolve>")
+		return fmt.Errorf("usage: werkbord runner <serve|start|stop|status|repo|resolve>")
 	}
 	fs := flag.NewFlagSet("runner", flag.ContinueOnError)
 	fs.SetOutput(errOut)
@@ -211,11 +211,11 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 	dir := runnerDir(cfg)
 	identity, e := loadIdentity(cfg)
 	if e != nil {
-		return fmt.Errorf("runner identity unavailable; pair this machine with devboard join first")
+		return fmt.Errorf("runner identity unavailable; pair this machine with werkbord join first")
 	}
 	if sub == "repo" {
 		if len(positional) != 2 {
-			return fmt.Errorf("usage: devboard runner repo <project-id> <local-clone>")
+			return fmt.Errorf("usage: werkbord runner repo <project-id> <local-clone>")
 		}
 		if !containsProject(identity.Projects, positional[0]) {
 			return fmt.Errorf("project is not authorized on this runner")
@@ -240,7 +240,7 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 		fmt.Fprintf(out, "Bound %s to %s. The runner loads this on its next heartbeat.\n", positional[0], repo.RootPath)
 		return nil
 	}
-	manager := daemon.Detect(context.Background(), daemon.Options{DataDir: dir, Label: "dev.devboard.runner"})
+	manager := daemon.Detect(context.Background(), daemon.Options{DataDir: dir, Label: daemon.RunnerLabel})
 	switch sub {
 	case "status":
 		st, e := manager.Status(context.Background())
@@ -264,6 +264,12 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 			return e
 		}
 		home, _ := os.UserHomeDir()
+		if daemon.IsLegacy(manager) {
+			if e := manager.Uninstall(context.Background()); e != nil {
+				return fmt.Errorf("replace the runner service installed under the old name: %w", e)
+			}
+			manager = daemon.Detect(context.Background(), daemon.Options{DataDir: dir, Label: daemon.RunnerLabel})
+		}
 		spec := daemon.Spec{Binary: binary, Args: []string{"runner", "serve"}, DataDir: cfg.DataDir, LogFile: filepath.Join(dir, "logs", "runner.log"), Path: daemon.ServicePATH(os.Getenv("PATH"), home)}
 		if e := manager.Install(context.Background(), spec); e != nil {
 			return e
@@ -289,7 +295,7 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 		worker := &remote.Worker{Version: version, Dir: dir, Identity: identity, Agents: agents, AllowClone: identity.AllowClone, Bindings: map[string]string{}}
 		if sub == "resolve" {
 			if len(positional) != 1 || !*confirmed {
-				return fmt.Errorf("inspect the machine first, then: devboard runner resolve <run-id> --confirm-stopped (stop the runner service before resolving)")
+				return fmt.Errorf("inspect the machine first, then: werkbord runner resolve <run-id> --confirm-stopped (stop the runner service before resolving)")
 			}
 			return worker.Resolve(positional[0])
 		}

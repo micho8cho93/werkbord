@@ -227,3 +227,42 @@ func TestRiskyAgentSettingsAreReported(t *testing.T) {
 		t.Fatalf("risky = %v", got)
 	}
 }
+
+// Werkbord was Werkbord: its old variables still work, and the new ones win.
+func TestWerkbordVariablesWinAndDevboardOnesStillWork(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DEVBOARD_DATA_DIR", dir)
+	t.Setenv("DEVBOARD_LOG_LEVEL", "debug")
+	t.Setenv("WERKBORD_LOG_LEVEL", "warn")
+	t.Setenv("DEVBOARD_ADDR", "127.0.0.1:7999")
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.DataDir != dir || c.LogLevel != "warn" || c.Addr != "127.0.0.1:7999" {
+		t.Fatalf("got data %q, level %q, addr %q", c.DataDir, c.LogLevel, c.Addr)
+	}
+	t.Setenv("WERKBORD_REQUIRE_TOKEN", "maybe")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "WERKBORD_REQUIRE_TOKEN") {
+		t.Fatalf("err = %v, want one naming the variable that was set", err)
+	}
+}
+
+func TestAnExistingDevboardDataDirectoryIsKept(t *testing.T) {
+	base := t.TempDir()
+	if got := DataDirIn(base); got != filepath.Join(base, "werkbord") {
+		t.Fatalf("new install: %s", got)
+	}
+	if err := os.Mkdir(filepath.Join(base, "devboard"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got := DataDirIn(base); got != filepath.Join(base, "devboard") {
+		t.Fatalf("install from before the rename: %s", got)
+	}
+	if err := os.Mkdir(filepath.Join(base, "werkbord"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got := DataDirIn(base); got != filepath.Join(base, "werkbord") {
+		t.Fatalf("both exist: %s", got)
+	}
+}

@@ -222,7 +222,7 @@ func (c *CLI) ListWorktrees(ctx context.Context, root string) ([]WorktreeEntry, 
 	sep := "\x00"
 	if err != nil {
 		// -z needs Git 2.36. Without it paths are newline separated, and a path
-		// with a newline in it cannot be told apart from two lines; Dev Board's
+		// with a newline in it cannot be told apart from two lines; Werkbord's
 		// own worktrees never have one.
 		var ge *gitError
 		if !errors.As(err, &ge) || ge.code != 129 {

@@ -201,7 +201,7 @@ run the command on your own computer:
 
 ```bash
 export WERKBORD_TEAM_TOKEN=wbt_…        # your Team token
-export DEVBOARD_TOKEN=…                 # your local Werkbord's API token (the file named token in its data directory)
+export WERKBORD_TOKEN=…                 # your local Werkbord's API token (the file named token in its data directory)
 werkbord-team handoff --server https://team.example.com --ticket WB-142 --runner http://127.0.0.1:7420
 ```
 
@@ -381,7 +381,7 @@ Only the token's SHA-256 is stored, so a lost token cannot be recovered, only **
 
 Settings (flags win over environment): `WERKBORD_TEAM_ADDR` (default `127.0.0.1:7430`), `WERKBORD_TEAM_DATA_DIR`
 (default `werkbord-team` in your user config directory; the database is `team.db` there), `WERKBORD_TEAM_LOG_LEVEL`,
-`WERKBORD_TEAM_LOG_FORMAT`. These are separate from the individual product's `DEVBOARD_*`, so both can run side by side.
+`WERKBORD_TEAM_LOG_FORMAT`. These are separate from the individual product's `WERKBORD_*` (formerly `DEVBOARD_*`), so both can run side by side.
 
 ### Reaching it from other computers
 

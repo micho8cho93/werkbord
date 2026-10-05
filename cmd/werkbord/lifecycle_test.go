@@ -87,7 +87,7 @@ func TestServiceLifecycleManagesTheOneController(t *testing.T) {
 func TestStartNeverDuplicatesAControllerStartedByHand(t *testing.T) {
 	e := newTestEnv(t)
 	_ = e.mgr.Install(bg, e.mgr.spec)
-	// `devboard serve` in a terminal.
+	// `werkbord serve` in a terminal.
 	cfg, _ := config.Load()
 	by := controller.New(cfg, slog.New(slog.DiscardHandler), "by-hand")
 	by.SetNetworkBackend(e.node)

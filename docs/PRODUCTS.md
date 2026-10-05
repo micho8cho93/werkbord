@@ -7,24 +7,29 @@ own executable, version, data directory, installer, release artifacts and (event
 | --- | --- | --- |
 | Product ID | `werkbord` | `werkbord-team` |
 | What it is | A local-first control plane for your own coding agents: board, runs, Git, runners | A shared workspace that coordinates a team: members, projects, who is on what |
-| Executable | `devboard` (the program's name today; the product is Werkbord) | `werkbord-team` |
-| Main package | `cmd/devboard` | `cmd/werkbord-team` |
+| Executable | `werkbord` (and `devboard`, its name before the rename) | `werkbord-team` |
+| Main package | `cmd/werkbord` | `cmd/werkbord-team` |
 | Team/own code lives in | the shared `internal/` packages and `web/` | `internal/team/…` only |
-| Version file | `cmd/devboard/VERSION` | `cmd/werkbord-team/VERSION` |
+| Version file | `cmd/werkbord/VERSION` | `cmd/werkbord-team/VERSION` |
 | Release tag | `werkbord-vX.Y.Z` | `werkbord-team-vX.Y.Z` |
-| Release archives | `devboard_<version>_<os>_<arch>` | `werkbord-team_<version>_<os>_<arch>` |
+| Release archives | `werkbord_<version>_<os>_<arch>` (also published as `devboard_…` for older updaters) | `werkbord-team_<version>_<os>_<arch>` |
 | Installer | `scripts/install.sh`, `scripts/install.ps1` | `scripts/install-team.sh` |
-| Data directory | `devboard` in your user config directory | `werkbord-team` in your user config directory |
-| Settings | `DEVBOARD_*` | `WERKBORD_TEAM_*` |
+| Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory |
+| Settings | `WERKBORD_*` (and the older `DEVBOARD_*`) | `WERKBORD_TEAM_*` |
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` |
 | Build | `make build` (or `make werkbord`) | `make build-team` (or `make werkbord-team`) |
 
 The two can be installed, run and upgraded independently, on the same computer or on different ones. Installing one
 never installs, starts or changes the other.
 
-> **Naming.** The product is Werkbord; the individual program's executable, Go module (`devboard`), data directory and
-> service names are still `devboard`, and renaming them would break existing installs and the updater, so that is a
-> separate change. Product IDs, tags and version files use the product name.
+> **Naming.** Werkbord was called Dev Board. Since Werkbord 1.0 the executable is `werkbord`, and everything a person
+> sees or types says so. What existing installs depend on keeps working, indefinitely and without nagging: the `devboard`
+> command (installed beside `werkbord`), every `DEVBOARD_*` variable (read after its `WERKBORD_*` name), the data
+> directory of an install from before the rename, its tailnet name (a phone's address), and `devboard update` on older
+> releases (every release is also published under the old archive name). A login service installed under the old label is
+> found and managed, and `werkbord setup` moves it to the new one. Not renamed, because they are protocols rather than
+> names people use: the Go module path (`devboard/…`), the `devboard/` namespace of the branches agents work on (older
+> remote runners create it), the database file name and the agents' blocker marker.
 
 ## The rule that matters most
 
@@ -44,7 +49,7 @@ The repository is one Go module. The usual monorepo split (`apps/` and `packages
 (`cmd/` for programs, `internal/` for packages), and the existing code keeps its places:
 
 ```
-cmd/devboard/            APP    the individual product
+cmd/werkbord/            APP    the individual product
 cmd/werkbord-team/       APP    Werkbord Team
 
 internal/sqlitekit/      SHARED opening, migrating and backing up a SQLite database
@@ -81,11 +86,11 @@ package (for example `web-ui/`) that `web/` and a Team web app both depend on; d
 ### Dependency direction
 
 ```
-cmd/devboard ──▶ individual packages ──▶ shared ◀── internal/team ◀── cmd/werkbord-team
+cmd/werkbord ──▶ individual packages ──▶ shared ◀── internal/team ◀── cmd/werkbord-team
 ```
 
 - The individual product **never** depends on Team: no package outside `internal/team` and `cmd/werkbord-team` may
-  import them, and nothing in `go list -deps ./cmd/devboard` is Team's.
+  import them, and nothing in `go list -deps ./cmd/werkbord` is Team's.
 - Team depends on shared packages **only**, from an explicit allow-list.
 - Shared packages depend on neither product.
 
@@ -142,8 +147,8 @@ provenance and has no Team configuration, credential, API or background bridge.
 Individual Werkbord (needs Go and Node, for the web app):
 
 ```bash
-make build                 # bin/devboard, with the web app embedded
-./bin/devboard serve       # or `devboard setup`; see README.md and docs/INSTALL.md
+make build                 # bin/werkbord, with the web app embedded
+./bin/werkbord serve       # or `werkbord setup`; see README.md and docs/INSTALL.md
 make dev-api               # the controller, from source
 make dev-web               # the Vite dev server (a second terminal)
 ```

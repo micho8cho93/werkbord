@@ -25,7 +25,7 @@ func interruptionFlags(name string, args []string, out io.Writer) (bool, error) 
 		return false, err
 	}
 	if fs.NArg() != 0 {
-		return false, fmt.Errorf("usage: devboard %s [--force]", name)
+		return false, fmt.Errorf("usage: werkbord %s [--force]", name)
 	}
 	return *force, nil
 }
@@ -142,7 +142,7 @@ func (a *app) restoreDatabase(ctx context.Context, backup string) error {
 }
 func (a *app) cmdDB(ctx context.Context, args []string) error {
 	if len(args) == 0 || args[0] != "restore" {
-		return fmt.Errorf("usage: devboard db restore [--force] <backup.db> | --latest")
+		return fmt.Errorf("usage: werkbord db restore [--force] <backup.db> | --latest")
 	}
 	fs := flag.NewFlagSet("db restore", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
@@ -155,7 +155,7 @@ func (a *app) cmdDB(ctx context.Context, args []string) error {
 		return fmt.Errorf("--latest cannot be combined with a backup path")
 	}
 	if !*latest && fs.NArg() != 1 {
-		return fmt.Errorf("usage: devboard db restore [--force] <backup.db> | --latest")
+		return fmt.Errorf("usage: werkbord db restore [--force] <backup.db> | --latest")
 	}
 	backup := ""
 	if *latest {

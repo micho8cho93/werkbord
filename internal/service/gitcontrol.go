@@ -24,8 +24,8 @@ import (
 // It owns two kinds of work, and keeps them apart.
 //
 // READING looks at a project's real repository through the git executable, joins
-// what it finds with Dev Board's records (which branch belongs to which task and
-// run, which worktrees Dev Board made) and returns it in shapes made for a phone.
+// what it finds with Werkbord's records (which branch belongs to which task and
+// run, which worktrees Werkbord made) and returns it in shapes made for a phone.
 // Overview reading never changes anything or touches the network. Distributed
 // review comparisons refresh tracking refs first; GitHub reads, which are separate calls so that GitHub being slow or signed out
 // cannot slow down or break the local overview.
@@ -49,7 +49,7 @@ type GitControl struct {
 	Git gitrepo.Control
 	// GitHub is optional. With nil (or gh missing, or signed out) everything local still works.
 	GitHub github.Client
-	// Worktrees is the record keeper for the worktrees Dev Board owns; cleaning one goes through it.
+	// Worktrees is the record keeper for the worktrees Werkbord owns; cleaning one goes through it.
 	Worktrees *Worktrees
 
 	mu    sync.Mutex
@@ -124,9 +124,9 @@ func (s *GitControl) resolve(ctx context.Context, projectID string) (*gitCtx, er
 	return &gitCtx{project: *p, root: p.RepoPath, repo: repo}, nil
 }
 
-// ---- what Dev Board knows ----
+// ---- what Werkbord knows ----
 
-// gitAssoc is Dev Board's side of a branch: the worktrees it made, the runs that
+// gitAssoc is Werkbord's side of a branch: the worktrees it made, the runs that
 // used them and the tasks they belong to.
 type gitAssoc struct {
 	worktrees  []domain.Worktree
@@ -139,7 +139,7 @@ type gitAssoc struct {
 }
 
 // canonPath resolves symlinks where it can, so a path Git printed and a path
-// Dev Board recorded compare equal on systems where /var is /private/var.
+// Werkbord recorded compare equal on systems where /var is /private/var.
 func canonPath(p string) string {
 	if r, err := filepath.EvalSymlinks(p); err == nil {
 		return r
@@ -212,7 +212,7 @@ func (a *gitAssoc) runsOn(branch string) []domain.Run {
 	return out
 }
 
-// ownership says what Dev Board knows about a local branch. "Created" needs both
+// ownership says what Werkbord knows about a local branch. "Created" needs both
 // the devboard/ name and a record of a worktree made for exactly this branch in
 // this project: a name proves nothing, because anyone can type it.
 func (a *gitAssoc) ownership(branch string) domain.GitBranchOwnership {
@@ -367,7 +367,7 @@ func (s *GitControl) overview(ctx context.Context, t *gitCtx, a *gitAssoc) (*dom
 		}
 	}
 	sort.Slice(locals, func(i, j int) bool { return locals[i].Date.After(locals[j].Date) })
-	// Dev Board's own branches are measured first, so a cap never hides them.
+	// Werkbord's own branches are measured first, so a cap never hides them.
 	sort.SliceStable(locals, func(i, j int) bool {
 		return domain.InDevBoardNamespace(locals[i].Name) && !domain.InDevBoardNamespace(locals[j].Name)
 	})
@@ -553,7 +553,7 @@ func upstreamOf(r gitrepo.RefInfo, byRef map[string]gitrepo.RefInfo) domain.GitU
 	return u
 }
 
-// localBranch measures one local branch and joins it with Dev Board's records.
+// localBranch measures one local branch and joins it with Werkbord's records.
 // Commit counts use commit IDs, never branch names, so no name can be mistaken
 // for anything else; a failure to measure one branch leaves that branch's
 // relation unknown and says so, instead of failing the whole overview.
@@ -682,8 +682,8 @@ func (s *GitControl) syncOf(ctx context.Context, t *gitCtx, head domain.GitHead,
 	return sync
 }
 
-// worktreeViews joins Git's list of worktrees with Dev Board's records and, for the main
-// checkout and Dev Board's own worktrees, what is uncommitted in each. It also returns
+// worktreeViews joins Git's list of worktrees with Werkbord's records and, for the main
+// checkout and Werkbord's own worktrees, what is uncommitted in each. It also returns
 // them by branch, for the branch list.
 func (s *GitControl) worktreeViews(ctx context.Context, t *gitCtx, a *gitAssoc, entries []gitrepo.WorktreeEntry, mainTree *domain.GitWorkingTree, nt *notes) ([]domain.GitWorktree, map[string]domain.GitBranchWorktree) {
 	out := make([]domain.GitWorktree, len(entries))
@@ -708,7 +708,7 @@ func (s *GitControl) worktreeViews(ctx context.Context, t *gitCtx, a *gitAssoc, 
 		}
 		out[i] = w
 	}
-	// Uncommitted work, for the checkout the project is in and for worktrees Dev Board made.
+	// Uncommitted work, for the checkout the project is in and for worktrees Werkbord made.
 	var inspect []int
 	for i, w := range out {
 		if w.Missing {
@@ -985,7 +985,7 @@ type WorkingChanges struct {
 }
 
 // checkoutDir finds the directory of a checkout of the project: the project's own
-// (worktreeID empty) or one of the worktrees Dev Board recorded for it. A
+// (worktreeID empty) or one of the worktrees Werkbord recorded for it. A
 // directory is only ever taken from a record or from the project itself, and
 // only if Git agrees it is a worktree of this repository: a path never comes from
 // the request.

@@ -173,7 +173,7 @@
             <dt>Database</dt><dd class="mono">{health.database}</dd>
           </dl>
         {/if}
-        <p class="note">Run <code>devboard doctor</code> in a terminal to check the controller, database, Git, agents, network and GitHub.</p>
+        <p class="note">Run <code>werkbord doctor</code> in a terminal to check the controller, database, Git, agents, network and GitHub.</p>
         <div class="row"><button class="btn" onclick={runSetupAgain}>Run setup again</button></div>
       </section>
     {/if}

@@ -46,7 +46,7 @@ func TestPushNewBranchThenFastForward(t *testing.T) {
 	}
 }
 
-// A remote that moved on makes a plain push fail; Dev Board never forces it.
+// A remote that moved on makes a plain push fail; Werkbord never forces it.
 func TestPushRejectedWhenRemoteMovedOnAndNeverForces(t *testing.T) {
 	repo, remote := repoWithRemote(t)
 	g := &CLI{}

@@ -182,7 +182,7 @@ func (m *Manager) apply(st BackendStatus) {
 			s.URL = m.url(s)
 			s.HTTPSHint = ""
 			if !s.HTTPS {
-				s.HTTPSHint = "Turn on HTTPS certificates for your tailnet at https://login.tailscale.com/admin/dns to install Dev Board as an app and get notifications on your phone."
+				s.HTTPSHint = "Turn on HTTPS certificates for your tailnet at https://login.tailscale.com/admin/dns to install Werkbord as an app and get notifications on your phone."
 			}
 		case backendNeedsLogin:
 			s.State, s.AuthURL, s.URL = StateNeedsLogin, st.AuthURL, ""

@@ -866,7 +866,7 @@ function handoffBox(hf) {
         document.body.append(a); a.click(); a.remove(); } }, 'Download handoff'),
       h('button', { class: 'plain', onclick: () => { state.handoff = null; render(); } }, 'Hide')),
     h('details', {}, h('summary', {}, 'Or from a terminal on your computer'),
-      h('p', { class: 'muted' }, 'This creates the task in the Werkbord running on your own computer (a localhost address only), using WERKBORD_TEAM_TOKEN and DEVBOARD_TOKEN from your environment. Set both first. Run it again with --report after work, or add --watch to keep metadata synchronized from your computer. Repeated imports reuse your task.'),
+      h('p', { class: 'muted' }, 'This creates the task in the Werkbord running on your own computer (a localhost address only), using WERKBORD_TEAM_TOKEN and WERKBORD_TOKEN from your environment. Set both first. Run it again with --report after work, or add --watch to keep metadata synchronized from your computer. Repeated imports reuse your task.'),
       h('code', {}, cmd), copy(cmd, 'Copy command')),
     h('details', {}, h('summary', {}, 'Task text'), h('pre', {}, hf.prompt)));
 }

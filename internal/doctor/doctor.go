@@ -1,4 +1,4 @@
-// Package doctor checks that Dev Board is healthy: the controller, its
+// Package doctor checks that Werkbord is healthy: the controller, its
 // database, Git, the agents, the private network, GitHub, the runner and the
 // projects. Each check says what it found and, when something is wrong, what to
 // do about it.
@@ -23,7 +23,7 @@ type Status string
 const (
 	OK   Status = "ok"
 	Warn Status = "warn" // works, but something deserves attention, or an optional thing is not set up
-	Fail Status = "fail" // something that Dev Board needs is wrong
+	Fail Status = "fail" // something that Werkbord needs is wrong
 	Skip Status = "skip" // not checked, with the reason
 )
 

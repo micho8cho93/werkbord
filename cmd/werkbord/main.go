@@ -1,16 +1,17 @@
-// Command devboard runs the local controller and talks to it.
+// Command werkbord runs the local controller and talks to it. It is also
+// installed as devboard, its name before Werkbord was renamed from Dev Board.
 //
-//	devboard setup                 install and start everything, then open the app
-//	devboard start | stop | restart | status
-//	devboard open [--phone]        open the app (on this computer, or the address for a phone)
-//	devboard doctor                check that everything works
-//	devboard update                install the latest release
-//	devboard serve                 run the controller in the foreground
-//	devboard migrate               apply database migrations and exit
-//	devboard project add <path>    register an existing local Git repository
-//	devboard project list          list registered projects
-//	devboard token [--url] [--rotate] print the API token (or a link that signs a browser in)
-//	devboard version               print the version
+//	werkbord setup                 install and start everything, then open the app
+//	werkbord start | stop | restart | status
+//	werkbord open [--phone]        open the app (on this computer, or the address for a phone)
+//	werkbord doctor                check that everything works
+//	werkbord update                install the latest release
+//	werkbord serve                 run the controller in the foreground
+//	werkbord migrate               apply database migrations and exit
+//	werkbord project add <path>    register an existing local Git repository
+//	werkbord project list          list registered projects
+//	werkbord token [--url] [--rotate] print the API token (or a link that signs a browser in)
+//	werkbord version               print the version
 //
 // The service commands manage the controller as a background service (launchd,
 // systemd, a scheduled task, or a detached process), never starting a second one.
@@ -37,10 +38,10 @@ import (
 // version is set at build time with -ldflags "-X main.version=...".
 var version = "dev"
 
-const usage = `usage: devboard <command> [flags]
+const usage = `usage: werkbord <command> [flags]
 
 commands:
-  setup                 install the service, start Dev Board and open it (safe to run again)
+  setup                 install the service, start Werkbord and open it (safe to run again)
   start | stop | restart  control the background controller
   status                what is running, and where
   open [--phone] [--qr] open the app; --phone shows the address (and QR code) for your phone
@@ -59,14 +60,14 @@ commands:
   db restore            restore a compatible database backup with the controller stopped
   version               print the version
 
-Run "devboard <command> -h" for command flags.
+Run "werkbord <command> -h" for command flags.
 `
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		var quiet silentError
 		if !errors.Is(err, flag.ErrHelp) && !errors.As(err, &quiet) {
-			fmt.Fprintln(os.Stderr, "devboard:", err)
+			fmt.Fprintln(os.Stderr, "werkbord:", err)
 		}
 		os.Exit(1)
 	}
@@ -153,6 +154,13 @@ func cmdServe(cfg config.Config, args []string, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// An install updated by a release from before the rename has only the devboard
+	// command: the controller, which is what such an update starts, adds werkbord.
+	if exe, err := executable(); err == nil {
+		if made, err := ensureCommandNames(exe); err == nil && made != "" {
+			log.Info("added the werkbord command beside devboard", "path", made)
+		}
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return controller.New(cfg, log, version).Run(ctx)
@@ -194,7 +202,7 @@ func cmdToken(cfg config.Config, args []string, stdout, stderr io.Writer) error 
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: devboard token [--url] [--rotate]")
+		return errors.New("usage: werkbord token [--url] [--rotate]")
 	}
 	if !cfg.AuthRequired() {
 		return errors.New("API authentication is disabled for this configuration, so there is no token")
@@ -207,7 +215,7 @@ func cmdToken(cfg config.Config, args []string, stdout, stderr io.Writer) error 
 		return err
 	}
 	if tok == "" {
-		return errors.New("no token yet: start the controller with `devboard serve` and it will create one")
+		return errors.New("no token yet: start the controller with `werkbord serve` and it will create one")
 	}
 	if *asURL {
 		fmt.Fprintf(stdout, "http://%s/#token=%s\n", cfg.ClientAddr(), tok)
@@ -219,7 +227,7 @@ func cmdToken(cfg config.Config, args []string, stdout, stderr io.Writer) error 
 
 func cmdProject(cfg config.Config, args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: devboard project add <path> | devboard project list")
+		return errors.New("usage: werkbord project add <path> | werkbord project list")
 	}
 	sub, args := args[0], args[1:]
 	fs := flag.NewFlagSet("project "+sub, flag.ContinueOnError)
@@ -239,7 +247,7 @@ func cmdProject(cfg config.Config, args []string, stdout, stderr io.Writer) erro
 	switch sub {
 	case "add":
 		if len(positional) != 1 {
-			return errors.New("usage: devboard project add <path> [--name NAME]")
+			return errors.New("usage: werkbord project add <path> [--name NAME]")
 		}
 		p, err := c.registerProject(ctx, positional[0], *name)
 		if err != nil {
@@ -256,7 +264,7 @@ func cmdProject(cfg config.Config, args []string, stdout, stderr io.Writer) erro
 			return err
 		}
 		if len(ps) == 0 {
-			fmt.Fprintln(stdout, "no projects registered; add one with: devboard project add <path>")
+			fmt.Fprintln(stdout, "no projects registered; add one with: werkbord project add <path>")
 			return nil
 		}
 		for _, p := range ps {

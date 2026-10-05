@@ -47,6 +47,6 @@ jobs:
         run: |
           make web web-embed
           for p in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
-            CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/devboard
+            CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/werkbord
             CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/werkbord-team
           done

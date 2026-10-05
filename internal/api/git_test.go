@@ -19,7 +19,7 @@ import (
 )
 
 // gitAPI is a server with the Git Control Center, a project whose repository has
-// a Dev Board branch with commits, and a second project.
+// a Werkbord branch with commits, and a second project.
 type gitAPI struct {
 	url     string
 	repo    string
@@ -246,7 +246,7 @@ func TestGitActionsAnswerWithAnOutcomeNotAnError(t *testing.T) {
 		t.Error("main does not contain the branch")
 	}
 
-	// Deleting a branch Dev Board did not create is refused.
+	// Deleting a branch Werkbord did not create is refused.
 	var dplan domain.GitDeletePlan
 	dbody := `{"branch":"` + g.branch + `","branchSha":"` + g.headSha + `"}`
 	if code := do(t, "POST", g.path(g.project.ID, "/branches/delete-plan"), dbody, &dplan); code != 200 || dplan.CanDelete || dplan.Blockers[0].Code != domain.BlockNotOwned && dplan.Blockers[1].Code != domain.BlockNotOwned {
@@ -257,7 +257,7 @@ func TestGitActionsAnswerWithAnOutcomeNotAnError(t *testing.T) {
 		t.Errorf("delete: %d %+v", code, res)
 	}
 	if gitIn(t, g.repo, "branch", "--list", g.branch) == "" {
-		t.Error("a branch Dev Board did not create was deleted")
+		t.Error("a branch Werkbord did not create was deleted")
 	}
 	// Fetch with no remote.
 	res = domain.GitActionResult{}

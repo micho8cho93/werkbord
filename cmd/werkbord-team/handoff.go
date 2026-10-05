@@ -44,7 +44,8 @@ flags:
 
 Secrets come from the environment, never from flags, so they do not end up in shell history:
   WERKBORD_TEAM_TOKEN   your Team token (required)
-  DEVBOARD_TOKEN        your local Werkbord's API token (required with --runner; it is sent only to --runner)
+  WERKBORD_TOKEN        your local Werkbord's API token (required with --runner; it is sent only to --runner;
+                        the older name DEVBOARD_TOKEN works too)
 `
 
 // maxLocalDescription is the individual Werkbord's limit on a task description.
@@ -104,9 +105,12 @@ func cmdHandoff(ctx context.Context, args []string, stdout, stderr io.Writer) er
 	if !isLoopbackHost(base) {
 		return fmt.Errorf("--runner %s is not on this computer: a handoff only goes to your own Werkbord, so the address must be localhost or 127.0.0.1", *runner)
 	}
-	local := os.Getenv("DEVBOARD_TOKEN")
+	local := os.Getenv("WERKBORD_TOKEN")
 	if local == "" {
-		return errors.New("set DEVBOARD_TOKEN to your local Werkbord's API token (it is in its data directory, in the file named token)")
+		local = os.Getenv("DEVBOARD_TOKEN") // its name before Werkbord was renamed
+	}
+	if local == "" {
+		return errors.New("set WERKBORD_TOKEN to your local Werkbord's API token (it is in its data directory, in the file named token)")
 	}
 	if len(h.Prompt) > maxLocalDescription {
 		return fmt.Errorf("the ticket's text is %d bytes, more than a local Werkbord task holds (%d); shorten the ticket, or use --out and attach the file", len(h.Prompt), maxLocalDescription)

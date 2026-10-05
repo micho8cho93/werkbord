@@ -166,7 +166,7 @@ func (w *Worker) capabilities(ctx context.Context) domain.RunnerCapabilities {
 	}
 	for _, r := range w.records {
 		if r.Phase == "uncertain" {
-			c.Diagnostics += "Run " + r.Job.Run.ID + ": " + r.Diagnostic + "; uncertain process ownership; inspect this machine and use devboard runner resolve --confirm-stopped. "
+			c.Diagnostics += "Run " + r.Job.Run.ID + ": " + r.Diagnostic + "; uncertain process ownership; inspect this machine and use werkbord runner resolve --confirm-stopped. "
 		}
 	}
 	if w.Identity.RequiresRecovery {

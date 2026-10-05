@@ -193,7 +193,7 @@ func (v GitVsTarget) FullyMerged() bool {
 type GitBranchWorktree struct {
 	Path       string           `json:"path"`
 	Primary    bool             `json:"primary"` // the repository's main checkout
-	Owned      bool             `json:"owned"`   // a worktree Dev Board created and recorded
+	Owned      bool             `json:"owned"`   // a worktree Werkbord created and recorded
 	WorktreeID string           `json:"worktreeId,omitempty"`
 	Missing    bool             `json:"missing,omitempty"` // registered with Git, but the directory is gone
 	Locked     bool             `json:"locked,omitempty"`
@@ -212,12 +212,12 @@ const (
 	PhaseIdle      TaskPhase = "idle"      // the task is in Backlog with nothing running
 )
 
-// GitBranchOwnership is what Dev Board knows about a branch.
+// GitBranchOwnership is what Werkbord knows about a branch.
 type GitBranchOwnership struct {
-	// Created: Dev Board made this branch. It requires both the devboard/ name
+	// Created: Werkbord made this branch. It requires both the devboard/ name
 	// and a worktree record in this project for exactly this branch, because a
 	// name alone proves nothing: anyone can type devboard/ into a branch name.
-	// Only such branches may ever be deleted by Dev Board.
+	// Only such branches may ever be deleted by Werkbord.
 	Created   bool `json:"created"`
 	Namespace bool `json:"namespace"` // the name is under devboard/, with or without a record
 
@@ -272,7 +272,7 @@ type GitBranch struct {
 
 	Head      bool   `json:"head"`                // checked out in the project's own checkout
 	Target    bool   `json:"target"`              // the target branch
-	Protected bool   `json:"protected"`           // never deleted by Dev Board, whoever asks
+	Protected bool   `json:"protected"`           // never deleted by Werkbord, whoever asks
 	Unusual   string `json:"unusual,omitempty"`   // why every action on it is refused: a name that cannot be passed safely
 	LocalName string `json:"localName,omitempty"` // for a remote branch: the local branch of the same name
 
@@ -288,9 +288,9 @@ type GitBranch struct {
 	Attention []GitAttention     `json:"attention"`
 }
 
-// Naming rules for what Dev Board treats as its own.
+// Naming rules for what Werkbord treats as its own.
 const (
-	// BranchNamespace is the prefix of every branch Dev Board creates.
+	// BranchNamespace is the prefix of every branch Werkbord creates.
 	BranchNamespace = "devboard/"
 
 	// StaleAfter is how long a branch can sit untouched, while the target moves
@@ -402,7 +402,7 @@ func plural(n int) string {
 }
 
 // AttentionRank orders branches for the "needs attention" list: the larger the
-// worse. Dev Board's own branches come first, then the most pressing reason,
+// worse. Werkbord's own branches come first, then the most pressing reason,
 // and the caller breaks ties by recency.
 func AttentionRank(b *GitBranch) int {
 	rank := 0
@@ -428,7 +428,7 @@ func AttentionRank(b *GitBranch) int {
 // ---- worktrees ----
 
 // GitWorktree is a worktree of the repository as Git lists it, joined with what
-// Dev Board knows.
+// Werkbord knows.
 type GitWorktree struct {
 	Path       string           `json:"path"`
 	Head       string           `json:"head,omitempty"`
@@ -515,7 +515,7 @@ type GitHubRepo struct {
 // GitSummary counts what needs the user.
 type GitSummary struct {
 	Branches   int `json:"branches"`   // local branches
-	DevBoard   int `json:"devboard"`   // owned by Dev Board
+	DevBoard   int `json:"devboard"`   // owned by Werkbord
 	NeedsYou   int `json:"needsYou"`   // branches with an action-level reason
 	Warnings   int `json:"warnings"`   // branches with a warning-level reason
 	Mergeable  int `json:"mergeable"`  // owned, ahead of the target, not running
@@ -748,7 +748,7 @@ type GitDeletePlan struct {
 	CheckedAt       time.Time `json:"checkedAt"`
 }
 
-// GitCleanPlan is the verdict on removing a Dev Board worktree.
+// GitCleanPlan is the verdict on removing a Werkbord worktree.
 type GitCleanPlan struct {
 	WorktreeID string           `json:"worktreeId"`
 	Path       string           `json:"path"`
@@ -837,7 +837,7 @@ type GitHubPR struct {
 	MergedAt  *time.Time   `json:"mergedAt,omitempty"`
 	ClosedAt  *time.Time   `json:"closedAt,omitempty"`
 
-	// What Dev Board knows about the branch, when the head is one of this project's.
+	// What Werkbord knows about the branch, when the head is one of this project's.
 	TaskID    string `json:"taskId,omitempty"`
 	TaskTitle string `json:"taskTitle,omitempty"`
 	RunID     string `json:"runId,omitempty"`

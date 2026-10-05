@@ -7,7 +7,7 @@
 //	werkbord-team handoff            open a ticket you hold in your own local Werkbord
 //	werkbord-team version            print the version
 //
-// Team is a separate product from the individual Werkbord (cmd/devboard): its own
+// Team is a separate product from the individual Werkbord (cmd/werkbord): its own
 // executable, version, data directory and database. It coordinates; it never
 // runs anyone's agents or commands. Every member keeps using their own Werkbord
 // runner with their own credentials (docs/PRODUCTS.md).

@@ -13,7 +13,7 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
-const notBuilt = `<!doctype html><meta charset="utf-8"><title>Devboard</title>
+const notBuilt = `<!doctype html><meta charset="utf-8"><title>Werkbord</title>
 <p style="font-family:system-ui;padding:2rem">The controller is running, but the web app was not built into this binary.
 Run <code>make build</code>, or use <code>make dev</code> for the Vite dev server.</p>`
 

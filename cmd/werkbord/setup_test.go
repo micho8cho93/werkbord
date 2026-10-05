@@ -85,7 +85,7 @@ func TestSetupFromACleanMachine(t *testing.T) {
 	if err != nil || n.State != "connected" || n.URL != "https://devboard-test.tail1234.ts.net/" || n.Choice != "on" {
 		t.Fatalf("network = %+v, %v", n, err)
 	}
-	for _, want := range []string{"database", "service", "controller", "runner", "phone access", "https://devboard-test.tail1234.ts.net/", "Opened Dev Board in your browser"} {
+	for _, want := range []string{"database", "service", "controller", "runner", "phone access", "https://devboard-test.tail1234.ts.net/", "Opened Werkbord in your browser"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
@@ -116,7 +116,7 @@ func TestSetupSkipsWhatIsAskedToBeSkipped(t *testing.T) {
 		t.Fatalf("network = %+v: it should not have been touched", n)
 	}
 	// With no browser opened it says how to get there, and never prints the link that signs in: it carries the token.
-	if !strings.Contains(e.output(), "devboard open") || strings.Contains(e.output(), e.token()) {
+	if !strings.Contains(e.output(), "werkbord open") || strings.Contains(e.output(), e.token()) {
 		t.Fatalf("output:\n%s", e.output())
 	}
 }

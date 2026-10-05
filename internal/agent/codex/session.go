@@ -507,7 +507,7 @@ func (s *session) onServerRequest(m rpcMessage) {
 		for _, q := range p.Questions {
 			if q.IsSecret {
 				// Answers are stored and shown in the activity feed; a secret does not belong there.
-				s.Say(domain.StreamSystem, "Codex asked for a secret value (%s). Devboard does not collect secrets; it was told there is no answer.", clip(q.Header, 80))
+				s.Say(domain.StreamSystem, "Codex asked for a secret value (%s). Werkbord does not collect secrets; it was told there is no answer.", clip(q.Header, 80))
 				answers := map[string]any{}
 				for _, q := range p.Questions {
 					answers[q.ID] = map[string]any{"answers": []string{}}
@@ -525,7 +525,7 @@ func (s *session) onServerRequest(m rpcMessage) {
 	default:
 		// Anything else would leave the agent waiting forever for a reply.
 		s.send(map[string]any{"id": m.ID, "error": map[string]any{"code": -32601, "message": "devboard does not support " + m.Method}})
-		s.Say(domain.StreamSystem, "Codex asked for something Devboard does not support (%s); it was declined.", m.Method)
+		s.Say(domain.StreamSystem, "Codex asked for something Werkbord does not support (%s); it was declined.", m.Method)
 	}
 }
 

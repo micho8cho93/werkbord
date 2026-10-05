@@ -69,7 +69,7 @@ func (h *hb) targetBranch() *GitBranch {
 	return b
 }
 
-// hAgent is an agent's branch with everything Dev Board records about it.
+// hAgent is an agent's branch with everything Werkbord records about it.
 type hAgent struct {
 	b    *GitBranch
 	w    *GitWorktree
@@ -446,10 +446,10 @@ var hCases = []hCase{
 	}, want: []hWant{w(FindBranchConflict, HealthRisk)}},
 
 	// ---- worktree hygiene ----
-	{name: "a worktree in Dev Board's directory that no record owns", setup: func(h *hb) {
+	{name: "a worktree in Werkbord's directory that no record owns", setup: func(h *hb) {
 		h.extraWTs = append(h.extraWTs, GitWorktree{Path: hWTRoot + "/leftover", Branch: "devboard/old", Head: "cccccccc"})
 	}, want: []hWant{w(FindOrphanedWorktree, HealthAttention)}},
-	{name: "a worktree of the user's elsewhere is not Dev Board's business", setup: func(h *hb) {
+	{name: "a worktree of the user's elsewhere is not Werkbord's business", setup: func(h *hb) {
 		h.extraWTs = append(h.extraWTs, GitWorktree{Path: "/home/me/other-checkout", Branch: "experiment", Head: "cccccccc"})
 	}},
 	{name: "a worktree record that no run ever used", setup: func(h *hb) {
@@ -622,7 +622,7 @@ func assertWellFormed(t *testing.T, f HealthFinding) {
 	case f.Action.Kind == "" || f.Action.Label == "":
 		t.Errorf("%s: every finding needs a next action", f.Type)
 	case !f.Action.CanPerform && f.Action.Reason == "":
-		t.Errorf("%s: an action Dev Board cannot perform must say why", f.Type)
+		t.Errorf("%s: an action Werkbord cannot perform must say why", f.Type)
 	case f.State != HealthOpen || f.DetectedAt.IsZero():
 		t.Errorf("%s: state %q detected %v", f.Type, f.State, f.DetectedAt)
 	}
@@ -637,7 +637,7 @@ func assertWellFormed(t *testing.T, f HealthFinding) {
 	if f.Action.Destructive && f.Action.Kind != ActDeleteBranch && f.Action.Kind != ActCleanWorktree {
 		t.Errorf("%s: only deleting a branch or cleaning a worktree is destructive, not %s", f.Type, f.Action.Kind)
 	}
-	// Dev Board never claims what it cannot prove. A heuristic finding is worded as a possibility.
+	// Werkbord never claims what it cannot prove. A heuristic finding is worded as a possibility.
 	if f.Basis == BasisHeuristic {
 		text := strings.ToLower(f.Title + " " + f.Explanation)
 		for _, banned := range []string{"will conflict", "are in conflict", "do conflict", "definitely", "certainly"} {
@@ -766,7 +766,7 @@ func TestDeleteNeedsTheWorktreeCleanedFirst(t *testing.T) {
 	if f.Action.Kind != ActCleanWorktree || !f.Action.CanPerform || f.Action.WorktreeID == "" {
 		t.Fatalf("a merged branch that still has a worktree should say to clean it first: %+v", f.Action)
 	}
-	// ... and when the worktree has uncommitted work, Dev Board says it cannot.
+	// ... and when the worktree has uncommitted work, Werkbord says it cannot.
 	h = newHB()
 	h.agent("devboard/feature").counts(0, 3).dirty(GitChangeCounts{Unstaged: 1})
 	for _, f := range h.findings() {
@@ -781,7 +781,7 @@ func TestPushIsNotOfferedWhenItWouldBeRejected(t *testing.T) {
 	h.agent("devboard/feature").upstream(UpstreamDiverged, 1, 1)
 	f := h.findings()[0]
 	if f.Action.Kind != ActSyncBranch || f.Action.CanPerform || f.Action.Reason == "" {
-		t.Fatalf("a diverged branch needs a sync Dev Board cannot do: %+v", f.Action)
+		t.Fatalf("a diverged branch needs a sync Werkbord cannot do: %+v", f.Action)
 	}
 
 	h = newHB()

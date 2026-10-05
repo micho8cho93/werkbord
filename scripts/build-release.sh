@@ -6,8 +6,12 @@
 # <product> is werkbord or werkbord-team (see scripts/product.sh). One archive per
 # platform, named <asset>_<version>_<os>_<arch>.tar.gz (.zip on Windows), each
 # holding the executable and the README, and a checksums.txt in sha256sum format
-# beside them. For werkbord the asset is "devboard", which is the layout the installer
-# and `devboard update` read.
+# beside them.
+#
+# A product that was renamed (werkbord was "devboard") also publishes every archive under
+# its old name, with the executable inside under its old name: that is what the installers
+# and `devboard update` of the releases from before the rename look for, so they upgrade
+# to this one.
 #
 # The individual product's web app must already be built and embedded
 # (make web web-embed). PLATFORMS overrides what is built, as "os/arch os/arch".
@@ -25,6 +29,7 @@ cd "$(dirname "$0")/.."
 CMD=$(scripts/product.sh "$PRODUCT" cmd)
 BINARY=$(scripts/product.sh "$PRODUCT" binary)
 ASSET=$(scripts/product.sh "$PRODUCT" asset)
+LEGACY=$(scripts/product.sh "$PRODUCT" legacy-asset)
 README=$(scripts/product.sh "$PRODUCT" readme)
 if [ "$PRODUCT" = werkbord ]; then
   [ -f internal/webui/dist/index.html ] || { echo "the web app is not built: run 'make web web-embed' first" >&2; exit 1; }
@@ -54,12 +59,28 @@ for p in $PLATFORMS; do
   else
     tar -czf "$OUT/$name.tar.gz" -C "$dir" "$bin" README.md
   fi
+  if [ -n "$LEGACY" ]; then
+    old="$STAGE/$os-$arch-legacy"
+    mkdir -p "$old"
+    oldbin=$LEGACY
+    [ "$os" = windows ] && oldbin=$LEGACY.exe
+    cp "$dir/$bin" "$old/$oldbin"
+    cp "$README" "$old/README.md"
+    oldname="${LEGACY}_${VERSION#v}_${os}_${arch}"
+    if [ "$os" = windows ]; then
+      (cd "$old" && zip -q "$OUT/$oldname.zip" "$oldbin" README.md)
+    else
+      tar -czf "$OUT/$oldname.tar.gz" -C "$old" "$oldbin" README.md
+    fi
+  fi
 done
 
 cd "$OUT"
+set -- "${ASSET}"_*
+[ -n "$LEGACY" ] && set -- "$@" "${LEGACY}"_*
 if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum "${ASSET}"_* > checksums.txt
+  sha256sum "$@" > checksums.txt
 else
-  shasum -a 256 "${ASSET}"_* > checksums.txt
+  shasum -a 256 "$@" > checksums.txt
 fi
 echo "wrote $(ls | wc -l | tr -d ' ') files to $OUT"

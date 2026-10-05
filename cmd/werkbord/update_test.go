@@ -25,7 +25,7 @@ import (
 )
 
 // publishRelease serves a releases page whose one release is a "devboard" that
-// prints its own version, like the real one does for `devboard version`.
+// prints its own version, like the real one does for `werkbord version`.
 func publishRelease(t *testing.T, tag string, tamper bool) *httptest.Server {
 	t.Helper()
 	script := "#!/bin/sh\n[ \"$1\" = version ] && echo " + update.VersionOf(tag) + "\nexit 0\n"

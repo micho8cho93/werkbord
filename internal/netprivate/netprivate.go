@@ -1,4 +1,4 @@
-// Package netprivate is Dev Board's own way onto a private network, so that a
+// Package netprivate is Werkbord's own way onto a private network, so that a
 // phone can reach the controller without anyone setting up a VPN, a tunnel,
 // certificates or port forwarding.
 //
@@ -7,7 +7,7 @@
 // serves the same app and API the controller serves on this computer. Nothing
 // here is exposed to the Internet: tsnet listeners are reachable only from
 // devices in the user's tailnet, and Funnel (Tailscale's public ingress) is
-// never used. Dev Board runs no relay, coordination server or account of its
+// never used. Werkbord runs no relay, coordination server or account of its
 // own; the only third party is Tailscale's, which the user signs in to with
 // their own identity.
 //
@@ -42,7 +42,7 @@ const (
 )
 
 // Status is what the app shows about the private network. It never contains a
-// secret: the Dev Board access token is not part of it, and neither is any
+// secret: the Werkbord access token is not part of it, and neither is any
 // Tailscale key. AuthURL is a one-time sign-in link for the user, shown to them
 // and never logged.
 type Status struct {

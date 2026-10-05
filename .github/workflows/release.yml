@@ -3,8 +3,10 @@ name: release
 # Publishes a release when a product's version tag is pushed. The tag says which
 # product it is (docs/VERSIONING.md):
 #
-#   werkbord-vX.Y.Z        the individual product: devboard_<version>_<os>_<arch> archives, which is
-#                          what scripts/install.sh and `devboard update` read
+#   werkbord-vX.Y.Z        the individual product: werkbord_<version>_<os>_<arch> archives, which is
+#                          what scripts/install.sh and `werkbord update` read, and the same archives
+#                          as devboard_<version>_<os>_<arch>, which is what releases from before the
+#                          rename read to update themselves
 #   werkbord-team-vX.Y.Z   Werkbord Team: werkbord-team_<version>_<os>_<arch> archives
 #
 # Each release carries one archive per platform and a checksums.txt. Only the

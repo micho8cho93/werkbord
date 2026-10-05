@@ -79,7 +79,7 @@ func TestDeleteBranchSucceedsForAMergedBranchDevBoardCreated(t *testing.T) {
 
 func TestDeleteBranchNeverDeletesWhatDevBoardDidNotCreate(t *testing.T) {
 	f := newGC(t)
-	// A merged branch of the user's own, and one that only borrows Dev Board's name.
+	// A merged branch of the user's own, and one that only borrows Werkbord's name.
 	git(t, f.repo, "branch", "users-merged-branch", "main")
 	git(t, f.repo, "branch", "devboard/impostor-111111", "main")
 	// And a real one, whose worktree record belongs to ANOTHER project.
@@ -456,7 +456,7 @@ func TestCleanWorktreeOwnershipAndIdentityChecks(t *testing.T) {
 		t.Errorf("moved head: %v", codes(p.Blockers))
 	}
 
-	// It was switched to another branch outside Dev Board.
+	// It was switched to another branch outside Werkbord.
 	b := f.agent(t, "Switched", 0)
 	git(t, b.path, "checkout", "-q", "-b", "someone-elses-branch")
 	if p := clean(CleanInput{WorktreeID: b.wt.ID}); p.CanClean || !hasBlocker(p.Blockers, domain.BlockWorktreeChanged) {
@@ -485,7 +485,7 @@ func TestCleanWorktreeOwnershipAndIdentityChecks(t *testing.T) {
 		t.Error("a directory that git does not list was deleted")
 	}
 
-	// Outside Dev Board's worktree directory.
+	// Outside Werkbord's worktree directory.
 	e := f.agent(t, "Outside", 0)
 	f.gc.Worktrees = &Worktrees{Deps: f.deps, Root: filepath.Join(f.wtRoot, "elsewhere")}
 	if p := clean(CleanInput{WorktreeID: e.wt.ID}); p.CanClean || !hasBlocker(p.Blockers, domain.BlockWorktreeOutside) {

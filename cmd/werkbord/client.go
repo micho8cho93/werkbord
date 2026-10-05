@@ -49,7 +49,7 @@ func (c *client) do(ctx context.Context, method, path string, body, out any) err
 	resp, err := c.http.Do(req)
 	if err != nil {
 		if errors.Is(err, syscall.ECONNREFUSED) {
-			return fmt.Errorf("controller is not running at %s; start it with: devboard serve", c.base)
+			return fmt.Errorf("controller is not running at %s; start it with: werkbord serve", c.base)
 		}
 		return err
 	}

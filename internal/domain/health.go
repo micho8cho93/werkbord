@@ -23,7 +23,7 @@ import (
 // Two honesty rules run through all of it.
 //
 //   - Every finding says whether it rests on a DETERMINISTIC signal (a fact Git or
-//     Dev Board's records state outright: a merge is unfinished, a branch has
+//     Werkbord's records state outright: a merge is unfinished, a branch has
 //     commits no remote has) or a HEURISTIC one (a reasoned guess: two branches
 //     touch the same files, a branch looks abandoned). A heuristic finding is
 //     worded as a possibility, never as a verdict.
@@ -65,7 +65,7 @@ func (s HealthSeverity) Valid() bool { return s.Rank() > 0 }
 type HealthBasis string
 
 const (
-	// BasisDeterministic: Git or Dev Board's records state it outright.
+	// BasisDeterministic: Git or Werkbord's records state it outright.
 	BasisDeterministic HealthBasis = "deterministic"
 	// BasisHeuristic: a reasoned guess from patterns. The finding says "may".
 	BasisHeuristic HealthBasis = "heuristic"
@@ -151,7 +151,7 @@ const (
 	ActFetch           HealthActionKind = "fetch"            // update what is known about the remote
 	ActCreateTask      HealthActionKind = "create_task"      // a new task on the board, prefilled
 	ActAskAgent        HealthActionKind = "ask_agent"        // a new task prefilled as an investigation for an agent
-	ActInspect         HealthActionKind = "inspect"          // nothing Dev Board can do; says what to check
+	ActInspect         HealthActionKind = "inspect"          // nothing Werkbord can do; says what to check
 )
 
 // HealthEvidence is one fact behind a finding.
@@ -171,10 +171,10 @@ type HealthSubject struct {
 	RunID        string   `json:"runId,omitempty"`
 }
 
-// HealthAction is the recommended next step, and whether Dev Board can do it.
+// HealthAction is the recommended next step, and whether Werkbord can do it.
 //
-// CanPerform means: Dev Board has a guarded operation for this, and what it
-// needs is true right now. It does not mean Dev Board will do it: nothing here
+// CanPerform means: Werkbord has a guarded operation for this, and what it
+// needs is true right now. It does not mean Werkbord will do it: nothing here
 // is ever executed by the health system. The screen opens the same confirmation
 // sheet a person would reach from the branch list, and the operation checks
 // everything again when confirmed. When CanPerform is false, Reason says why and
@@ -370,7 +370,7 @@ type HealthThresholds struct {
 	// FarBehind and VeryFarBehind: commits the target has that an unmerged branch lacks.
 	FarBehind     int
 	VeryFarBehind int
-	// AbandonedAfter: a Dev Board branch nobody is working on, with no task waiting on it.
+	// AbandonedAfter: a Werkbord branch nobody is working on, with no task waiting on it.
 	AbandonedAfter time.Duration
 	// FinishedUnmergedAfter: finished work that has sat unmerged this long is worth a nudge.
 	FinishedUnmergedAfter time.Duration
@@ -387,7 +387,7 @@ type HealthThresholds struct {
 	MaxOverlapBranches int
 }
 
-// DefaultHealthThresholds are what Dev Board runs with.
+// DefaultHealthThresholds are what Werkbord runs with.
 func DefaultHealthThresholds() HealthThresholds {
 	return HealthThresholds{
 		SignificantUntracked:  5,
@@ -430,24 +430,24 @@ var HealthRules = []HealthRule{
 	{FindUpstreamDiverged, CatUnsynced, BasisDeterministic, "The local branch and its upstream each have commits the other lacks", "attention–risk", ActSyncBranch},
 	{FindRemoteBranchDeleted, CatUnsynced, BasisDeterministic, "The upstream branch was deleted while the local branch still has commits not in the target", "attention", ActReviewChanges},
 	{FindRemoteStateStale, CatUnsynced, BasisDeterministic, "The repository never fetched, or not for a week, so every remote comparison is out of date", "info", ActFetch},
-	{FindMergedBranch, CatBranch, BasisDeterministic, "A Dev Board branch whose commits are all in the target (ancestry) is still present", "info", ActDeleteBranch},
+	{FindMergedBranch, CatBranch, BasisDeterministic, "A Werkbord branch whose commits are all in the target (ancestry) is still present", "info", ActDeleteBranch},
 	{FindContentOnTarget, CatBranch, BasisDeterministic, "Git's in-memory merge of the branch into the target changes nothing: its content is already there (squash or rebase merge, or superseded)", "info", ActDeleteBranch},
-	{FindAbandonedBranch, CatBranch, BasisHeuristic, "A Dev Board branch with no live run, no task waiting on its review, and no activity for days", "info–attention", ActReviewChanges},
+	{FindAbandonedBranch, CatBranch, BasisHeuristic, "A Werkbord branch with no live run, no task waiting on its review, and no activity for days", "info–attention", ActReviewChanges},
 	{FindStaleBranch, CatBranch, BasisDeterministic, "Unmerged work untouched for two weeks while the target moved on", "attention", ActReviewChanges},
 	{FindBranchFarBehind, CatBranch, BasisDeterministic, "An unmerged branch lacks many commits the target has", "attention–risk", ActReviewChanges},
 	{FindTaskDoneUnmerged, CatOrchestration, BasisDeterministic, "A task is Done but its branch has commits that are not in the target and would change it", "attention–risk", ActMergeBranch},
 	{FindFinishedUnmerged, CatOrchestration, BasisHeuristic, "A run finished a day or more ago and its commits are not in the target, and nothing says they are unwanted", "attention", ActMergeBranch},
 	{FindMissingBranch, CatOrchestration, BasisDeterministic, "An active task's worktree record names a branch Git does not have", "risk", ActAskAgent},
-	{FindBranchOverlap, CatOrchestration, BasisHeuristic, "Two in-flight Dev Board branches change some of the same files", "attention", ActCreateTask},
+	{FindBranchOverlap, CatOrchestration, BasisHeuristic, "Two in-flight Werkbord branches change some of the same files", "attention", ActCreateTask},
 	{FindBranchConflict, CatOrchestration, BasisDeterministic, "Git's in-memory merge of two in-flight branches reports conflicts", "risk", ActCreateTask},
-	{FindOrphanedWorktree, CatWorktree, BasisDeterministic, "Git lists a worktree inside Dev Board's worktree directory that no Dev Board record owns", "attention", ActInspect},
-	{FindWorktreeNoRun, CatWorktree, BasisDeterministic, "A Dev Board worktree record exists and no run ever used it", "attention", ActCleanWorktree},
+	{FindOrphanedWorktree, CatWorktree, BasisDeterministic, "Git lists a worktree inside Werkbord's worktree directory that no Werkbord record owns", "attention", ActInspect},
+	{FindWorktreeNoRun, CatWorktree, BasisDeterministic, "A Werkbord worktree record exists and no run ever used it", "attention", ActCleanWorktree},
 	{FindWorktreeAfterDone, CatWorktree, BasisDeterministic, "A clean worktree is kept for a task that is Done", "info", ActCleanWorktree},
 	{FindWorktreeMismatch, CatWorktree, BasisDeterministic, "A worktree record disagrees with Git: unknown to it, on another branch or detached, directory gone, or a removal never finished", "attention", ActCleanWorktree},
 	{FindOperationInterrupt, CatOperation, BasisDeterministic, "A merge, rebase, cherry-pick or revert is unfinished in a checkout no agent is using", "attention–risk", ActFinishOperation},
 	{FindUnresolvedConflict, CatOperation, BasisDeterministic, "Files are in conflict in a checkout no agent is using", "risk–critical", ActFinishOperation},
-	{FindAutomationBlocked, CatOperation, BasisDeterministic, "Something about the repository prevents Dev Board's own operations: no usable target, a detached HEAD, a stale lock", "info–attention", ActInspect},
-	{FindRepositoryUnread, CatOperation, BasisDeterministic, "Dev Board cannot read the repository at all", "risk", ActInspect},
+	{FindAutomationBlocked, CatOperation, BasisDeterministic, "Something about the repository prevents Werkbord's own operations: no usable target, a detached HEAD, a stale lock", "info–attention", ActInspect},
+	{FindRepositoryUnread, CatOperation, BasisDeterministic, "Werkbord cannot read the repository at all", "risk", ActInspect},
 }
 
 // HealthRuleFor returns the documentation of a finding type.

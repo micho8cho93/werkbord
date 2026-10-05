@@ -29,7 +29,7 @@ func spawnDetached(spec Spec) (int, error) {
 		cmd.Env = append(cmd.Env, "PATH="+spec.Path)
 	}
 	if spec.DataDir != "" {
-		cmd.Env = append(cmd.Env, "DEVBOARD_DATA_DIR="+spec.DataDir)
+		cmd.Env = append(cmd.Env, "WERKBORD_DATA_DIR="+spec.DataDir, "DEVBOARD_DATA_DIR="+spec.DataDir)
 	}
 	if spec.LogFile != "" {
 		f, err := os.OpenFile(spec.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)

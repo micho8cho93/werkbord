@@ -84,8 +84,8 @@ type MergeResult struct {
 	Detail    string
 }
 
-// Hooks are never run by Dev Board's own commands: they are the repository's
-// code, and Dev Board would be running it on the strength of a button tap.
+// Hooks are never run by Werkbord's own commands: they are the repository's
+// code, and Werkbord would be running it on the strength of a button tap.
 // (A push or merge that the user wants hooks for is run in their terminal.)
 func (c *CLI) runWrite(ctx context.Context, dir string, network bool, args ...string) ([]byte, error) {
 	timeout := c.WriteTimeout
@@ -233,7 +233,7 @@ func parsePush(stdout string, runErr error, what string) RemoteResult {
 		fail.Outcome = domain.OutcomeRejected
 		fail.Message = res.Message
 		if strings.Contains(strings.ToLower(fail.Detail), "non-fast-forward") || strings.Contains(strings.ToLower(res.Message), "non-fast-forward") || strings.Contains(strings.ToLower(res.Message), "fetch first") {
-			fail.Message = "the remote has commits you do not have, so a plain push is refused. Dev Board never forces a push: fetch, then bring those commits in first."
+			fail.Message = "the remote has commits you do not have, so a plain push is refused. Werkbord never forces a push: fetch, then bring those commits in first."
 		}
 		return fail
 	}

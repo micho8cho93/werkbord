@@ -28,7 +28,7 @@ const BlockerMarker = "DEVBOARD_BLOCKED"
 
 // Instructions is the text that is added to an agent's own instructions for a
 // run with policy p. It is empty for an interactive run, which is how agents
-// behave without Devboard's help.
+// behave without Werkbord's help.
 func Instructions(p domain.ExecutionPolicy) string {
 	switch p.Normalized().Interaction {
 	case domain.InteractionAutonomous:
@@ -39,7 +39,7 @@ func Instructions(p domain.ExecutionPolicy) string {
 	return ""
 }
 
-const autonomousInstructions = `Devboard execution policy: AUTONOMOUS.
+const autonomousInstructions = `Werkbord execution policy: AUTONOMOUS.
 The user has asked not to be interrupted with routine questions during this task.
 - Investigate the repository yourself before deciding that something is unknown: read the code, the tests, the documentation and the Git history.
 - Make reasonable implementation decisions yourself, and carry on until you consider the task complete. Do not ask the user to pick between ordinary implementation options or to confirm your plan.
@@ -47,7 +47,7 @@ The user has asked not to be interrupted with routine questions during this task
 - This policy does not widen what you may do. Stay within your sandbox and permissions, make no destructive Git or filesystem changes (force pushes, hard resets, deleting branches or files the task does not call for), and when a permission prompt appears it is for the user to answer, as usual.
 - When you are done, end your turn with a short summary of what you did and what you assumed.`
 
-const stopIfBlockedInstructions = `Devboard execution policy: STOP IF BLOCKED.
+const stopIfBlockedInstructions = `Werkbord execution policy: STOP IF BLOCKED.
 Work independently whenever a reasonable decision can be made. If you reach a decision you cannot safely infer (information only the user has, such as credentials or product intent; a choice where a wrong guess is costly or hard to undo), do not guess and do not ask the user a question. Stop instead, and end your turn with a blocker report as the last line of your message, in exactly this form (one line of JSON):
 ` + BlockerMarker + ` {"summary": "<what is blocking you, in one sentence>", "detail": "<what you found, what you tried, and what you would do with each answer>", "options": ["<a choice you would offer>", "..."]}
 "options" is optional. Report a blocker only for a real decision; ordinary choices you make yourself.`
@@ -62,7 +62,7 @@ const (
 		"This does not authorise anything your permissions do not already allow."
 	stopReply = "This run is set to stop if blocked, so this question was not put to the user. " +
 		"Do not guess at it and do not carry on past it. End your turn now with a short summary of what you have done so far and " +
-		"what needs deciding. Devboard has recorded the blocker; the user will settle it."
+		"what needs deciding. Werkbord has recorded the blocker; the user will settle it."
 )
 
 // Action is what the controller does with a question from an agent.

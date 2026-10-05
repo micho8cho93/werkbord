@@ -437,7 +437,7 @@ func TestDiffDoesNotRunConfiguredPrograms(t *testing.T) {
 	commit(t, repo, "x.txt", "hello\n", "x")
 	head := sha(t, repo, "HEAD")
 	write(t, repo, "x.txt", "hello again\n")
-	// The setup's own git commands ran with that config too; only what Dev Board's reads do counts.
+	// The setup's own git commands ran with that config too; only what Werkbord's reads do counts.
 	_ = os.Remove(marker)
 
 	if _, err := g.FileDiff(ctx, repo, base, head, []string{"x.txt"}, DiffWindow{}); err != nil {

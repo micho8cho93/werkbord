@@ -210,7 +210,7 @@ func TestHandoffExplainsWhatIsMissing(t *testing.T) {
 		"unknown ticket":       {w.env(w.boToken), []string{"handoff", "--ticket", "WB-99"}, "no ticket"},
 		"unknown project":      {w.env(w.boToken), []string{"handoff", "--ticket", "WB-1", "--project", "Nope"}, "no project"},
 		"bad team token":       {w.env("wbt_" + strings.Repeat("0", 64)), []string{"handoff", "--ticket", "WB-1"}, "401"},
-		"no local token":       {map[string]string{"WERKBORD_TEAM_SERVER": w.teamURL, "WERKBORD_TEAM_TOKEN": w.boToken, "DEVBOARD_TOKEN": ""}, []string{"handoff", "--ticket", "WB-1", "--runner", w.local.URL}, "DEVBOARD_TOKEN"},
+		"no local token":       {map[string]string{"WERKBORD_TEAM_SERVER": w.teamURL, "WERKBORD_TEAM_TOKEN": w.boToken, "DEVBOARD_TOKEN": ""}, []string{"handoff", "--ticket", "WB-1", "--runner", w.local.URL}, "WERKBORD_TOKEN"},
 		"no matching project":  {w.env(w.boToken), []string{"handoff", "--ticket", "WB-1", "--runner", w.local.URL}, "none of your local Werkbord projects"},
 		"a bad server address": {w.env(w.boToken), []string{"handoff", "--ticket", "WB-1", "--server", "nonsense"}, "--server"},
 	} {

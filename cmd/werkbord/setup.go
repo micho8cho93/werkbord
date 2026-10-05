@@ -11,14 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"devboard/internal/config"
 	"devboard/internal/daemon"
 	"devboard/internal/netprivate"
 	"devboard/internal/store/sqlite"
 )
 
-// envOn reports whether an environment variable asks for something: "1", "true" or "yes".
+// envOn reports whether WERKBORD_<name> (or the older DEVBOARD_<name>) asks for something: "1", "true" or "yes".
 func envOn(name string) bool {
-	switch strings.ToLower(os.Getenv(name)) {
+	switch strings.ToLower(config.Getenv(name)) {
 	case "1", "true", "yes", "on":
 		return true
 	}
@@ -30,7 +31,7 @@ type setupFlags struct {
 	networkWait                           time.Duration
 }
 
-// cmdSetup is everything between "the binary is on this computer" and "Dev Board
+// cmdSetup is everything between "the binary is on this computer" and "Werkbord
 // is open in the browser, working": the data directory, the database, the
 // service, the controller, this computer as a runner, the private network. It is
 // safe to run again: it updates the service for a new binary and restarts the
@@ -39,19 +40,19 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 	var f setupFlags
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
-	fs.BoolVar(&f.noService, "no-service", envOn("DEVBOARD_NO_SERVICE"), "run in the background without installing a login service")
-	fs.BoolVar(&f.noStart, "no-start", envOn("DEVBOARD_NO_START"), "set everything up but do not start the controller")
-	fs.BoolVar(&f.noOpen, "no-open", envOn("DEVBOARD_NO_OPEN"), "do not open a browser")
-	fs.BoolVar(&f.noNetwork, "no-network", envOn("DEVBOARD_NO_NETWORK"), "do not set up phone access (the private network)")
+	fs.BoolVar(&f.noService, "no-service", envOn("NO_SERVICE"), "run in the background without installing a login service")
+	fs.BoolVar(&f.noStart, "no-start", envOn("NO_START"), "set everything up but do not start the controller")
+	fs.BoolVar(&f.noOpen, "no-open", envOn("NO_OPEN"), "do not open a browser")
+	fs.BoolVar(&f.noNetwork, "no-network", envOn("NO_NETWORK"), "do not set up phone access (the private network)")
 	fs.DurationVar(&f.networkWait, "network-wait", 3*time.Minute, "how long to wait for you to sign in to the private network")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: devboard setup [--no-service] [--no-start] [--no-open] [--no-network]")
+		return errors.New("usage: werkbord setup [--no-service] [--no-start] [--no-open] [--no-network]")
 	}
 
-	a.printf("Setting up Dev Board %s\n", version)
+	a.printf("Setting up Werkbord %s\n", version)
 
 	// 1. Directories and configuration.
 	for _, d := range []string{a.cfg.DataDir, filepath.Join(a.cfg.DataDir, "logs"), a.cfg.WorktreesPath()} {
@@ -63,6 +64,11 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 		return err
 	}
 	a.step(markOK, "data directory", a.cfg.DataDir)
+	if exe, err := a.executable(); err == nil {
+		if made, err := ensureCommandNames(exe); err == nil && made != "" {
+			a.step(markOK, "commands", "werkbord, and devboard as before ("+made+")")
+		}
+	}
 
 	// 2. The access token and the database, before anything is started, so that a
 	// problem with either is reported here and not as a controller that will not start.
@@ -93,18 +99,27 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 		m = &daemon.Background{Options: daemon.Options{DataDir: a.cfg.DataDir}}
 	} else {
 		m = a.daemon(ctx)
+		// A service installed before the rename (dev.devboard.controller) is replaced by
+		// one under the new label, so that there is only ever one.
+		if daemon.IsLegacy(m) {
+			if err := m.Uninstall(ctx); err != nil {
+				return fmt.Errorf("replace the service installed under the old name: %w", err)
+			}
+			m = a.daemon(ctx)
+			a.step(markOK, "service", "moved from the old Dev Board name to Werkbord")
+		}
 	}
 	if err := m.Install(ctx, spec); err != nil {
 		return fmt.Errorf("install the service: %w", err)
 	}
 	_, isBG := m.(*daemon.Background)
 	if isBG {
-		a.step(markWarn, "service", "no login service on this system: Dev Board runs in the background and will not restart when you log in")
+		a.step(markWarn, "service", "no login service on this system: Werkbord runs in the background and will not restart when you log in")
 	} else {
 		a.step(markOK, "service", fmt.Sprintf("installed (%s): starts when you log in", m.Name()))
 	}
 	if f.noStart {
-		a.printf("\nDone. Start it with `devboard start`.\n")
+		a.printf("\nDone. Start it with `werkbord start`.\n")
 		return nil
 	}
 
@@ -132,13 +147,13 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 	if rs, err := c.runners(ctx); err == nil && len(rs) > 0 {
 		a.step(markOK, "runner", fmt.Sprintf("this computer (%s, %s/%s) is registered", rs[0].Name, rs[0].OS, rs[0].Arch))
 	} else {
-		a.step(markWarn, "runner", "could not confirm that this computer is registered: run `devboard doctor`")
+		a.step(markWarn, "runner", "could not confirm that this computer is registered: run `werkbord doctor`")
 	}
 
 	// 6. Phone access: the private network, signed in through the browser if needed.
 	var net networkInfo
 	if f.noNetwork {
-		a.step("·", "phone access", "skipped (--no-network): turn it on later with `devboard open --phone`")
+		a.step("·", "phone access", "skipped (--no-network): turn it on later with `werkbord open --phone`")
 	} else {
 		net, err = a.setupNetwork(ctx, c, f)
 		if err != nil {
@@ -149,23 +164,23 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 	// 7. Open the app, to finish in the browser: GitHub, agents, repositories. The link that
 	// signs the browser in carries the access token, so it goes to the browser and never to
 	// the terminal (whose output is often kept, in an installer's log for one): if there is no
-	// browser to open it in, `devboard open` is how to get one.
+	// browser to open it in, `werkbord open` is how to get one.
 	url, err := a.signInURL()
 	if err != nil {
 		return err
 	}
 	a.printf("\n")
 	if f.noOpen {
-		a.printf("Run `devboard open` to finish setup in your browser (GitHub, your coding agents, your repositories).\n")
+		a.printf("Run `werkbord open` to finish setup in your browser (GitHub, your coding agents, your repositories).\n")
 	} else if err := a.openBrowser(url); err != nil {
-		a.printf("Could not open a browser here. Run `devboard open --print` on a computer with one, or `devboard open` here to try again.\n")
+		a.printf("Could not open a browser here. Run `werkbord open --print` on a computer with one, or `werkbord open` here to try again.\n")
 	} else {
-		a.printf("Opened Dev Board in your browser to finish setup (GitHub, your coding agents, your repositories).\nIf it did not appear, run `devboard open`.\n")
+		a.printf("Opened Werkbord in your browser to finish setup (GitHub, your coding agents, your repositories).\nIf it did not appear, run `werkbord open`.\n")
 	}
 	if net.State == string(netprivate.StateConnected) {
 		a.showPhone(ctx, c, net)
 	}
-	a.printf("\nUseful commands: devboard status · open · doctor · restart · stop · update\n")
+	a.printf("\nUseful commands: werkbord status · open · doctor · restart · stop · update\n")
 	return nil
 }
 
@@ -208,7 +223,7 @@ func (a *app) setupNetwork(ctx context.Context, c *client, f setupFlags) (networ
 		return n, err
 	}
 	if n.Choice == "off" {
-		a.step("·", "phone access", "off, as you left it: `devboard open --phone` turns it on")
+		a.step("·", "phone access", "off, as you left it: `werkbord open --phone` turns it on")
 		return n, nil
 	}
 	if n.Choice == "pinned_off" {
@@ -223,11 +238,11 @@ func (a *app) setupNetwork(ctx context.Context, c *client, f setupFlags) (networ
 	case string(netprivate.StateConnected):
 		a.step(markOK, "phone access", n.URL)
 	case string(netprivate.StateNeedsLogin):
-		a.step(markWait, "phone access", "waiting for you to sign in: Dev Board shows it in Settings, or run `devboard open --phone`")
+		a.step(markWait, "phone access", "waiting for you to sign in: Werkbord shows it in Settings, or run `werkbord open --phone`")
 	case string(netprivate.StateNeedsApproval):
 		a.step(markWait, "phone access", "waiting for your tailnet's admin to approve this device")
 	case string(netprivate.StateError):
-		a.step(markWarn, "phone access", n.Error+": run `devboard doctor`")
+		a.step(markWarn, "phone access", n.Error+": run `werkbord doctor`")
 	default:
 		a.step(markWait, "phone access", "starting")
 	}

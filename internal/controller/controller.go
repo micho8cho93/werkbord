@@ -270,7 +270,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("private network: %w", err)
 	}
 	if c.cfg.AuthRequired() && c.cfg.Token == "" {
-		c.log.Info("API token required; run `devboard token` to print it", "token_file", c.cfg.TokenPath())
+		c.log.Info("API token required; run `werkbord token` to print it", "token_file", c.cfg.TokenPath())
 	}
 	if !c.cfg.AuthRequired() {
 		c.log.Warn("API authentication is disabled (requireToken=false): any program on this computer can use the API and, once agents run, start processes as you")

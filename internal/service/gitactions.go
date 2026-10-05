@@ -220,7 +220,7 @@ func (s *GitControl) Push(ctx context.Context, projectID string, in PushInput) (
 	res := &domain.GitActionResult{Action: ActionPush, Outcome: pushed.Outcome, Git: pushed.Detail}
 	if pushed.Outcome != domain.OutcomeDone {
 		res.Message = pushed.Message
-		res.Remote = &domain.GitRemoteEffect{Remote: remote, Ref: "refs/heads/" + in.Branch, Verified: false, CheckedAt: s.now(), Note: "the push did not complete, so the remote is unchanged as far as Dev Board can tell"}
+		res.Remote = &domain.GitRemoteEffect{Remote: remote, Ref: "refs/heads/" + in.Branch, Verified: false, CheckedAt: s.now(), Note: "the push did not complete, so the remote is unchanged as far as Werkbord can tell"}
 		return res, nil
 	}
 
@@ -299,7 +299,7 @@ func pickRemote(remotes []domain.GitRemote, requested, upstreamRef, branch strin
 	if upstreamRef != "" {
 		if r := remoteOfRef(upstreamRef, remotes); r != "" {
 			if rest := strings.TrimPrefix(strings.TrimPrefix(upstreamRef, "refs/remotes/"), r+"/"); rest != branch {
-				return fail(domain.BlockRemoteDiffers, "%s tracks %s/%s, a branch of a different name. Dev Board pushes a branch to the branch of the same name, so push it from your terminal.", branch, r, rest)
+				return fail(domain.BlockRemoteDiffers, "%s tracks %s/%s, a branch of a different name. Werkbord pushes a branch to the branch of the same name, so push it from your terminal.", branch, r, rest)
 			}
 			return r, nil
 		}
@@ -355,7 +355,7 @@ func (s *GitControl) MergePlan(ctx context.Context, projectID string, in MergeIn
 // planMerge is the whole safety check of a merge.
 //
 // The merge goes into the project's target branch, which must be checked out in
-// some worktree (Git can only merge into a checked-out branch, and Dev Board will
+// some worktree (Git can only merge into a checked-out branch, and Werkbord will
 // not check anything out for you), with nothing uncommitted in that checkout that
 // the merge could mix itself into. It never resolves conflicts: if Git's own
 // simulation says the merge conflicts, that is a blocker.
@@ -403,10 +403,10 @@ func (s *GitControl) planMerge(ctx context.Context, t *gitCtx, a *gitAssoc, in M
 	}
 	plan.Target = ti.Name
 	if in.Target != "" && in.Target != ti.Name {
-		block(domain.BlockTargetMismatch, "the target is %s, not %s. Dev Board only merges into the project's target branch.", ti.Name, in.Target)
+		block(domain.BlockTargetMismatch, "the target is %s, not %s. Werkbord only merges into the project's target branch.", ti.Name, in.Target)
 	}
 	if !ti.LocalExists {
-		block(domain.BlockTargetMissing, "%s exists only on the remote on this computer. Check it out here first; Dev Board will not create it for you.", ti.Name)
+		block(domain.BlockTargetMissing, "%s exists only on the remote on this computer. Check it out here first; Werkbord will not create it for you.", ti.Name)
 		return finish()
 	}
 	if len(a.remoteRuns) > 0 {
@@ -450,7 +450,7 @@ func (s *GitControl) planMerge(ctx context.Context, t *gitCtx, a *gitAssoc, in M
 		block(domain.BlockAlreadyMerged, "everything on %s is already in %s: there is nothing to merge", in.Branch, ti.Name)
 		return finish()
 	case mb == "":
-		block(domain.BlockUnrelated, "%s and %s share no history, and Dev Board will not merge unrelated histories", in.Branch, ti.Name)
+		block(domain.BlockUnrelated, "%s and %s share no history, and Werkbord will not merge unrelated histories", in.Branch, ti.Name)
 		return finish()
 	}
 	if strategy == domain.MergeFastForward && behind > 0 {
@@ -505,7 +505,7 @@ func (s *GitControl) planMerge(ctx context.Context, t *gitCtx, a *gitAssoc, in M
 		}
 	}
 	if targetEntry == nil {
-		block(domain.BlockNotCheckedOut, "%s is not checked out in any worktree. Git can only merge into a checked-out branch, and Dev Board will not switch your checkout. Check %s out, then try again.", ti.Name, ti.Name)
+		block(domain.BlockNotCheckedOut, "%s is not checked out in any worktree. Git can only merge into a checked-out branch, and Werkbord will not switch your checkout. Check %s out, then try again.", ti.Name, ti.Name)
 	} else {
 		facts.dir = targetEntry.Path
 		s.checkMergeCheckout(ctx, a, targetEntry, files, truncated, block)
@@ -544,7 +544,7 @@ func (s *GitControl) checkMergeCheckout(ctx context.Context, a *gitAssoc, e *git
 	if rec, ok := a.byPath[canonPath(e.Path)]; ok {
 		for _, r := range a.runsByWT[rec.ID] {
 			if r.State.Active() {
-				block(domain.BlockRunActive, "the target is checked out in a Dev Board worktree where run %s is active", r.ID)
+				block(domain.BlockRunActive, "the target is checked out in a Werkbord worktree where run %s is active", r.ID)
 				return
 			}
 		}
@@ -605,7 +605,7 @@ func (s *GitControl) checkConflicts(ctx context.Context, t *gitCtx, plan *domain
 		block(domain.BlockUnrelated, "the histories are unrelated")
 	case sim.Supported && sim.Conflicts:
 		plan.Conflicts = domain.GitConflictCheck{Method: domain.CheckSimulation, Result: domain.ConflictConflicts, Files: sim.Files,
-			Note: "Git merged the two commits in memory and found conflicts. Dev Board never resolves conflicts: merge it yourself, or have the agent update the branch."}
+			Note: "Git merged the two commits in memory and found conflicts. Werkbord never resolves conflicts: merge it yourself, or have the agent update the branch."}
 		block(domain.BlockConflicts, "merging %s into %s conflicts in %d file%s: %s", plan.Branch, plan.Target, len(sim.Files), plural(len(sim.Files)), strings.Join(firstN(sim.Files, 5), ", "))
 	case sim.Supported:
 		plan.Conflicts = domain.GitConflictCheck{Method: domain.CheckSimulation, Result: domain.ConflictClean,
@@ -773,7 +773,7 @@ func (s *GitControl) DeletePlan(ctx context.Context, projectID string, in Delete
 }
 
 // planDelete is the whole safety check of deleting a branch. A branch is deleted
-// only if all of these hold: it is Dev Board's own (created by it, per its
+// only if all of these hold: it is Werkbord's own (created by it, per its
 // records), it is not protected, it is checked out nowhere, nothing unmerged would
 // be lost, and it is still at the commit the user saw.
 func (s *GitControl) planDelete(ctx context.Context, t *gitCtx, a *gitAssoc, in DeleteInput) (*domain.GitDeletePlan, error) {
@@ -805,15 +805,15 @@ func (s *GitControl) planDelete(ctx context.Context, t *gitCtx, a *gitAssoc, in 
 	head := t.repo.CurrentBranch
 
 	if domain.ProtectedBranch(in.Branch, ti.Name, head) {
-		block(domain.BlockProtected, "%s is a protected branch (the target, the branch checked out here, or a long-lived name). Dev Board never deletes those.", in.Branch)
+		block(domain.BlockProtected, "%s is a protected branch (the target, the branch checked out here, or a long-lived name). Werkbord never deletes those.", in.Branch)
 	}
-	// Ownership: only what Dev Board made.
+	// Ownership: only what Werkbord made.
 	own := a.ownership(in.Branch)
 	if !own.Created {
 		if own.Namespace {
-			block(domain.BlockNotOwned, "%s has Dev Board's name but no record that Dev Board created it, so it is treated as yours. Delete it from your terminal if you mean to.", in.Branch)
+			block(domain.BlockNotOwned, "%s has Werkbord's name but no record that Werkbord created it, so it is treated as yours. Delete it from your terminal if you mean to.", in.Branch)
 		} else {
-			block(domain.BlockNotOwned, "Dev Board did not create %s, so it will not delete it. Delete it from your terminal if you mean to.", in.Branch)
+			block(domain.BlockNotOwned, "Werkbord did not create %s, so it will not delete it. Delete it from your terminal if you mean to.", in.Branch)
 		}
 	}
 	if own.ActiveRun {
@@ -827,7 +827,7 @@ func (s *GitControl) planDelete(ctx context.Context, t *gitCtx, a *gitAssoc, in 
 	for _, e := range entries {
 		if e.Branch == in.Branch {
 			if rec, ok := a.byPath[canonPath(e.Path)]; ok {
-				block(domain.BlockCheckedOut, "%s is checked out in a Dev Board worktree (%s). Clean up the worktree first; the branch stays when it is removed.", in.Branch, rec.ID)
+				block(domain.BlockCheckedOut, "%s is checked out in a Werkbord worktree (%s). Clean up the worktree first; the branch stays when it is removed.", in.Branch, rec.ID)
 			} else {
 				block(domain.BlockCheckedOut, "%s is checked out at %s", in.Branch, e.Path)
 			}
@@ -938,7 +938,7 @@ func (s *GitControl) mergedByPullRequest(ctx context.Context, t *gitCtx, branch,
 	return false
 }
 
-// DeleteBranch deletes a branch Dev Board created, if it is safe to: see planDelete.
+// DeleteBranch deletes a branch Werkbord created, if it is safe to: see planDelete.
 // The deletion is conditional on the branch still being at the commit the user
 // saw, and the result says how to bring it back.
 func (s *GitControl) DeleteBranch(ctx context.Context, projectID string, in DeleteInput) (*domain.GitActionResult, error) {
@@ -1037,7 +1037,7 @@ func (s *GitControl) deleteRemote(ctx context.Context, t *gitCtx, plan *domain.G
 
 // ---- worktrees ----
 
-// CleanInput names a Dev Board worktree to remove. HeadSha is the commit it was at when looked at.
+// CleanInput names a Werkbord worktree to remove. HeadSha is the commit it was at when looked at.
 type CleanInput struct {
 	WorktreeID string
 	HeadSha    string
@@ -1058,7 +1058,7 @@ func (s *GitControl) CleanPlan(ctx context.Context, projectID string, in CleanIn
 }
 
 // planClean is the whole safety check of removing a worktree. Only a directory
-// Dev Board's own records vouch for, that lies inside Dev Board's worktree
+// Werkbord's own records vouch for, that lies inside Werkbord's worktree
 // directory, that Git agrees is a worktree of this repository, with nothing
 // uncommitted in it and no run using it, is ever removed. Removing it never
 // touches its branch.
@@ -1079,9 +1079,9 @@ func (s *GitControl) planClean(ctx context.Context, t *gitCtx, a *gitAssoc, in C
 		block(domain.BlockWorktreeUnknown, "this worktree was already removed")
 		return finish()
 	}
-	// Inside Dev Board's own worktree directory, and not through a symlink.
+	// Inside Werkbord's own worktree directory, and not through a symlink.
 	if s.Worktrees == nil || s.Worktrees.Root == "" || !pathInside(s.Worktrees.Root, rec.Path) {
-		block(domain.BlockWorktreeOutside, "%s is not inside Dev Board's worktree directory, so Dev Board will not delete it", rec.Path)
+		block(domain.BlockWorktreeOutside, "%s is not inside Werkbord's worktree directory, so Werkbord will not delete it", rec.Path)
 		return finish()
 	}
 	if err := requireCanonical(rec.Path); err != nil {
@@ -1108,7 +1108,7 @@ func (s *GitControl) planClean(ctx context.Context, t *gitCtx, a *gitAssoc, in C
 	gone := errors.Is(statErr, os.ErrNotExist)
 	switch {
 	case entry == nil && !gone:
-		block(domain.BlockWorktreeUnknown, "Git does not list %s as a worktree of this repository, so Dev Board will not delete the directory", rec.Path)
+		block(domain.BlockWorktreeUnknown, "Git does not list %s as a worktree of this repository, so Werkbord will not delete the directory", rec.Path)
 		return finish()
 	case entry == nil && gone:
 		plan.Missing = true
@@ -1127,7 +1127,7 @@ func (s *GitControl) planClean(ctx context.Context, t *gitCtx, a *gitAssoc, in C
 		block(domain.BlockWorktreeLocked, "the worktree is locked%s", lockReason(entry.LockReason))
 	}
 	if entry.Detached || entry.Branch != rec.Branch {
-		block(domain.BlockWorktreeChanged, "the worktree was recorded on %s but is not on it any more. Someone changed it outside Dev Board, so it is left alone.", rec.Branch)
+		block(domain.BlockWorktreeChanged, "the worktree was recorded on %s but is not on it any more. Someone changed it outside Werkbord, so it is left alone.", rec.Branch)
 	}
 	tree, err := s.Git.Status(ctx, rec.Path)
 	if err != nil {
@@ -1140,7 +1140,7 @@ func (s *GitControl) planClean(ctx context.Context, t *gitCtx, a *gitAssoc, in C
 		block(domain.BlockOperation, "a %s is unfinished in the worktree", tree.Operation)
 	}
 	if c.Dirty() {
-		block(domain.BlockWorktreeDirty, "the worktree has uncommitted work (%d staged, %d modified, %d untracked, %d in conflict). Removing it would destroy that. Dev Board never does; commit it or discard it yourself.", c.Staged, c.Unstaged, c.Untracked, c.Conflicted)
+		block(domain.BlockWorktreeDirty, "the worktree has uncommitted work (%d staged, %d modified, %d untracked, %d in conflict). Removing it would destroy that. Werkbord never does; commit it or discard it yourself.", c.Staged, c.Unstaged, c.Untracked, c.Conflicted)
 	}
 	if tree.Truncated {
 		block(domain.BlockUnverifiable, "there are too many changes to check")
@@ -1167,7 +1167,7 @@ func pathInside(parent, child string) bool {
 	return child != parent && strings.HasPrefix(child, strings.TrimSuffix(parent, string(filepath.Separator))+string(filepath.Separator))
 }
 
-// CleanWorktree removes a Dev Board worktree directory, if it is safe to: see
+// CleanWorktree removes a Werkbord worktree directory, if it is safe to: see
 // planClean. The branch is kept. The steps follow the worktree records' own
 // order (begin removal, delete, finish), so a crash leaves a record that can be
 // retried and never a directory nobody knows about.

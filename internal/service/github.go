@@ -20,7 +20,7 @@ import (
 // own GitHub account, choosing repositories to add as projects, and telling
 // apart what is already on this computer from what exists only on GitHub.
 //
-// It goes through the user's GitHub CLI (see package github), so Dev Board has no
+// It goes through the user's GitHub CLI (see package github), so Werkbord has no
 // GitHub credential of its own and stores nothing in GitHub. Everything here is
 // optional: without it, projects are added from a path, as before.
 type GitHubSetup struct {
@@ -113,7 +113,7 @@ func (g *GitHubSetup) failed(st GitHubStatus, err error) GitHubStatus {
 	switch ge.Reason {
 	case domain.GHMissing:
 		st.State, st.Message = GitHubMissing, "The GitHub CLI (gh) is not installed."
-		st.Guidance = "Install it from https://cli.github.com (on macOS: brew install gh), then connect. Dev Board does not install it for you, and you can skip GitHub for now."
+		st.Guidance = "Install it from https://cli.github.com (on macOS: brew install gh), then connect. Werkbord does not install it for you, and you can skip GitHub for now."
 	case domain.GHUnauthenticated:
 		st.State = GitHubSignedOut
 	default:
@@ -178,7 +178,7 @@ type RepoChoice struct {
 	// LocalPaths are clones of it found on this computer. Empty means GitHub only:
 	// it would have to be cloned before an agent could work on it.
 	LocalPaths []string `json:"localPaths"`
-	// Project is set when it is already a Dev Board project.
+	// Project is set when it is already a Werkbord project.
 	Project *ProjectRef `json:"project,omitempty"`
 }
 
@@ -315,7 +315,7 @@ type AddResult struct {
 // cloneTimeout bounds a clone: large repositories take minutes, not hours.
 const cloneTimeout = 15 * time.Minute
 
-// Add makes a GitHub repository a Dev Board project. With path, it is the clone
+// Add makes a GitHub repository a Werkbord project. With path, it is the clone
 // the user chose among those found on this computer; without, the repository is
 // cloned first, into the clone directory, using the user's GitHub sign-in.
 // Cloning is the only thing here that writes to disk or talks to GitHub beyond

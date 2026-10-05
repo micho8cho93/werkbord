@@ -12,7 +12,7 @@ import (
 )
 
 // Background runs the controller as a detached process, for a computer with no
-// service manager Dev Board can use, and for `devboard start` before anything has
+// service manager Werkbord can use, and for `werkbord start` before anything has
 // been installed. It does not start at log-in. Its process ID is kept in the data
 // directory so that stop and status find the same process.
 type Background struct{ Options }

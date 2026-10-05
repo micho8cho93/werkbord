@@ -143,7 +143,7 @@ func TestDoctorWhenTheControllerIsNotRunningStillChecksWhatItCan(t *testing.T) {
 	e := newTestEnv(t)
 	e.fakeAgent("codex", fakeCodex)
 	r := e.doctorReport()
-	if c := status(t, r, "controller"); c.Status != doctor.Fail || !strings.Contains(c.Fix, "devboard start") {
+	if c := status(t, r, "controller"); c.Status != doctor.Fail || !strings.Contains(c.Fix, "werkbord start") {
 		t.Fatalf("controller = %+v", c)
 	}
 	if c := status(t, r, "database"); c.Status != doctor.Warn || !strings.Contains(c.Summary, "not created yet") {
@@ -203,7 +203,7 @@ func TestPathCheckCatchesAnAgentTheServiceCannotSee(t *testing.T) {
 	e.app.cfg.Agents = nil                                                                            // the default command names: claude, codex
 	inner := doctor.Report{Checks: []doctor.Check{{ID: "claude-code", Name: "claude-code", Status: doctor.Warn, Summary: "Claude Code is not installed (optional if another agent works)"}}}
 	cs := e.app.pathCheck(inner)
-	if len(cs) != 1 || cs[0].Status != doctor.Warn || !strings.Contains(cs[0].Summary, "your shell finds claude") || !strings.Contains(cs[0].Fix, "devboard setup") {
+	if len(cs) != 1 || cs[0].Status != doctor.Warn || !strings.Contains(cs[0].Summary, "your shell finds claude") || !strings.Contains(cs[0].Fix, "werkbord setup") {
 		t.Fatalf("path check = %+v", cs)
 	}
 	// An agent the shell does not find either gets no extra finding.

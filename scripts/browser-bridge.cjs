@@ -14,7 +14,7 @@ async function api(base, credential, method, path, body) { const r = await fetch
     k = await api(team, token, 'POST', `/api/team/v1/projects/${p.id}/tickets/${k.id}/claim`);
     await api(team, token, 'PUT', `/api/team/v1/projects/${p.id}/tickets/${k.id}/git`, { state: { baseBranch: 'main' } });
     const args = ['handoff', '--server', team, '--project', p.id, '--ticket', k.id, '--runner', local, '--local-project', lp.id];
-    function cli(extra = []) { const r = cp.spawnSync(binary, [...args, ...extra], { encoding: 'utf8', env: { ...process.env, WERKBORD_TEAM_TOKEN: token, DEVBOARD_TOKEN: 'disposable-browser-credential' } }); assert.equal(r.status, 0, r.stderr); return r.stdout; }
+    function cli(extra = []) { const r = cp.spawnSync(binary, [...args, ...extra], { encoding: 'utf8', env: { ...process.env, WERKBORD_TEAM_TOKEN: token, WERKBORD_TOKEN: 'disposable-browser-credential' } }); assert.equal(r.status, 0, r.stderr); return r.stdout; }
     cli();
     let tasks = await api(local, 'disposable-browser-credential', 'GET', `/api/projects/${lp.id}/tasks`);
     let task = tasks.tasks.find(x => x.workBranch === k.branch);

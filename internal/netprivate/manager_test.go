@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -237,17 +239,39 @@ func TestStopClosesEverythingAndStartingAgainWorks(t *testing.T) {
 
 func TestDefaultHostname(t *testing.T) {
 	for in, want := range map[string]string{
-		"Michels-MacBook-Pro.local": "devboard-michels-macbook-pro",
-		"DESKTOP_X1":                "devboard-desktop-x1",
-		"":                          "devboard",
-		"localhost":                 "devboard",
-		"  weird  host!! ":          "devboard-weird-host",
-		strings.Repeat("a", 100):    "devboard-" + strings.Repeat("a", 54),
+		"Michels-MacBook-Pro.local": "werkbord-michels-macbook-pro",
+		"DESKTOP_X1":                "werkbord-desktop-x1",
+		"":                          "werkbord",
+		"localhost":                 "werkbord",
+		"  weird  host!! ":          "werkbord-weird-host",
+		strings.Repeat("a", 100):    "werkbord-" + strings.Repeat("a", 54),
 	} {
 		got := DefaultHostname(in)
 		if got != want || len(got) > 63 {
 			t.Errorf("DefaultHostname(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// A node that joined before the rename keeps its name: a phone opens that address.
+func TestANodeKeepsTheNameItJoinedWith(t *testing.T) {
+	fresh := filepath.Join(t.TempDir(), "tailscale")
+	if got := HostnameFor(fresh, "mac"); got != "werkbord-mac" {
+		t.Fatalf("new node: %s", got)
+	}
+	_ = os.WriteFile(filepath.Join(fresh, "tailscaled.state"), []byte("{}"), 0o600)
+	if got := HostnameFor(fresh, "mac"); got != "werkbord-mac" {
+		t.Fatalf("a new node's name changed once it had state: %s", got)
+	}
+
+	legacy := filepath.Join(t.TempDir(), "tailscale")
+	_ = os.MkdirAll(legacy, 0o700)
+	_ = os.WriteFile(filepath.Join(legacy, "tailscaled.state"), []byte("{}"), 0o600)
+	if got := HostnameFor(legacy, "mac"); got != "devboard-mac" {
+		t.Fatalf("node from before the rename: %s", got)
+	}
+	if got := HostnameFor(legacy, "mac"); got != "devboard-mac" {
+		t.Fatalf("second start: %s", got)
 	}
 }
 

@@ -16,7 +16,15 @@ var _ Manager = (*Schtasks)(nil)
 
 func (s *Schtasks) Name() string { s.fill(); return "task scheduler" }
 
-func (s *Schtasks) taskName() string { return "Devboard" }
+func (s *Schtasks) taskName() string {
+	switch {
+	case s.Legacy():
+		return "Devboard"
+	case s.runner():
+		return "Werkbord runner"
+	}
+	return "Werkbord"
+}
 
 // command is what the task runs: cmd, so that the controller's output can go to
 // a log file, with the data directory in its environment.
@@ -29,7 +37,7 @@ func (s *Schtasks) command(spec Spec) string {
 		inner += ` >> "` + spec.LogFile + `" 2>&1`
 	}
 	if spec.DataDir != "" {
-		inner = `set "DEVBOARD_DATA_DIR=` + spec.DataDir + `" && ` + inner
+		inner = `set "WERKBORD_DATA_DIR=` + spec.DataDir + `" && set "DEVBOARD_DATA_DIR=` + spec.DataDir + `" && ` + inner
 	}
 	return `cmd /c "` + inner + `"`
 }

@@ -50,7 +50,7 @@ func (w *Worker) prepare(ctx context.Context, j runnerwire.Job) (string, string,
 	w.mu.Unlock()
 	if root == "" {
 		if !w.AllowClone || !j.AllowClone || !runnerwire.SafeRemote(j.RemoteURL) {
-			return "", "", "", fmt.Errorf("repository not bound; use devboard runner repo %s <clone>", j.Run.ProjectID)
+			return "", "", "", fmt.Errorf("repository not bound; use werkbord runner repo %s <clone>", j.Run.ProjectID)
 		}
 		root = filepath.Join(w.Dir, "repositories", j.Run.ProjectID)
 		if e := os.MkdirAll(filepath.Dir(root), 0700); e != nil {

@@ -1,6 +1,10 @@
 // Package config loads controller settings. Precedence, lowest to highest:
-// built-in defaults, <data dir>/config.json, DEVBOARD_* environment
+// built-in defaults, <data dir>/config.json, WERKBORD_* environment
 // variables, then command-line flags (applied by the caller).
+//
+// Werkbord was called Dev Board, and its variables DEVBOARD_*. Every DEVBOARD_
+// name is still read, as a fallback for the WERKBORD_ one, so nothing an
+// existing install or script sets stops working.
 package config
 
 import (
@@ -59,20 +63,20 @@ type Config struct {
 
 // NetworkConfig is the user's choices for the private network that lets a phone
 // reach the controller. Whether it is on is normally chosen in the app (and by
-// `devboard setup`); the settings here are for pinning it from outside the app.
+// `werkbord setup`); the settings here are for pinning it from outside the app.
 type NetworkConfig struct {
 	// Enabled, if set, decides whether the private network is on, whatever the app
 	// has stored: true for a headless server that must always join, false to forbid
 	// it. Leave it out to let the app decide.
 	Enabled *bool `json:"enabled,omitempty"`
-	// Hostname is this controller's name on the tailnet. Default: "devboard-" and
+	// Hostname is this controller's name on the tailnet. Default: "werkbord-" and
 	// this computer's name.
 	Hostname string `json:"hostname,omitempty"`
 	// ControlURL is a self-hosted coordination server (Headscale) to use instead
 	// of Tailscale's.
 	ControlURL string `json:"controlUrl,omitempty"`
 	// AuthKey is never read from this file: a key written to disk is a key that
-	// leaks. Set DEVBOARD_TS_AUTHKEY (or TS_AUTHKEY) to sign in without a browser.
+	// leaks. Set WERKBORD_TS_AUTHKEY (or TS_AUTHKEY) to sign in without a browser.
 }
 
 // GitHubConfig is the user's choices for the GitHub integration.
@@ -230,18 +234,49 @@ func Default() Config {
 	}
 }
 
+// Env returns the value of WERKBORD_<name>, else of the older DEVBOARD_<name>,
+// and the variable it came from ("" if neither is set).
+func Env(name string) (value, from string) {
+	for _, prefix := range []string{"WERKBORD_", "DEVBOARD_"} {
+		if v := os.Getenv(prefix + name); v != "" {
+			return v, prefix + name
+		}
+	}
+	return "", ""
+}
+
+// Getenv is Env without saying where the value came from.
+func Getenv(name string) string {
+	v, _ := Env(name)
+	return v
+}
+
 func defaultDataDir() string {
 	if dir, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(dir, "devboard")
+		return DataDirIn(dir)
 	}
-	return ".devboard"
+	return ".werkbord"
+}
+
+// DataDirIn is the data directory under a user configuration directory: werkbord,
+// unless an install from before the rename keeps its data in devboard and there
+// is no werkbord yet, in which case that one is used as it is. Nothing is moved.
+func DataDirIn(configDir string) string {
+	current := filepath.Join(configDir, "werkbord")
+	legacy := filepath.Join(configDir, "devboard")
+	if _, err := os.Stat(current); err != nil {
+		if fi, err := os.Stat(legacy); err == nil && fi.IsDir() {
+			return legacy
+		}
+	}
+	return current
 }
 
 // Load returns defaults overlaid with the config file and environment.
-// DEVBOARD_DATA_DIR is read first because it locates the config file.
+// WERKBORD_DATA_DIR is read first because it locates the config file.
 func Load() (Config, error) {
 	c := Default()
-	if v := os.Getenv("DEVBOARD_DATA_DIR"); v != "" {
+	if v := Getenv("DATA_DIR"); v != "" {
 		c.DataDir = v
 	}
 	if err := c.loadFile(filepath.Join(c.DataDir, "config.json")); err != nil {
@@ -273,32 +308,32 @@ func (c *Config) loadFile(path string) error {
 
 func (c *Config) loadEnv() error {
 	set := func(key string, dst *string) {
-		if v := os.Getenv(key); v != "" {
+		if v := Getenv(key); v != "" {
 			*dst = v
 		}
 	}
-	set("DEVBOARD_ADDR", &c.Addr)
-	set("DEVBOARD_DATA_DIR", &c.DataDir)
-	set("DEVBOARD_LOG_LEVEL", &c.LogLevel)
-	set("DEVBOARD_LOG_FORMAT", &c.LogFormat)
-	set("DEVBOARD_TOKEN", &c.Token)
-	set("DEVBOARD_WORKTREES_DIR", &c.WorktreesDir)
-	set("DEVBOARD_NETWORK_HOSTNAME", &c.Network.Hostname)
-	set("DEVBOARD_NETWORK_CONTROL_URL", &c.Network.ControlURL)
-	if v := os.Getenv("DEVBOARD_NETWORK"); v != "" {
+	set("ADDR", &c.Addr)
+	set("DATA_DIR", &c.DataDir)
+	set("LOG_LEVEL", &c.LogLevel)
+	set("LOG_FORMAT", &c.LogFormat)
+	set("TOKEN", &c.Token)
+	set("WORKTREES_DIR", &c.WorktreesDir)
+	set("NETWORK_HOSTNAME", &c.Network.Hostname)
+	set("NETWORK_CONTROL_URL", &c.Network.ControlURL)
+	if v, from := Env("NETWORK"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
-			return fmt.Errorf("DEVBOARD_NETWORK=%q: want true or false", v)
+			return fmt.Errorf("%s=%q: want true or false", from, v)
 		}
 		c.Network.Enabled = &b
 	}
 	// A security setting must not be guessed at: "off" or "no" could mean
 	// either, so anything that is not a plain boolean is an error rather than
 	// a silent default.
-	if v := os.Getenv("DEVBOARD_REQUIRE_TOKEN"); v != "" {
+	if v, from := Env("REQUIRE_TOKEN"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
-			return fmt.Errorf("DEVBOARD_REQUIRE_TOKEN=%q: want true or false", v)
+			return fmt.Errorf("%s=%q: want true or false", from, v)
 		}
 		c.RequireToken = b
 	}

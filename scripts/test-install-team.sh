@@ -84,7 +84,7 @@ fresh() { rm -rf "$WORK/home"; mkdir -p "$WORK/home"; export HOME="$WORK/home"; 
 fresh
 out=$($SH scripts/install-team.sh 2>&1) || bad "install failed" "$out"
 [ "$("$HOME/.local/bin/werkbord-team" version)" = v9.1.1 ] || bad "the latest Team release (v9.1.1) was not installed" "$out"
-[ ! -e "$HOME/.local/bin/devboard" ] || bad "the individual product was installed"
+[ ! -e "$HOME/.local/bin/werkbord" ] && [ ! -e "$HOME/.local/bin/devboard" ] || bad "the individual product was installed"
 ok "installs the stable Team release, ignoring changelog tags and prereleases"
 
 # 2. a named version, in either spelling

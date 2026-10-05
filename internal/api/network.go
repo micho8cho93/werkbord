@@ -71,7 +71,7 @@ func (s *Server) handleNetworkDisable(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.networkStatus(r.Context()))
 }
 
-// handlePhoneLink returns what a phone needs to open Dev Board signed in: the
+// handlePhoneLink returns what a phone needs to open Werkbord signed in: the
 // controller's private address, and a link that also carries the access token
 // (in the fragment, which a browser never sends to a server), as text and as a QR
 // code. This is the one response that contains the token; it goes only to a client

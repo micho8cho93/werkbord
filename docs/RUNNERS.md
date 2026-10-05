@@ -1,8 +1,8 @@
 # Your machines as runners
 
-Dev Board remains local-first. One controller owns SQLite, project/task metadata, Board,
+Werkbord remains local-first. One controller owns SQLite, project/task metadata, Board,
 Calendar, schedules, Control Center and the web app. Every runner owns its local agent
-processes, credentials, Git clones and worktrees. The controller is also a runner. Dev Board
+processes, credentials, Git clones and worktrees. The controller is also a runner. Werkbord
 operates no hosted orchestration service; V1 connects one user's machines.
 
 ## Pair a machine
@@ -10,9 +10,9 @@ operates no hosted orchestration service; V1 connects one user's machines.
 1. Connect the controller's private network in Settings.
 2. In Settings → Runners, choose **Add runner**, select the projects this machine may execute,
    and generate a code. Enable cloning only if you want the runner to clone those configured origins.
-3. Install the same Dev Board release on the other machine. The normal installer sets up a local
-   controller too; you may stop that controller with `devboard stop` if you only need a runner.
-4. Paste the generated `devboard join <code>` command. Sign in to the same private network when
+3. Install the same Werkbord release on the other machine. The normal installer sets up a local
+   controller too; you may stop that controller with `werkbord stop` if you only need a runner.
+4. Paste the generated `werkbord join <code>` command. Sign in to the same private network when
    the browser opens. No configuration-file edits are needed.
 
 Joining installs a separate runner login service. `--foreground` runs it in your terminal instead.
@@ -31,7 +31,7 @@ New remote runners begin with automatic routing off and capacity one.
 Bind an existing clone on the runner:
 
 ```sh
-devboard runner repo <project-id> /absolute/path/to/clone
+werkbord runner repo <project-id> /absolute/path/to/clone
 ```
 
 Project IDs appear in the runner's management details. Bindings are reloaded on the next heartbeat.
@@ -48,7 +48,7 @@ Uncommitted work is retained on its owning machine. To change machines, commit a
 branch first, and keep its runner connected so it can report the clean worktree and updated commit.
 The runner periodically reports changes to retained worktrees after execution ends. Unknown or dirty
 worktree state blocks a machine change. Returning to the controller creates a new worktree from the
-published runner branch; it never silently reuses an older local task checkout. Dev Board does not
+published runner branch; it never silently reuses an older local task checkout. Werkbord does not
 commit or push automatically.
 
 Remote worktrees remain on their runner. Commit and push there using your local Git tools, then
@@ -100,9 +100,9 @@ between launch and recording its process identity, the run remains uncertain. In
 ensure no processes remain, stop the runner service, then explicitly resolve:
 
 ```sh
-devboard runner stop
-devboard runner resolve <run-id> --confirm-stopped
-devboard runner start
+werkbord runner stop
+werkbord runner resolve <run-id> --confirm-stopped
+werkbord runner start
 ```
 
 The next heartbeat reports the failure and releases ownership. A rejected run is isolated from
@@ -118,13 +118,13 @@ Disabling a runner or revoking project access queues stops; ordinary removal sti
 runs to end. History is retained. Local disable prevents new launches.
 
 Controller and runner must both use protocol 1 (Werkbord 0.9.0). Upgrade idle services together;
-legacy jobs with unknown acceptance require owner recovery. `devboard update` restarts an already
+legacy jobs with unknown acceptance require owner recovery. `werkbord update` restarts an already
 running runner service after a successful binary replacement. A version/protocol mismatch or clock
-skew is an actionable sync error; `devboard runner status` exposes the last connection error, and
+skew is an actionable sync error; `werkbord runner status` exposes the last connection error, and
 Settings displays runner recovery diagnostics. Clone preparation allows eight minutes, fetch two,
 and total preparation ten; progress appears in the run output. Leases use a monotonic clock.
 
-Useful commands: `devboard runner start`, `stop`, `status`, and `serve`. Runner state is in
+Useful commands: `werkbord runner start`, `stop`, `status`, and `serve`. Runner state is in
 `<data-dir>/runner`, separate from controller SQLite and services. Settings allows rename, capacity,
 automatic-routing opt-in, project/clone permissions, disable/remove and inspection of diagnostics,
 OS/architecture, CPU, RAM, storage, agent versions and last heartbeat.

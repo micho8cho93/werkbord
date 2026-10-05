@@ -55,7 +55,7 @@
   }
   async function copy() {
     if (!pairing || expired) return;
-    try { await navigator.clipboard.writeText(`devboard join ${pairing.code}${pairing.allowClone ? ' --allow-clone' : ''}`); copied = true; }
+    try { await navigator.clipboard.writeText(`werkbord join ${pairing.code}${pairing.allowClone ? ' --allow-clone' : ''}`); copied = true; }
     catch { error = 'Select the join command and copy it manually.'; }
   }
 </script>
@@ -75,9 +75,9 @@
       <button class="btn primary" disabled={!!busy || !projects.length} onclick={pair}>{busy === 'pair' ? 'Generating…' : 'Generate pairing code'}</button>
       {#if pairing}
         <label for="runner-join">Run on the other machine</label>
-        <textarea id="runner-join" class="input" rows="3" readonly value={`devboard join ${pairing.code}${pairing.allowClone ? ' --allow-clone' : ''}`}></textarea>
+        <textarea id="runner-join" class="input" rows="3" readonly value={`werkbord join ${pairing.code}${pairing.allowClone ? ' --allow-clone' : ''}`}></textarea>
         <div class="heading"><span role="status" class="muted">{expired ? 'Expired. Generate a new code.' : `Expires at ${new Date(pairing.expiresAt).toLocaleTimeString()}`}</span><button class="btn small" disabled={expired} onclick={copy}>{copied ? 'Copied' : 'Copy command'}</button></div>
-        <p class="muted">For an existing clone, run <code>devboard runner repo &lt;project-id&gt; &lt;clone-path&gt;</code>. Project IDs appear below.</p>
+        <p class="muted">For an existing clone, run <code>werkbord runner repo &lt;project-id&gt; &lt;clone-path&gt;</code>. Project IDs appear below.</p>
       {/if}
     </div>
   {/if}

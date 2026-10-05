@@ -1,6 +1,6 @@
 # Two products live in this repository (see docs/PRODUCTS.md):
 #
-#   werkbord        the individual product       cmd/devboard        make build   (the default product)
+#   werkbord        the individual product       cmd/werkbord        make build   (the default product)
 #   werkbord-team   the Team product             cmd/werkbord-team   make build-team
 #
 # Each has its own VERSION file, executable, release archives and release tag
@@ -16,7 +16,7 @@ WERKBORD_VERSION      = $(shell scripts/product.sh werkbord build-version)
 WERKBORD_TEAM_VERSION = $(shell scripts/product.sh werkbord-team build-version)
 LDFLAGS      = -X main.version=$(WERKBORD_VERSION)
 TEAM_LDFLAGS = -X main.version=$(WERKBORD_TEAM_VERSION)
-BIN      := bin/devboard
+BIN      := bin/werkbord
 TEAM_BIN := bin/werkbord-team
 
 .PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team \
@@ -42,7 +42,7 @@ web-embed:
 	rsync -a --delete --exclude .gitkeep web/dist/ internal/webui/dist/
 
 go-build:
-	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/devboard
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/werkbord
 
 ## build-team (= werkbord-team): the Team product. It needs no Node and no web build.
 build-team:
@@ -86,7 +86,7 @@ verify-isolation:
 
 ## dev-api / dev-web: run the controller and the Vite dev server (two terminals)
 dev-api:
-	$(GO) run ./cmd/devboard serve --log-level debug
+	$(GO) run ./cmd/werkbord serve --log-level debug
 
 dev-web: web/node_modules
 	cd web && $(NPM) run dev -- --host 127.0.0.1

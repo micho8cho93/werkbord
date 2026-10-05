@@ -1,6 +1,6 @@
-# Devboard architecture
+# Werkbord architecture
 
-Devboard is a **local-first control plane for coding agents**. One program, the
+Werkbord is a **local-first control plane for coding agents**. One program, the
 controller, runs on your computer. It owns SQLite, the board, calendar, scheduler and
 user-facing application. Local or paired runners own their agent processes, Git clones,
 worktrees and credentials. Phones, tablets and browsers
@@ -22,7 +22,7 @@ questions (§15), projects as the scope of the application (§16), per-task exec
  Phone / tablet / desktop browser (installable PWA, Svelte + TypeScript)
         │  HTTP JSON  +  Server-Sent Events (/api/events)
         ▼
-┌──────────────────────── devboard controller (one Go process) ───────────────────────┐
+┌──────────────────────── werkbord controller (one Go process) ───────────────────────┐
 │                                                                                       │
 │  api ──────────▶ service ──────────▶ store (interfaces) ──▶ store/sqlite ──▶ devboard.db
 │  (HTTP, SSE,      (use cases,          ▲                                              │
@@ -37,7 +37,7 @@ questions (§15), projects as the scope of the application (§16), per-task exec
 └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The controller is a **modular monolith**: one binary (`bin/devboard`), one SQLite file,
+The controller is a **modular monolith**: one binary (`bin/werkbord`), one SQLite file,
 with package boundaries doing the job that service boundaries would do in a distributed
 system. No Docker, no Electron, no second language on the backend.
 
@@ -62,7 +62,7 @@ system. No Docker, no Electron, no second language on the backend.
 | `internal/webui` | Serving the embedded PWA build | stdlib | — |
 | `internal/controller` | Wiring and lifecycle | everything | — |
 | `internal/config`, `internal/logging` | Settings and the slog logger | stdlib | — |
-| `cmd/devboard` | CLI entry point (`serve`, `migrate`, `project add/list`, `version`) | `controller`, `config` | Write the database while a controller runs |
+| `cmd/werkbord` | CLI entry point (`serve`, `migrate`, `project add/list`, `version`) | `controller`, `config` | Write the database while a controller runs |
 | `web/` | The PWA | the HTTP API only | — |
 
 ### The four replaceable interfaces
@@ -186,9 +186,9 @@ snapshot is left untouched, so a project never silently starts describing anothe
 
 ## 5. Controller lifecycle
 
-`devboard serve` → `controller.Run`:
+`werkbord serve` → `controller.Run`:
 
-1. **Load config**: defaults → `<dataDir>/config.json` → `DEVBOARD_*` env → flags.
+1. **Load config**: defaults → `<dataDir>/config.json` → `WERKBORD_*` env (or the older `DEVBOARD_*`) → flags.
 2. **Lock the data directory** with an exclusive `flock` on `controller.lock`. A second
    controller on the same data dir fails fast. The OS releases the lock if the process dies.
 3. **Open SQLite and migrate** (see §6). A database from a newer build is refused.
@@ -216,12 +216,13 @@ If any startup step fails, everything already started is torn down in reverse or
 
 ## 6. Database ownership
 
-- **The controller is the only writer.** CLI commands such as `devboard project add`
+- **The controller is the only writer.** CLI commands such as `werkbord project add`
   are HTTP clients of the running controller, so every change goes through services,
-  validation and the event log. `devboard migrate` is the one offline command, and it
+  validation and the event log. `werkbord migrate` is the one offline command, and it
   is guarded by the same migration code.
-- Location: `<dataDir>/devboard.db` (default `~/Library/Application Support/devboard` on
-  macOS, `~/.config/devboard` on Linux). Directory 0700, file 0600.
+- Location: `<dataDir>/devboard.db` (default `~/Library/Application Support/werkbord` on
+  macOS, `~/.config/werkbord` on Linux; an install from before the rename keeps `…/devboard`). The file keeps
+  its name. Directory 0700, file 0600.
 - Driver: `modernc.org/sqlite` (pure Go, so builds need no C toolchain). WAL mode,
   `synchronous=FULL` on the writer (a committed transaction survives a power cut; with
   `NORMAL` it could roll back, and a record written before a directory is created or after
@@ -325,7 +326,7 @@ override the user's own `~/.codex/config.toml`. Policy instructions go in `devel
 `thread/start` and `thread/resume`.
 
 Both were checked against the installed CLIs (Claude Code 2.1, Codex 0.155): Codex's generated
-protocol schema, and `internal/agent/live`, an opt-in test (`DEVBOARD_LIVE_AGENTS=1`) that runs
+protocol schema, and `internal/agent/live`, an opt-in test (`WERKBORD_LIVE_AGENTS=1`) that runs
 the real agents through round trips, approvals and resume. The default tests use scripted fakes
 that speak the same protocols.
 
@@ -417,7 +418,7 @@ the HTTP API is treated as a remote-execution surface from day one.
 - **A token is required by default, on loopback too** (`requireToken: true`). A loopback port
   is open to every program on the computer, including other users' and anything running
   inside a browser, and the API can start processes as you; being "local" is not an identity.
-  The token lives in `<dataDir>/token` (0600) and `devboard token` prints it (`--url` prints
+  The token lives in `<dataDir>/token` (0600) and `werkbord token` prints it (`--url` prints
   a link that signs a browser in). The PWA accepts it once via `/#token=…` or a prompt and
   keeps it in `localStorage`; `EventSource` cannot send headers, so the token is accepted as
   `?access_token=` on `/api/events` only. Query strings are never logged. `/api/health` and the
@@ -425,11 +426,11 @@ the HTTP API is treated as a remote-execution surface from day one.
   - Because the token is the defence, the `Host` allowlist below is not applied. A DNS-rebinding
     page can send any `Host` it likes, but it runs on another origin and cannot read this
     origin's token (a test covers it).
-- **Opting out** (`requireToken: false`, `DEVBOARD_REQUIRE_TOKEN=false`, `--require-token=false`)
+- **Opting out** (`requireToken: false`, `WERKBORD_REQUIRE_TOKEN=false`, `--require-token=false`)
   is for people who accept that any local program may use the API. It applies **only** to a
   loopback address: binding to any other address always requires the token, whatever the
   setting says. The controller logs a warning at every start while it is off, and a
-  `DEVBOARD_REQUIRE_TOKEN` that is not `true` or `false` is an error rather than a guess. With
+  `WERKBORD_REQUIRE_TOKEN` that is not `true` or `false` is an error rather than a guess. With
   the token off, these protections apply instead:
   - requests whose `Host` is not `localhost`, `*.localhost`, a loopback IP or a configured
     `allowedHosts` entry are rejected (DNS-rebinding defence);
@@ -509,7 +510,7 @@ the HTTP API is treated as a remote-execution surface from day one.
   agent list are folded away. The badge counts questions, blocked and failed runs, runs waiting for a message and
   repositories at risk, not finished work or ordinary findings.
 - `src/lib/health.ts` holds the logic of the Git screen's *Repository health* card (severity wording, grouping, and
-  what each recommended action does: only an action Dev Board `canPerform` becomes a button, and the buttons that
+  what each recommended action does: only an action Werkbord `canPerform` becomes a button, and the buttons that
   change the repository open the existing confirmation sheets).
 - `src/lib/feed.ts`, `format.ts`, `policy.ts`, `projects.ts` and `location.ts` hold the logic that turns events
   into the feed, run data into labels, and addresses into pages; they are framework-free and unit-tested with
@@ -531,7 +532,7 @@ the HTTP API is treated as a remote-execution surface from day one.
 | Task permissions | What an agent may do to the filesystem, Git or network, per task | `ExecutionPolicy` is a struct stored as JSON on tasks and runs, so fields can be added without a migration (§17) |
 | Interrupting an agent | Forcing a turn to stop (Claude `interrupt`, Codex `turn/interrupt`); today a blocked run's agent is *told* to stop and the controller records and shows the block either way | `agent.Session` |
 | Notifications | Web Push for "needs you" | Event log + SSE |
-| Pairing UX | QR code for phones | Token file, `devboard token [--url]`, `/#token=` adoption |
+| Pairing UX | QR code for phones | Token file, `werkbord token [--url]`, `/#token=` adoption |
 | Multi-user / accounts | None in this product, by design. Teams use **Werkbord Team**, a separate product that coordinates people and never executes anything ([TEAM.md](TEAM.md)) | — |
 | Windows | Data-dir locking is a no-op on non-Unix | `lock_other.go` |
 | Event log retention | Compaction or pruning | `seq`-based resume makes it safe to add |
@@ -714,7 +715,7 @@ as fields in V1 without a migration. Today it has one field:
 | --- | --- | --- |
 | `interactive` (default; "Ask me when needed") | The agent may ask. | Unchanged: asks → the run is `waiting_for_user` → the question is persisted → the user answers → the same session continues. No instructions are added. |
 | `autonomous` ("Work autonomously") | No routine questions. | The agent is told to investigate the repository itself, decide, and carry on until it considers the task done. If it asks an ordinary question anyway, the controller **answers for the user** with a reply telling it to decide for itself, records the question as answered by the policy, and the run keeps working. |
-| `autonomous_stop_if_blocked` | As above, but never guess. | As above, plus the agent is told that when it reaches a decision it cannot safely infer it must stop and end its turn with a one-line `DEVBOARD_BLOCKED {…}` report. If it asks a question instead, the controller does not put it to the user: the run becomes **`blocked`** with a persisted, structured `Blocker`, and the agent is told to stop. |
+| `autonomous_stop_if_blocked` | As above, but never guess. | As above, plus the agent is told that when it reaches a decision it cannot safely infer it must stop and end its turn with a one-line `WERKBORD_BLOCKED {…}` report. If it asks a question instead, the controller does not put it to the user: the run becomes **`blocked`** with a persisted, structured `Blocker`, and the agent is told to stop. |
 
 **One place.** `internal/agent/policy.go` is the only code that knows what a policy means: `Instructions(policy)`
 (the text), `HandleQuestion` (what the controller does with a question) and `ParseBlocker` (reading a report).
@@ -767,9 +768,9 @@ web (Git screens)  ──▶  api/git.go  ──▶  service.GitControl  ──�
   pull requests are a separate call that can fail without affecting the rest. An action's result reports its
   *local effect* and the *remote's confirmation* separately, and a push, a pull request or a remote deletion is
   only reported done after the remote itself was asked and agreed.
-- **Ownership.** A branch is Dev Board's only if its name is under `devboard/` *and* a worktree record of the
+- **Ownership.** A branch is Werkbord's only if its name is under `devboard/` *and* a worktree record of the
   project names exactly that branch. Only such branches are ever deleted, and only after proving nothing
-  unmerged would be lost; only directories Dev Board's records name, inside its own worktree directory, that
+  unmerged would be lost; only directories Werkbord's records name, inside its own worktree directory, that
   Git lists as worktrees and that hold nothing uncommitted, are ever removed.
 - **Actions** (fetch, push, merge, delete, clean a worktree, open a pull request) each run under one lock per
   project and in four steps: look again, compare with the commit IDs the user was looking at, check every
@@ -784,7 +785,7 @@ web (Git screens)  ──▶  api/git.go  ──▶  service.GitControl  ──�
   `git.pull_request_created` are events like any other, written only for what happened; the web app refetches
   Git when they, or a task, run or worktree event, arrive. `git.health_changed` (§19) is the one Git event that is
   not an action: it announces that a project's open health findings changed.
-- **Phone first.** The screens drill down: overview (repository summary, branches that need you with Dev Board's
+- **Phone first.** The screens drill down: overview (repository summary, branches that need you with Werkbord's
   on top, pull requests, recent commits, working changes, worktrees, all branches) → a branch (state, actions,
   commits, changed files) → a file's diff, a window at a time. The address says which screen
   (`#/p/<id>/git/branch/local/<name>/file?path=…`), so Back, reload and shared links work. Review, Merge, Push
@@ -809,7 +810,7 @@ web "Check now" / old report ─▶ api/githealth.go ─▶ GitHealth.Refresh �
 
 - **Pure rules over gathered facts.** `domain.EvaluateHealth(HealthInput)` runs no Git and reads no file, so each rule is
   tested with a hand-built input. `service.GitHealth` gathers the facts: the Git overview (which already joins
-  branches with tasks, runs and worktree records), the records, an in-memory merge per unmerged Dev Board branch (to
+  branches with tasks, runs and worktree records), the records, an in-memory merge per unmerged Werkbord branch (to
   recognise a squash merge by content), file lists and in-memory merges for overlapping branches, and the age of
   `index.lock`.
 - **Deterministic vs heuristic is a field**, not a vibe: each finding carries its `basis`, the screen shows it, and
@@ -824,8 +825,8 @@ web "Check now" / old report ─▶ api/githealth.go ─▶ GitHealth.Refresh �
   report older than two minutes, and once at start: never on a timer. It publishes `git.health_changed` only when
   the set of open findings changed. Tests check the repository is byte-for-byte unchanged and that the network
   and any model are never used.
-- **Never acts.** Each finding recommends an action and says whether Dev Board `canPerform` it. A button opens the
-  existing confirmation sheet; destructive steps are flagged; steps Dev Board refuses to do (pull, rebase,
+- **Never acts.** Each finding recommends an action and says whether Werkbord `canPerform` it. A button opens the
+  existing confirmation sheet; destructive steps are flagged; steps Werkbord refuses to do (pull, rebase,
   resolving conflicts) say so and say what to do. "Create task" and "Ask an agent to investigate" only add a
   prefilled card to the board.
 - **Quiet by design.** An agent with a live session is never flagged; finished, pushed work waiting for review is
@@ -840,13 +841,13 @@ web "Check now" / old report ─▶ api/githealth.go ─▶ GitHealth.Refresh �
 ## 20. Install, private network and execution defaults
 
 **One command to a working system.** `scripts/install.sh` downloads a release, verifies its checksum and runs
-`devboard setup`, which prepares the data directory, token and database, installs the controller as a *user*
+`werkbord setup`, which prepares the data directory, token and database, installs the controller as a *user*
 service (`internal/daemon`: launchd, a systemd user unit, a scheduled task, or a detached process where none
 exists), starts it, and shows that this computer is registered as the first runner. `start`, `stop`, `restart`,
 `status` and `open` manage the one controller the service owns: before starting anything they ask the controller
 whether it is already answering, so a controller started by hand is never duplicated. The service is given the
 `PATH` setup ran with, because agents are found through it. The database is copied before any migration that has
-something to change (`<data dir>/backups`, newest five kept), and `devboard update` verifies a download, runs it
+something to change (`<data dir>/backups`, newest five kept), and `werkbord update` verifies a download, runs it
 once to confirm its version, replaces the executable atomically, restarts the controller, and restores the old
 executable if the new one does not come up.
 
@@ -872,7 +873,7 @@ the token in the URL fragment.
 reach, and which of them already exist on this computer. The local search reads `.git/config` of repositories under
 the usual code directories (no git, no network); *on this computer* (access to a clone) and *GitHub only* (metadata)
 are separate fields. Adding a GitHub-only repository clones it with git using `gh auth git-credential` as a
-credential helper for that command only, and sets the same helper on that clone only. Dev Board stores nothing
+credential helper for that command only, and sets the same helper on that clone only. Werkbord stores nothing
 about itself in GitHub and never holds a GitHub credential.
 
 **Execution defaults** (`domain.ExecutionConfig`, `ResolveExecution`). Agent, model, reasoning, interaction and
@@ -919,7 +920,7 @@ a replica of controller SQLite. It fetches authorized repository origins, create
 starts local adapters and journals observations before retransmission. Ordered observations and
 commands survive network interruptions. A new job cannot relaunch a journaled run after restart.
 
-`devboard join` embeds a separate private-network node and installs a separately named runner login
+`werkbord join` embeds a separate private-network node and installs a separately named runner login
 service. Agent and Git authentication stay on the machine that executes. Runner keys have no access
 to board CRUD, project administration or any owner endpoint. These machines belong to one user;
 this is not a team or multi-user service. See [RUNNERS.md](RUNNERS.md) for the operational and security contract.

@@ -132,7 +132,7 @@ func (s *Runners) Join(ctx context.Context, in runnerwire.Join) (*domain.Runner,
 		}
 		for _, r := range existing {
 			if r.PublicKey == in.PublicKey {
-				return fmt.Errorf("%w: runner identity already paired; use devboard runner", domain.ErrDuplicate)
+				return fmt.Errorf("%w: runner identity already paired; use werkbord runner", domain.ErrDuplicate)
 			}
 		}
 		// New devices cannot automatically receive work until the owner enables it.

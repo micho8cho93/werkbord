@@ -286,7 +286,7 @@ func TestRunDispatchesTheNewCommands(t *testing.T) {
 	newTestEnv(t)
 	for _, tc := range []struct{ args []string }{{[]string{"start", "extra"}}, {[]string{"stop", "x"}}, {[]string{"restart", "x"}}, {[]string{"uninstall", "x"}}} {
 		var out, errOut bytes.Buffer
-		if err := run(tc.args, &out, &errOut); err == nil || !strings.Contains(err.Error(), "usage: devboard "+tc.args[0]) {
+		if err := run(tc.args, &out, &errOut); err == nil || !strings.Contains(err.Error(), "usage: werkbord "+tc.args[0]) {
 			t.Errorf("%v: err = %v", tc.args, err)
 		}
 	}

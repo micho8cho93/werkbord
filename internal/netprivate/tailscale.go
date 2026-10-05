@@ -24,7 +24,7 @@ type TailscaleOptions struct {
 	Hostname string
 	// AuthKey, if set, signs the node in without a browser: for headless
 	// computers, where the user made a key in their Tailscale admin console. It
-	// is only read from the environment, never stored by Dev Board.
+	// is only read from the environment, never stored by Werkbord.
 	AuthKey string
 	// ControlURL points at a self-hosted coordination server (Headscale) instead
 	// of Tailscale's own. Empty means Tailscale's.
@@ -49,7 +49,7 @@ func (b *tsBackend) Start(context.Context) error {
 		return fmt.Errorf("create %s: %w", b.opt.Dir, err)
 	}
 	// Tailscale's client uploads diagnostic logs to Tailscale unless told not to.
-	// Dev Board's stance is that nothing leaves this computer that the user did not
+	// Werkbord's stance is that nothing leaves this computer that the user did not
 	// choose, so they are off, unless the user has set the variable themselves.
 	if _, set := os.LookupEnv("TS_NO_LOGS_NO_SUPPORT"); !set {
 		envknob.SetNoLogsNoSupport()
@@ -119,12 +119,38 @@ func (b *tsBackend) Close() error {
 var nonHostname = regexp.MustCompile(`[^a-z0-9]+`)
 
 // DefaultHostname is the node's name on the tailnet when the user did not pick
-// one: "devboard-" and this computer's name, so several computers each get their
+// one: "werkbord-" and this computer's name, so several computers each get their
 // own and the name says what it is.
-func DefaultHostname(machine string) string {
+func DefaultHostname(machine string) string { return hostnameWith("werkbord", machine) }
+
+// nameRecord is the file in a node's state directory that says which prefix its
+// name was given, so that it is never changed under it.
+const nameRecord = "werkbord-name"
+
+// HostnameFor is the default name of the node whose state is kept in stateDir.
+// A node that joined the tailnet before Werkbord was renamed from Dev Board keeps
+// "devboard-…": its address is what a phone, and the app installed on it, open.
+// A new node is "werkbord-…". The choice is recorded beside the node's state.
+func HostnameFor(stateDir, machine string) string {
+	if b, err := os.ReadFile(filepath.Join(stateDir, nameRecord)); err == nil {
+		if prefix := strings.TrimSpace(string(b)); prefix == "werkbord" || prefix == "devboard" {
+			return hostnameWith(prefix, machine)
+		}
+	}
+	prefix := "werkbord"
+	if entries, err := os.ReadDir(stateDir); err == nil && len(entries) > 0 {
+		prefix = "devboard" // state from before the rename, which had no record
+	}
+	if err := os.MkdirAll(stateDir, 0o700); err == nil {
+		_ = os.WriteFile(filepath.Join(stateDir, nameRecord), []byte(prefix+"\n"), 0o600)
+	}
+	return hostnameWith(prefix, machine)
+}
+
+func hostnameWith(prefix, machine string) string {
 	machine = strings.TrimSuffix(strings.ToLower(machine), ".local")
 	machine = strings.Trim(nonHostname.ReplaceAllString(machine, "-"), "-")
-	name := "devboard"
+	name := prefix
 	if machine != "" && machine != "localhost" {
 		name += "-" + machine
 	}
@@ -134,7 +160,7 @@ func DefaultHostname(machine string) string {
 	return name
 }
 
-// StateDir is where the node's state lives under a Dev Board data directory.
+// StateDir is where the node's state lives under a Werkbord data directory.
 func StateDir(dataDir string) string { return filepath.Join(dataDir, "tailscale") }
 
 // Dial reaches a controller from an embedded runner node without a system VPN.

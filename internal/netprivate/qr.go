@@ -8,7 +8,7 @@ import (
 )
 
 // QRSVG renders s as a QR code in SVG, for the app to show: a phone scans it to
-// open Dev Board. It is vector, so it stays sharp at any size, and carries
+// open Werkbord. It is vector, so it stays sharp at any size, and carries
 // nothing but the encoded text.
 func QRSVG(s string) (string, error) {
 	q, err := qrcode.New(s, qrcode.Medium)

@@ -38,7 +38,7 @@ type Options struct {
 	// Doctor runs the health checks with the controller's live parts; nil disables /api/doctor.
 	Doctor func(context.Context) doctor.Report
 	// PrivateToken is the access token a phone presents on the private network. It
-	// is put in the link and QR code that open Dev Board there, and nowhere else.
+	// is put in the link and QR code that open Werkbord there, and nowhere else.
 	PrivateToken string
 	Store        store.Store       // for health checks and event replay
 	Events       events.Subscriber // live event source

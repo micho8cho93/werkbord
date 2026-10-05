@@ -110,7 +110,7 @@ func newGC(t *testing.T) *gcFixture {
 	return &gcFixture{fixture: f, gc: gc, git: g, repo: repo, remote: remote, wtRoot: wtRoot, project: p, wts: wts, ctx: ctx}
 }
 
-// agentBranch is what a finished agent run leaves: a task, a Dev Board worktree
+// agentBranch is what a finished agent run leaves: a task, a Werkbord worktree
 // with its record, a branch of the right name, a run that used it.
 type agentBranch struct {
 	task   *domain.Task
@@ -120,7 +120,7 @@ type agentBranch struct {
 	path   string
 }
 
-// agent makes a Dev Board branch for a new task, with n commits on it. The run is
+// agent makes a Werkbord branch for a new task, with n commits on it. The run is
 // left finished (completed) and the task in Review, as after a normal run.
 func (f *gcFixture) agent(t *testing.T, title string, n int) *agentBranch {
 	t.Helper()
@@ -312,7 +312,7 @@ func TestLocalAheadBehindAndDivergenceAgainstUpstreamAndTarget(t *testing.T) {
 		t.Errorf("not pushed = %+v", o.Remote.Sync.NotPushed)
 	}
 
-	// A Dev Board branch cut from the old main is diverged from the target, and
+	// A Werkbord branch cut from the old main is diverged from the target, and
 	// one that has not diverged is merely ahead.
 	oldMain := gitOut(t, f.repo, "rev-parse", "main~1")
 	a := f.agent(t, "Diverging", 1)
@@ -323,11 +323,11 @@ func TestLocalAheadBehindAndDivergenceAgainstUpstreamAndTarget(t *testing.T) {
 	if b.VsTarget.Relation != domain.RelDiverged || b.VsTarget.Ahead != 1 || b.VsTarget.Behind != 1 {
 		t.Errorf("diverging branch = %+v", b.VsTarget)
 	}
-	// Finished work of Dev Board's own is to be reviewed even though the target moved on...
+	// Finished work of Werkbord's own is to be reviewed even though the target moved on...
 	if !hasAttention(b, domain.AttentionReview) || hasAttention(b, domain.AttentionDiverged) || !strings.Contains(b.Attention[0].Message, "moved on by 1") {
 		t.Errorf("attention = %+v", b.Attention)
 	}
-	// ...but a diverged branch that is not Dev Board's is only flagged as diverged.
+	// ...but a diverged branch that is not Werkbord's is only flagged as diverged.
 	git(t, f.repo, "branch", "users-diverged", oldMain)
 	git(t, f.repo, "checkout", "-q", "users-diverged")
 	commitIn(t, f.repo, "u.txt", "u\n", "user work")
@@ -356,7 +356,7 @@ func TestBranchStatesMergedAheadUpstreamAndOwnership(t *testing.T) {
 	empty := f.agent(t, "Nothing yet", 0)
 	git(t, ahead.path, "push", "-q", "-u", "origin", ahead.branch)
 	commitIn(t, ahead.path, "more.txt", "m\n", "unpushed follow-up")
-	// A branch of the user's own, and one that only has Dev Board's name.
+	// A branch of the user's own, and one that only has Werkbord's name.
 	git(t, f.repo, "branch", "my-experiment", "main")
 	git(t, f.repo, "branch", "devboard/impostor-000000", "main")
 
@@ -401,10 +401,10 @@ func TestBranchStatesMergedAheadUpstreamAndOwnership(t *testing.T) {
 	}
 	imp := mustBranch(t, o, "devboard/impostor-000000")
 	if imp.DevBoard.Created || !imp.DevBoard.Namespace {
-		t.Errorf("a branch that only has the name = %+v: a name alone must not count as created by Dev Board", imp.DevBoard)
+		t.Errorf("a branch that only has the name = %+v: a name alone must not count as created by Werkbord", imp.DevBoard)
 	}
 
-	// Dev Board's branches come first, and the merged one sorts with its cleanup reason.
+	// Werkbord's branches come first, and the merged one sorts with its cleanup reason.
 	var firstNonOwned int = -1
 	for i, b := range o.Branches {
 		if !b.DevBoard.Created && firstNonOwned < 0 {
@@ -938,7 +938,7 @@ func TestPullRequestsAreAskedSeparatelyAndJoinedToTasks(t *testing.T) {
 		t.Errorf("pr = %+v", pr)
 	}
 	if other := st.PullRequests[1]; other.TaskID != "" || other.State != "merged" {
-		t.Errorf("a pull request from a branch Dev Board does not know is unassociated: %+v", other)
+		t.Errorf("a pull request from a branch Werkbord does not know is unassociated: %+v", other)
 	}
 	if !strings.Contains(gh.calls(t), "-R acme/app") {
 		t.Errorf("gh calls: %s", gh.calls(t))

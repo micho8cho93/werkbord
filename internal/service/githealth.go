@@ -22,7 +22,7 @@ import (
 //
 // It is built to be cheap and to stay out of the way:
 //
-//   - It uses Git metadata and Dev Board's own records, and nothing else. It never
+//   - It uses Git metadata and Werkbord's own records, and nothing else. It never
 //     calls a model, never touches the network, and never changes the repository
 //     (the one thing it writes into Git is the unreferenced objects of an
 //     in-memory merge, as the merge check does).
@@ -30,7 +30,7 @@ import (
 //     happens (a run changes state, a task moves, a worktree appears or goes, any
 //     Git action finishes), after a short quiet period so a burst of events costs
 //     one calculation; when a person asks; and when a screen asks for a report
-//     whose last calculation is a few minutes old. Changes made outside Dev Board,
+//     whose last calculation is a few minutes old. Changes made outside Werkbord,
 //     in a terminal, are picked up by the last two.
 //   - It never acts. A finding recommends a next step; the person takes it, through
 //     the same guarded operations as everywhere else.
@@ -200,7 +200,7 @@ func (h *GitHealth) setDirty(projectID string, v bool) {
 }
 
 // Refresh recalculates a project's health now, whatever was stored, and stores
-// the result. It reads Git and Dev Board's records, runs the rules and keeps the
+// the result. It reads Git and Werkbord's records, runs the rules and keeps the
 // findings' lives (see domain.ReconcileHealth). It is the explicit refresh.
 func (h *GitHealth) Refresh(ctx context.Context, projectID string) (*domain.HealthReport, error) {
 	unlock, err := h.lock(ctx, projectID)
@@ -340,7 +340,7 @@ func (h *GitHealth) setDismissed(ctx context.Context, projectID, id string, dism
 // ---- gathering the facts ----
 
 // input gathers what the rules look at. Everything here is a read of Git metadata
-// or of Dev Board's records.
+// or of Werkbord's records.
 func (h *GitHealth) input(ctx context.Context, t *gitCtx, a *gitAssoc, o *domain.GitOverview) domain.HealthInput {
 	in := domain.HealthInput{
 		Now: h.now(), Thresholds: h.thresholds(), ProjectID: t.project.ID, Overview: o,
@@ -369,7 +369,7 @@ func (h *GitHealth) indexLock(t *gitCtx) *time.Time {
 	return &m
 }
 
-// ownedUnmerged are the Dev Board branches with commits the target lacks.
+// ownedUnmerged are the Werkbord branches with commits the target lacks.
 func ownedUnmerged(o *domain.GitOverview) []*domain.GitBranch {
 	var out []*domain.GitBranch
 	for i := range o.Branches {
@@ -388,7 +388,7 @@ func ownedUnmerged(o *domain.GitOverview) []*domain.GitBranch {
 	return out
 }
 
-// onTarget asks Git, for each Dev Board branch with commits the target lacks,
+// onTarget asks Git, for each Werkbord branch with commits the target lacks,
 // whether merging it would change the target at all. That is true of a branch that
 // was squash- or rebase-merged: by history its commits are missing, but its
 // content is there. Git's own in-memory merge answers it, and the answer is
@@ -551,7 +551,7 @@ func (h *GitHealth) fileSetOf(ctx context.Context, t *gitCtx, o *domain.GitOverv
 	return fs
 }
 
-// overlaps finds pairs of in-flight Dev Board branches that change some of the
+// overlaps finds pairs of in-flight Werkbord branches that change some of the
 // same files. It is bounded: only the most recently active branches are compared,
 // pairs are only examined when their file lists intersect, and Git's in-memory merge
 // is run only for those. A pair where one branch contains the other is skipped:

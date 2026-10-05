@@ -76,13 +76,14 @@ Tags are created locally. Do not push commits or tags unless the user asks.
 
 ### Where versions live and how to apply the policy here
 
-- Individual Werkbord: `cmd/devboard/VERSION` (the executable is still called `devboard`). Tag `werkbord-vX.Y.Z`.
+- Individual Werkbord: `cmd/werkbord/VERSION` (the executable is `werkbord`; `devboard`, its name before the rename, is
+  installed beside it and must keep working, as must every `DEVBOARD_*` variable). Tag `werkbord-vX.Y.Z`.
 - Werkbord Team: `cmd/werkbord-team/VERSION`. Tag `werkbord-team-vX.Y.Z`.
 - Existing tags: `git tag --list 'werkbord-v*'` and `git tag --list 'werkbord-team-v*'`. The bare `v0.7.0` and earlier
   are history; never create another bare `vX.Y.Z`.
 - After committing: `make tag PRODUCT=werkbord` and/or `make tag PRODUCT=werkbord-team` (annotated tag from the VERSION
   file, then verified), and `make verify-tag PRODUCT=<product>` to check again. Details: `docs/VERSIONING.md`.
-- A commit is "individual" if it changes anything the `devboard` executable is built from (everything under `cmd/devboard`,
+- A commit is "individual" if it changes anything the `werkbord` executable is built from (everything under `cmd/werkbord`,
   `internal/` outside `internal/team`, `web/`, its scripts); "Team" if it changes `internal/team`, `cmd/werkbord-team` or
   Team's installer. Shared packages (`internal/sqlitekit`, `internal/httpkit`, `internal/logging`) count for a product only
   if they change that product's behaviour.

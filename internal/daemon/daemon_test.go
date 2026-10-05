@@ -51,13 +51,13 @@ func TestLaunchdAgentDefinition(t *testing.T) {
 	if err := l.Install(bg, spec(home)); err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(home, "Library", "LaunchAgents", "dev.devboard.controller.plist"))
+	b, err := os.ReadFile(filepath.Join(home, "Library", "LaunchAgents", "dev.werkbord.controller.plist"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	plist := string(b)
 	for _, want := range []string{
-		"<string>dev.devboard.controller</string>",
+		"<string>dev.werkbord.controller</string>",
 		"<string>" + filepath.Join(home, "bin", "devboard") + "</string>",
 		"<string>serve</string>",
 		"<key>PATH</key>", "/home/me/.nvm/versions/node/v22/bin", // the agents are found through the captured PATH
@@ -92,7 +92,7 @@ func TestLaunchdLifecycle(t *testing.T) {
 			if !loaded {
 				return "Could not find service", errors.New("exit status 113")
 			}
-			return "dev.devboard.controller = {\n\tstate = running\n\tpid = 4242\n}", nil
+			return "dev.werkbord.controller = {\n\tstate = running\n\tpid = 4242\n}", nil
 		case strings.HasPrefix(call, "launchctl bootstrap"):
 			loaded = true
 		case strings.HasPrefix(call, "launchctl bootout"):
@@ -117,7 +117,7 @@ func TestLaunchdLifecycle(t *testing.T) {
 	if err := l.Start(bg); err != nil {
 		t.Fatal(err)
 	}
-	plist := filepath.Join(home, "Library", "LaunchAgents", "dev.devboard.controller.plist")
+	plist := filepath.Join(home, "Library", "LaunchAgents", "dev.werkbord.controller.plist")
 	if !contains(r.calls, "launchctl bootstrap gui/501 "+plist) {
 		t.Fatalf("calls = %v", r.calls)
 	}
@@ -128,7 +128,7 @@ func TestLaunchdLifecycle(t *testing.T) {
 	if err := l.Start(bg); err != nil || r.took("launchctl bootstrap") != 1 {
 		t.Fatalf("second start: %v, calls %v", err, r.calls)
 	}
-	if err := l.Restart(bg); err != nil || r.took("launchctl bootout gui/501/dev.devboard.controller") != 1 || r.took("launchctl bootstrap") != 2 {
+	if err := l.Restart(bg); err != nil || r.took("launchctl bootout gui/501/dev.werkbord.controller") != 1 || r.took("launchctl bootstrap") != 2 {
 		t.Fatalf("restart: %v, calls %v", err, r.calls)
 	}
 	if err := l.Stop(bg); err != nil || loaded {
@@ -185,7 +185,7 @@ func TestSystemdLifecycle(t *testing.T) {
 	r := &recorder{}
 	r.answer = func(call string) (string, error) {
 		switch {
-		case strings.HasPrefix(call, "systemctl --user show devboard.service"):
+		case strings.HasPrefix(call, "systemctl --user show werkbord.service"):
 			if active {
 				return "ActiveState=active\nSubState=running\nMainPID=777", nil
 			}
@@ -205,7 +205,7 @@ func TestSystemdLifecycle(t *testing.T) {
 	if err := s.Install(bg, spec(home)); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"systemctl --user daemon-reload", "systemctl --user enable devboard.service", "loginctl enable-linger me"} {
+	for _, want := range []string{"systemctl --user daemon-reload", "systemctl --user enable werkbord.service", "loginctl enable-linger me"} {
 		if !contains(r.calls, want) {
 			t.Errorf("missing %q in %v", want, r.calls)
 		}
@@ -219,7 +219,7 @@ func TestSystemdLifecycle(t *testing.T) {
 	if st, _ := s.Status(bg); !st.Running || st.PID != 777 || st.Manager != "systemd" {
 		t.Fatalf("running = %+v", st)
 	}
-	if err := s.Restart(bg); err != nil || !contains(r.calls, "systemctl --user restart devboard.service") {
+	if err := s.Restart(bg); err != nil || !contains(r.calls, "systemctl --user restart werkbord.service") {
 		t.Fatalf("restart: %v %v", err, r.calls)
 	}
 	if err := s.Stop(bg); err != nil || active {
@@ -253,7 +253,7 @@ func TestSchtasksLifecycle(t *testing.T) {
 			if running {
 				status = "Running"
 			}
-			return "TaskName:    \\Devboard\nStatus:      " + status, nil
+			return "TaskName:    \\Werkbord\nStatus:      " + status, nil
 		case strings.HasPrefix(call, "schtasks /Run"):
 			running = true
 		case strings.HasPrefix(call, "schtasks /End"):
@@ -277,7 +277,7 @@ func TestSchtasksLifecycle(t *testing.T) {
 			create = c
 		}
 	}
-	for _, want := range []string{"/SC ONLOGON", "/RL LIMITED", "/TN Devboard", `devboard.exe" serve`, "DEVBOARD_DATA_DIR=C:\\Users\\me\\AppData\\Roaming\\devboard"} {
+	for _, want := range []string{"/SC ONLOGON", "/RL LIMITED", "/TN Werkbord", `devboard.exe" serve`, "DEVBOARD_DATA_DIR=C:\\Users\\me\\AppData\\Roaming\\devboard"} {
 		if !strings.Contains(create, want) {
 			t.Errorf("create command lacks %q: %s", want, create)
 		}
@@ -431,5 +431,49 @@ func TestLogsAreRotated(t *testing.T) {
 	}
 	if _, err := os.Stat(log + ".1"); err != nil {
 		t.Fatal("the old log was lost")
+	}
+}
+
+// A computer set up before the rename keeps its service, under the old label, until
+// setup moves it; a new one gets the new label. A legacy runner unit is never taken
+// for the controller (on Linux they shared one unit name).
+func TestAServiceInstalledBeforeTheRenameIsStillFound(t *testing.T) {
+	ok := func(context.Context, string, ...string) (string, error) { return "", nil }
+
+	home := t.TempDir()
+	agents := filepath.Join(home, "Library", "LaunchAgents")
+	if err := os.MkdirAll(agents, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if m := Detect(bg, Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501}); IsLegacy(m) {
+		t.Fatal("a computer with no service got the old label")
+	}
+	if err := os.WriteFile(filepath.Join(agents, "dev.devboard.controller.plist"), []byte("<string>serve</string>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m := Detect(bg, Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501})
+	if !IsLegacy(m) {
+		t.Fatal("the service installed before the rename was not found")
+	}
+	if err := os.WriteFile(filepath.Join(agents, "dev.werkbord.controller.plist"), []byte("<string>serve</string>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if m := Detect(bg, Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501}); IsLegacy(m) {
+		t.Fatal("the new service lost to the old one")
+	}
+
+	linux := t.TempDir()
+	units := filepath.Join(linux, ".config", "systemd", "user")
+	if err := os.MkdirAll(units, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(units, "devboard.service"), []byte("ExecStart=/home/me/bin/devboard runner serve\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if m := Detect(bg, Options{GOOS: "linux", Exec: ok, Home: linux}); IsLegacy(m) {
+		t.Fatal("a legacy runner unit was taken for the controller")
+	}
+	if m := Detect(bg, Options{GOOS: "linux", Exec: ok, Home: linux, Label: RunnerLabel}); !IsLegacy(m) {
+		t.Fatal("the legacy runner unit was not found for the runner")
 	}
 }

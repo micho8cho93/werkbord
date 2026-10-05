@@ -9,7 +9,7 @@ import (
 )
 
 // HealthInput is everything the rules look at. The service gathers it from Git
-// metadata and Dev Board's records; the rules themselves run no command and
+// metadata and Werkbord's records; the rules themselves run no command and
 // read no file, so each can be tested with a hand-built input.
 type HealthInput struct {
 	Now        time.Time
@@ -20,7 +20,7 @@ type HealthInput struct {
 	Overview  *GitOverview
 	ReadError string
 
-	// WorktreeRoot is the directory Dev Board creates worktrees in. Empty if unknown.
+	// WorktreeRoot is the directory Werkbord creates worktrees in. Empty if unknown.
 	WorktreeRoot string
 	// Records are every worktree record of the project, removed ones included.
 	Records []Worktree
@@ -28,7 +28,7 @@ type HealthInput struct {
 	RunsByWorktree map[string][]Run
 	Tasks          map[string]Task
 
-	// Overlaps are pairs of in-flight Dev Board branches that change some of the
+	// Overlaps are pairs of in-flight Werkbord branches that change some of the
 	// same files, as found by the service (see BranchOverlap).
 	Overlaps []BranchOverlap
 	// OnTarget says, per local branch, whether merging it into the target would
@@ -216,7 +216,7 @@ func short(sha string) string {
 	return sha
 }
 
-// owned: a local branch Dev Board created (its name and a record agree), that is
+// owned: a local branch Werkbord created (its name and a record agree), that is
 // not the target. These are the branches the health rules are about; the
 // user's own branches are theirs to manage.
 func ownedBranch(b *GitBranch) bool {
@@ -305,7 +305,7 @@ func taskLine(b *GitBranch) string {
 
 // ---- action builders ----
 //
-// Each says whether Dev Board can do the step. They mirror the preconditions of
+// Each says whether Werkbord can do the step. They mirror the preconditions of
 // the guarded operations (see service.GitControl), but they can only use what the
 // overview knows: the operation itself looks again and refuses if anything has changed.
 
@@ -321,7 +321,7 @@ func reviewWorktree(label, detail string, wtID string) HealthAction {
 	return HealthAction{Kind: ActReviewChanges, Label: label, Detail: detail, CanPerform: true, WorktreeID: wtID}
 }
 
-// askAgent recommends having an agent look into something puzzling. All Dev Board does is add
+// askAgent recommends having an agent look into something puzzling. All Werkbord does is add
 // a prefilled task to the board: an agent runs only when a person presses Run on it, so
 // recalculating health never costs a model call.
 func askAgent(taskTitle, taskDescription string) HealthAction {
@@ -348,7 +348,7 @@ func (c *healthCtx) pushAction(b *GitBranch, label string) HealthAction {
 	case len(c.o.Remote.Remotes) == 0:
 		return fail("this repository has no remote")
 	case b.Upstream.State == UpstreamDiverged || b.Upstream.State == UpstreamBehind:
-		return fail("the remote has commits this branch lacks, so a plain push would be rejected; Dev Board never forces")
+		return fail("the remote has commits this branch lacks, so a plain push would be rejected; Werkbord never forces")
 	case b.Upstream.Name != "" && !strings.HasSuffix(b.Upstream.Name, "/"+b.Name):
 		return fail("the branch tracks " + b.Upstream.Name + ", a branch of a different name; push it from your terminal")
 	case b.Upstream.Name == "" && len(c.o.Remote.Remotes) > 1 && !hasRemote(c.o.Remote.Remotes, "origin"):
@@ -424,7 +424,7 @@ func (c *healthCtx) deleteAction(b *GitBranch, label string) HealthAction {
 	case b.Protected:
 		return fail("it is a protected branch")
 	case !b.DevBoard.Created:
-		return fail("Dev Board did not create it, so it will not delete it")
+		return fail("Werkbord did not create it, so it will not delete it")
 	case busy(b):
 		return fail("an agent still has a session on it")
 	case b.Worktree != nil:
@@ -433,7 +433,7 @@ func (c *healthCtx) deleteAction(b *GitBranch, label string) HealthAction {
 			WorktreeID: b.Worktree.WorktreeID, Destructive: true,
 			Detail: "Opens Clean worktree, which refuses if anything is uncommitted. The branch stays until you delete it."}
 		if b.Worktree.WorktreeID == "" || !b.Worktree.Owned {
-			return fail("it is checked out in a worktree Dev Board did not create")
+			return fail("it is checked out in a worktree Werkbord did not create")
 		}
 		if why := cleanBlocker(b.Worktree.Locked, b.Worktree.Missing, b.Worktree.Dirty, b.Worktree.Operation, busy(b)); why != "" {
 			return fail(why)
@@ -441,7 +441,7 @@ func (c *healthCtx) deleteAction(b *GitBranch, label string) HealthAction {
 		a.CanPerform = true
 		return a
 	case !b.Merged:
-		return fail("not every commit on it is in the target, and Dev Board only deletes what it can show is merged")
+		return fail("not every commit on it is in the target, and Werkbord only deletes what it can show is merged")
 	}
 	a.CanPerform = true
 	return a
@@ -471,7 +471,7 @@ func (c *healthCtx) cleanAction(w *GitWorktree, label string) HealthAction {
 	a := HealthAction{Kind: ActCleanWorktree, Label: label, WorktreeID: w.WorktreeID, Destructive: true, Branch: w.Branch,
 		Detail: "Opens Clean worktree. It refuses if anything is uncommitted; the branch is kept."}
 	if !w.Owned || w.WorktreeID == "" {
-		a.Reason = "Dev Board has no record of making this worktree, so it will not remove it"
+		a.Reason = "Werkbord has no record of making this worktree, so it will not remove it"
 		return a
 	}
 	if why := cleanBlocker(w.Locked, w.Missing, w.Dirty, w.Operation, w.ActiveRun); why != "" {
@@ -497,13 +497,13 @@ func (c *healthCtx) uncommitted() {
 		c.add(FindUncommittedWork, "primary", HealthFinding{
 			Severity:    sev,
 			Title:       "Your checkout has uncommitted work",
-			Explanation: why + " Dev Board never commits, stashes or discards for you.",
+			Explanation: why + " Werkbord never commits, stashes or discards for you.",
 			Subject:     HealthSubject{WorktreePath: p.Path, Branch: p.Branch},
 			Evidence:    []HealthEvidence{ev("Files", "%s", countsPhrase(*p.Dirty)), ev("Checkout", "%s", p.Path)},
 			Action:      reviewWorktree("Review changes", "Opens the working changes of your checkout.", ""),
 		})
 	}
-	// Dev Board's own worktrees. A run with a live session is working: not a finding.
+	// Werkbord's own worktrees. A run with a live session is working: not a finding.
 	for i := range c.o.Worktrees {
 		w := &c.o.Worktrees[i]
 		if w.Primary || !w.Owned || w.Missing || w.ActiveRun || w.Dirty == nil || w.Operation != "" || w.Dirty.Conflicted > 0 {
@@ -604,7 +604,7 @@ func (c *healthCtx) operations() {
 		if b := c.local[w.Branch]; b != nil && !w.Primary {
 			subj = c.subjectOf(b)
 		}
-		const never = "Dev Board never resolves conflicts or aborts an operation in a checkout; that is your decision"
+		const never = "Werkbord never resolves conflicts or aborts an operation in a checkout; that is your decision"
 		act := func(op string) HealthAction {
 			switch op {
 			case "":
@@ -647,7 +647,7 @@ func (c *healthCtx) operations() {
 		c.add(FindOperationInterrupt, key, HealthFinding{
 			Severity:    sev,
 			Title:       fmt.Sprintf("A %s is unfinished in %s", w.Operation, where),
-			Explanation: "Git is part-way through it, so what is on disk is neither the old state nor the new one, and Dev Board will not merge or clean there until it is finished or aborted.",
+			Explanation: "Git is part-way through it, so what is on disk is neither the old state nor the new one, and Werkbord will not merge or clean there until it is finished or aborted.",
 			Subject:     subj,
 			Evidence:    []HealthEvidence{ev("Operation", "%s", w.Operation), ev("Checkout", "%s", w.Path)},
 			Action:      act(w.Operation),
@@ -655,7 +655,7 @@ func (c *healthCtx) operations() {
 	}
 }
 
-// ---- things that stop Dev Board's own operations ----
+// ---- things that stop Werkbord's own operations ----
 
 func (c *healthCtx) automation() {
 	o := c.o
@@ -673,49 +673,49 @@ func (c *healthCtx) automation() {
 	switch {
 	case t.Name == "" && !o.Local.Head.Unborn:
 		add("no_target", HealthAttention, "No target branch could be found",
-			"Branches are not compared with anything, so merged, behind and ready-to-merge cannot be told. Dev Board looks for origin/HEAD, init.defaultBranch, then main, master, trunk and develop.",
+			"Branches are not compared with anything, so merged, behind and ready-to-merge cannot be told. Werkbord looks for origin/HEAD, init.defaultBranch, then main, master, trunk and develop.",
 			[]HealthEvidence{ev("Target", "none found")},
-			terminalOnly(ActInspect, "Set a default branch", "Run `git remote set-head origin -a`, or create a branch named main.", "Dev Board does not change repository configuration"))
+			terminalOnly(ActInspect, "Set a default branch", "Run `git remote set-head origin -a`, or create a branch named main.", "Werkbord does not change repository configuration"))
 	case t.Name != "" && !t.LocalExists:
 		add("target_remote_only", HealthAttention, fmt.Sprintf("%s exists only on the remote here", t.Name),
 			"Branches are compared with it, but nothing can be merged until a local branch of that name exists.",
 			[]HealthEvidence{ev("Target", "%s (from %s)", t.Name, t.Source)},
-			terminalOnly(ActInspect, "Check the target out", fmt.Sprintf("Run `git checkout %s` in your checkout.", t.Name), "Dev Board will not create or check out the target for you"))
+			terminalOnly(ActInspect, "Check the target out", fmt.Sprintf("Run `git checkout %s` in your checkout.", t.Name), "Werkbord will not create or check out the target for you"))
 	case t.Name != "" && t.CheckedOut == "" && len(pending) > 0:
 		add("target_not_checked_out", HealthAttention, fmt.Sprintf("%s is not checked out anywhere", t.Name),
-			fmt.Sprintf("Git can only merge into a checked-out branch, and Dev Board will not switch your checkout. %s ready to merge.", n(len(pending), "branch is", "branches are")),
+			fmt.Sprintf("Git can only merge into a checked-out branch, and Werkbord will not switch your checkout. %s ready to merge.", n(len(pending), "branch is", "branches are")),
 			[]HealthEvidence{ev("Target", "%s", t.Name), ev("Your checkout", "on %s", branchOr(o.Local.Head.Branch, "a detached HEAD"))},
-			terminalOnly(ActInspect, "Check the target out", fmt.Sprintf("Run `git checkout %s` in your checkout.", t.Name), "Dev Board will not switch your checkout"))
+			terminalOnly(ActInspect, "Check the target out", fmt.Sprintf("Run `git checkout %s` in your checkout.", t.Name), "Werkbord will not switch your checkout"))
 	}
 	if o.Local.Head.Detached {
 		add("detached_head", soft(), "Your checkout is on a detached HEAD",
 			"It is on no branch, so commits made there belong to no branch, and the target cannot be checked out there for a merge.",
 			[]HealthEvidence{ev("HEAD", "%s", short(o.Local.Head.Commit))},
-			terminalOnly(ActInspect, "Switch to a branch", "Run `git switch <branch>` in your checkout.", "Dev Board will not switch your checkout"))
+			terminalOnly(ActInspect, "Switch to a branch", "Run `git switch <branch>` in your checkout.", "Werkbord will not switch your checkout"))
 	}
 	if lock := c.in.IndexLock; lock != nil && c.now.Sub(*lock) >= c.th.LockStaleAfter {
 		add("index_lock", HealthAttention, "A Git lock file has been left behind",
 			"Git creates index.lock while it works and removes it when it finishes. One this old is probably from a Git process that crashed, and it makes later Git commands in your checkout fail.",
 			[]HealthEvidence{ev("Lock file", "index.lock"), ev("Age", "%s", ago(c.now.Sub(*lock)))},
 			terminalOnly(ActInspect, "Check no Git is running, then remove the lock",
-				"If no Git command is running, delete .git/index.lock yourself.", "Dev Board never deletes files inside .git"))
+				"If no Git command is running, delete .git/index.lock yourself.", "Werkbord never deletes files inside .git"))
 	}
 }
 
 func (c *healthCtx) unreadable() {
 	c.add(FindRepositoryUnread, "repo", HealthFinding{
 		Severity:    HealthRisk,
-		Title:       "Dev Board cannot read this repository",
+		Title:       "Werkbord cannot read this repository",
 		Explanation: "Nothing about its Git state can be shown or acted on, and the health below is unknown until it can be read again. Existing findings are left as they were.",
 		Evidence:    []HealthEvidence{ev("Error", "%s", c.in.ReadError)},
-		Action:      terminalOnly(ActInspect, "Check the repository", "Make sure the folder still exists and is a Git repository.", "Dev Board cannot repair a repository"),
+		Action:      terminalOnly(ActInspect, "Check the repository", "Make sure the folder still exists and is a Git repository.", "Werkbord cannot repair a repository"),
 	})
 }
 
 // ---- unsynced work ----
 
 // syncScope: the branches whose sync state matters. The user's other branches
-// are theirs; what matters here is Dev Board's work, the target (a merge made
+// are theirs; what matters here is Werkbord's work, the target (a merge made
 // here is not on the remote until pushed) and the branch the user is on.
 func (c *healthCtx) syncScope() []*GitBranch {
 	var out []*GitBranch
@@ -745,7 +745,7 @@ func (c *healthCtx) unsynced() {
 		if own && b.Merged {
 			continue // everything on it is in the target: whether the target is pushed is the target's finding
 		}
-		// Dev Board's work and the target matter; the branch the user happens to be on is theirs,
+		// Werkbord's work and the target matter; the branch the user happens to be on is theirs,
 		// and having committed locally before pushing is the normal way to work.
 		mine := own || b.Target
 		switch b.Upstream.State {
@@ -778,12 +778,12 @@ func (c *healthCtx) unsynced() {
 			c.add(FindUpstreamDiverged, b.Name, HealthFinding{
 				Severity: sev,
 				Title:    fmt.Sprintf("%s has diverged from %s", b.Name, b.Upstream.Name),
-				Explanation: fmt.Sprintf("It has %d commit%s the remote lacks and the remote has %d it lacks. A plain push would be rejected, and Dev Board never forces, pulls or rebases.",
+				Explanation: fmt.Sprintf("It has %d commit%s the remote lacks and the remote has %d it lacks. A plain push would be rejected, and Werkbord never forces, pulls or rebases.",
 					b.Upstream.Ahead, plural(b.Upstream.Ahead), b.Upstream.Behind),
 				Subject:  c.subjectOf(b),
 				Evidence: []HealthEvidence{ev("Ahead", "%d", b.Upstream.Ahead), ev("Behind", "%d", b.Upstream.Behind), ev("Upstream", "%s", b.Upstream.Name)},
 				Action: terminalOnly(ActSyncBranch, "Sync the branch", fmt.Sprintf("In a terminal, rebase or merge %s onto the branch, then push.", b.Upstream.Name),
-					"Dev Board never pulls, rebases or force-pushes"),
+					"Werkbord never pulls, rebases or force-pushes"),
 			})
 		case UpstreamBehind:
 			sev := HealthInfo
@@ -802,7 +802,7 @@ func (c *healthCtx) unsynced() {
 				Subject:  c.subjectOf(b),
 				Evidence: []HealthEvidence{ev("Behind upstream", "%d", b.Upstream.Behind), ev("Upstream", "%s", b.Upstream.Name)},
 				Action: terminalOnly(ActSyncBranch, "Update the branch", "In a terminal, run `git pull --ff-only` on it.",
-					"Dev Board does not pull or fast-forward branches"),
+					"Werkbord does not pull or fast-forward branches"),
 			})
 		case UpstreamGone:
 			if b.Merged || b.Target || b.NotPushed == 0 || !measured(b) || b.VsTarget.Ahead == 0 || b.DevBoard.Phase == PhaseCompleted {
@@ -814,7 +814,7 @@ func (c *healthCtx) unsynced() {
 			c.add(FindRemoteBranchDeleted, b.Name, HealthFinding{
 				Severity: HealthAttention,
 				Title:    fmt.Sprintf("The remote branch of %s was deleted", b.Name),
-				Explanation: fmt.Sprintf("It still has %s that are not in %s. If its pull request was squash-merged they are there under other commits, but Dev Board cannot tell without GitHub.",
+				Explanation: fmt.Sprintf("It still has %s that are not in %s. If its pull request was squash-merged they are there under other commits, but Werkbord cannot tell without GitHub.",
 					n(b.VsTarget.Ahead, "commit", "commits"), c.o.Local.Target.Name),
 				Subject:  c.subjectOf(b),
 				Evidence: []HealthEvidence{ev("Upstream", "%s (gone)", b.Upstream.Name), ev("Commits not in target", "%d", b.VsTarget.Ahead), ev("Commits on no remote", "%d", b.NotPushed)},
@@ -840,7 +840,7 @@ func (c *healthCtx) unsynced() {
 	}
 
 	// How old what is known of the remote is matters for everything above, but only
-	// when there is Dev Board work to be wrong about.
+	// when there is Werkbord work to be wrong about.
 	if hasRemote && len(c.ownedBranches()) > 0 {
 		lf := c.o.Remote.LastFetchedAt
 		switch {
@@ -914,7 +914,7 @@ func (c *healthCtx) branches() {
 			why := fmt.Sprintf("Git merged it into %s in memory and the result is exactly %s: it adds nothing. That is what a squash or rebase merge looks like, or its changes were later superseded.", target, target)
 			a := c.deleteAction(b, "Delete the branch")
 			if !a.CanPerform && a.Kind == ActDeleteBranch && a.Reason != "" && b.Worktree == nil {
-				a.Reason = "its commits are not in " + target + " by history (a squash or rebase merge), and Dev Board will only delete a branch it can show is merged without GitHub's confirmation; delete it from your terminal once you are sure"
+				a.Reason = "its commits are not in " + target + " by history (a squash or rebase merge), and Werkbord will only delete a branch it can show is merged without GitHub's confirmation; delete it from your terminal once you are sure"
 			}
 			c.add(FindContentOnTarget, b.Name, HealthFinding{
 				Severity: HealthInfo, Title: fmt.Sprintf("%s is already represented in %s", b.Name, target), Explanation: why,
@@ -938,7 +938,7 @@ func (c *healthCtx) branches() {
 				sev = HealthAttention
 				why += " Its remote branch was deleted, which usually follows a merged pull request; if that was a squash or rebase merge the work may be there under other commits."
 			}
-			why += " If it was merged on GitHub, Dev Board cannot see that from here."
+			why += " If it was merged on GitHub, Werkbord cannot see that from here."
 			ex := []HealthEvidence{taskEv(b), ev("Commits not in target", "%d", ahead), ev("Upstream", "%s", upstreamWord(b))}
 			if t, ok := c.in.OnTarget[b.Name]; ok && t.Checked {
 				ex = append(ex, ev("Merge into target", "would change it"))
@@ -1095,11 +1095,11 @@ func (c *healthCtx) orchestration() {
 		c.add(FindMissingBranch, id, HealthFinding{
 			Severity:    HealthRisk,
 			Title:       fmt.Sprintf("The branch for %q is missing", taskTitle),
-			Explanation: fmt.Sprintf("Dev Board created worktree %s for branch %s, but the repository has no such branch. Whatever the agent commits there belongs to no branch Dev Board can find, merge or push.", path.Base(rec.Path), rec.Branch),
+			Explanation: fmt.Sprintf("Werkbord created worktree %s for branch %s, but the repository has no such branch. Whatever the agent commits there belongs to no branch Werkbord can find, merge or push.", path.Base(rec.Path), rec.Branch),
 			Subject:     HealthSubject{Branch: rec.Branch, WorktreeID: id, WorktreePath: rec.Path, TaskID: taskID, TaskTitle: taskTitle, RunID: runID},
 			Evidence:    []HealthEvidence{ev("Recorded branch", "%s", rec.Branch), ev("Worktree", "%s", rec.Path), ev("Worktree HEAD", "%s", headWord(w))},
 			Action: askAgent(fmt.Sprintf("Investigate the missing branch for %q", taskTitle),
-				fmt.Sprintf("Dev Board created the worktree %s for branch %s, but the repository has no such branch, and the task is still active.\n\nFind out where the worktree's HEAD is and whether it holds commits. If it does, recreate the branch at that commit (git branch %s <commit>) so the work is not stranded. Do not delete or reset anything.", rec.Path, rec.Branch, rec.Branch)),
+				fmt.Sprintf("Werkbord created the worktree %s for branch %s, but the repository has no such branch, and the task is still active.\n\nFind out where the worktree's HEAD is and whether it holds commits. If it does, recreate the branch at that commit (git branch %s <commit>) so the work is not stranded. Do not delete or reset anything.", rec.Path, rec.Branch, rec.Branch)),
 		})
 	}
 
@@ -1185,7 +1185,7 @@ func (c *healthCtx) taskActivity(wtID string) (active bool, title, taskID, runID
 // ---- worktree hygiene ----
 
 func (c *healthCtx) worktrees() {
-	// Git lists a worktree of Dev Board's that Dev Board has no record of.
+	// Git lists a worktree of Werkbord's that Werkbord has no record of.
 	if c.in.WorktreeRoot != "" {
 		for i := range c.o.Worktrees {
 			w := &c.o.Worktrees[i]
@@ -1195,13 +1195,13 @@ func (c *healthCtx) worktrees() {
 			ex := []HealthEvidence{ev("Path", "%s", w.Path), ev("Branch", "%s", headWord(w))}
 			c.add(FindOrphanedWorktree, w.Path, HealthFinding{
 				Severity:    HealthAttention,
-				Title:       fmt.Sprintf("A worktree in Dev Board's directory has no record: %s", path.Base(w.Path)),
-				Explanation: "Git lists it and it lives where Dev Board puts its worktrees, but no active Dev Board record owns it, so Dev Board will not touch it: it may be left over from a removal that never finished. Anything in it is still on disk.",
+				Title:       fmt.Sprintf("A worktree in Werkbord's directory has no record: %s", path.Base(w.Path)),
+				Explanation: "Git lists it and it lives where Werkbord puts its worktrees, but no active Werkbord record owns it, so Werkbord will not touch it: it may be left over from a removal that never finished. Anything in it is still on disk.",
 				Subject:     HealthSubject{Branch: w.Branch, WorktreePath: w.Path},
 				Evidence:    ex,
 				Action: terminalOnly(ActInspect, "Check it, then remove it yourself",
 					fmt.Sprintf("In a terminal, look at `git -C %s status`, and when nothing in it matters run `git worktree remove %s`.", w.Path, w.Path),
-					"Dev Board only removes worktrees its own records vouch for"),
+					"Werkbord only removes worktrees its own records vouch for"),
 			})
 		}
 	}
@@ -1223,7 +1223,7 @@ func (c *healthCtx) worktrees() {
 		switch {
 		case w == nil:
 			mism = append(mism, ev("Git", "does not list %s as a worktree", rec.Path))
-			why = "Dev Board's record says the worktree is active, but Git does not know it."
+			why = "Werkbord's record says the worktree is active, but Git does not know it."
 		default:
 			if w.Missing {
 				mism = append(mism, ev("Directory", "gone"))
@@ -1234,7 +1234,7 @@ func (c *healthCtx) worktrees() {
 				why = "The worktree is on no branch, but the record says it belongs to " + rec.Branch + "."
 			} else if !w.Missing && w.Branch != "" && w.Branch != rec.Branch {
 				mism = append(mism, ev("Worktree branch", "%s, recorded on %s", w.Branch, rec.Branch))
-				why = "Someone switched the worktree to another branch after Dev Board recorded it."
+				why = "Someone switched the worktree to another branch after Werkbord recorded it."
 			}
 		}
 		if rec.RemovingSince != nil && c.now.Sub(*rec.RemovingSince) >= c.th.StuckRemovalAfter {
@@ -1245,22 +1245,22 @@ func (c *healthCtx) worktrees() {
 		}
 		if len(mism) > 0 {
 			mism = append([]HealthEvidence{ev("Record", "%s on %s", rec.Path, rec.Branch)}, mism...)
-			// Dev Board removes a worktree only while its record and Git agree. A directory
+			// Werkbord removes a worktree only while its record and Git agree. A directory
 			// that is simply gone is the one exception: only the record is retired.
 			a := HealthAction{Kind: ActCleanWorktree, Label: "Clean worktree", WorktreeID: id, Branch: rec.Branch, Destructive: true}
 			switch {
 			case w == nil:
 				a = askAgent(fmt.Sprintf("Investigate the worktree of %s", rec.Branch),
-					fmt.Sprintf("Dev Board's record says the worktree %s belongs to branch %s, but Git does not list it as a worktree of this repository.\n\nFind out what happened, and report it. Dev Board will not delete a directory on the strength of its record alone; do not remove anything.", rec.Path, rec.Branch))
+					fmt.Sprintf("Werkbord's record says the worktree %s belongs to branch %s, but Git does not list it as a worktree of this repository.\n\nFind out what happened, and report it. Werkbord will not delete a directory on the strength of its record alone; do not remove anything.", rec.Path, rec.Branch))
 				a.WorktreeID, a.Branch = id, rec.Branch
 			case w.Missing:
 				a = c.cleanAction(w, "Retire the worktree record")
 				a.Detail = "Only retires the record: the directory is already gone."
 			default:
-				// Dev Board will not touch a worktree that disagrees with its record. A person (or an
+				// Werkbord will not touch a worktree that disagrees with its record. A person (or an
 				// agent they choose to ask) has to look at what happened first.
 				a = askAgent(fmt.Sprintf("Investigate the worktree of %s", rec.Branch),
-					fmt.Sprintf("Dev Board's record says the worktree %s belongs to branch %s, but it no longer matches: %s\n\nFind out what happened, and report it. Do not remove or reset anything: Dev Board leaves the worktree alone until it matches its record again.", rec.Path, rec.Branch, why))
+					fmt.Sprintf("Werkbord's record says the worktree %s belongs to branch %s, but it no longer matches: %s\n\nFind out what happened, and report it. Do not remove or reset anything: Werkbord leaves the worktree alone until it matches its record again.", rec.Path, rec.Branch, why))
 				a.WorktreeID, a.Branch = id, rec.Branch
 			}
 			subj := HealthSubject{Branch: rec.Branch, WorktreeID: id, WorktreePath: rec.Path}
@@ -1272,8 +1272,8 @@ func (c *healthCtx) worktrees() {
 				mism = append(mism, ev("Branch", "%s is not in the repository", rec.Branch))
 			}
 			c.add(FindWorktreeMismatch, id, HealthFinding{
-				Severity: HealthAttention, Title: fmt.Sprintf("The worktree of %s does not match Dev Board's record", rec.Branch),
-				Explanation: why + " Dev Board acts on a worktree only while its record and Git agree.", Subject: subj, Evidence: mism, Action: a,
+				Severity: HealthAttention, Title: fmt.Sprintf("The worktree of %s does not match Werkbord's record", rec.Branch),
+				Explanation: why + " Werkbord acts on a worktree only while its record and Git agree.", Subject: subj, Evidence: mism, Action: a,
 			})
 			continue
 		}
@@ -1287,7 +1287,7 @@ func (c *healthCtx) worktrees() {
 				c.add(FindWorktreeNoRun, id, HealthFinding{
 					Severity:    HealthAttention,
 					Title:       fmt.Sprintf("A worktree has no run: %s", rec.Branch),
-					Explanation: "Dev Board made it, and no run ever used it. It is probably left over from a run that failed to start, or whose task is gone. It takes disk space and holds a branch.",
+					Explanation: "Werkbord made it, and no run ever used it. It is probably left over from a run that failed to start, or whose task is gone. It takes disk space and holds a branch.",
 					Subject:     HealthSubject{Branch: rec.Branch, WorktreeID: id, WorktreePath: rec.Path},
 					Evidence:    []HealthEvidence{ev("Created", "%s ago", ago(age)), ev("Runs", "0"), ev("Worktree", "%s", rec.Path), ev("Uncommitted", "%s", dirtyWord(w.Dirty))},
 					Action:      c.cleanAction(w, "Clean worktree"),

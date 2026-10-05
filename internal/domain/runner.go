@@ -21,7 +21,7 @@ type Runner struct {
 	Hostname string     `json:"hostname"`
 	OS       string     `json:"os"`
 	Arch     string     `json:"arch"`
-	// Version is the Dev Board version it last registered with.
+	// Version is the Werkbord version it last registered with.
 	Version    string    `json:"version"`
 	CreatedAt  time.Time `json:"createdAt"`
 	LastSeenAt time.Time `json:"lastSeenAt"`

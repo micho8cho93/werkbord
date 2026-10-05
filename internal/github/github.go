@@ -1,6 +1,6 @@
 // Package github is the GitHub boundary. It never talks to GitHub itself: it
 // runs the user's own GitHub CLI (gh), so it uses whatever account the user has
-// already signed in with, and Dev Board holds no GitHub credential, token or
+// already signed in with, and Werkbord holds no GitHub credential, token or
 // account of its own. Nothing here is required: with no gh, or no network, or
 // no sign-in, local Git carries on and the pull request section says why it is
 // empty.

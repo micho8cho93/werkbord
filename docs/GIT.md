@@ -58,11 +58,11 @@ before anything changed), `noop`, `conflict` (a merge stopped on conflicts and w
   **working-tree status** (staged / unstaged / untracked / conflicted, and any unfinished
   merge/rebase/cherry-pick/revert/bisect), **local commits not pushed**, **remote commits not
   pulled**, and **ahead/behind** against the upstream.
-* **Branches**, local first (Dev Board's own on top), then remote branches that no local branch
+* **Branches**, local first (Werkbord's own on top), then remote branches that no local branch
   tracks. For each: name, scope (local/remote), HEAD commit, latest-commit age, upstream and its
   state, ahead/behind the target, ahead/behind the remote, merged or not, worktree, **task**,
-  **run**, whether Dev Board created it, and why it needs attention.
-* **Worktrees**: path, branch, locked/missing, whether Dev Board made it, what is uncommitted in it,
+  **run**, whether Werkbord created it, and why it needs attention.
+* **Worktrees**: path, branch, locked/missing, whether Werkbord made it, what is uncommitted in it,
   and the run using it.
 * A summary and a list of **notes** about how complete the picture is (never fetched, detached HEAD,
   no remote, branches not measured because there are too many).
@@ -92,31 +92,31 @@ exists locally.
   fetch. For a branch with no upstream, "unpushed" means commits that no remote-tracking ref has.
 * **Stale**: the branch is ahead of or diverged from the target, has had no commit for 14 days, *and*
   the target has moved on. A branch that is merged is finished, not stale.
-* **Attention** (what "needs you" is built from): `review` (finished Dev Board work to look at),
-  `unpushed`, `no_remote`, `gone`, `behind`, `diverged` (for branches that are not Dev Board's),
+* **Attention** (what "needs you" is built from): `review` (finished Werkbord work to look at),
+  `unpushed`, `no_remote`, `gone`, `behind`, `diverged` (for branches that are not Werkbord's),
   `dirty` (uncommitted work in its worktree), `operation` (an unfinished merge/rebase there),
   `missing` (its worktree directory is gone), `stale`, `cleanup` (merged: delete it, or clean its
   worktree first). Attention is advice for ordering a phone screen; it never blocks an action.
 
 An agent that finished a turn but **did not commit** leaves its work in the worktree, not on the
 branch: the branch then shows "no commits" and an "N uncommitted" chip, and the work is reviewed from
-*Working changes*. Dev Board does not commit for the user.
+*Working changes*. Werkbord does not commit for the user.
 
-### Dev Board association
+### Werkbord association
 
-`devboard/*` branches are the ones Dev Board makes. For each local branch the overview joins Dev
+`devboard/*` branches are the ones Werkbord makes. For each local branch the overview joins Dev
 Board's own records: the **worktree record(s)** for that exact branch, the **runs** that used them,
 the **task** of the latest run, and the task's phase (`active`: in Doing or a run is live; `review`;
-`completed`: Done; `idle`: Backlog). A branch is **created by Dev Board** only if *both* its name is
+`completed`: Done; `idle`: Backlog). A branch is **created by Werkbord** only if *both* its name is
 under `devboard/` *and* a worktree record of this project names exactly that branch. A name proves
 nothing, because anyone can type `devboard/` into a branch name, so a branch that merely has the
-name is shown as "has Dev Board's name, but Dev Board has no record of making it" and is treated as
+name is shown as "has Werkbord's name, but Werkbord has no record of making it" and is treated as
 the user's.
 
 ### Unusual branch names
 
 A branch whose name could be taken for something else (`-x`, `--upload-pack=…`, `HEAD`, anything Git's
-ref-name rules or Dev Board's stricter ones refuse) is listed, flagged `unusual`, and **every action on
+ref-name rules or Werkbord's stricter ones refuse) is listed, flagged `unusual`, and **every action on
 it is refused**. Measurements never put a branch name on a command line: they use commit IDs. Names
 that are ordinary but non-ASCII work.
 
@@ -133,7 +133,7 @@ Branch → changed files → file diff, each a request of its own so nothing hug
   diff between two commit IDs from the comparison, or, with no path, of everything. A diff is pinned
   to those IDs, so it is all one diff even if the branch moves while it is being read.
 * `GET …/git/changes?worktree=` and `…/changes/diff?…` do the same for uncommitted work in the
-  project's checkout or one of Dev Board's worktrees (staged, unstaged, untracked).
+  project's checkout or one of Werkbord's worktrees (staged, unstaged, untracked).
 
 Limits: files are listed 50 at a time (at most 200), at most 5,000 files are read per comparison
 (`truncated` says so); a diff window is 400 lines by default and at most 2,000; Git's diff output is
@@ -144,7 +144,7 @@ and 100 remote-only ones shown (a note says so).
 
 ## 4. GitHub
 
-* Uses the user's own **GitHub CLI**. Dev Board has no GitHub account, token or credential of its
+* Uses the user's own **GitHub CLI**. Werkbord has no GitHub account, token or credential of its
   own, stores none, and never passes one on. `gh` runs in the user's environment, with prompts off.
 * Optional. `config.json` → `"github": {"command": "gh", "disabled": false}`. With `gh` missing, not
   signed in, offline, or disabled, **everything local still works**, and the pull request section
@@ -153,7 +153,7 @@ and 100 remote-only ones shown (a note says so).
   merged (and draft), review decision where there is one, **checks** summarised from the status
   rollup, and **mergeability**. GitHub computes mergeability lazily and often has not; **an unknown
   is shown as nothing, never as a yes**. Each pull request is joined to its task and run when its head
-  is a Dev Board branch (a fork's pull request is never joined to a local branch of the same name).
+  is a Werkbord branch (a fork's pull request is never joined to a local branch of the same name).
 * github.com repositories are recognised from the remote URL; any other host is accepted only if
   `gh auth status --hostname` says `gh` is signed in to it.
 * Merging a pull request on GitHub is **not** implemented. "Merge safely" is the local merge below.
@@ -184,10 +184,10 @@ verdict, with its reasons, before asking for confirmation. The action then plans
 | --- | --- | --- |
 | **Refresh** | Looks again (no network). | — |
 | **Fetch** | `git fetch --prune` of each remote. Updates remote-tracking refs only; never touches a branch of yours, your checkout or a worktree. | The remote cannot be reached → `unavailable` with the reason. |
-| **Push branch** | A plain push of the reviewed commit to `refs/heads/<same name>` on one remote, **never forced**. Then asks the remote where the branch is. Sets the upstream if there was none. | Branch moved; name unusual; no remote; several remotes and none is `origin`; the upstream has a different name. A remote that has moved on makes Git refuse (`rejected`): the message says Dev Board never forces and the remote is untouched. |
+| **Push branch** | A plain push of the reviewed commit to `refs/heads/<same name>` on one remote, **never forced**. Then asks the remote where the branch is. Sets the upstream if there was none. | Branch moved; name unusual; no remote; several remotes and none is `origin`; the upstream has a different name. A remote that has moved on makes Git refuse (`rejected`): the message says Werkbord never forces and the remote is untouched. |
 | **Merge safely** | `git merge` of the reviewed commit into the project's **target branch**, in the worktree where it is checked out, as a merge commit or fast-forward only. Local only. Verified afterwards (target moved, branch is an ancestor). | See below. |
 | **Delete branch** | Deletes a **local** branch, conditional on it still being at the reviewed commit. Optionally also the remote branch. | See below. |
-| **Clean Dev Board worktree** | Removes the directory of a worktree Dev Board made. The branch is kept. | See below. |
+| **Clean Werkbord worktree** | Removes the directory of a worktree Werkbord made. The branch is kept. | See below. |
 | **Open pull request** | `gh pr create` from a branch already on the remote, into the target. Read back from GitHub. | Not on the remote, or at a different commit there (it never pushes for you); one is already open; nothing to propose; no title; `gh` unavailable. |
 | **Open task / run** | Links. | — |
 
@@ -198,14 +198,14 @@ moved; the target is the project's target, exists locally and has not moved; the
 target; the branch has commits the target lacks (**ancestry**: `already_merged` otherwise); the
 histories are related; (for fast-forward only) the target has not moved on; no run on the branch is
 starting or running or waiting on a question (an idle session only warns); **the target is checked
-out in some worktree** (Git can only merge into a checked-out branch, and Dev Board will not switch
+out in some worktree** (Git can only merge into a checked-out branch, and Werkbord will not switch
 your checkout); and in *that* checkout:
 
 * no merge/rebase/cherry-pick/revert/bisect is unfinished, nothing is in conflict, and **there are no
   staged or modified tracked files**, so a merge can neither mix with nor discard uncommitted work;
 * untracked files are left alone, **unless** the merge would add a file of the same name (including
   inside an untracked directory), which is refused;
-* no run is active in it if it is one of Dev Board's.
+* no run is active in it if it is one of Werkbord's.
 
 **Conflicts are predicted, never resolved.** With Git ≥ 2.38 the check is `git merge-tree
 --write-tree`: Git's own merge, run in memory without touching any ref, index or file. A conflict
@@ -215,16 +215,16 @@ and is true of the commits as they are *now*. Without it, only an **overlap heur
 `clean`, only warns, and its note says it is a guess. If a merge then conflicts anyway it is
 **aborted** (`git merge --abort`) and the result states whether the checkout was restored exactly.
 
-Dev Board does not pull or fast-forward the target. If the local target is behind or diverged from
+Werkbord does not pull or fast-forward the target. If the local target is behind or diverged from
 its remote the plan **warns** (a merge made now is not on the remote until pushed, and the remote has
 commits you lack).
 
 ### Delete
 
-A local branch is deleted only if **all** hold: it is **created by Dev Board** (see §2: name *and*
+A local branch is deleted only if **all** hold: it is **created by Werkbord** (see §2: name *and*
 record); it is not **protected** (the target, the branch checked out in the project's checkout, or
 `main`, `master`, `trunk`, `develop`, `development`, `dev`, `release`, `production`, `prod`,
-`staging`, `release/*`, `hotfix/*`); it is checked out **nowhere** (a Dev Board worktree must be
+`staging`, `release/*`, `hotfix/*`); it is checked out **nowhere** (a Werkbord worktree must be
 cleaned first); no run on it has a session open; it is still at the reviewed commit; and **no work
 would be lost**: it is **fully merged by ancestry**, *or* GitHub says a pull request **from this
 repository, from this branch, with exactly this tip commit** was merged (the squash/rebase-merge
@@ -242,9 +242,9 @@ branch, and it is conditional; it is not a force push. If the remote step fails 
 loudly that the remote branch was **not** deleted, and the local deletion (which was safe on its own)
 is reported separately.
 
-### Clean a Dev Board worktree
+### Clean a Werkbord worktree
 
-Only a directory that: Dev Board's own record names; lies **strictly inside Dev Board's worktree
+Only a directory that: Werkbord's own record names; lies **strictly inside Werkbord's worktree
 directory** and passes through no symlink; **Git itself lists as a worktree of this repository** (a
 directory Git does not know is never deleted on the strength of a record); is not locked; has no run
 using it; is still on the branch and commit recorded and viewed; and has **nothing uncommitted: no
@@ -257,7 +257,7 @@ records' crash-safe order (begin, delete, finish). **The branch is never touched
 
 Every Git command goes through one function (`gitrepo.CLI.run`). It:
 
-* never runs repository **hooks** for what Dev Board writes (merge, push, worktree changes use
+* never runs repository **hooks** for what Werkbord writes (merge, push, worktree changes use
   `core.hooksPath=/dev/null`). The consequence: a repository's `pre-push` or merge hooks do not run
   for pushes and merges made here; if you rely on them, push and merge from your terminal;
 * never lets a repository's configuration run a program for a **read**: `core.fsmonitor` is off,
@@ -302,10 +302,10 @@ in the same way as every other event, and only when the action happened.
 * **GitHub Enterprise** is recognised only if `gh` is signed in to the host.
 * **Untracked files** are listed with directories collapsed; a merge's clash check is exact for
   paths on disk, and refuses if there are too many files to check.
-* **No commit action.** Dev Board does not commit, stash or discard for you. Review uncommitted work
+* **No commit action.** Werkbord does not commit, stash or discard for you. Review uncommitted work
   in *Working changes*, and commit it from the agent or a terminal.
 * Not built: pulling or fast-forwarding the target, merging a pull request on GitHub, rebasing,
-  conflict resolution, a force push of any kind, deleting remote branches that Dev Board did not
+  conflict resolution, a force push of any kind, deleting remote branches that Werkbord did not
   create, tags, submodule awareness.
 
 ## 8. HTTP API
@@ -329,7 +329,7 @@ A project can reach only its own repository; another project's IDs are 404.
 | `POST …/git/pull-requests` `{branch, expectedSha, title, body, draft}` | Open a pull request |
 | `GET …/git/health` · `POST …/git/health/refresh` · `POST …/git/health/findings/{id}/dismiss` · `…/reopen` | Repository health: what needs attention, recalculating it, and saying you know. Read-only with respect to the repository: see [HEALTH.md](HEALTH.md) |
 
-Request bodies with unknown fields are refused, so there is no flag to send that Dev Board does not
+Request bodies with unknown fields are refused, so there is no flag to send that Werkbord does not
 define (there is no `force`). A malformed input is 400, an unknown project, branch or worktree 404, a
 failing `git` 502 `git_failed` with Git's message, a `git` that takes too long 504.
 
@@ -350,7 +350,7 @@ linked worktrees), the real `git`, and, for GitHub, a stand-in `gh` script; no m
   not signed in / offline / garbage / timeout; credentials removed; creation read back; remote URL
   parsing.
 * `internal/service`: the overview (staged/unstaged/untracked, local ahead/behind/diverged, upstream
-  none/gone, multiple worktrees, multiple Dev Board branches, merged vs unmerged, task phases,
+  none/gone, multiple worktrees, multiple Werkbord branches, merged vs unmerged, task phases,
   stale, remote-only, **detached HEAD**, **no remote**, **malformed branch names**, Git failure);
   comparison and paging; and every action's refusals: **branch changing between inspection and
   action**, merge into a dirty checkout, untracked clashes, target not checked out, **merge

@@ -117,7 +117,7 @@ func TestDatabaseCheck(t *testing.T) {
 	// Newer than this build.
 	_, _ = raw.Exec(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (999, 'future', 1)`)
 	_ = raw.Close()
-	if c := one(t, e.database(bg)); c.Status != Fail || !strings.Contains(c.Fix, "devboard update") {
+	if c := one(t, e.database(bg)); c.Status != Fail || !strings.Contains(c.Fix, "werkbord update") {
 		t.Fatalf("newer = %+v", c)
 	}
 	// Not a database at all.

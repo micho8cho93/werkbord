@@ -20,7 +20,15 @@ var _ Manager = (*Systemd)(nil)
 
 func (s *Systemd) Name() string { s.fill(); return "systemd" }
 
-func (s *Systemd) unitName() string { return "devboard.service" }
+func (s *Systemd) unitName() string {
+	switch {
+	case s.Legacy():
+		return "devboard.service"
+	case s.runner():
+		return "werkbord-runner.service"
+	}
+	return "werkbord.service"
+}
 
 func (s *Systemd) unitPath() string {
 	dir := filepath.Join(s.Home, ".config")
@@ -31,7 +39,7 @@ func (s *Systemd) unitPath() string {
 }
 
 var unitTmpl = template.Must(template.New("unit").Parse(`[Unit]
-Description=Dev Board controller
+Description=Werkbord controller
 Documentation=https://github.com/micho8cho93/werkbord
 After=network-online.target
 

@@ -47,9 +47,9 @@ fi
 grep -c '^ok' "$WORK/test.log" | sed 's/$/ packages pass/' 
 
 echo "running the executable"
-go build -o "$WORK/devboard" ./cmd/devboard
-"$WORK/devboard" version
-DEVBOARD_DATA_DIR="$WORK/data" "$WORK/devboard" migrate
+go build -o "$WORK/werkbord" ./cmd/werkbord
+"$WORK/werkbord" version
+WERKBORD_DATA_DIR="$WORK/data" "$WORK/werkbord" migrate
 
 if grep -rIl --exclude-dir=.git --exclude-dir=node_modules -e 'internal/team' -e 'werkbord-team' . | grep -v -e '^./docs/' -e '^./AGENTS.md' -e '^./scripts/' -e '^./Makefile' -e '^./.github/' -e '^./internal/archtest/' -e '^./internal/update/' -e '^./README.md' ; then
   echo "verify-isolation: the files above mention Team outside documentation and build tooling" >&2

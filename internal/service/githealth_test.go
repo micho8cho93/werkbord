@@ -522,11 +522,11 @@ func TestAWorktreeInDevBoardsDirectoryThatNoRecordOwnsIsFound(t *testing.T) {
 	if fd == nil || fd.Action.CanPerform || fd.Action.Reason == "" {
 		t.Fatalf("an orphaned worktree: %v", typesOf(r))
 	}
-	// A worktree of the user's elsewhere is none of Dev Board's business.
+	// A worktree of the user's elsewhere is none of Werkbord's business.
 	elsewhere := filepath.Join(t.TempDir(), "mine")
 	git(t, f.repo, "worktree", "add", "-q", "-b", "mine", elsewhere)
 	if r := f.refresh(t); find(r, domain.FindOrphanedWorktree, "mine") != nil {
-		t.Fatal("a worktree outside Dev Board's directory is not orphaned")
+		t.Fatal("a worktree outside Werkbord's directory is not orphaned")
 	}
 }
 
@@ -560,7 +560,7 @@ func TestAWorktreeSwitchedToAnotherBranchDoesNotMatchItsRecord(t *testing.T) {
 	r := f.refresh(t)
 	fd := find(r, domain.FindWorktreeMismatch, a.branch)
 	if fd == nil || fd.Action.Kind == domain.ActCleanWorktree || fd.Action.Kind != domain.ActAskAgent || fd.Action.Destructive {
-		t.Fatalf("Dev Board must not offer to clean a worktree that no longer matches its record: %v / %+v", typesOf(r), fd)
+		t.Fatalf("Werkbord must not offer to clean a worktree that no longer matches its record: %v / %+v", typesOf(r), fd)
 	}
 }
 

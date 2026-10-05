@@ -121,7 +121,7 @@ func (a *Adapter) detect(ctx context.Context) domain.Agent {
 	case err != nil && strings.Contains(strings.ToLower(out), "not logged in"):
 		info.SignIn = domain.SignedOut
 		info.Detail = "not signed in: run `" + a.cfg.Command + " login`"
-		info.Guidance = "Run `" + a.cfg.Command + " login` in a terminal and follow the prompts. Dev Board uses your own Codex sign-in and never asks for a key."
+		info.Guidance = "Run `" + a.cfg.Command + " login` in a terminal and follow the prompts. Werkbord uses your own Codex sign-in and never asks for a key."
 		return info
 	case err == nil && strings.Contains(strings.ToLower(out), "logged in"):
 		info.SignIn = domain.SignedIn

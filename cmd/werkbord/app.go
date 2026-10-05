@@ -65,7 +65,7 @@ func newApp(cfg config.Config, out, errOut io.Writer) *app {
 		return daemon.Detect(ctx, daemon.Options{DataDir: cfg.DataDir})
 	}
 	a.runnerDaemon = func(ctx context.Context) daemon.Manager {
-		return daemon.Detect(ctx, daemon.Options{DataDir: runnerDir(cfg), Label: "dev.devboard.runner"})
+		return daemon.Detect(ctx, daemon.Options{DataDir: runnerDir(cfg), Label: daemon.RunnerLabel})
 	}
 	a.installed = func(ctx context.Context) (daemon.Manager, bool) {
 		return daemon.Installed(ctx, daemon.Options{DataDir: cfg.DataDir})
@@ -225,10 +225,10 @@ func (a *app) cmdStart(ctx context.Context, args []string) error {
 func (a *app) start(ctx context.Context, say bool) error {
 	if v, ok := a.healthy(ctx); ok {
 		if say {
-			a.printf("Dev Board %s is already running at %s.\n", v, a.controllerURL())
+			a.printf("Werkbord %s is already running at %s.\n", v, a.controllerURL())
 			if m, inst := a.installed(ctx); inst {
 				if st, _ := m.Status(ctx); !st.Running {
-					a.printf("It was not started by the service (%s), so `devboard stop` will not stop it: it is probably running in a terminal.\n", m.Name())
+					a.printf("It was not started by the service (%s), so `werkbord stop` will not stop it: it is probably running in a terminal.\n", m.Name())
 				}
 			}
 		}
@@ -258,9 +258,9 @@ func (a *app) start(ctx context.Context, say bool) error {
 		return a.whyNotStarted(err)
 	}
 	if say {
-		a.printf("Dev Board %s is running at %s (%s).\n", v, a.controllerURL(), m.Name())
+		a.printf("Werkbord %s is running at %s (%s).\n", v, a.controllerURL(), m.Name())
 		if !inst {
-			a.printf("It is not set to start when you log in: run `devboard setup` for that.\n")
+			a.printf("It is not set to start when you log in: run `werkbord setup` for that.\n")
 		}
 	}
 	return nil
@@ -296,14 +296,14 @@ func (a *app) stop(ctx context.Context, say bool) error {
 	}
 	if !a.waitStopped(ctx, a.stopWait) {
 		if stopped || wasUp {
-			return fmt.Errorf("a controller is still answering at %s; it was not started by Dev Board's service (is `devboard serve` running in a terminal?): stop it there", a.controllerURL())
+			return fmt.Errorf("a controller is still answering at %s; it was not started by Werkbord's service (is `werkbord serve` running in a terminal?): stop it there", a.controllerURL())
 		}
 	}
 	if say {
 		if wasUp {
-			a.printf("Dev Board stopped.\n")
+			a.printf("Werkbord stopped.\n")
 		} else {
-			a.printf("Dev Board was not running.\n")
+			a.printf("Werkbord was not running.\n")
 		}
 	}
 	return nil
@@ -325,7 +325,7 @@ func (a *app) cmdRestart(ctx context.Context, args []string) error {
 
 func noArgs(cmd string, args []string) error {
 	if len(args) != 0 {
-		return fmt.Errorf("usage: devboard %s", cmd)
+		return fmt.Errorf("usage: werkbord %s", cmd)
 	}
 	return nil
 }
@@ -339,7 +339,7 @@ func (a *app) cmdStatus(ctx context.Context, args []string) error {
 		case "--json", "-json":
 			asJSON = true
 		default:
-			return errors.New("usage: devboard status [--json]")
+			return errors.New("usage: werkbord status [--json]")
 		}
 	}
 	st := a.gatherStatus(ctx)
@@ -355,7 +355,7 @@ func (a *app) cmdStatus(ctx context.Context, args []string) error {
 	return nil
 }
 
-// errStatusDown makes `devboard status` exit non-zero when the controller is not
+// errStatusDown makes `werkbord status` exit non-zero when the controller is not
 // running, so scripts can test it, without printing a second line of complaint.
 var errStatusDown = silentError{}
 
@@ -413,7 +413,7 @@ func (a *app) gatherStatus(ctx context.Context) statusReport {
 }
 
 func (a *app) printStatus(st statusReport) {
-	a.printf("Dev Board %s\n", st.Version)
+	a.printf("Werkbord %s\n", st.Version)
 	switch {
 	case st.Running:
 		how := st.Service.Manager
@@ -424,16 +424,16 @@ func (a *app) printStatus(st statusReport) {
 		}
 		a.step(markOK, "controller", fmt.Sprintf("running at %s (%s)", st.URL, how))
 		if st.Controller != "" && st.Controller != st.Version {
-			a.step(markWarn, "version", fmt.Sprintf("the running controller is %s, this devboard is %s: run `devboard restart`", st.Controller, st.Version))
+			a.step(markWarn, "version", fmt.Sprintf("the running controller is %s, this werkbord is %s: run `werkbord restart`", st.Controller, st.Version))
 		}
 	default:
-		a.step(markFail, "controller", "not running: start it with `devboard start`")
+		a.step(markFail, "controller", "not running: start it with `werkbord start`")
 	}
 	switch {
 	case st.Service.Installed:
 		a.step(markOK, "starts at login", "yes ("+st.Service.Manager+")")
 	default:
-		a.step(markWarn, "starts at login", "no: run `devboard setup` to install the service")
+		a.step(markWarn, "starts at login", "no: run `werkbord setup` to install the service")
 	}
 	a.step("·", "data", st.DataDir)
 	if st.Network != nil {
@@ -441,9 +441,9 @@ func (a *app) printStatus(st statusReport) {
 		case string(netprivate.StateConnected):
 			a.step(markOK, "phone access", st.Network.URL)
 		case string(netprivate.StateOff):
-			a.step("·", "phone access", "off: `devboard open --phone` turns it on")
+			a.step("·", "phone access", "off: `werkbord open --phone` turns it on")
 		case string(netprivate.StateNeedsLogin):
-			a.step(markWait, "phone access", "waiting for you to sign in: run `devboard open --phone`")
+			a.step(markWait, "phone access", "waiting for you to sign in: run `werkbord open --phone`")
 		case string(netprivate.StateNeedsApproval):
 			a.step(markWait, "phone access", "waiting for your tailnet's admin to approve this device")
 		case string(netprivate.StateError):
@@ -485,14 +485,14 @@ func (a *app) cmdLogs(_ context.Context, args []string) error {
 		switch args[i] {
 		case "-n":
 			if i+1 >= len(args) {
-				return errors.New("usage: devboard logs [-n LINES]")
+				return errors.New("usage: werkbord logs [-n LINES]")
 			}
 			if _, err := fmt.Sscanf(args[i+1], "%d", &n); err != nil || n <= 0 {
-				return errors.New("usage: devboard logs [-n LINES]")
+				return errors.New("usage: werkbord logs [-n LINES]")
 			}
 			i++
 		default:
-			return errors.New("usage: devboard logs [-n LINES]")
+			return errors.New("usage: werkbord logs [-n LINES]")
 		}
 	}
 	tail := a.tailLog(n)
@@ -511,13 +511,13 @@ func (a *app) cmdUninstall(ctx context.Context, args []string) error {
 		if err := m.Uninstall(ctx); err != nil {
 			return err
 		}
-		a.printf("Removed the %s service: Dev Board no longer starts when you log in.\n", m.Name())
+		a.printf("Removed the %s service: Werkbord no longer starts when you log in.\n", m.Name())
 	}
 	bg := &daemon.Background{Options: daemon.Options{DataDir: a.cfg.DataDir}}
 	if err := bg.Uninstall(ctx); err != nil {
 		return err
 	}
-	a.printf("Your projects, tasks and settings are untouched, in %s.\nTo remove the program, delete the devboard executable; to remove the data too, delete that directory.\n", a.cfg.DataDir)
+	a.printf("Your projects, tasks and settings are untouched, in %s.\nTo remove the program, delete the werkbord executable (and devboard beside it); to remove the data too, delete that directory.\n", a.cfg.DataDir)
 	return nil
 }
 
@@ -534,11 +534,11 @@ func (a *app) cmdOpen(ctx context.Context, args []string) error {
 		case "--qr":
 			qr, phone = true, true
 		default:
-			return errors.New("usage: devboard open [--phone] [--qr] [--print]")
+			return errors.New("usage: werkbord open [--phone] [--qr] [--print]")
 		}
 	}
 	if _, ok := a.healthy(ctx); !ok {
-		return errors.New("Dev Board is not running: start it with `devboard start`")
+		return errors.New("Werkbord is not running: start it with `werkbord start`")
 	}
 	c, err := a.client()
 	if err != nil {
@@ -559,9 +559,9 @@ func (a *app) cmdOpen(ctx context.Context, args []string) error {
 		a.printf("Open this in your browser: %s\n", u)
 		return nil
 	}
-	a.printf("Opened Dev Board in your browser (%s).\n", a.controllerURL())
+	a.printf("Opened Werkbord in your browser (%s).\n", a.controllerURL())
 	if n, err := c.network(ctx); err == nil && n.State == string(netprivate.StateConnected) {
-		a.printf("On your phone: %s (`devboard open --qr` shows a QR code).\n", n.URL)
+		a.printf("On your phone: %s (`werkbord open --qr` shows a QR code).\n", n.URL)
 	}
 	return nil
 }
@@ -588,7 +588,7 @@ func (a *app) openPhone(ctx context.Context, c *client, printOnly, qr bool) erro
 		a.printf("Note: %s\n\n", n.HTTPSHint)
 	}
 	if qr || a.isTerminal(a.out) {
-		// The code carries the sign-in token, so it opens Dev Board already signed in.
+		// The code carries the sign-in token, so it opens Werkbord already signed in.
 		text, err := netprivate.QRText(link.Link)
 		if err != nil {
 			return err
@@ -627,7 +627,7 @@ func (a *app) ensureNetwork(ctx context.Context, c *client, wait time.Duration, 
 		case string(netprivate.StateNeedsLogin):
 			if n.AuthURL != "" && !opened {
 				opened = true
-				a.printf("To reach Dev Board from your phone, sign in to Tailscale (a free account is enough; Dev Board has no account of its own).\n")
+				a.printf("To reach Werkbord from your phone, sign in to Tailscale (a free account is enough; Werkbord has no account of its own).\n")
 				if open && a.openBrowser(n.AuthURL) == nil {
 					a.printf("Opened the sign-in page in your browser. If it did not appear, open:\n  %s\n", n.AuthURL)
 				} else {

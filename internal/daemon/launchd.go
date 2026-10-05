@@ -80,6 +80,7 @@ type envPair struct{ Key, Value string }
 func serviceEnv(spec Spec) []envPair {
 	env := map[string]string{"PATH": spec.Path}
 	if spec.DataDir != "" {
+		env["WERKBORD_DATA_DIR"] = spec.DataDir
 		env["DEVBOARD_DATA_DIR"] = spec.DataDir
 	}
 	keys := make([]string, 0, len(env))

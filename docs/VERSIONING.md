@@ -6,7 +6,7 @@ coding agent follows it.
 
 | Product | Version file | Tag | Example |
 | --- | --- | --- | --- |
-| Individual Werkbord | `cmd/devboard/VERSION` | `werkbord-vMAJOR.MINOR.PATCH` | `werkbord-v1.4.2` |
+| Individual Werkbord | `cmd/werkbord/VERSION` | `werkbord-vMAJOR.MINOR.PATCH` | `werkbord-v1.4.2` |
 | Werkbord Team | `cmd/werkbord-team/VERSION` | `werkbord-team-vMAJOR.MINOR.PATCH` | `werkbord-team-v2.1.3` |
 
 There are **no generic repository-wide tags** (`v2.1.0`). The products must be able to evolve independently: a Team fix
@@ -29,7 +29,7 @@ does not bump the individual product, and the reverse. (`werkbord-v…` never ma
 git commit -am "…"
 
 # 5–6: annotated tag on HEAD, named from the VERSION file; make tag then verifies it
-make tag PRODUCT=werkbord            # werkbord-v<cmd/devboard/VERSION>
+make tag PRODUCT=werkbord            # werkbord-v<cmd/werkbord/VERSION>
 make tag PRODUCT=werkbord-team       # werkbord-team-v<cmd/werkbord-team/VERSION>
 make verify-tag PRODUCT=werkbord     # run again at any time
 ```
@@ -59,7 +59,7 @@ naming. CI repeats this when a tag is pushed.
 ## Where the version shows up
 
 `VERSION` is the single source for each product. `scripts/product.sh <product> build-version` turns it into what a build
-reports (`devboard version`, `werkbord-team version`, `/api/health`):
+reports (`werkbord version`, `werkbord-team version`, `/api/health`):
 
 - a clean checkout of the commit its tag points at reports exactly `v0.8.0`;
 - anything else (a later commit, a dirty tree, a tag not made yet) reports `v0.8.0-<commits since the tag>-g<sha>[-dirty]`,
@@ -74,10 +74,10 @@ reports (`devboard version`, `werkbord-team version`, `/api/health`):
 Pushing a product tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, run `make check`,
 build the archives for every platform, and publish a GitHub release named after the tag:
 
-- `werkbord-vX.Y.Z` → `devboard_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `checksums.txt`, marked **latest**.
+- `werkbord-vX.Y.Z` → `werkbord_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `checksums.txt`, marked **latest**.
 - `werkbord-team-vX.Y.Z` → `werkbord-team_<version>_<os>_<arch>.tar.gz` and `checksums.txt`, marked **not latest**.
 
-This matters because `…/releases/latest` is how the individual installer and `devboard update` find the newest
+This matters because `…/releases/latest` is how the individual installer and `werkbord update` find the newest
 release: only the individual product's releases may be "latest", or a Team release would be offered to every
 individual install (the updater would refuse it, but the update would fail). The Team installer
 (`scripts/install-team.sh`) finds the latest *Team* release in the releases feed instead. Both installers refuse the
@@ -106,7 +106,7 @@ versions are the individual product's. Their product tags now exist beside them,
 | Team 2.0.0 | the "Team V2 integration and hardening" commit | One coherent console (Workspace, Projects, Board, My Work, Reviews, Repository, Activity), workspace-wide sync with reconnect recovery, concurrency and security hardening, and the security review. Schema 2 → 3 (a workspace revision; migrates in place, backs up first). Major: the second generation of Team ("V2"): the console's navigation and the sync contract changed, and the schema moved. The HTTP API only gained routes, so existing clients keep working. The individual product is unchanged (0.8.1). |
 
 `werkbord-v0.8.0` is a MINOR on 0.7.0 because it is the first tag since the multi-runner control plane and orchestration
-landed untagged. The bare `v0.7.0` tag still exists and always will (the `devboard update --version` command and the
+landed untagged. The bare `v0.7.0` tag still exists and always will (the `werkbord update --version` command and the
 installer find releases before 0.8.0 under their bare tag). **Do not create new bare `vX.Y.Z` tags.**
 
 Recreating the product tags for the history in a clone that lacks them (the commit IDs are stable):

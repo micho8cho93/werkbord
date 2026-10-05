@@ -35,14 +35,14 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: devboard update [--check] [--version vX.Y.Z] [--force]")
+		return errors.New("usage: werkbord update [--check] [--version vX.Y.Z] [--force]")
 	}
 	src := update.Source{}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 
 	if !update.Release(version) && !*force && !*check {
-		return fmt.Errorf("this devboard (%s) was built from source, not installed from a release: update it from the source tree (git pull && make build), or use --force to install the latest release over it", version)
+		return fmt.Errorf("this werkbord (%s) was built from source, not installed from a release: update it from the source tree (git pull && make build), or use --force to install the latest release over it", version)
 	}
 	var tag string // how the release is found: werkbord-v1.2.3
 	if *want == "" {
@@ -61,7 +61,7 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 	switch {
 	case *check:
 		if cmp < 0 || !update.Release(version) {
-			a.printf("Update available: %s → %s. Run `devboard update` to install it.\n", version, target)
+			a.printf("Update available: %s → %s. Run `werkbord update` to install it.\n", version, target)
 		} else {
 			a.printf("Up to date (%s).\n", version)
 		}
@@ -73,7 +73,7 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 		return fmt.Errorf("%s is older than the installed %s: a downgrade can fail on a database the newer version has already upgraded (a copy from before the upgrade is in %s); use --force if you mean it",
 			target, version, a.cfg.DataDir+string(os.PathSeparator)+"backups")
 	case cmp > 0 && *want == "" && !*force:
-		a.printf("This devboard (%s) is newer than the latest release (%s): nothing to do.\n", version, target)
+		a.printf("This werkbord (%s) is newer than the latest release (%s): nothing to do.\n", version, target)
 		return nil
 	}
 
@@ -97,7 +97,7 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 		return err
 	}
 	// The checksum says the download is what was published. Running it says it is a
-	// devboard for this computer, of the version it claims, before it replaces anything.
+	// werkbord for this computer, of the version it claims, before it replaces anything.
 	out, err := exec.CommandContext(ctx, fresh, "version").Output()
 	if err != nil || strings.TrimSpace(string(out)) != target {
 		return fmt.Errorf("the downloaded executable did not report %s (it said %q): not installing it", target, strings.TrimSpace(string(out)))
@@ -128,10 +128,10 @@ func (a *app) cmdInstallRelease(ctx context.Context, args []string) error {
 	}
 	current := strings.TrimSpace(string(out))
 	if update.Compare(current, version) > 0 {
-		return fmt.Errorf("installer release %s is older than installed %s; use devboard update --version %s --force for an intentional downgrade", version, current, version)
+		return fmt.Errorf("installer release %s is older than installed %s; use werkbord update --version %s --force for an intentional downgrade", version, current, version)
 	}
 	if current == version {
-		a.printf("Already installed (%s). Run `devboard setup` to change startup options.\n", version)
+		a.printf("Already installed (%s). Run `werkbord setup` to change startup options.\n", version)
 		return nil
 	}
 	a.executable = func() (string, error) { return self, nil }
@@ -164,7 +164,7 @@ func (a *app) installRelease(ctx context.Context, self, fresh, target, current s
 			defer cancel()
 			if st, err := runner.Status(recoveryCtx); err == nil && !st.Running {
 				if err := runner.Start(recoveryCtx); err != nil {
-					a.printf("Runner recovery failed: %v. Use `devboard runner start`; its identity and journals were preserved.\n", err)
+					a.printf("Runner recovery failed: %v. Use `werkbord runner start`; its identity and journals were preserved.\n", err)
 				}
 			}
 		}()
@@ -195,11 +195,14 @@ func (a *app) installRelease(ctx context.Context, self, fresh, target, current s
 		return err
 	}
 	a.printf("Installed %s over %s.\n", target, current)
+	if made, err := ensureCommandNames(self); err == nil && made != "" {
+		a.printf("Added %s: the command is werkbord now, and devboard still works.\n", made)
+	}
 	if !wasUp {
 		if err := a.restartUpdatedRunner(ctx, runner, target); err != nil {
 			return fmt.Errorf("update recovery incomplete: %w; old executable: %s; database backup: %s", err, prev, snapshot)
 		}
-		a.printf("Controller verification is pending: start it with `devboard start`. The old executable is retained at %s; database backup: %s.\n", prev, snapshot)
+		a.printf("Controller verification is pending: start it with `werkbord start`. The old executable is retained at %s; database backup: %s.\n", prev, snapshot)
 		return nil
 	}
 	if err := a.startUpdatedController(ctx, target); err != nil {
@@ -236,7 +239,7 @@ func (a *app) installRelease(ctx context.Context, self, fresh, target, current s
 	if err := os.Remove(prev); err != nil {
 		return fmt.Errorf("services recovered, but could not remove rollback executable %s: %w", prev, err)
 	}
-	a.printf("Dev Board %s is running again; database and required runner verified.\n", target)
+	a.printf("Werkbord %s is running again; database and required runner verified.\n", target)
 	return nil
 }
 
@@ -252,7 +255,7 @@ func (a *app) runnerForUpdate(ctx context.Context) (daemon.Manager, error) {
 	m := a.runnerDaemon(ctx)
 	state, err := m.Status(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("cannot check runner service before updating: %w; use devboard runner status", err)
+		return nil, fmt.Errorf("cannot check runner service before updating: %w; use werkbord runner status", err)
 	}
 	if !state.Running {
 		return nil, nil
@@ -294,17 +297,17 @@ func (a *app) restartUpdatedRunner(ctx context.Context, m daemon.Manager, target
 	}
 	notBefore := time.Now()
 	if err := m.Start(ctx); err != nil {
-		return fmt.Errorf("runner service could not restart: %w; use devboard runner start", err)
+		return fmt.Errorf("runner service could not restart: %w; use werkbord runner start", err)
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
 	for {
 		st, err := m.Status(waitCtx)
 		if err != nil {
-			return fmt.Errorf("cannot verify runner service: %w; use devboard runner status", err)
+			return fmt.Errorf("cannot verify runner service: %w; use werkbord runner status", err)
 		}
 		if !st.Running {
-			return fmt.Errorf("runner service did not stay running; use devboard runner status and inspect its logs")
+			return fmt.Errorf("runner service did not stay running; use werkbord runner status and inspect its logs")
 		}
 		var health remote.Health
 		data, err := os.ReadFile(filepath.Join(runnerDir(a.cfg), "health.json"))
@@ -317,7 +320,7 @@ func (a *app) restartUpdatedRunner(ctx context.Context, m daemon.Manager, target
 		}
 		select {
 		case <-waitCtx.Done():
-			return fmt.Errorf("runner did not complete a fresh controller sync on %s: %w; use devboard runner status and check its controller connection", target, waitCtx.Err())
+			return fmt.Errorf("runner did not complete a fresh controller sync on %s: %w; use werkbord runner status and check its controller connection", target, waitCtx.Err())
 		case <-time.After(a.poll):
 		}
 	}

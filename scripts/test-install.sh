@@ -42,13 +42,18 @@ for v in v9.0.1 v9.0.2; do
 done
 # v9.0.3: the archive is not what its checksum says (tampered in transit).
 mkdir -p "$WORK/releases/werkbord-v9.0.3"
-cp "$WORK/releases/werkbord-v9.0.2"/devboard_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/werkbord-v9.0.3/devboard_9.0.3_${os}_${arch}.tar.gz"
-printf '%s  devboard_9.0.3_%s_%s.tar.gz\n' "$(printf 'something else' | shasum -a 256 2>/dev/null | cut -d' ' -f1 || printf 'something else' | sha256sum | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-v9.0.3/checksums.txt"
+cp "$WORK/releases/werkbord-v9.0.2"/werkbord_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/werkbord-v9.0.3/werkbord_9.0.3_${os}_${arch}.tar.gz"
+printf '%s  werkbord_9.0.3_%s_%s.tar.gz\n' "$(printf 'something else' | shasum -a 256 2>/dev/null | cut -d' ' -f1 || printf 'something else' | sha256sum | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-v9.0.3/checksums.txt"
 # v9.0.4: a correctly checksummed archive whose executable is some other version.
 mkdir -p "$WORK/releases/werkbord-v9.0.4"
-cp "$WORK/releases/werkbord-v9.0.2"/devboard_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/werkbord-v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz"
-sum=$(shasum -a 256 "$WORK/releases/werkbord-v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-v9.0.4/devboard_9.0.4_${os}_${arch}.tar.gz")
-printf '%s  devboard_9.0.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-v9.0.4/checksums.txt"
+cp "$WORK/releases/werkbord-v9.0.2"/werkbord_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/werkbord-v9.0.4/werkbord_9.0.4_${os}_${arch}.tar.gz"
+sum=$(shasum -a 256 "$WORK/releases/werkbord-v9.0.4/werkbord_9.0.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-v9.0.4/werkbord_9.0.4_${os}_${arch}.tar.gz")
+printf '%s  werkbord_9.0.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-v9.0.4/checksums.txt"
+# v9.0.0: a release from before the rename, published only as devboard_…, with a devboard executable.
+PLATFORMS="$os/$arch" scripts/build-release.sh werkbord v9.0.0 "$WORK/build-v9.0.0" >/dev/null
+mkdir -p "$WORK/releases/werkbord-v9.0.0"
+cp "$WORK/build-v9.0.0"/devboard_* "$WORK/releases/werkbord-v9.0.0/"
+grep devboard_ "$WORK/build-v9.0.0/checksums.txt" > "$WORK/releases/werkbord-v9.0.0/checksums.txt"
 ok "built the test releases"
 
 # ---- a releases page, laid out like GitHub's ----
@@ -91,48 +96,50 @@ freeport() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0
 # A fresh "computer": its own home, data directory and port.
 newhome() {
   H="$WORK/home$1"; mkdir -p "$H"
-  export HOME="$H" DEVBOARD_DATA_DIR="$H/data" DEVBOARD_ADDR="127.0.0.1:$(freeport)" DEVBOARD_BASE_URL="$BASE"
-  export DEVBOARD_NO_SERVICE=1 DEVBOARD_NO_OPEN=1 DEVBOARD_NO_NETWORK=1
-  unset DEVBOARD_VERSION DEVBOARD_NO_SETUP DEVBOARD_INSTALL_DIR || true
+  export HOME="$H" WERKBORD_DATA_DIR="$H/data" WERKBORD_ADDR="127.0.0.1:$(freeport)" WERKBORD_BASE_URL="$BASE"
+  export WERKBORD_NO_SERVICE=1 WERKBORD_NO_OPEN=1 WERKBORD_NO_NETWORK=1
+  unset WERKBORD_VERSION WERKBORD_NO_SETUP WERKBORD_INSTALL_DIR DEVBOARD_VERSION DEVBOARD_NO_SETUP || true
 }
-api() { curl -fsS "http://$DEVBOARD_ADDR$1"; }
+api() { curl -fsS "http://$WERKBORD_ADDR$1"; }
 
 # ---- 1. the executable alone ----
 newhome 1
+# (with the variables' names from before the rename, which still work)
 out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=v9.0.1 $SH scripts/install.sh 2>&1) || bad "install failed" "$out"
-[ -x "$HOME/.local/bin/devboard" ] || bad "no executable installed" "$out"
-[ "$("$HOME/.local/bin/devboard" version)" = v9.0.1 ] || bad "wrong version installed"
+[ -x "$HOME/.local/bin/werkbord" ] || bad "no executable installed" "$out"
+[ "$("$HOME/.local/bin/werkbord" version)" = v9.0.1 ] || bad "wrong version installed"
+[ "$("$HOME/.local/bin/devboard" version)" = v9.0.1 ] || bad "devboard does not run it too"
 contains "$out" "is not on your PATH" || bad "it should say the directory is not on PATH" "$out"
 [ ! -e "$HOME/data" ] || bad "an install-only run created the data directory"
 ok "installs only the executable, checked against its checksum"
 
 # ---- 2. nothing is installed from a download that does not match ----
 newhome 2
-if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=v9.0.3 $SH scripts/install.sh 2>&1); then bad "a download that does not match its checksum was installed" "$out"; fi
+if out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=v9.0.3 $SH scripts/install.sh 2>&1); then bad "a download that does not match its checksum was installed" "$out"; fi
 contains "$out" "does not match its published checksum" || bad "the refusal should say why" "$out"
-[ ! -e "$HOME/.local/bin/devboard" ] || bad "a refused download left an executable"
-if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=v9.0.4 $SH scripts/install.sh 2>&1); then bad "an executable of the wrong version was installed" "$out"; fi
+[ ! -e "$HOME/.local/bin/werkbord" ] || bad "a refused download left an executable"
+if out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=v9.0.4 $SH scripts/install.sh 2>&1); then bad "an executable of the wrong version was installed" "$out"; fi
 contains "$out" "says it is" || bad "the wrong-version refusal should say why" "$out"
-[ ! -e "$HOME/.local/bin/devboard" ] || bad "a refused executable was installed"
+[ ! -e "$HOME/.local/bin/werkbord" ] || bad "a refused executable was installed"
 ok "refuses a download that does not match its checksum, or an executable that is not the version it claims"
 
 # ---- 3. a platform with no build, and a bad version ----
 newhome 3
-if out=$(DEVBOARD_ARCH=riscv64 $SH scripts/install.sh 2>&1); then bad "an unsupported architecture was accepted"; fi
+if out=$(WERKBORD_ARCH=riscv64 $SH scripts/install.sh 2>&1); then bad "an unsupported architecture was accepted"; fi
 contains "$out" "no release is built for riscv64" || bad "unsupported arch message" "$out"
-if out=$(DEVBOARD_OS=Windows_NT $SH scripts/install.sh 2>&1); then bad "Windows was accepted by the shell installer"; fi
+if out=$(WERKBORD_OS=Windows_NT $SH scripts/install.sh 2>&1); then bad "Windows was accepted by the shell installer"; fi
 contains "$out" "install.ps1" || bad "it should point Windows users at install.ps1" "$out"
-if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=latest $SH scripts/install.sh 2>&1); then bad "a version that is not one was accepted"; fi
-if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=v9.9.9 $SH scripts/install.sh 2>&1); then bad "a release that does not exist was installed"; fi
-if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=werkbord-team-v0.1.0 $SH scripts/install.sh 2>&1); then bad "a Werkbord Team release was installed as the individual product"; fi
+if out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=latest $SH scripts/install.sh 2>&1); then bad "a version that is not one was accepted"; fi
+if out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=v9.9.9 $SH scripts/install.sh 2>&1); then bad "a release that does not exist was installed"; fi
+if out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=werkbord-team-v0.1.0 $SH scripts/install.sh 2>&1); then bad "a Werkbord Team release was installed as the individual product"; fi
 contains "$out" "Werkbord Team release" || bad "it should say a Team release is not for this installer" "$out"
 ok "explains a platform or version it cannot install"
 
 # ---- 4. a clean machine, all the way to a running controller ----
 newhome 4
 out=$($SH scripts/install.sh 2>&1) || bad "the full install failed" "$out"
-contains "$out" "Installed $HOME/.local/bin/devboard" || bad "install output" "$out"
-contains "$out" "Setting up Dev Board v9.0.2" || bad "setup did not run after the install" "$out"
+contains "$out" "Installed $HOME/.local/bin/werkbord" || bad "install output" "$out"
+contains "$out" "Setting up Werkbord v9.0.2" || bad "setup did not run after the install" "$out"
 [ -f "$HOME/data/devboard.db" ] || bad "the database was not created" "$out"
 [ -f "$HOME/data/config.json" ] || bad "config.json was not created"
 [ -f "$HOME/data/token" ] || bad "the access token was not created"
@@ -140,27 +147,27 @@ health=$(api /api/health) || bad "the controller is not answering" "$out"
 contains "$health" '"version":"v9.0.2"' || bad "the controller is not the installed version" "$health"
 contains "$health" '"status":"ok"' || bad "the controller is unhealthy" "$health"
 TOKEN=$(cat "$HOME/data/token")
-runners=$(curl -fsS -H "Authorization: Bearer $TOKEN" "http://$DEVBOARD_ADDR/api/runners") || bad "runners"
+runners=$(curl -fsS -H "Authorization: Bearer $TOKEN" "http://$WERKBORD_ADDR/api/runners") || bad "runners"
 contains "$runners" '"kind":"local"' || bad "this computer was not registered as a runner" "$runners"
 contains "$runners" '"online":true' || bad "the runner is not online" "$runners"
 if contains "$out" "$TOKEN"; then bad "the installer printed the access token" "$out"; fi
-status=$("$HOME/.local/bin/devboard" status 2>&1) || bad "devboard status failed" "$status"
+status=$("$HOME/.local/bin/werkbord" status 2>&1) || bad "werkbord status failed" "$status"
 contains "$status" "running at" || bad "status output" "$status"
 ok "a clean install ends with a running controller, a database and this computer as a runner"
 
 # ---- 5. an upgrade replaces the running controller, keeping the data ----
 newhome 5
-DEVBOARD_VERSION=v9.0.1 $SH scripts/install.sh >/dev/null 2>&1 || bad "installing v9.0.1 failed"
+WERKBORD_VERSION=v9.0.1 $SH scripts/install.sh >/dev/null 2>&1 || bad "installing v9.0.1 failed"
 health=$(api /api/health); contains "$health" '"version":"v9.0.1"' || bad "v9.0.1 is not running" "$health"
 before=$(ls -l "$HOME/data/devboard.db" | awk '{print $5}')
 TOKEN=$(cat "$HOME/data/token")
 # some data worth keeping: a project
 git init -q -b main "$HOME/repo" && git -C "$HOME/repo" -c user.name=t -c user.email=t@e.com commit -q --allow-empty -m init
-curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "http://$DEVBOARD_ADDR/api/projects" -d "{\"path\":\"$HOME/repo\"}" >/dev/null || bad "could not register a project"
-out=$(DEVBOARD_VERSION=v9.0.2 $SH scripts/install.sh 2>&1) || bad "upgrading failed" "$out"
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "http://$WERKBORD_ADDR/api/projects" -d "{\"path\":\"$HOME/repo\"}" >/dev/null || bad "could not register a project"
+out=$(WERKBORD_VERSION=v9.0.2 $SH scripts/install.sh 2>&1) || bad "upgrading failed" "$out"
 i=0; while [ $i -lt 100 ]; do health=$(api /api/health 2>/dev/null || true); contains "$health" 'v9.0.2' && break; sleep 0.2; i=$((i + 1)); done
 contains "$health" '"version":"v9.0.2"' || bad "the controller was not replaced by the new version" "$health"
-projects=$(curl -fsS -H "Authorization: Bearer $TOKEN" "http://$DEVBOARD_ADDR/api/projects")
+projects=$(curl -fsS -H "Authorization: Bearer $TOKEN" "http://$WERKBORD_ADDR/api/projects")
 contains "$projects" '"name":"repo"' || bad "the project was lost in the upgrade" "$projects"
 [ "$(cat "$HOME/data/token")" = "$TOKEN" ] || bad "the upgrade changed the access token"
 # one controller per data directory; the other tests' controllers may still be up, so only this one is checked
@@ -168,13 +175,32 @@ pid=$(cat "$HOME/data/controller.pid"); kill -0 "$pid" 2>/dev/null || bad "the n
 ok "an upgrade restarts the controller on the new version and keeps projects and token"
 
 # ---- 6. stop and start through the commands ----
-"$HOME/.local/bin/devboard" stop >/dev/null 2>&1 || bad "stop failed"
+"$HOME/.local/bin/werkbord" stop >/dev/null 2>&1 || bad "stop failed"
 if api /api/health >/dev/null 2>&1; then bad "the controller still answers after stop"; fi
-"$HOME/.local/bin/devboard" start >/dev/null 2>&1 || bad "start failed"
+"$HOME/.local/bin/devboard" start >/dev/null 2>&1 || bad "start through the old name failed"
 health=$(api /api/health) || bad "start did not bring it back"
-projects=$(curl -fsS -H "Authorization: Bearer $TOKEN" "http://$DEVBOARD_ADDR/api/projects")
+projects=$(curl -fsS -H "Authorization: Bearer $TOKEN" "http://$WERKBORD_ADDR/api/projects")
 contains "$projects" '"name":"repo"' || bad "the project did not survive a restart" "$projects"
-"$HOME/.local/bin/devboard" stop >/dev/null 2>&1
-ok "stop and start work, and projects survive a restart"
+"$HOME/.local/bin/werkbord" stop >/dev/null 2>&1
+ok "stop and start work, under either name, and projects survive a restart"
+
+# ---- 7. an install from before the rename: only devboard, and its data in devboard ----
+newhome 7
+unset WERKBORD_DATA_DIR
+export XDG_CONFIG_HOME="$HOME/.config" # never the real one
+WERKBORD_NO_SETUP=1 WERKBORD_VERSION=v9.0.0 $SH scripts/install.sh >/dev/null 2>&1 || bad "installing a release published only as devboard_ failed"
+[ "$("$HOME/.local/bin/werkbord" version)" = v9.0.0 ] || bad "the release from before the rename was not installed"
+rm "$HOME/.local/bin/devboard" && mv "$HOME/.local/bin/werkbord" "$HOME/.local/bin/devboard"   # as such an install was
+case "$os" in darwin) cfgdir="$HOME/Library/Application Support" ;; *) cfgdir="${XDG_CONFIG_HOME:-$HOME/.config}" ;; esac
+mkdir -p "$cfgdir/devboard"
+out=$("$HOME/.local/bin/devboard" setup 2>&1) || bad "setup of the old install failed" "$out"
+[ -f "$cfgdir/devboard/devboard.db" ] || bad "the old install did not keep its data directory" "$out"
+[ ! -e "$cfgdir/werkbord" ] || bad "a second data directory was made beside the old one" "$out"
+out=$(WERKBORD_VERSION=v9.0.2 $SH scripts/install.sh 2>&1) || bad "upgrading the old install failed" "$out"
+[ "$("$HOME/.local/bin/devboard" version)" = v9.0.2 ] || bad "the old install was not upgraded" "$out"
+[ "$("$HOME/.local/bin/werkbord" version)" = v9.0.2 ] || bad "werkbord was not added beside devboard" "$out"
+[ -f "$cfgdir/devboard/devboard.db" ] || bad "the upgrade moved the data" "$out"
+"$HOME/.local/bin/werkbord" stop >/dev/null 2>&1
+ok "an install from before the rename upgrades in place, keeps its data, and gains the werkbord command"
 
 printf '\n%s installer checks passed\n' "$pass"

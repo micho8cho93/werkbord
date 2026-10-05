@@ -127,7 +127,7 @@ func TestTeamServerNeverReachesOut(t *testing.T) {
 // why the updater ignores Team's tags, for instance).
 func TestIndividualProductDoesNotMentionTeam(t *testing.T) {
 	watchSources(t)
-	closure := goList(t, "-deps", "./cmd/devboard")
+	closure := goList(t, "-deps", "./cmd/werkbord")
 	fset := token.NewFileSet()
 	checked := 0
 	for _, p := range closure {

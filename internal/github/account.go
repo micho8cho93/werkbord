@@ -19,7 +19,7 @@ import (
 
 // The pieces of the GitHub integration that onboarding needs: who is signed
 // in, signing in, and the repositories the user can reach. All of it goes
-// through the user's own GitHub CLI, so Dev Board never holds a GitHub
+// through the user's own GitHub CLI, so Werkbord never holds a GitHub
 // credential, never creates an account, and never stores anything in GitHub.
 
 // Account is who gh is signed in as.

@@ -1,5 +1,5 @@
 // Package archtest holds the tests that keep Werkbord's two products apart:
-// the individual product (cmd/devboard) and Werkbord Team (cmd/werkbord-team).
+// the individual product (cmd/werkbord) and Werkbord Team (cmd/werkbord-team).
 // It has no code of its own. The rules are in docs/PRODUCTS.md; each test below
 // says which one it enforces and what to do when it fails.
 package archtest
@@ -17,7 +17,7 @@ import (
 
 const (
 	module        = "devboard"
-	individualCmd = module + "/cmd/devboard"
+	individualCmd = module + "/cmd/werkbord"
 	teamCmd       = module + "/cmd/werkbord-team"
 	teamTree      = module + "/internal/team"
 )
@@ -151,10 +151,10 @@ func allowedForTeam(p string) bool {
 
 // Rule 1: nothing the individual product is built from, or tested with, knows Team exists.
 func TestIndividualProductDoesNotDependOnTeam(t *testing.T) {
-	closure := goList(t, "-deps", "./cmd/devboard")
+	closure := goList(t, "-deps", "./cmd/werkbord")
 	for _, p := range closure {
 		if isTeamPath(p.ImportPath) {
-			t.Errorf("the individual product's build includes %s: Team code must not be reachable from cmd/devboard", p.ImportPath)
+			t.Errorf("the individual product's build includes %s: Team code must not be reachable from cmd/werkbord", p.ImportPath)
 		}
 	}
 	// Tests too: a test in the individual product that imports Team would make Team a
@@ -248,7 +248,7 @@ func TestTeamDependenciesAreClassified(t *testing.T) {
 		}
 		return m
 	}
-	individual := modules(goList(t, "-deps", "./cmd/devboard"))
+	individual := modules(goList(t, "-deps", "./cmd/werkbord"))
 	team := modules(goList(t, "-deps", "./cmd/werkbord-team"))
 	only := map[string]bool{}
 	for _, m := range teamOnlyModules {
@@ -273,7 +273,7 @@ func TestTeamDependenciesAreClassified(t *testing.T) {
 // Rule 6: each product has a well-formed version, and the two files are separate.
 func TestEachProductHasItsOwnVersionFile(t *testing.T) {
 	semver := regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`)
-	files := map[string]string{"werkbord": "cmd/devboard/VERSION", "werkbord-team": "cmd/werkbord-team/VERSION"}
+	files := map[string]string{"werkbord": "cmd/werkbord/VERSION", "werkbord-team": "cmd/werkbord-team/VERSION"}
 	for product, rel := range files {
 		b, err := os.ReadFile(filepath.Join(moduleRoot(t), rel))
 		if os.IsNotExist(err) && product == "werkbord-team" && !hasTeam(t) {

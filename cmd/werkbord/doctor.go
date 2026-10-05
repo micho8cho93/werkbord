@@ -28,7 +28,7 @@ func (a *app) cmdDoctor(ctx context.Context, args []string) error {
 		case "--strict":
 			strict = true
 		default:
-			return errors.New("usage: devboard doctor [--json] [--strict]")
+			return errors.New("usage: werkbord doctor [--json] [--strict]")
 		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
@@ -39,7 +39,7 @@ func (a *app) cmdDoctor(ctx context.Context, args []string) error {
 			return err
 		}
 	} else {
-		a.printf("Dev Board %s doctor\n\n", version)
+		a.printf("Werkbord %s doctor\n\n", version)
 		r.Text(a.out, a.isTerminal(a.out))
 	}
 	switch w := r.Worst(); {
@@ -62,7 +62,7 @@ func (a *app) runDoctor(ctx context.Context) doctor.Report {
 		}
 		if err != nil {
 			r.Add(doctor.Check{ID: "controller-checks", Name: "checks", Status: doctor.Fail, Summary: "the controller would not run its checks: " + err.Error(),
-				Fix: "If it says the token is wrong, run `devboard restart`."})
+				Fix: "If it says the token is wrong, run `werkbord restart`."})
 			inner = a.offline(ctx)
 		}
 	} else {
@@ -90,19 +90,19 @@ func (a *app) controllerCheck(ctx context.Context) doctor.Check {
 	c := doctor.Check{ID: "controller", Name: "controller"}
 	v, up := a.healthy(ctx)
 	if !up {
-		c.Status, c.Summary, c.Fix = doctor.Fail, "not running", "Run `devboard start`; if it will not start, `devboard logs` shows why."
+		c.Status, c.Summary, c.Fix = doctor.Fail, "not running", "Run `werkbord start`; if it will not start, `werkbord logs` shows why."
 		return c
 	}
 	c.Status, c.Summary = doctor.OK, fmt.Sprintf("%s running at %s", v, a.controllerURL())
 	if v != version {
 		c.Status = doctor.Warn
-		c.Summary += fmt.Sprintf(", but this devboard is %s", version)
-		c.Fix = "Run `devboard restart` so the controller is the version you just installed."
+		c.Summary += fmt.Sprintf(", but this werkbord is %s", version)
+		c.Fix = "Run `werkbord restart` so the controller is the version you just installed."
 	}
 	if cl, err := a.client(); err == nil {
 		if _, err := cl.listProjects(ctx); err != nil && strings.Contains(err.Error(), "token") {
 			c.Status, c.Summary = doctor.Fail, c.Summary+"; it refuses this computer's access token"
-			c.Fix = "The token file changed since it started: run `devboard restart`."
+			c.Fix = "The token file changed since it started: run `werkbord restart`."
 		}
 	}
 	return c
@@ -115,11 +115,11 @@ func (a *app) serviceCheck(ctx context.Context) doctor.Check {
 		bg := &daemon.Background{Options: daemon.Options{DataDir: a.cfg.DataDir}}
 		st, _ := bg.Status(ctx)
 		c.Status = doctor.Warn
-		c.Summary = "not installed: Dev Board will not start when you log in"
+		c.Summary = "not installed: Werkbord will not start when you log in"
 		if st.Running {
 			c.Summary += " (running as a background process, pid " + fmt.Sprint(st.PID) + ")"
 		}
-		c.Fix = "Run `devboard setup` to install it."
+		c.Fix = "Run `werkbord setup` to install it."
 		return c
 	}
 	st, err := m.Status(ctx)
@@ -132,9 +132,9 @@ func (a *app) serviceCheck(ctx context.Context) doctor.Check {
 		c.Status, c.Summary = doctor.Warn, m.Name()+": installed but not running"
 		if _, up := a.healthy(ctx); up {
 			c.Summary += "; a controller started by hand is answering instead"
-			c.Fix = "Stop that one and run `devboard start`, so the service owns the controller."
+			c.Fix = "Stop that one and run `werkbord start`, so the service owns the controller."
 		} else {
-			c.Fix = "Run `devboard start`."
+			c.Fix = "Run `werkbord start`."
 		}
 	}
 	return c
@@ -157,7 +157,7 @@ func (a *app) pathCheck(inner doctor.Report) []doctor.Check {
 		if p, err := exec.LookPath(command); err == nil && strings.Contains(ck.Summary, "not installed") {
 			out = append(out, doctor.Check{ID: id + "-path", Name: id + " path", Status: doctor.Warn,
 				Summary: fmt.Sprintf("your shell finds %s at %s, but the controller does not", command, p),
-				Fix:     "The controller runs with the PATH from when you ran `devboard setup`. Run `devboard setup` again from a terminal where `" + command + "` works."})
+				Fix:     "The controller runs with the PATH from when you ran `werkbord setup`. Run `werkbord setup` again from a terminal where `" + command + "` works."})
 		}
 	}
 	return out

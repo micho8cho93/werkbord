@@ -121,7 +121,7 @@ func TestBranchAttention(t *testing.T) {
 			[]string{"cleanup/info"}},
 		{"merged but still running: leave it", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, DevBoard: GitBranchOwnership{Created: true, ActiveRun: true}, Upstream: GitUpstream{State: UpstreamNone}},
 			nil},
-		{"a branch of the user's that is merged is not Dev Board's to clean", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, Upstream: GitUpstream{State: UpstreamNone}},
+		{"a branch of the user's that is merged is not Werkbord's to clean", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, Upstream: GitUpstream{State: UpstreamNone}},
 			nil},
 		{"a branch the target moved past, with no commits of its own, is not called merged", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 2, Relation: RelBehind}, DevBoard: owned(), Upstream: GitUpstream{State: UpstreamNone}},
 			[]string{"cleanup/info"}},
