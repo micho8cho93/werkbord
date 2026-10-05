@@ -2,17 +2,97 @@ package remote
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"devboard/internal/agent"
+	"devboard/internal/agent/fake"
 	"devboard/internal/domain"
 	"devboard/internal/runnerwire"
 	"devboard/internal/service"
 	"devboard/internal/store"
 )
+
+type startupEventsAdapter struct{ *fake.Adapter }
+
+func (a startupEventsAdapter) Start(ctx context.Context, req agent.StartRequest) (agent.Session, error) {
+	sess, err := a.Adapter.Start(ctx, req)
+	if err == nil {
+		a.Last().TurnEnd()
+	}
+	return sess, err
+}
+
+func TestLaunchRechecksOwnershipAfterAgentStartup(t *testing.T) {
+	for _, change := range []string{"lease expired", "runner disabled", "project removed", "lease renewed"} {
+		t.Run(change, func(t *testing.T) {
+			e := workerFixture(t)
+			e.worker.Agents = agent.NewRegistry()
+			if err := e.worker.Agents.Register(startupEventsAdapter{e.fake}); err != nil {
+				t.Fatal(err)
+			}
+			id := "run_startup_ownership"
+			r := &Record{Job: runnerwire.Job{Run: domain.Run{ID: id, RunnerID: e.runner.ID, ProjectID: e.project.ID, AgentID: "codex"}}, Phase: "ready"}
+			e.worker.records[id] = r
+			e.fake.StartFunc = func(agent.StartRequest) error {
+				e.worker.mu.Lock()
+				defer e.worker.mu.Unlock()
+				switch change {
+				case "lease expired":
+					e.clock.Store(e.worker.lease.UnixMilli())
+				case "runner disabled":
+					e.worker.disabled = true
+				case "project removed":
+					e.worker.Identity.Projects = nil
+				case "lease renewed":
+					e.clock.Add(int64((2 * time.Minute) / time.Millisecond))
+					e.worker.lease = e.worker.now().Add(runnerwire.Lease)
+				}
+				return nil
+			}
+			done := make(chan struct{})
+			go func() { e.worker.launch(id); close(done) }()
+			waitFor(t, func() bool { return e.fake.Last() != nil })
+			sess := e.fake.Last()
+			if change == "lease renewed" {
+				waitFor(t, func() bool { e.worker.mu.Lock(); defer e.worker.mu.Unlock(); return r.Phase == "active" })
+				sess.Exit(0, "")
+			}
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+				_ = sess.Stop(testCtx)
+				<-done
+				t.Fatal("startup session was not stopped")
+			}
+			if r.Phase != "ended" || r.Process.PID == 0 || len(e.worker.sessions) != 0 {
+				t.Fatalf("session ownership was not reconciled: %+v", r)
+			}
+			started, activity := false, false
+			for _, ob := range r.Pending {
+				started = started || ob.Kind == "started"
+				activity = activity || ob.Kind == "event"
+			}
+			ended := r.Pending[len(r.Pending)-1]
+			if change == "lease renewed" {
+				if sess.StopRequested() || !started || ended.Result.State != domain.RunCompleted {
+					t.Fatal("a renewed lease did not permit startup")
+				}
+			} else if !sess.StopRequested() || started || activity || ended.Kind != "ended" || ended.Result.State != domain.RunStopped {
+				t.Fatalf("expired ownership was marked active or left running: %+v", r.Pending)
+			}
+			data, err := os.ReadFile(e.worker.journalPath(id))
+			var saved Record
+			if err != nil || json.Unmarshal(data, &saved) != nil || saved.Phase != "ended" || saved.Process.PID != r.Process.PID {
+				t.Fatalf("stopped session was not saved durably: %s, %v", data, err)
+			}
+		})
+	}
+}
 
 // PoC-6: runner loses its journal while the controller still lists the run as active => relaunch.
 func TestWorkerWithoutJournalNeverLaunchesInProgressJob(t *testing.T) {

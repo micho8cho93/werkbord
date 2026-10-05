@@ -949,9 +949,10 @@ function peopleTab(d) {
 
 function readLocation() {
  const q = new URLSearchParams(location.search);
- if (q.has('tab') && TABS.some(x => x[0] === q.get('tab'))) state.tab = q.get('tab');
- if (q.has('project')) state.projectId = q.get('project');
- state.ticketId = q.get('ticket');
+ const tab = q.get('tab');
+ state.tab = TABS.some(x => x[0] === tab) || tab === 'people' ? tab : 'workspace';
+ state.projectId = q.get('project') || null;
+ state.ticketId = q.get('ticket') || null;
 }
 readLocation();
 window.addEventListener('popstate', () => { captureDrafts(); readLocation(); state.data = null; state.handoff = null; render(); });

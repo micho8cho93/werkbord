@@ -151,22 +151,20 @@ func (a *app) cmdDB(ctx context.Context, args []string) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
+	if *latest && fs.NArg() != 0 {
+		return fmt.Errorf("--latest cannot be combined with a backup path")
+	}
+	if !*latest && fs.NArg() != 1 {
+		return fmt.Errorf("usage: devboard db restore [--force] <backup.db> | --latest")
+	}
 	backup := ""
 	if *latest {
-		files, _ := filepath.Glob(filepath.Join(sqlite.BackupDir(a.cfg.DBPath()), "*.db"))
-		sort.Slice(files, func(i, j int) bool {
-			a, _ := os.Stat(files[i])
-			b, _ := os.Stat(files[j])
-			return a.ModTime().After(b.ModTime())
-		})
-		for _, path := range files {
-			info, err := sqlite.Inspect(ctx, path)
-			if err == nil && info.Integrity == "ok" && !info.NewerThanBuild {
-				backup = path
-				break
-			}
+		files, err := filepath.Glob(filepath.Join(sqlite.BackupDir(a.cfg.DBPath()), "*.db"))
+		if err != nil {
+			return err
 		}
-	} else if fs.NArg() == 1 {
+		backup = newestCompatibleBackup(ctx, files)
+	} else {
 		backup = fs.Arg(0)
 	}
 	if backup == "" {
@@ -196,4 +194,29 @@ func (a *app) cmdDB(ctx context.Context, args []string) error {
 		return a.start(ctx, true)
 	}
 	return nil
+}
+
+func newestCompatibleBackup(ctx context.Context, files []string) string {
+	type candidate struct {
+		path    string
+		modTime time.Time
+	}
+	var candidates []candidate
+	for _, path := range files {
+		info, err := os.Stat(path)
+		if err == nil && info.Mode().IsRegular() {
+			candidates = append(candidates, candidate{path: path, modTime: info.ModTime()})
+		}
+	}
+	// Snapshot metadata before sorting: backups can disappear at any point.
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].modTime.After(candidates[j].modTime)
+	})
+	for _, file := range candidates {
+		info, err := sqlite.Inspect(ctx, file.path)
+		if err == nil && info.Exists && info.Integrity == "ok" && !info.NewerThanBuild {
+			return file.path
+		}
+	}
+	return ""
 }

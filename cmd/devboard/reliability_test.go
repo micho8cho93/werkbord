@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTokenRotationTakesEffectWithoutRestart(t *testing.T) {
@@ -110,6 +111,65 @@ func TestInvalidRestoreLeavesControllerRunning(t *testing.T) {
 	}
 	if !e.running() {
 		t.Fatal("invalid restore stopped the controller")
+	}
+}
+
+func TestLatestRestoreRejectsAPositionalBackup(t *testing.T) {
+	e := newTestEnv(t)
+	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.app.cmdDB(bg, []string{"restore", "--latest", "backup.db"}); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("ambiguous restore accepted: %v", err)
+	}
+	if !e.running() {
+		t.Fatal("invalid restore stopped the controller")
+	}
+}
+
+func TestNewestCompatibleBackupSkipsDisappearedAndInvalidFiles(t *testing.T) {
+	dir := t.TempDir()
+	old, newest := filepath.Join(dir, "old.db"), filepath.Join(dir, "newest.db")
+	damaged, future := filepath.Join(dir, "damaged.db"), filepath.Join(dir, "future.db")
+	for i, path := range []string{old, newest, future} {
+		db, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := 0
+		if i == 2 {
+			v = 999
+		}
+		_, err = db.Exec("CREATE TABLE schema_migrations (version INTEGER); INSERT INTO schema_migrations VALUES (?)", v)
+		if closeErr := db.Close(); err != nil || closeErr != nil {
+			t.Fatalf("create backup: %v %v", err, closeErr)
+		}
+	}
+	if err := os.WriteFile(damaged, []byte("not a database"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for i, path := range []string{old, newest, damaged, future} {
+		at := time.Now().Add(time.Duration(i) * time.Hour)
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	vanished := filepath.Join(dir, "vanished.db")
+	if err := os.WriteFile(vanished, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	files, err := filepath.Glob(filepath.Join(dir, "*.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(vanished); err != nil {
+		t.Fatal(err)
+	}
+	if got := newestCompatibleBackup(bg, files); got != newest {
+		t.Fatalf("selected %q, want %q", got, newest)
+	}
+	if got := newestCompatibleBackup(bg, []string{vanished, damaged, future}); got != "" {
+		t.Fatalf("selected an invalid backup: %q", got)
 	}
 }
 

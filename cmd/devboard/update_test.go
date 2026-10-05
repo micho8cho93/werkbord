@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"devboard/internal/daemon"
 	"devboard/internal/update"
 )
 
@@ -184,6 +186,68 @@ func TestUpdateRollsBackWhenTheNewVersionDoesNotStart(t *testing.T) {
 }
 
 func b(path string) string { x, _ := os.ReadFile(path); return string(x) }
+
+type updateRunnerManager struct {
+	daemon.Manager
+	statusErr  error
+	restartErr error
+	onRestart  func()
+}
+
+func (m *updateRunnerManager) Status(context.Context) (daemon.State, error) {
+	return daemon.State{Running: true}, m.statusErr
+}
+
+func (m *updateRunnerManager) Restart(context.Context) error {
+	m.onRestart()
+	return m.restartErr
+}
+
+func TestUpdateRetainsRollbackUntilRunnerRestartSucceeds(t *testing.T) {
+	for _, failure := range []string{"status", "restart", "none"} {
+		t.Run(failure, func(t *testing.T) {
+			e := newTestEnv(t)
+			if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+				t.Fatal(err)
+			}
+			setVersion(t, "v1.0.0")
+			publishRelease(t, "v1.1.0", false)
+			bin, _ := e.app.executable()
+			dir := runnerDir(e.app.cfg)
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(dir+string(os.PathSeparator)+"identity.json", []byte("{}"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			m := &updateRunnerManager{onRestart: func() {
+				if !strings.Contains(b(bin+".prev"), "echo old") {
+					t.Error("old executable deleted before runner restart")
+				}
+			}}
+			if failure == "status" {
+				m.statusErr = errors.New("runner status failed")
+			} else if failure == "restart" {
+				m.restartErr = errors.New("runner restart failed")
+			}
+			e.app.runnerDaemon = func(context.Context) daemon.Manager { return m }
+			err := e.app.cmdUpdate(bg, nil)
+			if failure == "none" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := os.Stat(bin + ".prev"); !os.IsNotExist(err) {
+					t.Fatal("rollback executable retained after successful restarts")
+				}
+			} else if err == nil || !strings.Contains(err.Error(), bin+".prev") || !strings.Contains(b(bin+".prev"), "echo old") {
+				t.Fatalf("runner failure lost rollback executable: %v", err)
+			}
+			if !e.running() || !strings.Contains(b(bin), "v1.1.0") {
+				t.Fatal("updated controller is not running")
+			}
+		})
+	}
+}
 
 func TestUpdateFromASourceBuildNeedsForce(t *testing.T) {
 	e := newTestEnv(t)

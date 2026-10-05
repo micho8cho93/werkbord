@@ -486,21 +486,28 @@ func (w *Worker) launch(id string) {
 		return
 	}
 	quarantined := r.Phase == "uncertain"
-	if !quarantined {
+	ownershipExpired := !w.now().Before(w.lease) || w.disabled || !contains(w.Identity.Projects, j.Run.ProjectID)
+	if !quarantined && !ownershipExpired {
 		r.Phase = "active"
 	}
 	r.Process = sess.Process()
 	w.sessions[id] = sess
-	if quarantined {
+	if quarantined || ownershipExpired {
+		if ownershipExpired {
+			w.stopKind[id] = "lease expired or project access disabled during agent startup"
+		}
 		_ = w.save(r)
 		go sess.Stop(context.Background())
-	}
-	if e := w.appendLocked(r, runnerwire.Observation{Kind: "started", Branch: branch, BaseCommit: base}); e != nil {
+	} else if e := w.appendLocked(r, runnerwire.Observation{Kind: "started", Branch: branch, BaseCommit: base}); e != nil {
 		w.stopKind[id] = "journal write failed"
 		go sess.Stop(context.Background())
 	}
 	w.mu.Unlock()
 	for ev := range sess.Events() {
+		// Drain the stopped session without reporting activity from an unauthorized launch.
+		if ownershipExpired {
+			continue
+		}
 		w.mu.Lock()
 		if len(ev.Text) > 16384 {
 			ev.Text = ev.Text[:16384]

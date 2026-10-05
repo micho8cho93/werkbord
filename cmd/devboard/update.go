@@ -161,8 +161,11 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 	}
 	v, _ := a.healthy(ctx)
 	a.printf("Dev Board %s is running again.\n", v)
+	if err := a.restartUpdatedRunner(ctx); err != nil {
+		return fmt.Errorf("%w; a copy of the old executable is retained at %s", err, prev)
+	}
 	_ = os.Remove(prev)
-	return a.restartUpdatedRunner(ctx)
+	return nil
 }
 
 func (a *app) restartUpdatedRunner(ctx context.Context) error {
