@@ -153,11 +153,12 @@
   }
 
   .kind {
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--warn);
+    letter-spacing: 0.12em;
+    color: var(--warn-text);
   }
 
   .meta time {
@@ -168,7 +169,7 @@
   .prompt {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font-size: 1.02rem;
+    font-size: 15px;
     font-weight: 600;
     line-height: 1.35;
   }
@@ -201,27 +202,39 @@
   }
 
   .choices {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
-  .choices.dialog {
-    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
-  }
-
-  /* Big enough to hit with a thumb, and a wrong tap is as costly as a right one. */
   .choice {
-    min-height: 46px;
+    min-height: 32px;
+    max-width: 100%;
     justify-content: flex-start;
     text-align: left;
     white-space: normal;
     overflow-wrap: anywhere;
-    padding-block: 8px;
+    padding-block: 6px;
   }
 
-  .choices.dialog .choice {
-    justify-content: center;
-    text-align: center;
+  /* On a touch screen a wrong tap is as costly as a right one: big targets, side by side for a dialog. */
+  @media (pointer: coarse) {
+    .choices {
+      display: grid;
+    }
+
+    .choices.dialog {
+      grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    }
+
+    .choice {
+      min-height: 46px;
+    }
+
+    .choices.dialog .choice {
+      justify-content: center;
+      text-align: center;
+    }
   }
 
   .free {
@@ -241,7 +254,9 @@
     min-height: 56px;
   }
 
-  .free .btn {
-    min-height: 46px;
+  @media (pointer: coarse) {
+    .free .btn {
+      min-height: 46px;
+    }
   }
 </style>

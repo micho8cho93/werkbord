@@ -1,5 +1,6 @@
 <script lang="ts">
   import { setToken } from './api';
+  import Mark from './Mark.svelte';
   import { app } from './state.svelte';
 
   let token = $state('');
@@ -13,6 +14,7 @@
 
 <div class="wrap">
   <form class="card" onsubmit={submit}>
+    <div class="brand"><Mark height={22} /><span class="wm">werkbord</span></div>
     <h1>Connect to your controller</h1>
     <p class="muted">
       This controller requires an access token. On the computer running it, run <code>devboard token</code> to print
@@ -43,6 +45,24 @@
     width: min(420px, 100%);
     display: grid;
     gap: 14px;
-    padding: 20px;
+    padding: 24px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .wm {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: -0.06em;
+  }
+
+  p {
+    font-size: 13px;
   }
 </style>

@@ -12,14 +12,15 @@
   import Toasts from './lib/shell/Toasts.svelte';
   import { app } from './lib/state.svelte';
   import TokenPrompt from './lib/TokenPrompt.svelte';
-  import Activity from './routes/Activity.svelte';
   import Board from './routes/Board.svelte';
   import Calendar from './routes/Calendar.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
   import Onboarding from './routes/Onboarding.svelte';
   import ProjectSettings from './routes/ProjectSettings.svelte';
+  import ProjectOverview from './routes/ProjectOverview.svelte';
   import Projects from './routes/Projects.svelte';
+  import Runs from './routes/Runs.svelte';
   import Settings from './routes/Settings.svelte';
   import TaskPanel from './routes/TaskPanel.svelte';
 
@@ -29,8 +30,6 @@
   const projectId = $derived(router.projectId || app.lastProjectId);
   const project = $derived(app.project(projectId));
   const scope = $derived(router.projectId ? app.scopes.get(router.projectId) : undefined);
-  /** Views that size themselves to the window (a board fills it; its columns scroll). */
-  const fills = $derived(inside && (router.view === 'board' || router.view === 'task'));
 
   const globalTitle = $derived(router.view === 'onboarding' ? 'Set up Werkbord' : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? ''));
 
@@ -104,9 +103,9 @@
   /** The phone's tabs, as on the identity sheet: what needs you first, then the project's sections. */
   const phoneTabs = $derived<{ id: string; label: string; icon: IconName; href: string; current: boolean; count?: number }[]>([
     { id: 'control', label: 'Needs you', icon: 'control', href: globalHref('control'), current: router.view === 'control', count: app.needsYou },
-    ...(['board', 'calendar', 'git', 'activity'] as const).map((s) => ({
+    ...(['board', 'calendar', 'git', 'runs'] as const).map((s) => ({
       id: s,
-      label: { board: 'Board', calendar: 'Calendar', git: 'Git', activity: 'Activity' }[s],
+      label: { board: 'Board', calendar: 'Calendar', git: 'Git', runs: 'Runs' }[s],
       icon: s,
       href: project ? projectHref(project.id, s) : globalHref('projects'),
       current: inside && (router.view === s || (s === 'board' && router.view === 'task')),
@@ -119,7 +118,7 @@
 {#if app.connection === 'unauthorized'}
   <TokenPrompt />
 {:else}
-  <div class="shell" class:fills>
+  <div class="shell">
     <div class="rail-area"><Rail /></div>
 
     <div class="main-area">
@@ -143,11 +142,11 @@
         {#if router.view === 'control'}
           <ControlCenter />
         {:else if router.view === 'projects'}
-          <Projects />
+          <div class="page"><Projects /></div>
         {:else if router.view === 'settings'}
           <Settings />
         {:else if router.view === 'onboarding'}
-          <Onboarding />
+          <div class="page"><Onboarding /></div>
         {:else if !router.projectId}
           <p class="empty">{loaded ? 'Opening…' : 'Loading…'}</p>
         {:else if !project}
@@ -161,12 +160,14 @@
           <!-- Each project's page is its own: nothing typed or open in one carries over to another. -->
           {#key project.id}
             <ScheduleWatch {scope} />
-            {#if router.view === 'calendar'}
-              <div class="page"><Calendar {scope} {project} /></div>
+            {#if router.view === 'overview'}
+              <ProjectOverview {scope} {project} />
+            {:else if router.view === 'calendar'}
+              <Calendar {scope} {project} />
             {:else if router.view === 'git'}
-              <div class="page"><Git {project} /></div>
-            {:else if router.view === 'activity'}
-              <div class="page"><Activity {scope} {project} /></div>
+              {#if router.sub}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
+            {:else if router.view === 'runs'}
+              <Runs {scope} {project} />
             {:else if router.view === 'defaults'}
               <div class="page"><ProjectSettings {project} /></div>
             {:else}
@@ -222,10 +223,6 @@
     overflow-y: auto;
   }
 
-  .fills main {
-    overflow: hidden;
-  }
-
   .page {
     padding: 20px 24px 32px;
   }
@@ -274,8 +271,7 @@
       display: block;
     }
 
-    main,
-    .fills main {
+    main {
       overflow: visible;
     }
 

@@ -191,20 +191,19 @@
     gap: 6px;
     padding: 12px 14px;
     min-width: 0;
-    border-left: 4px solid var(--border);
   }
 
   .finding[data-severity='attention'] {
-    border-left-color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
   }
 
   .finding[data-severity='risk'] {
-    border-left-color: var(--block);
+    border-color: color-mix(in srgb, var(--block) 45%, var(--border));
     background: color-mix(in srgb, var(--block) 5%, var(--surface));
   }
 
   .finding[data-severity='critical'] {
-    border-left-color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
     background: color-mix(in srgb, var(--danger) 7%, var(--surface));
   }
 
@@ -226,7 +225,7 @@
 
   .title {
     font-size: 0.98rem;
-    font-weight: 650;
+    font-weight: 600;
     margin: 0;
   }
 
@@ -291,7 +290,7 @@
     background: var(--surface-2);
   }
 
-  .task-editor label { display: grid; gap: 4px; font-size: .85rem; font-weight: 550; }
+  .task-editor label { display: grid; gap: 4px; font-size: .85rem; font-weight: 500; }
   .task-editor input, .task-editor textarea {
     width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border);
     border-radius: var(--radius-sm); color: var(--text); background: var(--surface);

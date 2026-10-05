@@ -60,7 +60,7 @@
   }
 </script>
 
-<section class="card runners" aria-labelledby="runners-title">
+<section class="pn runners" aria-labelledby="runners-title">
   <div class="heading"><div><h3 id="runners-title">Runners</h3><p class="muted">Your machines. Each uses its own Git and agent sign-ins.</p></div><button class="btn" onclick={() => (adding = !adding)}>{adding ? 'Close pairing' : 'Add runner'}</button></div>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if adding}
@@ -111,13 +111,13 @@
 <style>
   .runners { padding: 16px; display: grid; gap: 16px; }
   .heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  h3 { font-size: 1rem; font-weight: 650; } h4 { margin: 0; }
-  p { margin: 4px 0; font-size: .88rem; }
+  h3 { font-size: 15px; font-weight: 600; } h4 { margin: 0; }
+  p { margin: 4px 0; font-size: 13px; }
   .runner { padding-top: 16px; border-top: 1px solid var(--border); display: grid; gap: 6px; }
-  .state { font-size: .82rem; font-variant-numeric: tabular-nums; color: var(--text-2); } .state[data-online='true'] { color: var(--ok); }
+  .state { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--text-2); } .state[data-online='true'] { color: var(--ok-text); }
   .pairing, .controls { display: grid; gap: 12px; } .pairing { padding-block: 12px; }
-  summary { cursor: pointer; font-size: .86rem; color: var(--text-2); padding-block: 6px; }
-  .controls { padding-top: 12px; } label { display: grid; gap: 6px; font-size: .88rem; }
+  summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-2); padding-block: 6px; } summary:hover { color: var(--text); }
+  .controls { padding-top: 12px; } label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; }
   .check { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   fieldset { border: 0; padding: 0; display: grid; gap: 8px; min-width: 0; } legend { margin-bottom: 8px; font-weight: 600; }
   dl { display: grid; grid-template-columns: minmax(100px, 1fr) 2fr; gap: 8px; font-size: .85rem; } dt { color: var(--text-2); } dd { margin: 0; overflow-wrap: anywhere; }

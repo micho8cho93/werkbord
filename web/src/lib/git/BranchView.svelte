@@ -270,7 +270,7 @@
     text-transform: none;
     letter-spacing: 0;
     color: var(--text);
-    font-weight: 650;
+    font-weight: 600;
   }
 
   .commits,

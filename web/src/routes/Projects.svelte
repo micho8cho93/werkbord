@@ -1,7 +1,6 @@
 <script lang="ts">
   import { api } from '../lib/api';
-  import ProjectAvatar from '../lib/ProjectAvatar.svelte';
-  import { activitySummary } from '../lib/projects';
+  import { activitySummary, attentionCount, shortPath } from '../lib/projects';
   import { projectHref, router, switchedTo } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
 
@@ -32,52 +31,48 @@
 </script>
 
 <div class="layout">
-  <section class="repos">
-    <h2>Projects</h2>
-    {#each app.projects as p (p.id)}
-      <a class="card project" href={projectHref(p.id)} onclick={() => app.enter(p.id)}>
-        <ProjectAvatar id={p.id} name={p.name} size={40} />
-        <span class="what">
-          <span class="name">{p.name}</span>
-          <span class="path mono">{p.repoPath}</span>
-          <span class="meta muted">
-            {#if p.repository}{p.repository.currentBranch || 'detached HEAD'}{/if}
-            {#if activitySummary(activity(p.id))}· {activitySummary(activity(p.id))}{/if}
-          </span>
-        </span>
-      </a>
+  <section class="pn">
+    <div class="ph">Projects<span class="chip">{app.projects.length}</span></div>
+    {#if app.projects.length}
+      <ul class="list">
+        {#each app.projects as p (p.id)}
+          {@const a = activity(p.id)}
+          {@const n = attentionCount(a)}
+          <li>
+            <a class="project" href={projectHref(p.id, 'overview')} onclick={() => app.enter(p.id)}>
+              <span class="sq"></span>
+              <span class="what">
+                <span class="name">{p.name}</span>
+                <span class="mm path">{shortPath(p.repoPath)}{p.repository ? ` · ${p.repository.currentBranch || 'detached'}` : ''}</span>
+              </span>
+              <span class="mm sum">{activitySummary(a) || 'quiet'}</span>
+              {#if n}<span class="num pend">{n}</span>{/if}
+            </a>
+          </li>
+        {/each}
+      </ul>
     {:else}
-      <p class="card empty">No projects yet. Register a local Git repository to get a board.</p>
-    {/each}
+      <p class="muted">No projects yet. Register a local Git repository to get a board, a calendar and its Git.</p>
+    {/if}
   </section>
 
-  <section class="card register">
-    <h2>Register a repository</h2>
+  <section class="pn register">
+    <h3>Register a repository</h3>
     <p class="muted">
-      Point Werkbord at an existing Git checkout on this computer. Nothing is copied; the controller only reads its
-      metadata. Each repository becomes a project with its own board, Git view and activity.
+      Point Werkbord at an existing Git checkout on this computer. Nothing is copied; the controller only reads its metadata. Each repository becomes a
+      project with its own board, calendar, Git and runs.
     </p>
     <form onsubmit={register}>
       <label>
         <span>Path</span>
-        <input
-          class="input mono"
-          placeholder="/Users/you/code/my-app"
-          autocapitalize="off"
-          autocomplete="off"
-          spellcheck="false"
-          required
-          bind:value={path}
-        />
+        <input class="input mono" placeholder="/Users/you/code/my-app" autocapitalize="off" autocomplete="off" spellcheck="false" required bind:value={path} />
       </label>
       <label>
-        <span>Name <span class="muted">(optional)</span></span>
+        <span>Name <span class="muted opt">optional</span></span>
         <input class="input" placeholder="Defaults to the folder name" maxlength="120" bind:value={name} />
       </label>
       {#if formError}<p class="error" role="alert">{formError}</p>{/if}
-      <button class="btn primary" type="submit" disabled={busy || !path.trim()}>
-        {busy ? 'Checking…' : 'Register'}
-      </button>
+      <button class="btn primary" type="submit" disabled={busy || !path.trim()}>{busy ? 'Checking…' : 'Register'}</button>
     </form>
   </section>
 </div>
@@ -87,12 +82,69 @@
     display: grid;
     gap: 20px;
     max-width: 1100px;
+    align-items: start;
   }
 
-  .register {
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .project {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 8px 8px;
+    border-top: 1px solid var(--border);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  li:first-child .project {
+    border-top: 0;
+  }
+
+  .project:hover {
+    background: var(--bg);
+  }
+
+  .sq {
+    width: 7px;
+    height: 7px;
+    flex: none;
+    background: var(--text);
+  }
+
+  .what {
     display: grid;
-    gap: 10px;
-    padding: 16px;
+    gap: 1px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .name {
+    font-weight: 500;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .path,
+  .sum {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sum {
+    max-width: 40%;
+  }
+
+  h3 {
+    font-size: 15px;
   }
 
   form {
@@ -102,57 +154,30 @@
 
   label {
     display: grid;
-    gap: 4px;
-    font-size: 0.9rem;
-    font-weight: 550;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
   }
 
-  .repos {
-    display: grid;
-    gap: 10px;
-    align-content: start;
+  .opt {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
   }
 
-  .project {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 12px 14px;
-    min-width: 0;
-    color: inherit;
-    text-decoration: none;
+  form .btn {
+    justify-self: start;
   }
 
-  .project:hover {
-    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  }
-
-  .what {
-    display: grid;
-    gap: 1px;
-    min-width: 0;
-  }
-
-  .name {
-    font-weight: 650;
-    overflow-wrap: anywhere;
-  }
-
-  .path {
-    color: var(--text-2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .meta {
-    font-size: 0.82rem;
-  }
-
-  @media (min-width: 900px) {
+  @media (min-width: 1000px) {
     .layout {
-      grid-template-columns: minmax(0, 1fr) 360px;
-      align-items: start;
+      grid-template-columns: minmax(0, 1fr) 380px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .sum {
+      display: none;
     }
   }
 </style>

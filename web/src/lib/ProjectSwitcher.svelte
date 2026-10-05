@@ -173,7 +173,7 @@
             <li class="group" role="presentation">{it.group}</li>
           {/if}
           <li id="jt-{it.id}" role="option" aria-selected={i === highlight} class="row" data-active={i === highlight}>
-            <button type="button" class="pick" onclick={() => choose(it)} onmousemove={() => (highlight = i)} tabindex="-1">
+            <button type="button" class="row-btn" onclick={() => choose(it)} onmousemove={() => (highlight = i)} tabindex="-1">
               {#if it.icon}<span class="ic"><Icon name={it.icon} /></span>{:else if it.group === 'Projects'}<span class="sq" class:here={it.current}></span>{:else}<span class="ic"><Icon name="board" /></span>{/if}
               <span class="it">{it.label}</span>
               {#if it.current}<span class="chip">current</span>{/if}
@@ -273,7 +273,7 @@
     color: var(--text-2);
   }
 
-  .pick {
+  .row-btn {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -287,7 +287,7 @@
     font-size: 13px;
   }
 
-  .row[data-active='true'] .pick {
+  .row[data-active='true'] .row-btn {
     background: var(--surface-2);
     box-shadow: var(--press-sh);
   }

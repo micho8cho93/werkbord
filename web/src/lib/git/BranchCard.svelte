@@ -87,19 +87,14 @@
   .item {
     display: grid;
     min-width: 0;
-    border-left: 3px solid var(--border);
-  }
-
-  .item.owned {
-    border-left-color: var(--accent);
   }
 
   .item[data-severity='action'] {
-    border-left-color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
   }
 
   .item[data-severity='warn'] {
-    border-left-color: var(--block);
+    border-color: color-mix(in srgb, var(--block) 45%, var(--border));
   }
 
   .item.emphasis {
@@ -116,7 +111,7 @@
   }
 
   .name {
-    font-weight: 650;
+    font-weight: 600;
   }
 
   .prefix {

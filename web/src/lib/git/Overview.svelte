@@ -74,14 +74,15 @@
 </script>
 
 {#if store.error && !o}
-  <div class="card g-card">
+  <div class="card g-card pad">
     <p class="error" role="alert">{store.error}</p>
     <button class="btn" onclick={() => store.load()}>Try again</button>
   </div>
 {:else if !o}
-  <p class="card empty">Loading the repository…</p>
+  <p class="empty">Loading the repository…</p>
 {:else}
-  <div class="g-page">
+  <div class="split git">
+    <div class="pane">
     {#if store.lastResult}
       <div class="result">
         <ResultCard result={store.lastResult} />
@@ -89,6 +90,115 @@
       </div>
     {/if}
 
+    <!-- 2. Branches needing attention: Werkbord's own first. -->
+    <section class="g-section" aria-label="Branches needing attention">
+      <header>
+        <h2>Needs you</h2>
+        <span class="count">{attention.length}</span>
+      </header>
+      {#if attention.length}
+        <ul class="g-list">
+          {#each showAllAttention ? attention : attention.slice(0, SHOW_ATTENTION) as b (b.ref)}
+            <BranchCard projectId={project.id} branch={b} targetName={o.local.target.name} ctx={ctxFor(b.name)} emphasis={b.devboard.created} />
+          {/each}
+        </ul>
+        {#if attention.length > SHOW_ATTENTION && !showAllAttention}
+          <button class="btn quiet" onclick={() => (showAllAttention = true)}>Show all {attention.length}</button>
+        {/if}
+      {:else}
+        <p class="card empty">Nothing needs you. No branch is waiting for a decision.</p>
+      {/if}
+    </section>
+
+    <!-- 7. Every branch. -->
+    <section class="g-section" aria-label="All branches">
+      <header>
+        <h2>Branches</h2>
+        <span class="count">{listed.length}</span>
+      </header>
+      <div class="filters" role="tablist" aria-label="Filter branches">
+        {#each BRANCH_FILTERS as f (f.id)}
+          <button
+            class="filter"
+            role="tab"
+            aria-selected={filter === f.id}
+            onclick={() => {
+              chosen = f.id;
+              showAllBranches = false;
+            }}
+          >{f.label}</button>
+        {/each}
+      </div>
+      {#if listed.length}
+        <ul class="g-list">
+          {#each showAllBranches ? listed : listed.slice(0, SHOW_BRANCHES) as b (b.ref)}
+            <BranchCard projectId={project.id} branch={b} targetName={o.local.target.name} ctx={ctxFor(b.name)} />
+          {/each}
+        </ul>
+        {#if listed.length > SHOW_BRANCHES && !showAllBranches}
+          <button class="btn quiet" onclick={() => (showAllBranches = true)}>Show all {listed.length}</button>
+        {/if}
+      {:else}
+        <p class="card empty">No branches here.</p>
+      {/if}
+    </section>
+    <!-- 3. Pull requests, from GitHub, asked for separately. -->
+    <section class="g-section" aria-label="Pull requests">
+      <header>
+        <h2>Pull requests</h2>
+        {#if o.remote.github.detected || gh}
+          <button class="btn small quiet" onclick={() => store.loadGitHub()} disabled={store.githubLoading}>
+            {store.githubLoading ? 'Asking GitHub…' : gh ? 'Refresh' : 'Load from GitHub'}
+          </button>
+        {/if}
+      </header>
+      {#if !gh}
+        <p class="card empty muted">
+          {#if o.remote.github.detected}
+            Pull requests come from GitHub, through your own GitHub CLI. {store.githubLoading ? 'Asking GitHub…' : 'Tap Load.'}
+          {:else if o.remote.remotes.length === 0}
+            This repository has no remote, so there are no pull requests.
+          {:else}
+            The remote does not look like a GitHub repository.
+          {/if}
+        </p>
+      {:else if !gh.available}
+        <p class="card g-card muted g-small">{githubUnavailable(gh)}</p>
+      {:else if gh.pullRequests.length === 0}
+        <p class="card empty">No pull requests.</p>
+      {:else}
+        <ul class="g-list">
+          {#each [...openPRList, ...recentPRs] as pr (pr.number)}
+            {@const st = prStateLabel(pr)}
+            {@const checks = checksLabel(pr.checks)}
+            {@const review = reviewLabel(pr.review)}
+            {@const mergeable = mergeableLabel(pr.mergeable)}
+            <li class="card g-card pr">
+              <div class="g-row">
+                <span class="g-chip" data-tone={st.tone}>{st.text}</span>
+                <a class="prtitle g-wrap" href={safeURL(pr.url)} target="_blank" rel="noopener noreferrer">#{pr.number} {pr.title}</a>
+              </div>
+              <p class="g-small muted g-wrap">
+                {pr.headBranch}{pr.crossRepo ? ' (fork)' : ''} → {pr.baseBranch}
+                {#if pr.updatedAt}· {timeAgo(pr.updatedAt, app.now)}{/if}
+              </p>
+              <div class="g-row">
+                {#if review}<span class="g-chip" data-tone={review.tone}>{review.text}</span>{/if}
+                {#if checks}<span class="g-chip" data-tone={checks.tone}>{checks.text}</span>{/if}
+                {#if mergeable}<span class="g-chip" data-tone={mergeable.tone}>{mergeable.text}</span>{/if}
+              </div>
+              {#if pr.taskId}
+                <p class="g-small"><a href={taskHref(project.id, pr.taskId)}>{pr.taskTitle || 'Open task'}</a></p>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+        <p class="g-small muted">From GitHub {timeAgo(gh.fetchedAt, app.now)}. A merge on GitHub shows here, not from what happened on this computer.</p>
+      {/if}
+    </section>
+
+    </div>
+    <aside class="pane" aria-label="The repository">
     <!-- 0. Is anything wrong? Healthy, or what: the findings, and what to do about each. -->
     <HealthPanel {project} {store} />
 
@@ -203,101 +313,6 @@
       {/if}
     </section>
 
-    <!-- 2. Branches needing attention: Werkbord's own first. -->
-    <section class="g-section" aria-label="Branches needing attention">
-      <header>
-        <h2>Needs you</h2>
-        <span class="count">{attention.length}</span>
-      </header>
-      {#if attention.length}
-        <ul class="g-list">
-          {#each showAllAttention ? attention : attention.slice(0, SHOW_ATTENTION) as b (b.ref)}
-            <BranchCard projectId={project.id} branch={b} targetName={o.local.target.name} ctx={ctxFor(b.name)} emphasis={b.devboard.created} />
-          {/each}
-        </ul>
-        {#if attention.length > SHOW_ATTENTION && !showAllAttention}
-          <button class="btn quiet" onclick={() => (showAllAttention = true)}>Show all {attention.length}</button>
-        {/if}
-      {:else}
-        <p class="card empty">Nothing needs you. No branch is waiting for a decision.</p>
-      {/if}
-    </section>
-
-    <!-- 3. Pull requests, from GitHub, asked for separately. -->
-    <section class="g-section" aria-label="Pull requests">
-      <header>
-        <h2>Pull requests</h2>
-        {#if o.remote.github.detected || gh}
-          <button class="btn small quiet" onclick={() => store.loadGitHub()} disabled={store.githubLoading}>
-            {store.githubLoading ? 'Asking GitHub…' : gh ? 'Refresh' : 'Load from GitHub'}
-          </button>
-        {/if}
-      </header>
-      {#if !gh}
-        <p class="card empty muted">
-          {#if o.remote.github.detected}
-            Pull requests come from GitHub, through your own GitHub CLI. {store.githubLoading ? 'Asking GitHub…' : 'Tap Load.'}
-          {:else if o.remote.remotes.length === 0}
-            This repository has no remote, so there are no pull requests.
-          {:else}
-            The remote does not look like a GitHub repository.
-          {/if}
-        </p>
-      {:else if !gh.available}
-        <p class="card g-card muted g-small">{githubUnavailable(gh)}</p>
-      {:else if gh.pullRequests.length === 0}
-        <p class="card empty">No pull requests.</p>
-      {:else}
-        <ul class="g-list">
-          {#each [...openPRList, ...recentPRs] as pr (pr.number)}
-            {@const st = prStateLabel(pr)}
-            {@const checks = checksLabel(pr.checks)}
-            {@const review = reviewLabel(pr.review)}
-            {@const mergeable = mergeableLabel(pr.mergeable)}
-            <li class="card g-card pr">
-              <div class="g-row">
-                <span class="g-chip" data-tone={st.tone}>{st.text}</span>
-                <a class="prtitle g-wrap" href={safeURL(pr.url)} target="_blank" rel="noopener noreferrer">#{pr.number} {pr.title}</a>
-              </div>
-              <p class="g-small muted g-wrap">
-                {pr.headBranch}{pr.crossRepo ? ' (fork)' : ''} → {pr.baseBranch}
-                {#if pr.updatedAt}· {timeAgo(pr.updatedAt, app.now)}{/if}
-              </p>
-              <div class="g-row">
-                {#if review}<span class="g-chip" data-tone={review.tone}>{review.text}</span>{/if}
-                {#if checks}<span class="g-chip" data-tone={checks.tone}>{checks.text}</span>{/if}
-                {#if mergeable}<span class="g-chip" data-tone={mergeable.tone}>{mergeable.text}</span>{/if}
-              </div>
-              {#if pr.taskId}
-                <p class="g-small"><a href={taskHref(project.id, pr.taskId)}>{pr.taskTitle || 'Open task'}</a></p>
-              {/if}
-            </li>
-          {/each}
-        </ul>
-        <p class="g-small muted">From GitHub {timeAgo(gh.fetchedAt, app.now)}. A merge on GitHub shows here, not from what happened on this computer.</p>
-      {/if}
-    </section>
-
-    <!-- 4. Recent commits. -->
-    <section class="g-section" aria-label="Recent commits">
-      <header>
-        <h2>Recent commits</h2>
-        {#if o.local.head.branch}<a class="g-small" href={commitsHref(project.id, 'local', o.local.head.branch)}>All history</a>{/if}
-      </header>
-      {#if o.local.recentCommits.length}
-        <div class="card commits">
-          {#each o.local.recentCommits as c (c.sha)}
-            <div class="g-commit">
-              <span class="subject">{c.subject}</span>
-              <span class="meta"><code>{shortSha(c.sha)}</code> · {c.author} · {timeAgo(c.date, app.now)}{#if c.merge} · merge{/if}</span>
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <p class="card empty">No commits yet.</p>
-      {/if}
-    </section>
-
     <!-- 5. Working changes. -->
     <section class="g-section" aria-label="Working changes">
       <header><h2>Working changes</h2></header>
@@ -346,42 +361,39 @@
       </section>
     {/if}
 
-    <!-- 7. Every branch. -->
-    <section class="g-section" aria-label="All branches">
+    <!-- 4. Recent commits. -->
+    <section class="g-section" aria-label="Recent commits">
       <header>
-        <h2>Branches</h2>
-        <span class="count">{listed.length}</span>
+        <h2>Recent commits</h2>
+        {#if o.local.head.branch}<a class="g-small" href={commitsHref(project.id, 'local', o.local.head.branch)}>All history</a>{/if}
       </header>
-      <div class="filters" role="tablist" aria-label="Filter branches">
-        {#each BRANCH_FILTERS as f (f.id)}
-          <button
-            class="filter"
-            role="tab"
-            aria-selected={filter === f.id}
-            onclick={() => {
-              chosen = f.id;
-              showAllBranches = false;
-            }}
-          >{f.label}</button>
-        {/each}
-      </div>
-      {#if listed.length}
-        <ul class="g-list">
-          {#each showAllBranches ? listed : listed.slice(0, SHOW_BRANCHES) as b (b.ref)}
-            <BranchCard projectId={project.id} branch={b} targetName={o.local.target.name} ctx={ctxFor(b.name)} />
+      {#if o.local.recentCommits.length}
+        <div class="card commits">
+          {#each o.local.recentCommits as c (c.sha)}
+            <div class="g-commit">
+              <span class="subject">{c.subject}</span>
+              <span class="meta"><code>{shortSha(c.sha)}</code> · {c.author} · {timeAgo(c.date, app.now)}{#if c.merge} · merge{/if}</span>
+            </div>
           {/each}
-        </ul>
-        {#if listed.length > SHOW_BRANCHES && !showAllBranches}
-          <button class="btn quiet" onclick={() => (showAllBranches = true)}>Show all {listed.length}</button>
-        {/if}
+        </div>
       {:else}
-        <p class="card empty">No branches here.</p>
+        <p class="card empty">No commits yet.</p>
       {/if}
     </section>
+
+    </aside>
   </div>
 {/if}
 
 <style>
+  .git {
+    --side: 420px;
+  }
+
+  .pad {
+    margin: 20px 24px;
+  }
+
   .result {
     display: grid;
     gap: 6px;
@@ -402,8 +414,8 @@
   }
 
   .title {
-    font-size: 1.1rem;
-    font-weight: 650;
+    font-size: 16px;
+    font-weight: 600;
   }
 
   .scopes {
@@ -411,11 +423,6 @@
     gap: 10px;
   }
 
-  @media (min-width: 640px) {
-    .scopes {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
 
   .when {
     text-transform: none;
@@ -477,27 +484,33 @@
 
   .filters {
     display: flex;
-    gap: 6px;
+    gap: 2px;
+    padding: 2px;
     overflow-x: auto;
-    padding-bottom: 2px;
     scrollbar-width: none;
+    align-self: start;
+    max-width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    box-shadow: var(--tray-sh);
   }
 
   .filter {
     flex: none;
-    min-height: 36px;
+    height: 28px;
     padding: 0 12px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-    font-size: 0.85rem;
-    font-weight: 550;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
     color: var(--text-2);
   }
 
   .filter[aria-selected='true'] {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--accent-text);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-sh);
+    color: var(--text);
   }
 </style>

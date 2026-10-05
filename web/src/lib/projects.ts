@@ -3,27 +3,6 @@
 
 import type { Project, ProjectActivity } from './types';
 
-/** A hue, 0–359, that is the same for a project every time and spread well across projects. */
-export function projectHue(id: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) % 360;
-}
-
-/** The project's colour: its avatar, and the stripe across the top while you are in it. */
-export function projectColor(id: string): string {
-  return `hsl(${projectHue(id)} 58% 46%)`;
-}
-
-/** One letter for the avatar. */
-export function projectInitial(name: string): string {
-  const ch = Array.from(name.trim())[0];
-  return ch ? ch.toUpperCase() : '?';
-}
-
 /** Projects matching what was typed, best first: a name that starts with it, then one that contains it, then a path that does. */
 export function filterProjects(projects: readonly Project[], query: string): Project[] {
   const q = query.trim().toLowerCase();

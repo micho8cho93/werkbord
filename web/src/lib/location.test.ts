@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  queryOf,
   GLOBAL_VIEWS,
   PROJECT_SECTIONS,
   globalHref,
@@ -22,7 +23,7 @@ describe('parse', () => {
     expect(parse('#/p/prj_a')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
     expect(parse('#/p/prj_a/board')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
     expect(parse('#/p/prj_a/git')).toEqual({ view: 'git', projectId: 'prj_a', taskId: '' });
-    expect(parse('#/p/prj_a/activity')).toEqual({ view: 'activity', projectId: 'prj_a', taskId: '' });
+    expect(parse('#/p/prj_a/runs')).toEqual({ view: 'runs', projectId: 'prj_a', taskId: '' });
     expect(parse('#/p/prj_a/nonsense')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
   });
 
@@ -35,7 +36,7 @@ describe('parse', () => {
   it('reads an older link that names no project as a page in the project last used', () => {
     expect(parse('#/board')).toEqual({ view: 'board', projectId: '', taskId: '' });
     expect(parse('#/git')).toEqual({ view: 'git', projectId: '', taskId: '' });
-    expect(parse('#/activity')).toEqual({ view: 'activity', projectId: '', taskId: '' });
+    expect(parse('#/runs')).toEqual({ view: 'runs', projectId: '', taskId: '' });
     expect(parse('')).toEqual({ view: 'board', projectId: '', taskId: '' });
     expect(parse('#/nonsense')).toEqual({ view: 'board', projectId: '', taskId: '' });
     expect(parse('#/p/')).toEqual({ view: 'board', projectId: '', taskId: '' });
@@ -58,7 +59,7 @@ describe('links', () => {
       { view: 'control', projectId: '', taskId: '' },
       { view: 'projects', projectId: '', taskId: '' },
       { view: 'board', projectId: 'p', taskId: '' },
-      { view: 'activity', projectId: 'p', taskId: '' },
+      { view: 'runs', projectId: 'p', taskId: '' },
       { view: 'task', projectId: 'p', taskId: 't' },
     ] as const) {
       expect(parse(hrefOf(loc))).toEqual(loc);
@@ -77,7 +78,7 @@ describe('links', () => {
 // entry to it is all the shell, the switcher and the tab bar need.
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
-    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['board', 'calendar', 'git', 'activity', 'defaults']);
+    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'runs', 'defaults']);
     expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'settings']);
   });
 
@@ -91,7 +92,7 @@ describe('navigation is data, so it can grow', () => {
 describe('switching projects', () => {
   it('stays in the same section, in the new project', () => {
     expect(switchedTo({ view: 'git', projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: 'git', projectId: 'prj_b', taskId: '' });
-    expect(switchedTo({ view: 'activity', projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: 'activity', projectId: 'prj_b', taskId: '' });
+    expect(switchedTo({ view: 'runs', projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: 'runs', projectId: 'prj_b', taskId: '' });
     expect(hrefOf(switchedTo(parse('#/p/prj_a/git'), 'prj_b'))).toBe('#/p/prj_b/git');
   });
 
@@ -132,5 +133,17 @@ describe('resolved', () => {
     expect(resolved(parse('#/board'), ids, 'prj_gone').projectId).toBe('prj_a');
     expect(resolved(parse('#/board'), ids, '').projectId).toBe('prj_a');
     expect(resolved(parse('#/board'), [], 'prj_a')).toEqual({ view: 'projects', projectId: '', taskId: '' });
+  });
+});
+
+describe('renamed sections', () => {
+  it('sends an old Activity link to Runs', () => {
+    expect(parse('#/p/prj_a/activity')).toEqual({ view: 'runs', projectId: 'prj_a', taskId: '' });
+    expect(parse('#/activity')).toEqual({ view: 'runs', projectId: '', taskId: '' });
+  });
+
+  it('reads a page query', () => {
+    expect(queryOf('#/settings?runners')).toBe('runners');
+    expect(queryOf('#/settings')).toBe('');
   });
 });

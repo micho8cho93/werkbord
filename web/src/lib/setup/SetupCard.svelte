@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import Icon from '../Icon.svelte';
 
   /** One thing to set up, with how it stands: done, in progress, needs you, or left alone. */
   let {
@@ -15,13 +16,15 @@
     children?: Snippet;
   } = $props();
 
-  const mark = $derived({ done: '✓', wait: '…', todo: '○', off: '–' }[status]);
   const word = $derived({ done: 'Done', wait: 'In progress', todo: 'To do', off: 'Skipped' }[status]);
 </script>
 
-<section class="card setup" data-status={status}>
+<section class="pn setup" data-status={status}>
   <header>
-    <span class="mark" role="img" aria-label={word}>{mark}</span>
+    <span class="mark" title={word}>
+      {#if status === 'done'}<Icon name="check" size={12} />{:else}<span class="pip"></span>{/if}
+      <span class="visually-hidden">{word}</span>
+    </span>
     <h3>{title}</h3>
     {#if summary}<span class="summary">{summary}</span>{/if}
   </header>
@@ -32,52 +35,56 @@
 
 <style>
   .setup {
-    display: grid;
-    gap: 10px;
-    padding: 14px 16px;
     min-width: 0;
   }
 
   header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 10px;
     flex-wrap: wrap;
   }
 
   h3 {
-    font-size: 1rem;
-    font-weight: 650;
+    font-size: 15px;
   }
 
   .mark {
     flex: none;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     display: inline-grid;
     place-items: center;
-    border-radius: 50%;
-    border: 1.5px solid var(--text-2);
+    border-radius: 5px;
+    background: var(--surface-2);
+    box-shadow: var(--tray-sh);
     color: var(--text-2);
-    font-size: 0.8rem;
-    font-weight: 700;
-    align-self: center;
+  }
+
+  .pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-2);
+    opacity: 0.6;
   }
 
   [data-status='done'] .mark {
     background: var(--ok);
-    border-color: var(--ok);
-    color: var(--accent-text);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    color: #fff;
   }
 
-  [data-status='wait'] .mark {
-    border-color: var(--accent);
-    color: var(--accent);
+  [data-status='wait'] .pip {
+    background: var(--accent);
+    opacity: 1;
+    animation: pulse 2.4s ease-in-out infinite;
   }
 
   .summary {
+    font-family: var(--mono);
+    font-size: 11.5px;
     color: var(--text-2);
-    font-size: 0.88rem;
     overflow-wrap: anywhere;
   }
 
@@ -85,5 +92,6 @@
     display: grid;
     gap: 10px;
     min-width: 0;
+    font-size: 13px;
   }
 </style>

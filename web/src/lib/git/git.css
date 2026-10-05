@@ -2,8 +2,8 @@
 
 .g-page {
   display: grid;
-  gap: 14px;
-  max-width: 46rem;
+  gap: 16px;
+  max-width: 64rem;
   min-width: 0;
 }
 
@@ -22,7 +22,8 @@
 }
 
 .g-section > header .count {
-  font-size: 0.8rem;
+  font-family: var(--mono);
+  font-size: 11px;
   color: var(--text-2);
 }
 
@@ -48,7 +49,7 @@
 }
 
 .g-small {
-  font-size: 0.82rem;
+  font-size: 12.5px;
 }
 
 .g-wrap {
@@ -60,11 +61,12 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 40px;
+  min-height: 32px;
   padding: 0 4px;
   color: var(--text-2);
   text-decoration: none;
-  font-weight: 550;
+  font-weight: 500;
+  font-size: 13px;
 }
 
 .g-back:hover {
@@ -76,14 +78,24 @@
   --tone: var(--text-2);
   display: inline-flex;
   align-items: center;
-  padding: 1px 8px;
-  border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--border));
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: var(--tone);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
   white-space: nowrap;
+}
+
+.g-chip[data-tone]::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone);
 }
 
 .g-chip[data-tone='work'] {
@@ -105,19 +117,20 @@
 /* Local and remote are never mixed into one list: each has its own labelled block. */
 .g-scope {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 7px;
   background: var(--surface-2);
+  box-shadow: var(--tray-sh);
   min-width: 0;
 }
 
 .g-scope h3 {
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.14em;
   color: var(--text-2);
 }
 
@@ -126,7 +139,7 @@
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 3px 12px;
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 13px;
 }
 
 .g-kv dt {
@@ -186,7 +199,7 @@
 .g-path {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 0.88rem;
+  font-size: 13px;
 }
 
 .g-path .dir {
@@ -222,7 +235,8 @@
 }
 
 .g-commit .meta {
-  font-size: 0.78rem;
+  font-family: var(--mono);
+  font-size: 11px;
   color: var(--text-2);
 }
 
@@ -231,22 +245,22 @@
 }
 
 .g-notice {
+  --tone: var(--warn);
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--warn);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  font-size: 0.88rem;
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--tone) 7%, var(--surface));
+  font-size: 13px;
 }
 
 .g-notice[data-tone='bad'] {
-  border-left-color: var(--danger);
+  --tone: var(--danger);
 }
 .g-notice[data-tone='ok'] {
-  border-left-color: var(--ok);
+  --tone: var(--ok);
 }
 .g-notice[data-tone='neutral'] {
-  border-left-color: var(--text-2);
+  --tone: var(--text-2);
 }
 
 .g-bullets {
@@ -263,7 +277,9 @@
   gap: 8px;
 }
 
-.g-actions .btn {
-  flex: 1 1 auto;
-  min-width: 7rem;
+@media (pointer: coarse) {
+  .g-actions .btn {
+    flex: 1 1 auto;
+    min-width: 7rem;
+  }
 }

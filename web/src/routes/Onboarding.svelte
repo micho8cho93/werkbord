@@ -66,7 +66,7 @@
     </p>
     <ol class="progress" aria-label="Progress">
       {#each steps as s (s.label)}
-        <li data-done={s.done}><span aria-hidden="true">{s.done ? '✓' : '○'}</span> {s.label}</li>
+        <li class="chip" data-done={s.done}><span class="dot" data-tone={s.done ? 'ok' : 'neutral'}></span>{s.label}<span class="visually-hidden">{s.done ? ', done' : ', to do'}</span></li>
       {/each}
     </ol>
   </header>
@@ -95,9 +95,10 @@
 <style>
   .onboarding {
     display: grid;
-    gap: 14px;
-    max-width: 720px;
+    gap: 16px;
+    max-width: 760px;
     margin: 0 auto;
+    padding-top: 12px;
   }
 
   .welcome {
@@ -106,9 +107,11 @@
   }
 
   .title {
-    font-size: 1.5rem;
+    font-family: var(--font);
+    font-size: 28px;
+    font-weight: 600;
     text-transform: none;
-    letter-spacing: 0;
+    letter-spacing: -0.02em;
     color: var(--text);
   }
 
@@ -118,18 +121,19 @@
 
   .progress {
     list-style: none;
-    margin: 4px 0 0;
+    margin: 6px 0 0;
     padding: 0;
     display: flex;
-    gap: 6px 14px;
+    gap: 6px 8px;
     flex-wrap: wrap;
-    font-size: 0.85rem;
-    color: var(--text-2);
   }
 
   .progress li[data-done='true'] {
-    color: var(--ok);
-    font-weight: 600;
+    color: var(--text);
+  }
+
+  .progress .dot[data-tone='neutral'] {
+    opacity: 0.5;
   }
 
   .done {
@@ -140,8 +144,9 @@
   }
 
   .big {
-    min-height: 48px;
-    padding: 0 22px;
+    min-height: 42px;
+    padding: 0 20px;
+    font-size: 14px;
   }
 
   .small {

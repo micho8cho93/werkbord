@@ -56,13 +56,21 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
   themselves (board columns, panel feed), not the page.
 - A task opens as a panel over its board (`#/p/<id>/task/<id>`); Esc closes it.
+- Project tabs: Overview · Board · Calendar · Git · Runs. Pages use `.split` (main + side column, each
+  scrolling inside the window) and `.pn` panels with a `.ph` header; groups that want an action sit in an
+  inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
+- Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
 - Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git ·
-  Activity), floating New task button, column pills on the board.
+  Runs), floating New task button, column pills on the board, tables as two-line rows.
 
 ## Interaction rules
 
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).
 - Inline actions on cards: Start, Approve/Deny, Reply, Merge…, Move to Review, Run again.
+- What needs a person is one list (`lib/attention.ts`): the Control Center shows it for every project in
+  segments, a project's Overview for that project. Each item is answerable where it is shown.
+- Numbers are only what was measured: the run history strip colours half hours by real runs; usage says
+  which runs reported tokens or cost.
 - Board drops follow the work: Backlog → Doing starts an agent; Review → Done opens the merge confirmation
   and moves the card once merged; other drops move the card.
 - Anything that changes the repository is confirmed in a `Sheet` with the controller's own checks.

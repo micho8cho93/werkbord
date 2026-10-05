@@ -1,7 +1,7 @@
 // The router: the current page, kept in step with the address bar. Hash routing
 // means the shell works from any static host and from the service worker cache.
 
-import { hrefOf, parse, type Location, type View } from './location';
+import { hrefOf, parse, queryOf, type Location, type View } from './location';
 
 export * from './location';
 
@@ -12,6 +12,8 @@ class Router {
   taskId = $state<string>(parse(location.hash).taskId);
   /** Git's drill-down, below `git/`; empty everywhere else. */
   sub = $state<string>(parse(location.hash).sub ?? '');
+  /** What follows `?`: a page's own state (the Settings section shown). */
+  query = $state<string>(queryOf(location.hash));
 
   constructor() {
     window.addEventListener('hashchange', () => this.read());
@@ -23,6 +25,7 @@ class Router {
     this.projectId = loc.projectId;
     this.taskId = loc.taskId;
     this.sub = loc.sub ?? '';
+    this.query = queryOf(location.hash);
   }
 
   get location(): Location {

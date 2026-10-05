@@ -48,7 +48,7 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
 </script>
 
 <div class="settings">
-  <section class="card block">
+  <section class="pn">
     <div class="head">
       <h3>Defaults for {project.name}</h3>
       <p class="muted">
@@ -68,28 +68,30 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
     </div>
   </section>
 
-<section class="card block">
- <h3>Execution capacity</h3><label for="concurrency">Concurrent sessions in this project</label><input id="concurrency" class="input" type="number" min="1" max="16" bind:value={concurrency} />
+<section class="pn">
+ <h3>Execution capacity</h3><label for="concurrency">Concurrent sessions in this project</label><input id="concurrency" class="input narrow" type="number" min="1" max="16" bind:value={concurrency} />
  <p class="muted small">Running, starting, blocked, and waiting sessions all occupy capacity. Unknown or overlapping file scope still runs sequentially.</p>
  {#if concurrencyError}<p class="error" role="alert">{concurrencyError}</p>{/if}<div class="row"><button class="btn primary" disabled={concurrencyBusy} onclick={saveConcurrency}>Save capacity</button>{#if concurrencySaved}<span class="ok" role="status">Saved</span>{/if}</div>
  </section>
-  <section class="card block">
+  <section class="pn">
     <h3>Repository</h3>
-    <p class="mono path">{project.repoPath}</p>
+    <dl class="kv">
+      <dt>Path</dt><dd class="mono">{project.repoPath}</dd>
+      {#if project.repository}
+        <dt>Branch</dt><dd class="mono">{project.repository.currentBranch || 'detached'}</dd>
+        <dt>Default</dt><dd class="mono">{project.repository.defaultBranch || '—'}</dd>
+        <dt>Remotes</dt><dd class="mono">{project.repository.remotes.map((r) => r.name).join(', ') || 'none'}</dd>
+      {/if}
+      <dt>Project ID</dt><dd class="mono">{project.id}</dd>
+    </dl>
   </section>
 </div>
 
 <style>
   .settings {
     display: grid;
-    gap: 14px;
-    max-width: 720px;
-  }
-
-  .block {
-    display: grid;
-    gap: 12px;
-    padding: 14px 16px;
+    gap: 16px;
+    max-width: 760px;
   }
 
   .head {
@@ -98,28 +100,48 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
   }
 
   h3 {
-    font-size: 1rem;
-    font-weight: 650;
+    font-size: 15px;
+  }
+
+  label {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .narrow {
+    max-width: 8rem;
   }
 
   .row {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     align-items: center;
     flex-wrap: wrap;
   }
 
   .ok {
-    color: var(--ok);
-    font-size: 0.88rem;
+    color: var(--ok-text);
+    font-size: 13px;
   }
 
   .small {
-    font-size: 0.82rem;
+    font-size: 13px;
   }
 
-  .path {
-    overflow-wrap: anywhere;
+  .kv {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 16px;
+    margin: 0;
+    font-size: 13px;
+  }
+
+  .kv dt {
     color: var(--text-2);
+  }
+
+  .kv dd {
+    margin: 0;
+    overflow-wrap: anywhere;
   }
 </style>

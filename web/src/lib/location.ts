@@ -5,7 +5,7 @@
 //
 //   global          #/control          the Control Center: what needs you, in every project
 //                   #/projects         every registered repository, and registering one
-//   in a project    #/p/<id>/board     (also: git, activity)
+//   in a project    #/p/<id>/board     (also: overview, calendar, git, runs, defaults)
 //                   #/p/<id>/git/...   Git drills down: branch, file, changes (see gitroute.ts)
 //                   #/p/<id>/task/<id> a task, which belongs to the board
 //
@@ -14,7 +14,7 @@
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
 export type GlobalView = 'control' | 'projects' | 'settings' | 'onboarding';
-export type ProjectSection = 'board' | 'calendar' | 'git' | 'activity' | 'defaults';
+export type ProjectSection = 'overview' | 'board' | 'calendar' | 'git' | 'runs' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding'>; label: string; short: string }[] = [
@@ -27,10 +27,11 @@ export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding'>; lab
 const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding'];
 
 export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
   { id: 'board', label: 'Board' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'git', label: 'Git' },
-  { id: 'activity', label: 'Activity' },
+  { id: 'runs', label: 'Runs' },
   // The project's defaults (agent, model, reasoning, interaction, priority). Its address says "defaults" so
   // that it cannot be mistaken for the app's own Settings page, which is global.
   { id: 'defaults', label: 'Project settings' },
@@ -52,12 +53,22 @@ export interface Location {
 const isGlobal = (v: string): v is GlobalView => GLOBAL_VIEWS.some((g) => g.id === v) || (HIDDEN_GLOBAL as readonly string[]).includes(v);
 const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v);
 
+/** Sections that were renamed: an old link still lands. "Activity" was the run history, now Runs. */
+const RENAMED: Record<string, ProjectSection> = { activity: 'runs' };
+const section = (v: string): ProjectSection | '' => (isSection(v) ? v : (RENAMED[v] ?? ''));
+
 function decode(s: string): string {
   try {
     return decodeURIComponent(s);
   } catch {
     return '';
   }
+}
+
+/** What follows `?` in the address: a page's own state, such as the Settings section shown. */
+export function queryOf(hash: string): string {
+  const i = hash.indexOf('?');
+  return i === -1 ? '' : hash.slice(i + 1);
 }
 
 export function parse(hash: string): Location {
@@ -81,11 +92,11 @@ export function parse(hash: string): Location {
       const sub = rest + (q === -1 ? '' : full.slice(q));
       return sub ? { view: 'git', projectId, taskId: '', sub } : { view: 'git', projectId, taskId: '' };
     }
-    return { view: isSection(third) ? third : 'board', projectId, taskId: '' };
+    return { view: section(third) || 'board', projectId, taskId: '' };
   }
 
   // Older links named a section without a project: it is the one last used.
-  if (isSection(first)) return { view: first, projectId: '', taskId: '' };
+  if (section(first)) return { view: section(first) as ProjectSection, projectId: '', taskId: '' };
   return { view: 'board', projectId: '', taskId: '' };
 }
 

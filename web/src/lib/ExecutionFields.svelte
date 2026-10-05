@@ -294,7 +294,7 @@
     gap: 6px;
     cursor: pointer;
     font-size: 0.9rem;
-    font-weight: 550;
+    font-weight: 500;
   }
 
   .chosen {

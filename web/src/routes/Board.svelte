@@ -208,7 +208,7 @@
   <div class="bar">
     <div class="filters" role="group" aria-label="Filter the board">
       {#if app.agents.length > 1}
-        <label class="filter" class:on={agentFilter}>
+        <label class="pick" class:on={agentFilter}>
           <span>Agent</span>
           <select bind:value={agentFilter} aria-label="Filter by agent">
             <option value="">any</option>
@@ -217,7 +217,7 @@
         </label>
       {/if}
       {#if app.runners.length > 1}
-        <label class="filter" class:on={runnerFilter}>
+        <label class="pick" class:on={runnerFilter}>
           <span>Runner</span>
           <select bind:value={runnerFilter} aria-label="Filter by runner">
             <option value="">any</option>
@@ -225,7 +225,7 @@
           </select>
         </label>
       {/if}
-      <label class="filter" class:on={priorityFilter}>
+      <label class="pick" class:on={priorityFilter}>
         <span>Priority</span>
         <select bind:value={priorityFilter} aria-label="Filter by priority">
           <option value="">any</option>
@@ -367,57 +367,6 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-  }
-
-  /* A filter is a raised button that is also a picker. */
-  .filter {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    height: 28px;
-    padding: 0 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-sh);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .filter span {
-    color: var(--text-2);
-  }
-
-  .filter span::after {
-    content: ':';
-  }
-
-  .filter select {
-    appearance: none;
-    field-sizing: content;
-    border: 0;
-    background: transparent;
-    font-weight: 500;
-    font-size: 12px;
-    color: var(--text);
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .filter select:focus-visible {
-    outline: none;
-  }
-
-  .filter:focus-within {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .filter.on {
-    background: var(--surface-2);
-    box-shadow: var(--press-sh);
   }
 
   .legend {

@@ -9,7 +9,7 @@
     onOlder,
   }: { items: FeedItem[]; hasMore?: boolean; loadingOlder?: boolean; onOlder?: () => void } = $props();
 
-  const when = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const when = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 </script>
 
 <ol class="feed" aria-label="Agent activity">
@@ -222,7 +222,7 @@
   }
 
   .marker .label {
-    font-weight: 650;
+    font-weight: 600;
   }
 
   .marker .detail {
@@ -247,7 +247,7 @@
 
   .who {
     font-size: 0.72rem;
-    font-weight: 650;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--warn);

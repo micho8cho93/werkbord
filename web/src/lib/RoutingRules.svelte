@@ -15,9 +15,9 @@
     finally { saving=false; }
   }
 </script>
-<section class="card rules">
-  <details>
-    <summary>Routing rules <span class="muted">· {rules.length} optional rules</span></summary>
+<section class="pn rules">
+  <div>
+    <h3>Routing rules <span class="chip">{rules.length}</span></h3>
     <p class="muted">Rules match title or description in order, without a model choosing machines. Explicit task and run model choices take precedence. Resource requirements still apply.</p>
     {#if !rules.length}<p class="muted">No rules. Execution uses your defaults and available runner capacity.</p>{/if}
     {#each rules as rule, i (i)}
@@ -35,11 +35,11 @@
     {/each}
     <div class="actions"><button class="btn" disabled={saving || rules.length>=50} onclick={()=>rules=[...rules,{name:'',contains:'',retry:false,agent:'',model:'',reasoning:'',minCpu:0,minRamBytes:0}]}>Add rule</button><button class="btn primary" disabled={saving} onclick={save}>{saving?'Saving…':'Save rules'}</button>{#if saved}<span role="status">Saved</span>{/if}</div>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-  </details>
+  </div>
 </section>
 <style>
-  .rules { padding: 16px; } summary { cursor: pointer; font-weight: 600; } p { margin-block: 12px; font-size: .88rem; }
+  .rules { padding: 16px; } h3 { font-size: 15px; display: flex; align-items: center; gap: 8px; } p { margin-block: 12px; font-size: 13px; color: var(--text-2); }
   .rule { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; border-top: 1px solid var(--border); padding-block: 16px; }
-  label { display: grid; gap: 6px; font-size: .88rem; } .check,.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; } .check,.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   @media(max-width:480px) { .rule { grid-template-columns: 1fr; } }
 </style>

@@ -115,7 +115,7 @@
 
   h2 {
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-2);
@@ -124,7 +124,7 @@
   .headline {
     margin: 2px 0 0;
     font-size: 1.25rem;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .headline[data-tone='ok'] {
@@ -143,20 +143,16 @@
   .health {
     display: grid;
     gap: 10px;
-    border-left: 4px solid var(--ok);
   }
 
   .health[data-state='attention'] {
-    border-left-color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
   }
   .health[data-state='risk'] {
-    border-left-color: var(--block);
+    border-color: color-mix(in srgb, var(--block) 45%, var(--border));
   }
   .health[data-state='critical'] {
-    border-left-color: var(--danger);
-  }
-  .health[data-state='unknown'] {
-    border-left-color: var(--border);
+    border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
   }
 
   .meta,

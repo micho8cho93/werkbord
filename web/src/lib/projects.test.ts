@@ -1,26 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { activitySummary, attentionCount, filterProjects, projectColor, projectHue, projectInitial, shortPath, stepIndex } from './projects';
+import { activitySummary, attentionCount, filterProjects, shortPath, stepIndex } from './projects';
 import type { Project, ProjectActivity } from './types';
 
 const project = (id: string, name: string, repoPath = `/code/${name}`): Project => ({
   id, name, repoPath, execution: {}, createdAt: '2026-10-04T10:00:00Z', updatedAt: '2026-10-04T10:00:00Z',
-});
-
-describe('telling projects apart', () => {
-  it('gives a project the same colour every time, and different projects different ones', () => {
-    expect(projectColor('prj_abc')).toBe(projectColor('prj_abc'));
-    const hues = new Set(['prj_a1', 'prj_b2', 'prj_c3', 'prj_d4', 'prj_e5', 'prj_f6'].map(projectHue));
-    expect(hues.size).toBeGreaterThanOrEqual(5);
-    for (const h of hues) expect(h).toBeGreaterThanOrEqual(0);
-    for (const h of hues) expect(h).toBeLessThan(360);
-  });
-
-  it('shows one letter', () => {
-    expect(projectInitial('devboard')).toBe('D');
-    expect(projectInitial('  my-app')).toBe('M');
-    expect(projectInitial('')).toBe('?');
-    expect(projectInitial('😀 fun')).toBe('😀');
-  });
 });
 
 describe('finding a project quickly', () => {
