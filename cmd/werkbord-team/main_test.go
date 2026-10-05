@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"regexp"
@@ -16,6 +17,7 @@ import (
 	"devboard/internal/logging"
 	"devboard/internal/team/config"
 	"devboard/internal/team/server"
+	"devboard/internal/team/store"
 )
 
 func runCLI(t *testing.T, env map[string]string, args ...string) (string, string, error) {
@@ -79,8 +81,12 @@ func TestWorkspaceCreateMakesAnOwnerTokenThatSignsIn(t *testing.T) {
 }
 
 func TestMigrateReportsTheSchemaVersion(t *testing.T) {
+	ms, err := store.Migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
 	out, _, err := runCLI(t, map[string]string{"WERKBORD_TEAM_DATA_DIR": t.TempDir()}, "migrate")
-	if err != nil || !strings.Contains(out, "schema version 2") {
+	if want := fmt.Sprintf("schema version %d", ms[len(ms)-1].Version); err != nil || !strings.Contains(out, want) {
 		t.Fatalf("%q %v", out, err)
 	}
 }

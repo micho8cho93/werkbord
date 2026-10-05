@@ -326,6 +326,14 @@ func (t *Tx) Activity(ctx context.Context, workspaceID, projectID string, before
 		return nil, err
 	}
 	defer rows.Close()
+	return scanActivities(rows)
+}
+
+func scanActivities(rows interface {
+	Next() bool
+	Scan(...any) error
+	Err() error
+}) ([]domain.Activity, error) {
 	out := []domain.Activity{}
 	for rows.Next() {
 		var a domain.Activity

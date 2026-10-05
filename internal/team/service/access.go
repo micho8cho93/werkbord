@@ -75,6 +75,7 @@ func (s *Service) mutate(ctx context.Context, a Actor, projectID string, fn func
 	})
 	if err == nil {
 		s.hub.notify(projectID)
+		s.hub.notify(workspaceKey(a.Workspace.ID))
 	}
 	return err
 }
@@ -98,6 +99,35 @@ func (s *Service) view(ctx context.Context, a Actor, projectID string, fn func(t
 type hub struct {
 	mu      sync.Mutex
 	waiters map[string]map[chan struct{}]struct{}
+	waiting map[string]int // long requests open per member
+}
+
+// MaxWaitsPerMember bounds how many change requests one member may hold open at
+// once. A console keeps one, a Werkbord reporting for its owner another; the cap is
+// there so that a runaway or hostile client cannot tie up the server with waiters.
+const MaxWaitsPerMember = 8
+
+// acquire reserves one of a member's open-request slots; the returned function gives it back.
+func (h *hub) acquire(memberID string) (func(), error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.waiting == nil {
+		h.waiting = map[string]int{}
+	}
+	if h.waiting[memberID] >= MaxWaitsPerMember {
+		return nil, fmt.Errorf("%w: too many change requests are already open for you; close some and try again", domain.ErrBusy)
+	}
+	h.waiting[memberID]++
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			h.mu.Lock()
+			if h.waiting[memberID]--; h.waiting[memberID] <= 0 {
+				delete(h.waiting, memberID)
+			}
+			h.mu.Unlock()
+		})
+	}, nil
 }
 
 func (h *hub) subscribe(projectID string) (<-chan struct{}, func()) {
@@ -149,6 +179,11 @@ func (s *Service) WaitForChange(ctx context.Context, a Actor, projectID string, 
 	if wait > MaxSyncWait {
 		wait = MaxSyncWait
 	}
+	release, err := s.hub.acquire(a.Member.ID)
+	if err != nil {
+		return Sync{}, err
+	}
+	defer release()
 	// Subscribe before reading, so a change between the read and the wait is not lost.
 	ch, cancel := s.hub.subscribe(projectID)
 	defer cancel()

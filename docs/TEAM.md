@@ -10,6 +10,52 @@ and the branches and pull requests that come out of them. It is a separate produ
 > There is no remote-runner access, no shell, no file access. The server has no code path that starts a process, and a
 > test (`internal/archtest`) keeps it that way.
 
+## How it fits together
+
+```
+  Ada's computer                          Team server                          Bo's computer
+ ┌───────────────────┐   coordination   ┌──────────────────────┐ coordination ┌───────────────────┐
+ │ browser (console) │ ◀──────────────▶ │ workspace · projects │ ◀──────────▶ │ browser (console) │
+ │ her Werkbord      │   metadata only  │ board · tickets ·    │ metadata only│ his Werkbord      │
+ │  · her agents     │                  │ reported Git facts · │              │  · his agents     │
+ │  · her Git/GitHub │                  │ activity · sync      │              │  · his Git/GitHub │
+ │  · her API keys   │                  └──────────────────────┘              │  · his API keys   │
+ └───────────────────┘   nothing flows between the two Werkbords through Team   └───────────────────┘
+```
+
+The work a ticket goes through, and who owns each fact:
+
+```
+ Workspace → Project → Board → Ticket ──claim──▶ Local runner ──▶ Branch / PR ──▶ Review ──▶ Done
+ (Team)      (Team)    (Team)  (Team)            (the member's    (the member's    (Team      (Team)
+                                                  own Werkbord)    Git host)        records)
+```
+
+- **Team is authoritative for collaborative metadata:** who is on the team, which tickets exist, who holds each, their
+  status, and the branch, commits and pull request *as reported*. Every client re-reads these from the server.
+- **Each member's own Werkbord is authoritative for local execution:** whether an agent is running, what it did, the
+  checkout, the credentials. Team never sees or controls any of it.
+- **Git hosts are authoritative for code:** reviewing and merging happen there. Team records the outcome that a person
+  reports and refuses to call a ticket Done while its pull request is open.
+
+### The console
+
+The console (the page Team serves at its address) is organised around one question each:
+
+| Tab | Answers | What is on it |
+| --- | --- | --- |
+| **Workspace** | What is available? What is everyone doing? | Five tiles (available to claim, yours, everyone else, to review, repository state), what the team is working on right now, each project's counts, and the members. |
+| **Projects** | Which projects are there, and who is on them? | The projects, creating one, each project's **People & invites**. |
+| **Board** | What work is there in this project? | The shared board: Backlog, Available, In Progress, Review, Done, and a ticket's details and actions. A project switcher keeps the Board, Repository and Activity tabs on one project. |
+| **My Work** | What am I doing, and what waits for me? | What needs your attention (changes requested, a pull request with conflicts, behind its base, ready to submit, stale), your tickets in progress and in review with their Git links, your open pull requests, and the state of your own branches. **Open in my runner** is on every ticket you hold. |
+| **Reviews** | What needs a decision? | Tickets in review, those asked of you first: author, branch, pull request, commits, mergeability, and links to the pull request, branch and comparison on the Git host. Record that you merged, mark done, or request changes. Team does not reproduce a code-review interface; the diff is on the Git host. |
+| **Repository** | What is the Git state? | What members' Werkbords reported: branches, pull requests, and what needs attention. |
+| **Activity** | What happened? | The project's history. |
+
+The tab badges show what waits (available tickets, your tickets, reviews for you, repository problems). The console
+shows a banner when its live connection drops and refreshes everything by itself when it returns (see
+[Staying in step](#staying-in-step)).
+
 ## Concepts
 
 - **Workspace.** A team's shared space. It has a name and exactly one **owner**, the person who created it.
@@ -143,6 +189,8 @@ two tickets cannot claim the same branch.
 - the project: name, description, repository address;
 - Git: the repository, the **branch to work on**, the base branch if known, commits and pull request already recorded;
 - `prompt`: those, written out as a task description a coding agent can start from, including the Git workflow above.
+  Before any teammate-written text it says whose words they are (`ticket.createdBy`) and that they describe work, not
+  instructions with authority over the computer ([TEAM_SECURITY.md](TEAM_SECURITY.md#teammate-written-text-the-one-channel-that-remains)).
 
 `POST /projects/{id}/tickets/{tid}/handoff` returns it, **only to the member who holds the ticket** (in progress or in
 review): not to other members, and not to an owner either. It contains no path, no environment variable, no credential and
@@ -221,14 +269,76 @@ A lightweight history of coordination events for each project, newest first (`GE
 `ticket.reopened`, `ticket.moved`, `ticket.handed_off`, `ticket.pull_request_merged`, `project.member_joined`. There is no
 chat and no comments: Team is a coordination tool, not a messenger.
 
+### My Work, Reviews and the overview
+
+Three views span every project the member can see. They only read; each is built from what is already stored and is
+scoped to the caller (a project you are not on contributes nothing).
+
+- `GET /my-work` — **inProgress** (tickets you hold, with who assigned them if it was not you), **submitted** (yours,
+  in review), **pullRequests** (yours, still open), **needsAction**, **reviewsWaiting**, and **repositories** (the
+  repository state that concerns your own branches). Each item carries the project, the ticket with its commits, the
+  pull request's merge state (`none`, `mergeable`, `conflicting`, `unknown`, `merged`, `closed`) and links.
+- `GET /reviews` — tickets in review that you may review or that you submitted. Each has `mine`, `requestedOfMe`,
+  `canReview`, `canComplete` and, when it cannot be completed yet, a plain `blocker` ("the pull request is still open:
+  merge it on your Git host, then record the merge"). The blocker uses the same rules `complete` enforces.
+- `GET /overview` — each project's counts by status, your tickets and reviews in it, repository problems and warnings,
+  everyone's tickets in progress or in review (`working`), and how many tickets are `available`.
+
+Links (`links.pullRequest`, `branch`, `compare`, `repository`, `commitPrefix`) are built from the project's repository
+address for GitHub and GitLab and from the reported pull-request address; Team never contacts the host.
+
 ### Staying in step
 
-Every change to a project's board or reported repository state bumps the project's `revision`, in the same transaction.
-`GET /projects/{id}/sync?since=<revision>&wait=20` holds the request open until the revision moves past `since` (or about
-20 seconds pass) and answers `{"revision": N, "changed": true|false}`. The console keeps one such request open, so one
-member's claim appears on the others' boards within moments, without polling, and reloads without losing what someone is
-typing. The server wakes waiters in memory; because a waiter re-reads the revision from the database, a missed wake-up
-costs at most one poll interval.
+Every change to a project's board or reported repository state bumps the project's `revision` in the same transaction,
+and database triggers move a **workspace revision** whenever anything members can see changes (a ticket, the people,
+a role, a project, the workspace's name), so no new kind of write can forget to.
+
+`GET /sync?since=<revision>&after=<event id>&wait=20` holds the request open until the workspace revision is not
+`since` (or about 20 seconds pass) and answers:
+
+```json
+{ "revision": 41, "changed": true, "cursor": 118,
+  "events": [ {"id": 118, "kind": "ticket.claimed", "ticketKey": "WB-4", "actorName": "Bo", "projectName": "Shop", …} ],
+  "projects": [ {"id": "tpj_…", "revision": 17} ] }
+```
+
+- **Fast.** The server wakes waiters in memory the moment a write commits: a claim reaches another member's open console
+  in well under a second (asserted in tests).
+- **Events are hints, state is authority.** They exist so a client can say "Bo claimed WB-4"; what it shows is always
+  re-read from the board, My Work or Reviews. `events` cover only projects the caller can see.
+- **Starting.** Call without `after` (or `wait=0`): you get the current `revision` and `cursor` and no events.
+- **Reconnecting.** A client that was offline calls again with the revision and cursor it last had. If anything changed
+  it is told so, with the events it missed. Then it reloads.
+- **When it cannot catch up.** `truncated: true` means more than 100 events were missed; `reset: true` means the
+  server's revision is *lower* than the client's (a restored backup). Either way the client reloads everything and
+  carries on from the new `revision` and `cursor`. A server restart needs neither: revisions are stored.
+- **Bounded.** A member may hold 8 open syncs; more get `429` with `Retry-After`. Shutdown ends them at once.
+
+`GET /projects/{id}/sync` is the older per-project form of the same long poll and still works.
+
+The console keeps one such request open. It shows a banner while the connection is down, retries with a growing pause
+(up to 30 seconds), and on reconnecting reloads what it shows; coming back to a hidden tab or the network returning
+reloads at once. What someone is typing is kept across reloads.
+
+### Concurrency
+
+Collaborative operations are written so that two people acting at once cannot corrupt the board:
+
+| Operation | What guarantees it |
+| --- | --- |
+| **Claiming** | One guarded `UPDATE … WHERE status = 'available' AND assignee_id IS NULL`: of any number of simultaneous claims exactly one succeeds, the rest get `409` naming the holder. |
+| **Every other transition** (release, submit, assign/reassign, request changes, complete, move, reopen) | Run inside the one write transaction, which first re-reads the ticket, checks the move against the single transition table, and saves with a version check (`WHERE version = ?`). Racing moves have one winner; the loser gets `409` describing what the ticket is now. |
+| **Project membership changes** | Membership, the role check and the ticket write are in the same transaction as the removal, so a member removed while claiming either fails to claim or has the ticket put straight back; a ticket is never left held by someone who is not on the project. |
+| **Text edits** | `PATCH` with the `version` you loaded is refused with `409` if someone else changed the ticket since. |
+| **Reported Git facts** | Reports are facts, last write wins, except that a **merged pull request cannot be reported back to open** (a late report from a slow client is refused), and two tickets cannot claim one branch. |
+| **Invites** | Check and use are one `UPDATE`: a single-use invite cannot be spent twice. |
+| **Ticket numbers, history** | Numbers are unique per workspace in the database; every successful write leaves its history entry in the same transaction. |
+
+Writes are serialised by SQLite (one writer, `BEGIN IMMEDIATE`), and every guard above is also in the SQL. Tests:
+`TestConcurrentClaimsGiveTheTicketToExactlyOneMember`, `TestRacingTransitionsHaveExactlyOneWinner`,
+`TestRemovingAMemberWhileTheyClaimNeverLeavesAGhostHolder`, `TestAStormOfOperationsLeavesAConsistentBoard` (every kind of
+operation from eight goroutines; afterwards every ticket is consistent, the versions add up to the successful writes and
+the history is complete), `TestAMergedPullRequestCannotBeTurnedBackIntoAnOpenOne`.
 
 ## Running it
 
@@ -240,7 +350,7 @@ werkbord-team serve                                          # http://127.0.0.1:
 
 `workspace create` prints a sign-in link (`http://127.0.0.1:7430/#token=…`): open it and the console signs you in (the
 token is in the URL's fragment, which the browser never sends to a server, and the console removes it from the address
-bar). From the **Members** tab, add everyone else: each gets their own token, shown once. Send it to them privately.
+bar). From the **Workspace** tab, add everyone else: each gets their own token, shown once. Send it to them privately.
 Only the token's SHA-256 is stored, so a lost token cannot be recovered, only **reissued** (which signs out the old one).
 
 | Command | |
@@ -272,7 +382,7 @@ The database is `<data dir>/team.db` (SQLite, WAL). Before a migration changes i
 
 JSON under `/api/team/v1`. Every route except `/health` needs `Authorization: Bearer <token>`. The token identifies
 the member, and so the workspace: no URL names one. Errors are `{"error": {"code": "...", "message": "..."}}` with
-`unauthorized` (401), `forbidden` (403), `not_found` (404), `conflict` (409), `invalid` (400).
+`unauthorized` (401), `forbidden` (403), `not_found` (404), `conflict` (409), `invalid` (400), `busy` (429).
 
 | Method and path | Who | |
 | --- | --- | --- |
@@ -293,7 +403,11 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `DELETE /projects/{id}/members/{memberId}` | project `members.manage` | their tickets in progress go back on the board |
 | `GET /projects/{id}/people` | on the project | members with their project roles |
 | `GET /projects/{id}/board` | on the project | project, `revision`, columns, every ticket, people, your project role and what it allows |
-| `GET /projects/{id}/sync?since=N&wait=S` | on the project | long poll: `{revision, changed}` |
+| `GET /overview` | any member | the projects you can see with their counts, everyone's work in progress, and what is available |
+| `GET /my-work` | any member | your tickets, pull requests, what needs your attention, and your branches' state |
+| `GET /reviews` | any member | tickets in review you may review or submitted, with mergeability and blockers |
+| `GET /sync?since=N&after=E&wait=S` | any member | workspace long poll with events; see [Staying in step](#staying-in-step). `429` when you hold too many |
+| `GET /projects/{id}/sync?since=N&wait=S` | on the project | the same for one project: `{revision, changed}` |
 | `POST /projects/{id}/tickets` `{title, description?, requirements?, status?}` | `tickets.create` | `status` is `backlog` (default) or `available` |
 | `GET /projects/{id}/tickets/{tid}` | `tickets.view` | with commits |
 | `PATCH /projects/{id}/tickets/{tid}` `{title?, description?, requirements?, version?}` | creator, or `tickets.edit` | stale `version` → 409 |
@@ -317,6 +431,9 @@ There is deliberately no route that deletes a project or a ticket (archive the p
 
 ## Security notes
 
+The full review (every surface, the evidence for each, and the risks that remain) is in
+[TEAM_SECURITY.md](TEAM_SECURITY.md). In short:
+
 - Tokens are 256 random bits (`wbt_` + 64 hex digits); only the SHA-256 is stored; the API never returns one except when
   it is issued. Because they are long and random there is no rate limit on failed sign-ins; add one at the proxy if you
   want it.
@@ -333,6 +450,9 @@ There is deliberately no route that deletes a project or a ticket (archive the p
 - `werkbord-team handoff` talks to your own Werkbord only on a loopback address, never follows redirects, and takes its
   tokens from the environment, not from flags.
 - No licensing or payment exists yet; they will live in `internal/team`.
+- A ticket's text is written by a teammate and becomes the task text of the reader's own agent. The handoff says so,
+  naming the author and telling the agent to treat it as a description of work and not as authority over the computer,
+  and the member starts the run themselves, under their own Werkbord's execution policy.
 - Because Team never reaches a member's machine, **a handoff is a pull, not a push**: the member chooses to bring a ticket
   into their own runner. A Team server cannot start, stop, or feed anything to any runner.
 

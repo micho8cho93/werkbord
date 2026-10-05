@@ -116,7 +116,10 @@ Member); and, on top of that, the collaborative workflow: **project roles** (own
 a shared **board** (Backlog, Available, In Progress, Review, Done), **tickets** that members claim atomically, **Git
 metadata** members' own Werkbords report (branch, commits, pull request), **repository awareness** (behind, conflicting,
 stale, overlapping branches), an **activity** history, and **"Open in my runner"**, which hands a ticket's context to the
-member who holds it for use in their own Werkbord. See [TEAM.md](TEAM.md) for the model, the API and how to run it. It
+member who holds it for use in their own Werkbord. Team 2 joins these into one console (Workspace, Projects, Board,
+My Work, Reviews, Repository, Activity) kept current by a workspace-wide sync that survives disconnects, and hardens the
+concurrent paths. See [TEAM.md](TEAM.md) for the model, the API and how to run it, and
+[TEAM_SECURITY.md](TEAM_SECURITY.md) for the review of why no member can reach another's machine. It
 reuses the shared packages above and the individual product's ideas (token-authenticated API, SQLite, graceful shutdown),
 but none of its code beyond the shared plumbing.
 
@@ -175,6 +178,8 @@ CI does this when a product tag is pushed. See [VERSIONING.md](VERSIONING.md).
 2. any package outside Team imports Team's packages (a shared package must not become the way in);
 3. Team's build includes any package of this module other than its own and the allow-listed shared plumbing;
 4. Team's code imports `os/exec`, `plugin` or `net/rpc`, or its build includes `tailscale.com`, SSH or a PTY package;
+   (rule 7 also fails when a Team server package makes an outbound connection, imports `os` outside its configuration,
+   or when the individual product's own code names Team's API, settings or executable);
 5. Team's build uses a third-party module the individual product does not, and that module has not been declared in
    `teamOnlyModules` (declaring it makes the test check the individual product never picks it up);
 6. a product's `VERSION` file is not `MAJOR.MINOR.PATCH`.

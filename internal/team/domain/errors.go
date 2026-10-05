@@ -9,4 +9,5 @@ var (
 	ErrConflict        = errors.New("conflict")
 	ErrForbidden       = errors.New("forbidden")
 	ErrUnauthenticated = errors.New("unauthenticated")
+	ErrBusy            = errors.New("busy") // too many open requests; try again shortly
 )

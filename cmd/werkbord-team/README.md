@@ -14,10 +14,11 @@ werkbord-team workspace create --name "Acme" --owner "Ada"   # prints the owner'
 werkbord-team serve                                          # http://127.0.0.1:7430
 ```
 
-Open the sign-in link that `workspace create` printed, then add members from the Members tab; each gets their own
+Open the sign-in link that `workspace create` printed, then add members from the Workspace tab; each gets their own
 token. Roles are Owner (everything) and Member (sees the team and the projects they are on).
 
-Create a project, then **invite people to it** from its *People & invites* tab: they open the link, pick a name, and
+The console is organised as Workspace, Projects, Board, **My Work** (what you are doing and what waits for you),
+**Reviews** (what needs a decision), Repository and Activity. Create a project, then **invite people to it** from its *People & invites* page: they open the link, pick a name, and
 are on the project. The project's **board** (Backlog, Available, In Progress, Review, Done) is shared and updates for
 everyone as it changes. A member **claims** an available ticket (only one person can), and **Open in my runner** hands
 that ticket's context to *their own* Werkbord; it never connects to anyone else's. The branch for ticket `WB-142` is

@@ -103,6 +103,7 @@ versions are the individual product's. Their product tags now exist beside them,
 | 0.8.1 | the "Wait for a dead Codex server" commit | A failed Codex start waits for the dead server's last words, so the error says why (a race that failed CI on Linux) |
 | Team 0.1.0 | the same commit | The Team foundation: workspace, owner, members, projects, project membership, Owner and Member roles |
 | Team 0.2.0 | the "collaborative workflow" commit | Project roles, invite links, the shared board and tickets with atomic claiming, local-runner handoff, reported Git metadata, repository awareness, activity, live board sync. Database schema 1 → 2 (migrates in place, backs up first). The individual product is unchanged (0.8.0). |
+| Team 2.0.0 | the "Team V2 integration and hardening" commit | One coherent console (Workspace, Projects, Board, My Work, Reviews, Repository, Activity), workspace-wide sync with reconnect recovery, concurrency and security hardening, and the security review. Schema 2 → 3 (a workspace revision; migrates in place, backs up first). Major: the second generation of Team ("V2"): the console's navigation and the sync contract changed, and the schema moved. The HTTP API only gained routes, so existing clients keep working. The individual product is unchanged (0.8.1). |
 
 `werkbord-v0.8.0` is a MINOR on 0.7.0 because it is the first tag since the multi-runner control plane and orchestration
 landed untagged. The bare `v0.7.0` tag still exists and always will (the `devboard update --version` command and the

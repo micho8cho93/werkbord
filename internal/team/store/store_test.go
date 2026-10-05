@@ -60,7 +60,7 @@ func TestUpgradingAVersion1Database(t *testing.T) {
 	}
 	err = p.Update(ctx, func(tx *sql.Tx) error {
 		for _, q := range []string{
-			`INSERT INTO workspaces VALUES ('w1', 'Acme', 1)`,
+			`INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'Acme', 1)`,
 			`INSERT INTO members VALUES ('m1', 'w1', 'Ada', '', 'owner', 'h1', 1)`,
 			`INSERT INTO projects VALUES ('p1', 'w1', 'Shop', '', '', 0, 1, 1)`,
 			`INSERT INTO project_members VALUES ('p1', 'm1', 'w1', 'm1', 1)`,
@@ -112,8 +112,8 @@ func TestTheSchemaRefusesImpossibleTickets(t *testing.T) {
 		return db.pool.Update(ctx, func(tx *sql.Tx) error { _, err := tx.ExecContext(ctx, q, a...); return err })
 	}
 	for _, q := range []string{
-		`INSERT INTO workspaces VALUES ('w1', 'Acme', 1)`,
-		`INSERT INTO workspaces VALUES ('w2', 'Rival', 1)`,
+		`INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'Acme', 1)`,
+		`INSERT INTO workspaces (id, name, created_at) VALUES ('w2', 'Rival', 1)`,
 		`INSERT INTO projects (id, workspace_id, name, created_at, updated_at) VALUES ('p1', 'w1', 'Shop', 1, 1)`,
 	} {
 		if err := exec(q); err != nil {
@@ -147,5 +147,57 @@ func TestTheSchemaRefusesImpossibleTickets(t *testing.T) {
 	}
 	if err := exec(`UPDATE project_invites SET uses = 2 WHERE id = 'i1'`); err == nil {
 		t.Error("an invite was used more often than allowed")
+	}
+}
+
+// The workspace revision moves by itself, in the writing transaction, when anything
+// that members can see changes: nothing in the service has to remember to bump it.
+func TestWorkspaceRevisionMovesWithEveryVisibleChange(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "team.db"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	exec := func(q string, a ...any) {
+		t.Helper()
+		if err := db.pool.Update(ctx, func(tx *sql.Tx) error { _, err := tx.ExecContext(ctx, q, a...); return err }); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	rev := func(ws string) (n int64) {
+		t.Helper()
+		if err := db.View(ctx, func(tx *Tx) (err error) { n, err = tx.WorkspaceRevision(ctx, ws); return }); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	exec(`INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'Acme', 1)`)
+	exec(`INSERT INTO workspaces (id, name, created_at) VALUES ('w2', 'Rival', 1)`)
+	last, other := rev("w1"), rev("w2")
+	moved := func(what string) {
+		t.Helper()
+		if now := rev("w1"); now <= last {
+			t.Fatalf("%s did not move the workspace revision (%d -> %d)", what, last, now)
+		} else {
+			last = now
+		}
+	}
+	exec(`INSERT INTO members (id, workspace_id, name, role, token_hash, created_at) VALUES ('m1', 'w1', 'Ada', 'owner', 'h1', 1)`)
+	moved("adding a member")
+	exec(`INSERT INTO projects (id, workspace_id, name, created_at, updated_at) VALUES ('p1', 'w1', 'Shop', 1, 1)`)
+	moved("creating a project")
+	exec(`INSERT INTO project_members (project_id, member_id, workspace_id, added_by, added_at) VALUES ('p1', 'm1', 'w1', 'm1', 1)`)
+	moved("putting a member on a project")
+	exec(`UPDATE project_members SET role = 'reviewer' WHERE project_id = 'p1'`)
+	moved("changing a project role")
+	exec(`UPDATE projects SET revision = revision + 1 WHERE id = 'p1'`)
+	moved("a change to a board")
+	exec(`UPDATE workspaces SET name = 'Acme Inc' WHERE id = 'w1'`)
+	moved("renaming the workspace")
+	exec(`DELETE FROM members WHERE id = 'm1'`)
+	moved("removing a member")
+	if got := rev("w2"); got != other {
+		t.Fatalf("another workspace's revision moved: %d -> %d", other, got)
 	}
 }

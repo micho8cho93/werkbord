@@ -5,14 +5,29 @@
 // runner" gives the member the ticket's context to take into their OWN Werkbord;
 // the console never contacts a Werkbord, and nothing here reaches another
 // member's computer.
+//
+// The primary navigation is the path a piece of work takes:
+//   Workspace  who is on the team, what is available, what everyone is doing
+//   Projects   the projects, their people and invite links
+//   Board      one project's tickets
+//   My Work    what you are doing, and what waits for you
+//   Reviews    work waiting for a review
+//   Repository what the team's Werkbords have reported about the Git state
+//   Activity   what happened
 'use strict';
 
 const app = document.getElementById('app');
+
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Repository'], ['activity', 'Activity']];
+const PROJECT_TABS = new Set(['board', 'repository', 'activity', 'people']);
+
 const state = {
-  token: null, me: null, tab: 'projects', projectId: null, ptab: 'board', ticketId: null, secret: null, error: '', info: '',
+  token: null, me: null, tab: 'workspace', projectId: null, ticketId: null, secret: null, error: '', info: '',
   invite: null,   // an invite code from the address, waiting to be used
+  ov: null,       // the workspace overview: the projects, and the counts the navigation shows
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
+  online: true,   // whether the live connection to the server is up
 };
 
 try {
@@ -22,7 +37,17 @@ try {
   if (inv) state.invite = decodeURIComponent(inv[1]);
   if (tok || inv) history.replaceState(null, '', location.pathname); // tokens and codes never stay in the address bar
   state.token = sessionStorage.getItem('werkbord-team-token');
+  state.projectId = sessionStorage.getItem('werkbord-team-project');
+  const t = sessionStorage.getItem('werkbord-team-tab');
+  if (t && (TABS.some((x) => x[0] === t) || t === 'people')) state.tab = t;
 } catch (_) { /* storage can be unavailable; the sign-in form still works for the session */ }
+
+function remember() {
+  try {
+    sessionStorage.setItem('werkbord-team-tab', state.tab);
+    if (state.projectId) sessionStorage.setItem('werkbord-team-project', state.projectId);
+  } catch (_) {}
+}
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -32,7 +57,7 @@ function h(tag, attrs, ...kids) {
     else if (v === true) el.setAttribute(k, '');
     else if (v !== false && v != null) el.setAttribute(k, v);
   }
-  for (const kid of kids.flat()) el.append(kid instanceof Node ? kid : document.createTextNode(kid ?? ''));
+  for (const kid of kids.flat(Infinity)) el.append(kid instanceof Node ? kid : document.createTextNode(kid ?? ''));
   return el;
 }
 
@@ -46,7 +71,11 @@ async function api(method, path, body, opts) {
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && state.token) { signOut(); throw new Error('Your token is not valid any more. Sign in again.'); }
-  if (!res.ok) throw new Error(data.error ? data.error.message : 'Request failed (' + res.status + ')');
+  if (!res.ok) {
+    const err = new Error(data.error ? data.error.message : 'Request failed (' + res.status + ')');
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -56,7 +85,7 @@ function pcan(permission) { return !!(state.data && state.data.board.can.include
 function signOut() {
   try { sessionStorage.removeItem('werkbord-team-token'); } catch (_) {}
   stopSync();
-  Object.assign(state, { token: null, me: null, secret: null, data: null, projectId: null, ticketId: null, handoff: null });
+  Object.assign(state, { token: null, me: null, ov: null, secret: null, data: null, ticketId: null, handoff: null });
   render();
 }
 
@@ -90,6 +119,11 @@ function copy(text, label) {
 
 function field(label, control) { return h('label', {}, label, control); }
 function isHTTPS(u) { return typeof u === 'string' && /^https:\/\//i.test(u); }
+// A link to somewhere outside Team (a pull request, a branch on the Git host) is only ever followed if it is https.
+function safeHref(u) { return isHTTPS(u) ? u : null; }
+function extLink(u, label) { return isHTTPS(u) ? h('a', { href: safeHref(u), target: '_blank', rel: 'noopener noreferrer' }, label) : ''; }
+function sum(list, f) { return list.reduce((n, x) => n + f(x), 0); }
+function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many || one + 's'); }
 
 // Inputs keep what was typed when the page re-renders because someone else changed something.
 // Only fields the person has touched are kept; the rest show the fresh data.
@@ -108,6 +142,40 @@ function restore(root, keep) {
   }
 }
 
+// The connection banner and the toasts live outside #app, so a re-render never removes them.
+const banner = h('p', { class: 'banner', role: 'status', hidden: true }, 'Reconnecting… what you see may be out of date. It will refresh by itself when the connection is back.');
+const toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
+document.body.prepend(banner);
+document.body.append(toasts);
+function setOnline(on) { state.online = on; banner.hidden = on; }
+function toast(message) {
+  const t = h('div', { class: 'toast', role: 'status' }, message);
+  toasts.append(t);
+  while (toasts.children.length > 4) toasts.firstChild.remove();
+  setTimeout(() => t.remove(), 7000);
+}
+
+// ---- navigation ----
+
+function navTab() { return state.tab === 'people' ? 'projects' : state.tab; }
+function go(tab) { state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.info = ''; remember(); return render(); }
+function openProject(id, tab) { state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; remember(); return render(); }
+function openTicket(projectId, ticketId) { state.projectId = projectId; state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; remember(); return render(); }
+function openInRunner(it) { return act(async () => { state.handoff = await api('POST', itemPath(it) + '/handoff'); }); }
+function itemPath(it) { return '/projects/' + it.project.id + '/tickets/' + it.ticket.id; }
+
+// The project the Board, Repository and Activity tabs show: the one the member last
+// opened if it is still there, else the first one they are on.
+function currentProject() {
+  const projects = state.ov ? state.ov.projects : [];
+  let p = projects.find((x) => x.project.id === state.projectId);
+  if (!p) p = projects.find((x) => x.member && !x.project.archived) || projects.find((x) => x.member) || projects[0];
+  state.projectId = p ? p.project.id : null;
+  return p || null;
+}
+
+function badgeOn(n, tone) { return n > 0 ? h('span', { class: 'count' + (tone ? ' ' + tone : '') }, String(n)) : ''; }
+
 // ---- rendering ----
 
 let rendering = Promise.resolve();
@@ -115,16 +183,44 @@ function render() { rendering = rendering.then(renderNow, renderNow); return ren
 
 async function renderNow() {
   if (!state.token) { stopSync(); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
-  try { state.me = await api('GET', '/me'); } catch (e) { if (state.token) state.error = e.message; app.replaceChildren(signIn()); return; }
+  try {
+    [state.me, state.ov] = await Promise.all([api('GET', '/me'), api('GET', '/overview')]);
+  } catch (e) {
+    if (e instanceof TypeError) { // the network, not the token: keep what is on screen and keep trying
+      setOnline(false);
+      if (!app.firstChild || app.querySelector('.loading')) app.replaceChildren(unreachable());
+      startSync();
+      return;
+    }
+    if (state.token) state.error = e.message;
+    app.replaceChildren(signIn());
+    return;
+  }
   if (state.invite) { app.replaceChildren(joinScreen()); return; }
+  setOnline(true);
   let body;
   try {
-    if (state.tab === 'members') { stopSync(); body = await membersView(); }
-    else if (state.projectId) body = await projectView();
-    else { stopSync(); body = await projectsView(); }
-  } catch (e) { state.error = e.message; body = h('p', { class: 'error' }, e.message); }
+    switch (state.tab) {
+      case 'workspace': body = await workspaceView(); break;
+      case 'projects': body = await projectsView(); break;
+      case 'mywork': body = await myWorkView(); break;
+      case 'reviews': body = await reviewsView(); break;
+      default: body = await projectScopedView();
+    }
+  } catch (e) {
+    if (e instanceof TypeError) { setOnline(false); startSync(); return; }
+    state.error = e.message; body = h('p', { class: 'error' }, e.message);
+  }
+  startSync();
   const keep = snapshot(app);
-  app.classList.toggle('wide', !!(state.projectId && state.tab === 'projects'));
+  app.classList.toggle('wide', state.tab === 'board');
+  const ov = state.ov;
+  const counts = {
+    board: sum(ov.projects, (p) => p.counts.available || 0),
+    mywork: sum(ov.projects, (p) => p.mine),
+    reviews: sum(ov.projects, (p) => p.toReview),
+    repository: sum(ov.projects, (p) => p.problems),
+  };
   app.replaceChildren(h('div', {},
     h('header', {},
       h('h1', {}, 'Werkbord Team'),
@@ -133,14 +229,20 @@ async function renderNow() {
         h('button', { class: 'link', onclick: signOut }, 'Sign out'))),
     h('p', { class: 'note' }, 'Team coordinates the work. It does not run anything: every member uses their own computer, ',
       'their own Werkbord runner and their own Git, GitHub and agent credentials.'),
-    h('nav', {},
-      h('button', { 'aria-current': state.tab === 'projects' ? 'page' : null, onclick: () => { state.tab = 'projects'; state.projectId = null; state.secret = null; render(); } }, 'Projects'),
-      h('button', { 'aria-current': state.tab === 'members' ? 'page' : null, onclick: () => { state.tab = 'members'; state.secret = null; render(); } }, 'Members')),
+    h('nav', { 'aria-label': 'Werkbord Team' }, TABS.map(([id, label]) =>
+      h('button', { 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, label,
+        badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'board' ? 'quiet' : ''), ''))),
     state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
     state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
     secretBox(),
     body));
   restore(app, keep);
+}
+
+function unreachable() {
+  return h('div', { class: 'panel' }, h('h2', {}, 'Cannot reach the Team server'),
+    h('p', { class: 'muted' }, 'Check your connection. This page keeps trying and will load by itself.'),
+    h('button', { class: 'primary', onclick: () => render() }, 'Try now'));
 }
 
 function signIn() {
@@ -185,7 +287,7 @@ function joinScreen() {
       h('div', { class: 'actions' },
         h('button', { class: 'primary', onclick: () => act(async () => {
           const j = await api('POST', '/invites/join', { code });
-          done(); state.tab = 'projects'; state.projectId = j.project.id; state.ptab = 'board'; state.info = 'You joined ' + j.project.name + '.';
+          done(); state.tab = 'board'; state.projectId = j.project.id; remember(); state.info = 'You joined ' + j.project.name + '.';
         }) }, 'Join the project'),
         h('button', { class: 'plain', onclick: () => { done(); render(); } }, 'Not now')));
   } else {
@@ -196,7 +298,7 @@ function joinScreen() {
           const j = await api('POST', '/invites/redeem', { code, name: name.value, email: email.value });
           done();
           try { sessionStorage.setItem('werkbord-team-token', j.token); } catch (_) {}
-          state.token = j.token; state.tab = 'projects'; state.projectId = j.project.id; state.ptab = 'board';
+          state.token = j.token; state.tab = 'board'; state.projectId = j.project.id; remember();
           state.secret = { kind: 'token', name: j.member.name, self: true, token: j.token };
           state.info = 'Welcome to ' + j.project.name + '. Keep your token somewhere safe: it is how you sign in again.';
         }); } },
@@ -208,10 +310,127 @@ function joinScreen() {
 
 function render_signin() { const code = state.invite; state.invite = null; app.replaceChildren(signIn()); state.invite = code; }
 
-// ---- members ----
+// ---- keeping every view in step ----
+//
+// One long request per console, for the whole workspace. It returns the moment
+// anything this member can see changes, with the new events so that a change by
+// somebody else can be announced ("Bo claimed WB-4"). The events are a courtesy:
+// what the views show is always re-read from the server, which is the authority.
+// If the connection drops, the console says so, retries with a growing pause, and
+// on reconnecting reloads everything it shows; the server answers with whatever
+// changed in the meantime (or says "reload" if it cannot tell).
 
-async function membersView() {
+let sync = null;
+function stopSync() { if (sync) sync.ctl.abort(); sync = null; }
+function pause(ms, signal) {
+  return new Promise((res) => { const t = setTimeout(res, ms); signal.addEventListener('abort', () => { clearTimeout(t); res(); }, { once: true }); });
+}
+function startSync() {
+  if (sync && !sync.ctl.signal.aborted) return;
+  const ctl = new AbortController();
+  sync = { ctl };
+  (async () => {
+    let rev = null, cursor = -1, failures = 0, missed = false;
+    while (!ctl.signal.aborted) {
+      try {
+        const q = rev === null ? 'wait=0' : 'since=' + rev + '&after=' + cursor + '&wait=20';
+        const r = await api('GET', '/sync?' + q, null, { signal: ctl.signal });
+        if (ctl.signal.aborted) return;
+        failures = 0;
+        const wasOffline = !state.online || missed;
+        setOnline(true);
+        if (rev === null) { rev = r.revision; cursor = r.cursor; if (wasOffline) { missed = false; await render(); } continue; }
+        if (r.changed || wasOffline) {
+          rev = r.revision; cursor = r.cursor; missed = false;
+          if (r.reset || r.truncated) toast('You were away for a while, so everything was reloaded.');
+          else announce(r.events || []);
+          await render();
+        }
+      } catch (e) {
+        if (ctl.signal.aborted) return;
+        missed = true;
+        if (e.status !== 429) setOnline(false);
+        await pause(e.status === 429 ? 5000 : Math.min(30000, 1000 * 2 ** failures++), ctl.signal);
+      }
+    }
+  })();
+}
+// Come back to the tab, or the network: reload at once rather than wait for the next poll.
+document.addEventListener('visibilitychange', () => { if (!document.hidden && state.token) { stopSync(); render(); } });
+window.addEventListener('online', () => { if (state.token) { stopSync(); render(); } });
+
+const ACTIVITY = {
+  'ticket.created': 'created', 'ticket.claimed': 'claimed', 'ticket.released': 'released', 'ticket.reassigned': 'reassigned',
+  'ticket.work_submitted': 'submitted work on', 'ticket.pull_request_created': 'opened a pull request for', 'ticket.review_requested': 'asked for a review of',
+  'ticket.changes_requested': 'asked for changes to', 'ticket.completed': 'completed', 'ticket.reopened': 'reopened', 'ticket.moved': 'moved',
+  'ticket.handed_off': 'opened in their own runner:', 'ticket.pull_request_merged': 'recorded the merge of', 'project.member_joined': 'joined the project',
+};
+
+function announce(events) {
+  const others = events.filter((e) => e.actorId !== state.me.member.id && e.kind !== 'ticket.handed_off');
+  for (const e of others.slice(0, 3)) {
+    toast(e.actorName + ' ' + (ACTIVITY[e.kind] || e.kind) + (e.ticketKey ? ' ' + e.ticketKey : '') + (e.projectName ? ' · ' + e.projectName : ''));
+  }
+  if (others.length > 3) toast('…and ' + (others.length - 3) + ' more changes.');
+}
+
+// ---- workspace: the team at a glance ----
+
+function tile(label, value, hint, onclick, tone) {
+  return h('button', { class: 'tile' + (tone ? ' ' + tone : ''), onclick },
+    h('span', { class: 'tile-value' }, String(value)), h('span', { class: 'tile-label' }, label), h('span', { class: 'muted small' }, hint));
+}
+
+function statusName(st) { return { backlog: 'Backlog', available: 'Available', in_progress: 'In progress', review: 'In review', done: 'Done' }[st] || st; }
+
+async function workspaceView() {
+  const ov = state.ov, me = state.me.member.id;
   const members = await api('GET', '/members');
+  const mine = sum(ov.projects, (p) => p.mine), toReview = sum(ov.projects, (p) => p.toReview);
+  const problems = sum(ov.projects, (p) => p.problems), warnings = sum(ov.projects, (p) => p.warnings);
+  const others = ov.working.filter((it) => it.ticket.assigneeId !== me);
+  const best = ov.projects.filter((p) => !p.project.archived).sort((a, b) => (b.counts.available || 0) - (a.counts.available || 0))[0];
+
+  const tiles = h('div', { class: 'tiles' },
+    tile('Available', ov.available, 'ready for anyone to claim', () => best ? openProject(best.project.id, 'board') : go('projects')),
+    tile('Yours', mine, 'tickets you are working on', () => go('mywork')),
+    tile('Everyone else', others.length, 'being worked on or in review', () => document.getElementById('working-now') && document.getElementById('working-now').scrollIntoView({ behavior: 'smooth' })),
+    tile('To review', toReview, 'waiting for you', () => go('reviews'), toReview > 0 ? 'attn' : ''),
+    tile('Repository', problems + warnings, problems ? plural(problems, 'problem') : warnings ? plural(warnings, 'warning') : 'nothing needs attention', () => go('repository'), problems ? 'bad' : ''));
+
+  const working = ov.working.length
+    ? ov.working.map((it) => h('div', { class: 'row' },
+        h('div', { class: 'grow' },
+          h('button', { class: 'link', onclick: () => openTicket(it.project.id, it.ticket.id) }, it.ticket.key + ' · ' + it.ticket.title),
+          h('div', { class: 'muted' }, it.project.name + ' · ' + (it.ticket.assigneeId === me ? 'You' : it.author || 'a former member'))),
+        h('span', { class: 'badge' }, statusName(it.ticket.status)),
+        mergeBadge(it),
+        when(it.ticket.updatedAt)))
+    : h('p', { class: 'muted' }, 'Nobody is working on anything right now.');
+
+  const projects = ov.projects.length
+    ? ov.projects.map((p) => h('div', { class: 'row' },
+        h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.project.id, 'board') }, p.project.name), p.project.archived ? ' (archived)' : '',
+          h('div', { class: 'muted' }, ['available', 'in_progress', 'review', 'done'].map((st) => (p.counts[st] || 0) + ' ' + statusName(st).toLowerCase()).join(' · '))),
+        p.mine ? h('span', { class: 'badge' }, p.mine + ' yours') : '',
+        p.toReview ? h('span', { class: 'badge warn' }, p.toReview + ' to review') : '',
+        p.problems ? h('span', { class: 'badge bad' }, plural(p.problems, 'problem')) : ''))
+    : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet. Create one under Projects.' : 'You are not on any project yet. Ask for an invite link.');
+
+  return h('div', {}, tiles,
+    h('div', { class: 'panel', id: 'working-now' }, h('h2', {}, 'What the team is working on'), working),
+    h('div', { class: 'panel' }, h('h2', {}, 'Projects'), projects),
+    membersPanels(members));
+}
+
+function mergeBadge(it) {
+  const m = it.merge;
+  if (!m || m === 'none') return '';
+  const text = { mergeable: 'PR can merge', conflicting: 'PR has conflicts', unknown: 'PR open', merged: 'PR merged', closed: 'PR closed' }[m] || m;
+  return h('span', { class: 'badge' + (m === 'conflicting' ? ' bad' : m === 'closed' ? ' warn' : '') }, text);
+}
+
+function membersPanels(members) {
   const rows = members.map((m) => h('div', { class: 'row' },
     h('div', { class: 'grow' }, h('strong', {}, m.name), ' ', h('span', { class: 'muted' }, m.email || '')),
     h('span', { class: 'badge' }, m.role),
@@ -224,7 +443,7 @@ async function membersView() {
     const name = h('input', { name: 'm-name', required: true, maxlength: 80 });
     const email = h('input', { name: 'm-email', type: 'email', maxlength: 254 });
     panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Add a member'),
-      h('p', { class: 'muted' }, 'Or invite people to a single project with an invite link from that project\'s People tab.'),
+      h('p', { class: 'muted' }, 'Or invite people to a single project with an invite link from that project\'s People page.'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => { const r = await api('POST', '/members', { name: name.value, email: email.value });
           state.secret = { kind: 'token', name: r.member.name, token: r.token }; name.value = ''; email.value = ''; }); } },
         field('Name', name), field('Email (optional)', email), h('button', { class: 'primary' }, 'Add'))));
@@ -235,11 +454,15 @@ async function membersView() {
 // ---- projects ----
 
 async function projectsView() {
-  const projects = await api('GET', '/projects');
+  const projects = state.ov.projects;
   const rows = projects.map((p) => h('div', { class: 'row' },
-    h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.id) }, p.name),
-      p.repository ? h('div', { class: 'muted' }, p.repository) : ''),
-    p.archived ? h('span', { class: 'badge' }, 'archived') : ''));
+    h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.project.id, 'board') }, p.project.name),
+      p.project.description ? h('div', { class: 'muted' }, p.project.description) : '',
+      p.project.repository ? h('div', { class: 'muted' }, p.project.repository) : ''),
+    p.project.archived ? h('span', { class: 'badge' }, 'archived') : '',
+    h('span', { class: 'badge' }, p.member ? p.role : 'not on it'),
+    h('span', { class: 'muted' }, plural(p.people, 'person', 'people')),
+    h('button', { class: 'plain', onclick: () => openProject(p.project.id, 'people') }, 'People & invites')));
   const panels = [h('div', { class: 'panel' }, h('h2', {}, 'Projects (' + projects.length + ')'),
     rows.length ? rows : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet.' : 'You are not on any project yet. Ask for an invite link.'))];
   if (can('projects.create')) {
@@ -248,25 +471,22 @@ async function projectsView() {
     const repo = h('input', { name: 'p-repo', placeholder: 'https://github.com/owner/repo (optional)', maxlength: 2048 });
     panels.push(h('div', { class: 'panel' }, h('h2', {}, 'New project'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => { const p = await api('POST', '/projects', { name: name.value, description: desc.value, repository: repo.value });
-          name.value = ''; desc.value = ''; repo.value = ''; await openProjectNow(p.id); }); } },
+          name.value = ''; desc.value = ''; repo.value = ''; state.projectId = p.id; state.tab = 'board'; state.data = null; remember(); }); } },
         field('Name', name), field('Description (optional)', desc), field('Repository', repo), h('button', { class: 'primary' }, 'Create'))));
   }
   return h('div', {}, panels);
 }
 
-function openProject(id) { state.projectId = id; state.ptab = 'board'; state.ticketId = null; state.secret = null; state.handoff = null; state.data = null; render(); }
-async function openProjectNow(id) { state.projectId = id; state.ptab = 'board'; state.ticketId = null; state.handoff = null; state.data = null; }
+// ---- one project: board, repository, activity, people ----
 
-// The open project. Its board is loaded with everything the other tabs need, and
-// kept current by a long poll: when any member changes the project, the server
-// answers and the page reloads what it shows.
+// Its board is loaded with everything the other project tabs need.
 async function loadProject() {
   const id = state.projectId;
   const board = await api('GET', '/projects/' + id + '/board');
-  const d = { id, board, tab: state.ptab };
-  if (state.ptab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
-  if (state.ptab === 'activity') d.activity = await api('GET', '/projects/' + id + '/activity?limit=100');
-  if (state.ptab === 'people') {
+  const d = { id, board, tab: state.tab };
+  if (state.tab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
+  if (state.tab === 'activity') d.activity = await api('GET', '/projects/' + id + '/activity?limit=100');
+  if (state.tab === 'people') {
     d.people = board.people;
     d.invites = board.can.includes('invites.manage') ? await api('GET', '/projects/' + id + '/invites') : [];
     d.everyone = board.can.includes('members.manage') ? await api('GET', '/members') : [];
@@ -275,51 +495,116 @@ async function loadProject() {
   return d;
 }
 
-async function projectView() {
+async function projectScopedView() {
+  const cur = currentProject();
+  if (!cur) return h('div', { class: 'panel' }, h('h2', {}, 'No project yet'),
+    h('p', { class: 'muted' }, can('projects.create') ? 'Create a project under Projects to get started.' : 'You are not on any project yet. Ask for an invite link.'));
   const d = await loadProject();
-  startSync(d.id, d.board.revision);
   const p = d.board.project;
-  const tab = (id, label) => h('button', { 'aria-current': state.ptab === id ? 'page' : null, onclick: () => { state.ptab = id; state.ticketId = null; state.handoff = null; render(); } }, label);
-  const content = state.ptab === 'repository' ? repositoryTab(d) : state.ptab === 'activity' ? activityTab(d) : state.ptab === 'people' ? peopleTab(d) : boardTab(d);
+  const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
+    state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
+  const content = state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
   return h('div', {},
-    h('p', {}, h('button', { class: 'link', onclick: () => { state.projectId = null; state.data = null; state.ticketId = null; state.handoff = null; render(); } }, '← Projects')),
+    state.tab === 'people' ? h('p', {}, h('button', { class: 'link', onclick: () => go('projects') }, '← Projects')) : '',
     h('div', { class: 'panel project-head' },
-      h('h2', {}, p.name, p.archived ? ' (archived)' : ''),
+      h('div', { class: 'project-bar' }, h('label', { class: 'inline' }, 'Project ', switcher),
+        h('span', { class: 'muted' }, 'You are ' + (d.board.member ? (d.board.role === 'owner' ? 'an owner' : d.board.role === 'reviewer' ? 'a reviewer' : 'a member') : 'looking at this project without being on it') + ' here.'),
+        state.tab === 'board' ? h('button', { class: 'plain small', onclick: () => openProject(p.id, 'people') }, 'People & invites') : '',
+        can('projects.manage') ? h('button', { class: 'plain small', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive' : 'Archive') : ''),
       p.description ? h('p', {}, p.description) : '',
-      p.repository ? h('p', { class: 'muted' }, 'Repository: ', p.repository) : h('p', { class: 'muted' }, 'No repository address yet.'),
-      h('p', { class: 'muted' }, 'You are ' + (d.board.member ? (d.board.role === 'owner' ? 'an owner' : d.board.role === 'reviewer' ? 'a reviewer' : 'a member') : 'looking at this project without being on it') + ' here.'),
-      can('projects.manage') ? h('button', { class: 'plain', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive' : 'Archive') : ''),
-    h('nav', { class: 'sub' }, tab('board', 'Board'), tab('repository', 'Repository'), tab('activity', 'Activity'), tab('people', 'People & invites')),
+      p.repository ? h('p', { class: 'muted' }, 'Repository: ', isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : h('p', { class: 'muted' }, 'No repository address yet.')),
     content);
 }
 
-// ---- keeping boards in step ----
+// ---- My Work ----
 
-let sync = { id: null, ctl: null };
-function stopSync() { if (sync.ctl) sync.ctl.abort(); sync = { id: null, ctl: null }; }
-function startSync(id, revision) {
-  if (sync.id === id && sync.ctl && !sync.ctl.signal.aborted) { sync.rev = revision; return; }
-  stopSync();
-  const ctl = new AbortController();
-  sync = { id, ctl, rev: revision };
-  (async () => {
-    let failures = 0;
-    while (!ctl.signal.aborted) {
-      try {
-        const r = await api('GET', '/projects/' + id + '/sync?since=' + sync.rev + '&wait=20', null, { signal: ctl.signal });
-        failures = 0;
-        if (r.changed && !ctl.signal.aborted) { sync.rev = r.revision; await refreshProject(); }
-      } catch (_) {
-        if (ctl.signal.aborted) return;
-        await new Promise((res) => setTimeout(res, Math.min(30000, 1000 * 2 ** failures++)));
-      }
-    }
-  })();
+async function myWorkView() {
+  const w = await api('GET', '/my-work');
+  const attn = w.needsAction.length
+    ? w.needsAction.map((a) => h('div', { class: 'row attn ' + a.level },
+        h('span', { class: 'badge ' + (a.level === 'problem' ? 'bad' : a.level === 'warning' ? 'warn' : '') }, a.level === 'info' ? 'next' : a.level),
+        h('div', { class: 'grow' }, a.message),
+        a.kind === 'review_requested' || a.kind === 'ready_to_complete'
+          ? h('button', { class: 'plain small', onclick: () => go('reviews') }, 'Open Reviews')
+          : h('button', { class: 'plain small', onclick: () => openTicket(a.projectId, a.ticketId) }, 'Open ' + a.ticketKey)))
+    : h('p', { class: 'muted' }, 'Nothing is waiting for you.');
+  const list = (items, empty) => items.length ? items.map((it) => workItem(it)) : h('p', { class: 'muted' }, empty);
+
+  const repos = w.repositories.length
+    ? w.repositories.map((r) => h('div', { class: 'repo-block' },
+        h('h3', {}, r.project.name, ' ', h('button', { class: 'link small', onclick: () => openProject(r.project.id, 'repository') }, 'Open the repository view')),
+        r.attention.length ? r.attention.map((a) => h('div', { class: 'row attn ' + a.level }, h('span', { class: 'badge ' + (a.level === 'problem' ? 'bad' : a.level === 'warning' ? 'warn' : '') }, a.level), h('div', { class: 'grow' }, a.message)))
+          : h('p', { class: 'muted' }, 'Nothing needs attention on your branches, as far as has been reported.'),
+        r.branches.length ? h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Branch', 'Ticket', 'Ahead / behind', 'Last activity'].map((c) => h('th', {}, c)))),
+          h('tbody', {}, r.branches.map((b) => h('tr', {}, h('td', {}, h('code', {}, b.name)), h('td', {}, b.ticketKey || ''), h('td', {}, b.ahead + ' / ' + (b.behind < 0 ? '?' : b.behind)), h('td', {}, when(b.lastActivity))))))) : ''))
+    : h('p', { class: 'muted' }, 'Nothing reported yet. Your own Werkbord reports your branches as you work.');
+
+  return h('div', {},
+    h('div', { class: 'panel' }, h('h2', {}, 'Needs your attention'), attn,
+      w.reviewsWaiting ? h('p', {}, h('button', { class: 'link', onclick: () => go('reviews') }, plural(w.reviewsWaiting, 'ticket') + ' waiting for a review you can do')) : ''),
+    h('div', { class: 'panel' }, h('h2', {}, 'In progress (' + w.inProgress.length + ')'), list(w.inProgress, 'You are not working on a ticket. Claim one from a board.')),
+    h('div', { class: 'panel' }, h('h2', {}, 'Submitted, waiting for review (' + w.submitted.length + ')'), list(w.submitted, 'Nothing of yours is waiting for a review.')),
+    h('div', { class: 'panel' }, h('h2', {}, 'Your open pull requests (' + w.pullRequests.length + ')'),
+      w.pullRequests.length ? w.pullRequests.map((it) => h('div', { class: 'row' },
+        h('div', { class: 'grow' }, h('strong', {}, it.ticket.key), ' ', it.ticket.title, h('div', { class: 'muted' }, it.project.name, ' · ', it.ticket.branch)),
+        prLine(it.ticket.pullRequest))) : h('p', { class: 'muted' }, 'No open pull requests.')),
+    h('div', { class: 'panel' }, h('h2', {}, 'Your branches'), repos));
 }
-// Reload the open project; what someone is typing in it is kept.
-async function refreshProject() {
-  if (!state.projectId || state.tab !== 'projects') return;
-  await render(); // render() keeps what is being typed (see snapshot and restore)
+
+// A ticket outside its board: where it is, how its pull request stands, and where to go next.
+function workItem(it, extra) {
+  const k = it.ticket, pr = k.pullRequest, L = it.links || {};
+  const links = [extLink(L.pullRequest, 'Pull request'), extLink(L.branch, 'Branch on the Git host'), extLink(L.compare, 'Compare with ' + (pr && pr.baseBranch || 'base')), extLink(L.repository, 'Repository')].filter((x) => x);
+  const commits = k.commits && k.commits.length
+    ? h('details', {}, h('summary', {}, plural(k.commits.length, 'commit')),
+        h('ul', { class: 'commits' }, k.commits.map((c) => h('li', {}, isHTTPS(L.commitPrefix) ? extLink(L.commitPrefix + c.sha, c.sha.slice(0, 8)) : h('code', {}, c.sha.slice(0, 8)), ' ', c.subject, c.author ? h('span', { class: 'muted' }, ' · ' + c.author) : ''))))
+    : '';
+  const mine = k.assigneeId === state.me.member.id;
+  return h('article', { class: 'card item' + (mine ? ' mine' : '') },
+    h('div', { class: 'muted small' }, k.key, ' · ', it.project.name, ' · ', statusName(k.status), it.assignedBy ? ' · assigned to you by ' + it.assignedBy : (it.author && !mine ? ' · by ' + it.author : '')),
+    h('button', { class: 'link title', onclick: () => openTicket(it.project.id, k.id) }, k.title),
+    h('div', { class: 'flags' }, mergeBadge(it), pr && pr.state === 'open' && pr.behind > 0 ? h('span', { class: 'badge warn' }, pr.behind + ' behind ' + (pr.baseBranch || 'base')) : '', pr && pr.draft ? h('span', { class: 'badge' }, 'draft') : ''),
+    k.branch ? h('div', {}, 'Branch ', h('code', {}, k.branch), ' ', copy(k.branch, 'Copy')) : '',
+    links.length ? h('div', { class: 'links' }, links.map((l, i) => [i ? ' · ' : '', l])) : '',
+    commits,
+    extra || '',
+    state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
+    mine && (k.status === 'in_progress' || k.status === 'review')
+      ? h('div', { class: 'actions' }, h('button', { class: 'primary small', onclick: () => openInRunner(it) }, 'Open in my runner'),
+          h('button', { class: 'plain small', onclick: () => openTicket(it.project.id, k.id) }, 'Open ticket'))
+      : '');
+}
+
+// ---- Reviews ----
+
+async function reviewsView() {
+  const q = await api('GET', '/reviews');
+  const toReview = q.items.filter((i) => i.canReview && !i.mine);
+  const waiting = q.items.filter((i) => i.mine || !i.canReview);
+  return h('div', {},
+    h('p', { class: 'muted' }, 'Reviewing and merging happen on your Git host. Here you see what needs a decision, jump to the pull request, and record the outcome so the team sees it. Team never merges anything.'),
+    h('div', { class: 'panel' }, h('h2', {}, 'To review (' + toReview.length + ')'),
+      toReview.length ? toReview.map(reviewItem) : h('p', { class: 'muted' }, 'Nothing is waiting for you to review.')),
+    waiting.length ? h('div', { class: 'panel' }, h('h2', {}, 'Yours, waiting for a reviewer (' + waiting.length + ')'), waiting.map(reviewItem)) : '');
+}
+
+function reviewItem(it) {
+  const k = it.ticket, pr = k.pullRequest;
+  const path = itemPath(it);
+  const note = h('input', { name: 'rv-note-' + k.id, placeholder: 'What should change? (optional)', maxlength: 1000 });
+  const extra = [];
+  if (it.requestedOfMe) extra.push(h('div', {}, h('span', { class: 'badge warn' }, 'asked of you')));
+  if (it.canReview) {
+    if (!it.canComplete && it.blocker) extra.push(h('p', { class: 'muted' }, it.blocker.charAt(0).toUpperCase() + it.blocker.slice(1), '.'));
+    extra.push(h('div', { class: 'actions' },
+      pr && pr.state === 'open' ? h('button', { class: 'plain small', title: 'After you merged it on your Git host', onclick: () => act(() => api('PUT', path + '/git', { pullRequest: { url: pr.url, number: pr.number, state: 'merged', baseBranch: pr.baseBranch } })) }, 'I merged it: record that') : '',
+      h('button', { class: 'primary small', disabled: !it.canComplete, onclick: () => act(() => api('POST', path + '/complete')) }, 'Mark done'),
+      h('span', { class: 'inline' }, note, h('button', { class: 'plain small', onclick: () => act(() => api('POST', path + '/request-changes', { note: note.value })) }, 'Request changes')),
+      h('button', { class: 'plain small', onclick: () => openProject(it.project.id, 'repository') }, 'Repository state')));
+  } else {
+    extra.push(h('p', { class: 'muted' }, it.mine ? 'Waiting for a reviewer. You cannot sign off your own work.' : ''));
+  }
+  return workItem(it, extra);
 }
 
 // ---- the board ----
@@ -553,13 +838,6 @@ function repositoryTab(d) {
 }
 
 // ---- activity ----
-
-const ACTIVITY = {
-  'ticket.created': 'created', 'ticket.claimed': 'claimed', 'ticket.released': 'released', 'ticket.reassigned': 'reassigned',
-  'ticket.work_submitted': 'submitted work on', 'ticket.pull_request_created': 'opened a pull request for', 'ticket.review_requested': 'asked for a review of',
-  'ticket.changes_requested': 'asked for changes to', 'ticket.completed': 'completed', 'ticket.reopened': 'reopened', 'ticket.moved': 'moved',
-  'ticket.handed_off': 'opened in their own runner:', 'ticket.pull_request_merged': 'recorded the merge of', 'project.member_joined': 'joined the project',
-};
 
 function activityTab(d) {
   const rows = d.activity.map((a) => h('div', { class: 'row' },

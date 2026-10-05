@@ -90,3 +90,35 @@ summary { cursor: pointer; color: var(--accent); }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 th, td { text-align: left; padding: .35rem .5rem; border-top: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-weight: 500; border-top: 0; }
+
+/* ---- navigation, live updates, workspace overview, My Work and Reviews ---- */
+nav { flex-wrap: wrap; }
+nav button .count { display: inline-block; min-width: 1.25rem; margin-left: .35rem; padding: 0 .35rem; border-radius: 99px; background: var(--accent); color: var(--accent-text); font-size: .72rem; line-height: 1.25rem; text-align: center; }
+nav button .count.bad { background: var(--danger); color: #fff; }
+nav button .count.quiet { background: var(--line); color: var(--muted); }
+
+.banner { position: sticky; top: 0; z-index: 5; margin: 0; padding: .45rem 16px; background: var(--warn-bg); color: var(--text); text-align: center; font-size: .9rem; border-bottom: 1px solid var(--line); }
+.banner[hidden] { display: none; }
+.toasts { position: fixed; right: 1rem; bottom: 1rem; display: grid; gap: .4rem; z-index: 10; max-width: min(24rem, calc(100vw - 2rem)); }
+.toast { background: var(--text); color: var(--bg); border-radius: 8px; padding: .5rem .8rem; font-size: .9rem; box-shadow: 0 2px 10px rgba(0, 0, 0, .25); animation: toast-in .18s ease-out; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(.5rem); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
+.tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { display: grid; gap: .1rem; text-align: left; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: .75rem; font: inherit; cursor: pointer; }
+.tile:hover, .tile:focus-visible { border-color: var(--accent); }
+.tile-value { font-size: 1.6rem; font-weight: 650; line-height: 1.1; }
+.tile-label { font-weight: 600; }
+.tile.attn { border-left: 3px solid #d9a400; }
+.tile.bad { border-left: 3px solid var(--danger); }
+
+.project-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+.project-bar label { flex: none; display: inline-flex; flex-direction: row; align-items: center; gap: .4rem; color: var(--text); font-size: 1rem; }
+.project-bar select { width: auto; min-width: 12rem; }
+.card.item { gap: .4rem; padding: .7rem .8rem; }
+.card.item .links { font-size: .9rem; }
+.repo-block { margin-bottom: 1rem; }
+.repo-block h3 { font-size: .95rem; margin: .25rem 0 .4rem; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

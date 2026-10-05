@@ -171,6 +171,12 @@ func (s *Service) applyPullRequest(k *domain.Ticket, a Actor, in domain.PullRequ
 		return false, err
 	}
 	created = k.PullRequest == nil || k.PullRequest.URL != pr.URL
+	// A merge cannot be undone (a revert is a new pull request), so a report that
+	// says otherwise about the same pull request is a stale or replayed one: a
+	// slow Werkbord must not turn a merged pull request back into an open one.
+	if old := k.PullRequest; old != nil && old.URL == pr.URL && old.State == domain.PRMerged && pr.State != domain.PRMerged {
+		return false, fmt.Errorf("%w: %s's pull request is already recorded as merged; a merge cannot be undone", domain.ErrConflict, k.Key)
+	}
 	pr.ReportedBy, pr.ReportedAt = a.Member.ID, now
 	pr.CreatedAt = now
 	if !created {

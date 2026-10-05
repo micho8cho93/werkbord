@@ -121,7 +121,7 @@ func (s *Service) RedeemInvite(ctx context.Context, code, name, email string) (J
 		return Joined{}, err
 	}
 	var out Joined
-	var projectID string
+	var projectID, wsID string
 	err = s.db.Update(ctx, func(tx *store.Tx) error {
 		now := s.stamp()
 		workspaceID, inv, err := tx.UseInvite(ctx, domain.HashInviteCode(code), now)
@@ -149,12 +149,13 @@ func (s *Service) RedeemInvite(ctx context.Context, code, name, email string) (J
 		if _, err := tx.BumpRevision(ctx, workspaceID, inv.ProjectID); err != nil {
 			return err
 		}
-		projectID = inv.ProjectID
+		projectID, wsID = inv.ProjectID, workspaceID
 		out = Joined{Project: p, Member: m, Role: inv.Role, Token: token}
 		return nil
 	})
 	if err == nil {
 		s.hub.notify(projectID)
+		s.changed(wsID, nil)
 	}
 	return out, err
 }
@@ -197,6 +198,7 @@ func (s *Service) JoinWithInvite(ctx context.Context, a Actor, code string) (Joi
 	})
 	if err == nil {
 		s.hub.notify(projectID)
+		s.changed(a.Workspace.ID, nil)
 	}
 	return out, err
 }

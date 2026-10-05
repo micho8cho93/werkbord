@@ -38,13 +38,22 @@ func TestTheConsoleNeverBuildsHTMLFromData(t *testing.T) {
 			t.Errorf("console.js uses %s", banned)
 		}
 	}
-	// The only link built from server data is a pull request, and only if it is https.
+	// A link built from server data is only ever followed if it is https: a pull
+	// request's address through isHTTPS, anything else (a branch, a commit, the
+	// repository) through safeHref.
 	for _, m := range regexp.MustCompile(`href: ([^,}]+)`).FindAllStringSubmatch(string(js), -1) {
-		if !strings.Contains(m[1], "pr.url") && !strings.Contains(m[1], "createObjectURL") {
+		if !strings.Contains(m[1], "pr.url") && !strings.Contains(m[1], "createObjectURL") && !strings.Contains(m[1], "safeHref(") {
 			t.Errorf("a link is built from %s", m[1])
 		}
 	}
 	if !strings.Contains(string(js), "isHTTPS(pr.url)") {
 		t.Error("pull request links are not restricted to https")
+	}
+	if !regexp.MustCompile(`function safeHref\(u\) \{ return isHTTPS\(u\) \? u : null; \}`).MatchString(string(js)) {
+		t.Error("safeHref must return a link only if it is https")
+	}
+	// Every address handed to extLink is shown only if it is https (extLink checks it).
+	if !regexp.MustCompile(`function extLink\(u, label\) \{ return isHTTPS\(u\)`).MatchString(string(js)) {
+		t.Error("extLink must check isHTTPS")
 	}
 }

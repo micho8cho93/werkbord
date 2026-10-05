@@ -197,3 +197,98 @@ func TestWorkRoutesAreAuthenticatedAndScoped(t *testing.T) {
 	outsider.want(403, "POST", p+"/tickets/"+tid+"/assign", `{"memberId":"x"}`)
 	outsider.want(403, "PUT", p+"/members/"+str(sub(owner.want(200, "GET", "/api/team/v1/me", nil), "member"), "id"), `{"role":"owner"}`)
 }
+
+// The views that span projects need a token like everything else, are scoped to
+// the signed-in member, and the sync tells a client what it missed.
+func TestCrossProjectViewsAndSyncOverHTTP(t *testing.T) {
+	ts := newServer(t)
+	owner := client{t: t, base: ts.URL, token: ownerToken}
+	anon := client{t: t, base: ts.URL}
+	for _, path := range []string{"/overview", "/my-work", "/reviews", "/sync"} {
+		anon.want(401, "GET", v1+path, nil)
+		(client{t: t, base: ts.URL, token: "wbt_" + strings.Repeat("0", 64)}).want(401, "GET", v1+path, nil)
+	}
+	proj := owner.want(201, "POST", v1+"/projects", `{"name":"Shop","repository":"https://github.com/acme/shop"}`)
+	pid := str(proj, "id")
+	bo := client{t: t, base: ts.URL, token: str(owner.want(201, "POST", v1+"/members", `{"name":"Bo"}`), "token")}
+
+	// Bo is on no project yet: nothing to see, and no way to see the project through the views.
+	for _, path := range []string{"/my-work", "/reviews", "/overview"} {
+		m := bo.want(200, "GET", v1+path, nil)
+		if raw := fmt.Sprint(m); strings.Contains(raw, "Shop") && path != "/overview" {
+			t.Fatalf("%s leaks a project Bo is not on: %v", path, m)
+		}
+	}
+	if list, _ := bo.want(200, "GET", v1+"/overview", nil)["projects"].([]any); len(list) != 0 {
+		t.Fatalf("overview shows a project Bo is not on: %v", list)
+	}
+
+	// The sync starts with no events, then reports what happened after the cursor it was given.
+	start := owner.want(200, "GET", v1+"/sync?wait=0", nil)
+	rev, cursor := start["revision"].(float64), start["cursor"].(float64)
+	k := owner.want(201, "POST", v1+"/projects/"+pid+"/tickets", `{"title":"A ticket","status":"available"}`)
+	res := owner.want(200, "GET", fmt.Sprintf("%s/sync?since=%d&after=%d&wait=0", v1, int64(rev), int64(cursor)), nil)
+	evs, _ := res["events"].([]any)
+	if res["changed"] != true || len(evs) != 1 || str(evs[0].(map[string]any), "kind") != "ticket.created" || str(evs[0].(map[string]any), "ticketKey") != str(k, "key") {
+		t.Fatalf("%v", res)
+	}
+	// Without a cursor there are no events, only the revision; and a nonsense number is just "no cursor".
+	res = owner.want(200, "GET", fmt.Sprintf("%s/sync?since=%d&after=nonsense&wait=0", v1, int64(rev)), nil)
+	if evs, _ := res["events"].([]any); len(evs) != 0 || res["changed"] != true {
+		t.Fatalf("%v", res)
+	}
+	// A client ahead of the server is told to start again.
+	res = owner.want(200, "GET", v1+"/sync?since=999999&wait=0", nil)
+	if res["reset"] != true {
+		t.Fatalf("%v", res)
+	}
+	// A long poll is woken by someone else's change, well before its wait is over.
+	rev2, cur2 := res["revision"].(float64), res["cursor"].(float64)
+	done := make(chan map[string]any, 1)
+	began := time.Now()
+	go func() {
+		_, m, _ := owner.do("GET", fmt.Sprintf("%s/sync?since=%d&after=%d&wait=15", v1, int64(rev2), int64(cur2)), nil)
+		done <- m
+	}()
+	time.Sleep(100 * time.Millisecond)
+	owner.want(200, "POST", v1+"/projects/"+pid+"/tickets/"+str(k, "id")+"/claim", nil)
+	select {
+	case m := <-done:
+		if m["changed"] != true || time.Since(began) > 3*time.Second {
+			t.Fatalf("%v after %s", m, time.Since(began))
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the long poll was not woken")
+	}
+}
+
+// Too many open sync requests for one member are refused with a 429 and a Retry-After.
+func TestTooManyOpenSyncRequestsAreRefused(t *testing.T) {
+	ts := newServer(t)
+	owner := client{t: t, base: ts.URL, token: ownerToken}
+	start := owner.want(200, "GET", v1+"/sync?wait=0", nil)
+	rev, cursor := int64(start["revision"].(float64)), int64(start["cursor"].(float64))
+	var wg sync.WaitGroup
+	codes := make(chan int, 16)
+	for i := 0; i < 12; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			code, _, _ := owner.do("GET", fmt.Sprintf("%s/sync?since=%d&after=%d&wait=1", v1, rev, cursor), nil)
+			codes <- code
+		}()
+	}
+	wg.Wait()
+	close(codes)
+	busy := 0
+	for c := range codes {
+		if c == 429 {
+			busy++
+		}
+	}
+	if busy == 0 {
+		t.Fatal("twelve simultaneous waits were all accepted")
+	}
+	// A member who is not holding any open can ask again at once.
+	owner.want(200, "GET", v1+"/sync?wait=0", nil)
+}

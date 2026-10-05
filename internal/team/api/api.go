@@ -79,6 +79,11 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/team/v1/projects/{id}/members", s.handleListProjectMembers)
 	api.HandleFunc("PUT /api/team/v1/projects/{id}/members/{memberId}", s.handleAddProjectMember)
 	api.HandleFunc("DELETE /api/team/v1/projects/{id}/members/{memberId}", s.handleRemoveProjectMember)
+	// the views that span projects, and the sync that keeps them current
+	api.HandleFunc("GET /api/team/v1/overview", s.handleOverview)
+	api.HandleFunc("GET /api/team/v1/my-work", s.handleMyWork)
+	api.HandleFunc("GET /api/team/v1/reviews", s.handleReviews)
+	api.HandleFunc("GET /api/team/v1/sync", s.handleWorkspaceSync)
 	// the board and its tickets
 	api.HandleFunc("GET /api/team/v1/projects/{id}/board", s.handleBoard)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/people", s.handleProjectPeople)
@@ -177,6 +182,9 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		httpkit.WriteError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, domain.ErrInvalid):
 		httpkit.WriteError(w, http.StatusBadRequest, "invalid", err.Error())
+	case errors.Is(err, domain.ErrBusy):
+		w.Header().Set("Retry-After", "5")
+		httpkit.WriteError(w, http.StatusTooManyRequests, "busy", err.Error())
 	case errors.Is(err, context.Canceled):
 		// The client went away; nothing useful to send.
 	default:

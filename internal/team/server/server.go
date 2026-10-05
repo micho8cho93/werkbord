@@ -47,8 +47,14 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger, version strin
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.Addr, err)
 	}
+	// Open change requests (the sync long poll) wait up to 20 seconds. Cancelling
+	// their context when shutdown begins lets them finish at once instead of
+	// holding the server up for the whole wait.
+	base, stopWaiters := context.WithCancel(context.WithoutCancel(ctx))
+	defer stopWaiters()
 	srv := &http.Server{
 		Handler:           Handler(db, svc, log, version),
+		BaseContext:       func(net.Listener) context.Context { return base },
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -66,6 +72,7 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger, version strin
 		return err
 	case <-ctx.Done():
 	}
+	stopWaiters()
 	shutdown, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.ShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdown); err != nil && !errors.Is(err, http.ErrServerClosed) {

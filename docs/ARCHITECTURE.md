@@ -532,12 +532,17 @@ the HTTP API is treated as a remote-execution surface from day one.
 | Interrupting an agent | Forcing a turn to stop (Claude `interrupt`, Codex `turn/interrupt`); today a blocked run's agent is *told* to stop and the controller records and shows the block either way | `agent.Session` |
 | Notifications | Web Push for "needs you" | Event log + SSE |
 | Pairing UX | QR code for phones | Token file, `devboard token [--url]`, `/#token=` adoption |
-| Multi-user / accounts | None, by design | — |
+| Multi-user / accounts | None in this product, by design. Teams use **Werkbord Team**, a separate product that coordinates people and never executes anything ([TEAM.md](TEAM.md)) | — |
 | Windows | Data-dir locking is a no-op on non-Unix | `lock_other.go` |
 | Event log retention | Compaction or pruning | `seq`-based resume makes it safe to add |
 | Type generation | Go → TS types | Single source in `internal/domain` |
 
 ## 13. Relationship to the earlier hosted plan
+
+> **Superseded; kept as history.** The hosted design below (an API server that sends signed jobs to a runner) was never
+> built, and it is not the design of Werkbord Team either. Team, the multi-person product, coordinates people and
+> executes nothing: no server hands work to anyone's runner, no machine is reachable by another member, and no credential
+> is shared (see [TEAM.md](TEAM.md) and [TEAM_SECURITY.md](TEAM_SECURITY.md)). Do not revive this plan for a team.
 
 An earlier plan (`PLAN.md`, since removed) described a **hosted** product (Postgres, GitHub App sign-in, a
 cloud API server that sends signed jobs to a runner). This foundation follows the newer,

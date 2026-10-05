@@ -31,6 +31,13 @@ type Service struct {
 // New builds a Service on a database.
 func New(db *store.DB) *Service { return &Service{db: db, now: time.Now, hub: &hub{}} }
 
+// changed wakes the clients waiting for the workspace to change, once a write has committed.
+func (s *Service) changed(workspaceID string, err error) {
+	if err == nil {
+		s.hub.notify(workspaceKey(workspaceID))
+	}
+}
+
 // stamp is the current time as stored: UTC, to the millisecond, so what a call
 // returns is exactly what a later read returns.
 func (s *Service) stamp() time.Time { return s.now().UTC().Truncate(time.Millisecond) }
@@ -144,7 +151,9 @@ func (s *Service) RenameWorkspace(ctx context.Context, a Actor, name string) (do
 	}
 	ws := a.Workspace
 	ws.Name = name
-	return ws, s.db.Update(ctx, func(tx *store.Tx) error { return tx.RenameWorkspace(ctx, ws.ID, name) })
+	err = s.db.Update(ctx, func(tx *store.Tx) error { return tx.RenameWorkspace(ctx, ws.ID, name) })
+	s.changed(a.Workspace.ID, err)
+	return ws, err
 }
 
 // ---- members ----
@@ -190,7 +199,9 @@ func (s *Service) AddMember(ctx context.Context, a Actor, name, email string, ro
 	}
 	m := domain.Member{ID: domain.NewID(domain.PrefixMember), WorkspaceID: a.Workspace.ID, Name: name, Email: email, Role: role, CreatedAt: s.stamp()}
 	token, hash := domain.NewToken()
-	if err := s.db.Update(ctx, func(tx *store.Tx) error { return tx.InsertMember(ctx, m, hash) }); err != nil {
+	err = s.db.Update(ctx, func(tx *store.Tx) error { return tx.InsertMember(ctx, m, hash) })
+	s.changed(a.Workspace.ID, err)
+	if err != nil {
 		return MemberWithToken{}, err
 	}
 	return MemberWithToken{Member: m, Token: token}, nil
@@ -232,6 +243,7 @@ func (s *Service) RemoveMember(ctx context.Context, a Actor, memberID string) er
 			s.hub.notify(pid)
 		}
 	}
+	s.changed(a.Workspace.ID, err)
 	return err
 }
 
@@ -330,6 +342,7 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 		}
 		return tx.AddProjectMember(ctx, a.Workspace.ID, domain.ProjectMember{ProjectID: p.ID, MemberID: a.Member.ID, Role: domain.ProjectOwner, AddedBy: a.Member.ID, AddedAt: now})
 	})
+	s.changed(a.Workspace.ID, err)
 	return p, err
 }
 
@@ -370,8 +383,17 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, id string, patch P
 			p.Archived = *patch.Archived
 		}
 		p.UpdatedAt = s.stamp()
-		return tx.UpdateProject(ctx, p)
+		if err := tx.UpdateProject(ctx, p); err != nil {
+			return err
+		}
+		// A rename or an archive changes what the project's board shows.
+		p.Revision, err = tx.BumpRevision(ctx, a.Workspace.ID, id)
+		return err
 	})
+	if err == nil {
+		s.hub.notify(id)
+	}
+	s.changed(a.Workspace.ID, err)
 	return p, err
 }
 
