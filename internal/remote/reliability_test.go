@@ -1,8 +1,10 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +30,7 @@ func (a startupEventsAdapter) Start(ctx context.Context, req agent.StartRequest)
 }
 
 func TestLaunchRechecksOwnershipAfterAgentStartup(t *testing.T) {
-	for _, change := range []string{"lease expired", "runner disabled", "project removed", "lease renewed"} {
+	for _, change := range []string{"lease expired", "runner disabled", "project removed", "journal quarantined", "lease renewed"} {
 		t.Run(change, func(t *testing.T) {
 			e := workerFixture(t)
 			e.worker.Agents = agent.NewRegistry()
@@ -48,6 +50,8 @@ func TestLaunchRechecksOwnershipAfterAgentStartup(t *testing.T) {
 					e.worker.disabled = true
 				case "project removed":
 					e.worker.Identity.Projects = nil
+				case "journal quarantined":
+					e.worker.quarantineLocked(id, "controller ownership rejected during launch")
 				case "lease renewed":
 					e.clock.Add(int64((2 * time.Minute) / time.Millisecond))
 					e.worker.lease = e.worker.now().Add(runnerwire.Lease)
@@ -69,13 +73,28 @@ func TestLaunchRechecksOwnershipAfterAgentStartup(t *testing.T) {
 				<-done
 				t.Fatal("startup session was not stopped")
 			}
-			if r.Phase != "ended" || r.Process.PID == 0 || len(e.worker.sessions) != 0 {
+			wantPhase := "ended"
+			if change == "journal quarantined" {
+				wantPhase = "uncertain"
+			}
+			if r.Phase != wantPhase || r.Process.PID == 0 || len(e.worker.sessions) != 0 {
 				t.Fatalf("session ownership was not reconciled: %+v", r)
 			}
 			started, activity := false, false
 			for _, ob := range r.Pending {
 				started = started || ob.Kind == "started"
 				activity = activity || ob.Kind == "event"
+			}
+			if change == "journal quarantined" {
+				if !sess.StopRequested() || len(r.Pending) != 0 {
+					t.Fatal("quarantined launch reported activity or continued execution")
+				}
+				data, err := os.ReadFile(e.worker.journalPath(id))
+				var saved Record
+				if err != nil || json.Unmarshal(data, &saved) != nil || saved.Phase != "uncertain" || saved.Process.PID != r.Process.PID {
+					t.Fatal("uncertain ownership not persisted")
+				}
+				return
 			}
 			ended := r.Pending[len(r.Pending)-1]
 			if change == "lease renewed" {
@@ -299,5 +318,28 @@ func TestUnicodeDiagnosticsCannotInvalidateHeartbeat(t *testing.T) {
 	}
 	if err := e.worker.Tick(testCtx); err != nil {
 		t.Fatalf("diagnostic truncation invalidated heartbeat: %v", err)
+	}
+}
+
+func TestLocalHealthRecordsOnlyCompletedControllerSync(t *testing.T) {
+	e := workerFixture(t)
+	e.worker.Version = "v0.9.2"
+	if err := e.worker.Tick(testCtx); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(e.worker.Dir, "health.json")
+	data, err := os.ReadFile(path)
+	var h Health
+	if err != nil || json.Unmarshal(data, &h) != nil || h.Version != e.worker.Version || h.RunnerID != e.runner.ID || h.Sequence != e.worker.Identity.ControllerSequence || !h.SyncedAt.Equal(e.worker.now()) {
+		t.Fatalf("health: %s %v", data, err)
+	}
+	e.clock.Add(1000)
+	e.handler.Store(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "offline", http.StatusServiceUnavailable) }))
+	if err := e.worker.Tick(testCtx); err == nil {
+		t.Fatal("connection failure accepted")
+	}
+	after, _ := os.ReadFile(path)
+	if !bytes.Equal(data, after) {
+		t.Fatal("failed sync refreshed healthy evidence")
 	}
 }

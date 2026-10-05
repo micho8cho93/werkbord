@@ -176,6 +176,12 @@ func TestReplaceKeepsTheOldBinaryForRollback(t *testing.T) {
 	if entries, _ := os.ReadDir(dir); len(entries) != 2 {
 		t.Fatalf("staging files left behind: %v", entries)
 	}
+	if _, err := Replace(current, fresh); err == nil || !strings.Contains(err.Error(), "earlier update") {
+		t.Fatalf("unresolved rollback overwritten: %v", err)
+	}
+	if b, _ := os.ReadFile(prev); string(b) != "old" {
+		t.Fatalf("unresolved rollback changed: %q", b)
+	}
 	if err := Restore(current, prev); err != nil {
 		t.Fatal(err)
 	}

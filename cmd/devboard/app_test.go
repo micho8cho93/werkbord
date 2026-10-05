@@ -123,7 +123,11 @@ func (m *inprocManager) Start(context.Context) error {
 	if err != nil {
 		return err
 	}
-	c := controller.New(cfg, slog.New(slog.DiscardHandler), "test-controller")
+	controllerVersion := "test-controller"
+	if out, err := exec.Command(m.spec.Binary, "version").Output(); err == nil && strings.HasPrefix(strings.TrimSpace(string(out)), "v") {
+		controllerVersion = strings.TrimSpace(string(out))
+	}
+	c := controller.New(cfg, slog.New(slog.DiscardHandler), controllerVersion)
 	c.SetNetworkBackend(m.node)
 	if err := c.Start(bg); err != nil {
 		return err

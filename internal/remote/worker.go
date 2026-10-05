@@ -398,7 +398,10 @@ func (w *Worker) Tick(ctx context.Context) error {
 			go func(id string, c runnerwire.Command, sess agent.Session) { defer w.wg.Done(); w.command(id, c, sess) }(j.Run.ID, cmd, sess)
 		}
 	}
-	return nil
+	return AtomicJSON(filepath.Join(w.Dir, "health.json"), Health{
+		Version: w.Version, RunnerID: w.Identity.RunnerID, Controller: w.Identity.Controller,
+		SyncedAt: w.now(), Sequence: reply.Sequence,
+	})
 }
 func contains(ss []string, s string) bool {
 	for _, v := range ss {

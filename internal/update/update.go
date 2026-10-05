@@ -296,12 +296,16 @@ func ExtractBinary(archive, goos, dir string) (string, error) {
 func Replace(current, newBin string) (prev string, err error) {
 	dir := filepath.Dir(current)
 	prev = current + ".prev"
+	if _, err := os.Lstat(prev); err == nil {
+		return "", fmt.Errorf("an earlier update still has a rollback executable at %s; verify or recover that installation before updating again", prev)
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("cannot inspect rollback executable %s: %w", prev, err)
+	}
 	staged := filepath.Join(dir, "."+filepath.Base(current)+".new")
 	if err := copyFile(newBin, staged, 0o755); err != nil {
 		return "", fmt.Errorf("cannot write to %s (%w): reinstall with the install script, or use sudo", dir, err)
 	}
 	defer os.Remove(staged)
-	_ = os.Remove(prev)
 	if runtime.GOOS == "windows" {
 		if err := os.Rename(current, prev); err != nil {
 			return "", err

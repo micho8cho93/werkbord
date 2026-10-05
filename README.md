@@ -91,6 +91,9 @@ VPN, a tunnel or certificates, and without any server of Dev Board's own. Nothin
 default), *Work autonomously*, or *Work autonomously — stop if blocked*. See below.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+The [V0–V2 stabilization audit](docs/audit/V2_STABILIZATION.md) records integration validation, recovery guarantees,
+release notes and the remaining limits before V3.
+
 ## Requirements
 
 To run it, only what the installer checks for: `git` on `PATH`, and, to run agents, the `claude` and/or `codex`

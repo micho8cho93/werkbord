@@ -104,6 +104,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return a.cmdDoctor(ctx, args[1:])
 	case "update":
 		return a.cmdUpdate(ctx, args[1:])
+	case "install-release":
+		return a.cmdInstallRelease(ctx, args[1:])
 	case "uninstall":
 		return a.cmdUninstall(ctx, args[1:])
 	case "logs":

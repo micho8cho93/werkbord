@@ -27,6 +27,21 @@ jobs:
         run: make web web-embed verify-isolation
       - name: Installers, against a local release server
         run: make test-install test-install-team
+      - name: Race and concurrency checks
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race ./...
+      - name: Disposable desktop/mobile browsers and Individual → Team workflow
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd web && npx playwright install --with-deps chromium && cd ..
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
+      - name: Browser diagnostics
+        if: failure() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-diagnostics
+          path: ${{ runner.temp }}/werkbord-browser/*.png
+          if-no-files-found: ignore
       - name: Every release platform builds, for both products
         if: matrix.os == 'ubuntu-latest'
         run: |

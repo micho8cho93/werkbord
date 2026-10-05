@@ -90,10 +90,14 @@ try {
   $dir = if ($env:DEVBOARD_INSTALL_DIR) { $env:DEVBOARD_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Programs\Devboard' }
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   $dest = Join-Path $dir 'devboard.exe'
-  # A running devboard.exe cannot be overwritten, but it can be renamed aside.
-  if (Test-Path $dest) { Move-Item -Force $dest "$dest.old" -ErrorAction SilentlyContinue }
+  if (Test-Path $dest) {
+    Write-Host 'Upgrading the existing installation with verified service recovery...'
+    & $exe.FullName install-release ([IO.Path]::GetFullPath($dest))
+    if ($LASTEXITCODE -ne 0) { Fail 'upgrade did not complete; inspect the recovery message above. The installer did not replace the executable directly.' }
+    exit 0
+  }
+  # Clean installation; upgrades use the recovery lifecycle above.
   Copy-Item -Force $exe.FullName $dest
-  Remove-Item -Force "$dest.old" -ErrorAction SilentlyContinue
   Write-Host "Installed $dest"
 
   $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')

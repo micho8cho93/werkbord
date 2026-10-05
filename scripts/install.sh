@@ -123,8 +123,16 @@ reported=$("$bin" version 2>/dev/null || true)
 
 dir=${DEVBOARD_INSTALL_DIR:-"$HOME/.local/bin"}
 mkdir -p "$dir" || fail "cannot create $dir (set DEVBOARD_INSTALL_DIR to somewhere you can write)"
-# Written beside its destination and renamed into place, so that replacing a
-# running devboard (an upgrade) is atomic and never leaves half a file.
+if [ -e "$dir/devboard" ]; then
+  # Use the downloaded release's recovery implementation for an existing install;
+  # replacing the executable here would bypass active-work and rollback checks.
+  dir=$(cd "$dir" && pwd -P)
+  say "Upgrading the existing installation with verified service recovery..."
+  "$bin" install-release "$dir/devboard" || fail "upgrade did not complete; inspect the recovery message above. The installer did not replace the executable directly."
+  exit 0
+fi
+# Stage a clean installation beside its destination so no partial executable
+# becomes visible.
 cp "$bin" "$dir/.devboard.new" || fail "cannot write to $dir (set DEVBOARD_INSTALL_DIR to somewhere you can write)"
 chmod 755 "$dir/.devboard.new"
 mv -f "$dir/.devboard.new" "$dir/devboard"

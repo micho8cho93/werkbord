@@ -1,4 +1,5 @@
-// Browser fixture only: disposable storage, a loopback listener and no executable agent.
+// Browser fixture only: disposable storage, a loopback listener and a scripted
+// subprocess agent that edits only its assigned disposable worktree.
 package main
 
 import (
@@ -34,6 +35,12 @@ func (network) Enable(context.Context) error  { return nil }
 func (network) Disable(context.Context) error { return nil }
 func (network) Choice(context.Context) string { return "on" }
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--agent-fixture" {
+		if err := runFixtureAgent(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	dir, err := os.MkdirTemp("", "werkbord-browser-fixture-")
@@ -41,6 +48,10 @@ func main() {
 		log.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
+	dir, err = filepath.EvalSymlinks(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
 	db, err := sqlite.Open(ctx, filepath.Join(dir, "fixture.db"), nil)
 	if err != nil {
 		log.Fatal(err)
@@ -51,6 +62,9 @@ func main() {
 	g := &gitrepo.CLI{}
 	agents := agent.NewRegistry()
 	agents.Register(&fake.Adapter{Name: "codex", Info: domain.Agent{ID: "codex", Name: "Codex", Available: false}})
+	if os.Getenv("WERKBORD_BROWSER_EXECUTION") == "1" {
+		agents.Register(fixtureAdapter{})
+	}
 	settings := &service.Settings{Deps: deps, Catalog: agents}
 	projects := &service.Projects{Deps: deps, Git: g, Catalog: agents}
 	tasks := &service.Tasks{Deps: deps, Catalog: agents}
@@ -74,7 +88,11 @@ func main() {
 	defer mgr.Shutdown(context.Background())
 	gc := &service.GitControl{Deps: deps, Git: g, Worktrees: wt}
 	handler := api.New(api.Options{Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
-	server := &http.Server{Addr: "127.0.0.1:17421", Handler: handler, ReadHeaderTimeout: 5 * time.Second}
+	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:17421"
+	}
+	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
 	select {

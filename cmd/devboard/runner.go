@@ -248,10 +248,14 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 			return e
 		}
 		var last json.RawMessage
+		var health *remote.Health
+		if data, err := os.ReadFile(filepath.Join(dir, "health.json")); err == nil {
+			_ = json.Unmarshal(data, &health)
+		}
 		if data, err := os.ReadFile(filepath.Join(dir, "last-error.json")); err == nil {
 			last = data
 		}
-		return json.NewEncoder(out).Encode(map[string]any{"service": st, "lastSyncError": last})
+		return json.NewEncoder(out).Encode(map[string]any{"service": st, "lastSyncError": last, "lastSuccessfulSync": health})
 	case "stop":
 		return manager.Stop(context.Background())
 	case "start":

@@ -37,6 +37,7 @@ import type {
 } from './types';
 
 const TOKEN_KEY = 'devboard.token';
+let memoryToken: string | null = null;
 
 /** Error returned by the controller, carrying its machine-readable code. */
 export class ApiError extends Error {
@@ -60,6 +61,7 @@ function storage(): Storage | null {
 }
 
 export function getToken(): string {
+  if (memoryToken !== null) return memoryToken;
   try {
     return storage()?.getItem(TOKEN_KEY) ?? '';
   } catch {
@@ -68,9 +70,13 @@ export function getToken(): string {
 }
 
 export function setToken(token: string): void {
+  memoryToken = token;
   try {
-    if (token) storage()?.setItem(TOKEN_KEY, token);
-    else storage()?.removeItem(TOKEN_KEY);
+    const store = storage();
+    if (!store) return;
+    if (token) store.setItem(TOKEN_KEY, token);
+    else store.removeItem(TOKEN_KEY);
+    memoryToken = null;
   } catch {
     // Private mode: the token lasts for this page only.
   }
@@ -83,7 +89,11 @@ export function setToken(token: string): void {
 export function adoptTokenFromURL(): void {
   const m = /(?:^#|&)token=([^&]+)/.exec(location.hash);
   if (!m) return;
-  setToken(decodeURIComponent(m[1]));
+  try {
+    setToken(decodeURIComponent(m[1]));
+  } catch {
+    // A malformed link must not crash startup or replace a valid credential.
+  }
   history.replaceState(null, '', location.pathname + '#/');
 }
 

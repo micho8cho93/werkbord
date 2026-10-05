@@ -78,11 +78,34 @@ the end of it.
 
 ## Upgrades
 
-`devboard update` (or running the installer again) replaces the executable and restarts the controller. When the
+`devboard update` (or rerunning the installer for a newer release) upgrades the executable and restarts the controller through the same recovery lifecycle. When the
 new version has database migrations, the controller **copies the database first** to
 `<data dir>/backups/devboard-v<N>-<time>.db` (the newest five are kept) and then upgrades it; a database written
 by a newer version than the one running is refused rather than damaged. If the new version does not come up,
 `devboard update` puts the old executable back and restarts it, and says where the backup is.
+
+The updater also takes a complete SQLite snapshot before replacing the executable. It stops any running paired
+runner service first and remembers that the runner must recover. An update of a running installation is complete
+only after the new controller reports the expected version, can read projects, SQLite passes its integrity check,
+and the required runner completes a fresh authenticated sync on the new version. Then the old executable
+(`<executable>.prev`) is removed. `devboard runner status` includes the last successful sync's version, runner ID,
+controller address and timestamp, alongside the service state and last sync error.
+
+If the controller fails verification, the updater stops it, restores the executable and database snapshot, and
+restarts the prior installation. Failed database files remain in `backups/failed-update-*` for inspection. A runner
+reconnect failure leaves the new controller running and retains the prior executable and database snapshot; the
+error names both paths and the recovery commands. Inspect `devboard status`, `devboard doctor`, and
+`devboard runner status` before retrying. Recovery that cannot prove ownership still requires runner resolution.
+
+Installer upgrades use the downloaded release's recovery code, even when the installed executable predates it.
+They refuse active work and implicit downgrades; use the installed `devboard update --force` only when intentional
+interruption or downgrade is needed. Older pinned releases without the installer recovery entry point are refused
+for an existing installation; clean installation of those releases is still supported. Rerunning the same version
+leaves it installed; use `devboard setup` explicitly to change startup options.
+
+Updating an intentionally stopped controller leaves it stopped and retains `.prev` for later verification.
+Start it and verify controller/database/runner health before removing that exact rollback file. Another update
+refuses to overwrite an unresolved `.prev`; recover or finish verifying the earlier installation first.
 
 Nothing is installed unless its checksum matches the release's. A release is a GitHub release; set
 `DEVBOARD_RELEASE_URL` (and `DEVBOARD_BASE_URL` for the installer) to use a mirror.

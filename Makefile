@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 
 .PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team \
         test test-werkbord test-team lint check verify-isolation \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser
 
 all: check build build-team
 
@@ -118,6 +118,11 @@ test-install: web web-embed
 ## test-install-team: the same for Team's installer
 test-install-team:
 	scripts/test-install-team.sh
+
+## test-browser: disposable desktop/mobile browsers plus real-process Team handoff
+# Install Chromium once with: cd web && npx playwright install chromium
+test-browser: build build-team
+	node scripts/test-browser.cjs
 
 clean:
 	rm -rf bin web/dist dist

@@ -18,6 +18,16 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     let errors = [];
     page.on('pageerror', e => errors.push(e.message));
     page.setDefaultTimeout(10000);
+    await page.goto(base + '/#token=' + token);
+    await page.getByRole('heading', { name: 'Welcome to Dev Board', exact: true }).waitFor();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({ path: path.join(artifacts, 'onboarding-desktop.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, 'onboarding mobile document overflows');
+    await page.screenshot({ path: path.join(artifacts, 'onboarding-mobile.png') });
+    await page.getByRole('button', { name: 'Continue without a project', exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    console.log('PASS first-run setup and continue into empty project workflow, desktop/mobile');
     await api('POST', '/api/onboarding/complete', {});
     let projects = await api('GET', '/api/projects');
     let p = projects.projects.find(p => p.repoPath === repo);
@@ -77,10 +87,25 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.deepEqual(errors, []);
         await page.setViewportSize({ width: 390, height: 844 });
         await page.screenshot({ path: path.join(artifacts, 'personal-mobile.png') });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, 'personal mobile document overflows');
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await page.screenshot({ path: path.join(artifacts, 'personal-desktop.png') });
+        const privateContext = await browser.newContext();
+        await privateContext.addInitScript(() => {
+            Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Storage unavailable', 'SecurityError'); } });
+        });
+        const privatePage = await privateContext.newPage();
+        privatePage.on('pageerror', e => errors.push(e.message));
+        await privatePage.goto(base + '/#token=' + token);
+        await privatePage.waitForFunction(() => !location.hash.includes('token='));
+        await privatePage.waitForFunction(() => document.querySelector('.status[data-state="live"]'));
+        await privateContext.close();
+        assert.deepEqual(errors, []);
+        console.log('PASS page-only sign-in with browser storage unavailable, desktop/mobile without overflow');
         console.log('PASS personal browser flows without JavaScript errors');
     }
     finally {
         clearInterval(timer);
         await browser.close();
     }
-})().catch(e => { console.error(e.message); process.exit(1); });
+})().catch(e => { console.error(e.stack); process.exit(1); });
