@@ -139,6 +139,9 @@ func run(ctx context.Context, path string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), err
 }
 
+// failDrainWait is how long a failed start waits for a dead server's stderr.
+const failDrainWait = time.Second
+
 // startTimeout bounds the handshake with a new app-server.
 var startTimeout = 60 * time.Second
 
@@ -152,6 +155,12 @@ func (a *Adapter) Start(ctx context.Context, req agent.StartRequest) (agent.Sess
 		return nil, err
 	}
 	fail := func(err error) (agent.Session, error) {
+		// A server that died is reaped, and its last words read, a moment after the write
+		// to it failed; give that a moment so the error says why instead of just "ended".
+		select {
+		case <-s.Done():
+		case <-time.After(failDrainWait):
+		}
 		if tail := s.StderrTail(); tail != "" {
 			err = fmt.Errorf("%w (codex said: %s)", err, lastLine(tail))
 		}

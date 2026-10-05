@@ -100,6 +100,7 @@ versions are the individual product's. Their product tags now exist beside them,
 | 0.6.0 | `4297a29` | Repository health; the Control Center for exceptions |
 | 0.7.0 | `b8da120` | One-command install and setup, background service, embedded private networking, GitHub connection, execution defaults |
 | 0.8.0 | the "per-product versioning and Werkbord Team foundation" commit | The V1 multi-runner control plane and orchestration (`c386c8b`, committed after 0.7.0 without a version or tag), the audit (`4365d3e`), shared SQLite and HTTP packages, product-specific releases and tags, per-product installers |
+| 0.8.1 | the "Wait for a dead Codex server" commit | A failed Codex start waits for the dead server's last words, so the error says why (a race that failed CI on Linux) |
 | Team 0.1.0 | the same commit | The Team foundation: workspace, owner, members, projects, project membership, Owner and Member roles |
 
 `werkbord-v0.8.0` is a MINOR on 0.7.0 because it is the first tag since the multi-runner control plane and orchestration
