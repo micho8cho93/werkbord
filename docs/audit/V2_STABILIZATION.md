@@ -42,6 +42,10 @@ without new product capabilities or architectural replacement.
 - **B — repeatable integration validation:** existing desktop/mobile browser and
   real-Git handoff scripts are manual. Automate disposable setup and cleanup and
   include the checks in CI; extend the bridge through execution and review.
+- **A — published Team installer discovery:** live release validation found that
+  scanning the entire Atom feed for a tag can select historical changelog links,
+  including comparison suffixes, instead of a release. Select stable Team release
+  links only, and cover misleading descriptions and prereleases.
 
 Authentication/invites, request bounds, repository paths, process ownership,
 runner authorization, question delivery, usage merging, token rotation, event
@@ -74,8 +78,12 @@ metadata only. No demonstrated security blocker was found in those paths.
   disablement, project removal and valid renewal. The stopped session's process
   evidence stays durable and uncertainty is not silently released.
 
-**Team 2.1.2 (PATCH)**
+**Team 2.1.3 (PATCH; includes 2.1.2 validation)**
 
+- Installer discovery selects stable Team release links, ignoring historical tags
+  in release descriptions, comparison URLs and prerelease entries. An Atom feed
+  without an actual Team release fails explicitly. Installer URLs use the current
+  repository name.
 - Release validation now carries review-state restart/reopen coverage: credentials,
   project roles, branch/commit/merged-PR evidence and old sync cursors survive;
   the reviewer can finish the restored ticket and clients reconcile afterward.
@@ -99,7 +107,7 @@ or external agent account is used.
 | `make check` | Passed: all Go packages, 183 web tests, gofmt, shell syntax, vet, zero Svelte errors/warnings, ESLint and both product builds. |
 | `go test -race ./...` | Passed, including concurrent starts/claims/edits/answers, event/storage synchronization and runner lifecycle. Targeted changed-package checks were repeated after final edits. |
 | `make verify-isolation` | Passed: Individual builds, vets, tests, runs and migrates with all Team code removed. A separate temporary copy containing only Team and the three shared packages also built, vetted, tested, ran and migrated successfully; architecture tests prohibit execution dependencies. |
-| `make test-install test-install-team` | Passed: 7 Individual and 5 Team installer checks, including checksum/version refusal, product filtering, clean setup, upgrade preserving project/token state and restart. |
+| `make test-install test-install-team` | Passed: 7 Individual and 6 Team installer checks, including checksum/version refusal, product filtering, stable feed selection, clean setup, upgrade preserving project/token state and restart. |
 | Both product release builds | Passed: Darwin amd64/arm64, Linux amd64/arm64, Windows amd64/arm64, including archive creation and checksums. Windows service/PowerShell execution was not tested on this Mac. |
 | Disposable browser/integration suite | Passed in Chrome: first-run setup and empty-project continuation; remote-only Codex eligibility/models; local storage denied; Team token rotation, Back/Forward and absent URL parameters; stale-edit conflict with retained drafts/focus; disconnect/reconnect; Board/review agreement; 1440 px desktop and 390 px mobile without overflow or JS errors; actual process/Git/Team review flow above. |
 | Existing integration/recovery suites | Passed: real subprocess failure/process-tree stop, local controller crash/restart, signed runner disconnect/lease expiry/reconnect and journal loss, duplicate-start fencing, scheduler recovery, questions and usage, real Git fetch/divergence/missing/foreign worktrees/dirty-work safeguards, Team multi-member claims/edits, database migration and restore, intentional update failure. |

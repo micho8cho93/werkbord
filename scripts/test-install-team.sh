@@ -41,9 +41,15 @@ sum=$(shasum -a 256 "$WORK/releases/werkbord-team-v9.1.3/werkbord-team_9.1.3_${o
 printf '%s  werkbord-team_9.1.3_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-team-v9.1.3/checksums.txt"
 ok "built the test releases"
 
-# The feed lists the individual release first (newest), then Team's, as GitHub's does.
+# Release notes mention historical Team tags and comparison URLs before the real
+# Team entry. A prerelease also precedes the stable release. Only release links
+# identify the default installation, including compact/multiline Atom layouts.
 cat > "$WORK/releases/feed.atom" <<'ATOM'
-<feed><entry><link href="/releases/tag/werkbord-v9.2.0"/></entry><entry><link href="/releases/tag/werkbord-team-v9.1.1"/></entry><entry><link href="/releases/tag/werkbord-team-v9.1.0"/></entry></feed>
+<feed><entry><link href="/releases/tag/werkbord-v9.2.0"/>
+<content type="html">&lt;a href=&quot;/compare/werkbord-team-v9.1.0...werkbord-v9.2.0&quot;&gt;Changelog&lt;/a&gt; mentions werkbord-team-v99.0.0</content></entry>
+<entry><link href="/releases/tag/werkbord-team-v9.1.2-rc.1"/></entry>
+<entry><link rel="alternate"
+ href="/releases/tag/werkbord-team-v9.1.1"/></entry><entry><link href="/releases/tag/werkbord-team-v9.1.0"/></entry></feed>
 ATOM
 
 cat > "$WORK/server.py" <<'PY'
@@ -79,7 +85,7 @@ fresh
 out=$($SH scripts/install-team.sh 2>&1) || bad "install failed" "$out"
 [ "$("$HOME/.local/bin/werkbord-team" version)" = v9.1.1 ] || bad "the latest Team release (v9.1.1) was not installed" "$out"
 [ ! -e "$HOME/.local/bin/devboard" ] || bad "the individual product was installed"
-ok "installs the latest Team release even when an individual release is newer"
+ok "installs the stable Team release, ignoring changelog tags and prereleases"
 
 # 2. a named version, in either spelling
 fresh
@@ -108,5 +114,15 @@ fresh
 if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_BASE_URL="http://127.0.0.1:$PORT" DEVBOARD_VERSION=werkbord-team-v9.1.1 $SH scripts/install.sh 2>&1); then bad "the individual installer installed a Team release" "$out"; fi
 contains "$out" "Werkbord Team release" || bad "the individual installer should say it is a Team release" "$out"
 ok "the individual installer refuses a Team release"
+
+# 5. Descriptions alone must never become downloadable release identities.
+fresh
+cat > "$WORK/releases/feed.atom" <<'ATOM'
+<feed><entry><link href="/releases/tag/werkbord-v9.2.0"/><content type="html">werkbord-team-v9.1.1</content></entry></feed>
+ATOM
+if out=$($SH scripts/install-team.sh 2>&1); then bad "a description tag was treated as a Team release" "$out"; fi
+contains "$out" "no Werkbord Team release has been published yet" || bad "wrong empty Team feed refusal" "$out"
+[ ! -e "$HOME/.local/bin/werkbord-team" ] || bad "an executable was installed from a description tag"
+ok "refuses a feed that mentions Team only in release descriptions"
 
 printf '\nall %d checks passed\n' "$pass"

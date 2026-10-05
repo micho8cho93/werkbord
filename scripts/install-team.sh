@@ -3,7 +3,7 @@
 # installs the Team product, which is a different program from the individual
 # Werkbord (scripts/install.sh) and is released and versioned separately.
 #
-#   curl -fsSL https://raw.githubusercontent.com/micho8cho93/dev-board/main/scripts/install-team.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install-team.sh | sh
 #
 # It downloads the Team release for this computer, checks it against the release's
 # published checksums, and puts one executable, werkbord-team, in ~/.local/bin. It
@@ -16,7 +16,7 @@
 #   WERKBORD_TEAM_FEED_URL     the releases feed used to find the latest Team release (default: <base>.atom)
 set -eu
 
-REPO="micho8cho93/dev-board"
+REPO="micho8cho93/werkbord"
 BASE=${WERKBORD_TEAM_BASE_URL:-"https://github.com/$REPO/releases"}
 BASE=${BASE%/}
 FEED=${WERKBORD_TEAM_FEED_URL:-"$BASE.atom"}
@@ -60,12 +60,19 @@ trap 'rm -rf "$tmp"' EXIT INT TERM
 
 # ---- which release ----
 # The repository releases two products, and /releases/latest belongs to the individual
-# one, so the latest Team release is found in the releases feed instead (newest first).
+# one, so use Team's stable release links in the feed. Release descriptions can
+# contain old tags, comparison URLs and prereleases; they are not release entries.
 tag=${WERKBORD_TEAM_VERSION:-}
 if [ -z "$tag" ]; then
   say "Looking for the latest Werkbord Team release..."
   fetch "$FEED" "$tmp/feed" || fail "could not read the releases feed at $FEED"
-  tag=$(grep -o 'werkbord-team-v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*[0-9A-Za-z.+-]*' "$tmp/feed" | head -1 || true)
+  tag=$(awk -v RS='<' '
+    /^link[[:space:]]/ && match($0, /href="[^"]*\/releases\/tag\/werkbord-team-v[0-9]+\.[0-9]+\.[0-9]+"/) {
+      tag = substr($0, RSTART, RLENGTH)
+      sub(/^.*\//, "", tag); sub(/"$/, "", tag)
+      print tag; exit
+    }
+  ' "$tmp/feed")
   [ -n "$tag" ] || fail "no Werkbord Team release has been published yet"
 fi
 case "$tag" in
