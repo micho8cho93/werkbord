@@ -32,9 +32,14 @@ The first time, the app sets Werkbord up on this computer (a few seconds): it pu
 close the window and after you log in again, starts it, and opens the window. After that, opening the app finds the
 controller already running and connects to it.
 
-> **Until the app is signed with an Apple Developer ID and notarized** (see [Signing](#signing-and-notarization-the-production-requirement)),
-> macOS will say it cannot check Werkbord for malicious software. Control-click the app, choose **Open**, and confirm
-> once. A build you make yourself on your own Mac does not ask.
+A release's disk image is signed with a Developer ID and notarized by Apple (see [Signing and notarization](#signing-and-notarization)),
+so the first time you open it macOS asks the one question it asks about every app from the Internet ("Werkbord is an
+app downloaded from the Internet. Are you sure you want to open it?" with *Apple checked it for malicious software and
+none was detected*), and **Open** is all it needs. A build that is **not** notarized (one you made yourself with
+`make desktop`, or an ad-hoc signed one from CI) does not ask when it is built on the Mac that runs it, and on another Mac
+macOS 15 (Sequoia) and later refuses it with *"Werkbord" Not Opened*. Control-click → Open no longer gets past that
+(it did before macOS 15). Instead: try to open the app once, then **System Settings → Privacy & Security**, scroll to
+*Security*, press **Open Anyway** beside the message about Werkbord, and confirm with your password or Touch ID.
 
 Closing the window hides the app, as on any Mac; click it in the Dock to bring it back. **Cmd-Q quits the app. Neither
 stops your controller, your agents or your schedules.** To stop Werkbord itself, use `werkbord stop` (it refuses while
@@ -242,26 +247,40 @@ or if `desktop/` stops being a separate module or reaches Team.
 | What a page may ask, the update confirmation, Later, refused updates, diagnostics | `desktop/internal/shell/shell_test.go` |
 | The bridge's protocol, external-link rules, update offers | `web/src/lib/desktop.test.ts`, `updates.test.ts` |
 | Wails and the window build and sign | `make desktop-check`, `make desktop-package` (CI, on macOS) |
+| The signing policy, the temporary keychain, what a release refuses, and that the hardened program, controller, Tailscale node and app run | `scripts/test-desktop-sign.sh` (`make test-desktop-sign`) |
+| Notarization (accepted, rejected, no network, wrong credentials, no credentials) and the check of a published release | `scripts/test-notarize-desktop.sh` |
 
 Closing the window and quitting the app stopping nothing is structural: the controller is a launchd job that is not the
 app's child, and the app has no code path that stops it.
 
-## Signing and notarization: the production requirement
+## Signing and notarization
 
-`make desktop` signs ad hoc, which runs on the Mac that built it. To distribute, with a paid Apple Developer account:
+`make desktop` signs ad hoc, which runs on the Mac that built it and nowhere else. What a release publishes is signed
+with a Developer ID, notarized and stapled, all by `scripts/build-desktop.sh --release`, which can only be run with the
+owner's Apple credentials (the steps to get and install them are in [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
 
-```bash
-CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" make desktop-package
-# the script signs the helper, then the app, with the hardened runtime and a secure timestamp, then the disk image.
+| What | Where | What it guarantees |
+| --- | --- | --- |
+| `scripts/build-desktop.sh --release` | the build | Refuses to build unless the result can be published: a Developer ID Application identity (never ad hoc), a secure timestamp, the hardened runtime, a version that is exactly a release and equals `cmd/werkbord/VERSION`, and credentials to notarize. It then checks all of that on what it made. |
+| signing, inside-out | the build | The program in `Contents/Helpers` first, then the app that holds it, then the disk image; each piece by name (never `--deep`, which signs whatever is there the same way and hides what should not be). |
+| `scripts/check-desktop-signature.sh` | the build, the tests, the release check | One definition of "signed for distribution": **every** piece of code in the bundle is signed by the same Developer ID team with the hardened runtime and a timestamp, and the app holds only the entitlements in `desktop/build/darwin/entitlements.plist` (none). Code added later (an updater and its helpers) is caught here. |
+| `scripts/notarize-desktop.sh` | the build | Sends the app, then the disk image, to Apple's notary service with an App Store Connect API key (not an Apple ID password), waits for **Accepted** (Apple's own log is printed and the build fails on anything else), staples the ticket, and asks Gatekeeper. The app is done first so that an app dragged out of the disk image carries its own ticket and opens offline. |
+| `scripts/verify-desktop-release.sh <tag>` | CI after the upload, and by hand | Downloads the image as a person would, checks its `.sha256`, mounts it, and checks signature, ticket, Gatekeeper and versions of what is inside. |
+| `scripts/ci-keychain.sh` | CI | Imports the certificate into a temporary keychain with a random password, never the login keychain and never to disk outside the runner's temporary directory, and deletes it when the job ends. |
 
-xcrun notarytool submit dist/desktop/Werkbord_<version>_darwin_arm64.dmg --keychain-profile "werkbord-notary" --wait
-xcrun stapler staple dist/desktop/Werkbord_<version>_darwin_arm64.dmg
-spctl --assess --type open --context context:primary-signature -v dist/desktop/Werkbord_<version>_darwin_arm64.dmg
-```
+Entitlements: none are requested. Under the hardened runtime the app and the program it carries run with no exception:
+the launcher's end-to-end scenarios, the embedded Tailscale node and a controller started from the signed program all
+pass on hardened-runtime binaries (`scripts/test-desktop-sign.sh`). If a future change needs one, it goes in the entitlements file
+with the reason next to it, and `check-desktop-signature.sh` will fail until the two agree.
 
-Notarization is not scripted (it needs credentials this repository does not hold), and has not been run. The
-controller program inside the app is copied to `~/.local/bin` at first run and carries its own signature; nothing runs
+The controller program inside the app is copied to `~/.local/bin` at first run and carries its own signature; nothing runs
 from inside the bundle except the window.
+
+**What the tests cannot do.** macOS will not let `codesign` use a self-signed certificate unless it is added to the trust
+settings, which a test must not change, and nothing here has a real Developer ID. So the tests sign for real (ad hoc, with
+the hardened runtime and the same arguments) through a recorder that reports what a certificate would have added, and
+Apple's notary service and Gatekeeper are fakes that behave as Apple does in each situation. What no test can show is Apple
+*accepting* a particular build: that is `verify-desktop-release.sh` on the first real release.
 
 ## Limits
 
@@ -269,9 +288,6 @@ from inside the bundle except the window.
   (`daemon.Describe`) reads launchd's definition only, and the bundle script is macOS-specific. Windows needs a WebView2
   build, an installer (the `.ps1` installer's service code has not been run on Windows either), and `Describe` for the
   scheduled task.
-- The app is not yet signed with a Developer ID or notarized, and is not published by the release workflow (that needs
-  the signing secrets): `make desktop-package` is the repeatable build; attaching its output to a release is the
-  remaining automation.
 - Intel builds are made by the same script (`ARCH=amd64`) and verified to build and sign; they have not been run.
 - The first connection does not turn on phone access (Tailscale sign-in needs your attention in a browser): turn it on
   in Settings.

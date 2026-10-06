@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 
 .PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team \
         test test-werkbord test-team lint check verify-isolation \
-        desktop desktop-package desktop-dev desktop-test desktop-check \
+        desktop desktop-package desktop-release desktop-dev desktop-test desktop-check test-desktop-sign test-notarize-desktop test-workflows \
         dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser
 
 all: check build build-team
@@ -72,12 +72,12 @@ test-team:
 ## lint: gofmt, go vet, svelte-check, eslint
 lint: web/node_modules
 	@out=$$(gofmt -l cmd internal desktop); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
-	@for f in scripts/*.sh; do sh -n $$f || exit 1; done
+	@for f in scripts/*.sh scripts/test-support/*.sh; do sh -n $$f || exit 1; done
 	$(GO) vet ./...
 	cd web && $(NPM) run check && $(NPM) run lint
 
 ## check: everything CI should run
-check: test lint desktop-test
+check: test lint desktop-test test-notarize-desktop test-workflows
 	$(GO) build ./...
 	cd web && $(NPM) run build
 
@@ -97,6 +97,11 @@ desktop: web web-embed
 desktop-package: web web-embed
 	scripts/build-desktop.sh --package
 
+## desktop-release: the signed, notarized, universal disk image a release publishes, in dist/desktop (needs the Developer ID
+## and notary credentials in the environment: docs/DESKTOP_RELEASE.md. It refuses to build anything else.)
+desktop-release: web web-embed
+	scripts/build-desktop.sh --package --release
+
 ## desktop-dev: run the window from source, with a controller built from this tree on its own port and data
 ## (nothing is installed and no login service is made: delete .desktop-dev to start over)
 desktop-dev: build
@@ -114,6 +119,18 @@ desktop-check: desktop-test
 	@if [ "$$(uname -s)" = Darwin ]; then \
 		cd desktop && CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" $(GO) vet -tags desktop,production . ; \
 	else echo "desktop-check: the window code builds on macOS only; skipped"; fi
+
+## test-notarize-desktop: notarization (accepted, rejected, no network, wrong or no credentials) and the check of a published release, against fakes of Apple's tools
+test-notarize-desktop:
+	scripts/test-notarize-desktop.sh
+
+## test-workflows: the GitHub workflows are YAML, and their secrets, permissions and pins are as designed
+test-workflows:
+	scripts/test-workflows.sh
+
+## test-desktop-sign: how the app is signed, tested without a Developer ID (macOS; builds the app, so minutes; FAST=1 skips that)
+test-desktop-sign:
+	scripts/test-desktop-sign.sh $(if $(FAST),--fast)
 
 ## verify-isolation: build and test the individual product in a copy of the repository with every Team file removed
 verify-isolation:

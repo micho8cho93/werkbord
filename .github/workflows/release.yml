@@ -6,12 +6,33 @@ name: release
 #   werkbord-vX.Y.Z        the individual product: werkbord_<version>_<os>_<arch> archives, which is
 #                          what scripts/install.sh and `werkbord update` read, and the same archives
 #                          as devboard_<version>_<os>_<arch>, which is what releases from before the
-#                          rename read to update themselves
+#                          rename read to update themselves; and, from the jobs below, the Mac app's
+#                          disk image (Werkbord_<version>_darwin_universal.dmg) and its .sha256
 #   werkbord-team-vX.Y.Z   Werkbord Team: werkbord-team_<version>_<os>_<arch> archives
 #
 # Each release carries one archive per platform and a checksums.txt. Only the
 # individual product's releases are marked "latest": /releases/latest is how the
 # individual installer and updater find their product, so a Team release must never take it.
+#
+# The Mac app (docs/DESKTOP_RELEASE.md) is added to an individual release by four more jobs, and only to it:
+#
+#   desktop-build    macOS. The ONLY job that holds the signing and notarization secrets. It builds the universal
+#                    app, signs it with the Developer ID, has Apple notarize it, and checks the result. It has no
+#                    permission to change a release: it hands the files to the next job as a workflow artifact.
+#   desktop-publish  no secrets. Uploads the disk image and its .sha256 to the release that already exists.
+#   desktop-verify   a fresh macOS runner, no secrets. Downloads what was published as a person would, and checks it
+#                    (scripts/verify-desktop-release.sh).
+#
+# None of them creates, edits, un-marks or deletes the release the first job made, or touches its archives and
+# checksums.txt, so a failure in any of them turns the run red and leaves what installers and `werkbord update`
+# depend on exactly as it was.
+#
+# A manual run (Actions → release → Run workflow) is a dry run: it builds, signs and notarizes the app from the branch it
+# is run on, checks it, and uploads the disk image as a workflow artifact only. Nothing is published. That is how
+# the secrets are tried before a real tag is pushed.
+#
+# Nothing from a pull request or a fork reaches a secret: this workflow is not triggered by either (ci.yml is), and
+# the secrets are in the `desktop-release` environment, used by desktop-build alone.
 on:
   push:
     tags:
@@ -19,13 +40,43 @@ on:
       - 'werkbord-v[0-9]+.[0-9]+.[0-9]+-*'
       - 'werkbord-team-v[0-9]+.[0-9]+.[0-9]+'
       - 'werkbord-team-v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
 
+# Nothing is writable unless a job says so.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  # Does this tag get a disk image? The individual product's stable releases do; Team's, and pre-releases, do not.
+  plan:
     runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      desktop: ${{ steps.plan.outputs.desktop }}
+    steps:
+      - name: The Mac app
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          desktop=false
+          if [ "$EVENT" = workflow_dispatch ]; then
+            desktop=true
+          else
+            case "$REF_NAME" in
+              werkbord-team-v*) ;;
+              werkbord-v[0-9]*.[0-9]*.[0-9]*-*) ;;
+              werkbord-v[0-9]*.[0-9]*.[0-9]*) desktop=true ;;
+            esac
+          fi
+          echo "desktop=$desktop" >> "$GITHUB_OUTPUT"
+
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -62,3 +113,122 @@ jobs:
             flags="$flags --latest=false"
           fi
           gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes $flags
+
+  desktop-build:
+    # After the release exists (a tag), or on its own (a dry run).
+    needs: [plan, release]
+    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.release.result == 'success') }}
+    runs-on: macos-15
+    timeout-minutes: 90
+    # The secrets live here, in this environment, and are given to no other job. Protect it (docs/DESKTOP_RELEASE.md,
+    # step 7): required reviewers, and only main and the werkbord-v* tags may deploy to it.
+    environment: desktop-release
+    permissions:
+      contents: read
+    env:
+      APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
+      NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+      NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: The version, and that the tag agrees with it
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version="v$(scripts/product.sh werkbord version)"
+          if [ "$EVENT" = push ] && [ "$REF_NAME" != "werkbord-$version" ]; then
+            echo "::error::the tag $REF_NAME is not werkbord-$version, which cmd/werkbord/VERSION says"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=werkbord-$version" >> "$GITHUB_OUTPUT"
+      - name: The signing and notarization secrets are all there
+        run: scripts/check-release-secrets.sh desktop
+      - name: Build the web app
+        run: make web web-embed
+      - name: Put the Developer ID certificate in a temporary keychain
+        run: scripts/ci-keychain.sh create --require
+      - name: Put the notarization key where only this job can read it
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/notary"
+          printf '%s\n' "$APPLE_NOTARY_KEY" > "$RUNNER_TEMP/notary/AuthKey.p8"
+          echo "NOTARY_KEY_FILE=$RUNNER_TEMP/notary/AuthKey.p8" >> "$GITHUB_ENV"
+      - name: Build, sign, notarize and staple the universal app and disk image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/build-desktop.sh --package --release dist/desktop
+      - name: Check what was built, as a person who downloads it would (nothing is published yet)
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/page/$TAG"
+          cp dist/desktop/Werkbord_*_darwin_universal.dmg dist/desktop/Werkbord_*_darwin_universal.dmg.sha256 "$RUNNER_TEMP/page/$TAG/"
+          WERKBORD_RELEASE_BASE="file://$RUNNER_TEMP/page" scripts/verify-desktop-release.sh "$TAG"
+      - name: Hand the disk image to the next job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: desktop-release
+          path: |
+            dist/desktop/Werkbord_*_darwin_universal.dmg
+            dist/desktop/Werkbord_*_darwin_universal.dmg.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove the certificate and the notarization key
+        if: always()
+        run: |
+          scripts/ci-keychain.sh delete || true
+          rm -rf "$RUNNER_TEMP/notary"
+
+  desktop-publish:
+    needs: desktop-build
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: desktop-release
+          path: desktop
+      - name: Add the disk image to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l desktop
+          # Only these two files, which no other job makes. --clobber is for re-running this job after a half-finished upload.
+          gh release upload "$GITHUB_REF_NAME" desktop/Werkbord_*_darwin_universal.dmg desktop/Werkbord_*_darwin_universal.dmg.sha256 --clobber
+
+  desktop-verify:
+    needs: desktop-publish
+    if: ${{ github.event_name == 'push' }}
+    # A runner that built nothing and holds nothing: the check is what a stranger's Mac would find.
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Download the published disk image and check it
+        run: scripts/verify-desktop-release.sh "$GITHUB_REF_NAME"
+      - name: If the published disk image is not good
+        if: failure()
+        run: |
+          echo "::error::The disk image published for $GITHUB_REF_NAME failed its check. The release, its archives and checksums.txt are untouched. To withdraw the disk image: gh release delete-asset $GITHUB_REF_NAME <its file name> (docs/DESKTOP_RELEASE.md, 'If something goes wrong')."

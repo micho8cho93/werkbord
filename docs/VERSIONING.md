@@ -70,9 +70,10 @@ reports (`werkbord version`, `werkbord-team version`, `/api/health`):
 
 The Mac app (`desktop/`) belongs to the individual product and has no version of its own: `make desktop` stamps the
 window and the `werkbord` program inside it with the same version (the bundle's `CFBundleShortVersionString` is its
-numbers), so a change to `desktop/`, `internal/launcher` or `scripts/build-desktop.sh` is a change to Werkbord and bumps
-`cmd/werkbord/VERSION`. Its disk image is `Werkbord_<version>_darwin_<arch>.dmg`; the release workflow does not attach it
-yet (see [DESKTOP.md](DESKTOP.md#signing-and-notarization-the-production-requirement)).
+numbers), so a change to `desktop/`, `internal/launcher` or any `scripts/*desktop*` script is a change to Werkbord and bumps
+`cmd/werkbord/VERSION`. Its disk image is `Werkbord_<version>_darwin_universal.dmg` (one image for Apple Silicon and Intel),
+and the release workflow attaches it to the individual release (see [Releases](#releases) and
+[DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
 `internal/archtest` fails the tests if a `VERSION` file is malformed.
 
 ## Releases
@@ -81,7 +82,14 @@ Pushing a product tag makes CI (`.github/workflows/release.yml`) check the tag a
 build the archives for every platform, and publish a GitHub release named after the tag:
 
 - `werkbord-vX.Y.Z` → `werkbord_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `checksums.txt`, marked **latest**.
-- `werkbord-team-vX.Y.Z` → `werkbord-team_<version>_<os>_<arch>.tar.gz` and `checksums.txt`, marked **not latest**.
+  A stable one (no `-` after the version) also gets, from the macOS jobs of the same workflow, the Mac app:
+  `Werkbord_<version>_darwin_universal.dmg` and `Werkbord_<version>_darwin_universal.dmg.sha256`, signed with a Developer
+  ID, notarized by Apple and stapled. They are **part of the individual release but not of its CLI release job**: they are
+  added to the release that job made, only if it succeeded, and a failure in them turns the workflow red without touching
+  the archives or `checksums.txt`, which the installers and `werkbord update` read. The disk image is deliberately **not in
+  `checksums.txt`** (that file is the CLI archives' and keeps its format); its own `.sha256` is beside it.
+- `werkbord-team-vX.Y.Z` → `werkbord-team_<version>_<os>_<arch>.tar.gz` and `checksums.txt`, marked **not latest**. No
+  disk image: the Mac app is the individual product's.
 
 This matters because `…/releases/latest` is how the individual installer and `werkbord update` find the newest
 release: only the individual product's releases may be "latest", or a Team release would be offered to every

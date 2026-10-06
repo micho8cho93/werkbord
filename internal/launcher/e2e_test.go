@@ -47,6 +47,13 @@ func build(t *testing.T, version, out string) {
 	if b, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build %s: %v\n%s", version, err, b)
 	}
+	if os.Getenv("WERKBORD_E2E_HARDENED") != "" {
+		// What a release's program has: the hardened runtime, and no entitlement (scripts/test-desktop-sign.sh
+		// runs every scenario this way). Ad hoc, because an identity is not what is being tested here.
+		if b, err := exec.Command("codesign", "--force", "--options", "runtime", "--sign", "-", out).CombinedOutput(); err != nil {
+			t.Fatalf("sign %s with the hardened runtime: %v\n%s", version, err, b)
+		}
+	}
 }
 
 // releaseServer serves a releases page whose newest release is tag, with one archive for

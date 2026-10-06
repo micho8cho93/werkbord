@@ -13,16 +13,17 @@ without ever running anything on anyone's computer. See [docs/PRODUCTS.md](docs/
 
 ### Most people: the Mac app
 
-1. Download **`Werkbord_<version>_darwin_arm64.dmg`** (Apple Silicon; `_amd64` for Intel) from the
-   [releases page](https://github.com/micho8cho93/werkbord/releases).
-2. Drag **Werkbord** onto **Applications**, and open it.
+1. Download **`Werkbord_<version>_darwin_universal.dmg`** from the
+   [latest release](https://github.com/micho8cho93/werkbord/releases/latest). It is one file for every Mac, Apple Silicon
+   and Intel.
+2. Open it, drag **Werkbord** onto **Applications**, and open it from there.
 
-That is all: no Terminal. The first time, the app sets Werkbord up on your computer (the program, your data and
-database, and a background service that keeps it running when you close the window), then shows it. Closing the
-window or quitting the app never stops your agents or your schedules, and the same Werkbord stays reachable from a
-browser on this computer and from your phone. See [docs/DESKTOP.md](docs/DESKTOP.md). *(Until the app is signed with
-an Apple Developer ID and notarized, macOS asks you to confirm opening it once: control-click, Open. The disk image is
-built with `make desktop-package`; attaching it to each release waits on that signing, which is described there.)*
+That is all: no Terminal. The disk image is signed with a Developer ID and notarized by Apple, so the first launch shows
+only the usual question macOS asks about any app from the Internet ("Werkbord is an app downloaded from the Internet. Are
+you sure you want to open it?"): choose **Open**. The first time, the app sets Werkbord up on your computer (the program,
+your data and database, and a background service that keeps it running when you close the window), then shows it. Closing
+the window or quitting the app never stops your agents or your schedules, and the same Werkbord stays reachable from a
+browser on this computer and from your phone. See [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ### Advanced users, servers and Linux: the installer
 

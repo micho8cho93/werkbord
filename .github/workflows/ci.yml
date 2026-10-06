@@ -31,6 +31,9 @@ jobs:
           make desktop-check
           make desktop-package
           codesign --verify --strict --deep dist/desktop/Werkbord.app
+      - name: Desktop app signing, notarization and release checks (against a temporary keychain and fakes of Apple's tools)
+        if: matrix.os == 'macos-latest'
+        run: make test-desktop-sign
       - name: Installers, against a local release server
         run: make test-install test-install-team
       - name: Race and concurrency checks
