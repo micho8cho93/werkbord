@@ -39,7 +39,7 @@ type GitReport struct {
 // owner (to record, for instance, that the pull request was merged).
 func (s *Service) ReportGit(ctx context.Context, a Actor, projectID, ticketID string, in GitReport) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if err := x.require(domain.PPGitReport, "report Git work"); err != nil {
 			return err
 		}
@@ -229,7 +229,7 @@ func (s *Service) ReportBranches(ctx context.Context, a Actor, projectID string,
 	if len(branches)+len(gone) > MaxBranchesPerReport {
 		return fmt.Errorf("%w: more than %d branches in one report", domain.ErrInvalid, MaxBranchesPerReport)
 	}
-	return s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	return s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPGitReport, "report branches"); err != nil {
 			return err
 		}

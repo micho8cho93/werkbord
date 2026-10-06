@@ -16,7 +16,7 @@ import (
 
 // BumpRevision moves a project's revision and returns the new value. Every write
 // that changes what a project's members see calls it in the same transaction.
-func (t *Tx) BumpRevision(ctx context.Context, workspaceID, projectID string) (int64, error) {
+func (t *sqlTx) BumpRevision(ctx context.Context, workspaceID, projectID string) (int64, error) {
 	var rev int64
 	err := t.q.QueryRowContext(ctx, `UPDATE projects SET revision = revision + 1 WHERE workspace_id = ? AND id = ? RETURNING revision`,
 		workspaceID, projectID).Scan(&rev)
@@ -24,7 +24,7 @@ func (t *Tx) BumpRevision(ctx context.Context, workspaceID, projectID string) (i
 }
 
 // Revision returns a project's current revision.
-func (t *Tx) Revision(ctx context.Context, workspaceID, projectID string) (int64, error) {
+func (t *sqlTx) Revision(ctx context.Context, workspaceID, projectID string) (int64, error) {
 	var rev int64
 	err := t.q.QueryRowContext(ctx, `SELECT revision FROM projects WHERE workspace_id = ? AND id = ?`, workspaceID, projectID).Scan(&rev)
 	return rev, notFound(err, "project")
@@ -89,14 +89,14 @@ func scanTicket(s interface{ Scan(...any) error }) (domain.Ticket, error) {
 }
 
 // NextTicketNumber returns the number the workspace's next ticket takes.
-func (t *Tx) NextTicketNumber(ctx context.Context, workspaceID string) (int, error) {
+func (t *sqlTx) NextTicketNumber(ctx context.Context, workspaceID string) (int, error) {
 	var n int
 	err := t.q.QueryRowContext(ctx, `SELECT COALESCE(MAX(number), 0) + 1 FROM tickets WHERE workspace_id = ?`, workspaceID).Scan(&n)
 	return n, err
 }
 
 // InsertTicket stores a new ticket.
-func (t *Tx) InsertTicket(ctx context.Context, workspaceID string, k domain.Ticket) error {
+func (t *sqlTx) InsertTicket(ctx context.Context, workspaceID string, k domain.Ticket) error {
 	_, err := t.q.ExecContext(ctx, `INSERT INTO tickets (id, workspace_id, project_id, number, title, description, requirements, status,
 		assignee_id, creator_id, reviewer_id, branch, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
 		k.ID, workspaceID, k.ProjectID, k.Number, k.Title, k.Description, k.Requirements, string(k.Status),
@@ -105,7 +105,7 @@ func (t *Tx) InsertTicket(ctx context.Context, workspaceID string, k domain.Tick
 }
 
 // Ticket returns a ticket of a project, with its commits.
-func (t *Tx) Ticket(ctx context.Context, workspaceID, projectID, id string) (domain.Ticket, error) {
+func (t *sqlTx) Ticket(ctx context.Context, workspaceID, projectID, id string) (domain.Ticket, error) {
 	k, err := scanTicket(t.q.QueryRowContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND project_id = ? AND id = ?`, workspaceID, projectID, id))
 	if err != nil {
 		return k, notFound(err, "ticket")
@@ -115,7 +115,7 @@ func (t *Tx) Ticket(ctx context.Context, workspaceID, projectID, id string) (dom
 }
 
 // Tickets lists a project's tickets, newest number first within a status; commits are not loaded.
-func (t *Tx) Tickets(ctx context.Context, workspaceID, projectID string) ([]domain.Ticket, error) {
+func (t *sqlTx) Tickets(ctx context.Context, workspaceID, projectID string) ([]domain.Ticket, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND project_id = ? ORDER BY number`, workspaceID, projectID)
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func (t *Tx) Tickets(ctx context.Context, workspaceID, projectID string) ([]doma
 // it changes the row only if the ticket is still available and held by nobody, so
 // of any number of simultaneous claims exactly one affects a row. It reports
 // whether this call was the one.
-func (t *Tx) ClaimTicket(ctx context.Context, workspaceID, projectID, id, memberID, branch string, now time.Time) (bool, error) {
+func (t *sqlTx) ClaimTicket(ctx context.Context, workspaceID, projectID, id, memberID, branch string, now time.Time) (bool, error) {
 	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET status = 'in_progress', assignee_id = ?, branch = CASE WHEN branch = '' THEN ? ELSE branch END,
 		claimed_at = ?, submitted_at = NULL, completed_at = NULL, reviewer_id = NULL, version = version + 1, updated_at = ?
 		WHERE workspace_id = ? AND project_id = ? AND id = ? AND status = 'available' AND assignee_id IS NULL AND archived_at IS NULL`,
@@ -151,7 +151,7 @@ func (t *Tx) ClaimTicket(ctx context.Context, workspaceID, projectID, id, member
 // SaveTicket writes a ticket's changeable fields if its version is still the one
 // the caller read (compare-and-swap), and bumps the version. It returns a
 // conflict when someone else changed the ticket in between.
-func (t *Tx) SaveTicket(ctx context.Context, workspaceID string, k domain.Ticket) (domain.Ticket, error) {
+func (t *sqlTx) SaveTicket(ctx context.Context, workspaceID string, k domain.Ticket) (domain.Ticket, error) {
 	pr := domain.PullRequest{State: domain.PROpen, Mergeable: domain.MergeUnknown, Behind: -1}
 	if k.PullRequest != nil {
 		pr = *k.PullRequest
@@ -175,7 +175,7 @@ func (t *Tx) SaveTicket(ctx context.Context, workspaceID string, k domain.Ticket
 }
 
 // ReplaceCommits sets the commits reported for a ticket.
-func (t *Tx) ReplaceCommits(ctx context.Context, ticketID string, commits []domain.Commit) error {
+func (t *sqlTx) ReplaceCommits(ctx context.Context, ticketID string, commits []domain.Commit) error {
 	if _, err := t.q.ExecContext(ctx, `DELETE FROM ticket_commits WHERE ticket_id = ?`, ticketID); err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (t *Tx) ReplaceCommits(ctx context.Context, ticketID string, commits []doma
 	return nil
 }
 
-func (t *Tx) commits(ctx context.Context, ticketID string) ([]domain.Commit, error) {
+func (t *sqlTx) commits(ctx context.Context, ticketID string) ([]domain.Commit, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT sha, subject, author, committed_at FROM ticket_commits WHERE ticket_id = ? ORDER BY committed_at, sha`, ticketID)
 	if err != nil {
 		return nil, err
@@ -210,7 +210,7 @@ func (t *Tx) commits(ctx context.Context, ticketID string) ([]domain.Commit, err
 // ReleaseHeld puts back on the board every ticket in progress that a member holds
 // on a project (a member who leaves a project must not keep tickets nobody is
 // working on) and returns them.
-func (t *Tx) ReleaseHeld(ctx context.Context, workspaceID, projectID, memberID string, now time.Time) ([]domain.Ticket, error) {
+func (t *sqlTx) ReleaseHeld(ctx context.Context, workspaceID, projectID, memberID string, now time.Time) ([]domain.Ticket, error) {
 	rows, err := t.q.QueryContext(ctx, `UPDATE tickets SET status = 'available', assignee_id = NULL, version = version + 1, updated_at = ?
 		WHERE workspace_id = ? AND project_id = ? AND assignee_id = ? AND status = 'in_progress' RETURNING `+ticketCols,
 		ms(now), workspaceID, projectID, memberID)
@@ -230,7 +230,7 @@ func (t *Tx) ReleaseHeld(ctx context.Context, workspaceID, projectID, memberID s
 }
 
 // ProjectsOfMemberWithHeldTickets lists the projects in which a member holds a ticket in progress.
-func (t *Tx) ProjectsOfMemberWithHeldTickets(ctx context.Context, workspaceID, memberID string) ([]string, error) {
+func (t *sqlTx) ProjectsOfMemberWithHeldTickets(ctx context.Context, workspaceID, memberID string) ([]string, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT DISTINCT project_id FROM tickets WHERE workspace_id = ? AND assignee_id = ? AND status = 'in_progress'`, workspaceID, memberID)
 	if err != nil {
 		return nil, err
@@ -253,7 +253,7 @@ func (t *Tx) ProjectsOfMemberWithHeldTickets(ctx context.Context, workspaceID, m
 const maxBranchesPerProject = 500
 
 // UpsertBranch records a branch a member reports. A later report replaces an earlier one.
-func (t *Tx) UpsertBranch(ctx context.Context, workspaceID string, b domain.ProjectBranch) error {
+func (t *sqlTx) UpsertBranch(ctx context.Context, workspaceID string, b domain.ProjectBranch) error {
 	files, _ := json.Marshal(append([]string{}, b.Files...))
 	_, err := t.q.ExecContext(ctx, `INSERT INTO project_branches (project_id, workspace_id, name, head_sha, base_branch, ahead, behind, last_commit_at, files, reported_by, reported_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -271,7 +271,7 @@ func (t *Tx) UpsertBranch(ctx context.Context, workspaceID string, b domain.Proj
 }
 
 // DeleteBranch forgets a reported branch (it was deleted or merged).
-func (t *Tx) DeleteBranch(ctx context.Context, workspaceID, projectID, name string) (bool, error) {
+func (t *sqlTx) DeleteBranch(ctx context.Context, workspaceID, projectID, name string) (bool, error) {
 	res, err := t.q.ExecContext(ctx, `DELETE FROM project_branches WHERE workspace_id = ? AND project_id = ? AND name = ?`, workspaceID, projectID, name)
 	if err != nil {
 		return false, err
@@ -281,7 +281,7 @@ func (t *Tx) DeleteBranch(ctx context.Context, workspaceID, projectID, name stri
 }
 
 // Branches lists the branches reported for a project, by name.
-func (t *Tx) Branches(ctx context.Context, workspaceID, projectID string) ([]domain.ProjectBranch, error) {
+func (t *sqlTx) Branches(ctx context.Context, workspaceID, projectID string) ([]domain.ProjectBranch, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT project_id, name, head_sha, base_branch, ahead, behind, last_commit_at, files, reported_by, reported_at
 		FROM project_branches WHERE workspace_id = ? AND project_id = ? ORDER BY name`, workspaceID, projectID)
 	if err != nil {
@@ -308,14 +308,14 @@ func (t *Tx) Branches(ctx context.Context, workspaceID, projectID string) ([]dom
 // ---- activity ----
 
 // AddActivity appends to a project's history.
-func (t *Tx) AddActivity(ctx context.Context, workspaceID string, a domain.Activity) error {
+func (t *sqlTx) AddActivity(ctx context.Context, workspaceID string, a domain.Activity) error {
 	_, err := t.q.ExecContext(ctx, `INSERT INTO activity (workspace_id, project_id, ticket_id, ticket_key, actor_id, kind, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		workspaceID, a.ProjectID, a.TicketID, a.TicketKey, a.ActorID, string(a.Kind), a.Detail, ms(a.CreatedAt))
 	return err
 }
 
 // Activity lists a project's history, newest first. before > 0 pages: only entries with a smaller id.
-func (t *Tx) Activity(ctx context.Context, workspaceID, projectID string, before int64, limit int) ([]domain.Activity, error) {
+func (t *sqlTx) Activity(ctx context.Context, workspaceID, projectID string, before int64, limit int) ([]domain.Activity, error) {
 	q := `SELECT id, project_id, ticket_id, ticket_key, actor_id, kind, detail, created_at FROM activity WHERE workspace_id = ? AND project_id = ?`
 	args := []any{workspaceID, projectID}
 	if before > 0 {
@@ -364,7 +364,7 @@ func scanInvite(s interface{ Scan(...any) error }) (domain.Invite, error) {
 }
 
 // InsertInvite stores a new invite with the hash of its code.
-func (t *Tx) InsertInvite(ctx context.Context, workspaceID string, i domain.Invite, codeHash string) error {
+func (t *sqlTx) InsertInvite(ctx context.Context, workspaceID string, i domain.Invite, codeHash string) error {
 	_, err := t.q.ExecContext(ctx, `INSERT INTO project_invites (id, workspace_id, project_id, code_hash, role, created_by, created_at, expires_at, max_uses, uses)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
 		i.ID, workspaceID, i.ProjectID, codeHash, string(i.Role), i.CreatedBy, ms(i.CreatedAt), ms(i.ExpiresAt), i.MaxUses)
@@ -372,7 +372,7 @@ func (t *Tx) InsertInvite(ctx context.Context, workspaceID string, i domain.Invi
 }
 
 // Invites lists a project's invites, newest first.
-func (t *Tx) Invites(ctx context.Context, workspaceID, projectID string) ([]domain.Invite, error) {
+func (t *sqlTx) Invites(ctx context.Context, workspaceID, projectID string) ([]domain.Invite, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT `+inviteCols+` FROM project_invites WHERE workspace_id = ? AND project_id = ? ORDER BY created_at DESC, id`, workspaceID, projectID)
 	if err != nil {
 		return nil, err
@@ -390,7 +390,7 @@ func (t *Tx) Invites(ctx context.Context, workspaceID, projectID string) ([]doma
 }
 
 // RevokeInvite stops an invite from being used. Revoking one that is already revoked is a no-op.
-func (t *Tx) RevokeInvite(ctx context.Context, workspaceID, projectID, id string, now time.Time) error {
+func (t *sqlTx) RevokeInvite(ctx context.Context, workspaceID, projectID, id string, now time.Time) error {
 	res, err := t.q.ExecContext(ctx, `UPDATE project_invites SET revoked_at = COALESCE(revoked_at, ?) WHERE workspace_id = ? AND project_id = ? AND id = ?`,
 		ms(now), workspaceID, projectID, id)
 	return affected(res, err, "invite")
@@ -404,7 +404,7 @@ var ErrInviteUnusable = errors.New("this invite link or code is not valid any mo
 // UseInvite redeems a code: it counts a use if, and only if, the invite is still
 // valid (not revoked, not expired, uses left) and returns it. The check and the
 // count are one UPDATE, so a single-use invite cannot be spent twice.
-func (t *Tx) UseInvite(ctx context.Context, codeHash string, now time.Time) (workspaceID string, inv domain.Invite, err error) {
+func (t *sqlTx) UseInvite(ctx context.Context, codeHash string, now time.Time) (workspaceID string, inv domain.Invite, err error) {
 	row := t.q.QueryRowContext(ctx, `UPDATE project_invites SET uses = uses + 1
 		WHERE code_hash = ? AND revoked_at IS NULL AND expires_at > ? AND uses < max_uses
 		RETURNING workspace_id, `+inviteCols, codeHash, ms(now))
@@ -420,7 +420,7 @@ func (t *Tx) UseInvite(ctx context.Context, codeHash string, now time.Time) (wor
 }
 
 // HasMemberNamed reports whether a name is taken in a workspace (ignoring case).
-func (t *Tx) HasMemberNamed(ctx context.Context, workspaceID, name string) (bool, error) {
+func (t *sqlTx) HasMemberNamed(ctx context.Context, workspaceID, name string) (bool, error) {
 	var n int
 	err := t.q.QueryRowContext(ctx, `SELECT COUNT(*) FROM members WHERE workspace_id = ? AND lower(name) = ?`, workspaceID, strings.ToLower(name)).Scan(&n)
 	return n > 0, err

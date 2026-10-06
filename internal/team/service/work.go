@@ -94,7 +94,7 @@ type visibleWork struct {
 	revision int64
 }
 
-func (s *Service) loadVisible(ctx context.Context, tx *store.Tx, a Actor) (visibleWork, error) {
+func (s *Service) loadVisible(ctx context.Context, tx store.Tx, a Actor) (visibleWork, error) {
 	v := visibleWork{byID: map[string]domain.Project{}, role: map[string]domain.ProjectRole{}, on: map[string]bool{}, names: map[string]string{}}
 	only := a.Member.ID
 	if a.Member.Can(domain.PermProjectsViewAll) {
@@ -181,7 +181,7 @@ var latestKinds = []domain.ActivityKind{domain.ActTicketClaimed, domain.ActTicke
 // state of their branches.
 func (s *Service) MyWork(ctx context.Context, a Actor) (MyWork, error) {
 	out := MyWork{GeneratedAt: s.stamp(), InProgress: []WorkItem{}, Submitted: []WorkItem{}, PullRequests: []WorkItem{}, NeedsAction: []Action{}, Repositories: []MyRepository{}}
-	err := s.db.View(ctx, func(tx *store.Tx) error {
+	err := s.db.View(ctx, func(tx store.Tx) error {
 		v, err := s.loadVisible(ctx, tx, a)
 		if err != nil {
 			return err
@@ -365,7 +365,7 @@ type ReviewQueue struct {
 // submission first) and the ones they submitted and wait on.
 func (s *Service) Reviews(ctx context.Context, a Actor) (ReviewQueue, error) {
 	out := ReviewQueue{GeneratedAt: s.stamp(), Items: []ReviewItem{}}
-	err := s.db.View(ctx, func(tx *store.Tx) error {
+	err := s.db.View(ctx, func(tx store.Tx) error {
 		v, err := s.loadVisible(ctx, tx, a)
 		if err != nil {
 			return err
@@ -469,7 +469,7 @@ const MaxWorking = 60
 // Overview returns the workspace at a glance across the projects the member can see.
 func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 	out := Overview{GeneratedAt: s.stamp(), Workspace: a.Workspace, Projects: []ProjectSummary{}, Working: []WorkItem{}}
-	err := s.db.View(ctx, func(tx *store.Tx) error {
+	err := s.db.View(ctx, func(tx store.Tx) error {
 		v, err := s.loadVisible(ctx, tx, a)
 		if err != nil {
 			return err
@@ -544,7 +544,7 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 }
 
 // repoStateOf assembles one project's repository state inside a transaction.
-func (s *Service) repoStateOf(ctx context.Context, tx *store.Tx, a Actor, p domain.Project, who func(string) string) (RepoState, error) {
+func (s *Service) repoStateOf(ctx context.Context, tx store.Tx, a Actor, p domain.Project, who func(string) string) (RepoState, error) {
 	tickets, err := tx.Tickets(ctx, a.Workspace.ID, p.ID)
 	if err != nil {
 		return RepoState{}, err
@@ -637,7 +637,7 @@ func (s *Service) WaitForWorkspaceChange(ctx context.Context, a Actor, since, af
 
 func (s *Service) workspaceSyncNow(ctx context.Context, a Actor, since, after int64) (WorkspaceSync, error) {
 	res := WorkspaceSync{Events: []Event{}, Projects: []ProjectRevision{}}
-	err := s.db.View(ctx, func(tx *store.Tx) error {
+	err := s.db.View(ctx, func(tx store.Tx) error {
 		v, err := s.loadVisible(ctx, tx, a)
 		if err != nil {
 			return err

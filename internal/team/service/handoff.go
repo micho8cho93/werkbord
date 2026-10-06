@@ -80,7 +80,7 @@ type HandoffPerson struct {
 // to pass one to another member's runner from here.
 func (s *Service) HandoffTicketToRunner(ctx context.Context, a Actor, projectID, ticketID string) (Handoff, error) {
 	var h Handoff
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPHandoffOwnTasks, "open tickets in your runner"); err != nil {
 			return err
 		}

@@ -84,7 +84,7 @@ func TestUpgradingAVersion1Database(t *testing.T) {
 	if v, _ := db.SchemaVersion(ctx); v != len(ms) {
 		t.Fatalf("schema %d", v)
 	}
-	err = db.View(ctx, func(tx *Tx) error {
+	err = db.View(ctx, func(tx Tx) error {
 		pr, err := tx.Project(ctx, "w1", "p1")
 		if err != nil || pr.Name != "Shop" || pr.Revision != 0 {
 			t.Fatalf("%+v %v", pr, err)
@@ -167,7 +167,7 @@ func TestWorkspaceRevisionMovesWithEveryVisibleChange(t *testing.T) {
 	}
 	rev := func(ws string) (n int64) {
 		t.Helper()
-		if err := db.View(ctx, func(tx *Tx) (err error) { n, err = tx.WorkspaceRevision(ctx, ws); return }); err != nil {
+		if err := db.View(ctx, func(tx Tx) (err error) { n, err = tx.WorkspaceRevision(ctx, ws); return }); err != nil {
 			t.Fatal(err)
 		}
 		return n

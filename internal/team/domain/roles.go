@@ -2,7 +2,11 @@ package domain
 
 import "sort"
 
-// Role is what a member is allowed to do in a workspace.
+// Role is what a member is allowed to do in a workspace. It is about a person.
+// What a *device* does for the workspace (hosts its data, connects its members,
+// runs their work) is a Capability of the device (device.go), granted to the
+// device and never implied by, or implying, a person's role: an Admin need not
+// own a host, and the owner of a host need not be an Admin.
 //
 // Roles are stored as text and mean nothing but the permissions listed for them
 // in rolePermissions below, so adding a role later is one new constant and one new
@@ -13,8 +17,13 @@ type Role string
 
 const (
 	// RoleOwner created the workspace and can do everything in it. A workspace
-	// has exactly one.
+	// has exactly one, and it alone holds the workspace's ownership: appointing
+	// and removing admins, and whatever licence the workspace runs under.
 	RoleOwner Role = "owner"
+	// RoleAdmin administers the workspace: its members, projects and devices. An
+	// admin cannot appoint or remove other admins, cannot touch the owner, and has
+	// no ownership authority.
+	RoleAdmin Role = "admin"
 	// RoleMember takes part in the projects they are added to.
 	RoleMember Role = "member"
 )
@@ -31,6 +40,20 @@ const (
 	PermProjectsCreate       Permission = "projects.create"
 	PermProjectsManage       Permission = "projects.manage"        // edit or archive any project
 	PermProjectMembersManage Permission = "project_members.manage" // add and remove people on a project
+
+	// PermAdminsManage appoints and removes admins, and acts on their accounts. Only the owner has it.
+	PermAdminsManage Permission = "admins.manage"
+	// PermOwnership is the workspace's ownership authority: the one that holds its
+	// licence and, in time, may hand it on. Only the owner has it.
+	PermOwnership Permission = "workspace.ownership"
+
+	// PermDevicesOwn registers, renames and revokes one's own devices.
+	PermDevicesOwn Permission = "devices.own"
+	// PermDevicesViewAll sees every device in the workspace, not only one's own.
+	PermDevicesViewAll Permission = "devices.view_all"
+	// PermDevicesManage grants a device the infrastructure capabilities (Workspace
+	// Host, Connectivity Host), and revokes any device.
+	PermDevicesManage Permission = "devices.manage"
 )
 
 // AllPermissions lists every permission, for tests and for the roles endpoint.
@@ -39,15 +62,47 @@ func AllPermissions() []Permission {
 		PermWorkspaceView, PermWorkspaceManage,
 		PermMembersView, PermMembersManage,
 		PermProjectsViewAll, PermProjectsCreate, PermProjectsManage, PermProjectMembersManage,
+		PermAdminsManage, PermOwnership,
+		PermDevicesOwn, PermDevicesViewAll, PermDevicesManage,
 	}
+}
+
+// ownerOnly are the permissions an admin does not have.
+var ownerOnly = map[Permission]bool{PermAdminsManage: true, PermOwnership: true}
+
+func adminPermissions() []Permission {
+	var out []Permission
+	for _, p := range AllPermissions() {
+		if !ownerOnly[p] {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 var rolePermissions = map[Role][]Permission{
 	RoleOwner: AllPermissions(),
+	RoleAdmin: adminPermissions(),
 	RoleMember: {
 		PermWorkspaceView,
 		PermMembersView,
+		PermDevicesOwn,
 	},
+}
+
+// CanManage reports whether a member holding r may add, remove or reissue the
+// token of a member holding target. It is what keeps the members.manage permission
+// from being a way up: an admin can administer members, but not other admins and
+// never the owner (reissuing the owner's token would be taking the workspace).
+// A person acting on their own account is not "managing" and is checked elsewhere.
+func (r Role) CanManage(target Role) bool {
+	switch {
+	case !r.Can(PermMembersManage), target == RoleOwner:
+		return false
+	case target == RoleAdmin:
+		return r.Can(PermAdminsManage)
+	}
+	return true
 }
 
 // Roles lists the roles that exist, owner first.

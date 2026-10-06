@@ -14,7 +14,7 @@ import (
 
 var bg = context.Background()
 
-func newDB(t *testing.T) (*store.DB, string) {
+func newDB(t *testing.T) (store.Store, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "team.db")
 	db, err := store.Open(bg, path, nil)
@@ -28,7 +28,7 @@ func newDB(t *testing.T) (*store.DB, string) {
 type world struct {
 	t   *testing.T
 	svc *Service
-	db  *store.DB
+	db  store.Store
 }
 
 func newWorld(t *testing.T) *world {
@@ -364,7 +364,7 @@ func TestWorkspacesAreIsolatedFromEachOther(t *testing.T) {
 	rp := w.project(rival, "Search")
 	wantErr(t, w.svc.AddProjectMember(bg, rival, rp.ID, acme.Member.ID, ""), domain.ErrNotFound)
 	// And the database refuses it too, whatever the service does.
-	err = w.db.Update(bg, func(tx *store.Tx) error {
+	err = w.db.Update(bg, func(tx store.Tx) error {
 		return tx.AddProjectMember(bg, rival.Workspace.ID, domain.ProjectMember{ProjectID: rp.ID, MemberID: acme.Member.ID, AddedBy: rival.Member.ID})
 	})
 	if err == nil {

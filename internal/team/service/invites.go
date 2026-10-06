@@ -51,7 +51,7 @@ func (s *Service) CreateInvite(ctx context.Context, a Actor, projectID string, i
 		return InviteWithCode{}, fmt.Errorf("%w: an invite can be used between 1 and %d times", domain.ErrInvalid, domain.MaxInviteUses)
 	}
 	var out InviteWithCode
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPInvitesManage, "invite people to this project"); err != nil {
 			return err
 		}
@@ -73,7 +73,7 @@ func (s *Service) CreateInvite(ctx context.Context, a Actor, projectID string, i
 // ListInvites lists a project's invites (never their codes).
 func (s *Service) ListInvites(ctx context.Context, a Actor, projectID string) ([]domain.Invite, error) {
 	var out []domain.Invite
-	err := s.view(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.view(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if err := x.require(domain.PPInvitesManage, "see this project's invites"); err != nil {
 			return err
 		}
@@ -85,7 +85,7 @@ func (s *Service) ListInvites(ctx context.Context, a Actor, projectID string) ([
 
 // RevokeInvite stops an invite from being used. People who already joined stay.
 func (s *Service) RevokeInvite(ctx context.Context, a Actor, projectID, inviteID string) error {
-	return s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	return s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPInvitesManage, "revoke invites"); err != nil {
 			return err
 		}
@@ -122,7 +122,7 @@ func (s *Service) RedeemInvite(ctx context.Context, code, name, email string) (J
 	}
 	var out Joined
 	var projectID, wsID string
-	err = s.db.Update(ctx, func(tx *store.Tx) error {
+	err = s.db.Update(ctx, func(tx store.Tx) error {
 		now := s.stamp()
 		workspaceID, inv, err := tx.UseInvite(ctx, domain.HashInviteCode(code), now)
 		if errors.Is(err, store.ErrInviteUnusable) {
@@ -165,7 +165,7 @@ func (s *Service) RedeemInvite(ctx context.Context, code, name, email string) (J
 func (s *Service) JoinWithInvite(ctx context.Context, a Actor, code string) (Joined, error) {
 	var out Joined
 	var projectID string
-	err := s.db.Update(ctx, func(tx *store.Tx) error {
+	err := s.db.Update(ctx, func(tx store.Tx) error {
 		now := s.stamp()
 		workspaceID, inv, err := tx.UseInvite(ctx, domain.HashInviteCode(code), now)
 		if errors.Is(err, store.ErrInviteUnusable) || (err == nil && workspaceID != a.Workspace.ID) {

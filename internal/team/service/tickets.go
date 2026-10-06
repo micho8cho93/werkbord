@@ -55,7 +55,7 @@ func columns() []statusColumn {
 // Board returns a project's board.
 func (s *Service) Board(ctx context.Context, a Actor, projectID string) (Board, error) {
 	var b Board
-	err := s.view(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.view(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if err := x.require(domain.PPTicketsView, "see this project's tickets"); err != nil {
 			return err
 		}
@@ -87,7 +87,7 @@ func (s *Service) Board(ctx context.Context, a Actor, projectID string) (Board, 
 // GetTicket returns a ticket with its commits.
 func (s *Service) GetTicket(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.view(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.view(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if err := x.require(domain.PPTicketsView, "see this project's tickets"); err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func (s *Service) CreateTicket(ctx context.Context, a Actor, projectID string, i
 		return domain.Ticket{}, fmt.Errorf("%w: a new ticket starts in the backlog or as available, not %q", domain.ErrInvalid, in.Status)
 	}
 	var k domain.Ticket
-	err = s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	err = s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPTicketsCreate, "create tickets"); err != nil {
 			return err
 		}
@@ -151,7 +151,7 @@ func (s *Service) CreateTicket(ctx context.Context, a Actor, projectID string, i
 }
 
 // record appends to the project's activity.
-func (s *Service) record(ctx context.Context, tx *store.Tx, a Actor, k domain.Ticket, kind domain.ActivityKind, detail string) error {
+func (s *Service) record(ctx context.Context, tx store.Tx, a Actor, k domain.Ticket, kind domain.ActivityKind, detail string) error {
 	return tx.AddActivity(ctx, a.Workspace.ID, domain.Activity{ProjectID: k.ProjectID, TicketID: k.ID, TicketKey: k.Key, ActorID: a.Member.ID, Kind: kind, Detail: shorten(detail, 300), CreatedAt: s.stamp()})
 }
 
@@ -176,7 +176,7 @@ type TicketPatch struct {
 // UpdateTicket edits a ticket's text. Its creator may edit it; so may anyone with tickets.edit.
 func (s *Service) UpdateTicket(ctx context.Context, a Actor, projectID, ticketID string, patch TicketPatch) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if k, err = s.loadTicket(ctx, tx, a, x, ticketID); err != nil {
 			return err
 		}
@@ -212,7 +212,7 @@ func (s *Service) UpdateTicket(ctx context.Context, a Actor, projectID, ticketID
 }
 
 // loadTicket reads a ticket of the project the actor may see.
-func (s *Service) loadTicket(ctx context.Context, tx *store.Tx, a Actor, x access, ticketID string) (domain.Ticket, error) {
+func (s *Service) loadTicket(ctx context.Context, tx store.Tx, a Actor, x access, ticketID string) (domain.Ticket, error) {
 	if err := x.require(domain.PPTicketsView, "see this project's tickets"); err != nil {
 		return domain.Ticket{}, err
 	}
@@ -224,7 +224,7 @@ func (s *Service) loadTicket(ctx context.Context, tx *store.Tx, a Actor, x acces
 }
 
 // save writes a ticket (version-checked) and keeps its commits unchanged.
-func (s *Service) save(ctx context.Context, tx *store.Tx, a Actor, k domain.Ticket) (domain.Ticket, error) {
+func (s *Service) save(ctx context.Context, tx store.Tx, a Actor, k domain.Ticket) (domain.Ticket, error) {
 	commits := k.Commits
 	saved, err := tx.SaveTicket(ctx, a.Workspace.ID, k)
 	saved.Commits = commits
@@ -245,7 +245,7 @@ func transition(k *domain.Ticket, next domain.TicketStatus) error {
 // Claiming, releasing, submitting and completing have their own calls.
 func (s *Service) MoveTicket(ctx context.Context, a Actor, projectID, ticketID string, to domain.TicketStatus) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if k, err = s.loadTicket(ctx, tx, a, x, ticketID); err != nil {
 			return err
 		}
@@ -292,7 +292,7 @@ func (s *Service) MoveTicket(ctx context.Context, a Actor, projectID, ticketID s
 // once, exactly one succeeds and the rest get a conflict naming who has it.
 func (s *Service) ClaimTicket(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPTicketsClaim, "claim tickets"); err != nil {
 			return err
 		}
@@ -323,7 +323,7 @@ func (s *Service) ClaimTicket(ctx context.Context, a Actor, projectID, ticketID 
 
 // claimConflict explains why a claim did not take: the ticket was claimed first
 // by someone else, or it was never available.
-func (s *Service) claimConflict(ctx context.Context, tx *store.Tx, a Actor, projectID, ticketID string) error {
+func (s *Service) claimConflict(ctx context.Context, tx store.Tx, a Actor, projectID, ticketID string) error {
 	cur, err := tx.Ticket(ctx, a.Workspace.ID, projectID, ticketID)
 	if err != nil {
 		return err
@@ -342,7 +342,7 @@ func (s *Service) claimConflict(ctx context.Context, tx *store.Tx, a Actor, proj
 // The branch name stays on the ticket, so whoever claims it next is pointed at the same work.
 func (s *Service) ReleaseTicket(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if k, err = s.loadTicket(ctx, tx, a, x, ticketID); err != nil {
 			return err
 		}
@@ -374,7 +374,7 @@ func (s *Service) ReleaseTicket(ctx context.Context, a Actor, projectID, ticketI
 // Progress; one in progress keeps its branch and its history, and only its owner changes.
 func (s *Service) AssignTicket(ctx context.Context, a Actor, projectID, ticketID, memberID string) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if err := x.require(domain.PPTicketsAssign, "assign tickets"); err != nil {
 			return err
 		}
@@ -423,7 +423,7 @@ func (s *Service) AssignTicket(ctx context.Context, a Actor, projectID, ticketID
 }
 
 // nameOf is a member's name, or "a former member".
-func (s *Service) nameOf(ctx context.Context, tx *store.Tx, a Actor, memberID string) string {
+func (s *Service) nameOf(ctx context.Context, tx store.Tx, a Actor, memberID string) string {
 	if m, err := tx.Member(ctx, a.Workspace.ID, memberID); err == nil {
 		return m.Name
 	}
@@ -444,7 +444,7 @@ type SubmitInput struct {
 // project's own Git host.
 func (s *Service) SubmitTicket(ctx context.Context, a Actor, projectID, ticketID string, in SubmitInput) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if k, err = s.loadTicket(ctx, tx, a, x, ticketID); err != nil {
 			return err
 		}
@@ -504,7 +504,7 @@ func (s *Service) RequestChanges(ctx context.Context, a Actor, projectID, ticket
 	if utf8.RuneCountInString(note) > 1000 {
 		return k, fmt.Errorf("%w: the note is longer than 1000 characters", domain.ErrInvalid)
 	}
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if err := x.require(domain.PPTicketsReview, "review tickets"); err != nil {
 			return err
 		}
@@ -542,7 +542,7 @@ func (s *Service) RequestChanges(ctx context.Context, a Actor, projectID, ticket
 // that someone working alone can finish their own work).
 func (s *Service) CompleteTicket(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if err := x.require(domain.PPTicketsReview, "complete tickets"); err != nil {
 			return err
 		}
@@ -589,7 +589,7 @@ func (s *Service) ListActivity(ctx context.Context, a Actor, projectID string, b
 		limit = 50
 	}
 	var out []ActivityEntry
-	err := s.view(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	err := s.view(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPActivityView, "see this project's activity"); err != nil {
 			return err
 		}

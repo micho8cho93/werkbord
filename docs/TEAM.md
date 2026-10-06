@@ -76,7 +76,8 @@ attention lists. Closing in Team changes coordination metadata only: stop an age
   where, and whether, they have the code on their computer. A repository address must not contain a password or a token:
   each member signs in to Git with their own credentials.
 - **Project membership.** A member is on zero or more projects. The person who creates a project is on it.
-- **Role.** What a member may do in the workspace. Today: **Owner** and **Member**.
+- **Role.** What a *person* may do in the workspace: **Owner**, **Admin** or **Member**. Roles are about people; what a
+  *device* does for the workspace is a [capability](#devices), and is independent of any role.
 - **Project role.** What a member may do inside one project: **owner**, **reviewer** or **member**. A workspace owner is
   an owner of every project. See [Project roles](#project-roles).
 - **Ticket.** A unit of work on a project's board, numbered across the workspace (`WB-142`). See [Tickets](#tickets).
@@ -88,16 +89,24 @@ attention lists. Closing in Team changes coordination metadata only: stop an age
 Authorization asks *"may this member do X?"*, never *"is this member an Owner?"*. Each role is a list of permissions in
 `internal/team/domain/roles.go`:
 
-| Permission | Owner | Member |
-| --- | :---: | :---: |
-| `workspace.view` — see the workspace | ✓ | ✓ |
-| `workspace.manage` — rename it | ✓ | |
-| `members.view` — see the members | ✓ | ✓ |
-| `members.manage` — add and remove members, reissue their tokens | ✓ | |
-| `projects.view_all` — see every project (without it: only those you are on) | ✓ | |
-| `projects.create` | ✓ | |
-| `projects.manage` — edit or archive any project | ✓ | |
-| `project_members.manage` — change who is on a project | ✓ | |
+| Permission | Owner | Admin | Member |
+| --- | :---: | :---: | :---: |
+| `workspace.view` — see the workspace | ✓ | ✓ | ✓ |
+| `workspace.manage` — rename it | ✓ | ✓ | |
+| `members.view` — see the members | ✓ | ✓ | ✓ |
+| `members.manage` — add and remove members, reissue their tokens (not an admin's or the owner's, see below) | ✓ | ✓ | |
+| `projects.view_all` — see every project (without it: only those you are on) | ✓ | ✓ | |
+| `projects.create` | ✓ | ✓ | |
+| `projects.manage` — edit or archive any project | ✓ | ✓ | |
+| `project_members.manage` — change who is on a project | ✓ | ✓ | |
+| `admins.manage` — appoint admins, and act on their accounts | ✓ | | |
+| `workspace.ownership` — the workspace's ownership authority (its licence, in time) | ✓ | | |
+| `devices.own` — register, rename and revoke your own devices | ✓ | ✓ | ✓ |
+| `devices.view_all` — see every device in the workspace | ✓ | ✓ | |
+| `devices.manage` — give a device a host capability; revoke any device | ✓ | ✓ | |
+
+`members.manage` is not a way up: `Role.CanManage(target)` lets an admin add, remove and reissue the token of a **member**,
+never of another admin (that is `admins.manage`, the owner's) and never of the owner, whose token would be the workspace.
 
 A thing a member may not see (a project they are not on) is reported as *not found*, exactly like one that does not
 exist, so it cannot be probed for. A thing they can see but not change is *forbidden*. Anyone may reissue **their own**
@@ -105,7 +114,31 @@ token.
 
 To add a role later (a "Maintainer" who can create projects, say): add a constant and an entry in `rolePermissions`. No
 schema change (a role is stored as text), no handler change, and the roles endpoint lists it. Add a test beside
-`TestOwnerCanDoEverythingAndAMemberAlmostNothing`.
+`TestEachRoleHasExactlyItsPermissions`, which writes every role's table out in full.
+
+### Devices
+
+A **device** is a machine registered in the workspace by the member who owns it. The workspace records only what other
+members and devices may know: the device's ID, its owner, its name, its **public** signing key, what it does for the
+workspace, and when it was last seen. It never holds a private key, a Git, API or model credential, a path or an
+environment variable: there is no column for one, and a test lists the columns to keep it so.
+
+What a device does is its **capability**, independent of its owner's role:
+
+| Capability | Meaning | Who may grant it |
+| --- | --- | --- |
+| `runner` | executes its owner's own work, on their machine | the device's owner, or `devices.manage` |
+| `workspace_host` | holds a replica of the workspace's data (phase 2 onward) | `devices.manage` |
+| `connectivity_host` | a customer-owned, publicly reachable machine that helps devices find each other | `devices.manage` |
+
+An Admin does not own a host because they are an Admin, and a member whose machine is a host does not become anything more
+than a member. A host's role has a status (`none`, `joining`, `active`, `unavailable`). A device is **online** if it was
+seen in the last two minutes (derived, so one that stops reporting goes offline by itself). **Revoking** a device is
+permanent: it holds no capability, is not a host, and any envelope it signs is refused. Registration includes a signature
+by the device's own key over the workspace, member and name, so a key can only be registered by whoever holds it.
+
+These are service functions and storage today; there is no HTTP route for them yet, and nothing connects to a device. See
+[the architecture decision](adr/0001-team-production-architecture.md).
 
 ## The collaborative workflow
 

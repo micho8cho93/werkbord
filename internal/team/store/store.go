@@ -1,5 +1,11 @@
-// Package store persists Werkbord Team's data in its own SQLite database
-// (<data dir>/team.db). Opening, migrating and backing the file up is the shared
+// Package store persists Werkbord Team's data. What the rest of Team sees of it
+// is two interfaces (repository.go): Store, which runs a function in a read-only or
+// a read-write transaction, and Tx, the queries available inside one. The service
+// layer is written against those and never against SQL, so the storage under them
+// can change without the use cases changing.
+//
+// The implementation today is SQLite (<data dir>/team.db), in this file and its
+// neighbours. Opening, migrating and backing the file up is the shared
 // internal/sqlitekit, exactly as for the individual product; the schema and the
 // queries here are Team's alone.
 //
@@ -61,14 +67,16 @@ func (d *DB) Ping(ctx context.Context) error { return d.pool.Ping(ctx) }
 // Close closes the database.
 func (d *DB) Close() error { return d.pool.Close() }
 
+var _ Store = (*DB)(nil)
+
 // View runs fn against a consistent read-only snapshot.
-func (d *DB) View(ctx context.Context, fn func(*Tx) error) error {
-	return d.pool.View(ctx, func(tx *sql.Tx) error { return fn(&Tx{q: tx}) })
+func (d *DB) View(ctx context.Context, fn func(Tx) error) error {
+	return d.pool.View(ctx, func(tx *sql.Tx) error { return fn(&sqlTx{q: tx}) })
 }
 
 // Update runs fn in the one read-write transaction at a time; it commits if fn returns nil.
-func (d *DB) Update(ctx context.Context, fn func(*Tx) error) error {
-	return d.pool.Update(ctx, func(tx *sql.Tx) error { return fn(&Tx{q: tx}) })
+func (d *DB) Update(ctx context.Context, fn func(Tx) error) error {
+	return d.pool.Update(ctx, func(tx *sql.Tx) error { return fn(&sqlTx{q: tx}) })
 }
 
 type queryer interface {
@@ -77,8 +85,10 @@ type queryer interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// Tx is a transaction's queries.
-type Tx struct{ q queryer }
+// sqlTx is a SQLite transaction's queries: the implementation of Tx.
+type sqlTx struct{ q queryer }
+
+var _ Tx = (*sqlTx)(nil)
 
 func ms(t time.Time) int64     { return t.UTC().UnixMilli() }
 func fromMS(v int64) time.Time { return time.UnixMilli(v).UTC() }
@@ -95,13 +105,13 @@ func notFound(err error, what string) error {
 // ---- workspaces ----
 
 // InsertWorkspace stores a new workspace.
-func (t *Tx) InsertWorkspace(ctx context.Context, w domain.Workspace) error {
+func (t *sqlTx) InsertWorkspace(ctx context.Context, w domain.Workspace) error {
 	_, err := t.q.ExecContext(ctx, `INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)`, w.ID, w.Name, ms(w.CreatedAt))
 	return err
 }
 
 // Workspace returns a workspace.
-func (t *Tx) Workspace(ctx context.Context, id string) (domain.Workspace, error) {
+func (t *sqlTx) Workspace(ctx context.Context, id string) (domain.Workspace, error) {
 	var w domain.Workspace
 	var created int64
 	err := t.q.QueryRowContext(ctx, `SELECT id, name, created_at FROM workspaces WHERE id = ?`, id).Scan(&w.ID, &w.Name, &created)
@@ -110,7 +120,7 @@ func (t *Tx) Workspace(ctx context.Context, id string) (domain.Workspace, error)
 }
 
 // RenameWorkspace changes a workspace's name.
-func (t *Tx) RenameWorkspace(ctx context.Context, id, name string) error {
+func (t *sqlTx) RenameWorkspace(ctx context.Context, id, name string) error {
 	res, err := t.q.ExecContext(ctx, `UPDATE workspaces SET name = ? WHERE id = ?`, name, id)
 	return affected(res, err, "workspace")
 }
@@ -139,7 +149,7 @@ func scanMember(s interface{ Scan(...any) error }) (domain.Member, error) {
 }
 
 // InsertMember stores a new member with the hash of their token.
-func (t *Tx) InsertMember(ctx context.Context, m domain.Member, tokenHash string) error {
+func (t *sqlTx) InsertMember(ctx context.Context, m domain.Member, tokenHash string) error {
 	_, err := t.q.ExecContext(ctx,
 		`INSERT INTO members (id, workspace_id, name, email, role, token_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		m.ID, m.WorkspaceID, m.Name, m.Email, string(m.Role), tokenHash, ms(m.CreatedAt))
@@ -150,19 +160,19 @@ func (t *Tx) InsertMember(ctx context.Context, m domain.Member, tokenHash string
 }
 
 // Member returns a member of a workspace.
-func (t *Tx) Member(ctx context.Context, workspaceID, id string) (domain.Member, error) {
+func (t *sqlTx) Member(ctx context.Context, workspaceID, id string) (domain.Member, error) {
 	m, err := scanMember(t.q.QueryRowContext(ctx, `SELECT `+memberCols+` FROM members WHERE workspace_id = ? AND id = ?`, workspaceID, id))
 	return m, notFound(err, "member")
 }
 
 // MemberByTokenHash finds the member a token belongs to.
-func (t *Tx) MemberByTokenHash(ctx context.Context, hash string) (domain.Member, error) {
+func (t *sqlTx) MemberByTokenHash(ctx context.Context, hash string) (domain.Member, error) {
 	m, err := scanMember(t.q.QueryRowContext(ctx, `SELECT `+memberCols+` FROM members WHERE token_hash = ?`, hash))
 	return m, notFound(err, "member")
 }
 
 // Members lists a workspace's members, owner first, then by name.
-func (t *Tx) Members(ctx context.Context, workspaceID string) ([]domain.Member, error) {
+func (t *sqlTx) Members(ctx context.Context, workspaceID string) ([]domain.Member, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT `+memberCols+` FROM members WHERE workspace_id = ?
 		ORDER BY (role = 'owner') DESC, name COLLATE NOCASE, id`, workspaceID)
 	if err != nil {
@@ -181,13 +191,13 @@ func (t *Tx) Members(ctx context.Context, workspaceID string) ([]domain.Member, 
 }
 
 // DeleteMember removes a member and, with them, their place on every project.
-func (t *Tx) DeleteMember(ctx context.Context, workspaceID, id string) error {
+func (t *sqlTx) DeleteMember(ctx context.Context, workspaceID, id string) error {
 	res, err := t.q.ExecContext(ctx, `DELETE FROM members WHERE workspace_id = ? AND id = ?`, workspaceID, id)
 	return affected(res, err, "member")
 }
 
 // SetMemberToken replaces a member's token hash, which signs out whoever held the old token.
-func (t *Tx) SetMemberToken(ctx context.Context, workspaceID, id, hash string) error {
+func (t *sqlTx) SetMemberToken(ctx context.Context, workspaceID, id, hash string) error {
 	res, err := t.q.ExecContext(ctx, `UPDATE members SET token_hash = ? WHERE workspace_id = ? AND id = ?`, hash, workspaceID, id)
 	return affected(res, err, "member")
 }
@@ -213,7 +223,7 @@ func b2i(b bool) int {
 }
 
 // InsertProject stores a new project.
-func (t *Tx) InsertProject(ctx context.Context, p domain.Project) error {
+func (t *sqlTx) InsertProject(ctx context.Context, p domain.Project) error {
 	_, err := t.q.ExecContext(ctx, `INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.ID, p.WorkspaceID, p.Name, p.Description, p.Repository, b2i(p.Archived), ms(p.CreatedAt), ms(p.UpdatedAt), p.Revision)
 	if isUnique(err) {
@@ -223,14 +233,14 @@ func (t *Tx) InsertProject(ctx context.Context, p domain.Project) error {
 }
 
 // Project returns a project of a workspace.
-func (t *Tx) Project(ctx context.Context, workspaceID, id string) (domain.Project, error) {
+func (t *sqlTx) Project(ctx context.Context, workspaceID, id string) (domain.Project, error) {
 	p, err := scanProject(t.q.QueryRowContext(ctx, `SELECT `+projectCols+` FROM projects WHERE workspace_id = ? AND id = ?`, workspaceID, id))
 	return p, notFound(err, "project")
 }
 
 // Projects lists a workspace's projects by name. If onlyMemberID is not empty,
 // only the projects that member is on.
-func (t *Tx) Projects(ctx context.Context, workspaceID, onlyMemberID string) ([]domain.Project, error) {
+func (t *sqlTx) Projects(ctx context.Context, workspaceID, onlyMemberID string) ([]domain.Project, error) {
 	q := `SELECT ` + projectCols + ` FROM projects WHERE workspace_id = ?`
 	args := []any{workspaceID}
 	if onlyMemberID != "" {
@@ -254,7 +264,7 @@ func (t *Tx) Projects(ctx context.Context, workspaceID, onlyMemberID string) ([]
 }
 
 // UpdateProject writes a project's editable fields.
-func (t *Tx) UpdateProject(ctx context.Context, p domain.Project) error {
+func (t *sqlTx) UpdateProject(ctx context.Context, p domain.Project) error {
 	res, err := t.q.ExecContext(ctx,
 		`UPDATE projects SET name = ?, description = ?, repository = ?, archived = ?, updated_at = ? WHERE workspace_id = ? AND id = ?`,
 		p.Name, p.Description, p.Repository, b2i(p.Archived), ms(p.UpdatedAt), p.WorkspaceID, p.ID)
@@ -268,7 +278,7 @@ func (t *Tx) UpdateProject(ctx context.Context, p domain.Project) error {
 
 // AddProjectMember puts a member on a project. Adding someone already on it is a
 // no-op, so the call can be repeated safely.
-func (t *Tx) AddProjectMember(ctx context.Context, workspaceID string, pm domain.ProjectMember) error {
+func (t *sqlTx) AddProjectMember(ctx context.Context, workspaceID string, pm domain.ProjectMember) error {
 	_, err := t.q.ExecContext(ctx,
 		`INSERT INTO project_members (project_id, member_id, workspace_id, added_by, added_at, role) VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (project_id, member_id) DO NOTHING`,
@@ -284,14 +294,14 @@ func roleOrDefault(r domain.ProjectRole) domain.ProjectRole {
 }
 
 // SetProjectMemberRole changes a member's role on a project.
-func (t *Tx) SetProjectMemberRole(ctx context.Context, workspaceID, projectID, memberID string, role domain.ProjectRole) error {
+func (t *sqlTx) SetProjectMemberRole(ctx context.Context, workspaceID, projectID, memberID string, role domain.ProjectRole) error {
 	res, err := t.q.ExecContext(ctx, `UPDATE project_members SET role = ? WHERE workspace_id = ? AND project_id = ? AND member_id = ?`,
 		string(role), workspaceID, projectID, memberID)
 	return affected(res, err, "project member")
 }
 
 // ProjectRole returns a member's role on a project and whether they are on it.
-func (t *Tx) ProjectRole(ctx context.Context, workspaceID, projectID, memberID string) (domain.ProjectRole, bool, error) {
+func (t *sqlTx) ProjectRole(ctx context.Context, workspaceID, projectID, memberID string) (domain.ProjectRole, bool, error) {
 	var role string
 	err := t.q.QueryRowContext(ctx, `SELECT role FROM project_members WHERE workspace_id = ? AND project_id = ? AND member_id = ?`,
 		workspaceID, projectID, memberID).Scan(&role)
@@ -302,7 +312,7 @@ func (t *Tx) ProjectRole(ctx context.Context, workspaceID, projectID, memberID s
 }
 
 // RemoveProjectMember takes a member off a project; it reports whether they were on it.
-func (t *Tx) RemoveProjectMember(ctx context.Context, workspaceID, projectID, memberID string) (bool, error) {
+func (t *sqlTx) RemoveProjectMember(ctx context.Context, workspaceID, projectID, memberID string) (bool, error) {
 	res, err := t.q.ExecContext(ctx, `DELETE FROM project_members WHERE workspace_id = ? AND project_id = ? AND member_id = ?`, workspaceID, projectID, memberID)
 	if err != nil {
 		return false, err
@@ -312,7 +322,7 @@ func (t *Tx) RemoveProjectMember(ctx context.Context, workspaceID, projectID, me
 }
 
 // IsProjectMember reports whether a member is on a project.
-func (t *Tx) IsProjectMember(ctx context.Context, workspaceID, projectID, memberID string) (bool, error) {
+func (t *sqlTx) IsProjectMember(ctx context.Context, workspaceID, projectID, memberID string) (bool, error) {
 	var n int
 	err := t.q.QueryRowContext(ctx, `SELECT COUNT(*) FROM project_members WHERE workspace_id = ? AND project_id = ? AND member_id = ?`,
 		workspaceID, projectID, memberID).Scan(&n)
@@ -320,7 +330,7 @@ func (t *Tx) IsProjectMember(ctx context.Context, workspaceID, projectID, member
 }
 
 // ProjectMembers lists who is on a project, owner first and then by name.
-func (t *Tx) ProjectMembers(ctx context.Context, workspaceID, projectID string) ([]domain.ProjectMember, error) {
+func (t *sqlTx) ProjectMembers(ctx context.Context, workspaceID, projectID string) ([]domain.ProjectMember, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT pm.project_id, pm.member_id, pm.role, pm.added_by, pm.added_at
 		FROM project_members pm JOIN members m ON m.id = pm.member_id AND m.workspace_id = pm.workspace_id
 		WHERE pm.workspace_id = ? AND pm.project_id = ?

@@ -70,6 +70,10 @@ A package is **shared** when both products use it and it holds no behaviour of e
 | `internal/sqlitekit` | Opens a SQLite file (one writer, a pool of readers, WAL), runs versioned migrations, copies the database before an upgrade, inspects it read-only. Knows no schema. | `internal/store/sqlite` (individual), `internal/team/store` (Team) |
 | `internal/httpkit` | `WriteJSON`/`WriteError` and the error envelope, strict `DecodeJSON`, and the `LogRequests`, `RecoverPanics` and `SecurityHeaders` middleware. Holds no route. | `internal/api` (individual), `internal/team/api` (Team) |
 | `internal/logging` | `slog` logger construction | both |
+| `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (individual); Team will |
+| `internal/deviceid` | A device's ID, public key and the checks on them. No private key. | Team |
+| `internal/deviceid/localidentity` | A device's own identity: the private key and its storage. **Team never imports it** (rule 11). | the individual product's runner (when wired) |
+| `internal/envelope` | Signed cross-device messages: the format, the semantic actions, signing, verification, expiry and replay checks. | Team (verifies); the individual product (will sign and act) |
 
 Each was extracted from the individual product (which now uses it too) rather than copied into Team, so there is one
 SQLite open path and one set of security headers.
@@ -117,8 +121,9 @@ it more general and stays free of Team's concepts.
 
 ## What Team has today
 
-A **workspace** with exactly one **owner**, **members**, **projects**, **project membership**, and **roles** (Owner and
-Member); and, on top of that, the collaborative workflow: **project roles** (owner, reviewer, member), **invite links**,
+A **workspace** with exactly one **owner**, **members**, **projects**, **project membership**, **roles** (Owner, Admin and
+Member), and a registry of **devices** with their own capabilities (runner, workspace host, connectivity host: independent of
+roles); and, on top of that, the collaborative workflow: **project roles** (owner, reviewer, member), **invite links**,
 a shared **board** (Backlog, Available, In Progress, Review, Done), **tickets** that members claim atomically, **Git
 metadata** members' own Werkbords report (branch, commits, pull request), **repository awareness** (behind, conflicting,
 stale, overlapping branches), an **activity** history, and **"Open in my runner"**, which hands a ticket's context to the
@@ -195,6 +200,18 @@ CI does this when a product tag is pushed. See [VERSIONING.md](VERSIONING.md).
 6. a product's `VERSION` file is not `MAJOR.MINOR.PATCH`;
 7. the desktop app's window toolkit (Wails, which needs cgo and the system's web view) appears in either executable's build
    or in the root `go.mod`, or `desktop/` stops being a Go module of its own, or anything in it reaches Team.
+
+Beyond those, `internal/archtest` also keeps the production foundation honest (see
+[the architecture decision](adr/0001-team-production-architecture.md)):
+
+9. Team's one exception to "never starts a process" is a narrow, named grant for *infrastructure* supervision under
+   `internal/team/infra/` (none today): constant program names only, never a shell, Git, an agent or a runtime, importing
+   nothing that handles a request, imported only by Team's wiring. The rule itself is tested against code that breaks it;
+10. shared packages import only the standard library and each other, and name no network or database vendor;
+11. Team's build never includes `internal/deviceid/localidentity`: private signing keys exist only on a device;
+12. code written against the contracts (`transport`, `deviceid`, `envelope`, Team's domain, service and API) names no
+    network or database vendor (Tailscale, Nebula, DERP, lighthouses, Headscale, rqlite);
+13. only `internal/netprivate` imports Tailscale.
 
 `make verify-isolation` is the empirical version of 1–2, and CI runs it. The Go module is shared, so `go.mod` lists
 every dependency of both; what counts is what each executable is built from, which is what these checks inspect. If

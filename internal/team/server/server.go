@@ -19,7 +19,7 @@ import (
 )
 
 // Open opens Team's database and builds its service.
-func Open(ctx context.Context, cfg config.Config, log *slog.Logger) (*store.DB, *service.Service, error) {
+func Open(ctx context.Context, cfg config.Config, log *slog.Logger) (store.Store, *service.Service, error) {
 	db, err := store.Open(ctx, cfg.DBPath(), log)
 	if err != nil {
 		return nil, nil, err
@@ -28,7 +28,7 @@ func Open(ctx context.Context, cfg config.Config, log *slog.Logger) (*store.DB, 
 }
 
 // Handler is Team's whole HTTP surface: the API and the console.
-func Handler(db *store.DB, svc *service.Service, log *slog.Logger, version string) http.Handler {
+func Handler(db store.Store, svc *service.Service, log *slog.Logger, version string) http.Handler {
 	return api.New(api.Options{Service: svc, Ping: db.Ping, Log: log, Version: version, Console: console.Handler()}).Handler()
 }
 

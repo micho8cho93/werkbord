@@ -12,14 +12,14 @@ import (
 
 // WorkspaceRevision returns the revision of a workspace. It moves, inside the
 // writing transaction (see migration 0003), whenever anything in it changes.
-func (t *Tx) WorkspaceRevision(ctx context.Context, workspaceID string) (int64, error) {
+func (t *sqlTx) WorkspaceRevision(ctx context.Context, workspaceID string) (int64, error) {
 	var rev int64
 	err := t.q.QueryRowContext(ctx, `SELECT revision FROM workspaces WHERE id = ?`, workspaceID).Scan(&rev)
 	return rev, notFound(err, "workspace")
 }
 
 // ProjectRoles returns a member's role on each project they are on.
-func (t *Tx) ProjectRoles(ctx context.Context, workspaceID, memberID string) (map[string]domain.ProjectRole, error) {
+func (t *sqlTx) ProjectRoles(ctx context.Context, workspaceID, memberID string) (map[string]domain.ProjectRole, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT project_id, role FROM project_members WHERE workspace_id = ? AND member_id = ?`, workspaceID, memberID)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (t *Tx) ProjectRoles(ctx context.Context, workspaceID, memberID string) (ma
 }
 
 // TicketCounts counts a workspace's tickets by project and status.
-func (t *Tx) TicketCounts(ctx context.Context, workspaceID string) (map[string]map[domain.TicketStatus]int, error) {
+func (t *sqlTx) TicketCounts(ctx context.Context, workspaceID string) (map[string]map[domain.TicketStatus]int, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT project_id, status, COUNT(*) FROM tickets WHERE workspace_id = ? AND archived_at IS NULL GROUP BY project_id, status`, workspaceID)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (t *Tx) TicketCounts(ctx context.Context, workspaceID string) (map[string]m
 // wait for a review (in progress or in review), across all its projects; commits
 // are not loaded. Finished and unclaimed tickets are never what a member's work
 // views are about, and leaving them out keeps these views small as a board grows.
-func (t *Tx) HeldTickets(ctx context.Context, workspaceID string) ([]domain.Ticket, error) {
+func (t *sqlTx) HeldTickets(ctx context.Context, workspaceID string) ([]domain.Ticket, error) {
 	rows, err := t.q.QueryContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND archived_at IS NULL AND status IN ('in_progress', 'review') ORDER BY updated_at DESC, number`, workspaceID)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (t *Tx) HeldTickets(ctx context.Context, workspaceID string) ([]domain.Tick
 // ActivityAfter lists a workspace's history after an entry id, oldest first, for
 // the projects in only (nil: every project). It returns at most limit+1 entries,
 // so the caller can tell whether there were more.
-func (t *Tx) ActivityAfter(ctx context.Context, workspaceID string, after int64, only []string, limit int) ([]domain.Activity, error) {
+func (t *sqlTx) ActivityAfter(ctx context.Context, workspaceID string, after int64, only []string, limit int) ([]domain.Activity, error) {
 	q := `SELECT id, project_id, ticket_id, ticket_key, actor_id, kind, detail, created_at FROM activity WHERE workspace_id = ? AND id > ?`
 	args := []any{workspaceID, after}
 	if only != nil {
@@ -103,7 +103,7 @@ func (t *Tx) ActivityAfter(ctx context.Context, workspaceID string, after int64,
 }
 
 // LatestActivityID is the id of the newest entry in a workspace's history, or 0.
-func (t *Tx) LatestActivityID(ctx context.Context, workspaceID string) (int64, error) {
+func (t *sqlTx) LatestActivityID(ctx context.Context, workspaceID string) (int64, error) {
 	var id int64
 	err := t.q.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM activity WHERE workspace_id = ?`, workspaceID).Scan(&id)
 	return id, err
@@ -112,7 +112,7 @@ func (t *Tx) LatestActivityID(ctx context.Context, workspaceID string) (int64, e
 // LatestTicketActivity returns, for each ticket given, its newest entry among the
 // kinds given. It is how "assigned to you by someone else" and "changes were
 // requested" are told from a plain claim.
-func (t *Tx) LatestTicketActivity(ctx context.Context, workspaceID string, ticketIDs []string, kinds []domain.ActivityKind) (map[string]domain.Activity, error) {
+func (t *sqlTx) LatestTicketActivity(ctx context.Context, workspaceID string, ticketIDs []string, kinds []domain.ActivityKind) (map[string]domain.Activity, error) {
 	out := map[string]domain.Activity{}
 	if len(ticketIDs) == 0 || len(kinds) == 0 {
 		return out, nil
@@ -141,7 +141,7 @@ func (t *Tx) LatestTicketActivity(ctx context.Context, workspaceID string, ticke
 }
 
 // TicketCommits loads the commits reported for each ticket given.
-func (t *Tx) TicketCommits(ctx context.Context, ticketIDs []string) (map[string][]domain.Commit, error) {
+func (t *sqlTx) TicketCommits(ctx context.Context, ticketIDs []string) (map[string][]domain.Commit, error) {
 	out := map[string][]domain.Commit{}
 	if len(ticketIDs) == 0 {
 		return out, nil

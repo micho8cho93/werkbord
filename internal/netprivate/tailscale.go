@@ -86,6 +86,9 @@ func (b *tsBackend) Status(ctx context.Context) (BackendStatus, error) {
 		return BackendStatus{}, err
 	}
 	out := BackendStatus{State: st.BackendState, AuthURL: st.AuthURL, IPs: st.TailscaleIPs, Health: st.Health}
+	if st.Self != nil {
+		out.NodeID = string(st.Self.ID)
+	}
 	magicDNS := true
 	if st.CurrentTailnet != nil {
 		out.Tailnet = st.CurrentTailnet.Name
@@ -166,4 +169,34 @@ func StateDir(dataDir string) string { return filepath.Join(dataDir, "tailscale"
 // Dial reaches a controller from an embedded runner node without a system VPN.
 func (b *tsBackend) Dial(ctx context.Context, network, address string) (net.Conn, error) {
 	return b.srv.Dial(ctx, network, address)
+}
+
+// Peers lists the other nodes on the tailnet, as the node knows them.
+func (b *tsBackend) Peers(ctx context.Context) ([]BackendPeer, error) {
+	st, err := b.lc.Status(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]BackendPeer, 0, len(st.Peer))
+	for _, p := range st.Peer {
+		out = append(out, BackendPeer{
+			ID: string(p.ID), Name: strings.TrimSuffix(p.DNSName, "."), IPs: p.TailscaleIPs,
+			Online: p.Online, Direct: p.CurAddr != "", Relayed: p.CurAddr == "" && (p.Relay != "" || p.PeerRelay != ""),
+			LastSeen: p.LastSeen,
+		})
+	}
+	return out, nil
+}
+
+// WhoIs names the node at the other end of a connection, by its address.
+func (b *tsBackend) WhoIs(ctx context.Context, remoteAddr string) (BackendPeer, bool) {
+	r, err := b.lc.WhoIs(ctx, remoteAddr)
+	if err != nil || r == nil || r.Node == nil {
+		return BackendPeer{}, false
+	}
+	p := BackendPeer{ID: string(r.Node.StableID), Name: strings.TrimSuffix(r.Node.Name, ".")}
+	for _, a := range r.Node.Addresses {
+		p.IPs = append(p.IPs, a.Addr())
+	}
+	return p, true
 }

@@ -190,7 +190,7 @@ func TestRequestsAreValidatedStrictly(t *testing.T) {
 		}
 	}
 	owner.want(400, "POST", v1+"/members", `{"name":"Cy","role":"owner"}`)
-	owner.want(400, "POST", v1+"/members", `{"name":"Cy","role":"admin"}`)
+	owner.want(400, "POST", v1+"/members", `{"name":"Cy","role":"superuser"}`)
 	owner.want(404, "DELETE", v1+"/projects/x", nil) // there is no way to delete a project
 }
 
@@ -277,4 +277,37 @@ func TestPartialPRFieldsKeepPreviouslyReportedEvidence(t *testing.T) {
 	if pr["draft"] != true || pr["baseBranch"] != "main" || pr["mergeable"] != "conflicting" || pr["behind"] != float64(3) || pr["number"] != float64(7) {
 		t.Fatalf("partial edit erased PR facts: %v", pr)
 	}
+}
+
+// Admin is a role like the others over HTTP: the owner appoints one, who then
+// administers members but cannot appoint another admin or reach the owner.
+func TestAdminsOverHTTP(t *testing.T) {
+	ts := newServer(t)
+	owner := client{t: t, base: ts.URL, token: ownerToken}
+	me := owner.want(200, "GET", v1+"/me", nil)
+	ownerID := me["member"].(map[string]any)["id"].(string)
+
+	added := owner.want(201, "POST", v1+"/members", `{"name":"Ann","role":"admin"}`)
+	if added["member"].(map[string]any)["role"] != "admin" {
+		t.Fatalf("added: %v", added)
+	}
+	ann := client{t: t, base: ts.URL, token: added["token"].(string)}
+	annMe := ann.want(200, "GET", v1+"/me", nil)
+	for _, p := range annMe["permissions"].([]any) {
+		if p == "workspace.ownership" || p == "admins.manage" {
+			t.Fatalf("an admin has %v", p)
+		}
+	}
+	if _, _, raw := owner.do("GET", v1+"/roles", nil); !strings.Contains(string(raw), `"admin"`) {
+		t.Fatalf("roles: %s", raw)
+	}
+
+	ann.want(201, "POST", v1+"/members", `{"name":"Bo"}`)
+	if errCode(ann.want(403, "POST", v1+"/members", `{"name":"Cy","role":"admin"}`)) != "forbidden" {
+		t.Fatal("an admin appointed an admin")
+	}
+	ann.want(403, "POST", v1+"/members/"+ownerID+"/token", nil)
+	ann.want(409, "DELETE", v1+"/members/"+ownerID, nil)
+	ann.want(201, "POST", v1+"/projects", `{"name":"Admin's"}`)
+	owner.want(200, "GET", v1+"/me", nil) // the owner's token still works
 }

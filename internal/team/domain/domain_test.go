@@ -6,16 +6,27 @@ import (
 	"testing"
 )
 
-func TestOwnerCanDoEverythingAndAMemberAlmostNothing(t *testing.T) {
+// The permission tables are the whole of what a role means. They are written out
+// here in full, so a change to what a role may do is a visible change to this test.
+func TestEachRoleHasExactlyItsPermissions(t *testing.T) {
 	for _, p := range AllPermissions() {
 		if !RoleOwner.Can(p) {
 			t.Errorf("the owner cannot %s: a permission added to AllPermissions must not be forgotten by Owner", p)
 		}
 	}
-	want := map[Permission]bool{PermWorkspaceView: true, PermMembersView: true}
-	for _, p := range AllPermissions() {
-		if RoleMember.Can(p) != want[p] {
-			t.Errorf("Member.Can(%s) = %v, want %v", p, RoleMember.Can(p), want[p])
+	tables := map[Role]map[Permission]bool{
+		RoleAdmin: {
+			PermWorkspaceView: true, PermWorkspaceManage: true, PermMembersView: true, PermMembersManage: true,
+			PermProjectsViewAll: true, PermProjectsCreate: true, PermProjectsManage: true, PermProjectMembersManage: true,
+			PermDevicesOwn: true, PermDevicesViewAll: true, PermDevicesManage: true,
+		},
+		RoleMember: {PermWorkspaceView: true, PermMembersView: true, PermDevicesOwn: true},
+	}
+	for role, want := range tables {
+		for _, p := range AllPermissions() {
+			if role.Can(p) != want[p] {
+				t.Errorf("%s.Can(%s) = %v, want %v", role, p, role.Can(p), want[p])
+			}
 		}
 	}
 	if Role("nobody").Can(PermWorkspaceView) || Role("").Can(PermWorkspaceView) {
@@ -23,15 +34,45 @@ func TestOwnerCanDoEverythingAndAMemberAlmostNothing(t *testing.T) {
 	}
 }
 
+// What only the owner has stays with the owner: an admin administers, and does
+// not own, appoint other admins, or reach into the owner's account.
+func TestAnAdminAdministersButDoesNotOwn(t *testing.T) {
+	for _, p := range []Permission{PermOwnership, PermAdminsManage} {
+		if RoleAdmin.Can(p) || RoleMember.Can(p) || !RoleOwner.Can(p) {
+			t.Errorf("%s must belong to the owner alone", p)
+		}
+	}
+	for _, c := range []struct {
+		actor, target Role
+		want          bool
+	}{
+		{RoleOwner, RoleAdmin, true},
+		{RoleOwner, RoleMember, true},
+		{RoleOwner, RoleOwner, false}, // the owner is not managed by anyone
+		{RoleAdmin, RoleMember, true},
+		{RoleAdmin, RoleAdmin, false}, // an admin cannot touch another admin
+		{RoleAdmin, RoleOwner, false}, // nor take over the owner's account
+		{RoleMember, RoleMember, false},
+		{RoleMember, RoleAdmin, false},
+		{Role("nobody"), RoleMember, false},
+	} {
+		if got := c.actor.CanManage(c.target); got != c.want {
+			t.Errorf("%s.CanManage(%s) = %v, want %v", c.actor, c.target, got, c.want)
+		}
+	}
+}
+
 func TestRolesAreListedAndParsed(t *testing.T) {
 	rs := Roles()
-	if len(rs) != 2 || rs[0] != RoleOwner || rs[1] != RoleMember {
+	if len(rs) != 3 || rs[0] != RoleOwner || rs[1] != RoleAdmin || rs[2] != RoleMember {
 		t.Fatalf("roles = %v", rs)
 	}
-	if r, err := ParseRole("member"); err != nil || r != RoleMember {
-		t.Fatalf("%v %v", r, err)
+	for _, name := range []string{"member", "admin", "owner"} {
+		if r, err := ParseRole(name); err != nil || string(r) != name {
+			t.Fatalf("%s: %v %v", name, r, err)
+		}
 	}
-	if _, err := ParseRole("admin"); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "owner, member") {
+	if _, err := ParseRole("superuser"); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "owner, admin, member") {
 		t.Fatalf("an unknown role should be refused, naming the roles: %v", err)
 	}
 	// What Permissions returns is a copy: changing it must not change the role.

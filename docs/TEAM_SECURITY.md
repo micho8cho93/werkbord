@@ -32,6 +32,21 @@ act as another member*. The surfaces are the ones the review brief named.
 | **Provider / API credentials** | None. Team never calls a model provider or any API; agents run in each member's own Werkbord with that member's credentials. | No outbound connection exists to carry one. | `TestTeamServerNeverReachesOut` |
 | **The individual product** | Never reaches Team and cannot be driven by it. Nothing it is built from names Team's API, settings or executable. | Rules 1, 2 and the string scan. | `TestIndividualProductDoesNotDependOnTeam`, `TestOnlyTeamImportsTeam`, `TestIndividualProductDoesNotMentionTeam`, `make verify-isolation` |
 
+## Admin and the device registry (Team 2.4)
+
+Two additions, reviewed against the same question.
+
+| Surface | Finding | Enforced by |
+| --- | --- | --- |
+| **Admin role** | An admin administers members, projects and devices but cannot appoint or act on another admin, reissue the owner's token (which would be taking the workspace) or remove the owner. `members.manage` is therefore not a way up. | `TestAnAdminAdministersButDoesNotOwn`, `TestAnAdminCannotReachTheOwnerOrOtherAdmins`, `TestOnlyTheOwnerAppointsAdmins`, `TestAdminsOverHTTP` |
+| **Device registry** | Holds a device's ID, owner, name, **public** key, capabilities and last-seen time. No column or field for a private key, credential, path or environment. A key can be registered only with a signature by the key itself, bound to the workspace and member. | `TestTheDeviceTablesHaveNoColumnForASecret`, `TestADeviceHasExactlyTheseFields`, `TestRegistrationNeedsProofOfTheKey` |
+| **Private keys** | Live in `internal/deviceid/localidentity`, which Team's build cannot include. | `TestTeamNeverLinksADevicesPrivateKey` |
+| **Capabilities versus roles** | Host and connectivity capabilities need `devices.manage`; owning a host grants its owner nothing; revocation is permanent and ends host roles. | `TestCapabilitiesAreIndependentOfRoles`, `TestOnlyDeviceManagersGrantInfrastructureCapabilities`, `TestRevokingADevice` |
+| **Signed messages** | Format, expiry, replay, wrong signer, wrong target, revoked device are all refused; payloads have no field that could carry a command. Defined but not yet carried anywhere: Team has no route that takes one. | `internal/envelope` tests, `TestNoPayloadCarriesAnythingExecutable` |
+
+Still true: Team starts no process and contacts no device. The architecture tests now say which kind of process start
+would ever be acceptable (Team's own infrastructure, by name) and fail for any other (`internal/archtest/infra_test.go`).
+
 ## Teammate-written text: the one channel that remains
 
 A ticket is written by one member and read by another, and "Open in my runner" turns it into the task text of the

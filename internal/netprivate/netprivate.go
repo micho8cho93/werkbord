@@ -91,6 +91,8 @@ type BackendStatus struct {
 	// Starting or Running.
 	State   string
 	AuthURL string
+	// NodeID is the node's stable identifier on the tailnet, when known.
+	NodeID string
 	// DNSName is the node's MagicDNS name, with or without a trailing dot.
 	DNSName string
 	IPs     []netip.Addr

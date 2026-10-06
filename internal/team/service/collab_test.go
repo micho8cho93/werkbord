@@ -335,7 +335,7 @@ func TestTheStoreClaimIsAGuardedUpdate(t *testing.T) {
 	k := tm.ticket(tm.owner, "Guarded", domain.TicketAvailable)
 	ws := tm.owner.Workspace.ID
 	var first, second bool
-	err := tm.db.Update(bg, func(tx *store.Tx) (err error) {
+	err := tm.db.Update(bg, func(tx store.Tx) (err error) {
 		if first, err = tx.ClaimTicket(bg, ws, tm.pid(), k.ID, tm.bo.Member.ID, "wb-1-guarded", time.Now()); err != nil {
 			return err
 		}
@@ -1117,7 +1117,7 @@ func TestExistingMembersJoinWithAnInvite(t *testing.T) {
 	}
 }
 
-func newWorldOn(t *testing.T, db *store.DB) *world { return &world{t: t, svc: New(db), db: db} }
+func newWorldOn(t *testing.T, db store.Store) *world { return &world{t: t, svc: New(db), db: db} }
 
 // ---- isolation between workspaces ----
 

@@ -15,7 +15,7 @@ werkbord-team serve                                          # http://127.0.0.1:
 ```
 
 Open the sign-in link that `workspace create` printed, then add members from the Workspace tab; each gets their own
-token. Roles are Owner (everything) and Member (sees the team and the projects they are on).
+token. Roles are Owner (everything, and the only one who appoints admins), Admin (administers members, projects and devices) and Member (sees the team and the projects they are on).
 
 The console is organised as Workspace, Projects, Board, **My Work** (what you are doing and what waits for you),
 **Reviews** (what needs a decision), Repository and Activity. Create a project, then **invite people to it** from its *People & invites* page: they open the link, pick a name, and

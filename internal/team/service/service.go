@@ -23,13 +23,13 @@ import (
 
 // Service is the Team application.
 type Service struct {
-	db  *store.DB
+	db  store.Store
 	now func() time.Time
 	hub *hub
 }
 
 // New builds a Service on a database.
-func New(db *store.DB) *Service { return &Service{db: db, now: time.Now, hub: &hub{}} }
+func New(db store.Store) *Service { return &Service{db: db, now: time.Now, hub: &hub{}} }
 
 // changed wakes the clients waiting for the workspace to change, once a write has committed.
 func (s *Service) changed(workspaceID string, err error) {
@@ -89,7 +89,7 @@ func (s *Service) CreateWorkspace(ctx context.Context, name, ownerName, ownerEma
 	ws := domain.Workspace{ID: domain.NewID(domain.PrefixWorkspace), Name: name, CreatedAt: now}
 	owner := domain.Member{ID: domain.NewID(domain.PrefixMember), WorkspaceID: ws.ID, Name: ownerName, Email: ownerEmail, Role: domain.RoleOwner, CreatedAt: now}
 	token, hash := domain.NewToken()
-	err = s.db.Update(ctx, func(tx *store.Tx) error {
+	err = s.db.Update(ctx, func(tx store.Tx) error {
 		if err := tx.InsertWorkspace(ctx, ws); err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error)
 		return Actor{}, domain.ErrUnauthenticated
 	}
 	var a Actor
-	err := s.db.View(ctx, func(tx *store.Tx) error {
+	err := s.db.View(ctx, func(tx store.Tx) error {
 		m, err := tx.MemberByTokenHash(ctx, domain.HashToken(token))
 		if err != nil {
 			return err
@@ -151,7 +151,7 @@ func (s *Service) RenameWorkspace(ctx context.Context, a Actor, name string) (do
 	}
 	ws := a.Workspace
 	ws.Name = name
-	err = s.db.Update(ctx, func(tx *store.Tx) error { return tx.RenameWorkspace(ctx, ws.ID, name) })
+	err = s.db.Update(ctx, func(tx store.Tx) error { return tx.RenameWorkspace(ctx, ws.ID, name) })
 	s.changed(a.Workspace.ID, err)
 	return ws, err
 }
@@ -164,7 +164,7 @@ func (s *Service) ListMembers(ctx context.Context, a Actor) ([]domain.Member, er
 		return nil, err
 	}
 	var out []domain.Member
-	err := s.db.View(ctx, func(tx *store.Tx) (err error) { out, err = tx.Members(ctx, a.Workspace.ID); return })
+	err := s.db.View(ctx, func(tx store.Tx) (err error) { out, err = tx.Members(ctx, a.Workspace.ID); return })
 	return out, err
 }
 
@@ -175,7 +175,8 @@ type MemberWithToken struct {
 }
 
 // AddMember adds a person to the workspace and returns the token that signs them
-// in. A workspace has one owner, its creator, so a new member cannot be given the owner role.
+// in. A workspace has one owner, its creator, so a new member cannot be given the
+// owner role; only the owner may appoint an admin.
 func (s *Service) AddMember(ctx context.Context, a Actor, name, email string, role domain.Role) (MemberWithToken, error) {
 	if err := a.require(domain.PermMembersManage, "add members"); err != nil {
 		return MemberWithToken{}, err
@@ -197,9 +198,12 @@ func (s *Service) AddMember(ctx context.Context, a Actor, name, email string, ro
 	if role == domain.RoleOwner {
 		return MemberWithToken{}, fmt.Errorf("%w: a workspace has one owner, the person who created it", domain.ErrInvalid)
 	}
+	if !a.Member.Role.CanManage(role) {
+		return MemberWithToken{}, forbidden("add a member with the " + string(role) + " role")
+	}
 	m := domain.Member{ID: domain.NewID(domain.PrefixMember), WorkspaceID: a.Workspace.ID, Name: name, Email: email, Role: role, CreatedAt: s.stamp()}
 	token, hash := domain.NewToken()
-	err = s.db.Update(ctx, func(tx *store.Tx) error { return tx.InsertMember(ctx, m, hash) })
+	err = s.db.Update(ctx, func(tx store.Tx) error { return tx.InsertMember(ctx, m, hash) })
 	s.changed(a.Workspace.ID, err)
 	if err != nil {
 		return MemberWithToken{}, err
@@ -214,13 +218,16 @@ func (s *Service) RemoveMember(ctx context.Context, a Actor, memberID string) er
 		return err
 	}
 	var changed []string
-	err := s.db.Update(ctx, func(tx *store.Tx) error {
+	err := s.db.Update(ctx, func(tx store.Tx) error {
 		m, err := tx.Member(ctx, a.Workspace.ID, memberID)
 		if err != nil {
 			return err
 		}
 		if m.Role == domain.RoleOwner {
 			return fmt.Errorf("%w: the owner cannot be removed from their workspace", domain.ErrConflict)
+		}
+		if !a.Member.Role.CanManage(m.Role) {
+			return forbidden("remove a member with the " + string(m.Role) + " role")
 		}
 		// Whatever they were working on goes back on its board first.
 		projects, err := tx.ProjectsOfMemberWithHeldTickets(ctx, a.Workspace.ID, memberID)
@@ -258,9 +265,14 @@ func (s *Service) ReissueToken(ctx context.Context, a Actor, memberID string) (M
 	}
 	token, hash := domain.NewToken()
 	var m domain.Member
-	err := s.db.Update(ctx, func(tx *store.Tx) (err error) {
+	err := s.db.Update(ctx, func(tx store.Tx) (err error) {
 		if m, err = tx.Member(ctx, a.Workspace.ID, memberID); err != nil {
 			return err
+		}
+		// Reissuing a token hands over the account, so someone who may manage
+		// members still may not take an admin's or the owner's.
+		if memberID != a.Member.ID && !a.Member.Role.CanManage(m.Role) {
+			return forbidden("reissue the token of a member with the " + string(m.Role) + " role")
 		}
 		return tx.SetMemberToken(ctx, a.Workspace.ID, memberID, hash)
 	})
@@ -280,12 +292,12 @@ func (s *Service) ListProjects(ctx context.Context, a Actor) ([]domain.Project, 
 		only = ""
 	}
 	var out []domain.Project
-	err := s.db.View(ctx, func(tx *store.Tx) (err error) { out, err = tx.Projects(ctx, a.Workspace.ID, only); return })
+	err := s.db.View(ctx, func(tx store.Tx) (err error) { out, err = tx.Projects(ctx, a.Workspace.ID, only); return })
 	return out, err
 }
 
 // visibleProject loads a project the actor may see, or reports it as not found.
-func (s *Service) visibleProject(ctx context.Context, tx *store.Tx, a Actor, id string) (domain.Project, error) {
+func (s *Service) visibleProject(ctx context.Context, tx store.Tx, a Actor, id string) (domain.Project, error) {
 	p, err := tx.Project(ctx, a.Workspace.ID, id)
 	if err != nil {
 		return p, err
@@ -306,7 +318,7 @@ func (s *Service) visibleProject(ctx context.Context, tx *store.Tx, a Actor, id 
 // GetProject returns a project the actor can see.
 func (s *Service) GetProject(ctx context.Context, a Actor, id string) (domain.Project, error) {
 	var p domain.Project
-	err := s.db.View(ctx, func(tx *store.Tx) (err error) { p, err = s.visibleProject(ctx, tx, a, id); return })
+	err := s.db.View(ctx, func(tx store.Tx) (err error) { p, err = s.visibleProject(ctx, tx, a, id); return })
 	return p, err
 }
 
@@ -336,7 +348,7 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 	}
 	now := s.stamp()
 	p := domain.Project{ID: domain.NewID(domain.PrefixProject), WorkspaceID: a.Workspace.ID, Name: name, Description: desc, Repository: repo, CreatedAt: now, UpdatedAt: now}
-	err = s.db.Update(ctx, func(tx *store.Tx) error {
+	err = s.db.Update(ctx, func(tx store.Tx) error {
 		if err := tx.InsertProject(ctx, p); err != nil {
 			return err
 		}
@@ -357,7 +369,7 @@ type ProjectPatch struct {
 // UpdateProject edits or archives a project.
 func (s *Service) UpdateProject(ctx context.Context, a Actor, id string, patch ProjectPatch) (domain.Project, error) {
 	var p domain.Project
-	err := s.db.Update(ctx, func(tx *store.Tx) (err error) {
+	err := s.db.Update(ctx, func(tx store.Tx) (err error) {
 		if p, err = s.visibleProject(ctx, tx, a, id); err != nil {
 			return err
 		}
@@ -402,7 +414,7 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, id string, patch P
 // ListProjectMembers lists the members on a project the actor can see, as members.
 func (s *Service) ListProjectMembers(ctx context.Context, a Actor, projectID string) ([]domain.Member, error) {
 	var out []domain.Member
-	err := s.db.View(ctx, func(tx *store.Tx) error {
+	err := s.db.View(ctx, func(tx store.Tx) error {
 		if _, err := s.visibleProject(ctx, tx, a, projectID); err != nil {
 			return err
 		}
@@ -433,14 +445,14 @@ type Person struct {
 // workspace owner first and then by name.
 func (s *Service) ListProjectPeople(ctx context.Context, a Actor, projectID string) ([]Person, error) {
 	var out []Person
-	err := s.view(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.view(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		out, err = people(ctx, tx, a.Workspace.ID, projectID)
 		return err
 	})
 	return out, err
 }
 
-func people(ctx context.Context, tx *store.Tx, workspaceID, projectID string) ([]Person, error) {
+func people(ctx context.Context, tx store.Tx, workspaceID, projectID string) ([]Person, error) {
 	pms, err := tx.ProjectMembers(ctx, workspaceID, projectID)
 	if err != nil {
 		return nil, err
@@ -464,7 +476,7 @@ func (s *Service) AddProjectMember(ctx context.Context, a Actor, projectID, memb
 		_, err := domain.ParseProjectRole(string(role))
 		return err
 	}
-	return s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	return s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPMembersManage, "change who is on a project"); err != nil {
 			return err
 		}
@@ -489,7 +501,7 @@ func (s *Service) AddProjectMember(ctx context.Context, a Actor, projectID, memb
 // on goes back on the board, available. The owner has a place on every project
 // they create, but nothing forces them to keep it.
 func (s *Service) RemoveProjectMember(ctx context.Context, a Actor, projectID, memberID string) error {
-	return s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	return s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPMembersManage, "change who is on a project"); err != nil {
 			return err
 		}
@@ -505,7 +517,7 @@ func (s *Service) RemoveProjectMember(ctx context.Context, a Actor, projectID, m
 }
 
 // releaseAll puts back the tickets a member holds in progress on a project and records it.
-func (s *Service) releaseAll(ctx context.Context, tx *store.Tx, workspaceID, projectID, memberID, actorID, why string) error {
+func (s *Service) releaseAll(ctx context.Context, tx store.Tx, workspaceID, projectID, memberID, actorID, why string) error {
 	now := s.stamp()
 	released, err := tx.ReleaseHeld(ctx, workspaceID, projectID, memberID, now)
 	if err != nil {

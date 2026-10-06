@@ -12,7 +12,7 @@ import (
 // It never sends a stop command to a member's runner.
 func (s *Service) ArchiveTicket(ctx context.Context, a Actor, projectID, ticketID string, version int64, archived bool) (domain.Ticket, error) {
 	var k domain.Ticket
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) (err error) {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
 		if err := x.require(domain.PPTicketsView, "see this project's tickets"); err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ func (s *Service) ArchiveTicket(ctx context.Context, a Actor, projectID, ticketI
 
 func (s *Service) ArchiveDone(ctx context.Context, a Actor, projectID string) (int, error) {
 	n := 0
-	err := s.mutate(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPTicketsReopen, "archive finished tickets"); err != nil {
 			return err
 		}

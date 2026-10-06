@@ -34,7 +34,7 @@ func (x access) require(p domain.ProjectPermission, what string) error {
 
 // access loads a project the actor may see, with their role on it. A project the
 // actor may not see is reported as not found.
-func (s *Service) access(ctx context.Context, tx *store.Tx, a Actor, projectID string) (access, error) {
+func (s *Service) access(ctx context.Context, tx store.Tx, a Actor, projectID string) (access, error) {
 	p, err := tx.Project(ctx, a.Workspace.ID, projectID)
 	if err != nil {
 		return access{}, err
@@ -61,8 +61,8 @@ func (s *Service) access(ctx context.Context, tx *store.Tx, a Actor, projectID s
 // mutate runs fn as one write transaction on a project: it resolves the actor's
 // access, lets fn change things, moves the project's revision, and, once the
 // transaction has committed, wakes everyone waiting for the project to change.
-func (s *Service) mutate(ctx context.Context, a Actor, projectID string, fn func(tx *store.Tx, x access) error) error {
-	err := s.db.Update(ctx, func(tx *store.Tx) error {
+func (s *Service) mutate(ctx context.Context, a Actor, projectID string, fn func(tx store.Tx, x access) error) error {
+	err := s.db.Update(ctx, func(tx store.Tx) error {
 		x, err := s.access(ctx, tx, a, projectID)
 		if err != nil {
 			return err
@@ -81,8 +81,8 @@ func (s *Service) mutate(ctx context.Context, a Actor, projectID string, fn func
 }
 
 // view runs fn as a read-only transaction with the actor's access to a project.
-func (s *Service) view(ctx context.Context, a Actor, projectID string, fn func(tx *store.Tx, x access) error) error {
-	return s.db.View(ctx, func(tx *store.Tx) error {
+func (s *Service) view(ctx context.Context, a Actor, projectID string, fn func(tx store.Tx, x access) error) error {
+	return s.db.View(ctx, func(tx store.Tx) error {
 		x, err := s.access(ctx, tx, a, projectID)
 		if err != nil {
 			return err
@@ -191,7 +191,7 @@ func (s *Service) WaitForChange(ctx context.Context, a Actor, projectID string, 
 	defer timer.Stop()
 	for {
 		var rev int64
-		err := s.view(ctx, a, projectID, func(tx *store.Tx, x access) error { rev = x.Project.Revision; return nil })
+		err := s.view(ctx, a, projectID, func(tx store.Tx, x access) error { rev = x.Project.Revision; return nil })
 		if err != nil {
 			return Sync{}, err
 		}

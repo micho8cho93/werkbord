@@ -35,6 +35,11 @@ var teamAllowed = []string{
 	module + "/internal/httpkit",
 	module + "/internal/sqlitekit",
 	module + "/internal/logging",
+	// What a Team server needs to know a device is who it says: public keys and the
+	// signed-message format and its checks. Not deviceid/localidentity, the one place
+	// a private key lives, which no Team code may link (TestTeamNeverLinksADevicesPrivateKey).
+	module + "/internal/deviceid",
+	module + "/internal/envelope",
 }
 
 // teamOnlyModules are third-party modules that only Team may use: they must never
@@ -46,6 +51,23 @@ var teamOnlyModules = []string{}
 // teamForbiddenStdlib are standard-library packages Team's own code must not
 // import: it never starts a process or reaches into a machine.
 var teamForbiddenStdlib = []string{"os/exec", "plugin", "net/rpc"}
+
+// teamInfraTree is where Team's *infrastructure* code may one day live: the
+// narrowly scoped supervision of the processes a Team deployment itself needs (its
+// private-network node, its replicated database), as distinct from the developer
+// execution Team must never do (shell, Git, agents, model providers, a member's
+// computer). Nothing is there yet. The line is drawn now, so that when something
+// is, it has to be granted here, by name, in review, and cannot be added by
+// loosening the rule that keeps developer execution out. See infra_test.go.
+const teamInfraTree = teamTree + "/infra"
+
+// teamInfraExec is the whole of the exception to "Team never starts a process": a
+// package under teamInfraTree, and the exact programs it may start. It is empty.
+// A grant is checked by TestTheInfrastructureExceptionIsNarrow: the programs must
+// be named by constants in the code and be ones that are not a way to run
+// developer work, the package may not import any other Team package that handles a
+// request, and nothing but Team's wiring may import it.
+var teamInfraExec = map[string][]string{}
 
 // teamForbiddenDeps are third-party packages that give remote access to a machine
 // (a private-network node, SSH, a pseudo-terminal) and so have no place anywhere in
@@ -225,7 +247,9 @@ func TestTeamCodeNeverExecutesAnything(t *testing.T) {
 	for _, p := range pkgs {
 		for _, imp := range p.Imports {
 			for _, bad := range teamForbiddenStdlib {
-				if imp == bad {
+				// The one exception is an infrastructure package granted os/exec by name
+				// (teamInfraExec), and only that package, and only os/exec.
+				if imp == bad && !(bad == "os/exec" && len(teamInfraExec[p.ImportPath]) > 0) {
 					t.Errorf("%s imports %s: Team coordinates and must never run commands or reach into a computer", p.ImportPath, imp)
 				}
 			}

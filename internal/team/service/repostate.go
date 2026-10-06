@@ -77,7 +77,7 @@ type Attention struct {
 func (s *Service) RepositoryState(ctx context.Context, a Actor, projectID string) (RepoState, error) {
 	var st RepoState
 	now := s.stamp()
-	err := s.view(ctx, a, projectID, func(tx *store.Tx, x access) error {
+	err := s.view(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPRepositoryView, "see the repository state"); err != nil {
 			return err
 		}
