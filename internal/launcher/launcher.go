@@ -130,6 +130,8 @@ type Launcher struct {
 	// someone has seen the new controller come up, and refuses every later update while it is there. That someone is
 	// the next connection that finds the controller running on the new version.
 	unverified struct{ prev, version string }
+	// adoptNoticed is the update (running>bundled) whose deferral the person has already been told about.
+	adoptNoticed string
 }
 
 // Install is a werkbord program that is installed on this computer.
@@ -340,7 +342,22 @@ func (l *Launcher) Connect(ctx context.Context, report func(Step)) (Connection, 
 		if err := l.checkAuth(ctx, cfg); err != nil {
 			return Connection{}, err
 		}
-		return connection(cfg, v, l.finishUpgrade(v))
+		notice := l.finishUpgrade(v)
+		if l.shouldAdopt(inst, v) {
+			// This app is newer than the program the running controller is (it was just updated, in place or by a new
+			// disk image): bring the controller up to the program the app carries, the way the installer does, which
+			// refuses while agents are working. When it refuses the controller is left exactly as it is.
+			say(PhaseUpgrading, fmt.Sprintf("Updating Werkbord %s → %s…", v, l.opt.Version))
+			nv, n, aerr := l.adopt(ctx, cfg, inst, v)
+			if aerr != nil {
+				return Connection{}, aerr
+			}
+			v = nv
+			if n != "" {
+				notice = strings.TrimSpace(notice + " " + n)
+			}
+		}
+		return connection(cfg, v, notice)
 	}
 
 	// Nothing is answering: get a controller running.
@@ -458,6 +475,97 @@ func (l *Launcher) upgrade(ctx context.Context, cfg config.Config, inst Install)
 	return l.opt.Run(runCtx, l.childEnv(ctx, cfg), l.opt.Bundled, "install-release", inst.Path)
 }
 
+// shouldAdopt: the installed program is older than the one this app ships (shouldUpgrade) and so is the controller
+// that is running. A controller that already runs the app's version, or a newer one, is left alone.
+func (l *Launcher) shouldAdopt(inst Install, running string) bool {
+	return l.shouldUpgrade(inst) && update.Release(running) && update.Compare(running, l.opt.Version) < 0
+}
+
+// adopt brings a controller that is running up to the program this app ships, by the same `install-release` the installer uses, and
+// so with the same guarantees: it refuses while coding agents are working or a runner has unfinished work, takes a snapshot of the
+// database first, and puts the old program, and the database, back if the new controller does not come up. When it does refuse, or
+// has to put things back, the controller is as it was, and what is returned is that controller's version and a notice for
+// the person, said once (the window reconnects, and this must not become a dialog on every reload).
+func (l *Launcher) adopt(ctx context.Context, cfg config.Config, inst Install, running string) (version, notice string, err error) {
+	out, uerr := l.upgrade(ctx, cfg, inst)
+	v, werr := l.waitHealthy(ctx, cfg.ControllerURL())
+	if werr != nil {
+		why := werr.Error()
+		if uerr != nil {
+			why = lastLine(out, uerr)
+		}
+		return "", "", fmt.Errorf("Werkbord %s did not finish replacing %s, and Werkbord is not answering: %s", trimV(l.opt.Version), trimV(running), why)
+	}
+	if uerr != nil {
+		key := running + ">" + l.opt.Version
+		if l.adoptNoticed == key {
+			return v, "", nil
+		}
+		l.adoptNoticed = key
+		return v, fmt.Sprintf("Werkbord %s came with this app, but your Werkbord is still on %s: %s. It moves to the new one the next time you open Werkbord with nothing running, or when you choose Update now.",
+			trimV(l.opt.Version), trimV(v), refusal(out, uerr)), nil
+	}
+	inst.Version = l.opt.Version
+	l.install = inst
+	l.checker = nil
+	if v != l.opt.Version {
+		return v, fmt.Sprintf("Werkbord %s was installed, but the controller reports %s.", trimV(l.opt.Version), trimV(v)), nil
+	}
+	return v, "", nil
+}
+
+// refusal is why `install-release` did not replace the program, in words a person can use.
+func refusal(out string, err error) string {
+	msg := lastLine(out, err)
+	switch {
+	case strings.Contains(msg, "is active on this computer"), strings.Contains(msg, "finish or resolve it"):
+		return "coding agents are working (or a runner has unfinished work)"
+	}
+	return msg
+}
+
+func trimV(v string) string { return strings.TrimPrefix(v, "v") }
+
+// PendingProgramUpdate says whether this app ships a newer program than the one installed: what the app
+// brings with it, which needs no network and no download, and which is what finishes an update of the app.
+func (l *Launcher) PendingProgramUpdate(ctx context.Context) (installed, bundled string, ok bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	inst := l.FindInstall(ctx)
+	if inst.Path == "" || !l.shouldUpgrade(inst) {
+		return inst.Version, l.opt.Version, false
+	}
+	return inst.Version, l.opt.Version, true
+}
+
+// AdoptBundled installs the program this app ships over the installed one (see adopt), when the person asks. The
+// returned text is what the program said, which is the reason when it refuses.
+func (l *Launcher) AdoptBundled(ctx context.Context) (string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	cfg, err := l.Config(ctx)
+	if err != nil {
+		return "", err
+	}
+	inst := l.FindInstall(ctx)
+	if inst.Path == "" || !l.shouldUpgrade(inst) {
+		return "", errors.New("the program installed on this computer is not older than the one in this app")
+	}
+	_, wasRunning := l.Health(ctx, cfg.ControllerURL())
+	out, err := l.upgrade(ctx, cfg, inst)
+	l.install = l.FindInstall(ctx)
+	l.checker = nil
+	if err != nil {
+		return out, fmt.Errorf("%s", refusal(out, err))
+	}
+	if !wasRunning && l.install.Path != "" && l.install.Version != inst.Version {
+		// As in ApplyUpdate: a controller that was not running is left stopped, with the old program kept beside the new
+		// one until the new one has been seen to start, which the connection that follows is.
+		l.unverified.prev, l.unverified.version = l.install.Path+".prev", l.install.Version
+	}
+	return out, nil
+}
+
 // installBundled puts the program this app ships where the installer puts it. The
 // copy is staged beside its destination and renamed into place, so a partial file is
 // never visible, and is run once before it is, to see that it is what it says.
@@ -551,24 +659,38 @@ func startError(cmd, out string, err error, cfg config.Config) error {
 // ---- updates ----
 
 // UpdateStatus says whether a newer stable release exists than the installed
-// program. A build from source is never asked about.
+// program. A build from source is never asked about, and neither is anything when the
+// person turned looking for updates off (noUpdateCheck in config.json, or WERKBORD_NO_UPDATE_CHECK): the
+// controller honours that, and so does the app, which must not ask the internet what the person said not to.
 func (l *Launcher) UpdateStatus(ctx context.Context, force bool) update.Status {
+	cfg, cerr := l.Config(ctx)
 	l.mu.Lock()
 	inst := l.install
 	if inst.Path == "" {
 		inst = l.FindInstall(ctx)
 		l.install = inst
 	}
-	if l.checker == nil || l.checker.Current != inst.Version {
-		current := inst.Version
-		if current == "" {
-			current = l.opt.Version
-		}
-		l.checker = &update.Checker{Source: l.opt.Source, Current: current}
+	current := inst.Version
+	if current == "" {
+		current = l.opt.Version
+	}
+	if cerr != nil {
+		l.mu.Unlock()
+		return update.Status{Current: current, Release: update.Release(current), Error: "Werkbord's settings could not be read: " + cerr.Error()}
+	}
+	if l.checker == nil || l.checker.Current != current || l.checker.Disabled != cfg.NoUpdateCheck {
+		l.checker = &update.Checker{Source: l.opt.Source, Current: current, Disabled: cfg.NoUpdateCheck}
 	}
 	checker := l.checker
 	l.mu.Unlock()
 	return checker.Status(ctx, force)
+}
+
+// UpdatesAllowed says whether looking for updates is allowed at all: not when the person turned it off (noUpdateCheck in
+// config.json, or WERKBORD_NO_UPDATE_CHECK). If the settings cannot be read it is not allowed: nothing is asked on a guess.
+func (l *Launcher) UpdatesAllowed(ctx context.Context) bool {
+	cfg, err := l.Config(ctx)
+	return err == nil && !cfg.NoUpdateCheck
 }
 
 // ApplyUpdate installs the newest release by running the installed program's own

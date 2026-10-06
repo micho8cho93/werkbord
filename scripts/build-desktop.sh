@@ -27,6 +27,13 @@
 #   CODESIGN_KEYCHAIN  the keychain that holds the identity (CI imports it into a temporary one and
 #                      never touches the login keychain). Default: the keychains the user has.
 #   OUT                where to put the results (default dist/desktop)
+#   SPARKLE_PUBLIC_KEY the public half of the update-signing key (base64). Default: the one in
+#                      desktop/build/darwin/sparkle-public-key, which is committed (docs/DESKTOP_RELEASE.md, step 6).
+#                      With a key, the app carries Sparkle and can replace itself; without one it does not, and updates
+#                      its program only, as before. A release must have one. SPARKLE=0 leaves Sparkle out.
+#
+# With --package and Sparkle, the disk image is joined by Werkbord_<version>_darwin_<arch>.zip, the archive Sparkle
+# installs from (scripts/make-appcast.sh signs it and writes the feed).
 #
 # --release (or RELEASE=1) is the mode that makes what is published. It refuses to build unless
 # the result could be distributed: a real Developer ID identity (never ad hoc), a secure timestamp, the
@@ -40,6 +47,9 @@
 # says so and goes on, un-notarized.
 #
 # Test hooks, not reachable in release mode (the script stops if they are set there):
+#   SPARKLE_FEED_URL=…        where the app looks for updates (a local server, for scripts/test-desktop-update.sh); a release
+#                             always has the one address below, and is checked for it
+#   UPDATER_TEST=1            the build that installs a valid update without asking, so the real updater can be run unattended
 #   CODESIGN_TIMESTAMP=none   sign without contacting Apple's timestamp server (offline tests)
 #   CODESIGN=…, HDIUTIL=…     the programs it runs (tests substitute recorders; also XCRUN, SPCTL for the notarization)
 set -eu
@@ -94,6 +104,17 @@ PLIST_VERSION=$(printf '%s' "${VERSION#v}" | sed 's/-.*//')
 [ "$VERSION" != dev ] || PLIST_VERSION=0.0.0
 IDENTITY=${CODESIGN_IDENTITY:--}
 TIMESTAMP=${CODESIGN_TIMESTAMP:-}
+# Where the app looks for updates: the appcast every individual release uploads. /releases/latest/download/<file> follows the
+# release marked "latest", which only individual releases are (release.yml), so a Team release can never be the feed.
+FEED_URL=https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml
+SPARKLE_KEY=${SPARKLE_PUBLIC_KEY:-}
+[ -n "$SPARKLE_KEY" ] || { [ -f desktop/build/darwin/sparkle-public-key ] && SPARKLE_KEY=$(tr -d '[:space:]' < desktop/build/darwin/sparkle-public-key); } || true
+[ "${SPARKLE:-}" != 0 ] || SPARKLE_KEY=""
+WITH_SPARKLE=""
+[ -z "$SPARKLE_KEY" ] || WITH_SPARKLE=1
+GO_TAGS=desktop,production
+[ -z "${UPDATER_TEST:-}" ] || GO_TAGS=$GO_TAGS,updatertest
+
 ENTITLEMENTS=desktop/build/darwin/entitlements.plist
 
 # ---- what a release build insists on, before anything is built ----
@@ -103,6 +124,10 @@ if [ -n "$RELEASE" ]; then
   [ -z "$TIMESTAMP" ] || die "CODESIGN_TIMESTAMP is for tests only: a release is signed with Apple's secure timestamp"
   [ "$CODESIGN" = codesign ] || die "CODESIGN is for tests only: a release is signed with the system's codesign"
   [ "$HDIUTIL" = hdiutil ] || die "HDIUTIL is for tests only"
+  [ -z "${SPARKLE_FEED_URL:-}" ] || die "SPARKLE_FEED_URL is for tests only: a release looks for updates at $FEED_URL"
+  [ -z "${UPDATER_TEST:-}" ] || die "UPDATER_TEST is for tests only: that build installs updates without asking"
+  [ -z "${SPARKLE_PUBLIC_KEY:-}" ] || die "SPARKLE_PUBLIC_KEY is for tests only: a release carries the key committed in desktop/build/darwin/sparkle-public-key"
+  [ "${SPARKLE:-}" != 0 ] || die "a release carries Sparkle: the app must be able to update itself"
   [ -z "${XCRUN:-}${SPCTL:-}${DITTO:-}" ] || die "XCRUN, SPCTL and DITTO are for tests only: a release is notarized with Apple's own tools"
   [ "$ARCH" = universal ] || die "a release is one universal disk image (ARCH=universal), so that nobody has to know their chip; not \"$ARCH\""
   printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' ||
@@ -112,6 +137,8 @@ if [ -n "$RELEASE" ]; then
   # A release is notarized, so it must be able to be: found out now and not after the build.
   [ -n "${NOTARY_KEY_FILE:-}" ] && [ -n "${NOTARY_KEY_ID:-}" ] && [ -n "${NOTARY_ISSUER:-}" ] ||
     die "a release is notarized: NOTARY_KEY_FILE, NOTARY_KEY_ID and NOTARY_ISSUER must all be set (docs/DESKTOP_RELEASE.md, steps 4-5)"
+  # ... and it carries the updater, which needs the public half of the update-signing key to be committed.
+  [ -n "$SPARKLE_KEY" ] || die "a release needs the update-signing public key in desktop/build/darwin/sparkle-public-key (docs/DESKTOP_RELEASE.md, step 6)"
 else
   case "$TIMESTAMP" in ""|none) ;; *) die "CODESIGN_TIMESTAMP can only be \"none\"" ;; esac
   [ -z "$NOTARIZE" ] || [ "$IDENTITY" != "-" ] || die "--notarize needs a Developer ID identity: Apple does not notarize an ad hoc signature"
@@ -140,7 +167,7 @@ for a in $ARCHS; do
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a \
     CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" \
     CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0 -framework UniformTypeIdentifiers" \
-      go build -trimpath -tags desktop,production -ldflags "-s -w -X main.version=$VERSION" \
+      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w -X main.version=$VERSION" \
       -o "$STAGE/window-$a" .
   )
   HELPERS="$HELPERS $STAGE/helper-$a"; WINDOWS="$WINDOWS $STAGE/window-$a"
@@ -171,6 +198,40 @@ sed "s/@VERSION@/$PLIST_VERSION/g" desktop/build/darwin/Info.plist > "$APP/Conte
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
+# 4b. Sparkle, which replaces the app in place. Loaded at run time from Contents/Frameworks (desktop/updater_darwin.m), so
+# the window works whether or not it is there. Its keys say where the feed is and who may sign what it offers; every key
+# that would make it ask the internet on its own, or install something unattended, is off.
+if [ -n "$WITH_SPARKLE" ]; then
+  SPARKLE_HOME=$(scripts/fetch-sparkle.sh) || die "Sparkle is not available (scripts/fetch-sparkle.sh)"
+  mkdir -p "$APP/Contents/Frameworks"
+  ditto "$SPARKLE_HOME/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+  # The XPC services are for sandboxed apps (an app that cannot start a process or write where it wants). This one is not
+  # sandboxed (it runs the person's agents), so Sparkle's installer runs from its own helper, as Sparkle's documentation says.
+  rm -rf "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices" "$APP/Contents/Frameworks/Sparkle.framework/XPCServices"
+  PB=/usr/libexec/PlistBuddy
+  P="$APP/Contents/Info.plist"
+  $PB -c "Add :SUFeedURL string ${SPARKLE_FEED_URL:-$FEED_URL}" "$P"
+  $PB -c "Add :SUPublicEDKey string $SPARKLE_KEY" "$P"
+  $PB -c "Add :SUEnableAutomaticChecks bool false" "$P"      # no schedule: it asks only when a person does
+  $PB -c "Add :SUSendProfileInfo bool false" "$P"            # nothing about this computer is sent with the request
+  $PB -c "Add :SUVerifyUpdateBeforeExtraction bool true" "$P" # the EdDSA signature is checked before the archive is opened
+  $PB -c "Add :SURequireSignedFeed bool true" "$P"           # the feed itself must be signed by the same key
+  if [ -n "${UPDATER_TEST:-}" ]; then
+    # A test app has its own identity (its preferences, caches and single-instance lock are not the real app's) and takes its
+    # environment from a file, because the system relaunches it after an update with none (desktop/updater_testenv_darwin.go).
+    [ -n "${UPDATER_TEST_ENV_FILE:-}" ] || die "UPDATER_TEST needs UPDATER_TEST_ENV_FILE, the file the test app takes its environment from"
+    $PB -c "Set :CFBundleIdentifier dev.werkbord.desktop.test" "$P"
+    $PB -c "Add :WBTestEnvFile string $UPDATER_TEST_ENV_FILE" "$P"
+    $PB -c "Add :SUAllowsAutomaticUpdates bool true" "$P"
+    $PB -c "Add :SUAutomaticallyUpdate bool true" "$P"
+    echo "build-desktop: TEST ONLY: this app installs a valid update without asking. Do not distribute this build." >&2
+  else
+    $PB -c "Add :SUAllowsAutomaticUpdates bool false" "$P"
+    $PB -c "Add :SUAutomaticallyUpdate bool false" "$P"
+  fi
+  plutil -lint "$P" >/dev/null
+fi
+
 # ---- signing ----
 #
 # sign_code <path> [entitlements]: one piece of code. A real identity gets the hardened runtime
@@ -195,6 +256,15 @@ sign_code() {
 # what was not meant to be there; check_bundle below then proves nothing was missed.
 sign_bundle() {
   app=$1
+  if [ -n "$WITH_SPARKLE" ]; then
+    # Sparkle's own, innermost first, as its documentation has it: the installer and the updater app it starts, then
+    # the framework that holds them. All with this identity, so that the framework loads under the hardened runtime
+    # (library validation wants the same team) and Sparkle accepts an update signed by the same one.
+    fw="$app/Contents/Frameworks/Sparkle.framework"
+    sign_code "$fw/Versions/B/Autoupdate"
+    sign_code "$fw/Versions/B/Updater.app"
+    sign_code "$fw"
+  fi
   sign_code "$app/Contents/Helpers/werkbord"
   sign_code "$app" "$ENTITLEMENTS"
 }
@@ -212,6 +282,13 @@ check_bundle() {
 # 5. Sign, and check what was signed.
 sign_bundle "$APP"
 check_bundle "$APP"
+
+# 5a. What the app says about updating is what it should: where it looks, who may sign what it installs, nothing unattended.
+if [ -n "$WITH_SPARKLE" ] && [ -n "$RELEASE" ]; then
+  scripts/check-desktop-updater.sh --release "$APP" || die "the app's update settings are not what a release must have"
+elif [ -n "$WITH_SPARKLE" ]; then
+  scripts/check-desktop-updater.sh "$APP" || die "the app's update settings are not what they should be"
+fi
 
 # 5b. Notarize and staple the app itself, before it goes into the disk image: the ticket stapled to an image is not carried
 # to an app that is dragged out of it (scripts/notarize-desktop.sh says why that matters).
@@ -264,6 +341,14 @@ if [ -n "$PACKAGE" ]; then
   fi
   # The checksum is of the finished file: stapling changes it.
   (cd "$OUT" && shasum -a 256 "$DMG" > "$DMG.sha256")
+  if [ -n "$WITH_SPARKLE" ]; then
+    # What Sparkle installs from: the app as it is now (signed, notarized, stapled), zipped the way Finder does.
+    ZIP="Werkbord_${VERSION#v}_darwin_${ARCH}.zip"
+    rm -f "$OUT/$ZIP" "$OUT/$ZIP.sha256"
+    ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT/$ZIP"
+    (cd "$OUT" && shasum -a 256 "$ZIP" > "$ZIP.sha256")
+    echo "wrote $OUT/$ZIP ($(du -h "$OUT/$ZIP" | cut -f1)), for scripts/make-appcast.sh"
+  fi
   echo "wrote $OUT/$DMG ($(du -h "$OUT/$DMG" | cut -f1))"
   if [ "$IDENTITY" = "-" ]; then
     echo "note: signed ad hoc. Someone else's Mac will warn that it cannot check the app until it is signed with a Developer ID and notarized (docs/DESKTOP.md)."

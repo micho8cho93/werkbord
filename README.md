@@ -13,12 +13,20 @@ without ever running anything on anyone's computer. See [docs/PRODUCTS.md](docs/
 
 ### Most people: the Mac app
 
-1. Download **`Werkbord_<version>_darwin_universal.dmg`** from the
-   [latest release](https://github.com/micho8cho93/werkbord/releases/latest). It is one file for every Mac, Apple Silicon
-   and Intel.
+> **Not published yet.** The Mac app is built, signed-and-notarized by an automated release, and tested, but no release has carried it
+> so far: the first one waits on the owner's Apple Developer account ([docs/DESKTOP_RELEASE.md](docs/DESKTOP_RELEASE.md)).
+> Until then use the installer below, which installs the same Werkbord. *(Delete this note when the release that carries the app is
+> out: it is step 8 of that checklist.)*
+
+1. Download **[`Werkbord.dmg`](https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg)** (the same
+   file as `Werkbord_<version>_darwin_universal.dmg` on the [latest release](https://github.com/micho8cho93/werkbord/releases/latest)).
+   It is one file for every Mac, Apple Silicon and Intel, for macOS 13 or later. From a terminal:
+   `curl -fL -o Werkbord.dmg https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg`.
 2. Open it, drag **Werkbord** onto **Applications**, and open it from there.
 
-That is all: no Terminal. The disk image is signed with a Developer ID and notarized by Apple, so the first launch shows
+That is all: no Terminal. The app then keeps itself up to date when you ask it to (**Werkbord → Check for Updates…**, or
+**Update now** in the app), after verifying a signature you can read about in [docs/DESKTOP.md](docs/DESKTOP.md#updates).
+The disk image is signed with a Developer ID and notarized by Apple, so the first launch shows
 only the usual question macOS asks about any app from the Internet ("Werkbord is an app downloaded from the Internet. Are
 you sure you want to open it?"): choose **Open**. The first time, the app sets Werkbord up on your computer (the program,
 your data and database, and a background service that keeps it running when you close the window), then shows it. Closing

@@ -16,6 +16,9 @@ import (
 // and installs nothing and, unless WERKBORD_DESKTOP_SERVICE is set, no login service either.
 func launcherOptions() launcher.Options {
 	o := launcher.Options{Version: version}
+	// Set the program up without a login service (`werkbord setup --no-service`), as a terminal can: for trying the app
+	// on a computer where it must not make one (tests, and a throwaway home directory).
+	o.NoService = os.Getenv("WERKBORD_DESKTOP_NO_SERVICE") != ""
 	if cli := os.Getenv("WERKBORD_DESKTOP_CLI"); cli != "" {
 		o.Bundled, o.NoInstall = cli, true
 		o.NoService = os.Getenv("WERKBORD_DESKTOP_SERVICE") == ""

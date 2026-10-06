@@ -15,7 +15,13 @@
 #      (scripts/check-desktop-signature.sh), the stapled ticket, and Gatekeeper's verdict
 #      (it must say "Notarized Developer ID");
 #   5. runs the program the app carries and checks it says the version of the tag, and that the app says
-#      so too.
+#      so too;
+#   6. downloads the update archive the installed apps update from (Werkbord_<version>_darwin_<arch>.zip), checks it
+#      against its .sha256, and checks it holds the very same app, signed and notarized as a release must be and with the
+#      update settings a release must have (scripts/check-desktop-updater.sh), as releases from 1.2.0 on must;
+#   7. checks the window and the program each hold Apple Silicon and Intel code, and that Werkbord.dmg, the download
+#      link with no version in it (the website's button), is that same disk image.
+# (The feed that points at that archive is checked by scripts/verify-appcast.sh.)
 # Anything else is a failure with the step that failed. Nothing is installed, and what it mounts and
 # copies is removed.
 #
@@ -109,7 +115,43 @@ case $(cat "$WORK/out") in
 esac
 step "ok  Gatekeeper accepts the app: Notarized Developer ID"
 
-# 5. Both kinds of Mac.
+# 5. The archive the app updates itself from: the very same app, and nothing else. (Releases before 1.2.0 had none.)
+case "$version" in
+  0.*|1.0.*|1.1.*) step "ok  (version $version is from before the app updated itself: it has no update archive)" ;;
+  *)
+    zip="Werkbord_${version}_darwin_${ARCH}.zip"
+    # shellcheck disable=SC2086
+    $CURL -fsSL $RETRY -o "$WORK/$zip" "$BASE/$tag/$zip" || die "the release has no update archive $zip: installed apps could not be updated"
+    # shellcheck disable=SC2086
+    $CURL -fsSL $RETRY -o "$WORK/$zip.sha256" "$BASE/$tag/$zip.sha256" || die "the release has no checksum for $zip"
+    [ "$(awk '{print $1}' "$WORK/$zip.sha256")" = "$(shasum -a 256 "$WORK/$zip" | awk '{print $1}')" ] || die "the update archive does not match its checksum"
+    mkdir -p "$WORK/unzipped"
+    ditto -x -k "$WORK/$zip" "$WORK/unzipped"
+    UAPP="$WORK/unzipped/Werkbord.app"
+    [ -d "$UAPP" ] || die "the update archive holds no Werkbord.app"
+    "$CODESIGN" --verify --strict --deep "$UAPP" 2>"$WORK/err" || { cat "$WORK/err" >&2; die "the app in the update archive does not verify"; }
+    CODESIGN="$CODESIGN" "$root/scripts/check-desktop-signature.sh" --distribution "$UAPP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app in the update archive is not signed the way a release must be"; }
+    "$root/scripts/check-desktop-updater.sh" --release "$UAPP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app in the update archive has the wrong update settings"; }
+    $XCRUN stapler validate "$UAPP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app in the update archive has no notarization ticket stapled"; }
+    same_a=$("$CODESIGN" -dvvv "$APP" 2>&1 | sed -n 's/^CDHash=//p' | head -1)
+    same_b=$("$CODESIGN" -dvvv "$UAPP" 2>&1 | sed -n 's/^CDHash=//p' | head -1)
+    [ -n "$same_a" ] && [ "$same_a" = "$same_b" ] || die "the app in the update archive is not the app in the disk image"
+    step "ok  the update archive holds the same notarized app as the disk image, with the update settings a release must have"
+    ;;
+esac
+
+# 6b. The link with no version in it, which the website and a one-line curl use, is that same disk image.
+case "$version" in
+  0.*|1.0.*|1.1.*) ;;
+  *)
+    # shellcheck disable=SC2086
+    $CURL -fsSL $RETRY -o "$WORK/Werkbord.dmg" "$BASE/$tag/Werkbord.dmg" || die "the release has no Werkbord.dmg, the download link that never changes (the website's button)"
+    [ "$(shasum -a 256 "$WORK/Werkbord.dmg" | awk '{print $1}')" = "$have" ] || die "Werkbord.dmg is not the disk image of $tag"
+    step "ok  Werkbord.dmg, the link with no version in it, is this disk image"
+    ;;
+esac
+
+# 7. Both kinds of Mac.
 if [ "$ARCH" = universal ] && command -v lipo >/dev/null 2>&1; then
   for exe in "$APP/Contents/MacOS/Werkbord" "$APP/Contents/Helpers/werkbord"; do
     archs=$(lipo -archs "$exe")

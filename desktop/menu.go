@@ -23,9 +23,10 @@ func buildMenu(sh *shell.Shell, ui *wailsUI) *menu.Menu {
 
 	m.Append(menu.WindowMenu())
 
+	// "Check for Updates…" is not here: it is in the application menu, where a Mac has it, added by updater_darwin.m
+	// (Wails's application menu is native and cannot be added to from Go). There is one, and it asks the shell, which
+	// knows whether the app, the program, or neither can be updated now.
 	help := m.AddSubmenu("Help")
-	help.AddText("Check for Updates…", nil, func(*menu.CallbackData) { go sh.CheckForUpdates() })
-	help.AddSeparator()
 	help.AddText("Show Diagnostics…", nil, func(*menu.CallbackData) { go sh.ShowDiagnostics() })
 	help.AddText("Show Controller Log", nil, func(*menu.CallbackData) { go sh.OpenLogs() })
 	help.AddSeparator()

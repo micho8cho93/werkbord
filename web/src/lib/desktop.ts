@@ -83,6 +83,8 @@ export function callDesktop<T>(method: string, args: unknown[] = [], timeoutMs =
 export interface DesktopInfo {
   version: string;
   platform: string;
+  /** This app can replace itself (a build that carries its updater). Optional: an app from before it existed does not send it. */
+  updater?: boolean;
 }
 
 /**

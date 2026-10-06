@@ -75,7 +75,7 @@ if rel
   check(perms({}, rel) == { "contents" => "read" }, "release.yml's default permissions are contents: read")
 
   jobs = rel["jobs"]
-  %w[plan release desktop-build desktop-publish desktop-verify].each { |j| check(jobs.key?(j), "release.yml has no job #{j}") }
+  %w[plan release desktop-build desktop-publish desktop-verify desktop-appcast].each { |j| check(jobs.key?(j), "release.yml has no job #{j}") }
 
   # secrets: one job, and it is read-only
   with_secrets = jobs.select { |_, j| mentions_secret?(j) }.keys
@@ -93,7 +93,7 @@ if rel
     check(build["steps"].any? { |s| s["name"].to_s.start_with?("Remove the certificate") && s["if"].to_s == "always()" }, "the keychain is deleted in a step that always runs")
     check(!steps.include?("gh release"), "desktop-build must not touch the release")
   end
-  %w[desktop-publish desktop-verify].each do |n|
+  %w[desktop-publish desktop-verify desktop-appcast].each do |n|
     j = jobs[n] or next
     check(j["if"].to_s.include?("push"), "#{n} runs only on a tag push, never on the dry run")
     check(!j.key?("environment"), "#{n} holds no secrets and needs no environment")
@@ -101,6 +101,12 @@ if rel
   check(jobs.dig("desktop-publish", "permissions") == { "contents" => "write" }, "desktop-publish is what writes to the release")
   check(jobs.dig("desktop-verify", "runs-on").to_s.start_with?("macos"), "the verification runs on a macOS runner of its own")
   check(Array(jobs.dig("desktop-verify", "needs")).include?("desktop-publish"), "the verification runs after the upload")
+  check(jobs.dig("desktop-appcast", "permissions") == { "contents" => "write" }, "desktop-appcast is what writes the feed to the release")
+  check(Array(jobs.dig("desktop-appcast", "needs")).include?("desktop-verify"), "the feed is published only after the disk image has been verified")
+  # the feed is the only thing a job may delete, and it is the job's own
+  deletes = jobs.flat_map { |n, j| (j["steps"] || []).map { |st| [n, st["run"].to_s] } }.select { |_, r| r.include?("delete-asset") }
+  check(deletes.map(&:first).uniq.all? { |n| n == "desktop-appcast" || n == "desktop-verify" }, "only the feed's own job (and the message of the verification) mention deleting an asset")
+  check(deletes.select { |n, _| n == "desktop-appcast" }.all? { |_, r| r.scan(/delete-asset "\$GITHUB_REF_NAME" (\S+)/).flatten.uniq == ["appcast.xml"] }, "desktop-appcast deletes only appcast.xml")
 
   # pinned actions in the jobs that handle the app
   %w[desktop-build desktop-publish desktop-verify desktop-appcast].each do |n|
@@ -123,7 +129,8 @@ if rel
   # nothing but the new jobs uploads, and what they upload is the disk image's two files
   uploads = jobs.flat_map { |n, j| (j["steps"] || []).map { |s| [n, s["run"].to_s] } }.select { |_, run| run.include?("gh release upload") }
   check(uploads.map(&:first).uniq.all? { |n| %w[desktop-publish desktop-appcast].include?(n) }, "only desktop-publish and desktop-appcast upload to the release")
-  uploads.each { |n, run| check(run.include?("darwin_universal.dmg") || run.include?("appcast.xml"), "#{n} uploads something other than the disk image or the appcast") }
+  uploads.each { |n, run| check(run.include?("darwin_universal") || run.include?("Werkbord.dmg") || run.include?("appcast.xml"), "#{n} uploads something other than the disk image, its update archive or the appcast") }
+  check(jobs.dig("desktop-publish", "steps").to_a.none? { |st| st["run"].to_s.include?("appcast.xml") }, "the feed is not published together with the disk image: it comes after the check")
 end
 
 if $failures.empty?

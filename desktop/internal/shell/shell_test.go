@@ -27,6 +27,11 @@ type fakeLauncher struct {
 	applyEr error
 	applied int
 	steps   []launcher.Step
+	// the program the app carries, against the one installed
+	pending            bool
+	installed, bundled string
+	adopted            int
+	adoptEr            error
 }
 
 func (f *fakeLauncher) Connect(_ context.Context, report func(launcher.Step)) (launcher.Connection, error) {
@@ -44,6 +49,36 @@ func (f *fakeLauncher) ApplyUpdate(context.Context) (string, error) {
 	return "Downloading v1.2.0…\nWerkbord v1.2.0 is running again.\n", f.applyEr
 }
 func (f *fakeLauncher) DiagnosticsText(context.Context) string { return "Controller: answering\n" }
+func (f *fakeLauncher) PendingProgramUpdate(context.Context) (string, string, bool) {
+	return f.installed, f.bundled, f.pending
+}
+func (f *fakeLauncher) AdoptBundled(context.Context) (string, error) {
+	f.mu.Lock()
+	f.adopted++
+	f.mu.Unlock()
+	return "Installed v1.2.0 over v1.1.0.\nWerkbord v1.2.0 is running again.\n", f.adoptEr
+}
+
+// fakeUpdater is Sparkle: it answers the feed from a script and records what it is asked.
+type fakeUpdater struct {
+	mu      sync.Mutex
+	active  bool
+	probe   Probe
+	probeEr error
+	probed  int
+	shown   int
+	busy    func() bool
+}
+
+func (u *fakeUpdater) Active() bool { return u.active }
+func (u *fakeUpdater) Probe(context.Context) (Probe, error) {
+	u.mu.Lock()
+	u.probed++
+	u.mu.Unlock()
+	return u.probe, u.probeEr
+}
+func (u *fakeUpdater) Show()                          { u.mu.Lock(); u.shown++; u.mu.Unlock() }
+func (u *fakeUpdater) GuardRelaunch(busy func() bool) { u.busy = busy }
 
 // fakeUI is the window system: it answers dialogs from a script and records the rest.
 type fakeUI struct {
@@ -327,4 +362,190 @@ type blockingUI struct {
 func (b *blockingUI) Ask(Dialog) string {
 	b.asking <- struct{}{}
 	return <-b.answer
+}
+
+// ---- the app updating itself ----
+
+func newShellWithUpdater(t *testing.T, l *fakeLauncher, ui *fakeUI, u *fakeUpdater) *Shell {
+	t.Helper()
+	if l.cfg.DataDir == "" {
+		l.cfg = config.Default()
+		l.cfg.DataDir = t.TempDir()
+	}
+	return New(Options{Launcher: l, UI: ui, Version: "v1.1.0", Platform: "darwin", Updater: u})
+}
+
+func TestInfoSaysWhetherTheAppCanReplaceItself(t *testing.T) {
+	if got := newShellWithUpdater(t, &fakeLauncher{}, &fakeUI{}, &fakeUpdater{active: true}).Info(); !got.Updater {
+		t.Fatalf("Info = %+v", got)
+	}
+	if got := newShellWithUpdater(t, &fakeLauncher{}, &fakeUI{}, &fakeUpdater{active: false}).Info(); got.Updater {
+		t.Fatalf("an updater that did not start was offered: %+v", got)
+	}
+}
+
+func TestANewerReleaseThanTheAppIsOneQuestionAndItIsTheUpdatersOwn(t *testing.T) {
+	l := &fakeLauncher{status: available()}
+	ui := &fakeUI{}
+	u := &fakeUpdater{active: true, probe: Probe{Found: true, Version: "1.2.0"}}
+	res := newShellWithUpdater(t, l, ui, u).RequestUpdate()
+	if !res.OK || u.probed != 1 || u.shown != 1 {
+		t.Fatalf("result %+v, probed %d, shown %d", res, u.probed, u.shown)
+	}
+	// Not a second question of the shell's, and not the program's own update: the new app moves the controller when it opens.
+	if len(ui.asked) != 0 || l.applied != 0 || l.adopted != 0 || ui.reloads != 0 {
+		t.Fatalf("a second prompt or a second update: dialogs %+v, applied %d, adopted %d", ui.asked, l.applied, l.adopted)
+	}
+	// From the menu it is the same: the updater's window, and nothing else.
+	ui = &fakeUI{}
+	u = &fakeUpdater{active: true, probe: Probe{Found: true, Version: "1.2.0"}}
+	newShellWithUpdater(t, l, ui, u).CheckForUpdates()
+	if len(ui.asked) != 0 || u.shown != 1 {
+		t.Fatalf("menu: dialogs %+v, shown %d", ui.asked, u.shown)
+	}
+}
+
+func TestWhenTheFeedHasNoUpdateYetTheProgramIsStillUpdatedTheOrdinaryWay(t *testing.T) {
+	for name, u := range map[string]*fakeUpdater{
+		"no update in the feed":   {active: true, probe: Probe{}},
+		"the feed cannot be read": {active: true, probeEr: errors.New("HTTP 404")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			l := &fakeLauncher{status: available()}
+			ui := &fakeUI{answers: []string{"Update now"}}
+			res := newShellWithUpdater(t, l, ui, u).RequestUpdate()
+			if !res.OK || l.applied != 1 || u.shown != 0 || len(ui.asked) != 1 || ui.asked[0].Kind != Question {
+				t.Fatalf("result %+v, applied %d, shown %d, dialogs %+v", res, l.applied, u.shown, ui.asked)
+			}
+		})
+	}
+}
+
+func TestAnAppThatCannotReplaceItselfUpdatesTheProgramAsBefore(t *testing.T) {
+	for name, u := range map[string]Updater{"no updater": nil, "an updater that did not start": &fakeUpdater{active: false}} {
+		t.Run(name, func(t *testing.T) {
+			l := &fakeLauncher{status: available()}
+			ui := &fakeUI{answers: []string{"Update now"}}
+			var s *Shell
+			if u == nil {
+				s = newShell(t, l, ui)
+			} else {
+				s = newShellWithUpdater(t, l, ui, u.(*fakeUpdater))
+			}
+			if res := s.RequestUpdate(); !res.OK || l.applied != 1 {
+				t.Fatalf("result %+v, applied %d", res, l.applied)
+			}
+			if f, ok := u.(*fakeUpdater); ok && f.probed != 0 {
+				t.Fatal("an updater that did not start was asked")
+			}
+		})
+	}
+}
+
+func TestTheFeedIsNotAskedWhenTheAppIsAlreadyTheNewestOrUpdatesAreOff(t *testing.T) {
+	for name, st := range map[string]update.Status{
+		"the app is the newest release": {Current: "v1.1.0", Latest: "v1.1.0", Release: true},
+		"updates are turned off":        {Current: "v1.1.0", Release: true, Disabled: true},
+		"offline":                       {Current: "v1.1.0", Release: true, Error: "no route to host"},
+		"built from source":             {Current: "v1.1.0-2-gabc1234", Release: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			u := &fakeUpdater{active: true, probe: Probe{Found: true}}
+			l := &fakeLauncher{status: st}
+			newShellWithUpdater(t, l, &fakeUI{}, u).CheckForUpdates()
+			if u.probed != 0 || u.shown != 0 {
+				t.Fatalf("the update feed was asked (probed %d, shown %d), which is a request the person said not to make or that nothing needs", u.probed, u.shown)
+			}
+		})
+	}
+}
+
+func TestAnAppBuiltFromSourceNeverReplacesItself(t *testing.T) {
+	u := &fakeUpdater{active: true, probe: Probe{Found: true}}
+	s := New(Options{Launcher: &fakeLauncher{status: available()}, UI: &fakeUI{}, Version: "v1.1.0-2-gabc1234", Updater: u})
+	s.RequestUpdate()
+	if u.probed != 0 {
+		t.Fatal("a development build asked the update feed")
+	}
+}
+
+func TestTheProgramTheAppCarriesIsInstalledWithoutTheInternet(t *testing.T) {
+	// updates turned off, and a newer program waiting in the app: finishing it is local, so it is offered
+	l := &fakeLauncher{status: update.Status{Current: "v1.1.0", Release: true, Disabled: true}, pending: true, installed: "v1.1.0", bundled: "v1.2.0"}
+	ui := &fakeUI{answers: []string{"Update now"}}
+	u := &fakeUpdater{active: true}
+	res := newShellWithUpdater(t, l, ui, u).RequestUpdate()
+	if !res.OK || l.adopted != 1 || l.applied != 0 || ui.reloads != 1 || u.probed != 0 {
+		t.Fatalf("result %+v, adopted %d, applied %d, reloads %d, probed %d", res, l.adopted, l.applied, ui.reloads, u.probed)
+	}
+	if len(ui.asked) != 1 || !strings.Contains(ui.asked[0].Title, "1.2.0") || !strings.Contains(ui.asked[0].Message, "still 1.1.0") ||
+		!strings.Contains(ui.asked[0].Message, "agents are working") || !strings.Contains(ui.asked[0].Message, "backed up") {
+		t.Fatalf("the question does not say what happens: %+v", ui.asked)
+	}
+}
+
+func TestFinishingTheUpdateCanBeDeclinedOrRefused(t *testing.T) {
+	l := &fakeLauncher{status: available(), pending: true, installed: "v1.1.0", bundled: "v1.2.0"}
+	ui := &fakeUI{answers: []string{"Later"}}
+	if res := newShell(t, l, ui).RequestUpdate(); res.OK || !res.Declined || l.adopted != 0 || ui.reloads != 0 {
+		t.Fatalf("declined: %+v adopted %d reloads %d", res, l.adopted, ui.reloads)
+	}
+	l.adoptEr = errors.New("coding agents are working (or a runner has unfinished work)")
+	ui = &fakeUI{answers: []string{"Update now"}}
+	res := newShell(t, l, ui).RequestUpdate()
+	if res.OK || !strings.Contains(res.Message, "agents are working") || ui.reloads != 0 || len(ui.asked) != 1 {
+		t.Fatalf("refused: %+v reloads %d dialogs %+v", res, ui.reloads, ui.asked)
+	}
+	ui = &fakeUI{answers: []string{"Update now", "OK"}}
+	newShell(t, l, ui).CheckForUpdates()
+	if len(ui.asked) != 2 || ui.asked[1].Kind != Failure || !strings.Contains(ui.asked[1].Message, "put back") {
+		t.Fatalf("menu: %+v", ui.asked)
+	}
+}
+
+func TestTheAppIsNotReplacedWhileTheProgramIsBeingUpdated(t *testing.T) {
+	u := &fakeUpdater{active: true}
+	l := &fakeLauncher{status: available()}
+	block := make(chan string)
+	ui := &blockingUI{fakeUI: &fakeUI{}, answer: block, asking: make(chan struct{})}
+	s := newShellWithUpdater(t, l, ui.fakeUI, u)
+	s.o.UI = ui
+	if u.busy == nil {
+		t.Fatal("the updater was given no way to ask whether the app may be replaced now")
+	}
+	if u.busy() {
+		t.Fatal("busy when nothing is happening")
+	}
+	done := make(chan UpdateResult)
+	go func() { done <- s.RequestUpdate() }()
+	<-ui.asking
+	if !u.busy() {
+		t.Fatal("the app could be swapped while an update of the program is in progress")
+	}
+	block <- "Later"
+	<-done
+	if u.busy() {
+		t.Fatal("still busy afterwards")
+	}
+}
+
+// What the shell asks of the controller and of GitHub, written down. The web app (served by whatever controller is
+// running) calls the shell, the shell calls the launcher, and a new shell can meet an older controller: the calls
+// that cross are a short list, so that a change cannot widen it by accident (the launcher has the same test).
+func TestTheShellTalksToTheControllerOnlyThroughTheLauncher(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		b, _ := os.ReadFile(e.Name())
+		for _, banned := range []string{"/api/", "net/http\"", "http.Get", "http.Client"} {
+			if strings.Contains(string(b), banned) {
+				t.Errorf("%s mentions %q: the shell reaches the controller and the internet only through the launcher, whose calls are pinned", e.Name(), banned)
+			}
+		}
+	}
 }

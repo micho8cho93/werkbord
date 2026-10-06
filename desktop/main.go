@@ -32,6 +32,10 @@ var assets embed.FS
 //go:embed build/appicon.png
 var icon []byte
 
+// instanceID names the single-instance lock: a second launch brings the first to the front instead of making another window.
+// (The test build, which must never meet a real app, has its own: updater_testenv_darwin.go.)
+var instanceID = "dev.werkbord.desktop"
+
 // version is the version of Werkbord this app was built with (-ldflags "-X main.version=…"), which
 // is also the version of the controller program inside it.
 var version = "dev"
@@ -50,7 +54,13 @@ func main() {
 
 	l := launcher.New(launcherOptions())
 	ui := &wailsUI{}
-	sh := shell.New(shell.Options{Launcher: l, UI: ui, Version: version, Platform: goruntime.GOOS, AppLog: appLog, Log: log, Ctx: ctx})
+	// Sparkle, if this build has it: it may look at its feed only when the person has not turned looking for updates off.
+	nu := newNativeUpdater(log, func() bool { return l.UpdatesAllowed(ctx) })
+	var up shell.Updater
+	if nu != nil {
+		up = nu
+	}
+	sh := shell.New(shell.Options{Launcher: l, UI: ui, Version: version, Platform: goruntime.GOOS, AppLog: appLog, Log: log, Ctx: ctx, Updater: up})
 
 	err := wails.Run(&options.App{
 		Title:            "Werkbord",
@@ -69,10 +79,10 @@ func main() {
 		// back. Cmd-Q quits the app. Neither touches the controller, which is not this app's child.
 		HideWindowOnClose:        true,
 		EnableDefaultContextMenu: true,
-		OnStartup:                ui.startup,
+		OnStartup:                func(c context.Context) { ui.startup(c); startNative(nu, sh) },
 		OnShutdown:               func(context.Context) { cancel(); log.Info("quit") },
 		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId:               "dev.werkbord.desktop",
+			UniqueId:               instanceID,
 			OnSecondInstanceLaunch: func(options.SecondInstanceData) { ui.show() },
 		},
 		Mac: &mac.Options{

@@ -47,11 +47,12 @@ fi
 if need NOTARY_ISSUER APPLE_NOTARY_ISSUER 5; then
   printf '%s' "$NOTARY_ISSUER" | grep -Eq '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$' || bad "APPLE_NOTARY_ISSUER should be the Issuer ID, a UUID"
 fi
-# The update-signing key is checked from the day the app can update itself (docs/DESKTOP_RELEASE.md, step 6).
-if [ -f "$(dirname "$0")/../desktop/build/darwin/sparkle-public-key" ]; then
-  if need SPARKLE_ED_PRIVATE_KEY SPARKLE_ED_PRIVATE_KEY 6; then
-    printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | grep -Eq '^[A-Za-z0-9+/=]{40,}$' || bad "SPARKLE_ED_PRIVATE_KEY should be one line of base64 (what generate_keys -x wrote)"
-  fi
+# A release carries the updater, so it needs the update-signing key: its public half committed, its private half a secret.
+if [ ! -s "${SPARKLE_PUBLIC_KEY_FILE:-$(dirname "$0")/../desktop/build/darwin/sparkle-public-key}" ]; then
+  missing="${missing:+$missing; }desktop/build/darwin/sparkle-public-key, the update-signing public key that is committed (step 6)"
+fi
+if need SPARKLE_ED_PRIVATE_KEY SPARKLE_ED_PRIVATE_KEY 6; then
+  printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | grep -Eq '^[A-Za-z0-9+/=]{40,}$' || bad "SPARKLE_ED_PRIVATE_KEY should be one line of base64 (what generate_keys -x wrote)"
 fi
 
 if [ -n "$missing" ] || [ -n "$wrong" ]; then

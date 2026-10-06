@@ -66,6 +66,73 @@ free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",
 running() { ps -axo pid=,lstart=,command= | grep '[w]erkbord serve' | grep -v "$WORK" || true; }
 RUNNING_BEFORE=$(running)
 
+# ---- the signed app, started as the Mac it was built on runs it, and (Rosetta, if there is any) as an Intel Mac does
+run_app() { # <label> <prefix words…>: the app as that kind of Mac runs it
+  label=$1; shift
+  H2="$WORK/home-app-$label"; mkdir -p "$H2"
+  PORT2=$(free_port)
+  env2() { HOME="$H2" WERKBORD_DATA_DIR="$H2/data" DEVBOARD_DATA_DIR="" WERKBORD_ADDR="127.0.0.1:$PORT2" DEVBOARD_ADDR="" "$@"; }
+  # A controller of its own (no login service) for the app to find and join: the app must not make one here.
+  env2 "$@" "$APP/Contents/Helpers/werkbord" setup --no-service --no-open --no-network >/dev/null 2>&1 || bad "$label: could not set up the controller for the app"
+  pid_before=$(cat "$H2/data/controller.pid")
+  # The app itself is the background job (not a shell function around it), so that $! is its own process.
+  HOME="$H2" WERKBORD_DATA_DIR="$H2/data" DEVBOARD_DATA_DIR="" WERKBORD_ADDR="127.0.0.1:$PORT2" DEVBOARD_ADDR="" \
+    "$@" "$APP/Contents/MacOS/Werkbord" >"$WORK/app-$label.out" 2>&1 &
+  APP_PID=$!
+  n=0
+  until grep -q 'connected' "$H2/Library/Logs/Werkbord/desktop.log" 2>/dev/null; do
+    n=$((n + 1)); [ $n -lt 80 ] || { cat "$H2/Library/Logs/Werkbord/desktop.log" "$WORK/app-$label.out" 2>/dev/null >&2; bad "$label: the signed app did not connect"; }
+    kill -0 "$APP_PID" 2>/dev/null || { cat "$H2/Library/Logs/Werkbord/desktop.log" "$WORK/app-$label.out" 2>/dev/null >&2; bad "$label: the signed app exited"; }
+    sleep 0.5
+  done
+  cat > "$WORK/windows.js" <<'JXA'
+ObjC.import("CoreGraphics");
+function run(argv) {
+  var pid = parseInt(argv[0], 10), list = ObjC.castRefToObject($.CGWindowListCopyWindowInfo(0, 0)), n = 0;
+  for (var i = 0; i < list.count; i++) if (ObjC.unwrap(list.objectAtIndex(i).objectForKey("kCGWindowOwnerPID")) === pid) n++;
+  return n;
+}
+JXA
+  windows=$(osascript -l JavaScript "$WORK/windows.js" "$APP_PID" 2>/dev/null || echo "?")
+  if [ "$windows" = "?" ] || [ "$windows" -le 0 ]; then
+    # A CI runner may have no display session to put a window on: the app connected, which is what is being tested.
+    [ -n "${CI:-}" ] || bad "$label: the signed app has no window (the window list says: $windows)" "$(cat "$H2/Library/Logs/Werkbord/desktop.log")"
+    echo "  --  $label: no window was listed (CI has no display session to guarantee one)"
+  fi
+  started=$(grep 'msg=starting' "$H2/Library/Logs/Werkbord/desktop.log" | sed -n 's/.* arch=\([a-z0-9]*\).*/\1/p' | head -1)
+  ok "$label: the hardened, signed app (running as $started) started, joined the controller, and left it alone (CoreGraphics lists $windows windows for it)"
+  [ -z "$(ls "$H2/Library/LaunchAgents" 2>/dev/null)" ] || bad "$label: the app made a login service in the test home"
+  # This build has no update key, so it carries no updater: it says so, asks the internet for nothing, and still has its one menu item.
+  grep -q 'the app cannot update itself in this build' "$H2/Library/Logs/Werkbord/desktop.log" || bad "$label: a build with no update key did not say that it cannot update itself" "$(cat "$H2/Library/Logs/Werkbord/desktop.log")"
+  grep -q 'added Check for Updates… to the application menu' "$H2/Library/Logs/Werkbord/desktop.log" || bad "$label: the Check for Updates… menu item was not added" "$(cat "$H2/Library/Logs/Werkbord/desktop.log")"
+  [ "$(cat "$H2/data/controller.pid")" = "$pid_before" ] && kill -0 "$pid_before" 2>/dev/null || bad "$label: the app restarted or replaced the controller it joined"
+  if grep -Eq 'phase=(installing|starting|upgrading)' "$H2/Library/Logs/Werkbord/desktop.log"; then bad "$label: the app installed, started or upgraded something when a controller was already answering" "$(cat "$H2/Library/Logs/Werkbord/desktop.log")"; fi
+  kill "$APP_PID" 2>/dev/null || true; wait "$APP_PID" 2>/dev/null || true; APP_PID=""
+  env2 "$@" "$APP/Contents/Helpers/werkbord" stop >/dev/null 2>&1 || true
+}
+run_apps() {
+  if pgrep -x Werkbord >/dev/null 2>&1; then
+    echo "  --  a Werkbord app is already open on this computer: not starting a second one (its single-instance lock is shared)"
+  else
+    run_app native
+    if arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+      case "$(uname -m)" in
+        arm64) run_app intel arch -x86_64 ;;
+      esac
+    else
+      echo "  --  no Rosetta here: the Intel half of the app is built and signed but was not run"
+    fi
+  fi
+}
+
+# APP_ONLY=<a Werkbord.app> runs just that part, on an app that is already built (a few minutes, not a long build)
+if [ -n "${APP_ONLY:-}" ]; then
+  APP=$APP_ONLY
+  run_apps
+  echo "ok: $pass checks (the app only)"
+  exit 0
+fi
+
 # =================================================================== 1. the temporary keychain
 echo "1. the temporary keychain"
 mkdir -p "$WORK/keychains1"
@@ -211,6 +278,10 @@ expect_fail "a release cannot skip the timestamp" "tests only" rel VERSION=$cur 
 expect_fail "a release cannot use another codesign" "tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" CODESIGN="$SHIM" scripts/build-desktop.sh --release
 expect_fail "a release is exactly a version" "exactly a release" rel VERSION=v1.2.3-4-gabcdef CODESIGN_IDENTITY="$ID" scripts/build-desktop.sh --release
 expect_fail "a release is the version in the VERSION file" "cmd/werkbord/VERSION" rel VERSION=v9.9.9 CODESIGN_IDENTITY="$ID" scripts/build-desktop.sh --release
+expect_fail "a release carries the updater" "carries Sparkle" rel VERSION=$cur CODESIGN_IDENTITY="$ID" SPARKLE=0 scripts/build-desktop.sh --release
+expect_fail "a release cannot name its own update key" "SPARKLE_PUBLIC_KEY is for tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" SPARKLE_PUBLIC_KEY=c2hvcnQ= scripts/build-desktop.sh --release
+expect_fail "a release cannot name its own update feed" "SPARKLE_FEED_URL is for tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" SPARKLE_FEED_URL=http://127.0.0.1:1/appcast.xml scripts/build-desktop.sh --release
+expect_fail "a release is never the build that installs updates without asking" "UPDATER_TEST is for tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" UPDATER_TEST=1 scripts/build-desktop.sh --release
 expect_fail "a release must be able to notarize" "NOTARY_KEY_FILE, NOTARY_KEY_ID and NOTARY_ISSUER" rel VERSION=$cur CODESIGN_IDENTITY="$ID" scripts/build-desktop.sh --release
 expect_fail "--notarize needs a real identity" "Developer ID identity" scripts/build-desktop.sh --notarize
 expect_fail "a release cannot use other notarization programs" "tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" XCRUN=/bin/true NOTARY_KEY_FILE=x NOTARY_KEY_ID=x NOTARY_ISSUER=x scripts/build-desktop.sh --release
@@ -317,54 +388,7 @@ go test -c -o "$WORK/netprivate.test" ./internal/netprivate >/dev/null 2>&1 || b
 ok "the embedded Tailscale node starts, signs in, serves and keeps its identity under the hardened runtime, with no entitlement"
 
 # 5d. the signed app: opens a window and connects, as the Mac it was built on runs it, and (Rosetta, if there is any) as an Intel Mac does
-run_app() { # <label> <prefix words…>: the app as that kind of Mac runs it
-  label=$1; shift
-  H2="$WORK/home-app-$label"; mkdir -p "$H2"
-  PORT2=$(free_port)
-  env2() { HOME="$H2" WERKBORD_DATA_DIR="$H2/data" DEVBOARD_DATA_DIR="" WERKBORD_ADDR="127.0.0.1:$PORT2" DEVBOARD_ADDR="" "$@"; }
-  # A controller of its own (no login service) for the app to find and join: the app must not make one here.
-  env2 "$@" "$APP/Contents/Helpers/werkbord" setup --no-service --no-open --no-network >/dev/null 2>&1 || bad "$label: could not set up the controller for the app"
-  pid_before=$(cat "$H2/data/controller.pid")
-  # The app itself is the background job (not a shell function around it), so that $! is its own process.
-  HOME="$H2" WERKBORD_DATA_DIR="$H2/data" DEVBOARD_DATA_DIR="" WERKBORD_ADDR="127.0.0.1:$PORT2" DEVBOARD_ADDR="" \
-    "$@" "$APP/Contents/MacOS/Werkbord" >"$WORK/app-$label.out" 2>&1 &
-  APP_PID=$!
-  n=0
-  until grep -q 'connected' "$H2/Library/Logs/Werkbord/desktop.log" 2>/dev/null; do
-    n=$((n + 1)); [ $n -lt 80 ] || { cat "$H2/Library/Logs/Werkbord/desktop.log" "$WORK/app-$label.out" 2>/dev/null >&2; bad "$label: the signed app did not connect"; }
-    kill -0 "$APP_PID" 2>/dev/null || { cat "$H2/Library/Logs/Werkbord/desktop.log" "$WORK/app-$label.out" 2>/dev/null >&2; bad "$label: the signed app exited"; }
-    sleep 0.5
-  done
-  cat > "$WORK/windows.js" <<'JXA'
-ObjC.import("CoreGraphics");
-function run(argv) {
-  var pid = parseInt(argv[0], 10), list = ObjC.castRefToObject($.CGWindowListCopyWindowInfo(0, 0)), n = 0;
-  for (var i = 0; i < list.count; i++) if (ObjC.unwrap(list.objectAtIndex(i).objectForKey("kCGWindowOwnerPID")) === pid) n++;
-  return n;
-}
-JXA
-  windows=$(osascript -l JavaScript "$WORK/windows.js" "$APP_PID" 2>/dev/null || echo "?")
-  [ "$windows" != "?" ] && [ "$windows" -gt 0 ] || bad "$label: the signed app has no window (the window list says: $windows)" "$(cat "$H2/Library/Logs/Werkbord/desktop.log")"
-  started=$(grep 'msg=starting' "$H2/Library/Logs/Werkbord/desktop.log" | sed -n 's/.* arch=\([a-z0-9]*\).*/\1/p' | head -1)
-  ok "$label: the hardened, signed app (running as $started) started, joined the controller, and left it alone (CoreGraphics lists $windows windows for it)"
-  [ -z "$(ls "$H2/Library/LaunchAgents" 2>/dev/null)" ] || bad "$label: the app made a login service in the test home"
-  [ "$(cat "$H2/data/controller.pid")" = "$pid_before" ] && kill -0 "$pid_before" 2>/dev/null || bad "$label: the app restarted or replaced the controller it joined"
-  if grep -Eq 'phase=(installing|starting|upgrading)' "$H2/Library/Logs/Werkbord/desktop.log"; then bad "$label: the app installed, started or upgraded something when a controller was already answering" "$(cat "$H2/Library/Logs/Werkbord/desktop.log")"; fi
-  kill "$APP_PID" 2>/dev/null || true; wait "$APP_PID" 2>/dev/null || true; APP_PID=""
-  env2 "$@" "$APP/Contents/Helpers/werkbord" stop >/dev/null 2>&1 || true
-}
-if pgrep -x Werkbord >/dev/null 2>&1; then
-  echo "  --  a Werkbord app is already open on this computer: not starting a second one (its single-instance lock is shared)"
-else
-  run_app native
-  if arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
-    case "$(uname -m)" in
-      arm64) run_app intel arch -x86_64 ;;
-    esac
-  else
-    echo "  --  no Rosetta here: the Intel half of the app is built and signed but was not run"
-  fi
-fi
+run_apps  # (defined above, before part 1, so that APP_ONLY=… can run just this)
 
 # the installed Werkbord was never involved
 [ "$RUNNING_BEFORE" = "$(running)" ] || bad "a controller on this computer started, stopped or restarted during the test" "before:

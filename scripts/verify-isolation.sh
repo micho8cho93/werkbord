@@ -39,7 +39,8 @@ go build ./...
 echo "go vet ./..."
 go vet ./...
 echo "go test ./... (the individual product and the shared packages, with Team absent)"
-if ! go test ./... > "$WORK/test.log" 2>&1; then
+# (30 minutes, not Go's ten: the end-to-end tests build and run real programs, which a busy computer takes a while over)
+if ! go test -timeout 30m ./... > "$WORK/test.log" 2>&1; then
   tail -n 60 "$WORK/test.log" >&2
   echo "verify-isolation: the tests fail with Team removed" >&2
   exit 1

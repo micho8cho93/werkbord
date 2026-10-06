@@ -83,11 +83,18 @@ build the archives for every platform, and publish a GitHub release named after 
 
 - `werkbord-vX.Y.Z` → `werkbord_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `checksums.txt`, marked **latest**.
   A stable one (no `-` after the version) also gets, from the macOS jobs of the same workflow, the Mac app:
-  `Werkbord_<version>_darwin_universal.dmg` and `Werkbord_<version>_darwin_universal.dmg.sha256`, signed with a Developer
-  ID, notarized by Apple and stapled. They are **part of the individual release but not of its CLI release job**: they are
-  added to the release that job made, only if it succeeded, and a failure in them turns the workflow red without touching
-  the archives or `checksums.txt`, which the installers and `werkbord update` read. The disk image is deliberately **not in
-  `checksums.txt`** (that file is the CLI archives' and keeps its format); its own `.sha256` is beside it.
+
+  | Asset | What it is |
+  | --- | --- |
+  | `Werkbord_<version>_darwin_universal.dmg` and `….dmg.sha256` | the disk image people download: signed with a Developer ID, notarized by Apple, stapled; one image for Apple Silicon and Intel |
+  | `Werkbord.dmg` | **the same file, byte for byte, with no version in its name**, so that `https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg` is always the newest app (the website's button, and a one-line `curl`) |
+  | `Werkbord_<version>_darwin_universal.zip` and `….zip.sha256` | the archive the installed app updates itself from (the same app, zipped), signed with the update key |
+  | `appcast.xml` | the feed the installed app reads: one item (this release), signed with the update key. Published **last**, after the disk image has been checked on a fresh Mac; `…/releases/latest/download/appcast.xml` is the address apps use, and only individual releases are marked latest |
+
+  They are **part of the individual release but not of its CLI release job**: they are added to the release that job
+  made, only if it succeeded, and a failure in them turns the workflow red without touching the archives or
+  `checksums.txt`, which the installers and `werkbord update` read. None of them is in `checksums.txt` (that file is the CLI
+  archives' and keeps its format); each has its own `.sha256` where it is a download.
 - `werkbord-team-vX.Y.Z` → `werkbord-team_<version>_<os>_<arch>.tar.gz` and `checksums.txt`, marked **not latest**. No
   disk image: the Mac app is the individual product's.
 

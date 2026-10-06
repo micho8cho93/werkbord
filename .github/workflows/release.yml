@@ -16,16 +16,21 @@ name: release
 #
 # The Mac app (docs/DESKTOP_RELEASE.md) is added to an individual release by four more jobs, and only to it:
 #
-#   desktop-build    macOS. The ONLY job that holds the signing and notarization secrets. It builds the universal
-#                    app, signs it with the Developer ID, has Apple notarize it, and checks the result. It has no
-#                    permission to change a release: it hands the files to the next job as a workflow artifact.
-#   desktop-publish  no secrets. Uploads the disk image and its .sha256 to the release that already exists.
+#   desktop-build    macOS. The ONLY job that holds the signing, notarization and update-signing secrets. It builds the
+#                    universal app, signs it with the Developer ID, has Apple notarize it, signs the update archive and
+#                    the feed with the update key, and checks the result. It has no permission to change a release: it
+#                    hands the files to the next jobs as workflow artifacts.
+#   desktop-publish  no secrets. Uploads the disk image and the update archive, with their .sha256, to the release that
+#                    already exists.
 #   desktop-verify   a fresh macOS runner, no secrets. Downloads what was published as a person would, and checks it
 #                    (scripts/verify-desktop-release.sh).
+#   desktop-appcast  no secrets. Only when the image has verified: checks the feed against the published update archive,
+#                    and publishes it as appcast.xml. That file is what tells installed apps an update exists, so it
+#                    comes last, and is withdrawn again if what is served does not check out.
 #
-# None of them creates, edits, un-marks or deletes the release the first job made, or touches its archives and
-# checksums.txt, so a failure in any of them turns the run red and leaves what installers and `werkbord update`
-# depend on exactly as it was.
+# None of them creates, edits or un-marks the release the first job made, or touches its archives and checksums.txt, and
+# the only thing any of them ever deletes is the feed it published itself, so a failure in any of them turns the run red and
+# leaves what installers and `werkbord update` depend on exactly as it was.
 #
 # A manual run (Actions → release → Run workflow) is a dry run: it builds, signs and notarizes the app from the branch it
 # is run on, checks it, and uploads the disk image as a workflow artifact only. Nothing is published. That is how
@@ -132,6 +137,7 @@ jobs:
       APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
       NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
       NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+      SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -173,20 +179,38 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: scripts/build-desktop.sh --package --release dist/desktop
+      - name: Sign the update archive and make the feed (the private update key is only ever in this step's environment)
+        run: |
+          mkdir -p dist/feed
+          scripts/make-appcast.sh --require dist/desktop/Werkbord_*_darwin_universal.zip dist/feed
       - name: Check what was built, as a person who downloads it would (nothing is published yet)
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           mkdir -p "$RUNNER_TEMP/page/$TAG"
-          cp dist/desktop/Werkbord_*_darwin_universal.dmg dist/desktop/Werkbord_*_darwin_universal.dmg.sha256 "$RUNNER_TEMP/page/$TAG/"
-          WERKBORD_RELEASE_BASE="file://$RUNNER_TEMP/page" scripts/verify-desktop-release.sh "$TAG"
-      - name: Hand the disk image to the next job
+          cp dist/desktop/Werkbord_*_darwin_universal.* "$RUNNER_TEMP/page/$TAG/"
+          # the page a release will have: the same files the publishing job uploads, including the copy with no version in its name
+          cp dist/desktop/Werkbord_*_darwin_universal.dmg "$RUNNER_TEMP/page/$TAG/Werkbord.dmg"
+          cp dist/feed/appcast.xml "$RUNNER_TEMP/page/$TAG/"
+          export WERKBORD_RELEASE_BASE="file://$RUNNER_TEMP/page"
+          scripts/verify-desktop-release.sh "$TAG"
+          WERKBORD_FEED_URL=none scripts/verify-appcast.sh "$TAG"
+      - name: Hand the disk image and the update archive to the next job
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: desktop-release
           path: |
             dist/desktop/Werkbord_*_darwin_universal.dmg
             dist/desktop/Werkbord_*_darwin_universal.dmg.sha256
+            dist/desktop/Werkbord_*_darwin_universal.zip
+            dist/desktop/Werkbord_*_darwin_universal.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Hand the feed to the last job (it is not published until the disk image has been checked)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: desktop-appcast
+          path: dist/feed/appcast.xml
           if-no-files-found: error
           retention-days: 14
       - name: Remove the certificate and the notarization key
@@ -206,14 +230,20 @@ jobs:
         with:
           name: desktop-release
           path: desktop
-      - name: Add the disk image to the release
+      - name: Add the disk image and the update archive to the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          # Werkbord.dmg is the same file under a name with no version in it, so that
+          # https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg is a link that is always the newest
+          # app (the website's button, and a one-line curl). It is a copy, byte for byte: scripts/verify-desktop-release.sh checks that.
+          cp desktop/Werkbord_*_darwin_universal.dmg desktop/Werkbord.dmg
           ls -l desktop
-          # Only these two files, which no other job makes. --clobber is for re-running this job after a half-finished upload.
-          gh release upload "$GITHUB_REF_NAME" desktop/Werkbord_*_darwin_universal.dmg desktop/Werkbord_*_darwin_universal.dmg.sha256 --clobber
+          # Only these five files, which no other job makes. --clobber is for re-running this job after a half-finished upload.
+          gh release upload "$GITHUB_REF_NAME" \
+            desktop/Werkbord_*_darwin_universal.dmg desktop/Werkbord_*_darwin_universal.dmg.sha256 desktop/Werkbord.dmg \
+            desktop/Werkbord_*_darwin_universal.zip desktop/Werkbord_*_darwin_universal.zip.sha256 --clobber
 
   desktop-verify:
     needs: desktop-publish
@@ -232,3 +262,40 @@ jobs:
         if: failure()
         run: |
           echo "::error::The disk image published for $GITHUB_REF_NAME failed its check. The release, its archives and checksums.txt are untouched. To withdraw the disk image: gh release delete-asset $GITHUB_REF_NAME <its file name> (docs/DESKTOP_RELEASE.md, 'If something goes wrong')."
+
+  desktop-appcast:
+    needs: desktop-verify
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: desktop-appcast
+          path: feed
+      - name: The feed, against the update archive that was published
+        env:
+          WERKBORD_FEED_URL: none # the address apps use does not serve it yet
+        run: scripts/verify-appcast.sh "$GITHUB_REF_NAME" feed/appcast.xml
+      - name: Publish the feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$GITHUB_REF_NAME" feed/appcast.xml --clobber
+      - name: The address installed apps use serves exactly it
+        run: scripts/verify-appcast.sh "$GITHUB_REF_NAME"
+      - name: If the published feed is not good, withdraw it (it, and nothing else)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete-asset "$GITHUB_REF_NAME" appcast.xml -y || true
+          echo "::error::The feed for $GITHUB_REF_NAME did not check out and was withdrawn: installed apps are not offered this release. The release, its archives and the disk image are untouched (docs/DESKTOP_RELEASE.md, 'If something goes wrong')."

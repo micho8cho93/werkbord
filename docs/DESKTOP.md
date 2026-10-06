@@ -22,8 +22,8 @@ them depends on the app: `werkbord` in a terminal and the curl installer keep wo
 
 ## For everyone: install and open
 
-1. Download `Werkbord_<version>_darwin_arm64.dmg` (Apple Silicon; `…_amd64.dmg` for Intel) from the
-   [releases page](https://github.com/micho8cho93/werkbord/releases).
+1. Download [`Werkbord.dmg`](https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg) (one file for Apple
+   Silicon and Intel; it is the same file as `Werkbord_<version>_darwin_universal.dmg` on the [releases page](https://github.com/micho8cho93/werkbord/releases)).
 2. Open it and drag **Werkbord** onto **Applications**.
 3. Open **Werkbord** from Applications.
 
@@ -49,8 +49,9 @@ Phone access is set up from **Settings → Phone access** (the app does not open
 `werkbord setup` does in a terminal). Links that leave Werkbord (GitHub's sign-in, Tailscale's, pull requests) open in
 your normal browser.
 
-The menu bar has **View → Open in Browser** (the same controller, signed in, in a tab), and **Help → Check for
-Updates…**, **Show Diagnostics…** and **Show Controller Log**.
+The menu bar has **Werkbord → Check for Updates…** (under *About Werkbord*), **View → Open in Browser** (the same controller,
+signed in, in a tab), and **Help → Show Diagnostics…** and **Show Controller Log**. Keep the app in **Applications**: it updates
+itself there ([Updates](#updates)).
 
 ## For developers and advanced users: one installation, two ways in
 
@@ -149,40 +150,90 @@ returns anything the page does not already hold, and nothing acts without a nati
 
 ## Updates
 
+There are two things to update and **one question** to ask about them. The release is the unit: a person is asked once to
+move to Werkbord 1.3, and when it is done both are on 1.3.
+
+| | What it is | Replaced by | Guarantees |
+| --- | --- | --- | --- |
+| **The app** | the window, the menu, the loading screen, and a copy of the program (`Contents/Helpers/werkbord`) | [Sparkle](https://sparkle-project.org) 2, embedded, which downloads an archive, **verifies its EdDSA signature**, and swaps the bundle | the archive must verify with the public key in the app (`SUPublicEDKey`), from a feed that is itself signed (`SURequireSignedFeed`), over https; a version that is not newer is never installed; the new app's own Apple code signature is checked too |
+| **The program** | `~/.local/bin/werkbord`, which is the controller and the command line | only the program's own installer: `werkbord update` (from the network) or `install-release` (from the copy in the app) | checksum (a download), refusal while agents are working or a runner has unfinished work, a database snapshot, and the old program and database put back if the new one does not start |
+
 **Knowing.** The controller reports whether a newer stable release exists at `GET /api/update` (behind the token like
 the rest of the API). It asks GitHub's `/releases/latest` (no API, no credentials; "stable" because that never points at
 a pre-release, and Werkbord Team's releases are published so they can never take it), keeps the answer for six hours (a
-failure for fifteen minutes), and never asks about a build from source. It is the one outbound request the controller makes
-that you did not ask for (Git remotes, GitHub through your own `gh` and the private network are all things you turned on or
-did), so it can be turned off: `"noUpdateCheck": true` in `config.json` (or `WERKBORD_NO_UPDATE_CHECK=1`) turns it off. The web app shows:
+failure for fifteen minutes), and never asks about a build from source. It is the **one request Werkbord makes on its own**
+(Git remotes, GitHub through your own `gh` and the private network are all things you turned on or did), so it can be turned
+off: `"noUpdateCheck": true` in `config.json` (or `WERKBORD_NO_UPDATE_CHECK=1`). The web app shows:
 
-> **Werkbord 1.2.0 is available** You have 1.1.0. Your data is backed up first. **[Update now]** **[Later]**
+> **Werkbord 1.3.0 is available** You have 1.2.0. Your data is backed up first. **[Update now]** **[Later]**
 
 in the app. In a browser or on a phone the same banner says how to update instead (`werkbord update` on the computer that
 runs Werkbord) and has no button, because **applying an update is never something a request to the controller can
 do**: no client, however authenticated, can make your computer replace its own program. **Later** hides that release
 until a newer one appears. **Settings → This computer** shows the state and **Check now**.
 
-**Doing.** **Update now** (or **Help → Check for Updates…**) asks you, then runs the installed program's own
-`werkbord update`. That is the updater the terminal has, unchanged: the download is checked against the release's
-`checksums.txt`, the new program is run once before it replaces anything, **it refuses while agents are working** (or
-runner journals are unfinished), the **database is snapshotted**, and the old program and database are **put back if the
-new controller does not come up**. When it succeeds the window reloads on the new version, and your browser and phone
-reconnect by themselves.
+**Doing.** **Update now** and **Werkbord → Check for Updates…** (the one menu item, under *About Werkbord*, where a Mac has
+it; Help has none) do the same thing, which depends on what is behind:
 
-**What an update updates.** The controller program, and with it the web app, which is what the window shows. The
-native shell (the window, the menu, this page's loading screen) is the app you installed: it changes rarely and is
-replaced by installing a newer disk image. An old shell with a new controller keeps working, because the two only share
-the few calls above.
+1. **The app already carries a newer program than the one installed** (the app was updated, and the controller could not move at the
+   time because agents were working). A native question, then `install-release` from the app's own copy: no download, no network.
+2. **The app is older than the release.** Sparkle looks at the feed without showing anything; if it has the update, **its own window**
+   opens (release notes, *Install Update*, *Remind Me Later*). That window is the one question. It downloads, verifies the
+   signature, quits the app, replaces the bundle and relaunches. Nothing of the controller is touched by the swap: it is not the
+   app's child, and the program in `~/.local/bin` is not inside the app. Then:
+3. **When the new app opens and finds a controller running an older program, it moves it to the program it carries**, by the
+   same `install-release` the installer uses. It says "Updating Werkbord 1.2.0 → 1.3.0…" on the loading screen. If agents are
+   working, or a runner has unfinished work, the installer refuses and **the controller is left exactly as it is**: the same
+   process, on its old program; the window opens, tells you why once, and the move happens the next time you open Werkbord with
+   nothing running, or when you choose **Update now** (step 1). It never goes backwards: an app older than the installed program
+   leaves it alone.
+4. **Only the program is behind** (the feed has no update of the app yet, for instance while a release is still being published,
+   or Sparkle is not in this build). The update the terminal has, unchanged: `werkbord update`, behind a native question.
 
-### The production requirement: in-place updating of the app itself
+So one release is one click: the banner, Sparkle's window, and the loading screen are three views of the same update, not
+three prompts. A newer app with an older controller keeps working because the two share only a short list of calls (below),
+which a test pins.
 
-Replacing `Werkbord.app` from inside itself is deliberately **not** implemented. It needs, to be done safely, what
-this repository does not have yet: an Apple Developer ID and notarization (a modified, unsigned bundle is refused by
-Gatekeeper), an update channel whose *signature* (not only a checksum) the app verifies before it replaces itself (for
-instance [Sparkle](https://sparkle-project.org)'s EdDSA-signed appcast), and a helper that swaps the bundle after the app
-quits. Until then, the unsafe shortcut (downloading a `.dmg` over HTTPS and replacing the app) is not offered: you install
-a new disk image yourself, and the controller, which is what matters day to day, updates safely in place as above.
+**Privacy.** Sparkle has **no schedule** here (`SUEnableAutomaticChecks` is false and the updater is told so again at start), no
+automatic download or install, and sends no profile of your computer (`SUSendProfileInfo` false). It asks the feed only when you
+ask. And it honours `noUpdateCheck` / `WERKBORD_NO_UPDATE_CHECK`: with that on, "Check for Updates…" says looking for updates is
+turned off and **nothing is requested**. In one sentence: *Werkbord asks GitHub for the newest release every six hours unless you
+turn that off (`noUpdateCheck`), and fetches a small signed feed when you press Check for Updates; nothing else leaves your computer
+to do with updates.* A build from source, a development run (`make desktop-dev`), and a build with no update-signing key do not
+carry Sparkle and never ask. The feed's address cannot be changed in a release (it is checked in the finished app); the build
+that can, for tests, is refused by `--release`.
+
+**The feed.** `https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml`. GitHub resolves
+`/releases/latest/download/<file>` through the release marked **latest**, and only an individual stable release is marked latest
+([VERSIONING.md](VERSIONING.md)): a Team release never is, so it can never become the feed. Each release uploads its own
+`appcast.xml` (one item: that release; nothing older that could be offered again). The release workflow publishes it **last**,
+after the disk image has been checked on a fresh Mac, so a bad image never reaches installed apps; and removes it if the published
+feed does not check out. Between the CLI release and the feed (some minutes) a click on *Check for Updates…* finds no feed and
+falls to step 4: the program still updates.
+
+**The trust chain, and what each link stops.** An update archive is signed with the update key (Ed25519, `generate_appcast`), and
+so is the feed. The private key is a GitHub secret that only the signing job holds; the public key is in the repository and in every
+app. A feed or archive altered on the way, or published by anyone without the key, fails verification **before the archive is
+opened** (`SUVerifyUpdateBeforeExtraction`). A checksum alone would not be enough: whoever can replace the file can replace its
+checksum. Sparkle also checks the new app's own Apple code signature (and refuses an update that changes both the update key and the
+Apple team at once), and the app is notarized, so a copy stripped of its signature does not open. Tested with the real Sparkle: a tampered archive, a signature by
+another key, a feed signed by another key, an unsigned feed, a lower version, and an old archive offered under a newer version
+number are each refused, and the app and the controller stay as they were (`scripts/test-desktop-update.sh`).
+
+**What the shell and the controller share.** `GET /api/health` (public: is it a controller, which version), `GET /api/projects`
+(needs the token: does it accept this computer's?), the files `token` and `config.json` in the data directory, and the commands
+`version`, `start`, `setup`, `update` and `install-release` of the installed program. Nothing else: the launcher's source is
+checked against that list by a test (`TestTheLauncherAsksTheControllerForOnlyTheseThings`), and the shell may not touch the
+network or the controller except through the launcher. What a page may ask of the shell is the other short list
+([above](#what-a-page-may-ask-of-the-app)); `Info` gained one optional field (`updater`) that older pages ignore. A newer shell
+with an older controller, and the reverse, therefore keep working: both directions are exercised by the update test's
+deferred scenario.
+
+**Limits.** Sparkle replaces an app that is in a folder you can write to, so keep Werkbord in **Applications**, not on the disk
+image or in Downloads (macOS runs an app from a downloaded disk image from a read-only copy, which cannot be replaced; Sparkle
+says so). The update window is Sparkle's and was not clicked by any test: the tests cover everything it triggers, with an unattended
+build; what no test can show is Apple *accepting* a particular signed build, which is the first real release's check
+([DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
 
 ## Building it
 
@@ -205,13 +256,27 @@ and keeps **its own data (`.desktop-dev/`) and port (127.0.0.1:7499)**, installi
 so it never touches the installation you use. `DESKTOP_DEV_DATA=…` and `DESKTOP_DEV_ADDR=…` change them. Set
 `WERKBORD_DESKTOP_LOG_LEVEL=debug` to see every page call in `~/Library/Logs/Werkbord/desktop.log`.
 
+`make desktop-release` is the signed, notarized, universal disk image a release publishes (it needs the Apple credentials in the
+environment and refuses to build anything else: [Signing and notarization](#signing-and-notarization)). A build with
+`desktop/build/darwin/sparkle-public-key` (or `SPARKLE_PUBLIC_KEY`) also carries Sparkle and can update itself; without a key it
+does not, and a development run never does. `WERKBORD_DESKTOP_NO_SERVICE=1` makes the app set Werkbord up without a login service,
+as `werkbord setup --no-service` does, for trying it on a computer where it must not make one.
+
 What is in the bundle (`scripts/build-desktop.sh`):
 
 ```
 Werkbord.app/Contents/MacOS/Werkbord        the window (desktop/, Wails v2)
 Werkbord.app/Contents/Helpers/werkbord      the controller and command line: the program the release archives carry
 Werkbord.app/Contents/Resources/icon.icns   from desktop/build/appicon.png
+Werkbord.app/Contents/Frameworks/Sparkle.framework   the updater (only in a build that has the update key); loaded at run time
 ```
+
+A release's window and program are **universal** (Apple Silicon and Intel, joined with `lipo`), so there is one disk image and nobody has
+to know their chip. The program is about 71 MB universal (36 MB a chip), the disk image 39 MB. The app **does not thin** the program when
+it copies it to `~/.local/bin`: that copy and the one `install-release` makes are the paths that must never fail, a fat executable runs
+exactly like a thin one (the system maps only the slice it needs), and the first `werkbord update` from a terminal replaces it with the
+thin release archive anyway. If the 35 MB ever matters, thin it with Go's `debug/macho` where the program is copied (the slice keeps its
+own signature) rather than with a tool the person may not have.
 
 It does **not** contain Codex or Claude Code: Werkbord finds the ones you have installed, as it always did. The app is
 not sandboxed (it must run your agents and Git in your repositories and write the login service), and asks for no
@@ -222,6 +287,8 @@ entitlements ([entitlements.plist](../desktop/build/darwin/entitlements.plist) s
 ```
 desktop/                 the app: its own Go module (devboard/desktop), so cgo and WebKit are never needed by `make check` or Linux CI
   main.go ui.go menu.go    the window, the menu bar, the Wails glue (macOS only)
+  updater_darwin.{go,m,h}  Sparkle, loaded at run time, and the "Check for Updates…" menu item (cgo; never part of the controller's build)
+  updater_testenv_darwin.go, updater_test_darwin.go   the test build only (-tags updatertest): see Testing
   internal/shell/          everything the app does (connect, diagnostics, updating, what a page may ask): pure Go, tested without a window
   frontend/dist/           the loading and error screen: the one page that is not the controller's web app
   build/                   Info.plist, entitlements, the icon source
@@ -247,7 +314,10 @@ or if `desktop/` stops being a separate module or reaches Team.
 | What a page may ask, the update confirmation, Later, refused updates, diagnostics | `desktop/internal/shell/shell_test.go` |
 | The bridge's protocol, external-link rules, update offers | `web/src/lib/desktop.test.ts`, `updates.test.ts` |
 | Wails and the window build and sign | `make desktop-check`, `make desktop-package` (CI, on macOS) |
-| The signing policy, the temporary keychain, what a release refuses, and that the hardened program, controller, Tailscale node and app run | `scripts/test-desktop-sign.sh` (`make test-desktop-sign`) |
+| The signing policy, the temporary keychain, what a release refuses, and that the hardened program, controller, Tailscale node and app (both chips) run | `scripts/test-desktop-sign.sh` (`make test-desktop-sign`) |
+| The app updating itself with the real Sparkle: a good update; a tampered archive, a wrong key, a wrong feed key, an unsigned feed, a lower version and an old archive under a newer number refused; nothing asked when updates are off; the controller kept running while agents work; one menu item | `scripts/test-desktop-update.sh` (`make test-desktop-update`; builds the app twice) |
+| The shell's update flow (finish the program, Sparkle, the program's own update), the relaunch guard | `desktop/internal/shell/shell_test.go` |
+| An app newer than the running controller brings it up to date only when nothing is working; a refusal leaves it untouched and says why once; `noUpdateCheck` stops every request; the launcher's calls are pinned | `internal/launcher/launcher_test.go`, `e2e_test.go` |
 | Notarization (accepted, rejected, no network, wrong credentials, no credentials) and the check of a published release | `scripts/test-notarize-desktop.sh` |
 
 Closing the window and quitting the app stopping nothing is structural: the controller is a launchd job that is not the
@@ -288,7 +358,8 @@ Apple's notary service and Gatekeeper are fakes that behave as Apple does in eac
   (`daemon.Describe`) reads launchd's definition only, and the bundle script is macOS-specific. Windows needs a WebView2
   build, an installer (the `.ps1` installer's service code has not been run on Windows either), and `Describe` for the
   scheduled task.
-- Intel builds are made by the same script (`ARCH=amd64`) and verified to build and sign; they have not been run.
+- The Intel half of the app was run only under Rosetta on an Apple Silicon Mac (the signing test runs the signed app both ways); it has not been
+  run on an Intel Mac.
 - The first connection does not turn on phone access (Tailscale sign-in needs your attention in a browser): turn it on
   in Settings.
 - Closing the window hides the app (Wails's `HideWindowOnClose`) and relies on macOS un-hiding a hidden app when its Dock

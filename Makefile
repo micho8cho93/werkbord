@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 
 .PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team \
         test test-werkbord test-team lint check verify-isolation \
-        desktop desktop-package desktop-release desktop-dev desktop-test desktop-check test-desktop-sign test-notarize-desktop test-workflows \
+        desktop desktop-package desktop-release desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
         dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser
 
 all: check build build-team
@@ -59,19 +59,19 @@ install-team: build-team
 
 ## test: Go tests (both products and the shared packages) and the individual product's web unit tests
 test: web/node_modules
-	$(GO) test ./...
+	$(GO) test -timeout 30m ./...
 	cd web && $(NPM) test
 
 ## test-werkbord / test-team: one product's tests (shared packages are tested with both)
 test-werkbord: web/node_modules
-	$(GO) test $$($(GO) list ./... | grep -v -e /internal/team -e /cmd/werkbord-team)
+	$(GO) test -timeout 30m $$($(GO) list ./... | grep -v -e /internal/team -e /cmd/werkbord-team)
 	cd web && $(NPM) test
 test-team:
-	$(GO) test ./internal/team/... ./cmd/werkbord-team/...
+	$(GO) test -timeout 30m ./internal/team/... ./cmd/werkbord-team/...
 
 ## lint: gofmt, go vet, svelte-check, eslint
 lint: web/node_modules
-	@out=$$(gofmt -l cmd internal desktop); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	@out=$$(gofmt -l cmd internal desktop scripts/appcast); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	@for f in scripts/*.sh scripts/test-support/*.sh; do sh -n $$f || exit 1; done
 	$(GO) vet ./...
 	cd web && $(NPM) run check && $(NPM) run lint
@@ -117,7 +117,8 @@ desktop-test:
 ## desktop-check: desktop-test, and on a Mac also that the window code builds (it needs the Xcode command line tools)
 desktop-check: desktop-test
 	@if [ "$$(uname -s)" = Darwin ]; then \
-		cd desktop && CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" $(GO) vet -tags desktop,production . ; \
+		cd desktop && CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" $(GO) vet -tags desktop,production . && \
+		CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" $(GO) vet -tags desktop,production,updatertest . ; \
 	else echo "desktop-check: the window code builds on macOS only; skipped"; fi
 
 ## test-notarize-desktop: notarization (accepted, rejected, no network, wrong or no credentials) and the check of a published release, against fakes of Apple's tools
@@ -128,8 +129,13 @@ test-notarize-desktop:
 test-workflows:
 	scripts/test-workflows.sh
 
+## test-desktop-update: the app updating itself, with the real Sparkle, two real builds and a feed on this computer (macOS; builds the app twice, so many minutes)
+test-desktop-update:
+	scripts/test-desktop-update.sh
+
 ## test-desktop-sign: how the app is signed, tested without a Developer ID (macOS; builds the app, so minutes; FAST=1 skips that)
 test-desktop-sign:
+	scripts/test-desktop-updater-config.sh
 	scripts/test-desktop-sign.sh $(if $(FAST),--fast)
 
 ## verify-isolation: build and test the individual product in a copy of the repository with every Team file removed

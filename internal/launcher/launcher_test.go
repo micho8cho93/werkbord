@@ -9,8 +9,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -177,7 +179,25 @@ func (w *world) run(_ context.Context, env []string, name string, args ...string
 		if w.upgradeErr != nil {
 			return "werkbord: " + w.upgradeErr.Error() + "\n", w.upgradeErr
 		}
-		// As the real one does: the old program is kept beside the new one until the new controller is seen to start.
+		w.mu.Lock()
+		old := w.ctrl
+		w.ctrl = nil
+		w.mu.Unlock()
+		if old != nil {
+			// A controller that is up, as the real one handles it: stop it, replace the program, start the new one, and
+			// remove the old program once the new controller has come up.
+			_ = old.Shutdown(bg)
+			w.program(args[1], v) // the installed program becomes the one that ran this
+			c := controller.New(w.cfg, slog.New(slog.DiscardHandler), v)
+			if err := c.Start(bg); err != nil {
+				return "", err
+			}
+			w.mu.Lock()
+			w.ctrl = c
+			w.mu.Unlock()
+			return "Installed\n", nil
+		}
+		// As the real one does for one that is not: the old program is kept beside the new one until the new controller is seen to start.
 		if err := os.Rename(args[1], args[1]+".prev"); err != nil {
 			return "", err
 		}
@@ -236,9 +256,9 @@ func (w *world) token() string {
 
 func TestAControllerThatIsRunningIsJoinedAndLeftAlone(t *testing.T) {
 	w := newWorld(t)
-	installed := w.program(filepath.Join(w.installDir(), "werkbord"), "v1.0.0")
-	w.startController("v1.0.0")
-	// An older program than the app carries, and a controller that is up: nothing may be restarted for it.
+	w.program(filepath.Join(w.installDir(), "werkbord"), "v1.1.0")
+	w.startController("v1.1.0")
+	// The program the app carries is the one that is installed and running: nothing is to be changed.
 	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
 	l := w.launcher(Options{Version: "v1.1.0", Bundled: bundled})
 
@@ -250,7 +270,7 @@ func TestAControllerThatIsRunningIsJoinedAndLeftAlone(t *testing.T) {
 	if got := w.mutations(); len(got) != 0 {
 		t.Fatalf("Connect changed things on a computer where the controller was running: %v", got)
 	}
-	if conn.URL != "http://"+w.cfg.Addr || conn.Version != "v1.0.0" || conn.Notice != "" {
+	if conn.URL != "http://"+w.cfg.Addr || conn.Version != "v1.1.0" || conn.Notice != "" {
 		t.Fatalf("connection = %+v", conn)
 	}
 	if conn.SignInURL != "http://"+w.cfg.Addr+"/#token="+w.token() {
@@ -260,18 +280,6 @@ func TestAControllerThatIsRunningIsJoinedAndLeftAlone(t *testing.T) {
 		if p == PhaseInstalling || p == PhaseUpgrading || p == PhaseStarting {
 			t.Fatalf("it reported %s with a controller running (%v)", p, steps)
 		}
-	}
-	if _, err := os.Stat(installed); err != nil {
-		t.Fatal("the installed program disappeared")
-	}
-	// Once more, and from a second launcher (a second window, or the app opened again): still nothing started.
-	for _, ll := range []*Launcher{l, w.launcher(Options{Version: "v1.1.0", Bundled: bundled})} {
-		if _, err := ll.Connect(bg, nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if got := w.mutations(); len(got) != 0 {
-		t.Fatalf("repeated connections started or changed something: %v", got)
 	}
 }
 
@@ -516,17 +524,158 @@ func TestTheOldProgramIsKeptWhenTheControllerDoesNotComeUpOnTheNewOne(t *testing
 	}
 }
 
-func TestUpgradeIsNotAttemptedAgainstARunningController(t *testing.T) {
+// ---- an app that is newer than the controller it finds running (it was just updated) ----
+
+func TestAnAppNewerThanTheRunningControllerBringsItUpToDateWhenNothingIsWorking(t *testing.T) {
 	w := newWorld(t)
 	installed := w.program(filepath.Join(w.installDir(), "werkbord"), "v1.0.0")
 	w.def = &daemon.Definition{Binary: installed, DataDir: w.cfg.DataDir}
 	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
 	w.startController("v1.0.0")
-	if _, err := w.launcher(Options{Version: "v1.1.0", Bundled: bundled}).Connect(bg, nil); err != nil {
+	first := w.ctrl
+
+	var steps []Phase
+	conn, err := w.launcher(Options{Version: "v1.1.0", Bundled: bundled}).Connect(bg, func(s Step) { steps = append(steps, s.Phase) })
+	if err != nil {
 		t.Fatal(err)
 	}
-	if got := w.mutations(); len(got) != 0 {
-		t.Fatalf("a running controller was disturbed by opening the app: %v", got)
+	// By the installer's own entry point, run from the new program: refusal while agents work, a snapshot, a way back.
+	if w.count(bundled+" install-release "+installed) != 1 || w.count(installed+" start") != 0 {
+		t.Fatalf("calls: %v", w.mutations())
+	}
+	if conn.Version != "v1.1.0" || conn.Notice != "" {
+		t.Fatalf("connection = %+v: the window should open on the new controller, with nothing to say", conn)
+	}
+	if w.ctrl == first {
+		t.Fatal("the controller was not restarted on the new program")
+	}
+	if v, _ := w.versionOf(installed); v != "v1.1.0" {
+		t.Fatalf("the installed program is %s", v)
+	}
+	if !contains(phases(steps), "upgrading") || contains(phases(steps), "installing") {
+		t.Fatalf("steps %v", steps)
+	}
+	if _, err := os.Stat(installed + ".prev"); err == nil {
+		t.Fatal("the old program was left behind after the new controller came up")
+	}
+	// Opening the app again changes nothing more.
+	before := len(w.mutations())
+	if _, err := w.launcher(Options{Version: "v1.1.0", Bundled: bundled}).Connect(bg, nil); err != nil || len(w.mutations()) != before {
+		t.Fatalf("a second opening changed things: %v %v", err, w.mutations())
+	}
+}
+
+func TestWhenAgentsAreWorkingTheRunningControllerIsLeftAloneAndTheAppSaysSoOnce(t *testing.T) {
+	w := newWorld(t)
+	installed := w.program(filepath.Join(w.installDir(), "werkbord"), "v1.0.0")
+	w.def = &daemon.Definition{Binary: installed, DataDir: w.cfg.DataDir}
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
+	w.startController("v1.0.0")
+	first := w.ctrl
+	w.upgradeErr = errors.New("run run_1 is active on this computer; finish or stop it in Werkbord first, or explicitly use --force to interrupt it and retain its work")
+	l := w.launcher(Options{Version: "v1.1.0", Bundled: bundled})
+
+	conn, err := l.Connect(bg, nil)
+	if err != nil {
+		t.Fatalf("an update that was refused made the app unusable: %v", err)
+	}
+	if conn.Version != "v1.0.0" || !strings.Contains(conn.Notice, "coding agents are working") || !strings.Contains(conn.Notice, "still on 1.0.0") {
+		t.Fatalf("connection = %+v", conn)
+	}
+	if strings.Contains(conn.Notice, "--force") {
+		t.Fatalf("a window must not suggest --force: %q", conn.Notice)
+	}
+	if w.ctrl != first || w.count(installed+" start") != 0 {
+		t.Fatalf("a refused update disturbed the controller: %v", w.mutations())
+	}
+	if v, _ := w.versionOf(installed); v != "v1.0.0" {
+		t.Fatalf("the installed program is %s", v)
+	}
+	// The window reconnects (View → Reload): it is not told again. It is tried again, though.
+	conn2, err := l.Connect(bg, nil)
+	if err != nil || conn2.Notice != "" || conn2.Version != "v1.0.0" {
+		t.Fatalf("second connection = %+v, %v", conn2, err)
+	}
+	if n := w.count(bundled + " install-release"); n != 2 {
+		t.Fatalf("install-release was tried %d times: it is tried at each opening (and each refusal is the program's own)", n)
+	}
+	// The agents finish: the next opening completes the update.
+	w.upgradeErr = nil
+	conn3, err := l.Connect(bg, nil)
+	if err != nil || conn3.Version != "v1.1.0" || conn3.Notice != "" {
+		t.Fatalf("third connection = %+v, %v", conn3, err)
+	}
+	if w.ctrl == first {
+		t.Fatal("the controller was never moved to the new program")
+	}
+}
+
+func TestAnAppUpdateNeverMovesAControllerBackwards(t *testing.T) {
+	w := newWorld(t)
+	w.program(filepath.Join(w.installDir(), "werkbord"), "v1.2.0")
+	w.startController("v1.2.0")
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
+	conn, err := w.launcher(Options{Version: "v1.1.0", Bundled: bundled}).Connect(bg, nil)
+	if err != nil || conn.Version != "v1.2.0" || len(w.mutations()) != 0 {
+		t.Fatalf("an older app changed a newer controller: %+v %v %v", conn, err, w.mutations())
+	}
+}
+
+func TestAnAppBuiltFromSourceNeverReplacesAControllerThatIsRunning(t *testing.T) {
+	w := newWorld(t)
+	w.program(filepath.Join(w.installDir(), "werkbord"), "v1.0.0")
+	w.startController("v1.0.0")
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0-2-gabc1234")
+	if _, err := w.launcher(Options{Version: "v1.1.0-2-gabc1234", Bundled: bundled}).Connect(bg, nil); err != nil || len(w.mutations()) != 0 {
+		t.Fatalf("a development build disturbed a running controller: %v %v", err, w.mutations())
+	}
+}
+
+func TestADevelopmentRunNeverReplacesAControllerEither(t *testing.T) {
+	w := newWorld(t)
+	w.startController("v1.0.0")
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
+	if _, err := w.launcher(Options{Version: "v1.1.0", Bundled: bundled, NoInstall: true}).Connect(bg, nil); err != nil || len(w.mutations()) != 0 {
+		t.Fatalf("NoInstall disturbed a running controller: %v %v", err, w.mutations())
+	}
+}
+
+func TestThePendingProgramUpdateIsWhatTheAppCarriesAndTheComputerLacks(t *testing.T) {
+	w := newWorld(t)
+	installed := w.program(filepath.Join(w.installDir(), "werkbord"), "v1.0.0")
+	w.def = &daemon.Definition{Binary: installed, DataDir: w.cfg.DataDir}
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
+	w.startController("v1.0.0")
+	l := w.launcher(Options{Version: "v1.1.0", Bundled: bundled})
+	if i, b, ok := l.PendingProgramUpdate(bg); !ok || i != "v1.0.0" || b != "v1.1.0" {
+		t.Fatalf("pending = %q %q %v", i, b, ok)
+	}
+	if _, err := l.AdoptBundled(bg); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := l.PendingProgramUpdate(bg); ok {
+		t.Fatal("still pending after it was installed")
+	}
+	if _, err := l.AdoptBundled(bg); err == nil {
+		t.Fatal("installing what is already installed must say so, not run the installer again")
+	}
+	w2 := newWorld(t)
+	w2.program(filepath.Join(w2.installDir(), "werkbord"), "v1.1.0")
+	if _, _, ok := w2.launcher(Options{Version: "v1.1.0", Bundled: w2.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")}).PendingProgramUpdate(bg); ok {
+		t.Fatal("nothing is pending when the versions agree")
+	}
+}
+
+func TestAdoptBundledExplainsAnUpdateThatWasRefused(t *testing.T) {
+	w := newWorld(t)
+	installed := w.program(filepath.Join(w.installDir(), "werkbord"), "v1.0.0")
+	w.def = &daemon.Definition{Binary: installed, DataDir: w.cfg.DataDir}
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
+	w.startController("v1.0.0")
+	w.upgradeErr = errors.New("runner journal r1.json has running work; finish or resolve it before interruption, or use --force")
+	_, err := w.launcher(Options{Version: "v1.1.0", Bundled: bundled}).AdoptBundled(bg)
+	if err == nil || !strings.Contains(err.Error(), "coding agents are working") {
+		t.Fatalf("err = %v", err)
 	}
 }
 
@@ -803,5 +952,83 @@ func TestLoginShellPATHIgnoresWhatStartupFilesPrint(t *testing.T) {
 	t.Setenv("SHELL", filepath.Join(dir, "missing"))
 	if got := loginShellPATH(bg); got != "" {
 		t.Fatalf("a missing shell gave %q", got)
+	}
+}
+
+// The person turned looking for updates off (noUpdateCheck in config.json, or WERKBORD_NO_UPDATE_CHECK): the controller
+// honours that, and the app, which asks the same releases page, must too: not one request leaves this computer.
+func TestUpdateStatusAsksNobodyWhenLookingForUpdatesIsTurnedOff(t *testing.T) {
+	for _, how := range []string{"config.json", "environment"} {
+		t.Run(how, func(t *testing.T) {
+			w := newWorld(t)
+			w.program(filepath.Join(w.installDir(), "werkbord"), "v1.0.0")
+			var asked int32
+			ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				atomic.AddInt32(&asked, 1)
+				http.Redirect(rw, r, "/tag/werkbord-v1.2.0", http.StatusFound)
+			}))
+			defer ts.Close()
+			if how == "config.json" {
+				if err := os.WriteFile(filepath.Join(w.cfg.DataDir, "config.json"), []byte(`{"noUpdateCheck": true}`), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				t.Setenv("WERKBORD_NO_UPDATE_CHECK", "1")
+			}
+			l := w.launcher(Options{Version: "v1.1.0", Source: update.Source{Base: ts.URL}})
+			for _, force := range []bool{false, true} {
+				st := l.UpdateStatus(bg, force)
+				if !st.Disabled || st.Available || st.Latest != "" {
+					t.Fatalf("force=%v status = %+v", force, st)
+				}
+			}
+			if n := atomic.LoadInt32(&asked); n != 0 {
+				t.Fatalf("%d requests were made although looking for updates is turned off", n)
+			}
+		})
+	}
+	// and turning it back on is noticed without restarting the app
+	w := newWorld(t)
+	w.program(filepath.Join(w.installDir(), "werkbord"), "v1.0.0")
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		http.Redirect(rw, r, "/tag/werkbord-v1.2.0", http.StatusFound)
+	}))
+	defer ts.Close()
+	cfgFile := filepath.Join(w.cfg.DataDir, "config.json")
+	_ = os.WriteFile(cfgFile, []byte(`{"noUpdateCheck": true}`), 0o600)
+	l := w.launcher(Options{Version: "v1.1.0", Source: update.Source{Base: ts.URL}})
+	if !l.UpdateStatus(bg, true).Disabled {
+		t.Fatal("expected it to be off")
+	}
+	_ = os.WriteFile(cfgFile, []byte(`{}`), 0o600)
+	if st := l.UpdateStatus(bg, true); st.Disabled || !st.Available {
+		t.Fatalf("after turning it back on: %+v", st)
+	}
+}
+
+// What the app asks of the controller it joins, written down: a new shell must keep working against an older
+// controller (and the other way round), so the calls they share are a short list that a change to the launcher
+// cannot grow by accident. The web app calls the shell through desktop/internal/shell, which has its own list.
+func TestTheLauncherAsksTheControllerForOnlyTheseThings(t *testing.T) {
+	allowed := map[string]bool{
+		"/api/health":   true, // public; says it is a controller and what version
+		"/api/projects": true, // needs the token: does this controller accept this computer's?
+	}
+	src, err := os.ReadFile("launcher.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range regexp.MustCompile(`"(/api/[a-zA-Z0-9/_-]*)`).FindAllStringSubmatch(string(src), -1) {
+		if !allowed[m[1]] {
+			t.Errorf("launcher.go asks the controller for %s: a call the app and an older controller share is a decision, "+
+				"not an accident; add it to this list and to docs/DESKTOP.md (\"What the shell and the controller share\")", m[1])
+		}
+	}
+	// and the commands it runs on the installed program, which older programs have too
+	cmds := map[string]bool{"version": true, "start": true, "setup": true, "install-release": true, "update": true}
+	for _, m := range regexp.MustCompile(`(?:Run\(\w+,[^,]+,[^,]+, |args = \[\]string\{|opt\.Run\([^)]*?)"([a-z-]+)"`).FindAllStringSubmatch(string(src), -1) {
+		if !cmds[m[1]] {
+			t.Errorf("launcher.go runs `werkbord %s`", m[1])
+		}
 	}
 }
