@@ -1,6 +1,6 @@
 # ADR 0001: The production architecture of Werkbord Team
 
-- **Status:** accepted. Phase 1 (the foundation) is implemented; Nebula, rqlite and the runner message path are not.
+- **Status:** accepted. Phase 1 (the foundation) and phase 2 (the customer-owned network: [ADR 0002](0002-customer-owned-network.md)) are implemented; rqlite and the runner message path are not.
 - **Applies to:** Werkbord Team. The individual product shares the packages named below and is otherwise unchanged.
 - **Read with:** [PRODUCTS.md](../PRODUCTS.md), [TEAM.md](../TEAM.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md).
 
@@ -127,9 +127,8 @@ Windows DPAPI, the Secret Service) is a second implementation, not yet written.
   with a retry (which is why `Store`'s contract says a function may run more than once), or those use cases become single
   commands. Phase 2 must settle this with tests before any data moves. The interface removed the coupling to `database/sql`;
   it did not make this question go away.
-- **Who holds the Nebula CA key** and how it is rotated is not decided; it must be customer-held, and it affects how a device
-  is enrolled.
-- **Registering a host** will need a signed device-to-workspace flow; today registration is a member's authenticated call
-  with a proof of key possession.
+- **Who holds the Nebula CA key**: decided in [ADR 0002](0002-customer-owned-network.md): Workspace Hosts only, sealed. Rotating it
+  in place is not built.
+- **Registering a host**: decided in ADR 0002: a signed invitation and the enrollment protocol (`internal/enrollment`).
 - **Clock skew** matters to envelopes; the tolerance is 30 seconds, and hosts need a sane clock.
 - **The Mac app and the individual product** gain no Team behaviour from this work.

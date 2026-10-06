@@ -70,10 +70,11 @@ A package is **shared** when both products use it and it holds no behaviour of e
 | `internal/sqlitekit` | Opens a SQLite file (one writer, a pool of readers, WAL), runs versioned migrations, copies the database before an upgrade, inspects it read-only. Knows no schema. | `internal/store/sqlite` (individual), `internal/team/store` (Team) |
 | `internal/httpkit` | `WriteJSON`/`WriteError` and the error envelope, strict `DecodeJSON`, and the `LogRequests`, `RecoverPanics` and `SecurityHeaders` middleware. Holds no route. | `internal/api` (individual), `internal/team/api` (Team) |
 | `internal/logging` | `slog` logger construction | both |
-| `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (individual); Team will |
+| `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (individual, Tailscale); `internal/team/infra/overlaynet` (Team's own private network) |
 | `internal/deviceid` | A device's ID, public key and the checks on them. No private key. | Team |
 | `internal/deviceid/localidentity` | A device's own identity: the private key and its storage. **Team never imports it** (rule 11). | the individual product's runner (when wired) |
 | `internal/envelope` | Signed cross-device messages: the format, the semantic actions, signing, verification, expiry and replay checks. | Team (verifies); the individual product (will sign and act) |
+| `internal/enrollment` | How a device joins a customer's workspace: the signed invitation (`werkbord://join/…`), the enrollment protocol over TLS 1.3 pinned to the workspace's key, its server and client, and what the joining device installs. Holds no private key (a signer is passed in) and names no network. | Team (serves it, and joins as a host); the individual product (will join member devices; not yet) |
 
 Each was extracted from the individual product (which now uses it too) rather than copied into Team, so there is one
 SQLite open path and one set of security headers.
@@ -110,7 +111,8 @@ All of it goes under `internal/team/`, and the program under `cmd/werkbord-team/
 | `internal/team/service` | The use cases. Every one takes the signed-in member and asks their role what is allowed. |
 | `internal/team/api` | The HTTP API (`/api/team/v1`), on `internal/httpkit`. |
 | `internal/team/console` | Team's web console (static files, no build step). |
-| `internal/team/config`, `internal/team/server` | Settings, and wiring and lifecycle. |
+| `internal/team/config`, `internal/team/server` | Settings, and wiring and lifecycle (including the private network's runtime and the adapter between the workspace's terms and the infrastructure's). |
+| `internal/team/infra/…` | Team's own **infrastructure**, imported only by `server` and `cmd/werkbord-team`: `pki` (the workspace's keys and the network's certificates, sealed), `overlay` (the node description, the default-deny policy, rendering), `nebula` (the supervisor of the one pinned network program, and its pin), `overlaynet` (the network as a `transport.Transport`). Never handles a request. See [TEAM_NETWORK.md](TEAM_NETWORK.md). |
 
 Billing, licensing, SSO, audit logs, and anything else only the paid product has belong here too. The `workspace`,
 `project`, `ticket`, `invite` and `activity` concepts all live in `internal/team/domain`; the ticket workflow is
@@ -141,6 +143,11 @@ for it.
 
 Roles are permission tables, not checks for a name: services ask `Role.Can(permission)`, so adding a role is one entry
 in `internal/team/domain/roles.go` and needs no schema change and no handler change.
+
+**The private network** (Team 2.5): each workspace can have a network made and run by its own machines: its own trust
+identity, its own certificate authority, signed invitations, enrollment over TLS, discovery hosts and relays on machines the
+customer owns, a default-deny policy, revocation in two layers, and the authority handed to more than one Workspace Host.
+Werkbord operates none of it. See [TEAM_NETWORK.md](TEAM_NETWORK.md) and [the decision](adr/0002-customer-owned-network.md).
 
 Not built yet, by design: licensing and payment, remote execution of any kind (never), a Team update command, a
 Windows installer, HTTPS (put Team behind a TLS proxy), ownership transfer, comments and chat (Team coordinates; it is
@@ -205,13 +212,20 @@ Beyond those, `internal/archtest` also keeps the production foundation honest (s
 [the architecture decision](adr/0001-team-production-architecture.md)):
 
 9. Team's one exception to "never starts a process" is a narrow, named grant for *infrastructure* supervision under
-   `internal/team/infra/` (none today): constant program names only, never a shell, Git, an agent or a runtime, importing
-   nothing that handles a request, imported only by Team's wiring. The rule itself is tested against code that breaks it;
+   `internal/team/infra/` (one today: the supervisor of the pinned network program): constant program names only, never a
+   shell, Git, an agent or a runtime, importing nothing that handles a request, imported only by Team's wiring. The rule itself
+   is tested against code that breaks it;
 10. shared packages import only the standard library and each other, and name no network or database vendor;
 11. Team's build never includes `internal/deviceid/localidentity`: private signing keys exist only on a device;
 12. code written against the contracts (`transport`, `deviceid`, `envelope`, Team's domain, service and API) names no
     network or database vendor (Tailscale, Nebula, DERP, lighthouses, Headscale, rqlite);
-13. only `internal/netprivate` imports Tailscale.
+13. only `internal/netprivate` imports Tailscale;
+14. the network supervisor is not a way to run anything: its exported API is the reviewed list, nothing in it means "a thing
+    to run", and it starts exactly one program, by a literal name, with a literal `-config <file>`;
+15. no code that runs in Team's network contains a URL that leads anywhere but this computer: Werkbord operates no service
+    Team could be pointed at;
+16. every setting Team reads is its own (`WERKBORD_TEAM_*`) and none names a service, an account or a URL;
+17. nothing that answers a request (the API, service, domain, store) can name a signing key.
 
 `make verify-isolation` is the empirical version of 1–2, and CI runs it. The Go module is shared, so `go.mod` lists
 every dependency of both; what counts is what each executable is built from, which is what these checks inspect. If

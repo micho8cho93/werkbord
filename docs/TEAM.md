@@ -128,8 +128,8 @@ What a device does is its **capability**, independent of its owner's role:
 | Capability | Meaning | Who may grant it |
 | --- | --- | --- |
 | `runner` | executes its owner's own work, on their machine | the device's owner, or `devices.manage` |
-| `workspace_host` | holds a replica of the workspace's data (phase 2 onward) | `devices.manage` |
-| `connectivity_host` | a customer-owned, publicly reachable machine that helps devices find each other | `devices.manage` |
+| `workspace_host` | runs Team for the workspace and holds its signing keys; will hold a replica of its data (the next phase) | `devices.manage` |
+| `connectivity_host` | a customer-owned, publicly reachable machine that helps devices find each other and relays for them | `devices.manage` |
 
 An Admin does not own a host because they are an Admin, and a member whose machine is a host does not become anything more
 than a member. A host's role has a status (`none`, `joining`, `active`, `unavailable`). A device is **online** if it was
@@ -137,8 +137,12 @@ seen in the last two minutes (derived, so one that stops reporting goes offline 
 permanent: it holds no capability, is not a host, and any envelope it signs is refused. Registration includes a signature
 by the device's own key over the workspace, member and name, so a key can only be registered by whoever holds it.
 
-These are service functions and storage today; there is no HTTP route for them yet, and nothing connects to a device. See
-[the architecture decision](adr/0001-team-production-architecture.md).
+From Team 2.5 a workspace can have its own **private network**, and devices **join** it with an invitation: they are
+registered, given an address and a certificate, and (for a member's own device) a credential for the API that is checked on
+every request, so revoking the device ends it at once. `GET /devices`, `POST /devices/{id}/revoke` and the routes under
+`/network`, `/enrollment-invitations` and `/enrollments` are the API for it; `werkbord-team network|device|host …` is the
+command line. Team still connects to no device and starts nothing on one. See [TEAM_NETWORK.md](TEAM_NETWORK.md) and
+[the architecture decisions](adr/0001-team-production-architecture.md) ([0002](adr/0002-customer-owned-network.md)).
 
 ## The collaborative workflow
 
@@ -426,6 +430,15 @@ Settings (flags win over environment): `WERKBORD_TEAM_ADDR` (default `127.0.0.1:
 (default `werkbord-team` in your user config directory; the database is `team.db` there), `WERKBORD_TEAM_LOG_LEVEL`,
 `WERKBORD_TEAM_LOG_FORMAT`. These are separate from the individual product's `WERKBORD_*` (formerly `DEVBOARD_*`), so both can run side by side.
 
+### The private network (Team 2.5)
+
+`werkbord-team workspace create --network --endpoint <a name or address that reaches this machine from outside>` gives the
+workspace a private network of its own (no account, no service of anyone else's), and makes the machine its first
+Workspace Host. Invitations, joining, approval, more than one host, revoking a device, what the network allows and what it
+cannot promise about the Internet are in [TEAM_NETWORK.md](TEAM_NETWORK.md). The settings are
+`WERKBORD_TEAM_ENDPOINTS`, `WERKBORD_TEAM_BOOTSTRAP_ADDR`, `WERKBORD_TEAM_NETWORK_PORT`, `WERKBORD_TEAM_NETWORK_NODE`,
+`WERKBORD_TEAM_NEBULA_DIR` and `WERKBORD_TEAM_PKI_PASSPHRASE_FILE`.
+
 ### Reaching it from other computers
 
 By default Team listens on this computer only. To let teammates reach it, give `--addr` a wider address (for example
@@ -438,6 +451,10 @@ clear otherwise. A token is required for every API request, on loopback too.
 The database is `<data dir>/team.db` (SQLite, WAL). Before a migration changes it, a consistent copy is written to
 `<data dir>/backups/team-v<version>-<time>.db` (the newest five are kept). To back up a running server, use
 `sqlite3 team.db ".backup copy.db"`; copying the file alone while it is being written is not safe.
+
+A workspace with a private network also has `<data dir>/pki/` (its keys, sealed) and, by default,
+`<data dir>/secrets/sealing.key`. Back up `pki/` **with** the database, and keep the sealing key somewhere else; without `pki/`
+every device has to be enrolled again into a new network ([TEAM_NETWORK.md](TEAM_NETWORK.md#backups-and-recovery)).
 
 ## API
 
@@ -487,6 +504,17 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `GET`/`POST /projects/{id}/invites`, `DELETE …/invites/{inviteId}` | `invites.manage` | the code is in the `POST` response only |
 | `POST /invites/redeem` `{code, name, email?}` | **anyone with a valid code** | creates the member and their token, once |
 | `POST /invites/join` `{code}` | any member | join a project with an invite |
+| `GET /devices` | own devices, or `devices.view_all` | the registry |
+| `POST /devices/{id}/revoke` | the owner of the device, or `devices.manage` | ends the device in the application and on the network at once |
+| `PUT /devices/{id}/network` `{bootstrapEndpoints?, networkEndpoints?, discovery?, relay?}` | the device itself (endpoints), or `devices.manage` | where a host can be reached and what it does for the network |
+| `POST /devices/{id}/provision` | `devices.manage` | seals the workspace's signing keys to a Workspace Host, for it to collect |
+| `GET /network` | `devices.view_all` | the network's hosts, reachability, warnings and this host's own node |
+| `PUT /network/approval` `{approval}` | `devices.manage` | `auto` or `admin`: whether a joining device waits for approval |
+| `GET /network/config`, `POST /network/certificate` | **a device, with its own credential** | the device's configuration; a renewed certificate for its own key |
+| `POST /network/checks` `{deviceId, endpoint, ok}` | a device, or `devices.manage` | the outcome of trying to reach a host |
+| `GET /network/provision`, `POST /network/provision/ack` | a device, with its own credential | collect (ciphertext only) and acknowledge the keys sealed to it |
+| `GET`/`POST /enrollment-invitations`, `DELETE …/{id}` | `members.manage` (`devices.manage` for a host) | the link is in the `POST` response only |
+| `GET /enrollments?state=`, `POST …/{id}/approve`, `POST …/{id}/deny` | `members.manage` | requests to join that wait for an administrator |
 
 `POST /projects/{id}/tickets/archive-done` archives completed tickets and requires `tickets.reopen`.
 `POST /projects/{id}/tickets/{tid}/archive` takes `{version, archived}` for close/restore and checks the existing

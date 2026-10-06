@@ -40,13 +40,26 @@ var teamAllowed = []string{
 	// a private key lives, which no Team code may link (TestTeamNeverLinksADevicesPrivateKey).
 	module + "/internal/deviceid",
 	module + "/internal/envelope",
+	// How a device joins a workspace: the signed invitation, the enrollment protocol and its
+	// client. Like deviceid it holds no private key (the caller supplies a signer) and names no
+	// network.
+	module + "/internal/enrollment",
+	// The contract for a private network node. Team's network (internal/team/infra/overlaynet) is one
+	// implementation of it, so that what is written against the contract never names the network.
+	module + "/internal/transport",
 }
 
 // teamOnlyModules are third-party modules that only Team may use: they must never
 // appear in the individual product's build (go.mod is shared, so the build is where
 // "does not leak" is checked). When Team gains a dependency the individual product
 // does not use, name it here; teamDependenciesAreClassified fails until it is named.
-var teamOnlyModules = []string{}
+var teamOnlyModules = []string{
+	// The private network's certificates: Nebula's own `cert` package, used in-process to make and check them (MIT).
+	"github.com/slackhq/nebula",
+	// What that package is built on.
+	"filippo.io/bigmod",
+	"google.golang.org/protobuf",
+}
 
 // teamForbiddenStdlib are standard-library packages Team's own code must not
 // import: it never starts a process or reaches into a machine.
@@ -62,12 +75,17 @@ var teamForbiddenStdlib = []string{"os/exec", "plugin", "net/rpc"}
 const teamInfraTree = teamTree + "/infra"
 
 // teamInfraExec is the whole of the exception to "Team never starts a process": a
-// package under teamInfraTree, and the exact programs it may start. It is empty.
-// A grant is checked by TestTheInfrastructureExceptionIsNarrow: the programs must
-// be named by constants in the code and be ones that are not a way to run
-// developer work, the package may not import any other Team package that handles a
-// request, and nothing but Team's wiring may import it.
-var teamInfraExec = map[string][]string{}
+// package under teamInfraTree, and the exact programs it may start. Today that is one
+// package and one program: the supervisor of the private network's node, and the
+// pinned Nebula release Werkbord ships. A grant is checked by
+// TestTheInfrastructureExceptionIsNarrow: the programs must be named by constants in
+// the code and be ones that are not a way to run developer work, the package may not
+// import any other Team package that handles a request, and nothing but Team's wiring
+// may import it. TestTheNetworkSupervisorIsNotAGeneralRunner (nebula_test.go) holds it
+// to its one entry point.
+var teamInfraExec = map[string][]string{
+	teamInfraTree + "/nebula": {"nebula"},
+}
 
 // teamForbiddenDeps are third-party packages that give remote access to a machine
 // (a private-network node, SSH, a pseudo-terminal) and so have no place anywhere in

@@ -38,6 +38,9 @@ type Options struct {
 	Version string
 	// Console serves the Team console; nil disables it.
 	Console http.Handler
+	// NodeStatus describes this host's own network node, for the network's health
+	// report; nil when this host runs none.
+	NodeStatus func() any
 }
 
 // Server holds the HTTP handlers.
@@ -110,6 +113,25 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/team/v1/projects/{id}/invites", s.handleCreateInvite)
 	api.HandleFunc("DELETE /api/team/v1/projects/{id}/invites/{inviteId}", s.handleRevokeInvite)
 	api.HandleFunc("POST /api/team/v1/invites/join", s.handleJoinInvite)
+	// devices and the private network they join (coordination metadata only: addresses,
+	// roles, reachability and invitations; nothing here reaches a device)
+	api.HandleFunc("GET /api/team/v1/devices", s.handleListDevices)
+	api.HandleFunc("POST /api/team/v1/devices/{id}/revoke", s.handleRevokeDevice)
+	api.HandleFunc("PUT /api/team/v1/devices/{id}/network", s.handleSetDeviceNetwork)
+	api.HandleFunc("POST /api/team/v1/devices/{id}/provision", s.handleProvisionDevice)
+	api.HandleFunc("GET /api/team/v1/network", s.handleNetworkHealth)
+	api.HandleFunc("PUT /api/team/v1/network/approval", s.handleSetApproval)
+	api.HandleFunc("GET /api/team/v1/network/config", s.handleNetworkConfig)
+	api.HandleFunc("POST /api/team/v1/network/certificate", s.handleRenewCertificate)
+	api.HandleFunc("POST /api/team/v1/network/checks", s.handleNetworkCheck)
+	api.HandleFunc("GET /api/team/v1/network/provision", s.handleCollectProvision)
+	api.HandleFunc("POST /api/team/v1/network/provision/ack", s.handleAckProvision)
+	api.HandleFunc("GET /api/team/v1/enrollment-invitations", s.handleListEnrollInvitations)
+	api.HandleFunc("POST /api/team/v1/enrollment-invitations", s.handleCreateEnrollInvitation)
+	api.HandleFunc("DELETE /api/team/v1/enrollment-invitations/{id}", s.handleWithdrawEnrollInvitation)
+	api.HandleFunc("GET /api/team/v1/enrollments", s.handleListEnrollments)
+	api.HandleFunc("POST /api/team/v1/enrollments/{id}/approve", s.handleApproveEnrollment)
+	api.HandleFunc("POST /api/team/v1/enrollments/{id}/deny", s.handleDenyEnrollment)
 	api.HandleFunc("/api/team/v1/", func(w http.ResponseWriter, r *http.Request) {
 		httpkit.WriteError(w, http.StatusNotFound, "not_found", "no such endpoint")
 	})

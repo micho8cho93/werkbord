@@ -19,7 +19,7 @@ TEAM_LDFLAGS = -X main.version=$(WERKBORD_TEAM_VERSION)
 BIN      := bin/werkbord
 TEAM_BIN := bin/werkbord-team
 
-.PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team \
+.PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team nebula test-nebula \
         test test-werkbord test-team lint check verify-isolation \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
         dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser
@@ -56,6 +56,13 @@ install-team: build-team
 	install -d $(PREFIX)/bin
 	install -m 755 $(TEAM_BIN) $(PREFIX)/bin/werkbord-team
 	@echo "installed $(PREFIX)/bin/werkbord-team ($(WERKBORD_TEAM_VERSION))"
+
+## nebula: fetch the pinned Nebula release into .cache/nebula (checked against internal/team/infra/nebula/manifest.go);
+## test-nebula: and run Team's tests that start the real program, which then must not be skipped
+nebula:
+	scripts/fetch-nebula.sh
+test-nebula: nebula
+	WERKBORD_REQUIRE_NEBULA=1 $(GO) test -timeout 30m ./internal/team/infra/... ./internal/team/server/...
 
 ## test: Go tests (both products and the shared packages) and the individual product's web unit tests
 test: web/node_modules

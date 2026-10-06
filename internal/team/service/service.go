@@ -26,6 +26,18 @@ type Service struct {
 	db  store.Store
 	now func() time.Time
 	hub *hub
+	// net is what makes the workspace's private network's certificates and
+	// configuration; nil when this host has none (SetNetwork).
+	net NetworkAuthority
+}
+
+// SetClock replaces the clock the service reads (for tests, which move time to see an
+// invitation expire; time.Now otherwise).
+func (s *Service) SetClock(now func() time.Time) {
+	if now == nil {
+		now = time.Now
+	}
+	s.now = now
 }
 
 // New builds a Service on a database.
@@ -46,6 +58,11 @@ func (s *Service) stamp() time.Time { return s.now().UTC().Truncate(time.Millise
 type Actor struct {
 	Member    domain.Member
 	Workspace domain.Workspace
+	// Device is the device the request came from, when the caller signed in with a
+	// device's own credential (what an enrolled device holds) rather than a member's
+	// token. A revoked device has no credential that works, so a request that arrives
+	// with one never reaches a handler, however it got to the host.
+	Device *domain.Device
 }
 
 func forbidden(what string) error {
@@ -108,16 +125,33 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error)
 		return Actor{}, domain.ErrUnauthenticated
 	}
 	var a Actor
+	hash := domain.HashToken(token)
 	err := s.db.View(ctx, func(tx store.Tx) error {
-		m, err := tx.MemberByTokenHash(ctx, domain.HashToken(token))
-		if err != nil {
+		m, err := tx.MemberByTokenHash(ctx, hash)
+		var dev *domain.Device
+		if errors.Is(err, domain.ErrNotFound) {
+			// Not a member's token: a device's own credential. The device must not be
+			// revoked, and its owner must still be a member: both are checked here, on
+			// every request, which is what makes revoking a device take effect at once.
+			d, derr := tx.DeviceByCredentialHash(ctx, hash)
+			if derr != nil {
+				return derr
+			}
+			if d.Revoked() {
+				return domain.ErrNotFound
+			}
+			if m, err = tx.Member(ctx, d.WorkspaceID, d.MemberID); err != nil {
+				return err
+			}
+			dev = &d
+		} else if err != nil {
 			return err
 		}
 		ws, err := tx.Workspace(ctx, m.WorkspaceID)
 		if err != nil {
 			return err
 		}
-		a = Actor{Member: m, Workspace: ws}
+		a = Actor{Member: m, Workspace: ws, Device: dev}
 		return nil
 	})
 	if errors.Is(err, domain.ErrNotFound) {
@@ -228,6 +262,12 @@ func (s *Service) RemoveMember(ctx context.Context, a Actor, memberID string) er
 		}
 		if !a.Member.Role.CanManage(m.Role) {
 			return forbidden("remove a member with the " + string(m.Role) + " role")
+		}
+		// Their devices are revoked first, so that their certificates are refused by the
+		// network and their credentials by the API: deleting the member deletes the
+		// registry rows, and the refusal has to outlive them.
+		if err := s.revokeDevicesOf(ctx, tx, a.Workspace.ID, memberID); err != nil {
+			return err
 		}
 		// Whatever they were working on goes back on its board first.
 		projects, err := tx.ProjectsOfMemberWithHeldTickets(ctx, a.Workspace.ID, memberID)

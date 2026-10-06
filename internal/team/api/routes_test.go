@@ -51,6 +51,13 @@ var workspaceRoutes = []string{
 	"GET /projects", "POST /projects",
 	"GET /overview", "GET /my-work", "GET /reviews", "GET /sync",
 	"POST /invites/join",
+	// The private network and the devices on it: addresses, roles, reachability, invitations
+	// and requests to join. A device's own routes are authenticated by its own credential.
+	"GET /devices", "POST /devices/{id}/revoke", "PUT /devices/{id}/network", "POST /devices/{id}/provision",
+	"GET /network", "PUT /network/approval", "GET /network/config", "POST /network/certificate", "POST /network/checks",
+	"GET /network/provision", "POST /network/provision/ack",
+	"GET /enrollment-invitations", "POST /enrollment-invitations", "DELETE /enrollment-invitations/{id}",
+	"GET /enrollments", "POST /enrollments/{id}/approve", "POST /enrollments/{id}/deny",
 }
 
 // ownerOnly are project routes a plain member of the project must be refused (403).

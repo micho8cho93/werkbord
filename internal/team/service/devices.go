@@ -286,7 +286,7 @@ func (s *Service) RevokeDevice(ctx context.Context, a Actor, id string) (domain.
 		if !canChange(a, d) {
 			return forbidden("revoke this device")
 		}
-		if _, err := tx.RevokeDevice(ctx, a.Workspace.ID, id, s.stamp()); err != nil {
+		if err := s.revokeDevice(ctx, tx, a.Workspace.ID, id); err != nil {
 			return err
 		}
 		out, err = tx.Device(ctx, a.Workspace.ID, id)
@@ -294,6 +294,48 @@ func (s *Service) RevokeDevice(ctx context.Context, a Actor, id string) (domain.
 	})
 	s.changed(a.Workspace.ID, err)
 	return out, err
+}
+
+// revokeDevice ends a device in both layers at once, in one transaction.
+//
+// The application layer is authoritative and immediate: the device is marked revoked
+// (so no signed message from it is accepted, and Authenticate refuses its credential)
+// and its credential is deleted. The network layer follows as defence in depth: every
+// certificate the workspace issued to it is marked revoked, which puts its fingerprint
+// on the blocklist every host gives its network program, so the network stops
+// accepting it too. If a host has not yet reloaded, the device may still send packets
+// to it; they reach an API that no longer knows who it is.
+func (s *Service) revokeDevice(ctx context.Context, tx store.Tx, workspaceID, id string) error {
+	now := s.stamp()
+	if _, err := tx.RevokeDevice(ctx, workspaceID, id, now); err != nil {
+		return err
+	}
+	if err := tx.DeleteDeviceCredential(ctx, workspaceID, id); err != nil {
+		return err
+	}
+	if _, err := tx.RevokeCertificates(ctx, workspaceID, id, now); err != nil {
+		return err
+	}
+	if _, err := tx.Provision(ctx, workspaceID, id); err == nil {
+		if err := tx.ClearProvision(ctx, workspaceID, id, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// revokeDevicesOf revokes every device a member has, as revokeDevice does for one.
+func (s *Service) revokeDevicesOf(ctx context.Context, tx store.Tx, workspaceID, memberID string) error {
+	devs, err := tx.Devices(ctx, workspaceID, memberID)
+	if err != nil {
+		return err
+	}
+	for _, d := range devs {
+		if err := s.revokeDevice(ctx, tx, workspaceID, d.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RecordDeviceSeen notes that a device has been seen, now. The clock is the

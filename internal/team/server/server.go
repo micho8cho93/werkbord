@@ -29,7 +29,11 @@ func Open(ctx context.Context, cfg config.Config, log *slog.Logger) (store.Store
 
 // Handler is Team's whole HTTP surface: the API and the console.
 func Handler(db store.Store, svc *service.Service, log *slog.Logger, version string) http.Handler {
-	return api.New(api.Options{Service: svc, Ping: db.Ping, Log: log, Version: version, Console: console.Handler()}).Handler()
+	return handler(db, svc, log, version, nil)
+}
+
+func handler(db store.Store, svc *service.Service, log *slog.Logger, version string, nodeStatus func() any) http.Handler {
+	return api.New(api.Options{Service: svc, Ping: db.Ping, Log: log, Version: version, Console: console.Handler(), NodeStatus: nodeStatus}).Handler()
 }
 
 // Run serves Team on cfg.Addr until ctx is cancelled, then shuts down gracefully.
@@ -42,6 +46,15 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger, version strin
 		return err
 	}
 	defer db.Close()
+	nw, err := openNetwork(cfg, log, svc)
+	if err != nil {
+		return err
+	}
+	var nodeStatus func() any
+	if nw != nil {
+		nodeStatus = nw.NodeStatus
+	}
+	h := handler(db, svc, log, version, nodeStatus)
 
 	ln, err := net.Listen("tcp", cfg.Addr)
 	if err != nil {
@@ -53,7 +66,7 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger, version strin
 	base, stopWaiters := context.WithCancel(context.WithoutCancel(ctx))
 	defer stopWaiters()
 	srv := &http.Server{
-		Handler:           Handler(db, svc, log, version),
+		Handler:           h,
 		BaseContext:       func(net.Listener) context.Context { return base },
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
@@ -67,6 +80,15 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger, version strin
 
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
+	// The private network, if this host has one, runs for as long as the server does.
+	netCtx, stopNet := context.WithCancel(ctx)
+	netDone := make(chan struct{})
+	if nw != nil {
+		go func() { defer close(netDone); nw.run(netCtx, h) }()
+	} else {
+		close(netDone)
+	}
+	defer func() { stopNet(); <-netDone }()
 	select {
 	case err := <-errc:
 		return err

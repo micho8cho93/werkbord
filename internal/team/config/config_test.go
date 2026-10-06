@@ -63,3 +63,44 @@ func TestValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestTheNetworkSettingsAreTheCustomersOwnAddressesAndFiles(t *testing.T) {
+	t.Setenv("WERKBORD_TEAM_DATA_DIR", "/srv/team")
+	t.Setenv("WERKBORD_TEAM_ENDPOINTS", "team.example.org, 203.0.113.5 ,")
+	t.Setenv("WERKBORD_TEAM_BOOTSTRAP_ADDR", "0.0.0.0:9440")
+	t.Setenv("WERKBORD_TEAM_NETWORK_PORT", "4343")
+	t.Setenv("WERKBORD_TEAM_NETWORK_NODE", "off")
+	t.Setenv("WERKBORD_TEAM_NEBULA_DIR", "/opt/a,/opt/b")
+	c := Load()
+	if len(c.Endpoints) != 2 || c.BootstrapPort() != 9440 || c.NetworkPort != 4343 || c.RunNode || len(c.NebulaDirs) != 2 {
+		t.Fatalf("%+v", c)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if c.PKIDir() != "/srv/team/pki" || c.SealingKeyPath() != "/srv/team/secrets/sealing.key" || c.NodeDir() != "/srv/team/network" {
+		t.Errorf("%s %s %s", c.PKIDir(), c.SealingKeyPath(), c.NodeDir())
+	}
+	for name, mutate := range map[string]func(*Config){
+		"a URL as an endpoint":             func(c *Config) { c.Endpoints = []string{"https://relay.example.com"} },
+		"an endpoint with a port":          func(c *Config) { c.Endpoints = []string{"team.example.org:7440"} },
+		"an endpoint with a path":          func(c *Config) { c.Endpoints = []string{"team.example.org/x"} },
+		"a port that is not a port":        func(c *Config) { c.NetworkPort = 70000 },
+		"a bootstrap address with no port": func(c *Config) { c.BootstrapAddr = "localhost" },
+	} {
+		c := Default()
+		mutate(&c)
+		if c.Validate() == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	d := Default()
+	d.Endpoints = []string{"2001:db8::1", "[2001:db8::2]"}
+	if err := d.Validate(); err != nil {
+		t.Errorf("IPv6 endpoints: %v", err)
+	}
+	t.Setenv("WERKBORD_TEAM_NETWORK_PORT", "nope")
+	if Load().Validate() == nil {
+		t.Error("an unreadable port was accepted")
+	}
+}

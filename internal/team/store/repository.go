@@ -47,6 +47,7 @@ type Tx interface {
 	ActivityQueries
 	InviteQueries
 	DeviceQueries
+	NetworkQueries
 }
 
 // WorkspaceQueries are the workspace's own record and its change counter.
@@ -149,4 +150,69 @@ type DeviceQueries interface {
 	// RevokeDevice revokes a device and ends its host roles. It reports whether it
 	// was the call that revoked it; revoking a revoked device changes nothing.
 	RevokeDevice(ctx context.Context, workspaceID, id string, at time.Time) (bool, error)
+}
+
+// NetworkQueries are the customer-owned private network's records: its public
+// settings, where each device sits on it, the certificates issued (by fingerprint),
+// the credential each device uses for the API, and the invitations and requests by
+// which devices join. None of it is secret: credentials and invitation credentials are
+// hashes, and the keys that sign for the workspace are not in storage at all.
+type NetworkQueries interface {
+	InsertNetworkSettings(ctx context.Context, s domain.NetworkSettings) error
+	// NetworkSettings returns the workspace's network settings, or domain.ErrNotFound
+	// when it has no private network.
+	NetworkSettings(ctx context.Context, workspaceID string) (domain.NetworkSettings, error)
+	SetEnrollmentApproval(ctx context.Context, workspaceID string, p domain.ApprovalPolicy, at time.Time) error
+
+	// InsertDeviceNetwork places a device on the network. An address already used in the
+	// workspace is domain.ErrConflict: the schema guarantees no two devices share one.
+	InsertDeviceNetwork(ctx context.Context, n domain.DeviceNetwork) error
+	DeviceNetwork(ctx context.Context, workspaceID, deviceID string) (domain.DeviceNetwork, error)
+	DeviceNetworks(ctx context.Context, workspaceID string) ([]domain.DeviceNetwork, error)
+	// SaveDeviceNetwork writes a device's groups, roles and endpoints.
+	SaveDeviceNetwork(ctx context.Context, n domain.DeviceNetwork) error
+	// SetReachability records the outcome of a check of a device. A check that succeeded
+	// from outside also sets when that last happened.
+	SetReachability(ctx context.Context, workspaceID, deviceID string, r domain.Reachability, at time.Time, externalOK bool) error
+	// SetProvision keeps secrets sealed to a device until it collects them; ClearProvision
+	// removes them; Provision returns them (nil when there are none).
+	SetProvision(ctx context.Context, workspaceID, deviceID string, sealed []byte, at time.Time) error
+	Provision(ctx context.Context, workspaceID, deviceID string) ([]byte, error)
+	ClearProvision(ctx context.Context, workspaceID, deviceID string, at time.Time) error
+
+	InsertCertificate(ctx context.Context, workspaceID string, c domain.NetworkCertificate) error
+	// RevokeCertificates marks every certificate of a device revoked, once, and returns how many it marked.
+	RevokeCertificates(ctx context.Context, workspaceID, deviceID string, at time.Time) (int, error)
+	// Blocklist returns the fingerprints of revoked certificates that have not yet expired
+	// (an expired certificate is refused anyway).
+	Blocklist(ctx context.Context, workspaceID string, now time.Time) ([]string, error)
+
+	// SetDeviceCredential stores the hash of a device's API token, replacing any other.
+	SetDeviceCredential(ctx context.Context, workspaceID, deviceID, tokenHash string, at time.Time) error
+	// DeviceByCredentialHash finds the device a token belongs to, revoked or not.
+	DeviceByCredentialHash(ctx context.Context, tokenHash string) (domain.Device, error)
+	DeleteDeviceCredential(ctx context.Context, workspaceID, deviceID string) error
+
+	InsertEnrollInvitation(ctx context.Context, inv domain.EnrollInvitation, credentialHash []byte) error
+	// EnrollInvitationByID finds an invitation by its (public) ID in any workspace, with
+	// the hash of its credential, for the public enrollment endpoint.
+	EnrollInvitationByID(ctx context.Context, id string) (domain.EnrollInvitation, []byte, error)
+	EnrollInvitations(ctx context.Context, workspaceID string) ([]domain.EnrollInvitation, error)
+	// UseEnrollInvitation marks an open, unexpired invitation used. It reports false when
+	// it was not open or had expired: the guard is in the write, so two requests with one
+	// credential cannot both succeed.
+	UseEnrollInvitation(ctx context.Context, workspaceID, id string, now time.Time) (bool, error)
+	WithdrawEnrollInvitation(ctx context.Context, workspaceID, id string) (bool, error)
+
+	InsertEnrollment(ctx context.Context, e domain.Enrollment) error
+	Enrollment(ctx context.Context, workspaceID, id string) (domain.Enrollment, error)
+	EnrollmentByID(ctx context.Context, id string) (domain.Enrollment, error)
+	Enrollments(ctx context.Context, workspaceID string, state domain.EnrollmentState) ([]domain.Enrollment, error)
+	// DecideEnrollment approves or denies a pending enrollment; false when it was not pending.
+	DecideEnrollment(ctx context.Context, workspaceID, id string, state domain.EnrollmentState, memberID, by string, at time.Time) (bool, error)
+	// SetEnrollmentMember records the member an approved enrollment became a device of.
+	SetEnrollmentMember(ctx context.Context, workspaceID, id, memberID string) error
+	// MarkEnrollmentDelivered records that the device collected what it was issued, once;
+	// false when it already had.
+	MarkEnrollmentDelivered(ctx context.Context, workspaceID, id string, at time.Time) (bool, error)
 }

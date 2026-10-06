@@ -18,6 +18,8 @@ const (
 	PrefixWorkspace = "tws"
 	PrefixMember    = "tmb"
 	PrefixProject   = "tpj"
+	// PrefixEnrollment marks a request to join the workspace.
+	PrefixEnrollment = "tenr"
 )
 
 var idEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)

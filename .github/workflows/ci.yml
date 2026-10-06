@@ -21,7 +21,12 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
+      - name: The pinned Nebula release (checked against the hashes in the repository), for the tests that run the real program
+        run: scripts/fetch-nebula.sh
       - name: Tests, lint and build (both products and the shared packages)
+        env:
+          # A test that needs the real network program fails, rather than skips, if it is missing.
+          WERKBORD_REQUIRE_NEBULA: "1"
         run: make check
       - name: Individual product runs without Team (a copy of the repository with every Team file removed)
         run: make web web-embed verify-isolation

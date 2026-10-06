@@ -6,8 +6,10 @@
 #   curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install-team.sh | sh
 #
 # It downloads the Team release for this computer, checks it against the release's
-# published checksums, and puts one executable, werkbord-team, in ~/.local/bin. It
-# starts nothing and installs no service; see docs/TEAM.md for what to do next.
+# published checksums, and puts the executable, werkbord-team, in ~/.local/bin. A release
+# that carries the network program Team supervises (docs/TEAM_NETWORK.md) also gets it,
+# in ~/.local/libexec/werkbord-team, with its licences in ~/.local/share/doc/werkbord-team.
+# It starts nothing and installs no service; see docs/TEAM.md for what to do next.
 #
 # Environment:
 #   WERKBORD_TEAM_VERSION      install this release (v1.2.3 or werkbord-team-v1.2.3) instead of the latest
@@ -110,6 +112,23 @@ cp "$bin" "$dir/.werkbord-team.new" || fail "cannot write to $dir (set WERKBORD_
 chmod 755 "$dir/.werkbord-team.new"
 mv -f "$dir/.werkbord-team.new" "$dir/werkbord-team"
 say "Installed $dir/werkbord-team ($version)"
+
+# The network program Team supervises, if this release carries it: beside the executable's own libexec directory
+# (where Team looks, and checks it against the version it was built to run), with the licences that go with it.
+# Nothing is fetched when Team runs, so this is the only place it comes from.
+nebula=$(find "$tmp/unpack" -type f -path '*/libexec/werkbord-team/nebula' | head -1)
+if [ -n "$nebula" ]; then
+  prefix=$(dirname "$dir")
+  lib="$prefix/libexec/werkbord-team"
+  mkdir -p "$lib" || fail "cannot create $lib"
+  cp "$nebula" "$lib/.nebula.new" && chmod 755 "$lib/.nebula.new" && mv -f "$lib/.nebula.new" "$lib/nebula"
+  say "Installed the network program (Nebula) at $lib/nebula"
+  lic=$(find "$tmp/unpack" -type d -name licenses | head -1)
+  if [ -n "$lic" ]; then
+    doc="$prefix/share/doc/werkbord-team"
+    mkdir -p "$doc" && rm -rf "$doc/licenses" && cp -R "$lic" "$doc/licenses" && say "Licences are in $doc/licenses"
+  fi
+fi
 case ":$PATH:" in
   *":$dir:"*) ;;
   *) say "Note: $dir is not on your PATH. Add it to your shell profile:

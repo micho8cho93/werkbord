@@ -15,6 +15,11 @@
 #
 # The individual product's web app must already be built and embedded
 # (make web web-embed). PLATFORMS overrides what is built, as "os/arch os/arch".
+#
+# Werkbord Team's archives for macOS and Linux also carry the pinned Nebula release it supervises
+# (libexec/werkbord-team/nebula, checked against internal/team/infra/nebula/manifest.go by
+# scripts/fetch-nebula.sh) and the licences that go with it (licenses/). The program is never downloaded
+# when Team runs. BUNDLE_NEBULA=no leaves it out, for tests of the archive format that must not touch the network.
 set -eu
 
 PRODUCT=${1:-}
@@ -35,6 +40,7 @@ if [ "$PRODUCT" = werkbord ]; then
   [ -f internal/webui/dist/index.html ] || { echo "the web app is not built: run 'make web web-embed' first" >&2; exit 1; }
 fi
 
+BUNDLE_NEBULA=${BUNDLE_NEBULA:-yes}
 PLATFORMS=${PLATFORMS:-"darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64"}
 
 rm -rf "$OUT"
@@ -53,11 +59,22 @@ for p in $PLATFORMS; do
   echo "building $PRODUCT $VERSION for $os/$arch"
   CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$dir/$bin" "./$CMD"
   cp "$README" "$dir/README.md"
+  members="$bin README.md"
+  if [ "$PRODUCT" = werkbord-team ] && [ "$os" != windows ] && [ "$BUNDLE_NEBULA" != no ]; then
+    nebula_dir=$(scripts/fetch-nebula.sh "$os" "$arch") || { echo "build-release: cannot get the pinned Nebula for $os/$arch" >&2; exit 1; }
+    mkdir -p "$dir/libexec/werkbord-team" "$dir/licenses/nebula" "$dir/licenses/go"
+    cp "$nebula_dir/nebula" "$dir/libexec/werkbord-team/nebula"
+    chmod 755 "$dir/libexec/werkbord-team/nebula"
+    cp third_party/nebula/LICENSE third_party/nebula/THIRD_PARTY_LICENSES.txt "$dir/licenses/nebula/"
+    cp third_party/go/LICENSE "$dir/licenses/go/LICENSE"
+    members="$members libexec licenses"
+  fi
   name="${ASSET}_${VERSION#v}_${os}_${arch}"
   if [ "$os" = windows ]; then
     (cd "$dir" && zip -q "$OUT/$name.zip" "$bin" README.md)
   else
-    tar -czf "$OUT/$name.tar.gz" -C "$dir" "$bin" README.md
+    # shellcheck disable=SC2086 # the members have no spaces
+    tar -czf "$OUT/$name.tar.gz" -C "$dir" $members
   fi
   if [ -n "$LEGACY" ]; then
     old="$STAGE/$os-$arch-legacy"

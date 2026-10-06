@@ -26,14 +26,28 @@ func newDB(t *testing.T) (store.Store, string) {
 }
 
 type world struct {
-	t   *testing.T
-	svc *Service
-	db  store.Store
+	t    *testing.T
+	svc  *Service
+	db   store.Store
+	path string
 }
 
 func newWorld(t *testing.T) *world {
-	db, _ := newDB(t)
-	return &world{t: t, svc: New(db), db: db}
+	db, path := newDB(t)
+	return &world{t: t, svc: New(db), db: db, path: path}
+}
+
+// dumpDatabase is everything on disk that belongs to the database, as text, for a test
+// that looks for a secret in it.
+func dumpDatabase(t *testing.T, w *world) string {
+	t.Helper()
+	var all []byte
+	for _, f := range []string{w.path, w.path + "-wal"} {
+		if b, err := os.ReadFile(f); err == nil {
+			all = append(all, b...)
+		}
+	}
+	return string(all)
 }
 
 // workspace starts a workspace and returns its owner, signed in.

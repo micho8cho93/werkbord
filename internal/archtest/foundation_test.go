@@ -27,6 +27,7 @@ var sharedPackages = []string{
 	module + "/internal/deviceid",
 	module + "/internal/deviceid/localidentity",
 	module + "/internal/envelope",
+	module + "/internal/enrollment",
 }
 
 func isShared(p string) bool {
@@ -159,7 +160,7 @@ func codeNames(t *testing.T, dir string) (names map[string]token.Position, files
 // can be moved from one to another without edit.
 func TestApplicationCodeNamesNoNetworkOrDatabaseVendor(t *testing.T) {
 	dirs := []string{
-		"internal/transport", "internal/deviceid", "internal/envelope",
+		"internal/transport", "internal/deviceid", "internal/envelope", "internal/enrollment",
 		"internal/team/domain", "internal/team/service", "internal/team/api",
 	}
 	total := 0

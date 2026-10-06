@@ -24,7 +24,7 @@ case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *
 
 mkdir -p "$WORK/releases"
 for v in v9.1.0 v9.1.1; do
-  PLATFORMS="$os/$arch" scripts/build-release.sh werkbord-team "$v" "$WORK/build-$v" >/dev/null
+  BUNDLE_NEBULA=no PLATFORMS="$os/$arch" scripts/build-release.sh werkbord-team "$v" "$WORK/build-$v" >/dev/null
   mkdir -p "$WORK/releases/werkbord-team-$v"
   cp "$WORK/build-$v"/* "$WORK/releases/werkbord-team-$v/"
 done
@@ -86,6 +86,33 @@ out=$($SH scripts/install-team.sh 2>&1) || bad "install failed" "$out"
 [ "$("$HOME/.local/bin/werkbord-team" version)" = v9.1.1 ] || bad "the latest Team release (v9.1.1) was not installed" "$out"
 [ ! -e "$HOME/.local/bin/werkbord" ] && [ ! -e "$HOME/.local/bin/devboard" ] || bad "the individual product was installed"
 ok "installs the stable Team release, ignoring changelog tags and prereleases"
+
+# 1b. a release that carries the network program installs it beside the executable, and its licences.
+# (The program in this archive is a stand-in: the installer checks the archive's checksum, and Team checks the program
+# against its pin when it runs; what is tested here is where the files go.)
+mkdir -p "$WORK/bundle/pkg/libexec/werkbord-team" "$WORK/bundle/pkg/licenses/nebula" "$WORK/releases/werkbord-team-v9.1.4"
+tar -xzf "$WORK/releases/werkbord-team-v9.1.1/werkbord-team_9.1.1_${os}_${arch}.tar.gz" -C "$WORK/bundle/pkg"
+printf '#!/bin/sh\necho stand-in\n' > "$WORK/bundle/pkg/libexec/werkbord-team/nebula"
+printf 'MIT License\n' > "$WORK/bundle/pkg/licenses/nebula/LICENSE"
+# (the executable says v9.1.1; the installer would refuse it as v9.1.4, so install this one by its real name)
+tar -czf "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" -C "$WORK/bundle/pkg" werkbord-team README.md libexec licenses
+sum=$(shasum -a 256 "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz")
+printf '%s  werkbord-team_9.1.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-team-v9.1.4/checksums.txt"
+fresh
+if out=$(WERKBORD_TEAM_VERSION=v9.1.4 $SH scripts/install-team.sh 2>&1); then bad "an executable of the wrong version was installed" "$out"; fi
+contains "$out" "not installing it" || bad "wrong refusal" "$out"
+[ ! -e "$HOME/.local/libexec/werkbord-team/nebula" ] || bad "the network program was installed from a release that was refused"
+# the same archive with an executable that tells the truth
+printf '#!/bin/sh\n[ "$1" = version ] && echo v9.1.4\n' > "$WORK/bundle/pkg/werkbord-team"
+chmod 755 "$WORK/bundle/pkg/werkbord-team"
+tar -czf "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" -C "$WORK/bundle/pkg" werkbord-team README.md libexec licenses
+sum=$(shasum -a 256 "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz")
+printf '%s  werkbord-team_9.1.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-team-v9.1.4/checksums.txt"
+fresh
+WERKBORD_TEAM_VERSION=v9.1.4 $SH scripts/install-team.sh >/dev/null 2>&1 || bad "installing the release that carries the network program failed"
+[ -x "$HOME/.local/libexec/werkbord-team/nebula" ] || bad "the network program was not installed beside the executable" "$(ls -R "$HOME/.local" 2>&1)"
+[ -f "$HOME/.local/share/doc/werkbord-team/licenses/nebula/LICENSE" ] || bad "the licences were not installed"
+ok "installs the network program and its licences from a release that carries them, and from no other"
 
 # 2. a named version, in either spelling
 fresh

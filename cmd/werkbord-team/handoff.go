@@ -274,6 +274,9 @@ func doJSON(ctx context.Context, hc *http.Client, method, addr, token string, bo
 		}
 		return fmt.Errorf("answered %d", res.StatusCode)
 	}
+	if into == nil || len(raw) == 0 { // an answer with no body (204), or one the caller does not want
+		return nil
+	}
 	return json.Unmarshal(raw, into)
 }
 

@@ -25,6 +25,11 @@ that ticket's context to *their own* Werkbord; it never connects to anyone else'
 `wb-142-<title>`. Team records who holds what and the branches and pull requests developers report; it never runs Git,
 merges, or touches a computer.
 
+A workspace can also have a **private network** of its own, made and run by its own machines with no account or service of
+anyone else's (`workspace create --network`, then `network invite`, `device join`, `network status`; see
+`docs/TEAM_NETWORK.md`). The macOS and Linux release archives carry the pinned network program, which Team supervises and
+checks against its pin before every start; it is never downloaded when Team runs.
+
 Settings: `--addr` / `WERKBORD_TEAM_ADDR` (default `127.0.0.1:7430`), `--data-dir` / `WERKBORD_TEAM_DATA_DIR`.
 Team serves plain HTTP: to reach it from other computers put it behind HTTPS or a private network.
 

@@ -27,20 +27,20 @@ import (
 // serverImportAllowed is where a Team server package may import a package that can
 // touch the machine: the package (relative to internal/team) it is allowed in.
 var serverImportAllowed = map[string][]string{
-	"os":                           {"config"},           // the environment and the data directory
-	"path/filepath":                {"config"},           // the data directory's path
-	"net":                          {"config", "server"}, // validating and opening the listen address
-	"syscall":                      {},                   // nothing
-	"unsafe":                       {},                   // nothing
-	"net/http/httputil":            {},                   // a reverse proxy is how one request becomes another
-	"net/http/cgi":                 {},                   // runs programs
-	"net/http/fcgi":                {},                   // runs programs
-	"net/smtp":                     {},                   // outbound mail
-	"net/rpc":                      {},                   // remote calls
-	"crypto/tls":                   {},                   // Team serves plain HTTP behind the operator's proxy
-	"golang.org/x/net":             {},                   // websockets, proxies
-	"golang.org/x/crypto/ssh":      {},                   // remote shells
-	"github.com/gorilla/websocket": {},                   // sockets are a way into a machine; sync is a plain long poll
+	"os":                           {"config", "infra", "server"}, // the environment and the data directory; infrastructure reads and writes its own key and node files; the wiring opens the key vault and reads the passphrase file that the configuration names, and nothing else
+	"path/filepath":                {"config", "infra", "server"}, // the data directory's path
+	"net":                          {"config", "server", "infra"}, // validating and opening the listen address; infrastructure parses the addresses of its own network
+	"syscall":                      {"infra"},                     // only infrastructure, to check who owns the files it starts or reads keys from, and to signal its own node; infra_test.go bans syscall.Exec and the like there
+	"unsafe":                       {},                            // nothing
+	"net/http/httputil":            {},                            // a reverse proxy is how one request becomes another
+	"net/http/cgi":                 {},                            // runs programs
+	"net/http/fcgi":                {},                            // runs programs
+	"net/smtp":                     {},                            // outbound mail
+	"net/rpc":                      {},                            // remote calls
+	"crypto/tls":                   {},                            // Team serves plain HTTP behind the operator's proxy
+	"golang.org/x/net":             {},                            // websockets, proxies
+	"golang.org/x/crypto/ssh":      {},                            // remote shells
+	"github.com/gorilla/websocket": {},                            // sockets are a way into a machine; sync is a plain long poll
 	"nhooyr.io/websocket":          {},
 }
 
@@ -51,6 +51,14 @@ var outboundCalls = map[string]map[string]bool{
 	"net": {"Dial": true, "DialTimeout": true, "DialTCP": true, "DialUDP": true, "DialUnix": true, "DialIP": true, "Dialer": true,
 		"LookupHost": true, "LookupIP": true, "LookupAddr": true, "LookupCNAME": true, "LookupTXT": true, "LookupSRV": true, "LookupMX": true,
 		"Resolver": true, "DefaultResolver": true},
+}
+
+// outboundAllowed is the whole of the exception to "the Team server makes no outbound connection": the
+// package that is the workspace's private network as a transport, whose Dial refuses anything outside the
+// workspace's own address range (overlaynet_test.go proves it), and which only Team's wiring may import
+// (rule 9). Everything else in Team may still open no connection.
+var outboundAllowed = map[string]map[string]bool{
+	"infra/overlaynet": {"Dialer": true},
 }
 
 func TestTeamServerNeverReachesOut(t *testing.T) {
@@ -67,6 +75,7 @@ func TestTeamServerNeverReachesOut(t *testing.T) {
 		}
 		rel, _ := filepath.Rel(base, filepath.Dir(path))
 		pkgName := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+		relDir := filepath.ToSlash(rel)
 		f, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			return err
@@ -107,7 +116,7 @@ func TestTeamServerNeverReachesOut(t *testing.T) {
 			}
 			pkg := names[id.Name]
 			short := pkg[strings.LastIndex(pkg, "/")+1:]
-			if (pkg == "net/http" || pkg == "net") && outboundCalls[short][sel.Sel.Name] {
+			if (pkg == "net/http" || pkg == "net") && outboundCalls[short][sel.Sel.Name] && !outboundAllowed[relDir][sel.Sel.Name] {
 				t.Errorf("%s uses %s.%s: the Team server makes no outbound connections", fset.Position(sel.Pos()), id.Name, sel.Sel.Name)
 			}
 			return true

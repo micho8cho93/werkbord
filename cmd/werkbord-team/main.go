@@ -1,8 +1,11 @@
 // Command werkbord-team runs Werkbord Team: the shared workspace where a team's
 // members and projects are coordinated.
 //
-//	werkbord-team workspace create   start a workspace and print its owner's token
+//	werkbord-team workspace create   start a workspace and print its owner's token (--network gives it its private network)
 //	werkbord-team serve              run the server in the foreground
+//	werkbord-team network …          the private network: status, invitations, approvals, a host's node
+//	werkbord-team device …           join as a host, list and revoke devices
+//	werkbord-team host …             hand the workspace's keys to another Workspace Host
 //	werkbord-team migrate            apply database migrations and exit
 //	werkbord-team handoff            open a ticket you hold in your own local Werkbord
 //	werkbord-team version            print the version
@@ -22,10 +25,12 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"devboard/internal/logging"
 	"devboard/internal/team/config"
+	"devboard/internal/team/domain"
 	"devboard/internal/team/server"
 )
 
@@ -35,8 +40,11 @@ var version = "dev"
 const usage = `usage: werkbord-team <command> [flags]
 
 commands:
-  workspace create   start a workspace; prints the owner's token (once)
+  workspace create   start a workspace; prints the owner's token (once); --network gives it a private network
   serve              run the Team server in the foreground
+  network            the private network: status, invite, pending, approve, deny, node
+  device             join as a host, list and revoke devices
+  host               promote a device to Workspace Host, and collect the keys on it
   migrate            apply database migrations and exit
   handoff            open a ticket you hold in your own local Werkbord
   version            print the version
@@ -68,6 +76,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return cmdMigrate(ctx, cfg, args[1:], stdout, stderr)
 	case "workspace":
 		return cmdWorkspace(ctx, cfg, args[1:], stdout, stderr)
+	case "network":
+		return cmdNetwork(ctx, cfg, args[1:], stdout, stderr)
+	case "device":
+		return cmdDevice(ctx, cfg, args[1:], stdout, stderr)
+	case "host":
+		return cmdHost(ctx, cfg, args[1:], stdout, stderr)
 	case "handoff":
 		return cmdHandoff(ctx, args[1:], stdout, stderr)
 	case "version", "--version", "-v":
@@ -137,8 +151,25 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	name := fs.String("name", "", "the workspace's name")
 	owner := fs.String("owner", "", "the owner's name (you)")
 	email := fs.String("email", "", "the owner's email (optional)")
+	withNetwork := fs.Bool("network", false, "give the workspace its own private network, on this host (docs/TEAM_NETWORK.md)")
+	var endpoints listFlag
+	fs.Var(&endpoints, "endpoint", "with --network: a host (address or DNS name) at which this machine can be reached from outside its network (repeatable; $WERKBORD_TEAM_ENDPOINTS)")
+	connectivity := fs.String("connectivity", "auto", "with --network: make this host a Connectivity Host: auto (if an --endpoint can be reached from outside), yes or no")
+	approval := fs.String("approval", "auto", "with --network: auto (a valid invitation is enough) or admin (an administrator approves every device)")
+	netRange := fs.String("network-range", "", "with --network: the private network's address range (a /16 to /24 in 10/8, 172.16/12 or 192.168/16; default: a random /16 in 10.128.0.0/9)")
+	fs.StringVar(&cfg.BootstrapAddr, "bootstrap-addr", cfg.BootstrapAddr, "with --network: where this host answers devices that are joining")
+	fs.IntVar(&cfg.NetworkPort, "network-port", cfg.NetworkPort, "with --network: the UDP port of the network node")
+	fs.StringVar(&cfg.PassphraseFile, "passphrase-file", cfg.PassphraseFile, "with --network: seal the workspace's keys with the passphrase in this file, instead of a key kept beside them")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
+	}
+	if len(endpoints) > 0 {
+		cfg.Endpoints = endpoints
+	}
+	if *withNetwork {
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
 	}
 	log, err := logging.New(stderr, "warn", cfg.LogFormat)
 	if err != nil {
@@ -157,9 +188,34 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	if h, p, err := net.SplitHostPort(host); err == nil && h == "::1" {
 		host = net.JoinHostPort("localhost", p)
 	}
+	var nc *server.NetworkCreated
+	if *withNetwork {
+		n, err := server.CreateNetwork(ctx, cfg, log, svc, created, server.NetworkOptions{Range: *netRange, Connectivity: *connectivity, Approval: domain.ApprovalPolicy(*approval)})
+		if err != nil {
+			return fmt.Errorf("the workspace %q was created, but its private network was not: %w\nIts data is in %s; start again with another --data-dir, or remove that directory", created.Workspace.Name, err, cfg.DataDir)
+		}
+		nc = &n
+	}
 	fmt.Fprintf(stdout, "Workspace %q created, owned by %s.\n\n", created.Workspace.Name, created.Owner.Name)
 	fmt.Fprintf(stdout, "Owner token (shown once; it is not stored and cannot be shown again):\n\n  %s\n\n", created.Token)
 	fmt.Fprintf(stdout, "Start the server with `werkbord-team serve`, then sign in at:\n\n  http://%s/#token=%s\n\n", host, created.Token)
 	fmt.Fprintln(stdout, "Add the rest of the team from the console's Members tab.")
+	if nc != nil {
+		printNetworkCreated(stdout, cfg, *nc)
+	}
 	return nil
+}
+
+func printNetworkCreated(w io.Writer, cfg config.Config, nc server.NetworkCreated) {
+	fmt.Fprintf(w, "\nPrivate network %s created. This host is its first Workspace Host (%s, at %s on it).\n", nc.Range, nc.HostDeviceID, nc.HostAddress)
+	fmt.Fprintf(w, "Workspace fingerprint (what every device pins; read it out when you invite someone):\n\n  %s\n\n", nc.Fingerprint)
+	fmt.Fprintf(w, "The workspace's keys, sealed, are in %s. This host now holds the workspace's signing key and the network authority's:\nit is a high-trust machine, and those keys are never in the database or in anything the API returns. Back up %s with the data, and keep the sealing key somewhere else.\n", cfg.PKIDir(), cfg.PKIDir())
+	if nc.ConnectivityHost {
+		fmt.Fprintf(w, "\nThis host is also a Connectivity Host: it helps devices find each other and relays for them, at %s. Forward UDP %d and TCP %d to it.\n", strings.Join(nc.NetworkEndpoints, ", "), cfg.NetworkPort, cfg.BootstrapPort())
+	}
+	for _, warn := range nc.Warnings {
+		fmt.Fprintf(w, "\nWARNING: %s\n", warn)
+	}
+	fmt.Fprintln(w, "\nStart it with `werkbord-team serve` (the network node needs the privileges to create a network interface; see docs/TEAM_NETWORK.md, \"Privileges\").")
+	fmt.Fprintln(w, "Then invite people with `werkbord-team network invite`.")
 }
