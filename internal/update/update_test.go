@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 var bg = context.Background()
@@ -282,5 +283,112 @@ func TestTagForAndAssetNames(t *testing.T) {
 		if got := AssetName(tag, "linux", "amd64"); got != "werkbord_1.0.0_linux_amd64.tar.gz" {
 			t.Errorf("AssetName(%q) = %q", tag, got)
 		}
+	}
+}
+
+// ---- looking for a newer release ----
+
+func TestCheckSaysWhetherANewerStableReleaseExists(t *testing.T) {
+	ts := releaseServer(t, "werkbord-v1.2.0", nil, "")
+	src := Source{Base: ts.URL}
+	for _, tc := range []struct {
+		current   string
+		available bool
+	}{
+		{"v1.1.9", true},
+		{"v1.2.0", false}, // up to date
+		{"v1.3.0", false}, // newer than the latest release: nothing to do
+		{"v1.2.0-rc.1", true},
+	} {
+		st := src.Check(bg, tc.current)
+		if st.Available != tc.available || !st.Release || st.Latest != "v1.2.0" || st.Error != "" || st.CheckedAt.IsZero() {
+			t.Errorf("Check(%q) = %+v, want available=%v latest=v1.2.0", tc.current, st, tc.available)
+		}
+	}
+}
+
+func TestCheckNeverAsksAboutABuildFromSource(t *testing.T) {
+	asked := false
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { asked = true }))
+	defer ts.Close()
+	for _, v := range []string{"dev", "v1.0.0-3-gabc1234", "v1.0.0-3-gabc1234-dirty", ""} {
+		st := Source{Base: ts.URL}.Check(bg, v)
+		if st.Release || st.Available || st.Latest != "" || st.Error != "" {
+			t.Errorf("Check(%q) = %+v: a source build is neither a release nor out of date", v, st)
+		}
+	}
+	if asked {
+		t.Fatal("a build from source asked the releases page")
+	}
+}
+
+func TestCheckOfflineIsAStatusNotAFailure(t *testing.T) {
+	ts := httptest.NewServer(http.NotFoundHandler())
+	ts.Close() // nothing is listening any more
+	st := Source{Base: ts.URL}.Check(bg, "v1.0.0")
+	if st.Available || st.Error == "" || !st.Release || st.Latest != "" {
+		t.Fatalf("an unreachable releases page gave %+v", st)
+	}
+}
+
+func TestCheckerCachesAnswersAndFailuresForDifferentTimes(t *testing.T) {
+	hits := 0
+	tag := "werkbord-v1.2.0"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if tag == "" {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, "/tag/"+tag, http.StatusFound)
+	}))
+	defer ts.Close()
+	clock := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	c := &Checker{Source: Source{Base: ts.URL}, Current: "v1.0.0", now: func() time.Time { return clock }}
+
+	if st := c.Status(bg, false); !st.Available || hits != 1 {
+		t.Fatalf("first look: %+v, %d hits", st, hits)
+	}
+	clock = clock.Add(5 * time.Hour)
+	_ = c.Status(bg, false)
+	if hits != 1 {
+		t.Fatalf("an answer under six hours old was asked for again (%d hits)", hits)
+	}
+	// A forced look is still limited to one a minute, so a page cannot make this a hammer.
+	clock = clock.Add(time.Hour) // now six hours old
+	_ = c.Status(bg, true)
+	if hits != 2 {
+		t.Fatalf("a forced look of an expired answer should ask (%d hits)", hits)
+	}
+	_ = c.Status(bg, true)
+	if hits != 2 {
+		t.Fatalf("two forced looks in the same minute asked twice (%d hits)", hits)
+	}
+	// A failure is kept for fifteen minutes only.
+	clock = clock.Add(7 * time.Hour)
+	tag = ""
+	if st := c.Status(bg, false); st.Error == "" || hits != 3 {
+		t.Fatalf("a failing look: %+v, %d hits", st, hits)
+	}
+	clock = clock.Add(10 * time.Minute)
+	_ = c.Status(bg, false)
+	if hits != 3 {
+		t.Fatalf("a failure under fifteen minutes old was asked for again (%d hits)", hits)
+	}
+	clock = clock.Add(10 * time.Minute)
+	tag = "werkbord-v1.2.0"
+	if st := c.Status(bg, false); !st.Available || st.Error != "" || hits != 4 {
+		t.Fatalf("recovery after a failure: %+v, %d hits", st, hits)
+	}
+}
+
+func TestDisabledCheckerLeavesNothingOnTheWire(t *testing.T) {
+	asked := false
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { asked = true }))
+	defer ts.Close()
+	c := &Checker{Source: Source{Base: ts.URL}, Current: "v1.0.0", Disabled: true}
+	st := c.Status(bg, true)
+	if !st.Disabled || st.Available || st.Latest != "" || asked {
+		t.Fatalf("disabled checker: %+v, asked=%v", st, asked)
 	}
 }

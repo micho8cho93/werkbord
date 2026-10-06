@@ -276,3 +276,52 @@ func TestRepositoryHealthStartsAndStopsWithTheController(t *testing.T) {
 		t.Fatal("shutdown hung: the health watcher was not stopped")
 	}
 }
+
+// A controller reports its version and whether a newer release exists, behind the token like the
+// rest of its API; a build from source is never looked up, and noUpdateCheck turns looking off.
+func TestUpdateStatusIsReportedBehindTheTokenAndCanBeTurnedOff(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name     string
+		noCheck  bool
+		disabled bool
+	}{{"default", false, false}, {"noUpdateCheck", true, true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := defaultConfig(t)
+			cfg.NoUpdateCheck = tc.noCheck
+			c := New(cfg, slog.New(slog.DiscardHandler), "v1.0.0-2-gabcdef0") // a build from source: nothing is asked of GitHub
+			if err := c.Start(ctx); err != nil {
+				t.Fatal(err)
+			}
+			defer c.Shutdown(ctx)
+			url := "http://" + c.Addr() + "/api/update"
+			if code := status(t, "GET", url, "", nil); code != http.StatusUnauthorized {
+				t.Fatalf("without the token: %d", code)
+			}
+			tok, err := cfg.ResolveToken(false)
+			if err != nil || tok == "" {
+				t.Fatalf("token: %q, %v", tok, err)
+			}
+			req, _ := http.NewRequest("GET", url, nil)
+			req.Header.Set("Authorization", "Bearer "+tok)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			var st struct {
+				Current   string
+				Available bool
+				Release   bool
+				Disabled  bool
+				Error     string
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&st); err != nil || resp.StatusCode != 200 {
+				t.Fatalf("status %d, %v", resp.StatusCode, err)
+			}
+			if st.Current != "v1.0.0-2-gabcdef0" || st.Available || st.Release || st.Disabled != tc.disabled || st.Error != "" {
+				t.Fatalf("update status = %+v", st)
+			}
+		})
+	}
+}

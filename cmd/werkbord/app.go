@@ -110,19 +110,10 @@ const (
 )
 
 // controllerURL is where the controller listens, as this computer reaches it.
-func (a *app) controllerURL() string { return "http://" + a.cfg.ClientAddr() }
+func (a *app) controllerURL() string { return a.cfg.ControllerURL() }
 
 // signInURL is a link that opens the app on this computer already signed in.
-func (a *app) signInURL() (string, error) {
-	tok, err := a.cfg.ResolveToken(false)
-	if err != nil {
-		return "", err
-	}
-	if tok == "" || !a.cfg.AuthRequired() {
-		return a.controllerURL() + "/", nil
-	}
-	return a.controllerURL() + "/#token=" + tok, nil
-}
+func (a *app) signInURL() (string, error) { return a.cfg.SignInURL() }
 
 func (a *app) client() (*client, error) { return newClient(a.cfg) }
 
@@ -167,7 +158,7 @@ func (a *app) waitStopped(ctx context.Context, timeout time.Duration) bool {
 }
 
 // logPath is where the service writes the controller's log.
-func (a *app) logPath() string { return filepath.Join(a.cfg.DataDir, "logs", "controller.log") }
+func (a *app) logPath() string { return a.cfg.LogPath() }
 
 // spec describes the service to install for this binary and this data directory.
 func (a *app) spec() (daemon.Spec, error) {

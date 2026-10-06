@@ -266,3 +266,86 @@ func TestAnExistingDevboardDataDirectoryIsKept(t *testing.T) {
 		t.Fatalf("both exist: %s", got)
 	}
 }
+
+// LoadIn is for a program that was not started from a terminal: it knows where the
+// installed service keeps its data, and that wins over the environment.
+func TestLoadInUsesTheGivenDataDirAndStillReadsItsConfig(t *testing.T) {
+	envDir, dir := t.TempDir(), t.TempDir()
+	t.Setenv("WERKBORD_DATA_DIR", envDir)
+	t.Setenv("WERKBORD_LOG_LEVEL", "debug")
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"addr":"127.0.0.1:7431"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(envDir, "config.json"), []byte(`{"addr":"127.0.0.1:9999"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadIn(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.DataDir != dir || c.Addr != "127.0.0.1:7431" || c.LogLevel != "debug" {
+		t.Fatalf("LoadIn = %+v: want the given data dir and its config.json, with the rest of the environment applied", c)
+	}
+	if c.DBPath() != filepath.Join(dir, "devboard.db") {
+		t.Fatalf("the database is at %s: a second independent install", c.DBPath())
+	}
+}
+
+func TestLoadInIgnoresADataDirWrittenInTheConfigFile(t *testing.T) {
+	dir, other := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"dataDir":"`+other+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadIn(dir)
+	if err != nil || c.DataDir != dir {
+		t.Fatalf("LoadIn = %+v, %v: the data dir is where the config was found", c, err)
+	}
+}
+
+func TestSignInURLCarriesTheTokenInTheFragmentOnly(t *testing.T) {
+	dir := t.TempDir()
+	c := Default()
+	c.DataDir, c.Addr = dir, "127.0.0.1:7421"
+	// No token yet: the link is the address, and nothing is created by asking.
+	u, err := c.SignInURL()
+	if err != nil || u != "http://127.0.0.1:7421/" {
+		t.Fatalf("SignInURL without a token = %q, %v", u, err)
+	}
+	if _, err := os.Stat(c.TokenPath()); err == nil {
+		t.Fatal("SignInURL created a token")
+	}
+	tok, err := c.ResolveToken(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err = c.SignInURL()
+	if err != nil || u != "http://127.0.0.1:7421/#token="+tok {
+		t.Fatalf("SignInURL = %q, %v", u, err)
+	}
+	if i := strings.IndexByte(u, '?'); i >= 0 {
+		t.Fatalf("the token must never be in a query string, which a server would see: %s", u)
+	}
+	// A controller that does not ask for a token is not given one.
+	c.RequireToken = false
+	if u, _ = c.SignInURL(); u != "http://127.0.0.1:7421/" {
+		t.Fatalf("with authentication off the link still carries a token: %q", u)
+	}
+}
+
+func TestNoUpdateCheckFromFileAndEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WERKBORD_DATA_DIR", dir)
+	if c, err := Load(); err != nil || c.NoUpdateCheck {
+		t.Fatalf("default: %+v, %v: looking for updates is on unless turned off", c.NoUpdateCheck, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"noUpdateCheck":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c, err := Load(); err != nil || !c.NoUpdateCheck {
+		t.Fatalf("config.json: %v, %v", c.NoUpdateCheck, err)
+	}
+	t.Setenv("DEVBOARD_NO_UPDATE_CHECK", "maybe")
+	if _, err := Load(); err == nil {
+		t.Fatal("a value that is not a boolean was accepted for a setting that stops something")
+	}
+}

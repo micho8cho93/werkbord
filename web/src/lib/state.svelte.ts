@@ -14,7 +14,7 @@ import { gitEvent } from './git/store.svelte';
 import { QuestionBook } from './questions';
 import { notifyEvent } from './notifications';
 import { ProjectScope } from './scope.svelte';
-import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, Onboarding, Overview, Project, Question, Runner } from './types';
+import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, Onboarding, Overview, Project, Question, Runner, UpdateStatus } from './types';
 
 export type Connection = 'connecting' | 'live' | 'offline' | 'unauthorized';
 
@@ -83,6 +83,18 @@ export interface TaskInfo {
   projectName: string;
 }
 
+const DISMISSED_UPDATE_KEY = 'werkbord.update.dismissed';
+/** Looking again is cheap (the controller keeps its answer for hours), but a page left open need not ask every time it reconnects. */
+const UPDATE_RECHECK_MS = 60 * 60 * 1000;
+
+function readDismissedUpdate(): string {
+  try {
+    return window.localStorage.getItem(DISMISSED_UPDATE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 class AppState {
   connection = $state<Connection>('connecting');
   projects = $state<Project[]>([]);
@@ -92,6 +104,11 @@ class AppState {
   globalExecution = $state<ExecutionConfig>({});
   /** Whether first-time setup has been done or skipped. Null until fetched. */
   onboarding = $state<Onboarding | null>(null);
+  /** Whether a newer release exists, as the controller last found out. Null until asked, or when it could not say. */
+  update = $state<UpdateStatus | null>(null);
+  /** The release the person said "Later" to: that one is not offered again, a newer one is. */
+  dismissedUpdate = $state(readDismissedUpdate());
+  private updateCheckedAt = 0;
   /** What can be chosen for each agent, fetched when a picker needs it. */
   readonly agentOptions = new SvelteMap<string, AgentOptions>();
   /** What needs the user, in every project. Null until first fetched. */
@@ -222,6 +239,7 @@ class AppState {
       if (onboarding) this.onboarding = onboarding;
       if (this.book.replace(sync, overview.questions.map((q) => q.question))) this.questions = this.book.pending;
       this.error = '';
+      void this.checkUpdate();
       // Projects already open catch up on what they missed.
       await Promise.all([...this.scopes.values()].map((s) => s.load().catch((err) => this.handleError(err))));
     } catch (err) {
@@ -261,6 +279,30 @@ class AppState {
 
   /** Whether the setup flow should be offered: nobody has finished or skipped it, and there is nothing to lose by it. */
   needsOnboarding = $derived(this.onboarding !== null && !this.onboarding.completedAt);
+
+  /** A newer release to offer: there is one, and it is not the one the person put off. */
+  updateOffer = $derived(this.update?.available && this.update.latest && this.update.latest !== this.dismissedUpdate ? this.update : null);
+
+  /** Asks the controller whether a newer release exists. Informational: a failure shows nothing. */
+  async checkUpdate(refresh = false): Promise<void> {
+    if (!refresh && Date.now() - this.updateCheckedAt < UPDATE_RECHECK_MS) return;
+    this.updateCheckedAt = Date.now();
+    try {
+      this.update = await api.updateStatus(refresh);
+    } catch {
+      // An older controller has no such endpoint, and being offline is normal. Nothing depends on it.
+    }
+  }
+
+  /** "Later": this release is not offered again; the next one is. */
+  dismissUpdate(version: string): void {
+    this.dismissedUpdate = version;
+    try {
+      window.localStorage.setItem(DISMISSED_UPDATE_KEY, version);
+    } catch {
+      // Remembered for this page only.
+    }
+  }
 
   /** Fetches the Control Center's overview: soon, and once for a burst of events. */
   refreshOverview(): void {

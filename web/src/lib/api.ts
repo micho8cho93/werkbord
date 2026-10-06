@@ -32,6 +32,7 @@ import type {
   Runner,
   Task,
   TaskState,
+  UpdateStatus,
   Worktree,
   WorkingChanges,
 } from './types';
@@ -157,6 +158,8 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
  saveHandoff: (run: Run, handoff: Handoff) => request<Run>('PUT', `${inProject(run.projectId)}/runs/${enc(run.id)}/handoff`, {version: run.version, handoff}),
  continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, {runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})}),
  health: () => request<Health>('GET', '/api/health'),
+  /** Whether a newer release exists. It only reports: installing is done on the computer that runs Werkbord. */
+  updateStatus: (refresh = false) => request<UpdateStatus>('GET', refresh ? '/api/update?refresh=1' : '/api/update'),
   listAgents: () => request<{ agents: Agent[] }>('GET', '/api/agents').then((r) => r.agents),
   /** What can be chosen for an agent; asks the agent, so slower than listAgents. */
   agentOptions: (agentId: string) => request<AgentOptions>('GET', `/api/agents/${enc(agentId)}/options`),

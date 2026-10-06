@@ -45,6 +45,11 @@ type Config struct {
 	RequireToken bool `json:"requireToken"`
 	// AllowedHosts are extra Host header values accepted in loopback mode.
 	AllowedHosts []string `json:"allowedHosts,omitempty"`
+	// NoUpdateCheck stops the controller from ever asking GitHub whether a newer
+	// release exists (what GET /api/update answers). It is the only thing the
+	// controller would otherwise look up on its own; everything else it reaches
+	// out for is something the user asked for.
+	NoUpdateCheck bool `json:"noUpdateCheck,omitempty"`
 
 	ShutdownTimeout Duration `json:"shutdownTimeout"`
 
@@ -274,16 +279,32 @@ func DataDirIn(configDir string) string {
 
 // Load returns defaults overlaid with the config file and environment.
 // WERKBORD_DATA_DIR is read first because it locates the config file.
-func Load() (Config, error) {
+func Load() (Config, error) { return load("") }
+
+// LoadIn is Load for a data directory that is already known, which then wins over
+// WERKBORD_DATA_DIR. The desktop app uses it: started from the Finder it has none
+// of the environment a terminal gave `werkbord setup`, so it reads where the
+// installed service keeps its data and uses that, rather than guessing.
+func LoadIn(dataDir string) (Config, error) { return load(dataDir) }
+
+func load(dataDir string) (Config, error) {
 	c := Default()
-	if v := Getenv("DATA_DIR"); v != "" {
-		c.DataDir = v
+	switch {
+	case dataDir != "":
+		c.DataDir = dataDir
+	default:
+		if v := Getenv("DATA_DIR"); v != "" {
+			c.DataDir = v
+		}
 	}
 	if err := c.loadFile(filepath.Join(c.DataDir, "config.json")); err != nil {
 		return c, err
 	}
 	if err := c.loadEnv(); err != nil {
 		return c, err
+	}
+	if dataDir != "" {
+		c.DataDir = dataDir // the environment was read for everything else, but not for where the data is
 	}
 	return c, nil
 }
@@ -326,6 +347,13 @@ func (c *Config) loadEnv() error {
 			return fmt.Errorf("%s=%q: want true or false", from, v)
 		}
 		c.Network.Enabled = &b
+	}
+	if v, from := Env("NO_UPDATE_CHECK"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("%s=%q: want true or false", from, v)
+		}
+		c.NoUpdateCheck = b
 	}
 	// A security setting must not be guessed at: "off" or "no" could mean
 	// either, so anything that is not a plain boolean is an error rather than
@@ -385,6 +413,9 @@ func (c Config) DBPath() string { return filepath.Join(c.DataDir, "devboard.db")
 // LockPath is the file that prevents two controllers sharing a data dir.
 func (c Config) LockPath() string { return filepath.Join(c.DataDir, "controller.lock") }
 
+// LogPath is where the service writes the controller's log.
+func (c Config) LogPath() string { return filepath.Join(c.DataDir, "logs", "controller.log") }
+
 // TokenPath is where a generated API token is stored.
 func (c Config) TokenPath() string { return filepath.Join(c.DataDir, "token") }
 
@@ -415,6 +446,27 @@ func (c Config) ClientAddr() string {
 		host = "127.0.0.1"
 	}
 	return net.JoinHostPort(host, port)
+}
+
+// ControllerURL is where this computer reaches the controller.
+func (c Config) ControllerURL() string { return "http://" + c.ClientAddr() }
+
+// SignInURL is a link that opens the web app on this computer already signed in:
+// the token rides in the URL fragment, which a browser never sends to a server, and
+// the app removes it from the address bar as soon as it has kept it. It is what
+// `werkbord open` opens and what the desktop app loads. Without a token to present
+// (authentication is off on loopback) it is just the address.
+//
+// It reads the token and creates nothing: the controller makes it on first start.
+func (c Config) SignInURL() (string, error) {
+	tok, err := c.ResolveToken(false)
+	if err != nil {
+		return "", err
+	}
+	if tok == "" || !c.AuthRequired() {
+		return c.ControllerURL() + "/", nil
+	}
+	return c.ControllerURL() + "/#token=" + tok, nil
 }
 
 // ResolveToken returns the configured token, or reads <data dir>/token. If

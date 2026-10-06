@@ -924,3 +924,21 @@ commands survive network interruptions. A new job cannot relaunch a journaled ru
 service. Agent and Git authentication stay on the machine that executes. Runner keys have no access
 to board CRUD, project administration or any owner endpoint. These machines belong to one user;
 this is not a team or multi-user service. See [RUNNERS.md](RUNNERS.md) for the operational and security contract.
+
+## The desktop app
+
+On a Mac the controller can be opened without a terminal: `desktop/` is a native window ([Wails](https://wails.io), WebKit)
+around the web app the controller already serves. It is a *client*, one more beside the browser and the phone, and the
+controller stays the source of truth: it is still a login service of its own (launchd), it does not run inside the app,
+it keeps running when the window closes or the app quits, and the browser and the phone reach the same one. Nothing in
+the controller depends on the app.
+
+What the app adds is the part a program started from the Finder cannot do for itself, in `internal/launcher`: find the
+installation that is there (the executable and data directory the login service was set up with), install the program it
+ships if there is none, and start the controller, all by running the `werkbord` program's own commands (`setup`, `start`,
+`install-release`, `update`) rather than reimplementing them, so there is one lifecycle and the one-controller guarantees
+(§5) hold. Authentication is unchanged (§10): the app reads the token file as the same user and opens
+`/#token=…`, as `werkbord open` does. Whether a newer release exists is `GET /api/update` (read-only, cached, opt-out);
+*installing* one is only ever `werkbord update`, run on this computer, which the app runs when its user asks.
+[DESKTOP.md](DESKTOP.md) has the details, the bridge a page may use, building and signing.
+

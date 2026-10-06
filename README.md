@@ -11,13 +11,32 @@ without ever running anything on anyone's computer. See [docs/PRODUCTS.md](docs/
 
 ## Install
 
+### Most people: the Mac app
+
+1. Download **`Werkbord_<version>_darwin_arm64.dmg`** (Apple Silicon; `_amd64` for Intel) from the
+   [releases page](https://github.com/micho8cho93/werkbord/releases).
+2. Drag **Werkbord** onto **Applications**, and open it.
+
+That is all: no Terminal. The first time, the app sets Werkbord up on your computer (the program, your data and
+database, and a background service that keeps it running when you close the window), then shows it. Closing the
+window or quitting the app never stops your agents or your schedules, and the same Werkbord stays reachable from a
+browser on this computer and from your phone. See [docs/DESKTOP.md](docs/DESKTOP.md). *(Until the app is signed with
+an Apple Developer ID and notarized, macOS asks you to confirm opening it once: control-click, Open. The disk image is
+built with `make desktop-package`; attaching it to each release waits on that signing, which is described there.)*
+
+### Advanced users, servers and Linux: the installer
+
 macOS or Linux:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.sh | sh
 ```
 
-That is the whole install. It downloads the release for your computer, checks it against its published
+**Both ways install the same Werkbord**: the same `werkbord` program in `~/.local/bin`, the same data directory,
+database and token, the same login service and the same controller. Install one and then use the other and you have
+one installation, not two; `werkbord update` updates what the app uses, and the app's **Update now** runs it.
+
+The installer downloads the release for your computer, checks it against its published
 checksum, and runs `werkbord setup`: it creates the data directory and database, installs a background service
 that starts when you log in, registers this computer as your first runner, joins your own private network so a
 phone can reach it (signing you in through the browser if needed), and opens Werkbord in your browser. There
@@ -140,6 +159,10 @@ Other commands: `werkbord project list`, `werkbord token`, `werkbord migrate`,
 Werkbord Team is built and run separately (it needs Go only): `make build-team`, then `./bin/werkbord-team serve`.
 See [docs/TEAM.md](docs/TEAM.md).
 
+The Mac app is built separately too (it needs the Xcode command line tools, for the system's web view):
+`make desktop` makes `dist/desktop/Werkbord.app`, `make desktop-package` also a `.dmg`, and `make desktop-dev` runs
+it from source against its own data and port. See [docs/DESKTOP.md](docs/DESKTOP.md#building-it).
+
 ## Development
 
 Run the controller and the Vite dev server (with hot reload, proxying `/api`) in two
@@ -200,6 +223,7 @@ then flags.
 | `network.enabled` | `WERKBORD_NETWORK` | — | unset: the app decides (`werkbord setup` turns it on). `true` always joins the private network, `false` never does |
 | `network.hostname` | `WERKBORD_NETWORK_HOSTNAME` | — | `werkbord-<this computer's name>` (`devboard-…` for a computer that joined before the rename) |
 | `network.controlUrl` | `WERKBORD_NETWORK_CONTROL_URL` | — | Tailscale's. A self-hosted Headscale URL, if you run one |
+| `noUpdateCheck` | `WERKBORD_NO_UPDATE_CHECK` | — | `false`. `true` stops the controller from ever asking GitHub whether a newer release exists (what `GET /api/update` and the "update available" banner use); the controller's other network use (Git remotes, GitHub through your own `gh`, the private network) is something you asked for; this one is not, which is why it can be turned off |
 | `shutdownTimeout` | — | — | `10s` |
 | `worktreesDir` | `WERKBORD_WORKTREES_DIR` | — | `<data dir>/worktrees` |
 | `agents` | — | — | per-agent settings, below |
@@ -256,6 +280,7 @@ when nothing would be lost).
 
 ```
 cmd/werkbord          CLI: setup, service commands, doctor, update; and the controller (`serve`). Individual Werkbord.
+desktop/              the Mac app: a native window (Wails) around the web app; its own Go module (docs/DESKTOP.md)
 cmd/werkbord-team     Werkbord Team: its own program, version and installer (docs/PRODUCTS.md)
 internal/team         everything specific to Team: domain, store, service, api, console (nothing else may import it)
 internal/sqlitekit    shared: open, migrate and back up a SQLite database (both products)
@@ -274,8 +299,9 @@ internal/controller   wiring and lifecycle
 internal/netprivate   the embedded Tailscale node: private address, sign-in state, QR codes
 internal/daemon       the background service: launchd, systemd, Task Scheduler, or a detached process
 internal/doctor       `werkbord doctor`'s checks (never prints a secret)
-internal/update       finds, checksums and installs a newer release
-scripts/              install.sh, install.ps1, release build, installer tests
+internal/update       finds, checksums and installs a newer release; says whether one exists (GET /api/update)
+internal/launcher     what the desktop app does first: find or install the program, start the controller, sign the window in
+scripts/              install.sh, install.ps1, release build, the .app/.dmg build, installer tests
 internal/webui        embedded PWA
 web/                  Svelte 5 + TypeScript PWA (a global store, plus one scope per project)
 docs/                 architecture; the Git safety model (GIT.md); install, phone access, execution defaults

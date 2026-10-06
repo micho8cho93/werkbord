@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"devboard/internal/domain"
+	"devboard/internal/update"
 )
 
 // settingsReady answers 503 and returns false when settings are not enabled.
@@ -142,6 +143,17 @@ func (s *Server) handleResetOnboarding(w http.ResponseWriter, r *http.Request) {
 // handleDoctor runs the health checks inside the controller, so they see what the
 // controller sees (its PATH, its agents, its network), which is what matters. The
 // report never contains a secret.
+// handleUpdateStatus says which version this controller is and whether a newer stable
+// release exists. It never changes anything: ?refresh=1 asks again, but the controller
+// still looks at most once a minute, whoever asks.
+func (s *Server) handleUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	if s.opt.Update == nil {
+		writeJSON(w, http.StatusOK, update.Status{Current: s.opt.Version, Release: update.Release(s.opt.Version), Disabled: true})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.opt.Update(r.Context(), r.URL.Query().Get("refresh") == "1"))
+}
+
 func (s *Server) handleDoctor(w http.ResponseWriter, r *http.Request) {
 	if s.opt.Doctor == nil {
 		writeError(w, http.StatusServiceUnavailable, "unavailable", "the health check is not available")

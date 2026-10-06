@@ -25,6 +25,12 @@ jobs:
         run: make check
       - name: Individual product runs without Team (a copy of the repository with every Team file removed)
         run: make web web-embed verify-isolation
+      - name: Desktop app builds and packages (.app and .dmg)
+        if: matrix.os == 'macos-latest'
+        run: |
+          make desktop-check
+          make desktop-package
+          codesign --verify --strict --deep dist/desktop/Werkbord.app
       - name: Installers, against a local release server
         run: make test-install test-install-team
       - name: Race and concurrency checks

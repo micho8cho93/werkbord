@@ -6,6 +6,10 @@ curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/i
 
 macOS and Linux, Intel and ARM. No account, no Docker, no root, no hosted database.
 
+This is the installer for a terminal, a server or Linux. On a Mac, the [desktop app](DESKTOP.md) is the other way in:
+it installs the same program in the same place, with the same data directory and login service, so the two are one
+installation. Installing one and using the other does not make a second.
+
 ## What it does
 
 1. **Downloads** the release for your computer and **checks it** against the `checksums.txt` published with
@@ -107,6 +111,10 @@ Updating an intentionally stopped controller leaves it stopped and retains `.pre
 Start it and verify controller/database/runner health before removing that exact rollback file. Another update
 refuses to overwrite an unresolved `.prev`; recover or finish verifying the earlier installation first.
 
+`werkbord update` is also what the desktop app's **Update now** runs, and what `GET /api/update` (the "Werkbord X is
+available" banner) tells you to run: the controller only *reports* that a newer release exists (once every six hours at most,
+never for a build from source, and not at all with `"noUpdateCheck": true`), and applying it is always done on this computer.
+
 Nothing is installed unless its checksum matches the release's. A release is a GitHub release; set
 `WERKBORD_RELEASE_URL` (and `WERKBORD_BASE_URL` for the installer) to use a mirror.
 
@@ -131,6 +139,9 @@ werkbord uninstall            # the login service
 rm ~/.local/bin/werkbord      # the program
 rm -rf "<data dir>"           # your projects, tasks, settings and token: only if you mean it
 ```
+
+If you used the desktop app, delete `Werkbord.app` as well. Deleting the app does **not** remove Werkbord: the controller
+and its login service are the ones above, so `werkbord uninstall` (or `rm ~/.local/bin/werkbord`) is what removes them.
 
 `werkbord status` prints the data directory. If phone access was on, Werkbord's device also appears in your
 Tailscale admin console under Machines, where you can remove it.

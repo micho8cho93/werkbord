@@ -13,11 +13,11 @@ own executable, version, data directory, installer, release artifacts and (event
 | Version file | `cmd/werkbord/VERSION` | `cmd/werkbord-team/VERSION` |
 | Release tag | `werkbord-vX.Y.Z` | `werkbord-team-vX.Y.Z` |
 | Release archives | `werkbord_<version>_<os>_<arch>` (also published as `devboard_…` for older updaters) | `werkbord-team_<version>_<os>_<arch>` |
-| Installer | `scripts/install.sh`, `scripts/install.ps1` | `scripts/install-team.sh` |
+| Installer | `scripts/install.sh`, `scripts/install.ps1`; on a Mac, the app in `desktop/` ([DESKTOP.md](DESKTOP.md)), which installs the same program | `scripts/install-team.sh` |
 | Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory |
 | Settings | `WERKBORD_*` (and the older `DEVBOARD_*`) | `WERKBORD_TEAM_*` |
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` |
-| Build | `make build` (or `make werkbord`) | `make build-team` (or `make werkbord-team`) |
+| Build | `make build` (or `make werkbord`); the Mac app: `make desktop` | `make build-team` (or `make werkbord-team`) |
 
 The two can be installed, run and upgraded independently, on the same computer or on different ones. Installing one
 never installs, starts or changes the other.
@@ -50,6 +50,7 @@ The repository is one Go module. The usual monorepo split (`apps/` and `packages
 
 ```
 cmd/werkbord/            APP    the individual product
+desktop/                 APP    the individual product's Mac app: a native window around web/ (its own Go module; DESKTOP.md)
 cmd/werkbord-team/       APP    Werkbord Team
 
 internal/sqlitekit/      SHARED opening, migrating and backing up a SQLite database
@@ -173,6 +174,9 @@ make verify-isolation      # copies the repo with every Team file removed, then 
 make test-install test-install-team   # each installer against a local release server
 ```
 
+The Mac app (individual product only; needs the Xcode command line tools): `make desktop`, `make desktop-package` (adds a
+`.dmg`), `make desktop-dev`, `make desktop-check`. See [DESKTOP.md](DESKTOP.md).
+
 Releases: `make dist PRODUCT=werkbord` or `PRODUCT=werkbord-team` writes the archives and `checksums.txt` to `dist/`.
 CI does this when a product tag is pushed. See [VERSIONING.md](VERSIONING.md).
 
@@ -188,7 +192,9 @@ CI does this when a product tag is pushed. See [VERSIONING.md](VERSIONING.md).
    or when the individual product's own code names Team's API, settings or executable);
 5. Team's build uses a third-party module the individual product does not, and that module has not been declared in
    `teamOnlyModules` (declaring it makes the test check the individual product never picks it up);
-6. a product's `VERSION` file is not `MAJOR.MINOR.PATCH`.
+6. a product's `VERSION` file is not `MAJOR.MINOR.PATCH`;
+7. the desktop app's window toolkit (Wails, which needs cgo and the system's web view) appears in either executable's build
+   or in the root `go.mod`, or `desktop/` stops being a Go module of its own, or anything in it reaches Team.
 
 `make verify-isolation` is the empirical version of 1–2, and CI runs it. The Go module is shared, so `go.mod` lists
 every dependency of both; what counts is what each executable is built from, which is what these checks inspect. If

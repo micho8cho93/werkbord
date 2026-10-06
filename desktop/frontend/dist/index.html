@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>Werkbord</title>
+<style>
+  /* The tokens of the web app (DESIGN.md), so that the one screen that is not the web app does not look like a different product. */
+  :root {
+    --bg: #f5f5f2; --surface: #ffffff; --tray: #ededE8; --border: #dad9d3;
+    --text: #0a0a0a; --text-2: #55554f; --accent: #2447ff; --accent-text: #ffffff; --danger: #a8322c;
+    --font: system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b0b0c; --surface: #141415; --tray: #1d1d1f; --border: #2a2a2d; --text: #f0f0ec; --text-2: #a3a39d; --accent: #7c93ff; --accent-text: #0a0a0a; --danger: #ef6b64; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  body { display: grid; place-items: center; padding: 24px; cursor: default; user-select: none; -webkit-user-select: none; }
+  main { width: min(520px, 100%); text-align: center; }
+  img.mark { width: 64px; height: 64px; border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 8px 24px -8px rgba(0,0,0,.35); }
+  h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 20px 0 6px; }
+  p { margin: 0; color: var(--text-2); }
+  .status { min-height: 22px; margin-top: 4px; }
+  .bar { height: 3px; width: 160px; margin: 22px auto 0; border-radius: 2px; background: var(--tray); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 40%; background: var(--accent); border-radius: 2px; animation: slide 1.2s cubic-bezier(.4,0,.2,1) infinite; }
+  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+  @media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; opacity: .5; } }
+  .slow { margin-top: 14px; font-size: 13px; }
+  .failed h1 { color: var(--danger); }
+  .failed .bar { display: none; }
+  .reason { margin: 14px auto 0; padding: 12px 14px; max-width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); user-select: text; -webkit-user-select: text; word-break: break-word; }
+  .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+  button { font: inherit; font-weight: 500; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+  button:hover { background: var(--tray); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.primary:hover { filter: brightness(1.08); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  pre { margin: 16px 0 0; padding: 12px 14px; text-align: left; font: 12px/1.5 var(--mono); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main id="main">
+  <img class="mark" src="mark.svg" alt="" />
+  <h1 id="title">Opening Werkbord</h1>
+  <p class="status" id="status" role="status" aria-live="polite">Looking for Werkbord…</p>
+  <div class="bar" aria-hidden="true"><i></i></div>
+  <p class="slow" id="slow" hidden>This is taking longer than usual. The first start can include upgrading your data.</p>
+
+  <div id="failure" hidden>
+    <p class="reason" id="reason"></p>
+    <div class="actions">
+      <button class="primary" id="retry" type="button">Try again</button>
+      <button id="details" type="button">Show details</button>
+      <button id="logs" type="button">Open logs</button>
+    </div>
+    <pre id="report" hidden></pre>
+    <div class="actions" id="reportActions" hidden>
+      <button id="copy" type="button">Copy details</button>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  // The Go side of this window (desktop/internal/shell). Wails puts it at window.go.main.App.
+  var app = function () { return window.go && window.go.main && window.go.main.App; };
+  var $ = function (id) { return document.getElementById(id); };
+  var slowTimer = null;
+
+  function onProgress(step) {
+    if (step && step.text) $('status').textContent = step.text;
+  }
+
+  function show(failed, message) {
+    $('main').classList.toggle('failed', failed);
+    $('failure').hidden = !failed;
+    $('slow').hidden = true;
+    clearTimeout(slowTimer);
+    if (failed) {
+      $('title').textContent = 'Werkbord could not open';
+      $('status').textContent = '';
+      $('reason').textContent = message;
+    } else {
+      $('title').textContent = 'Opening Werkbord';
+      $('status').textContent = 'Looking for Werkbord…';
+      $('report').hidden = true;
+      $('reportActions').hidden = true;
+      $('details').textContent = 'Show details';
+    }
+  }
+
+  function connect() {
+    show(false);
+    slowTimer = setTimeout(function () { $('slow').hidden = false; }, 15000);
+    var a = app();
+    if (!a) { show(true, 'This window is not connected to the Werkbord app. Quit and open Werkbord again.'); return; }
+    a.Connect().then(function (res) {
+      clearTimeout(slowTimer);
+      // The address carries the access token in its fragment, which only this window ever sees.
+      // The web app keeps it and takes it out of the address bar.
+      window.location.replace(res.signInUrl);
+    }, function (err) {
+      show(true, String(err && err.message || err || 'Unknown error'));
+    });
+  }
+
+  $('retry').addEventListener('click', connect);
+  $('logs').addEventListener('click', function () { app() && app().OpenLogs(); });
+  $('details').addEventListener('click', function () {
+    var open = $('report').hidden;
+    $('report').hidden = !open;
+    $('reportActions').hidden = !open;
+    $('details').textContent = open ? 'Hide details' : 'Show details';
+    if (open && app()) app().Diagnostics().then(function (t) { $('report').textContent = t; });
+  });
+  $('copy').addEventListener('click', function () {
+    var text = $('report').textContent;
+    var done = function () { $('copy').textContent = 'Copied'; setTimeout(function () { $('copy').textContent = 'Copy details'; }, 1500); };
+    if (window.runtime && window.runtime.ClipboardSetText) { window.runtime.ClipboardSetText(text).then(done); return; }
+    var range = document.createRange(); range.selectNodeContents($('report'));
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    try { document.execCommand('copy'); done(); } catch (e) { /* the text is selected: Cmd-C */ }
+  });
+
+  // The Wails runtime is added to this page when it is served; progress comes from the Go side as events.
+  function start() {
+    if (window.runtime && window.runtime.EventsOn) window.runtime.EventsOn('progress', onProgress);
+    connect();
+  }
+  if (app()) start(); else window.addEventListener('load', start);
+})();
+</script>
+</body>
+</html>

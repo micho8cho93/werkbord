@@ -67,6 +67,12 @@ reports (`werkbord version`, `werkbord-team version`, `/api/health`):
 - release builds (`make dist`, CI) are stamped with the bare tag version.
 
 `make build` and `make build-team` stamp the right one. A plain `go build` reports `dev`.
+
+The Mac app (`desktop/`) belongs to the individual product and has no version of its own: `make desktop` stamps the
+window and the `werkbord` program inside it with the same version (the bundle's `CFBundleShortVersionString` is its
+numbers), so a change to `desktop/`, `internal/launcher` or `scripts/build-desktop.sh` is a change to Werkbord and bumps
+`cmd/werkbord/VERSION`. Its disk image is `Werkbord_<version>_darwin_<arch>.dmg`; the release workflow does not attach it
+yet (see [DESKTOP.md](DESKTOP.md#signing-and-notarization-the-production-requirement)).
 `internal/archtest` fails the tests if a `VERSION` file is malformed.
 
 ## Releases

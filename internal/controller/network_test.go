@@ -164,6 +164,17 @@ func TestEnablingThePrivateNetworkServesTheAppWithTheTokenRequired(t *testing.T)
 	if code, _ := get(t, priv+"/api/projects", tok); code != 200 {
 		t.Fatalf("API with the token = %d", code)
 	}
+	// A phone can be told an update exists, with its token and not without; it can only be told: there is no way to
+	// ask the controller to install anything from here.
+	if code, _ := get(t, priv+"/api/update", ""); code != 401 {
+		t.Fatalf("update status over the private network without a token = %d", code)
+	}
+	if code, body := get(t, priv+"/api/update", tok); code != 200 || !strings.Contains(body, `"current"`) {
+		t.Fatalf("update status over the private network with the token = %d %s", code, body)
+	}
+	if code, _ := post(t, priv+"/api/update", tok); code == 200 {
+		t.Fatalf("POST /api/update was accepted over the private network")
+	}
 
 	// The link for a phone carries the token in the fragment, with a QR code of it.
 	code, body := get(t, base+"/api/network/phone", tok)
@@ -198,6 +209,13 @@ func TestPrivateNetworkNeverTrustsTheNetworkEvenWhenLoopbackIsOpen(t *testing.T)
 	tok, _ := c.cfg.ResolveToken(false)
 	if code, _ := get(t, priv+"/api/projects", tok); code != 200 {
 		t.Fatalf("with the token = %d", code)
+	}
+	// Nor does what is new: the update status is the API's, and is behind the token there as well.
+	if code, _ := get(t, "http://"+c.Addr()+"/api/update", ""); code != 200 {
+		t.Fatalf("update status on the open loopback = %d", code)
+	}
+	if code, _ := get(t, priv+"/api/update", ""); code != 401 {
+		t.Fatalf("the private network answered /api/update without the token: %d", code)
 	}
 }
 

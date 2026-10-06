@@ -10,6 +10,7 @@
   import AgentsCard from '../lib/setup/AgentsCard.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import NetworkCard from '../lib/setup/NetworkCard.svelte';
+  import { desktop } from '../lib/desktop.svelte';
   import { app } from '../lib/state.svelte';
   import { theme } from '../lib/theme.svelte';
   import type { ExecutionConfig, Health, Runner } from '../lib/types';
@@ -30,6 +31,17 @@
   type SectionId = (typeof SECTIONS)[number]['id'];
   const section = $derived<SectionId>(SECTIONS.find((s) => s.id === router.query)?.id ?? 'defaults');
   const href = (id: SectionId) => (id === 'defaults' ? globalHref('settings') : `${globalHref('settings')}?${id}`);
+
+  let checking = $state(false);
+  async function checkUpdateNow() {
+    checking = true;
+    try {
+      await app.checkUpdate(true);
+      if (app.update?.available) app.dismissUpdate(''); // asked for, so it is offered again
+    } finally {
+      checking = false;
+    }
+  }
 
   // ---- the global defaults: the bottom of the hierarchy, which a project and a task override ----
   let draft = $state<ExecutionConfig>({});
@@ -169,8 +181,27 @@
         </div>
         {#if health}
           <dl class="kv">
-            <dt>Werkbord</dt><dd class="mono">{health.version}</dd>
+            <dt>Werkbord</dt><dd class="mono">{health.version}{desktop.available ? ' · desktop app' : ''}</dd>
             <dt>Database</dt><dd class="mono">{health.database}</dd>
+            <dt>Updates</dt>
+            <dd>
+              {#if !app.update}
+                <span class="muted">Not checked</span>
+              {:else if app.update.disabled}
+                <span class="muted">Checking is turned off (<code>noUpdateCheck</code>)</span>
+              {:else if !app.update.release}
+                <span class="muted">Built from source: update it from its source tree</span>
+              {:else if app.update.available}
+                {app.update.latest?.replace(/^v/, '')} is available
+              {:else if app.update.error}
+                <span class="muted">Could not look: {app.update.error}</span>
+              {:else}
+                Up to date
+              {/if}
+              {#if app.update && app.update.release && !app.update.disabled}
+                <button class="btn" type="button" disabled={checking} onclick={checkUpdateNow}>{checking ? 'Checking…' : 'Check now'}</button>
+              {/if}
+            </dd>
           </dl>
         {/if}
         <p class="note">Run <code>werkbord doctor</code> in a terminal to check the controller, database, Git, agents, network and GitHub.</p>

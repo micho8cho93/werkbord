@@ -364,6 +364,22 @@ export interface Health {
   database: string;
 }
 
+/** Whether a newer stable release exists, as the controller (GET /api/update) last found out. */
+export interface UpdateStatus {
+  /** The version of the program that answered: v1.2.3, or dev for a build from source. */
+  current: string;
+  /** The newest stable release (v1.2.3); absent when nothing was looked up. */
+  latest?: string;
+  available: boolean;
+  /** False for a build from source: nothing is installed from a release, so nothing is offered. */
+  release: boolean;
+  /** Looking for updates is turned off on this controller. */
+  disabled?: boolean;
+  checkedAt?: string;
+  /** Why the releases page could not be asked (offline, say). Not a fault. */
+  error?: string;
+}
+
 export interface ControllerEvent {
   seq: number;
   type: string;

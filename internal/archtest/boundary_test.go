@@ -289,6 +289,61 @@ func TestEachProductHasItsOwnVersionFile(t *testing.T) {
 	}
 }
 
+// desktopToolkit is the native window toolkit of the desktop app (desktop/). It needs cgo and the system's web
+// view, so it is a requirement of building the app and of nothing else.
+const desktopToolkit = "github.com/wailsapp"
+
+// Rule 8: the desktop app is the individual product's, and a module of its own. Neither executable's build
+// (or go.mod) knows its toolkit, so the controller, the command line, the installers and Linux CI never
+// need a native toolchain; and it never reaches Team.
+func TestTheDesktopAppIsASeparateModuleOfTheIndividualProduct(t *testing.T) {
+	dir := filepath.Join(moduleRoot(t), "desktop")
+	if _, err := os.Stat(dir); err != nil {
+		t.Skip("the desktop app is not in this tree")
+	}
+	mod, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		t.Fatalf("desktop/ must be a module of its own: %v", err)
+	}
+	if !regexp.MustCompile(`(?m)^module devboard/desktop$`).Match(mod) {
+		t.Errorf("desktop/go.mod must declare module devboard/desktop: that path is inside devboard/, which is what lets it use devboard/internal/…")
+	}
+	root, err := os.ReadFile(filepath.Join(moduleRoot(t), "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(root), desktopToolkit) {
+		t.Errorf("go.mod requires %s: the desktop toolkit belongs in desktop/go.mod, not in the controller's module", desktopToolkit)
+	}
+	for _, cmd := range []string{"./cmd/werkbord"} {
+		for _, p := range goList(t, "-deps", cmd) {
+			if strings.HasPrefix(p.ImportPath, desktopToolkit) || strings.HasPrefix(p.ImportPath, module+"/desktop") {
+				t.Errorf("%s's build includes %s: the desktop app must not be reachable from the controller", cmd, p.ImportPath)
+			}
+		}
+	}
+	if hasTeam(t) {
+		for _, p := range goList(t, "-deps", "./cmd/werkbord-team") {
+			if strings.HasPrefix(p.ImportPath, desktopToolkit) || strings.HasPrefix(p.ImportPath, module+"/desktop") {
+				t.Errorf("Team's build includes %s", p.ImportPath)
+			}
+		}
+	}
+	// The desktop app opens the individual product's controller and nobody else's.
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		src, _ := os.ReadFile(path)
+		for _, banned := range []string{teamTree, teamCmd} {
+			if strings.Contains(string(src), banned) {
+				t.Errorf("%s mentions %s: the desktop app is the individual product's and never reaches Team", path, banned)
+			}
+		}
+		return nil
+	})
+}
+
 func containsPkg(pkgs []pkg, path string) bool {
 	for _, p := range pkgs {
 		if p.ImportPath == path {

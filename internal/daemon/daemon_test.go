@@ -477,3 +477,50 @@ func TestAServiceInstalledBeforeTheRenameIsStillFound(t *testing.T) {
 		t.Fatal("the legacy runner unit was not found for the runner")
 	}
 }
+
+// A program the Finder started has none of the environment `werkbord setup` ran in. The service
+// definition is where the install records which executable it runs and where its data is.
+func TestDescribeReadsWhatSetupInstalled(t *testing.T) {
+	home := t.TempDir()
+	l := &Launchd{Options: Options{Home: home, UID: 501, Exec: (&recorder{}).exec}}
+	sp := spec(home)
+	sp.Binary = filepath.Join(home, "My Tools & Co", "bin", "werkbord") // XML-escaped in the plist
+	sp.DataDir = filepath.Join(home, "Library", "Application Support", "my <data>")
+	if err := l.Install(bg, sp); err != nil {
+		t.Fatal(err)
+	}
+	def, ok := Describe(bg, Options{Home: home, UID: 501, GOOS: "darwin", Exec: (&recorder{}).exec})
+	if !ok || def.Binary != sp.Binary || def.DataDir != sp.DataDir {
+		t.Fatalf("Describe = %+v, %v; want %q and %q", def, ok, sp.Binary, sp.DataDir)
+	}
+}
+
+func TestDescribeIsEmptyWhenNothingIsInstalledOrWhenThereIsNoLaunchd(t *testing.T) {
+	home := t.TempDir()
+	if def, ok := Describe(bg, Options{Home: home, UID: 501, GOOS: "darwin", Exec: (&recorder{}).exec}); ok {
+		t.Fatalf("Describe found %+v in an empty home", def)
+	}
+	// A definition with no data directory in it leaves the data directory to the default.
+	if def, ok := parsePlist(`<array><string>x</string></array><key>ProgramArguments</key><array><string>/a/werkbord</string><string>serve</string></array>`); !ok || def.Binary != "/a/werkbord" || def.DataDir != "" {
+		t.Fatalf("parsePlist = %+v, %v", def, ok)
+	}
+	// On a system without launchd nothing is read, and nothing is run.
+	rec := &recorder{}
+	if _, ok := Describe(bg, Options{Home: home, GOOS: "linux", Exec: rec.exec}); ok {
+		t.Fatal("Describe claimed a definition on linux")
+	}
+}
+
+// An install from before the rename (dev.devboard.controller) is the install there is.
+func TestDescribeFindsAServiceInstalledUnderTheOldLabel(t *testing.T) {
+	home := t.TempDir()
+	old := &Launchd{Options: Options{Home: home, UID: 501, Label: "dev.devboard.controller", Exec: (&recorder{}).exec}}
+	sp := spec(home)
+	if err := old.Install(bg, sp); err != nil {
+		t.Fatal(err)
+	}
+	def, ok := Describe(bg, Options{Home: home, UID: 501, GOOS: "darwin", Exec: (&recorder{}).exec})
+	if !ok || def.Binary != sp.Binary || def.DataDir != sp.DataDir {
+		t.Fatalf("Describe = %+v, %v", def, ok)
+	}
+}

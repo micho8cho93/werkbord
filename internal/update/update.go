@@ -37,6 +37,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -95,6 +96,106 @@ func (s Source) Latest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("the latest release is called %q, which is not a version", tag)
 	}
 	return tag, nil
+}
+
+// Status is what a look at the releases page found, for whoever shows it: the
+// controller's API (and so the web app) and the desktop app.
+type Status struct {
+	// Current is the version that was asked about: v1.2.3, or dev for a build from source.
+	Current string `json:"current"`
+	// Latest is the newest stable release, as the program reports it (v1.2.3). It is
+	// empty when nothing was looked up, or the lookup failed.
+	Latest string `json:"latest,omitempty"`
+	// Available: Latest is newer than Current. Never true for a build from source,
+	// which is not an installed release and is updated from its source tree.
+	Available bool `json:"available"`
+	// Release is false for a build from source: no release is installed, so there is
+	// nothing to update, and the releases page is never asked.
+	Release bool `json:"release"`
+	// Disabled: looking for updates is turned off for this controller (noUpdateCheck).
+	Disabled bool `json:"disabled,omitempty"`
+	// CheckedAt is when the releases page was last asked.
+	CheckedAt time.Time `json:"checkedAt,omitempty"`
+	// Error says why the releases page could not be asked. It is not an error of the
+	// program: being offline is normal, and nothing else depends on this.
+	Error string `json:"error,omitempty"`
+}
+
+// Check asks the releases page whether a newer stable release than current exists.
+// "Stable" is what /latest means: it never points at a pre-release or a draft, and
+// another product's releases are published with "latest" turned off (see the
+// package comment), so a Werkbord Team release can never be offered here.
+//
+// A build from source is not asked about at all.
+func (s Source) Check(ctx context.Context, current string) Status {
+	st := Status{Current: current, Release: Release(current)}
+	if !st.Release {
+		return st
+	}
+	st.CheckedAt = time.Now().UTC()
+	tag, err := s.Latest(ctx)
+	if err != nil {
+		st.Error = err.Error()
+		return st
+	}
+	st.Latest = VersionOf(tag)
+	st.Available = Compare(current, st.Latest) < 0
+	return st
+}
+
+// Checker answers Check from a cache, so a page that asks on every visit does not
+// become a request to GitHub on every visit. A failure is kept for a shorter time
+// than an answer, so being offline is retried soon and not hammered.
+type Checker struct {
+	Source  Source
+	Current string
+	// Disabled makes every answer "not looking": nothing leaves this computer.
+	Disabled bool
+	// TTL is how long an answer is kept (default 6 hours); FailureTTL a failure (default 15 minutes).
+	TTL, FailureTTL time.Duration
+	// MinRefresh is the shortest time between two lookups, even when one is forced (default 1 minute).
+	MinRefresh time.Duration
+
+	now  func() time.Time
+	mu   sync.Mutex
+	last Status
+	at   time.Time
+}
+
+// Status returns the cached answer, asking the releases page when there is none,
+// it has expired, or force is set (and the last lookup was not just now).
+func (c *Checker) Status(ctx context.Context, force bool) Status {
+	if c.Disabled {
+		return Status{Current: c.Current, Release: Release(c.Current), Disabled: true}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := time.Now
+	if c.now != nil {
+		now = c.now
+	}
+	ttl := orDuration(c.TTL, 6*time.Hour)
+	if c.last.Error != "" {
+		ttl = orDuration(c.FailureTTL, 15*time.Minute)
+	}
+	age := now().Sub(c.at)
+	fresh := !c.at.IsZero() && age < ttl
+	if force {
+		fresh = !c.at.IsZero() && age < orDuration(c.MinRefresh, time.Minute)
+	}
+	if fresh {
+		return c.last
+	}
+	c.last = c.Source.Check(ctx, c.Current)
+	c.at = now()
+	return c.last
+}
+
+func orDuration(d, def time.Duration) time.Duration {
+	if d > 0 {
+		return d
+	}
+	return def
 }
 
 // TagPrefix starts the tag of every release of this product, from FirstProductTag on.

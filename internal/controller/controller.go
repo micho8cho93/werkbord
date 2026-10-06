@@ -31,6 +31,7 @@ import (
 	"devboard/internal/service"
 	"devboard/internal/store"
 	"devboard/internal/store/sqlite"
+	"devboard/internal/update"
 	"devboard/internal/webui"
 )
 
@@ -239,6 +240,11 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	apiOpts.Doctor = func(ctx context.Context) doctor.Report { return doctor.Run(ctx, c.version, env.Standard()...) }
 	privateOpts.Doctor = apiOpts.Doctor
+	// Whether a newer release exists. Unlike the rest of what the controller reaches out for, nobody asked
+	// for this, so it is cached, never asked of a build from source, and can be turned off (noUpdateCheck).
+	checker := &update.Checker{Current: c.version, Disabled: c.cfg.NoUpdateCheck}
+	apiOpts.Update = checker.Status
+	privateOpts.Update = apiOpts.Update
 	privateHandler.set(api.New(privateOpts).Handler())
 	srv := api.New(apiOpts)
 

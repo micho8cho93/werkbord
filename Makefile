@@ -21,6 +21,7 @@ TEAM_BIN := bin/werkbord-team
 
 .PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team \
         test test-werkbord test-team lint check verify-isolation \
+        desktop desktop-package desktop-dev desktop-test desktop-check \
         dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser
 
 all: check build build-team
@@ -70,15 +71,49 @@ test-team:
 
 ## lint: gofmt, go vet, svelte-check, eslint
 lint: web/node_modules
-	@out=$$(gofmt -l cmd internal); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	@out=$$(gofmt -l cmd internal desktop); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	@for f in scripts/*.sh; do sh -n $$f || exit 1; done
 	$(GO) vet ./...
 	cd web && $(NPM) run check && $(NPM) run lint
 
 ## check: everything CI should run
-check: test lint
+check: test lint desktop-test
 	$(GO) build ./...
 	cd web && $(NPM) run build
+
+# ---- the desktop app (desktop/, docs/DESKTOP.md) ----
+# It is a Go module of its own because it needs cgo and the system's web view; nothing above builds it, so make check
+# never needs a macOS toolchain. UniformTypeIdentifiers is what Wails's file dialogs link against (the Wails command line adds it).
+DESKTOP_CGO_LDFLAGS = -mmacosx-version-min=13.0 -framework UniformTypeIdentifiers
+DESKTOP_CGO_CFLAGS  = -mmacosx-version-min=13.0
+DESKTOP_DEV_DATA   ?= $(CURDIR)/.desktop-dev/data
+DESKTOP_DEV_ADDR   ?= 127.0.0.1:7499
+
+## desktop: Werkbord.app for this Mac, in dist/desktop (ad-hoc signed; CODESIGN_IDENTITY signs it for distribution)
+desktop: web web-embed
+	scripts/build-desktop.sh
+
+## desktop-package: Werkbord.app and Werkbord_<version>_darwin_<arch>.dmg in dist/desktop
+desktop-package: web web-embed
+	scripts/build-desktop.sh --package
+
+## desktop-dev: run the window from source, with a controller built from this tree on its own port and data
+## (nothing is installed and no login service is made: delete .desktop-dev to start over)
+desktop-dev: build
+	@mkdir -p $(DESKTOP_DEV_DATA)
+	cd desktop && WERKBORD_DESKTOP_CLI=$(CURDIR)/$(BIN) WERKBORD_DATA_DIR=$(DESKTOP_DEV_DATA) WERKBORD_ADDR=$(DESKTOP_DEV_ADDR) \
+		CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" \
+		$(GO) run -tags desktop,debug -ldflags "-X main.version=$(WERKBORD_VERSION)" .
+
+## desktop-test: the desktop app's logic, which needs no window system and so runs anywhere
+desktop-test:
+	cd desktop && $(GO) vet ./internal/... && $(GO) test ./internal/...
+
+## desktop-check: desktop-test, and on a Mac also that the window code builds (it needs the Xcode command line tools)
+desktop-check: desktop-test
+	@if [ "$$(uname -s)" = Darwin ]; then \
+		cd desktop && CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" $(GO) vet -tags desktop,production . ; \
+	else echo "desktop-check: the window code builds on macOS only; skipped"; fi
 
 ## verify-isolation: build and test the individual product in a copy of the repository with every Team file removed
 verify-isolation:

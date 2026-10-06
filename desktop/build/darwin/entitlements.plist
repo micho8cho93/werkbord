@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Nothing is requested. The app is not sandboxed, because what it opens has to be able to run the user's own
+		coding agents and Git in the user's own repositories (as the command line does), write the login service
+		to ~/Library/LaunchAgents and the program to ~/.local/bin. It needs no JIT or unsigned-memory entitlement:
+		Go does not use them, and the web view is Apple's, in its own process. Add an entitlement here only with a
+		reason written next to it; the hardened runtime (which Developer ID signing turns on) denies the rest.
+	-->
+</dict>
+</plist>

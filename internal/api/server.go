@@ -16,6 +16,7 @@ import (
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
+	"devboard/internal/update"
 )
 
 // Options configures a Server.
@@ -37,6 +38,11 @@ type Options struct {
 	GitHub      *service.GitHubSetup // connecting GitHub and choosing repositories; nil disables those endpoints
 	// Doctor runs the health checks with the controller's live parts; nil disables /api/doctor.
 	Doctor func(context.Context) doctor.Report
+	// Update says whether a newer release exists (force: look again, within limits);
+	// nil disables /api/update. It only reports: installing is `werkbord update`, run
+	// on this computer by the person at it, and is not something any client can ask the
+	// controller to do.
+	Update func(ctx context.Context, force bool) update.Status
 	// PrivateToken is the access token a phone presents on the private network. It
 	// is put in the link and QR code that open Werkbord there, and nowhere else.
 	PrivateToken string
@@ -98,6 +104,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/projects/{pid}/runs/{id}/usage", s.handleRunUsage)
 	mux.HandleFunc("PATCH /api/projects/{pid}/runs/{id}/assessment", s.handleRunAssessment)
 	mux.HandleFunc("GET /api/doctor", s.handleDoctor)
+	mux.HandleFunc("GET /api/update", s.handleUpdateStatus)
 	mux.HandleFunc("GET /api/github", s.handleGitHubStatus)
 	mux.HandleFunc("POST /api/github/login", s.handleGitHubLogin)
 	mux.HandleFunc("POST /api/github/login/cancel", s.handleGitHubLoginCancel)

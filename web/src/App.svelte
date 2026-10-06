@@ -12,6 +12,7 @@
   import Toasts from './lib/shell/Toasts.svelte';
   import { app } from './lib/state.svelte';
   import TokenPrompt from './lib/TokenPrompt.svelte';
+  import UpdateBanner from './lib/UpdateBanner.svelte';
   import Board from './routes/Board.svelte';
   import Calendar from './routes/Calendar.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
@@ -137,6 +138,7 @@
       {/if}
 
       <NeedsInputBanner />
+      <UpdateBanner />
 
       <main bind:this={mainEl}>
         {#if router.view === 'control'}

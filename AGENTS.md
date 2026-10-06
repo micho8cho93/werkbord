@@ -84,7 +84,8 @@ Tags are created locally. Do not push commits or tags unless the user asks.
 - After committing: `make tag PRODUCT=werkbord` and/or `make tag PRODUCT=werkbord-team` (annotated tag from the VERSION
   file, then verified), and `make verify-tag PRODUCT=<product>` to check again. Details: `docs/VERSIONING.md`.
 - A commit is "individual" if it changes anything the `werkbord` executable is built from (everything under `cmd/werkbord`,
-  `internal/` outside `internal/team`, `web/`, its scripts); "Team" if it changes `internal/team`, `cmd/werkbord-team` or
+  `internal/` outside `internal/team`, `web/`, its scripts) or the Mac app (`desktop/`, which is part of the individual
+  product, has no version of its own, and is a Go module of its own: `docs/DESKTOP.md`); "Team" if it changes `internal/team`, `cmd/werkbord-team` or
   Team's installer. Shared packages (`internal/sqlitekit`, `internal/httpkit`, `internal/logging`) count for a product only
   if they change that product's behaviour.
 

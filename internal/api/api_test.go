@@ -19,6 +19,7 @@ import (
 	"devboard/internal/gitrepo"
 	"devboard/internal/service"
 	"devboard/internal/store/sqlite"
+	"devboard/internal/update"
 )
 
 func newTestServer(t *testing.T, mutate func(*Options)) *httptest.Server {
@@ -257,5 +258,58 @@ func TestRoutingFallbacks(t *testing.T) {
 	resp.Body.Close()
 	if string(body) != "shell" || resp.Header.Get("Content-Security-Policy") == "" {
 		t.Fatalf("web fallback: %q, headers %v", body, resp.Header)
+	}
+}
+
+// ---- GET /api/update ----
+
+func TestUpdateStatusReportsAndIsBehindTheToken(t *testing.T) {
+	checker := &update.Checker{Current: "v1.0.0"}
+	var forced []bool
+	ts := newTestServer(t, func(o *Options) {
+		o.AuthRequired, o.Token = true, "s3cret"
+		o.Update = func(ctx context.Context, force bool) update.Status {
+			forced = append(forced, force)
+			return update.Status{Current: checker.Current, Latest: "v1.1.0", Available: true, Release: true}
+		}
+	})
+	// Like every /api route but /api/health, it needs the token: a phone or a page on the network does not learn the version for free.
+	if code := do(t, "GET", ts.URL+"/api/update", "", nil); code != 401 {
+		t.Fatalf("without a token: %d", code)
+	}
+	get := func(path string) update.Status {
+		req, _ := http.NewRequest("GET", ts.URL+path, nil)
+		req.Header.Set("Authorization", "Bearer s3cret")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var st update.Status
+		if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&st) != nil {
+			t.Fatalf("GET %s: %d", path, resp.StatusCode)
+		}
+		return st
+	}
+	if st := get("/api/update"); !st.Available || st.Latest != "v1.1.0" || st.Current != "v1.0.0" {
+		t.Fatalf("status = %+v", st)
+	}
+	get("/api/update?refresh=1")
+	if len(forced) != 2 || forced[0] || !forced[1] {
+		t.Fatalf("force flags = %v: only ?refresh=1 asks again", forced)
+	}
+	// It is read-only: there is no way to ask the controller to install anything.
+	for _, m := range []string{"POST", "PUT", "DELETE"} {
+		if code := do(t, m, ts.URL+"/api/update", "", nil); code == 200 {
+			t.Fatalf("%s /api/update was accepted", m)
+		}
+	}
+}
+
+func TestUpdateStatusWithoutAChecker(t *testing.T) {
+	ts := newTestServer(t, func(o *Options) { o.Version = "v1.0.0" })
+	var st update.Status
+	if code := do(t, "GET", ts.URL+"/api/update", "", &st); code != 200 || !st.Disabled || st.Available || st.Current != "v1.0.0" {
+		t.Fatalf("no checker: %d %+v", code, st)
 	}
 }
