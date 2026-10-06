@@ -20,6 +20,19 @@ but not published.
 | 8 | Release for real, and check it | the first published app |
 | 9 | If something goes wrong | the way back |
 
+## Test the app while approval is pending
+
+`make desktop-preview` builds a universal DMG from the current individual VERSION with an ad-hoc signature and no notarization or Sparkle updater.
+It writes `dist/desktop-preview/Werkbord-preview.dmg` and its SHA-256 checksum, alongside the versioned disk image.
+This target is for an explicitly requested test preview. Publish it only on a product prerelease (for example
+`werkbord-v1.3.1-preview.1`), marked prerelease and `--latest=false`, with notes naming the lack of notarization.
+Never upload it as `Werkbord.dmg`, never make an appcast for it, and never use it to satisfy the signed release verifier.
+The signed release workflow and its requirements remain in force.
+
+The website can link directly to the preview while no signed installer is available. On first launch, a tester may need
+**System Settings → Privacy & Security → Open Anyway** after attempting to open the app from Applications.
+See [Apple’s instructions](https://support.apple.com/en-us/102445). Replace the preview by dragging the signed app to Applications when it is available.
+
 ## 1. Enrol in the Apple Developer Program
 
 <https://developer.apple.com/programs/enroll/> → sign in with your Apple ID → enrol (an individual or an organization; US$99

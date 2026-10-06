@@ -111,13 +111,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           flags=""
-          case "${{ steps.product.outputs.version }}" in *-*) flags="--prerelease" ;; esac
-          if [ "${{ steps.product.outputs.product }}" = werkbord ]; then
-            flags="$flags --latest"
+          case "${{ steps.product.outputs.version }}" in
+            *-*) flags="--prerelease --latest=false" ;;
+            *)
+              if [ "${{ steps.product.outputs.product }}" = werkbord ]; then
+                flags="--latest"
+              else
+                flags="--latest=false"
+              fi ;;
+          esac
+          # A manually tested Mac preview may already have its DMG on this prerelease.
+          # Add only the CLI archives; preserve its preview notes, status and installer.
+          if [ "$flags" = "--prerelease --latest=false" ] &&
+             [ "$(gh release view "$GITHUB_REF_NAME" --json isPrerelease --jq .isPrerelease 2>/dev/null)" = true ]; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
           else
-            flags="$flags --latest=false"
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes $flags
           fi
-          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes $flags
 
   desktop-build:
     # After the release exists (a tag), or on its own (a dry run).

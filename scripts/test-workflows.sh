@@ -18,8 +18,8 @@ cd "$(dirname "$0")/.."
 command -v ruby >/dev/null 2>&1 || { echo "test-workflows: ruby is needed"; exit 1; }
 ruby -ryaml -rjson - <<'RUBY'
 $failures = []
-def fail(msg) = $failures << msg
-def check(cond, msg) = (cond || fail(msg))
+def fail(msg); $failures << msg; end
+def check(cond, msg); cond || fail(msg); end
 
 def load(path)
   YAML.safe_load(File.read(path), aliases: true)
@@ -33,14 +33,14 @@ workflows = Dir["#{DIR}/*.yml"].sort.to_h { |p| [p, load(p)] }
 check(!workflows.empty?, "no workflows found")
 workflows.each { |p, w| check(w.is_a?(Hash) && w["jobs"].is_a?(Hash), "#{p} has no jobs") }
 
-def triggers(w) = (w["on"] || w[true] || {})
+def triggers(w); w["on"] || w[true] || {}; end
 def trigger_names(w)
   t = triggers(w)
   t.is_a?(Hash) ? t.keys : Array(t)
 end
-def uses_of(job) = (job["steps"] || []).map { |s| s["uses"] }.compact
-def mentions_secret?(obj) = JSON.generate(obj).include?("secrets.")
-def perms(job, w) = job["permissions"] || w["permissions"]
+def uses_of(job); (job["steps"] || []).map { |s| s["uses"] }.compact; end
+def mentions_secret?(obj); JSON.generate(obj).include?("secrets."); end
+def perms(job, w); job["permissions"] || w["permissions"]; end
 
 workflows.each do |path, w|
   next unless w
@@ -128,8 +128,15 @@ if rel
   end
   # nothing but the new jobs uploads, and what they upload is the disk image's two files
   uploads = jobs.flat_map { |n, j| (j["steps"] || []).map { |s| [n, s["run"].to_s] } }.select { |_, run| run.include?("gh release upload") }
-  check(uploads.map(&:first).uniq.all? { |n| %w[desktop-publish desktop-appcast].include?(n) }, "only desktop-publish and desktop-appcast upload to the release")
-  uploads.each { |n, run| check(run.include?("darwin_universal") || run.include?("Werkbord.dmg") || run.include?("appcast.xml"), "#{n} uploads something other than the disk image, its update archive or the appcast") }
+  check(uploads.map(&:first).uniq.all? { |n| %w[release desktop-publish desktop-appcast].include?(n) }, "only the release and desktop publishing jobs upload to the release")
+  uploads.each do |n, run|
+    if n == "release"
+      check(run.include?('--prerelease --latest=false') && run.include?('--json isPrerelease --jq .isPrerelease') && run.include?('gh release upload "$GITHUB_REF_NAME" dist/* --clobber'), "the release job may reuse only an existing prerelease and upload only its CLI archives")
+    else
+      check(run.include?("darwin_universal") || run.include?("Werkbord.dmg") || run.include?("appcast.xml"), "#{n} uploads something other than the disk image, its update archive or the appcast")
+    end
+  end
+  check(JSON.generate(jobs.dig("release", "steps")).include?('--prerelease --latest=false'), "prereleases never replace the latest stable release")
   check(jobs.dig("desktop-publish", "steps").to_a.none? { |st| st["run"].to_s.include?("appcast.xml") }, "the feed is not published together with the disk image: it comes after the check")
 end
 

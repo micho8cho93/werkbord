@@ -271,8 +271,22 @@ func TestTeamDependenciesAreClassified(t *testing.T) {
 }
 
 // Rule 6: each product has a well-formed version, and the two files are separate.
+// Prerelease identifiers follow SemVer: numeric identifiers have no leading zero.
+var productSemver = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-((0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$`)
+
+func TestProductVersionSyntax(t *testing.T) {
+	for _, v := range []string{"0.1.0", "1.3.1", "1.3.1-preview.1", "2.0.0-rc.0", "1.0.0-0alpha"} {
+		if !productSemver.MatchString(v) {
+			t.Errorf("valid product version rejected: %q", v)
+		}
+	}
+	for _, v := range []string{"v1.3.1", "01.3.1", "1.3", "1.3.1-", "1.3.1-preview..1", "1.3.1-01", "1.3.1-preview.01", "1.3.1-preview_1", "1.3.1\n"} {
+		if productSemver.MatchString(v) {
+			t.Errorf("invalid product version accepted: %q", v)
+		}
+	}
+}
 func TestEachProductHasItsOwnVersionFile(t *testing.T) {
-	semver := regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`)
 	files := map[string]string{"werkbord": "cmd/werkbord/VERSION", "werkbord-team": "cmd/werkbord-team/VERSION"}
 	for product, rel := range files {
 		b, err := os.ReadFile(filepath.Join(moduleRoot(t), rel))
@@ -283,8 +297,8 @@ func TestEachProductHasItsOwnVersionFile(t *testing.T) {
 			t.Errorf("%s: %v", product, err)
 			continue
 		}
-		if v := strings.TrimSpace(string(b)); !semver.MatchString(v) || string(b) != v+"\n" {
-			t.Errorf("%s says %q: it must be exactly MAJOR.MINOR.PATCH and a newline", rel, string(b))
+		if v := strings.TrimSpace(string(b)); !productSemver.MatchString(v) || string(b) != v+"\n" {
+			t.Errorf("%s says %q: it must be a semantic version (optionally with prerelease identifiers) and a newline", rel, string(b))
 		}
 	}
 }

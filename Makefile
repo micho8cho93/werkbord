@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 
 .PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team \
         test test-werkbord test-team lint check verify-isolation \
-        desktop desktop-package desktop-release desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
+        desktop desktop-package desktop-release desktop-preview desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
         dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser
 
 all: check build build-team
@@ -101,6 +101,14 @@ desktop-package: web web-embed
 ## and notary credentials in the environment: docs/DESKTOP_RELEASE.md. It refuses to build anything else.)
 desktop-release: web web-embed
 	scripts/build-desktop.sh --package --release
+
+## desktop-preview: universal Mac DMG for testing before Developer ID approval (not notarized; no Sparkle)
+## Published separately as a prerelease, never as Werkbord.dmg or an appcast update.
+desktop-preview: web web-embed
+	VERSION=v$$(scripts/product.sh werkbord version) ARCH=universal SPARKLE=0 CODESIGN_IDENTITY=- RELEASE=0 NOTARIZE=0 \
+		scripts/build-desktop.sh --package dist/desktop-preview
+	cp dist/desktop-preview/Werkbord_$$(scripts/product.sh werkbord version)_darwin_universal.dmg dist/desktop-preview/Werkbord-preview.dmg
+	cd dist/desktop-preview && shasum -a 256 Werkbord-preview.dmg > Werkbord-preview.dmg.sha256
 
 ## desktop-dev: run the window from source, with a controller built from this tree on its own port and data
 ## (nothing is installed and no login service is made: delete .desktop-dev to start over)

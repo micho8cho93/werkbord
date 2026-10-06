@@ -13,10 +13,12 @@ without ever running anything on anyone's computer. See [docs/PRODUCTS.md](docs/
 
 ### Most people: the Mac app
 
-> **Not published yet.** The Mac app is built, signed-and-notarized by an automated release, and tested, but no release has carried it
-> so far: the first one waits on the owner's Apple Developer account ([docs/DESKTOP_RELEASE.md](docs/DESKTOP_RELEASE.md)).
-> Until then use the installer below, which installs the same Werkbord. *(Delete this note when the release that carries the app is
-> out: it is step 8 of that checklist.)*
+**Testing before Apple Developer approval:** download the [unsigned Mac preview](https://github.com/micho8cho93/werkbord/releases/download/werkbord-v1.3.1-preview.1/Werkbord-preview.dmg),
+open the DMG, drag **Werkbord** to **Applications**, then open it. If macOS blocks it, go to **System Settings → Privacy & Security → Open Anyway** after the first launch attempt.
+This universal preview is ad-hoc signed, not notarized, and has no Sparkle app updater. It is for testing;
+replace it with the signed app when available. See [Apple’s instructions](https://support.apple.com/en-us/102445).
+
+The signed and notarized Mac release below is pending the owner’s Apple Developer approval ([release setup](docs/DESKTOP_RELEASE.md)).
 
 1. Download **[`Werkbord.dmg`](https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg)** (the same
    file as `Werkbord_<version>_darwin_universal.dmg` on the [latest release](https://github.com/micho8cho93/werkbord/releases/latest)).

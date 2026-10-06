@@ -104,7 +104,7 @@ individual install (the updater would refuse it, but the update would fail). The
 (`scripts/install-team.sh`) finds the latest *Team* release in the releases feed instead. Both installers refuse the
 other product's release by name.
 
-A tag with a `-` after the version (`werkbord-v1.5.0-rc1`) is a pre-release.
+A tag with a `-` after the version (`werkbord-v1.5.0-rc1`) is a pre-release. Its VERSION file includes the same prerelease suffix. Prereleases are never marked latest. An explicitly requested ad-hoc Mac preview may be attached as `Werkbord-preview.dmg` to a prerelease; it is never the stable `Werkbord.dmg` or an appcast update (see [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md#test-the-app-while-approval-is-pending)).
 
 ## History
 
