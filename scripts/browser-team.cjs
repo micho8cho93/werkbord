@@ -36,6 +36,7 @@ async function api(method, path, data, credential = token) {
     let k = await api('POST', `/projects/${p.id}/tickets`, { title: 'Concurrent ticket', description: 'Original description', requirements: 'Original context', status: 'available' });
     k = await api('POST', `/projects/${p.id}/tickets/${k.id}/claim`);
     await page.goto(base + '/#token=' + token);
+    await page.getByRole('navigation', { name: 'Workspace sections' }).getByRole('button', { name: /^Members/ }).click();
     await page.getByRole('button', { name: 'New token', exact: true }).first().click();
     await page.getByText('Your token', { exact: true }).waitFor();
     const fresh = await page.locator('.secret code').first().textContent();
@@ -103,6 +104,7 @@ async function api(method, path, data, credential = token) {
     console.log('PASS concurrent editors, stale-version rejection, intentional empty text, disclosure, keyboard focus, conflict recovery');
     // Independent drafts survive navigation without carrying into another project.
     await page.goto(base + `/?tab=board&project=${p.id}`);
+    await page.getByRole('button', { name: 'New ticket', exact: true }).click();
     await page.locator('[name="t-title"]').fill('Alpha draft');
     await page.locator('[name="project-switch"]').selectOption(q.id);
     await page.locator('[name="t-title"]').waitFor();
@@ -149,6 +151,38 @@ async function api(method, path, data, credential = token) {
     await page.getByRole('button', { name: 'Board', exact: true }).click();
     await page.locator('[name="t-title"]').waitFor();
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
+    // Drag, close and restore retain the ticket's reports and use the server's rules.
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Cancel new ticket', exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    let dragged = await api('POST', `/projects/${p.id}/tickets`, { title: 'Team drag fixture', description: 'Keep this context', status: 'backlog' });
+    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
+    const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/assign'));
+    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).locator('..').dragTo(page.getByRole('region', { name: 'In Progress', exact: true }));
+    assert.equal((await assignResponse).status(), 200);
+    await page.getByRole('region', { name: 'In Progress', exact: true }).getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
+    dragged = await api('GET', `/projects/${p.id}/tickets/${dragged.id}`);
+    assert.equal(dragged.status, 'in_progress');
+    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
+    await page.getByRole('button', { name: 'Close ticket', exact: true }).click();
+    await page.getByRole('button', { name: 'Restore ticket', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: /^Archive \(/ }).click();
+    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
+    await page.getByRole('button', { name: 'Restore', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to board', exact: true }).click();
+    await api('POST', `/projects/${p.id}/tickets/${dragged.id}/submit`, {});
+    await api('POST', `/projects/${p.id}/tickets/${dragged.id}/complete`, {});
+    await page.getByRole('button', { name: 'Clear Done', exact: true }).click();
+    await page.getByRole('button', { name: /^Archive \(/ }).click();
+    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
+    await page.getByText('Keep this context', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Restore ticket', exact: true }).click();
+    await page.getByRole('button', { name: 'Close ticket', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to board', exact: true }).click();
+    console.log('PASS Team drag-to-start, close, archive, restore, Clear Done and retained details');
+    await page.getByRole('button', { name: 'Other client title', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, 'desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
@@ -156,6 +190,26 @@ async function api(method, path, data, credential = token) {
     if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, 'mobile.png') });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2);
     assert.equal(overflow, false, 'mobile document overflows');
+    const ticketBounds = await page.locator('.ticket').boundingBox();
+    assert.ok(ticketBounds.y >= 0 && ticketBounds.y < 100, 'mobile ticket opens within the viewport');
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Board columns' }).getByRole('button', { name: /^Review/ }).click();
+    await page.getByRole('region', { name: 'Review', exact: true }).waitFor({ state: 'visible' });
+    for (const tab of ['workspace', 'projects', 'repository']) {
+        await page.goto(base + `/?tab=${tab}&project=${p.id}`);
+        await page.locator('header.top').waitFor();
+        if (tab === 'workspace') await page.getByRole('navigation', { name: 'Workspace sections' }).waitFor();
+        if (tab === 'repository') {
+            const sections = page.getByRole('navigation', { name: 'Repository sections' });
+            await sections.getByRole('button', { name: /^Pull requests/ }).click();
+            await sections.getByRole('button', { name: /^Branches/ }).click();
+        }
+        for (const [size, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
+            await page.setViewportSize({ width, height });
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, `${tab} ${size} overflows`);
+            if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, `team-${tab}-${size}.png`) });
+        }
+    }
     assert.deepEqual(errors, []);
     console.log('PASS desktop/mobile layout, no JavaScript errors');
     await browser.close();

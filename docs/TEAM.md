@@ -56,6 +56,16 @@ The tab badges show what waits (available tickets, your tickets, reviews for you
 shows a banner when its live connection drops and refreshes everything by itself when it returns (see
 [Staying in step](#staying-in-step)).
 
+Workspace offers separate **Working now**, **Projects** and **Members** sections; Repository separates attention,
+pull requests and branches. Small windows show one selected board column, and **New ticket** opens its form only
+when needed. Dragging a ticket between columns performs the same permitted action as claim, assign, submit or
+complete; it does not bypass ownership or review rules.
+
+**Clear Done** moves completed tickets into the board's searchable **Archive**. **Close ticket** can also archive
+unfinished work when the member has permission to manage it. Details, commits, pull requests and activity are
+retained; **Restore** returns the ticket to its previous status. Archived tickets leave active work counts and
+attention lists. Closing in Team changes coordination metadata only: stop an agent in the member's own Werkbord.
+
 ## Concepts
 
 - **Workspace.** A team's shared space. It has a name and exactly one **owner**, the person who created it.
@@ -420,7 +430,7 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `PUT /projects/{id}/members/{memberId}` `{role?}` | project `members.manage` | idempotent; `role` (owner, reviewer, member) sets or changes their project role |
 | `DELETE /projects/{id}/members/{memberId}` | project `members.manage` | their tickets in progress go back on the board |
 | `GET /projects/{id}/people` | on the project | members with their project roles |
-| `GET /projects/{id}/board` | on the project | project, `revision`, columns, every ticket, people, your project role and what it allows |
+| `GET /projects/{id}/board` | on the project | project, `revision`, columns, active `tickets`, `archived` tickets, people, your project role and what it allows |
 | `GET /overview` | any member | the projects you can see with their counts, everyone's work in progress, and what is available |
 | `GET /my-work` | any member | your tickets, pull requests, what needs your attention, and your branches' state |
 | `GET /reviews` | any member | tickets in review you may review or submitted, with mergeability and blockers |
@@ -445,7 +455,11 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `POST /invites/redeem` `{code, name, email?}` | **anyone with a valid code** | creates the member and their token, once |
 | `POST /invites/join` `{code}` | any member | join a project with an invite |
 
-There is deliberately no route that deletes a project or a ticket (archive the project; move the ticket), creates a workspace, runs anything, reads a file, or acts on a member's computer.
+`POST /projects/{id}/tickets/archive-done` archives completed tickets and requires `tickets.reopen`.
+`POST /projects/{id}/tickets/{tid}/archive` takes `{version, archived}` for close/restore and checks the existing
+ticket ownership permissions. Both preserve reports and record activity.
+
+There is deliberately no route that deletes a project or a ticket (archive it instead), creates a workspace, runs anything, reads a file, or acts on a member's computer.
 
 ## Security notes
 

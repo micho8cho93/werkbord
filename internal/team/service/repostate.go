@@ -148,6 +148,9 @@ func buildRepoState(p domain.Project, tickets []domain.Ticket, branches []domain
 		idle := now.Sub(info.LastActivity)
 		info.Stale = !info.Base && idle > StaleAfter && (k == nil || k.Status != domain.TicketDone)
 		info.Active = !info.Base && !info.Stale && (k == nil || k.Status.Held())
+		if k != nil && k.ArchivedAt != nil {
+			info.Active, info.Stale = false, false
+		}
 		st.Branches = append(st.Branches, info)
 	}
 	for _, b := range branches {
@@ -210,6 +213,30 @@ func buildRepoState(p domain.Project, tickets []domain.Ticket, branches []domain
 }
 
 func attention(tickets []domain.Ticket, branches []BranchInfo, prs []PullRequestInfo, files map[string]map[string]bool, who func(string) string, now time.Time) []Attention {
+	// Closed work remains in repository history, but no longer asks the team
+	// for review, synchronization or overlap decisions.
+	archived := map[string]bool{}
+	activeTickets := make([]domain.Ticket, 0, len(tickets))
+	for _, k := range tickets {
+		if k.ArchivedAt != nil {
+			archived[k.ID] = true
+		} else {
+			activeTickets = append(activeTickets, k)
+		}
+	}
+	activeBranches := make([]BranchInfo, 0, len(branches))
+	for _, b := range branches {
+		if !archived[b.TicketID] {
+			activeBranches = append(activeBranches, b)
+		}
+	}
+	activePRs := make([]PullRequestInfo, 0, len(prs))
+	for _, pr := range prs {
+		if !archived[pr.TicketID] {
+			activePRs = append(activePRs, pr)
+		}
+	}
+	tickets, branches, prs = activeTickets, activeBranches, activePRs
 	var out []Attention
 	label := func(key, branch string) string {
 		if key != "" {

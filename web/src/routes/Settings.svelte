@@ -121,7 +121,7 @@
             own model and reasoning.
           </p>
         </div>
-        <ExecutionFields bind:value={draft} idPrefix="global" />
+        <ExecutionFields bind:value={draft} idPrefix="global" columns />
         {#if app.agents.length > 0}
           <p class="note">New tasks get: <strong>{summaryLine(effective, app.agents, app.agentOptions) || 'the first agent that works, with its own defaults'}</strong></p>
         {/if}
@@ -260,7 +260,7 @@
   }
 
   .content > :global(*) {
-    max-width: 760px;
+    max-width: 1200px;
   }
 
   .head {

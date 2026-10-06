@@ -196,6 +196,9 @@ func baseDecision(task domain.Task, x scheduleSnapshot, now time.Time, manual bo
 	d := domain.SchedulingDecision{TaskID: task.ID, State: "runnable", Reason: "Ready to execute"}
 	o := task.Orchestration
 	set := func(state, reason string) domain.SchedulingDecision { d.State = state; d.Reason = reason; return d }
+	if task.ArchivedAt != nil {
+		return set("blocked", "Task is archived")
+	}
 	if r, ok := x.latest[task.ID]; ok && r.State.Active() {
 		return set("queued", "An agent session is already active")
 	}

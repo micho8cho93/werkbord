@@ -5,22 +5,35 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"devboard/internal/domain"
 )
 
 type taskRepo struct{ q queryer }
 
-const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution, orchestration, source_ref, work_branch, base_branch`
+func archiveMS(at *time.Time) any {
+	if at == nil {
+		return nil
+	}
+	return ms(*at)
+}
+
+const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution, orchestration, source_ref, work_branch, base_branch, archived_at`
 
 func scanTask(s interface{ Scan(...any) error }) (*domain.Task, error) {
 	var t domain.Task
 	var created, updated int64
 	var execution, orchestration string
-	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution, &orchestration, &t.SourceRef, &t.WorkBranch, &t.BaseBranch); err != nil {
+	var archived sql.NullInt64
+	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution, &orchestration, &t.SourceRef, &t.WorkBranch, &t.BaseBranch, &archived); err != nil {
 		return nil, err
 	}
 	t.CreatedAt, t.UpdatedAt = fromMS(created), fromMS(updated)
+	if archived.Valid {
+		at := fromMS(archived.Int64)
+		t.ArchivedAt = &at
+	}
 	var err error
 	if t.Execution, err = decodeExecution(execution); err != nil {
 		return nil, fmt.Errorf("task %s: %w", t.ID, err)
@@ -41,8 +54,8 @@ func (r taskRepo) Create(ctx context.Context, t *domain.Task) error {
 		return err
 	}
 	_, err = r.q.ExecContext(ctx,
-		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), execution, mustJSON(t.Orchestration), t.SourceRef, t.WorkBranch, t.BaseBranch)
+		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), execution, mustJSON(t.Orchestration), t.SourceRef, t.WorkBranch, t.BaseBranch, archiveMS(t.ArchivedAt))
 	if isFKViolation(err) {
 		return fmt.Errorf("project %s: %w", t.ProjectID, domain.ErrNotFound)
 	}
@@ -78,9 +91,9 @@ func (r taskRepo) Update(ctx context.Context, t *domain.Task) error {
 		return err
 	}
 	res, err := r.q.ExecContext(ctx, `
-		UPDATE tasks SET title = ?, description = ?, state = ?, position = ?, execution = ?, orchestration = ?, updated_at = ?, version = version + 1
+		UPDATE tasks SET title = ?, description = ?, state = ?, position = ?, execution = ?, orchestration = ?, updated_at = ?, archived_at = ?, version = version + 1
 		WHERE id = ? AND version = ?`,
-		t.Title, t.Description, t.State, t.Position, execution, mustJSON(t.Orchestration), ms(t.UpdatedAt), t.ID, t.Version)
+		t.Title, t.Description, t.State, t.Position, execution, mustJSON(t.Orchestration), ms(t.UpdatedAt), archiveMS(t.ArchivedAt), t.ID, t.Version)
 	if err != nil {
 		return err
 	}

@@ -83,6 +83,10 @@ func (u *wailsUI) OpenFile(path string) {
 	}
 }
 
+func (u *wailsUI) ChooseDirectory() (string, error) {
+	return runtime.OpenDirectoryDialog(u.context(), runtime.OpenDialogOptions{Title: "Choose a project folder"})
+}
+
 // Reload sends the window back to the loading screen, which connects again and so also
 // picks up the access token as it is now.
 func (u *wailsUI) Reload() {

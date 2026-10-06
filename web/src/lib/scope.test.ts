@@ -72,6 +72,18 @@ beforeEach(() => {
 });
 
 describe('a project scope', () => {
+  it('keeps archived history addressable while removing it from active counts, then restores it on an event', async () => {
+    const a = new ProjectScope('prj_a');
+    await a.load();
+    a.apply(event('task.updated', 'prj_a', task('tsk_a1', 'prj_a', { archivedAt: T0, version: 2 })));
+    expect(a.activeTasks.map(t => t.id)).toEqual(['tsk_a2']);
+    expect(a.archivedTasks.map(t => t.id)).toEqual(['tsk_a1']);
+    expect(a.tasks.find(t => t.id === 'tsk_a1')).toBeDefined();
+    expect(a.taskCount(r => r.state === 'running')).toBe(0);
+    a.apply(event('task.updated', 'prj_a', task('tsk_a1', 'prj_a', { version: 3 })));
+    expect(a.activeTasks).toHaveLength(2);
+    expect(a.archivedTasks).toHaveLength(0);
+  });
   it('is filled from the project-scoped endpoints and holds only that project', async () => {
     const a = new ProjectScope('prj_a');
     await a.load();

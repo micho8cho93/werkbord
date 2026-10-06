@@ -111,6 +111,7 @@ export interface Handoff {
 }
 export interface AttentionSchedule { task: Task; projectName: string; decision: SchedulingDecision }
 export interface Task {
+  archivedAt?: string;
   id: string;
   projectId: string;
   title: string;

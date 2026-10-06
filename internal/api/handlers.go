@@ -178,6 +178,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		Execution     *domain.ExecutionConfig `json:"execution"`
 		Orchestration *domain.Orchestration   `json:"orchestration"`
 		Version       *int64                  `json:"version"`
+		Archived      *bool                   `json:"archived"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
@@ -191,7 +192,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	patch := service.TaskPatch{Title: req.Title, Description: req.Description, Position: req.Position, Execution: req.Execution, Orchestration: req.Orchestration, Version: *req.Version}
+	patch := service.TaskPatch{Title: req.Title, Description: req.Description, Position: req.Position, Execution: req.Execution, Orchestration: req.Orchestration, Version: *req.Version, Archived: req.Archived}
 	if req.State != nil {
 		st, err := domain.ParseTaskState(*req.State)
 		if err != nil {

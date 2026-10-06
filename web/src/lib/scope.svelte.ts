@@ -33,6 +33,8 @@ export class ProjectScope {
 
   decisions = $state<import("./types").SchedulingDecision[]>([]);
  tasks = $state<Task[]>([]);
+  get activeTasks(): Task[] { return this.tasks.filter(t => !t.archivedAt); }
+  get archivedTasks(): Task[] { return this.tasks.filter(t => !!t.archivedAt); }
   /** The most recent run of each task, by task ID. */
   latestRun = $state<Record<string, Run>>({});
   /** The project's runs, newest first. */
@@ -115,7 +117,7 @@ export class ProjectScope {
 
   /** Tasks whose latest run is in the given states. */
   taskCount(pred: (run: Run) => boolean): number {
-    return this.tasks.filter((t) => {
+    return this.activeTasks.filter((t) => {
       const r = this.latestRun[t.id];
       return !!r && pred(r);
     }).length;

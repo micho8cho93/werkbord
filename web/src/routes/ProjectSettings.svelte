@@ -3,6 +3,7 @@
   import { api } from '../lib/api';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
+  import Icon from '../lib/Icon.svelte';
   import { app } from '../lib/state.svelte';
   import type { ExecutionConfig, Project } from '../lib/types';
 
@@ -45,9 +46,17 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
       saving = false;
     }
   }
+  let section = $state<'defaults' | 'capacity' | 'repository'>('defaults');
 </script>
 
 <div class="settings">
+  <nav class="sections" aria-label="Project settings sections">
+    <button class="btn" aria-pressed={section === 'defaults'} onclick={() => section = 'defaults'}><Icon name="defaults" />Task defaults</button>
+    <button class="btn" aria-pressed={section === 'capacity'} onclick={() => section = 'capacity'}><Icon name="runner" />Capacity</button>
+    <button class="btn" aria-pressed={section === 'repository'} onclick={() => section = 'repository'}><Icon name="git" />Repository</button>
+  </nav>
+  <div class="content">
+  {#if section === 'defaults'}
   <section class="pn">
     <div class="head">
       <h3>Defaults for {project.name}</h3>
@@ -56,7 +65,7 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
         defaults, so changing those changes it here too.
       </p>
     </div>
-    <ExecutionFields bind:value={draft} inherited={below} idPrefix="project" />
+    <ExecutionFields bind:value={draft} inherited={below} idPrefix="project" columns />
     <p class="muted small">
       Tasks here get: <strong>{summaryLine(effective, app.agents, app.agentOptions) || 'the first agent that works, with its own defaults'}</strong>
     </p>
@@ -68,11 +77,13 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
     </div>
   </section>
 
+{:else if section === 'capacity'}
 <section class="pn">
  <h3>Execution capacity</h3><label for="concurrency">Concurrent sessions in this project</label><input id="concurrency" class="input narrow" type="number" min="1" max="16" bind:value={concurrency} />
  <p class="muted small">Running, starting, blocked, and waiting sessions all occupy capacity. Unknown or overlapping file scope still runs sequentially.</p>
  {#if concurrencyError}<p class="error" role="alert">{concurrencyError}</p>{/if}<div class="row"><button class="btn primary" disabled={concurrencyBusy} onclick={saveConcurrency}>Save capacity</button>{#if concurrencySaved}<span class="ok" role="status">Saved</span>{/if}</div>
  </section>
+  {:else}
   <section class="pn">
     <h3>Repository</h3>
     <dl class="kv">
@@ -85,15 +96,26 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
       <dt>Project ID</dt><dd class="mono">{project.id}</dd>
     </dl>
   </section>
+  {/if}
+  </div>
 </div>
 
 <style>
   .settings {
     display: grid;
     gap: 16px;
-    max-width: 760px;
+    grid-template-columns: 200px minmax(0, 1fr);
+    width: 100%;
   }
 
+  .sections { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  .sections button { justify-content: start; }
+  .sections button[aria-pressed='true'] { color: var(--accent); box-shadow: var(--press-sh); }
+  .content { min-width: 0; max-width: 1200px; }
+  @media (max-width: 899px) {
+    .settings { grid-template-columns: minmax(0, 1fr); }
+    .sections { flex-direction: row; flex-wrap: wrap; }
+  }
   .head {
     display: grid;
     gap: 4px;

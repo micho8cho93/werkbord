@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { FeedItem } from './feed';
+  import { messageParts } from './handoff';
+  import HandoffSummary from './HandoffSummary.svelte';
   import { answerLine, closedText, contextSummary, kindNoun } from './questions';
 
   let {
@@ -24,7 +26,9 @@
   {#each items as item (item.seq)}
     {#if item.kind === 'message'}
       <li class="msg" data-role={item.role}>
-        <p class="text">{item.text}</p>
+        {#each item.role === 'assistant' ? messageParts(item.text) : [{ text: item.text }] as part, i (i)}
+          {#if part.handoff}<HandoffSummary handoff={part.handoff} />{:else if part.text?.trim()}<p class="text">{part.text}</p>{/if}
+        {/each}
         <time datetime={item.at}>{when(item.at)}</time>
       </li>
     {:else if item.kind === 'tools'}

@@ -206,6 +206,9 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   refreshProject: (projectId: string) => request<Project>('POST', `${inProject(projectId)}/refresh`),
 
   listTasks: (projectId: string) => request<{ tasks: Task[] }>('GET', `${inProject(projectId)}/tasks`).then((r) => r.tasks),
+  folders: (path = '') => request<{ path: string; parent: string; folders: { name: string; path: string; repository: boolean }[] }>('GET', `/api/folders?path=${enc(path)}`),
+  archiveTask: (task: Task, archived = true) => request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, { archived, version: task.version }),
+  archiveDone: (projectId: string) => request<{ tasks: Task[] }>('POST', `${inProject(projectId)}/tasks/archive-done`).then(r => r.tasks),
   createTask: (projectId: string, title: string, description = '', execution?: ExecutionConfig) =>
     request<Task>('POST', `${inProject(projectId)}/tasks`, { title, description, ...(execution ? { execution } : {}) }),
   editTask: (task: Task, edit: TaskEdit) =>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
   import { ApiError, api } from '../lib/api';
   import { agentLabel, compact, executionAgents, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
@@ -81,7 +82,7 @@
   });
 
   // ---- keeping the newest activity in view, unless the reader scrolled away ----
-  // "The bottom" is the end of the conversation, not of the panel: on narrow screens the facts follow it.
+  // Keep the end of the conversation visible when new activity arrives.
   let scroller = $state<HTMLElement>();
   let feedEnd = $state<HTMLElement>();
   let nearBottom = $state(true);
@@ -183,7 +184,7 @@
   let message = $state('');
   async function sendText(text: string) {
     text = text.trim();
-    if (!run || !text) return;
+    if (!run || !text || busy) return;
     const r = await act(() => api.sendInput(project.id, run.id, text));
     if (r) {
       if (r.remote) app.notify('Message queued. Waiting for the runner to acknowledge delivery.');
@@ -194,7 +195,7 @@
   }
   const send = () => sendText(message);
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       void send();
     }
@@ -209,11 +210,18 @@
     }
   }
 
-  // Stopping loses the agent's current work in progress, so it asks twice.
+  // Confirm a stop inline while keeping the control in view.
   let confirmingStop = $state(false);
   let stopTimer: ReturnType<typeof setTimeout> | undefined;
-  async function stop() {
-    if (!run) return;
+  const stopIdentity = $derived(`${router.taskId}:${latest?.id ?? ''}`);
+  $effect(() => {
+    void stopIdentity;
+    confirmingStop = false;
+    return () => clearTimeout(stopTimer);
+  });
+  async function stopLatest() {
+    const stopping = latest;
+    if (!stopping || busy) return;
     if (!confirmingStop) {
       confirmingStop = true;
       stopTimer = setTimeout(() => (confirmingStop = false), 4000);
@@ -221,7 +229,7 @@
     }
     clearTimeout(stopTimer);
     confirmingStop = false;
-    const r = await act(() => api.stopRun(project.id, run.id));
+    const r = await act(() => api.stopRun(project.id, stopping.id));
     if (r) {
       scope.upsertRun(r);
       if (r.remote && !r.endedAt) app.notify('Stop requested. Ownership stays with the runner until it reports the result.');
@@ -233,7 +241,7 @@
   const canMessage = $derived(
     viewingLatest && !!run && (run.state === 'running' || run.state === 'blocked' || (run.state === 'waiting_for_user' && run.waiting === 'idle')),
   );
-  const canStart = $derived(!latest || !runStatus(latest).active);
+  const canStart = $derived(!task?.archivedAt && (!latest || !runStatus(latest).active));
   const isDone = $derived(task?.state === 'done');
 
   let copied = $state(false);
@@ -259,6 +267,16 @@
     close();
   }
 
+  async function archive(archived: boolean) {
+    if (!task || busy) return;
+    const saved = await act(() => api.archiveTask(task, archived));
+    if (saved) { scope.upsertTask(saved); if (archived) { close(); app.notify('Task closed. Find its details in the board archive.'); } }
+    else await scope.load().catch(e => app.handleError(e));
+  }
+
+  let factsSection = $state<'details' | 'run' | 'schedule' | 'history'>('details');
+  let factsOpen = $state(false);
+  const narrow = new MediaQuery('(max-width: 1280px)');
   const runWith = $derived(summaryLine(effective, app.agents, app.agentOptions) || 'the first agent that works');
 </script>
 
@@ -278,12 +296,18 @@
         <label class="state">
           <span class="visually-hidden">Column</span>
           <span class="dot" data-tone={task.state === 'doing' ? 'work' : task.state === 'review' ? 'ok' : task.state === 'done' ? 'ok' : 'neutral'}></span>
-          <select value={task.state} disabled={busy} onchange={(e) => move(e.currentTarget.value as TaskState)}>
+          <select value={task.state} disabled={busy || !!task.archivedAt} onchange={(e) => move(e.currentTarget.value as TaskState)}>
             {#each TASK_STATES as s (s)}<option value={s}>{TASK_STATE_LABELS[s]}</option>{/each}
           </select>
         </label>
         <span class="spacer"></span>
-        <button class="btn small" onclick={() => (editing = true)}>Edit</button>
+        {#if task.archivedAt}
+          <span class="chip">Archived</span><button class="btn small" disabled={busy} onclick={() => archive(false)}>Restore task</button>
+        {:else}
+          {#if latest && runStatus(latest).active}<button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>{/if}
+          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Close this task and keep its history in the archive">Close task</button>
+          <button class="btn small" onclick={() => (editing = true)}>Edit</button>
+        {/if}
         <a class="btn quiet small icon close" href={boardHref} aria-label="Close" title="Close (Esc)"><Icon name="close" /></a>
       </div>
       <h1 class="title">{task.title}</h1>
@@ -294,15 +318,16 @@
     </header>
 
     {#snippet facts()}
-        {#if task.description}
+        {#if factsSection === 'details'}
           <section>
             <h2>Details</h2>
-            <p class="desc">{task.description}</p>
+            <p class="desc">{task.description || 'No description added.'}</p>
           </section>
         {/if}
 
+        {#if factsSection === 'run'}
         <section>
-          <div class="sh"><h2>How it runs</h2><button class="btn quiet small" onclick={() => (editing = true)}>Change</button></div>
+          <div class="sh"><h2>How it runs</h2><button class="btn quiet small" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
           <dl class="kv">
             <dt>Agent</dt><dd>{effective.agent ? agentLabel(app.agents, effective.agent) : 'First that works'}</dd>
             {#if effective.model}<dt>Model</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.models, effective.model)}</dd>{/if}
@@ -313,8 +338,10 @@
           </dl>
         </section>
 
+        {/if}
+        {#if factsSection === 'schedule'}
         <section>
-          <div class="sh"><h2>Schedule</h2><button class="btn quiet small" onclick={() => (scheduling = true)}>{task.orchestration?.enabled ? 'Change' : 'Schedule'}</button></div>
+          <div class="sh"><h2>Schedule</h2><button class="btn quiet small" disabled={!!task.archivedAt} onclick={() => (scheduling = true)}>{task.orchestration?.enabled ? 'Change' : 'Schedule'}</button></div>
           {#if decision && task.orchestration?.enabled}
             <p class="fact"><strong>{schedulingLabels[decision.state]}</strong> · {decision.reason}</p>
           {:else}
@@ -326,7 +353,8 @@
           {/if}
         </section>
 
-        {#if run}
+        {/if}
+        {#if factsSection === 'run' && run}
           <section>
             <h2>Where</h2>
             {#if worktree}
@@ -337,26 +365,30 @@
           </section>
         {/if}
 
-        {#if history.length > 1}
+        {#if factsSection === 'history'}
           <section>
             <h2>Runs</h2>
             <ul class="runs">
               {#each [...history].reverse() as r, i (r.id)}
                 {@const s = runStatus(r)}
                 <li>
-                  <button class="run-pick" aria-pressed={r.id === viewId} onclick={() => (picked = r.id)}>
+                  <button class="run-pick" aria-pressed={r.id === viewId} onclick={() => { picked = r.id; factsOpen = false; }}>
                     <span class="dot" data-tone={s.tone}></span>
                     <span class="rl">{i === 0 ? 'Latest' : `#${r.attempt ?? history.length - i}`} · {agentName(app.agents, r.agentId)}</span>
                     <span class="mm">{timeAgo(r.createdAt, app.now)}</span>
                   </button>
                 </li>
-              {/each}
+              {:else}<li class="muted">No runs yet.</li>{/each}
             </ul>
           </section>
         {/if}
     {/snippet}
 
-    <div class="body">
+    <nav class="facts-tabs" aria-label="Task details sections">
+      {#if narrow.current}<button class="btn small quiet" aria-pressed={!factsOpen} onclick={() => factsOpen = false}>Activity</button>{/if}
+      {#each ['details', 'run', 'schedule', 'history'] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Details' : 'Schedule'}</button>{/each}
+    </nav>
+    <div class="body" class:facts-open={factsOpen}>
       <!-- The run: what needs you, what happened, and what to say next. -->
       <div class="main">
         <div class="scroll" bind:this={scroller} onscroll={trackScroll}>
@@ -373,9 +405,7 @@
                   {#if (run.state === 'waiting_for_user' && run.waiting === 'idle') || run.state === 'blocked'}
                     <button class="btn small" disabled={busy} onclick={finish}><Icon name="check" size={14} />Finish</button>
                   {/if}
-                  <button class="btn small danger" class:armed={confirmingStop} disabled={busy} onclick={stop}>
-                    <Icon name="stop" size={12} />{confirmingStop ? 'Click again to stop' : 'Stop'}
-                  </button>
+
                 </span>
               {/if}
             </div>
@@ -454,7 +484,6 @@
             <p class="center">This task is in Done. Move it back to run an agent on it.</p>
           {/if}
 
-          <div class="facts-inline">{@render facts()}</div>
         </div>
 
         {#if !nearBottom && feed && feed.items.length > 0}
@@ -482,8 +511,11 @@
               placeholder={isBlocked ? 'Tell the agent how to proceed' : run.state === 'running' ? 'Add a message — it is queued for the agent' : 'Reply to the agent'}
               bind:value={message}
               onkeydown={onKey}
+              aria-describedby="message-help"
+              title="Enter to send · Shift+Enter for a new line"
             ></textarea>
             <button class="btn primary" type="submit" disabled={busy || !message.trim()}>Send</button>
+            <span id="message-help" class="message-help muted">Enter to send · Shift+Enter for a new line</span>
           </form>
         {/if}
       </div>
@@ -530,6 +562,9 @@
     }
   }
 
+  .facts-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 24px; border-bottom: 1px solid var(--border); flex: none; }
+  .facts-tabs button[aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }
+  .scroll, .side { overflow-x: hidden; scrollbar-gutter: stable; }
   .head {
     flex: none;
     padding: 12px 20px 14px 24px;
@@ -777,12 +812,15 @@
   .composer {
     flex: none;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: flex-end;
     padding: 12px 24px calc(12px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
     background: var(--bg);
   }
+
+  .message-help { flex-basis: 100%; font-size: 11px; }
 
   .composer.blocked {
     border-top-color: color-mix(in srgb, var(--block) 50%, var(--border));
@@ -807,15 +845,11 @@
     background: color-mix(in srgb, var(--surface-2) 40%, var(--bg));
   }
 
-  .side :global(section),
-  .facts-inline :global(section) {
+  .side :global(section) {
     display: grid;
     gap: 8px;
   }
 
-  .facts-inline {
-    display: none;
-  }
 
   .sh {
     display: flex;
@@ -899,7 +933,7 @@
     white-space: nowrap;
   }
 
-  /* Narrower screens: the facts follow the run, in the same scroll, so the reply box stays put. */
+  /* Small windows switch between activity and facts inside the same viewport. */
   @media (max-width: 1280px) {
     .panel {
       width: min(760px, calc(100vw - var(--rail-w) - 40px));
@@ -913,13 +947,10 @@
       display: none;
     }
 
-    .facts-inline {
+    .facts-open .main { display: none; }
+    .facts-open .side {
       display: flex;
-      flex-direction: column;
-      gap: 20px;
-      margin-top: 8px;
-      padding-top: 18px;
-      border-top: 1px solid var(--border);
+      border-left: 0;
     }
   }
 

@@ -27,6 +27,7 @@ const state = {
   ov: null,       // the workspace overview: the projects, and the counts the navigation shows
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
+  showArchived: false, newTicketOpen: false, column: 'in_progress', repoSection: 'attention', workspaceSection: 'working',
   online: true,   // whether the live connection to the server is up
 };
 
@@ -59,6 +60,7 @@ function h(tag, attrs, ...kids) {
   for (const [k, v] of Object.entries(attrs || {})) {
     if (k === 'class') el.className = v;
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if ((k === 'draggable' || k.startsWith('aria-')) && v != null) el.setAttribute(k, String(v));
     else if (v === true) el.setAttribute(k, '');
     else if (v !== false && v != null) el.setAttribute(k, v);
   }
@@ -69,6 +71,11 @@ function h(tag, attrs, ...kids) {
 // The Werkbord mark and wordmark, and "team": the head of every screen.
 function brand() {
   return h('div', { class: 'brand' }, h('img', { src: 'mark.svg', alt: '', width: 30, height: 22 }), h('span', { class: 'wm' }, 'werkbord'), h('span', { class: 'prod' }, 'team'));
+}
+function sectionButtons(key, choices, label) {
+  return h('nav', { class: 'section-controls', 'aria-label': label }, choices.map(([id, title, count]) =>
+    h('button', { type: 'button', 'aria-current': state[key] === id ? 'page' : null, onclick: () => { state[key] = id; render(); } }, title,
+      count == null ? '' : h('span', { class: 'badge' }, String(count)))));
 }
 function initial(name) { return h('span', { class: 'av', 'aria-hidden': 'true' }, (String(name || '?').trim()[0] || '?').toUpperCase()); }
 
@@ -416,7 +423,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && st
 window.addEventListener('online', () => { if (state.token) { stopSync(); render(); } });
 
 const ACTIVITY = {
-  'ticket.created': 'created', 'ticket.claimed': 'claimed', 'ticket.released': 'released', 'ticket.reassigned': 'reassigned',
+  'ticket.archived': 'archived', 'ticket.restored': 'restored', 'ticket.created': 'created', 'ticket.claimed': 'claimed', 'ticket.released': 'released', 'ticket.reassigned': 'reassigned',
   'ticket.work_submitted': 'submitted work on', 'ticket.pull_request_created': 'opened a pull request for', 'ticket.review_requested': 'asked for a review of',
   'ticket.changes_requested': 'asked for changes to', 'ticket.completed': 'completed', 'ticket.reopened': 'reopened', 'ticket.moved': 'moved',
   'ticket.handed_off': 'opened in their own runner:', 'ticket.pull_request_merged': 'recorded the merge of', 'project.member_joined': 'joined the project',
@@ -450,7 +457,7 @@ async function workspaceView() {
   const tiles = h('div', { class: 'tiles' },
     tile('Available', ov.available, 'ready for anyone to claim', () => best ? openProject(best.project.id, 'board') : go('projects')),
     tile('Yours', mine, 'tickets you are working on', () => go('mywork')),
-    tile('Everyone else', others.length, 'being worked on or in review', () => document.getElementById('working-now') && document.getElementById('working-now').scrollIntoView({ behavior: 'smooth' })),
+    tile('Everyone else', others.length, 'being worked on or in review', () => { state.workspaceSection = 'working'; render(); }),
     tile('To review', toReview, 'waiting for you', () => go('reviews'), toReview > 0 ? 'attn' : ''),
     tile('Repository', problems + warnings, problems ? plural(problems, 'problem') : warnings ? plural(warnings, 'warning') : 'nothing needs attention', () => go('repository'), problems ? 'bad' : ''));
 
@@ -474,9 +481,10 @@ async function workspaceView() {
     : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet. Create one under Projects.' : 'You are not on any project yet. Ask for an invite link.');
 
   return h('div', {}, tiles,
-    h('div', { class: 'panel', id: 'working-now' }, h('h2', {}, 'What the team is working on'), working),
-    h('div', { class: 'panel' }, h('h2', {}, 'Projects'), projects),
-    membersPanels(members));
+    sectionButtons('workspaceSection', [['working', 'Working now', ov.working.length], ['projects', 'Projects', ov.projects.length], ['members', 'Members', members.length]], 'Workspace sections'),
+    state.workspaceSection === 'working' ? h('div', { class: 'panel', id: 'working-now' }, h('h2', {}, 'What the team is working on'), working) : '',
+    state.workspaceSection === 'projects' ? h('div', { class: 'panel' }, h('h2', {}, 'Projects'), projects) : '',
+    state.workspaceSection === 'members' ? membersPanels(members) : '');
 }
 
 function mergeBadge(it) {
@@ -532,7 +540,7 @@ async function projectsView() {
           name.value = ''; desc.value = ''; repo.value = ''; state.projectId = p.id; state.tab = 'board'; state.data = null; remember(); }); } },
         field('Name', name), field('Description (optional)', desc), field('Repository', repo), h('button', { class: 'primary' }, 'Create'))));
   }
-  return h('div', {}, panels);
+  return h('div', { class: 'project-grid' }, panels);
 }
 
 // ---- one project: board, repository, activity, people ----
@@ -682,24 +690,61 @@ function personName(d, id) {
   return p ? p.name : 'a former member';
 }
 
+let draggedTicket = null;
+const pendingTickets = new Set();
+function dropAction(d, k, to) {
+  if (!k || k.archivedAt || pendingTickets.has(k.id) || k.status === to) return null;
+  const creator = k.creatorId === state.me.member.id || pcan('tickets.edit');
+  const holder = k.assigneeId === state.me.member.id || pcan('tickets.assign');
+  if ((k.status === 'backlog' && to === 'available' || k.status === 'available' && to === 'backlog') && creator) return ['move', { status: to }];
+  if (to === 'in_progress' && k.status === 'available' && d.board.member && pcan('tickets.claim')) return ['claim'];
+  if (to === 'in_progress' && k.status === 'backlog' && d.board.member && pcan('tickets.assign')) return ['assign', { memberId: state.me.member.id }];
+  if (k.status === 'in_progress' && to === 'available' && holder) return ['release'];
+  if (k.status === 'in_progress' && to === 'review' && holder) return ['submit', {}];
+  if (k.status === 'review' && to === 'done' && pcan('tickets.review') && !d.board.completion[k.id]) return ['complete'];
+  if (k.status === 'done' && to === 'available' && pcan('tickets.reopen')) return ['move', { status: to }];
+  return null;
+}
 function boardTab(d) {
   const b = d.board;
+  const toolbar = h('div', { class: 'actions board-tools' },
+    h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
+    pcan('tickets.reopen') ? h('button', { class: 'plain', disabled: !b.tickets.some(k => k.status === 'done'), onclick: () => act(async () => { const result = await api('POST', '/projects/' + d.id + '/tickets/archive-done'); state.info = plural(result.archived, 'ticket') + ' moved to the archive.'; }) }, 'Clear Done') : '',
+    pcan('tickets.create') && !b.project.archived ? h('button', { class: 'primary', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '');
   const cols = b.statuses.map((s) => {
     const items = b.tickets.filter((k) => k.status === s.status);
-    return h('section', { class: 'col', 'aria-label': s.label },
+    return h('section', { class: 'col', 'aria-label': s.label, 'data-active': String(state.column === s.status),
+      ondragover: e => { const k = b.tickets.find(t => t.id === draggedTicket); if (!k || !dropAction(d, k, s.status)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drop-over'); },
+      ondragleave: e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drop-over'); },
+      ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('drop-over'); const k = b.tickets.find(t => t.id === draggedTicket); if (!k) return; const action = dropAction(d, k, s.status); draggedTicket = null; if (!action) return; pendingTickets.add(k.id); toast('Updating ' + k.key + '…'); act(async () => { try { await api('POST', projectPath(k) + '/' + action[0], action[1]); } finally { pendingTickets.delete(k.id); } }); }
+    },
       h('h3', {}, s.label, ' ', h('span', { class: 'badge' }, String(items.length))),
       h('p', { class: 'muted small' }, STATUS_HELP[s.status]),
-      items.map((k) => card(d, k)));
+      h('div', { class: 'column-cards' }, items.map((k) => card(d, k))));
   });
-  // An open ticket sits beside the board, so the board stays in view while you work on it.
   let open = null;
   if (state.ticketId) {
-    const k = b.tickets.find((x) => x.id === state.ticketId);
+    const k = [...b.tickets, ...(b.archived || [])].find((x) => x.id === state.ticketId);
     if (k) open = ticketPanel(d, d.ticket || k); else state.ticketId = null;
   }
-  const parts = [h('div', { class: 'tboard' + (open ? ' with-ticket' : '') }, h('div', { class: 'board' }, cols), open || '')];
-  if (pcan('tickets.create') && !b.project.archived) parts.push(newTicketForm(d));
-  return h('div', {}, parts);
+  const columns = h('div', { class: 'column-pills' }, sectionButtons('column', b.statuses.map(s => [s.status, s.label, b.tickets.filter(k => k.status === s.status).length]), 'Board columns'));
+  return h('div', { class: 'board-view' }, toolbar,
+    state.newTicketOpen ? newTicketForm(d) : '',
+    !state.showArchived ? columns : '',
+    h('div', { class: 'tboard' + (open ? ' with-ticket' : '') }, state.showArchived ? archiveTab(d) : h('div', { class: 'board' }, cols), open || ''));
+}
+function archiveTab(d) {
+  const rows = (d.board.archived || []).slice().reverse().map(k => h('div', { class: 'row', 'data-search': (k.title + ' ' + k.description + ' ' + k.key).toLowerCase() },
+    h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openTicket(d.id, k.id) }, k.key + ' · ' + k.title), h('p', { class: 'muted' }, statusName(k.status) + ' · Archived ' + ago(k.archivedAt))),
+    canArchiveTicket(k) ? h('button', { class: 'plain small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: false })) }, 'Restore') : ''));
+  const list = h('div', { class: 'archive-list' }, rows.length ? rows : h('p', { class: 'muted' }, 'No archived work yet. Clear Done or close a ticket to keep it here.'));
+  const search = h('input', { name: 'archive-search', type: 'search', placeholder: 'Search title, ticket key or details', oninput: e => { for (const row of list.querySelectorAll('[data-search]')) row.hidden = !row.dataset.search.includes(e.target.value.toLowerCase()); } });
+  return h('section', { class: 'panel archive-panel' }, h('h2', {}, 'Archived work'), h('p', { class: 'muted' }, 'Details, commits, pull requests and activity are kept.'), field('Search archive', search), list);
+}
+function canArchiveTicket(k) {
+  if (k.status === 'done') return pcan('tickets.reopen');
+  if (['in_progress', 'review'].includes(k.status)) return k.assigneeId === state.me.member.id || pcan('tickets.assign');
+  return k.creatorId === state.me.member.id || pcan('tickets.edit');
 }
 
 function card(d, k) {
@@ -711,7 +756,7 @@ function card(d, k) {
       'PR' + (pr.number ? ' #' + pr.number : '') + ' ' + pr.state + (pr.state === 'open' && pr.mergeable === 'conflicting' ? ' · conflicts' : '')));
     if (pr.state === 'open' && pr.behind > 0) flags.push(h('span', { class: 'badge warn' }, pr.behind + ' behind'));
   }
-  return h('article', { class: 'card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : '') },
+  return h('article', { class: 'card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : ''), draggable: !pendingTickets.has(k.id), 'aria-busy': pendingTickets.has(k.id), ondragstart: e => { draggedTicket = k.id; e.dataTransfer.setData('text/plain', k.id); e.dataTransfer.effectAllowed = 'move'; }, ondragend: () => { draggedTicket = null; document.querySelectorAll('.drop-over').forEach(el => el.classList.remove('drop-over')); } },
     h('div', { class: 'muted small' }, k.key),
     h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
     k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId), k.status === 'in_progress' ? ' · active' : '') : '',
@@ -729,7 +774,7 @@ function newTicketForm() {
   const ready = h('input', { name: 't-ready', type: 'checkbox' });
   return h('div', { class: 'panel' }, h('h2', {}, 'New ticket'),
     h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); act(async () => {
-        await api('POST', '/projects/' + state.projectId + '/tickets', { title: title.value, description: desc.value, requirements: reqs.value, status: ready.checked ? 'available' : 'backlog' });
+        await api('POST', '/projects/' + state.projectId + '/tickets', { title: title.value, description: desc.value, requirements: reqs.value, status: ready.checked ? 'available' : 'backlog' }); state.newTicketOpen = false;
         title.value = ''; desc.value = ''; reqs.value = ''; ready.checked = false; }); } },
       field('Title', title), field('Description', desc), field('Requirements and context', reqs),
       h('label', { class: 'check' }, ready, ' Ready to be claimed (otherwise it goes to the backlog)'),
@@ -746,7 +791,9 @@ function ticketPanel(d, k) {
   const actions = [];
   const run = (method, p, body) => () => act(() => api(method, path + p, body));
   const isCreator = k.creatorId === me;
-  const canEditText = (isCreator || pcan('tickets.edit')) && k.status !== 'done';
+  const canEditText = !k.archivedAt && (isCreator || pcan('tickets.edit')) && k.status !== 'done';
+
+  if (!k.archivedAt) {
 
   if (k.status === 'backlog' && (isCreator || pcan('tickets.edit'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'available' }) }, 'Make available'));
   if (k.status === 'available') {
@@ -772,8 +819,12 @@ function ticketPanel(d, k) {
     }
   }
 
+  }
+  if (canArchiveTicket(k)) actions.push(h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/archive', { version: k.version, archived: !k.archivedAt })) }, k.archivedAt ? 'Restore ticket' : 'Close ticket'));
+  if (!k.archivedAt && ['in_progress', 'review'].includes(k.status)) actions.push(h('p', { class: 'muted small' }, 'Closing archives the ticket in Team. Stop any running agent in your own Werkbord.'));
+
   const facts = h('dl', { class: 'facts' },
-    h('dt', {}, 'Status'), h('dd', {}, statusLabel(b, k.status)),
+    h('dt', {}, 'Status'), h('dd', {}, (k.archivedAt ? 'Archived · ' : '') + statusLabel(b, k.status)),
     h('dt', {}, 'Active owner'), h('dd', {}, k.assigneeId ? (mine ? 'You' : personName(d, k.assigneeId)) : 'Nobody'),
     h('dt', {}, 'Created by'), h('dd', {}, personName(d, k.creatorId), ' ', when(k.createdAt)),
     k.claimedAt && k.assigneeId ? [h('dt', {}, 'Claimed'), h('dd', {}, when(k.claimedAt))] : '',
@@ -799,7 +850,7 @@ function ticketPanel(d, k) {
         h('h3', {}, 'Requirements and context'), h('p', { class: 'prose' }, k.requirements || '—'),
         canEditText ? editTicket(k, path) : ''),
       h('div', {}, facts, h('h3', {}, 'Commits'), commits,
-        (mine || pcan('git.report_any')) && (k.status === 'in_progress' || k.status === 'review') ? gitForm(k, path) : '')));
+        !k.archivedAt && (mine || pcan('git.report_any')) && (k.status === 'in_progress' || k.status === 'review') ? gitForm(k, path) : '')));
 }
 
 function statusLabel(b, s) { const c = b.statuses.find((x) => x.status === s); return c ? c.label : s; }
@@ -895,10 +946,11 @@ function repositoryTab(d) {
     : h('p', { class: 'muted' }, 'No branches reported yet.');
   return h('div', {},
     h('p', { class: 'muted' }, 'What members\' own Werkbords have reported about the repository' + (r.repository ? ' (' + r.repository + ')' : '') + '. Team cannot see the repository itself, and never merges or resolves conflicts: that stays in each developer\'s checkout and on your Git host.'),
-    h('div', { class: 'panel' }, h('h2', {}, 'Needs attention'), attention),
-    h('div', { class: 'panel' }, h('h2', {}, 'Pull requests'), prs),
-    h('div', { class: 'panel scroll' }, h('h2', {}, 'Branches'), branches,
-      h('p', { class: 'muted small' }, 'A branch is stale after ' + r.staleAfterDays + ' days without activity.')));
+    sectionButtons('repoSection', [['attention', 'Needs attention', r.attention.length], ['prs', 'Pull requests', r.pullRequests.length], ['branches', 'Branches', r.branches.length]], 'Repository sections'),
+    state.repoSection === 'attention' ? h('div', { class: 'panel' }, h('h2', {}, 'Needs attention'), attention) : '',
+    state.repoSection === 'prs' ? h('div', { class: 'panel' }, h('h2', {}, 'Pull requests'), prs) : '',
+    state.repoSection === 'branches' ? h('div', { class: 'panel scroll' }, h('h2', {}, 'Branches'), branches,
+      h('p', { class: 'muted small' }, 'A branch is stale after ' + r.staleAfterDays + ' days without activity.')) : '');
 }
 
 // ---- activity ----

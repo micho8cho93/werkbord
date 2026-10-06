@@ -71,7 +71,7 @@
         .sort((a, b) => Number(a.state === 'done') - Number(b.state === 'done'))
         .slice(0, 8);
       for (const t of tasks) {
-        out.push({ id: `t-${t.id}`, group: `Tasks · ${current.name}`, label: t.title, sub: TASK_STATE_LABELS[t.state], run: go(taskHref(current.id, t.id)) });
+        out.push({ id: `t-${t.id}`, group: `Tasks · ${current.name}`, label: t.title, sub: t.archivedAt ? 'Archived · ' + TASK_STATE_LABELS[t.state] : TASK_STATE_LABELS[t.state], run: go(taskHref(current.id, t.id)) });
       }
     }
 

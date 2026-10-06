@@ -29,6 +29,7 @@ type Board struct {
 	Revision int64           `json:"revision"`
 	Statuses []statusColumn  `json:"statuses"`
 	Tickets  []domain.Ticket `json:"tickets"`
+	Archived []domain.Ticket `json:"archived"`
 	People   []Person        `json:"people"`
 	// Role is the actor's effective role on this project, and Can what it allows.
 	Role domain.ProjectRole         `json:"role"`
@@ -62,6 +63,16 @@ func (s *Service) Board(ctx context.Context, a Actor, projectID string) (Board, 
 		if b.Tickets, err = tx.Tickets(ctx, a.Workspace.ID, projectID); err != nil {
 			return err
 		}
+		active := make([]domain.Ticket, 0, len(b.Tickets))
+		b.Archived = []domain.Ticket{}
+		for _, k := range b.Tickets {
+			if k.ArchivedAt != nil {
+				b.Archived = append(b.Archived, k)
+			} else {
+				active = append(active, k)
+			}
+		}
+		b.Tickets = active
 		b.Completion = map[string]string{}
 		for _, k := range b.Tickets {
 			_, reason := canComplete(k, x.Role, a.Member.ID)
@@ -205,7 +216,11 @@ func (s *Service) loadTicket(ctx context.Context, tx *store.Tx, a Actor, x acces
 	if err := x.require(domain.PPTicketsView, "see this project's tickets"); err != nil {
 		return domain.Ticket{}, err
 	}
-	return tx.Ticket(ctx, a.Workspace.ID, x.Project.ID, ticketID)
+	k, err := tx.Ticket(ctx, a.Workspace.ID, x.Project.ID, ticketID)
+	if err == nil && k.ArchivedAt != nil {
+		return k, fmt.Errorf("%w: restore this ticket before changing it", domain.ErrConflict)
+	}
+	return k, err
 }
 
 // save writes a ticket (version-checked) and keeps its commits unchanged.

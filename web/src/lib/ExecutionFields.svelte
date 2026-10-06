@@ -31,6 +31,7 @@
     showPriority = true,
     disabled = false,
     dense = false,
+    columns = false,
   }: {
     value?: ExecutionConfig;
     /** What applies if this level sets nothing: the levels below it, resolved. Without it there is no level below. */
@@ -40,6 +41,7 @@
     disabled?: boolean;
     /** Two columns of bare pickers, no explanations: for a dialog or a side panel where everything shows at once. */
     dense?: boolean;
+    columns?: boolean;
   } = $props();
 
   const hasBelow = $derived(inherited !== undefined);
@@ -121,7 +123,7 @@
   const noAgentYet = $derived(!agentForOptions);
 </script>
 
-<div class="fields" class:compact={dense}>
+<div class="fields" class:compact={dense} class:columns>
   <div class="field">
     <label for="{idPrefix}-runner">Runner</label>
     <select id="{idPrefix}-runner" class="select" {disabled} value={value.runner ?? ''} onchange={e=>set({runner:e.currentTarget.value})}>
@@ -266,6 +268,12 @@
     gap: 12px;
   }
 
+  @media (min-width: 700px) {
+    .columns { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+    .columns .advanced { grid-column: 1 / -1; }
+    .columns .advanced :global(.field) { min-width: 0; }
+  }
+
   .field {
     display: grid;
  grid-template-columns:minmax(0,1fr);min-width:0;
@@ -310,7 +318,7 @@
   }
 
   .compact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start;
     gap: 10px 12px;
   }
 

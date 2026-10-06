@@ -26,5 +26,5 @@
 </script>
 
 <Sheet title="Schedule and dependencies" {onclose} width="40rem">
-  <ScheduleFields bind:value tasks={scope.tasks} taskId={task.id} onsave={save} {busy} />
+  <ScheduleFields bind:value tasks={scope.tasks.filter(t => !t.archivedAt || value.dependencies?.includes(t.id))} taskId={task.id} onsave={save} {busy} />
 </Sheet>

@@ -34,7 +34,7 @@ func (t *Tx) Revision(ctx context.Context, workspaceID, projectID string) (int64
 
 const ticketCols = `id, project_id, number, title, description, requirements, status, assignee_id, creator_id, reviewer_id, branch,
 	pr_url, pr_number, pr_state, pr_draft, pr_mergeable, pr_base, pr_behind, pr_ahead, pr_reported_by, pr_reported_at, pr_created_at,
-	version, created_at, updated_at, claimed_at, submitted_at, completed_at`
+	version, created_at, updated_at, claimed_at, submitted_at, completed_at, archived_at`
 
 func optMS(v sql.NullInt64) *time.Time {
 	if !v.Valid {
@@ -66,11 +66,11 @@ func scanTicket(s interface{ Scan(...any) error }) (domain.Ticket, error) {
 	var prDraft int
 	var prBy string
 	var prReported, prCreated, created, updated int64
-	var claimed, submitted, completed sql.NullInt64
+	var claimed, submitted, completed, archived sql.NullInt64
 	var prBase string
 	err := s.Scan(&t.ID, &t.ProjectID, &t.Number, &t.Title, &t.Description, &t.Requirements, &status, &assignee, &t.CreatorID, &reviewer, &t.Branch,
 		&prURL, &prNumber, &prState, &prDraft, &prMergeable, &prBase, &prBehind, &prAhead, &prBy, &prReported, &prCreated,
-		&t.Version, &created, &updated, &claimed, &submitted, &completed)
+		&t.Version, &created, &updated, &claimed, &submitted, &completed, &archived)
 	if err != nil {
 		return t, err
 	}
@@ -78,6 +78,7 @@ func scanTicket(s interface{ Scan(...any) error }) (domain.Ticket, error) {
 	t.Key = domain.TicketKey(t.Number)
 	t.CreatedAt, t.UpdatedAt = fromMS(created), fromMS(updated)
 	t.ClaimedAt, t.SubmittedAt, t.CompletedAt = optMS(claimed), optMS(submitted), optMS(completed)
+	t.ArchivedAt = optMS(archived)
 	t.Commits = []domain.Commit{}
 	if prURL != "" {
 		t.PullRequest = &domain.PullRequest{Number: prNumber, URL: prURL, State: domain.PRState(prState), Draft: prDraft == 1,
@@ -138,7 +139,7 @@ func (t *Tx) Tickets(ctx context.Context, workspaceID, projectID string) ([]doma
 func (t *Tx) ClaimTicket(ctx context.Context, workspaceID, projectID, id, memberID, branch string, now time.Time) (bool, error) {
 	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET status = 'in_progress', assignee_id = ?, branch = CASE WHEN branch = '' THEN ? ELSE branch END,
 		claimed_at = ?, submitted_at = NULL, completed_at = NULL, reviewer_id = NULL, version = version + 1, updated_at = ?
-		WHERE workspace_id = ? AND project_id = ? AND id = ? AND status = 'available' AND assignee_id IS NULL`,
+		WHERE workspace_id = ? AND project_id = ? AND id = ? AND status = 'available' AND assignee_id IS NULL AND archived_at IS NULL`,
 		memberID, branch, ms(now), ms(now), workspaceID, projectID, id)
 	if err != nil {
 		return false, err
@@ -157,11 +158,11 @@ func (t *Tx) SaveTicket(ctx context.Context, workspaceID string, k domain.Ticket
 	}
 	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET title = ?, description = ?, requirements = ?, status = ?, assignee_id = ?, reviewer_id = ?, branch = ?,
 		pr_url = ?, pr_number = ?, pr_state = ?, pr_draft = ?, pr_mergeable = ?, pr_base = ?, pr_behind = ?, pr_ahead = ?, pr_reported_by = ?, pr_reported_at = ?, pr_created_at = ?,
-		claimed_at = ?, submitted_at = ?, completed_at = ?, updated_at = ?, version = version + 1
+		claimed_at = ?, submitted_at = ?, completed_at = ?, archived_at = ?, updated_at = ?, version = version + 1
 		WHERE workspace_id = ? AND project_id = ? AND id = ? AND version = ?`,
 		k.Title, k.Description, k.Requirements, string(k.Status), nullStr(k.AssigneeID), nullStr(k.ReviewerID), k.Branch,
 		pr.URL, pr.Number, string(pr.State), b2i(pr.Draft), string(pr.Mergeable), pr.BaseBranch, pr.Behind, pr.Ahead, pr.ReportedBy, ms(pr.ReportedAt), ms(pr.CreatedAt),
-		nullMS(k.ClaimedAt), nullMS(k.SubmittedAt), nullMS(k.CompletedAt), ms(k.UpdatedAt),
+		nullMS(k.ClaimedAt), nullMS(k.SubmittedAt), nullMS(k.CompletedAt), nullMS(k.ArchivedAt), ms(k.UpdatedAt),
 		workspaceID, k.ProjectID, k.ID, k.Version)
 	if err != nil {
 		return k, err

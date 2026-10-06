@@ -34,6 +34,8 @@ var projectRoutes = []string{
 	"GET /projects/{id}", "PATCH /projects/{id}",
 	"GET /projects/{id}/members", "PUT /projects/{id}/members/{memberId}", "DELETE /projects/{id}/members/{memberId}",
 	"GET /projects/{id}/board", "GET /projects/{id}/people", "GET /projects/{id}/sync",
+	// Archive routes only change stored ticket metadata; they cannot execute work or reach a member.
+	"POST /projects/{id}/tickets/archive-done", "POST /projects/{id}/tickets/{tid}/archive",
 	"POST /projects/{id}/tickets", "GET /projects/{id}/tickets/{tid}", "PATCH /projects/{id}/tickets/{tid}",
 	"POST /projects/{id}/tickets/{tid}/move", "POST /projects/{id}/tickets/{tid}/claim", "POST /projects/{id}/tickets/{tid}/release",
 	"POST /projects/{id}/tickets/{tid}/assign", "POST /projects/{id}/tickets/{tid}/submit", "POST /projects/{id}/tickets/{tid}/request-changes",
@@ -53,6 +55,7 @@ var workspaceRoutes = []string{
 
 // ownerOnly are project routes a plain member of the project must be refused (403).
 var ownerOnly = []string{
+	"POST /projects/{id}/tickets/archive-done",
 	"PATCH /projects/{id}", "PUT /projects/{id}/members/{memberId}", "DELETE /projects/{id}/members/{memberId}",
 	"POST /projects/{id}/tickets/{tid}/assign", "POST /projects/{id}/tickets/{tid}/complete", "POST /projects/{id}/tickets/{tid}/request-changes",
 	"GET /projects/{id}/invites", "POST /projects/{id}/invites", "DELETE /projects/{id}/invites/{inviteId}",
@@ -146,6 +149,8 @@ func TestNoRouteCanReachAComputer(t *testing.T) {
 // observes is the authorization and not a complaint about the payload.
 func bodyFor(route string) string {
 	switch route {
+	case "POST /projects/{id}/tickets/{tid}/archive":
+		return `{"version":1,"archived":true}`
 	case "POST /projects/{id}/tickets":
 		return `{"title":"x"}`
 	case "POST /projects/{id}/tickets/{tid}/move":

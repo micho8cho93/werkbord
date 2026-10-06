@@ -144,6 +144,7 @@ type Commit struct {
 // two members cannot both get a ticket; Version also lets a client notice that the
 // ticket changed under it.
 type Ticket struct {
+	ArchivedAt   *time.Time   `json:"archivedAt,omitempty"`
 	ID           string       `json:"id"`
 	ProjectID    string       `json:"projectId"`
 	Number       int          `json:"number"`
@@ -449,6 +450,8 @@ type ActivityKind string
 
 const (
 	ActTicketCreated     ActivityKind = "ticket.created"
+	ActTicketArchived    ActivityKind = "ticket.archived"
+	ActTicketRestored    ActivityKind = "ticket.restored"
 	ActTicketClaimed     ActivityKind = "ticket.claimed"
 	ActTicketReleased    ActivityKind = "ticket.released"
 	ActTicketReassigned  ActivityKind = "ticket.reassigned"

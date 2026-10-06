@@ -2,6 +2,7 @@
   import { timeAgo } from '../format';
   import { headlineTone, housekeepingLine, splitFindings } from '../health';
   import { app } from '../state.svelte';
+  import { projectHref } from '../router.svelte';
   import type { Project } from '../types';
   import FindingCard from './FindingCard.svelte';
   import type { GitStore } from './store.svelte';
@@ -10,7 +11,7 @@
   // and if so what. A headline says Healthy or what is wrong; the findings say why and what to do.
   // The score is a footnote: a number cannot say what is wrong.
 
-  let { project, store }: { project: Project; store: GitStore } = $props();
+  let { project, store, compact = false }: { project: Project; store: GitStore; compact?: boolean } = $props();
 
   const h = $derived(store.health);
   const split = $derived(splitFindings(h));
@@ -50,6 +51,9 @@
       <p class="g-notice" data-tone="bad">The repository could not be read at the last check, so what follows is as of before that: {h.check.error}</p>
     {/if}
 
+    {#if compact}
+      <a class="btn small" href={`${projectHref(project.id, 'git')}?health`}>View findings ({h.findings.length})</a>
+    {:else}
     {#if split.needs.length}
       <ul class="g-list">
         {#each split.needs as f (f.id)}<FindingCard finding={f} projectId={project.id} {store} />{/each}
@@ -101,6 +105,7 @@
         branches changing the same files, and is worded as a possibility.
       </p>
     </details>
+    {/if}
   {/if}
 </section>
 

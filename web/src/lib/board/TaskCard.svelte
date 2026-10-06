@@ -18,6 +18,7 @@
     scope,
     effective,
     selected = false,
+    pending = false,
     mergeable = false,
     branch,
     onstart,
@@ -31,6 +32,7 @@
     scope: ProjectScope;
     effective: Resolved;
     selected?: boolean;
+    pending?: boolean;
     mergeable?: boolean;
     /** The task's branch, when Git knows it: what review means, and what a merge takes. */
     branch?: GitBranch;
@@ -103,12 +105,13 @@
   class:live={status.live}
   class:settled={task.state === 'done'}
   class:selected
-  draggable="true"
+  draggable={!pending}
+  aria-busy={pending}
   ondragstart={(e) => ondragstart(e, task)}
   {ondragend}
 >
   <a class="title" {href} draggable="false">{task.title}</a>
-  <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{status.text}</p>
+  <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : status.text}</p>
   {#if status.detail}<p class="well detail">{status.detail}</p>{/if}
 
   {#if question}
@@ -134,14 +137,14 @@
     </div>
   {:else if task.state === 'doing' && run?.state === 'completed'}
     <div class="acts">
-      <button class="btn small primary" onclick={() => onmove(task, 'review')}><Icon name="right" size={14} />Move to Review</button>
+      <button class="btn small primary" disabled={pending} onclick={() => onmove(task, 'review')}><Icon name="right" size={14} />Move to Review</button>
     </div>
   {:else if canStart && task.state === 'backlog' && waitingFor.length === 0}
     <div class="acts">
-      <button class="btn small" onclick={() => onstart(task)} aria-label="{run ? 'Run an agent again on' : 'Start an agent on'} “{task.title}”"><Icon name="play" size={12} />{run ? 'Run again' : 'Start agent'}</button>
+      <button class="btn small" disabled={pending} onclick={() => onstart(task)} aria-label="{run ? 'Run an agent again on' : 'Start an agent on'} “{task.title}”"><Icon name="play" size={12} />{run ? 'Run again' : 'Start agent'}</button>
     </div>
   {:else if canStart && run?.state === 'failed'}
-    <div class="acts"><button class="btn small" onclick={() => onstart(task)} aria-label="Run an agent again on “{task.title}”"><Icon name="play" size={12} />Run again</button></div>
+    <div class="acts"><button class="btn small" disabled={pending} onclick={() => onstart(task)} aria-label="Run an agent again on “{task.title}”"><Icon name="play" size={12} />Run again</button></div>
   {/if}
 
   <div class="mt">

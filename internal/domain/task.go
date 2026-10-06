@@ -64,6 +64,7 @@ type Task struct {
 	Version       int64           `json:"version"`
 	CreatedAt     time.Time       `json:"createdAt"`
 	UpdatedAt     time.Time       `json:"updatedAt"`
+	ArchivedAt    *time.Time      `json:"archivedAt,omitempty"`
 }
 
 const (

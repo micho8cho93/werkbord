@@ -58,7 +58,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || !multiline)) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !busy) {
       e.preventDefault();
       void answer(text);
     }
@@ -115,6 +115,7 @@
           placeholder={freeTextHint(question)}
           bind:value={text}
           onkeydown={onKey}
+          title="Enter to send · Shift+Enter for a new line"
         ></textarea>
       {:else}
         <input

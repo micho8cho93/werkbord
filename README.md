@@ -108,6 +108,16 @@ phone access, GitHub, your coding agents, your repositories. Each task has an ag
 an interaction policy and a priority, set globally, per project, and per task; the task wins. Left alone, the
 agent picks its own model and reasoning. See [docs/EXECUTION.md](docs/EXECUTION.md).
 
+**Work without losing its history.** Messages send with Enter; Shift+Enter adds a line. An active task's header
+keeps **Stop agent** visible. Stop its run before using **Close task**, which moves the task into the board's
+searchable **Archive**. **Clear Done** archives the whole Done column; descriptions, branches, handoffs and runs
+remain available, and **Restore** returns a task to its previous column with automatic scheduling disabled.
+Project settings and Git use section controls so their details do not compete for the same viewport.
+
+**Adding repositories.** Projects offers **Choose folder** (a native picker in the Mac app, a folder browser in the
+web app) and **GitHub repository**. Connect your GitHub account to select accessible repositories; Werkbord uses
+an existing local checkout or clones one using your own sign-in.
+
 **Phone access.** Werkbord embeds a Tailscale node, so your phone reaches the controller without you setting up a
 VPN, a tunnel or certificates, and without any server of Werkbord's own. Nothing is exposed to the Internet. See
 [docs/PHONE.md](docs/PHONE.md).

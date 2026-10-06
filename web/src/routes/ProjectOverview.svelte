@@ -22,7 +22,7 @@
   $effect(() => git.watch());
 
   const items = $derived(attentionItems(app.overview, app.questions, { project: project.id }, app.runners));
-  const titleOf = (id: string) => scope.tasks.find((t) => t.id === id)?.title ?? 'Task';
+  const titleOf = (id: string) => scope.activeTasks.find((t) => t.id === id)?.title ?? 'Task';
   const day = $derived(app.now - 86_400_000);
   const recent = $derived(scope.history.filter((r) => !r.endedAt || Date.parse(r.endedAt) >= day || Date.parse(r.createdAt) >= day));
   const table = $derived(scope.history.slice(0, 8));

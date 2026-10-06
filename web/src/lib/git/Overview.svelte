@@ -19,7 +19,8 @@
     upstreamLabel,
     type BranchFilter,
   } from '../gitui';
-  import { taskHref } from '../router.svelte';
+  import Icon, { type IconName } from '../Icon.svelte';
+  import { router, projectHref, taskHref } from '../router.svelte';
   import { app } from '../state.svelte';
   import type { Project } from '../types';
   import BranchCard from './BranchCard.svelte';
@@ -70,6 +71,18 @@
   const dirty = $derived(tree ? dirtyTotal(tree.counts) : 0);
   const sync = $derived(o?.remote.sync);
   const openPRList = $derived((gh?.pullRequests ?? []).filter((p) => p.state === 'open'));
+  const sections: { id: string; label: string; icon: IconName }[] = [
+    { id: 'overview', label: 'Overview', icon: 'overview' },
+    { id: 'health', label: 'Health', icon: 'check' },
+    { id: 'branches', label: 'Branches', icon: 'branch' },
+    { id: 'prs', label: 'Pull requests', icon: 'merge' },
+    { id: 'changes', label: 'Changes', icon: 'defaults' },
+    { id: 'worktrees', label: 'Worktrees', icon: 'folder' },
+    { id: 'history', label: 'History', icon: 'runs' },
+  ];
+  const section = $derived(sections.some(s => s.id === router.query) ? router.query : 'overview');
+  const count = (id: string) => id === 'health' ? store.health?.findings.length : id === 'branches' ? o?.branches.length : id === 'prs' ? gh?.pullRequests.length : id === 'changes' ? dirty : id === 'worktrees' ? Math.max(0, (o?.worktrees.length ?? 1) - 1) : undefined;
+
   const recentPRs = $derived((gh?.pullRequests ?? []).filter((p) => p.state !== 'open').slice(0, 5));
 </script>
 
@@ -81,7 +94,12 @@
 {:else if !o}
   <p class="empty">Loading the repository…</p>
 {:else}
-  <div class="split git">
+  <div class="git-view">
+  <nav class="sections" aria-label="Git sections">
+    {#each sections as s (s.id)}<a class="btn small" href={`${projectHref(project.id, 'git')}?${s.id}`} aria-current={section === s.id ? 'page' : undefined}><Icon name={s.icon} />{s.label}{#if count(s.id) !== undefined}<span class="chip">{count(s.id)}</span>{/if}</a>{/each}
+  </nav>
+  <div class="split git" class:overview={section === 'overview'}>
+    {#if ['overview', 'branches', 'prs'].includes(section)}
     <div class="pane">
     {#if store.lastResult}
       <div class="result">
@@ -90,6 +108,7 @@
       </div>
     {/if}
 
+    {#if section === 'overview'}
     <!-- 2. Branches needing attention: Werkbord's own first. -->
     <section class="g-section" aria-label="Branches needing attention">
       <header>
@@ -110,6 +129,8 @@
       {/if}
     </section>
 
+    {/if}
+    {#if section === 'branches'}
     <!-- 7. Every branch. -->
     <section class="g-section" aria-label="All branches">
       <header>
@@ -142,6 +163,8 @@
         <p class="card empty">No branches here.</p>
       {/if}
     </section>
+    {/if}
+    {#if section === 'prs'}
     <!-- 3. Pull requests, from GitHub, asked for separately. -->
     <section class="g-section" aria-label="Pull requests">
       <header>
@@ -197,10 +220,15 @@
       {/if}
     </section>
 
+    {/if}
     </div>
+    {/if}
+    {#if ['overview', 'health', 'changes', 'worktrees', 'history'].includes(section)}
     <aside class="pane" aria-label="The repository">
+    {#if section === 'health'}<HealthPanel {project} {store} />{/if}
+    {#if section === 'overview'}
     <!-- 0. Is anything wrong? Healthy, or what: the findings, and what to do about each. -->
-    <HealthPanel {project} {store} />
+    <HealthPanel {project} {store} compact />
 
     <!-- 1. Repository summary: this computer, and the remote, apart. -->
     <section class="card g-card summary" aria-label="Repository">
@@ -313,6 +341,8 @@
       {/if}
     </section>
 
+    {/if}
+    {#if section === 'changes'}
     <!-- 5. Working changes. -->
     <section class="g-section" aria-label="Working changes">
       <header><h2>Working changes</h2></header>
@@ -326,12 +356,13 @@
       </a>
     </section>
 
+    {/if}
     <!-- 6. Worktrees. -->
-    {#if o.worktrees.length > 1}
+    {#if section === 'worktrees'}
       <section class="g-section" aria-label="Worktrees">
         <header>
           <h2>Worktrees</h2>
-          <span class="count">{o.worktrees.length - 1} besides your checkout</span>
+          <span class="count">{Math.max(0, o.worktrees.length - 1)} besides your checkout</span>
         </header>
         <ul class="g-list">
           {#each o.worktrees.filter((w) => !w.primary) as w (w.path)}
@@ -356,11 +387,12 @@
                 {/if}
               </div>
             </li>
-          {/each}
+          {:else}<li class="card empty muted">No worktrees besides your checkout.</li>{/each}
         </ul>
       </section>
     {/if}
 
+    {#if section === 'history'}
     <!-- 4. Recent commits. -->
     <section class="g-section" aria-label="Recent commits">
       <header>
@@ -381,14 +413,23 @@
       {/if}
     </section>
 
+    {/if}
     </aside>
+    {/if}
+  </div>
   </div>
 {/if}
 
 <style>
-  .git {
-    --side: 420px;
-  }
+  .git-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  .sections { display: flex; gap: 8px; flex-wrap: wrap; padding: 16px 24px 0; flex: none; }
+  .sections a[aria-current='page'] { box-shadow: var(--press-sh); color: var(--accent); }
+  .git { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr); --side: minmax(340px, 0.8fr); }
+  .git.overview { grid-template-columns: minmax(0, 1fr) minmax(340px, 0.8fr); }
+  .pane { scrollbar-gutter: stable; }
+  .scopes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 1180px) { .git.overview { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 899px) { .git-view { height: auto; } .sections { padding: 8px 16px; } .scopes { grid-template-columns: minmax(0, 1fr); } }
 
   .pad {
     margin: 20px 24px;

@@ -92,6 +92,9 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 			return err
 		}
 		r.ProjectID = task.ProjectID
+		if task.ArchivedAt != nil {
+			return fmt.Errorf("%w: restore this task before starting a run", domain.ErrConflict)
+		}
 		r.Handoff = &domain.Handoff{Objective: task.Title + "\n" + task.Description}
 		r.Handoff.Normalize()
 		if in.EnforceGates {

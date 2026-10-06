@@ -1,9 +1,15 @@
 <script lang="ts">
+  import FolderPicker from '../lib/FolderPicker.svelte';
+  import GitHubCard from '../lib/setup/GitHubCard.svelte';
+  import ReposCard from '../lib/setup/ReposCard.svelte';
+  import type { GitHubStatusInfo } from '../lib/types';
   import { api } from '../lib/api';
   import { activitySummary, attentionCount, shortPath } from '../lib/projects';
   import { projectHref, router, switchedTo } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
 
+  let source = $state<'local' | 'github'>('local');
+  let github = $state<GitHubStatusInfo | null>(null);
   let path = $state('');
   let name = $state('');
   let busy = $state(false);
@@ -57,14 +63,17 @@
   </section>
 
   <section class="pn register">
-    <h3>Register a repository</h3>
-    <p class="muted">
-      Point Werkbord at an existing Git checkout on this computer. Nothing is copied; the controller only reads its metadata. Each repository becomes a
-      project with its own board, calendar, Git and runs.
-    </p>
+    <h3>Add a project</h3>
+    <div class="seg" role="group" aria-label="Project source">
+      <button aria-pressed={source === 'local'} onclick={() => source = 'local'}>Local folder</button>
+      <button aria-pressed={source === 'github'} onclick={() => source = 'github'}>GitHub repository</button>
+    </div>
+    {#if source === 'local'}
+    <p class="muted">Choose a Git repository on the computer running Werkbord. Each project gets its own board, calendar, Git and runs.</p>
+    <FolderPicker bind:value={path} disabled={busy} />
     <form onsubmit={register}>
       <label>
-        <span>Path</span>
+        <span>Selected folder</span>
         <input class="input mono" placeholder="/Users/you/code/my-app" autocapitalize="off" autocomplete="off" spellcheck="false" required bind:value={path} />
       </label>
       <label>
@@ -72,8 +81,12 @@
         <input class="input" placeholder="Defaults to the folder name" maxlength="120" bind:value={name} />
       </label>
       {#if formError}<p class="error" role="alert">{formError}</p>{/if}
-      <button class="btn primary" type="submit" disabled={busy || !path.trim()}>{busy ? 'Checking…' : 'Register'}</button>
+      <button class="btn primary" type="submit" disabled={busy || !path.trim()}>{busy ? 'Checking…' : 'Add project'}</button>
     </form>
+    {:else}
+      <GitHubCard onchange={s => github = s} />
+      <ReposCard {github} showFolder={false} />
+    {/if}
   </section>
 </div>
 
@@ -81,7 +94,7 @@
   .layout {
     display: grid;
     gap: 20px;
-    max-width: 1100px;
+    width: 100%;
     align-items: start;
   }
 
@@ -171,7 +184,7 @@
 
   @media (min-width: 1000px) {
     .layout {
-      grid-template-columns: minmax(0, 1fr) 380px;
+      grid-template-columns: minmax(0, 1fr) minmax(380px, 0.8fr);
     }
   }
 

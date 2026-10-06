@@ -46,9 +46,9 @@
     return !!r && runStatus(r).active;
   };
   const scheduledIn = (t: Task) => (t.orchestration?.scheduledAt ? wallTime(t.orchestration.scheduledAt, zone) : '');
-  const unscheduled = $derived(scope.tasks.filter((t) => t.state !== 'done' && !active(t) && !(t.orchestration?.enabled && t.orchestration.scheduledAt)));
+  const unscheduled = $derived(scope.activeTasks.filter((t) => t.state !== 'done' && !active(t) && !(t.orchestration?.enabled && t.orchestration.scheduledAt)));
   const upcoming = $derived(
-    scope.tasks
+    scope.activeTasks
       .filter((t) => t.orchestration?.enabled && !t.orchestration.runId)
       .sort(
         (a, b) =>
@@ -57,10 +57,10 @@
       ),
   );
   const waiting = $derived(
-    scope.tasks.filter((t) => t.state !== 'done' && (t.orchestration?.dependencies ?? []).some((id) => scope.tasks.find((d) => d.id === id && d.state !== 'review' && d.state !== 'done'))),
+    scope.activeTasks.filter((t) => t.state !== 'done' && (t.orchestration?.dependencies ?? []).some((id) => scope.tasks.find((d) => d.id === id && d.state !== 'review' && d.state !== 'done'))),
   );
   function eventsOn(day: string) {
-    const evs = scope.tasks.filter((t) => scheduledIn(t).startsWith(day)).map((t) => ({ start: minuteOf(scheduledIn(t)), item: t }));
+    const evs = scope.activeTasks.filter((t) => scheduledIn(t).startsWith(day)).map((t) => ({ start: minuteOf(scheduledIn(t)), item: t }));
     return lanes(evs, EVENT_MIN);
   }
 
@@ -74,7 +74,7 @@
     );
     return () => (live = false);
   });
-  const running = $derived(scope.tasks.filter(active).length);
+  const running = $derived(scope.activeTasks.filter(active).length);
 
   // ---- scheduling ----
   let busy = $state(false);
@@ -135,7 +135,7 @@
   }
   function onDrop(e: DragEvent, day: string) {
     e.preventDefault();
-    const task = scope.tasks.find((t) => t.id === dragId);
+    const task = scope.activeTasks.find((t) => t.id === dragId);
     const time = clockAt(minuteAt(e, e.currentTarget as HTMLElement, dragOffset));
     dragId = '';
     ghost = null;

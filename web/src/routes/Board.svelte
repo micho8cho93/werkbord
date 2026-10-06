@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { ApiError, api } from '../lib/api';
   import { dropAction } from '../lib/board';
+  import Archive from '../lib/board/Archive.svelte';
   import TaskCard from '../lib/board/TaskCard.svelte';
   import { agentLabel, resolveFor, type Resolved } from '../lib/execution';
   import { runStatus } from '../lib/format';
@@ -43,7 +44,7 @@
 
   const columns = $derived(
     TASK_STATES.map((state) => {
-      const all = scope.tasks.filter((t) => t.state === state && shown(t));
+      const all = scope.activeTasks.filter((t) => t.state === state && shown(t));
       const sorted =
         state === 'done' ? all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) : all.sort((a, b) => a.position - b.position);
       const limited = state === 'done' && !showAllDone ? sorted.slice(0, DONE_LIMIT) : sorted;
@@ -57,7 +58,7 @@
       needs = 0,
       blocked = 0,
       ready = 0;
-    for (const t of scope.tasks) {
+    for (const t of scope.activeTasks) {
       const r = scope.latestRun[t.id];
       const s = r ? runStatus(r) : undefined;
       if (s?.tone === 'work') running++;
@@ -88,8 +89,21 @@
     return !!b && !b.merged && b.vsTarget.ahead > 0;
   }
 
+  let viewingArchive = $state(false);
+  let clearingDone = $state(false);
+  let pendingTasks = $state<Record<string, boolean>>({});
+  async function clearDone() {
+    if (clearingDone) return;
+    clearingDone = true;
+    try { const tasks = await api.archiveDone(project.id); tasks.forEach(t => scope.upsertTask(t)); app.notify(`${tasks.length} tasks moved to the archive.`); }
+    catch (e) { app.handleError(e); await scope.load().catch(e => app.handleError(e)); }
+    finally { clearingDone = false; }
+  }
+
   // ---- actions ----
   async function move(task: Task, state: TaskState) {
+    if (pendingTasks[task.id]) return;
+    pendingTasks[task.id] = true;
     try {
       scope.upsertTask(await api.moveTask(task, state));
     } catch (err) {
@@ -97,17 +111,30 @@
         app.notify('This task changed on another device. The board has been refreshed.');
         await scope.load().catch((e) => app.handleError(e));
       } else app.notify(err instanceof Error ? err.message : String(err));
-    }
+    } finally { pendingTasks[task.id] = false; }
   }
 
   async function start(task: Task) {
+    if (pendingTasks[task.id]) return;
+    pendingTasks[task.id] = true;
     try {
       const r = await api.startRun(project.id, task.id);
       scope.upsertRun(r);
+      // Reconcile the persisted card before enabling another drop.
+      await scope.load();
+      const current = scope.activeTasks.find(t => t.id === task.id);
+      if (current?.state === 'backlog' && runStatus(r).active) {
+        try { scope.upsertTask(await api.moveTask(current, 'doing')); }
+        catch (e) {
+          if (!(e instanceof ApiError && e.code === 'conflict')) throw e;
+          await scope.load();
+          if (scope.activeTasks.find(t => t.id === task.id)?.state !== 'doing') throw e;
+        }
+      }
       app.notify(`${agentLabel(app.agents, r.agentId)} started on “${task.title}”.`, 4000);
     } catch (err) {
       app.notify(err instanceof Error ? err.message : String(err));
-    }
+    } finally { pendingTasks[task.id] = false; }
   }
 
   async function merge(task: Task) {
@@ -125,6 +152,7 @@
   let over = $state<TaskState | ''>('');
 
   function onDragStart(e: DragEvent, task: Task) {
+    if (pendingTasks[task.id]) { e.preventDefault(); return; }
     dragging = task;
     e.dataTransfer?.setData('text/plain', task.id);
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
@@ -139,11 +167,13 @@
     if (!dragging) return;
     e.preventDefault();
     over = state;
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   }
 
   function onDrop(e: DragEvent, state: TaskState) {
     e.preventDefault();
-    const task = dragging;
+    const id = e.dataTransfer?.getData('text/plain');
+    const task = dragging ?? scope.activeTasks.find(t => t.id === id);
     onDragEnd();
     if (!task) return;
     const run = scope.latestRun[task.id];
@@ -199,7 +229,7 @@
   $effect(() => {
     // Start on the column where things are happening; Backlog when nothing is.
     untrack(() => {
-      if (scope.tasks.length && !scope.tasks.some((t) => t.state === 'doing')) activeColumn = 'backlog';
+      if (scope.activeTasks.length && !scope.activeTasks.some((t) => t.state === 'doing')) activeColumn = 'backlog';
     });
   });
 </script>
@@ -234,6 +264,8 @@
           <option value="low">low</option>
         </select>
       </label>
+      <button class="btn small" aria-pressed={viewingArchive} onclick={() => viewingArchive = !viewingArchive}>{viewingArchive ? 'Back to board' : `Archive (${scope.archivedTasks.length})`}</button>
+      <button class="btn small" disabled={clearingDone || !scope.activeTasks.some(t => t.state === 'done')} onclick={clearDone} title="Move all Done tasks into the archive and keep their details">{clearingDone ? 'Clearing…' : 'Clear Done'}</button>
       {#if filtering}
         <button class="btn quiet small" onclick={() => ((agentFilter = ''), (runnerFilter = ''), (priorityFilter = ''))}>Clear</button>
       {/if}
@@ -245,6 +277,9 @@
     </ul>
   </div>
 
+  {#if viewingArchive}
+    <Archive {scope} />
+  {:else}
   <div class="pills" role="tablist" aria-label="Columns">
     {#each columns as col (col.state)}
       <button role="tab" class="pill" aria-selected={activeColumn === col.state} aria-controls="col-{col.state}" onclick={() => (activeColumn = col.state)}>
@@ -264,7 +299,7 @@
         data-active={activeColumn === col.state}
         aria-label={TASK_STATE_LABELS[col.state]}
         ondragover={(e) => onDragOver(e, col.state)}
-        ondragleave={() => (over = over === col.state ? '' : over)}
+        ondragleave={(e) => { if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) over = over === col.state ? '' : over; }}
         ondrop={(e) => onDrop(e, col.state)}
       >
         <header class="ch">
@@ -309,6 +344,7 @@
             <TaskCard
               {task}
               {run}
+              pending={!!pendingTasks[task.id]}
               {scope}
               effective={effectiveOf(task)}
               selected={router.taskId === task.id}
@@ -338,6 +374,7 @@
     {/each}
   </div>
 
+  {/if}
   <button class="fab" type="button" onclick={() => (app.newTaskOpen = true)} aria-label="New task"><Icon name="plus" size={22} /></button>
 </div>
 
@@ -505,16 +542,8 @@
     display: none;
   }
 
-  /* Narrow desktop: columns keep a readable width and the board scrolls sideways. */
-  @media (min-width: 900px) and (max-width: 1180px) {
-    .cols {
-      grid-template-columns: repeat(4, minmax(240px, 1fr));
-      overflow-x: auto;
-    }
-  }
-
-  /* Phone: one column at a time, chosen from pills; a floating New task button in thumb reach. */
-  @media (max-width: 899px) {
+  /* Small windows: choose a column instead of scrolling the board sideways. */
+  @media (max-width: 1180px) {
     .bar {
       padding: 4px 16px 8px;
       min-height: 0;
@@ -522,7 +551,7 @@
     }
 
     .filters {
-      display: none;
+      display: flex;
     }
 
     .legend {
@@ -539,8 +568,7 @@
       display: flex;
       gap: 8px;
       padding: 4px 16px 8px;
-      overflow-x: auto;
-      scrollbar-width: none;
+      flex-wrap: wrap;
       flex: none;
     }
 

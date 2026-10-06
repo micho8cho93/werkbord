@@ -38,7 +38,7 @@ func (t *Tx) ProjectRoles(ctx context.Context, workspaceID, memberID string) (ma
 
 // TicketCounts counts a workspace's tickets by project and status.
 func (t *Tx) TicketCounts(ctx context.Context, workspaceID string) (map[string]map[domain.TicketStatus]int, error) {
-	rows, err := t.q.QueryContext(ctx, `SELECT project_id, status, COUNT(*) FROM tickets WHERE workspace_id = ? GROUP BY project_id, status`, workspaceID)
+	rows, err := t.q.QueryContext(ctx, `SELECT project_id, status, COUNT(*) FROM tickets WHERE workspace_id = ? AND archived_at IS NULL GROUP BY project_id, status`, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (t *Tx) TicketCounts(ctx context.Context, workspaceID string) (map[string]m
 // are not loaded. Finished and unclaimed tickets are never what a member's work
 // views are about, and leaving them out keeps these views small as a board grows.
 func (t *Tx) HeldTickets(ctx context.Context, workspaceID string) ([]domain.Ticket, error) {
-	rows, err := t.q.QueryContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND status IN ('in_progress', 'review') ORDER BY updated_at DESC, number`, workspaceID)
+	rows, err := t.q.QueryContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND archived_at IS NULL AND status IN ('in_progress', 'review') ORDER BY updated_at DESC, number`, workspaceID)
 	if err != nil {
 		return nil, err
 	}

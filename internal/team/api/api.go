@@ -86,6 +86,8 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/team/v1/sync", s.handleWorkspaceSync)
 	// the board and its tickets
 	api.HandleFunc("GET /api/team/v1/projects/{id}/board", s.handleBoard)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/archive-done", s.handleArchiveDone)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/archive", s.handleArchiveTicket)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/people", s.handleProjectPeople)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/sync", s.handleSync)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets", s.handleCreateTicket)

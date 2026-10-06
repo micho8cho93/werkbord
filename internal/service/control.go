@@ -178,6 +178,9 @@ func (s *ControlCenter) Overview(ctx context.Context) (*Overview, error) {
 			}
 			a := &out.Projects[index[p.ID]]
 			for _, task := range tasks {
+				if task.ArchivedAt != nil {
+					continue
+				}
 				r, ran := lastRun[task.ID]
 				switch {
 				case activeTasks[task.ID]:
@@ -258,7 +261,7 @@ func (s *ControlCenter) Overview(ctx context.Context) (*Overview, error) {
 			for _, d := range plan {
 				t := byID[d.TaskID]
 				o := t.Orchestration
-				if !o.Enabled || o.RunID != "" || t.State == domain.TaskDone {
+				if !o.Enabled || o.RunID != "" || t.State == domain.TaskDone || t.ArchivedAt != nil {
 					continue
 				}
 				out.Orchestration = append(out.Orchestration, AttentionSchedule{Task: t, ProjectName: p.Name, Decision: d})

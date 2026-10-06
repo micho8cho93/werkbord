@@ -29,6 +29,7 @@ type TaskPatch struct {
 	Execution     *domain.ExecutionConfig
 	Orchestration *domain.Orchestration
 	Version       int64
+	Archived      *bool
 }
 
 // NewTask describes a task to add.
@@ -134,6 +135,18 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 		if t.Version != patch.Version {
 			return fmt.Errorf("task %s is at version %d, not %d: %w", id, t.Version, patch.Version, domain.ErrConflict)
 		}
+		if t.ArchivedAt != nil && (patch.Archived == nil || *patch.Archived) {
+			return fmt.Errorf("%w: restore this task before editing it", domain.ErrConflict)
+		}
+		if patch.Archived != nil {
+			if *patch.Archived {
+				if err := archiveTask(ctx, tx, t, s.now()); err != nil {
+					return err
+				}
+			} else {
+				t.ArchivedAt = nil
+			}
+		}
 		if patch.Title != nil {
 			if t.Title, err = domain.ValidateTaskTitle(*patch.Title); err != nil {
 				return err
@@ -173,6 +186,9 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 				return err
 			}
 		}
+		if t.ArchivedAt != nil {
+			t.Orchestration.Enabled = false
+		}
 		t.UpdatedAt = s.now()
 		if err := tx.Tasks().Update(ctx, t); err != nil {
 			return err
@@ -185,6 +201,61 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 		return nil, err
 	}
 	return t, nil
+}
+
+// archiveTask preserves the task and every run. Active sessions must be stopped
+// and acknowledged by their runner before the task can leave the board.
+func archiveTask(ctx context.Context, tx store.Tx, t *domain.Task, now time.Time) error {
+	runs, err := tx.Runs().ListByTask(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	for _, r := range runs {
+		if r.State.Active() {
+			return fmt.Errorf("%w: stop the active run before closing this task", domain.ErrConflict)
+		}
+	}
+	t.ArchivedAt = &now
+	t.Orchestration.Enabled = false
+	return nil
+}
+
+// ArchiveDone clears Done atomically: any active run refuses the entire batch.
+func (s *Tasks) ArchiveDone(ctx context.Context, projectID string) ([]domain.Task, error) {
+	out := []domain.Task{}
+	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
+		if _, err := tx.Projects().Get(ctx, projectID); err != nil {
+			return err
+		}
+		tasks, err := tx.Tasks().ListByProject(ctx, projectID)
+		if err != nil {
+			return err
+		}
+		now := s.now()
+		for _, t := range tasks {
+			if t.State != domain.TaskDone || t.ArchivedAt != nil {
+				continue
+			}
+			if err := archiveTask(ctx, tx, &t, now); err != nil {
+				return err
+			}
+			t.UpdatedAt = now
+			if err := tx.Tasks().Update(ctx, &t); err != nil {
+				return err
+			}
+			ev := newEvent(domain.EventTaskUpdated, t)
+			ev.ProjectID, ev.TaskID = t.ProjectID, t.ID
+			if err := em.emit(ev); err != nil {
+				return err
+			}
+			out = append(out, t)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // GetIn returns a task of the given project. A task that belongs to another

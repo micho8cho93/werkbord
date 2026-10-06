@@ -9,8 +9,9 @@ const artifacts = process.env.BROWSER_ARTIFACT_DIR || path.join(temp, 'artifacts
 fs.mkdirSync(artifacts, { recursive: true });
 const children = [];
 const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+const commandTimeout = Number(process.env.BROWSER_COMMAND_TIMEOUT_MS) || 120000;
 function run(binary, args, extra = {}, quiet = false) {
-    const r = cp.spawnSync(binary, args, { cwd: root, env: { ...env, ...extra }, encoding: 'utf8', timeout: 120000 });
+    const r = cp.spawnSync(binary, args, { cwd: root, env: { ...env, ...extra }, encoding: 'utf8', timeout: commandTimeout });
     if (r.status !== 0) throw Error(`${binary} failed: ${r.error || r.stderr}\n${r.stdout}`);
     if (!quiet) process.stdout.write(r.stdout);
     return r.stdout;

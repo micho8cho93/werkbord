@@ -3,10 +3,11 @@
   import { api } from '../api';
   import { app } from '../state.svelte';
   import type { GitHubStatusInfo, RepoChoice, RepoList } from '../types';
+  import FolderPicker from '../FolderPicker.svelte';
   import SetupCard from './SetupCard.svelte';
 
   /** `github` is the connection, so that the list is fetched when it becomes available. */
-  let { github = null, onadded }: { github?: GitHubStatusInfo | null; onadded?: () => void } = $props();
+  let { github = null, onadded, showFolder = true }: { github?: GitHubStatusInfo | null; onadded?: () => void; showFolder?: boolean } = $props();
 
   let list = $state<RepoList | null>(null);
   let loading = $state(false);
@@ -145,11 +146,13 @@
       {/if}
     {/if}
   {:else}
-    <p class="muted">Connect GitHub above to choose from your repositories, or add one from a folder on this computer:</p>
+    <p class="muted">Connect GitHub above to choose from the repositories you can access.{#if showFolder} You can also choose a folder on this computer below.{/if}</p>
   {/if}
 
+  {#if showFolder}
   <form class="path" onsubmit={addPath}>
     <label for="repo-path">{connected ? 'Or add a folder' : 'Folder'}</label>
+    <FolderPicker bind:value={path} disabled={pathBusy} />
     <div class="row">
       <input
         id="repo-path"
@@ -164,6 +167,7 @@
     </div>
     {#if pathError}<p class="error" role="alert">{pathError}</p>{/if}
   </form>
+  {/if}
 </SetupCard>
 
 <style>

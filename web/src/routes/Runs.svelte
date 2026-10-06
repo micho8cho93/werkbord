@@ -1,6 +1,7 @@
 <script lang="ts">
   import { agentLabel, optionLabel } from '../lib/execution';
   import { runElapsed, runStatus } from '../lib/format';
+  import Mark from '../lib/Mark.svelte';
   import HistoryStrip from '../lib/HistoryStrip.svelte';
   import { interactionShort, isNotable } from '../lib/policy';
   import { taskHref } from '../lib/router.svelte';
@@ -117,6 +118,7 @@
       <p class="empty">{!scope.loaded ? 'Loading…' : filtering ? 'No run matches the filters.' : 'No agent has run in this project yet. Start one from the Board.'}</p>
     {/if}
   </div>
+  <div class="brand-canvas" aria-hidden="true"><Mark /><span>werkbord</span><p>Werk local, ship global.</p></div>
 </div>
 
 <style>
@@ -149,7 +151,8 @@
   }
 
   .table-area {
-    flex: 1;
+    flex: 0 1 auto;
+    max-height: calc(100% - 180px);
     min-height: 0;
     overflow: auto;
     margin: 0 24px 24px;
@@ -158,6 +161,11 @@
     border-radius: var(--radius-tray);
     box-shadow: var(--card-sh);
   }
+
+  .brand-canvas { flex: 1; min-height: 100px; display: grid; place-content: center; grid-template-columns: auto auto; align-items: center; gap: 8px 16px; color: var(--text-2); padding: 24px; }
+  .brand-canvas span { font: 600 24px var(--mono); letter-spacing: -0.04em; }
+  .brand-canvas p { grid-column: 1 / -1; text-align: center; margin: 0; font-size: 12px; }
+  .brand-canvas :global(svg) { width: 60px; height: auto; }
 
   .tbl {
     min-width: 900px;
@@ -225,7 +233,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  @media (max-width: 899px) {
+  @media (max-width: 1180px) {
     .runs {
       height: auto;
     }
@@ -238,7 +246,9 @@
       margin-left: 0;
     }
 
+    .brand-canvas { display: none; }
     .table-area {
+      max-height: none;
       margin: 0 16px 16px;
     }
 

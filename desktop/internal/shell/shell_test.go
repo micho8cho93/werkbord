@@ -124,10 +124,32 @@ func newShell(t *testing.T, l *fakeLauncher, ui *fakeUI) *Shell {
 
 // ---- what a page may ask ----
 
+type directoryUI struct {
+	*fakeUI
+	selected string
+	err      error
+}
+
+func (u *directoryUI) ChooseDirectory() (string, error) { return u.selected, u.err }
+
+func TestDirectoryPickerReturnsOnlyTheUserSelection(t *testing.T) {
+	for _, selected := range []string{"/Users/fixture/code/app", ""} {
+		ui := &directoryUI{fakeUI: &fakeUI{}, selected: selected}
+		s := New(Options{Launcher: &fakeLauncher{}, UI: ui})
+		got, err := s.ChooseDirectory()
+		if err != nil || got != selected {
+			t.Fatalf("selection = %q, %v", got, err)
+		}
+	}
+	if _, err := newShell(t, &fakeLauncher{}, &fakeUI{}).ChooseDirectory(); err == nil {
+		t.Fatal("a host without a picker must report that it is unavailable")
+	}
+}
+
 // Wails makes every exported method of the struct it binds callable from a page the controller
 // served. This list is that surface: a new method is a decision, made here, not an accident.
 func TestThePageFacingSurfaceIsExactlyWhatIsListed(t *testing.T) {
-	want := []string{"CheckForUpdates", "Connect", "Diagnostics", "Info", "OpenExternal", "OpenInBrowser", "OpenLogs", "Reload", "RequestUpdate", "ShowDiagnostics", "UpdateStatus"}
+	want := []string{"CheckForUpdates", "ChooseDirectory", "Connect", "Diagnostics", "Info", "OpenExternal", "OpenInBrowser", "OpenLogs", "Reload", "RequestUpdate", "ShowDiagnostics", "UpdateStatus"}
 	var got []string
 	typ := reflect.TypeOf(&Shell{})
 	for i := 0; i < typ.NumMethod(); i++ {

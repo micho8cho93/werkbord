@@ -155,6 +155,15 @@ func (s *Shell) Info() AppInfo {
 	return AppInfo{Version: s.o.Version, Platform: s.o.Platform, Updater: s.o.Updater != nil && s.o.Updater.Active()}
 }
 
+// ChooseDirectory opens a native folder picker. It returns only the path the
+// person explicitly chose, and grants no access to files or other computers.
+func (s *Shell) ChooseDirectory() (string, error) {
+	if picker, ok := s.o.UI.(interface{ ChooseDirectory() (string, error) }); ok {
+		return picker.ChooseDirectory()
+	}
+	return "", errors.New("the folder picker is unavailable")
+}
+
 // Connected is what the loading screen needs to open the web app.
 type Connected struct {
 	// SignInURL carries the access token in its fragment. It is for navigating to and
