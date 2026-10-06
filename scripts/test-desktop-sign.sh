@@ -157,14 +157,15 @@ P12B64=$(base64 < "$WORK/id.p12" | tr -d '\n')
 
 list_before=$(security list-keychains -d user)
 default_before=$(security default-keychain -d user)
-kcenv() { RUNNER_TEMP="$WORK/keychains1" CI_KEYCHAIN_ALLOW_UNTRUSTED=1 "$@"; }
+# The mode that leaves the user's keychain list alone, whatever environment this runs in (a CI runner sets GITHUB_ACTIONS, which is the other mode: below).
+kcenv() { env -u GITHUB_ACTIONS -u GITHUB_ENV RUNNER_TEMP="$WORK/keychains1" CI_KEYCHAIN_ALLOW_UNTRUSTED=1 "$@"; }
 
 # missing secrets: one clear line, clean exit; --require makes it a failure
 out=$(env -u APPLE_CERTIFICATE_P12 -u APPLE_CERTIFICATE_PASSWORD scripts/ci-keychain.sh create 2>&1) || bad "create without secrets must exit cleanly" "$out"
 contains "$out" "APPLE_CERTIFICATE_P12, APPLE_CERTIFICATE_PASSWORD is not set" || contains "$out" "APPLE_CERTIFICATE_P12" || bad "the missing secret is not named" "$out"
 [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 1 ] || bad "a missing secret is one line" "$out"
 ok "no secrets: one line naming the secret, exit 0"
-expect_fail "no secrets with --require fails loudly" "APPLE_CERTIFICATE_P12" env -u APPLE_CERTIFICATE_P12 -u APPLE_CERTIFICATE_PASSWORD scripts/ci-keychain.sh create --require
+expect_fail "no secrets with --require fails loudly" "APPLE_CERTIFICATE_P12" env -u GITHUB_ACTIONS -u APPLE_CERTIFICATE_P12 -u APPLE_CERTIFICATE_PASSWORD scripts/ci-keychain.sh create --require
 expect_fail "only the password missing is named" "APPLE_CERTIFICATE_PASSWORD" env -u APPLE_CERTIFICATE_PASSWORD APPLE_CERTIFICATE_P12=eA== scripts/ci-keychain.sh create --require
 
 # a certificate that cannot be read leaves nothing behind
@@ -188,11 +189,28 @@ ok "the user's keychains are not touched, and the identity is only in the tempor
 case "$out" in *"$P12PW"*|*"$P12B64"*) bad "create printed a secret" ;; esac
 ok "nothing secret is printed"
 
-out=$(RUNNER_TEMP="$WORK/keychains1" scripts/ci-keychain.sh delete 2>&1) || bad "delete failed" "$out"
+out=$(kcenv scripts/ci-keychain.sh delete 2>&1) || bad "delete failed" "$out"
 [ ! -e "$KC" ] || bad "delete left the keychain"
 contains "$(security list-keychains -d user)" "werkbord-signing" && bad "the keychain list still names the temporary keychain"
-RUNNER_TEMP="$WORK/keychains1" scripts/ci-keychain.sh delete >/dev/null 2>&1 || bad "a second delete must not fail"
+kcenv scripts/ci-keychain.sh delete >/dev/null 2>&1 || bad "a second delete must not fail"
 ok "delete removes it, and deleting again is harmless"
+
+# On a CI runner (and only there: it changes the keychain search list for a moment) the other mode: the temporary keychain is put in the
+# list, so that Apple's intermediate certificates are found, GITHUB_ENV is told which keychain and identity to use, and delete puts it all back.
+if [ -n "${CI:-}" ]; then
+  mkdir -p "$WORK/keychains-ci"; : > "$WORK/ghenv"
+  list_before_ci=$(security list-keychains -d user)
+  out=$(RUNNER_TEMP="$WORK/keychains-ci" GITHUB_ACTIONS=true GITHUB_ENV="$WORK/ghenv" CI_KEYCHAIN_ALLOW_UNTRUSTED=1 \
+    APPLE_CERTIFICATE_P12="$P12B64" APPLE_CERTIFICATE_PASSWORD="$P12PW" scripts/ci-keychain.sh create --require 2>&1) || bad "create in CI mode failed" "$out"
+  contains "$(security list-keychains -d user)" "werkbord-signing.keychain-db" || bad "in CI the temporary keychain is put in the search list" "$(security list-keychains -d user)"
+  contains "$(cat "$WORK/ghenv")" "CODESIGN_KEYCHAIN=" && contains "$(cat "$WORK/ghenv")" "CODESIGN_IDENTITY=Werkbord Test Signing" || bad "GITHUB_ENV was not told the keychain and the identity" "$(cat "$WORK/ghenv")"
+  RUNNER_TEMP="$WORK/keychains-ci" GITHUB_ACTIONS=true scripts/ci-keychain.sh delete >/dev/null 2>&1 || bad "delete in CI mode failed"
+  [ "$list_before_ci" = "$(security list-keychains -d user)" ] || bad "the keychain list was not put back after the job" "before:
+$list_before_ci
+after:
+$(security list-keychains -d user)"
+  ok "on a runner: the temporary keychain is in the list while the job runs, GITHUB_ENV names it, and deleting puts the list back exactly"
+fi
 
 # =================================================================== 2. the signature policy
 echo "2. the signature policy"

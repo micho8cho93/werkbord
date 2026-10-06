@@ -137,7 +137,7 @@ and tagged the commit locally), push the tag, and nothing else:
 
 ```bash
 git push origin main
-git push origin werkbord-v1.2.0          # the tag of the version in cmd/werkbord/VERSION; this starts the release
+git push origin werkbord-v1.2.1          # the tag of the version in cmd/werkbord/VERSION; this starts the release
 ```
 
 CI publishes the command-line archives first (as it always did), and then, only for an individual stable tag, builds and
@@ -147,14 +147,14 @@ apps about it. Approve the environment when asked.
 Then check it once yourself, by hand, which is the only check no CI run can replace:
 
 ```bash
-scripts/verify-desktop-release.sh werkbord-v1.2.0     # downloads it as a user would; every line should say ok
-scripts/verify-appcast.sh werkbord-v1.2.0             # the feed, against the published update archive
+scripts/verify-desktop-release.sh werkbord-v1.2.1     # downloads it as a user would; every line should say ok
+scripts/verify-appcast.sh werkbord-v1.2.1             # the feed, against the published update archive
 ```
 
 Then delete the "Not published yet" note from the top of the README's *Install* section (and the same sentence on the website's
 install block, if it was added: the website's button already checks for itself whether a release carries the app).
 
-and: on a Mac that is not yours (or a new user account), download `Werkbord_1.2.0_darwin_universal.dmg` **in Safari** from the
+and: on a Mac that is not yours (or a new user account), download `Werkbord_1.2.1_darwin_universal.dmg` **in Safari** from the
 [release page](https://github.com/micho8cho93/werkbord/releases/latest), open it, drag Werkbord to Applications, and open it.
 Expected: the one standard question and then the window, no "cannot be opened", no "damaged". Later, on a Mac with the previous
 version, choose **Werkbord → Check for Updates…**: Sparkle's window should offer the new version.
@@ -170,10 +170,10 @@ release that was already made stays as it is, and `werkbord update` works on it.
 nobody downloads it, and the feed was not published (it comes after), so installed apps were never offered it:
 
 ```bash
-gh release delete-asset werkbord-v1.2.0 Werkbord_1.2.0_darwin_universal.dmg -y
-gh release delete-asset werkbord-v1.2.0 Werkbord_1.2.0_darwin_universal.dmg.sha256 -y
-gh release delete-asset werkbord-v1.2.0 Werkbord_1.2.0_darwin_universal.zip -y
-gh release delete-asset werkbord-v1.2.0 Werkbord_1.2.0_darwin_universal.zip.sha256 -y
+gh release delete-asset werkbord-v1.2.1 Werkbord_1.2.1_darwin_universal.dmg -y
+gh release delete-asset werkbord-v1.2.1 Werkbord_1.2.1_darwin_universal.dmg.sha256 -y
+gh release delete-asset werkbord-v1.2.1 Werkbord_1.2.1_darwin_universal.zip -y
+gh release delete-asset werkbord-v1.2.1 Werkbord_1.2.1_darwin_universal.zip.sha256 -y
 ```
 
 then fix, bump the patch version, and release that. Never re-upload different bytes under the same tag's file names.
@@ -183,7 +183,7 @@ Updates…** or **Update now**, so the damage is limited to people who do that. 
 date" or "could not check"), which is harmless:
 
 ```bash
-gh release delete-asset werkbord-v1.2.0 appcast.xml -y
+gh release delete-asset werkbord-v1.2.1 appcast.xml -y
 ```
 
 Then release a fixed version; its feed replaces the old one. (Sparkle never installs a version lower than the one running, so a
