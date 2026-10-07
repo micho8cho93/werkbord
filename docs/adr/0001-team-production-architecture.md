@@ -1,6 +1,6 @@
 # ADR 0001: The production architecture of Werkbord Team
 
-- **Status:** accepted. Phase 1 (the foundation) and phase 2 (the customer-owned network: [ADR 0002](0002-customer-owned-network.md)) are implemented; rqlite and the runner message path are not.
+- **Status:** accepted. Phase 1 (the foundation), phase 2 (the customer-owned network: [ADR 0002](0002-customer-owned-network.md)) and phase 3 (the replicated workspace storage: [ADR 0003](0003-replicated-workspace-storage.md)) are implemented; the runner message path is not.
 - **Applies to:** Werkbord Team. The individual product shares the packages named below and is otherwise unchanged.
 - **Read with:** [PRODUCTS.md](../PRODUCTS.md), [TEAM.md](../TEAM.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md).
 
@@ -120,7 +120,7 @@ Windows DPAPI, the Secret Service) is a second implementation, not yet written.
 
 ## Consequences and open questions
 
-- **rqlite and `Store.Update`.** The service layer runs a function inside one transaction with interleaved reads and
+- **rqlite and `Store.Update`.** *(Settled in [ADR 0003](0003-replicated-workspace-storage.md): a use case runs unchanged on the host's own copy and its writes are sent as one rqlite transaction guarded by the position in history it ran at.)* The service layer runs a function inside one transaction with interleaved reads and
   writes. rqlite executes a transaction as a single request of statements, not an interactive transaction. Putting rqlite
   under `store.Store` unchanged is therefore not free: either the `Tx` methods that guard (claim a ticket, use an invite)
   are already atomic statements, as they were written to be, and the rest of a use case is made safe by optimistic checks

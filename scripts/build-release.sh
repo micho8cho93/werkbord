@@ -20,6 +20,11 @@
 # (libexec/werkbord-team/nebula, checked against internal/team/infra/nebula/manifest.go by
 # scripts/fetch-nebula.sh) and the licences that go with it (licenses/). The program is never downloaded
 # when Team runs. BUNDLE_NEBULA=no leaves it out, for tests of the archive format that must not touch the network.
+#
+# They carry the pinned rqlite release too (libexec/werkbord-team/rqlited, checked against
+# internal/team/infra/rqlite/manifest.go by scripts/fetch-rqlite.sh), for Linux. The project publishes no binary for macOS, and
+# a program with cgo is built from the pinned source on a Mac only, so a macOS archive made anywhere else goes without it and
+# says so (such a host keeps its workspace in one file, or builds the program with `make rqlite`). BUNDLE_RQLITE=no leaves it out.
 set -eu
 
 PRODUCT=${1:-}
@@ -41,6 +46,7 @@ if [ "$PRODUCT" = werkbord ]; then
 fi
 
 BUNDLE_NEBULA=${BUNDLE_NEBULA:-yes}
+BUNDLE_RQLITE=${BUNDLE_RQLITE:-yes}
 PLATFORMS=${PLATFORMS:-"darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64"}
 
 rm -rf "$OUT"
@@ -68,6 +74,20 @@ for p in $PLATFORMS; do
     cp third_party/nebula/LICENSE third_party/nebula/THIRD_PARTY_LICENSES.txt "$dir/licenses/nebula/"
     cp third_party/go/LICENSE "$dir/licenses/go/LICENSE"
     members="$members libexec licenses"
+    if [ "$BUNDLE_RQLITE" != no ]; then
+      rc=0
+      rqlite_dir=$(scripts/fetch-rqlite.sh "$os" "$arch") || rc=$?
+      case $rc in
+        0)
+          mkdir -p "$dir/licenses/rqlite"
+          cp "$rqlite_dir/rqlited" "$dir/libexec/werkbord-team/rqlited"
+          chmod 755 "$dir/libexec/werkbord-team/rqlited"
+          [ ! -f "$rqlite_dir/rqlited.build" ] || cp "$rqlite_dir/rqlited.build" "$dir/libexec/werkbord-team/rqlited.build"
+          cp third_party/rqlite/LICENSE third_party/rqlite/THIRD_PARTY_LICENSES.txt "$dir/licenses/rqlite/" ;;
+        3) echo "build-release: NOTE: the $os/$arch archive carries no database program (rqlite is built from source, on $os only): a Workspace Host on it keeps its data in one file, or builds the program with 'make rqlite'" >&2 ;;
+        *) echo "build-release: cannot get the pinned rqlite for $os/$arch" >&2; exit 1 ;;
+      esac
+    fi
   fi
   name="${ASSET}_${VERSION#v}_${os}_${arch}"
   if [ "$os" = windows ]; then

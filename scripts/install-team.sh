@@ -129,6 +129,17 @@ if [ -n "$nebula" ]; then
     mkdir -p "$doc" && rm -rf "$doc/licenses" && cp -R "$lic" "$doc/licenses" && say "Licences are in $doc/licenses"
   fi
 fi
+# The database program Team supervises, the same way, if this release carries it.
+rqlited=$(find "$tmp/unpack" -type f -path '*/libexec/werkbord-team/rqlited' | head -1)
+if [ -n "$rqlited" ]; then
+  prefix=$(dirname "$dir")
+  lib="$prefix/libexec/werkbord-team"
+  mkdir -p "$lib" || fail "cannot create $lib"
+  cp "$rqlited" "$lib/.rqlited.new" && chmod 755 "$lib/.rqlited.new" && mv -f "$lib/.rqlited.new" "$lib/rqlited"
+  record=$(dirname "$rqlited")/rqlited.build
+  [ ! -f "$record" ] || cp "$record" "$lib/rqlited.build"
+  say "Installed the database program (rqlite) at $lib/rqlited"
+fi
 case ":$PATH:" in
   *":$dir:"*) ;;
   *) say "Note: $dir is not on your PATH. Add it to your shell profile:

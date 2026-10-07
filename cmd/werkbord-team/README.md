@@ -30,6 +30,14 @@ anyone else's (`workspace create --network`, then `network invite`, `device join
 `docs/TEAM_NETWORK.md`). The macOS and Linux release archives carry the pinned network program, which Team supervises and
 checks against its pin before every start; it is never downloaded when Team runs.
 
+A new workspace keeps its data in a **cluster of Workspace Hosts**: each runs the pinned rqlite database, which Team
+supervises and checks against its pin before every start, and holds a full copy. It starts as one host; three are recommended,
+so that one can fail without the workspace becoming unavailable. If a quorum is lost the workspace is read-only until it is back;
+nothing is merged. `werkbord-team storage status` says where things stand, `werkbord-team host promote` adds a host,
+`werkbord-team storage migrate` moves a workspace that is kept in one file (`team.db`) into a cluster, and
+`WERKBORD_TEAM_BACKUP_DIR` makes it take verified backups: replication is not a backup (`docs/TEAM_STORAGE.md`). The Linux archives
+carry the database program; on macOS build it with `make rqlite`, or keep the workspace in one file with `--storage single-file`.
+
 Settings: `--addr` / `WERKBORD_TEAM_ADDR` (default `127.0.0.1:7430`), `--data-dir` / `WERKBORD_TEAM_DATA_DIR`.
 Team serves plain HTTP: to reach it from other computers put it behind HTTPS or a private network.
 

@@ -94,6 +94,7 @@ mkdir -p "$WORK/bundle/pkg/libexec/werkbord-team" "$WORK/bundle/pkg/licenses/neb
 tar -xzf "$WORK/releases/werkbord-team-v9.1.1/werkbord-team_9.1.1_${os}_${arch}.tar.gz" -C "$WORK/bundle/pkg"
 printf '#!/bin/sh\necho stand-in\n' > "$WORK/bundle/pkg/libexec/werkbord-team/nebula"
 printf 'MIT License\n' > "$WORK/bundle/pkg/licenses/nebula/LICENSE"
+printf '#!/bin/sh\necho stand-in\n' > "$WORK/bundle/pkg/libexec/werkbord-team/rqlited"
 # (the executable says v9.1.1; the installer would refuse it as v9.1.4, so install this one by its real name)
 tar -czf "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" -C "$WORK/bundle/pkg" werkbord-team README.md libexec licenses
 sum=$(shasum -a 256 "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz")
@@ -102,6 +103,7 @@ fresh
 if out=$(WERKBORD_TEAM_VERSION=v9.1.4 $SH scripts/install-team.sh 2>&1); then bad "an executable of the wrong version was installed" "$out"; fi
 contains "$out" "not installing it" || bad "wrong refusal" "$out"
 [ ! -e "$HOME/.local/libexec/werkbord-team/nebula" ] || bad "the network program was installed from a release that was refused"
+[ ! -e "$HOME/.local/libexec/werkbord-team/rqlited" ] || bad "the database program was installed from a release that was refused"
 # the same archive with an executable that tells the truth
 printf '#!/bin/sh\n[ "$1" = version ] && echo v9.1.4\n' > "$WORK/bundle/pkg/werkbord-team"
 chmod 755 "$WORK/bundle/pkg/werkbord-team"
@@ -111,8 +113,9 @@ printf '%s  werkbord-team_9.1.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' 
 fresh
 WERKBORD_TEAM_VERSION=v9.1.4 $SH scripts/install-team.sh >/dev/null 2>&1 || bad "installing the release that carries the network program failed"
 [ -x "$HOME/.local/libexec/werkbord-team/nebula" ] || bad "the network program was not installed beside the executable" "$(ls -R "$HOME/.local" 2>&1)"
+[ -x "$HOME/.local/libexec/werkbord-team/rqlited" ] || bad "the database program was not installed beside the executable" "$(ls -R "$HOME/.local" 2>&1)"
 [ -f "$HOME/.local/share/doc/werkbord-team/licenses/nebula/LICENSE" ] || bad "the licences were not installed"
-ok "installs the network program and its licences from a release that carries them, and from no other"
+ok "installs the network program, the database program and their licences from a release that carries them, and from no other"
 
 # 2. a named version, in either spelling
 fresh

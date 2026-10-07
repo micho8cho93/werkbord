@@ -496,11 +496,15 @@ func netPrefixOf(addr string, node json.RawMessage) (string, error) {
 
 const hostUsage = `usage: werkbord-team host <command>
 
-  promote <device id>     (an administrator) make a device that joined as a Workspace Host a holder of the workspace's keys:
-                          seals them to that device, to be collected by it
-  collect                 (on that host) collect and store the keys sealed to this host; it can then sign for the workspace
+  promote <device id>     (an administrator) make a device that joined as a Workspace Host a holder of the workspace's keys and of a copy
+                          of its data: seals the keys, and what its database node needs to join the cluster, to that device
+  collect                 (on that host) collect and store what was sealed to this host; then run "werkbord-team serve" on it: its
+                          database node joins the cluster, catches up, is checked, and only then becomes a voting host
+  remove <device id>      (an administrator) take a Workspace Host out of the cluster with a checked membership change; refused when it
+                          would leave the workspace without a quorum
 
-A Workspace Host holds the workspace's signing key and the network authority's: it is a high-trust machine. See docs/TEAM_NETWORK.md.
+A Workspace Host holds the workspace's signing key and the network authority's, and a copy of all its data: it is a high-trust machine.
+Three hosts are recommended. See docs/TEAM_NETWORK.md and docs/TEAM_STORAGE.md.
 `
 
 func cmdHost(ctx context.Context, cfg config.Config, args []string, stdout, stderr io.Writer) error {
@@ -511,6 +515,8 @@ func cmdHost(ctx context.Context, cfg config.Config, args []string, stdout, stde
 	switch args[0] {
 	case "promote":
 		return cmdHostPromote(ctx, args[1:], stdout, stderr)
+	case "remove":
+		return cmdHostRemove(ctx, args[1:], stdout, stderr)
 	case "collect":
 		return cmdHostCollect(ctx, cfg, args[1:], stdout, stderr)
 	case "help", "-h", "--help":
@@ -540,7 +546,38 @@ func cmdHostPromote(ctx context.Context, args []string, stdout, stderr io.Writer
 	if err := doJSON(ctx, hc, http.MethodPost, base+"/api/team/v1/devices/"+pos[0]+"/provision", a.token, map[string]any{}, nil); err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "The workspace's keys are sealed to %s and waiting for it. Run `werkbord-team host collect` on that host.\n", pos[0])
+	fmt.Fprintf(stdout, "The workspace's keys, and what that host's database node needs to join the cluster, are sealed to %s and waiting for it. Run `werkbord-team host collect` on that host, then `werkbord-team serve`.\n", pos[0])
+	return nil
+}
+
+func cmdHostRemove(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("host remove", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var a apiFlags
+	a.bind(fs)
+	pos, err := parseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return errors.New("usage: werkbord-team host remove <device id>")
+	}
+	base, hc, err := a.client()
+	if err != nil {
+		return err
+	}
+	hc.Timeout = 3 * time.Minute
+	var out struct {
+		Device  domain.Device `json:"device"`
+		Warning string        `json:"warning"`
+	}
+	if err := doJSON(ctx, hc, http.MethodDelete, base+"/api/team/v1/devices/"+pos[0]+"/replica", a.token, nil, &out); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "%s left the workspace's database cluster by a membership change and is no longer a Workspace Host. It is not revoked: it is still a device on the network. Its copy of the data stays on its disk, where it is yours to remove.\n", out.Device.Name)
+	if out.Warning != "" {
+		fmt.Fprintf(stdout, "\nNote: %s\n", out.Warning)
+	}
 	return nil
 }
 
@@ -627,6 +664,9 @@ func cmdHostCollect(ctx context.Context, cfg config.Config, args []string, stdou
 		fmt.Fprintf(stderr, "the keys are stored here, but telling the workspace failed (%v); run this again to try once more\n", err)
 	}
 	fmt.Fprintf(stdout, "This host now holds the workspace's keys (fingerprint %s). It is a high-trust machine: protect it as you would the first host.\n", mat.Meta.Fingerprint)
+	if v.HasStorage() {
+		fmt.Fprintln(stdout, "\nNext: run `werkbord-team serve` on this host. Its database node will join the workspace's cluster, take a full copy, be checked against the cluster's data, and only then vote; until it has, it is \"joining\" in `werkbord-team storage status`.")
+	}
 	return nil
 }
 
@@ -732,12 +772,14 @@ func (s *httpSource) NodeConfig(ctx context.Context) (domain.NodeConfig, error) 
 	return s.last, nil
 }
 
-// Certificate is the one on disk while it has over a third of its life left; then a new one, asked for over the network.
+// Certificate is the one on disk while it has over a third of its life left and carries the groups its device's roles call
+// for (a device that was made a Workspace Host has to be let through to the other hosts, and the network's policy goes by
+// the groups in the certificate); otherwise a new one, asked for over the network.
 func (s *httpSource) Certificate(ctx context.Context, cfg domain.NodeConfig) ([]byte, time.Time, error) {
 	path := filepath.Join(s.cfg.NodeDir(), "node.crt")
 	b, err := os.ReadFile(path)
 	if err == nil {
-		if info, err := pki.ReadNodeCert(b); err == nil && time.Until(info.NotAfter) > pki.DefaultNodeValidity/3 {
+		if info, err := pki.ReadNodeCert(b); err == nil && time.Until(info.NotAfter) > pki.DefaultNodeValidity/3 && server.CertGroupsMatch(info.Groups, cfg.Capabilities) {
 			return b, info.NotAfter, nil
 		}
 	}
@@ -774,4 +816,24 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 		rest = append(rest, fs.Arg(0))
 		args = fs.Args()[1:]
 	}
+}
+
+// deviceSource is where a host that joined as a device learns what its node should be, if this host did.
+func deviceSource(cfg config.Config, log *slog.Logger) (*httpSource, bool) {
+	if _, err := os.Stat(filepath.Join(cfg.PKIDir(), "join.json")); err != nil {
+		return nil, false
+	}
+	sealer, err := server.SealerFor(cfg)
+	if err != nil {
+		return nil, false
+	}
+	v, err := pki.OpenVault(cfg.PKIDir(), sealer)
+	if err != nil {
+		return nil, false
+	}
+	src, err := newHTTPSource(v, cfg, log)
+	if err != nil {
+		return nil, false
+	}
+	return src, true
 }

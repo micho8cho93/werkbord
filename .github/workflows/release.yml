@@ -104,6 +104,11 @@ jobs:
           echo "version=v$version" >> "$GITHUB_OUTPUT"
       - name: Check
         run: make check
+      - name: Team's tests that start real database clusters (the pinned program, fetched and checked against the pin)
+        if: startsWith(github.ref_name, 'werkbord-team-v')
+        env:
+          WERKBORD_REQUIRE_RQLITE: "1"
+        run: make test-rqlite
       - name: Build the release archives
         run: make dist PRODUCT=${{ steps.product.outputs.product }}
       - name: Publish

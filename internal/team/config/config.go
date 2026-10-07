@@ -29,6 +29,31 @@ const (
 	DefaultNetworkPort = 4242
 )
 
+// Defaults of the replicated database.
+const (
+	// DefaultStorageHTTPPort and DefaultStorageRaftPort are where a Workspace Host's database node listens, on
+	// loopback or on the workspace's private network. They are the ports the network's policy lets Workspace
+	// Hosts reach one another on.
+	DefaultStorageHTTPPort = 4001
+	DefaultStorageRaftPort = 4002
+	// DefaultBackupEvery is how often a Workspace Host takes a backup, when backups are configured.
+	DefaultBackupEvery = 24 * time.Hour
+	// DefaultBackupKeep is how many of the newest backups are always kept.
+	DefaultBackupKeep = 14
+	// DefaultBackupKeepFor is how long a backup is kept beyond that.
+	DefaultBackupKeepFor = 30 * 24 * time.Hour
+)
+
+// The kinds of storage: where a workspace's data is.
+const (
+	// StorageReplicated holds the data in a cluster of Workspace Hosts (rqlite). It is what a workspace has
+	// unless it is told otherwise.
+	StorageReplicated = "replicated"
+	// StorageSingleFile holds the data in one SQLite file on one host, as Team did before replication. It is
+	// valid for evaluation and for a workspace that has not been moved yet; it has no copy but its backups.
+	StorageSingleFile = "single-file"
+)
+
 // Config holds Team's settings.
 type Config struct {
 	Addr            string
@@ -55,12 +80,32 @@ type Config struct {
 	RunNode        bool
 	NebulaDirs     []string
 	PassphraseFile string
+
+	// Storage says where a workspace that is being created keeps its data: StorageReplicated (the default) or
+	// StorageSingleFile. A workspace that already exists keeps it where it is (storage.json in the data
+	// directory says where), whatever this says.
+	Storage string
+	// StoragePort and StorageRaftPort are the ports of this host's database node.
+	StoragePort     int
+	StorageRaftPort int
+	// DatabaseDirs are extra directories the pinned database program may be in.
+	DatabaseDirs []string
+	// BackupDir is where this host puts the workspace's backups: a directory on a disk or a network share
+	// that belongs to the customer. Empty means no scheduled backups (a manual one needs a directory too).
+	// BackupEvery is how often (0 turns the schedule off); the newest BackupKeep are always kept, and any younger
+	// than BackupKeepFor.
+	BackupDir     string
+	BackupEvery   time.Duration
+	BackupKeep    int
+	BackupKeepFor time.Duration
 }
 
 // Default returns the built-in defaults.
 func Default() Config {
 	return Config{Addr: DefaultAddr, DataDir: defaultDataDir(), LogLevel: "info", LogFormat: "text", ShutdownTimeout: 10 * time.Second,
-		BootstrapAddr: DefaultBootstrapAddr, NetworkPort: DefaultNetworkPort, RunNode: true}
+		BootstrapAddr: DefaultBootstrapAddr, NetworkPort: DefaultNetworkPort, RunNode: true,
+		Storage: StorageReplicated, StoragePort: DefaultStorageHTTPPort, StorageRaftPort: DefaultStorageRaftPort,
+		BackupEvery: DefaultBackupEvery, BackupKeep: DefaultBackupKeep, BackupKeepFor: DefaultBackupKeepFor}
 }
 
 func defaultDataDir() string {
@@ -100,6 +145,37 @@ func Load() Config {
 	if v := os.Getenv("WERKBORD_TEAM_NETWORK_NODE"); v == "off" || v == "0" || v == "false" {
 		c.RunNode = false
 	}
+	set("WERKBORD_TEAM_STORAGE", &c.Storage)
+	set("WERKBORD_TEAM_BACKUP_DIR", &c.BackupDir)
+	if v := os.Getenv("WERKBORD_TEAM_DATABASE_DIR"); v != "" {
+		c.DatabaseDirs = splitList(v)
+	}
+	num := func(key string, dst *int) {
+		if v := os.Getenv(key); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				*dst = n
+			} else {
+				*dst = -1 // Validate reports it
+			}
+		}
+	}
+	num("WERKBORD_TEAM_STORAGE_PORT", &c.StoragePort)
+	num("WERKBORD_TEAM_STORAGE_RAFT_PORT", &c.StorageRaftPort)
+	num("WERKBORD_TEAM_BACKUP_KEEP", &c.BackupKeep)
+	if v := os.Getenv("WERKBORD_TEAM_BACKUP_EVERY"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			c.BackupEvery = d
+		} else {
+			c.BackupEvery = -1
+		}
+	}
+	if v := os.Getenv("WERKBORD_TEAM_BACKUP_KEEP_FOR"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			c.BackupKeepFor = d
+		} else {
+			c.BackupKeepFor = -1
+		}
+	}
 	return c
 }
 
@@ -135,6 +211,25 @@ func (c Config) Validate() error {
 	if c.NetworkPort < 1 || c.NetworkPort > 65535 {
 		return fmt.Errorf("network port %d: want 1-65535", c.NetworkPort)
 	}
+	switch c.Storage {
+	case StorageReplicated, StorageSingleFile:
+	default:
+		return fmt.Errorf("storage %q: want %s or %s", c.Storage, StorageReplicated, StorageSingleFile)
+	}
+	for name, p := range map[string]int{"storage port": c.StoragePort, "storage raft port": c.StorageRaftPort} {
+		if p < 1 || p > 65535 {
+			return fmt.Errorf("%s %d: want 1-65535", name, p)
+		}
+	}
+	if c.StoragePort == c.StorageRaftPort {
+		return fmt.Errorf("the storage port and the storage raft port must differ")
+	}
+	if c.BackupEvery < 0 || c.BackupKeepFor < 0 || c.BackupKeep < 1 {
+		return fmt.Errorf("backup settings: the interval and the age limit cannot be negative, and at least one backup is kept")
+	}
+	if c.BackupDir != "" && !filepath.IsAbs(c.BackupDir) {
+		return fmt.Errorf("backup directory %q: give an absolute path", c.BackupDir)
+	}
 	for _, e := range c.Endpoints {
 		if e == "" || strings.ContainsAny(e, " \t\r\n/\\\"") || strings.Contains(e, "://") || (strings.Contains(e, ":") && net.ParseIP(strings.Trim(e, "[]")) == nil) {
 			return fmt.Errorf("endpoint %q: give a host (an IP address or a DNS name) at which this machine can be reached, without a scheme or a port", e)
@@ -164,8 +259,17 @@ func (c Config) BootstrapPort() int {
 	return n
 }
 
-// DBPath is the SQLite database.
+// DBPath is the SQLite database of a workspace that keeps its data in one file.
 func (c Config) DBPath() string { return filepath.Join(c.DataDir, "team.db") }
+
+// StorageMarkerPath is the file that says where this host keeps the workspace's data.
+func (c Config) StorageMarkerPath() string { return filepath.Join(c.DataDir, "storage.json") }
+
+// StorageDir is where this host's database node keeps its files and this host's copy of the data.
+func (c Config) StorageDir() string { return filepath.Join(c.DataDir, "storage") }
+
+// ReplicaDir is where this host's copy of the replicated data is.
+func (c Config) ReplicaDir() string { return filepath.Join(c.StorageDir(), "replica") }
 
 // IsLoopback reports whether Addr only listens on this computer.
 func (c Config) IsLoopback() bool {

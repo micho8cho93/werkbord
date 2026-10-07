@@ -151,6 +151,21 @@ func (h *hub) subscribe(projectID string) (<-chan struct{}, func()) {
 	}
 }
 
+// notifyAll wakes every waiter: used when writes were made through another host and it is not known which
+// project they touched. A waiter that wakes re-reads the revision, so a wake with nothing new is harmless.
+func (h *hub) notifyAll() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, set := range h.waiters {
+		for ch := range set {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		}
+	}
+}
+
 func (h *hub) notify(projectID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

@@ -71,22 +71,50 @@ var _ Store = (*DB)(nil)
 
 // View runs fn against a consistent read-only snapshot.
 func (d *DB) View(ctx context.Context, fn func(Tx) error) error {
-	return d.pool.View(ctx, func(tx *sql.Tx) error { return fn(&sqlTx{q: tx}) })
+	return d.pool.View(ctx, func(tx *sql.Tx) error { return fn(&sqlTx{q: txQueryer{tx}}) })
 }
 
 // Update runs fn in the one read-write transaction at a time; it commits if fn returns nil.
 func (d *DB) Update(ctx context.Context, fn func(Tx) error) error {
-	return d.pool.Update(ctx, func(tx *sql.Tx) error { return fn(&sqlTx{q: tx}) })
+	return d.pool.Update(ctx, func(tx *sql.Tx) error { return fn(&sqlTx{q: txQueryer{tx}}) })
 }
 
-type queryer interface {
+// Row is what a single-row query returns: only Scan is used, so that an
+// implementation can watch what a query did (see Queryer).
+type Row interface{ Scan(dest ...any) error }
+
+// Queryer is the SQL a Tx runs its queries through: the three calls of database/sql
+// that Team's queries use. *sql.Tx is one (through NewSQLTx); another implementation can
+// run the same queries against something else, or record them as they run. The
+// replicated store (internal/team/store/replicated) does the second: it runs a use case
+// against a local copy and sends the statements that changed anything to the cluster.
+type Queryer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	QueryRowContext(ctx context.Context, query string, args ...any) Row
 }
 
-// sqlTx is a SQLite transaction's queries: the implementation of Tx.
-type sqlTx struct{ q queryer }
+// txQueryer adapts a *sql.Tx, whose QueryRowContext returns the concrete *sql.Row.
+type txQueryer struct{ tx *sql.Tx }
+
+func (q txQueryer) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return q.tx.ExecContext(ctx, query, args...)
+}
+func (q txQueryer) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	return q.tx.QueryContext(ctx, query, args...)
+}
+func (q txQueryer) QueryRowContext(ctx context.Context, query string, args ...any) Row {
+	return q.tx.QueryRowContext(ctx, query, args...)
+}
+
+// NewSQLTx is the Tx that runs its queries on a database/sql transaction.
+func NewSQLTx(tx *sql.Tx) Tx { return &sqlTx{q: txQueryer{tx}} }
+
+// NewTx is the Tx that runs its queries through q.
+func NewTx(q Queryer) Tx { return &sqlTx{q: q} }
+
+// sqlTx is a SQL transaction's queries: the implementation of Tx.
+type sqlTx struct{ q Queryer }
 
 var _ Tx = (*sqlTx)(nil)
 

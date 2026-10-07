@@ -66,6 +66,12 @@ type NetworkAuthority interface {
 	SealSecrets(sealingKey, deviceID string) ([]byte, error)
 }
 
+// StorageSealer is implemented by an authority whose host also holds the workspace's data in a cluster: it seals,
+// with the signing material, what the new host needs to join the cluster (StoragePlan).
+type StorageSealer interface {
+	SealSecretsWithStorage(sealingKey, deviceID string, plan StoragePlan) ([]byte, error)
+}
+
 // SetNetwork gives the service the authority behind this host's network. A server
 // without one (no private network configured, or a host that has not been given the
 // keys) leaves it nil, and the network's operations say so.
@@ -785,6 +791,12 @@ func (s *Service) ProvisionHost(ctx context.Context, a Actor, deviceID string) e
 	if err != nil {
 		return err
 	}
+	// When the workspace's data is in a cluster, the host is added to it too: the cluster is made ready (and
+	// must be able to take a membership change), and what the host needs to join is sealed with its keys.
+	plan, err := s.storagePlanFor(ctx, a, deviceID)
+	if err != nil {
+		return err
+	}
 	err = s.db.Update(ctx, func(tx store.Tx) error {
 		dev, err := tx.Device(ctx, a.Workspace.ID, deviceID)
 		if err != nil {
@@ -800,7 +812,16 @@ func (s *Service) ProvisionHost(ctx context.Context, a Actor, deviceID string) e
 		if n.SealingKey == "" {
 			return fmt.Errorf("%w: the device did not present a sealing key when it enrolled, so secrets cannot be sent to it; enroll it again as a Workspace Host", domain.ErrConflict)
 		}
-		sealed, err := net.SealSecrets(n.SealingKey, deviceID)
+		var sealed []byte
+		if plan != nil {
+			ss, ok := net.(StorageSealer)
+			if !ok {
+				return fmt.Errorf("%w: this host cannot hand the workspace's database credentials to another host", domain.ErrConflict)
+			}
+			sealed, err = ss.SealSecretsWithStorage(n.SealingKey, deviceID, *plan)
+		} else {
+			sealed, err = net.SealSecrets(n.SealingKey, deviceID)
+		}
 		if err != nil {
 			return fmt.Errorf("%w: %v", domain.ErrConflict, err)
 		}
@@ -824,8 +845,10 @@ func (s *Service) CollectProvision(ctx context.Context, a Actor) ([]byte, error)
 	return out, err
 }
 
-// AcknowledgeProvision records that a device has received and stored the secrets: it is
-// a Workspace Host now, and what was waiting for it is removed.
+// AcknowledgeProvision records that a device has received and stored the secrets, and what was waiting for
+// it is removed. Where the workspace's data is in one file the device is a Workspace Host now. Where it is in
+// a cluster, it is not yet: it holds the keys, and its database node still has to join the cluster, catch
+// up and be checked, which the host itself records when it has (ActivateLocalHost); until then it is joining.
 func (s *Service) AcknowledgeProvision(ctx context.Context, a Actor) error {
 	if a.Device == nil {
 		return fmt.Errorf("%w: a device's own credential is needed", domain.ErrForbidden)
@@ -838,7 +861,7 @@ func (s *Service) AcknowledgeProvision(ctx context.Context, a Actor) error {
 		if err := tx.ClearProvision(ctx, a.Workspace.ID, dev.ID, s.stamp()); err != nil {
 			return err
 		}
-		if dev.Has(domain.CapabilityWorkspaceHost) {
+		if dev.Has(domain.CapabilityWorkspaceHost) && s.storage == nil {
 			dev.HostStatus, dev.UpdatedAt = domain.HostActive, s.stamp()
 			return tx.SaveDevice(ctx, dev)
 		}

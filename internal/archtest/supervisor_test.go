@@ -76,8 +76,47 @@ func TestTheNetworkSupervisorIsNotAGeneralRunner(t *testing.T) {
 	}
 }
 
-// supervisorViolations applies rule 14 to a parsed package.
+// supervisorSpec says what rule 14 holds one supervisor to: what it may start and with which
+// arguments, how it is entered, and which of its exported slices are not argument lists.
+type supervisorSpec struct {
+	// Program is the literal the one start names.
+	Program string
+	// checkExec checks one call of os/exec.CommandContext (its arguments).
+	checkExec func(fset *token.FileSet, call *ast.CallExpr, fail func(format string, a ...any))
+	// Callers are the functions that may call spawn.
+	Callers []string
+	// Slices are the []string a supervisor's API may have, as allowedStringSlice names them.
+	Slices []string
+	// Extra holds a supervisor to rules of its own.
+	Extra func(fset *token.FileSet, files []*ast.File, fail func(format string, a ...any))
+}
+
+var nebulaSpec = supervisorSpec{
+	Program: "nebula",
+	checkExec: func(fset *token.FileSet, x *ast.CallExpr, fail func(string, ...any)) {
+		if len(x.Args) < 3 {
+			return
+		}
+		if lit, ok := x.Args[1].(*ast.BasicLit); !ok || lit.Value != `"nebula"` {
+			fail("%s: the program must be the literal \"nebula\"", fset.Position(x.Pos()))
+		}
+		if lit, ok := x.Args[2].(*ast.BasicLit); !ok || lit.Value != `"-config"` {
+			fail("%s: the first argument must be the literal \"-config\"", fset.Position(x.Pos()))
+		}
+		if len(x.Args) != 4 {
+			fail("%s: the program is started with exactly -config <file>", fset.Position(x.Pos()))
+		}
+	},
+	Callers: []string{"StartNebula", "supervise"},
+	Slices:  []string{"type Options.BinaryDirs", "Platforms result", "type Status.Tail"},
+}
+
+// supervisorViolations applies rule 14 to a parsed package: the network supervisor.
 func supervisorViolations(fset *token.FileSet, files []*ast.File, surface []string) []string {
+	return supervisorViolationsFor(nebulaSpec, fset, files, surface)
+}
+
+func supervisorViolationsFor(spec supervisorSpec, fset *token.FileSet, files []*ast.File, surface []string) []string {
 	var out []string
 	fail := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
 
@@ -147,7 +186,7 @@ func supervisorViolations(fset *token.FileSet, files []*ast.File, surface []stri
 		}
 		for _, fld := range fl.List {
 			if at, ok := fld.Type.(*ast.ArrayType); ok {
-				if id, ok := at.Elt.(*ast.Ident); ok && id.Name == "string" && !allowedStringSlice(where, fld) {
+				if id, ok := at.Elt.(*ast.Ident); ok && id.Name == "string" && !allowedStringSlice(spec.Slices, where, fld) {
 					fail("%s: %s is a []string: the usual shape of an argument list", fset.Position(fld.Pos()), where)
 				}
 			}
@@ -219,18 +258,7 @@ func supervisorViolations(fset *token.FileSet, files []*ast.File, surface []stri
 						if sel.Sel.Name != "CommandContext" {
 							fail("%s: use CommandContext, so that stopping the supervisor ends the process", fset.Position(x.Pos()))
 						}
-						if len(x.Args) < 3 {
-							break
-						}
-						if lit, ok := x.Args[1].(*ast.BasicLit); !ok || lit.Value != `"nebula"` {
-							fail("%s: the program must be the literal \"nebula\"", fset.Position(x.Pos()))
-						}
-						if lit, ok := x.Args[2].(*ast.BasicLit); !ok || lit.Value != `"-config"` {
-							fail("%s: the first argument must be the literal \"-config\"", fset.Position(x.Pos()))
-						}
-						if len(x.Args) != 4 {
-							fail("%s: the program is started with exactly -config <file>", fset.Position(x.Pos()))
-						}
+						spec.checkExec(fset, x, fail)
 					default:
 						fail("%s: os/exec.%s", fset.Position(x.Pos()), sel.Sel.Name)
 					}
@@ -275,9 +303,16 @@ func supervisorViolations(fset *token.FileSet, files []*ast.File, surface []stri
 		}
 	}
 	for caller := range spawnCallers {
-		if caller != "StartNebula" && caller != "supervise" {
-			fail("%s calls spawn: only StartNebula and its watcher may start the program", caller)
+		ok := false
+		for _, c := range spec.Callers {
+			ok = ok || caller == c
 		}
+		if !ok {
+			fail("%s calls spawn: only %s may start the program", caller, strings.Join(spec.Callers, " and "))
+		}
+	}
+	if spec.Extra != nil {
+		spec.Extra(fset, files, fail)
 	}
 	return out
 }
@@ -295,14 +330,15 @@ func receiverName(e ast.Expr) string {
 // something to run: the directories the pinned program may have been shipped in (absolute,
 // searched in order, never PATH), the names of the platforms there is a pinned release for,
 // and the last lines the node logged.
-func allowedStringSlice(where string, f *ast.Field) bool {
+func allowedStringSlice(allowed []string, where string, f *ast.Field) bool {
 	key := where
 	if len(f.Names) > 0 {
 		key += "." + f.Names[0].Name
 	}
-	switch key {
-	case "type Options.BinaryDirs", "Platforms result", "type Status.Tail":
-		return true
+	for _, a := range allowed {
+		if key == a {
+			return true
+		}
 	}
 	return false
 }

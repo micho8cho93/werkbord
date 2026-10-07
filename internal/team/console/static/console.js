@@ -206,6 +206,22 @@ const toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
 document.body.prepend(banner);
 document.body.append(toasts);
 function setOnline(on) { state.online = on; banner.hidden = on; }
+
+// When the workspace's storage has no quorum of Workspace Hosts, reading works and every change is refused until enough of them
+// are back; the server says so in /health, and this says it to the person, so that a refused change is not a mystery.
+const readOnly = h('p', { class: 'banner', role: 'status', hidden: true });
+document.body.prepend(readOnly);
+async function checkReadOnly() {
+  try {
+    const res = await fetch('/api/team/v1/health', { headers: { Accept: 'application/json' } });
+    const j = await res.json();
+    const st = j && j.storage;
+    readOnly.hidden = !(st && st.readOnly);
+    if (!readOnly.hidden) readOnly.textContent = 'This workspace is read-only for now: ' + (st.reason || 'its storage has no quorum') + '. You can read; changes are refused until it is back.';
+  } catch (e) { /* the connection banner says when the server cannot be reached */ }
+}
+checkReadOnly();
+setInterval(checkReadOnly, 10000);
 function toast(message) {
   const t = h('div', { class: 'toast', role: 'status' }, message);
   toasts.append(t);

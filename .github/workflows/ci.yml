@@ -28,6 +28,17 @@ jobs:
           # A test that needs the real network program fails, rather than skips, if it is missing.
           WERKBORD_REQUIRE_NEBULA: "1"
         run: make check
+      - name: The pinned rqlite release (Linux: downloaded and checked against the pin; macOS: built from the pinned source), cached
+        uses: actions/cache@v4
+        with:
+          path: .cache/rqlite
+          key: rqlite-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('internal/team/infra/rqlite/manifest.go', 'scripts/fetch-rqlite.sh') }}
+      - name: Team's tests that start real database clusters (failover, partitions, backups, migration), which cannot be skipped here
+        run: |
+          sudo apt-get install -y lsof || true
+          make test-rqlite
+        env:
+          WERKBORD_REQUIRE_RQLITE: "1"
       - name: Individual product runs without Team (a copy of the repository with every Team file removed)
         run: make web web-embed verify-isolation
       - name: Desktop app builds and packages (.app and .dmg)
@@ -43,6 +54,9 @@ jobs:
         run: make test-install test-install-team
       - name: Race and concurrency checks
         if: matrix.os == 'ubuntu-latest'
+        env:
+          # The tests that start real database clusters run in their own step, one package at a time, and not under the race detector.
+          WERKBORD_SKIP_RQLITE: "1"
         run: go test -race ./...
       - name: Disposable desktop/mobile browsers and Individual → Team workflow
         if: matrix.os == 'ubuntu-latest'

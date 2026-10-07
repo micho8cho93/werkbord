@@ -197,10 +197,14 @@ fingerprint it enrolled with and the authority matches the certificate it was gi
 workspace. The ciphertext is removed once collected, and when the device is revoked. Nothing here is in any other API
 response.
 
-**What this does and does not do yet.** It makes the *authority* survivable: a second host can sign invitations the first's
-fingerprint vouches for, and certificates the network accepts. It does not yet replicate the workspace's **data**: that is the
-next phase (the replicated database), so a second host cannot yet serve the workspace's API or enroll devices on its own,
-and the first host is still where the workspace's records are. Backups of `team.db` and `pki/` remain the way to recover.
+**And, since Team 2.6, the data.** When the workspace keeps its data in a cluster (the default for a new workspace;
+[TEAM_STORAGE.md](TEAM_STORAGE.md)), `promote` also seals what the host's database node needs to join the cluster, and
+`collect` is followed by `werkbord-team serve`: the host's node joins as a read-only replica, takes the whole database, is
+checked against the cluster's data, and only then votes and is recorded as an active Workspace Host. Until then the host is
+*joining*. A host given the Workspace Host role after it enrolled needs a certificate that carries the `workspace-host` group,
+which is what lets the others' firewalls admit it on the database's ports; it asks for a new one when it notices the groups in
+its certificate are not the ones its roles call for. Three hosts are recommended. A workspace that still keeps its data in one
+file has a second host that holds the authority and not the records, as before.
 
 **Removing a host for cause.** A host that held the keys held the authority. Revoking it ends its device, but the keys it
 held are not un-held. If the machine may have been compromised, treat the network as compromised: stand up a new
@@ -346,14 +350,15 @@ reviewed list in `internal/team/api/routes_test.go`.
 
 ## Backups and recovery
 
-Back up `<data dir>/team.db` **and** `<data dir>/pki/` together, and keep `<data dir>/secrets/sealing.key` (or the passphrase)
+Back up the workspace's data ([TEAM_STORAGE.md](TEAM_STORAGE.md#backups): replication is not a backup; a file-based
+workspace's data is `<data dir>/team.db`) **and** `<data dir>/pki/` together, and keep `<data dir>/secrets/sealing.key` (or the passphrase)
 elsewhere. Without `pki/` the workspace cannot sign for itself again and every device must be re-enrolled into a new network.
 Without the sealing key (or passphrase) `pki/` cannot be opened; `serve` then refuses to start, and says so, rather than
 running without its network.
 
 ## Not built yet
 
-- The workspace's **data** on more than one host (the replicated database): a second host holds the authority but not yet the records.
+- Rotating the **database's credentials**, and so evicting a host for cause without a new cluster ([TEAM_STORAGE.md](TEAM_STORAGE.md)).
 - **Rotating** the network authority in place.
 - A member device's own **runner** joining through the individual product (the protocol and the client package are shared and
   ready; the individual product does not use them yet).

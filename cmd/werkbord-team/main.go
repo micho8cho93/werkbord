@@ -5,7 +5,8 @@
 //	werkbord-team serve              run the server in the foreground
 //	werkbord-team network …          the private network: status, invitations, approvals, a host's node
 //	werkbord-team device …           join as a host, list and revoke devices
-//	werkbord-team host …             hand the workspace's keys to another Workspace Host
+//	werkbord-team host …             add a Workspace Host (its keys and a copy of the data), remove one
+//	werkbord-team storage …          where the workspace's data is: status, backups, moving it into a cluster
 //	werkbord-team migrate            apply database migrations and exit
 //	werkbord-team handoff            open a ticket you hold in your own local Werkbord
 //	werkbord-team version            print the version
@@ -31,6 +32,7 @@ import (
 	"devboard/internal/logging"
 	"devboard/internal/team/config"
 	"devboard/internal/team/domain"
+	"devboard/internal/team/infra/pki"
 	"devboard/internal/team/server"
 )
 
@@ -44,7 +46,8 @@ commands:
   serve              run the Team server in the foreground
   network            the private network: status, invite, pending, approve, deny, node
   device             join as a host, list and revoke devices
-  host               promote a device to Workspace Host, and collect the keys on it
+  host               promote a device to Workspace Host (keys and a copy of the data), collect them on it, remove a host
+  storage            where the workspace's data is kept: status, backup, restore, move it into a cluster
   migrate            apply database migrations and exit
   handoff            open a ticket you hold in your own local Werkbord
   version            print the version
@@ -82,6 +85,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return cmdDevice(ctx, cfg, args[1:], stdout, stderr)
 	case "host":
 		return cmdHost(ctx, cfg, args[1:], stdout, stderr)
+	case "storage":
+		return cmdStorage(ctx, cfg, args[1:], stdout, stderr)
 	case "handoff":
 		return cmdHandoff(ctx, args[1:], stdout, stderr)
 	case "version", "--version", "-v":
@@ -114,7 +119,13 @@ func cmdServe(ctx context.Context, cfg config.Config, args []string, stderr io.W
 	if err != nil {
 		return err
 	}
-	return server.Run(ctx, cfg, log, version)
+	var opt server.RunOptions
+	if src, ok := deviceSource(cfg, log); ok {
+		// A host that joined as a device can learn what its network node should be from a Workspace Host's API, which it needs
+		// to do while its own database is not up yet (it has just been made a Workspace Host and is joining the cluster).
+		opt.NodeFallback = src
+	}
+	return server.RunWith(ctx, cfg, log, version, opt)
 }
 
 func cmdMigrate(ctx context.Context, cfg config.Config, args []string, stdout, stderr io.Writer) error {
@@ -160,6 +171,9 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	fs.StringVar(&cfg.BootstrapAddr, "bootstrap-addr", cfg.BootstrapAddr, "with --network: where this host answers devices that are joining")
 	fs.IntVar(&cfg.NetworkPort, "network-port", cfg.NetworkPort, "with --network: the UDP port of the network node")
 	fs.StringVar(&cfg.PassphraseFile, "passphrase-file", cfg.PassphraseFile, "with --network: seal the workspace's keys with the passphrase in this file, instead of a key kept beside them")
+	fs.StringVar(&cfg.Storage, "storage", cfg.Storage, "where the workspace's data is kept: replicated (a cluster of Workspace Hosts, which starts as one host; the default) or single-file (one SQLite file: valid for evaluation, no copy but its backups)")
+	fs.IntVar(&cfg.StoragePort, "storage-port", cfg.StoragePort, "with replicated storage: the port of this host's database node (HTTP)")
+	fs.IntVar(&cfg.StorageRaftPort, "storage-raft-port", cfg.StorageRaftPort, "with replicated storage: the port of this host's database node (Raft)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -175,11 +189,21 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	if err != nil {
 		return err
 	}
-	db, svc, err := server.Open(ctx, cfg, log)
+	// A host whose workspace has a private network names its database node after its own device, so its keys are made first.
+	var hostKeys *pki.HostKeys
+	nodeID := ""
+	if *withNetwork && cfg.Storage == config.StorageReplicated {
+		if hostKeys, err = pki.NewHostKeys(); err != nil {
+			return err
+		}
+		nodeID = hostKeys.DeviceID()
+	}
+	w, err := server.CreateStorage(ctx, cfg, log, nodeID)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer w.Close()
+	svc := w.Service
 	created, err := svc.CreateWorkspace(ctx, *name, *owner, *email)
 	if err != nil {
 		return err
@@ -190,7 +214,7 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	}
 	var nc *server.NetworkCreated
 	if *withNetwork {
-		n, err := server.CreateNetwork(ctx, cfg, log, svc, created, server.NetworkOptions{Range: *netRange, Connectivity: *connectivity, Approval: domain.ApprovalPolicy(*approval)})
+		n, err := server.CreateNetwork(ctx, cfg, log, svc, created, server.NetworkOptions{Range: *netRange, Connectivity: *connectivity, Approval: domain.ApprovalPolicy(*approval), HostKeys: hostKeys})
 		if err != nil {
 			return fmt.Errorf("the workspace %q was created, but its private network was not: %w\nIts data is in %s; start again with another --data-dir, or remove that directory", created.Workspace.Name, err, cfg.DataDir)
 		}
@@ -200,6 +224,11 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	fmt.Fprintf(stdout, "Owner token (shown once; it is not stored and cannot be shown again):\n\n  %s\n\n", created.Token)
 	fmt.Fprintf(stdout, "Start the server with `werkbord-team serve`, then sign in at:\n\n  http://%s/#token=%s\n\n", host, created.Token)
 	fmt.Fprintln(stdout, "Add the rest of the team from the console's Members tab.")
+	if cfg.Storage == config.StorageReplicated {
+		fmt.Fprintf(stdout, "\nThe workspace's data is kept in a cluster of Workspace Hosts, which for now is this one host: valid, and with no high availability.\nAdd two more hosts for three, which tolerate the loss of one (docs/TEAM_STORAGE.md). Replication is not a backup: set WERKBORD_TEAM_BACKUP_DIR.\n")
+	} else {
+		fmt.Fprintf(stdout, "\nThe workspace's data is kept in one file on this host (--storage single-file): there is no copy of it but your backups. `werkbord-team storage migrate` moves it into a cluster.\n")
+	}
 	if nc != nil {
 		printNetworkCreated(stdout, cfg, *nc)
 	}

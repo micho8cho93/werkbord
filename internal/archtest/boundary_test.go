@@ -75,9 +75,9 @@ var teamForbiddenStdlib = []string{"os/exec", "plugin", "net/rpc"}
 const teamInfraTree = teamTree + "/infra"
 
 // teamInfraExec is the whole of the exception to "Team never starts a process": a
-// package under teamInfraTree, and the exact programs it may start. Today that is one
-// package and one program: the supervisor of the private network's node, and the
-// pinned Nebula release Werkbord ships. A grant is checked by
+// package under teamInfraTree, and the exact programs it may start. Today that is two
+// packages and two programs: the supervisors of the private network's node (the pinned Nebula
+// release Werkbord ships) and of the replicated database's node (the pinned rqlite release). A grant is checked by
 // TestTheInfrastructureExceptionIsNarrow: the programs must be named by constants in
 // the code and be ones that are not a way to run developer work, the package may not
 // import any other Team package that handles a request, and nothing but Team's wiring
@@ -85,6 +85,9 @@ const teamInfraTree = teamTree + "/infra"
 // to its one entry point.
 var teamInfraExec = map[string][]string{
 	teamInfraTree + "/nebula": {"nebula"},
+	// The replicated database: the pinned rqlite release, one program, started by one function
+	// (TestTheDatabaseSupervisorIsNotAGeneralRunner).
+	teamInfraTree + "/rqlite": {"rqlited"},
 }
 
 // teamForbiddenDeps are third-party packages that give remote access to a machine

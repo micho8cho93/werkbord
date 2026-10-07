@@ -18,9 +18,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		if err := s.opt.Ping(ctx); err != nil {
 			s.log.Warn("health check: database unavailable", "err", err)
 			resp["status"], resp["database"] = "degraded", "unavailable"
+			resp["storage"] = s.opt.Service.StorageBriefStatus(ctx)
 			httpkit.WriteJSON(w, http.StatusServiceUnavailable, resp)
 			return
 		}
+	}
+	// A workspace that has lost its quorum still answers, and says it is read-only: it can be read and cannot be written.
+	brief := s.opt.Service.StorageBriefStatus(ctx)
+	resp["storage"] = brief
+	if brief.ReadOnly {
+		resp["status"] = "read_only"
 	}
 	httpkit.WriteJSON(w, http.StatusOK, resp)
 }
@@ -188,4 +195,19 @@ func (s *Server) handleRemoveProjectMember(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleStorage(w http.ResponseWriter, r *http.Request) {
+	st, err := s.opt.Service.StorageStatus(r.Context(), actorOf(r))
+	s.respond(w, r, http.StatusOK, st, err)
+}
+
+func (s *Server) handleStorageBackup(w http.ResponseWriter, r *http.Request) {
+	b, err := s.opt.Service.StorageBackup(r.Context(), actorOf(r))
+	s.respond(w, r, http.StatusOK, b, err)
+}
+
+func (s *Server) handleRemoveHost(w http.ResponseWriter, r *http.Request) {
+	out, err := s.opt.Service.RemoveWorkspaceHost(r.Context(), actorOf(r), r.PathValue("id"))
+	s.respond(w, r, http.StatusOK, out, err)
 }

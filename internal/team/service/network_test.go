@@ -72,6 +72,16 @@ func (f *fakeAuthority) SealSecrets(sealingKey, deviceID string) ([]byte, error)
 	return b, nil
 }
 
+// SealSecretsWithStorage is what a host that holds the data in a cluster seals: the same, and the plan for the new host's node.
+func (f *fakeAuthority) SealSecretsWithStorage(sealingKey, deviceID string, p StoragePlan) ([]byte, error) {
+	if f.noSeal {
+		return nil, errors.New("this host does not hold the authority")
+	}
+	b := []byte("sealed-to:" + sealingKey + ":" + deviceID + ":storage:" + p.NodeID + ":" + p.RaftAddr + ":join=" + strings.Join(p.JoinRaft, ","))
+	f.sealed[deviceID] = b
+	return b, nil
+}
+
 // ---- helpers ----
 
 // sealKeyFor is a well-formed sealing public key (32 bytes) that stands for the device's: the fake authority does not use it.

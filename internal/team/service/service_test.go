@@ -16,6 +16,9 @@ var bg = context.Background()
 
 func newDB(t *testing.T) (store.Store, string) {
 	t.Helper()
+	if sharedCluster != nil {
+		return newReplicatedDB(t)
+	}
 	path := filepath.Join(t.TempDir(), "team.db")
 	db, err := store.Open(bg, path, nil)
 	if err != nil {
@@ -46,6 +49,10 @@ func dumpDatabase(t *testing.T, w *world) string {
 		if b, err := os.ReadFile(f); err == nil {
 			all = append(all, b...)
 		}
+	}
+	if sharedCluster != nil {
+		// Where the workspace's data is kept is also the cluster's nodes' own files.
+		all = append(all, clusterFiles(t)...)
 	}
 	return string(all)
 }

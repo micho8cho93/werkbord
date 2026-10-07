@@ -89,6 +89,46 @@ endpoint); it adds no way for Team to run anything for, or on, a member. How it 
 - **Nebula itself.** Team ships an unmodified release, pinned and verified, but is not an audit of Nebula; its own security
   notes are at <https://github.com/slackhq/nebula/security>.
 
+## Replicated storage (Team 2.6)
+
+What changed when the workspace's data went into a cluster of Workspace Hosts ([TEAM_STORAGE.md](TEAM_STORAGE.md),
+[ADR 0003](adr/0003-replicated-workspace-storage.md)), and what did not.
+
+- **A new process, held to one start.** Team now supervises the pinned rqlite as it supervises Nebula: one program, found only in
+  fixed directories, checked against a SHA-256 pin (a macOS build, for which the project publishes no binary, is checked
+  against its own report of the pinned version and commit and a build record, and says it is not hash-pinned), copied to a private
+  directory, checked again immediately before every start, started by one function with a constant program name and flags from
+  a typed description. `internal/archtest` reads the package and fails if its API grows a way to run anything else.
+- **Never exposed.** The database's nodes bind to loopback or to an address on the workspace's private network; the supervisor, the
+  admin client and the storage client each refuse any other address, and a node's ports are reachable by Workspace Hosts only (the
+  network's default-deny policy). Raft's own port is unauthenticated: the Nebula tunnel is what protects it, which is why a database
+  node is never put anywhere else.
+- **Three database users** with the least each needs: the application's (read, write, load, backup), an administrator's (membership
+  changes), and the one a joining node presents (join only). Their passwords are random, per workspace, sealed on each Workspace
+  Host like its other keys, sent to a new host only inside the HPKE-sealed secrets it alone can open, and in no database row, API
+  response or log. They are on every Workspace Host, which is part of what makes one a high-trust machine.
+- **Only a Workspace Host's own service talks to the database.** Clients of the API never do; nothing in the API takes an address
+  or a statement.
+- **A use case still cannot do more than before.** It runs, unchanged, through the same service checks (role, project role,
+  workflow transitions), against the host's copy; what the cluster is sent is the statements it ran, which the cluster checks
+  against the position in history it ran at and applies whole or not at all. A write that cannot be applied on the cluster's
+  current state is refused and run again from it, so two hosts cannot both take one ticket. The statements are Team's own;
+  statements that change the connection, or the protocol's position in history, are refused (`recorder.go`).
+- **When quorum is lost, writes stop.** Nothing is accepted on a minority to be merged later; an isolated host (and an old leader
+  that has not noticed it was replaced) refuses (`TestAHostCutOffFromTheOthersRefusesToWrite`, `TestACutOffLeaderStopsAcceptingWritesAndTheOthersCarryOn`).
+- **Reads continue, and may be stale.** A host serves reads, authentication included, from its last copy. A token revoked, a device
+  revoked or a member removed while that host was cut off from the cluster is not known to it until it reconnects. It can write
+  nothing meanwhile. `storage status` and `/health` say how old a copy may be and that the workspace is read-only.
+- **A host removed from the cluster keeps what it had.** A removal is a membership change, not an erasure: the host's files, its
+  copy of the data and its database credentials stay on its disk. Evicting a host *for cause* means revoking its device and
+  rotating the credentials, and rotating them is not built; until it is, treat a compromised Workspace Host as having had the data and
+  the credentials, and move the workspace to a new cluster from a backup.
+- **Revoking is refused while a device is a cluster member** and so is removing its owner, so that no voter ever disappears from
+  the registry while the cluster still counts it.
+- **Backups are files you own.** They hold the whole workspace (names, tickets, tokens' hashes, the network's public records, the
+  sealed provisioning blobs of devices not yet collected, never a private key). Mode 0600, in a directory you choose; protect that
+  directory as you protect the data. Werkbord hosts none.
+
 ## Teammate-written text: the one channel that remains
 
 A ticket is written by one member and read by another, and "Open in my runner" turns it into the task text of the
@@ -130,5 +170,5 @@ who is on the project.
 
 ## Concurrency
 
-Writes are serialised (one write transaction at a time, taken up front) and every guard is also in the SQL, so the
+Writes are serialised (one write transaction at a time, taken up front; across the hosts of a cluster, by a guard on the position in history that Raft orders) and every guard is also in the SQL, so the
 guarantees hold even if the service's own reads were stale. See [TEAM.md](TEAM.md#concurrency) for the list and the tests.

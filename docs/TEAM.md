@@ -422,7 +422,9 @@ Only the token's SHA-256 is stored, so a lost token cannot be recovered, only **
 | --- | --- |
 | `werkbord-team workspace create --name N --owner O [--email E]` | Start a workspace. Run on the computer that hosts the server. This is the only way a workspace is created: it is not reachable over HTTP. |
 | `werkbord-team serve [--addr A] [--data-dir D] [--log-level L] [--log-format F]` | Run the server in the foreground. |
-| `werkbord-team migrate` | Apply database migrations and exit. |
+| `werkbord-team migrate` | Apply database migrations and exit (for a cluster, once, for the whole cluster). |
+| `werkbord-team storage status\|backup\|backups\|verify-backup\|restore\|migrate\|rollback` | Where the workspace's data is kept, and what to do about it: [TEAM_STORAGE.md](TEAM_STORAGE.md). |
+| `werkbord-team host promote\|collect\|remove` | Add a Workspace Host (its keys, and a copy of the data) and take one out. |
 | `werkbord-team handoff --ticket KEY [--runner URL] ...` | On a **member's own computer**: open a ticket you hold in your own local Werkbord (see [above](#opening-a-ticket-in-my-runner)). |
 | `werkbord-team version` | Print the version. |
 
@@ -446,10 +448,23 @@ By default Team listens on this computer only. To let teammates reach it, give `
 VPN or tailnet. Team serves plain HTTP and says so in its log when it is not on loopback: tokens cross the network in the
 clear otherwise. A token is required for every API request, on loopback too.
 
+### Where the data is kept (Team 2.6)
+
+A new workspace keeps its data in a **cluster of Workspace Hosts**: each runs the pinned rqlite (SQLite replicated with Raft,
+shipped with Team and supervised by it) and holds a full copy. It starts as a cluster of one host; three are recommended, and
+the loss of one then leaves the workspace working. If a quorum is lost, writes stop (`503 read_only`), reading continues, and
+nothing is merged later. `werkbord-team storage status` says exactly where things stand. Everything, including moving an existing
+`team.db` into a cluster and back, adding and removing hosts, and recovering from a lost quorum, is in
+[TEAM_STORAGE.md](TEAM_STORAGE.md). `--storage single-file` keeps a workspace in one SQLite file, as before.
+
 ### Backups
 
-The database is `<data dir>/team.db` (SQLite, WAL). Before a migration changes it, a consistent copy is written to
-`<data dir>/backups/team-v<version>-<time>.db` (the newest five are kept). To back up a running server, use
+Replication is not a backup. Set `WERKBORD_TEAM_BACKUP_DIR` (a directory you own) and a Workspace Host takes a verified backup of the
+whole workspace database on a schedule, with a retention policy; `werkbord-team storage backup | backups | verify-backup | restore`
+([TEAM_STORAGE.md](TEAM_STORAGE.md#backups)).
+
+For a workspace kept in one file: the database is `<data dir>/team.db` (SQLite, WAL). Before a migration changes it, a consistent
+copy is written to `<data dir>/backups/team-v<version>-<time>.db` (the newest five are kept). To back up a running server, use
 `sqlite3 team.db ".backup copy.db"`; copying the file alone while it is being written is not safe.
 
 A workspace with a private network also has `<data dir>/pki/` (its keys, sealed) and, by default,

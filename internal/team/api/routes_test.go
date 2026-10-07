@@ -53,7 +53,10 @@ var workspaceRoutes = []string{
 	"POST /invites/join",
 	// The private network and the devices on it: addresses, roles, reachability, invitations
 	// and requests to join. A device's own routes are authenticated by its own credential.
-	"GET /devices", "POST /devices/{id}/revoke", "PUT /devices/{id}/network", "POST /devices/{id}/provision",
+	"GET /devices", "POST /devices/{id}/revoke", "PUT /devices/{id}/network", "POST /devices/{id}/provision", "DELETE /devices/{id}/replica",
+	// Where the workspace's data is kept (how many hosts hold it, whether it is read-only) and backing it up: coordination
+	// metadata, and a request to the host to back up to the directory its own configuration names.
+	"GET /storage", "POST /storage/backup",
 	"GET /network", "PUT /network/approval", "GET /network/config", "POST /network/certificate", "POST /network/checks",
 	"GET /network/provision", "POST /network/provision/ack",
 	"GET /enrollment-invitations", "POST /enrollment-invitations", "DELETE /enrollment-invitations/{id}",

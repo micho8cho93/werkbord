@@ -75,6 +75,21 @@ func (a *authority) SealSecrets(sealingKey, deviceID string) ([]byte, error) {
 		WorkspaceName: a.mat.Meta.WorkspaceName, TrustSeed: a.mat.Trust.Seed(), NetworkCACertificate: ca, NetworkCAKey: a.mat.CA.PrivateKeyPEM()})
 }
 
+var _ service.StorageSealer = (*authority)(nil)
+
+// SealSecretsWithStorage is SealSecrets for a host that is also to hold the workspace's data in the database cluster: it adds
+// what the host needs to join it (the cluster's credentials, its node's name and addresses, and the nodes to join through).
+func (a *authority) SealSecretsWithStorage(sealingKey, deviceID string, plan service.StoragePlan) ([]byte, error) {
+	ca, err := a.mat.CA.CertificatePEM()
+	if err != nil {
+		return nil, err
+	}
+	return pki.SealSecrets(sealingKey, a.mat.Meta.WorkspaceID, deviceID, pki.Secrets{
+		WorkspaceName: a.mat.Meta.WorkspaceName, TrustSeed: a.mat.Trust.Seed(), NetworkCACertificate: ca, NetworkCAKey: a.mat.CA.PrivateKeyPEM(),
+		Storage: &pki.StorageSecrets{ClusterID: plan.ClusterID, AppPassword: plan.AppPassword, AdminPassword: plan.AdminPassword, NodePassword: plan.NodePassword,
+			NodeID: plan.NodeID, HTTPAddr: plan.HTTPAddr, RaftAddr: plan.RaftAddr, JoinRaft: plan.JoinRaft}})
+}
+
 // nodeSpec turns the workspace's description of a node into the network's.
 func nodeSpec(cfg domain.NodeConfig, ports overlay.Ports, caPath, certPath, keyPath string) (overlay.NodeSpec, error) {
 	addr, err := netip.ParseAddr(cfg.OverlayAddr)

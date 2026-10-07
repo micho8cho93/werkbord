@@ -286,6 +286,9 @@ func (s *Service) RevokeDevice(ctx context.Context, a Actor, id string) (domain.
 		if !canChange(a, d) {
 			return forbidden("revoke this device")
 		}
+		if err := s.refuseIfClusterMember(d); err != nil {
+			return err
+		}
 		if err := s.revokeDevice(ctx, tx, a.Workspace.ID, id); err != nil {
 			return err
 		}
@@ -331,6 +334,9 @@ func (s *Service) revokeDevicesOf(ctx context.Context, tx store.Tx, workspaceID,
 		return err
 	}
 	for _, d := range devs {
+		if err := s.refuseIfClusterMember(d); err != nil {
+			return err
+		}
 		if err := s.revokeDevice(ctx, tx, workspaceID, d.ID); err != nil {
 			return err
 		}

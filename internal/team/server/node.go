@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -193,7 +194,13 @@ func (r *nodeRunner) binaryDirs() []string {
 type localSource struct{ n *network }
 
 func (s localSource) NodeConfig(ctx context.Context) (domain.NodeConfig, error) {
-	return s.n.svc.NodeConfigOf(ctx, s.n.mat.Meta.WorkspaceID, s.n.mat.Meta.HostDeviceID)
+	cfg, err := s.n.svc.NodeConfigOf(ctx, s.n.mat.Meta.WorkspaceID, s.n.mat.Meta.HostDeviceID)
+	if err != nil && s.n.fallback != nil && errors.Is(err, domain.ErrReadOnly) {
+		// The workspace's database is not up yet (this host is joining it, and needs the network to): ask as a
+		// device that has only joined would.
+		return s.n.fallback.NodeConfig(ctx)
+	}
+	return cfg, err
 }
 
 // Certificate is the one this host has if it is valid and has more than a third of its life
@@ -209,11 +216,20 @@ func (s localSource) Certificate(ctx context.Context, cfg domain.NodeConfig) ([]
 			}
 		}
 	}
-	if n.nodeCert != nil && time.Until(n.notAfter) > pki.DefaultNodeValidity/3 {
+	// A certificate is also replaced when what the device is for has changed since it was issued: the network's
+	// policy goes by the groups in it, and a device that became a Workspace Host has to be let through to the others.
+	if n.nodeCert != nil && time.Until(n.notAfter) > pki.DefaultNodeValidity/3 && certMatches(n.nodeCert, cfg) {
 		return n.nodeCert, n.notAfter, nil
 	}
 	b, err := n.svc.RenewLocalCertificate(ctx, n.mat.Meta.WorkspaceID, n.mat.Meta.HostDeviceID)
 	if err != nil {
+		if n.fallback != nil && errors.Is(err, domain.ErrReadOnly) {
+			cert, notAfter, ferr := n.fallback.Certificate(ctx, cfg)
+			if ferr == nil {
+				n.nodeCert, n.notAfter = cert, notAfter
+			}
+			return cert, notAfter, ferr
+		}
 		return nil, time.Time{}, err
 	}
 	n.nodeCert, n.notAfter = []byte(b.Certificate), b.ExpiresAt
@@ -264,4 +280,29 @@ func apiPortOr(addr string) int {
 		return p
 	}
 	return overlay.APIPort
+}
+
+// certMatches reports whether a node certificate carries the groups the workspace says the device should have.
+func certMatches(certPEM []byte, cfg domain.NodeConfig) bool {
+	info, err := pki.ReadNodeCert(certPEM)
+	if err != nil {
+		return false
+	}
+	return CertGroupsMatch(info.Groups, cfg.Capabilities)
+}
+
+// CertGroupsMatch reports whether groups (a certificate's) are the ones the capabilities call for.
+func CertGroupsMatch(groups []string, caps []domain.Capability) bool {
+	want := domain.GroupsFor(caps)
+	have := append([]string(nil), groups...)
+	sort.Strings(have)
+	if len(have) != len(want) {
+		return false
+	}
+	for i := range have {
+		if have[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }

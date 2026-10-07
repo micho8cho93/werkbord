@@ -119,6 +119,10 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/team/v1/devices/{id}/revoke", s.handleRevokeDevice)
 	api.HandleFunc("PUT /api/team/v1/devices/{id}/network", s.handleSetDeviceNetwork)
 	api.HandleFunc("POST /api/team/v1/devices/{id}/provision", s.handleProvisionDevice)
+	api.HandleFunc("DELETE /api/team/v1/devices/{id}/replica", s.handleRemoveHost)
+	// where the workspace's data is kept, and backing it up
+	api.HandleFunc("GET /api/team/v1/storage", s.handleStorage)
+	api.HandleFunc("POST /api/team/v1/storage/backup", s.handleStorageBackup)
 	api.HandleFunc("GET /api/team/v1/network", s.handleNetworkHealth)
 	api.HandleFunc("PUT /api/team/v1/network/approval", s.handleSetApproval)
 	api.HandleFunc("GET /api/team/v1/network/config", s.handleNetworkConfig)
@@ -209,6 +213,10 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, domain.ErrBusy):
 		w.Header().Set("Retry-After", "5")
 		httpkit.WriteError(w, http.StatusTooManyRequests, "busy", err.Error())
+	case errors.Is(err, domain.ErrReadOnly):
+		// The workspace's storage has no quorum: reading works, and nothing is accepted anywhere until it has.
+		w.Header().Set("Retry-After", "10")
+		httpkit.WriteError(w, http.StatusServiceUnavailable, "read_only", err.Error())
 	case errors.Is(err, context.Canceled):
 		// The client went away; nothing useful to send.
 	default:

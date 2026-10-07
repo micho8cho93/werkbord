@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -30,6 +31,9 @@ type NetworkOptions struct {
 	Connectivity string
 	// Approval is whether an administrator must approve every device that joins.
 	Approval domain.ApprovalPolicy
+	// HostKeys are this host's own keys, when they were made before the workspace (its database's first node is
+	// named after the host's device ID); empty makes them.
+	HostKeys *pki.HostKeys
 }
 
 // NetworkCreated says what was made, for the person who made it to read.
@@ -61,8 +65,8 @@ func CreateNetwork(ctx context.Context, cfg config.Config, log *slog.Logger, svc
 	if err := cfg.Validate(); err != nil {
 		return NetworkCreated{}, err
 	}
-	if _, serr := os.Stat(cfg.PKIDir()); serr == nil {
-		return NetworkCreated{}, fmt.Errorf("%s already exists: this data directory already has a workspace's keys", cfg.PKIDir())
+	if _, serr := os.Stat(filepath.Join(cfg.PKIDir(), "workspace.json")); serr == nil {
+		return NetworkCreated{}, fmt.Errorf("%s already holds a workspace's keys: this data directory already has a workspace", cfg.PKIDir())
 	}
 	prefix, err := chooseRange(opt.Range)
 	if err != nil {
@@ -78,12 +82,20 @@ func CreateNetwork(ctx context.Context, cfg config.Config, log *slog.Logger, svc
 	}
 	defer func() {
 		if err != nil {
-			_ = os.RemoveAll(cfg.PKIDir()) // a half-made vault would only get in the way of trying again
+			// A half-made vault would only get in the way of trying again; what the storage keeps in it stays.
+			for _, name := range []string{"workspace.json", "workspace.key.sealed", "network-ca.crt", "network-ca.key.sealed", "host.keys.sealed"} {
+				_ = os.Remove(filepath.Join(cfg.PKIDir(), name))
+			}
 		}
 	}()
 	ws := created.Workspace
 	now := time.Now()
-	mat, err := v.Create(ws.ID, ws.Name, prefix, now)
+	var mat *pki.Material
+	if opt.HostKeys != nil {
+		mat, err = v.CreateWith(opt.HostKeys, ws.ID, ws.Name, prefix, now)
+	} else {
+		mat, err = v.Create(ws.ID, ws.Name, prefix, now)
+	}
 	if err != nil {
 		return NetworkCreated{}, err
 	}

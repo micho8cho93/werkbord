@@ -100,7 +100,7 @@ func TestNoServiceURLIsBuiltIntoTheNetworkCode(t *testing.T) {
 				// Two places legitimately hold a URL, and each is held to its purpose below:
 				//  - the pinned release's address in the manifest, used by a build script and never by the program;
 				//  - the Team console's links to a project's own repository (domain), which are for people to click.
-				if base == "manifest.go" && strings.HasPrefix(s, "https://github.com/slackhq/nebula/releases/download/") {
+				if base == "manifest.go" && (strings.HasPrefix(s, "https://github.com/slackhq/nebula/releases/download/") || strings.HasPrefix(s, "https://github.com/rqlite/rqlite/releases/download/")) {
 					return true
 				}
 				if strings.HasPrefix(dir, "internal/team/domain") && (base == "links.go" || base == "team.go" || base == "repo.go") {

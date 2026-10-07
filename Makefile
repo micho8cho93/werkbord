@@ -19,7 +19,7 @@ TEAM_LDFLAGS = -X main.version=$(WERKBORD_TEAM_VERSION)
 BIN      := bin/werkbord
 TEAM_BIN := bin/werkbord-team
 
-.PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team nebula test-nebula \
+.PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check verify-isolation \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
         dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser
@@ -62,11 +62,22 @@ install-team: build-team
 nebula:
 	scripts/fetch-nebula.sh
 test-nebula: nebula
-	WERKBORD_REQUIRE_NEBULA=1 $(GO) test -timeout 30m ./internal/team/infra/... ./internal/team/server/...
+	WERKBORD_SKIP_RQLITE=1 WERKBORD_REQUIRE_NEBULA=1 $(GO) test -timeout 30m ./internal/team/infra/... ./internal/team/server/...
+
+## rqlite: fetch (Linux) or build from the pinned source (macOS) the pinned rqlite release into .cache/rqlite (checked against
+## internal/team/infra/rqlite/manifest.go);
+## test-rqlite: and run Team's tests that start real database clusters, which then must not be skipped: the supervisor, the
+## replicated store (failover, partitions, backups, migration from a single file), the server's storage, and the service's own
+## tests on a real cluster. One package at a time: clusters elect leaders by timeout, and a starved machine makes them flap.
+rqlite:
+	scripts/fetch-rqlite.sh
+test-rqlite: rqlite
+	WERKBORD_REQUIRE_RQLITE=1 $(GO) test -p 1 -timeout 60m ./internal/team/infra/rqlite/... ./internal/team/store/replicated/... ./internal/team/server/...
+	WERKBORD_REQUIRE_RQLITE=1 WERKBORD_TEST_STORE=rqlite $(GO) test -timeout 60m ./internal/team/service/
 
 ## test: Go tests (both products and the shared packages) and the individual product's web unit tests
 test: web/node_modules
-	$(GO) test -timeout 30m ./...
+	WERKBORD_SKIP_RQLITE=1 $(GO) test -timeout 30m ./...
 	cd web && $(NPM) test
 
 ## test-werkbord / test-team: one product's tests (shared packages are tested with both)
@@ -74,7 +85,7 @@ test-werkbord: web/node_modules
 	$(GO) test -timeout 30m $$($(GO) list ./... | grep -v -e /internal/team -e /cmd/werkbord-team)
 	cd web && $(NPM) test
 test-team:
-	$(GO) test -timeout 30m ./internal/team/... ./cmd/werkbord-team/...
+	WERKBORD_SKIP_RQLITE=1 $(GO) test -timeout 30m ./internal/team/... ./cmd/werkbord-team/...
 
 ## lint: gofmt, go vet, svelte-check, eslint
 lint: web/node_modules

@@ -17,6 +17,7 @@ import (
 
 	"devboard/internal/enrollment"
 	"devboard/internal/team/config"
+	"devboard/internal/team/domain"
 	"devboard/internal/team/infra/overlaynet"
 	"devboard/internal/team/infra/pki"
 	"devboard/internal/team/service"
@@ -55,6 +56,22 @@ type network struct {
 	notAfter time.Time // and when it stops working
 	// node runs this host's own network node.
 	node *nodeRunner
+	// fallback is where the node learns what it should be while the database is not up (RunOptions).
+	fallback NodeSource
+}
+
+// overlayAddr is this host's address on the private network, as the workspace records it.
+func (n *network) overlayAddr(ctx context.Context) (netip.Addr, error) {
+	cfg, err := n.svc.NodeConfigOf(ctx, n.mat.Meta.WorkspaceID, n.mat.Meta.HostDeviceID)
+	if err != nil {
+		if n.fallback != nil && errors.Is(err, domain.ErrReadOnly) {
+			cfg, err = n.fallback.NodeConfig(ctx)
+		}
+		if err != nil {
+			return netip.Addr{}, err
+		}
+	}
+	return netip.ParseAddr(cfg.OverlayAddr)
 }
 
 // SealerFor is what seals this host's keys: a passphrase from the file the configuration names, or else a key kept

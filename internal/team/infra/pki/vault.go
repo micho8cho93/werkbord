@@ -20,6 +20,9 @@ const (
 	fileCAKey    = "network-ca.key.sealed"
 	fileHostKeys = "host.keys.sealed"
 
+	fileStorage  = "storage.sealed"
+	labelStorage = "werkbord/vault/storage"
+
 	fileToken = "device.token.sealed"
 	fileJoin  = "join.json"
 
@@ -89,6 +92,16 @@ func (v *Vault) Exists() bool {
 // workspace's trust identity, the network authority, and the host's own keys. It
 // refuses to overwrite an existing one.
 func (v *Vault) Create(workspaceID, workspaceName string, prefix netip.Prefix, now time.Time) (*Material, error) {
+	host, err := NewHostKeys()
+	if err != nil {
+		return nil, err
+	}
+	return v.CreateWith(host, workspaceID, workspaceName, prefix, now)
+}
+
+// CreateWith is Create for a host whose keys were made beforehand (the workspace's database names its first node
+// after the host's device ID, which therefore has to exist before the workspace does).
+func (v *Vault) CreateWith(host *HostKeys, workspaceID, workspaceName string, prefix netip.Prefix, now time.Time) (*Material, error) {
 	if v.Exists() {
 		return nil, errors.New("pki: this host already holds a workspace's keys")
 	}
@@ -97,10 +110,6 @@ func (v *Vault) Create(workspaceID, workspaceName string, prefix netip.Prefix, n
 		return nil, err
 	}
 	ca, err := NewNetworkCA(workspaceName, prefix, now)
-	if err != nil {
-		return nil, err
-	}
-	host, err := NewHostKeys()
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +258,51 @@ func (v *Vault) Promote(s Secrets, now time.Time) error {
 		return err
 	}
 	cur.Trust, cur.CA, cur.Meta.Authority = trust, ca, true
-	return v.save(cur)
+	if err := v.save(cur); err != nil {
+		return err
+	}
+	if s.Storage != nil {
+		return v.SaveStorage(*s.Storage)
+	}
+	return nil
+}
+
+// SaveStorage keeps, sealed, what this host needs to take part in the workspace's replicated database. It works
+// on a host that has no other keys yet (a workspace on one host, with no private network, still has a database).
+func (v *Vault) SaveStorage(s StorageSecrets) error {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+	sealed, err := v.sealer.Seal(labelStorage, b)
+	if err != nil {
+		return err
+	}
+	return writeFile(filepath.Join(v.dir, fileStorage), sealed, 0o600)
+}
+
+// HasStorage reports whether the vault holds storage secrets.
+func (v *Vault) HasStorage() bool {
+	_, err := os.Stat(filepath.Join(v.dir, fileStorage))
+	return err == nil
+}
+
+// Storage returns them.
+func (v *Vault) Storage() (StorageSecrets, error) {
+	var s StorageSecrets
+	path := filepath.Join(v.dir, fileStorage)
+	if err := checkPrivateFile(path); err != nil {
+		return s, err
+	}
+	sealed, err := os.ReadFile(path)
+	if err != nil {
+		return s, err
+	}
+	b, err := v.sealer.Open(labelStorage, sealed)
+	if err != nil {
+		return s, err
+	}
+	return s, json.Unmarshal(b, &s)
 }
 
 // Demote removes the authority's secrets from this host (it is no longer a Workspace
@@ -261,7 +314,7 @@ func (v *Vault) Demote(now time.Time) error {
 	if err != nil {
 		return err
 	}
-	for _, name := range []string{fileTrust, fileCAKey} {
+	for _, name := range []string{fileTrust, fileCAKey, fileStorage} {
 		path := filepath.Join(v.dir, name)
 		if fi, err := os.Stat(path); err == nil {
 			_ = os.WriteFile(path, make([]byte, fi.Size()), 0o600)

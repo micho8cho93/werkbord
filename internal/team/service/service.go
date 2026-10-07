@@ -29,6 +29,8 @@ type Service struct {
 	// net is what makes the workspace's private network's certificates and
 	// configuration; nil when this host has none (SetNetwork).
 	net NetworkAuthority
+	// storage is the control of the workspace's replicated database; nil when its data is in one file (SetStorage).
+	storage StorageControl
 }
 
 // SetClock replaces the clock the service reads (for tests, which move time to see an

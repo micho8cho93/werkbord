@@ -18,13 +18,23 @@ import (
 	"devboard/internal/team/store"
 )
 
-// Open opens Team's database and builds its service.
+// Open opens Team's database and builds its service: wherever the workspace's data is (in one file, or in a cluster of
+// Workspace Hosts, in which case this host's database node is started and waited for). Closing the store stops what
+// was started.
 func Open(ctx context.Context, cfg config.Config, log *slog.Logger) (store.Store, *service.Service, error) {
-	db, err := store.Open(ctx, cfg.DBPath(), log)
+	w, err := OpenWorkspace(ctx, cfg, log)
 	if err != nil {
 		return nil, nil, err
 	}
-	return db, service.New(db), nil
+	return owned{Store: w.Storage.DB(), w: w}, w.Service, nil
+}
+
+// RunOptions are what the command that runs the server can give it that the server cannot make for itself.
+type RunOptions struct {
+	// NodeFallback tells this host's network node what it should be, and gives it a certificate, while the workspace's
+	// database is not up: a host that has just been made a Workspace Host needs the network before it can join the
+	// database, and learns what the network is from a Workspace Host's API, as a device that has only joined does.
+	NodeFallback NodeSource
 }
 
 // Handler is Team's whole HTTP surface: the API and the console.
@@ -38,14 +48,32 @@ func handler(db store.Store, svc *service.Service, log *slog.Logger, version str
 
 // Run serves Team on cfg.Addr until ctx is cancelled, then shuts down gracefully.
 func Run(ctx context.Context, cfg config.Config, log *slog.Logger, version string) error {
+	return RunWith(ctx, cfg, log, version, RunOptions{})
+}
+
+// RunWith is Run with options.
+func RunWith(ctx context.Context, cfg config.Config, log *slog.Logger, version string, opt RunOptions) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-	db, svc, err := Open(ctx, cfg, log)
+	// The workspace's storage starts first, and the server serves while a cluster's node is still coming up (it may
+	// be waiting for the private network): until the data is there, requests are refused as read-only, and /health
+	// says why.
+	st, err := OpenStorage(ctx, cfg, log)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	svc := service.New(st.DB())
+	st.Attach(svc, nil)
+	st.Start(ctx)
+	defer func() {
+		stop, cancel := context.WithTimeout(context.WithoutCancel(ctx), 45*time.Second)
+		defer cancel()
+		if err := st.Close(stop); err != nil {
+			log.Warn("stopping the workspace's storage", "err", err)
+		}
+	}()
+	db := st.DB()
 	nw, err := openNetwork(cfg, log, svc)
 	if err != nil {
 		return err
@@ -53,6 +81,8 @@ func Run(ctx context.Context, cfg config.Config, log *slog.Logger, version strin
 	var nodeStatus func() any
 	if nw != nil {
 		nodeStatus = nw.NodeStatus
+		nw.fallback = opt.NodeFallback
+		st.Attach(svc, nw.overlayAddr)
 	}
 	h := handler(db, svc, log, version, nodeStatus)
 

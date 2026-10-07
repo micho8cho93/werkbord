@@ -27,20 +27,20 @@ import (
 // serverImportAllowed is where a Team server package may import a package that can
 // touch the machine: the package (relative to internal/team) it is allowed in.
 var serverImportAllowed = map[string][]string{
-	"os":                           {"config", "infra", "server"}, // the environment and the data directory; infrastructure reads and writes its own key and node files; the wiring opens the key vault and reads the passphrase file that the configuration names, and nothing else
-	"path/filepath":                {"config", "infra", "server"}, // the data directory's path
-	"net":                          {"config", "server", "infra"}, // validating and opening the listen address; infrastructure parses the addresses of its own network
-	"syscall":                      {"infra"},                     // only infrastructure, to check who owns the files it starts or reads keys from, and to signal its own node; infra_test.go bans syscall.Exec and the like there
-	"unsafe":                       {},                            // nothing
-	"net/http/httputil":            {},                            // a reverse proxy is how one request becomes another
-	"net/http/cgi":                 {},                            // runs programs
-	"net/http/fcgi":                {},                            // runs programs
-	"net/smtp":                     {},                            // outbound mail
-	"net/rpc":                      {},                            // remote calls
-	"crypto/tls":                   {},                            // Team serves plain HTTP behind the operator's proxy
-	"golang.org/x/net":             {},                            // websockets, proxies
-	"golang.org/x/crypto/ssh":      {},                            // remote shells
-	"github.com/gorilla/websocket": {},                            // sockets are a way into a machine; sync is a plain long poll
+	"os":                           {"config", "infra", "server", "store"}, // the environment and the data directory; infrastructure reads and writes its own key and node files; the wiring opens the key vault and reads the passphrase file that the configuration names, and nothing else; the replicated store keeps its local copy and its backups in directories the configuration names
+	"path/filepath":                {"config", "infra", "server", "store"}, // the data directory's path
+	"net":                          {"config", "server", "infra", "store"}, // validating and opening the listen address; infrastructure parses the addresses of its own network; the replicated store tells a refused connection (nothing was sent) from a lost answer, and may dial only what outboundAllowed grants it
+	"syscall":                      {"infra"},                              // only infrastructure, to check who owns the files it starts or reads keys from, and to signal its own node; infra_test.go bans syscall.Exec and the like there
+	"unsafe":                       {},                                     // nothing
+	"net/http/httputil":            {},                                     // a reverse proxy is how one request becomes another
+	"net/http/cgi":                 {},                                     // runs programs
+	"net/http/fcgi":                {},                                     // runs programs
+	"net/smtp":                     {},                                     // outbound mail
+	"net/rpc":                      {},                                     // remote calls
+	"crypto/tls":                   {},                                     // Team serves plain HTTP behind the operator's proxy
+	"golang.org/x/net":             {},                                     // websockets, proxies
+	"golang.org/x/crypto/ssh":      {},                                     // remote shells
+	"github.com/gorilla/websocket": {},                                     // sockets are a way into a machine; sync is a plain long poll
 	"nhooyr.io/websocket":          {},
 }
 
@@ -57,8 +57,17 @@ var outboundCalls = map[string]map[string]bool{
 // package that is the workspace's private network as a transport, whose Dial refuses anything outside the
 // workspace's own address range (overlaynet_test.go proves it), and which only Team's wiring may import
 // (rule 9). Everything else in Team may still open no connection.
+//
+// The database is the second. A Workspace Host's own storage layer (store/replicated) and its supervisor
+// (infra/rqlite) are clients of the rqlite nodes of its own workspace, and of nothing else: each refuses
+// any address that is not loopback or inside a private network (TestTheDatabaseClientsTalkOnlyToPrivateAddresses
+// in each package proves it), and only Team's wiring may import them. The test harness for real clusters
+// (infra/rqlite/rqlitetest) opens connections on loopback.
 var outboundAllowed = map[string]map[string]bool{
-	"infra/overlaynet": {"Dialer": true},
+	"infra/overlaynet":        {"Dialer": true},
+	"infra/rqlite":            {"Client": true, "NewRequestWithContext": true},
+	"infra/rqlite/rqlitetest": {"DialTimeout": true},
+	"store/replicated":        {"Client": true, "NewRequestWithContext": true, "Transport": true, "Dialer": true},
 }
 
 func TestTeamServerNeverReachesOut(t *testing.T) {

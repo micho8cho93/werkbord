@@ -33,6 +33,11 @@ type Options struct {
 	// BackupPrefix names the pre-upgrade copies: <prefix>-v<version>-<time>.db.
 	BackupPrefix string
 	Log          *slog.Logger
+	// Replica opens the database as a local copy of data that lives elsewhere (Werkbord Team's
+	// replicated store keeps one of its cluster's database): its schema arrives with the data, so
+	// nothing is migrated or backed up before an upgrade, and a committed write need not survive a
+	// power cut, because the copy is made again from the cluster.
+	Replica bool
 }
 
 // Pool is the writer and the readers of one database.
@@ -64,7 +69,11 @@ func Open(ctx context.Context, path string, opt Options) (*Pool, error) {
 	// FULL, not NORMAL: with NORMAL a committed transaction can be lost in a
 	// power cut, and records of worktrees (written before a directory is
 	// created, and after one is removed) would then disagree with the disk.
-	wq.Add("_pragma", "synchronous(FULL)")
+	if opt.Replica {
+		wq.Add("_pragma", "synchronous(NORMAL)")
+	} else {
+		wq.Add("_pragma", "synchronous(FULL)")
+	}
 	wq.Set("_txlock", "immediate")
 	writer, err := sql.Open("sqlite", path+"?"+wq.Encode())
 	if err != nil {
@@ -80,14 +89,16 @@ func Open(ctx context.Context, path string, opt Options) (*Pool, error) {
 	// The file may hold secrets-adjacent data (repo paths, agent output).
 	_ = os.Chmod(path, 0o600)
 
-	BackupBeforeUpgrade(ctx, writer, path, opt.BackupPrefix, len(opt.Migrations), log)
-	applied, err := Migrate(ctx, writer, opt.Migrations, opt.Product)
-	if err != nil {
-		_ = writer.Close()
-		return nil, err
-	}
-	if applied > 0 {
-		log.Info("database migrated", "path", path, "applied", applied, "version", len(opt.Migrations))
+	if !opt.Replica {
+		BackupBeforeUpgrade(ctx, writer, path, opt.BackupPrefix, len(opt.Migrations), log)
+		applied, err := Migrate(ctx, writer, opt.Migrations, opt.Product)
+		if err != nil {
+			_ = writer.Close()
+			return nil, err
+		}
+		if applied > 0 {
+			log.Info("database migrated", "path", path, "applied", applied, "version", len(opt.Migrations))
+		}
 	}
 
 	rq := cloneValues(common)

@@ -30,6 +30,29 @@ type Secrets struct {
 	// NetworkCACertificate and NetworkCAKey are the authority's, in PEM.
 	NetworkCACertificate []byte `json:"networkCaCertificate"`
 	NetworkCAKey         []byte `json:"networkCaKey"`
+	// Storage is what a host needs to take part in the workspace's replicated database: set when the
+	// workspace's data is held in a cluster, absent when it is in one file.
+	Storage *StorageSecrets `json:"storage,omitempty"`
+}
+
+// StorageSecrets are what a Workspace Host needs to hold a copy of the workspace's data: the credentials of
+// the database cluster, and where this host's node goes in it. Like the rest of Secrets they exist in this form
+// only in transit between hosts, sealed to the one host they are for; at rest they are sealed (Vault.SaveStorage).
+// They are never in the replicated database or in anything the API returns.
+type StorageSecrets struct {
+	// ClusterID names the cluster, so that a host never joins another workspace's.
+	ClusterID string `json:"clusterId"`
+	// AppPassword, AdminPassword and NodePassword are the passwords of the cluster's three users.
+	AppPassword   string `json:"appPassword"`
+	AdminPassword string `json:"adminPassword"`
+	NodePassword  string `json:"nodePassword"`
+	// NodeID is this host's node's name in the cluster; HTTPAddr and RaftAddr are where it listens and what it
+	// tells the others (addresses on the workspace's private network).
+	NodeID   string `json:"nodeId"`
+	HTTPAddr string `json:"httpAddr,omitempty"`
+	RaftAddr string `json:"raftAddr,omitempty"`
+	// JoinRaft are the Raft addresses of members of the cluster to join, at the time the host was provisioned.
+	JoinRaft []string `json:"joinRaft,omitempty"`
 }
 
 const secretsVersion = 1
