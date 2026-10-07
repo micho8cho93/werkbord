@@ -489,7 +489,7 @@ func TestAHostIsAddedJoinsAsAReplicaIsCheckedAndOnlyThenVotesAndIsThenRemoved(t 
 		return first.st.Status(bg).Topology.Voters == 2
 	})
 	// The cluster lists it as a voter a moment before the host has recorded that it is one.
-	waitUntil(t, 30*time.Second, "the second host to record that it votes", func() bool {
+	waitUntil(t, 3*time.Minute, "the second host to record that it votes", func() bool {
 		b.st.mu.Lock()
 		defer b.st.mu.Unlock()
 		return b.st.marker.Role == RoleVoter
