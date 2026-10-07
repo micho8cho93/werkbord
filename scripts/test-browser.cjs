@@ -58,7 +58,9 @@ async function cleanup() {
     await ready(personal, personalURL + '/api/health');
     const teamURL = 'http://127.0.0.1:' + await port();
     const teamBinary = path.join(root, 'bin/werkbord-team');
-    const teamEnv = { WERKBORD_TEAM_DATA_DIR: path.join(temp, 'team-data'), WERKBORD_TEAM_ADDR: new URL(teamURL).host };
+    // This test is about the pages and the handoff, not where the workspace's data lives: one file needs no database program
+    // (Team's own cluster tests cover the replicated storage).
+    const teamEnv = { WERKBORD_TEAM_DATA_DIR: path.join(temp, 'team-data'), WERKBORD_TEAM_ADDR: new URL(teamURL).host, WERKBORD_TEAM_STORAGE: 'single-file' };
     const created = run(teamBinary, ['workspace', 'create', '--name', 'Disposable E2E', '--owner', 'Fixture owner'], teamEnv, true);
     const tokenFile = path.join(temp, 'owner-token.txt');
     fs.writeFileSync(tokenFile, created.match(/wbt_[a-zA-Z0-9]+/)[0], { mode: 0o600 });
