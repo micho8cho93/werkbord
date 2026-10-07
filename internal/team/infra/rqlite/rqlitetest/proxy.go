@@ -125,12 +125,11 @@ func (p *raftProxy) serve(in net.Conn) {
 		return
 	default:
 	}
-	// Decided here, under the lock cut() takes, so that a connection cannot slip across a partition that began while it
-	// was being identified or dialled: either cut() sees it, or this does. One that could not be told apart is refused
-	// while any partition is in force; the node connects again and is told apart (or refused) the next time.
+	// Decided here, under the lock cut() takes, so that a connection whose caller was told apart cannot slip across a
+	// partition that began while it was being dialled: either cut() sees it, or this does.
 	if p.c.refuses(src, p.node) {
 		p.mu.Unlock()
-		p.c.tracef("proxy for node %d: refused a connection from %d at registration (a partition began, or its caller is unknown)", p.node, src)
+		p.c.tracef("proxy for node %d: refused a connection from %d at registration (a partition began while it was being made)", p.node, src)
 		pc.close()
 		return
 	}

@@ -249,14 +249,16 @@ func (c *Cluster) blocked(src, dst int) bool {
 	return c.cut[[2]int{src, dst}]
 }
 
-// refuses reports whether a connection to dst from src must be refused now: a caller that is cut off from it, or one that
-// could not be told apart (src < 0) while any partition is in force.
+// refuses reports whether a connection to dst from src, a caller that has been told apart, must be refused now: it is cut
+// off from dst. A caller that could not be told apart (src < 0) is not refused: refusing those starved the healthy
+// side of a partition too, because the nodes' pooled requests to each other do not say who sends them. cut() closes
+// the ones the proxy holds when a partition begins instead.
 func (c *Cluster) refuses(src, dst int) bool {
+	if src < 0 {
+		return false
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if src < 0 {
-		return len(c.cut) > 0
-	}
 	return c.cut[[2]int{src, dst}]
 }
 

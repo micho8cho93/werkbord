@@ -189,25 +189,36 @@ func explainCutOffWrite(t testing.TB, c *rqlitetest.Cluster, hosts []*Store, lea
 		err, isolatedAt.Format("15:04:05.000"), wroteAt.Format("15:04:05.000"), wroteAt.Sub(isolatedAt).Round(time.Millisecond))
 	t.Logf("DIAGNOSIS: node %d led before the partition; node %d was cut off; the host's client tried %v (all nodes' HTTP: %v)",
 		lead, lone, hosts[lone].client.Nodes(), c.Addrs())
-	for _, n := range c.Nodes() {
-		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
-		h, herr := n.Admin().Health(ctx)
-		cancel()
-		t.Logf("DIAGNOSIS: node %d (%s): health %+v (%v)", n.Index, n.ID, h, herr)
-		tail := n.Sup.Status().Tail
-		if len(tail) > 25 {
-			tail = tail[len(tail)-25:]
+}
+
+// dumpOnFailure makes a test that fails say what each node thought and what the harness decided about the network
+// between them, since a failure on a busy machine is not one that can be run again to look.
+func dumpOnFailure(t *testing.T, c *rqlitetest.Cluster, hosts []*Store) {
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
 		}
-		t.Logf("DIAGNOSIS: node %d log, last lines:\n%s", n.Index, strings.Join(tail, "\n"))
-	}
-	t.Logf("DIAGNOSIS: the cut-off host's own view: %+v", hosts[lone].Status(bg))
-	t.Logf("DIAGNOSIS: what the harness decided about connections:\n%s", strings.Join(c.Trace(), "\n"))
+		for _, n := range c.Nodes() {
+			ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+			h, herr := n.Admin().Health(ctx)
+			cancel()
+			t.Logf("DIAGNOSIS: node %d (%s): health %+v (%v)", n.Index, n.ID, h, herr)
+			tail := n.Sup.Status().Tail
+			if len(tail) > 25 {
+				tail = tail[len(tail)-25:]
+			}
+			t.Logf("DIAGNOSIS: node %d log, last lines:\n%s", n.Index, strings.Join(tail, "\n"))
+		}
+		t.Logf("DIAGNOSIS: the first host's own view: %+v", hosts[0].Status(bg))
+		t.Logf("DIAGNOSIS: what the harness decided about connections:\n%s", strings.Join(c.Trace(), "\n"))
+	})
 }
 
 func TestAHostCutOffFromTheOthersRefusesToWrite(t *testing.T) {
 	needLsof(t)
 	c := rqlitetest.New(t, rqlitetest.Options{Nodes: 3, Owner: lsofOwner})
 	hosts := hostsOf(t, c)
+	dumpOnFailure(t, c, hosts)
 	k := seed(t, hosts[0])
 	before := noteSoon(t, hosts[0], k, 20*time.Second)
 	settle(t, hosts...)
@@ -277,6 +288,7 @@ func TestACutOffLeaderStopsAcceptingWritesAndTheOthersCarryOn(t *testing.T) {
 	needLsof(t)
 	c := rqlitetest.New(t, rqlitetest.Options{Nodes: 3, Owner: lsofOwner})
 	hosts := hostsOf(t, c)
+	dumpOnFailure(t, c, hosts)
 	k := seed(t, hosts[0])
 	settle(t, hosts...)
 	lead := leaderIndex(t, c)
