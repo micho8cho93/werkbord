@@ -28,7 +28,7 @@ jobs:
           # A test that needs the real network program fails, rather than skips, if it is missing.
           WERKBORD_REQUIRE_NEBULA: "1"
         run: make check
-      - name: The pinned rqlite release (Linux: downloaded and checked against the pin; macOS: built from the pinned source), cached
+      - name: "The pinned rqlite release (Linux downloaded and checked against the pin, macOS built from the pinned source), cached"
         uses: actions/cache@v4
         with:
           path: .cache/rqlite
