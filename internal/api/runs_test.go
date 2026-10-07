@@ -28,10 +28,13 @@ type runsServer struct {
 	project service.ProjectDetail
 }
 
-func newRunsServer(t *testing.T) *runsServer {
+func newRunsServer(t *testing.T, extra ...func(*Options)) *runsServer {
 	t.Helper()
 	rs := &runsServer{adapter: &fake.Adapter{}}
 	ts := newTestServer(t, func(o *Options) {
+		for _, f := range extra {
+			f(o)
+		}
 		root, _ := filepath.EvalSymlinks(t.TempDir())
 		reg := agent.NewRegistry()
 		if err := reg.Register(rs.adapter); err != nil {

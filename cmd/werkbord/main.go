@@ -57,6 +57,7 @@ commands:
   project add <path>    register an existing local Git repository
   project list          list registered projects
   token                 print the API token (--url: sign-in link; --rotate: replace file-managed token)
+  access                which programs on this computer have a narrow way into Werkbord: list, revoke
   db restore            restore a compatible database backup with the controller stopped
   version               print the version
 
@@ -121,6 +122,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return a.cmdDB(ctx, args[1:])
 	case "token":
 		return cmdToken(cfg, args[1:], stdout, stderr)
+	case "access":
+		return cmdAccess(cfg, args[1:], stdout, stderr)
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, version)
 		return nil

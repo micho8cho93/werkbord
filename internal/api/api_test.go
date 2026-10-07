@@ -65,6 +65,9 @@ func gitRepo(t *testing.T) string {
 	return dir
 }
 
+// testAuthToken, when set, is sent by do as the controller's own token: for a test of a controller that requires one.
+var testAuthToken string
+
 func do(t *testing.T, method, url, body string, out any) int {
 	t.Helper()
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
@@ -72,6 +75,9 @@ func do(t *testing.T, method, url, body string, out any) int {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if testAuthToken != "" {
+		req.Header.Set("Authorization", "Bearer "+testAuthToken)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

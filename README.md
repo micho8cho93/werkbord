@@ -120,6 +120,9 @@ Project settings and Git use section controls so their details do not compete fo
 web app) and **GitHub repository**. Connect your GitHub account to select accessible repositories; Werkbord uses
 an existing local checkout or clones one using your own sign-in.
 
+**Other programs.** A program on your computer that only needs to hand Werkbord a task or see what is running is given a narrow,
+revocable *local access token* instead of yours (`werkbord access list`, `revoke`): [docs/LOCAL_ACCESS.md](docs/LOCAL_ACCESS.md).
+
 **Phone access.** Werkbord embeds a Tailscale node, so your phone reaches the controller without you setting up a
 VPN, a tunnel or certificates, and without any server of Werkbord's own. Nothing is exposed to the Internet. See
 [docs/PHONE.md](docs/PHONE.md).

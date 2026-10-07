@@ -24,6 +24,7 @@ import (
 	"devboard/internal/events"
 	"devboard/internal/github"
 	"devboard/internal/gitrepo"
+	"devboard/internal/localaccess"
 	"devboard/internal/machine"
 	"devboard/internal/netprivate"
 	"devboard/internal/runner"
@@ -230,6 +231,13 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
 	privateOpts.AuthRequired, privateOpts.Token = true, token
+	// Other programs on this computer may be given a narrow credential of their own (internal/localaccess). That is for
+	// the loopback listener only: the private network, which anyone on it can reach, never takes one.
+	access, err := localaccess.Open(filepath.Join(c.cfg.DataDir, "local-access.json"))
+	if err != nil {
+		return fmt.Errorf("local access: %w", err)
+	}
+	apiOpts.LocalAccess = access
 	privateHandler := &lateHandler{}
 	c.network = newNetworkControl(c.cfg, settings, privateHandler, c.broker.Close, c.networkBackend, c.log)
 	apiOpts.Network, privateOpts.Network = c.network, c.network

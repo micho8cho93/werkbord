@@ -13,6 +13,7 @@ import (
 	"devboard/internal/doctor"
 	"devboard/internal/events"
 	"devboard/internal/httpkit"
+	"devboard/internal/localaccess"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
@@ -58,6 +59,9 @@ type Options struct {
 	Token        string
 	// AllowedHosts are extra Host values accepted when auth is not required.
 	AllowedHosts []string
+	// LocalAccess holds the narrow credentials of other programs on this computer (localaccess.go); nil means there
+	// are none and none is accepted. It is set on the loopback listener only: the private network never takes one.
+	LocalAccess *localaccess.Store
 }
 
 // Server holds the HTTP handlers.
@@ -104,6 +108,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/projects/{pid}/runs/{id}/usage", s.handleRunUsage)
 	mux.HandleFunc("PATCH /api/projects/{pid}/runs/{id}/assessment", s.handleRunAssessment)
 	mux.HandleFunc("GET /api/doctor", s.handleDoctor)
+	mux.HandleFunc("GET /api/local-access", s.handleLocalAccessList)
+	mux.HandleFunc("POST /api/local-access", s.handleLocalAccessCreate)
+	mux.HandleFunc("DELETE /api/local-access/{id}", s.handleLocalAccessRevoke)
+	mux.HandleFunc("GET /api/local-access/self", s.handleLocalAccessSelfRefused)
 	mux.HandleFunc("GET /api/update", s.handleUpdateStatus)
 	mux.HandleFunc("GET /api/github", s.handleGitHubStatus)
 	mux.HandleFunc("POST /api/github/login", s.handleGitHubLogin)

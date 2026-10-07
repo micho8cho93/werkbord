@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"devboard/internal/localaccess"
 )
 
 // checkHost defends against DNS rebinding when the API is unauthenticated:
@@ -62,11 +64,18 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			got = r.URL.Query().Get("access_token") // EventSource cannot set headers
 		}
 		want := []byte(s.currentToken())
-		if len(want) == 0 || subtle.ConstantTimeCompare([]byte(got), want) != 1 {
-			writeError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid token")
+		if len(want) > 0 && subtle.ConstantTimeCompare([]byte(got), want) == 1 {
+			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r)
+		// Another program on this computer, with its own narrow credential (localaccess.go): never from elsewhere.
+		if s.opt.LocalAccess != nil && strings.HasPrefix(got, localaccess.TokenPrefix) && fromThisComputer(r) {
+			if entry, ok := s.opt.LocalAccess.Authenticate(got); ok {
+				s.scoped(entry, next).ServeHTTP(w, r)
+				return
+			}
+		}
+		writeError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid token")
 	})
 }
 
