@@ -89,6 +89,25 @@ endpoint); it adds no way for Team to run anything for, or on, a member. How it 
 - **Nebula itself.** Team ships an unmodified release, pinned and verified, but is not an audit of Nebula; its own security
   notes are at <https://github.com/slackhq/nebula/security>.
 
+## Requests between a person's own devices (Team 2.7)
+
+The same question, asked of the one place where a message crosses from one device to another: a person asking their own runner to
+open a ticket or start a task. How it works: [TEAM.md](TEAM.md#requests-between-your-own-devices).
+
+| Surface | Finding | Why it holds | Enforced by |
+| --- | --- | --- | --- |
+| **A host forging a request** | It cannot. A request is signed by the asking device's own key, which only that device holds; the host stores what it was given and has no key that would make or alter one. | The target verifies the signature itself, against the sender's registered public key, before acting. Every field is covered: sender, person, workspace, target, action, expiry, nonce and payload. | `TestAWorkspaceHostCannotForgeAPersonsRequest` (the host's own key naming another person; nine different alterations of a genuine request; resending; a stale one) |
+| **Asking someone else's computer** | Impossible. The signer, the sender's credential and the target device must all belong to one person, and the target must be a runner. Another person's device, a revoked one and one that does not exist all answer *not found*. | Checked from the registry before the request is stored, and by the target again. | `TestNobodyCanAskAnotherPersonsDeviceOrAnythingThatIsNotARunner` |
+| **What a request can ask** | Five actions from a closed list. No payload carries a command, path, environment, script or free-form text beyond a short answer to a question an agent asked. | `envelope.EncodePayload` and `DecodePayload` are strict; a test walks every payload's fields. | `TestNoPayloadCarriesAnythingExecutable`, `TestTheMailboxHasNoColumnThatCouldHoldACommandOrASecret` |
+| **Replay and delay** | A request lives at most five minutes; one cannot be stored twice (its message ID is the primary key) or acted on twice (the target's own replay cache). | Expiry and nonce are signed. | `TestAPersonAsksTheirOwnRunnerAndOnlyThatRunnerCollectsIt`, `TestARequestExpiresAndTheQueueIsBounded` |
+| **Burying a device** | At most 50 requests wait for one device; the rest are refused as busy. Old messages are removed after a week. | A bound checked before storing. | `TestARunnerThatHasNotCaughtUpIsNotBuried` |
+| **Answers** | A device answers once, with a small JSON object; only the device a request is for can. | Guarded in the write. | `TestNobodyCanAskAnotherPersonsDeviceOrAnythingThatIsNotARunner` |
+
+What this does not defend against: a host's **operator** can add a device to the registry under a person's name by writing to the
+database directly, and a request signed by that device would verify. A Workspace Host is trusted with the workspace's records (this
+document's earlier sections); the device it is for therefore also applies its own policy to what it is asked (see TEAM_DAEMON.md),
+and its own Werkbord applies its execution policies and approvals to whatever reaches it.
+
 ## Replicated storage (Team 2.6)
 
 What changed when the workspace's data went into a cluster of Workspace Hosts ([TEAM_STORAGE.md](TEAM_STORAGE.md),

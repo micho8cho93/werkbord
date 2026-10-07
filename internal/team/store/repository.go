@@ -48,6 +48,7 @@ type Tx interface {
 	InviteQueries
 	DeviceQueries
 	NetworkQueries
+	MessageQueries
 }
 
 // WorkspaceQueries are the workspace's own record and its change counter.
@@ -67,6 +68,8 @@ type MemberQueries interface {
 	HasMemberNamed(ctx context.Context, workspaceID, name string) (bool, error)
 	DeleteMember(ctx context.Context, workspaceID, id string) error
 	SetMemberToken(ctx context.Context, workspaceID, id, hash string) error
+	// SetMemberRole changes a person's role. It never makes or unmakes the owner: the guard is in the write.
+	SetMemberRole(ctx context.Context, workspaceID, id string, role domain.Role) error
 }
 
 // ProjectQueries are projects and who is on them.
@@ -150,6 +153,9 @@ type DeviceQueries interface {
 	// RevokeDevice revokes a device and ends its host roles. It reports whether it
 	// was the call that revoked it; revoking a revoked device changes nothing.
 	RevokeDevice(ctx context.Context, workspaceID, id string, at time.Time) (bool, error)
+	// SaveDeviceProfile records what a device says about the kind of machine it is; DeviceProfiles lists them by device ID.
+	SaveDeviceProfile(ctx context.Context, workspaceID string, p domain.DeviceProfile) error
+	DeviceProfiles(ctx context.Context, workspaceID string) (map[string]domain.DeviceProfile, error)
 }
 
 // NetworkQueries are the customer-owned private network's records: its public
@@ -215,4 +221,22 @@ type NetworkQueries interface {
 	// MarkEnrollmentDelivered records that the device collected what it was issued, once;
 	// false when it already had.
 	MarkEnrollmentDelivered(ctx context.Context, workspaceID, id string, at time.Time) (bool, error)
+}
+
+// MessageQueries are the mailbox of signed requests between a person's own devices. The workspace stores and
+// routes what a device signed; it never makes or changes one.
+type MessageQueries interface {
+	// InsertMessage stores a request. The same message twice is domain.ErrConflict.
+	InsertMessage(ctx context.Context, m domain.DeviceMessage) error
+	Message(ctx context.Context, workspaceID, id string) (domain.DeviceMessage, error)
+	// QueuedMessagesFor lists the unexpired requests waiting for a device, oldest first.
+	QueuedMessagesFor(ctx context.Context, workspaceID, deviceID string, now time.Time, limit int) ([]domain.DeviceMessage, error)
+	CountQueuedMessagesFor(ctx context.Context, workspaceID, deviceID string, now time.Time) (int, error)
+	// MessagesOfMember lists a person's most recent requests, newest first.
+	MessagesOfMember(ctx context.Context, workspaceID, memberID string, limit int) ([]domain.DeviceMessage, error)
+	// DecideMessage records what the device a request was for did with it, once, and only if that device says so and the
+	// request has not expired. It reports whether it decided it.
+	DecideMessage(ctx context.Context, workspaceID, id, toDeviceID string, state domain.MessageState, result string, now time.Time) (bool, error)
+	// PurgeMessages removes messages decided or expired before the cutoff.
+	PurgeMessages(ctx context.Context, workspaceID string, before time.Time) (int, error)
 }

@@ -108,6 +108,16 @@ Authorization asks *"may this member do X?"*, never *"is this member an Owner?"*
 `members.manage` is not a way up: `Role.CanManage(target)` lets an admin add, remove and reissue the token of a **member**,
 never of another admin (that is `admins.manage`, the owner's) and never of the owner, whose token would be the workspace.
 
+**One owner, any number of admins, many members.** The owner appoints and removes admins (`PUT /members/{id}/role`
+with `{"role": "admin"}` or `{"role": "member"}`); there is no limit on how many, and each is checked by the same permission
+table, so a tenth admin changes nothing about how the first is. The change takes effect on the person's very next request,
+their devices included. The owner's role never changes and a workspace never has a second owner: both are refused by the
+service and again by the write itself. An admin can manage people (add, remove, reissue a member's token), projects, invitations,
+approvals of devices that ask to join, and the workspace's hosts (give a device the Workspace Host or Connectivity Host
+capability, add or remove a host), and can see the workspace's health and backups; what an admin cannot do is appoint
+another admin, act on one, or touch the owner. **Admins do not become hosts, and hosts do not become admins:** a host is a
+*device* that someone who manages devices gave a capability, and its owner is as much, or as little, as they were before.
+
 A thing a member may not see (a project they are not on) is reported as *not found*, exactly like one that does not
 exist, so it cannot be probed for. A thing they can see but not change is *forbidden*. Anyone may reissue **their own**
 token.
@@ -405,6 +415,48 @@ Writes are serialised by SQLite (one writer, `BEGIN IMMEDIATE`), and every guard
 operation from eight goroutines; afterwards every ticket is consistent, the versions add up to the successful writes and
 the history is complete), `TestAMergedPullRequestCannotBeTurnedBackIntoAnOpenOne`.
 
+## Workspace resilience
+
+`GET /resilience` (and the Team app's **Workspace** screen) says how resilient the workspace is, in the words an
+administrator needs, from facts the workspace already has: the registry, what each device says about itself, the database's own
+report, the network's checks.
+
+```
+Workspace resilience
+  Hosts: 3/3 online          Quorum: healthy          Database: healthy
+  Connectivity Hosts: 2      Remote access: available Backups: current
+```
+
+Every weakness comes with what to do about it, and a button the screen can offer. The words are fixed so every screen says the
+same thing: *"Only one Workspace Host is configured."* · *"Two hosts are offline. Workspace is read-only until quorum returns."* ·
+*"No Connectivity Host is reachable from outside your network. Local use works, but remote access cannot be guaranteed."* ·
+*"This device sleeps automatically. It is not ideal as a Workspace Host."* The judgement is one pure function
+(`domain.AssessResilience`), tested on its own.
+
+Each device reports, about itself and with its own credential, that it is there and what kind of machine it is (`POST
+/device/heartbeat`: a platform, a kind (desktop, laptop, server), whether it has been seen to go to sleep, a count, a version). That
+is how a laptop that sleeps is called out *before* it is made a host, and how the workspace knows a host is online. It holds no
+path, hostname, address or credential, and no column could.
+
+## Requests between your own devices
+
+A person can ask one of their own runners to do something from another of their own devices (their phone, another computer):
+*open this ticket*, *start that approved task*, *cancel this run*, *answer this question*, *what are you doing?*. These are the
+five actions in `internal/envelope/actions.go`, each with a payload of identifiers; there is no command, path or script in any of them.
+
+1. The asking device **signs** the request with its own application key: who is asking, in which workspace, for which device,
+   what, when it expires, a nonce, and the payload's hash.
+2. A Workspace Host **stores and routes** it (`POST /messages`), exactly as signed. It checks the signature, the expiry, that
+   the signer is the device whose credential sent it, and that the target is a runner **of the same person**. It cannot make one:
+   it holds no sender's key.
+3. The target device **collects** it (`GET /device/messages`) and verifies it again itself, against the sender's registered public key and
+   its own replay cache, before it does anything; then it passes the semantic action to that person's *own* Werkbord, which applies its
+   normal execution policies and approvals, and says what happened (`ack`).
+
+So a host that routes a request cannot forge one, change one (every field is signed), redirect one (the target is signed), keep one
+for later (it expires in minutes), or ask someone else's device (both devices must be the signer's). See
+[TEAM_SECURITY.md](TEAM_SECURITY.md#requests-between-a-persons-own-devices-team-27).
+
 ## Running it
 
 ```bash
@@ -487,6 +539,13 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `POST /members` `{name, email?, role?}` | `members.manage` | creates a member; the response carries their token, once. `role` defaults to `member`; `owner` is refused. |
 | `DELETE /members/{id}` | `members.manage` | removes them from the workspace and every project. The owner cannot be removed. |
 | `POST /members/{id}/token` | yourself, or `members.manage` | issues a new token and invalidates the old |
+| `PUT /members/{id}/role` `{role}` | `admins.manage` (the owner) | `admin` or `member`. The owner's role never changes and there is no second owner |
+| `GET /resilience` | `devices.view_all` | how resilient the workspace is, in words, with what to do about each weakness: [Workspace resilience](#workspace-resilience) |
+| `POST /device/heartbeat` `{platform, form, sleeps, sleepEvents, version}` | **a device, with its own credential** | the device says it is here and what kind of machine it is; the time is the workspace's |
+| `POST /messages` (a signed envelope) | a device, with its own credential | stores a request the device signed, for another runner of the same person: [Requests between your own devices](#requests-between-your-own-devices) |
+| `GET /messages`, `GET /messages/{id}` | the person who asked | what happened to the requests they made |
+| `GET /device/messages?wait=N` | a device, with its own credential | the signed requests waiting for it (it checks them itself) |
+| `POST /device/messages/{id}/ack` `{state, result}` | the device the request is for | `done` or `refused`, once, with a short JSON answer |
 | `GET /projects` | any member | all (`projects.view_all`) or only yours |
 | `POST /projects` `{name, description?, repository?}` | `projects.create` | the creator is put on it |
 | `GET /projects/{id}` | on the project, or `projects.view_all` | |

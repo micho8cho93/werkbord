@@ -133,3 +133,112 @@ func TestExistingRolesKeepTheirMeaning(t *testing.T) {
 		t.Fatal("a member created a project")
 	}
 }
+
+// The owner appoints admins and takes the role back; nobody else does, and the owner's own role never moves.
+func TestOnlyTheOwnerChangesRoles(t *testing.T) {
+	w := newWorld(t)
+	owner, _ := w.workspace("Acme", "Ada")
+	ann := w.admin(owner, "Ann")
+	bo, boToken := w.member(owner, "Bo")
+
+	// A member cannot create a project; once appointed, with the very same token, they can.
+	if _, err := w.svc.CreateProject(bg, bo, ProjectInput{Name: "Nope"}); err == nil {
+		t.Fatal("a member created a project")
+	}
+	m, err := w.svc.SetMemberRole(bg, owner, bo.Member.ID, domain.RoleAdmin)
+	if err != nil || m.Role != domain.RoleAdmin {
+		t.Fatalf("appointing an admin: %+v %v", m, err)
+	}
+	boNow := w.signIn(boToken)
+	if boNow.Member.Role != domain.RoleAdmin {
+		t.Fatalf("the appointment did not reach the person's own token: %s", boNow.Member.Role)
+	}
+	if _, err := w.svc.CreateProject(bg, boNow, ProjectInput{Name: "Now allowed"}); err != nil {
+		t.Fatalf("a new admin cannot create a project: %v", err)
+	}
+	// Doing it again changes nothing and is not an error.
+	if _, err := w.svc.SetMemberRole(bg, owner, bo.Member.ID, domain.RoleAdmin); err != nil {
+		t.Fatalf("appointing an admin twice: %v", err)
+	}
+
+	// Admins do not appoint or remove admins, whoever the target is, themselves included.
+	for _, target := range []Actor{ann, boNow} {
+		_, err := w.svc.SetMemberRole(bg, ann, target.Member.ID, domain.RoleMember)
+		wantErr(t, err, domain.ErrForbidden)
+	}
+	_, err = w.svc.SetMemberRole(bg, boNow, ann.Member.ID, domain.RoleAdmin)
+	wantErr(t, err, domain.ErrForbidden)
+	cy, _ := w.member(owner, "Cy")
+	_, err = w.svc.SetMemberRole(bg, cy, cy.Member.ID, domain.RoleAdmin)
+	wantErr(t, err, domain.ErrForbidden) // nobody promotes themselves
+
+	// The owner stays the owner; there is never a second one; a role that does not exist is not a role.
+	_, err = w.svc.SetMemberRole(bg, owner, owner.Member.ID, domain.RoleMember)
+	wantErr(t, err, domain.ErrConflict)
+	_, err = w.svc.SetMemberRole(bg, owner, ann.Member.ID, domain.RoleOwner)
+	wantErr(t, err, domain.ErrInvalid)
+	_, err = w.svc.SetMemberRole(bg, owner, ann.Member.ID, domain.Role("superuser"))
+	wantErr(t, err, domain.ErrInvalid)
+	_, err = w.svc.SetMemberRole(bg, owner, "tmb_nobody", domain.RoleAdmin)
+	wantErr(t, err, domain.ErrNotFound)
+
+	// Taking the role back works at once, on the same token.
+	if _, err := w.svc.SetMemberRole(bg, owner, bo.Member.ID, domain.RoleMember); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.signIn(boToken); got.Member.Role != domain.RoleMember || got.Member.Can(domain.PermProjectsCreate) {
+		t.Fatalf("a demoted admin still has an admin's authority: %+v", got.Member)
+	}
+	members, _ := w.svc.ListMembers(bg, owner)
+	admins := 0
+	owners := 0
+	for _, m := range members {
+		switch m.Role {
+		case domain.RoleAdmin:
+			admins++
+		case domain.RoleOwner:
+			owners++
+		}
+	}
+	if owners != 1 || admins != 1 {
+		t.Fatalf("one owner and one admin (Ann) expected, found %d owners and %d admins", owners, admins)
+	}
+}
+
+// With several admins, each administers the whole workspace, and none gains the owner's authority over another.
+func TestSeveralAdminsEachAdministerAndNoneRulesAnother(t *testing.T) {
+	w := newWorld(t)
+	owner, _ := w.workspace("Acme", "Ada")
+	admins := []Actor{w.admin(owner, "Ann"), w.admin(owner, "Ben"), w.admin(owner, "Cat")}
+	for i, ad := range admins {
+		if _, err := w.svc.CreateProject(bg, ad, ProjectInput{Name: "Project " + string(rune('A'+i))}); err != nil {
+			t.Fatalf("admin %d cannot create a project: %v", i, err)
+		}
+		if _, err := w.svc.AddMember(bg, ad, "Member "+string(rune('A'+i)), "", domain.RoleMember); err != nil {
+			t.Fatalf("admin %d cannot add a member: %v", i, err)
+		}
+	}
+	for i, ad := range admins {
+		// Each sees every project, theirs or not.
+		if list, err := w.svc.ListProjects(bg, ad); err != nil || len(list) != 3 {
+			t.Fatalf("admin %d sees %d projects: %v", i, len(list), err)
+		}
+		for j, other := range admins {
+			if i == j {
+				continue
+			}
+			_, err := w.svc.ReissueToken(bg, ad, other.Member.ID)
+			wantErr(t, err, domain.ErrForbidden)
+			wantErr(t, w.svc.RemoveMember(bg, ad, other.Member.ID), domain.ErrForbidden)
+		}
+	}
+	// Removing one admin leaves the others, and the owner, exactly as they were.
+	if err := w.svc.RemoveMember(bg, owner, admins[0].Member.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, ad := range admins[1:] {
+		if _, err := w.svc.ListMembers(bg, ad); err != nil {
+			t.Fatalf("an admin lost access when another was removed: %v", err)
+		}
+	}
+}

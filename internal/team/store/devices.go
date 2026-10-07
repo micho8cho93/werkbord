@@ -188,3 +188,38 @@ func (t *sqlTx) RevokeDevice(ctx context.Context, workspaceID, id string, at tim
 	}
 	return true, nil
 }
+
+// ---- device profiles ----
+
+// SaveDeviceProfile records what a device says about itself, replacing what it said before.
+func (t *sqlTx) SaveDeviceProfile(ctx context.Context, workspaceID string, p domain.DeviceProfile) error {
+	_, err := t.q.ExecContext(ctx, `INSERT INTO device_profiles (device_id, workspace_id, platform, form, sleeps, sleep_events, version, reported_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (device_id) DO UPDATE SET platform = excluded.platform, form = excluded.form, sleeps = excluded.sleeps,
+			sleep_events = excluded.sleep_events, version = excluded.version, reported_at = excluded.reported_at
+		WHERE device_profiles.workspace_id = excluded.workspace_id`,
+		p.DeviceID, workspaceID, p.Platform, string(p.Form), b2i(p.Sleeps), p.SleepEvents, p.Version, ms(p.ReportedAt))
+	return err
+}
+
+// DeviceProfiles returns every profile in a workspace by device ID.
+func (t *sqlTx) DeviceProfiles(ctx context.Context, workspaceID string) (map[string]domain.DeviceProfile, error) {
+	rows, err := t.q.QueryContext(ctx, `SELECT device_id, platform, form, sleeps, sleep_events, version, reported_at FROM device_profiles WHERE workspace_id = ?`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]domain.DeviceProfile{}
+	for rows.Next() {
+		var p domain.DeviceProfile
+		var form string
+		var sleeps int
+		var at int64
+		if err := rows.Scan(&p.DeviceID, &p.Platform, &form, &sleeps, &p.SleepEvents, &p.Version, &at); err != nil {
+			return nil, err
+		}
+		p.Form, p.Sleeps, p.ReportedAt = domain.DeviceForm(form), sleeps == 1, fromMS(at)
+		out[p.DeviceID] = p
+	}
+	return out, rows.Err()
+}

@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"time"
 
+	"devboard/internal/envelope"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/store"
 )
@@ -31,6 +32,9 @@ type Service struct {
 	net NetworkAuthority
 	// storage is the control of the workspace's replicated database; nil when its data is in one file (SetStorage).
 	storage StorageControl
+	// replay remembers the signed requests this host has stored, so that one cannot be stored twice (the database's own
+	// uniqueness is what holds across hosts).
+	replay envelope.ReplayCache
 }
 
 // SetClock replaces the clock the service reads (for tests, which move time to see an
@@ -43,7 +47,9 @@ func (s *Service) SetClock(now func() time.Time) {
 }
 
 // New builds a Service on a database.
-func New(db store.Store) *Service { return &Service{db: db, now: time.Now, hub: &hub{}} }
+func New(db store.Store) *Service {
+	return &Service{db: db, now: time.Now, hub: &hub{}, replay: &envelope.MemoryReplayCache{}}
+}
 
 // changed wakes the clients waiting for the workspace to change, once a write has committed.
 func (s *Service) changed(workspaceID string, err error) {

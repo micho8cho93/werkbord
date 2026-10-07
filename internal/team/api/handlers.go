@@ -2,9 +2,12 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
+	"devboard/internal/envelope"
 	"devboard/internal/httpkit"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/service"
@@ -112,6 +115,17 @@ func (s *Server) handleReissueToken(w http.ResponseWriter, r *http.Request) {
 	httpkit.WriteJSON(w, http.StatusOK, mt)
 }
 
+func (s *Server) handleSetMemberRole(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Role string `json:"role"`
+	}
+	if !s.decode(w, r, &in) {
+		return
+	}
+	m, err := s.opt.Service.SetMemberRole(r.Context(), actorOf(r), r.PathValue("id"), domain.Role(in.Role))
+	s.respond(w, r, http.StatusOK, m, err)
+}
+
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	ps, err := s.opt.Service.ListProjects(r.Context(), actorOf(r))
 	if err != nil {
@@ -210,4 +224,74 @@ func (s *Server) handleStorageBackup(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRemoveHost(w http.ResponseWriter, r *http.Request) {
 	out, err := s.opt.Service.RemoveWorkspaceHost(r.Context(), actorOf(r), r.PathValue("id"))
 	s.respond(w, r, http.StatusOK, out, err)
+}
+
+func (s *Server) handleResilience(w http.ResponseWriter, r *http.Request) {
+	out, err := s.opt.Service.Resilience(r.Context(), actorOf(r))
+	s.respond(w, r, http.StatusOK, out, err)
+}
+
+// handleHeartbeat is a device saying that it is here and what kind of machine it is, with its own credential.
+func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Platform    string `json:"platform"`
+		Form        string `json:"form"`
+		Sleeps      bool   `json:"sleeps"`
+		SleepEvents int    `json:"sleepEvents"`
+		Version     string `json:"version"`
+	}
+	if !s.decode(w, r, &in) {
+		return
+	}
+	err := s.opt.Service.Heartbeat(r.Context(), actorOf(r), domain.DeviceProfile{Platform: in.Platform, Form: domain.DeviceForm(in.Form), Sleeps: in.Sleeps, SleepEvents: in.SleepEvents, Version: in.Version})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleSendMessage stores a request that a device signed, for another device of the same person. The server checks it and
+// hands it over; it never makes, changes or signs one.
+func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
+	var env envelope.Envelope
+	if !s.decode(w, r, &env) {
+		return
+	}
+	m, err := s.opt.Service.SendMessage(r.Context(), actorOf(r), env)
+	s.respond(w, r, http.StatusCreated, m, err)
+}
+
+func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
+	ms, err := s.opt.Service.Messages(r.Context(), actorOf(r))
+	s.respond(w, r, http.StatusOK, ms, err)
+}
+
+func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
+	m, err := s.opt.Service.Message(r.Context(), actorOf(r), r.PathValue("id"))
+	s.respond(w, r, http.StatusOK, m, err)
+}
+
+// handleInbox hands a device the signed requests waiting for it, holding the request open a little when there are none.
+func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
+	wait := time.Duration(0)
+	if v := r.URL.Query().Get("wait"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			wait = time.Duration(n) * time.Second
+		}
+	}
+	ms, err := s.opt.Service.Inbox(r.Context(), actorOf(r), wait)
+	s.respond(w, r, http.StatusOK, ms, err)
+}
+
+func (s *Server) handleAckMessage(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		State  string          `json:"state"`
+		Result json.RawMessage `json:"result"`
+	}
+	if !s.decode(w, r, &in) {
+		return
+	}
+	m, err := s.opt.Service.AckMessage(r.Context(), actorOf(r), r.PathValue("id"), domain.MessageState(in.State), in.Result)
+	s.respond(w, r, http.StatusOK, m, err)
 }

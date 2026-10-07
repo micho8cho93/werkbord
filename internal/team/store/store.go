@@ -230,6 +230,27 @@ func (t *sqlTx) SetMemberToken(ctx context.Context, workspaceID, id, hash string
 	return affected(res, err, "member")
 }
 
+// SetMemberRole changes a member's role between the roles an owner may hand out. The workspace's owner is made
+// when the workspace is, and is never changed by this: the guard is here, in the write, so it holds whatever the
+// caller read before.
+func (t *sqlTx) SetMemberRole(ctx context.Context, workspaceID, id string, role domain.Role) error {
+	if role == domain.RoleOwner {
+		return fmt.Errorf("%w: a workspace has one owner, the person who created it", domain.ErrInvalid)
+	}
+	res, err := t.q.ExecContext(ctx, `UPDATE members SET role = ? WHERE workspace_id = ? AND id = ? AND role <> 'owner'`, string(role), workspaceID, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		var cur string
+		if err := t.q.QueryRowContext(ctx, `SELECT role FROM members WHERE workspace_id = ? AND id = ?`, workspaceID, id).Scan(&cur); err != nil {
+			return notFound(err, "member")
+		}
+		return fmt.Errorf("%w: the owner's role does not change", domain.ErrConflict)
+	}
+	return nil
+}
+
 // ---- projects ----
 
 const projectCols = `id, workspace_id, name, description, repository, archived, created_at, updated_at, revision`

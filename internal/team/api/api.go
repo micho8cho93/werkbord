@@ -75,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/team/v1/members", s.handleAddMember)
 	api.HandleFunc("DELETE /api/team/v1/members/{id}", s.handleRemoveMember)
 	api.HandleFunc("POST /api/team/v1/members/{id}/token", s.handleReissueToken)
+	api.HandleFunc("PUT /api/team/v1/members/{id}/role", s.handleSetMemberRole)
 	api.HandleFunc("GET /api/team/v1/projects", s.handleListProjects)
 	api.HandleFunc("POST /api/team/v1/projects", s.handleCreateProject)
 	api.HandleFunc("GET /api/team/v1/projects/{id}", s.handleGetProject)
@@ -121,6 +122,14 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/team/v1/devices/{id}/provision", s.handleProvisionDevice)
 	api.HandleFunc("DELETE /api/team/v1/devices/{id}/replica", s.handleRemoveHost)
 	// where the workspace's data is kept, and backing it up
+	api.HandleFunc("GET /api/team/v1/resilience", s.handleResilience)
+	api.HandleFunc("POST /api/team/v1/device/heartbeat", s.handleHeartbeat)
+	// signed requests between a person's own devices: stored and handed over, never made or run here
+	api.HandleFunc("POST /api/team/v1/messages", s.handleSendMessage)
+	api.HandleFunc("GET /api/team/v1/messages", s.handleListMessages)
+	api.HandleFunc("GET /api/team/v1/messages/{id}", s.handleGetMessage)
+	api.HandleFunc("GET /api/team/v1/device/messages", s.handleInbox)
+	api.HandleFunc("POST /api/team/v1/device/messages/{id}/ack", s.handleAckMessage)
 	api.HandleFunc("GET /api/team/v1/storage", s.handleStorage)
 	api.HandleFunc("POST /api/team/v1/storage/backup", s.handleStorageBackup)
 	api.HandleFunc("GET /api/team/v1/network", s.handleNetworkHealth)

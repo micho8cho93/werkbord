@@ -339,3 +339,69 @@ func TestTheDeviceTablesHaveNoColumnForASecret(t *testing.T) {
 		}
 	}
 }
+
+// The profile table says what kind of machine a device is and nothing that could identify or reach it.
+func TestTheProfileTableHasNoColumnForASecretOrAnAddress(t *testing.T) {
+	ctx := context.Background()
+	db := openDB(t)
+	var cols []string
+	err := db.pool.View(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.Query(`SELECT name FROM pragma_table_info('device_profiles')`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var n string
+			_ = rows.Scan(&n)
+			cols = append(cols, n)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(cols, " "), "device_id workspace_id platform form sleeps sleep_events version reported_at"; got != want {
+		t.Fatalf("columns = %s\nwant %s", got, want)
+	}
+	for _, c := range cols {
+		for _, banned := range []string{"private", "secret", "token", "password", "credential", "api", "env", "path", "dir", "git", "seed", "cwd", "home", "ssh", "host", "addr", "ip"} {
+			if strings.Contains(c, banned) {
+				t.Errorf("device_profiles.%s could hold %s", c, banned)
+			}
+		}
+	}
+}
+
+// The mailbox holds what a sender signed and what the device it was for said back, and nothing that could run or reach anything.
+func TestTheMailboxHasNoColumnThatCouldHoldACommandOrASecret(t *testing.T) {
+	ctx := context.Background()
+	db := openDB(t)
+	var cols []string
+	err := db.pool.View(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.Query(`SELECT name FROM pragma_table_info('device_messages')`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var n string
+			_ = rows.Scan(&n)
+			cols = append(cols, n)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(cols, " "), "id workspace_id from_device_id to_device_id member_id action envelope state result created_at expires_at decided_at"; got != want {
+		t.Fatalf("columns = %s\nwant %s", got, want)
+	}
+	for _, c := range cols {
+		for _, banned := range []string{"private", "secret", "token", "password", "credential", "api", "env_", "path", "dir", "git", "seed", "cwd", "home", "ssh", "command", "script", "shell", "exec", "arg"} {
+			if strings.Contains(c, banned) {
+				t.Errorf("device_messages.%s could hold %s", c, banned)
+			}
+		}
+	}
+}

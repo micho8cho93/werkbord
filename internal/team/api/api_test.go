@@ -311,3 +311,41 @@ func TestAdminsOverHTTP(t *testing.T) {
 	ann.want(201, "POST", v1+"/projects", `{"name":"Admin's"}`)
 	owner.want(200, "GET", v1+"/me", nil) // the owner's token still works
 }
+
+// An owner appoints an admin over HTTP; the admin then administers, and cannot appoint another.
+func TestAdminsAreAppointedOverHTTP(t *testing.T) {
+	ts := newServer(t)
+	owner := client{t: t, base: ts.URL, token: ownerToken}
+	bo := owner.want(201, "POST", v1+"/members", `{"name":"Bo"}`)
+	cy := owner.want(201, "POST", v1+"/members", `{"name":"Cy"}`)
+	boID, cyID := str(sub(bo, "member"), "id"), str(sub(cy, "member"), "id")
+	boC := client{t: t, base: ts.URL, token: str(bo, "token")}
+
+	if code, _, _ := boC.do("POST", v1+"/projects", `{"name":"Nope"}`); code != 403 {
+		t.Fatalf("a member created a project: %d", code)
+	}
+	got := owner.want(200, "PUT", v1+"/members/"+boID+"/role", `{"role":"admin"}`)
+	if str(got, "role") != "admin" {
+		t.Fatalf("role = %v", got)
+	}
+	boC.want(201, "POST", v1+"/projects", `{"name":"Yes"}`)
+
+	// An admin cannot appoint (403); nobody makes a second owner (400) or touches the owner (409).
+	if code, _, raw := boC.do("PUT", v1+"/members/"+cyID+"/role", `{"role":"admin"}`); code != 403 {
+		t.Errorf("an admin appointed an admin: %d %s", code, raw)
+	}
+	if code, _, raw := owner.do("PUT", v1+"/members/"+cyID+"/role", `{"role":"owner"}`); code != 400 {
+		t.Errorf("a second owner: %d %s", code, raw)
+	}
+	me := owner.want(200, "GET", v1+"/me", nil)
+	if code, _, raw := owner.do("PUT", v1+"/members/"+str(sub(me, "member"), "id")+"/role", `{"role":"member"}`); code != 409 {
+		t.Errorf("demoting the owner: %d %s", code, raw)
+	}
+	if code, _, raw := owner.do("PUT", v1+"/members/tmb_nobody/role", `{"role":"admin"}`); code != 404 {
+		t.Errorf("an unknown member: %d %s", code, raw)
+	}
+	owner.want(200, "PUT", v1+"/members/"+boID+"/role", `{"role":"member"}`)
+	if code, _, _ := boC.do("POST", v1+"/projects", `{"name":"Again"}`); code != 403 {
+		t.Fatalf("a demoted admin created a project: %d", code)
+	}
+}

@@ -47,7 +47,7 @@ var projectRoutes = []string{
 // workspaceRoutes act on the signed-in member's own workspace, whichever project.
 var workspaceRoutes = []string{
 	"GET /me", "GET /roles", "GET /workspace", "PATCH /workspace",
-	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token",
+	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token", "PUT /members/{id}/role",
 	"GET /projects", "POST /projects",
 	"GET /overview", "GET /my-work", "GET /reviews", "GET /sync",
 	"POST /invites/join",
@@ -57,6 +57,13 @@ var workspaceRoutes = []string{
 	// Where the workspace's data is kept (how many hosts hold it, whether it is read-only) and backing it up: coordination
 	// metadata, and a request to the host to back up to the directory its own configuration names.
 	"GET /storage", "POST /storage/backup",
+	// How resilient the workspace is, in words (read-only), and a device saying, with its own credential, that it is there and what
+	// kind of machine it is (the profile holds a platform, a kind, whether it sleeps, a count and a version; nothing else).
+	"GET /resilience", "POST /device/heartbeat",
+	// Signed requests between a person's own devices (an action from a closed list, with identifiers for a payload): the server stores
+	// one exactly as the sender signed it and hands it to the device it is for, which checks the signature itself. Nothing here makes,
+	// changes or acts on a request, and only the owner of both devices can send or read one.
+	"POST /messages", "GET /messages", "GET /messages/{id}", "GET /device/messages", "POST /device/messages/{id}/ack",
 	"GET /network", "PUT /network/approval", "GET /network/config", "POST /network/certificate", "POST /network/checks",
 	"GET /network/provision", "POST /network/provision/ack",
 	"GET /enrollment-invitations", "POST /enrollment-invitations", "DELETE /enrollment-invitations/{id}",
