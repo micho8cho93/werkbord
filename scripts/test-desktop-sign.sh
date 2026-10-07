@@ -300,7 +300,18 @@ expect_fail "a release carries the updater" "carries Sparkle" rel VERSION=$cur C
 expect_fail "a release cannot name its own update key" "SPARKLE_PUBLIC_KEY is for tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" SPARKLE_PUBLIC_KEY=c2hvcnQ= scripts/build-desktop.sh --release
 expect_fail "a release cannot name its own update feed" "SPARKLE_FEED_URL is for tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" SPARKLE_FEED_URL=http://127.0.0.1:1/appcast.xml scripts/build-desktop.sh --release
 expect_fail "a release is never the build that installs updates without asking" "UPDATER_TEST is for tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" UPDATER_TEST=1 scripts/build-desktop.sh --release
-expect_fail "a release must be able to notarize" "NOTARY_KEY_FILE, NOTARY_KEY_ID and NOTARY_ISSUER" rel VERSION=$cur CODESIGN_IDENTITY="$ID" scripts/build-desktop.sh --release
+# The notarization check comes after the one that says a release is exactly a version, and a version that is a prerelease
+# (cmd/werkbord/VERSION says 1.3.1-preview.2, say) never gets that far. So this one is tried on a copy of the scripts whose
+# VERSION is a release, which refuses before it builds anything and leaves this tree alone.
+RELTREE="$WORK/reltree"
+mkdir -p "$RELTREE/cmd/werkbord" "$RELTREE/cmd/werkbord-team" "$RELTREE/internal/webui"
+cp -R scripts "$RELTREE/"
+echo 1.2.3 > "$RELTREE/cmd/werkbord/VERSION"
+cp cmd/werkbord-team/VERSION "$RELTREE/cmd/werkbord-team/"
+ln -s "$PWD/internal/webui/dist" "$RELTREE/internal/webui/dist"
+[ ! -d desktop ] || ln -s "$PWD/desktop" "$RELTREE/desktop"
+in_reltree() { (cd "$RELTREE" && "$@"); }
+expect_fail "a release must be able to notarize" "NOTARY_KEY_FILE, NOTARY_KEY_ID and NOTARY_ISSUER" in_reltree rel VERSION=v1.2.3 CODESIGN_IDENTITY="$ID" scripts/build-desktop.sh --release
 expect_fail "--notarize needs a real identity" "Developer ID identity" scripts/build-desktop.sh --notarize
 expect_fail "a release cannot use other notarization programs" "tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" XCRUN=/bin/true NOTARY_KEY_FILE=x NOTARY_KEY_ID=x NOTARY_ISSUER=x scripts/build-desktop.sh --release
 expect_fail "a timestamp setting must be 'none'" "can only be" env CODESIGN_TIMESTAMP=whenever scripts/build-desktop.sh
