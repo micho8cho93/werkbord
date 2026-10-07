@@ -94,8 +94,17 @@ func (p *raftProxy) serve(in net.Conn) {
 		// Some connections say nothing about who they are (rqlite's pooled requests between nodes): the machine says
 		// which process owns the other end. It may take a moment for the connection to show up there.
 		for try := 0; try < 8 && src < 0; try++ {
-			if pid := p.c.opts.Owner(in.RemoteAddr()); pid > 0 {
-				src = p.c.nodeOfPID(pid)
+			pid := p.c.opts.Owner(in.RemoteAddr())
+			if pid > 0 {
+				if src = p.c.nodeOfPID(pid); src < 0 {
+					known := map[string]int{}
+					for _, n := range p.c.Nodes() {
+						known[n.ID] = n.Sup.Status().PID
+					}
+					p.c.tracef("proxy for node %d: the owner of %s is process %d, which is no node's (the nodes' are %v)", p.node, in.RemoteAddr(), pid, known)
+				}
+			} else if try == 7 {
+				p.c.tracef("proxy for node %d: nothing was found to own %s after %d tries", p.node, in.RemoteAddr(), try+1)
 			}
 			if src < 0 {
 				time.Sleep(60 * time.Millisecond)
