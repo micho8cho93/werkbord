@@ -314,6 +314,12 @@ func (v *Vault) Demote(now time.Time) error {
 	if err != nil {
 		return err
 	}
+	cur.Meta.Authority = false
+	cur.Trust, cur.CA = nil, nil
+	// Persist the reduced role first; interrupted erasure can resume without needing the removed keys.
+	if err := v.save(cur); err != nil {
+		return err
+	}
 	for _, name := range []string{fileTrust, fileCAKey, fileStorage} {
 		path := filepath.Join(v.dir, name)
 		if fi, err := os.Stat(path); err == nil {
@@ -323,9 +329,7 @@ func (v *Vault) Demote(now time.Time) error {
 			return err
 		}
 	}
-	cur.Meta.Authority = false
-	cur.Trust, cur.CA = nil, nil
-	return v.save(cur)
+	return nil
 }
 
 func writeFile(path string, data []byte, mode os.FileMode) error {
@@ -415,4 +419,75 @@ func (v *Vault) JoinInfo() (JoinInfo, error) {
 		return j, err
 	}
 	return j, json.Unmarshal(b, &j)
+}
+
+// ---- named secrets ----
+
+const labelSecretPrefix = "werkbord/vault/secret/"
+
+func secretFile(name string) string { return "secret." + name + ".sealed" }
+
+func checkSecretName(name string) error {
+	if name == "" || len(name) > 40 {
+		return errors.New("pki: a secret's name is 1 to 40 characters")
+	}
+	for _, r := range name {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+			return fmt.Errorf("pki: %q is not a secret's name (lower case letters, digits and hyphens)", name)
+		}
+	}
+	return nil
+}
+
+// SaveSecret keeps a named secret of this device, sealed, beside its keys: a credential it holds for something on this
+// computer, or a join that is waiting to be approved. The vault does not interpret it.
+func (v *Vault) SaveSecret(name string, data []byte) error {
+	if err := checkSecretName(name); err != nil {
+		return err
+	}
+	sealed, err := v.sealer.Seal(labelSecretPrefix+name, data)
+	if err != nil {
+		return err
+	}
+	return writeFile(filepath.Join(v.dir, secretFile(name)), sealed, 0o600)
+}
+
+// Secret returns a named secret; os.ErrNotExist when there is none.
+func (v *Vault) Secret(name string) ([]byte, error) {
+	if err := checkSecretName(name); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(v.dir, secretFile(name))
+	if err := checkPrivateFile(path); err != nil {
+		return nil, err
+	}
+	sealed, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return v.sealer.Open(labelSecretPrefix+name, sealed)
+}
+
+// HasSecret reports whether there is one.
+func (v *Vault) HasSecret(name string) bool {
+	if checkSecretName(name) != nil {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(v.dir, secretFile(name)))
+	return err == nil
+}
+
+// DeleteSecret removes one (overwriting it first, as far as the disk allows). Removing what is not there is not an error.
+func (v *Vault) DeleteSecret(name string) error {
+	if err := checkSecretName(name); err != nil {
+		return err
+	}
+	path := filepath.Join(v.dir, secretFile(name))
+	if fi, err := os.Stat(path); err == nil {
+		_ = os.WriteFile(path, make([]byte, fi.Size()), 0o600)
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }

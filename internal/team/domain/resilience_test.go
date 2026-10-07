@@ -38,6 +38,30 @@ func goodBackup() *BackupStatus {
 	return &BackupStatus{Configured: true, LastAt: t0.Add(-3 * time.Hour).UnixMilli(), LastOK: true, Count: 5}
 }
 
+func TestHostRemovalAdviceUsesLiveClusterCopies(t *testing.T) {
+	cases := []struct {
+		name    string
+		storage StorageStatus
+		target  string
+		allowed bool
+	}{
+		{"only host", cluster(1, 1, nil), "dev_a", false},
+		{"three healthy hosts", cluster(3, 3, nil), "dev_a", true},
+		{"removing an online host leaves too few", cluster(3, 2, nil), "dev_a", false},
+		{"removing the offline host keeps both copies", cluster(3, 2, nil), "dev_c", true},
+		{"copies cannot be checked", StorageStatus{State: StorageReplicated}, "dev_a", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := AssessResilience(ResilienceInput{Now: t0, Storage: c.storage, Devices: []Device{host(c.target, "Host", true, CapabilityWorkspaceHost)}})
+			check := r.Devices[0].Removal
+			if check == nil || check.Allowed != c.allowed || (!c.allowed && check.Reason == "") {
+				t.Fatalf("unsafe or unexplained removal preview: %+v", check)
+			}
+		})
+	}
+}
+
 func net(remote string) *NetworkHealth {
 	return &NetworkHealth{RemoteAccess: remote, Hosts: []HostNetworkStatus{{Discovery: true}}}
 }

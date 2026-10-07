@@ -42,6 +42,7 @@ var version = "dev"
 const usage = `usage: werkbord-team <command> [flags]
 
 commands:
+  daemon             run this device's background service (workspace, networking and local runner bridge)
   workspace create   start a workspace; prints the owner's token (once); --network gives it a private network
   serve              run the Team server in the foreground
   network            the private network: status, invite, pending, approve, deny, node
@@ -73,6 +74,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	cfg := config.Load()
 	switch args[0] {
+	case "daemon":
+		return cmdDaemon(ctx, cfg, args[1:], stderr)
 	case "serve":
 		return cmdServe(ctx, cfg, args[1:], stderr)
 	case "migrate":

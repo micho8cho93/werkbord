@@ -140,6 +140,24 @@ if rel
   check(jobs.dig("desktop-publish", "steps").to_a.none? { |st| st["run"].to_s.include?("appcast.xml") }, "the feed is not published together with the disk image: it comes after the check")
 end
 
+team = workflows["#{DIR}/release-team-desktop.yml"]
+check(team, "separate Team desktop workflow is missing")
+if team
+  names = trigger_names(team)
+  check(names.include?("push") && names.include?("workflow_dispatch") && !names.include?("pull_request"), "Team installer runs only on trusted tags or a dry run")
+  tags = team.dig(true,"push","tags") || team.dig("on","push","tags") || []
+  check(tags == ["werkbord-team-v*"], "Team installer must use Team product tags alone")
+  jobs = team["jobs"]
+  check(jobs.select { |_,j| mentions_secret?(j) }.keys == ["build"], "Team signing secrets belong only in the read-only build job")
+  check(perms(jobs["build"], team) == {"contents"=>"read"} && jobs["build"]["environment"] == "team-desktop-release", "Team signing needs its own protected environment")
+  check(jobs["build"]["steps"].any? { |s| s["if"].to_s == "always()" && s["run"].to_s.include?("ci-keychain.sh delete") }, "Team signing keychain must always be removed")
+  %w[publish verify].each { |name| check(jobs[name]["if"].to_s.include?("push") && !jobs[name].key?("environment"), "#{name} must hold no signing secrets and never publish a dry run") }
+  check(perms(jobs["publish"], team) == {"contents"=>"write"}, "only Team publishing needs repository write")
+  text = JSON.generate(jobs)
+  check(!text.match?(/gh release (create|edit|delete)/), "Team installer must not change release identity, status or latest")
+  jobs.each { |name,j| uses_of(j).each { |u| check(u.match?(%r{\Aactions/[a-z-]+@[0-9a-f]{40}\z}), "Team #{name}: unpinned action #{u}") } }
+end
+
 if $failures.empty?
   puts "test-workflows: #{workflows.size} workflows parse, and their secrets, permissions and pins are as designed"
 else

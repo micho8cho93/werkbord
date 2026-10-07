@@ -1,0 +1,43 @@
+/* The separate Team device experience extends the existing Werkbord tokens. */
+.admin-tabs { border-bottom: 0; margin-top: -14px; padding-bottom: 8px; gap: 2px; }
+.admin-tabs button { height: 34px; font-size: 12px; padding: 0 10px; }
+.desktop-gate { max-width: 620px; margin: 8vh auto 0; }
+.setup-panel { padding: 28px; }
+.setup-panel h1 { font-size: 24px; margin-bottom: 12px; }
+.setup-panel .link { margin-bottom: 12px; }
+.setup-panel p { line-height: 1.6; }
+.setup-actions { margin: 24px 0; }
+.always-on { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.always-on summary { font-weight: 500; cursor: pointer; }
+.always-on p { max-width: 70ch; margin-top: 10px; line-height: 1.6; color: var(--muted); }
+.health-checks { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr; font-size: 13px; margin: 0; }
+.health-checks dt, .health-checks dd { margin: 0; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.health-checks dt { color: var(--muted); }
+.health-checks dd { font-weight: 500; font-variant-numeric: tabular-nums; }
+.health-checks { column-gap: 12px; }
+.compact-health .actions { align-items: center; }
+.compact-health p { margin-bottom: 0; }
+.check-ok { color: var(--ok-text); }
+.check-warn, .advice { color: var(--warn-text); }
+.check-bad { color: var(--danger-text); }
+.advice { padding-top: 12px; font-size: 13px; }
+.resilience .advice p { max-width: 70ch; }
+.invite-result { margin-top: 20px; padding: 16px; background: var(--s2); border-radius: 6px; }
+.invite-result code { display: block; margin: 8px 0; max-height: 90px; overflow: auto; }
+.invite-qr { display: block; max-width: 100%; height: auto; margin: 16px 0; background: #fff; }
+.device-row { gap: 10px; }
+.device-row .grow p { margin: 3px 0; }
+.request-status { padding: 10px 0; }
+input, textarea { caret-color: var(--accent); }
+.setup-panel form { margin-top: 20px; }
+@media (max-width: 650px) {
+  .desktop-gate { margin-top: 16px; }
+  .setup-panel { padding: 20px; }
+  .health-checks { grid-template-columns: minmax(130px, 1fr) minmax(0, 1.4fr); }
+  .admin-tabs { gap: 0; }
+  .admin-tabs button { height: 42px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .setup-panel { animation: setup-arrive 180ms cubic-bezier(.16, 1, .3, 1); }
+  @keyframes setup-arrive { from { clip-path: inset(0 0 8px); } to { clip-path: inset(0); } }
+}

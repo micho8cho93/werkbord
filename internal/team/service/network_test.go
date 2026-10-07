@@ -407,6 +407,22 @@ func (n *netWorld) deviceActor(token string) Actor {
 	return a
 }
 
+func TestDeviceConnectionInspectionIsLimitedToSelfOrAnAdministrator(t *testing.T) {
+	n := withNetwork(t)
+	resp := n.mustJoin(n.invite(n.owner, EnrollInviteInput{}), laptop(t, "member"), "Mia")
+	mia := n.deviceActor(resp.DeviceToken)
+	got, err := n.svc.DeviceNetwork(bg, mia, mia.Device.ID)
+	if err != nil || got.OverlayAddr != resp.Network.OverlayAddr {
+		t.Fatalf("own connection: %+v %v", got, err)
+	}
+	if _, err := n.svc.DeviceNetwork(bg, mia, n.host.DeviceID()); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("a member inspected another device: %v", err)
+	}
+	if _, err := n.svc.DeviceNetwork(bg, n.admin("Bo"), mia.Device.ID); err != nil {
+		t.Fatalf("an administrator could not inspect a member's connection: %v", err)
+	}
+}
+
 func TestAnInvitationsWorkspaceMustHoldTheNetworksKeys(t *testing.T) {
 	n := withNetwork(t)
 	n.fake.fp = "xxxx-yyyy" // this host's authority is not the one this workspace's network was made with

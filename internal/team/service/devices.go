@@ -397,3 +397,22 @@ func (d deviceDirectory) Device(ctx context.Context, workspaceID, deviceID strin
 	}
 	return envelope.Device{ID: dev.ID, WorkspaceID: dev.WorkspaceID, OwnerID: dev.MemberID, PublicKey: key, Revoked: dev.Revoked()}, nil
 }
+
+// IssueLocalDeviceCredential gives a device of this workspace a credential for the workspace's API and returns it, once. It is for
+// the Workspace Host that made the workspace (whose own device is not enrolled through an invitation, and so has none), speaking for
+// itself on its own computer; it is not reachable over HTTP. The credential is the device's own, checked on every request like any
+// other device's, and ends when the device is revoked.
+func (s *Service) IssueLocalDeviceCredential(ctx context.Context, workspaceID, deviceID string) (string, error) {
+	token, hash := domain.NewToken()
+	err := s.db.Update(ctx, func(tx store.Tx) error {
+		d, err := tx.Device(ctx, workspaceID, deviceID)
+		if err != nil {
+			return err
+		}
+		if d.Revoked() {
+			return fmt.Errorf("%w: the device has been revoked", domain.ErrConflict)
+		}
+		return tx.SetDeviceCredential(ctx, workspaceID, deviceID, hash, s.stamp())
+	})
+	return token, err
+}

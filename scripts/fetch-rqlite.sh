@@ -70,7 +70,9 @@ mkdir -p "$tmp/x"
 if [ "$source_build" = yes ]; then
   command -v git >/dev/null 2>&1 || die "git is needed to build rqlite from its pinned source"
   command -v go >/dev/null 2>&1 || die "the Go toolchain is needed to build rqlite from its pinned source"
-  if [ "$os/$arch" != "$(go env GOOS)/$(go env GOARCH)" ]; then
+  cross_mac=no
+  if [ "$os" = darwin ] && [ "$(go env GOOS)" = darwin ]; then cross_mac=yes; fi
+  if [ "$os/$arch" != "$(go env GOOS)/$(go env GOARCH)" ] && [ "$cross_mac" != yes ]; then
     # Exit 3 says "cannot be had here", as opposed to "was had and is wrong" (1): a release build on another platform may go without.
     printf 'fetch-rqlite: rqlite for %s/%s is built from source, and can only be built on that platform (this is %s/%s)\n' "$os" "$arch" "$(go env GOOS)" "$(go env GOARCH)" >&2
     exit 3
@@ -79,10 +81,19 @@ if [ "$source_build" = yes ]; then
   git clone -q --depth 1 --branch "$tag" https://github.com/rqlite/rqlite.git "$tmp/src" || die "could not fetch rqlite $tag"
   [ "$(git -C "$tmp/src" rev-parse HEAD)" = "$commit" ] || die "tag $tag is at $(git -C "$tmp/src" rev-parse HEAD), but the pin is $commit: not using it"
   pkg="github.com/rqlite/rqlite/v${version%%.*}/cmd"
-  (cd "$tmp/src" && CGO_ENABLED=1 go build -trimpath -ldflags "-w -s -X $pkg.Version=$tag -X $pkg.Commit=$commit" -o "$tmp/x/rqlited" ./cmd/rqlited) || die "the build failed"
+  if [ "$cross_mac" = yes ]; then
+    case "$arch" in arm64) c_arch=arm64 ;; amd64) c_arch=x86_64 ;; *) die "unsupported Mac architecture" ;; esac
+    (cd "$tmp/src" && CGO_ENABLED=1 GOOS=darwin GOARCH=$arch \
+      CGO_CFLAGS="-arch $c_arch -mmacosx-version-min=13.0" CGO_LDFLAGS="-arch $c_arch -mmacosx-version-min=13.0" \
+      go build -trimpath -ldflags "-w -s -X $pkg.Version=$tag -X $pkg.Commit=$commit" -o "$tmp/x/rqlited" ./cmd/rqlited) || die "the Mac build failed"
+  else
+    (cd "$tmp/src" && CGO_ENABLED=1 go build -trimpath -ldflags "-w -s -X $pkg.Version=$tag -X $pkg.Commit=$commit" -o "$tmp/x/rqlited" ./cmd/rqlited) || die "the build failed"
+  fi
   chmod 0755 "$tmp/x/rqlited"
-  got=$("$tmp/x/rqlited" -version 2>&1 | grep -m1 "^rqlited")
-  case "$got" in "rqlited $tag "*) ;; *) die "the program built reports '$got', not $tag" ;; esac
+  if [ "$arch" = "$(go env GOARCH)" ]; then
+    got=$("$tmp/x/rqlited" -version 2>&1 | grep -m1 "^rqlited")
+    case "$got" in "rqlited $tag "*) ;; *) die "the program built reports '$got', not $tag" ;; esac
+  fi
   printf '{"version":"%s","commit":"%s","sha256":"%s"}\n' "$tag" "$commit" "$(sha256 "$tmp/x/rqlited")" > "$tmp/x/rqlited.build"
 else
   command -v curl >/dev/null 2>&1 || die "curl is needed to fetch rqlite"

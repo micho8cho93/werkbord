@@ -8,6 +8,7 @@ import (
 	"devboard/internal/httpkit"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/service"
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 // The private network and the devices on it. Everything here is metadata the workspace
@@ -45,6 +46,15 @@ func (s *Server) handleSetDeviceNetwork(w http.ResponseWriter, r *http.Request) 
 	}
 	n, err := s.opt.Service.SetDeviceNetwork(r.Context(), actorOf(r), r.PathValue("id"),
 		service.NetworkPatch{BootstrapEndpoints: in.BootstrapEndpoints, NetworkEndpoints: in.NetworkEndpoints, Discovery: in.Discovery, Relay: in.Relay})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	httpkit.WriteJSON(w, http.StatusOK, n)
+}
+
+func (s *Server) handleDeviceNetwork(w http.ResponseWriter, r *http.Request) {
+	n, err := s.opt.Service.DeviceNetwork(r.Context(), actorOf(r), r.PathValue("id"))
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -176,7 +186,15 @@ func (s *Server) handleCreateEnrollInvitation(w http.ResponseWriter, r *http.Req
 		s.fail(w, r, err)
 		return
 	}
-	httpkit.WriteJSON(w, http.StatusCreated, res)
+	png, _ := qrcode.Encode(res.Link, qrcode.Medium, 384)
+	var qr string
+	if len(png) != 0 {
+		qr = "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+	}
+	httpkit.WriteJSON(w, http.StatusCreated, struct {
+		service.EnrollInviteResult
+		QR string `json:"qr,omitempty"`
+	}{res, qr})
 }
 
 func (s *Server) handleWithdrawEnrollInvitation(w http.ResponseWriter, r *http.Request) {
@@ -216,4 +234,32 @@ func (s *Server) handleDenyEnrollment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpkit.WriteJSON(w, http.StatusOK, e)
+}
+
+// handleSetDeviceCapabilities changes what a device does for the workspace: its owner may add or remove the runner capability, and
+// someone who manages devices may give or take a host capability.
+func (s *Server) handleSetDeviceCapabilities(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Capabilities []string `json:"capabilities"`
+	}
+	if !s.decode(w, r, &in) {
+		return
+	}
+	caps := make([]domain.Capability, 0, len(in.Capabilities))
+	for _, c := range in.Capabilities {
+		caps = append(caps, domain.Capability(c))
+	}
+	d, err := s.opt.Service.SetDeviceCapabilities(r.Context(), actorOf(r), r.PathValue("id"), caps)
+	s.respond(w, r, http.StatusOK, d, err)
+}
+
+func (s *Server) handleRenameDevice(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name string `json:"name"`
+	}
+	if !s.decode(w, r, &in) {
+		return
+	}
+	d, err := s.opt.Service.RenameDevice(r.Context(), actorOf(r), r.PathValue("id"), in.Name)
+	s.respond(w, r, http.StatusOK, d, err)
 }

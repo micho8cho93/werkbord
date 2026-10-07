@@ -1,7 +1,7 @@
 # Products: individual Werkbord and Werkbord Team
 
 This repository builds two products. They share code and infrastructure, and they are otherwise separate: each has its
-own executable, version, data directory, installer, release artifacts and (eventually) licence.
+own executable, version, data directory, installer, release artifacts and licence.
 
 | | **Werkbord** (individual) | **Werkbord Team** |
 | --- | --- | --- |
@@ -13,14 +13,14 @@ own executable, version, data directory, installer, release artifacts and (event
 | Version file | `cmd/werkbord/VERSION` | `cmd/werkbord-team/VERSION` |
 | Release tag | `werkbord-vX.Y.Z` | `werkbord-team-vX.Y.Z` |
 | Release archives | `werkbord_<version>_<os>_<arch>` (also published as `devboard_…` for older updaters) | `werkbord-team_<version>_<os>_<arch>` |
-| Installer | `scripts/install.sh`, `scripts/install.ps1`; on a Mac, the app in `desktop/` ([DESKTOP.md](DESKTOP.md)), which installs the same program | `scripts/install-team.sh` |
+| Installer | `scripts/install.sh`, `scripts/install.ps1`; on a Mac, the app in `desktop/` ([DESKTOP.md](DESKTOP.md)), which installs the same program | `scripts/install-team.sh`; the separate Team app in `cmd/werkbord-team/desktop/` ([TEAM_DESKTOP.md](TEAM_DESKTOP.md)) |
 | Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory |
 | Settings | `WERKBORD_*` (and the older `DEVBOARD_*`) | `WERKBORD_TEAM_*` |
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` |
 | Build | `make build` (or `make werkbord`); the Mac app: `make desktop` | `make build-team` (or `make werkbord-team`) |
 
-The two can be installed, run and upgraded independently, on the same computer or on different ones. Installing one
-never installs, starts or changes the other.
+The two can be installed, run and upgraded independently, on the same computer or on different ones. Installing one does not start or change the other. The Team desktop app offers an explicit, optional local
+installation of the free individual runner through that product’s normal setup.
 
 > **Naming.** Werkbord was called Dev Board. Since Werkbord 1.0 the executable is `werkbord`, and everything a person
 > sees or types says so. What existing installs depend on keeps working, indefinitely and without nagging: the `devboard`
@@ -36,9 +36,9 @@ never installs, starts or changes the other.
 **A Team workspace is a coordination layer. It is not a shared execution environment.**
 
 Every developer keeps using their own machine, their own Werkbord runner, their own Git credentials, their own
-GitHub credentials, and their own agent and model credentials. Team never starts a process, never holds a credential,
-and never opens a path into another member's computer. A team member cannot make another member's machine run
-anything. Team records who is on the team and what they are working on; each person's own Werkbord does the work.
+GitHub credentials, and their own agent and model credentials. Team never starts developer processes or holds Git, agent or model credentials,
+and never opens an arbitrary path into another member’s computer. Only a person’s signed semantic requests to their own
+locally trusted devices can cross the narrow local runner bridge, subject to the individual controller’s policies. Team records who is on the team and what they are working on; each person's own Werkbord does the work.
 
 This is enforced, not just intended (see [Enforcement](#enforcement)): Team's build cannot link the code that runs
 agents, commands or Git, and its own code cannot import `os/exec`.
@@ -52,6 +52,7 @@ The repository is one Go module. The usual monorepo split (`apps/` and `packages
 cmd/werkbord/            APP    the individual product
 desktop/                 APP    the individual product's Mac app: a native window around web/ (its own Go module; DESKTOP.md)
 cmd/werkbord-team/       APP    Werkbord Team
+cmd/werkbord-team/desktop/ APP  separate Team Wails window and local OS installer (own Go module)
 
 internal/sqlitekit/      SHARED opening, migrating and backing up a SQLite database
 internal/httpkit/        SHARED JSON responses, error envelope, strict body decoding, request logging, security headers
@@ -69,6 +70,7 @@ A package is **shared** when both products use it and it holds no behaviour of e
 | --- | --- | --- |
 | `internal/sqlitekit` | Opens a SQLite file (one writer, a pool of readers, WAL), runs versioned migrations, copies the database before an upgrade, inspects it read-only. Knows no schema. | `internal/store/sqlite` (individual), `internal/team/store` (Team) |
 | `internal/httpkit` | `WriteJSON`/`WriteError` and the error envelope, strict `DecodeJSON`, and the `LogRequests`, `RecoverPanics` and `SecurityHeaders` middleware. Holds no route. | `internal/api` (individual), `internal/team/api` (Team) |
+| `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |
 | `internal/logging` | `slog` logger construction | both |
 | `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (individual, Tailscale); `internal/team/infra/overlaynet` (Team's own private network) |
 | `internal/deviceid` | A device's ID, public key and the checks on them. No private key. | Team |
@@ -138,9 +140,9 @@ reuses the shared packages above and the individual product's ideas (token-authe
 but none of its code beyond the shared plumbing.
 
 The workflow respects the rule above: Team stores *reports* (a developer's Werkbord says "my branch is 3 commits behind");
-it does not run Git, call GitHub, or reach a runner. The hand-off to a runner is the member's own action, on their own
-computer (`werkbord-team handoff`, which only addresses a loopback Werkbord), and the individual product needed no change
-for it.
+it does not run Git, call GitHub, or reach a runner. The desktop daemon verifies signed requests from locally approved devices belonging to that same person, then exchanges
+only semantic actions with the person’s own loopback controller using a narrow access grant. The individual product’s
+generic local access API knows no Team workspace, credential or policy. The CLI handoff remains available.
 
 Roles are permission tables, not checks for a name: services ask `Role.Can(permission)`, so adding a role is one entry
 in `internal/team/domain/roles.go` and needs no schema change and no handler change.
@@ -150,7 +152,11 @@ identity, its own certificate authority, signed invitations, enrollment over TLS
 customer owns, a default-deny policy, revocation in two layers, and the authority handed to more than one Workspace Host.
 Werkbord operates none of it. See [TEAM_NETWORK.md](TEAM_NETWORK.md) and [the decision](adr/0002-customer-owned-network.md).
 
-Not built yet, by design: licensing and payment, remote execution of any kind (never), a Team update command, a
+Team 2.8 adds a separately packaged Wails desktop app, a persistent macOS system service, offline license activation,
+automated first-host creation and approved device enrollment, multi-admin management and actionable resilience status.
+See [TEAM_DESKTOP.md](TEAM_DESKTOP.md) for the shipped workflow and service/security details.
+
+Not built yet: a payment backend, automatic seat enforcement, a Team update command, a
 Windows installer, HTTPS (put Team behind a TLS proxy), ownership transfer, comments and chat (Team coordinates; it is
 not a messenger), a Team-side automatic reporter in the individual Werkbord. Members can use the developer-owned
 `werkbord-team handoff --report` / `--watch` client; the individual product stores only generic task
@@ -187,8 +193,11 @@ make verify-isolation      # copies the repo with every Team file removed, then 
 make test-install test-install-team   # each installer against a local release server
 ```
 
-The Mac app (individual product only; needs the Xcode command line tools): `make desktop`, `make desktop-package` (adds a
+The individual Mac app (needs the Xcode command line tools): `make desktop`, `make desktop-package` (adds a
 `.dmg`), `make desktop-dev`, `make desktop-check`. See [DESKTOP.md](DESKTOP.md).
+
+The separate Team Mac app: `make team-desktop`, `make team-desktop-package`, `make team-desktop-check`.
+Production distribution: `make team-desktop-release`; see [TEAM_DESKTOP.md](TEAM_DESKTOP.md).
 
 Releases: `make dist PRODUCT=werkbord` or `PRODUCT=werkbord-team` writes the archives and `checksums.txt` to `dist/`.
 CI does this when a product tag is pushed. See [VERSIONING.md](VERSIONING.md).

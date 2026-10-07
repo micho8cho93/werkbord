@@ -261,6 +261,23 @@ func (s *Service) NetworkSettings(ctx context.Context, a Actor) (domain.NetworkS
 	return out, err
 }
 
+// DeviceNetwork reads only this device's own public network record, or one an administrator may manage.
+func (s *Service) DeviceNetwork(ctx context.Context, a Actor, deviceID string) (domain.DeviceNetwork, error) {
+	var out domain.DeviceNetwork
+	err := s.db.View(ctx, func(tx store.Tx) error {
+		d, err := tx.Device(ctx, a.Workspace.ID, deviceID)
+		if err != nil {
+			return err
+		}
+		if !a.Member.Can(domain.PermDevicesManage) && (a.Device == nil || a.Device.ID != d.ID) {
+			return forbidden("inspect another device's connection")
+		}
+		out, err = tx.DeviceNetwork(ctx, a.Workspace.ID, deviceID)
+		return err
+	})
+	return out, err
+}
+
 // SetEnrollmentApproval chooses whether an administrator must approve joining devices.
 func (s *Service) SetEnrollmentApproval(ctx context.Context, a Actor, p domain.ApprovalPolicy) error {
 	if err := a.require(domain.PermDevicesManage, "change who may join the network"); err != nil {

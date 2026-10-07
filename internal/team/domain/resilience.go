@@ -107,6 +107,37 @@ type DeviceHealth struct {
 	Profile            *DeviceProfile `json:"profile,omitempty"`
 	// HostFit says whether it would make a good Workspace Host.
 	HostFit HostFit `json:"hostFit"`
+	// Removal is a read-only preview of the same live-copy check used when removing a Host.
+	Removal *HostRemovalCheck `json:"removal,omitempty"`
+}
+
+type HostRemovalCheck struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+func hostRemovalCheck(st StorageStatus, id string) *HostRemovalCheck {
+	check := &HostRemovalCheck{}
+	if st.State != StorageReplicated || !st.Writable || len(st.Hosts) == 0 {
+		check.Reason = "Team cannot confirm another safe workspace copy. Keep the Workspace Hosts online and try again."
+		return check
+	}
+	if err := CheckRemoval(st.Hosts, id); err == nil {
+		check.Allowed = true
+		return check
+	}
+	voters := 0
+	for _, h := range st.Hosts {
+		if h.Voter {
+			voters++
+		}
+	}
+	if voters == 1 {
+		check.Reason = "At least one healthy Workspace Host must remain. Add another Host before removing this one."
+	} else {
+		check.Reason = "Team cannot safely remove this Host yet. Bring offline Hosts back and finish any Host setup, then try again."
+	}
+	return check
 }
 
 // HostCounts says how many Workspace Hosts there are and how many answer.
@@ -179,6 +210,9 @@ func AssessResilience(in ResilienceInput) Resilience {
 		online := d.OnlineAt(now)
 		dh := DeviceHealth{DeviceID: d.ID, Name: d.Name, OwnerID: d.MemberID, Online: online, Capabilities: d.Capabilities,
 			HostStatus: d.HostStatus, ConnectivityStatus: d.ConnectivityStatus, Profile: prof, HostFit: HostFitOf(prof)}
+		if d.Has(CapabilityWorkspaceHost) {
+			dh.Removal = hostRemovalCheck(in.Storage, d.ID)
+		}
 		if dh.Capabilities == nil {
 			dh.Capabilities = []Capability{}
 		}

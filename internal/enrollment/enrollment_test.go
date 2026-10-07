@@ -406,6 +406,31 @@ func TestNotWaitingReportsPending(t *testing.T) {
 	}
 }
 
+// A device that was shut while it waited for an administrator can ask again, and is given what it was issued once it is approved.
+func TestAWaitingDeviceCanResumeAfterARestart(t *testing.T) {
+	e := newEnv(t)
+	e.auth.approveN = 2 // pending on join, pending on the first poll, approved on the second
+	inv, _ := e.w.invite(t, []string{e.addr}, time.Hour)
+	dev := newDevice()
+	res, err := enrollment.Join(context.Background(), inv, params(dev))
+	if !errors.Is(err, enrollment.ErrPending) || res == nil {
+		t.Fatalf("Join = %+v, %v", res, err)
+	}
+	// "Restart": only the invitation, the device's own key and the enrollment's ID are left.
+	again, err := enrollment.Resume(context.Background(), inv, params(dev), res.EnrollmentID)
+	if !errors.Is(err, enrollment.ErrPending) || again == nil || again.EnrollmentID != res.EnrollmentID {
+		t.Fatalf("Resume = %+v, %v; want ErrPending", again, err)
+	}
+	final, err := enrollment.Resume(context.Background(), inv, params(dev), res.EnrollmentID)
+	if err != nil || final.State != enrollment.StateApproved || final.Network == nil {
+		t.Fatalf("Resume = %+v, %v", final, err)
+	}
+	// Another device cannot collect what this one was issued (its proof is made with the wrong key).
+	if _, err := enrollment.Resume(context.Background(), inv, params(newDevice()), res.EnrollmentID); err == nil {
+		t.Fatal("another device resumed this enrollment")
+	}
+}
+
 // ---- the server's own checks ----
 
 func rawPost(t *testing.T, e *env, pin ed25519.PublicKey, minVersion uint16, path string, body any) (int, []byte) {

@@ -27,20 +27,20 @@ import (
 // serverImportAllowed is where a Team server package may import a package that can
 // touch the machine: the package (relative to internal/team) it is allowed in.
 var serverImportAllowed = map[string][]string{
-	"os":                           {"config", "infra", "server", "store"}, // the environment and the data directory; infrastructure reads and writes its own key and node files; the wiring opens the key vault and reads the passphrase file that the configuration names, and nothing else; the replicated store keeps its local copy and its backups in directories the configuration names
-	"path/filepath":                {"config", "infra", "server", "store"}, // the data directory's path
-	"net":                          {"config", "server", "infra", "store"}, // validating and opening the listen address; infrastructure parses the addresses of its own network; the replicated store tells a refused connection (nothing was sent) from a lost answer, and may dial only what outboundAllowed grants it
-	"syscall":                      {"infra"},                              // only infrastructure, to check who owns the files it starts or reads keys from, and to signal its own node; infra_test.go bans syscall.Exec and the like there
-	"unsafe":                       {},                                     // nothing
-	"net/http/httputil":            {},                                     // a reverse proxy is how one request becomes another
-	"net/http/cgi":                 {},                                     // runs programs
-	"net/http/fcgi":                {},                                     // runs programs
-	"net/smtp":                     {},                                     // outbound mail
-	"net/rpc":                      {},                                     // remote calls
-	"crypto/tls":                   {},                                     // Team serves plain HTTP behind the operator's proxy
-	"golang.org/x/net":             {},                                     // websockets, proxies
-	"golang.org/x/crypto/ssh":      {},                                     // remote shells
-	"github.com/gorilla/websocket": {},                                     // sockets are a way into a machine; sync is a plain long poll
+	"os":                           {"config", "infra", "server", "store", "devicestate"},                 // the environment and the data directory; infrastructure reads and writes its own key and node files; the wiring opens the key vault and reads the passphrase file that the configuration names, and nothing else; the replicated store keeps its local copy and its backups in directories the configuration names
+	"path/filepath":                {"config", "infra", "server", "store", "devicestate"},                 // the data directory's path
+	"net":                          {"config", "server", "infra", "store", "localwerkbord", "hostclient"}, // validating and opening the listen address; infrastructure parses the addresses of its own network; the replicated store tells a refused connection (nothing was sent) from a lost answer, and may dial only what outboundAllowed grants it
+	"syscall":                      {"infra"},                                                             // only infrastructure, to check who owns the files it starts or reads keys from, and to signal its own node; infra_test.go bans syscall.Exec and the like there
+	"unsafe":                       {},                                                                    // nothing
+	"net/http/httputil":            {},                                                                    // a reverse proxy is how one request becomes another
+	"net/http/cgi":                 {},                                                                    // runs programs
+	"net/http/fcgi":                {},                                                                    // runs programs
+	"net/smtp":                     {},                                                                    // outbound mail
+	"net/rpc":                      {},                                                                    // remote calls
+	"crypto/tls":                   {},                                                                    // Team serves plain HTTP behind the operator's proxy
+	"golang.org/x/net":             {},                                                                    // websockets, proxies
+	"golang.org/x/crypto/ssh":      {},                                                                    // remote shells
+	"github.com/gorilla/websocket": {},                                                                    // sockets are a way into a machine; sync is a plain long poll
 	"nhooyr.io/websocket":          {},
 }
 
@@ -68,6 +68,14 @@ var outboundAllowed = map[string]map[string]bool{
 	"infra/rqlite":            {"Client": true, "NewRequestWithContext": true},
 	"infra/rqlite/rqlitetest": {"DialTimeout": true},
 	"store/replicated":        {"Client": true, "NewRequestWithContext": true, "Transport": true, "Dialer": true},
+	// The bridge to the person's own Werkbord on this computer. Its transport dials only a literal loopback address
+	// (TestTheBridgeTalksOnlyToThisComputer in localwerkbord proves it: a name, a private address and a redirect are all refused),
+	// and what it sends is the short list the individual product's local access allows. Only the daemon's wiring uses it.
+	"localwerkbord": {"Client": true, "NewRequestWithContext": true, "Transport": true, "Dialer": true},
+	// A device's client of its own workspace: the Team API of a Workspace Host, with the device's own credential. It dials literal
+	// loopback addresses and addresses inside the workspace's private network and nothing else (TestTheClientDialsOnlyThisComputerAndTheWorkspacesNetwork
+	// in hostclient), follows no redirect, and only the daemon's wiring uses it.
+	"hostclient": {"Client": true, "NewRequestWithContext": true, "Transport": true, "Dialer": true},
 }
 
 func TestTeamServerNeverReachesOut(t *testing.T) {

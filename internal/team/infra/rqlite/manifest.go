@@ -14,6 +14,7 @@
 package rqlite
 
 import (
+	"encoding/hex"
 	"fmt"
 	"runtime"
 	"strings"
@@ -31,6 +32,11 @@ const Tag = "v" + Version
 // SourceCommit is the commit the release was built from (and the tag points at). A
 // platform with no published binary is built from exactly this commit.
 const SourceCommit = "a73dd2e63acb72080f5eb20881a03bb06a464f89"
+
+// distributionBinarySHA256 is set by the macOS packager after it verifies the pinned source build,
+// combines architectures and signs it. The service then pins that exact signed artifact, not a mutable build record.
+// Empty on source builds and on platforms with an upstream binary. It never comes from runtime configuration.
+var distributionBinarySHA256 string
 
 // ReleaseURL is where the pinned release is published. It is used only by
 // scripts/fetch-rqlite.sh at build time, never by the running server (which has no code
@@ -81,6 +87,13 @@ func ArtifactFor(goos, goarch string) (Artifact, error) {
 	a, ok := artifacts[goos+"/"+goarch]
 	if !ok {
 		return Artifact{}, ErrUnsupportedPlatform{goos, goarch}
+	}
+	if goos == "darwin" && distributionBinarySHA256 != "" {
+		b, err := hex.DecodeString(distributionBinarySHA256)
+		if err != nil || len(b) != 32 {
+			return Artifact{}, fmt.Errorf("invalid distribution database pin")
+		}
+		a.BinarySHA256 = distributionBinarySHA256
 	}
 	return a, nil
 }

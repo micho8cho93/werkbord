@@ -19,6 +19,7 @@
 const app = document.getElementById('app');
 
 const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Repository'], ['activity', 'Activity']];
+const ADMIN_TABS = [['members', 'Members'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License'], ['settings', 'Settings']];
 const PROJECT_TABS = new Set(['board', 'repository', 'activity', 'people']);
 
 const state = {
@@ -29,14 +30,17 @@ const state = {
   handoff: null,  // a handoff the member just opened
   showArchived: false, newTicketOpen: false, column: 'in_progress', repoSection: 'attention', workspaceSection: 'working',
   online: true,   // whether the live connection to the server is up
+  desktop: null, device: null, joinLink: null,
 };
 
 try {
   const tok = /(?:^|[#&])token=([^&]+)/.exec(location.hash);
   const inv = /(?:^|[#&])invite=([^&]+)/.exec(location.hash);
+  const join = /(?:^|[#&])join=([^&]+)/.exec(location.hash);
   if (tok) sessionStorage.setItem('werkbord-team-token', decodeURIComponent(tok[1]));
   if (inv) state.invite = decodeURIComponent(inv[1]);
-  if (tok || inv) history.replaceState(null, '', location.pathname + location.search); // tokens and codes never stay in the address bar
+  if (join) state.joinLink = decodeURIComponent(join[1]);
+  if (tok || inv || join) history.replaceState(null, '', location.pathname + location.search); // tokens and codes never stay in the address bar
   state.token = sessionStorage.getItem('werkbord-team-token');
   state.projectId = sessionStorage.getItem('werkbord-team-project');
   const t = sessionStorage.getItem('werkbord-team-tab');
@@ -90,6 +94,7 @@ async function api(method, path, body, opts) {
   if (res.status === 401 && state.token && state.token !== credential) return api(method, path, body, opts);
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && state.desktop) throw new Error('This device no longer has workspace access. Ask your administrator to approve a new invitation.');
   if (res.status === 401 && state.token && state.token === credential) { signOut(); throw new Error('Your token is not valid any more. Sign in again.'); }
   if (!res.ok) {
     const err = new Error(data.error ? data.error.message : 'Request failed (' + res.status + ')');
@@ -110,9 +115,16 @@ function signOut() {
   render();
 }
 
+let actionBusy = false;
 async function act(fn) {
+  if (actionBusy) return;
+  actionBusy = true;
   state.error = ''; state.info = '';
+  const controls = [...app.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
+  controls.forEach(el => { el.disabled = true; });
+  app.setAttribute('aria-busy', 'true');
   try { await fn(); } catch (e) { state.error = e.message; }
+  finally { actionBusy = false; controls.forEach(el => { el.disabled = false; }); app.removeAttribute('aria-busy'); }
   await render();
 }
 
@@ -164,7 +176,7 @@ app.addEventListener('change', touched);
 function snapshot(root) {
  const keep = { fields: {}, details: {}, focus: null, scroll: { x: window.scrollX, y: window.scrollY } };
  for (const el of root.querySelectorAll('[name]')) {
-  if (el.dataset.dirty === '1') keep.fields[el.name] = { v: el.type === 'checkbox' ? el.checked : el.value };
+  if (el.dataset.dirty === '1' && el.type !== 'file') keep.fields[el.name] = { v: el.type === 'checkbox' ? el.checked : el.value };
   if (el === document.activeElement) keep.focus = { name: el.name, start: el.selectionStart, end: el.selectionEnd };
  }
  for (const [key, el] of disclosures(root)) keep.details[key] = el.open;
@@ -184,7 +196,7 @@ function restore(root, keep, focus) {
  if (!keep) return;
  for (const el of root.querySelectorAll('[name]')) {
   const k = keep.fields[el.name];
-  if (k) { if (el.type === 'checkbox') el.checked = k.v; else el.value = k.v; el.dataset.dirty = '1'; }
+  if (k && el.type !== 'file') { if (el.type === 'checkbox') el.checked = k.v; else el.value = k.v; el.dataset.dirty = '1'; }
  }
  for (const [key, el] of disclosures(root)) if (key in keep.details) el.open = keep.details[key];
  if (focus && keep.focus) for (const el of root.querySelectorAll('[name]')) if (el.name === keep.focus.name) {
@@ -213,11 +225,15 @@ const readOnly = h('p', { class: 'banner', role: 'status', hidden: true });
 document.body.prepend(readOnly);
 async function checkReadOnly() {
   try {
-    const res = await fetch('/api/team/v1/health', { headers: { Accept: 'application/json' } });
+    const res = await fetch('/api/team/v1/health', { headers: { Accept: 'application/json', ...(state.token ? { Authorization: 'Bearer ' + state.token } : {}) } });
     const j = await res.json();
     const st = j && j.storage;
+    const previouslyReadOnly = !readOnly.hidden;
     readOnly.hidden = !(st && st.readOnly);
-    if (!readOnly.hidden) readOnly.textContent = 'This workspace is read-only for now: ' + (st.reason || 'its storage has no quorum') + '. You can read; changes are refused until it is back.';
+    if (state.desktop && state.me && !actionBusy && previouslyReadOnly !== !readOnly.hidden) await render();
+    const panel = app.querySelector('.resilience');
+    if (panel && !actionBusy && state.me) panel.replaceWith(await resiliencePanel(panel.classList.contains('compact-health')));
+    if (!readOnly.hidden) readOnly.textContent = state.desktop ? 'This workspace is read-only for now. You can keep reading. Keep the Workspace Hosts online so Team can safely save changes again.' : 'This workspace is read-only for now: ' + (st.reason || 'its storage has no quorum') + '. You can read; changes are refused until it is back.';
   } catch (e) { /* the connection banner says when the server cannot be reached */ }
 }
 checkReadOnly();
@@ -257,10 +273,12 @@ function render() { rendering = rendering.then(renderNow, renderNow); return ren
 
 async function renderNow() {
   const requestedScope = screenScope();
+  if (typeof desktopGate === 'function' && await desktopGate()) return;
   if (!state.token) { stopSync(); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
   try {
     [state.me, state.ov] = await Promise.all([api('GET', '/me'), api('GET', '/overview')]);
   } catch (e) {
+    if (state.desktop) { state.error = e.message; app.replaceChildren(desktopConnecting()); scheduleDesktopRefresh(); return; }
     if (e instanceof TypeError) { // the network, not the token: keep what is on screen and keep trying
       setOnline(false);
       if (!app.firstChild || app.querySelector('.loading')) app.replaceChildren(unreachable());
@@ -280,6 +298,8 @@ async function renderNow() {
       case 'projects': body = await projectsView(); break;
       case 'mywork': body = await myWorkView(); break;
       case 'reviews': body = await reviewsView(); break;
+      case 'members': body = await membersView(); break;
+      case 'devices': case 'hosts': case 'connectivity': case 'backups': case 'license': case 'settings': body = await administrationView(state.tab); break;
       default: body = await projectScopedView();
     }
   } catch (e) {
@@ -304,12 +324,14 @@ async function renderNow() {
       brand(),
       h('div', { class: 'ws' }, h('span', { class: 'lab' }, 'workspace'), h('h1', {}, state.me.workspace.name)),
       h('div', { class: 'who' }, initial(state.me.member.name), h('span', { class: 'name' }, state.me.member.name), h('span', { class: 'chip' }, state.me.member.role),
-        h('button', { class: 'link', onclick: signOut }, 'Sign out'))),
+        state.desktop ? h('span', { class: 'chip' }, 'Service running') : h('button', { class: 'link', onclick: signOut }, 'Sign out'))),
     h('p', { class: 'note' }, 'Team coordinates the work. It does not run anything: every member uses their own computer, ',
       'their own Werkbord runner and their own Git, GitHub and agent credentials.'),
     h('nav', { class: 'tabs', 'aria-label': 'Werkbord Team' }, TABS.map(([id, label]) =>
       h('button', { 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, label,
         badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'board' ? 'quiet' : ''), ''))),
+    h('nav', { class: 'tabs admin-tabs', 'aria-label': 'Team administration' }, ADMIN_TABS.filter(([id]) => !['hosts', 'connectivity', 'backups'].includes(id) || can('devices.view_all')).map(([id, label]) =>
+      h('button', { 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, label))),
     state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
     state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
     secretBox(),
@@ -496,11 +518,13 @@ async function workspaceView() {
         p.problems ? h('span', { class: 'badge bad' }, plural(p.problems, 'problem')) : ''))
     : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet. Create one under Projects.' : 'You are not on any project yet. Ask for an invite link.');
 
-  return h('div', {}, tiles,
+  const health = can('devices.view_all') ? await resiliencePanel(Boolean(state.desktop)) : '';
+  const work = h('div', {},
     sectionButtons('workspaceSection', [['working', 'Working now', ov.working.length], ['projects', 'Projects', ov.projects.length], ['members', 'Members', members.length]], 'Workspace sections'),
     state.workspaceSection === 'working' ? h('div', { class: 'panel', id: 'working-now' }, h('h2', {}, 'What the team is working on'), working) : '',
     state.workspaceSection === 'projects' ? h('div', { class: 'panel' }, h('h2', {}, 'Projects'), projects) : '',
     state.workspaceSection === 'members' ? membersPanels(members) : '');
+  return h('div', {}, state.desktop && !state.device.runner.configured ? runnerSetup() : '', ...(state.desktop ? [work, health, tiles] : [health, tiles, work]));
 }
 
 function mergeBadge(it) {
@@ -514,14 +538,15 @@ function membersPanels(members) {
   const rows = members.map((m) => h('div', { class: 'row' },
     h('div', { class: 'grow' }, h('strong', {}, m.name), ' ', h('span', { class: 'muted' }, m.email || '')),
     h('span', { class: 'badge' }, m.role),
-    (m.id === state.me.member.id || can('members.manage'))
+    (!state.desktop && (m.id === state.me.member.id || can('members.manage')))
       ? h('button', { class: 'plain', onclick: () => act(async () => { const r = await api('POST', '/members/' + m.id + '/token'); const self = r.member.id === state.me.member.id;
           if (self) { stopSync(); state.token = r.token; try { sessionStorage.setItem('werkbord-team-token', r.token); } catch (_) {} }
           state.secret = { kind: 'token', name: r.member.name, self, token: r.token }; }) }, 'New token') : '',
     (can('members.manage') && m.role !== 'owner')
       ? h('button', { class: 'danger', onclick: () => confirm('Remove ' + m.name + ' from the workspace? Anything they are working on goes back on the board.') && act(() => api('DELETE', '/members/' + m.id)) }, 'Remove') : ''));
+  if (can('admins.manage')) members.forEach((m, i) => { if (m.role !== 'owner') rows[i].append(h('button', { class: 'plain', onclick: () => act(() => api('PUT', '/members/' + m.id + '/role', { role: m.role === 'admin' ? 'member' : 'admin' })) }, m.role === 'admin' ? 'Remove admin role' : 'Make admin')); });
   const panels = [h('div', { class: 'panel' }, h('h2', {}, 'Members (' + members.length + ')'), rows)];
-  if (can('members.manage')) {
+  if (can('members.manage') && !state.desktop) {
     const name = h('input', { name: 'm-name', required: true, maxlength: 80 });
     const email = h('input', { name: 'm-email', type: 'email', maxlength: 254 });
     panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Add a member'),
@@ -917,6 +942,7 @@ function gitForm(k, path) {
 }
 
 function handoffBox(hf) {
+  if (state.desktop) return runnerHandoff(hf);
   const quote = s => "'" + s.replaceAll("'", "'\"'\"'") + "'";
   const cmd = 'werkbord-team handoff --server ' + quote(location.origin) + ' --project ' + quote(hf.project.id) + ' --ticket ' + quote(hf.ticket.id) + ' --runner http://127.0.0.1:7420';
   const json = JSON.stringify(hf, null, 2);
@@ -1025,10 +1051,10 @@ function peopleTab(d) {
 function readLocation() {
  const q = new URLSearchParams(location.search);
  const tab = q.get('tab');
- state.tab = TABS.some(x => x[0] === tab) || tab === 'people' ? tab : 'workspace';
+ state.tab = [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'people' ? tab : 'workspace';
  state.projectId = q.get('project') || null;
  state.ticketId = q.get('ticket') || null;
 }
 readLocation();
 window.addEventListener('popstate', () => { captureDrafts(); readLocation(); state.data = null; state.handoff = null; render(); });
-render();
+window.addEventListener('load', () => render());

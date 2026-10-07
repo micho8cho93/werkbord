@@ -112,3 +112,10 @@ func unmarshalHostKeys(b []byte) (*HostKeys, error) {
 	}
 	return &HostKeys{id: deviceid.ID(f.ID), app: ed25519.NewKeyFromSeed(f.App), netPriv: f.NetPriv, seal: seal}, nil
 }
+
+// Marshal is the keys as bytes, for a caller that seals them somewhere of its own (a join that is waiting for an administrator
+// holds its keys until the answer comes). They are secret: whoever has the bytes is the device.
+func (k *HostKeys) Marshal() ([]byte, error) { return k.marshal() }
+
+// ParseHostKeys reads what Marshal made.
+func ParseHostKeys(b []byte) (*HostKeys, error) { return unmarshalHostKeys(b) }

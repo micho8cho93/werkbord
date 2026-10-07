@@ -76,6 +76,11 @@ and the release workflow attaches it to the individual release (see [Releases](#
 [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
 `internal/archtest` fails the tests if a `VERSION` file is malformed.
 
+The separate Team Mac app (`cmd/werkbord-team/desktop/`) uses the Team version. Its background service and window
+share that version; the optional bundled individual runner keeps its own individual version. `make team-desktop-package`
+creates `WerkbordTeam_<version>_darwin_universal.dmg`. See [TEAM_DESKTOP.md](TEAM_DESKTOP.md) for its independent build,
+service lifecycle and release requirements.
+
 ## Releases
 
 Pushing a product tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, run `make check`,
@@ -95,8 +100,10 @@ build the archives for every platform, and publish a GitHub release named after 
   made, only if it succeeded, and a failure in them turns the workflow red without touching the archives or
   `checksums.txt`, which the installers and `werkbord update` read. None of them is in `checksums.txt` (that file is the CLI
   archives' and keeps its format); each has its own `.sha256` where it is a download.
-- `werkbord-team-vX.Y.Z` → `werkbord-team_<version>_<os>_<arch>.tar.gz` and `checksums.txt`, marked **not latest**. No
-  disk image: the Mac app is the individual product's.
+- `werkbord-team-vX.Y.Z` → `werkbord-team_<version>_<os>_<arch>.tar.gz` and `checksums.txt`, marked **not latest**.
+  The separate `release-team-desktop.yml` workflow adds `WerkbordTeam_<version>_darwin_universal.dmg` and its checksum
+  to that Team release after signing and notarization. It preserves the release's latest status and never publishes
+  an individual appcast update.
 
 This matters because `…/releases/latest` is how the individual installer and `werkbord update` find the newest
 release: only the individual product's releases may be "latest", or a Team release would be offered to every

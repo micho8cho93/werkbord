@@ -319,3 +319,40 @@ func isRejected(err error) bool {
 	var r *RejectedError
 	return errors.As(err, &r)
 }
+
+// Resume asks again about an enrollment that was left waiting for an administrator, and returns what the workspace issued
+// once it has been approved. It is Join's waiting step on its own, for a device that was shut or restarted while it waited: the
+// invitation was spent when the request was accepted, so only this device, with its own key, can collect the answer. Until
+// the administrator decides it returns ErrPending (and the enrollment's ID, to ask again); a refusal is ErrDenied.
+func Resume(ctx context.Context, inv Invitation, p JoinParams, enrollmentID string) (*Result, error) {
+	now := p.Now
+	if now == nil {
+		now = time.Now
+	}
+	if p.Signer == nil {
+		return nil, errors.New("enrollment: a device identity is required")
+	}
+	pin, err := inv.Key()
+	if err != nil {
+		return nil, err
+	}
+	if !SameFingerprint(inv.Fingerprint, WorkspaceFingerprint(pin)) {
+		return nil, ErrBadSignature
+	}
+	if p.ExpectFingerprint != "" && !SameFingerprint(p.ExpectFingerprint, inv.Fingerprint) {
+		return nil, ErrWrongWorkspace
+	}
+	c := &client{inv: inv, pin: pin, p: p, now: now}
+	resp, _, err := c.firstEndpoint(ctx, func(ctx context.Context, ep string) (Response, error) {
+		return c.send(ctx, ep, http.MethodPost, PathPoll, func(ex []byte) (any, error) {
+			r := PollRequest{EnrollmentID: enrollmentID, DeviceID: p.Signer.DeviceID()}
+			r.Proof = base64.RawURLEncoding.EncodeToString(p.Signer.Sign(PollStatement(inv.WorkspaceID, r, ex)))
+			return r, nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	resp.EnrollmentID = enrollmentID
+	return c.finish(resp)
+}

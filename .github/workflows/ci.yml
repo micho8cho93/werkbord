@@ -46,6 +46,8 @@ jobs:
         run: |
           make desktop-check
           make desktop-package
+          make team-desktop-check
+          ARCH="$(go env GOARCH)" make team-desktop-package
           codesign --verify --strict --deep dist/desktop/Werkbord.app
       - name: Desktop app signing, notarization and release checks (against a temporary keychain and fakes of Apple's tools)
         if: matrix.os == 'macos-latest'
@@ -63,6 +65,7 @@ jobs:
         run: |
           cd web && npx playwright install --with-deps chromium && cd ..
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/team-desktop" make test-team-desktop-browser
       - name: Browser diagnostics
         if: failure() && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4

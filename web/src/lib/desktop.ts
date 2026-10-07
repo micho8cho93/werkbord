@@ -10,74 +10,15 @@
  * returns anything the page does not already hold.
  */
 
-interface Handler {
-  postMessage(message: string): void;
-}
-interface Bridged {
-  webkit?: { messageHandlers?: { external?: Handler } };
-  wails?: { Callback?: (message: string) => void };
-}
+import { createNativeBridge } from '../../../internal/nativebridge/bridge.js';
 
-interface Pending {
-  resolve(value: unknown): void;
-  reject(error: Error): void;
-  timer?: ReturnType<typeof setTimeout>;
-}
-const pending = new Map<string, Pending>();
-let sequence = 0;
-let installed = false;
+const call = createNativeBridge('main.App', {
+  unavailable: 'this is not the Werkbord desktop app',
+  timeout: 'the desktop app did not answer',
+});
 
-function handler(): Handler | null {
-  const h = (globalThis as unknown as { window?: Bridged }).window?.webkit?.messageHandlers?.external;
-  return h && typeof h.postMessage === 'function' ? h : null;
-}
-
-/** Listens for the app's answers. Anything that is not one of ours goes on to whoever was listening before. */
-function listen(): void {
-  if (installed) return;
-  installed = true;
-  const w = (globalThis as unknown as { window: Bridged }).window;
-  w.wails = w.wails ?? {};
-  const previous = w.wails.Callback;
-  w.wails.Callback = (message: string) => {
-    let answer: { callbackid?: string; result?: unknown; error?: unknown } | undefined;
-    try {
-      answer = JSON.parse(message);
-    } catch {
-      // Not ours.
-    }
-    const entry = answer?.callbackid ? pending.get(answer.callbackid) : undefined;
-    if (!answer || !entry) {
-      previous?.(message);
-      return;
-    }
-    pending.delete(answer.callbackid!);
-    clearTimeout(entry.timer);
-    if (answer.error) entry.reject(new Error(String(answer.error)));
-    else entry.resolve(answer.result);
-  };
-}
-
-/**
- * Calls something the desktop app offers. It rejects when the app is not there, and when it does not
- * answer in time (timeoutMs 0 waits as long as it takes: an update does).
- */
 export function callDesktop<T>(method: string, args: unknown[] = [], timeoutMs = 5000): Promise<T> {
-  const h = handler();
-  if (!h) return Promise.reject(new Error('this is not the Werkbord desktop app'));
-  listen();
-  return new Promise<T>((resolve, reject) => {
-    const id = `wb${++sequence}`;
-    const entry: Pending = { resolve: resolve as (v: unknown) => void, reject };
-    if (timeoutMs > 0) {
-      entry.timer = setTimeout(() => {
-        pending.delete(id);
-        reject(new Error('the desktop app did not answer'));
-      }, timeoutMs);
-    }
-    pending.set(id, entry);
-    h.postMessage('C' + JSON.stringify({ name: `main.App.${method}`, args, callbackID: id }));
-  });
+  return call(method, args, timeoutMs) as Promise<T>;
 }
 
 export interface DesktopInfo {

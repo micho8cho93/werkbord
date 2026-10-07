@@ -143,3 +143,33 @@ func TestASleepingHostIsNamedAndAProfileIsWrittenOnlyWhenItChanges(t *testing.T)
 		t.Fatalf("an unchanged profile was written again: %v then %v", first, second)
 	}
 }
+
+// The host that made the workspace speaks for its own device with a credential of its own, which ends with the device.
+func TestTheFirstHostCanBeGivenACredentialForItsOwnDevice(t *testing.T) {
+	n := withNetwork(t)
+	token, err := n.svc.IssueLocalDeviceCredential(bg, n.owner.Workspace.ID, n.host.DeviceID())
+	if err != nil || token == "" {
+		t.Fatalf("%q %v", token, err)
+	}
+	a := n.deviceActor(token)
+	if a.Device.ID != n.host.DeviceID() || a.Member.ID != n.owner.Member.ID || a.Member.Role != domain.RoleOwner {
+		t.Fatalf("%+v", a)
+	}
+	assertNotInDatabase(t, n.world, token)
+	// A device that does not exist gets none; a revoked one gets none.
+	if _, err := n.svc.IssueLocalDeviceCredential(bg, n.owner.Workspace.ID, "dev_nothing"); err == nil {
+		t.Fatal("a credential for a device that does not exist")
+	}
+	other := laptop(t, "other")
+	r := n.invite(n.owner, EnrollInviteInput{Label: "x"})
+	resp := n.mustJoin(r, other, "Bo")
+	if _, err := n.svc.RevokeDevice(bg, n.owner, other.DeviceID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := n.svc.IssueLocalDeviceCredential(bg, n.owner.Workspace.ID, other.DeviceID()); err == nil {
+		t.Fatal("a credential for a revoked device")
+	}
+	if _, err := n.svc.Authenticate(bg, resp.DeviceToken); err == nil {
+		t.Fatal("a revoked device's credential works")
+	}
+}

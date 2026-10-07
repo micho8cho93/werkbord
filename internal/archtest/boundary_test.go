@@ -33,6 +33,7 @@ var teamAllowed = []string{
 	teamCmd,
 	teamTree, // and below
 	module + "/internal/httpkit",
+	module + "/internal/nativebridge", // neutral web-to-native messaging; native methods stay in each product
 	module + "/internal/sqlitekit",
 	module + "/internal/logging",
 	// What a Team server needs to know a device is who it says: public keys and the

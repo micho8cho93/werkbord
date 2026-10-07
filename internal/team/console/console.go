@@ -9,6 +9,8 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+
+	"devboard/internal/nativebridge"
 )
 
 //go:embed static
@@ -22,6 +24,10 @@ func Handler() http.Handler {
 	}
 	files := http.FileServerFS(root)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/native-bridge.js" {
+			nativebridge.Handler().ServeHTTP(w, r)
+			return
+		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return

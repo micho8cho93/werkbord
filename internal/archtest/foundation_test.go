@@ -18,6 +18,7 @@ import (
 // of either product, so they import the standard library, third-party modules that
 // say nothing about a product, and each other, and no package of either product.
 var sharedPackages = []string{
+	module + "/internal/nativebridge",
 	module + "/internal/httpkit",
 	module + "/internal/sqlitekit",
 	module + "/internal/logging",

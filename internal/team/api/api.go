@@ -119,6 +119,9 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/team/v1/devices", s.handleListDevices)
 	api.HandleFunc("POST /api/team/v1/devices/{id}/revoke", s.handleRevokeDevice)
 	api.HandleFunc("PUT /api/team/v1/devices/{id}/network", s.handleSetDeviceNetwork)
+	api.HandleFunc("GET /api/team/v1/devices/{id}/network", s.handleDeviceNetwork)
+	api.HandleFunc("PUT /api/team/v1/devices/{id}/capabilities", s.handleSetDeviceCapabilities)
+	api.HandleFunc("PUT /api/team/v1/devices/{id}/name", s.handleRenameDevice)
 	api.HandleFunc("POST /api/team/v1/devices/{id}/provision", s.handleProvisionDevice)
 	api.HandleFunc("DELETE /api/team/v1/devices/{id}/replica", s.handleRemoveHost)
 	// where the workspace's data is kept, and backing it up

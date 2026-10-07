@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -50,10 +51,11 @@ type network struct {
 	mat  *pki.Material
 	auth *authority
 
-	mu       sync.Mutex
-	leaf     *pki.ServerCertificate
-	nodeCert []byte    // this host's own node certificate (PEM)
-	notAfter time.Time // and when it stops working
+	mu        sync.Mutex
+	leaf      *pki.ServerCertificate
+	leafHosts []string
+	nodeCert  []byte    // this host's own node certificate (PEM)
+	notAfter  time.Time // and when it stops working
 	// node runs this host's own network node.
 	node *nodeRunner
 	// fallback is where the node learns what it should be while the database is not up (RunOptions).
@@ -203,9 +205,6 @@ func (n *network) serverCert() (enrollment.ServerCert, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	now := time.Now()
-	if n.leaf != nil && n.leaf.Fresh(now) {
-		return n.leaf.ServerCert, nil
-	}
 	hosts := append([]string(nil), n.endpointHosts()...)
 	if recorded, err := n.svc.LocalBootstrapEndpoints(context.Background(), n.mat.Meta.WorkspaceID, n.mat.Meta.HostDeviceID); err == nil {
 		hosts = append(hosts, hostsOf(recorded)...)
@@ -215,11 +214,17 @@ func (n *network) serverCert() (enrollment.ServerCert, error) {
 	if h, _, err := net.SplitHostPort(n.cfg.BootstrapAddr); err == nil && h != "" && h != "0.0.0.0" && h != "::" {
 		hosts = append(hosts, h)
 	}
+	slices.Sort(hosts)
+	hosts = slices.Compact(hosts)
+	if n.leaf != nil && n.leaf.Fresh(now) && slices.Equal(hosts, n.leafHosts) {
+		return n.leaf.ServerCert, nil
+	}
 	leaf, err := n.mat.Trust.IssueServerCertificate(hosts, now)
 	if err != nil {
 		return enrollment.ServerCert{}, err
 	}
 	n.leaf = &leaf
+	n.leafHosts = hosts
 	return leaf.ServerCert, nil
 }
 

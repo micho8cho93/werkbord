@@ -19,6 +19,7 @@ import (
 	"devboard/internal/domain"
 	"devboard/internal/events"
 	"devboard/internal/gitrepo"
+	"devboard/internal/localaccess"
 	"devboard/internal/netprivate"
 	"devboard/internal/runner"
 	"devboard/internal/service"
@@ -87,7 +88,11 @@ func main() {
 	mgr := runner.New(runner.Options{Runs: runs, Tasks: tasks, Projects: projects, Settings: settings, Worktrees: wt, Git: g, Agents: agents, Scheduler: scheduler, Handoffs: hand, Distributed: distributed, WorktreeRoot: wt.Root})
 	defer mgr.Shutdown(context.Background())
 	gc := &service.GitControl{Deps: deps, Git: g, Worktrees: wt}
-	handler := api.New(api.Options{Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	access, err := localaccess.Open(filepath.Join(dir, "local-access.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	handler := api.New(api.Options{Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

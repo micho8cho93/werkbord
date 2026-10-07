@@ -22,7 +22,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check verify-isolation \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser team-desktop team-desktop-package team-desktop-release team-desktop-test team-desktop-check test-team-desktop-browser
 
 all: check build build-team
 
@@ -95,7 +95,7 @@ lint: web/node_modules
 	cd web && $(NPM) run check && $(NPM) run lint
 
 ## check: everything CI should run
-check: test lint desktop-test test-notarize-desktop test-workflows
+check: test lint desktop-test team-desktop-test test-notarize-desktop test-workflows
 	$(GO) build ./...
 	cd web && $(NPM) run build
 
@@ -211,3 +211,17 @@ test-browser: build build-team
 clean:
 	rm -rf bin web/dist dist
 	find internal/webui/dist -mindepth 1 ! -name .gitkeep -delete
+
+## team-desktop: separate Team native app, persistent system service and pinned sidecars (macOS)
+team-desktop: web web-embed
+	scripts/build-team-desktop.sh
+team-desktop-package: web web-embed
+	scripts/build-team-desktop.sh --package
+team-desktop-release: web web-embed
+	scripts/build-team-desktop.sh --release
+team-desktop-test:
+	cd cmd/werkbord-team/desktop && $(GO) test ./internal/platform && $(GO) vet ./internal/platform
+team-desktop-check: team-desktop-test
+	cd cmd/werkbord-team/desktop && CGO_ENABLED=1 CGO_LDFLAGS="-framework UniformTypeIdentifiers" $(GO) build -tags desktop,production -o /tmp/werkbord-team-window-check .
+test-team-desktop-browser: web web-embed rqlite
+	node scripts/test-team-desktop-browser.cjs
