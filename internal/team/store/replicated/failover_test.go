@@ -1,6 +1,7 @@
 package replicated
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -179,6 +180,30 @@ func TestAFollowerDiesAndComesBack(t *testing.T) {
 	}
 }
 
+// explainCutOffWrite says, in the test's output, what the cluster and the network between its nodes looked like when a
+// host that was cut off got a write accepted: which node led, what the host was talking to, what each node thought,
+// and what the harness decided about each connection since the partition began.
+func explainCutOffWrite(t testing.TB, c *rqlitetest.Cluster, hosts []*Store, lead, lone int, isolatedAt, wroteAt time.Time, err error) {
+	t.Helper()
+	t.Logf("DIAGNOSIS: the write returned %v; the partition began at %s and the write started at %s (%s later)",
+		err, isolatedAt.Format("15:04:05.000"), wroteAt.Format("15:04:05.000"), wroteAt.Sub(isolatedAt).Round(time.Millisecond))
+	t.Logf("DIAGNOSIS: node %d led before the partition; node %d was cut off; the host's client tried %v (all nodes' HTTP: %v)",
+		lead, lone, hosts[lone].client.Nodes(), c.Addrs())
+	for _, n := range c.Nodes() {
+		ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+		h, herr := n.Admin().Health(ctx)
+		cancel()
+		t.Logf("DIAGNOSIS: node %d (%s): health %+v (%v)", n.Index, n.ID, h, herr)
+		tail := n.Sup.Status().Tail
+		if len(tail) > 25 {
+			tail = tail[len(tail)-25:]
+		}
+		t.Logf("DIAGNOSIS: node %d log, last lines:\n%s", n.Index, strings.Join(tail, "\n"))
+	}
+	t.Logf("DIAGNOSIS: the cut-off host's own view: %+v", hosts[lone].Status(bg))
+	t.Logf("DIAGNOSIS: what the harness decided about connections:\n%s", strings.Join(c.Trace(), "\n"))
+}
+
 func TestAHostCutOffFromTheOthersRefusesToWrite(t *testing.T) {
 	needLsof(t)
 	c := rqlitetest.New(t, rqlitetest.Options{Nodes: 3, Owner: lsofOwner})
@@ -188,6 +213,7 @@ func TestAHostCutOffFromTheOthersRefusesToWrite(t *testing.T) {
 	settle(t, hosts...)
 	lead := leaderIndex(t, c)
 	lone := (lead + 1) % 3 // a follower, alone
+	isolatedAt := time.Now()
 	c.Isolate(lone)
 	others := []*Store{}
 	for i, h := range hosts {
@@ -202,8 +228,10 @@ func TestAHostCutOffFromTheOthersRefusesToWrite(t *testing.T) {
 	}
 
 	// The one on its own is refused, whatever it asks. It says why, and that it can still read.
+	wroteAt := time.Now()
 	_, err := note(hosts[lone], k)
 	if !errors.Is(err, domain.ErrReadOnly) {
+		explainCutOffWrite(t, c, hosts, lead, lone, isolatedAt, wroteAt, err)
 		t.Fatalf("a host with no quorum accepted a write, or failed for another reason: %v", err)
 	}
 	eventually(t, 20*time.Second, "the cut-off host to say it is read-only", func() bool {

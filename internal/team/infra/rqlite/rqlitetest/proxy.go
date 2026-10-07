@@ -4,10 +4,8 @@ package rqlitetest
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
-	"os"
 	"sync"
 	"time"
 )
@@ -103,14 +101,13 @@ func (p *raftProxy) serve(in net.Conn) {
 				time.Sleep(60 * time.Millisecond)
 			}
 		}
-		if src < 0 && os.Getenv("RQT_DEBUG") != "" {
-			fmt.Fprintf(os.Stderr, "proxy for node %d: could not tell who made a connection from %s\n", p.node, in.RemoteAddr())
+		if src < 0 {
+			p.c.tracef("proxy for node %d: could not tell who made a connection from %s", p.node, in.RemoteAddr())
 		}
 	}
-	if os.Getenv("RQT_DEBUG") != "" {
-		fmt.Fprintf(os.Stderr, "proxy for node %d: connection from %d: %q\n", p.node, src, first[:min(len(first), 60)])
-	}
+	p.c.tracef("proxy for node %d: connection from %d (%s): %q", p.node, src, in.RemoteAddr(), first[:min(len(first), 40)])
 	if src >= 0 && p.c.blocked(src, p.node) {
+		p.c.tracef("proxy for node %d: refused a connection from %d (cut off)", p.node, src)
 		_ = in.Close()
 		return
 	}
@@ -127,6 +124,15 @@ func (p *raftProxy) serve(in net.Conn) {
 		pc.close()
 		return
 	default:
+	}
+	// Decided here, under the lock cut() takes, so that a connection cannot slip across a partition that began while it
+	// was being identified or dialled: either cut() sees it, or this does. One that could not be told apart is refused
+	// while any partition is in force; the node connects again and is told apart (or refused) the next time.
+	if p.c.refuses(src, p.node) {
+		p.mu.Unlock()
+		p.c.tracef("proxy for node %d: refused a connection from %d at registration (a partition began, or its caller is unknown)", p.node, src)
+		pc.close()
+		return
 	}
 	p.conns[pc] = struct{}{}
 	p.mu.Unlock()
@@ -148,6 +154,7 @@ func (p *raftProxy) cut() {
 	defer p.mu.Unlock()
 	for c := range p.conns {
 		if c.src < 0 || p.c.blocked(c.src, p.node) {
+			p.c.tracef("proxy for node %d: closed a connection from %d at the cut", p.node, c.src)
 			c.close()
 			delete(p.conns, c)
 		}

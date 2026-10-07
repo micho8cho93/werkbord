@@ -51,6 +51,31 @@ type Cluster struct {
 	nodes []*Node
 	cut   map[[2]int]bool
 	pairs map[[2]int]*pairProxy
+
+	traceMu sync.Mutex
+	trace   []string
+}
+
+// tracef records what the harness decided about a connection or a partition, with the time, so that a test that sees
+// something it should not have can say what happened (Trace). RQT_DEBUG also prints each line as it is recorded.
+func (c *Cluster) tracef(format string, a ...any) {
+	line := time.Now().Format("15:04:05.000") + " " + fmt.Sprintf(format, a...)
+	c.traceMu.Lock()
+	if len(c.trace) >= 600 {
+		c.trace = c.trace[1:]
+	}
+	c.trace = append(c.trace, line)
+	c.traceMu.Unlock()
+	if os.Getenv("RQT_DEBUG") != "" {
+		fmt.Fprintln(os.Stderr, line)
+	}
+}
+
+// Trace is what the harness recorded about connections and partitions, oldest first.
+func (c *Cluster) Trace() []string {
+	c.traceMu.Lock()
+	defer c.traceMu.Unlock()
+	return append([]string(nil), c.trace...)
 }
 
 // Node is one of the cluster's nodes.
@@ -224,6 +249,17 @@ func (c *Cluster) blocked(src, dst int) bool {
 	return c.cut[[2]int{src, dst}]
 }
 
+// refuses reports whether a connection to dst from src must be refused now: a caller that is cut off from it, or one that
+// could not be told apart (src < 0) while any partition is in force.
+func (c *Cluster) refuses(src, dst int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if src < 0 {
+		return len(c.cut) > 0
+	}
+	return c.cut[[2]int{src, dst}]
+}
+
 // whoSent tells which node sent the first bytes of a connection.
 func (c *Cluster) whoSent(first []byte) int {
 	nodes := c.Nodes()
@@ -259,7 +295,9 @@ func (c *Cluster) Partition(groups ...[]int) {
 			}
 		}
 	}
+	cutNow := len(c.cut)
 	c.mu.Unlock()
+	c.tracef("partition begins: %d directed pairs cut", cutNow)
 	for _, n := range nodes {
 		n.proxy.cut()
 	}
@@ -287,6 +325,7 @@ func (c *Cluster) Isolate(i int) {
 
 // Heal mends the network.
 func (c *Cluster) Heal() {
+	c.tracef("network mended")
 	c.mu.Lock()
 	c.cut = map[[2]int]bool{}
 	pairs := make([]*pairProxy, 0, len(c.pairs))
