@@ -190,6 +190,19 @@ func (l *lateStore) Update(ctx context.Context, fn func(store.Tx) error) error {
 	return s.Update(ctx, fn)
 }
 
+func (l *lateStore) FreshView(ctx context.Context, fn func(store.Tx) error) error {
+	s, err := l.get()
+	if err != nil {
+		return err
+	}
+	if fresh, ok := s.(interface {
+		FreshView(context.Context, func(store.Tx) error) error
+	}); ok {
+		return fresh.FreshView(ctx, fn)
+	}
+	return s.View(ctx, fn)
+}
+
 func (l *lateStore) SchemaVersion(ctx context.Context) (int, error) {
 	s, err := l.get()
 	if err != nil {

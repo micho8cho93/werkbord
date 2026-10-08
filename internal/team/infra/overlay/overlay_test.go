@@ -34,7 +34,7 @@ func TestRenderingIsDeterministicAndNamesEveryLighthouse(t *testing.T) {
 		t.Error("the order the lighthouses were listed in changed the file")
 	}
 	text := string(a)
-	for _, want := range []string{`"10.77.0.1"`, `"10.77.0.2"`, `"203.0.113.9:4242"`, `"198.51.100.4:4242"`, `"team.example.org:4242"`, "am_lighthouse: false", "inbound_action: \"drop\""} {
+	for _, want := range []string{`"10.77.0.1"`, `"10.77.0.2"`, `"203.0.113.9:4242"`, `"198.51.100.4:4242"`, `"team.example.org:4242"`, "am_lighthouse: false", "inbound_action: \"drop\"", "sshd:\n  enabled: false"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the configuration lacks %s:\n%s", want, text)
 		}
@@ -177,7 +177,7 @@ func TestWhatEachRoleMayReach(t *testing.T) {
 		{"a host refuses SSH from a host", host, true, "tcp", 22, H, false},
 		{"a host refuses the device service from a member", host, true, "tcp", ports.DeviceService, M, false},
 		{"a host refuses UDP on the API port", host, true, "udp", ports.API, M, false},
-		{"a member's device accepts messages from a host", member, true, "tcp", ports.DeviceService, H, true},
+		{"a Host cannot dial a member device; it polls its mailbox", member, true, "tcp", ports.DeviceService, H, false},
 		{"a member's device refuses messages from a member", member, true, "tcp", ports.DeviceService, M, false},
 		{"a member's device refuses the API port from a member", member, true, "tcp", ports.API, M, false},
 		{"a member's device refuses anything from a Connectivity Host", member, true, "tcp", ports.DeviceService, C, false},
@@ -188,7 +188,7 @@ func TestWhatEachRoleMayReach(t *testing.T) {
 		{"a member's device may not start SSH on a host", member, false, "tcp", 22, H, false},
 		{"a host may start replication on a host", host, false, "tcp", 4001, H, true},
 		{"a host may not start replication on a member", host, false, "tcp", 4001, M, false},
-		{"a host may reach a runner's device service", host, false, "tcp", ports.DeviceService, []string{pki.GroupRunner}, true},
+		{"a host has no outbound runner service", host, false, "tcp", ports.DeviceService, []string{pki.GroupRunner}, false},
 		{"a Connectivity Host accepts no port from a member", conn, true, "tcp", ports.API, M, false},
 		{"a Connectivity Host accepts no port from a host", conn, true, "tcp", 4001, H, false},
 		{"a Connectivity Host accepts ping from a host", conn, true, "icmp", 0, H, true},

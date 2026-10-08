@@ -66,7 +66,7 @@ printf '{"version":"v%s","commit":"%s","sha256":"%s"}\n' "$RQLITE_VERSION" "$RQL
 TEAM_PROGRAMS=""; RUNNERS=""; WINDOWS=""
 for a in $ARCHS; do
   case "$a" in arm64) C_ARCH=arm64 ;; amd64) C_ARCH=x86_64 ;; esac
-  CGO_ENABLED=0 GOOS=darwin GOARCH=$a go build -trimpath \
+  CGO_ENABLED=1 GOOS=darwin GOARCH=$a CGO_CFLAGS="-arch $C_ARCH -mmacosx-version-min=13.0" CGO_LDFLAGS="-arch $C_ARCH -mmacosx-version-min=13.0" go build -trimpath \
     -ldflags "-s -w -X main.version=$VERSION -X main.licenseIssuer=$ISSUER -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA" \
     -o "$STAGE/team-$a" ./cmd/werkbord-team
   CGO_ENABLED=0 GOOS=darwin GOARCH=$a go build -trimpath -ldflags "-s -w -X main.version=$RUNNER_VERSION" -o "$STAGE/runner-$a" ./cmd/werkbord

@@ -3,10 +3,11 @@
 # installs the Team product, which is a different program from the individual
 # Werkbord (scripts/install.sh) and is released and versioned separately.
 #
-#   curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install-team.sh | sh
+#   sh /trusted/installer/install-team.sh
+# Obtain this script and the release verification PEM through an independently trusted channel.
 #
 # It downloads the Team release for this computer, checks it against the release's
-# published checksums, and puts the executable, werkbord-team, in ~/.local/bin. A release
+# vendor-signed checksums, and puts the executable, werkbord-team, in ~/.local/bin. A release
 # that carries the network program Team supervises (docs/TEAM_NETWORK.md) also gets it,
 # in ~/.local/libexec/werkbord-team, with its licences in ~/.local/share/doc/werkbord-team.
 # It starts nothing and installs no service; see docs/TEAM.md for what to do next.
@@ -86,8 +87,17 @@ case "$tag" in
 esac
 
 asset="werkbord-team_${version#v}_${os}_${arch}.tar.gz"
+case "$tag" in *[!A-Za-z0-9.+-]*) fail "invalid characters in release identity" ;; esac
 say "Installing Werkbord Team $version for $os/$arch"
 fetch "$BASE/download/$tag/checksums.txt" "$tmp/checksums.txt" || fail "could not download the checksums for $tag"
+key=${WERKBORD_TEAM_RELEASE_PUBLIC_KEY_FILE:-"$(dirname "$0")/keys/werkbord-team-release.pub"}
+[ -f "$key" ] || fail "a trusted vendor release verification public key is required; obtain it independently and set WERKBORD_TEAM_RELEASE_PUBLIC_KEY_FILE (never download it from this release)"
+command -v openssl >/dev/null 2>&1 || fail "OpenSSL with Ed25519 support is required to authenticate Team releases"
+fetch "$BASE/download/$tag/checksums.txt.sig" "$tmp/checksums.txt.sig" || fail "the release has no signed manifest; nothing was installed"
+# Bind the manifest to this product and tag, not merely to a list of hashes.
+printf 'werkbord-team/release/v1\000%s\000' "$tag" > "$tmp/signed-manifest"
+cat "$tmp/checksums.txt" >> "$tmp/signed-manifest"
+openssl pkeyutl -verify -pubin -inkey "$key" -rawin -in "$tmp/signed-manifest" -sigfile "$tmp/checksums.txt.sig" >/dev/null 2>&1 || fail "the release manifest signature is not valid (OpenSSL must support Ed25519); nothing was installed"
 want=$(awk -v f="$asset" '{ n=$2; sub(/^\*/, "", n); if (n == f) print $1 }' "$tmp/checksums.txt")
 [ -n "$want" ] || fail "release $tag has no build for $os/$arch"
 fetch "$BASE/download/$tag/$asset" "$tmp/$asset" || fail "could not download $asset"
@@ -110,8 +120,8 @@ dir=${WERKBORD_TEAM_INSTALL_DIR:-"$HOME/.local/bin"}
 mkdir -p "$dir" || fail "cannot create $dir (set WERKBORD_TEAM_INSTALL_DIR to somewhere you can write)"
 cp "$bin" "$dir/.werkbord-team.new" || fail "cannot write to $dir (set WERKBORD_TEAM_INSTALL_DIR to somewhere you can write)"
 chmod 755 "$dir/.werkbord-team.new"
-mv -f "$dir/.werkbord-team.new" "$dir/werkbord-team"
-say "Installed $dir/werkbord-team ($version)"
+# The executable is published last. An interruption while sidecars are replaced
+# leaves the old executable, which refuses a mismatched pin when next started.
 
 # The network program Team supervises, if this release carries it: beside the executable's own libexec directory
 # (where Team looks, and checks it against the version it was built to run), with the licences that go with it.
@@ -140,6 +150,8 @@ if [ -n "$rqlited" ]; then
   [ ! -f "$record" ] || cp "$record" "$lib/rqlited.build"
   say "Installed the database program (rqlite) at $lib/rqlited"
 fi
+mv -f "$dir/.werkbord-team.new" "$dir/werkbord-team"
+say "Installed $dir/werkbord-team ($version)"
 case ":$PATH:" in
   *":$dir:"*) ;;
   *) say "Note: $dir is not on your PATH. Add it to your shell profile:
@@ -147,5 +159,5 @@ case ":$PATH:" in
 esac
 say ""
 say "Next:"
-say "  werkbord-team workspace create --name \"Your team\" --owner \"Your name\""
+say "  WERKBORD_TEAM_LICENSE_FILE=/secure/team-license.json werkbord-team workspace create --name \"Your team\" --owner \"Your name\""
 say "  werkbord-team serve"

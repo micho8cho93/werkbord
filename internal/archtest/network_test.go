@@ -1,7 +1,9 @@
 package archtest
 
 import (
+	"bytes"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
@@ -155,6 +157,17 @@ func TestTheNetworkConfigurationNamesOnlyTheCustomersOwnThings(t *testing.T) {
 		for _, fld := range ts.Type.(*ast.StructType).Fields.List {
 			for _, name := range fld.Names {
 				fields++
+				// Offline verification needs a build-supplied public key and a local document.
+				// These exact fields introduce no account, URL, signing key or online licensing client.
+				if name.Name == "LicenseRequired" || name.Name == "LicenseKey" || name.Name == "LicenseFile" {
+					want := map[string]string{"LicenseRequired": "bool", "LicenseKey": "[]byte", "LicenseFile": "string"}[name.Name]
+					var b bytes.Buffer
+					_ = format.Node(&b, fset, fld.Type)
+					if b.String() != want {
+						t.Errorf("offline license field %s has unexpected type %s", name.Name, b.String())
+					}
+					continue
+				}
 				for _, b := range bad {
 					if strings.Contains(strings.ToLower(name.Name), b) {
 						t.Errorf("config.Config.%s: a setting that names %q suggests a service Werkbord operates or an account with one", name.Name, b)

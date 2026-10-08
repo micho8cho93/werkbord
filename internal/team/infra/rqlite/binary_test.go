@@ -80,7 +80,7 @@ func TestOnlyThePinnedProgramIsLocated(t *testing.T) {
 	}
 }
 
-func TestAProgramBuiltFromSourceNeedsItsBuildRecord(t *testing.T) {
+func TestAnEditableBuildRecordCannotAuthorizeExecution(t *testing.T) {
 	src := privateDir(t)
 	p := standIn(t, src, Tag)
 	sum, _ := sha256File(p)
@@ -103,12 +103,16 @@ func TestAProgramBuiltFromSourceNeedsItsBuildRecord(t *testing.T) {
 		t.Fatalf("a program that is not the one the record describes was accepted: %v", err)
 	}
 	write(SourceCommit, sum)
+	if _, err := locate([]string{src}, privateDir(t), art); !errors.Is(err, ErrBinaryMismatch) {
+		t.Fatalf("a forged matching build record authorized code execution: %v", err)
+	}
+	art.BinarySHA256 = sum // A distribution embeds its trusted build's exact hash.
 	v, err := locate([]string{src}, privateDir(t), art)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Pinned {
-		t.Fatal("a program accepted on its build record is not hash-pinned, and must not say it is")
+	if !v.Pinned {
+		t.Fatal("a distribution program must be hash-pinned")
 	}
 	// A platform with no entry at all runs nothing.
 	if _, err := locate([]string{src}, privateDir(t), Artifact{}); !errors.Is(err, ErrBinaryMismatch) {
@@ -121,7 +125,8 @@ func TestTheProgramMustReportThePinnedVersion(t *testing.T) {
 	for version, ok := range map[string]bool{Tag: true, "v10.5.1": false, "v11.0.0": false, "10": false} {
 		dir := privateDir(t)
 		p := standIn(t, dir, version)
-		v := verified{Path: p}
+		sum, _ := sha256File(p)
+		v := verified{Path: p, SHA256: sum}
 		got, err := verifyVersion(ctx, v)
 		if (err == nil) != ok {
 			t.Errorf("reporting %q: %v (%q)", version, err, got)
@@ -134,7 +139,8 @@ func TestTheProgramMustReportThePinnedVersion(t *testing.T) {
 	dir := privateDir(t)
 	p := filepath.Join(dir, "rqlited")
 	_ = os.WriteFile(p, []byte("#!/bin/sh\necho hello\n"), 0o755)
-	if _, err := verifyVersion(ctx, verified{Path: p}); !errors.Is(err, ErrBinaryMismatch) {
+	sum, _ := sha256File(p)
+	if _, err := verifyVersion(ctx, verified{Path: p, SHA256: sum}); !errors.Is(err, ErrBinaryMismatch) {
 		t.Fatalf("%v", err)
 	}
 }
@@ -151,7 +157,7 @@ func TestThePlatformsAreTheOnesTeamShips(t *testing.T) {
 			t.Fatal(err)
 		}
 		switch {
-		case a.Source && (a.Archive != "" || a.BinarySHA256 != ""):
+		case a.Source && (a.Archive != "" || (a.BinarySHA256 != "" && a.BinarySHA256 != distributionBinarySHA256)):
 			t.Errorf("%s: a source build with a published pin", p)
 		case !a.Source && (len(a.ArchiveSHA256) != 64 || len(a.BinarySHA256) != 64 || !strings.Contains(a.Archive, Tag)):
 			t.Errorf("%s: an incomplete pin %+v", p, a)

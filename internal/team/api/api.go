@@ -2,27 +2,32 @@
 // the Team console at every other path. Handlers translate HTTP to service calls
 // and hold no rules of their own.
 //
-// Every /api/team/v1 route except /health needs the member's token, as
-// "Authorization: Bearer <token>", always: unlike the individual product's
-// controller, a Team server is not a loopback-only program, so there is no
-// loopback exemption. The token says which member, and so which workspace, a
-// request is for; nothing in a URL selects a workspace.
+// Protected routes require a bearer credential. Production remote calls also
+// require a device-signed request proof; member credentials authorize only local
+// administration. Authentication and each service transaction consult current
+// membership. The credential determines the workspace, never a URL selector.
 //
 // There is deliberately no route here that starts a process, reads a file, or
 // reaches a member's computer (docs/PRODUCTS.md).
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
 
+	"devboard/internal/deviceid"
 	"devboard/internal/httpkit"
+	"devboard/internal/team/authproof"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/service"
 )
@@ -41,6 +46,8 @@ type Options struct {
 	// NodeStatus describes this host's own network node, for the network's health
 	// report; nil when this host runs none.
 	NodeStatus func() any
+	// RequireDeviceProof is mandatory in production wiring. Member bearer credentials are local administration only.
+	RequireDeviceProof bool
 }
 
 // Server holds the HTTP handlers.
@@ -67,6 +74,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/team/v1/health", s.handleHealth)
 
 	api := http.NewServeMux()
+	api.HandleFunc("PUT /api/team/v1/license", s.handleInstallLicense)
 	api.HandleFunc("GET /api/team/v1/me", s.handleMe)
 	api.HandleFunc("GET /api/team/v1/roles", s.handleRoles)
 	api.HandleFunc("GET /api/team/v1/workspace", s.handleWorkspace)
@@ -153,7 +161,13 @@ func (s *Server) Handler() http.Handler {
 	})
 	// Redeeming an invite is the one thing a person without an account can do: the
 	// invite code is their credential.
-	mux.HandleFunc("POST /api/team/v1/invites/redeem", s.handleRedeemInvite)
+	mux.HandleFunc("POST /api/team/v1/invites/redeem", func(w http.ResponseWriter, r *http.Request) {
+		if s.opt.RequireDeviceProof && !loopbackRequest(r) {
+			s.fail(w, r, domain.ErrUnauthenticated)
+			return
+		}
+		s.handleRedeemInvite(w, r)
+	})
 	mux.Handle("/api/team/v1/", s.authenticate(api))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
@@ -174,14 +188,68 @@ func (s *Server) Handler() http.Handler {
 // authenticate resolves the bearer token to a member before any /api/team/v1 handler runs.
 func (s *Server) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if !bearer || len(r.Header.Values("Authorization")) != 1 {
+			s.fail(w, r, domain.ErrUnauthenticated)
+			return
+		}
 		actor, err := s.opt.Service.Authenticate(r.Context(), strings.TrimSpace(token))
 		if err != nil {
 			s.fail(w, r, err)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, actor)))
+		if s.opt.RequireDeviceProof && (actor.Device != nil || !loopbackRequest(r)) {
+			if actor.Device == nil {
+				s.fail(w, r, domain.ErrUnauthenticated)
+				return
+			}
+			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+			if err != nil {
+				s.fail(w, r, domain.ErrInvalid)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			key, err := deviceid.ParsePublicKey(actor.Device.PublicKey)
+			if err != nil {
+				s.fail(w, r, domain.ErrUnauthenticated)
+				return
+			}
+			proof, err := authproof.Verify(r, body, key, actor.Workspace.ID, actor.Member.ID, actor.Device.ID, time.Now())
+			if err != nil {
+				s.fail(w, r, domain.ErrUnauthenticated)
+				return
+			}
+			if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+				if err := s.opt.Service.ConsumeAPINonce(r.Context(), actor, proof.Nonce, time.UnixMilli(proof.Expires).Add(authproof.Skew)); err != nil {
+					s.fail(w, r, err)
+					return
+				}
+			}
+		}
+		ctx := service.AuthenticatedContext(r.Context(), actor)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, ctxKey{}, actor)))
 	})
+}
+
+func loopbackRequest(r *http.Request) bool {
+	addr, err := netip.ParseAddrPort(r.RemoteAddr)
+	// A proxy cannot turn remote member credentials into local administration.
+	return err == nil && addr.Addr().IsLoopback() && r.Header.Get("Forwarded") == "" && r.Header.Get("X-Forwarded-For") == "" && r.Header.Get("X-Real-IP") == ""
+}
+
+func (s *Server) handleInstallLicense(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Document json.RawMessage `json:"document"`
+	}
+	if !s.decode(w, r, &in) {
+		return
+	}
+	c, err := s.opt.Service.InstallLicense(r.Context(), actorOf(r), in.Document)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	httpkit.WriteJSON(w, http.StatusOK, c)
 }
 
 func actorOf(r *http.Request) service.Actor {
@@ -226,7 +294,7 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		w.Header().Set("Retry-After", "5")
 		httpkit.WriteError(w, http.StatusTooManyRequests, "busy", err.Error())
 	case errors.Is(err, domain.ErrReadOnly):
-		// The workspace's storage has no quorum: reading works, and nothing is accepted anywhere until it has.
+		// No quorum: writes and remote authorization stop. Cached local diagnostics may still read.
 		w.Header().Set("Retry-After", "10")
 		httpkit.WriteError(w, http.StatusServiceUnavailable, "read_only", err.Error())
 	case errors.Is(err, context.Canceled):

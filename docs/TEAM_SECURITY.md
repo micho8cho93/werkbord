@@ -1,193 +1,68 @@
-# Werkbord Team: security review
+# Werkbord Team security model
 
-**Question.** Can the Team architecture, even by accident, give one member arbitrary execution access to another
-member's computer?
+This is the security model for Team 3.0. It describes the implementation and its assumptions, not a guarantee against every attack. The gate evidence and release blockers are in [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md).
 
-**Answer.** No. Team has no capability that could: it starts no process, serves no file, holds no credential and opens
-no connection to any member's machine. What members exchange is *coordination metadata*: names, ticket text, branch
-names, commit hashes and subjects, pull-request addresses and states. The one channel through which a teammate's words
-reach another person's agent is a ticket's text, and that channel is a human decision at every step (see
-[Teammate-written text](#teammate-written-text-the-one-channel-that-remains)).
+Werkbord operates **no customer runtime infrastructure**: no workspace server, registry, licensing endpoint, CA, relay, rendezvous service, backup service or runner. Customers operate their Workspace Hosts, Connectivity Hosts when reliable remote access is needed, backups and local runners. Customer keys and workspace records stay on those machines. Vendor release and license signing are separate offline operations.
 
-This review was done against Team 2.0.0 and extended for the device registry (2.4) and the private network (2.5), below. It is kept as tests so it cannot silently go stale: every claim below names the
-test that fails if it stops being true. Run them with `make test-team` and `go test ./internal/archtest/`.
+## Assets and trust boundaries
 
-## Method
+The assets are workspace records, membership and roles, network authority, device identities, invitation/session credentials, local runner approvals, repositories and agent credentials, backups, and the release/license trust anchors.
 
-For each surface the question was asked from the attacker's side: *a signed-in member, a member of another workspace, an
-unauthenticated caller, or a malicious server operator's client, wants to run something on, read something from, or
-act as another member*. The surfaces are the ones the review brief named.
+1. The public bootstrap endpoint speaks pinned TLS 1.3 enrollment. Joining devices prove possession of their own key and bind requests to the TLS exporter. Invitations are single use; new workspaces require administrator approval by default. Compare the workspace fingerprint through an independent channel.
+2. Nebula carries the customer's traffic. Its receiving firewall denies everything except specific role/port pairs. Network membership alone does not authorize an API operation.
+3. Remote Team API calls require a device bearer credential **and** an Ed25519 request proof. The proof binds user, device, workspace, HTTP destination, method, path/query, body hash, expiry and nonce. Proof version 1 permits a one minute lifetime and 30 seconds of clock skew. Mutating nonces are consumed transactionally in replicated storage until their entire acceptance window ends. GET proofs may repeat because these routes only read coordination records or sealed ciphertext.
+4. Role and project permissions are checked in service transactions. Sessions are rechecked inside subsequent transactions. Authentication requires a linearizable cluster fence; an isolated host cannot authorize from stale membership. Active long polls recheck every second and before a final answer. A revocation concurrent with a committed read cannot retract data already returned.
+5. Member bearer credentials are limited to the literal loopback API for local administration. Forwarded client headers disable that exception. Production rejects a wildcard/LAN local API bind. The separately bound Nebula listener carries remote API traffic. A reverse proxy that strips client provenance and exposes the local API is unsupported.
+6. A runner verifies device envelopes itself, using signing keys approved and pinned **locally**. Workspace registry changes cannot replace those pins. Messages bind workspace/person/sender/target/action/payload/time/message ID/nonce. Either reused identifier is rejected, including after restart. Replay state and local single-use approvals are saved atomically and directory-synced before effects.
+7. The local bridge only dials literal loopback individual Werkbord endpoints. Its closed operations are opening a held ticket, starting a locally approved task, canceling a mapped run, answering an existing agent question, and fetching mapped runner status. No shell, process launcher, filesystem browser, arbitrary proxy, SSH, PTY or Git command is accepted. Architecture tests enforce product imports, routes, payloads and the two narrowly defined sidecar supervisors.
 
-| Surface | Finding | Why it holds | Enforced by |
-| --- | --- | --- | --- |
-| **Runner APIs** | None exist. Team has no concept of a runner, only a *handoff*: a JSON document a member pulls for a ticket **they hold** and carries into **their own** Werkbord. | There is no route that takes a runner address, and the server makes no outbound connection at all. The CLI that creates the local task (`werkbord-team handoff`) runs on the member's own computer and refuses any address that is not loopback; it never follows redirects. | `TestTheRouteSurfaceIsExactlyTheReviewedList`, `TestNoRouteCanReachAComputer`, `TestTeamServerNeverReachesOut`, `TestHandoffOnlyEverGoesToThisComputer` |
-| **WebSocket / events** | None. Changes reach clients by a plain HTTP long poll (`GET /sync`), scoped to the caller. | No WebSocket, SSE, proxy or socket library is linked. The poll returns revisions and *events about projects the caller can see*; events are hints, the views are re-read. One member may hold at most 8 open polls (HTTP 429 beyond that), and shutdown cancels them at once. | `TestEventsAreOnlyThoseOfProjectsTheClientCanSee`, `TestOnlyAFewWaitingRequestsMayBeOpenPerMember`, `TestTooManyOpenSyncRequestsAreRefused`, `TestShutdownDoesNotWaitForOpenSyncRequests`, rule 7 (no `golang.org/x/net`, `websocket`, `httputil`) |
-| **Authentication** | Every route except `GET /health` and `POST /invites/redeem` needs `Authorization: Bearer <token>`, on loopback too. Tokens are 256 random bits; only their SHA-256 is stored; a wrong or missing token is a 401 whatever the route. | No cookies, so no ambient authority and no CSRF; browser writes are also refused when `Origin` does not match `Host`. The invite code is the credential of the one public route: 128 random bits, stored as a hash, counted atomically, and every unusable code answers the same 404. | `TestEveryRouteExceptTheTwoPublicOnesNeedsAToken`, `TestTokensAreNotStored`, `TestInviteLimitsExpiryAndRevocation`, `TestTwoPeopleRedeemingASingleUseInviteAtOnce` |
-| **Workspace authorization** | The token names the member and so the workspace; no URL or body selects one. Another workspace's owner (who sees all of *their* projects) gets 404 on every project route of ours and sees nothing of ours in any list. | Every query is scoped by `workspace_id`; composite foreign keys make it impossible to put a member of one workspace on another's project. | `TestEveryProjectRouteHidesTheProjectFromOtherWorkspaces`, `TestWorkspacesCannotReachEachOthersBoards`, `TestWorkspacesAreIsolatedFromEachOther` |
-| **Project authorization** | A member of the workspace who is not on a project gets 404 (not 403) on every route that names it, so projects cannot be probed. The views that span projects (`/my-work`, `/reviews`, `/overview`, `/sync`) include only projects the caller can see. A plain member is refused (403) everything a project owner alone may do. | One function (`service.access`) decides, from the member's workspace permissions and project role, and every project operation goes through it. Roles are permission tables, not name checks. | `TestEveryProjectRouteHidesTheProjectFromOutsiders`, `TestProjectOwnerRoutesRefuseAPlainMember`, `TestReviewsAcrossProjectsStayWithinWhatTheViewerCanSee` |
-| **Filesystem APIs** | None. No route reads, writes, lists or serves a path. The console is served from files compiled into the program. Reported file lists on branches are repository-relative names, validated, and never opened. | `os` is imported only by configuration (the data directory); nothing in a request reaches it. | `TestTeamServerNeverReachesOut` (only `config` may import `os`), `TestNoRouteCanReachAComputer`, the path checks in `TestGitReportsAreValidatedAndPermissioned` |
-| **Shell APIs** | None. `os/exec`, `plugin`, `net/rpc`, a pseudo-terminal package, SSH and `tailscale.com` are all absent from the Team build, including indirectly. | Not a convention: the build fails if any of them appears. | `TestTeamCodeNeverExecutesAnything` (rule 4) |
-| **Environment variables** | Read only by Team's configuration at start-up (`WERKBORD_TEAM_*`). No API returns, accepts or exposes one. A handoff carries none. | A test walks every field name of everything Team shares. | `TestNothingSharedCarriesACredentialOrAMachine`, `TestTeamServerNeverReachesOut` |
-| **Git credentials** | Team holds none and cannot use one: it never runs Git and never calls a Git host. Repository and pull-request addresses are rejected if they contain a user, password, token, query or fragment. Git facts are *reported* by the developer's own Werkbord, signed in as them, and recorded as metadata. | There is no field in the schema that could carry a credential or a path on a machine. | `TestNothingSharedCarriesACredentialOrAMachine`, `TestGitReportsAreValidatedAndPermissioned`, `domain_test.go` repository and pull-request cases |
-| **Provider / API credentials** | None. Team never calls a model provider or any API; agents run in each member's own Werkbord with that member's credentials. | No outbound connection exists to carry one. | `TestTeamServerNeverReachesOut` |
-| **The individual product** | Never reaches Team and cannot be driven by it. Nothing it is built from names Team's API, settings or executable. | Rules 1, 2 and the string scan. | `TestIndividualProductDoesNotDependOnTeam`, `TestOnlyTeamImportsTeam`, `TestIndividualProductDoesNotMentionTeam`, `make verify-isolation` |
+## Threats and expected blast radius
 
-## Admin and the device registry (Team 2.4)
+Assumptions: receiving runners use the generated firewall and current daemon, workspace fingerprints and sender keys were compared before trust, customer machines/accounts are patched, and update trust anchors came from an independent trusted channel. A device with a Workspace Host role is not an ordinary runner.
 
-Two additions, reviewed against the same question.
-
-| Surface | Finding | Enforced by |
+| Adversary/event | Expected blast radius and defenses | Residual risk/recovery |
 | --- | --- | --- |
-| **Admin role** | An admin administers members, projects and devices but cannot appoint or act on another admin, reissue the owner's token (which would be taking the workspace) or remove the owner. `members.manage` is therefore not a way up. | `TestAnAdminAdministersButDoesNotOwn`, `TestAnAdminCannotReachTheOwnerOrOtherAdmins`, `TestOnlyTheOwnerAppointsAdmins`, `TestAdminsOverHTTP` |
-| **Device registry** | Holds a device's ID, owner, name, **public** key, capabilities and last-seen time. No column or field for a private key, credential, path or environment. A key can be registered only with a signature by the key itself, bound to the workspace and member. | `TestTheDeviceTablesHaveNoColumnForASecret`, `TestADeviceHasExactlyTheseFields`, `TestRegistrationNeedsProofOfTheKey` |
-| **Private keys** | Live in `internal/deviceid/localidentity`, which Team's build cannot include. | `TestTeamNeverLinksADevicesPrivateKey` |
-| **Capabilities versus roles** | Host and connectivity capabilities need `devices.manage`; owning a host grants its owner nothing; revocation is permanent and ends host roles. | `TestCapabilitiesAreIndependentOfRoles`, `TestOnlyDeviceManagersGrantInfrastructureCapabilities`, `TestRevokingADevice` |
-| **Signed messages** | Format, expiry, replay, wrong signer, wrong target, revoked device are all refused; payloads have no field that could carry a command. Defined but not yet carried anywhere: Team has no route that takes one. | `internal/envelope` tests, `TestNoPayloadCarriesAnythingExecutable` |
+| Malicious ordinary member | Their permitted workspace/project data and their own device requests. Other runners have no inbound TCP rule. Receiving hosts refuse database/Raft/SSH traffic from the member group. Roles and signatures guard API changes. | Authorized data can be copied, dishonest ticket metadata can be supplied, and requests can consume capacity. Resource bounds are not a general denial-of-service guarantee. |
+| Stolen member device | The unlocked device's local data, session, signing/network keys and the actions its owner and locally trusting devices allow. It gains no direct network port on another runner. | Revoke the device/member, clear local sender trust, reissue credentials. Cached certificates can remain usable until blocklists arrive or they expire, but API authorization fails closed against current quorum state. |
+| Stolen Admin device | Admin coordination powers, member invitations and host provisioning permitted by that role. It still does not obtain other devices' signing keys or local approvals. | Treat as a workspace administration incident. An admin able to provision a host can escalate to workspace authority. Remove compromised hosts and rebuild trust if authority was obtained. Owner-only operations remain owner-only. |
+| Compromised ordinary Runner | Full control of that machine and its individual agent/Git credentials; its own application identity. Receiving runner firewalls block lateral TCP even if the attacker changes their outbound rules. | An approved sender can request the closed semantic operations on its owner's other trusting devices; each target's policy still applies. The individual product's separate networking is a separate attack surface. |
+| Compromised Workspace Host | All workspace coordination data, membership, workspace root, Nebula CA and cluster credentials. It can falsify data, invite arbitrary network roles, issue certificates, censor or replay delivery. It does not possess runner device signing keys or target-local approvals. Runner firewalls accept no host TCP push. | Raft is not Byzantine consensus. A malicious authority is a workspace-wide trust failure. Locally pinned sender keys prevent forged runner requests, but legitimate tickets contain host-controlled prompts. Rebuild a new workspace/network, re-enroll and explicitly reapprove pins. |
+| Host tries to forge runner commands | A changed envelope or substituted public key fails target verification. Unknown actions/payload fields and IDs containing path/query syntax fail decoding. A start needs a local, task-bound, single-use approval by default. | Host-controlled ticket context can contain malicious instructions. Review the context before approval. Automatic remote start is an explicit trust expansion and unsuitable for a hostile-host threat model. |
+| Compromised Connectivity Host | Traffic metadata, discovery/relay availability and its own enrolled identity. It holds no workspace CA or database credentials unless it also has the Workspace Host role. Encrypted peer traffic is not plaintext customer data on the relay. | It can drop, delay or misdirect reachability; authenticating peers reject impostors. Deploy independent Connectivity Hosts for redundancy. |
+| Stolen invitation | One enrollment with the invitation's role/capabilities, before expiry. Required approval stops issuance pending independent device-key comparison. | An attacker may consume the invitation and deny the intended join. Withdraw/deny and issue a new invitation. Do not put invitations into public logs or issue trackers. |
+| Replayed messages | Expiry/signatures, TLS channel binding, replicated API nonce state, mailbox message uniqueness and durable target replay state reject duplicates. Live replay entries are never evicted to make room. | Acceptance requires reasonably synchronized clocks. Losing or restoring old local replay/approval state can reintroduce an acceptance window; keep targets stopped and let that window expire before recovery. |
+| Network MITM | Cannot alter pinned TLS enrollment, authenticated Nebula traffic or signed application requests. It can cause unavailability. Bearers are never sent to redirects or names resolved outside the workspace by the device host client. | An unverified invitation or malicious first installer can establish the wrong trust anchor. Fingerprint and installer provenance verification are operator responsibilities. |
+| Hostile local process | A different unprivileged account is constrained by owner-only files, OS secure storage, loopback credentials and browser-origin checks. Wrong keys/corrupt state fail closed. | Same service UID, root, debugger or unlocked Keychain access is full local compromise; local HTTP is not a sandbox against that account. Team does not isolate malicious code already running with the runner's privileges. |
+| Corrupted rqlite node | Crash/restart and stale replicas are handled by Raft and checked replication history; divergent local read replicas are rebuilt. A minority cannot acknowledge safe writes without quorum. | Deliberate forged history/credentials on a trusted database host is not covered by crash-fault consensus. Corruption of an authoritative majority or bad operator restore requires backup recovery. |
+| Split network | A connected majority of three hosts continues committed writes; a minority refuses writes. Remote authorization also refuses without a fresh fence. Rejoining hosts catch up. | No automatic quorum shrink, no merging independently writable histories. Cached local diagnostic reads can be stale and are not remote authorization. |
+| Leaked backup | Database backups expose workspace records, membership hashes, public keys, signed licenses and already sealed host-provisioning ciphertext. They do not contain runner private keys or agent credentials. | Database backups are **not encrypted** by Team. Encrypt them externally. A full host image can also contain rqlite auth files and transient sidecar keys; protect/export authority unlock material separately. |
+| Malicious package/update | Signed, product/tag-bound CLI release manifests plus asset hashes reject website-supplied modifications. Sidecars are pinned and rechecked before every start; a forged adjacent build record is never a trust anchor. Mac DMGs use Developer ID/notarization as a separate trust path. | A malicious correctly signed release executes with the installed application's privileges. Offline signing, reviewed builds and operator-controlled installation are essential. No automatic Team update bypass is provided. |
+| Vendor website/release infrastructure compromise | Those systems have no customer runtime/data/key store to disclose. Altered CLI archives cannot satisfy an independently provisioned offline release verification key. Existing offline licenses keep working. | A compromised website can replace the installer or displayed public key, replay old signed releases or deny downloads. Trust bootstrap out of band. Mac CI holds Apple signing credentials: its compromise could produce an apparently trusted malicious DMG, so that path needs a separate release decision. Compromise of an offline signing workstation/key is also a serious supply-chain incident. |
 
-Still true: Team starts no process and contacts no device. The architecture tests now say which kind of process start
-would ever be acceptable (Team's own infrastructure, by name) and fail for any other (`internal/archtest/infra_test.go`).
+## Key inventory and storage
 
-## The private network (Team 2.5)
+| Material | Algorithm/purpose | Holder and protection |
+| --- | --- | --- |
+| Vendor release key | Ed25519, product/tag-bound checksum manifests | Offline release workstation only; supplied to the issuer on stdin. Customers provision the public PEM independently. It is distinct from Apple Developer ID/Sparkle and license keys. |
+| Vendor license key | Ed25519, canonical offline license claims | Offline license workstation only; application embeds the raw URL-base64 public key at build time. No customer/runtime private issuer key. |
+| Workspace application root | Ed25519, invitations/bootstrap TLS identity | Workspace Hosts only; sealed with the authority wrapping key. Devices pin its public fingerprint. |
+| Nebula CA | Separate Ed25519 Nebula v2 authority | Workspace Hosts only; authority wrapping key; default ten year CA lifetime. No in-place compromised-root rotation. |
+| Device signing key | Separate Ed25519 application identity | Generated and retained by that device; device wrapping key. Workspace registry holds its public half. |
+| Nebula device key | Separate X25519 network identity | Generated on that device; never sent to the CA. Owner-only temporary sidecar file while the node runs; certificates normally last 30 days and renew before expiry. |
+| Host provisioning key | Separate X25519 sealing identity | Recipient host only; encrypted provisioning binds workspace identity/CA and recipient. |
+| Member/device credentials | 256 random bits; SHA-256 hashes in coordination DB | Only the owning device/local administrator retains the bearer. Device use also needs the signing key. Revocation/reissue ends current sessions. |
+| rqlite credentials | Separate app/admin/join random credentials | Workspace Hosts only; authority-wrapped storage record and an owner-only sidecar auth file. Not in API status. |
 
-The same question, asked of what 2.5 adds: a network the customer owns, made of the workspace's own machines, that devices
-join with an invitation. What it adds is **infrastructure** (keys, certificates, a supervised network program, an enrollment
-endpoint); it adds no way for Team to run anything for, or on, a member. How it works: [TEAM_NETWORK.md](TEAM_NETWORK.md).
+macOS builds with cgo use Keychain (System Keychain for a root service, login Keychain otherwise), with distinct device and authority wrapping keys. Authority files cannot be opened with the device wrapping key. This is cryptographic separation, **not** protection from the same authorized service UID or root. Dedicated, physically protected Workspace Hosts and separate externally held recovery secrets are stronger than ordinary portable device deployments. Keychain refusal is fatal; no adjacent-key fallback occurs. On Linux or builds without supported OS storage, use an owner-only external passphrase file (Argon2id, AES-256-GCM), outside workspace backups. The adjacent-key mode is explicit evaluation/transition compatibility only; see [TEAM_INSTALL.md](TEAM_INSTALL.md).
 
-| Surface | Finding | Why it holds | Enforced by |
-| --- | --- | --- | --- |
-| **Werkbord-operated infrastructure** | None is needed, and none can be named. No relay, rendezvous server, control plane, discovery server, network registry or key service: the network's discovery hosts and relays are the customer's machines; a device finds the workspace at addresses in its invitation. | Every setting is an address or a file of the customer's own; no code that runs contains a URL that leads anywhere (the one URL, the pinned release's address, is for a build script and no running code may use it); nothing the workspace generates (invitations, node configurations, responses, the health report) names a host outside the customer's. | `TestNoServiceURLIsBuiltIntoTheNetworkCode`, `TestTheURLRuleCatchesWhatItIsMeantTo`, `TestTheNetworkConfigurationNamesOnlyTheCustomersOwnThings`, `TestNothingThatIsGeneratedNamesAServiceOutsideTheCustomersMachines`, `TestTheRuntimeSettingsHaveNoServiceInThem` |
-| **Starting a process** | One program, by name: the pinned Nebula. The supervisor has no function that takes a command, an argument, an environment or a path; it starts a verified private copy with `-config <file>` and an empty environment; a program that does not match its pin, is a symlink, is found on `PATH`, or changed after it was verified is not started. Developer execution is still absent from Team. | The exported API is held to a reviewed list; no parameter or field means "something to run"; one `exec.CommandContext` call with literal arguments; the grant in rule 9 names the program and may never name a shell, Git, an agent or a runtime. | `TestTheNetworkSupervisorIsNotAGeneralRunner`, `TestTheSupervisorRuleCatchesWhatItIsMeantTo`, `TestTheInfrastructureExceptionIsNarrow`, `TestOnlyTheProgramThatMatchesThePinIsStarted`, `TestThePathIsNeverSearched`, `TestASymbolicLinkIsNotFollowed`, `TestACopyChangedAfterVerificationIsNotStarted`, `TestADirectoryOthersCanWriteIsRefused`, `TestTheProgramGetsOnlyTheArgumentsTheSupervisorBuilds` |
-| **The pinned program** | A reviewed release, checked against hashes that were taken from the release's own checksum file, with its licences. Never fetched at run time. | Pins in the source; the file the release published is in the repository and a test compares them; the licences ship with the program. | `TestThePinIsWellFormedAndMatchesWhatUpstreamPublished`, `TestTheLicensesOfWhatIsShippedAreInTheRepository`, `scripts/fetch-nebula.sh` |
-| **The authority's and the workspace's keys** | Held by Workspace Hosts only, sealed on disk; never in the database, any API response, any log. A different key from the network's, from a host's application key and from a member device's key. | The service, domain, API and store cannot name a private key (they see an interface); the vault seals with AES-256-GCM under a key kept apart or a passphrase (Argon2id), refuses a key file others can read, and refuses a wrong key or a changed file; the schema has no column that could hold one. | `TestNoSigningKeyCanReachAResponse`, `TestTheFirstWorkspaceGetsItsKeysItsNetworkAndItsFirstHost`, `TestTheNetworkTablesHaveNoColumnForASecret`, `TestTheWorkspaceKeyAndTheNetworkKeyAreDifferentKeys`, `TestSealedKeysAreOpenedOnlyByTheKeyAndLabelTheyWereSealedWith`, `TestAKeyFileOthersCanReadIsRefused`, `TestPassphraseSealing`, `TestAHostThatLostItsKeysFileCannotStartAndSaysWhy` |
-| **Handing the authority to another host** | Sealed to that host's own key (HPKE), bound to the workspace and the device; the ciphertext is stored, collected once with the host's own credential and removed; refused unless it matches the workspace and authority the host enrolled with. | Only the holder of the private sealing key can open it; the receiver checks before storing. | `TestAnotherHostIsHandedTheAuthoritySealedToItAlone`, `TestTheAuthorityIsSealedToTheHostItIsForAndCollectedOnce`, `TestOnlyAHostWithTheAuthorityCanHandItOn`, `TestASecondAndThirdHostAreEnrolledAndEachCanTakeOverTheAuthority` |
-| **What a certificate can say** | The authority signs only addresses inside the network and groups that exist; its own certificate limits even a stolen key to them; a device chooses only its key. | Checked by the issuer and by Nebula's own signing rules. | `TestTheAuthorityRefusesWhatItShouldNotSign`, `TestTheAuthoritysOwnCertificateLimitsWhatItCanSign`, `TestTheAuthorityIssuesCertificatesThatNebulaVerifies` |
-| **Invitations** | Signed, expiring, single-use; carry no private key, no reusable certificate and no member token. A changed byte breaks the signature; a changed credential is refused; an expired, spent, withdrawn, wrong or unknown one all get the same answer. | Ed25519 over the exact bytes; the credential is 256 random bits, stored as a hash, spent in the transaction that accepts it. | `TestAModifiedInvitationIsRefused`, `TestMalformedInvitationsAreRefused`, `TestAnExpiredInvitationIsRefused`, `TestAnInvitationNamesTheWorkspacesOwnEndpointsAndKeepsNoCredential`, `TestAnInvitationWorksOnce`, `TestAnInvitationIsUsedOnceAndNeverAfterItExpiresOrIsWithdrawn`, `TestEveryWayAnInvitationCanBeUnusableLooksTheSame`, `TestAnInvitationCannotBeReusedExpiredModifiedOrPointedAtAnotherWorkspace` |
-| **The enrollment endpoint** | TLS 1.3 only, no plaintext mode, small bodies and short timeouts, a per-address rate limit. A device sends its credential only to a server that proved it holds the workspace key; the request's proof is bound to the TLS session and to the device's own key. | The device's only trust anchor is the workspace key; channel binding by the TLS exporter; standard X.509 verification. | `TestADeviceNeverSendsItsCredentialToAnImposter`, `TestAWrongExpectedFingerprintIsRefusedBeforeAnythingIsSent`, `TestAnEndpointForTheWrongAddressIsRefused`, `TestTheServerRefusesTLS12`, `TestTheServerHasNoPlaintextMode`, `TestAProofForOneConnectionIsNotAProofForAnother`, `TestAProofFromAnotherKeyIsRefused`, `TestTheRateLimitSlowsGuessing` |
-| **Approval** | When required, a device gets nothing until an administrator approves; a denied one gets nothing and its invitation is spent; an approver cannot approve more than they could grant. | Nothing is created for a pending device; the decision is guarded in the write. | `TestAWorkspaceThatRequiresApprovalHoldsDevicesUntilAnAdministratorDecides`, `TestADeniedDeviceGetsNothingAndTheInvitationIsSpent`, `TestApprovingSomethingTheApproverMayNotGrantIsRefused`, `TestWhoMayInviteWhom` |
-| **Network policy** | Default-deny in both directions. A member reaches the API and nothing else; no member reaches another member's runner, files or any port; the database's ports are for Workspace Hosts alone; a Connectivity Host exposes nothing but what it relays. | Enforced by the receiving node, so a sender that edited its own configuration gains nothing; the generator cannot write an allow-all rule. | `TestThePolicyAsNebulaEnforcesIt` (real Nebula nodes), `TestTheLabCanTellAllowedFromBlocked` (its control), `TestNoRuleLetsAMemberReachAnotherMember`, `TestThePolicyIsDefaultDeny`, `TestWhatEachRoleMayReach`, `TestEveryRoleGetsAConfigurationTheRealProgramAccepts` |
-| **Revocation** | Two layers. The application layer is authoritative at once: a revoked device's credential is refused on its next request even if the network still carries its packets. The network layer follows: its certificates are blocklisted by every host, and short-lived anyway. | Authentication checks the device on every request; revoking deletes the credential and marks every certificate in one transaction; the blocklist outlives the device's records. | `TestARevokedDeviceCannotUseTheAPIEvenWithTheCertificateItHolds`, `TestRevokingADeviceEndsItInBothLayersAtOnce`, `TestEveryCertificateAMemberHadIsRefusedWhenTheyAreRemoved`, `TestTheNetworkRefusesARevokedCertificateAndAnotherAuthoritys`, `TestANewBlocklistIsAppliedWithoutRestartingTheNode`, `TestADeviceThatJoinedReachesTheHostsNetworkAndARevokedOneIsRefusedByIt`, `TestRevokedCertificatesStayOnTheBlocklistWhenTheirDeviceIsDeletedAndLeaveItWhenTheyExpire` |
-| **Honesty about reachability** | Team never says remote access works unless a Connectivity Host has been reached from another device at an address that could be reached from outside; a host's check of itself does not count; a private, shared or loopback address is never "public". | The verdict is computed from checks, not from configuration. | `TestReachabilityIsOnlyEverAsStrongAsWhatWasChecked`, `TestTheHealthReportDoesNotPretendNATTraversalIsGuaranteed`, `TestAHostsCheckOfItselfProvesNothingAboutTheOutside` |
-| **No single host is authoritative** | A device is told of every discovery host and relay; a node starts and finds the network through the others when one is offline. | Tested with the real program. | `TestSeveralLighthousesAreAllUsedAndOneMayBeOffline`, `TestEveryDeviceIsToldOfEveryDiscoveryHostAndRelay` |
-| **The transport** | The network is a `transport.Transport`; it dials nothing outside the workspace's range and accepts only on the host's own address on it. | The one outbound-capable package is named in rule 7 and is tested for exactly that. | `TestItIsATransport`, `TestItDialsNothingOutsideTheWorkspacesNetwork` |
+Raw private keys and bearer values are excluded from coordination APIs, routine logs and release artifacts. Enrollment returns only the new device's own credential over pinned TLS, and provisioning returns recipient-encrypted ciphertext. Local owner credentials and invitation links are intentionally shown once; avoid terminal recording/shell-history sharing. Do not collect process memory, core dumps, debug traces or full host images as ordinary bug reports: an unlocked service necessarily holds secrets in memory. Team has no crash-upload service. Go/C memory clearing is best effort, not a guarantee that runtimes left no copies.
 
-### What is trusted, and what 2.5 does not defend against
+## Network, licensing and dependency policy
 
-- **A Workspace Host is trusted completely, for the workspace's network.** Whoever holds the workspace key and the authority
-  key can put any device on the network in any group and sign invitations the whole workspace will believe. Protect those
-  machines as the most important ones you have; do not make a host of a laptop that travels. Compromise of a host is
-  compromise of the network: there is no in-place rotation yet, so the answer is a new network.
-- **A fingerprint nobody compares gives trust on first use.** An invitation shows it was not altered, not that it was meant;
-  `--expect-fingerprint` is the defence. A person who is sent an invitation by a channel an attacker controls can be sent to an
-  attacker's workspace.
-- **The sealing key beside the data is only as safe as the account that runs Team.** Use a passphrase, or keep the key
-  elsewhere, if that matters.
-- **Reachability checks test the TCP enrollment endpoint.** They do not prove the UDP port is forwarded, and a prober on the
-  same network as the host proves little: only a check from another network counts, and Team cannot know which network the
-  prober was on. It reports what it can establish and says so.
-- **Relays are experimental upstream.** Team uses them, reports whether any exists, and does not promise they suffice.
-- **The data is on one host.** A second Workspace Host holds the authority, not the records.
-- **Nebula itself.** Team ships an unmodified release, pinned and verified, but is not an audit of Nebula; its own security
-  notes are at <https://github.com/slackhq/nebula/security>.
+Member/runner nodes have no inbound TCP rule. They poll the API/mailbox on Workspace Hosts, normally TCP 7430. Only Workspace Hosts can reach TCP 4001–4002 database traffic. Hosts may ping for diagnostics; lighthouse/relay UDP 4242 and enrollment TLS TCP 7440 are the customer-facing endpoints. Receiving policy still protects peers from an edited attacker-side configuration. Nebula certificate revocation is asynchronous; application revocation is checked against quorum state. An expired certificate cannot be used; if renewal cannot be reached, remote access stops.
 
-## Requests between a person's own devices (Team 2.7)
+Nebula is Team's only production network. Team imports no Tailscale/SSH/PTY dependency. Individual Werkbord retains its separate tsnet networking and all `DEVBOARD_*` compatibility. There is no silent dual-stack Team mode. Old remote bearer clients must move to device enrollment/current daemon; explicit single-file/loopback and legacy license/key-file transition support last through **Team 3.x**, ending at the next major release.
 
-The same question, asked of the one place where a message crosses from one device to another: a person asking their own runner to
-open a ticket or start a task. How it works: [TEAM.md](TEAM.md#requests-between-your-own-devices).
+Licenses are verified and seat-checked in the workspace transaction; owner/admin count as seats, extra devices do not. Expiry blocks normal coordination writes, while owner-only valid renewal and read access remain possible. The replicated signed document lets surviving hosts and restarts operate offline. Only edition `team` and supported schemas are accepted. Support end dates do not expire runtime. Offline licenses cannot be instantly revoked by the vendor without introducing a runtime dependency. See [TEAM_LICENSE.md](TEAM_LICENSE.md).
 
-| Surface | Finding | Why it holds | Enforced by |
-| --- | --- | --- | --- |
-| **A host forging a request** | It cannot. A request is signed by the asking device's own key, which only that device holds; the host stores what it was given and has no key that would make or alter one. | The target verifies the signature itself, against the sender's registered public key, before acting. Every field is covered: sender, person, workspace, target, action, expiry, nonce and payload. | `TestAWorkspaceHostCannotForgeAPersonsRequest` (the host's own key naming another person; nine different alterations of a genuine request; resending; a stale one) |
-| **Asking someone else's computer** | Impossible. The signer, the sender's credential and the target device must all belong to one person, and the target must be a runner. Another person's device, a revoked one and one that does not exist all answer *not found*. | Checked from the registry before the request is stored, and by the target again. | `TestNobodyCanAskAnotherPersonsDeviceOrAnythingThatIsNotARunner` |
-| **What a request can ask** | Five actions from a closed list. No payload carries a command, path, environment, script or free-form text beyond a short answer to a question an agent asked. | `envelope.EncodePayload` and `DecodePayload` are strict; a test walks every payload's fields. | `TestNoPayloadCarriesAnythingExecutable`, `TestTheMailboxHasNoColumnThatCouldHoldACommandOrASecret` |
-| **Replay and delay** | A request lives at most five minutes; one cannot be stored twice (its message ID is the primary key) or acted on twice (the target's own replay cache). | Expiry and nonce are signed. | `TestAPersonAsksTheirOwnRunnerAndOnlyThatRunnerCollectsIt`, `TestARequestExpiresAndTheQueueIsBounded` |
-| **Burying a device** | At most 50 requests wait for one device; the rest are refused as busy. Old messages are removed after a week. | A bound checked before storing. | `TestARunnerThatHasNotCaughtUpIsNotBuried` |
-| **Answers** | A device answers once, with a small JSON object; only the device a request is for can. | Guarded in the write. | `TestNobodyCanAskAnotherPersonsDeviceOrAnythingThatIsNotARunner` |
-
-What this does not defend against: a host's **operator** can add a device to the registry under a person's name by writing to the
-database directly, and a request signed by that device would verify. A Workspace Host is trusted with the workspace's records (this
-document's earlier sections); the device it is for therefore also applies its own policy to what it is asked (see TEAM_DAEMON.md),
-and its own Werkbord applies its execution policies and approvals to whatever reaches it.
-
-## Replicated storage (Team 2.6)
-
-What changed when the workspace's data went into a cluster of Workspace Hosts ([TEAM_STORAGE.md](TEAM_STORAGE.md),
-[ADR 0003](adr/0003-replicated-workspace-storage.md)), and what did not.
-
-- **A new process, held to one start.** Team now supervises the pinned rqlite as it supervises Nebula: one program, found only in
-  fixed directories, checked against a SHA-256 pin (a macOS build, for which the project publishes no binary, is checked
-  against its own report of the pinned version and commit and a build record, and says it is not hash-pinned), copied to a private
-  directory, checked again immediately before every start, started by one function with a constant program name and flags from
-  a typed description. `internal/archtest` reads the package and fails if its API grows a way to run anything else.
-- **Never exposed.** The database's nodes bind to loopback or to an address on the workspace's private network; the supervisor, the
-  admin client and the storage client each refuse any other address, and a node's ports are reachable by Workspace Hosts only (the
-  network's default-deny policy). Raft's own port is unauthenticated: the Nebula tunnel is what protects it, which is why a database
-  node is never put anywhere else.
-- **Three database users** with the least each needs: the application's (read, write, load, backup), an administrator's (membership
-  changes), and the one a joining node presents (join only). Their passwords are random, per workspace, sealed on each Workspace
-  Host like its other keys, sent to a new host only inside the HPKE-sealed secrets it alone can open, and in no database row, API
-  response or log. They are on every Workspace Host, which is part of what makes one a high-trust machine.
-- **Only a Workspace Host's own service talks to the database.** Clients of the API never do; nothing in the API takes an address
-  or a statement.
-- **A use case still cannot do more than before.** It runs, unchanged, through the same service checks (role, project role,
-  workflow transitions), against the host's copy; what the cluster is sent is the statements it ran, which the cluster checks
-  against the position in history it ran at and applies whole or not at all. A write that cannot be applied on the cluster's
-  current state is refused and run again from it, so two hosts cannot both take one ticket. The statements are Team's own;
-  statements that change the connection, or the protocol's position in history, are refused (`recorder.go`).
-- **When quorum is lost, writes stop.** Nothing is accepted on a minority to be merged later; an isolated host (and an old leader
-  that has not noticed it was replaced) refuses (`TestAHostCutOffFromTheOthersRefusesToWrite`, `TestACutOffLeaderStopsAcceptingWritesAndTheOthersCarryOn`).
-- **Reads continue, and may be stale.** A host serves reads, authentication included, from its last copy. A token revoked, a device
-  revoked or a member removed while that host was cut off from the cluster is not known to it until it reconnects. It can write
-  nothing meanwhile. `storage status` and `/health` say how old a copy may be and that the workspace is read-only.
-- **A host removed from the cluster keeps what it had.** A removal is a membership change, not an erasure: the host's files, its
-  copy of the data and its database credentials stay on its disk. Evicting a host *for cause* means revoking its device and
-  rotating the credentials, and rotating them is not built; until it is, treat a compromised Workspace Host as having had the data and
-  the credentials, and move the workspace to a new cluster from a backup.
-- **Revoking is refused while a device is a cluster member** and so is removing its owner, so that no voter ever disappears from
-  the registry while the cluster still counts it.
-- **Backups are files you own.** They hold the whole workspace (names, tickets, tokens' hashes, the network's public records, the
-  sealed provisioning blobs of devices not yet collected, never a private key). Mode 0600, in a directory you choose; protect that
-  directory as you protect the data. Werkbord hosts none.
-
-## Teammate-written text: the one channel that remains
-
-A ticket is written by one member and read by another, and "Open in my runner" turns it into the task text of the
-reader's own agent. That is by design, and it is the only way one member's words reach another member's machine. Team
-treats it as untrusted input:
-
-- **The reader decides.** Team cannot start a run. `werkbord-team handoff` creates a *task* in the member's own
-  Werkbord; the member starts the run, under that Werkbord's own execution policy and approvals.
-- **Only the holder gets the text.** The handoff is issued only to the member who holds the ticket (not to a project
-  owner, not to a reviewer).
-- **It says where it came from.** The task text begins with the ticket's key and title, then a plain statement that the
-  description was written by a named teammate and is a description of work, *not* instructions with authority over this
-  computer: it should not make the agent run commands, read or send files or credentials, or touch anything outside
-  the repository, and unusual requests are to be put to the person it works for. (`TestHandoffGivesTheHolderTheirTicketContext`.)
-- **It carries no secret.** There is nothing sensitive in it for a teammate to harvest: no path, environment variable,
-  credential or token.
-
-This does not make a hostile teammate harmless: a person who can write tickets can ask an agent to do foolish things, as
-a person who can send you a pull request can. The defence is the same: review what you run. A project's owner decides
-who is on the project.
-
-## Residual risks and operator guidance
-
-- **Plain HTTP.** Team serves HTTP. Off loopback, put it behind HTTPS or a private network; tokens cross the network in
-  the clear otherwise. Team says so in its log at start-up.
-- **Failed sign-ins are not rate-limited.** Tokens are 256 random bits, so guessing is infeasible; add a limit at the
-  proxy if you want to see and slow scanning.
-- **Pull-request addresses are arbitrary https links** shown to the whole project. The console follows them only if they
-  are https, in a new tab, with `noopener noreferrer`. A member could post a misleading link; that is social, not
-  technical, and project owners can remove the person.
-- **The operator can read everything Team stores** (tickets, names, branch names). They cannot read credentials,
-  because there are none.
-- **The first sign-in link carries the token in the URL fragment.** The browser never sends a fragment to a server and
-  the console removes it from the address bar at once, but it can remain in browser history until cleared. Reissue the
-  token if that matters.
-- **Reports are claims.** Team shows "as last reported by"; a member can misreport their own branch state. A reviewer
-  confirms on the Git host. A *merged* pull request cannot be reported back to open (a late or replayed report is
-  refused), so a stale client cannot undo a recorded merge.
-
-## Concurrency
-
-Writes are serialised (one write transaction at a time, taken up front; across the hosts of a cluster, by a guard on the position in history that Raft orders) and every guard is also in the SQL, so the
-guarantees hold even if the service's own reads were stale. See [TEAM.md](TEAM.md#concurrency) for the list and the tests.
+Nebula **1.11.2** (MIT) and rqlite **10.5.2** (MIT, source commit `a73dd2e63acb72080f5eb20881a03bb06a464f89`) are pinned; bundled Go/distribution notices are under `third_party/`. Upstream archives and unpacked executables are checked. macOS rqlite is rebuilt from the pinned source and its exact packaged hash is embedded in Team. Build toolchains and dependencies remain supply-chain trust inputs; a source commit alone does not prove a reproducible build. Review upgrades and primary advisories: [Nebula security](https://github.com/slackhq/nebula/security), [rqlite releases](https://github.com/rqlite/rqlite/releases).

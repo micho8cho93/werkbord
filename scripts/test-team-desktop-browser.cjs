@@ -18,7 +18,8 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  spawn(personal,[],{WERKBORD_BROWSER_ADDR:new URL(personalURL).host,WERKBORD_BROWSER_EXECUTION:'1'});
  await wait(async()=>{try{return(await fetch(personalURL+'/api/health')).ok;}catch{return false;}},'personal controller');
  fs.writeFileSync(path.join(temp,'runner-config.json'),JSON.stringify({addr:new URL(personalURL).host,token:full}),{mode:0o600});
- spawn('go',['test','-run','^TestTeamDesktopBrowserFixture$','-count=1','-timeout','12m','./internal/team/server'],{WERKBORD_TEAM_BROWSER_FIXTURE:temp,WERKBORD_SKIP_RQLITE:'0',WERKBORD_REQUIRE_RQLITE:'1'});
+ const pins=run('sh',['scripts/team-build-flags.sh']).trim();
+ spawn('go',['test','-ldflags',pins,'-run','^TestTeamDesktopBrowserFixture$','-count=1','-timeout','12m','./internal/team/server'],{WERKBORD_TEAM_BROWSER_FIXTURE:temp,WERKBORD_SKIP_RQLITE:'0',WERKBORD_REQUIRE_RQLITE:'1'});
  await wait(()=>fs.existsSync(path.join(temp,'ready.json')),'fixture');const m=JSON.parse(fs.readFileSync(path.join(temp,'ready.json')));
  const dev=(which,method,url,body)=>http(m[which],m[which+'Key'],method,'/api/device/v1'+url,body);
  const team=(method,url,body)=>http(m.first,m.firstKey,method,'/api/team/v1'+url,body);

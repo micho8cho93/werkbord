@@ -137,6 +137,8 @@ func (s *Service) Inbox(ctx context.Context, a Actor, wait time.Duration) ([]dom
 	defer cancel()
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
+	sessionTick := time.NewTicker(time.Second)
+	defer sessionTick.Stop()
 	for {
 		var out []domain.DeviceMessage
 		err := s.db.View(ctx, func(tx store.Tx) (err error) {
@@ -148,8 +150,10 @@ func (s *Service) Inbox(ctx context.Context, a Actor, wait time.Duration) ([]dom
 		}
 		select {
 		case <-ch:
+		case <-sessionTick.C:
 		case <-timer.C:
-			return out, nil
+			err := s.db.View(ctx, func(tx store.Tx) error { return nil })
+			return out, err
 		case <-ctx.Done():
 			return out, ctx.Err()
 		}

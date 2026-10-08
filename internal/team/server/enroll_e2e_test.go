@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"devboard/internal/enrollment"
+	"devboard/internal/envelope"
+	"devboard/internal/team/authproof"
 	"devboard/internal/team/config"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/infra/nebula"
@@ -112,10 +114,23 @@ func post(t *testing.T, url, token, body string) (int, string) {
 	return do(t, "POST", url, token, body)
 }
 
+type proofIdentity struct {
+	signer          envelope.Signer
+	workspace, user string
+}
+
+var proofIdentities sync.Map
+
 func do(t *testing.T, method, url, token, body string) (int, string) {
 	t.Helper()
 	req, _ := http.NewRequest(method, url, strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
+	if v, ok := proofIdentities.Load(token); ok {
+		x := v.(proofIdentity)
+		if err := authproof.Sign(req, []byte(body), x.signer, x.workspace, x.user, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -502,6 +517,7 @@ func joinAsHost(t *testing.T, first *host, link, name string) *joinedHost {
 	if err != nil {
 		t.Fatal(err)
 	}
+	proofIdentities.Store(res.Response.DeviceToken, proofIdentity{keys, res.Response.WorkspaceID, res.Response.MemberID})
 	meta := pki.Meta{WorkspaceID: inv.WorkspaceID, WorkspaceName: inv.WorkspaceName, Fingerprint: inv.Fingerprint, NetworkPrefix: first.nw.mat.Meta.NetworkPrefix}
 	if err := v.CreateJoined(meta, keys, []byte(res.Network.CACertificate)); err != nil {
 		t.Fatal(err)

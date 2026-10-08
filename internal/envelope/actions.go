@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 )
 
@@ -138,7 +139,7 @@ func DecodePayload(e Envelope) (any, error) {
 	if err := dec.Decode(p); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrPayload, err)
 	}
-	if dec.More() {
+	if dec.Decode(new(any)) != io.EOF {
 		return nil, fmt.Errorf("%w: trailing data", ErrPayload)
 	}
 	v := reflect.ValueOf(p).Elem().Interface()
@@ -154,6 +155,11 @@ func checkPayload(a Action, v any) error {
 	id := func(name, s string) error {
 		if s == "" || len(s) > maxID {
 			return fmt.Errorf("%w: %s is required and at most %d bytes", ErrPayload, name, maxID)
+		}
+		for _, r := range s {
+			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+				return fmt.Errorf("%w: %s is not an opaque identifier", ErrPayload, name)
+			}
 		}
 		return nil
 	}
@@ -182,6 +188,9 @@ func checkPayload(a Action, v any) error {
 		}
 		if len(p.OptionID) > maxID || len(p.Reply) > MaxReply {
 			return fmt.Errorf("%w: the answer is too long", ErrPayload)
+		}
+		if p.OptionID != "" {
+			return id("optionId", p.OptionID)
 		}
 	case FetchRunnerStatus:
 	default:

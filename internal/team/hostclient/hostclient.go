@@ -28,6 +28,7 @@ import (
 
 	"devboard/internal/enrollment"
 	"devboard/internal/envelope"
+	"devboard/internal/team/authproof"
 	"devboard/internal/team/domain"
 )
 
@@ -38,8 +39,10 @@ const maxResponse = 8 << 20
 
 // Client is a device's connection to its workspace.
 type Client struct {
-	token string
-	hc    *http.Client
+	signer              envelope.Signer
+	workspaceID, userID string
+	token               string
+	hc                  *http.Client
 
 	mu    sync.Mutex
 	bases []string
@@ -47,6 +50,8 @@ type Client struct {
 
 // Options configure a Client.
 type Options struct {
+	Signer              envelope.Signer
+	WorkspaceID, UserID string
 	// Bases are the Workspace Hosts' API addresses, "http://127.0.0.1:7430" or "http://10.128.0.1:7430", best first.
 	Bases []string
 	// Token is the device's own credential.
@@ -86,7 +91,7 @@ func New(o Options) (*Client, error) {
 		dial = d.DialContext
 	}
 	network := o.Network
-	return &Client{token: o.Token, bases: bases, hc: &http.Client{
+	return &Client{token: o.Token, signer: o.Signer, workspaceID: o.WorkspaceID, userID: o.UserID, bases: bases, hc: &http.Client{
 		Timeout: timeout + 25*time.Second, // the longest a long poll may wait
 		Transport: &http.Transport{
 			Proxy: nil,
@@ -202,6 +207,11 @@ func (c *Client) Raw(ctx context.Context, method, path string, contentType strin
 		req.Header.Set("Authorization", "Bearer "+c.token)
 		if contentType != "" {
 			req.Header.Set("Content-Type", contentType)
+		}
+		if c.signer != nil {
+			if err := authproof.Sign(req, body, c.signer, c.workspaceID, c.userID, time.Now()); err != nil {
+				return 0, nil, nil, err
+			}
 		}
 		res, err := c.hc.Do(req)
 		if err != nil {

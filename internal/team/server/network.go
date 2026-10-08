@@ -76,15 +76,29 @@ func (n *network) overlayAddr(ctx context.Context) (netip.Addr, error) {
 	return netip.ParseAddr(cfg.OverlayAddr)
 }
 
-// SealerFor is what seals this host's keys: a passphrase from the file the configuration names, or else a key kept
-// beside the data (and apart from the sealed files).
+// SealerFor uses an explicitly supplied protected passphrase or OS secure storage.
+// Adjacent key files require the explicit evaluation/transition file mode.
 func SealerFor(cfg config.Config) (pki.Sealer, error) {
 	if cfg.PassphraseFile != "" {
+		fi, err := os.Lstat(cfg.PassphraseFile)
+		if err != nil {
+			return nil, err
+		}
+		if !fi.Mode().IsRegular() || fi.Mode().Perm()&0o077 != 0 || fi.Size() > 4096 {
+			return nil, errors.New("the passphrase must be a private regular file of at most 4096 bytes")
+		}
 		b, err := os.ReadFile(cfg.PassphraseFile)
 		if err != nil {
 			return nil, fmt.Errorf("the passphrase file: %w", err)
 		}
 		return pki.NewPassphraseSealer(bytes.TrimRight(b, "\r\n"))
+	}
+	if cfg.KeyStorage == "os" {
+		id := cfg.SecureStorageID
+		if id == "" {
+			id = cfg.DataDir
+		}
+		return pki.NewSecureSealer(id)
 	}
 	return pki.NewFileSealer(cfg.SealingKeyPath())
 }

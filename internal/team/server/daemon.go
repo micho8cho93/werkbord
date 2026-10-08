@@ -70,6 +70,8 @@ type Daemon struct {
 }
 
 func NewDaemon(o DaemonOptions) (*Daemon, error) {
+	o.Config.LicenseRequired = true
+	o.Config.LicenseKey = append([]byte(nil), o.LicenseKey...)
 	if o.LocalAddr == "" {
 		o.LocalAddr = "127.0.0.1:7431"
 	}
@@ -93,6 +95,8 @@ func NewDaemon(o DaemonOptions) (*Daemon, error) {
 func (d *Daemon) workspaceConfig() config.Config {
 	c := d.o.Config
 	c.DataDir = filepath.Join(c.DataDir, "workspace")
+	c.SecureStorageID = c.DataDir
+	c.LicenseFile = filepath.Join(d.o.Config.DataDir, "license.json")
 	if c.BackupDir == "" {
 		c.BackupDir = filepath.Join(d.o.Config.DataDir, "backups")
 	}
@@ -164,8 +168,8 @@ func (d *Daemon) Handler() http.Handler {
 	})
 	secured := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if subtle.ConstantTimeCompare([]byte(token), []byte(d.key())) != 1 {
+		token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if !bearer || len(r.Header.Values("Authorization")) != 1 || subtle.ConstantTimeCompare([]byte(token), []byte(d.key())) != 1 {
 			httpkit.WriteError(w, 401, "unauthorized", "open Werkbord Team to connect to this device")
 			return
 		}
@@ -273,7 +277,12 @@ func (d *Daemon) workspaceRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *Daemon) licenseClaims() (license.Claims, error) {
-	b, err := os.ReadFile(filepath.Join(d.o.Config.DataDir, "license.json"))
+	f, err := os.Open(filepath.Join(d.o.Config.DataDir, "license.json"))
+	if err != nil {
+		return license.Claims{}, err
+	}
+	defer f.Close()
+	b, err := readBounded(f, 16384)
 	if err != nil {
 		return license.Claims{}, err
 	}
@@ -307,6 +316,10 @@ func (d *Daemon) importLicense(w http.ResponseWriter, r *http.Request) {
 		}
 		if me.Member.Role != domain.RoleOwner {
 			daemonFail(w, errors.New("the workspace owner manages its license"))
+			return
+		}
+		if err := host.Do(r.Context(), "PUT", "/license", map[string]any{"document": in.License}, nil); err != nil {
+			daemonFail(w, err)
 			return
 		}
 	}
@@ -417,7 +430,11 @@ func (d *Daemon) loadDevice() error {
 	if err != nil {
 		return err
 	}
-	c, err := hostclient.New(hostclient.Options{Bases: bases, Token: token, Network: prefix, Timeout: 8 * time.Second, DialContext: d.hostDial})
+	member, err := v.Secret("member")
+	if err != nil {
+		return err
+	}
+	c, err := hostclient.New(hostclient.Options{Bases: bases, Token: token, Network: prefix, Timeout: 8 * time.Second, DialContext: d.hostDial, Signer: mat.Host, WorkspaceID: mat.Meta.WorkspaceID, UserID: string(member)})
 	if err != nil {
 		return err
 	}

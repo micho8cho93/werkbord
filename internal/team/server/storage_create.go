@@ -36,6 +36,7 @@ func OpenWorkspace(ctx context.Context, cfg config.Config, log *slog.Logger) (*W
 		return nil, err
 	}
 	w := &Workspace{Storage: st, Service: service.New(st.DB())}
+	configureLicense(w.Service, cfg)
 	st.Attach(w.Service, nil)
 	st.Start(ctx)
 	if err := st.WaitReady(ctx, readyWait); err != nil {

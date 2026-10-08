@@ -44,6 +44,28 @@ func TestAComputerStartsAskingBeforeItStartsAnything(t *testing.T) {
 	}
 }
 
+func TestCorruptPolicyUnknownFieldsAndSymlinksFailClosed(t *testing.T) {
+	for _, raw := range []string{`{"settings":{"remoteStart":"surprise"}}`, `{"settings":{"remoteStart":"ask"},"shell":"whoami"}`, `{"settings":{"remoteStart":"ask"}} {}`} {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "device.json")
+		_ = os.WriteFile(path, []byte(raw), 0600)
+		if _, err := Open(dir); err == nil {
+			t.Fatal("corrupt state opened")
+		}
+		got, _ := os.ReadFile(path)
+		if string(got) != raw {
+			t.Fatal("corrupt state was overwritten")
+		}
+	}
+	dir := t.TempDir()
+	target := filepath.Join(t.TempDir(), "state")
+	_ = os.WriteFile(target, []byte(`{}`), 0600)
+	_ = os.Symlink(target, filepath.Join(dir, "device.json"))
+	if _, err := Open(dir); err == nil {
+		t.Fatal("state symlink followed")
+	}
+}
+
 func TestAnotherDeviceIsHeardOfButNotTrustedUntilThePersonSaysSo(t *testing.T) {
 	s, _ := open(t)
 	if s.IsApprovedSender("dev_phone") {
@@ -113,8 +135,14 @@ func TestARequestIsRememberedAcrossARestartAndANewOneIsNot(t *testing.T) {
 	if seen, _ := again.Seen("dev_a", "msg_1", "nonce", exp); !seen {
 		t.Fatal("a request was not remembered across a restart")
 	}
-	if seen, _ := again.Seen("dev_a", "msg_2", "nonce", exp); seen {
-		t.Fatal("a new request was called a replay")
+	if seen, _ := again.Seen("dev_a", "msg_2", "nonce", exp); !seen {
+		t.Fatal("a reused nonce was not a replay")
+	}
+	if seen, _ := again.Seen("dev_a", "msg_1", "new_nonce", exp); !seen {
+		t.Fatal("a reused message ID was not a replay")
+	}
+	if seen, _ := again.Seen("dev_a", "msg_2", "new_nonce", exp); seen {
+		t.Fatal("new identifiers were called a replay")
 	}
 	if seen, _ := again.Seen("dev_b", "msg_1", "nonce", exp); seen {
 		t.Fatal("one device's request shadowed another's")

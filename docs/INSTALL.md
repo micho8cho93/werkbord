@@ -1,5 +1,7 @@
 # Installing Werkbord
 
+This document covers individual Werkbord and its separate tsnet support. Werkbord Team uses customer-owned Nebula and has its own [signed installation/update instructions](TEAM_INSTALL.md), [offline licenses](TEAM_LICENSE.md) and [production security gate](TEAM_SECURITY_GATE.md).
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.sh | sh
 ```

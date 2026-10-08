@@ -40,6 +40,7 @@ type Store interface {
 // Tx is a transaction's queries. It is deliberately a plain list of questions in
 // the domain's terms, with no SQL, row or cursor in any signature.
 type Tx interface {
+	SecurityQueries
 	WorkspaceQueries
 	MemberQueries
 	ProjectQueries

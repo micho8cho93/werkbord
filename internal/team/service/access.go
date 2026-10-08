@@ -204,6 +204,8 @@ func (s *Service) WaitForChange(ctx context.Context, a Actor, projectID string, 
 	defer cancel()
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
+	sessionTick := time.NewTicker(time.Second)
+	defer sessionTick.Stop()
 	for {
 		var rev int64
 		err := s.view(ctx, a, projectID, func(tx store.Tx, x access) error { rev = x.Project.Revision; return nil })
@@ -218,8 +220,11 @@ func (s *Service) WaitForChange(ctx context.Context, a Actor, projectID string, 
 		}
 		select {
 		case <-ch:
+		case <-sessionTick.C:
 		case <-timer.C:
-			return Sync{Revision: rev}, nil
+			// Recheck the actor before returning an answer prepared during the wait.
+			err := s.view(ctx, a, projectID, func(tx store.Tx, x access) error { rev = x.Project.Revision; return nil })
+			return Sync{Revision: rev, Changed: rev > since}, err
 		case <-ctx.Done():
 			return Sync{Revision: rev}, ctx.Err()
 		}

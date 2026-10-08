@@ -1,10 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -271,8 +273,21 @@ func DecodeNodeConfig(raw json.RawMessage) (domain.NodeConfig, error) {
 	if len(raw) == 0 {
 		return c, errors.New("the workspace sent no description of this device's place on the network")
 	}
-	err := json.Unmarshal(raw, &c)
-	return c, err
+	if len(raw) > 256<<10 {
+		return c, errors.New("network description is too large")
+	}
+	if trimmed := bytes.TrimSpace(raw); len(trimmed) == 0 || trimmed[0] != '{' {
+		return c, errors.New("network description must be an object")
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&c); err != nil {
+		return c, err
+	}
+	if dec.Decode(new(any)) != io.EOF {
+		return c, errors.New("network description contains extra data")
+	}
+	return c, nil
 }
 
 func apiPortOr(addr string) int {

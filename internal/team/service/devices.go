@@ -278,7 +278,7 @@ func (s *Service) RenameDevice(ctx context.Context, a Actor, id, name string) (d
 // revoked device is not an error.
 func (s *Service) RevokeDevice(ctx context.Context, a Actor, id string) (domain.Device, error) {
 	var out domain.Device
-	err := s.db.Update(ctx, func(tx store.Tx) error {
+	err := s.containmentUpdate(ctx, func(tx store.Tx) error {
 		d, err := s.deviceFor(ctx, tx, a, id)
 		if err != nil {
 			return err

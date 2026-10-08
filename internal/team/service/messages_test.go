@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -136,15 +137,22 @@ func TestAWorkspaceHostCannotForgeAPersonsRequest(t *testing.T) {
 	var e envelope.Envelope
 	_ = json.Unmarshal(stored[0].Envelope, &e)
 	for name, tamper := range map[string]func(e *envelope.Envelope){
-		"another ticket":    func(e *envelope.Envelope) { e.Payload = []byte(`{"projectId":"tpj_1","ticketId":"ttk_EVIL"}`) },
-		"another action":    func(e *envelope.Envelope) { e.Action = envelope.ActionCancelRun },
-		"later expiry":      func(e *envelope.Envelope) { e.ExpiresAt += 60_000 },
-		"another target":    func(e *envelope.Envelope) { e.TargetDeviceID = p.host.DeviceID() },
-		"another person":    func(e *envelope.Envelope) { e.UserID = p.owner.Member.ID },
-		"another sender":    func(e *envelope.Envelope) { e.DeviceID = p.host.DeviceID() },
-		"another message":   func(e *envelope.Envelope) { e.MessageID = "msg_other" },
-		"another nonce":     func(e *envelope.Envelope) { e.Nonce = strings.Repeat("0", 32) },
-		"another signature": func(e *envelope.Envelope) { e.Signature = real.Signature[:len(real.Signature)-2] + "AA" },
+		"another ticket":  func(e *envelope.Envelope) { e.Payload = []byte(`{"projectId":"tpj_1","ticketId":"ttk_EVIL"}`) },
+		"another action":  func(e *envelope.Envelope) { e.Action = envelope.ActionCancelRun },
+		"later expiry":    func(e *envelope.Envelope) { e.ExpiresAt += 60_000 },
+		"another target":  func(e *envelope.Envelope) { e.TargetDeviceID = p.host.DeviceID() },
+		"another person":  func(e *envelope.Envelope) { e.UserID = p.owner.Member.ID },
+		"another sender":  func(e *envelope.Envelope) { e.DeviceID = p.host.DeviceID() },
+		"another message": func(e *envelope.Envelope) { e.MessageID = "msg_other" },
+		"another nonce":   func(e *envelope.Envelope) { e.Nonce = strings.Repeat("0", 32) },
+		"another signature": func(e *envelope.Envelope) {
+			sig, err := base64.RawURLEncoding.DecodeString(e.Signature)
+			if err != nil || len(sig) == 0 {
+				t.Fatalf("invalid test signature: %v", err)
+			}
+			sig[0] ^= 1
+			e.Signature = base64.RawURLEncoding.EncodeToString(sig)
+		},
 	} {
 		c := e
 		tamper(&c)

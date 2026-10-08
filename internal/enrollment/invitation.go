@@ -38,6 +38,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -195,6 +196,9 @@ const (
 // private half: "werkbord://join/v1.<payload>.<signature>", the payload being the
 // JSON exactly as signed, so there is no canonical form to disagree about.
 func Sign(inv Invitation, key ed25519.PrivateKey) (string, error) {
+	if len(key) != ed25519.PrivateKeySize {
+		return "", errors.New("enrollment: not a workspace signing key")
+	}
 	pub, ok := key.Public().(ed25519.PublicKey)
 	if !ok || len(key) != ed25519.PrivateKeySize {
 		return "", errors.New("enrollment: not a workspace signing key")
@@ -229,6 +233,17 @@ func Sign(inv Invitation, key ed25519.PrivateKey) (string, error) {
 // that it was signed by that key and has not been changed since, and that it has
 // not expired at now.
 func Parse(link string, now time.Time) (Invitation, error) {
+	return parse(link, now, true)
+}
+
+// ParseSaved verifies a previously accepted invitation kept in sealed local enrollment
+// state. Time alone must not discard an enrollment already redeemed and awaiting approval.
+// New invitations must always use Parse instead.
+func ParseSaved(link string) (Invitation, error) {
+	return parse(link, time.Time{}, false)
+}
+
+func parse(link string, now time.Time, checkTime bool) (Invitation, error) {
 	link = strings.TrimSpace(link)
 	if len(link) > MaxInvitationBytes {
 		return Invitation{}, fmt.Errorf("%w: too long", ErrMalformed)
@@ -268,6 +283,9 @@ func Parse(link string, now time.Time) (Invitation, error) {
 	if err := dec.Decode(&inv); err != nil {
 		return Invitation{}, fmt.Errorf("%w: %v", ErrMalformed, err)
 	}
+	if dec.Decode(new(any)) != io.EOF {
+		return Invitation{}, ErrMalformed
+	}
 	if inv.Version != InvitationVersion {
 		return Invitation{}, fmt.Errorf("%w: version %d is not supported", ErrMalformed, inv.Version)
 	}
@@ -277,8 +295,11 @@ func Parse(link string, now time.Time) (Invitation, error) {
 	if !SameFingerprint(inv.Fingerprint, WorkspaceFingerprint(ed25519.PublicKey(kb))) {
 		return Invitation{}, fmt.Errorf("%w: its fingerprint is not its key's", ErrBadSignature)
 	}
-	if !now.Before(time.Unix(inv.ExpiresAt, 0)) {
+	if checkTime && !now.Before(time.Unix(inv.ExpiresAt, 0)) {
 		return Invitation{}, ErrExpired
+	}
+	if checkTime && time.Unix(inv.IssuedAt, 0).After(now.Add(30*time.Second)) {
+		return Invitation{}, ErrMalformed
 	}
 	return inv, nil
 }
@@ -312,7 +333,7 @@ func (i Invitation) validate() error {
 		return bad("the role")
 	case len(i.Capabilities) > 8:
 		return bad("capabilities")
-	case i.ExpiresAt <= i.IssuedAt:
+	case i.IssuedAt <= 0 || i.ExpiresAt <= i.IssuedAt || i.ExpiresAt-i.IssuedAt > int64((14*24*time.Hour)/time.Second):
 		return bad("it expires before it is issued")
 	}
 	for _, e := range i.Endpoints {

@@ -24,7 +24,7 @@
 # They carry the pinned rqlite release too (libexec/werkbord-team/rqlited, checked against
 # internal/team/infra/rqlite/manifest.go by scripts/fetch-rqlite.sh), for Linux. The project publishes no binary for macOS, and
 # a program with cgo is built from the pinned source on a Mac only, so a macOS archive made anywhere else goes without it and
-# says so (such a host keeps its workspace in one file, or builds the program with `make rqlite`). BUNDLE_RQLITE=no leaves it out.
+# says so (that archive is not a production Workspace Host distribution). BUNDLE_RQLITE=no is evaluation only.
 set -eu
 
 PRODUCT=${1:-}
@@ -49,6 +49,16 @@ BUNDLE_NEBULA=${BUNDLE_NEBULA:-yes}
 BUNDLE_RQLITE=${BUNDLE_RQLITE:-yes}
 PLATFORMS=${PLATFORMS:-"darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64"}
 
+if [ "$PRODUCT" = werkbord-team ] && [ "$BUNDLE_NEBULA" != no ]; then
+  [ -n "${LICENSE_ISSUER_PUBLIC_KEY:-}" ] || { echo "Team distribution requires LICENSE_ISSUER_PUBLIC_KEY" >&2; exit 1; }
+  [ -n "${WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE:-}" ] || { echo "Team distribution requires an offline release signing key file" >&2; exit 1; }
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+  sidecar_sha() { sha256sum "$1" | cut -d' ' -f1; }
+else
+  sidecar_sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
+fi
+
 rm -rf "$OUT"
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
@@ -63,7 +73,7 @@ for p in $PLATFORMS; do
   dir="$STAGE/$os-$arch"
   mkdir -p "$dir"
   echo "building $PRODUCT $VERSION for $os/$arch"
-  CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$dir/$bin" "./$CMD"
+  database_pin=""
   cp "$README" "$dir/README.md"
   members="$bin README.md"
   if [ "$PRODUCT" = werkbord-team ] && [ "$os" != windows ] && [ "$BUNDLE_NEBULA" != no ]; then
@@ -80,15 +90,27 @@ for p in $PLATFORMS; do
       case $rc in
         0)
           mkdir -p "$dir/licenses/rqlite"
+          database_pin=$(sidecar_sha "$rqlite_dir/rqlited")
           cp "$rqlite_dir/rqlited" "$dir/libexec/werkbord-team/rqlited"
           chmod 755 "$dir/libexec/werkbord-team/rqlited"
           [ ! -f "$rqlite_dir/rqlited.build" ] || cp "$rqlite_dir/rqlited.build" "$dir/libexec/werkbord-team/rqlited.build"
           cp third_party/rqlite/LICENSE third_party/rqlite/THIRD_PARTY_LICENSES.txt "$dir/licenses/rqlite/" ;;
-        3) echo "build-release: NOTE: the $os/$arch archive carries no database program (rqlite is built from source, on $os only): a Workspace Host on it keeps its data in one file, or builds the program with 'make rqlite'" >&2 ;;
+        3) echo "build-release: NOTE: the $os/$arch archive carries no database program (rqlite is built from source, on $os only): not a production Workspace Host distribution; rebuild the complete bundle on a Mac" >&2 ;;
         *) echo "build-release: cannot get the pinned rqlite for $os/$arch" >&2; exit 1 ;;
       esac
     fi
   fi
+  extra_flags=""
+  cgo=0
+  if [ "$PRODUCT" = werkbord-team ]; then
+    extra_flags="-X main.licenseIssuer=${LICENSE_ISSUER_PUBLIC_KEY:-} -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$database_pin"
+    if [ "$os" = darwin ] && [ "$(uname -s)" = Darwin ]; then
+      cgo=1
+      case "$arch" in arm64) c_arch=arm64 ;; amd64) c_arch=x86_64 ;; esac
+      export CGO_CFLAGS="-arch $c_arch -mmacosx-version-min=13.0" CGO_LDFLAGS="-arch $c_arch -mmacosx-version-min=13.0"
+    fi
+  fi
+  CGO_ENABLED=$cgo GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$VERSION $extra_flags" -o "$dir/$bin" "./$CMD"
   name="${ASSET}_${VERSION#v}_${os}_${arch}"
   if [ "$os" = windows ]; then
     (cd "$dir" && zip -q "$OUT/$name.zip" "$bin" README.md)
@@ -120,4 +142,8 @@ if command -v sha256sum >/dev/null 2>&1; then
 else
   shasum -a 256 "$@" > checksums.txt
 fi
-echo "wrote $(ls | wc -l | tr -d ' ') files to $OUT"
+if [ "$PRODUCT" = werkbord-team ] && [ -n "${WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE:-}" ]; then
+  cd - >/dev/null
+  go run ./cmd/werkbord-team/vendor release --input "$OUT/checksums.txt" --out "$OUT/checksums.txt.sig" --tag "werkbord-team-$VERSION" < "$WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE"
+fi
+echo "wrote release files to $OUT"

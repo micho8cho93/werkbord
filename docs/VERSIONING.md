@@ -100,7 +100,9 @@ build the archives for every platform, and publish a GitHub release named after 
   made, only if it succeeded, and a failure in them turns the workflow red without touching the archives or
   `checksums.txt`, which the installers and `werkbord update` read. None of them is in `checksums.txt` (that file is the CLI
   archives' and keeps its format); each has its own `.sha256` where it is a download.
-- `werkbord-team-vX.Y.Z` → `werkbord-team_<version>_<os>_<arch>.tar.gz` and `checksums.txt`, marked **not latest**.
+- `werkbord-team-vX.Y.Z` → an offline, reviewed release build produces `werkbord-team_<version>_<os>_<arch>.tar.gz`,
+  `checksums.txt` and `checksums.txt.sig`, marked **not latest**. Generic CI no longer publishes unsigned Team CLI
+  archives. An offline signing custodian supplies the separate release key; see [TEAM_INSTALL.md](TEAM_INSTALL.md).
   The separate `release-team-desktop.yml` workflow adds `WerkbordTeam_<version>_darwin_universal.dmg` and its checksum
   to that Team release after signing and notarization. It preserves the release's latest status and never publishes
   an individual appcast update.

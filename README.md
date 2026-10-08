@@ -9,6 +9,8 @@ Werkbord is two products in one repository: this one, **individual Werkbord** (t
 without ever running anything on anyone's computer. See [docs/PRODUCTS.md](docs/PRODUCTS.md) and
 [docs/TEAM.md](docs/TEAM.md). The rest of this README is about the individual product.
 
+Team uses customer-owned Nebula networking by default and needs no Tailscale account or vendor runtime service. Customers run their Workspace Hosts, Connectivity Hosts, backups and local runners. Team requires a verified offline license and authenticated release artifacts; see [Team installation](docs/TEAM_INSTALL.md), [threat model](docs/TEAM_SECURITY.md), and the [production gate report](docs/TEAM_SECURITY_GATE.md). Individual Werkbord's tsnet support remains separate.
+
 ## Install
 
 ### Most people: the Mac app
@@ -180,7 +182,7 @@ Other commands: `werkbord project list`, `werkbord token`, `werkbord migrate`,
 `werkbord version`. Run
 `werkbord <command> -h` for flags.
 
-Werkbord Team is built and run separately (it needs Go only): `make build-team`, then `./bin/werkbord-team serve`.
+Werkbord Team is built and run separately: `make build-team`, with a build-time license verification public key and a valid offline license. macOS hosts also need the C toolchain for Keychain and the pinned rqlite source build.
 See [docs/TEAM.md](docs/TEAM.md).
 
 The Mac app is built separately too (it needs the Xcode command line tools, for the system's web view):

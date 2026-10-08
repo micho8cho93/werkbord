@@ -34,13 +34,7 @@ layer), and the network's own firewall is default-deny (below).
 | **A host's own keys** | an application key (Ed25519), a network key (X25519), a sealing key (X25519) | each host, for itself | The application key registers it as a device; the network key is the private half of what its certificate certifies; the sealing key is what the workspace's secrets are encrypted to when handed to it. |
 | **A member device's keys** | its application key (the individual product's, never Team's) and its network key | that device, only | A device makes its own and sends only the public halves. The workspace never has a device's private key. |
 
-On a Workspace Host the secret ones are in `<data dir>/pki/`, **sealed** (AES-256-GCM): with a key kept in
-`<data dir>/secrets/sealing.key` by default, or with a passphrase (Argon2id) from `--passphrase-file` /
-`WERKBORD_TEAM_PKI_PASSPHRASE_FILE`. They are never in the database, in an API response, in a log or in a backup of the
-database alone. What the default does and does not give: someone who copies only the `pki` directory (a stray backup, a
-repository committed by mistake) gets nothing usable; someone who can read both files, or run as the account that runs
-Team, gets everything. Keep the sealing key out of the backups of the data (a different disk, a secret store, or use a
-passphrase). An OS keychain is not used yet.
+On a Workspace Host the secret ones are in `<data dir>/pki/`, sealed with AES-256-GCM. macOS production builds use Keychain, with separate authority and device wrapping keys; root services use System Keychain. Unsupported OS-storage builds need an external owner-only passphrase file (Argon2id). A failed Keychain never falls back to an adjacent key. Explicit `WERKBORD_TEAM_KEY_STORAGE=file` is only 3.x evaluation/transition compatibility. Same-UID/root compromise can still read unlocked authority material. Protect host recovery/unlock material separately from ordinary device/database backups; see [TEAM_SECURITY.md](TEAM_SECURITY.md).
 
 ### A Workspace Host is a high-trust machine
 
@@ -58,12 +52,13 @@ Team still starts no developer process anywhere ([PRODUCTS.md](PRODUCTS.md)).
 On the machine that will be the first Workspace Host:
 
 ```bash
-werkbord-team workspace create --name "Acme" --owner "Ada" --network \
+export WERKBORD_TEAM_LICENSE_FILE=/customer/licenses/team.json
+werkbord-team workspace create --name "Acme" --owner "Ada" \
     --endpoint team.example.org          # a name or address at which this machine can be reached from outside
 werkbord-team serve
 ```
 
-`--network` makes, on this host:
+Nebula networking is the production default; workspace creation makes, on this host:
 
 1. the workspace's own **trust identity** (the workspace key and its root certificate) and a random **workspace ID**;
 2. the network's **certificate authority** (Nebula, certificate format v2, valid ten years) for a private range chosen at
@@ -93,6 +88,7 @@ Forward both to the host if it is behind a router.
 | `WERKBORD_TEAM_NETWORK_NODE` | on | `off` to not run the node on this host (it needs the privileges below) |
 | `WERKBORD_TEAM_NEBULA_DIR` | none | extra directories the pinned program may be in; it is still checked against the pin |
 | `WERKBORD_TEAM_PKI_PASSPHRASE_FILE` | none | seal this host's keys with a passphrase instead of a key beside the data |
+| `WERKBORD_TEAM_KEY_STORAGE` | `os` | Keychain where supported; `file` is explicit evaluation/3.x transition only |
 
 Every setting is an address or a file of the customer's own. A test fails the build if one is a URL, an account or a
 service, or if any code that runs names an address that is not the customer's (`TestNoServiceURLIsBuiltIntoTheNetworkCode`).
@@ -258,22 +254,23 @@ rule with no port, no group or an unknown group.
 
 | A device that is… | may start | accepts |
 | --- | --- | --- |
-| a **member's device** (`member`, `runner`) | the workspace's API on a Workspace Host (TCP 7430), and ping to hosts | the workspace's own messages from a Workspace Host (TCP 7450), ping from hosts. **Nothing from another member.** |
-| a **Workspace Host** (`workspace-host`) | the API and replication on other Workspace Hosts; messages to runners | the API from members and hosts; the database's ports (TCP 4001–4002) **from Workspace Hosts only**; ping from hosts |
+| a **member's device** (`member`, `runner`) | the workspace's API on a Workspace Host (TCP 7430), and ping to hosts | ping from hosts. **No inbound TCP, including from Workspace Hosts.** |
+| a **Workspace Host** (`workspace-host`) | the API and replication on other Workspace Hosts | the API from members and hosts; the database's ports (TCP 4001–4002) **from Workspace Hosts only**; ping from hosts |
 | a **Connectivity Host** (`connectivity-host`) | ping to hosts | ping from hosts. Finding and relaying happen below the firewall and need no rule. |
 
 So a member **cannot** reach another member's runner, files or any port (the receiving device refuses it even if the sender's
 own configuration was edited to allow everything); cannot reach the database from the member role; cannot reach SSH,
 administration or arbitrary ports on a host; and a Connectivity Host exposes nothing but what it relays. Each of these is
 tested against Nebula's own firewall, with real nodes (`internal/team/infra/overlay`: `TestThePolicyAsNebulaEnforcesIt`),
-and a control proves that the same attempts succeed when nothing forbids them. Ports 7430/7450/4001–4002 are the defaults;
-`7450` (a device's service port) is provisional until the runner message path is built.
+and a control proves that the same attempts succeed when nothing forbids them. Ports 7430/4001–4002 are the defaults. Port 7450 is closed; devices poll signed messages from the workspace API and need no inbound service.
 
 The policy is enforced by the *receiver*. A node that edits its own configuration changes only what it accepts itself: it
 cannot make another node accept anything. That is why the sensitive things (the database, the API) are guarded by the
 Workspace Hosts' own rules.
 
 ## Revoking a device: two independent layers
+
+Remote API authentication now requires a fresh linearizable fence. An isolated host cannot authorize a stale token/device/role; long polls recheck their actor every second and before a final response. Device-signed API proofs add application authorization to Nebula membership and persist mutating nonces across hosts/restarts.
 
 `werkbord-team device revoke <id>` (or `POST /devices/{id}/revoke`, or removing the member, which revokes all their devices
 first):
@@ -350,10 +347,13 @@ reviewed list in `internal/team/api/routes_test.go`.
 
 ## Backups and recovery
 
+Current procedures: [TEAM_BACKUP_RECOVERY.md](TEAM_BACKUP_RECOVERY.md), [TEAM_HOST_REPLACEMENT.md](TEAM_HOST_REPLACEMENT.md) and [TEAM_DISASTER_RECOVERY.md](TEAM_DISASTER_RECOVERY.md). A compromised CA/root needs a fresh workspace/network and independently reapproved device pins; a removed host still retains secrets and data on its disk.
+
 Back up the workspace's data ([TEAM_STORAGE.md](TEAM_STORAGE.md#backups): replication is not a backup; a file-based
-workspace's data is `<data dir>/team.db`) **and** `<data dir>/pki/` together, and keep `<data dir>/secrets/sealing.key` (or the passphrase)
-elsewhere. Without `pki/` the workspace cannot sign for itself again and every device must be re-enrolled into a new network.
-Without the sealing key (or passphrase) `pki/` cannot be opened; `serve` then refuses to start, and says so, rather than
+workspace's data is `<data dir>/team.db`) **and** `<data dir>/pki/` together, with separately protected recovery access
+to both OS wrapping keys or the external passphrase. Explicit legacy file mode also needs `<data dir>/secrets/sealing.key`.
+Without `pki/` the workspace cannot sign for itself again and every device must be re-enrolled into a new network.
+Without secure-store access (or the passphrase) `pki/` cannot be opened; `serve` then refuses to start, and says so, rather than
 running without its network.
 
 ## Not built yet
@@ -362,5 +362,4 @@ running without its network.
 - **Rotating** the network authority in place.
 - A member device's own **runner** joining through the individual product (the protocol and the client package are shared and
   ready; the individual product does not use them yet).
-- An OS keychain for the sealing key; Windows.
-- UI for the network in the Team console (the API and the command line have it).
+- Linux Secret Service integration and Windows. macOS uses Keychain; Linux requires an external protected passphrase file.

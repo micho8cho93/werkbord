@@ -32,6 +32,40 @@ func TestMigrationsAreContiguousAndOpenIsRepeatable(t *testing.T) {
 	}
 }
 
+func TestInterruptedMigrationRollsBackItsDDLAndVersion(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "team.db")
+	ms, _ := Migrations()
+	db, err := Open(ctx, path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	broken := append(append([]sqlitekit.Migration(nil), ms...), sqlitekit.Migration{Version: len(ms) + 1, Name: "interrupted", SQL: `CREATE TABLE partial_upgrade(x TEXT); INSERT INTO missing_table VALUES(1);`})
+	if p, err := sqlitekit.Open(ctx, path, sqlitekit.Options{Migrations: broken, Product: productName, BackupPrefix: backupPrefix}); err == nil {
+		_ = p.Close()
+		t.Fatal("broken migration succeeded")
+	}
+	p, err := sqlitekit.Open(ctx, path, sqlitekit.Options{Migrations: ms, Product: productName, BackupPrefix: backupPrefix})
+	if err != nil {
+		t.Fatal("original schema could not recover", err)
+	}
+	defer p.Close()
+	err = p.View(ctx, func(tx *sql.Tx) error {
+		var count int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE name='partial_upgrade'`).Scan(&count); err != nil {
+			return err
+		}
+		if count != 0 {
+			t.Fatal("partial DDL survived rollback")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // A database written by a newer Werkbord Team is refused, by name.
 func TestADatabaseFromANewerTeamIsRefused(t *testing.T) {
 	ctx := context.Background()

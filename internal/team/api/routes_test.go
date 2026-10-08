@@ -46,6 +46,7 @@ var projectRoutes = []string{
 
 // workspaceRoutes act on the signed-in member's own workspace, whichever project.
 var workspaceRoutes = []string{
+	"PUT /license", // installs only an owner-approved, vendor-signed offline entitlement
 	"GET /me", "GET /roles", "GET /workspace", "PATCH /workspace",
 	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token", "PUT /members/{id}/role",
 	"GET /projects", "POST /projects",

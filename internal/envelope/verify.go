@@ -53,6 +53,7 @@ type MemoryReplayCache struct {
 
 	mu      sync.Mutex
 	entries map[string]time.Time
+	nonces  map[string]time.Time
 }
 
 // Seen implements ReplayCache.
@@ -65,26 +66,37 @@ func (c *MemoryReplayCache) Seen(deviceID, messageID, nonce string, expires time
 	}
 	if c.entries == nil {
 		c.entries = map[string]time.Time{}
+		c.nonces = map[string]time.Time{}
 	}
 	max := c.Max
 	if max <= 0 {
 		max = 100000
 	}
-	key := deviceID + "\x00" + messageID + "\x00" + nonce
+	key := deviceID + "\x00" + messageID
+	nonceKey := deviceID + "\x00" + nonce
 	if exp, ok := c.entries[key]; ok && exp.After(now) {
 		return true, nil
 	}
-	if len(c.entries) >= max {
+	if exp, ok := c.nonces[nonceKey]; ok && exp.After(now) {
+		return true, nil
+	}
+	if len(c.entries) >= max || len(c.nonces) >= max {
 		for k, exp := range c.entries { // drop what has expired
 			if !exp.After(now) {
 				delete(c.entries, k)
 			}
 		}
-		if len(c.entries) >= max {
+		for k, exp := range c.nonces {
+			if !exp.After(now) {
+				delete(c.nonces, k)
+			}
+		}
+		if len(c.entries) >= max || len(c.nonces) >= max {
 			return false, ErrReplayCacheFull
 		}
 	}
 	c.entries[key] = expires
+	c.nonces[nonceKey] = expires
 	return false, nil
 }
 

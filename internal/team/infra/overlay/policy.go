@@ -27,7 +27,7 @@ import (
 // program's real firewall):
 //
 //	a member's device    may start: the workspace API on a Workspace Host.
-//	                     accepts:   the workspace's own messages from a Workspace Host.
+//	                     accepts:   no incoming TCP connections; messages are polled from the API.
 //	                     does not:  accept anything from another member's device, so another
 //	                                member's runner, filesystem and ports are unreachable.
 //	a Workspace Host     accepts:   the API from members and from other hosts; the database's
@@ -133,7 +133,6 @@ func PolicyFor(groups []string, ports Ports) Policy {
 		has[g] = true
 	}
 	api := strconv.Itoa(ports.API)
-	svc := strconv.Itoa(ports.DeviceService)
 	var p Policy
 	add := func(dst *[]Rule, r Rule) {
 		for _, have := range *dst {
@@ -163,10 +162,9 @@ func PolicyFor(groups []string, ports Ports) Policy {
 		add(&p.Inbound, Rule{Port: ports.Replication, Proto: "tcp", Group: pki.GroupWorkspaceHost, Why: "the replicated database: Workspace Hosts only, never a member"})
 		add(&p.Outbound, Rule{Port: api, Proto: "tcp", Group: pki.GroupWorkspaceHost, Why: "this host may reach other Workspace Hosts' APIs"})
 		add(&p.Outbound, Rule{Port: ports.Replication, Proto: "tcp", Group: pki.GroupWorkspaceHost, Why: "the replicated database, between Workspace Hosts"})
-		add(&p.Outbound, Rule{Port: svc, Proto: "tcp", Group: pki.GroupRunner, Why: "this host delivers the workspace's messages to a member's device"})
 	}
 	if has[pki.GroupMember] || has[pki.GroupRunner] {
-		add(&p.Inbound, Rule{Port: svc, Proto: "tcp", Group: pki.GroupWorkspaceHost, Why: "only a Workspace Host may deliver the workspace's messages here; no other device may reach this one"})
+		// Devices poll their mailbox. No inbound TCP service is needed, even from a Host.
 		add(&p.Outbound, Rule{Port: api, Proto: "tcp", Group: pki.GroupWorkspaceHost, Why: "this device may reach the workspace's API, and nothing else"})
 	}
 

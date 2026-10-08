@@ -216,10 +216,11 @@ func (e Envelope) checkShape() error {
 	if !spec.NeedsTarget && e.TargetDeviceID != "" {
 		return fmt.Errorf("%w: %s is not addressed to a device", ErrMalformed, e.Action)
 	}
-	if e.ExpiresAt <= e.IssuedAt {
+	if e.IssuedAt <= 0 || e.ExpiresAt <= e.IssuedAt {
 		return fmt.Errorf("%w: it expires before it is issued", ErrMalformed)
 	}
-	if time.Duration(e.ExpiresAt-e.IssuedAt)*time.Millisecond > MaxLifetime {
+	// Compare milliseconds before conversion to time.Duration; an attacker can otherwise overflow it.
+	if e.ExpiresAt-e.IssuedAt > MaxLifetime.Milliseconds() {
 		return ErrLifetime
 	}
 	if len(e.Nonce) != 2*NonceSize || !isHex(e.Nonce) {

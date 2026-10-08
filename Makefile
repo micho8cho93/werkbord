@@ -22,7 +22,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check verify-isolation \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-browser team-desktop team-desktop-package team-desktop-release team-desktop-test team-desktop-check test-team-desktop-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser team-desktop team-desktop-package team-desktop-release team-desktop-test team-desktop-check test-team-desktop-browser
 
 all: check build build-team
 
@@ -47,7 +47,8 @@ go-build:
 
 ## build-team (= werkbord-team): the Team product. It needs no Node and no web build.
 build-team:
-	$(GO) build -trimpath -ldflags "$(TEAM_LDFLAGS)" -o $(TEAM_BIN) ./cmd/werkbord-team
+	@flags=$$(scripts/team-build-flags.sh) || exit 1; \
+		$(GO) build -trimpath -ldflags "$(TEAM_LDFLAGS) $$flags" -o $(TEAM_BIN) ./cmd/werkbord-team
 werkbord-team: build-team
 
 ## install-team: put the Team executable in $(PREFIX)/bin (default ~/.local), from source
@@ -72,8 +73,9 @@ test-nebula: nebula
 rqlite:
 	scripts/fetch-rqlite.sh
 test-rqlite: rqlite
-	WERKBORD_REQUIRE_RQLITE=1 $(GO) test -p 1 -timeout 60m ./internal/team/infra/rqlite/... ./internal/team/store/replicated/... ./internal/team/server/...
-	WERKBORD_REQUIRE_RQLITE=1 WERKBORD_TEST_STORE=rqlite $(GO) test -timeout 60m ./internal/team/service/
+	@flags=$$(scripts/team-build-flags.sh) || exit 1; \
+		WERKBORD_REQUIRE_RQLITE=1 $(GO) test -ldflags "$$flags" -p 1 -timeout 60m ./internal/team/infra/rqlite/... ./internal/team/store/replicated/... ./internal/team/server/... && \
+		WERKBORD_REQUIRE_RQLITE=1 WERKBORD_TEST_STORE=rqlite $(GO) test -ldflags "$$flags" -timeout 60m ./internal/team/service/
 
 ## test: Go tests (both products and the shared packages) and the individual product's web unit tests
 test: web/node_modules
@@ -177,7 +179,8 @@ dev-web: web/node_modules
 
 ## dev-team: run the Team server in the foreground
 dev-team:
-	$(GO) run ./cmd/werkbord-team serve --log-level debug
+	@flags=$$(scripts/team-build-flags.sh) || exit 1; \
+		$(GO) run -ldflags "$$flags" ./cmd/werkbord-team serve --log-level debug
 
 ## tag: annotated tag for PRODUCT's VERSION on HEAD, e.g. make tag PRODUCT=werkbord-team (see docs/VERSIONING.md)
 tag:
@@ -202,6 +205,10 @@ test-install: web web-embed
 ## test-install-team: the same for Team's installer
 test-install-team:
 	scripts/test-install-team.sh
+
+## test-team-signed-release: native real sidecars, offline signature tools and licensed create/serve in an isolated prefix
+test-team-signed-release:
+	scripts/test-team-signed-release.sh
 
 ## test-browser: disposable desktop/mobile browsers plus real-process Team handoff
 # Install Chromium once with: cd web && npx playwright install chromium

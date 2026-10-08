@@ -13,6 +13,7 @@ package service
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"time"
@@ -24,9 +25,11 @@ import (
 
 // Service is the Team application.
 type Service struct {
-	db  store.Store
-	now func() time.Time
-	hub *hub
+	db         store.Store
+	base       store.Store
+	licenseKey ed25519.PublicKey
+	now        func() time.Time
+	hub        *hub
 	// net is what makes the workspace's private network's certificates and
 	// configuration; nil when this host has none (SetNetwork).
 	net NetworkAuthority
@@ -48,7 +51,7 @@ func (s *Service) SetClock(now func() time.Time) {
 
 // New builds a Service on a database.
 func New(db store.Store) *Service {
-	return &Service{db: db, now: time.Now, hub: &hub{}, replay: &envelope.MemoryReplayCache{}}
+	return &Service{db: authorizedStore{db}, base: db, now: time.Now, hub: &hub{}, replay: &envelope.MemoryReplayCache{}}
 }
 
 // changed wakes the clients waiting for the workspace to change, once a write has committed.
@@ -64,8 +67,9 @@ func (s *Service) stamp() time.Time { return s.now().UTC().Truncate(time.Millise
 
 // Actor is the signed-in member and the workspace they are in.
 type Actor struct {
-	Member    domain.Member
-	Workspace domain.Workspace
+	credentialHash string
+	Member         domain.Member
+	Workspace      domain.Workspace
 	// Device is the device the request came from, when the caller signed in with a
 	// device's own credential (what an enrolled device holds) rather than a member's
 	// token. A revoked device has no credential that works, so a request that arrives
@@ -134,7 +138,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error)
 	}
 	var a Actor
 	hash := domain.HashToken(token)
-	err := s.db.View(ctx, func(tx store.Tx) error {
+	err := freshView(ctx, s.base, func(tx store.Tx) error {
 		m, err := tx.MemberByTokenHash(ctx, hash)
 		var dev *domain.Device
 		if errors.Is(err, domain.ErrNotFound) {
@@ -159,7 +163,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error)
 		if err != nil {
 			return err
 		}
-		a = Actor{Member: m, Workspace: ws, Device: dev}
+		a = Actor{Member: m, Workspace: ws, Device: dev, credentialHash: hash}
 		return nil
 	})
 	if errors.Is(err, domain.ErrNotFound) {
@@ -260,7 +264,7 @@ func (s *Service) RemoveMember(ctx context.Context, a Actor, memberID string) er
 		return err
 	}
 	var changed []string
-	err := s.db.Update(ctx, func(tx store.Tx) error {
+	err := s.containmentUpdate(ctx, func(tx store.Tx) error {
 		m, err := tx.Member(ctx, a.Workspace.ID, memberID)
 		if err != nil {
 			return err
@@ -313,7 +317,7 @@ func (s *Service) ReissueToken(ctx context.Context, a Actor, memberID string) (M
 	}
 	token, hash := domain.NewToken()
 	var m domain.Member
-	err := s.db.Update(ctx, func(tx store.Tx) (err error) {
+	err := s.containmentUpdate(ctx, func(tx store.Tx) (err error) {
 		if m, err = tx.Member(ctx, a.Workspace.ID, memberID); err != nil {
 			return err
 		}

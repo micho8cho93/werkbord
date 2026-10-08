@@ -264,8 +264,8 @@ const (
 )
 
 // GroupsFor is what a certificate says a device is, from what the workspace has it
-// do. A device that holds no host capability is a member's device; a runner is
-// reachable by the Workspace Hosts for the workspace's messages. A host that is only a
+// do. A device that holds no host capability is a member's device; a runner polls
+// Workspace Hosts for messages and has no inbound TCP service. A host that is only a
 // host is not a member's device: it serves the workspace and is not used as a client of it.
 func GroupsFor(caps []Capability) []string {
 	has := map[Capability]bool{}

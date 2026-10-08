@@ -119,7 +119,7 @@ if rel
   # the existing release job is as it was
   r = jobs["release"]
   if r
-    check(r["if"].to_s == "github.event_name == 'push'", "the release job runs on tag pushes only")
+    check(r["if"].to_s == "github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')", "the online release job publishes only individual archives; Team manifests require offline signatures")
     check(perms(r, rel) == { "contents" => "write" }, "the release job creates the release, so it can write")
     cmd = JSON.generate(r["steps"])
     check(cmd.include?("gh release create") && cmd.include?("--latest=false") && cmd.include?("--latest"), "the release job still marks only the individual product's releases latest")

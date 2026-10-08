@@ -617,6 +617,8 @@ func (s *Service) WaitForWorkspaceChange(ctx context.Context, a Actor, since, af
 	defer cancel()
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
+	sessionTick := time.NewTicker(time.Second)
+	defer sessionTick.Stop()
 	for {
 		res, err := s.workspaceSyncNow(ctx, a, since, after)
 		if err != nil {
@@ -627,8 +629,9 @@ func (s *Service) WaitForWorkspaceChange(ctx context.Context, a Actor, since, af
 		}
 		select {
 		case <-ch:
+		case <-sessionTick.C:
 		case <-timer.C:
-			return res, nil
+			return s.workspaceSyncNow(ctx, a, since, after)
 		case <-ctx.Done():
 			return res, ctx.Err()
 		}

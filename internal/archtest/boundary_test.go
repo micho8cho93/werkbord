@@ -181,7 +181,8 @@ func hasTeam(t *testing.T) bool {
 }
 
 func isTeamPath(p string) bool {
-	return p == teamCmd || p == teamTree || strings.HasPrefix(p, teamTree+"/")
+	// Offline tooling beneath cmd/werkbord-team obeys the same product boundary as its executable.
+	return p == teamCmd || strings.HasPrefix(p, teamCmd+"/") || p == teamTree || strings.HasPrefix(p, teamTree+"/")
 }
 
 func allowedForTeam(p string) bool {

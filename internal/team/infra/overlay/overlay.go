@@ -291,6 +291,8 @@ func Render(s NodeSpec) ([]byte, error) {
 	root = root.add("punchy", tree{}.add("punch", true).add("respond", true))
 	root = root.add("relay", relay)
 	root = root.add("tun", tun)
+	// Team exposes no network administration shell, including Nebula's optional SSH debugger.
+	root = root.add("sshd", tree{}.add("enabled", false))
 	root = root.add("logging", tree{}.add("level", level).add("format", "json"))
 	if s.Stats != "" {
 		root = root.add("stats", tree{}.add("type", "prometheus").add("listen", s.Stats).add("path", "/metrics").add("namespace", "nebula").add("interval", "10s"))

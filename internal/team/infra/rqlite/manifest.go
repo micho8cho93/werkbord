@@ -53,16 +53,15 @@ type Artifact struct {
 	ArchiveSHA256 string
 	// BinarySHA256 is the SHA-256 of the rqlited program inside the archive; it is what
 	// the supervisor checks, immediately before every start. Empty for a platform whose
-	// program is built from SourceCommit (Source): the program is then accepted only with
-	// the build record scripts/fetch-rqlite.sh wrote beside it (see Source).
+	// program is built from SourceCommit (Source): a trusted build embeds its exact hash
+	// in distributionBinarySHA256 before the service may execute it.
 	BinarySHA256 string
 	// Source marks a platform for which the project publishes no binary: the program is
 	// built, by scripts/fetch-rqlite.sh, from the pinned source at SourceCommit with the
 	// same version flags the project's own release build uses. A build is not reproducible
-	// across toolchains, so what is pinned is the source and what is checked at run time is
-	// the program's own report (-version and /status) of that version and commit, and the
-	// record of its hash that the build left. A release of Werkbord Team for such a platform
-	// pins the hash of the program its release build made, here, and the record is not needed.
+	// across toolchains. A build pins the source and embeds its resulting executable hash;
+	// runtime checks that hash before asking for the version. An adjacent build record is
+	// diagnostic data and cannot authorize an executable.
 	Source bool
 }
 

@@ -58,6 +58,17 @@ func TestDeviceAPIRequiresLocalAuthenticationAndSameOrigin(t *testing.T) {
 			t.Fatalf("unauthenticated: %d", w.Code)
 		}
 	}
+	for _, headers := range [][]string{{d.key()}, {"Bearer " + d.key(), "Bearer " + d.key()}} {
+		r := httptest.NewRequest("GET", "/api/device/v1/state", nil)
+		for _, value := range headers {
+			r.Header.Add("Authorization", value)
+		}
+		w := httptest.NewRecorder()
+		d.Handler().ServeHTTP(w, r)
+		if w.Code != 401 {
+			t.Fatalf("ambiguous authorization accepted: %d", w.Code)
+		}
+	}
 	r := httptest.NewRequest("GET", "http://127.0.0.1:7431/api/device/v1/state", nil)
 	r.Header.Set("Authorization", "Bearer "+d.key())
 	r.Header.Set("Origin", "https://attacker.example")

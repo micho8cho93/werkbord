@@ -23,10 +23,23 @@ os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "unsupported test machine"; exit 1 ;; esac
 
 mkdir -p "$WORK/releases"
+# Ephemeral fixture keys: the installer trusts only the independently supplied
+# public key. Neither private fixture key leaves this temporary directory.
+openssl genpkey -algorithm ED25519 -out "$WORK/release-key.pem" >/dev/null 2>&1
+chmod 600 "$WORK/release-key.pem"
+openssl pkey -in "$WORK/release-key.pem" -pubout -out "$WORK/release-key.pub" >/dev/null 2>&1
+export WERKBORD_TEAM_RELEASE_PUBLIC_KEY_FILE="$WORK/release-key.pub"
+sign_manifest() {
+  tag=$1
+  printf 'werkbord-team/release/v1\000%s\000' "$tag" > "$WORK/to-sign"
+  cat "$WORK/releases/$tag/checksums.txt" >> "$WORK/to-sign"
+  openssl pkeyutl -sign -inkey "$WORK/release-key.pem" -rawin -in "$WORK/to-sign" -out "$WORK/releases/$tag/checksums.txt.sig" >/dev/null 2>&1
+}
 for v in v9.1.0 v9.1.1; do
   BUNDLE_NEBULA=no PLATFORMS="$os/$arch" scripts/build-release.sh werkbord-team "$v" "$WORK/build-$v" >/dev/null
   mkdir -p "$WORK/releases/werkbord-team-$v"
   cp "$WORK/build-$v"/* "$WORK/releases/werkbord-team-$v/"
+  sign_manifest "werkbord-team-$v"
 done
 # An individual release exists too and is the newest thing on the page.
 mkdir -p "$WORK/releases/werkbord-v9.2.0"
@@ -39,6 +52,8 @@ mkdir -p "$WORK/releases/werkbord-team-v9.1.3"
 cp "$WORK/releases/werkbord-team-v9.1.1/werkbord-team_9.1.1_${os}_${arch}.tar.gz" "$WORK/releases/werkbord-team-v9.1.3/werkbord-team_9.1.3_${os}_${arch}.tar.gz"
 sum=$(shasum -a 256 "$WORK/releases/werkbord-team-v9.1.3/werkbord-team_9.1.3_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-team-v9.1.3/werkbord-team_9.1.3_${os}_${arch}.tar.gz")
 printf '%s  werkbord-team_9.1.3_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-team-v9.1.3/checksums.txt"
+sign_manifest werkbord-team-v9.1.2
+sign_manifest werkbord-team-v9.1.3
 ok "built the test releases"
 
 # Release notes mention historical Team tags and comparison URLs before the real
@@ -78,13 +93,13 @@ PORT=$(cat "$WORK/port")
 export WERKBORD_TEAM_BASE_URL="http://127.0.0.1:$PORT"
 export WERKBORD_TEAM_FEED_URL="http://127.0.0.1:$PORT/feed.atom"
 
-fresh() { rm -rf "$WORK/home"; mkdir -p "$WORK/home"; export HOME="$WORK/home"; unset WERKBORD_TEAM_VERSION WERKBORD_TEAM_INSTALL_DIR || true; }
+fresh() { rm -rf "$WORK/home"; mkdir -p "$WORK/home"; export WERKBORD_TEAM_INSTALL_DIR="$WORK/home/.local/bin"; unset WERKBORD_TEAM_VERSION || true; }
 
 # 1. the latest TEAM release, though an individual release is newer
 fresh
 out=$($SH scripts/install-team.sh 2>&1) || bad "install failed" "$out"
-[ "$("$HOME/.local/bin/werkbord-team" version)" = v9.1.1 ] || bad "the latest Team release (v9.1.1) was not installed" "$out"
-[ ! -e "$HOME/.local/bin/werkbord" ] && [ ! -e "$HOME/.local/bin/devboard" ] || bad "the individual product was installed"
+[ "$("$WORK/home/.local/bin/werkbord-team" version)" = v9.1.1 ] || bad "the latest Team release (v9.1.1) was not installed" "$out"
+[ ! -e "$WORK/home/.local/bin/werkbord" ] && [ ! -e "$WORK/home/.local/bin/devboard" ] || bad "the individual product was installed"
 ok "installs the stable Team release, ignoring changelog tags and prereleases"
 
 # 1b. a release that carries the network program installs it beside the executable, and its licences.
@@ -99,31 +114,53 @@ printf '#!/bin/sh\necho stand-in\n' > "$WORK/bundle/pkg/libexec/werkbord-team/rq
 tar -czf "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" -C "$WORK/bundle/pkg" werkbord-team README.md libexec licenses
 sum=$(shasum -a 256 "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz")
 printf '%s  werkbord-team_9.1.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-team-v9.1.4/checksums.txt"
+sign_manifest werkbord-team-v9.1.4
 fresh
 if out=$(WERKBORD_TEAM_VERSION=v9.1.4 $SH scripts/install-team.sh 2>&1); then bad "an executable of the wrong version was installed" "$out"; fi
 contains "$out" "not installing it" || bad "wrong refusal" "$out"
-[ ! -e "$HOME/.local/libexec/werkbord-team/nebula" ] || bad "the network program was installed from a release that was refused"
-[ ! -e "$HOME/.local/libexec/werkbord-team/rqlited" ] || bad "the database program was installed from a release that was refused"
+[ ! -e "$WORK/home/.local/libexec/werkbord-team/nebula" ] || bad "the network program was installed from a release that was refused"
+[ ! -e "$WORK/home/.local/libexec/werkbord-team/rqlited" ] || bad "the database program was installed from a release that was refused"
 # the same archive with an executable that tells the truth
 printf '#!/bin/sh\n[ "$1" = version ] && echo v9.1.4\n' > "$WORK/bundle/pkg/werkbord-team"
 chmod 755 "$WORK/bundle/pkg/werkbord-team"
 tar -czf "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" -C "$WORK/bundle/pkg" werkbord-team README.md libexec licenses
 sum=$(shasum -a 256 "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-team-v9.1.4/werkbord-team_9.1.4_${os}_${arch}.tar.gz")
 printf '%s  werkbord-team_9.1.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-team-v9.1.4/checksums.txt"
+sign_manifest werkbord-team-v9.1.4
 fresh
 WERKBORD_TEAM_VERSION=v9.1.4 $SH scripts/install-team.sh >/dev/null 2>&1 || bad "installing the release that carries the network program failed"
-[ -x "$HOME/.local/libexec/werkbord-team/nebula" ] || bad "the network program was not installed beside the executable" "$(ls -R "$HOME/.local" 2>&1)"
-[ -x "$HOME/.local/libexec/werkbord-team/rqlited" ] || bad "the database program was not installed beside the executable" "$(ls -R "$HOME/.local" 2>&1)"
-[ -f "$HOME/.local/share/doc/werkbord-team/licenses/nebula/LICENSE" ] || bad "the licences were not installed"
+[ -x "$WORK/home/.local/libexec/werkbord-team/nebula" ] || bad "the network program was not installed beside the executable" "$(ls -R "$WORK/home/.local" 2>&1)"
+[ -x "$WORK/home/.local/libexec/werkbord-team/rqlited" ] || bad "the database program was not installed beside the executable" "$(ls -R "$WORK/home/.local" 2>&1)"
+[ -f "$WORK/home/.local/share/doc/werkbord-team/licenses/nebula/LICENSE" ] || bad "the licences were not installed"
 ok "installs the network program, the database program and their licences from a release that carries them, and from no other"
 
 # 2. a named version, in either spelling
 fresh
 WERKBORD_TEAM_VERSION=v9.1.0 $SH scripts/install-team.sh >/dev/null 2>&1 || bad "installing v9.1.0 failed"
-[ "$("$HOME/.local/bin/werkbord-team" version)" = v9.1.0 ] || bad "wrong version installed"
+[ "$("$WORK/home/.local/bin/werkbord-team" version)" = v9.1.0 ] || bad "wrong version installed"
 WERKBORD_TEAM_VERSION=werkbord-team-v9.1.1 $SH scripts/install-team.sh >/dev/null 2>&1 || bad "installing by tag failed"
-[ "$("$HOME/.local/bin/werkbord-team" version)" = v9.1.1 ] || bad "upgrade by tag did not take"
+[ "$("$WORK/home/.local/bin/werkbord-team" version)" = v9.1.1 ] || bad "upgrade by tag did not take"
 ok "installs a named version, by version or by tag, and upgrades in place"
+
+# Interrupt the final executable switch after sidecars have been staged. The old
+# executable must remain intact; rerunning the signed installer completes recovery.
+before=$(shasum -a 256 "$WORK/home/.local/bin/werkbord-team" | cut -d' ' -f1)
+mkdir -p "$WORK/tools"
+cat > "$WORK/tools/mv" <<'SH'
+#!/bin/sh
+for value in "$@"; do
+  case "$value" in */.werkbord-team.new) exit 137 ;; esac
+done
+exec /bin/mv "$@"
+SH
+chmod 755 "$WORK/tools/mv"
+if out=$(PATH="$WORK/tools:$PATH" WERKBORD_TEAM_VERSION=v9.1.4 $SH scripts/install-team.sh 2>&1); then
+  bad "interrupted update unexpectedly completed" "$out"
+fi
+[ "$(shasum -a 256 "$WORK/home/.local/bin/werkbord-team" | cut -d' ' -f1)" = "$before" ] || bad "interruption replaced the old executable"
+WERKBORD_TEAM_VERSION=v9.1.4 $SH scripts/install-team.sh >/dev/null 2>&1 || bad "signed update could not recover after interruption"
+[ "$("$WORK/home/.local/bin/werkbord-team" version)" = v9.1.4 ] || bad "recovery installed the wrong version"
+ok "interrupted update keeps the old executable and recovers by repeating the signed install"
 
 # 3. refusals
 fresh
@@ -131,13 +168,27 @@ if out=$(WERKBORD_TEAM_VERSION=v9.1.2 $SH scripts/install-team.sh 2>&1); then ba
 contains "$out" "does not match its published checksum" || bad "wrong refusal" "$out"
 if out=$(WERKBORD_TEAM_VERSION=v9.1.3 $SH scripts/install-team.sh 2>&1); then bad "an executable of the wrong version was installed" "$out"; fi
 contains "$out" "not installing it" || bad "wrong refusal" "$out"
-[ ! -e "$HOME/.local/bin/werkbord-team" ] || bad "a refused executable was installed"
+[ ! -e "$WORK/home/.local/bin/werkbord-team" ] || bad "a refused executable was installed"
 if out=$(WERKBORD_TEAM_VERSION=werkbord-v9.2.0 $SH scripts/install-team.sh 2>&1); then bad "an individual release was installed as Team" "$out"; fi
 contains "$out" "individual Werkbord release" || bad "it should say the release is the individual product's" "$out"
 if out=$(WERKBORD_TEAM_VERSION=latest $SH scripts/install-team.sh 2>&1); then bad "a version that is not one was accepted"; fi
 if out=$(WERKBORD_TEAM_VERSION=v9.9.9 $SH scripts/install-team.sh 2>&1); then bad "a release that does not exist was installed"; fi
 if out=$(WERKBORD_TEAM_ARCH=riscv64 $SH scripts/install-team.sh 2>&1); then bad "an unsupported architecture was accepted"; fi
 ok "refuses a bad checksum, a lying executable, another product's release, and what does not exist"
+
+# An attacker controlling the website can change both asset and checksum, or replay
+# a valid manifest from another tag. Neither grants the offline release signature.
+fresh
+cp "$WORK/releases/werkbord-team-v9.1.1/checksums.txt.sig" "$WORK/original.sig"
+printf 'forged' > "$WORK/releases/werkbord-team-v9.1.1/checksums.txt.sig"
+if out=$(WERKBORD_TEAM_VERSION=v9.1.1 $SH scripts/install-team.sh 2>&1); then bad "forged release signature installed"; fi
+contains "$out" "manifest signature is not valid" || bad "wrong forged manifest refusal" "$out"
+cp "$WORK/releases/werkbord-team-v9.1.0/checksums.txt.sig" "$WORK/releases/werkbord-team-v9.1.1/checksums.txt.sig"
+if out=$(WERKBORD_TEAM_VERSION=v9.1.1 $SH scripts/install-team.sh 2>&1); then bad "cross-tag manifest installed"; fi
+cp "$WORK/original.sig" "$WORK/releases/werkbord-team-v9.1.1/checksums.txt.sig"
+if out=$(WERKBORD_TEAM_RELEASE_PUBLIC_KEY_FILE="$WORK/missing.pub" WERKBORD_TEAM_VERSION=v9.1.1 $SH scripts/install-team.sh 2>&1); then bad "missing trust anchor installed"; fi
+[ ! -e "$WORK/home/.local/bin/werkbord-team" ] || bad "rejected release changed the installation"
+ok "refuses forged signatures, a different tag's signature, and a missing independent trust anchor"
 
 # 4. the individual installer refuses a Team release in the same way
 fresh
@@ -152,7 +203,7 @@ cat > "$WORK/releases/feed.atom" <<'ATOM'
 ATOM
 if out=$($SH scripts/install-team.sh 2>&1); then bad "a description tag was treated as a Team release" "$out"; fi
 contains "$out" "no Werkbord Team release has been published yet" || bad "wrong empty Team feed refusal" "$out"
-[ ! -e "$HOME/.local/bin/werkbord-team" ] || bad "an executable was installed from a description tag"
+[ ! -e "$WORK/home/.local/bin/werkbord-team" ] || bad "an executable was installed from a description tag"
 ok "refuses a feed that mentions Team only in release descriptions"
 
 printf '\nall %d checks passed\n' "$pass"

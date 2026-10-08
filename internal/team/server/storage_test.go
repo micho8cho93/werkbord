@@ -95,9 +95,9 @@ func TestAWorkspaceIsCreatedInAClusterOfOneAndComesBackAfterARestart(t *testing.
 		t.Fatal(err)
 	}
 	defer w2.Close()
-	a, err := w2.Service.Authenticate(bg, created.Token)
-	if err != nil || a.Workspace.Name != "Acme" {
-		t.Fatalf("%+v %v", a, err)
+	a := mustAuth(t, w2.Service, created.Token)
+	if a.Workspace.Name != "Acme" {
+		t.Fatalf("%+v", a)
 	}
 	// A second creation in the same directory is refused.
 	if _, err := CreateStorage(bg, cfg, nil, ""); err == nil {
@@ -107,11 +107,19 @@ func TestAWorkspaceIsCreatedInAClusterOfOneAndComesBackAfterARestart(t *testing.
 
 func mustAuth(t *testing.T, svc *service.Service, token string) service.Actor {
 	t.Helper()
-	a, err := svc.Authenticate(bg, token)
-	if err != nil {
-		t.Fatal(err)
+	// Opening an existing copy does not wait for an election: diagnostics must remain
+	// available without quorum. Authentication does require a current cluster read.
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		a, err := svc.Authenticate(bg, token)
+		if err == nil {
+			return a
+		}
+		if !errors.Is(err, domain.ErrReadOnly) || time.Now().After(deadline) {
+			t.Fatal(err)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	return a
 }
 
 func TestWithoutTheDatabaseProgramAReplicatedWorkspaceIsNotStartedAndNothingIsLeftBehind(t *testing.T) {
@@ -224,9 +232,9 @@ func TestAWorkspaceInOneFileMovesIntoAClusterWithEverythingCheckedAndTheOriginal
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := w.Service.Authenticate(bg, token)
-	if err != nil || a.Workspace.Name != "Acme" || a.Member.Name != "Ada" {
-		t.Fatalf("%+v %v", a, err)
+	a := mustAuth(t, w.Service, token)
+	if a.Workspace.Name != "Acme" || a.Member.Name != "Ada" {
+		t.Fatalf("%+v", a)
 	}
 	projects, err := w.Service.ListProjects(bg, a)
 	if err != nil || len(projects) != 1 {

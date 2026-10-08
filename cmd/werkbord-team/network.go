@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -24,6 +23,7 @@ import (
 	"devboard/internal/logging"
 	"devboard/internal/team/config"
 	"devboard/internal/team/domain"
+	"devboard/internal/team/hostclient"
 	"devboard/internal/team/infra/overlay"
 	"devboard/internal/team/infra/pki"
 	"devboard/internal/team/server"
@@ -41,7 +41,7 @@ const networkUsage = `usage: werkbord-team network <command>
   invite [flags]               make an invitation (a link and a QR code) for a person's device, or for a new host
   pending                      list the devices waiting for approval
   approve <id> | deny <id>     decide about a waiting device
-  approval auto|admin          whether a joining device waits for an administrator (default: auto)
+  approval auto|admin          whether a joining device waits for an administrator (default: admin)
   node                         run the network node of a host that joined but does not hold the workspace's data
 
 The server is $WERKBORD_TEAM_SERVER (default http://127.0.0.1:7430); your token is $WERKBORD_TEAM_TOKEN.
@@ -443,6 +443,9 @@ func cmdDeviceJoin(ctx context.Context, cfg config.Config, args []string, stdout
 	if err := v.CreateJoined(meta, keys, []byte(res.Network.CACertificate)); err != nil {
 		return fail(err)
 	}
+	if err := v.SaveSecret("member", []byte(res.Response.MemberID)); err != nil {
+		return fail(err)
+	}
 	if err := v.SaveDeviceToken(res.Response.DeviceToken); err != nil {
 		return fail(err)
 	}
@@ -625,29 +628,21 @@ func cmdHostCollect(ctx context.Context, cfg config.Config, args []string, stdou
 	if len(bases) == 0 {
 		return errors.New("this host does not know where a Workspace Host's API is: give --server")
 	}
-	hc := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	var got struct {
-		Sealed string `json:"sealed"`
+	member, err := v.Secret("member")
+	if err != nil {
+		return fmt.Errorf("this pre-gate host must re-enroll to obtain a device-bound API identity: %w", err)
 	}
-	var base string
-	var last error
-	for _, b := range bases {
-		b, err = parseBase(b)
-		if err != nil {
-			last = err
-			continue
-		}
-		if last = doJSON(ctx, hc, http.MethodGet, b+"/api/team/v1/network/provision", token, nil, &got); last == nil {
-			base = b
-			break
-		}
-	}
-	if base == "" {
-		return fmt.Errorf("could not collect from any Workspace Host (is `werkbord-team network node` running on this host?): %w", last)
-	}
-	sealed, err := base64.StdEncoding.DecodeString(got.Sealed)
+	prefix, err := netip.ParsePrefix(mat.Meta.NetworkPrefix)
 	if err != nil {
 		return err
+	}
+	hc, err := hostclient.New(hostclient.Options{Bases: bases, Token: token, Signer: mat.Host, WorkspaceID: mat.Meta.WorkspaceID, UserID: string(member), Network: prefix, Timeout: 10 * time.Second})
+	if err != nil {
+		return err
+	}
+	sealed, err := hc.CollectProvision(ctx)
+	if err != nil {
+		return fmt.Errorf("could not collect from any Workspace Host (is `werkbord-team network node` running on this host?): %w", err)
 	}
 	ca, err := v.CACertificate()
 	if err != nil {
@@ -660,7 +655,7 @@ func cmdHostCollect(ctx context.Context, cfg config.Config, args []string, stdou
 	if err := v.Promote(secrets, time.Now()); err != nil {
 		return err
 	}
-	if err := doJSON(ctx, hc, http.MethodPost, base+"/api/team/v1/network/provision/ack", token, map[string]any{}, nil); err != nil {
+	if err := hc.AckProvision(ctx); err != nil {
 		fmt.Fprintf(stderr, "the keys are stored here, but telling the workspace failed (%v); run this again to try once more\n", err)
 	}
 	fmt.Fprintf(stdout, "This host now holds the workspace's keys (fingerprint %s). It is a high-trust machine: protect it as you would the first host.\n", mat.Meta.Fingerprint)
@@ -709,7 +704,7 @@ type httpSource struct {
 	log   *slog.Logger
 	token string
 	info  pki.JoinInfo
-	hc    *http.Client
+	hc    *hostclient.Client
 	last  domain.NodeConfig
 }
 
@@ -726,24 +721,33 @@ func newHTTPSource(v *pki.Vault, cfg config.Config, log *slog.Logger) (*httpSour
 	if err != nil {
 		return nil, err
 	}
-	return &httpSource{v: v, cfg: cfg, log: log, token: token, info: info, last: last,
-		hc: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	mat, err := v.Load(time.Now())
+	if err != nil {
+		return nil, err
+	}
+	member, err := v.Secret("member")
+	if err != nil {
+		return nil, fmt.Errorf("this pre-gate host must re-enroll to obtain a device-bound API identity: %w", err)
+	}
+	prefix, err := netip.ParsePrefix(mat.Meta.NetworkPrefix)
+	if err != nil {
+		return nil, err
+	}
+	var bases []string
+	for _, addr := range info.APIAddrs {
+		bases = append(bases, "http://"+net.JoinHostPort(addr, strconv.Itoa(info.APIPort)))
+	}
+	hc, err := hostclient.New(hostclient.Options{Bases: bases, Token: token, Signer: mat.Host, WorkspaceID: mat.Meta.WorkspaceID, UserID: string(member), Network: prefix, Timeout: 15 * time.Second})
+	if err != nil {
+		return nil, err
+	}
+	return &httpSource{v: v, cfg: cfg, log: log, token: token, info: info, last: last, hc: hc}, nil
 }
 
 func (s *httpSource) get(ctx context.Context, method, path string) (*enrollment.NetworkBundle, error) {
-	var last error
-	for _, addr := range s.info.APIAddrs {
-		var b enrollment.NetworkBundle
-		if err := doJSON(ctx, s.hc, method, "http://"+net.JoinHostPort(addr, strconv.Itoa(s.info.APIPort))+path, s.token, bodyFor(method), &b); err != nil {
-			last = err
-			continue
-		}
-		return &b, nil
-	}
-	if last == nil {
-		last = errors.New("no Workspace Host's address is known")
-	}
-	return nil, last
+	var b enrollment.NetworkBundle
+	err := s.hc.Do(ctx, method, strings.TrimPrefix(path, hostclient.APIPrefix), bodyFor(method), &b)
+	return &b, err
 }
 
 func bodyFor(method string) any {

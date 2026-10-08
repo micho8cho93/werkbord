@@ -8,15 +8,18 @@
 package devicestate
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -138,22 +141,45 @@ func Open(dir string) (*State, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
+	if info, err := os.Lstat(dir); err != nil || !info.IsDir() {
+		return nil, errors.New("devicestate: the state directory must be a real directory")
+	}
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return nil, err
 	}
 	s := &State{path: filepath.Join(dir, "device.json"), now: time.Now}
-	b, err := os.ReadFile(s.path)
+	var b []byte
+	info, err := os.Lstat(s.path)
+	if err == nil {
+		if !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+			return nil, errors.New("devicestate: state must be an owner-only regular file")
+		}
+		f, openErr := os.Open(s.path)
+		if openErr != nil {
+			return nil, openErr
+		}
+		b, err = io.ReadAll(io.LimitReader(f, (8<<20)+1))
+		_ = f.Close()
+	}
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		s.d = filedata{Settings: DefaultSettings()}
 	case err != nil:
 		return nil, err
 	default:
-		if err := json.Unmarshal(b, &s.d); err != nil {
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.DisallowUnknownFields()
+		if len(b) > 8<<20 {
+			return nil, errors.New("devicestate: state is too large; it was not replaced")
+		}
+		if err := dec.Decode(&s.d); err != nil {
 			return nil, fmt.Errorf("devicestate: %s is not readable (it is not replaced, so nothing it holds is lost): %w", s.path, err)
 		}
+		if dec.Decode(new(any)) != io.EOF {
+			return nil, errors.New("devicestate: state contains extra data; it was not replaced")
+		}
 		if !s.d.Settings.RemoteStart.Valid() {
-			s.d.Settings.RemoteStart = RemoteStartAsk
+			return nil, errors.New("devicestate: invalid remote start policy; state was not replaced")
 		}
 	}
 	if s.d.Replays == nil {
@@ -209,7 +235,12 @@ func (s *State) saveLocked() error {
 		return err
 	}
 	ok = true
-	return nil
+	dir, err := os.Open(filepath.Dir(s.path))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 
 func (s *State) update(fn func(d *filedata) error) error {
@@ -493,25 +524,36 @@ var errUnchanged = errors.New("devicestate: unchanged")
 // Seen is envelope.ReplayCache, kept on disk so that a request cannot be replayed after the daemon restarts. Checking and
 // recording are one step, so two copies of one request cannot both be new.
 func (s *State) Seen(deviceID, messageID, nonce string, expires time.Time) (bool, error) {
-	key := deviceID + "\x00" + messageID + "\x00" + nonce
+	messageKey := deviceID + "\x00message\x00" + messageID
+	nonceKey := deviceID + "\x00nonce\x00" + nonce
 	replayed := false
 	err := s.update(func(d *filedata) error {
 		now := s.now()
-		if exp, ok := d.Replays[key]; ok && exp.After(now) {
+		if d.Replays[messageKey].After(now) || d.Replays[nonceKey].After(now) {
 			replayed = true
 			return errUnchanged
 		}
-		if len(d.Replays) >= maxReplays {
+		// The previous format stored a tuple. Honor its live entries through the
+		// compatibility window without discarding replay protection on upgrade.
+		for key, exp := range d.Replays {
+			parts := strings.SplitN(key, "\x00", 3)
+			if len(parts) == 3 && parts[0] == deviceID && parts[1] != "message" && parts[1] != "nonce" && (parts[1] == messageID || parts[2] == nonce) && exp.After(now) {
+				replayed = true
+				return errUnchanged
+			}
+		}
+		if len(d.Replays)+2 > maxReplays {
 			for k, exp := range d.Replays {
 				if !exp.After(now) {
 					delete(d.Replays, k)
 				}
 			}
-			if len(d.Replays) >= maxReplays {
+			if len(d.Replays)+2 > maxReplays {
 				return envelope.ErrReplayCacheFull
 			}
 		}
-		d.Replays[key] = expires.UTC()
+		d.Replays[messageKey] = expires.UTC()
+		d.Replays[nonceKey] = expires.UTC()
 		return nil
 	})
 	if errors.Is(err, errUnchanged) {

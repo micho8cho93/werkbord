@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -65,7 +64,7 @@ type verified struct {
 	Path string
 	// SHA256 is the program's hash.
 	SHA256 string
-	// Pinned says whether the hash is the manifest's (true) or only the build record's.
+	// Pinned reports a manifest or embedded distribution hash; build records never authorize execution.
 	Pinned bool
 }
 
@@ -131,15 +130,7 @@ func checkAgainstPin(path, sum string, art Artifact) (pinned bool, err error) {
 	if !art.Source {
 		return false, fmt.Errorf("%w: this platform has no pinned program", ErrBinaryMismatch)
 	}
-	raw, err := os.ReadFile(filepath.Join(filepath.Dir(path), RecordName))
-	if err != nil {
-		return false, fmt.Errorf("%w: %s has no build record (run scripts/fetch-rqlite.sh, which builds the pinned source)", ErrBinaryMismatch, path)
-	}
-	var rec buildRecord
-	if err := json.Unmarshal(raw, &rec); err != nil || rec.Version != Tag || rec.Commit != SourceCommit || !sameHash(sum, rec.SHA256) {
-		return false, fmt.Errorf("%w: %s is not the program its build record describes, or was not built from %s", ErrBinaryMismatch, path, SourceCommit[:12])
-	}
-	return false, nil
+	return false, fmt.Errorf("%w: source-built sidecars need a hash embedded at build time; an editable build record is not a trust anchor (use make build-team or make test-rqlite)", ErrBinaryMismatch)
 }
 
 // reverify checks the private copy again, immediately before it is started.
@@ -171,6 +162,10 @@ var versionLine = regexp.MustCompile(`^rqlited (v?[0-9][0-9A-Za-z.+-]*) `)
 // pinned release. A release build reports "v10.5.2"; so does one built from the pinned
 // source by scripts/fetch-rqlite.sh.
 func verifyVersion(ctx context.Context, v verified) (string, error) {
+	// Verification precedes even the version probe; the probe is code execution too.
+	if err := v.reverify(Artifact{BinarySHA256: v.SHA256}); err != nil {
+		return "", err
+	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	out, err := command(ctx, v, "-version").CombinedOutput()

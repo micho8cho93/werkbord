@@ -459,15 +459,18 @@ for later (it expires in minutes), or ask someone else's device (both devices mu
 
 ## Running it
 
+Team 3.0 requires a vendor-signed offline license and authenticated installation artifacts. Read [TEAM_INSTALL.md](TEAM_INSTALL.md) and [TEAM_LICENSE.md](TEAM_LICENSE.md) first. Werkbord operates no customer runtime infrastructure; you operate the workspace/connectivity hosts, backups and local runners. The formal boundaries and gate evidence are in [TEAM_SECURITY.md](TEAM_SECURITY.md) and [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md).
+
 ```bash
 make build-team                                              # or install a release: scripts/install-team.sh
+export WERKBORD_TEAM_LICENSE_FILE=/customer/licenses/team.json
 werkbord-team workspace create --name "Acme" --owner "Ada"   # creates the workspace; prints the owner's token, ONCE
 werkbord-team serve                                          # http://127.0.0.1:7430
 ```
 
 `workspace create` prints a sign-in link (`http://127.0.0.1:7430/#token=…`): open it and the console signs you in (the
 token is in the URL's fragment, which the browser never sends to a server, and the console removes it from the address
-bar). From the **Workspace** tab, add everyone else: each gets their own token, shown once. Send it to them privately.
+bar). This bearer is for local administration. Other devices join through a signed invitation and administrator approval, obtain their own credentials, and sign remote API requests using their own device keys. The current Team app/daemon supplies that signing client.
 Only the token's SHA-256 is stored, so a lost token cannot be recovered, only **reissued** (which signs out the old one).
 
 | Command | |
@@ -486,25 +489,22 @@ Settings (flags win over environment): `WERKBORD_TEAM_ADDR` (default `127.0.0.1:
 
 ### The private network (Team 2.5)
 
-`werkbord-team workspace create --network --endpoint <a name or address that reaches this machine from outside>` gives the
+`werkbord-team workspace create --endpoint <a name or address that reaches this machine from outside>` gives the
 workspace a private network of its own (no account, no service of anyone else's), and makes the machine its first
 Workspace Host. Invitations, joining, approval, more than one host, revoking a device, what the network allows and what it
 cannot promise about the Internet are in [TEAM_NETWORK.md](TEAM_NETWORK.md). The settings are
 `WERKBORD_TEAM_ENDPOINTS`, `WERKBORD_TEAM_BOOTSTRAP_ADDR`, `WERKBORD_TEAM_NETWORK_PORT`, `WERKBORD_TEAM_NETWORK_NODE`,
-`WERKBORD_TEAM_NEBULA_DIR` and `WERKBORD_TEAM_PKI_PASSPHRASE_FILE`.
+`WERKBORD_TEAM_NEBULA_DIR`, `WERKBORD_TEAM_KEY_STORAGE` and `WERKBORD_TEAM_PKI_PASSPHRASE_FILE`. Nebula and administrator approval are defaults; `--network=false --storage=single-file` is explicit loopback evaluation only.
 
 ### Reaching it from other computers
 
-By default Team listens on this computer only. To let teammates reach it, give `--addr` a wider address (for example
-`0.0.0.0:7430`) **and put it behind HTTPS** (a reverse proxy such as Caddy or nginx) or on a private network such as a
-VPN or tailnet. Team serves plain HTTP and says so in its log when it is not on loopback: tokens cross the network in the
-clear otherwise. A token is required for every API request, on loopback too.
+The local API listens on loopback; production rejects a wider `--addr`. Other devices reach the separately bound Nebula API, with a device bearer plus signed proof for every request and durable nonces for mutations. No Tailscale account is required. Do not expose the local bearer administration API through a reverse proxy. Older remote bearer clients are refused and must migrate to enrolled device clients; there is no silent dual-network mode.
 
 ### Where the data is kept (Team 2.6)
 
 A new workspace keeps its data in a **cluster of Workspace Hosts**: each runs the pinned rqlite (SQLite replicated with Raft,
 shipped with Team and supervised by it) and holds a full copy. It starts as a cluster of one host; three are recommended, and
-the loss of one then leaves the workspace working. If a quorum is lost, writes stop (`503 read_only`), reading continues, and
+the loss of one then leaves the workspace working. If a quorum is lost, writes and remote authentication stop (`503 read_only`), cached local diagnostic reads remain available, and
 nothing is merged later. `werkbord-team storage status` says exactly where things stand. Everything, including moving an existing
 `team.db` into a cluster and back, adding and removing hosts, and recovering from a lost quorum, is in
 [TEAM_STORAGE.md](TEAM_STORAGE.md). `--storage single-file` keeps a workspace in one SQLite file, as before.
@@ -519,11 +519,11 @@ For a workspace kept in one file: the database is `<data dir>/team.db` (SQLite, 
 copy is written to `<data dir>/backups/team-v<version>-<time>.db` (the newest five are kept). To back up a running server, use
 `sqlite3 team.db ".backup copy.db"`; copying the file alone while it is being written is not safe.
 
-A workspace with a private network also has `<data dir>/pki/` (its keys, sealed) and, by default,
-`<data dir>/secrets/sealing.key`. Back up `pki/` **with** the database, and keep the sealing key somewhere else; without `pki/`
-every device has to be enrolled again into a new network ([TEAM_NETWORK.md](TEAM_NETWORK.md#backups-and-recovery)).
+A workspace also has sealed `<data dir>/pki/` material. macOS production uses Keychain with separate device/authority wrapping keys; other supported hosts use an external owner-only passphrase file. Back up the authority ciphertext and recoverable unlock material separately from the database. Database backups are plaintext and require customer-managed encryption. See [backup/recovery](TEAM_BACKUP_RECOVERY.md), [host replacement](TEAM_HOST_REPLACEMENT.md), and [disaster recovery](TEAM_DISASTER_RECOVERY.md).
 
 ## API
+
+Remote protocol gate: device bearer credentials require `Werkbord-Device-Proof` v1, bound to the full request and identity. Mutations consume a replicated nonce. Member tokens are local-loopback compatibility only. The owner can import a signed renewal with `PUT /api/team/v1/license`, including after runtime expiry. Unsupported proof/envelope versions and unknown network-description fields fail closed; do not assume an older remote client works against this major version.
 
 JSON under `/api/team/v1`. Every route except `/health` needs `Authorization: Bearer <token>`. The token identifies
 the member, and so the workspace: no URL names one. Errors are `{"error": {"code": "...", "message": "..."}}` with
@@ -599,11 +599,11 @@ There is deliberately no route that deletes a project or a ticket (archive it in
 ## Security notes
 
 The full review (every surface, the evidence for each, and the risks that remain) is in
-[TEAM_SECURITY.md](TEAM_SECURITY.md). In short:
+[TEAM_SECURITY.md](TEAM_SECURITY.md).
 
 - Tokens are 256 random bits (`wbt_` + 64 hex digits); only the SHA-256 is stored; the API never returns one except when
-  it is issued. Because they are long and random there is no rate limit on failed sign-ins; add one at the proxy if you
-  want it.
+  it is issued. Remote calls also require a signed device proof. High-entropy credentials prevent practical guessing;
+  application rate limits are still incomplete, and exposing the loopback API through a proxy is unsupported.
 - Cross-site writes from a browser are refused (`Origin` must match `Host`), and the console builds the page with
   `textContent`, never HTML, under a strict Content-Security-Policy.
 - The database refuses, by foreign key, to put a member of one workspace on another workspace's project, and, by `CHECK`,
@@ -616,12 +616,14 @@ The full review (every surface, the evidence for each, and the risks that remain
   unauthenticated redeem call answers every unusable code with the same `404`.
 - `werkbord-team handoff` talks to your own Werkbord only on a loopback address, never follows redirects, and takes its
   tokens from the environment, not from flags.
-- No licensing or payment exists yet; they will live in `internal/team`.
+- Canonical vendor-signed licenses are verified offline and replicated with workspace data. Seats and expiry are
+  enforced in mutations; owner-only renewal remains possible after expiry. See [TEAM_LICENSE.md](TEAM_LICENSE.md).
 - A ticket's text is written by a teammate and becomes the task text of the reader's own agent. The handoff says so,
   naming the author and telling the agent to treat it as a description of work and not as authority over the computer,
   and the member starts the run themselves, under their own Werkbord's execution policy.
-- Because Team never reaches a member's machine, **a handoff is a pull, not a push**: the member chooses to bring a ticket
-  into their own runner. A Team server cannot start, stop, or feed anything to any runner.
+- The Team daemon polls signed requests and checks locally approved sender keys. The bridge exposes five closed
+  semantic operations; starting requires a local task approval by default. A Workspace Host holds no runner signing
+  key or local approval, but it controls shared ticket context. See the hostile-host limits in the security model.
 
 ## Layout
 

@@ -232,7 +232,7 @@ func TestThePolicyAsNebulaEnforcesIt(t *testing.T) {
 		// what is meant to work
 		{"a member reaches the workspace API on a host", alice, host1, ports.API, true},
 		{"a member reaches the API on the other host too", bob, host2, ports.API, true},
-		{"a host delivers a message to a member's device", host1, alice, ports.DeviceService, true},
+		{"a host cannot dial a member device; mailbox delivery is polled", host1, alice, ports.DeviceService, false},
 		{"a host reaches another host's API", host1, host2, ports.API, true},
 		{"hosts replicate the database among themselves (4001)", host1, host2, 4001, true},
 		{"hosts replicate the database among themselves (4002)", host2, host1, 4002, true},
@@ -314,6 +314,32 @@ func TestTheLabCanTellAllowedFromBlocked(t *testing.T) {
 	lab.listen(bob, 3000)
 	if !lab.eventually(alice, bob, 3000) {
 		t.Fatal("with an open firewall one member could not reach another: the refusals in the other test would prove nothing")
+	}
+}
+
+// The Connectivity Host is both lighthouse and relay. Existing direct peer paths
+// must keep working when it disappears. This is not a forced-NAT relay-only test.
+func TestDirectPeersSurviveConnectivityAndRelayLoss(t *testing.T) {
+	lab := newLab(t)
+	connectivity := lab.reserve("connectivity", pki.GroupConnectivityHost)
+	host := lab.reserve("host", pki.GroupWorkspaceHost)
+	member := lab.reserve("member", pki.GroupMember, pki.GroupRunner)
+	discovery := []*live{connectivity}
+	lab.start(connectivity, discovery, nil)
+	lab.start(host, discovery, nil)
+	lab.start(member, discovery, nil)
+	lab.listen(host, overlay.APIPort)
+	if !lab.eventually(member, host, overlay.APIPort) {
+		t.Fatal("the direct peer path never became usable")
+	}
+	if err := connectivity.svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Wait joins the stopped userspace node; its expected terminal error may be
+	// context cancellation or a closed virtual device, as in the lab cleanup.
+	_ = connectivity.svc.Wait()
+	if !lab.eventually(member, host, overlay.APIPort) {
+		t.Fatal("losing the lighthouse/relay stopped an established direct peer path")
 	}
 }
 

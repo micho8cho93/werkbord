@@ -266,7 +266,7 @@ func (d *Daemon) resumeJoin(ctx context.Context) error {
 		return err
 	}
 	// The link was valid when redeemed. Its expiry does not discard an enrollment already waiting for approval.
-	inv, err := enrollment.Parse(p.Link, time.Unix(0, 0))
+	inv, err := enrollment.ParseSaved(p.Link)
 	if err != nil {
 		return err
 	}

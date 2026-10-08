@@ -177,8 +177,7 @@ was written since.
 Upgrade every host. The first upgraded host that starts migrates the cluster's schema, once, as a guarded write (two hosts starting
 together cannot both do it). A host still running an older Team finds a schema it does not know and refuses to read or write it,
 with the message `database schema version N is newer than this build supports; upgrade werkbord-team`, so a mixed-version cluster
-degrades to *unavailable on the old hosts* rather than writing with the wrong idea of the schema. Upgrade one host at a time and the
-workspace stays available through the others.
+degrades to *unavailable on the old hosts* rather than writing with the wrong idea of the schema. Plan a maintenance window for a schema-changing major release: enough hosts must support the new schema to serve the workspace. A rolling upgrade is not a guarantee of uninterrupted availability when old hosts refuse the new schema.
 
 ## When a quorum is lost
 
@@ -231,13 +230,13 @@ new cluster is the other way back.
   used for membership changes), and the one a joining node presents (join only). The passwords are random and per workspace.
 - The password for the application user and a host's copy of the data are on every Workspace Host. That is part of what makes a
   Workspace Host a high-trust machine.
-- **A host that is cut off from the cluster still reads, and authenticates, from its last copy.** A token revoked, a device revoked or a member
-  removed while it was cut off is not known to it until it reconnects (seconds after it does). It cannot write anything while cut off. This
-  is the price of a read-only mode that works when the quorum does not; it is the reason `storage status` shows how stale a copy may be.
+- **A host cut off from the cluster retains cached diagnostic reads but cannot authorize remote requests.** Authentication and authenticated reads require a fresh linearizable fence, so stale revocation/membership cannot grant access. Writes also fail without quorum. `storage status` shows how stale the local copy may be.
 - Raft's port is not authenticated; the Nebula tunnel and the network's default-deny policy are what keep everything but Workspace Hosts
   away from it. rqlite's own TLS is not used, which is why a database node must be on loopback or on the workspace's private network.
 
 ## Testing
+
+The full gate and recovery limits are in [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md), [TEAM_BACKUP_RECOVERY.md](TEAM_BACKUP_RECOVERY.md) and [TEAM_DISASTER_RECOVERY.md](TEAM_DISASTER_RECOVERY.md). Database backups are plaintext; encrypt them externally and keep authority/Keychain recovery material separate. Licenses and API replay records are replicated with the workspace data.
 
 `make test-rqlite` fetches the pinned program and runs the tests that start real clusters: the supervisor, the replicated store
 (leader and follower failure, re-election, an old host rejoining, a partition that leaves two of three connected, an isolated host

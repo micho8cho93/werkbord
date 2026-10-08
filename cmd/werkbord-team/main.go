@@ -1,7 +1,7 @@
 // Command werkbord-team runs Werkbord Team: the shared workspace where a team's
 // members and projects are coordinated.
 //
-//	werkbord-team workspace create   start a workspace and print its owner's token (--network gives it its private network)
+//	werkbord-team workspace create   start a licensed workspace and its customer-owned Nebula network
 //	werkbord-team serve              run the server in the foreground
 //	werkbord-team network …          the private network: status, invitations, approvals, a host's node
 //	werkbord-team device …           join as a host, list and revoke devices
@@ -19,6 +19,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,11 +29,13 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"devboard/internal/logging"
 	"devboard/internal/team/config"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/infra/pki"
+	"devboard/internal/team/license"
 	"devboard/internal/team/server"
 )
 
@@ -43,13 +46,14 @@ const usage = `usage: werkbord-team <command> [flags]
 
 commands:
   daemon             run this device's background service (workspace, networking and local runner bridge)
-  workspace create   start a workspace; prints the owner's token (once); --network gives it a private network
+  workspace create   start a workspace with Nebula; prints the owner's local token once
   serve              run the Team server in the foreground
   network            the private network: status, invite, pending, approve, deny, node
   device             join as a host, list and revoke devices
   host               promote a device to Workspace Host (keys and a copy of the data), collect them on it, remove a host
   storage            where the workspace's data is kept: status, backup, restore, move it into a cluster
   migrate            apply database migrations and exit
+  license import     replace the workspace's signed offline license (owner only)
   handoff            open a ticket you hold in your own local Werkbord
   version            print the version
 
@@ -73,6 +77,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return flag.ErrHelp
 	}
 	cfg := config.Load()
+	cfg.LicenseKey, _ = base64.RawURLEncoding.DecodeString(licenseIssuer)
 	switch args[0] {
 	case "daemon":
 		return cmdDaemon(ctx, cfg, args[1:], stderr)
@@ -90,6 +95,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return cmdHost(ctx, cfg, args[1:], stdout, stderr)
 	case "storage":
 		return cmdStorage(ctx, cfg, args[1:], stdout, stderr)
+	case "license":
+		return cmdLicense(ctx, cfg, args[1:], stdout, stderr)
 	case "handoff":
 		return cmdHandoff(ctx, args[1:], stdout, stderr)
 	case "version", "--version", "-v":
@@ -165,15 +172,15 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	name := fs.String("name", "", "the workspace's name")
 	owner := fs.String("owner", "", "the owner's name (you)")
 	email := fs.String("email", "", "the owner's email (optional)")
-	withNetwork := fs.Bool("network", false, "give the workspace its own private network, on this host (docs/TEAM_NETWORK.md)")
+	withNetwork := fs.Bool("network", true, "create the customer's Nebula network (default); --network=false is loopback evaluation only")
 	var endpoints listFlag
 	fs.Var(&endpoints, "endpoint", "with --network: a host (address or DNS name) at which this machine can be reached from outside its network (repeatable; $WERKBORD_TEAM_ENDPOINTS)")
 	connectivity := fs.String("connectivity", "auto", "with --network: make this host a Connectivity Host: auto (if an --endpoint can be reached from outside), yes or no")
-	approval := fs.String("approval", "auto", "with --network: auto (a valid invitation is enough) or admin (an administrator approves every device)")
+	approval := fs.String("approval", "admin", "with --network: admin (default; approves every device) or auto (an invitation is enough)")
 	netRange := fs.String("network-range", "", "with --network: the private network's address range (a /16 to /24 in 10/8, 172.16/12 or 192.168/16; default: a random /16 in 10.128.0.0/9)")
 	fs.StringVar(&cfg.BootstrapAddr, "bootstrap-addr", cfg.BootstrapAddr, "with --network: where this host answers devices that are joining")
 	fs.IntVar(&cfg.NetworkPort, "network-port", cfg.NetworkPort, "with --network: the UDP port of the network node")
-	fs.StringVar(&cfg.PassphraseFile, "passphrase-file", cfg.PassphraseFile, "with --network: seal the workspace's keys with the passphrase in this file, instead of a key kept beside them")
+	fs.StringVar(&cfg.PassphraseFile, "passphrase-file", cfg.PassphraseFile, "seal keys with this protected external passphrase file instead of OS secure storage")
 	fs.StringVar(&cfg.Storage, "storage", cfg.Storage, "where the workspace's data is kept: replicated (a cluster of Workspace Hosts, which starts as one host; the default) or single-file (one SQLite file: valid for evaluation, no copy but its backups)")
 	fs.IntVar(&cfg.StoragePort, "storage-port", cfg.StoragePort, "with replicated storage: the port of this host's database node (HTTP)")
 	fs.IntVar(&cfg.StorageRaftPort, "storage-raft-port", cfg.StorageRaftPort, "with replicated storage: the port of this host's database node (Raft)")
@@ -182,6 +189,18 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	}
 	if len(endpoints) > 0 {
 		cfg.Endpoints = endpoints
+	}
+	if !*withNetwork && !cfg.IsLoopback() {
+		return errors.New("a workspace without Nebula must listen on loopback for evaluation")
+	}
+	if cfg.LicenseRequired {
+		raw, err := readLicenseFile(cfg.LicensePath())
+		if err != nil {
+			return errors.New("supply a signed offline license with WERKBORD_TEAM_LICENSE_FILE before creating a workspace")
+		}
+		if _, err := license.Verify(raw, cfg.LicenseKey, time.Now()); err != nil {
+			return err
+		}
 	}
 	if *withNetwork {
 		if err := cfg.Validate(); err != nil {
@@ -222,6 +241,24 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 			return fmt.Errorf("the workspace %q was created, but its private network was not: %w\nIts data is in %s; start again with another --data-dir, or remove that directory", created.Workspace.Name, err, cfg.DataDir)
 		}
 		nc = &n
+		credential, err := svc.IssueLocalDeviceCredential(ctx, created.Workspace.ID, n.HostDeviceID)
+		if err != nil {
+			return err
+		}
+		sealer, err := server.SealerFor(cfg)
+		if err != nil {
+			return err
+		}
+		vault, err := pki.OpenVault(cfg.PKIDir(), sealer)
+		if err != nil {
+			return err
+		}
+		if err := vault.SaveDeviceToken(credential); err != nil {
+			return err
+		}
+		if err := vault.SaveSecret("member", []byte(created.Owner.ID)); err != nil {
+			return err
+		}
 	}
 	fmt.Fprintf(stdout, "Workspace %q created, owned by %s.\n\n", created.Workspace.Name, created.Owner.Name)
 	fmt.Fprintf(stdout, "Owner token (shown once; it is not stored and cannot be shown again):\n\n  %s\n\n", created.Token)

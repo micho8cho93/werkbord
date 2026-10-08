@@ -9,14 +9,14 @@
 # `Source: true` this script builds rqlited from the pinned source instead: it clones the release's tag, refuses it
 # unless the commit is the pinned one, and builds with the version flags the project's own release build uses, so the
 # program reports exactly the release's version and commit. A build is not reproducible across toolchains, so the
-# program is accepted by the running server on the strength of its report and of the record this script writes
-# beside it (rqlited.build); a Werkbord Team release for that platform pins the hash of its own build instead.
+# service build embeds the fresh executable's hash. The record beside it (rqlited.build) is diagnostic only:
+# replacing both executable and record cannot authorize execution.
 #
 #   scripts/fetch-rqlite.sh                 prints .cache/rqlite/<version>/<os>_<arch> for this computer
 #   scripts/fetch-rqlite.sh linux arm64     the same for another platform (a release build; only where it is published)
 #
 # RQLITE_DIR=…   names a directory that already holds `rqlited` (offline builds, tests); it is still checked
-#                against the pin, and used as it is.
+#                against the upstream binary pin, and used as it is. Not supported for source-only platforms.
 # RQLITE_CACHE=… changes where downloads and builds are kept (default .cache/rqlite, which git ignores).
 set -eu
 
@@ -47,9 +47,8 @@ source_build=no; case "$line" in *"Source: true"*) source_build=yes ;; esac
 check_binary() {
   [ -f "$1/rqlited" ] || return 1
   if [ "$source_build" = yes ]; then
-    [ -f "$1/rqlited.build" ] || return 1
-    have=$(sha256 "$1/rqlited")
-    grep -q "\"sha256\":\"$have\"" "$1/rqlited.build" && grep -q "\"commit\":\"$commit\"" "$1/rqlited.build"
+    # A record beside a cached executable can be forged with it. Only a fresh source build is trusted.
+    [ "${fresh_source:-no}" = yes ]
   else
     [ "$(sha256 "$1/rqlited")" = "$binary_sha" ]
   fi
@@ -78,7 +77,7 @@ if [ "$source_build" = yes ]; then
     exit 3
   fi
   echo "fetch-rqlite: building rqlite $version from source for $os/$arch (the project publishes no binary for it)" >&2
-  git clone -q --depth 1 --branch "$tag" https://github.com/rqlite/rqlite.git "$tmp/src" || die "could not fetch rqlite $tag"
+  git -c advice.detachedHead=false clone -q --depth 1 --branch "$tag" https://github.com/rqlite/rqlite.git "$tmp/src" || die "could not fetch rqlite $tag"
   [ "$(git -C "$tmp/src" rev-parse HEAD)" = "$commit" ] || die "tag $tag is at $(git -C "$tmp/src" rev-parse HEAD), but the pin is $commit: not using it"
   pkg="github.com/rqlite/rqlite/v${version%%.*}/cmd"
   if [ "$cross_mac" = yes ]; then
@@ -90,6 +89,7 @@ if [ "$source_build" = yes ]; then
     (cd "$tmp/src" && CGO_ENABLED=1 go build -trimpath -ldflags "-w -s -X $pkg.Version=$tag -X $pkg.Commit=$commit" -o "$tmp/x/rqlited" ./cmd/rqlited) || die "the build failed"
   fi
   chmod 0755 "$tmp/x/rqlited"
+  fresh_source=yes
   if [ "$arch" = "$(go env GOARCH)" ]; then
     got=$("$tmp/x/rqlited" -version 2>&1 | grep -m1 "^rqlited")
     case "$got" in "rqlited $tag "*) ;; *) die "the program built reports '$got', not $tag" ;; esac

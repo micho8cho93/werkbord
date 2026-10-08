@@ -22,6 +22,8 @@ own executable, version, data directory, installer, release artifacts and licenc
 The two can be installed, run and upgraded independently, on the same computer or on different ones. Installing one does not start or change the other. The Team desktop app offers an explicit, optional local
 installation of the free individual runner through that product’s normal setup.
 
+Team 3.0 defaults to customer-owned Nebula, administrator-approved enrollment, device-signed remote API requests and offline signed license enforcement. There is no Team Tailscale account or vendor runtime requirement. Customers operate their Workspace/Connectivity Hosts, backups and local runners. Individual tsnet and `DEVBOARD_*` compatibility stay separate. See [TEAM_SECURITY.md](TEAM_SECURITY.md), [TEAM_INSTALL.md](TEAM_INSTALL.md), [TEAM_LICENSE.md](TEAM_LICENSE.md) and the [release gate](TEAM_SECURITY_GATE.md).
+
 > **Naming.** Werkbord was called Dev Board. Since Werkbord 1.0 the executable is `werkbord`, and everything a person
 > sees or types says so. What existing installs depend on keeps working, indefinitely and without nagging: the `devboard`
 > command (installed beside `werkbord`), every `DEVBOARD_*` variable (read after its `WERKBORD_*` name), the data
@@ -222,7 +224,7 @@ Beyond those, `internal/archtest` also keeps the production foundation honest (s
 [the architecture decision](adr/0001-team-production-architecture.md)):
 
 9. Team's one exception to "never starts a process" is a narrow, named grant for *infrastructure* supervision under
-   `internal/team/infra/` (one today: the supervisor of the pinned network program): constant program names only, never a
+   `internal/team/infra/` (Nebula and rqlite supervisors): constant program names only, never a
    shell, Git, an agent or a runtime, importing nothing that handles a request, imported only by Team's wiring. The rule itself
    is tested against code that breaks it;
 10. shared packages import only the standard library and each other, and name no network or database vendor;
@@ -235,7 +237,9 @@ Beyond those, `internal/archtest` also keeps the production foundation honest (s
 15. no code that runs in Team's network contains a URL that leads anywhere but this computer: Werkbord operates no service
     Team could be pointed at;
 16. every setting Team reads is its own (`WERKBORD_TEAM_*`) and none names a service, an account or a URL;
-17. nothing that answers a request (the API, service, domain, store) can name a signing key.
+17. coordination records contain no device/authority private signing key. The service verifies licenses using only a vendor public key; the separate offline issuer is under `cmd/werkbord-team/vendor` and is never packaged with customers.
+
+The gate also fixes the production license/authentication wiring in architecture tests and restricts the native Keychain wrapper to reviewed Security/memory calls. Typed local license-file/public-key configuration is permitted; no online license/vendor URL is introduced. Runner operations stay the reviewed semantic bridge, never a general remote administration API.
 
 `make verify-isolation` is the empirical version of 1–2, and CI runs it. The Go module is shared, so `go.mod` lists
 every dependency of both; what counts is what each executable is built from, which is what these checks inspect. If

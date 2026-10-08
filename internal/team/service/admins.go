@@ -40,7 +40,11 @@ func (s *Service) SetMemberRole(ctx context.Context, a Actor, memberID string, r
 		return domain.Member{}, err
 	}
 	var out domain.Member
-	err := s.db.Update(ctx, func(tx store.Tx) error {
+	update := s.db.Update
+	if role == domain.RoleMember {
+		update = s.containmentUpdate
+	}
+	err := update(ctx, func(tx store.Tx) error {
 		m, err := tx.Member(ctx, a.Workspace.ID, memberID)
 		if err != nil {
 			return err

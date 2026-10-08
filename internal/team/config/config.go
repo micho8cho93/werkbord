@@ -56,6 +56,13 @@ const (
 
 // Config holds Team's settings.
 type Config struct {
+	// Production commands require an offline license; the key is supplied only by the executable's build.
+	LicenseRequired bool
+	LicenseKey      []byte
+	LicenseFile     string
+	KeyStorage      string
+	// SecureStorageID stays stable while the daemon atomically stages a new workspace directory.
+	SecureStorageID string
 	Addr            string
 	DataDir         string
 	LogLevel        string // debug, info, warn, error
@@ -102,7 +109,7 @@ type Config struct {
 
 // Default returns the built-in defaults.
 func Default() Config {
-	return Config{Addr: DefaultAddr, DataDir: defaultDataDir(), LogLevel: "info", LogFormat: "text", ShutdownTimeout: 10 * time.Second,
+	return Config{Addr: DefaultAddr, DataDir: defaultDataDir(), KeyStorage: "file", LogLevel: "info", LogFormat: "text", ShutdownTimeout: 10 * time.Second,
 		BootstrapAddr: DefaultBootstrapAddr, NetworkPort: DefaultNetworkPort, RunNode: true,
 		Storage: StorageReplicated, StoragePort: DefaultStorageHTTPPort, StorageRaftPort: DefaultStorageRaftPort,
 		BackupEvery: DefaultBackupEvery, BackupKeep: DefaultBackupKeep, BackupKeepFor: DefaultBackupKeepFor}
@@ -118,12 +125,16 @@ func defaultDataDir() string {
 // Load returns the defaults overlaid with the environment.
 func Load() Config {
 	c := Default()
+	c.LicenseRequired = true
+	c.KeyStorage = "os"
 	set := func(key string, dst *string) {
 		if v := os.Getenv(key); v != "" {
 			*dst = v
 		}
 	}
 	set("WERKBORD_TEAM_ADDR", &c.Addr)
+	set("WERKBORD_TEAM_LICENSE_FILE", &c.LicenseFile)
+	set("WERKBORD_TEAM_KEY_STORAGE", &c.KeyStorage)
 	set("WERKBORD_TEAM_DATA_DIR", &c.DataDir)
 	set("WERKBORD_TEAM_LOG_LEVEL", &c.LogLevel)
 	set("WERKBORD_TEAM_LOG_FORMAT", &c.LogFormat)
@@ -191,8 +202,16 @@ func splitList(v string) []string {
 
 // Validate checks the settings for mistakes.
 func (c Config) Validate() error {
+	switch c.KeyStorage {
+	case "", "file", "os":
+	default:
+		return fmt.Errorf("key storage must be os or file")
+	}
 	if _, _, err := net.SplitHostPort(c.Addr); err != nil {
 		return fmt.Errorf("addr %q: %w", c.Addr, err)
+	}
+	if c.LicenseRequired && !c.IsLoopback() {
+		return fmt.Errorf("the local API must listen on loopback; other devices use the separately bound Nebula API")
 	}
 	if c.DataDir == "" {
 		return fmt.Errorf("the data directory is required")
@@ -261,6 +280,13 @@ func (c Config) BootstrapPort() int {
 
 // DBPath is the SQLite database of a workspace that keeps its data in one file.
 func (c Config) DBPath() string { return filepath.Join(c.DataDir, "team.db") }
+
+func (c Config) LicensePath() string {
+	if c.LicenseFile != "" {
+		return c.LicenseFile
+	}
+	return filepath.Join(c.DataDir, "license.json")
+}
 
 // StorageMarkerPath is the file that says where this host keeps the workspace's data.
 func (c Config) StorageMarkerPath() string { return filepath.Join(c.DataDir, "storage.json") }

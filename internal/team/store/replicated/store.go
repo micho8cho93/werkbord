@@ -271,6 +271,20 @@ func (s *Store) View(ctx context.Context, fn func(store.Tx) error) error {
 }
 
 // SchemaVersion reports the applied migration version.
+// FreshView is reserved for authorization: a stale replica must not resurrect a revoked credential.
+func (s *Store) FreshView(ctx context.Context, fn func(store.Tx) error) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	f, err := s.clusterFence(ctx, LevelLinearizable)
+	if err != nil {
+		return s.unavailable(err)
+	}
+	if err := s.catchUp(ctx, f, false); err != nil {
+		return s.unavailable(err)
+	}
+	return s.View(ctx, fn)
+}
+
 func (s *Store) SchemaVersion(ctx context.Context) (int, error) {
 	pool, release, err := s.repl.acquire()
 	if err != nil {

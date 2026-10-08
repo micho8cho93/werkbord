@@ -36,7 +36,7 @@ func TestTheCommandsMakeAWorkspaceInviteAHostHandItTheKeysAndRevokeIt(t *testing
 	for k, v := range env {
 		t.Setenv(k, v)
 	}
-	out, errOut, err := runCLI(t, nil, "workspace", "create", "--name", "Acme", "--owner", "Ada", "--network")
+	out, errOut, err := runCLI(t, nil, "workspace", "create", "--name", "Acme", "--owner", "Ada", "--network", "--approval", "auto")
 	if err != nil {
 		t.Fatalf("workspace create: %v\n%s", err, errOut)
 	}
@@ -120,7 +120,7 @@ func TestTheCommandsMakeAWorkspaceInviteAHostHandItTheKeysAndRevokeIt(t *testing
 	if _, _, err := runCLI(t, nil, "device", "join", link, "--data-dir", second, "--expect-fingerprint", "zzzz-zzzz"); !errorsIs(err, enrollment.ErrWrongWorkspace) {
 		t.Errorf("a wrong fingerprint: %v", err)
 	}
-	out, _, err = runCLI(t, nil, "device", "join", link, "--data-dir", second, "--name", "second-host", "--expect-fingerprint", fp[1])
+	out, _, err = runCLI(t, nil, "device", "join", link, "--data-dir", second, "--name", "second-host", "--expect-fingerprint", fp[1], "--wait", "10s")
 	if err != nil {
 		t.Fatalf("device join: %v\n%s", err, out)
 	}

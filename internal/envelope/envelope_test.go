@@ -278,14 +278,14 @@ func TestTheReplayCacheNeverForgetsALiveEnvelopeToMakeRoom(t *testing.T) {
 	c := &MemoryReplayCache{Max: 2, Now: func() time.Time { return now }}
 	exp := t0.Add(time.Minute)
 	for _, id := range []string{"a", "b"} {
-		if seen, err := c.Seen("dev", id, "n", exp); seen || err != nil {
+		if seen, err := c.Seen("dev", id, "n"+id, exp); seen || err != nil {
 			t.Fatal(seen, err)
 		}
 	}
-	if _, err := c.Seen("dev", "c", "n", exp); !errors.Is(err, ErrReplayCacheFull) {
+	if _, err := c.Seen("dev", "c", "nc", exp); !errors.Is(err, ErrReplayCacheFull) {
 		t.Fatalf("a full cache evicted a live entry: %v", err)
 	}
-	if seen, _ := c.Seen("dev", "a", "n", exp); !seen {
+	if seen, _ := c.Seen("dev", "a", "na", exp); !seen {
 		t.Fatal("a was forgotten")
 	}
 	// Expired entries make room.

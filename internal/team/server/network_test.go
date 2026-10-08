@@ -153,7 +153,11 @@ func (d *device) join(link, memberName string, mutate ...func(*enrollment.JoinPa
 	for _, m := range mutate {
 		m(&p)
 	}
-	return enrollment.Join(bg, inv, p)
+	res, err := enrollment.Join(bg, inv, p)
+	if err == nil && res.Response.DeviceToken != "" {
+		proofIdentities.Store(res.Response.DeviceToken, proofIdentity{d.id, res.Response.WorkspaceID, res.Response.MemberID})
+	}
+	return res, err
 }
 
 // ---- the first workspace ----

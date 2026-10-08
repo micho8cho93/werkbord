@@ -43,7 +43,7 @@ func Handler(db store.Store, svc *service.Service, log *slog.Logger, version str
 }
 
 func handler(db store.Store, svc *service.Service, log *slog.Logger, version string, nodeStatus func() any) http.Handler {
-	return api.New(api.Options{Service: svc, Ping: db.Ping, Log: log, Version: version, Console: console.Handler(), NodeStatus: nodeStatus}).Handler()
+	return api.New(api.Options{Service: svc, Ping: db.Ping, Log: log, Version: version, Console: console.Handler(), NodeStatus: nodeStatus, RequireDeviceProof: true}).Handler()
 }
 
 // Run serves Team on cfg.Addr until ctx is cancelled, then shuts down gracefully.
@@ -64,6 +64,7 @@ func RunWith(ctx context.Context, cfg config.Config, log *slog.Logger, version s
 		return err
 	}
 	svc := service.New(st.DB())
+	configureLicense(svc, cfg)
 	st.Attach(svc, nil)
 	st.Start(ctx)
 	defer func() {

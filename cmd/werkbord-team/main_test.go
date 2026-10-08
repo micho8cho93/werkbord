@@ -50,7 +50,7 @@ var tokenRE = regexp.MustCompile(`wbt_[0-9a-f]{64}`)
 func TestWorkspaceCreateMakesAnOwnerTokenThatSignsIn(t *testing.T) {
 	dir := t.TempDir()
 	env := map[string]string{"WERKBORD_TEAM_DATA_DIR": dir}
-	out, _, err := runCLI(t, env, "workspace", "create", "--name", "Acme", "--owner", "Ada", "--email", "ada@example.com")
+	out, _, err := runCLI(t, env, "workspace", "create", "--network=false", "--name", "Acme", "--owner", "Ada", "--email", "ada@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestWorkspaceCreateMakesAnOwnerTokenThatSignsIn(t *testing.T) {
 
 	for _, args := range [][]string{
 		{"workspace"}, {"workspace", "destroy"},
-		{"workspace", "create", "--owner", "Ada"}, {"workspace", "create", "--name", "Acme"},
+		{"workspace", "create", "--network=false", "--owner", "Ada"}, {"workspace", "create", "--network=false", "--name", "Acme"},
 	} {
 		if _, _, err := runCLI(t, env, args...); err == nil {
 			t.Errorf("%v should fail", args)

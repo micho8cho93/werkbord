@@ -78,7 +78,9 @@ jobs:
           echo "desktop=$desktop" >> "$GITHUB_OUTPUT"
 
   release:
-    if: github.event_name == 'push'
+    # Team CLI archives are signed on the offline release workstation. This job
+    # has no vendor release key and must never publish unauthenticated Team packages.
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
