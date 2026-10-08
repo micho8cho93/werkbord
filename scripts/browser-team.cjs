@@ -40,7 +40,9 @@ async function api(method, path, data, credential = token) {
     assert.equal(await page.getByRole('navigation', { name: 'Team administration' }).count(), 0, 'administration is only shown inside Settings');
     assert.equal(await page.locator('.note, .tiles').count(), 0, 'the explanation and summary boxes no longer compete with work');
     await page.getByRole('navigation', { name: 'Settings', exact: true }).getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('navigation', { name: 'Team administration' }).getByRole('button', { name: 'Members', exact: true }).click();
+    assert.equal(await page.getByRole('navigation', { name: 'Team administration' }).getByRole('button', { name: 'Members', exact: true }).count(), 0, 'Members belongs in the main navigation');
+    await primary.getByRole('button', { name: 'Members', exact: true }).click();
+    await page.locator('.member-manage').first().locator('summary').click();
     await page.getByRole('button', { name: 'New token', exact: true }).first().click();
     await page.getByText('Your token', { exact: true }).waitFor();
     const fresh = await page.locator('.secret code').first().textContent();
@@ -51,7 +53,7 @@ async function api(method, path, data, credential = token) {
     fs.writeFileSync(path.join(artifacts, 'active-token.txt'), token, { mode: 0o600 });
     await page.reload();
     await page.getByRole('button', { name: 'Sign out', exact: true }).waitFor();
-    console.log('PASS Settings disclosure, member deep-link reload, self rotation and credential persistence');
+    console.log('PASS Settings disclosure, primary Members deep-link reload, self rotation and credential persistence');
     // Missing URL parameters reset older state, including on Back and Forward.
     await page.goto(base + '/');
     await page.locator('nav [aria-current="page"]').filter({ hasText: 'Workspace' }).waitFor();

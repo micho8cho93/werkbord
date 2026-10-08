@@ -46,7 +46,7 @@ async function desktopGate() {
   return true;
 }
 
-function setupShell(...content) { return h('div', { class: 'gate desktop-gate' }, h('header', { class: 'top' }, brand()), h('div', { class: 'panel setup-panel' }, content)); }
+function setupShell(...content) { return h('div', { class: 'gate desktop-gate' }, h('header', { class: 'top' }, brand(), themeButton()), h('div', { class: 'panel setup-panel' }, content)); }
 function setupBack() { return h('button', { class: 'link', type: 'button', onclick: () => { setupView = 'welcome'; state.error = ''; render(); } }, 'Back'); }
 
 function onboardingScreen() {
@@ -122,7 +122,9 @@ async function resiliencePanel(compact = false) {
 
 async function membersView() {
   const members = await api('GET', '/members');
-  return h('div', {}, membersPanels(members), can('members.manage') ? await invitationsPanel(members) : '');
+  const content = membersPanels(members);
+  if (can('members.manage') && state.desktop) content.append(h('aside', { class: 'member-tools' }, await invitationsPanel(members)));
+  return content;
 }
 
 let createdInvitation = null;

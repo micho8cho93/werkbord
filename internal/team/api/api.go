@@ -95,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/team/v1/overview", s.handleOverview)
 	api.HandleFunc("GET /api/team/v1/my-work", s.handleMyWork)
 	api.HandleFunc("GET /api/team/v1/reviews", s.handleReviews)
+	api.HandleFunc("GET /api/team/v1/search", s.handleSearch)
 	api.HandleFunc("GET /api/team/v1/sync", s.handleWorkspaceSync)
 	// the board and its tickets
 	api.HandleFunc("GET /api/team/v1/projects/{id}/board", s.handleBoard)

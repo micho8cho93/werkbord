@@ -35,7 +35,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  assert.equal(await page.locator('.resilience').count(),0,'host configuration does not displace everyday work');
  console.log('PASS signed license import, create, real host/database bootstrap and focused workspace');
  await shot(page,'desktop');await shot(page,'mobile',390,844);await page.setViewportSize({width:1440,height:1000});
- for(const label of ['Projects','Board','My Work','Reviews','Activity','Devices','Workspace Hosts','Connectivity','Backups','License','Settings']){
+ for(const label of ['Projects','Board','My Work','Reviews','Activity','Members','Devices','Workspace Hosts','Connectivity','Backups','License','Settings']){
   if(['Devices','Workspace Hosts','Connectivity','Backups','License'].includes(label))await page.getByRole('navigation',{name:'Settings',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();
   await page.locator('nav').getByRole('button',{name:label,exact:true}).click();await page.locator('nav button[aria-current=page]').filter({hasText:new RegExp('^'+label)}).waitFor();
   await wait(async()=>!(await page.locator('.error').count()),label+' no error');
@@ -46,13 +46,13 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  const plan=await dev('first','GET','/removal');assert.equal(plan.canRemoveData,false);
  let ds;await wait(async()=>{ds=await team('GET','/devices');return ds[0]?.capabilities.includes('runner');},'automatic local runner registration');assert.equal(ds.length,1);assert(ds[0].capabilities.includes('runner'));assert(ds[0].capabilities.includes('workspace_host'));
  const owner=(await team('GET','/me')).member;
- await page.getByRole('navigation',{name:'Team administration'}).getByRole('button',{name:'Members',exact:true}).click();
+ await page.getByRole('navigation',{name:'Werkbord Team',exact:true}).getByRole('button',{name:'Members',exact:true}).click();
  await page.locator('[name=enrollment-label]').fill('Ada’s office Mac');await page.locator('[name=enrollment-person]').selectOption(owner.id);await page.getByRole('button',{name:'Create invitation',exact:true}).click();
  await page.getByText('Your invitation is ready',{exact:true}).waitFor();const link=await page.evaluate(()=>createdInvitation.link);await shot(page,'invitation');assert(await page.locator('.invite-qr').isVisible());
  const second=await browser.newPage({viewport:{width:1440,height:1000}});second.setDefaultTimeout(90000);second.on('pageerror',e=>errors.push(e.message));
  await second.goto(m.second+'/#token='+encodeURIComponent(m.secondKey)+'&join='+encodeURIComponent(link));await second.getByRole('button',{name:'Verify invitation',exact:true}).click();
  await second.locator('[name=join-member]').fill('Ada');await second.locator('[name=join-device]').fill('Office Mac');await second.getByRole('button',{name:'Join workspace',exact:true}).click();await second.getByRole('heading',{name:'Waiting for your administrator',exact:true}).waitFor();await shot(second,'join-pending');
- await page.getByRole('navigation',{name:'Team administration'}).getByRole('button',{name:'Devices',exact:true}).click();await page.getByRole('button',{name:'Approve device',exact:true}).click();
+ await page.getByRole('navigation',{name:'Settings',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('navigation',{name:'Team administration'}).getByRole('button',{name:'Devices',exact:true}).click();await page.getByRole('button',{name:'Approve device',exact:true}).click();
  await second.waitForFunction(()=>state.me&&state.desktop&&state.device.enrolled,{},{timeout:90000});
  const joined=await dev('second','GET','/state');assert(joined.enrolled);const registered=(await team('GET','/devices')).find(d=>d.id===joined.deviceId);assert(!registered.capabilities.includes('workspace_host'));
  await wait(async()=>{const s=await dev('second','GET','/state'),ds=await team('GET','/devices');return s.runner.connected&&ds.some(d=>d.id===joined.deviceId&&d.capabilities.includes('runner'));},'joined device runner registration');
@@ -61,6 +61,9 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  const project=await team('POST','/projects',{name:'Customer portal',repository:'https://github.com/acme/shop'});
  const ticket=await team('POST',`/projects/${project.id}/tickets`,{title:'Improve the sign-in experience',description:'Keep the session clear and accessible.',requirements:'All states readable',status:'available'});
  await team('POST',`/projects/${project.id}/tickets/${ticket.id}/claim`,{});
+ await page.keyboard.press('Meta+k');const search=page.getByRole('combobox',{name:'Search projects, tickets and sections'});await search.fill(ticket.key);await page.getByRole('dialog').getByRole('option').filter({hasText:ticket.title}).waitFor();await search.press('Enter');await page.waitForFunction(id=>state.ticketId===id&&!!document.querySelector('.ticket'),ticket.id);await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await page.reload();await page.getByRole('button',{name:'Switch to light mode',exact:true}).waitFor();await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
+ console.log('PASS Cmd K through the enrolled device API and persistent desktop theme selection');
  const repo=path.join(temp,'repo');fs.mkdirSync(repo);run('git',['-C',repo,'init','-b','main']);run('git',['-C',repo,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','--allow-empty','-m','Initial fixture']);run('git',['-C',repo,'remote','add','origin','https://github.com/acme/shop']);
  await http(personalURL,full,'POST','/api/projects',{name:'Customer portal',path:repo});
  await wait(async()=>{const s=await dev('first','GET','/state');return (s.senders||[]).some(d=>d.deviceId===joined.deviceId);},'device sender discovery');

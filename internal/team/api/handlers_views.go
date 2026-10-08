@@ -25,6 +25,11 @@ func (s *Server) handleReviews(w http.ResponseWriter, r *http.Request) {
 	s.respond(w, r, http.StatusOK, v, err)
 }
 
+func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	v, err := s.opt.Service.Search(r.Context(), actorOf(r), r.URL.Query().Get("q"))
+	s.respond(w, r, http.StatusOK, v, err)
+}
+
 // handleWorkspaceSync holds the request open until anything the member can see
 // changes (or about 20 seconds pass). since is the revision the client has, after
 // the newest event id it has seen (leave it out to start: no events, just the

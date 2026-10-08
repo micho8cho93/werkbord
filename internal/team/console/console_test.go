@@ -11,7 +11,7 @@ import (
 
 func TestTheConsoleIsServedAndReadOnlyForOtherMethods(t *testing.T) {
 	h := Handler()
-	for _, path := range []string{"/", "/console.js", "/console.css"} {
+	for _, path := range []string{"/", "/console.js", "/console.css", "/theme.js", "/search.js", "/mark-dark.svg"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-cache" {
@@ -36,6 +36,15 @@ func TestTheConsoleNeverBuildsHTMLFromData(t *testing.T) {
 	for _, banned := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "setTimeout('", `setTimeout("`} {
 		if strings.Contains(string(js), banned) {
 			t.Errorf("console.js uses %s", banned)
+		}
+	}
+	search, err := fs.ReadFile(root, "search.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, banned := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
+		if strings.Contains(string(search), banned) {
+			t.Errorf("search.js uses %s", banned)
 		}
 	}
 	// A link built from server data is only ever followed if it is https: a pull

@@ -101,6 +101,9 @@ type TicketQueries interface {
 	InsertTicket(ctx context.Context, workspaceID string, k domain.Ticket) error
 	Ticket(ctx context.Context, workspaceID, projectID, id string) (domain.Ticket, error)
 	Tickets(ctx context.Context, workspaceID, projectID string) ([]domain.Ticket, error)
+	// SearchTickets returns bounded summaries, restricted to onlyMemberID's projects
+	// unless it is empty (the service has authorized viewing all projects).
+	SearchTickets(ctx context.Context, workspaceID, onlyMemberID, query string, limit int) ([]TicketMatch, error)
 	// ClaimTicket takes an available ticket for a member; it reports false when
 	// someone else got there first. The guard is in the write itself.
 	ClaimTicket(ctx context.Context, workspaceID, projectID, id, memberID, branch string, now time.Time) (bool, error)

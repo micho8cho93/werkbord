@@ -51,6 +51,7 @@ var workspaceRoutes = []string{
 	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token", "PUT /members/{id}/role",
 	"GET /projects", "POST /projects",
 	"GET /overview", "GET /my-work", "GET /reviews", "GET /sync",
+	"GET /search", // bounded, read-only lookup of visible projects and stored tickets; cannot execute or reach a computer
 	"POST /invites/join",
 	// The private network and the devices on it: addresses, roles, reachability, invitations
 	// and requests to join. A device's own routes are authenticated by its own credential.
@@ -262,7 +263,7 @@ func TestEveryProjectRouteHidesTheProjectFromOtherWorkspaces(t *testing.T) {
 		}
 	}
 	// Their own lists show nothing of ours.
-	for _, path := range []string{"/projects", "/overview", "/my-work", "/reviews", "/members"} {
+	for _, path := range []string{"/projects", "/overview", "/my-work", "/reviews", "/members", "/search?q=Secret", "/search?q=Ada"} {
 		if _, _, raw := rival.do("GET", v1+path, nil); strings.Contains(string(raw), "Secret") || strings.Contains(string(raw), "Ada") {
 			t.Errorf("GET %s shows another workspace: %s", path, raw)
 		}

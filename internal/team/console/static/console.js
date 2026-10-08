@@ -14,12 +14,13 @@
 //   Reviews    work waiting for a review
 //   Git        what the team's Werkbords have reported about the Git state
 //   Activity   what happened
+//   Members    the people in your organization
 'use strict';
 
 const app = document.getElementById('app');
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity']];
-const ADMIN_TABS = [['settings', 'This computer'], ['members', 'Members'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['members', 'Members']];
+const ADMIN_TABS = [['settings', 'This computer'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
 const PROJECT_TABS = new Set(['board', 'repository', 'activity', 'people']);
 
 const state = {
@@ -31,6 +32,7 @@ const state = {
   showArchived: false, newTicketOpen: false, column: 'in_progress', repoSection: 'attention',
   online: true,   // whether the live connection to the server is up
   desktop: null, device: null, joinLink: null,
+  memberQuery: '',
 };
 
 try {
@@ -74,7 +76,7 @@ function h(tag, attrs, ...kids) {
 
 // The Werkbord mark and wordmark, and "team": the head of every screen.
 function brand() {
-  return h('div', { class: 'brand' }, h('img', { src: 'mark.svg', alt: '', width: 30, height: 22 }), h('span', { class: 'wm' }, 'werkbord'), h('span', { class: 'prod' }, 'team'));
+  return h('div', { class: 'brand' }, h('img', { src: teamTheme.dark ? 'mark-dark.svg' : 'mark.svg', alt: '', width: 30, height: 22 }), h('span', { class: 'wm' }, 'werkbord'), h('span', { class: 'prod' }, 'team'));
 }
 // The same small stroke vocabulary as the individual app, kept within Team.
 function icon(name) {
@@ -86,6 +88,12 @@ function icon(name) {
     reviews: 'M3 2h10v12H3z M5 8l2 2 4-4',
     repository: 'M5 2v7a3 3 0 0 0 6 0V7 M3 2a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M9 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M3 13a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M5 9v2',
     activity: 'M1 8h3l2-5 4 10 2-5h3',
+    members: 'M6 7a2.5 2.5 0 1 0 0-5a2.5 2.5 0 1 0 0 5 M1 14v-1a5 5 0 0 1 10 0v1 M11 2a2.5 2.5 0 0 1 0 5 M12 9a4 4 0 0 1 3 4v1',
+    search: 'M7 2a5 5 0 1 0 0 10a5 5 0 1 0 0-10 M11 11l4 4',
+    sun: 'M8 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7 M8 0v2 M8 14v2 M0 8h2 M14 8h2 M2.3 2.3l1.4 1.4 M12.3 12.3l1.4 1.4 M2.3 13.7l1.4-1.4 M12.3 3.7l1.4-1.4',
+    moon: 'M13.5 10.5A6 6 0 0 1 5.5 2.5a6 6 0 1 0 8 8z',
+    close: 'M4 4l8 8 M4 12l8-8',
+    more: 'M3 7.5h.01 M8 7.5h.01 M13 7.5h.01',
     settings: 'M6 1h4l.5 2 2 .8 1.8-.6 1.5 2.6-1.4 1.4v2.3l1.4 1.4-1.5 2.6-1.8-.6-2 .8-.5 2H6l-.5-2-2-.8-1.8.6L.2 11l1.4-1.4V7.3L.2 5.9l1.5-2.6 1.8.6 2-.8z M8 5a3 3 0 1 0 0 6a3 3 0 1 0 0-6',
   };
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -93,6 +101,22 @@ function icon(name) {
   const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', paths[name] || paths.projects); svg.append(path);
   return svg;
 }
+
+function themeButton() {
+  const button = h('button', { class: 'theme-toggle', type: 'button', 'data-theme-toggle': true, onclick: () => teamTheme.toggle() });
+  updateThemeButton(button);
+  return button;
+}
+function updateThemeButton(button) {
+  const label = teamTheme.dark ? 'Light mode' : 'Dark mode';
+  button.setAttribute('aria-label', 'Switch to ' + label.toLowerCase());
+  button.title = 'Switch to ' + label.toLowerCase();
+  button.replaceChildren(icon(teamTheme.dark ? 'sun' : 'moon'), h('span', {}, label));
+}
+window.addEventListener('teamthemechange', () => {
+  document.querySelectorAll('[data-theme-toggle]').forEach(updateThemeButton);
+  document.querySelectorAll('.brand img').forEach(img => { img.src = teamTheme.dark ? 'mark-dark.svg' : 'mark.svg'; });
+});
 
 function settingsTab() { return ADMIN_TABS.some(([id]) => id === state.tab); }
 function availableSettings() { return ADMIN_TABS.filter(([id]) => !['hosts', 'connectivity', 'backups'].includes(id) || can('devices.view_all')); }
@@ -110,7 +134,8 @@ function navigation(counts) {
       projects.map(p => h('button', { type: 'button', 'aria-label': 'Open project ' + p.project.name, 'aria-current': PROJECT_TABS.has(state.tab) && state.projectId === p.project.id ? 'true' : null, title: p.project.name, onclick: () => openProject(p.project.id, PROJECT_TABS.has(state.tab) ? state.tab : 'board') },
         h('span', { class: 'project-dot', 'aria-hidden': 'true' }), h('span', { class: 'nav-label' }, p.project.name), badgeOn(p.toReview)))) : '',
     h('div', { class: 'rail-foot' },
-      h('nav', { class: 'rail-settings', 'aria-label': 'Settings' }, h('button', { name: 'nav-settings', type: 'button', 'aria-current': settingsTab() ? 'page' : null, onclick: () => go('settings') }, icon('settings'), h('span', {}, 'Settings'))),
+      h('nav', { class: 'rail-settings', 'aria-label': 'Settings' }, h('button', { name: 'nav-settings', type: 'button', 'aria-label': 'Settings', 'aria-current': settingsTab() ? 'page' : null, onclick: () => go('settings') }, icon('settings'), h('span', {}, 'Settings'))),
+      themeButton(),
       h('div', { class: 'profile' }, initial(state.me.member.name), h('div', { class: 'grow' }, h('strong', {}, state.me.member.name), h('span', { class: 'muted small' }, state.me.member.role)),
         state.desktop ? '' : h('button', { class: 'link small', onclick: signOut }, 'Sign out')),
       h('span', { class: 'connection', role: 'status' }, h('span', { class: 'status-dot', 'data-online': String(state.online), 'aria-hidden': 'true' }), state.online ? 'Connected' : 'Reconnecting')));
@@ -127,6 +152,16 @@ function sectionButtons(key, choices, label) {
     h('button', { type: 'button', 'aria-current': state[key] === id ? 'page' : null, onclick: () => { state[key] = id; render(); } }, title,
       count == null ? '' : h('span', { class: 'badge' }, String(count)))));
 }
+function revealActiveNavigation() {
+  const active = app.querySelector('.rail-primary [aria-current="page"]');
+  if (active && matchMedia('(max-width: 899px)').matches) active.parentElement.scrollLeft = Math.max(0, active.offsetLeft - 16);
+}
+matchMedia('(max-width: 899px)').addEventListener('change', revealActiveNavigation);
+let navigationResize = 0;
+window.addEventListener('resize', () => {
+  cancelAnimationFrame(navigationResize);
+  navigationResize = requestAnimationFrame(revealActiveNavigation);
+});
 function initial(name) { return h('span', { class: 'av', 'aria-hidden': 'true' }, (String(name || '?').trim()[0] || '?').toUpperCase()); }
 
 async function api(method, path, body, opts) {
@@ -163,10 +198,11 @@ function can(permission) { return state.me && state.me.permissions.includes(perm
 function pcan(permission) { return !!(state.data && state.data.board.can.includes(permission)); }
 
 function signOut() {
+  closeSearch(false);
   try { sessionStorage.removeItem('werkbord-team-token'); } catch (_) {}
   stopSync();
   drafts.clear(); draftVersions.clear(); renderedScope = "";
-  Object.assign(state, { token: null, me: null, ov: null, secret: null, data: null, ticketId: null, handoff: null });
+  Object.assign(state, { token: null, me: null, ov: null, secret: null, data: null, ticketId: null, handoff: null, memberQuery: '' });
   render();
 }
 
@@ -335,12 +371,12 @@ function render() { rendering = rendering.then(renderNow, renderNow); return ren
 
 async function renderNow() {
   const requestedScope = screenScope();
-  if (typeof desktopGate === 'function' && await desktopGate()) { app.classList.remove('signed-in'); return; }
-  if (!state.token) { stopSync(); app.classList.remove('signed-in'); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
+  if (typeof desktopGate === 'function' && await desktopGate()) { closeSearch(false); app.classList.remove('signed-in'); return; }
+  if (!state.token) { closeSearch(false); stopSync(); app.classList.remove('signed-in'); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
   try {
     [state.me, state.ov] = await Promise.all([api('GET', '/me'), api('GET', '/overview')]);
   } catch (e) {
-    if (state.desktop) { state.error = e.message; app.replaceChildren(desktopConnecting()); scheduleDesktopRefresh(); return; }
+    if (state.desktop) { closeSearch(false); state.error = e.message; app.replaceChildren(desktopConnecting()); scheduleDesktopRefresh(); return; }
     if (e instanceof TypeError) { // the network, not the token: keep what is on screen and keep trying
       setOnline(false);
       if (!app.firstChild || app.querySelector('.loading')) app.replaceChildren(unreachable());
@@ -348,10 +384,11 @@ async function renderNow() {
       return;
     }
     if (state.token) state.error = e.message;
+    closeSearch(false);
     app.classList.remove('signed-in'); app.replaceChildren(signIn());
     return;
   }
-  if (state.invite) { app.classList.remove('signed-in'); app.replaceChildren(joinScreen()); return; }
+  if (state.invite) { closeSearch(false); app.classList.remove('signed-in'); app.replaceChildren(joinScreen()); return; }
   setOnline(true);
   let body;
   try {
@@ -387,19 +424,19 @@ async function renderNow() {
     navigation(counts),
     h('main', { class: 'main-pane' },
       h('header', { class: 'top page-head' }, h('h1', { id: 'main-title', tabindex: '-1' }, title),
-        state.tab === 'workspace' ? h('span', { class: 'workspace-context' }, state.me.workspace.name) : ''),
+        state.tab === 'workspace' ? h('span', { class: 'workspace-context' }, state.me.workspace.name) : '', searchButton()),
       h('div', { class: 'main-content', 'data-scroll-key': 'main' },
         state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
         state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
         secretBox(), settingsTab() ? settingsLayout(body) : body))));
   restore(app, keep, previousScope === screenScope());
-  const activeNav = app.querySelector('.rail-primary [aria-current="page"]');
-  if (activeNav && matchMedia('(max-width: 899px)').matches) activeNav.parentElement.scrollLeft = Math.max(0, activeNav.offsetLeft - 16);
+  revealActiveNavigation();
   const columnNav = app.querySelector('.column-pills nav');
   const activeColumn = columnNav?.querySelector('[aria-current="page"]');
   if (activeColumn) columnNav.scrollLeft = Math.max(0, activeColumn.offsetLeft - columnNav.offsetLeft - (columnNav.clientWidth - activeColumn.offsetWidth) / 2);
   if (focusMain) { app.querySelector('#main-title').focus({ preventScroll: true }); focusMain = false; }
   renderedScope = screenScope();
+  refreshSearch();
 }
 
 function unreachable() {
@@ -411,7 +448,7 @@ function unreachable() {
 function signIn() {
   const input = h('input', { type: 'password', autocomplete: 'off', placeholder: 'wbt_…', required: true, 'aria-label': 'Token' });
   return h('div', { class: 'gate' },
-    h('header', { class: 'top' }, brand()),
+    h('header', { class: 'top' }, brand(), themeButton()),
     h('div', { class: 'panel' },
       h('h2', {}, 'Sign in'),
       state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
@@ -470,7 +507,7 @@ function joinScreen() {
         field('Your name', name), field('Email (optional)', email), h('button', { class: 'primary' }, 'Join')),
       h('p', { class: 'muted' }, 'Already have a token? ', h('button', { class: 'link', onclick: () => { state.error = ''; render_signin(); } }, 'Sign in first'), '.'));
   }
-  return h('div', { class: 'gate' }, h('header', { class: 'top' }, brand()), h('div', { class: 'panel' }, content));
+  return h('div', { class: 'gate' }, h('header', { class: 'top' }, brand(), themeButton()), h('div', { class: 'panel' }, content));
 }
 
 function render_signin() { const code = state.invite; state.invite = null; app.replaceChildren(signIn()); state.invite = code; }
@@ -588,26 +625,50 @@ function mergeBadge(it) {
 }
 
 function membersPanels(members) {
-  const rows = members.map((m) => h('div', { class: 'row' },
-    h('div', { class: 'grow' }, h('strong', {}, m.name), ' ', h('span', { class: 'muted' }, m.email || '')),
-    h('span', { class: 'badge' }, m.role),
-    (!state.desktop && (m.id === state.me.member.id || can('members.manage')))
-      ? h('button', { class: 'plain', onclick: () => act(async () => { const r = await api('POST', '/members/' + m.id + '/token'); const self = r.member.id === state.me.member.id;
-          if (self) { stopSync(); state.token = r.token; try { sessionStorage.setItem('werkbord-team-token', r.token); } catch (_) {} }
-          state.secret = { kind: 'token', name: r.member.name, self, token: r.token }; }) }, 'New token') : '',
-    (can('members.manage') && m.role !== 'owner')
-      ? h('button', { class: 'danger', onclick: () => confirm('Remove ' + m.name + ' from the workspace? Anything they are working on goes back on the board.') && act(() => api('DELETE', '/members/' + m.id)) }, 'Remove') : ''));
-  if (can('admins.manage')) members.forEach((m, i) => { if (m.role !== 'owner') rows[i].append(h('button', { class: 'plain', onclick: () => act(() => api('PUT', '/members/' + m.id + '/role', { role: m.role === 'admin' ? 'member' : 'admin' })) }, m.role === 'admin' ? 'Remove admin role' : 'Make admin')); });
-  const panels = [h('div', { class: 'panel' }, h('h2', {}, 'Members (' + members.length + ')'), rows)];
+  const ordered = [...members].sort((a, b) => a.name.localeCompare(b.name));
+  const rows = ordered.map(m => {
+    const actions = [];
+    if (!state.desktop && (m.id === state.me.member.id || can('members.manage'))) actions.push(
+      h('button', { class: 'plain', type: 'button', onclick: () => act(async () => {
+        const r = await api('POST', '/members/' + m.id + '/token'); const self = r.member.id === state.me.member.id;
+        if (self) { stopSync(); state.token = r.token; try { sessionStorage.setItem('werkbord-team-token', r.token); } catch (_) {} }
+        state.secret = { kind: 'token', name: r.member.name, self, token: r.token };
+      }) }, 'New token'));
+    if (can('admins.manage') && m.role !== 'owner') actions.push(h('button', { class: 'plain', type: 'button', onclick: () => act(() => api('PUT', '/members/' + m.id + '/role', { role: m.role === 'admin' ? 'member' : 'admin' })) }, m.role === 'admin' ? 'Remove admin role' : 'Make admin'));
+    if (can('members.manage') && m.role !== 'owner') actions.push(h('button', { class: 'danger', type: 'button', onclick: () => confirm('Remove ' + m.name + ' from the workspace? Anything they are working on goes back on the board.') && act(() => api('DELETE', '/members/' + m.id)) }, 'Remove'));
+    return h('div', { class: 'row member-row', 'data-member-id': m.id }, initial(m.name),
+      h('div', { class: 'grow' }, h('strong', {}, m.name), m.id === state.me.member.id ? h('span', { class: 'muted small member-you' }, 'You') : '', m.email ? h('div', { class: 'muted' }, m.email) : ''),
+      h('span', { class: 'badge member-role' }, m.role[0].toUpperCase() + m.role.slice(1)),
+      actions.length ? h('details', { class: 'member-manage', ontoggle: e => {
+        if (e.currentTarget.open) app.querySelectorAll('.member-manage[open]').forEach(other => { if (other !== e.currentTarget) other.open = false; });
+      } }, h('summary', { 'aria-label': 'Manage ' + m.name, title: 'Manage ' + m.name }, icon('more'), h('span', { class: 'sr-only' }, m.name)), h('div', { class: 'member-actions' }, actions)) : '');
+  });
+  const input = h('input', { name: 'member-filter', type: 'search', 'aria-label': 'Find a member', placeholder: 'Find a member…', value: state.memberQuery, autocomplete: 'off', oninput: () => { state.memberQuery = input.value; filter(); } });
+  const status = h('p', { class: 'muted member-filter-status', role: 'status', hidden: true });
+  const filter = () => {
+    const terms = state.memberQuery.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    let shown = 0;
+    rows.forEach((row, i) => {
+      const m = ordered[i], text = (m.name + ' ' + m.email + ' ' + m.role).toLocaleLowerCase();
+      row.hidden = !terms.every(term => text.includes(term));
+      if (!row.hidden) shown++; else { const menu = row.querySelector('details'); if (menu) menu.open = false; }
+    });
+    status.hidden = !terms.length;
+    status.textContent = shown ? plural(shown, 'member') + ' found' : 'No members found.';
+  };
+  filter();
+  const panels = [h('section', { class: 'panel member-directory', 'aria-label': 'Organization members' },
+    h('div', { class: 'section-head' }, h('h2', {}, state.me.workspace.name), h('span', { class: 'badge' }, plural(members.length, 'member'))),
+    input, status, h('div', { class: 'member-list' }, rows))];
   if (can('members.manage') && !state.desktop) {
     const name = h('input', { name: 'm-name', required: true, maxlength: 80 });
     const email = h('input', { name: 'm-email', type: 'email', maxlength: 254 });
-    panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Add a member'),
+    panels.push(h('aside', { class: 'member-tools' }, h('div', { class: 'panel' }, h('h2', {}, 'Add a member'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => { const r = await api('POST', '/members', { name: name.value, email: email.value });
           state.secret = { kind: 'token', name: r.member.name, token: r.token }; name.value = ''; email.value = ''; }); } },
-        field('Name', name), field('Email (optional)', email), h('button', { class: 'primary' }, 'Add'))));
+        field('Name', name), field('Email (optional)', email), h('button', { class: 'primary' }, 'Add')))));
   }
-  return h('div', {}, panels);
+  return h('div', { class: 'members-layout' }, panels);
 }
 
 // ---- projects ----
@@ -1104,12 +1165,18 @@ function readLocation() {
  state.ticketId = q.get('ticket') || null;
 }
 readLocation();
-window.addEventListener('popstate', () => { captureDrafts(); readLocation(); focusMain = true; state.data = null; state.handoff = null; render(); });
+window.addEventListener('popstate', () => { closeSearch(false); captureDrafts(); readLocation(); focusMain = true; state.data = null; state.handoff = null; render(); });
 window.addEventListener('keydown', e => {
+  if (e.defaultPrevented || searchSession) return;
+  if (e.key === 'Escape') {
+    const menu = app.querySelector('.member-manage[open]');
+    if (menu) { e.preventDefault(); menu.open = false; menu.querySelector('summary').focus(); return; }
+  }
   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
   if (e.key === 'Escape' && state.ticketId) { e.preventDefault(); state.ticketId = null; state.handoff = null; remember(); render(); }
   if (e.key.toLowerCase() === 'n' && state.tab === 'board' && pcan('tickets.create') && !state.data.board.project.archived) {
     e.preventDefault(); state.newTicketOpen = true; render().then(() => app.querySelector('[name="t-title"]')?.focus());
   }
 });
+document.addEventListener('click', e => { app.querySelectorAll('.member-manage[open]').forEach(menu => { if (!menu.contains(e.target)) menu.open = false; }); });
 window.addEventListener('load', () => render());

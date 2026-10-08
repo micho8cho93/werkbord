@@ -51,19 +51,29 @@ The console (the page Team serves at its address) is organised around one questi
 | **Reviews** | What needs a decision? | Tickets in review, those asked of you first: author, branch, pull request, commits, mergeability, and links to the pull request, branch and comparison on the Git host. Record that you merged, mark done, or request changes. Team does not reproduce a code-review interface; the diff is on the Git host. |
 | **Git** | What is the Git state? | What members' Werkbords reported: branches, pull requests, and what needs attention. The existing `?tab=repository` address is unchanged. |
 | **Activity** | What happened? | The project's history. |
+| **Members** | Who is in my organization? | The workspace-wide directory, searchable by name, email or role; member management and invitations for administrators. |
 
 The tab badges show what waits (available tickets, your tickets, reviews for you, repository problems). The console
 shows a banner when its live connection drops and refreshes everything by itself when it returns (see
 [Staying in step](#staying-in-step)).
 
 Desktop navigation sits in a sidebar with direct project shortcuts; changing projects keeps the current project
-section. **Settings** contains **This computer**, **Members**, **Devices**, **Workspace Hosts**, **Connectivity**,
+section. **Settings** contains **This computer**, **Devices**, **Workspace Hosts**, **Connectivity**,
 **Backups** and **License**, with a section list and reloadable addresses. On phones, primary navigation is one
 scrolling row and Settings remains visible. Workspace opens to the focused overview; actionable attention comes
 first on phones. Git separates attention, pull requests and branches. Small windows show one selected board
 column; large windows use the available width and height, with scrolling inside each column. **New ticket** (N)
 opens its form only when needed; Escape closes ticket details. Dragging a ticket between columns performs the
 same permitted action as claim, assign, submit or complete; it does not bypass ownership or review rules.
+
+**Search** in the heading, or **⌘/Ctrl K**, jumps to projects, tickets and sections. Search finds ticket keys, titles,
+descriptions, requirements and branch names across projects you can see, including archived work. Arrow keys select,
+Enter opens, and Escape closes search and returns focus to where you were working. Results are bounded; keep typing
+to narrow a broad query. Search stays open through live updates and preserves unsent edits.
+
+The **light/dark switch** beside Settings remembers your choice on this device. Until you choose, the operating
+system sets the theme. The saved theme applies before the page paints, including setup and sign-in.
+The preference is stored locally as `werkbord-team.theme`, independently of the individual app.
 
 **Clear Done** moves completed tickets into the board's searchable **Archive**. **Close ticket** can also archive
 unfinished work when the member has permission to manage it. Details, commits, pull requests and activity are
@@ -368,6 +378,11 @@ scoped to the caller (a project you are not on contributes nothing).
   merge it on your Git host, then record the merge"). The blocker uses the same rules `complete` enforces.
 - `GET /overview` — each project's counts by status, your tickets and reviews in it, repository problems and warnings,
   everyone's tickets in progress or in review (`working`), and how many tickets are `available`.
+- `GET /search?q=<text>` — at most 20 project references and 20 ticket summaries from visible projects in your
+  workspace, with `moreProjects`/`moreTickets` when the limit was reached. Ticket summaries carry only `id`, `key`,
+  `title`, `status`, `project` and `archived`; matching also covers stored ticket context and project names. All query
+  terms must match. Empty queries return empty lists; queries longer than 160 characters return `400`. Sections are
+  indexed by the console, filtered by your permissions. This is read-only coordination metadata.
 
 Links (`links.pullRequest`, `branch`, `compare`, `repository`, `commitPrefix`) are built from the project's repository
 address for GitHub and GitLab and from the reported pull-request address; Team never contacts the host.
@@ -568,6 +583,7 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `GET /overview` | any member | the projects you can see with their counts, everyone's work in progress, and what is available |
 | `GET /my-work` | any member | your tickets, pull requests, what needs your attention, and your branches' state |
 | `GET /reviews` | any member | tickets in review you may review or submitted, with mergeability and blockers |
+| `GET /search?q=text` | any member | bounded project/ticket lookup; workspace and project membership apply before limiting results |
 | `GET /sync?since=N&after=E&wait=S` | any member | workspace long poll with events; see [Staying in step](#staying-in-step). `429` when you hold too many |
 | `GET /projects/{id}/sync?since=N&wait=S` | on the project | the same for one project: `{revision, changed}` |
 | `POST /projects/{id}/tickets` `{title, description?, requirements?, status?}` | `tickets.create` | `status` is `backlog` (default) or `available` |

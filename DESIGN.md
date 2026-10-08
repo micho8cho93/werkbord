@@ -63,12 +63,12 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 - Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git ·
   Runs), floating New task button, column pills on the board, tables as two-line rows.
 
-### Team console (3.1)
+### Team console (3.2)
 
 Team uses the same paper, ink, Geist, icon strokes and action colours, with its own coordination sections:
-Workspace · Projects · Board · My Work · Reviews · Git · Activity. Desktop has a 232px rail (248px above
+Workspace · Projects · Board · My Work · Reviews · Git · Activity · Members. Desktop has a 232px rail (248px above
 1800px), project shortcuts and Settings at the foot. Changing projects keeps the current project section.
-Settings contains This computer, Members, Devices, Workspace Hosts, Connectivity, Backups and License;
+Settings contains This computer, Devices, Workspace Hosts, Connectivity, Backups and License;
 the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.
 
 The default Workspace shows Working now beside Needs you and Projects. Lists use spacing and dividers;
@@ -77,6 +77,12 @@ ticket titles 15px. The board fills the available width and height, with each co
 Below 1280px, a single selected column replaces the five-column board. Below 900px, primary navigation
 becomes a sticky scrolling row with an always-visible Settings button; the document scrolls, and actionable
 attention appears before the working list. N opens a new ticket and Escape closes ticket details.
+
+⌘/Ctrl K and the heading's Search button open a focused jump list of sections, projects and tickets. Its input keeps
+focus through live updates; arrows select and Enter opens. Escape restores the original focus and unsent edits.
+Members is an organization directory: initials, names, email and roles, with filtering and management in row menus.
+Light/dark sits beside Settings (an icon on phones), with Team's own per-device preference, independent of the
+individual app. `theme.js` resolves it before styles load and keeps the mark and browser chrome in step.
 
 ## Interaction rules
 
