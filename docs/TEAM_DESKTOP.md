@@ -59,4 +59,25 @@ Production builds use `make team-desktop-release` with `LICENSE_ISSUER_PUBLIC_KE
 
 `.github/workflows/release-team-desktop.yml` handles only Team product tags, independently of individual desktop updates. Protect its `team-desktop-release` environment with required reviewers and approved branches/product tags. Store Apple credentials and `TEAM_LICENSE_ISSUER_PUBLIC_KEY` there. Only the read-only build job receives them; the write-enabled publishing job uploads the DMG/checksum to the existing Team CLI release without changing latest/status. A fresh Mac verifies the downloaded checksum, signatures, notarization tickets and Gatekeeper assessment. A dispatch builds reviewable artifacts without publishing. No Sparkle or individual appcast is reused for Team.
 
+### Configure a signed Team release
+
+Create the **`team-desktop-release`** environment in the repository's [GitHub settings](https://github.com/micho8cho93/werkbord/settings/environments). Allow `main` for dry runs and `werkbord-team-v*` tags for releases, and add required reviewers. GitHub may create an empty environment when a workflow first references it; its existence does not mean signing is configured.
+
+Add these environment secrets. The Apple certificate and notarization key are obtained as described in [DESKTOP_RELEASE.md, steps 1–5](DESKTOP_RELEASE.md#1-enrol-in-the-apple-developer-program), but must be stored in **`team-desktop-release`** for this product. Secrets in the individual app's `desktop-release` environment are not available to Team.
+
+| Secret | Value |
+| --- | --- |
+| `APPLE_CERTIFICATE_P12` | Base64 of the Developer ID Application certificate and private key exported as `.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | The `.p12` export password |
+| `APPLE_NOTARY_KEY` | Complete text of the App Store Connect `.p8` API key |
+| `APPLE_NOTARY_KEY_ID` | The API key's ten-character Key ID |
+| `APPLE_NOTARY_ISSUER` | The API key's Issuer ID (UUID) |
+| `TEAM_LICENSE_ISSUER_PUBLIC_KEY` | The vendor's 32-byte Ed25519 **public** key, encoded as raw URL base64 (43 characters, no `=` padding) |
+
+`APPLE_SIGNING_IDENTITY` is optional when the certificate contains exactly one valid Developer ID Application identity. The license issuer's private key stays with the offline license issuer and is never uploaded to GitHub or bundled. Team does not need Sparkle signing keys.
+
+Run `gh workflow run release-team-desktop.yml --ref main` after the workflow change is on GitHub. The first check reports all missing or malformed credentials together before importing keys or building. A dry run produces the signed, notarized DMG as the `team-desktop` workflow artifact without publishing. After that succeeds, push the next Team release tag to publish it. Retrying a failed workflow uses its original commit; it does not pick up later workflow fixes.
+
+If no Apple signing credentials are available, `make team-desktop-package` still builds an ad hoc development DMG for local testing. It cannot satisfy the signed release workflow. A missing-credential failure leaves the independently published Team CLI archives available, but no desktop installer is published.
+
 Validation here builds and verifies an ad hoc development bundle without installing a system service. Real-service installation at boot and production notarization require a separate clean Mac acceptance run with the distributor’s signing credentials.

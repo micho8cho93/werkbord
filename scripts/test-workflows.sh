@@ -150,6 +150,14 @@ if team
   jobs = team["jobs"]
   check(jobs.select { |_,j| mentions_secret?(j) }.keys == ["build"], "Team signing secrets belong only in the read-only build job")
   check(perms(jobs["build"], team) == {"contents"=>"read"} && jobs["build"]["environment"] == "team-desktop-release", "Team signing needs its own protected environment")
+  steps = jobs["build"]["steps"]
+  preflight = steps.index { |s| s["run"].to_s == "scripts/check-release-secrets.sh team-desktop" }
+  check(preflight, "Team release must check all required credentials")
+  steps.each_with_index do |s, i|
+    handles_credentials = s["run"].to_s.match?(/ci-keychain.sh create|AuthKey\.p8|make team-desktop-release/)
+    sets_up_build = s["uses"].to_s.match?(%r{\Aactions/setup-(go|node)@})
+    check(preflight && preflight < i, "Team credentials must be checked before #{s['name'] || s['uses']}") if handles_credentials || sets_up_build
+  end
   check(jobs["build"]["steps"].any? { |s| s["if"].to_s == "always()" && s["run"].to_s.include?("ci-keychain.sh delete") }, "Team signing keychain must always be removed")
   %w[publish verify].each { |name| check(jobs[name]["if"].to_s.include?("push") && !jobs[name].key?("environment"), "#{name} must hold no signing secrets and never publish a dry run") }
   check(perms(jobs["publish"], team) == {"contents"=>"write"}, "only Team publishing needs repository write")

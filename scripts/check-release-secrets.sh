@@ -3,9 +3,10 @@
 # what they should, without ever printing one.
 #
 #   scripts/check-release-secrets.sh desktop        the signing, notarization and update-signing secrets
+#   scripts/check-release-secrets.sh team-desktop   the signing, notarization and license issuer secrets
 #
 # They come from the environment, which is where the workflow puts the repository's secrets. A missing one is named,
-# on one line, with the step of docs/DESKTOP_RELEASE.md that makes it, and the exit is non-zero: a release must not
+# on one line, with the product's release setup guide, and the exit is non-zero: a release must not
 # go on without them. A present one is checked for the mistake it is most likely to hold (the wrong file pasted,
 # a .p12 that was not base64-encoded), so that a dry run finds that out in a minute and not after the build.
 #
@@ -16,17 +17,27 @@
 #   NOTARY_KEY_ID                  5     its Key ID (the workflow's name for the APPLE_NOTARY_KEY_ID secret)
 #   NOTARY_ISSUER                  5     the Issuer ID, a UUID (the APPLE_NOTARY_ISSUER secret)
 #   SPARKLE_ED_PRIVATE_KEY         6     the private half of the update-signing key
+#   LICENSE_ISSUER_PUBLIC_KEY            Team's 32-byte Ed25519 public key (TEAM_LICENSE_ISSUER_PUBLIC_KEY secret)
 # APPLE_SIGNING_IDENTITY is optional (only when the certificate holds several identities).
 set -eu
 
 kind=${1:-}
-case "$kind" in desktop) ;; *) echo "usage: check-release-secrets.sh desktop" >&2; exit 2 ;; esac
+case "$kind" in
+  desktop) guide=docs/DESKTOP_RELEASE.md ;;
+  team-desktop) guide=docs/TEAM_DESKTOP.md ;;
+  *) echo "usage: check-release-secrets.sh desktop|team-desktop" >&2; exit 2 ;;
+esac
 
 missing=""
 wrong=""
 need() { # <env name> <secret name shown> <step>
   eval "value=\${$1:-}"
-  if [ -z "$value" ]; then missing="${missing:+$missing; }$2 (step $3)"; return 1; fi
+  if [ -z "$value" ]; then
+    label=$2
+    [ "$kind" != desktop ] || label="$label (step $3)"
+    missing="${missing:+$missing; }$label"
+    return 1
+  fi
   return 0
 }
 bad() { wrong="${wrong:+$wrong; }$1"; }
@@ -47,17 +58,27 @@ fi
 if need NOTARY_ISSUER APPLE_NOTARY_ISSUER 5; then
   printf '%s' "$NOTARY_ISSUER" | grep -Eq '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$' || bad "APPLE_NOTARY_ISSUER should be the Issuer ID, a UUID"
 fi
-# A release carries the updater, so it needs the update-signing key: its public half committed, its private half a secret.
-if [ ! -s "${SPARKLE_PUBLIC_KEY_FILE:-$(dirname "$0")/../desktop/build/darwin/sparkle-public-key}" ]; then
-  missing="${missing:+$missing; }desktop/build/darwin/sparkle-public-key, the update-signing public key that is committed (step 6)"
-fi
-if need SPARKLE_ED_PRIVATE_KEY SPARKLE_ED_PRIVATE_KEY 6; then
-  printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | grep -Eq '^[A-Za-z0-9+/=]{40,}$' || bad "SPARKLE_ED_PRIVATE_KEY should be one line of base64 (what generate_keys -x wrote)"
+if [ "$kind" = desktop ]; then
+  # Only the individual app carries the updater and needs its update-signing keys.
+  if [ ! -s "${SPARKLE_PUBLIC_KEY_FILE:-$(dirname "$0")/../desktop/build/darwin/sparkle-public-key}" ]; then
+    missing="${missing:+$missing; }desktop/build/darwin/sparkle-public-key, the update-signing public key that is committed (step 6)"
+  fi
+  if need SPARKLE_ED_PRIVATE_KEY SPARKLE_ED_PRIVATE_KEY 6; then
+    printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | grep -Eq '^[A-Za-z0-9+/=]{40,}$' || bad "SPARKLE_ED_PRIVATE_KEY should be one line of base64 (what generate_keys -x wrote)"
+  fi
+elif need LICENSE_ISSUER_PUBLIC_KEY TEAM_LICENSE_ISSUER_PUBLIC_KEY license; then
+  if [ ${#LICENSE_ISSUER_PUBLIC_KEY} -ne 43 ]; then
+    bad "TEAM_LICENSE_ISSUER_PUBLIC_KEY must be a 32-byte Ed25519 public key encoded as raw URL base64 (43 characters, no padding)"
+  else
+    case "$LICENSE_ISSUER_PUBLIC_KEY" in
+      *[!A-Za-z0-9_-]*) bad "TEAM_LICENSE_ISSUER_PUBLIC_KEY must use raw URL base64 (letters, digits, - and _)" ;;
+    esac
+  fi
 fi
 
 if [ -n "$missing" ] || [ -n "$wrong" ]; then
-  [ -z "$missing" ] || echo "::error::release: missing secrets: $missing. Nothing was built. See docs/DESKTOP_RELEASE.md." >&2
-  [ -z "$wrong" ] || echo "::error::release: secrets that look wrong: $wrong. See docs/DESKTOP_RELEASE.md." >&2
+  [ -z "$missing" ] || echo "::error::release: missing secrets: $missing. Nothing was built. See $guide." >&2
+  [ -z "$wrong" ] || echo "::error::release: secrets that look wrong: $wrong. See $guide." >&2
   exit 1
 fi
-echo "release: all the desktop release secrets are present and look right"
+echo "release: all the $kind release secrets are present and look right"
