@@ -55,6 +55,9 @@ var (
 	ErrBadSignature = errors.New("enrollment: the invitation's signature does not check out")
 	// ErrExpired: the invitation's time has passed.
 	ErrExpired = errors.New("enrollment: the invitation has expired")
+	// ErrClockBehind: the invitation says it was made later than this computer's clock allows, so
+	// this computer's clock is behind the clock of the one that made it (or that one is ahead).
+	ErrClockBehind = errors.New("enrollment: this computer's clock is behind the invitation's")
 	// ErrWrongWorkspace: the workspace the invitation names is not the one expected.
 	ErrWrongWorkspace = errors.New("enrollment: the invitation is for a different workspace than expected")
 )
@@ -73,6 +76,12 @@ const (
 	// CredentialBytes is the size of the one-time credential, in bytes: 256 random bits.
 	CredentialBytes = 32
 )
+
+// ClockSkew is how far two computers' clocks may differ before an invitation is
+// refused for it: the same allowance the workspace's certificates are issued with.
+// It only stops a clock that is plainly wrong from being trusted; the workspace
+// itself decides, by its own clock, whether the invitation is still usable.
+const ClockSkew = 5 * time.Minute
 
 // IDPrefix marks an invitation ID.
 const IDPrefix = "winv"
@@ -231,7 +240,9 @@ func Sign(inv Invitation, key ed25519.PrivateKey) (string, error) {
 // Parse reads a join link and checks everything that can be checked without
 // contacting anyone: that it is well formed, that its fingerprint is its key's,
 // that it was signed by that key and has not been changed since, and that it has
-// not expired at now.
+// not expired at now. When the only thing wrong is the time (ErrExpired,
+// ErrClockBehind) the verified invitation is returned with the error, so a caller
+// can say when it was made and when it ends.
 func Parse(link string, now time.Time) (Invitation, error) {
 	return parse(link, now, true)
 }
@@ -296,10 +307,10 @@ func parse(link string, now time.Time, checkTime bool) (Invitation, error) {
 		return Invitation{}, fmt.Errorf("%w: its fingerprint is not its key's", ErrBadSignature)
 	}
 	if checkTime && !now.Before(time.Unix(inv.ExpiresAt, 0)) {
-		return Invitation{}, ErrExpired
+		return inv, ErrExpired
 	}
-	if checkTime && time.Unix(inv.IssuedAt, 0).After(now.Add(30*time.Second)) {
-		return Invitation{}, ErrMalformed
+	if checkTime && time.Unix(inv.IssuedAt, 0).After(now.Add(ClockSkew)) {
+		return inv, ErrClockBehind
 	}
 	return inv, nil
 }
@@ -315,6 +326,9 @@ func (i Invitation) Key() (ed25519.PublicKey, error) {
 
 // Expiry is when the invitation stops working.
 func (i Invitation) Expiry() time.Time { return time.Unix(i.ExpiresAt, 0) }
+
+// Issued is when the invitation was made, by the clock of the computer that made it.
+func (i Invitation) Issued() time.Time { return time.Unix(i.IssuedAt, 0) }
 
 func (i Invitation) validate() error {
 	bad := func(format string, a ...any) error {

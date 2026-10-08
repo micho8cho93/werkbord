@@ -141,10 +141,35 @@ func (d *Daemon) inspectInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	inv, err := enrollment.Parse(in.Link, time.Now())
 	if err != nil {
-		daemonFail(w, errors.New("this invitation is invalid or has expired; ask your administrator for a new one"))
+		daemonFail(w, invitationProblem(inv, err, time.Now()))
 		return
 	}
 	httpkit.WriteJSON(w, 200, map[string]any{"name": inv.WorkspaceName, "identity": inv.Fingerprint, "expiresAt": inv.Expiry()})
+}
+
+// invitationProblem says, in words for the person joining, what is wrong with an invitation or with using it. The
+// workspace answers a spent, withdrawn, expired and mistaken invitation alike (so that nobody can probe for them), so
+// this is where the person learns the difference that can be known on their own computer: a clock that is wrong, a link
+// that was cut short, or an invitation that really has run out.
+func invitationProblem(inv enrollment.Invitation, err error, now time.Time) error {
+	const clock = "If it was only just made, check that this computer's date and time are set automatically (System Settings > General > Date & Time)."
+	switch {
+	case errors.Is(err, enrollment.ErrExpired):
+		return fmt.Errorf("this invitation ended on %s; this computer's clock says it is now %s. %s Otherwise ask your administrator for a new one",
+			inv.Expiry().Local().Format("2 Jan 15:04"), now.Local().Format("2 Jan 15:04"), clock)
+	case errors.Is(err, enrollment.ErrClockBehind):
+		return fmt.Errorf("this invitation was made at %s by the administrator's computer, but this computer's clock says it is only %s, so the two clocks disagree by %s. Set the date and time on this computer to automatic (System Settings > General > Date & Time) and try again",
+			inv.Issued().Local().Format("2 Jan 15:04:05"), now.Local().Format("2 Jan 15:04:05"), inv.Issued().Sub(now).Round(time.Second))
+	case errors.Is(err, enrollment.ErrBadSignature):
+		return errors.New("this invitation was changed or cut short after it was made: copy the whole link again, without anything added or missing at either end")
+	case errors.Is(err, enrollment.ErrMalformed):
+		return errors.New("this is not a Werkbord Team invitation link, or part of it is missing: copy the whole link, which starts with werkbord://join/")
+	case errors.Is(err, enrollment.ErrRefused):
+		return errors.New("the workspace did not accept this invitation. An invitation works once, even when joining then fails part of the way, and it can also have been withdrawn or have run out. Ask your administrator for a new one")
+	case errors.Is(err, enrollment.ErrNoEndpoint):
+		return fmt.Errorf("this computer could not reach the workspace at any address in the invitation (the administrator's computer must be on, on the same network, and allow incoming connections for Werkbord Team): %w", err)
+	}
+	return err
 }
 
 type pendingJoin struct {
@@ -180,7 +205,7 @@ func (d *Daemon) joinWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	inv, err := enrollment.Parse(in.Link, time.Now())
 	if err != nil {
-		daemonFail(w, err)
+		daemonFail(w, invitationProblem(inv, err, time.Now()))
 		return
 	}
 	if in.Name == "" || in.DeviceName == "" {
@@ -225,7 +250,7 @@ func (d *Daemon) joinWorkspace(w http.ResponseWriter, r *http.Request) {
 		}
 		res, err := enrollment.Join(ctx, inv, enrollment.JoinParams{Signer: keys, MemberName: in.Name, DeviceName: in.DeviceName, NetworkPublicKeyPEM: string(pub), SealingPublicKey: keys.SealingPublicKey()})
 		if err != nil && !errors.Is(err, enrollment.ErrPending) {
-			return err
+			return invitationProblem(inv, err, time.Now())
 		}
 		p.EnrollmentID = res.EnrollmentID
 		p.Response = &res.Response

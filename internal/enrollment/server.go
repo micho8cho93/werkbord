@@ -161,8 +161,9 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request) {
 		refuse(w)
 		return
 	}
-	key, ok := s.checkJoin(r, req)
-	if !ok {
+	key, why := s.checkJoin(r, req)
+	if why != "" {
+		s.log.Info("a request to join was refused", "why", why, "from", r.RemoteAddr)
 		refuse(w)
 		return
 	}
@@ -170,25 +171,28 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request) {
 	s.answer(w, r, resp, err)
 }
 
-func (s *Server) checkJoin(r *http.Request, req JoinRequest) (ed25519.PublicKey, bool) {
+// checkJoin verifies what can be verified before the workspace's records are looked at. It
+// returns the reason, for this host's own log, when the request must be refused: the person
+// who made the request is told only that it was refused.
+func (s *Server) checkJoin(r *http.Request, req JoinRequest) (ed25519.PublicKey, string) {
 	if !ValidID(req.InviteID) || !deviceid.ValidID(req.DeviceID) || req.Credential == "" || len(req.Credential) > 128 ||
 		len(req.NetworkPublicKey) == 0 || len(req.NetworkPublicKey) > 512 || len(req.SealingPublicKey) > 128 {
-		return nil, false
+		return nil, "the request is not shaped like a request to join"
 	}
 	kb, err := base64.RawURLEncoding.DecodeString(req.DevicePublicKey)
 	proof, err2 := base64.RawURLEncoding.DecodeString(req.Proof)
 	if err != nil || err2 != nil || len(kb) != ed25519.PublicKeySize {
-		return nil, false
+		return nil, "the device key or proof is not encoded as expected"
 	}
 	ex, err := exporter(*r.TLS)
 	if err != nil {
-		return nil, false
+		return nil, "the connection has no channel binding: " + err.Error()
 	}
 	key := ed25519.PublicKey(kb)
 	if !deviceid.Verify(key, JoinStatement(s.o.WorkspaceID, req, ex), proof) {
-		return nil, false
+		return nil, "the device's proof of possession does not verify (a different workspace or a different connection)"
 	}
-	return key, true
+	return key, ""
 }
 
 func (s *Server) poll(w http.ResponseWriter, r *http.Request) {
@@ -218,6 +222,9 @@ func (s *Server) answer(w http.ResponseWriter, r *http.Request, resp Response, e
 	case errors.As(err, &rej):
 		httpkit.WriteError(w, http.StatusConflict, "rejected", rej.Reason)
 	case errors.Is(err, ErrNotFound), errors.Is(err, ErrRefused):
+		// The caller learns nothing about why; this host's log does, so that an administrator can tell a spent
+		// invitation from an expired one from a wrong one.
+		s.log.Info("a request to join or to collect an approval was refused", "why", err.Error(), "from", r.RemoteAddr)
 		refuse(w)
 	case err != nil:
 		s.log.Error("enrollment failed", "err", err)

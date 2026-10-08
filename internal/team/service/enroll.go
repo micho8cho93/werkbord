@@ -382,10 +382,15 @@ func (e *enrollAuthority) Enroll(ctx context.Context, req enrollment.AuthorityJo
 		now := s.stamp()
 		inv, hash, err := tx.EnrollInvitationByID(ctx, req.InviteID)
 		if err != nil || inv.WorkspaceID != e.ws {
-			return enrollment.ErrNotFound
+			return notFoundBecause("no invitation %s in this workspace", req.InviteID)
 		}
-		if subtle.ConstantTimeCompare(hash, enrollment.HashCredential(req.Credential)) != 1 || !inv.Usable(now) {
-			return enrollment.ErrNotFound
+		if subtle.ConstantTimeCompare(hash, enrollment.HashCredential(req.Credential)) != 1 {
+			return notFoundBecause("invitation %s: the credential does not match", inv.ID)
+		}
+		if !inv.Usable(now) {
+			// Only the log says which: the person asking is told one thing for all of them.
+			return notFoundBecause("invitation %s is not usable: it is %s, it ends %s and it is now %s",
+				inv.ID, inv.State, inv.ExpiresAt.Format(time.RFC3339), now.Format(time.RFC3339))
 		}
 		// From here the credential is good, and the person holding it may be told what to change.
 		name, err := deviceid.CleanName(req.DeviceName)
@@ -415,7 +420,7 @@ func (e *enrollAuthority) Enroll(ctx context.Context, req enrollment.AuthorityJo
 			return err
 		}
 		if !used {
-			return enrollment.ErrNotFound
+			return notFoundBecause("invitation %s was used by another request at the same moment", inv.ID)
 		}
 		en := domain.Enrollment{ID: domain.NewID(domain.PrefixEnrollment), WorkspaceID: inv.WorkspaceID, InvitationID: inv.ID, MemberID: inv.ForMemberID, MemberName: memberName,
 			DeviceID: req.DeviceID, DeviceName: name, Capabilities: inv.Capabilities, State: domain.EnrollmentPending, RemoteAddr: req.RemoteAddr, CreatedAt: now,
@@ -424,7 +429,7 @@ func (e *enrollAuthority) Enroll(ctx context.Context, req enrollment.AuthorityJo
 			return enrollment.Reject(err.Error())
 		}
 		if err := tx.InsertEnrollment(ctx, en); err != nil {
-			return enrollment.ErrNotFound
+			return notFoundBecause("recording the request of device %s: %v", req.DeviceID, err)
 		}
 		if inv.RequireApproval {
 			resp = enrollment.Response{State: enrollment.StatePending, EnrollmentID: en.ID, Message: "an administrator has to approve this device"}
@@ -483,6 +488,12 @@ func (e *enrollAuthority) Poll(ctx context.Context, req enrollment.AuthorityPoll
 		s.changed(e.ws, nil)
 	}
 	return resp, nil
+}
+
+// notFoundBecause is enrollment.ErrNotFound with the reason attached, for this host's log. The protocol
+// answers every such refusal the same way, so the reason never reaches the caller.
+func notFoundBecause(format string, a ...any) error {
+	return fmt.Errorf("%w: %s", enrollment.ErrNotFound, fmt.Sprintf(format, a...))
 }
 
 // translate turns what the domain says into what the protocol does: a rejection stays one,

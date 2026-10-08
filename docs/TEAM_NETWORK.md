@@ -157,6 +157,11 @@ byte is sent.
 5. The workspace checks the credential in constant time against its hash, that the invitation is open and unexpired, and
    that nothing the joiner chose clashes (a name; a device ID). Every way an invitation can be unusable — never existed,
    wrong credential, expired, withdrawn, spent — gets the same answer. A refused guess does not use the invitation up.
+   The answer to the *joiner* is the same; the host's own log (`service.log` for the desktop service) records the reason,
+   without any credential, so an administrator can tell a spent invitation from a mistaken one.
+   Before connecting, the joining computer checks the invitation against its own clock and allows the two computers' clocks
+   to differ by five minutes (the same allowance the network's certificates are issued with). Beyond that it says the
+   clocks disagree, which is different from a link that is wrong or an invitation that has ended.
 6. **Optionally an administrator approves** (`werkbord-team network approval admin` for the whole workspace, or the
    invitation's own `--require-approval`). The device waits; the administrator sees its name and the fingerprint of its key
    (`werkbord-team network pending`) to compare with what the person reads out, and approves or denies. Nothing exists for a
