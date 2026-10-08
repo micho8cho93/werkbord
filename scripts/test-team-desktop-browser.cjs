@@ -74,6 +74,12 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.evaluate(async()=>{activeRequest={id:'ui-progress-fixture'};await pollRequest();});
  await page.waitForFunction(()=>activeRequest?.id==='ui-progress-fixture'&&activeRequest.state==='done');assert.equal(progressCalls,3);
  await page.unroute('**/api/team/v1/messages/ui-progress-fixture');console.log('PASS request progress continues after delivery and stops at its final result');
+ // A project invite is a code. The page's own address is this computer's, so a link would be useless to anyone else.
+ await page.locator('nav').getByRole('button',{name:'Projects',exact:true}).click();await page.getByRole('heading',{name:'Join a project with a code',exact:true}).waitFor();
+ await page.getByRole('button',{name:'People & invites',exact:true}).click();await page.getByRole('button',{name:'Create invite code',exact:true}).click();
+ const secret=page.locator('.secret');await secret.waitFor();const secretText=await secret.innerText();
+ assert(/wbi_[0-9a-f]{20,}/.test(secretText),'the invite code is shown');assert(!secretText.includes('http')&&!secretText.includes('127.0.0.1'),'no loopback link is offered');assert.equal(await secret.getByRole('button',{name:'Copy link',exact:true}).count(),0);
+ console.log('PASS project invite is a code, never a link to this computer');
  await page.goto(m.first+'/?tab=workspace');await page.waitForFunction(()=>state.ov?.projects.length===1);await shot(page,'desktop');await shot(page,'mobile',390,844);
  assert((await page.locator('#working-now').boundingBox()).y<844,'everyday work must appear in the first mobile viewport');
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(temp,'done'),'done');console.log('PASS no page errors or horizontal overflow; screenshots: '+artifacts);

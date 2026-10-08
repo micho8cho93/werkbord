@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -99,4 +100,36 @@ func FuzzProofParser(f *testing.F) {
 			}
 		}
 	})
+}
+
+// A clock that is off is told apart from a proof that is wrong, but only for a proof the device really signed: someone who
+// merely holds the bearer credential learns nothing from the time they sent.
+func TestAClockThatDisagreesIsReportedOnlyForAProofTheDeviceSigned(t *testing.T) {
+	pub, key, _ := ed25519.GenerateKey(rand.Reader)
+	now := time.Unix(1800000000, 0)
+	body := []byte(`{}`)
+	r, _ := http.NewRequest("POST", "http://10.128.0.1:7430/api/team/v1/projects", nil)
+	if err := Sign(r, body, testSigner{key}, "ws_a", "user_a", now.Add(-5*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Verify(r, body, pub, "ws_a", "user_a", "dev_a", now)
+	var skew *ClockError
+	if !errors.As(err, &skew) || !errors.Is(err, ErrInvalid) {
+		t.Fatalf("a device five minutes behind = %v", err)
+	}
+	if skew.Offset > -4*time.Minute || skew.Offset < -6*time.Minute {
+		t.Errorf("offset = %v, want about -5m (the device is behind)", skew.Offset)
+	}
+	ahead, _ := http.NewRequest("POST", "http://10.128.0.1:7430/api/team/v1/projects", nil)
+	_ = Sign(ahead, body, testSigner{key}, "ws_a", "user_a", now.Add(5*time.Minute))
+	if _, err := Verify(ahead, body, pub, "ws_a", "user_a", "dev_a", now); !errors.As(err, &skew) || skew.Offset < 4*time.Minute {
+		t.Errorf("a device five minutes ahead = %v", err)
+	}
+	// Signed by a different key: the time says nothing, because the proof is not the device's.
+	_, other, _ := ed25519.GenerateKey(rand.Reader)
+	forged, _ := http.NewRequest("POST", "http://10.128.0.1:7430/api/team/v1/projects", nil)
+	_ = Sign(forged, body, testSigner{other}, "ws_a", "user_a", now.Add(-5*time.Minute))
+	if _, err := Verify(forged, body, pub, "ws_a", "user_a", "dev_a", now); errors.As(err, &skew) || !errors.Is(err, ErrInvalid) {
+		t.Errorf("a forged proof with a wrong time = %v, want a plain ErrInvalid", err)
+	}
 }

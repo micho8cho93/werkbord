@@ -94,6 +94,15 @@ async function api(method, path, body, opts) {
   if (res.status === 401 && state.token && state.token !== credential) return api(method, path, body, opts);
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
+  // The host says why when the reason is not the token itself: a clock that disagrees, or a member token used from another
+  // computer. Signing the person out or telling them the device lost access would send them the wrong way.
+  const why = res.status === 401 && data.error && (data.error.code === 'clock_skew' || data.error.code === 'device_required') ? data.error : null;
+  if (why) {
+    const err = new Error(why.message);
+    err.status = 401; err.code = why.code;
+    if (why.code === 'device_required' && !state.desktop) { state.error = why.message; signOut(); } else stopSync();
+    throw err;
+  }
   if (res.status === 401 && state.desktop) throw new Error('This device no longer has workspace access. Ask your administrator to approve a new invitation.');
   if (res.status === 401 && state.token && state.token === credential) { signOut(); throw new Error('Your token is not valid any more. Sign in again.'); }
   if (!res.ok) {
@@ -362,17 +371,19 @@ function signIn() {
 function secretBox() {
   if (!state.secret) return '';
   const s = state.secret;
-  const link = location.origin + (s.kind === 'invite' ? '/#invite=' : '/#token=') + s.token;
+  const invite = s.kind === 'invite';
+  // A project invite is a code and nothing else. A link would carry this window's own address, which is this computer's
+  // (the Team app's window is a page of a service on 127.0.0.1) and means nothing on anyone else's.
+  const link = invite ? '' : location.origin + '/#token=' + s.token;
   return h('div', { class: 'secret', role: 'status' },
-    h('strong', {}, s.kind === 'invite' ? 'Invite for ' + s.name : s.self ? 'Your token' : 'Token for ' + s.name),
-    h('p', { class: 'muted' }, s.kind === 'invite'
-      ? 'Shown once; it is not stored and cannot be shown again. Anyone with this link can join the project until it expires or is used up, so send it privately.'
+    h('strong', {}, invite ? 'Invite code for ' + s.name : s.self ? 'Your token' : 'Token for ' + s.name),
+    h('p', { class: 'muted' }, invite
+      ? 'Shown once; it is not stored and cannot be shown again. Send it privately to someone who is already in this workspace: they paste it under Projects, in "Join a project with a code". It works until it expires or is used up.'
       : s.self ? 'Shown once; it is not stored and cannot be shown again. Keep it private: it is how you sign in.'
       : 'Shown once; it is not stored and cannot be shown again. Send it to them privately.'),
     h('code', {}, s.token),
-    h('span', { class: 'muted' }, s.kind === 'invite' ? 'Or the link to send: ' : s.self ? 'Or a link that signs you in: ' : 'Or a link that signs them in: '),
-    h('code', {}, link),
-    h('div', { class: 'actions' }, copy(link, 'Copy link'), copy(s.token, 'Copy ' + (s.kind === 'invite' ? 'code' : 'token')),
+    invite ? '' : [h('span', { class: 'muted' }, s.self ? 'Or a link that signs you in: ' : 'Or a link that signs them in: '), h('code', {}, link)],
+    h('div', { class: 'actions' }, invite ? '' : copy(link, 'Copy link'), copy(s.token, 'Copy ' + (invite ? 'code' : 'token')),
       h('button', { class: 'plain', onclick: () => { state.secret = null; render(); } }, 'Done')));
 }
 
@@ -516,7 +527,7 @@ async function workspaceView() {
         p.mine ? h('span', { class: 'badge' }, p.mine + ' yours') : '',
         p.toReview ? h('span', { class: 'badge warn' }, p.toReview + ' to review') : '',
         p.problems ? h('span', { class: 'badge bad' }, plural(p.problems, 'problem')) : ''))
-    : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet. Create one under Projects.' : 'You are not on any project yet. Ask for an invite link.');
+    : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet. Create one under Projects.' : 'You are not on any project yet. Ask for an invite code.');
 
   const health = can('devices.view_all') ? await resiliencePanel(Boolean(state.desktop)) : '';
   const work = h('div', {},
@@ -550,7 +561,7 @@ function membersPanels(members) {
     const name = h('input', { name: 'm-name', required: true, maxlength: 80 });
     const email = h('input', { name: 'm-email', type: 'email', maxlength: 254 });
     panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Add a member'),
-      h('p', { class: 'muted' }, 'Or invite people to a single project with an invite link from that project\'s People page.'),
+      h('p', { class: 'muted' }, 'Or invite people already in the workspace to a single project with an invite code from that project\'s People page.'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => { const r = await api('POST', '/members', { name: name.value, email: email.value });
           state.secret = { kind: 'token', name: r.member.name, token: r.token }; name.value = ''; email.value = ''; }); } },
         field('Name', name), field('Email (optional)', email), h('button', { class: 'primary' }, 'Add'))));
@@ -571,7 +582,14 @@ async function projectsView() {
     h('span', { class: 'muted' }, plural(p.people, 'person', 'people')),
     h('button', { class: 'plain', onclick: () => openProject(p.project.id, 'people') }, 'People & invites')));
   const panels = [h('div', { class: 'panel' }, h('h2', {}, 'Projects (' + projects.length + ')'),
-    rows.length ? rows : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet.' : 'You are not on any project yet. Ask for an invite link.'))];
+    rows.length ? rows : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet.' : 'You are not on any project yet. Ask for an invite code.'))];
+  const code = h('input', { name: 'join-code', required: true, maxlength: 200, autocomplete: 'off', placeholder: 'wbi_…' });
+  panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Join a project with a code'),
+    h('p', { class: 'muted' }, 'Paste the invite code someone on the project gave you. To join the workspace itself, you need an invitation from Members.'),
+    h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => {
+        const j = await api('POST', '/invites/join', { code: code.value.trim() });
+        code.value = ''; state.projectId = j.project.id; state.tab = 'board'; state.data = null; remember(); state.info = 'You joined ' + j.project.name + '.'; }); } },
+      field('Invite code', code), h('button', { class: 'primary' }, 'Join'))));
   if (can('projects.create')) {
     const name = h('input', { name: 'p-name', required: true, maxlength: 80 });
     const desc = h('input', { name: 'p-desc', maxlength: 2000 });
@@ -606,7 +624,7 @@ async function loadProject() {
 async function projectScopedView() {
   const cur = currentProject();
   if (!cur) return h('div', { class: 'panel' }, h('h2', {}, 'No project yet'),
-    h('p', { class: 'muted' }, can('projects.create') ? 'Create a project under Projects to get started.' : 'You are not on any project yet. Ask for an invite link.'));
+    h('p', { class: 'muted' }, can('projects.create') ? 'Create a project under Projects to get started.' : 'You are not on any project yet. Ask for an invite code.'));
   const d = await loadProject();
   const p = d.board.project;
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
@@ -1038,11 +1056,11 @@ function peopleTab(d) {
         live ? h('button', { class: 'danger', onclick: () => act(() => api('DELETE', '/projects/' + pid + '/invites/' + i.id)) }, 'Revoke') : '');
     });
     panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Invite people'),
-      h('p', { class: 'muted' }, 'Anyone with the link can join this project with a name of their choosing and gets their own token. Send it privately. It cannot be shown again.'),
+      h('p', { class: 'muted' }, 'The code lets someone who is already in this workspace join this project. To bring in a new person or computer, invite them from Members first. Send the code privately; it cannot be shown again.'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => {
           const r = await api('POST', '/projects/' + pid + '/invites', { role: role.value, maxUses: Number(uses.value) || 1, expiresInHours: Number(hours.value) || 168 });
           state.secret = { kind: 'invite', name: d.board.project.name + ' (' + r.invite.role + ')', token: r.code }; }); } },
-        field('They join as', role), field('Can be used', uses), field('Valid for (hours)', hours), h('button', { class: 'primary' }, 'Create invite link')),
+        field('They join as', role), field('Can be used', uses), field('Valid for (hours)', hours), h('button', { class: 'primary' }, 'Create invite code')),
       list.length ? h('div', {}, h('h3', {}, 'Invites'), list) : ''));
   }
   return h('div', {}, panels);

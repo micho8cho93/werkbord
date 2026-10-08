@@ -24,6 +24,19 @@ const domain = "werkbord-team/api-proof/v1\x00"
 
 var ErrInvalid = errors.New("invalid or expired device request proof")
 
+// ClockError is a proof that is valid in every way except that the two computers' clocks disagree by more than the
+// allowance: it was made too far in the future of the host's clock, or so long ago by it that it has run out. It is an
+// ErrInvalid, and says which way the device's clock is off so that the person can be told.
+type ClockError struct {
+	// Offset is the device's clock minus the host's: positive when the device is ahead.
+	Offset time.Duration
+}
+
+func (e *ClockError) Error() string {
+	return "the device's clock and the workspace host's clock disagree by " + e.Offset.Abs().Round(time.Second).String()
+}
+func (e *ClockError) Unwrap() error { return ErrInvalid }
+
 type Proof struct {
 	Version   int    `json:"v"`
 	Workspace string `json:"workspace"`
@@ -84,7 +97,7 @@ func Verify(r *http.Request, body []byte, key ed25519.PublicKey, ws, user, devic
 	if !bytes.Equal(raw, canonical) {
 		return p, ErrInvalid
 	}
-	if p.Version != 1 || p.Workspace != ws || p.User != user || p.Device != device || p.Method != r.Method || p.Target != r.Host || p.Path != r.URL.RequestURI() || p.BodyHash != bodyHash(body) || p.Issued <= 0 || p.Expires <= p.Issued || p.Expires-p.Issued > Lifetime.Milliseconds() || !now.Before(time.UnixMilli(p.Expires).Add(Skew)) || time.UnixMilli(p.Issued).After(now.Add(Skew)) {
+	if p.Version != 1 || p.Workspace != ws || p.User != user || p.Device != device || p.Method != r.Method || p.Target != r.Host || p.Path != r.URL.RequestURI() || p.BodyHash != bodyHash(body) || p.Issued <= 0 || p.Expires <= p.Issued || p.Expires-p.Issued > Lifetime.Milliseconds() {
 		return p, ErrInvalid
 	}
 	nonce, err := hex.DecodeString(p.Nonce)
@@ -94,6 +107,11 @@ func Verify(r *http.Request, body []byte, key ed25519.PublicKey, ws, user, devic
 	sig, err := base64.RawURLEncoding.Strict().DecodeString(p.Signature)
 	if err != nil || !ed25519.Verify(key, p.signingBytes(), sig) {
 		return p, ErrInvalid
+	}
+	// The time is judged last, so that only a request the device really signed is told that its clock is wrong.
+	issued := time.UnixMilli(p.Issued)
+	if issued.After(now.Add(Skew)) || !now.Before(time.UnixMilli(p.Expires).Add(Skew)) {
+		return p, &ClockError{Offset: issued.Sub(now)}
 	}
 	return p, nil
 }

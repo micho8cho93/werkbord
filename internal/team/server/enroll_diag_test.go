@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -116,5 +117,36 @@ func TestTheJoinerIsToldWhetherTheClockTheLinkOrTheInvitationIsWrong(t *testing.
 	}
 	if got := invitationProblem(inv, enrollment.ErrRefused, time.Now()).Error(); !strings.Contains(got, "works once") {
 		t.Errorf("a refused invitation = %s", got)
+	}
+}
+
+// A project code is for someone who is already in the workspace, and it works from their enrolled device with the device's
+// signed request, which is how it is used from another computer.
+func TestAMemberDeviceJoinsAProjectWithACodeFromAnotherComputer(t *testing.T) {
+	h, created, _ := newFirstHost(t, "localhost")
+	h.serve()
+	owner := h.owner(created)
+	p, err := h.svc.CreateProject(bg, owner, service.ProjectInput{Name: "Portal"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := h.svc.CreateInvite(bg, owner, p.ID, service.InviteInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := newDevice(t, "bo").join(h.invite(created, service.EnrollInviteInput{}).Link, "Bo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(Handler(h.db, h.svc, quiet(), "test"))
+	t.Cleanup(ts.Close)
+	status, body := post(t, ts.URL+"/api/team/v1/invites/join", res.Response.DeviceToken, `{"code":"`+code.Code+`"}`)
+	if status != 200 || !strings.Contains(body, `"name":"Portal"`) {
+		t.Fatalf("joining with the code = %d %s", status, body)
+	}
+	// A second use of a single-use code says so in the one way it can: not valid any more.
+	status, body = post(t, ts.URL+"/api/team/v1/invites/join", res.Response.DeviceToken, `{"code":"`+code.Code+`"}`)
+	if status == 200 {
+		t.Fatalf("a single-use code worked twice: %s", body)
 	}
 }

@@ -326,13 +326,19 @@ merge, or touch a repository; that stays in each developer's checkout and on the
 
 A project owner creates an **invite** (`POST /projects/{id}/invites`): the person joins as a `member` or a `reviewer`
 (never an owner), for up to 100 uses and 30 days (defaults: one use, seven days). The response carries the **code**
-(`wbi_` + 128 random bits) and the console shows the link `https://team.example.com/#invite=<code>` once. Only the code's
-hash is stored; listings never show it. An invite can be revoked.
+(`wbi_` + 128 random bits), which the console shows once, **as a code and not as a link**: a page's own address is the address
+of the computer it is open on (the Team app's window is a page of a service on `127.0.0.1`), so a link would mean nothing to
+anyone else. Only the code's hash is stored; listings never show it. An invite can be revoked.
 
-- Someone without an account opens the link, picks a name, and `POST /invites/redeem` (the one unauthenticated call
-  besides `/health`) creates their workspace membership, their own token, and their place on the project, in one step.
-  If anything fails (the name is taken, say) the use is not counted.
-- Someone who already has an account in the workspace uses `POST /invites/join` while signed in.
+- Someone who is already in the workspace uses `POST /invites/join` from their enrolled device: in the console, **Projects >
+  Join a project with a code**.
+- A person who is new to the workspace first joins it with an invitation from **Members**, which also sets up their computer;
+  after that the code works. `POST /invites/redeem` (a new member and token from a bare code) is answered only to the
+  computer the host runs on: from another computer it is refused with `403 device_required` and an explanation.
+  Where it is allowed, if anything fails (the name is taken, say) the use is not counted.
+- A member token used from another computer is refused with `401 device_required` (it is local administration only), and a
+  device whose clock differs from the host's by more than the proof's 30 seconds of skew with `401 clock_skew`. Both say so
+  in their message; the console shows it and does not sign the person out.
 - A code that never existed, expired, was revoked or is used up all answer the same `404`, so codes cannot be probed.
   The check and the use are one `UPDATE`, so a single-use invite cannot be spent twice.
 

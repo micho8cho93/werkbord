@@ -163,7 +163,8 @@ func (s *Server) Handler() http.Handler {
 	// invite code is their credential.
 	mux.HandleFunc("POST /api/team/v1/invites/redeem", func(w http.ResponseWriter, r *http.Request) {
 		if s.opt.RequireDeviceProof && !loopbackRequest(r) {
-			s.fail(w, r, domain.ErrUnauthenticated)
+			// Not a bare 401: the person holding a project code is probably not wrong about the code.
+			httpkit.WriteError(w, http.StatusForbidden, "device_required", "A project code is for people who are already in this workspace. New people join with an invitation from Members, which also sets up their computer; after that, use the code under Projects.")
 			return
 		}
 		s.handleRedeemInvite(w, r)
@@ -200,7 +201,8 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 		}
 		if s.opt.RequireDeviceProof && (actor.Device != nil || !loopbackRequest(r)) {
 			if actor.Device == nil {
-				s.fail(w, r, domain.ErrUnauthenticated)
+				w.Header().Set("WWW-Authenticate", `Bearer realm="werkbord-team"`)
+				httpkit.WriteError(w, http.StatusUnauthorized, "device_required", "A member token only works on the computer that hosts the workspace. To use this workspace from another computer, join it there with an invitation from Members in the Werkbord Team app.")
 				return
 			}
 			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
@@ -216,6 +218,12 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			}
 			proof, err := authproof.Verify(r, body, key, actor.Workspace.ID, actor.Member.ID, actor.Device.ID, time.Now())
 			if err != nil {
+				var skew *authproof.ClockError
+				if errors.As(err, &skew) {
+					w.Header().Set("WWW-Authenticate", `Bearer realm="werkbord-team"`)
+					httpkit.WriteError(w, http.StatusUnauthorized, "clock_skew", clockMessage(skew.Offset))
+					return
+				}
 				s.fail(w, r, domain.ErrUnauthenticated)
 				return
 			}
@@ -229,6 +237,16 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 		ctx := service.AuthenticatedContext(r.Context(), actor)
 		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, ctxKey{}, actor)))
 	})
+}
+
+// clockMessage tells the person whose device is refused for its clock which way it is wrong. offset is the device's clock
+// minus the host's.
+func clockMessage(offset time.Duration) string {
+	way := "behind"
+	if offset > 0 {
+		way = "ahead of"
+	}
+	return fmt.Sprintf("This computer's clock is about %s %s the workspace host's, which is more than Team allows. Turn on Set date and time automatically in System Settings (General > Date & Time), then try again.", offset.Abs().Round(time.Second), way)
 }
 
 func loopbackRequest(r *http.Request) bool {
