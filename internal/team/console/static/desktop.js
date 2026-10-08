@@ -73,7 +73,7 @@ function onboardingScreen() {
         : h('form', { onsubmit: e => { e.preventDefault(); act(check); } }, field('Invitation link', link), h('button', { class: 'primary' }, 'Verify invitation')),
       alwaysOnHelp());
   }
-  return setupShell(h('h1', {}, 'Bring your team together'), h('p', { class: 'muted' }, 'A shared workspace for projects, tickets and reviews. Your work stays on your own computers.'),
+  return setupShell(h('h1', {}, 'Set up Team'),
     error ? h('p', { class: 'error', role: 'alert' }, error) : '',
     h('div', { class: 'actions setup-actions' }, h('button', { class: 'primary', onclick: () => { setupView = 'create'; render(); } }, 'Create Team'), h('button', { class: 'plain', onclick: () => { setupView = 'join'; render(); } }, 'Join Team')),
     alwaysOnHelp(), nativeApp() ? h('button', { class: 'link', onclick: () => act(async () => { await nativeApp().Service('uninstall'); state.serviceRemoved = true; }) }, 'Remove Team service and local settings') : '');
@@ -122,7 +122,7 @@ async function resiliencePanel(compact = false) {
 
 async function membersView() {
   const members = await api('GET', '/members');
-  return h('div', {}, membersPanels(members), can('members.manage') ? await invitationsPanel(members) : '', h('p', { class: 'muted' }, 'Admins manage the workspace. Hosts keep it available. These are separate responsibilities: an admin does not automatically become a Host, and a Host does not automatically become an admin.'));
+  return h('div', {}, membersPanels(members), can('members.manage') ? await invitationsPanel(members) : '');
 }
 
 let createdInvitation = null;
@@ -171,7 +171,7 @@ async function devicesView(hostsOnly) {
   });
   const pending = admins ? await api('GET', '/enrollments') : [];
   return h('div', {}, hostsOnly ? await resiliencePanel() : '', h('section', { class: 'panel' }, h('h2', {}, hostsOnly ? 'Choose Workspace Hosts' : 'Registered devices'),
-    h('p', { class: 'muted' }, hostsOnly ? 'Three always-on hosts are recommended. Devices join first; an administrator then grants the Host role. A Host keeps Team available and does not execute members’ work.' : 'Each computer has its own identity and access. Revoking a device ends its connection.'),
+    hostsOnly ? h('p', { class: 'muted' }, 'Keep three Workspace Hosts online to tolerate one outage.') : '',
     rows.length ? rows : h('p', { class: 'muted' }, 'No devices are registered yet.')),
     pending.length ? h('section', { class: 'panel' }, h('h2', {}, 'Waiting for approval'), pending.map(p => h('div', { class: 'row' }, h('div', { class: 'grow' }, h('strong', {}, p.deviceName), h('p', { class: 'muted' }, p.memberName || 'Existing member')), h('button', { class: 'primary', onclick: () => act(() => api('POST', '/enrollments/' + p.id + '/approve')) }, 'Approve device'), h('button', { class: 'danger', onclick: () => act(() => api('POST', '/enrollments/' + p.id + '/deny')) }, 'Deny')))) : '',
     activeRequest ? requestPanel() : '', runnerStatus ? runnerStatusPanel() : '', alwaysOnHelp());
@@ -222,7 +222,8 @@ function runnerSetup() {
 }
 
 async function settingsView() {
-  if (!state.desktop) return h('section', { class: 'panel' }, h('h2', {}, 'Device settings'), h('p', { class: 'muted' }, 'Open Werkbord Team on this computer to manage its service and runner approvals.'));
+  if (!state.desktop) return h('section', { class: 'panel' }, h('h2', {}, 'Device settings'), h('p', { class: 'muted' }, 'Manage this computer’s service and runner approvals in the Team desktop app.'),
+    h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: signOut }, 'Sign out of workspace')));
   const s = state.device.settings;
   const form = h('select', { name: 'computer-kind' }, [['', 'Choose…'], ['desktop', 'Desktop / Mac mini'], ['laptop', 'Laptop'], ['server', 'Server / NAS']].map(([value, label]) => h('option', { value, selected: s.form === value || (!s.form && !value) }, label)));
   const policy = h('select', { name: 'remote-policy' }, [['ask', 'Approve each task on this computer'], ['off', 'Do not allow remote starts'], ['auto', 'Allow starts for tickets from my trusted devices']].map(([value, label]) => h('option', { value, selected: s.remoteStart === value }, label)));

@@ -1,6 +1,4 @@
 /* The separate Team device experience extends the existing Werkbord tokens. */
-.admin-tabs { border-bottom: 0; margin-top: -14px; padding-bottom: 8px; gap: 2px; }
-.admin-tabs button { height: 34px; font-size: 12px; padding: 0 10px; }
 .desktop-gate { max-width: 620px; margin: 8vh auto 0; }
 .setup-panel { padding: 28px; }
 .setup-panel h1 { font-size: 24px; margin-bottom: 12px; }
@@ -34,10 +32,4 @@ input, textarea { caret-color: var(--accent); }
   .desktop-gate { margin-top: 16px; }
   .setup-panel { padding: 20px; }
   .health-checks { grid-template-columns: minmax(130px, 1fr) minmax(0, 1.4fr); }
-  .admin-tabs { gap: 0; }
-  .admin-tabs button { height: 42px; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .setup-panel { animation: setup-arrive 180ms cubic-bezier(.16, 1, .3, 1); }
-  @keyframes setup-arrive { from { clip-path: inset(0 0 8px); } to { clip-path: inset(0); } }
 }

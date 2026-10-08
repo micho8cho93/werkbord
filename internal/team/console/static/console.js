@@ -12,14 +12,14 @@
 //   Board      one project's tickets
 //   My Work    what you are doing, and what waits for you
 //   Reviews    work waiting for a review
-//   Repository what the team's Werkbords have reported about the Git state
+//   Git        what the team's Werkbords have reported about the Git state
 //   Activity   what happened
 'use strict';
 
 const app = document.getElementById('app');
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Repository'], ['activity', 'Activity']];
-const ADMIN_TABS = [['members', 'Members'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License'], ['settings', 'Settings']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity']];
+const ADMIN_TABS = [['settings', 'This computer'], ['members', 'Members'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
 const PROJECT_TABS = new Set(['board', 'repository', 'activity', 'people']);
 
 const state = {
@@ -28,7 +28,7 @@ const state = {
   ov: null,       // the workspace overview: the projects, and the counts the navigation shows
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
-  showArchived: false, newTicketOpen: false, column: 'in_progress', repoSection: 'attention', workspaceSection: 'working',
+  showArchived: false, newTicketOpen: false, column: 'in_progress', repoSection: 'attention',
   online: true,   // whether the live connection to the server is up
   desktop: null, device: null, joinLink: null,
 };
@@ -76,8 +76,54 @@ function h(tag, attrs, ...kids) {
 function brand() {
   return h('div', { class: 'brand' }, h('img', { src: 'mark.svg', alt: '', width: 30, height: 22 }), h('span', { class: 'wm' }, 'werkbord'), h('span', { class: 'prod' }, 'team'));
 }
+// The same small stroke vocabulary as the individual app, kept within Team.
+function icon(name) {
+  const paths = {
+    workspace: 'M2 2h5v5H2z M9 2h5v5H9z M2 9h5v5H2z M9 9h5v5H9z',
+    projects: 'M1.5 4V2.5h5l1.5 2h6.5v9H1.5z',
+    board: 'M2 2h12v12H2z M6 2v12 M10 2v12',
+    mywork: 'M5 3H2v11h12V3h-3 M5 2h6v3H5z M5 9l2 2 4-4',
+    reviews: 'M3 2h10v12H3z M5 8l2 2 4-4',
+    repository: 'M5 2v7a3 3 0 0 0 6 0V7 M3 2a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M9 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M3 13a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M5 9v2',
+    activity: 'M1 8h3l2-5 4 10 2-5h3',
+    settings: 'M6 1h4l.5 2 2 .8 1.8-.6 1.5 2.6-1.4 1.4v2.3l1.4 1.4-1.5 2.6-1.8-.6-2 .8-.5 2H6l-.5-2-2-.8-1.8.6L.2 11l1.4-1.4V7.3L.2 5.9l1.5-2.6 1.8.6 2-.8z M8 5a3 3 0 1 0 0 6a3 3 0 1 0 0-6',
+  };
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [key, value] of Object.entries({ viewBox: '0 0 16 16', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
+  const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', paths[name] || paths.projects); svg.append(path);
+  return svg;
+}
+
+function settingsTab() { return ADMIN_TABS.some(([id]) => id === state.tab); }
+function availableSettings() { return ADMIN_TABS.filter(([id]) => !['hosts', 'connectivity', 'backups'].includes(id) || can('devices.view_all')); }
+
+function navigation(counts) {
+  const projects = state.ov.projects.filter(p => !p.project.archived);
+  return h('aside', { class: 'rail', 'aria-label': 'Werkbord Team navigation' },
+    h('button', { class: 'brand-home', type: 'button', onclick: () => go('workspace'), 'aria-label': 'Werkbord Team workspace' }, brand()),
+    h('div', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name),
+    h('nav', { class: 'rail-primary', 'aria-label': 'Werkbord Team' }, TABS.map(([id, label]) =>
+      h('button', { name: 'nav-' + id, type: 'button', 'aria-label': label, 'aria-description': counts[id] ? plural(counts[id], 'ticket') : null, 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, icon(id), h('span', { class: 'nav-label' }, label),
+        badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'reviews' ? '' : 'quiet')))),
+    projects.length ? h('nav', { class: 'project-links', 'aria-label': 'Projects' },
+      h('span', { class: 'lab' }, 'Projects'),
+      projects.map(p => h('button', { type: 'button', 'aria-label': 'Open project ' + p.project.name, 'aria-current': PROJECT_TABS.has(state.tab) && state.projectId === p.project.id ? 'true' : null, title: p.project.name, onclick: () => openProject(p.project.id, PROJECT_TABS.has(state.tab) ? state.tab : 'board') },
+        h('span', { class: 'project-dot', 'aria-hidden': 'true' }), h('span', { class: 'nav-label' }, p.project.name), badgeOn(p.toReview)))) : '',
+    h('div', { class: 'rail-foot' },
+      h('nav', { class: 'rail-settings', 'aria-label': 'Settings' }, h('button', { name: 'nav-settings', type: 'button', 'aria-current': settingsTab() ? 'page' : null, onclick: () => go('settings') }, icon('settings'), h('span', {}, 'Settings'))),
+      h('div', { class: 'profile' }, initial(state.me.member.name), h('div', { class: 'grow' }, h('strong', {}, state.me.member.name), h('span', { class: 'muted small' }, state.me.member.role)),
+        state.desktop ? '' : h('button', { class: 'link small', onclick: signOut }, 'Sign out')),
+      h('span', { class: 'connection', role: 'status' }, h('span', { class: 'status-dot', 'data-online': String(state.online), 'aria-hidden': 'true' }), state.online ? 'Connected' : 'Reconnecting')));
+}
+
+function settingsLayout(body) {
+  return h('div', { class: 'settings-layout' },
+    h('nav', { class: 'settings-sections', 'aria-label': 'Team administration' }, availableSettings().map(([id, label]) =>
+      h('button', { type: 'button', 'aria-current': state.tab === id ? 'page' : null, onclick: () => go(id) }, label))),
+    h('div', { class: 'settings-content' }, body));
+}
 function sectionButtons(key, choices, label) {
-  return h('nav', { class: 'section-controls', 'aria-label': label }, choices.map(([id, title, count]) =>
+  return h('nav', { class: 'section-controls', 'aria-label': label, 'data-scroll-key': 'section-' + key }, choices.map(([id, title, count]) =>
     h('button', { type: 'button', 'aria-current': state[key] === id ? 'page' : null, onclick: () => { state[key] = id; render(); } }, title,
       count == null ? '' : h('span', { class: 'badge' }, String(count)))));
 }
@@ -184,6 +230,7 @@ app.addEventListener('input', touched);
 app.addEventListener('change', touched);
 function snapshot(root) {
  const keep = { fields: {}, details: {}, focus: null, scroll: { x: window.scrollX, y: window.scrollY } };
+ keep.regions = [...root.querySelectorAll('[data-scroll-key]')].map(el => ({ key: el.dataset.scrollKey, x: el.scrollLeft, y: el.scrollTop }));
  for (const el of root.querySelectorAll('[name]')) {
   if (el.dataset.dirty === '1' && el.type !== 'file') keep.fields[el.name] = { v: el.type === 'checkbox' ? el.checked : el.value };
   if (el === document.activeElement) keep.focus = { name: el.name, start: el.selectionStart, end: el.selectionEnd };
@@ -213,6 +260,7 @@ function restore(root, keep, focus) {
   try { if (keep.focus.start != null) el.setSelectionRange(keep.focus.start, keep.focus.end); } catch (_) {}
  }
  if (focus && keep.scroll) window.scrollTo(keep.scroll.x, keep.scroll.y);
+ for (const region of keep.regions || []) for (const el of root.querySelectorAll('[data-scroll-key]')) if (el.dataset.scrollKey === region.key) { el.scrollLeft = region.x; el.scrollTop = region.y; }
 }
 function discardTicketDraft(id) {
  draftVersions.delete(id);
@@ -222,11 +270,15 @@ function discardTicketDraft(id) {
 function ticketVersion(k) { return draftVersions.get(k.id) || k.version; }
 
 // The connection banner and the toasts live outside #app, so a re-render never removes them.
-const banner = h('p', { class: 'banner', role: 'status', hidden: true }, 'Reconnecting… what you see may be out of date. It will refresh by itself when the connection is back.');
+const banner = h('p', { class: 'banner', role: 'status', hidden: true }, 'Reconnecting… Work may be out of date.');
 const toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
 document.body.prepend(banner);
 document.body.append(toasts);
-function setOnline(on) { state.online = on; banner.hidden = on; }
+function setOnline(on) {
+  state.online = on; banner.hidden = on;
+  const status = app.querySelector('.connection');
+  if (status) status.replaceChildren(h('span', { class: 'status-dot', 'data-online': String(on), 'aria-hidden': 'true' }), on ? 'Connected' : 'Reconnecting');
+}
 
 // When the workspace's storage has no quorum of Workspace Hosts, reading works and every change is refused until enough of them
 // are back; the server says so in /health, and this says it to the person, so that a refused change is not a mystery.
@@ -257,8 +309,9 @@ function toast(message) {
 // ---- navigation ----
 
 function navTab() { return state.tab === 'people' ? 'projects' : state.tab; }
-function go(tab) { state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.info = ''; remember(); return render(); }
-function openProject(id, tab) { state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; remember(); return render(); }
+let focusMain = false;
+function go(tab) { focusMain = true; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.info = ''; remember(); return render(); }
+function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; remember(); return render(); }
 function openTicket(projectId, ticketId) { state.projectId = projectId; state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; remember(); return render(); }
 function openInRunner(it) { return act(async () => { state.handoff = await api('POST', itemPath(it) + '/handoff'); }); }
 function itemPath(it) { return '/projects/' + it.project.id + '/tickets/' + it.ticket.id; }
@@ -282,8 +335,8 @@ function render() { rendering = rendering.then(renderNow, renderNow); return ren
 
 async function renderNow() {
   const requestedScope = screenScope();
-  if (typeof desktopGate === 'function' && await desktopGate()) return;
-  if (!state.token) { stopSync(); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
+  if (typeof desktopGate === 'function' && await desktopGate()) { app.classList.remove('signed-in'); return; }
+  if (!state.token) { stopSync(); app.classList.remove('signed-in'); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
   try {
     [state.me, state.ov] = await Promise.all([api('GET', '/me'), api('GET', '/overview')]);
   } catch (e) {
@@ -295,10 +348,10 @@ async function renderNow() {
       return;
     }
     if (state.token) state.error = e.message;
-    app.replaceChildren(signIn());
+    app.classList.remove('signed-in'); app.replaceChildren(signIn());
     return;
   }
-  if (state.invite) { app.replaceChildren(joinScreen()); return; }
+  if (state.invite) { app.classList.remove('signed-in'); app.replaceChildren(joinScreen()); return; }
   setOnline(true);
   let body;
   try {
@@ -320,7 +373,7 @@ async function renderNow() {
   const previousScope = renderedScope;
   captureDrafts();
   const keep = drafts.get(screenScope());
-  app.classList.toggle('wide', state.tab === 'board');
+  app.classList.add('signed-in');
   const ov = state.ov;
   const counts = {
     board: sum(ov.projects, (p) => p.counts.available || 0),
@@ -328,24 +381,24 @@ async function renderNow() {
     reviews: sum(ov.projects, (p) => p.toReview),
     repository: sum(ov.projects, (p) => p.problems),
   };
-  app.replaceChildren(h('div', {},
-    h('header', { class: 'top' },
-      brand(),
-      h('div', { class: 'ws' }, h('span', { class: 'lab' }, 'workspace'), h('h1', {}, state.me.workspace.name)),
-      h('div', { class: 'who' }, initial(state.me.member.name), h('span', { class: 'name' }, state.me.member.name), h('span', { class: 'chip' }, state.me.member.role),
-        state.desktop ? h('span', { class: 'chip' }, 'Service running') : h('button', { class: 'link', onclick: signOut }, 'Sign out'))),
-    h('p', { class: 'note' }, 'Team coordinates the work. It does not run anything: every member uses their own computer, ',
-      'their own Werkbord runner and their own Git, GitHub and agent credentials.'),
-    h('nav', { class: 'tabs', 'aria-label': 'Werkbord Team' }, TABS.map(([id, label]) =>
-      h('button', { 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, label,
-        badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'board' ? 'quiet' : ''), ''))),
-    h('nav', { class: 'tabs admin-tabs', 'aria-label': 'Team administration' }, ADMIN_TABS.filter(([id]) => !['hosts', 'connectivity', 'backups'].includes(id) || can('devices.view_all')).map(([id, label]) =>
-      h('button', { 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, label))),
-    state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
-    state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
-    secretBox(),
-    body));
+  const title = settingsTab() ? 'Settings' : TABS.find(([id]) => id === navTab())?.[1] || 'Projects';
+  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' ? ' is-board' : '') },
+    h('button', { class: 'skip-link', onclick: () => app.querySelector('#main-title').focus() }, 'Skip to content'),
+    navigation(counts),
+    h('main', { class: 'main-pane' },
+      h('header', { class: 'top page-head' }, h('h1', { id: 'main-title', tabindex: '-1' }, title),
+        state.tab === 'workspace' ? h('span', { class: 'workspace-context' }, state.me.workspace.name) : ''),
+      h('div', { class: 'main-content', 'data-scroll-key': 'main' },
+        state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
+        state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
+        secretBox(), settingsTab() ? settingsLayout(body) : body))));
   restore(app, keep, previousScope === screenScope());
+  const activeNav = app.querySelector('.rail-primary [aria-current="page"]');
+  if (activeNav && matchMedia('(max-width: 899px)').matches) activeNav.parentElement.scrollLeft = Math.max(0, activeNav.offsetLeft - 16);
+  const columnNav = app.querySelector('.column-pills nav');
+  const activeColumn = columnNav?.querySelector('[aria-current="page"]');
+  if (activeColumn) columnNav.scrollLeft = Math.max(0, activeColumn.offsetLeft - columnNav.offsetLeft - (columnNav.clientWidth - activeColumn.offsetWidth) / 2);
+  if (focusMain) { app.querySelector('#main-title').focus({ preventScroll: true }); focusMain = false; }
   renderedScope = screenScope();
 }
 
@@ -378,7 +431,7 @@ function secretBox() {
   return h('div', { class: 'secret', role: 'status' },
     h('strong', {}, invite ? 'Invite code for ' + s.name : s.self ? 'Your token' : 'Token for ' + s.name),
     h('p', { class: 'muted' }, invite
-      ? 'Shown once; it is not stored and cannot be shown again. Send it privately to someone who is already in this workspace: they paste it under Projects, in "Join a project with a code". It works until it expires or is used up.'
+      ? 'Shown once. Share privately with a workspace member; they join with this code under Projects.'
       : s.self ? 'Shown once; it is not stored and cannot be shown again. Keep it private: it is how you sign in.'
       : 'Shown once; it is not stored and cannot be shown again. Send it to them privately.'),
     h('code', {}, s.token),
@@ -488,27 +541,13 @@ function announce(events) {
 
 // ---- workspace: the team at a glance ----
 
-function tile(label, value, hint, onclick, tone) {
-  return h('button', { class: 'tile' + (tone ? ' ' + tone : ''), onclick },
-    h('span', { class: 'tile-value' }, String(value)), h('span', { class: 'tile-label' }, label), h('span', { class: 'muted small' }, hint));
-}
-
 function statusName(st) { return { backlog: 'Backlog', available: 'Available', in_progress: 'In progress', review: 'In review', done: 'Done' }[st] || st; }
 
 async function workspaceView() {
   const ov = state.ov, me = state.me.member.id;
-  const members = await api('GET', '/members');
+  const w = await api('GET', '/my-work');
   const mine = sum(ov.projects, (p) => p.mine), toReview = sum(ov.projects, (p) => p.toReview);
-  const problems = sum(ov.projects, (p) => p.problems), warnings = sum(ov.projects, (p) => p.warnings);
-  const others = ov.working.filter((it) => it.ticket.assigneeId !== me);
   const best = ov.projects.filter((p) => !p.project.archived).sort((a, b) => (b.counts.available || 0) - (a.counts.available || 0))[0];
-
-  const tiles = h('div', { class: 'tiles' },
-    tile('Available', ov.available, 'ready for anyone to claim', () => best ? openProject(best.project.id, 'board') : go('projects')),
-    tile('Yours', mine, 'tickets you are working on', () => go('mywork')),
-    tile('Everyone else', others.length, 'being worked on or in review', () => { state.workspaceSection = 'working'; render(); }),
-    tile('To review', toReview, 'waiting for you', () => go('reviews'), toReview > 0 ? 'attn' : ''),
-    tile('Repository', problems + warnings, problems ? plural(problems, 'problem') : warnings ? plural(warnings, 'warning') : 'nothing needs attention', () => go('repository'), problems ? 'bad' : ''));
 
   const working = ov.working.length
     ? ov.working.map((it) => h('div', { class: 'row' },
@@ -518,24 +557,27 @@ async function workspaceView() {
         h('span', { class: 'badge' }, statusName(it.ticket.status)),
         mergeBadge(it),
         when(it.ticket.updatedAt)))
-    : h('p', { class: 'muted' }, 'Nobody is working on anything right now.');
+    : h('div', { class: 'empty-state' }, h('p', { class: 'muted' }, 'No work in progress.'), h('button', { class: 'plain', onclick: () => best ? openProject(best.project.id) : go('projects') }, best ? 'Open board' : can('projects.create') ? 'Create a project' : 'Join a project'));
 
   const projects = ov.projects.length
     ? ov.projects.map((p) => h('div', { class: 'row' },
         h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.project.id, 'board') }, p.project.name), p.project.archived ? ' (archived)' : '',
-          h('div', { class: 'muted' }, ['available', 'in_progress', 'review', 'done'].map((st) => (p.counts[st] || 0) + ' ' + statusName(st).toLowerCase()).join(' · '))),
-        p.mine ? h('span', { class: 'badge' }, p.mine + ' yours') : '',
+          h('div', { class: 'muted' }, ['available', 'in_progress', 'review'].filter(st => p.counts[st]).map(st => p.counts[st] + ' ' + statusName(st).toLowerCase()).join(' · ') || 'No active tickets')),
         p.toReview ? h('span', { class: 'badge warn' }, p.toReview + ' to review') : '',
         p.problems ? h('span', { class: 'badge bad' }, plural(p.problems, 'problem')) : ''))
     : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet. Create one under Projects.' : 'You are not on any project yet. Ask for an invite code.');
 
-  const health = can('devices.view_all') ? await resiliencePanel(Boolean(state.desktop)) : '';
-  const work = h('div', {},
-    sectionButtons('workspaceSection', [['working', 'Working now', ov.working.length], ['projects', 'Projects', ov.projects.length], ['members', 'Members', members.length]], 'Workspace sections'),
-    state.workspaceSection === 'working' ? h('div', { class: 'panel', id: 'working-now' }, h('h2', {}, 'What the team is working on'), working) : '',
-    state.workspaceSection === 'projects' ? h('div', { class: 'panel' }, h('h2', {}, 'Projects'), projects) : '',
-    state.workspaceSection === 'members' ? membersPanels(members) : '');
-  return h('div', {}, state.desktop && !state.device.runner.configured ? runnerSetup() : '', ...(state.desktop ? [work, health, tiles] : [health, tiles, work]));
+  const attention = w.needsAction.map(a => h('div', { class: 'row attn ' + a.level },
+    h('div', { class: 'grow' }, a.message), h('button', { class: 'plain small', onclick: () => openTicket(a.projectId, a.ticketId) }, 'Open ' + a.ticketKey)));
+  const shortcut = (label, count, click, tone) => h('button', { class: 'overview-shortcut', onclick: click }, label, h('span', { class: 'badge' + (tone ? ' ' + tone : '') }, String(count)));
+  return h('div', { class: 'workspace-layout' + (attention.length || toReview ? ' has-attention' : '') },
+    h('section', { class: 'work-feed', id: 'working-now', 'aria-label': 'Working now' }, h('div', { class: 'section-head' }, h('h2', {}, 'Working now'), h('span', { class: 'badge' }, String(ov.working.length))), working),
+    h('aside', { class: 'workspace-side', 'aria-label': 'Workspace summary' },
+      h('section', { class: 'overview-attention' }, h('h2', {}, 'Needs you'), attention.length ? attention : h('p', { class: 'muted' }, 'All caught up.'),
+        shortcut('My Work', mine, () => go('mywork')), shortcut('To review', toReview, () => go('reviews'), toReview ? 'warn' : ''),
+        shortcut('Available to claim', ov.available, () => best ? openProject(best.project.id) : go('projects'))),
+      h('section', {}, h('div', { class: 'section-head' }, h('h2', {}, 'Projects'), h('button', { class: 'link', onclick: () => go('projects') }, 'View all')), projects),
+      state.desktop && !state.device.runner.configured ? h('button', { class: 'plain', onclick: () => go('settings') }, 'Connect your runner') : ''));
 }
 
 function mergeBadge(it) {
@@ -561,7 +603,6 @@ function membersPanels(members) {
     const name = h('input', { name: 'm-name', required: true, maxlength: 80 });
     const email = h('input', { name: 'm-email', type: 'email', maxlength: 254 });
     panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Add a member'),
-      h('p', { class: 'muted' }, 'Or invite people already in the workspace to a single project with an invite code from that project\'s People page.'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => { const r = await api('POST', '/members', { name: name.value, email: email.value });
           state.secret = { kind: 'token', name: r.member.name, token: r.token }; name.value = ''; email.value = ''; }); } },
         field('Name', name), field('Email (optional)', email), h('button', { class: 'primary' }, 'Add'))));
@@ -585,7 +626,6 @@ async function projectsView() {
     rows.length ? rows : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet.' : 'You are not on any project yet. Ask for an invite code.'))];
   const code = h('input', { name: 'join-code', required: true, maxlength: 200, autocomplete: 'off', placeholder: 'wbi_…' });
   panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Join a project with a code'),
-    h('p', { class: 'muted' }, 'Paste the invite code someone on the project gave you. To join the workspace itself, you need an invitation from Members.'),
     h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => {
         const j = await api('POST', '/invites/join', { code: code.value.trim() });
         code.value = ''; state.projectId = j.project.id; state.tab = 'board'; state.data = null; remember(); state.info = 'You joined ' + j.project.name + '.'; }); } },
@@ -599,7 +639,7 @@ async function projectsView() {
           name.value = ''; desc.value = ''; repo.value = ''; state.projectId = p.id; state.tab = 'board'; state.data = null; remember(); }); } },
         field('Name', name), field('Description (optional)', desc), field('Repository', repo), h('button', { class: 'primary' }, 'Create'))));
   }
-  return h('div', { class: 'project-grid' }, panels);
+  return h('div', { class: 'project-grid' }, panels[0], h('div', { class: 'project-forms' }, panels.slice(1)));
 }
 
 // ---- one project: board, repository, activity, people ----
@@ -630,15 +670,17 @@ async function projectScopedView() {
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const content = state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
-  return h('div', {},
+  return h('div', { class: 'project-view' },
     state.tab === 'people' ? h('p', {}, h('button', { class: 'link', onclick: () => go('projects') }, '← Projects')) : '',
-    h('div', { class: 'panel project-head' },
+    h('div', { class: 'project-head' },
       h('div', { class: 'project-bar' }, h('label', { class: 'inline' }, 'Project ', switcher),
-        h('span', { class: 'muted' }, 'You are ' + (d.board.member ? (d.board.role === 'owner' ? 'an owner' : d.board.role === 'reviewer' ? 'a reviewer' : 'a member') : 'looking at this project without being on it') + ' here.'),
         state.tab === 'board' ? h('button', { class: 'plain small', onclick: () => openProject(p.id, 'people') }, 'People & invites') : '',
-        can('projects.manage') ? h('button', { class: 'plain small', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive' : 'Archive') : ''),
-      p.description ? h('p', {}, p.description) : '',
-      p.repository ? h('p', { class: 'muted' }, 'Repository: ', isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : h('p', { class: 'muted' }, 'No repository address yet.')),
+        h('details', { class: 'project-details' }, h('summary', {}, 'Project details'),
+          h('div', { class: 'project-detail-content' },
+            p.description ? h('p', {}, p.description) : '',
+            p.repository ? h('p', {}, isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
+            h('span', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'),
+            can('projects.manage') ? h('button', { class: 'danger small', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project') : '')))),
     content);
 }
 
@@ -663,7 +705,7 @@ async function myWorkView() {
           : h('p', { class: 'muted' }, 'Nothing needs attention on your branches, as far as has been reported.'),
         r.branches.length ? h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Branch', 'Ticket', 'Ahead / behind', 'Last activity'].map((c) => h('th', {}, c)))),
           h('tbody', {}, r.branches.map((b) => h('tr', {}, h('td', {}, h('code', {}, b.name)), h('td', {}, b.ticketKey || ''), h('td', {}, b.ahead + ' / ' + (b.behind < 0 ? '?' : b.behind)), h('td', {}, when(b.lastActivity))))))) : ''))
-    : h('p', { class: 'muted' }, 'Nothing reported yet. Your own Werkbord reports your branches as you work.');
+    : h('p', { class: 'muted' }, 'No branches reported.');
 
   return h('div', {},
     h('div', { class: 'panel' }, h('h2', {}, 'Needs your attention'), attn,
@@ -708,7 +750,6 @@ async function reviewsView() {
   const toReview = q.items.filter((i) => i.canReview && !i.mine);
   const waiting = q.items.filter((i) => i.mine || !i.canReview);
   return h('div', {},
-    h('p', { class: 'muted' }, 'Reviewing and merging happen on your Git host. Here you see what needs a decision, jump to the pull request, and record the outcome so the team sees it. Team never merges anything.'),
     h('div', { class: 'panel' }, h('h2', {}, 'To review (' + toReview.length + ')'),
       toReview.length ? toReview.map(reviewItem) : h('p', { class: 'muted' }, 'Nothing is waiting for you to review.')),
     waiting.length ? h('div', { class: 'panel' }, h('h2', {}, 'Yours, waiting for a reviewer (' + waiting.length + ')'), waiting.map(reviewItem)) : '');
@@ -734,14 +775,6 @@ function reviewItem(it) {
 }
 
 // ---- the board ----
-
-const STATUS_HELP = {
-  backlog: 'Ideas that are not ready to start.',
-  available: 'Ready: any member can claim one.',
-  in_progress: 'Someone is working on it.',
-  review: 'Submitted; waiting for a reviewer.',
-  done: 'Finished.',
-};
 
 function personName(d, id) {
   if (!id) return '';
@@ -769,7 +802,7 @@ function boardTab(d) {
   const toolbar = h('div', { class: 'actions board-tools' },
     h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
     pcan('tickets.reopen') ? h('button', { class: 'plain', disabled: !b.tickets.some(k => k.status === 'done'), onclick: () => act(async () => { const result = await api('POST', '/projects/' + d.id + '/tickets/archive-done'); state.info = plural(result.archived, 'ticket') + ' moved to the archive.'; }) }, 'Clear Done') : '',
-    pcan('tickets.create') && !b.project.archived ? h('button', { class: 'primary', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '');
+    pcan('tickets.create') && !b.project.archived ? h('button', { class: 'primary', title: state.newTicketOpen ? 'Cancel new ticket' : 'New ticket (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '');
   const cols = b.statuses.map((s) => {
     const items = b.tickets.filter((k) => k.status === s.status);
     return h('section', { class: 'col', 'aria-label': s.label, 'data-active': String(state.column === s.status),
@@ -778,8 +811,7 @@ function boardTab(d) {
       ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('drop-over'); const k = b.tickets.find(t => t.id === draggedTicket); if (!k) return; const action = dropAction(d, k, s.status); draggedTicket = null; if (!action) return; pendingTickets.add(k.id); toast('Updating ' + k.key + '…'); act(async () => { try { await api('POST', projectPath(k) + '/' + action[0], action[1]); } finally { pendingTickets.delete(k.id); } }); }
     },
       h('h3', {}, s.label, ' ', h('span', { class: 'badge' }, String(items.length))),
-      h('p', { class: 'muted small' }, STATUS_HELP[s.status]),
-      h('div', { class: 'column-cards' }, items.map((k) => card(d, k))));
+      h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.map((k) => card(d, k))));
   });
   let open = null;
   if (state.ticketId) {
@@ -798,7 +830,7 @@ function archiveTab(d) {
     canArchiveTicket(k) ? h('button', { class: 'plain small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: false })) }, 'Restore') : ''));
   const list = h('div', { class: 'archive-list' }, rows.length ? rows : h('p', { class: 'muted' }, 'No archived work yet. Clear Done or close a ticket to keep it here.'));
   const search = h('input', { name: 'archive-search', type: 'search', placeholder: 'Search title, ticket key or details', oninput: e => { for (const row of list.querySelectorAll('[data-search]')) row.hidden = !row.dataset.search.includes(e.target.value.toLowerCase()); } });
-  return h('section', { class: 'panel archive-panel' }, h('h2', {}, 'Archived work'), h('p', { class: 'muted' }, 'Details, commits, pull requests and activity are kept.'), field('Search archive', search), list);
+  return h('section', { class: 'panel archive-panel' }, h('h2', {}, 'Archived work'), field('Search archive', search), list);
 }
 function canArchiveTicket(k) {
   if (k.status === 'done') return pcan('tickets.reopen');
@@ -895,7 +927,7 @@ function ticketPanel(d, k) {
 
   const commits = k.commits && k.commits.length
     ? h('ul', { class: 'commits' }, k.commits.map((c) => h('li', {}, h('code', {}, c.sha.slice(0, 8)), ' ', c.subject, c.author ? h('span', { class: 'muted' }, ' · ' + c.author) : '')))
-    : h('p', { class: 'muted' }, 'No commits reported yet. Your own Werkbord reports them as you work.');
+    : h('p', { class: 'muted' }, 'No commits reported.');
 
   return h('div', { class: 'panel ticket' },
     h('div', { class: 'ticket-head' },
@@ -945,7 +977,6 @@ function gitForm(k, path) {
   const mergeSel = h('select', { name: 'g-merge-' + k.id }, ['unknown', 'mergeable', 'conflicting'].map((s) => h('option', { value: s, selected: (pr.mergeable || 'unknown') === s }, s)));
   const behind = h('input', { name: 'g-behind-' + k.id, type: 'number', min: 0, placeholder: 'commits behind base (blank: unknown)' }); if (pr.behind >= 0 && pr.url) behind.value = pr.behind;
   return h('details', {}, h('summary', {}, 'Record branch and pull request'),
-    h('p', { class: 'muted' }, 'Your own Werkbord normally reports these. Team never reads your repository or calls GitHub; it only records what you tell it.'),
     h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); act(async () => {
         const body = {};
         if (branch.value.trim()) body.branch = branch.value.trim();
@@ -1005,7 +1036,6 @@ function repositoryTab(d) {
           h('td', {}, b.stale ? h('span', { class: 'badge warn' }, 'stale') : b.active ? h('span', { class: 'badge' }, 'active') : '')))))
     : h('p', { class: 'muted' }, 'No branches reported yet.');
   return h('div', {},
-    h('p', { class: 'muted' }, 'What members\' own Werkbords have reported about the repository' + (r.repository ? ' (' + r.repository + ')' : '') + '. Team cannot see the repository itself, and never merges or resolves conflicts: that stays in each developer\'s checkout and on your Git host.'),
     sectionButtons('repoSection', [['attention', 'Needs attention', r.attention.length], ['prs', 'Pull requests', r.pullRequests.length], ['branches', 'Branches', r.branches.length]], 'Repository sections'),
     state.repoSection === 'attention' ? h('div', { class: 'panel' }, h('h2', {}, 'Needs attention'), attention) : '',
     state.repoSection === 'prs' ? h('div', { class: 'panel' }, h('h2', {}, 'Pull requests'), prs) : '',
@@ -1074,5 +1104,12 @@ function readLocation() {
  state.ticketId = q.get('ticket') || null;
 }
 readLocation();
-window.addEventListener('popstate', () => { captureDrafts(); readLocation(); state.data = null; state.handoff = null; render(); });
+window.addEventListener('popstate', () => { captureDrafts(); readLocation(); focusMain = true; state.data = null; state.handoff = null; render(); });
+window.addEventListener('keydown', e => {
+  if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  if (e.key === 'Escape' && state.ticketId) { e.preventDefault(); state.ticketId = null; state.handoff = null; remember(); render(); }
+  if (e.key.toLowerCase() === 'n' && state.tab === 'board' && pcan('tickets.create') && !state.data.board.project.archived) {
+    e.preventDefault(); state.newTicketOpen = true; render().then(() => app.querySelector('[name="t-title"]')?.focus());
+  }
+});
 window.addEventListener('load', () => render());

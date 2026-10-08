@@ -11,7 +11,7 @@ function spawn(cmd,args,extra={}){const p=cp.spawn(cmd,args,{cwd:root,env:{...pr
 async function port(){const s=net.createServer();s.listen(0,'127.0.0.1');await once(s,'listening');const n=s.address().port;await new Promise(r=>s.close(r));return n;}
 async function wait(fn,label){for(let n=0;n<900;n++){for(const c of children)if(c.exitCode!==null)throw Error(c.diagnostics);if(await fn())return;await delay(100);}throw Error('Timed out: '+label);}
 async function http(base,token,method,url,body){const r=await fetch(base+url,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});if(r.status===204)return null;const d=await r.json();if(!r.ok)throw Error(r.status+': '+JSON.stringify(d));return d;}
-async function shot(page,name,width=1440,height=1000){await page.setViewportSize({width,height});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:path.join(artifacts,name+'.png'),fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'horizontal overflow: '+name);}
+async function shot(page,name,width=1440,height=1000){await page.setViewportSize({width,height});await page.evaluate(()=>document.fonts.ready);if(!process.env.BROWSER_SKIP_SCREENSHOTS)await page.screenshot({path:path.join(artifacts,name+'.png'),fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'horizontal overflow: '+name);}
 (async()=>{
  const personal=path.join(temp,'personal');run('go',['build','-o',personal,'./scripts/browser-fixture']);
  const personalURL='http://127.0.0.1:'+await port();const full='disposable-browser-credential';
@@ -30,26 +30,29 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.getByRole('button',{name:'Create Team',exact:true}).click();await page.locator('input[type=file]').setInputFiles(path.join(temp,'license.json'));await page.getByRole('button',{name:'Activate license',exact:true}).click();
  await page.locator('[name=setup-team]').fill('Northstar Studio');await page.locator('[name=setup-owner]').fill('Ada');await page.getByRole('button',{name:'Create workspace',exact:true}).click();
  await page.waitForFunction(()=>state.me&&state.desktop&&state.device.enrolled,{},{timeout:90000});
- await page.getByText(/^Your workspace currently has one host\. Add two more hosts for fault tolerance\./).waitFor();
  let storage;await wait(async()=>{storage=await team('GET','/storage');return storage.writable;},'workspace accepting changes');await page.reload();await page.waitForFunction(()=>state.me&&state.desktop);
- console.log('PASS signed license import, create, real host/database bootstrap, one-host guidance');
+ assert.equal(await page.getByRole('navigation',{name:'Team administration'}).count(),0,'administration stays behind Settings');
+ assert.equal(await page.locator('.resilience').count(),0,'host configuration does not displace everyday work');
+ console.log('PASS signed license import, create, real host/database bootstrap and focused workspace');
  await shot(page,'desktop');await shot(page,'mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  for(const label of ['Projects','Board','My Work','Reviews','Activity','Devices','Workspace Hosts','Connectivity','Backups','License','Settings']){
+  if(['Devices','Workspace Hosts','Connectivity','Backups','License'].includes(label))await page.getByRole('navigation',{name:'Settings',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();
   await page.locator('nav').getByRole('button',{name:label,exact:true}).click();await page.locator('nav button[aria-current=page]').filter({hasText:new RegExp('^'+label)}).waitFor();
   await wait(async()=>!(await page.locator('.error').count()),label+' no error');
   if(['Devices','Workspace Hosts'].includes(label))assert(await page.getByRole('button',{name:'Remove host',exact:true}).isDisabled(),'final Host removal must be disabled');
+  if(label==='Workspace Hosts')await page.getByText(/^Your workspace currently has one host\. Add two more hosts for fault tolerance\./).waitFor();
   if(['Devices','Workspace Hosts','Connectivity','Settings'].includes(label))await shot(page,label.toLowerCase().replaceAll(' ','-'));
  }
  const plan=await dev('first','GET','/removal');assert.equal(plan.canRemoveData,false);
  let ds;await wait(async()=>{ds=await team('GET','/devices');return ds[0]?.capabilities.includes('runner');},'automatic local runner registration');assert.equal(ds.length,1);assert(ds[0].capabilities.includes('runner'));assert(ds[0].capabilities.includes('workspace_host'));
  const owner=(await team('GET','/me')).member;
- await page.locator('nav').getByRole('button',{name:'Members',exact:true}).click();
+ await page.getByRole('navigation',{name:'Team administration'}).getByRole('button',{name:'Members',exact:true}).click();
  await page.locator('[name=enrollment-label]').fill('Ada’s office Mac');await page.locator('[name=enrollment-person]').selectOption(owner.id);await page.getByRole('button',{name:'Create invitation',exact:true}).click();
  await page.getByText('Your invitation is ready',{exact:true}).waitFor();const link=await page.evaluate(()=>createdInvitation.link);await shot(page,'invitation');assert(await page.locator('.invite-qr').isVisible());
  const second=await browser.newPage({viewport:{width:1440,height:1000}});second.setDefaultTimeout(90000);second.on('pageerror',e=>errors.push(e.message));
  await second.goto(m.second+'/#token='+encodeURIComponent(m.secondKey)+'&join='+encodeURIComponent(link));await second.getByRole('button',{name:'Verify invitation',exact:true}).click();
  await second.locator('[name=join-member]').fill('Ada');await second.locator('[name=join-device]').fill('Office Mac');await second.getByRole('button',{name:'Join workspace',exact:true}).click();await second.getByRole('heading',{name:'Waiting for your administrator',exact:true}).waitFor();await shot(second,'join-pending');
- await page.locator('nav').getByRole('button',{name:'Devices',exact:true}).click();await page.getByRole('button',{name:'Approve device',exact:true}).click();
+ await page.getByRole('navigation',{name:'Team administration'}).getByRole('button',{name:'Devices',exact:true}).click();await page.getByRole('button',{name:'Approve device',exact:true}).click();
  await second.waitForFunction(()=>state.me&&state.desktop&&state.device.enrolled,{},{timeout:90000});
  const joined=await dev('second','GET','/state');assert(joined.enrolled);const registered=(await team('GET','/devices')).find(d=>d.id===joined.deviceId);assert(!registered.capabilities.includes('workspace_host'));
  await wait(async()=>{const s=await dev('second','GET','/state'),ds=await team('GET','/devices');return s.runner.connected&&ds.some(d=>d.id===joined.deviceId&&d.capabilities.includes('runner'));},'joined device runner registration');

@@ -36,7 +36,11 @@ async function api(method, path, data, credential = token) {
     let k = await api('POST', `/projects/${p.id}/tickets`, { title: 'Concurrent ticket', description: 'Original description', requirements: 'Original context', status: 'available' });
     k = await api('POST', `/projects/${p.id}/tickets/${k.id}/claim`);
     await page.goto(base + '/#token=' + token);
-    await page.getByRole('navigation', { name: 'Workspace sections' }).getByRole('button', { name: /^Members/ }).click();
+    const primary = page.getByRole('navigation', { name: 'Werkbord Team', exact: true });
+    assert.equal(await page.getByRole('navigation', { name: 'Team administration' }).count(), 0, 'administration is only shown inside Settings');
+    assert.equal(await page.locator('.note, .tiles').count(), 0, 'the explanation and summary boxes no longer compete with work');
+    await page.getByRole('navigation', { name: 'Settings', exact: true }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Team administration' }).getByRole('button', { name: 'Members', exact: true }).click();
     await page.getByRole('button', { name: 'New token', exact: true }).first().click();
     await page.getByText('Your token', { exact: true }).waitFor();
     const fresh = await page.locator('.secret code').first().textContent();
@@ -47,7 +51,7 @@ async function api(method, path, data, credential = token) {
     fs.writeFileSync(path.join(artifacts, 'active-token.txt'), token, { mode: 0o600 });
     await page.reload();
     await page.getByRole('button', { name: 'Sign out', exact: true }).waitFor();
-    console.log('PASS self rotation, credential persistence, sole owner, reload');
+    console.log('PASS Settings disclosure, member deep-link reload, self rotation and credential persistence');
     // Missing URL parameters reset older state, including on Back and Forward.
     await page.goto(base + '/');
     await page.locator('nav [aria-current="page"]').filter({ hasText: 'Workspace' }).waitFor();
@@ -104,7 +108,9 @@ async function api(method, path, data, credential = token) {
     console.log('PASS concurrent editors, stale-version rejection, intentional empty text, disclosure, keyboard focus, conflict recovery');
     // Independent drafts survive navigation without carrying into another project.
     await page.goto(base + `/?tab=board&project=${p.id}`);
-    await page.getByRole('button', { name: 'New ticket', exact: true }).click();
+    await page.getByRole('button', { name: 'New ticket', exact: true }).waitFor();
+    await page.locator('body').press('n');
+    await page.waitForFunction(() => document.activeElement?.name === 't-title');
     await page.locator('[name="t-title"]').fill('Alpha draft');
     await page.locator('[name="project-switch"]').selectOption(q.id);
     await page.locator('[name="t-title"]').waitFor();
@@ -152,9 +158,21 @@ async function api(method, path, data, credential = token) {
     await page.locator('[name="t-title"]').waitFor();
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
     // Drag, close and restore retain the ticket's reports and use the server's rules.
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.locator('.ticket').getByRole('button', { name: 'Close', exact: true }).focus();
+    await page.keyboard.press('Escape');
+    await page.locator('.ticket').waitFor({ state: 'detached' });
     await page.getByRole('button', { name: 'Cancel new ticket', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
+    const boardBounds = await page.locator('.board').boundingBox();
+    assert.ok(boardBounds.width > 1000 && boardBounds.y + boardBounds.height > 940, 'the board fills available desktop width and height');
+    await primary.getByRole('button', { name: 'Git', exact: true }).click();
+    await page.getByRole('heading', { name: 'Git', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Open project ' + q.name, exact: true }).click();
+    await page.waitForFunction(id => state.tab === 'repository' && state.projectId === id && state.data?.id === id, q.id);
+    await page.getByRole('button', { name: 'Open project ' + p.name, exact: true }).click();
+    await page.waitForFunction(id => state.tab === 'repository' && state.projectId === id && state.data?.id === id, p.id);
+    await primary.getByRole('button', { name: 'Board', exact: true }).click();
+    console.log('PASS N / Escape shortcuts, viewport-sized board and project switching that keeps the Git section');
     let dragged = await api('POST', `/projects/${p.id}/tickets`, { title: 'Team drag fixture', description: 'Keep this context', status: 'backlog' });
     await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
     const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/assign'));
@@ -198,7 +216,7 @@ async function api(method, path, data, credential = token) {
     for (const tab of ['workspace', 'projects', 'repository']) {
         await page.goto(base + `/?tab=${tab}&project=${p.id}`);
         await page.locator('header.top').waitFor();
-        if (tab === 'workspace') await page.getByRole('navigation', { name: 'Workspace sections' }).waitFor();
+        if (tab === 'workspace') await page.getByRole('region', { name: 'Working now', exact: true }).waitFor();
         if (tab === 'repository') {
             const sections = page.getByRole('navigation', { name: 'Repository sections' });
             await sections.getByRole('button', { name: /^Pull requests/ }).click();
@@ -207,6 +225,10 @@ async function api(method, path, data, credential = token) {
         for (const [size, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
             await page.setViewportSize({ width, height });
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, `${tab} ${size} overflows`);
+            if (tab === 'workspace' && size === 'mobile') {
+                const first = await page.locator('.workspace-layout.has-attention').count() ? page.locator('.overview-attention') : page.locator('#working-now');
+                assert.ok((await first.boundingBox()).y < 250, 'attention or current work leads the first phone viewport');
+            }
             if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, `team-${tab}-${size}.png`) });
         }
     }

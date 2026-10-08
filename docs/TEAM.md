@@ -44,22 +44,26 @@ The console (the page Team serves at its address) is organised around one questi
 
 | Tab | Answers | What is on it |
 | --- | --- | --- |
-| **Workspace** | What is available? What is everyone doing? | Five tiles (available to claim, yours, everyone else, to review, repository state), what the team is working on right now, each project's counts, and the members. |
+| **Workspace** | What needs me? What is everyone doing? | Working now, actionable attention, shortcuts to your work and reviews, and each project's active work. |
 | **Projects** | Which projects are there, and who is on them? | The projects, creating one, each project's **People & invites**. |
-| **Board** | What work is there in this project? | The shared board: Backlog, Available, In Progress, Review, Done, and a ticket's details and actions. A project switcher keeps the Board, Repository and Activity tabs on one project. |
+| **Board** | What work is there in this project? | The shared board: Backlog, Available, In Progress, Review, Done, and a ticket's details and actions. A project switcher keeps the Board, Git and Activity sections on one project. |
 | **My Work** | What am I doing, and what waits for me? | What needs your attention (changes requested, a pull request with conflicts, behind its base, ready to submit, stale), your tickets in progress and in review with their Git links, your open pull requests, and the state of your own branches. **Open in my runner** is on every ticket you hold. |
 | **Reviews** | What needs a decision? | Tickets in review, those asked of you first: author, branch, pull request, commits, mergeability, and links to the pull request, branch and comparison on the Git host. Record that you merged, mark done, or request changes. Team does not reproduce a code-review interface; the diff is on the Git host. |
-| **Repository** | What is the Git state? | What members' Werkbords reported: branches, pull requests, and what needs attention. |
+| **Git** | What is the Git state? | What members' Werkbords reported: branches, pull requests, and what needs attention. The existing `?tab=repository` address is unchanged. |
 | **Activity** | What happened? | The project's history. |
 
 The tab badges show what waits (available tickets, your tickets, reviews for you, repository problems). The console
 shows a banner when its live connection drops and refreshes everything by itself when it returns (see
 [Staying in step](#staying-in-step)).
 
-Workspace offers separate **Working now**, **Projects** and **Members** sections; Repository separates attention,
-pull requests and branches. Small windows show one selected board column, and **New ticket** opens its form only
-when needed. Dragging a ticket between columns performs the same permitted action as claim, assign, submit or
-complete; it does not bypass ownership or review rules.
+Desktop navigation sits in a sidebar with direct project shortcuts; changing projects keeps the current project
+section. **Settings** contains **This computer**, **Members**, **Devices**, **Workspace Hosts**, **Connectivity**,
+**Backups** and **License**, with a section list and reloadable addresses. On phones, primary navigation is one
+scrolling row and Settings remains visible. Workspace opens to the focused overview; actionable attention comes
+first on phones. Git separates attention, pull requests and branches. Small windows show one selected board
+column; large windows use the available width and height, with scrolling inside each column. **New ticket** (N)
+opens its form only when needed; Escape closes ticket details. Dragging a ticket between columns performs the
+same permitted action as claim, assign, submit or complete; it does not bypass ownership or review rules.
 
 **Clear Done** moves completed tickets into the board's searchable **Archive**. **Close ticket** can also archive
 unfinished work when the member has permission to manage it. Details, commits, pull requests and activity are
@@ -304,7 +308,7 @@ and diffs are not, and there is no field that could carry a path on the reporter
 
 ### Conflict awareness
 
-`GET /projects/{id}/repository` (and the console's **Repository** tab) assembles what has been reported:
+`GET /projects/{id}/repository` (and the console's **Git** section) assembles what has been reported:
 
 - **Branches**: reported branches, and the branch of every ticket in progress or in review, each linked to its ticket and
   holder, with commits ahead/behind and last activity. Base branches (anything others are based on) are marked.
@@ -332,7 +336,7 @@ anyone else. Only the code's hash is stored; listings never show it. An invite c
 
 - Someone who is already in the workspace uses `POST /invites/join` from their enrolled device: in the console, **Projects >
   Join a project with a code**.
-- A person who is new to the workspace first joins it with an invitation from **Members**, which also sets up their computer;
+- A person who is new to the workspace first joins it with an invitation from **Settings → Members**, which also sets up their computer;
   after that the code works. `POST /invites/redeem` (a new member and token from a bare code) is answered only to the
   computer the host runs on: from another computer it is refused with `403 device_required` and an explanation.
   Where it is allowed, if anything fails (the name is taken, say) the use is not counted.
@@ -423,7 +427,7 @@ the history is complete), `TestAMergedPullRequestCannotBeTurnedBackIntoAnOpenOne
 
 ## Workspace resilience
 
-`GET /resilience` (and the Team app's **Workspace** screen) says how resilient the workspace is, in the words an
+`GET /resilience` (and the Team app's **Settings → Workspace Hosts** screen) says how resilient the workspace is, in the words an
 administrator needs, from facts the workspace already has: the registry, what each device says about itself, the database's own
 report, the network's checks.
 

@@ -63,6 +63,21 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 - Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git ·
   Runs), floating New task button, column pills on the board, tables as two-line rows.
 
+### Team console (3.1)
+
+Team uses the same paper, ink, Geist, icon strokes and action colours, with its own coordination sections:
+Workspace · Projects · Board · My Work · Reviews · Git · Activity. Desktop has a 232px rail (248px above
+1800px), project shortcuts and Settings at the foot. Changing projects keeps the current project section.
+Settings contains This computer, Members, Devices, Workspace Hosts, Connectivity, Backups and License;
+the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.
+
+The default Workspace shows Working now beside Needs you and Projects. Lists use spacing and dividers;
+cards are reserved for movable board tickets and focused ticket details. Team page titles are 24px,
+ticket titles 15px. The board fills the available width and height, with each column scrolling internally.
+Below 1280px, a single selected column replaces the five-column board. Below 900px, primary navigation
+becomes a sticky scrolling row with an always-visible Settings button; the document scrolls, and actionable
+attention appears before the working list. N opens a new ticket and Escape closes ticket details.
+
 ## Interaction rules
 
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).
