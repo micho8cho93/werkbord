@@ -137,6 +137,19 @@ func TestLicenseExpiryRenewalAndExistingDatabaseMigration(t *testing.T) {
 	}
 }
 
+func TestAdditionalPersonalDevicesDoNotConsumeLicensedSeats(t *testing.T) {
+	w := isolatedLicenseWorld(t)
+	pub, key, _ := ed25519.GenerateKey(rand.Reader)
+	w.svc.EnforceLicense(pub, signedLicense(t, key, 2, time.Now().Add(-time.Hour), time.Time{}))
+	owner, _ := w.workspace("Licensed", "Owner")
+	member, _ := w.member(owner, "Member")
+	w.mustRegister(member, laptop(t, "first-personal-device"), domain.CapabilityRunner)
+	w.mustRegister(member, laptop(t, "second-personal-device"), domain.CapabilityRunner)
+	if _, err := w.svc.AddMember(bg, owner, "Third person", "", domain.RoleMember); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatal("additional devices bypassed person seat limit", err)
+	}
+}
+
 func TestRevocationAndRoleChangeInvalidateAnAlreadyAuthenticatedSession(t *testing.T) {
 	w := newWorld(t)
 	owner, _ := w.workspace("Sessions", "Owner")

@@ -20,6 +20,7 @@ RUNNER_VERSION=$(scripts/product.sh werkbord build-version)
 PLIST_VERSION=$(scripts/product.sh werkbord-team version)
 IDENTITY=${CODESIGN_IDENTITY:--}
 ISSUER=${LICENSE_ISSUER_PUBLIC_KEY:-}
+RELEASE_KEY=${TEAM_RELEASE_PUBLIC_KEY:-}
 if [ -n "$ISSUER" ]; then
   [ ${#ISSUER} -eq 43 ] || die "the issuer public key must encode 32 bytes"
   case "$ISSUER" in *[!A-Za-z0-9_-]*) die "the issuer public key must use raw URL base64" ;; esac
@@ -28,6 +29,8 @@ if [ -n "$RELEASE" ]; then
   case "$IDENTITY" in 'Developer ID Application: '*) ;; *) die "a release requires a Developer ID Application identity" ;; esac
   [ "$ARCH" = universal ] || die "a release is universal so users do not need to choose their chip"
   [ "$VERSION" = "v$PLIST_VERSION" ] || die "release VERSION must match cmd/werkbord-team/VERSION"
+  [ -n "$RELEASE_KEY" ] || die "a release requires the independently provisioned TEAM_RELEASE_PUBLIC_KEY"
+  [ -n "${TEAM_OFFLINE_MANIFEST:-}" ] && [ -f "$TEAM_OFFLINE_MANIFEST" ] && [ -f "$TEAM_OFFLINE_MANIFEST.sig" ] || die "a release requires TEAM_OFFLINE_MANIFEST and its offline signature from the reviewed payload"
   [ -n "$ISSUER" ] || die "a release requires LICENSE_ISSUER_PUBLIC_KEY; no test issuer is shipped"
   [ -n "${NOTARY_KEY_FILE:-}" ] && [ -n "${NOTARY_KEY_ID:-}" ] && [ -n "${NOTARY_ISSUER:-}" ] || die "a release requires the Apple notary credentials"
   [ -z "${CODESIGN_TIMESTAMP:-}${XCRUN:-}${SPCTL:-}${DITTO:-}" ] || die "test tool overrides cannot be used for a release"
@@ -75,7 +78,7 @@ for a in $ARCHS; do
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a \
       CGO_CFLAGS="-arch $C_ARCH -mmacosx-version-min=13.0" \
       CGO_LDFLAGS="-arch $C_ARCH -mmacosx-version-min=13.0 -framework UniformTypeIdentifiers" \
-      go build -trimpath -tags desktop,production -ldflags "-s -w -X main.version=$VERSION" -o "$STAGE/window-$a" .
+      go build -trimpath -tags desktop,production -ldflags "-s -w -X main.version=$VERSION -X devboard/cmd/werkbord-team/desktop/internal/platform.nativeVersion=$VERSION -X devboard/cmd/werkbord-team/desktop/internal/platform.releasePublicKey=$RELEASE_KEY" -o "$STAGE/window-$a" .
   )
   TEAM_PROGRAMS="$TEAM_PROGRAMS $STAGE/team-$a"; RUNNERS="$RUNNERS $STAGE/runner-$a"; WINDOWS="$WINDOWS $STAGE/window-$a"
 done
@@ -106,7 +109,23 @@ cp -R third_party/nebula third_party/rqlite third_party/go "$APP/Contents/Resour
 printf 'Team: %s\nOptional free runner: %s\nDatabase: v%s (%s)\n' "$VERSION" "$RUNNER_VERSION" "$RQLITE_VERSION" "$RQLITE_COMMIT" > "$APP/Contents/Resources/components.txt"
 sign "$H/werkbord-team"
 sign "$H/werkbord"
+# Signed helper bytes and the database build record form the offline review input.
+# No private release key is present on this builder. Reproducible reviewed helper
+# bytes may be supplied as TEAM_REVIEWED_HELPERS; Apple signatures must verify.
+if [ -n "${TEAM_REVIEWED_HELPERS:-}" ]; then
+  for component in werkbord-team werkbord nebula rqlited; do
+    cp "$TEAM_REVIEWED_HELPERS/$component" "$H/$component"
+  done
+  cp "$TEAM_REVIEWED_HELPERS/rqlited.build" "$APP/Contents/Resources/rqlited.build"
+fi
+mkdir -p "$(dirname "$OUT")"
+scripts/team-desktop-manifest.sh "$APP" "$VERSION" > "$OUT.manifest.json"
+if [ -n "${TEAM_OFFLINE_MANIFEST:-}" ]; then
+  cp "$TEAM_OFFLINE_MANIFEST" "$APP/Contents/Resources/team-release.json"
+  cp "$TEAM_OFFLINE_MANIFEST.sig" "$APP/Contents/Resources/team-release.json.sig"
+fi
 sign "$APP"
+if [ -n "$RELEASE" ]; then "$APP/Contents/MacOS/Werkbord Team" --verify-release; fi
 MODE=--adhoc; [ "$IDENTITY" = - ] || MODE=--distribution
 scripts/check-team-desktop.sh "$MODE" "$APP"
 if [ -n "$RELEASE" ]; then scripts/notarize-desktop.sh --require app "$APP"; fi

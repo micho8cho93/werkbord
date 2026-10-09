@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -167,6 +168,15 @@ func headless(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	switch {
+	case len(args) == 1 && args[0] == "--verify-release":
+		exe, err := os.Executable()
+		if err == nil {
+			err = platform.RequireRelease(filepath.Clean(filepath.Join(filepath.Dir(exe), "..")), version)
+		}
+		if err != nil {
+			return say(false, err.Error())
+		}
+		return say(true, "offline Team payload verified")
 	case len(args) == 1 && args[0] == "--activate":
 		key, err := platform.AccessKey()
 		if err != nil {
@@ -204,7 +214,7 @@ func headless(args []string) int {
 }
 
 func main() {
-	if len(os.Args) > 1 && (os.Args[1] == "--activate" || os.Args[1] == "--service") {
+	if len(os.Args) > 1 && (os.Args[1] == "--activate" || os.Args[1] == "--service" || os.Args[1] == "--verify-release") {
 		os.Exit(headless(os.Args[1:]))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "--team-service" {

@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "shell": "1.9.x",
+  "personal": {
+    "bundledMajor": 1,
+    "minimumUnifiedVersion": "1.6.0",
+    "legacyConnectionMinimum": "1.0.0",
+    "api": "workspace-summary-v1",
+    "execution": "execution-local-v1"
+  },
+  "team": {
+    "bundledMajor": 3,
+    "minimumVersion": "3.7.0",
+    "api": "team-v1",
+    "deviceApi": "device-v1"
+  },
+  "synchronization": ["integration-v1", "execution-v1"],
+  "storage": "separate Personal SQLite and Team SQLite/rqlite; no merge"
+}

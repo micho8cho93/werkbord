@@ -1,7 +1,7 @@
 # Products: individual Werkbord and Werkbord Team
 
 This repository builds two products. They share code and infrastructure, and they are otherwise separate: each has its
-own executable, version, data directory, installer, release artifacts and licence.
+own executable, version, data directory, CLI installer and release artifacts. The primary desktop installer bundles both components; Personal is free, Team workspaces carry offline licenses.
 
 | | **Werkbord** (individual) | **Werkbord Team** |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ own executable, version, data directory, installer, release artifacts and licenc
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` |
 | Build | `make build` (or `make werkbord`); the Mac app: `make desktop` | `make build-team` (or `make werkbord-team`) |
 
-The two backend products can be installed, run and upgraded independently, on the same computer or on different ones. Phase 3 adds a product-neutral desktop shell for everyday Personal and Team workspaces; see [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md). Installing one does not start or change the other. The Team desktop app offers an explicit, optional local
+The two backend products can be installed, run and upgraded independently, on the same computer or on different ones. Phase 3 adds a product-neutral desktop shell for everyday Personal and Team workspaces; see [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md). Bundling one does not activate or start the other; native Team activation remains explicit. The Team desktop app offers an explicit, optional local
 installation of the free individual runner through that product’s normal setup.
 
 Team 3.0 defaults to customer-owned Nebula, administrator-approved enrollment, device-signed remote API requests and offline signed license enforcement. There is no Team Tailscale account or vendor runtime requirement. Customers operate their Workspace/Connectivity Hosts, backups and local runners. Individual tsnet and `DEVBOARD_*` compatibility stay separate. See [TEAM_SECURITY.md](TEAM_SECURITY.md), [TEAM_INSTALL.md](TEAM_INSTALL.md), [TEAM_LICENSE.md](TEAM_LICENSE.md) and the [release gate](TEAM_SECURITY_GATE.md).
@@ -277,3 +277,7 @@ services through authenticated loopback HTTP. `web/src/shell/` reuses existing
 Svelte primitives and tokens, and has its own build. Team screens and backend
 behavior remain under `internal/team`; the shell never links either execution
 engine or Team backend. See [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md).
+
+## Phase 4 distribution
+
+One primary desktop bundle contains the isolated backends and Team’s own native installer. Independent versions, offline release trust and databases remain intact. Explicit in-place adoption replaces data relocation; see [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md), [MIGRATION.md](MIGRATION.md) and [PHASE4_READINESS.md](PHASE4_READINESS.md).

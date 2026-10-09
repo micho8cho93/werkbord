@@ -20,6 +20,7 @@ jobs:
       NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
       NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
       LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
+      TEAM_RELEASE_PUBLIC_KEY: ${{ vars.TEAM_RELEASE_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -50,65 +51,26 @@ jobs:
           mkdir -p "$RUNNER_TEMP/notary"
           printf '%s\n' "$APPLE_NOTARY_KEY" > "$RUNNER_TEMP/notary/AuthKey.p8"
           echo "NOTARY_KEY_FILE=$RUNNER_TEMP/notary/AuthKey.p8" >> "$GITHUB_ENV"
-      - name: Build, sign, notarize and staple the separate universal Team app
-        run: make team-desktop-release
+      - name: Build a separate Team candidate for offline review
+        run: |
+          make web web-embed
+          VERSION="v$(scripts/product.sh werkbord-team version)" scripts/build-team-desktop.sh --package
+          # Finalization requires an offline signature of the exact helper bytes.
+          # This candidate cannot enter the unified release or appcast.
+          ditto -c -k --keepParent "dist/team-desktop/Werkbord Team.app" dist/team-desktop/Team-review.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: team-desktop
           path: |
             dist/team-desktop/*.dmg
             dist/team-desktop/*.sha256
+            dist/team-desktop/Team-review.zip
+            dist/team-desktop.manifest.json
           if-no-files-found: error
       - name: Remove the certificate and notarization key
         if: always()
         run: |
           scripts/ci-keychain.sh delete
           rm -rf "$RUNNER_TEMP/notary"
-  publish:
-    needs: build
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: team-desktop
-          path: team-desktop
-      - name: Add the installer to the existing Team product release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          # The CLI release workflow owns release creation. This job neither edits it nor changes latest.
-          for attempt in $(seq 1 60); do
-            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then break; fi
-            sleep 10
-          done
-          gh release view "$GITHUB_REF_NAME" >/dev/null
-          gh release upload "$GITHUB_REF_NAME" team-desktop/*.dmg team-desktop/*.sha256 --clobber
-  verify:
-    needs: publish
-    if: github.event_name == 'push'
-    runs-on: macos-15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          persist-credentials: false
-      - name: Verify the published installer on a fresh Mac
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/team-download"
-          cd "$RUNNER_TEMP/team-download"
-          gh release download "$GITHUB_REF_NAME" --pattern '*.dmg' --pattern '*.sha256'
-          shasum -a 256 -c *.sha256
-          xcrun stapler validate *.dmg
-          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/team-mounted" *.dmg
-          trap 'hdiutil detach "$RUNNER_TEMP/team-mounted"' EXIT
-          "$GITHUB_WORKSPACE/scripts/check-team-desktop.sh" --distribution "$RUNNER_TEMP/team-mounted/Werkbord Team.app"
-          xcrun stapler validate "$RUNNER_TEMP/team-mounted/Werkbord Team.app"
-          spctl --assess --type execute --verbose=4 "$RUNNER_TEMP/team-mounted/Werkbord Team.app"
+  # Reviewed Team artifacts are finalized and uploaded by the authorized offline
+  # release operator. Incomplete releases remain drafts; CI never publishes a candidate.

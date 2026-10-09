@@ -17,7 +17,7 @@
 #   downgrade    the feed offers an older version: nothing to install.
 #   replay       the feed claims a newer version but the archive is an older, validly signed app: refused as a downgrade.
 #   off          noUpdateCheck: not one request reaches the feed.
-#   deferred     coding agents are working when the app is updated: the app is replaced, the controller keeps running on
+#   deferred     coding agents are working when the app is updated: the app replacement waits; the controller keeps running on
 #                its old program with the SAME process, is told once why, and moves to the new program when the work is done.
 #   menu         the application menu has one "Check for Updates…", under About, and Help has none.
 #
@@ -30,6 +30,9 @@
 # it); and an update signed with a real Developer ID and notarized, which needs the real certificate (the first release,
 # docs/DESKTOP_RELEASE.md). The signature check Sparkle makes of the new app's code is made here with ad hoc signatures.
 set -eu
+# Isolated Individual signature/updater fixtures. Unified payloads are tested by
+# test-unified-installer.sh; production --release rejects this override.
+export UNIFIED_DESKTOP=0
 
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
@@ -241,7 +244,9 @@ if wanted good; then
   [ "$P1" != "$P0" ] && kill -0 "$P1" 2>/dev/null || bad "good: the controller was not restarted exactly once on the new program ($P0 → $P1)"
   [ "$(token)" = "$TOK" ] && [ "$(api /api/projects)" = 200 ] || bad "good: the token or the data did not survive"
   [ -n "$(ls "$DATA"/backups/before-update-*.db 2>/dev/null)" ] || bad "good: no database snapshot was taken before the controller moved"
-  [ ! -e "$H/.local/bin/werkbord.prev" ] || bad "good: the old program was left behind"
+  # Health answers before the installer has completed authenticated database
+  # verification. Await that final transaction before asserting backup cleanup.
+  n=0; while [ -e "$H/.local/bin/werkbord.prev" ]; do n=$((n+1)); [ $n -lt 60 ] || bad "good: the old program was left behind"; sleep 0.5; done
   ok "good: the new app moved the controller to its program once (new process, snapshot taken, token and data intact, no leftover)"
   case "$(api /api/projects)$(curl -s -o /dev/null -w '%{http_code}' "http://$ADDR/api/projects")" in 200401) ok "good: and authentication is as strict as ever" ;; *) bad "good: authentication changed" ;; esac
   stop_all
@@ -406,16 +411,14 @@ if wanted deferred; then
   printf '{"phase":"running"}' > "$DATA/runner/runs/r1.json"
   wait_log "the app can update itself" 10 "Sparkle did not start"
   ask_for_a_check
-  n=0; until [ "$(bundle_version)" = "1.2.1" ] && logged 'msg=starting version=v1.2.1'; do n=$((n + 1)); [ $n -lt 160 ] || bad "deferred: the app did not come back as 1.2.1" "$(tail -20 "$LOG")"; sleep 0.5; done
-  wait_log "msg=notice" 60 "the new app did not say why the controller was not moved"
-  [ "$(ctl_pid)" = "$P0" ] && kill -0 "$P0" 2>/dev/null || bad "deferred: the app update disturbed the controller while agents were working"
-  [ "$(installed_version)" = v1.2.0 ] && case "$(health)" in *v1.2.0*) true ;; *) false ;; esac || bad "deferred: the program changed under the agents"
-  contains "$(grep 'msg=notice' "$LOG")" "coding agents are working" || bad "deferred: the notice does not say why" "$(grep 'msg=notice' "$LOG")"
-  ok "deferred: the app became 1.2.1; the controller is the SAME process on its old program; the person was told why"
-  # The work ends; the next opening completes the update. "Tried again at the next opening" is the behaviour, so that is what is
-  # done, up to three times: on a computer this busy even the installer's own look at the controller can run out of time, which
-  # it answers safely, by refusing, and saying why.
+  wait_log "waiting for the program's update to finish before replacing the app" 60 "active runner did not defer relaunch"
+  sleep 3
+  [ "$(bundle_version)" = "1.2.0" ] || bad "deferred: app replaced while runner work was active"
+  [ "$(ctl_pid)" = "$P0" ] && kill -0 "$P0" 2>/dev/null || bad "deferred: active controller was interrupted"
+  [ "$(installed_version)" = v1.2.0 ] || bad "deferred: backend changed under active work"
+  ok "deferred: active runner prevents app replacement and backend replacement; original processes remain alive"
   rm -f "$DATA/runner/runs/r1.json"
+  n=0; until [ "$(bundle_version)" = "1.2.1" ] && logged 'msg=starting version=v1.2.1'; do n=$((n + 1)); [ $n -lt 160 ] || bad "deferred: update did not resume after work ended" "$(tail -20 "$LOG")"; sleep 0.5; done
   opening=0
   while :; do
     opening=$((opening + 1))

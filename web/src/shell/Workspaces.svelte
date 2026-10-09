@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Migration from './Migration.svelte';
   import { hosting, standing } from './aggregate';
   import { model } from './model.svelte';
   import type { Item, Overview } from './types';
@@ -105,6 +106,7 @@
   </ul>
 
   <p class="foot"><button class="btn" type="button" onclick={() => (model.addOpen = true)} data-testid="add-team-page">Add a Team…</button></p>
+  <Migration />
 </section>
 
 <style>

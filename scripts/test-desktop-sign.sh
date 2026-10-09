@@ -28,6 +28,9 @@
 # Nothing here uses the installed Werkbord: every controller has a temporary HOME, data directory and a
 # free port, and no login service is made.
 set -eu
+# Isolated Individual signature/updater fixtures. Unified payloads are tested by
+# test-unified-installer.sh; production --release rejects this override.
+export UNIFIED_DESKTOP=0
 
 FAST=""
 [ "${1:-}" != --fast ] || FAST=1

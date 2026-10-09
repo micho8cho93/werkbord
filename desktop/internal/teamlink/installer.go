@@ -47,7 +47,7 @@ func (i *Installer) Find() (string, error) {
 			return exe, nil
 		}
 	}
-	return "", errors.New("Werkbord Team is not installed on this Mac. Download it from the Werkbord Team release page, put it in Applications, and try again")
+	return "", errors.New("Werkbord Team is not installed on this Mac. Install the unified Werkbord desktop bundle or the compatible signed Team app, and try again")
 }
 
 // Result is what Team's installer printed.

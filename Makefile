@@ -239,3 +239,8 @@ test-team-desktop-browser: web web-embed rqlite
 ## Unified shell, real isolated services and headless browser; no native service installed.
 test-unified-desktop-browser: web web-embed web-shell rqlite
 	node scripts/test-unified-desktop-browser.cjs
+
+## test-unified-installer: mounted development DMG, component checks and offline release refusal (no service installed)
+.PHONY: test-unified-installer
+test-unified-installer: desktop-package
+	scripts/test-unified-installer.sh

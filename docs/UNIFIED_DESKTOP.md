@@ -1,4 +1,4 @@
-# Unified desktop workspaces (Phase 3)
+# Unified desktop workspaces (Phases 3–4)
 
 Werkbord 1.8.0-preview.1 and Team 3.7.0 provide one everyday macOS window with
 Personal and multiple Team workspaces. Phase 1 association/progress and Phase 2
@@ -17,9 +17,7 @@ Team backend imports. Team continues serving its existing console, including
 The persistent switcher offers Personal, enrolled Team workspaces, and Add a
 Team. Creating and joining reuse Team's first-host and administrator-approved
 enrollment screens. Installation is an explicit action, followed by a native
-confirmation and macOS administrator authorization. The existing separately
-versioned Team installation supplies the signed installer; it need not be opened
-for everyday work. No Team installation or activation happens on startup.
+confirmation and macOS administrator authorization. The primary installer now includes Team’s separately versioned native installer as an inert nested bundle. Existing standalone Team apps remain compatible fallbacks. No Team installation or activation happens on startup.
 
 My Work, Calendar and Needs you read a bounded neutral summary from each
 accessible service. Links open the relevant workspace and project in the same
@@ -103,5 +101,6 @@ Live customer networks, real agent-provider accounts, macOS privileged install /
 Keychain authorization, sleep/wake and signed/notarized release distribution
 remain production acceptance checks. This phase does not add automatic NAT
 traversal, remote arbitrary commands, recurring schedules, live pause or automatic
-runner failover. Team setup still requires its separately installed signed
-installer and a valid customer license; release publication is a separate task.
+runner failover. Team setup uses the bundled independently signed installer and a valid customer license; release publication is a separate task.
+
+Phase 4 adds migration/rollback controls and component diagnostics to Workspaces and devices. See [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md) for compatibility, offline release verification and maintenance gates.

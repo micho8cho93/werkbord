@@ -185,6 +185,40 @@ fi
 chmod 755 "$APP/Contents/Helpers/werkbord" "$APP/Contents/MacOS/Werkbord"
 rm -f $HELPERS $WINDOWS
 
+# Unified distribution bundles Team's independently maintainable native installer.
+# It is inert until an explicit Team activation. Release builds only consume a
+# reviewed, separately notarized/offline-signed Team app; they never re-sign it.
+TEAM_APP=${TEAM_DESKTOP_APP:-}
+if [ "${UNIFIED_DESKTOP:-1}" = 0 ]; then
+  [ -z "$RELEASE" ] || die "a release cannot omit Team's separately verified payload"
+else
+  if [ -z "$TEAM_APP" ]; then
+    [ -z "$RELEASE" ] || die "TEAM_DESKTOP_APP must name the reviewed independently signed Team bundle"
+    ARCH="$ARCH" VERSION="$(scripts/product.sh werkbord-team build-version)" OUT="$STAGE/team" scripts/build-team-desktop.sh
+    TEAM_APP="$STAGE/team/Werkbord Team.app"
+  fi
+  if [ -n "$RELEASE" ]; then
+    scripts/check-team-desktop.sh --distribution "$TEAM_APP"
+    [ -n "${TEAM_RELEASE_PUBLIC_KEY:-}" ] || die "independently trusted TEAM_RELEASE_PUBLIC_KEY is required"
+    go run ./cmd/werkbord-team/vendor verify-desktop-release --contents "$TEAM_APP/Contents" --version "v$(scripts/product.sh werkbord-team version)" --public-key "$TEAM_RELEASE_PUBLIC_KEY"
+    "$TEAM_APP/Contents/MacOS/Werkbord Team" --verify-release
+    xcrun stapler validate "$TEAM_APP"
+    spctl --assess --type execute --verbose=2 "$TEAM_APP"
+  else
+    scripts/check-team-desktop.sh --adhoc "$TEAM_APP"
+  fi
+  ditto "$TEAM_APP" "$APP/Contents/Helpers/Werkbord Team.app"
+fi
+TEAM_VERSION=absent
+if [ -d "$APP/Contents/Helpers/Werkbord Team.app" ]; then
+  TEAM_VERSION=$("$APP/Contents/Helpers/Werkbord Team.app/Contents/Helpers/werkbord-team" version)
+fi
+case "$TEAM_VERSION" in v3.[7-9].*|v3.[1-9][0-9].*|absent) ;; *) die "Team $TEAM_VERSION is outside the shell compatibility matrix" ;; esac
+printf 'Shell: %s\nPersonal: %s\nTeam: %s\nPersonal API: workspace-summary-v1 + execution-local-v1\nTeam API: device-v1 + team-v1\nSync: integration-v1 + execution-v1\n' "$VERSION" "$VERSION" "$TEAM_VERSION" > "$APP/Contents/Resources/components.txt"
+
+cp desktop/build/compatibility.json "$APP/Contents/Resources/compatibility.json"
+if [ "${UNIFIED_DESKTOP:-1}" != 0 ]; then scripts/check-unified-desktop.sh --development "$APP"; fi
+
 # 3. The icon, from the one 1024px picture (Apple's own tools; nothing to install).
 ICONSET="$STAGE/icon.iconset"
 mkdir -p "$ICONSET"

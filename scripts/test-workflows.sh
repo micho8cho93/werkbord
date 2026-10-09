@@ -159,11 +159,12 @@ if team
     check(preflight && preflight < i, "Team credentials must be checked before #{s['name'] || s['uses']}") if handles_credentials || sets_up_build
   end
   check(jobs["build"]["steps"].any? { |s| s["if"].to_s == "always()" && s["run"].to_s.include?("ci-keychain.sh delete") }, "Team signing keychain must always be removed")
-  %w[publish verify].each { |name| check(jobs[name]["if"].to_s.include?("push") && !jobs[name].key?("environment"), "#{name} must hold no signing secrets and never publish a dry run") }
-  check(perms(jobs["publish"], team) == {"contents"=>"write"}, "only Team publishing needs repository write")
-  text = JSON.generate(jobs)
-  check(!text.match?(/gh release (create|edit|delete)/), "Team installer must not change release identity, status or latest")
-  jobs.each { |name,j| uses_of(j).each { |u| check(u.match?(%r{\Aactions/[a-z-]+@[0-9a-f]{40}\z}), "Team #{name}: unpinned action #{u}") } }
+  check(!jobs.key?("publish") && !jobs.key?("verify"), "Team candidates require offline finalization before publishing")
+  check(JSON.generate(jobs).include?("Team-review.zip"), "Team workflow retains exact helper bytes for offline review")
+  check(JSON.generate(rel).include?("prepare-unified-team.sh"), "unified signing job requires the independently verified Team release")
+  check(rel.dig("env", "TEAM_RELEASE_PUBLIC_KEY").to_s.include?("vars.TEAM_RELEASE_PUBLIC_KEY"), "release verification needs a public trust anchor independent of downloaded code")
+  check(JSON.generate(jobs).include?("make web web-embed"), "Team candidate builder needs the free helper's web assets on a fresh checkout")
+
 end
 
 if $failures.empty?

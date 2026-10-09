@@ -1,5 +1,10 @@
 # Installing and updating Team
 
+For ordinary desktop use, the primary installer is **Werkbord.app**, which bundles Team's separately maintained native installer. It activates only when explicitly requested. Personal remains free, and each workspace retains backend-authoritative offline licensing. The separate signed Team CLI/app remains supported for administrators and existing installations. See [unified distribution](UNIFIED_DISTRIBUTION.md) and [legacy migration](MIGRATION.md).
+
+Team desktop artifacts now require their own offline release manifest in addition to Apple signing/notarization. The online workflow produces review candidates only. Never publish those candidates as production installers; finalize the exact reviewed bytes on the authorized offline release path first. Joined devices and Workspace Hosts defer native service replacement until administrator maintenance; installing a newer shell does not move their databases.
+
+
 Team is separate from individual Werkbord. It requires no Tailscale account. Customers operate their own hosts, remote-access connectivity, backups and runners. Production admission is recorded in [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md); do not treat an ad-hoc preview as a signed release.
 
 For macOS use the separately signed/notarized Team installer described in [TEAM_DESKTOP.md](TEAM_DESKTOP.md). Verify Developer ID/notarization before granting the installer system privileges. The root service uses System Keychain; an interactive non-root CLI uses login Keychain. A headless/locked Keychain failure stops access to keys. Test the actual signed service through updates before deployment.

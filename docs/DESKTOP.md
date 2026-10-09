@@ -220,7 +220,7 @@ Apple team at once), and the app is notarized, so a copy stripped of its signatu
 another key, a feed signed by another key, an unsigned feed, a lower version, and an old archive offered under a newer version
 number are each refused, and the app and the controller stay as they were (`scripts/test-desktop-update.sh`).
 
-**What the shell and the controller share.** `GET /api/health` (public: is it a controller, which version), `GET /api/projects`
+**What the shell and the controller share.** `GET /api/health` (public: is it a controller, which version), `GET /api/control-center` (authenticated read-only update safety), `GET /api/projects`
 (needs the token: does it accept this computer's?), the files `token` and `config.json` in the data directory, and the commands
 `version`, `start`, `setup`, `update` and `install-release` of the installed program. Nothing else: the launcher's source is
 checked against that list by a test (`TestTheLauncherAsksTheControllerForOnlyTheseThings`), and the shell may not touch the
@@ -383,3 +383,7 @@ explicit Team installation. The existing Team app remains a compatible installer
 and console; it is no longer required as a second everyday window. See
 [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
 security boundaries, lifecycle, validation and operational limits.
+
+## Phase 4 packaging and adoption
+
+The primary bundle includes `Contents/Helpers/Werkbord Team.app`, preserved with its independent Apple and offline release signatures, plus `Resources/components.txt` and `compatibility.json`. Team is inert for free Personal use. The nested upstream Nebula signature is checked against its immutable pin by Team’s verifier; it is never re-signed to make publisher checks pass. Backend upgrades retain their original trust paths. See [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md) and [MIGRATION.md](MIGRATION.md). Sparkle now rechecks active work and Team maintenance before relaunching; a pending agent or enrolled Team workspace defers the swap.

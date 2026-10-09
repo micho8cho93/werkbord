@@ -102,6 +102,21 @@ plist=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Con
 step "ok  the app and the program it carries are both $version"
 xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");Safari;" "$APP"
 
+# Phase 4 distributions retain the separately authenticated Team payload.
+case "$version" in
+  1.[0-8].*|0.*) ;;
+  *)
+    TEAM_APP="$APP/Contents/Helpers/Werkbord Team.app"
+    [ -d "$TEAM_APP" ] || die "the unified installer has no Team payload"
+    "$root/scripts/check-team-desktop.sh" --distribution "$TEAM_APP" || die "Team signature validation failed"
+    "$root/scripts/check-unified-desktop.sh" --release "$APP" || die "component compatibility or offline proof check failed"
+    "$TEAM_APP/Contents/MacOS/Werkbord Team" --verify-release || die "Team offline release verification failed"
+    $XCRUN stapler validate "$TEAM_APP" || die "Team notarization ticket missing"
+    [ -s "$APP/Contents/Resources/components.txt" ] || die "component diagnostics missing"
+    step "ok  independently signed offline Team payload and component versions"
+    ;;
+esac
+
 # 4. The app, on its own.
 "$CODESIGN" --verify --strict --deep --verbose=2 "$APP" 2>"$WORK/err" || { cat "$WORK/err" >&2; die "the app's signature does not verify (codesign --verify --deep --strict)"; }
 CODESIGN="$CODESIGN" "$root/scripts/check-desktop-signature.sh" --distribution "$APP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app is not signed the way a release must be"; }

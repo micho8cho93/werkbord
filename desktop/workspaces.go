@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -73,7 +74,11 @@ func newWorkspaceParts(l *launcher.Launcher, log *slog.Logger) (*workspaceParts,
 	if v := os.Getenv("WERKBORD_DESKTOP_TEAM_KEY_FILE"); v != "" {
 		keyFile = v
 	}
-	team, err := teamlink.New(base, keyFile, nil)
+	var installed func() bool
+	if updaterTestBuild {
+		installed = func() bool { return false }
+	}
+	team, err := teamlink.New(base, keyFile, installed)
 	if err != nil {
 		return nil, err
 	}
@@ -108,5 +113,31 @@ func verifyProgram(ctx context.Context, path string) error {
 		return nil
 	}
 	app := filepath.Clean(filepath.Join(filepath.Dir(path), "..", ".."))
-	return exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--strict", "--deep", app).Run()
+	if err := exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--strict", "--deep", app).Run(); err != nil {
+		return err
+	}
+	// A distributed primary shell may only activate a Team installer from the
+	// same Apple publisher. Development shells retain ad hoc source builds.
+	primary := appBundle()
+	if primary != "" {
+		parentInfo, _ := exec.CommandContext(ctx, "/usr/bin/codesign", "-dvv", primary).CombinedOutput()
+		if strings.Contains(string(parentInfo), "Authority=Developer ID Application:") {
+			childInfo, err := exec.CommandContext(ctx, "/usr/bin/codesign", "-dvv", app).CombinedOutput()
+			if err != nil {
+				return err
+			}
+			team := func(b []byte) string {
+				for _, line := range strings.Split(string(b), "\n") {
+					if strings.HasPrefix(line, "TeamIdentifier=") {
+						return strings.TrimPrefix(line, "TeamIdentifier=")
+					}
+				}
+				return ""
+			}
+			if team(parentInfo) == "" || team(childInfo) != team(parentInfo) || !strings.Contains(string(childInfo), "Authority=Developer ID Application:") {
+				return fmt.Errorf("Team's installer has a different or unverified publisher")
+			}
+		}
+	}
+	return nil
 }

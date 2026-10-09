@@ -305,7 +305,7 @@ func (h *Hub) Handler() http.Handler {
 		h.mu.RUnlock()
 		s.h.ServeHTTP(w, r)
 	})
-	return mux
+	return h.installationFence(mux)
 }
 
 func (h *Hub) secured(next http.HandlerFunc) http.HandlerFunc {

@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+var nativeVersion = "dev" // stamped independently from the Personal shell
+
 const ServiceLabel = "dev.werkbord.team"
 const BaseURL = "http://127.0.0.1:7431"
 const SystemDir = "/Library/Application Support/Werkbord Team"
@@ -73,6 +75,10 @@ func ServiceIsolated() (installed, isolated bool, err error) {
 
 // Probe contacts only the local device service, without proxies or redirects.
 func Probe(ctx context.Context, key, expectedVersion string) error {
+	return probe(ctx, key, expectedVersion, false)
+}
+
+func probe(ctx context.Context, key, expectedVersion string, installing bool) error {
 	cl := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, err := http.NewRequestWithContext(ctx, "GET", BaseURL+"/api/device/v1/state", nil)
 	if err != nil {
@@ -84,6 +90,9 @@ func Probe(ctx context.Context, key, expectedVersion string) error {
 		return err
 	}
 	defer res.Body.Close()
+	if !installing && res.Header.Get("X-Werkbord-Installation-Pending") != "" {
+		return errors.New("Team installation was interrupted; activate Team again to recover it")
+	}
 	if res.StatusCode != 200 {
 		return errors.New("a different device service is already using this computer; contact its owner")
 	}

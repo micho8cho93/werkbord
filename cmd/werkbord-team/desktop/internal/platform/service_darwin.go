@@ -12,12 +12,22 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // shellQuote and appleString encode two different languages. Neither interpolates an invitation or workspace content.
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 func appleString(s string) string {
 	return "\"" + strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "\n", "\\n", "\r", "\\r").Replace(s) + "\""
+}
+
+// A failed bootout must never be followed by swapping/removing a live service.
+func stopInstalledService() error {
+	_, _ = exec.Command("/bin/launchctl", "bootout", "system/"+ServiceLabel).CombinedOutput()
+	if exec.Command("/bin/launchctl", "print", "system/"+ServiceLabel).Run() == nil {
+		return errors.New("Team service is still running; installation and data have been preserved")
+	}
+	return nil
 }
 
 // AuthorizeService invokes this signed application's fixed installer through macOS's normal administrator dialog.
@@ -43,7 +53,7 @@ func AuthorizeService(ctx context.Context, action string) error {
 }
 
 // PrivilegedService runs before any web view exists. It accepts only a real OS user and three fixed lifecycle operations.
-func PrivilegedService(action, uid string) error {
+func PrivilegedService(action, uid string) (resultErr error) {
 	if os.Geteuid() != 0 {
 		return errors.New("macOS administrator authorization is required")
 	}
@@ -68,22 +78,25 @@ func PrivilegedService(action, uid string) error {
 		return errors.New("Werkbord Team is installed for another user on this Mac")
 	}
 	if action == "uninstall" {
+		if err := CheckReplacement(filepath.Join(SystemDir, "data")); err != nil {
+			return err
+		}
 		// A live or unaccounted workspace is never removed by an OS installer. The daemon must first complete a checked leave.
 		if _, err := os.Lstat(filepath.Join(SystemDir, "data", "workspace")); !errors.Is(err, os.ErrNotExist) {
 			return errors.New("leave the workspace safely in Team before removing its service; the workspace copy has been preserved")
 		}
 		_ = exec.Command("/bin/launchctl", "disable", "system/"+ServiceLabel).Run()
-		_, _ = exec.Command("/bin/launchctl", "bootout", "system/"+ServiceLabel).CombinedOutput()
+		if err := stopInstalledService(); err != nil {
+			return err
+		}
 		if _, err := os.Lstat(filepath.Join(SystemDir, "data", "workspace")); !errors.Is(err, os.ErrNotExist) {
 			return errors.New("workspace creation finished while uninstall was stopping the service; its copy is preserved, start Team and leave safely")
 		}
-		for _, path := range []string{ServicePlist, filepath.Join(SystemDir, "Helpers"), filepath.Join(SystemDir, "data", "local"), filepath.Join(SystemDir, "data", "pending"), filepath.Join(SystemDir, "data", "license.json"), filepath.Join(SystemDir, "access.key"), ownerPath} {
-			if err := os.RemoveAll(path); err != nil {
-				return err
-			}
+		if err := CheckReplacement(filepath.Join(SystemDir, "data")); err != nil {
+			return err
 		}
 		// Explicitly retained archives/backups stay on disk; uninstall never silently destroys them.
-		return os.RemoveAll(filepath.Join(u.HomeDir, "Library", "Application Support", "werkbord-team-desktop"))
+		return removeEmptyService(SystemDir, ServicePlist)
 	}
 	if action == "stop" {
 		if err := exec.Command("/bin/launchctl", "disable", "system/"+ServiceLabel).Run(); err != nil {
@@ -100,6 +113,9 @@ func PrivilegedService(action, uid string) error {
 			return err
 		}
 		return exec.Command("/bin/launchctl", "bootstrap", "system", ServicePlist).Run()
+	}
+	if err := CheckReplacement(filepath.Join(SystemDir, "data")); err != nil {
+		return err
 	}
 	// Only the authenticated owner's key can seed the local connection. Nothing from the GUI supplies a root data path.
 	access := filepath.Join(u.HomeDir, "Library", "Application Support", "werkbord-team-desktop", "access.key")
@@ -146,6 +162,28 @@ func PrivilegedService(action, uid string) error {
 	if err := exec.Command("/usr/bin/codesign", "--verify", "--strict", filepath.Join(helpers, "werkbord-team")).Run(); err != nil {
 		return errors.New("the Team service's signature could not be verified")
 	}
+	if err := VerifyRelease(filepath.Join(appRoot, "Contents"), nativeVersion); err != nil {
+		return err
+	}
+	// Stop the candidate before recovering a previous generation. A healthy but
+	// uncommitted candidate still advertises maintenance through its local API.
+	x, err := readInstall(SystemDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err == nil && x.Phase == "prepared" {
+		if err := stopInstalledService(); err != nil {
+			return err
+		}
+		if err := recoverInstall(SystemDir, ServicePlist); err != nil {
+			return fmt.Errorf("Team installation recovery failed; backups retained: %w", err)
+		}
+		if _, err := os.Stat(ServicePlist); err == nil {
+			if err := exec.Command("/bin/launchctl", "bootstrap", "system", ServicePlist).Run(); err != nil {
+				return fmt.Errorf("Team installation restored but could not restart: %w", err)
+			}
+		}
+	}
 	stage, err := os.MkdirTemp(SystemDir, ".helpers-")
 	if err != nil {
 		return err
@@ -159,28 +197,42 @@ func PrivilegedService(action, uid string) error {
 	if err := copyFile(filepath.Join(helpers, "..", "Resources", "rqlited.build"), filepath.Join(stage, "rqlited.build"), 0600); err != nil {
 		return err
 	}
-	// All required components have been staged and verified before the old service is stopped.
-	_, _ = exec.Command("/bin/launchctl", "bootout", "system/"+ServiceLabel).CombinedOutput()
-	installed := filepath.Join(SystemDir, "Helpers")
-	previous := filepath.Join(SystemDir, "Helpers.previous")
-	if err := os.RemoveAll(previous); err != nil {
-		return err
-	}
-	if err := os.Rename(installed, previous); err != nil {
-		return err
-	}
-	if err := os.Rename(stage, installed); err != nil {
-		_ = os.Rename(previous, installed)
+	// Fence device mutations before stopping; the Hub honors the prepared marker.
+	if err := beginInstall(SystemDir, ServicePlist); err != nil {
 		return err
 	}
 	rollback := true
 	defer func() {
 		if rollback {
-			_ = os.RemoveAll(installed)
-			_ = os.Rename(previous, installed)
-			_ = exec.Command("/bin/launchctl", "bootstrap", "system", ServicePlist).Run()
+			if err := stopInstalledService(); err != nil {
+				resultErr = errors.Join(resultErr, err)
+				return
+			}
+			if err := recoverInstall(SystemDir, ServicePlist); err != nil {
+				resultErr = errors.Join(resultErr, fmt.Errorf("automatic rollback failed; backups retained: %w", err))
+				return
+			}
+			if _, err := os.Stat(ServicePlist); err == nil {
+				if err := exec.Command("/bin/launchctl", "bootstrap", "system", ServicePlist).Run(); err != nil {
+					resultErr = errors.Join(resultErr, fmt.Errorf("prior Team installation restored but could not restart: %w", err))
+				}
+			}
 		}
 	}()
+	if err := stopInstalledService(); err != nil {
+		return err
+	}
+	if err := CheckReplacement(filepath.Join(SystemDir, "data")); err != nil {
+		return err
+	}
+	installed := filepath.Join(SystemDir, "Helpers")
+	previous := filepath.Join(SystemDir, "Helpers.previous")
+	if err := os.Rename(installed, previous); err != nil {
+		return err
+	}
+	if err := os.Rename(stage, installed); err != nil {
+		return err
+	}
 	if err := atomicFile(filepath.Join(SystemDir, "access.key"), b, 0600); err != nil {
 		return err
 	}
@@ -210,32 +262,22 @@ func PrivilegedService(action, uid string) error {
 	if err := exec.Command("/bin/launchctl", "bootstrap", "system", ServicePlist).Run(); err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	for {
+		if err := probe(ctx, string(b), nativeVersion, true); err == nil {
+			break
+		}
+		if ctx.Err() != nil {
+			return errors.New("Team did not become healthy; the prior installation is restored")
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	if err := finishInstall(SystemDir); err != nil {
+		return err
+	}
 	rollback = false
-	return os.RemoveAll(previous)
-}
-
-func atomicFile(path string, b []byte, mode os.FileMode) error {
-	f, err := os.CreateTemp(filepath.Dir(path), ".team-install-")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	if err := f.Chmod(mode); err != nil {
-		f.Close()
-		return err
-	}
-	if _, err := f.Write(b); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), path)
+	return nil
 }
 
 // SetupRunner opens an installed free Werkbord app, or uses its bundled signed CLI to do the normal supported setup.

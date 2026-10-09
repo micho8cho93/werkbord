@@ -28,7 +28,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
+	"devboard/desktop/internal/migration"
 	"devboard/internal/config"
 	"devboard/internal/launcher"
 	"devboard/internal/update"
@@ -101,8 +103,12 @@ type UI interface {
 
 // Options are what a Shell is made of.
 type Options struct {
-	Launcher Launcher
-	UI       UI
+	Migration       *migration.Manager
+	VerifyMigration func(context.Context) error
+	Components      string
+	UpdateGuard     func(context.Context) error
+	Launcher        Launcher
+	UI              UI
 	// Version is the app's version; Platform is runtime.GOOS.
 	Version, Platform string
 	// AppLog is where the app writes its own log, mentioned in the diagnostics.
@@ -143,7 +149,17 @@ func New(o Options) *Shell {
 	s := &Shell{o: o}
 	if o.Updater != nil {
 		// A closure, not a method: Wails makes every exported method of the shell callable from a page.
-		o.Updater.GuardRelaunch(s.updating.Load)
+		o.Updater.GuardRelaunch(func() bool {
+			if s.updating.Load() {
+				return true
+			}
+			if s.o.UpdateGuard != nil {
+				ctx, cancel := context.WithTimeout(s.o.Ctx, 3*time.Second)
+				defer cancel()
+				return s.o.UpdateGuard(ctx) != nil
+			}
+			return false
+		})
 	}
 	return s
 }
@@ -152,8 +168,9 @@ func New(o Options) *Shell {
 
 // AppInfo says which app this is.
 type AppInfo struct {
-	Version  string `json:"version"`
-	Platform string `json:"platform"`
+	Components string `json:"components,omitempty"`
+	Version    string `json:"version"`
+	Platform   string `json:"platform"`
 	// Updater: this app can replace itself. Informational, and optional for a page to read: a page from before it
 	// existed ignores it, and an app from before it existed does not send it.
 	Updater bool `json:"updater,omitempty"`
@@ -163,7 +180,7 @@ type AppInfo struct {
 // "Update now" and to open links in the browser.
 func (s *Shell) Info() AppInfo {
 	s.o.Log.Debug("page call", "method", "Info")
-	return AppInfo{Version: s.o.Version, Platform: s.o.Platform, Updater: s.o.Updater != nil && s.o.Updater.Active()}
+	return AppInfo{Version: s.o.Version, Platform: s.o.Platform, Updater: s.o.Updater != nil && s.o.Updater.Active(), Components: s.o.Components}
 }
 
 // ChooseDirectory opens a native folder picker. It returns only the path the
@@ -189,6 +206,19 @@ type Connected struct {
 // "progress" events. A failure is returned as it is, for the loading screen to show, and Diagnostics
 // says more.
 func (s *Shell) Connect() (Connected, error) {
+	cleanInstall := false
+	if s.o.Migration != nil {
+		st, err := s.o.Migration.Status()
+		if err != nil {
+			return Connected{}, err
+		}
+		cleanInstall = st.Phase == "not_needed"
+		if st.Phase == "detected" || st.Phase == "prepared" {
+			if _, err := s.Migrate("adopt"); err != nil {
+				s.o.Log.Warn("migration deferred", "err", err)
+			}
+		}
+	}
 	conn, err := s.o.Launcher.Connect(s.o.Ctx, func(step launcher.Step) {
 		s.o.Log.Info("connecting", "phase", step.Phase, "text", step.Text)
 		s.o.UI.Emit("progress", step)
@@ -201,6 +231,16 @@ func (s *Shell) Connect() (Connected, error) {
 		}
 		return Connected{}, err
 	}
+	if cleanInstall && s.o.Migration != nil {
+		if _, err := s.o.Migration.Prepare(s.o.Ctx); err == nil {
+			_, err = s.o.Migration.Verify(s.o.Ctx, func(context.Context) error { return nil })
+			if err != nil {
+				s.o.Log.Warn("clean installation registration failed", "err", err)
+			}
+		} else {
+			s.o.Log.Warn("clean installation registration failed", "err", err)
+		}
+	}
 	s.o.Log.Info("connected", "controller", conn.Version, "url", conn.URL)
 	if conn.Notice != "" {
 		s.o.Log.Warn("notice", "text", conn.Notice)
@@ -212,6 +252,9 @@ func (s *Shell) Connect() (Connected, error) {
 // Diagnostics is what to look at when Werkbord does not open, as text with no secret in it.
 func (s *Shell) Diagnostics() string {
 	text := s.o.Launcher.DiagnosticsText(s.o.Ctx)
+	if s.o.Components != "" {
+		text += "\nBundled components:\n" + s.o.Components + "\n"
+	}
 	if s.o.AppLog != "" {
 		text += fmt.Sprintf("%-20s %s\n", "App log:", s.o.AppLog)
 	}
@@ -330,6 +373,13 @@ func (s *Shell) update(fromMenu bool) UpdateResult {
 	say := func(kind DialogKind, title, msg string) {
 		if fromMenu {
 			s.o.UI.Ask(Dialog{Kind: kind, Title: title, Message: msg, Buttons: []string{"OK"}, Default: "OK", Cancel: "OK"})
+		}
+	}
+
+	if s.o.UpdateGuard != nil {
+		if err := s.o.UpdateGuard(s.o.Ctx); err != nil {
+			say(Info, "Update deferred", err.Error())
+			return UpdateResult{Message: err.Error()}
 		}
 	}
 

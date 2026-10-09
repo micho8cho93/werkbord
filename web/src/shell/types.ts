@@ -123,7 +123,15 @@ export interface Overview {
 }
 
 /** The app's page-callable surface, as the shell uses it. */
+export interface MigrationStatus {
+  phase: string;
+  installations: { kind: string; path: string }[];
+  backup?: string;
+}
+
 export interface App {
+  MigrationStatus?(): Promise<MigrationStatus>;
+  Migrate?(action: 'adopt' | 'rollback'): Promise<MigrationStatus>;
   Workspaces(): Promise<WorkspaceView>;
   OpenWorkspace(id: string): Promise<Target>;
   LoadWorkspace(id: string): Promise<Target>;
@@ -136,5 +144,5 @@ export interface App {
   PendingInvitation(): Promise<string>;
   Relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   OpenExternal(url: string): Promise<void>;
-  Info(): Promise<{ version: string; platform: string }>;
+  Info(): Promise<{ version: string; platform: string; components?: string }>;
 }

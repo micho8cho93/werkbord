@@ -21,6 +21,7 @@ import (
 
 	"devboard/desktop/internal/shell"
 	"devboard/internal/launcher"
+	"devboard/internal/workspace"
 )
 
 // The loading/error page and bundled neutral workspace shell.
@@ -51,7 +52,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	l := launcher.New(launcherOptions())
+	mig := newMigrationManager(ctx)
+	lo := launcherOptions()
+	lo.AllowBundledUpgrade = func() bool {
+		st, err := mig.Status()
+		return err == nil && (st.Phase == "verified" || st.Phase == "not_needed")
+	}
+	l := launcher.New(lo)
 	ui := &wailsUI{}
 	parts, err := newWorkspaceParts(l, log)
 	if err != nil {
@@ -75,7 +82,47 @@ func main() {
 		up = nu
 	}
 	sh := shell.New(shell.Options{Launcher: l, UI: ui, Version: version, Platform: goruntime.GOOS, AppLog: appLog, Log: log, Ctx: ctx, Updater: up,
-		Workspaces: parts.registry, Team: parts.team, TeamInstaller: parts.installer, Grants: parts.personal, Invites: parts.invites, ShellPage: page})
+		Migration: mig, Components: bundledComponents(), VerifyMigration: func(ctx context.Context) error {
+			if _, err := l.Connect(ctx, nil); err != nil {
+				return err
+			}
+			if parts.team.Installed() {
+				items, err := parts.team.Source.List(ctx)
+				if err != nil {
+					return err
+				}
+				for _, item := range items {
+					if item.Entry.State != workspace.StateReady && item.Entry.State != workspace.StateSetup {
+						return fmt.Errorf("Team migration verification requires every enrolled workspace to be accessible; retry when its Hosts return")
+					}
+				}
+				return nil
+			}
+			return nil
+		}, UpdateGuard: func(ctx context.Context) error {
+			st, err := mig.Status()
+			if err != nil {
+				return err
+			}
+			if st.Phase != "verified" && st.Phase != "not_needed" {
+				return fmt.Errorf("Back up and verify your existing installation before updating; open Workspaces and devices")
+			}
+			if err := l.UpdateSafety(ctx); err != nil {
+				return err
+			}
+			if parts.team.Installed() {
+				items, err := parts.team.Source.List(ctx)
+				if err != nil {
+					return err
+				}
+				for _, i := range items {
+					if i.Entry.State != workspace.StateSetup {
+						return fmt.Errorf("Update deferred: an enrolled Team workspace requires administrator maintenance before a desktop update")
+					}
+				}
+			}
+			return nil
+		}, Workspaces: parts.registry, Team: parts.team, TeamInstaller: parts.installer, Grants: parts.personal, Invites: parts.invites, ShellPage: page})
 
 	// The window's own page is the only page that may call the app: every workspace's page is shown in a
 	// frame of it, WebKit gives a frame no way to call the app, and a workspace's page asks the shell page, which asks

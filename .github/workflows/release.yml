@@ -51,6 +51,10 @@ on:
 permissions:
   contents: read
 
+# Public trust anchor, separately provisioned from the downloaded Team artifact.
+env:
+  TEAM_RELEASE_PUBLIC_KEY: ${{ vars.TEAM_RELEASE_PUBLIC_KEY }}
+
 jobs:
   # Does this tag get a disk image? The individual product's stable releases do; Team's, and pre-releases, do not.
   plan:
@@ -192,6 +196,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/notary"
           printf '%s\n' "$APPLE_NOTARY_KEY" > "$RUNNER_TEMP/notary/AuthKey.p8"
           echo "NOTARY_KEY_FILE=$RUNNER_TEMP/notary/AuthKey.p8" >> "$GITHUB_ENV"
+      - name: Obtain the compatible independently signed and notarized Team installer
+        run: |
+          scripts/prepare-unified-team.sh "$RUNNER_TEMP/unified-team"
+          echo "TEAM_DESKTOP_APP=$RUNNER_TEMP/unified-team/Werkbord Team.app" >> "$GITHUB_ENV"
       - name: Build, sign, notarize and staple the universal app and disk image
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -273,6 +281,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
       - name: Download the published disk image and check it
         run: scripts/verify-desktop-release.sh "$GITHUB_REF_NAME"
       - name: If the published disk image is not good
