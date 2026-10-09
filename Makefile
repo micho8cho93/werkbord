@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check verify-isolation \
-        desktop desktop-package desktop-release desktop-preview desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
+        desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
         dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser team-desktop team-desktop-package team-desktop-release team-desktop-test team-desktop-check test-team-desktop-browser test-unified-desktop-browser
 
 all: check build build-team
@@ -134,12 +134,30 @@ desktop-preview: web web-embed web-shell
 	cd dist/desktop-preview && shasum -a 256 Werkbord-preview.dmg > Werkbord-preview.dmg.sha256
 
 ## desktop-dev: run the window from source, with a controller built from this tree on its own port and data
-## (nothing is installed and no login service is made: delete .desktop-dev to start over)
+## (nothing is installed and no login service is made). The controller is set up here, as a background process, before the
+## window opens (unless one already answers): the window sets one up itself only when this computer has no login service, and where there is one (the
+## installation you use) it would start THAT service instead and wait for a controller that never comes.
+## `make desktop-dev-stop` stops the controller; deleting .desktop-dev starts over.
 desktop-dev: build web-shell
 	@mkdir -p $(DESKTOP_DEV_DATA)
+	@curl -fs -m 2 http://$(DESKTOP_DEV_ADDR)/api/health >/dev/null || \
+		WERKBORD_DATA_DIR=$(DESKTOP_DEV_DATA) WERKBORD_ADDR=$(DESKTOP_DEV_ADDR) $(BIN) setup --no-service --no-open --no-network >/dev/null
 	cd desktop && WERKBORD_DESKTOP_CLI=$(CURDIR)/$(BIN) WERKBORD_DATA_DIR=$(DESKTOP_DEV_DATA) WERKBORD_ADDR=$(DESKTOP_DEV_ADDR) \
 		CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" \
-		$(GO) run -tags desktop,debug -ldflags "-X main.version=$(WERKBORD_VERSION)" .
+		$(GO) run -tags desktop,production,debug -ldflags "-X main.version=$(WERKBORD_VERSION)" .
+
+## desktop-dev-stop: stop the controller `make desktop-dev` started, by its own process (it leaves every other Werkbord alone).
+## Do not use `bin/werkbord stop` for it: that stops the login service of the installation you use, whatever data directory or
+## port is set.
+desktop-dev-stop:
+	@pid=$$(cat $(DESKTOP_DEV_DATA)/controller.pid 2>/dev/null); \
+	if [ -z "$$pid" ]; then echo "no development controller is running"; exit 0; fi; \
+	if ! ps -p $$pid -o command= 2>/dev/null | grep -q -F "$(CURDIR)/$(BIN) "; then \
+		echo "process $$pid is not this tree's controller; leaving it alone" >&2; exit 1; fi; \
+	kill -TERM $$pid; i=0; \
+	while kill -0 $$pid 2>/dev/null && [ $$i -lt 40 ]; do sleep 1; i=$$((i+1)); done; \
+	if kill -0 $$pid 2>/dev/null; then echo "controller $$pid is still winding down; run this again" >&2; exit 1; fi; \
+	rm -f $(DESKTOP_DEV_DATA)/controller.pid; echo "development controller stopped"
 
 ## desktop-test: the desktop app's logic, which needs no window system and so runs anywhere
 desktop-test:

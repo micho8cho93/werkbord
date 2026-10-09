@@ -198,7 +198,7 @@ make test-install test-install-team   # each installer against a local release s
 ```
 
 The individual Mac app (needs the Xcode command line tools): `make desktop`, `make desktop-package` (adds a
-`.dmg`), `make desktop-dev`, `make desktop-check`. See [DESKTOP.md](DESKTOP.md).
+`.dmg`), `make desktop-dev` (and `make desktop-dev-stop`), `make desktop-check`. See [DESKTOP.md](DESKTOP.md).
 
 The separate Team Mac app: `make team-desktop`, `make team-desktop-package`, `make team-desktop-check`.
 Production distribution: `make team-desktop-release`; see [TEAM_DESKTOP.md](TEAM_DESKTOP.md).

@@ -243,6 +243,7 @@ macOS only, with the Xcode command line tools (`xcode-select --install`), Go and
 make desktop            # dist/desktop/Werkbord.app
 make desktop-package    # that, and dist/desktop/Werkbord_<version>_darwin_<arch>.dmg (+ .sha256)
 make desktop-dev        # run the window from source, against a controller built from this tree
+make desktop-dev-stop   # stop that controller
 make desktop-test       # the app's tests (they need no window system, so they run anywhere; `make check` includes them)
 make desktop-check      # desktop-test, and on a Mac that the window code builds
 ```
@@ -252,9 +253,22 @@ version; by default a build reports what `scripts/product.sh werkbord build-vers
 only on a clean checkout of that tag.
 
 `make desktop-dev` is for working on the app: it runs the window with `go run`, uses `bin/werkbord` as its program,
-and keeps **its own data (`.desktop-dev/`) and port (127.0.0.1:7499)**, installing nothing and making no login service,
-so it never touches the installation you use. `DESKTOP_DEV_DATA=…` and `DESKTOP_DEV_ADDR=…` change them. Set
-`WERKBORD_DESKTOP_LOG_LEVEL=debug` to see every page call in `~/Library/Logs/Werkbord/desktop.log`.
+and keeps **its own data (`.desktop-dev/`) and port (127.0.0.1:7499)**, installing nothing and making no login service.
+`DESKTOP_DEV_DATA=…` and `DESKTOP_DEV_ADDR=…` change them. Set `WERKBORD_DESKTOP_LOG_LEVEL=debug` to see every page call
+in `~/Library/Logs/Werkbord/desktop.log`.
+
+- It sets that controller up itself, as a background process, before the window opens (unless one already answers). Left to
+  itself the window does that only when the computer has no login service; on a computer that has one (the installation you
+  use) it would start that service instead and wait for a controller that never comes.
+- Closing the window leaves the controller running, as for the installed app. `make desktop-dev-stop` stops it, by its own
+  process. **Never use `bin/werkbord stop`, `start` or `restart` for it:** they act on the installed login service whatever
+  data directory or port is set, so they would stop the installation you use.
+- The window allows one instance: quit it (⌘Q) before opening it again with other settings.
+- By default the window looks for Team's service where the installed one is (127.0.0.1:7431, with the credential in
+  `~/Library/Application Support/werkbord-team-desktop/`). To try Team without that service, point the window at another
+  one, for example a `werkbord-team daemon` of your own on other ports: `WERKBORD_DESKTOP_TEAM_BASE` (its loopback address),
+  `WERKBORD_DESKTOP_TEAM_KEY_FILE` (the file holding its credential) and `WERKBORD_DESKTOP_STATE` (the window's own state
+  file, so that your real one is not changed).
 
 `make desktop-release` is the signed, notarized, universal disk image a release publishes (it needs the Apple credentials in the
 environment and refuses to build anything else: [Signing and notarization](#signing-and-notarization)). A build with
