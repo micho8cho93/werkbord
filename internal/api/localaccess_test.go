@@ -114,7 +114,7 @@ func TestOnlyTheOwnerGivesAProgramAccessAndSeesAndRevokesIt(t *testing.T) {
 
 // The list of what a program may do is exactly this, and every other route the controller has refuses it.
 var reviewedScopedRoutes = []string{
-	"GET /api/integration/v1/projects", "POST /api/integration/v1/import", "GET /api/integration/v1/projects/{}/tasks/{}/status", "GET /api/integration/v1/projects/{}/tasks/{}/events", // projected metadata only; raw event route remains forbidden
+	"GET /api/integration/v1/projects", "POST /api/integration/v1/import", "PUT /api/integration/v1/waiting", "GET /api/integration/v1/projects/{}/tasks/{}/status", "GET /api/integration/v1/projects/{}/tasks/{}/events", // projected metadata only; raw event route remains forbidden
 	"GET /api/projects", "GET /api/projects/{}", "GET /api/projects/{}/tasks", "GET /api/projects/{}/runs", "GET /api/projects/{}/runs/{}",
 	"GET /api/projects/{}/questions", "GET /api/projects/{}/questions/{}", "GET /api/runners", "GET /api/control-center", "GET /api/local-access/self",
 	"POST /api/projects/{}/tasks", "POST /api/projects/{}/tasks/{}/runs", "POST /api/projects/{}/runs/{}/stop", "POST /api/projects/{}/questions/{}/answer",
@@ -271,6 +271,10 @@ func TestIntegrationGrantCannotControlRunsOrReadPrivateExecution(t *testing.T) {
 		{"POST", "/api/projects/p/runs/r/stop", "{}", 403},
 		{"POST", "/api/projects/p/questions/q/answer", `{"answer":"text"}`, 403},
 		{"POST", "/api/integration/v1/import", `{"execution":{"agentId":"agent"}}`, 403},
+		{"PUT", "/api/integration/v1/waiting", `{"schema":"x","source":"y","items":[]}`, 204},
+		{"PUT", "/api/integration/v1/waiting", `{"schema":"x","source":"y","items":[],"path":"/tmp"}`, 403},
+		{"GET", "/api/integration/waiting", "", 403},
+		{"POST", "/api/integration/waiting/link", `{"path":"/tmp","repository":"https://github.com/a/b"}`, 403},
 	} {
 		t.Run(tc.path+tc.method, func(t *testing.T) {
 			w := httptest.NewRecorder()

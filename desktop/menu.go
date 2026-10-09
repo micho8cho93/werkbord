@@ -23,10 +23,10 @@ func buildMenu(sh *shell.Shell, ui *wailsUI, withShell bool) *menu.Menu {
 		go2 := func(where string) func(*menu.CallbackData) {
 			return func(*menu.CallbackData) { ui.Emit("shell:go", where) }
 		}
-		ws.AddText("Personal", keys.CmdOrCtrl("1"), go2("personal"))
+		ws.AddText("Individual", keys.CmdOrCtrl("1"), go2("personal"))
 		ws.AddText("My Work", keys.CmdOrCtrl("2"), go2("mywork"))
 		ws.AddText("Calendar", keys.CmdOrCtrl("3"), go2("calendar"))
-		ws.AddText("Needs Attention", keys.CmdOrCtrl("4"), go2("inbox"))
+		ws.AddText("Needs You", keys.CmdOrCtrl("4"), go2("inbox"))
 		ws.AddSeparator()
 		ws.AddText("Switch Workspace…", keys.Combo("k", keys.CmdOrCtrlKey, keys.ShiftKey), go2("switch"))
 		ws.AddText("Workspaces and Devices", keys.CmdOrCtrl("0"), go2("workspaces"))

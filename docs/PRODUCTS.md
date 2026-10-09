@@ -261,7 +261,7 @@ Every implementation commit bumps and tags the product(s) it changes: [VERSIONIN
 
 ## Phase 1 integration
 
-The optional login-user connector synchronizes held Team tickets and safe Individual execution metadata through a versioned contract. The backends retain separate authority and credentials; the connector never runs in a privileged Workspace Host. See [INTEGRATION.md](INTEGRATION.md) for setup, project matching, reconciliation and the authority model.
+The optional login-user connector synchronizes held Team tickets and safe Individual execution metadata through a versioned contract; in the desktop app the Team service on the member's own computer runs the same synchronization once the member connects their runner with its narrow grant. The backends retain separate authority and credentials; no other computer, and no remote Workspace Host, ever receives that grant. See [INTEGRATION.md](INTEGRATION.md) for setup, project matching, reconciliation and the authority model.
 
 ## Phase 2 execution coordination
 

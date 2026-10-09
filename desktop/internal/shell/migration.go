@@ -2,9 +2,11 @@ package shell
 
 import (
 	"context"
-	"devboard/desktop/internal/migration"
 	"errors"
 	"time"
+
+	"devboard/desktop/internal/migration"
+	"devboard/internal/launcher"
 )
 
 // MigrationStatus exposes only installation locations and adoption status, never
@@ -41,4 +43,36 @@ func (s *Shell) Migrate(action string) (migration.Status, error) {
 	default:
 		return migration.Status{}, errors.New("choose adopt or rollback")
 	}
+}
+
+// UpdatePersonal brings the person's own Werkbord up to the version this app carries, when the one running is too old for
+// the window to show. It is the existing path, in its order: adopt the existing installation first (backed up, after the
+// person agrees in a dialog), then let the launcher replace the program, which refuses while agents are working and puts
+// the old one back if the new one does not come up. Frames cannot call it.
+func (s *Shell) UpdatePersonal() error {
+	if s.o.Migration != nil {
+		st, err := s.o.Migration.Status()
+		if err != nil {
+			return err
+		}
+		if st.Phase != "verified" && st.Phase != "not_needed" {
+			if st, err = s.Migrate("adopt"); err != nil {
+				return err
+			}
+			if st.Phase != "verified" {
+				return errors.New("your existing installation was not adopted, so Werkbord was not updated")
+			}
+		}
+	}
+	if s.o.Launcher == nil {
+		return errors.New("this app cannot update Werkbord")
+	}
+	conn, err := s.o.Launcher.Connect(s.o.Ctx, func(step launcher.Step) { s.o.UI.Emit("progress", step) })
+	if err != nil {
+		return err
+	}
+	if conn.Notice != "" {
+		return errors.New(conn.Notice)
+	}
+	return nil
 }

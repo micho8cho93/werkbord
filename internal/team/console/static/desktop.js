@@ -228,7 +228,51 @@ function nativeApp() {
 function runnerSetup() {
   return h('section', { class: 'panel' }, h('h2', {}, 'Your runner on this computer'), h('p', { class: 'muted' }, state.device.runner.connected ? 'Connected to your own Werkbord. It keeps its normal execution policies and approvals.' : 'The free Werkbord app runs your agents with your credentials. Team communicates with it only on this computer.'),
     h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => act(async () => { if (window.parent !== window) await nativeApp().SetupRunner(); else await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is connected.'; }) }, state.device.runner.connected ? 'Reconnect runner' : 'Connect existing runner'),
-      nativeApp() ? h('button', { class: 'plain', onclick: () => act(async () => { await nativeApp().SetupRunner(); if (window.parent === window) await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is ready.'; }) }, window.parent === window ? 'Install / set up free runner' : 'Connect my Personal runner') : extLink('https://github.com/micho8cho93/werkbord/releases', 'Download free Werkbord')));
+      nativeApp() ? h('button', { class: 'plain', onclick: () => act(async () => { await nativeApp().SetupRunner(); if (window.parent === window) await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is ready.'; }) }, window.parent === window ? 'Install / set up free runner' : 'Connect my Individual runner') : extLink('https://github.com/micho8cho93/werkbord/releases', 'Download free Werkbord')));
+}
+
+// Where a held ticket stands in the person's own Werkbord, once their runner is connected: the Team service on this
+// computer copies every held ticket of a synchronized project into it as a task (never starting it). Inside the desktop
+// app the ticket then opens there; until it can be copied, this says why.
+function individualActions(projectId, ticketId, small) {
+  const sync = state.desktop && state.device?.sync;
+  if (!sync?.active) return '';
+  const t = (sync.tickets || []).find(x => x.projectId === projectId && x.ticketId === ticketId);
+  const size = small ? ' small' : '';
+  if (!t) {
+    if ((state.device.settings.syncOff || []).includes(projectId)) return '';
+    scheduleDesktopRefresh();
+    return h('p', { class: 'muted', role: 'status' }, 'Adding this ticket to Individual…');
+  }
+  if (t.taskId) {
+    const open = FRAMED ? h('button', { class: 'primary' + size, 'data-testid': 'open-in-individual', onclick: () => openInIndividual('#/p/' + encodeURIComponent(t.localProjectId) + '/task/' + encodeURIComponent(t.taskId)) }, 'Open in Individual')
+      : h('p', { class: 'muted' }, 'In your Individual Werkbord as a task, ready to start.');
+    return h('span', { class: 'inline individual' }, open, t.conflict ? h('p', { class: 'muted' }, 'The task was changed in Individual, so this ticket’s newer text was not applied there.') : '');
+  }
+  if (t.waiting) return h('span', { class: 'inline individual' }, h('p', { class: 'muted', 'data-testid': 'waiting-for-repository' }, 'Individual has no project for this repository yet.'),
+    FRAMED ? h('button', { class: 'plain' + size, onclick: () => openInIndividual('#/control') }, 'Choose it in Individual') : '');
+  if (t.problem) return h('p', { class: 'muted' }, 'Not in Individual yet: ' + t.problem);
+  scheduleDesktopRefresh();
+  return h('p', { class: 'muted', role: 'status' }, 'Adding this ticket to Individual…');
+}
+
+// Which projects' held tickets are copied into the person's own Werkbord. All of them, unless turned off here.
+function syncPanel() {
+  if (!state.device.runner.configured) return '';
+  const s = state.device.settings;
+  const off = new Set(s.syncOff || []);
+  const projects = state.ov.projects.filter(p => p.member && !p.project.archived);
+  const save = (id, on) => act(async () => {
+    const next = new Set(off);
+    if (on) next.delete(id); else next.add(id);
+    await deviceApi('PUT', '/settings', { ...s, syncOff: [...next] });
+  });
+  const problem = state.device.sync?.problem;
+  return h('section', { class: 'panel', 'aria-labelledby': 'sync-h' }, h('h2', { id: 'sync-h' }, 'Tickets in Individual'),
+    h('p', { class: 'muted' }, 'A ticket you claim or are assigned in these projects appears as a task in your own Werkbord, ready for you to start. Claiming never starts an agent.'),
+    projects.length ? projects.map(p => h('label', { class: 'check-row' }, h('input', { type: 'checkbox', name: 'sync-' + p.project.id, checked: !off.has(p.project.id), onchange: e => save(p.project.id, e.target.checked) }), p.project.name))
+      : h('p', { class: 'muted' }, 'You are not on any project yet.'),
+    problem ? h('p', { class: 'advice' }, problem) : '');
 }
 
 async function settingsView() {
@@ -242,7 +286,7 @@ async function settingsView() {
   const hostOffer = h('input', { name: 'offer-workspace-host', type: 'checkbox', checked: s.offerWorkspaceHost });
   const connectivityOffer = h('input', { name: 'offer-connectivity-host', type: 'checkbox', checked: s.offerConnectivityHost });
   const plan = await deviceApi('GET', '/removal');
-  return h('div', {}, runnerSetup(), h('section', { class: 'panel' }, h('h2', {}, 'This computer'), h('form', { onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } }, field('Kind of computer', form), field('This computer sleeps automatically', sleeps), field('Volunteer this computer as a Workspace Host', hostOffer), field('Volunteer this computer as a Connectivity Host', connectivityOffer), field('Starting work from my other devices', policy), field('Allow my trusted devices to open tickets here', open), h('button', { class: 'primary' }, 'Save settings')),
+  return h('div', {}, runnerSetup(), syncPanel(), h('section', { class: 'panel' }, h('h2', {}, 'This computer'), h('form', { onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } }, field('Kind of computer', form), field('This computer sleeps automatically', sleeps), field('Volunteer this computer as a Workspace Host', hostOffer), field('Volunteer this computer as a Connectivity Host', connectivityOffer), field('Starting work from my other devices', policy), field('Allow my trusted devices to open tickets here', open), h('button', { class: 'primary' }, 'Save settings')),
     h('p', { class: 'muted' }, 'Hosting offers are sent to your administrator for authorization. A role starts only after authorization and infrastructure checks. Sleeping or traveling devices are unsuitable for reliable hosting. Changes here belong to this computer; Workspace Hosts cannot change your execution approvals.')),
     h('section', { class: 'panel' }, h('h2', {}, 'Trust your other devices'), h('p', { class: 'muted' }, 'Approve a device here before it can ask your runner to act. Compare its identity with the value shown in Settings on that device.'),
       h('p', { class: 'muted' }, 'This computer’s identity: ', h('code', {}, state.device.identity)),

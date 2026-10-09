@@ -121,3 +121,38 @@ export function reportFrame(place, w = globalThis.window) {
   w.addEventListener('popstate', send);
   return () => { w.removeEventListener('hashchange', send); w.removeEventListener('popstate', send); };
 }
+
+/**
+ * Asks the shell to open its workspace switcher under el, the product name the person clicked in this page's own header.
+ * Returns false outside the desktop app, where there is nothing to switch to. Only where the element is is sent.
+ */
+export function openSwitcher(el, w = globalThis.window) {
+  if (!isEmbedded(w) || !el?.getBoundingClientRect) return false;
+  const r = el.getBoundingClientRect();
+  const rect = { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) };
+  w.parent.postMessage({ type: 'werkbord.frame', event: 'switcher', rect }, '*');
+  return true;
+}
+
+/**
+ * Asks the shell to show another workspace, at a place inside it: a Team ticket's "Open in Individual" opens the person's
+ * own task. Only 'personal' is a target, and only a place (see isWorkspaceHref); the shell checks both again.
+ */
+export function openWorkspace(target, place, w = globalThis.window) {
+  if (!isEmbedded(w) || target !== 'personal' || !isWorkspaceHref(place)) return false;
+  w.parent.postMessage({ type: 'werkbord.frame', event: 'open', target, place }, '*');
+  return true;
+}
+
+/** Calls handler({ open, focus }) when the shell's switcher opened from this page opens or closes. */
+export function onSwitcher(handler, w = globalThis.window) {
+  if (!isEmbedded(w)) return () => {};
+  const listener = (event) => {
+    if (event.source !== w.parent) return;
+    const m = event.data;
+    if (!m || m.type !== 'werkbord.switcher' || typeof m.open !== 'boolean') return;
+    handler({ open: m.open, focus: m.focus === true });
+  };
+  w.addEventListener('message', listener);
+  return () => w.removeEventListener('message', listener);
+}

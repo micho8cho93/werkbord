@@ -60,6 +60,46 @@ type Imported struct {
 	Conflict  bool   `json:"conflict"`
 }
 
+// SourcePrefix begins every provenance reference a synchronizing client sends.
+const SourcePrefix = "werkbord-source:v1:"
+
+// MaxWaiting bounds the held tickets one source may report as waiting for a repository.
+const MaxWaiting = 64
+
+// Waiting is a held ticket that cannot be imported yet because no local project has its repository. It carries text to show
+// the person and nothing to act on: linking a folder or cloning stays the person's choice in their own Werkbord.
+type Waiting struct {
+	SourceRef  string `json:"sourceRef"`
+	Repository string `json:"repository"`
+	Title      string `json:"title"`
+	// From names where the ticket comes from (a Team workspace's name), for the person.
+	From string `json:"from"`
+}
+
+// WaitingSet replaces everything one source said was waiting. Source is a provenance prefix (one workspace and member);
+// every item's SourceRef starts with it, and an empty Items clears the source.
+type WaitingSet struct {
+	Schema string    `json:"schema"`
+	Source string    `json:"source"`
+	Items  []Waiting `json:"items"`
+}
+
+// Valid checks the set's shape; repository addresses are checked with RepositoryIdentity.
+func (w WaitingSet) Valid() error {
+	if w.Schema != Schema || !strings.HasPrefix(w.Source, SourcePrefix) || len(w.Source) > 600 || !strings.HasSuffix(w.Source, ":") || len(w.Items) > MaxWaiting {
+		return errors.New("invalid waiting set")
+	}
+	for _, it := range w.Items {
+		if !strings.HasPrefix(it.SourceRef, w.Source) || len(it.SourceRef) > 2000 || it.Title == "" || len([]rune(it.Title)) > 200 || len([]rune(it.From)) > 80 {
+			return errors.New("invalid waiting item")
+		}
+		if _, err := RepositoryIdentity(it.Repository); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CompletionSummary contains measured/fixed facts, never agent-generated text.
 type CompletionSummary struct {
 	Outcome          string `json:"outcome"`

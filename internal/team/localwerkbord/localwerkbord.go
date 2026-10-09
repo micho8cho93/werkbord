@@ -161,6 +161,14 @@ func (c *Client) Import(ctx context.Context, in integration.Import) (integration
 	}
 	return out, err
 }
+
+// ReportWaiting tells Werkbord which held tickets wait for their repository to be added there. It carries text only.
+func (c *Client) ReportWaiting(ctx context.Context, set integration.WaitingSet) error {
+	if err := set.Valid(); err != nil {
+		return err
+	}
+	return c.do(ctx, "PUT", "/api/integration/v1/waiting", set, nil)
+}
 func (c *Client) Snapshot(ctx context.Context, pid, tid string) (integration.Snapshot, error) {
 	var out integration.Snapshot
 	if err := checkID(pid); err != nil {

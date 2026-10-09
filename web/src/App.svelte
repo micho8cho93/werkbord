@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon, { type IconName } from './lib/Icon.svelte';
-  import Mark from './lib/Mark.svelte';
+  import ProductSwitch from './lib/shell/ProductSwitch.svelte';
   import NeedsInputBanner from './lib/NeedsInputBanner.svelte';
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
   import ProjectSwitcher from './lib/ProjectSwitcher.svelte';
@@ -128,7 +128,7 @@
       {:else}
         <header class="ghead">
           <div class="gtitle">
-            <span class="phone-mark"><Mark height={18} /></span>
+            <span class="phone-mark"><ProductSwitch variant="compact" /></span>
             <h1>{globalTitle}</h1>
           </div>
           <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -243,7 +244,7 @@ func TestWorkspaceHostCannotReplaceTheApprovedApplicationKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(after.Senders()) != 0 || after.LocalKey() != key || after.Settings() != settings {
+	if len(after.Senders()) != 0 || after.LocalKey() != key || !reflect.DeepEqual(after.Settings(), settings) {
 		t.Fatal("workspace reset lost installation state or retained trust")
 	}
 }

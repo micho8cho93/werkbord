@@ -465,3 +465,26 @@ func TestAGrantIsNarrowNamedAndReplacesTheOneItReconnects(t *testing.T) {
 		t.Fatal("a grant was made without the credential")
 	}
 }
+
+func TestAnOutdatedPersonalIsListedWithAProblemInsteadOfABlankFrame(t *testing.T) {
+	version := "v1.3.1-preview.1"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
+	}))
+	defer srv.Close()
+	p := NewPersonal(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "CTL"}, nil })
+	l, err := p.List(bg)
+	if !errors.Is(err, ErrOutdated) || len(l) != 1 || l[0].Entry.State != workspace.StateUnavailable || !strings.Contains(l[0].Entry.Detail, "1.3.1-preview.1") {
+		t.Fatalf("%+v %v", l, err)
+	}
+	v := NewRegistry(OpenState(""), nil, p).Refresh(bg)
+	if len(v.Items) != 1 || v.Items[0].State != workspace.StateUnavailable || len(v.Problems) != 1 || v.Problems[0].Kind != "outdated" || v.Problems[0].Source != "Werkbord" {
+		t.Fatalf("an outdated Personal must stay listed and say why: %+v", v)
+	}
+	for _, ok := range []string{"v1.6.0", "1.9.0-preview.1", "dev", "v1.9.0-3-gabcdef1"} {
+		version = ok
+		if l, err := p.List(bg); err != nil || l[0].Entry.State != workspace.StateReady {
+			t.Fatalf("%s: %+v %v", ok, l, err)
+		}
+	}
+}

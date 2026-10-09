@@ -145,4 +145,5 @@ export interface App {
   Relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   OpenExternal(url: string): Promise<void>;
   Info(): Promise<{ version: string; platform: string; components?: string }>;
+  UpdatePersonal?(): Promise<void>;
 }

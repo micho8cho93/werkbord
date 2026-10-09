@@ -28,6 +28,50 @@ func (s *Server) handleIntegrationImport(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, 200, out)
 }
+
+// handleIntegrationWaiting replaces what one synchronizing source says waits for a repository on this computer.
+func (s *Server) handleIntegrationWaiting(w http.ResponseWriter, r *http.Request) {
+	var in integration.WaitingSet
+	if err := decode(w, r, &in); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if err := s.opt.Tasks.SetWaiting(r.Context(), in); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleListWaiting is the app's own view of the tickets waiting for a repository (the controller's credential only).
+func (s *Server) handleListWaiting(w http.ResponseWriter, r *http.Request) {
+	items, err := s.opt.Tasks.Waiting(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// handleLinkWaiting registers the folder the person chose for a waiting ticket, if it is a clone of the ticket's repository.
+func (s *Server) handleLinkWaiting(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path       string `json:"path"`
+		Name       string `json:"name"`
+		Repository string `json:"repository"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	p, err := s.opt.Projects.RegisterFor(r.Context(), req.Path, req.Name, req.Repository)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, p)
+}
+
 func (s *Server) handleIntegrationEvents(w http.ResponseWriter, r *http.Request) {
 	after, err := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
 	if err != nil {

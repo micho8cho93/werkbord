@@ -287,6 +287,11 @@ func (d *Daemon) reconcileDevice(ctx context.Context) error {
 			}
 		}
 	}
+	if bridge != nil && runnerOK {
+		d.synchronize(ctx, host, bridge, mat, me.Member.ID)
+	} else {
+		d.setSync(syncView{})
+	}
 	if bridge != nil {
 		if err := d.coordinateSchedules(ctx, host, bridge, mat.Host.DeviceID()); err != nil {
 			return err

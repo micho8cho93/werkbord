@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	goruntime "runtime"
@@ -20,6 +21,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"devboard/desktop/internal/shell"
+	"devboard/desktop/internal/workspaces"
 	"devboard/internal/launcher"
 	"devboard/internal/workspace"
 )
@@ -88,6 +90,12 @@ func main() {
 			}
 			if parts.team.Installed() {
 				items, err := parts.team.Source.List(ctx)
+				if errors.Is(err, workspaces.ErrOutdated) {
+					// An older Team service is left exactly as it is (adoption copies and moves nothing of Team's) and is
+					// updated through Team's own path; it must not keep the person's own Werkbord from being adopted.
+					log.Warn("adopting with an older Team service left as it is", "err", err)
+					return nil
+				}
 				if err != nil {
 					return err
 				}

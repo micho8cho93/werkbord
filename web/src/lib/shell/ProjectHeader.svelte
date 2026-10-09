@@ -1,4 +1,8 @@
 <script lang="ts">
+  import ProductSwitch from './ProductSwitch.svelte';
+  import { embedded } from '../embed';
+
+  const framed = embedded();
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
   import { shortPath } from '../projects';
@@ -22,11 +26,14 @@
 <header class="head">
   <div class="where">
     <!-- On a phone the project name opens the switcher: it is the only way between projects there. -->
-    <button class="name" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Switch project, current: {project.name}">
-      <span class="phone-mark"><Mark height={18} /></span>
-      <h1>{project.name}</h1>
-      <span class="chev"><Icon name="down" size={14} /></span>
-    </button>
+    <div class="name-row">
+      {#if framed}<span class="phone-mark"><ProductSwitch variant="compact" /></span>{/if}
+      <button class="name" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Switch project, current: {project.name}">
+        {#if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
+        <h1>{project.name}</h1>
+        <span class="chev"><Icon name="down" size={14} /></span>
+      </button>
+    </div>
     <p class="path" title={project.repoPath}>{shortPath(project.repoPath)}{branch ? ` · ${branch}` : ''}</p>
   </div>
   <div class="acts">
@@ -72,6 +79,13 @@
     min-width: 0;
     display: flex;
     flex-direction: column-reverse;
+  }
+
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
   }
 
   .name {

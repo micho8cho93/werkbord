@@ -37,3 +37,8 @@ input, textarea { caret-color: var(--accent); }
 .execution-preapproval { display: flex; align-items: center; gap: .5rem; margin-block: .75rem; }
 .execution-preapproval input[type="checkbox"] { width: auto; flex: 0 0 auto; }
 .execution-row { padding-block: .75rem; border-block-start: 1px solid var(--line); margin-block-start: .75rem; }
+
+.check-row { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px; }
+.check-row input { width: 16px; height: 16px; margin: 0; }
+.inline.individual { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.inline.individual p { margin: 0; }

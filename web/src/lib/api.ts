@@ -34,6 +34,7 @@ import type {
   TaskState,
   UpdateStatus,
   Worktree,
+  WaitingItem,
   WorkingChanges,
 } from './types';
 
@@ -201,6 +202,9 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   listProjects: () => request<{ projects: Project[] }>('GET', '/api/projects').then((r) => r.projects),
   registerProject: (path: string, name: string) => request<Project>('POST', '/api/projects', { path, name }),
   controlCenter: () => request<Overview>('GET', '/api/control-center'),
+  waiting: () => request<{ items: WaitingItem[] }>('GET', '/api/integration/waiting'),
+  /** Registers the folder chosen for a waiting ticket; refused unless it is a clone of that repository. */
+  linkWaiting: (path: string, repository: string) => request<Project>('POST', '/api/integration/waiting/link', { path, repository }),
 
   // In a project.
   refreshProject: (projectId: string) => request<Project>('POST', `${inProject(projectId)}/refresh`),

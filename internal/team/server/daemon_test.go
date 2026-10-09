@@ -456,6 +456,9 @@ func TestUnifiedDesktopBrowserFixture(t *testing.T) {
 	meta, _ := json.Marshal(map[string]string{"first": "http://" + hub.o.LocalAddr, "firstKey": hub.key, "other": "http://" + other.o.LocalAddr, "otherKey": other.key()})
 	_ = os.WriteFile(filepath.Join(dir, "team-ready.json"), meta, 0600)
 	deadline := time.Now().Add(10 * time.Minute)
+	if m, err := time.ParseDuration(os.Getenv("WERKBORD_FIXTURE_MINUTES") + "m"); err == nil && m > 0 {
+		deadline = time.Now().Add(m)
+	}
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(filepath.Join(dir, "done")); err == nil {
 			cancel()

@@ -113,7 +113,11 @@ func (r *Registry) Refresh(ctx context.Context) View {
 		if res.err != nil {
 			r.log.Debug("source not usable", "source", res.src.Name(), "err", res.err)
 			v.Problems = append(v.Problems, problemOf(res.src.Name(), res.err))
-			continue
+			// A source that needs updating may still list what it holds: Personal is always listed, so that the window can
+			// say it needs updating instead of showing nothing. Any other failure lists nothing from that source.
+			if len(res.l) == 0 || !errors.Is(res.err, ErrOutdated) {
+				continue
+			}
 		}
 		for _, l := range res.l {
 			if _, dup := next[l.Entry.ID]; dup {

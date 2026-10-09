@@ -8,3 +8,9 @@ export function isWorkspaceHref(href: unknown): boolean;
 export function onNavigate(handler: (href: string) => void, w?: unknown): () => void;
 
 export function reportFrame(place: () => string, w?: unknown): () => void;
+/** Asks the shell to open its workspace switcher under el. False outside the desktop app. */
+export function openSwitcher(el: Element | null | undefined, w?: unknown): boolean;
+/** Asks the shell to show the person's own Werkbord at a place inside it. False outside the desktop app. */
+export function openWorkspace(target: 'personal', place: string, w?: unknown): boolean;
+/** Follows the shell's switcher opening and closing. */
+export function onSwitcher(handler: (s: { open: boolean; focus: boolean }) => void, w?: unknown): () => void;

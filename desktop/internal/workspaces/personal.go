@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"devboard/internal/update"
 	"devboard/internal/workspace"
 )
 
@@ -41,7 +42,7 @@ func (p *Personal) Name() string { return "Werkbord" }
 
 func (p *Personal) entry(state workspace.State, detail string) workspace.Listed {
 	return workspace.Listed{
-		Entry: workspace.Entry{ID: workspace.PersonalID, Kind: workspace.KindPersonal, Name: "Personal", State: state, Detail: detail, DeviceRoles: []string{"runner"}},
+		Entry: workspace.Entry{ID: workspace.PersonalID, Kind: workspace.KindPersonal, Name: "Individual", State: state, Detail: detail, DeviceRoles: []string{"runner"}},
 		Root:  "/", SummaryPath: "/api/workspace/v1/summary",
 	}
 }
@@ -53,10 +54,29 @@ func (p *Personal) List(ctx context.Context) ([]workspace.Listed, error) {
 	if err != nil {
 		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord is not running on this computer.")}, nil
 	}
-	if _, err := get2(ctx, p.hc, a.Base, "/api/health", ""); err != nil {
+	b, err := get2(ctx, p.hc, a.Base, "/api/health", "")
+	if err != nil {
 		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord is not answering.")}, nil
 	}
+	var health struct {
+		Version string `json:"version"`
+	}
+	_ = json.Unmarshal(b, &health)
+	if Outdated(health.Version) {
+		v := strings.TrimPrefix(health.Version, "v")
+		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord "+v+" is running on this computer. This window shows "+MinimumVersion+" or later.")},
+			fmt.Errorf("%w: Werkbord %s", ErrOutdated, v)
+	}
 	return []workspace.Listed{p.entry(workspace.StateReady, "")}, nil
+}
+
+// MinimumVersion is the oldest Werkbord the window can show (desktop/build/compatibility.json, personal.minimumUnifiedVersion).
+// An older one refuses to be shown in a frame and lacks the summary the window reads, so it would be a blank page.
+const MinimumVersion = "1.6.0"
+
+// Outdated says whether a running Werkbord is a release older than MinimumVersion. A build from source is never outdated.
+func Outdated(version string) bool {
+	return update.Release(version) && update.Compare(version, MinimumVersion) < 0
 }
 
 func get2(ctx context.Context, hc *http.Client, base, path, key string) ([]byte, error) {

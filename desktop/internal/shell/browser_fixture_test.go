@@ -47,7 +47,18 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 	ui := &fakeUI{answers: []string{"Connect runner", "Connect runner", "Connect runner"}}
 	sh := New(Options{Migration: mig, VerifyMigration: func(ctx context.Context) error { _, err := link.Source.List(ctx); return err }, Components: "Shell: v1.9.0-preview.1\nPersonal: v1.9.0-preview.1\nTeam: v3.8.0", Workspaces: reg, Team: link, TeamInstaller: &fakeInstaller{found: true}, Grants: personal, Invites: &Invites{}, UI: ui})
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir(filepath.Join("..", "..", "frontend", "dist"))))
+	dist := filepath.Join("..", "..", "frontend", "dist")
+	mux.Handle("/", http.FileServer(http.Dir(dist)))
+	// The shell's page with the fixture's stand-in for the native bridge, so a plain browser can open it.
+	mux.HandleFunc("GET /shell/shell/index.html", func(w http.ResponseWriter, r *http.Request) {
+		page, err := os.ReadFile(filepath.Join(dist, "shell", "shell", "index.html"))
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(strings.Replace(string(page), "<head>", "<head><script>"+fixtureBridge+"</script>", 1)))
+	})
 	mux.HandleFunc("POST /fixture/call", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			Method string
@@ -121,7 +132,7 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 	defer server.Close()
 	go server.Serve(ln)
 	_ = os.WriteFile(filepath.Join(dir, "shell-ready"), []byte("ready"), 0600)
-	deadline := time.Now().Add(10 * time.Minute)
+	deadline := time.Now().Add(fixtureLifetime())
 	for time.Now().Before(deadline) {
 		if _, err := os.Stat(filepath.Join(dir, "done")); err == nil {
 			return
@@ -129,4 +140,15 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("shell browser harness did not finish")
+}
+
+// fixtureBridge answers the shell's native calls through the fixture's /fixture/call route.
+const fixtureBridge = `if (window.parent === window && !window.go) window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => { const r = await fetch('/fixture/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Method: method, Args: args }) }); const d = await r.json(); if (!r.ok) throw Error(d.error); return d; } }) } };`
+
+// fixtureLifetime is how long the harness keeps serving: ten minutes, or WERKBORD_FIXTURE_MINUTES for a person exploring it.
+func fixtureLifetime() time.Duration {
+	if m, err := time.ParseDuration(os.Getenv("WERKBORD_FIXTURE_MINUTES") + "m"); err == nil && m > 0 {
+		return m
+	}
+	return 10 * time.Minute
 }

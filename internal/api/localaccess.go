@@ -47,6 +47,7 @@ var executionScopedRoutes = []scopedRoute{
 var scopedRoutes = []scopedRoute{
 	{method: "GET", pattern: "/api/integration/v1/projects"},
 	{method: "POST", pattern: "/api/integration/v1/import", fields: []string{"schema", "sourceRef", "sourceAliases", "projectId", "repository", "title", "description", "workBranch", "baseBranch", "previous"}},
+	{method: "PUT", pattern: "/api/integration/v1/waiting", fields: []string{"schema", "source", "items"}},
 	{method: "GET", pattern: "/api/integration/v1/projects/{}/tasks/{}/status"},
 	{method: "GET", pattern: "/api/integration/v1/projects/{}/tasks/{}/events"},
 	// what is there

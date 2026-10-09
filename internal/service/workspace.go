@@ -50,7 +50,7 @@ func execOf(r domain.Run) workspace.Execution {
 func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 	out := workspace.Summary{
 		Schema:    workspace.Schema,
-		Workspace: workspace.Entry{ID: workspace.PersonalID, Kind: workspace.KindPersonal, Name: "Personal", State: workspace.StateReady, DeviceRoles: []string{"runner"}},
+		Workspace: workspace.Entry{ID: workspace.PersonalID, Kind: workspace.KindPersonal, Name: "Individual", State: workspace.StateReady, DeviceRoles: []string{"runner"}},
 		Projects:  []workspace.Project{},
 		Work:      []workspace.Item{},
 		Attention: []workspace.Attention{},

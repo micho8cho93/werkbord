@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
-  import Mark from '../Mark.svelte';
+  import ProductSwitch from './ProductSwitch.svelte';
   import { attentionCount } from '../projects';
   import { globalHref, hrefOf, router, switchedTo } from '../router.svelte';
   import { app } from '../state.svelte';
@@ -21,10 +21,7 @@
 </script>
 
 <aside class="rail" aria-label="Werkbord">
-  <a class="brand" href={globalHref('control')} aria-label="Werkbord, Control Center">
-    <Mark height={20} />
-    <span class="wm">werkbord</span>
-  </a>
+  <ProductSwitch />
 
   <nav class="group" aria-label="Everywhere">
     <a class="nav" href={globalHref('control')} aria-current={router.view === 'control' ? 'page' : undefined}>
@@ -98,23 +95,6 @@
     border-right: 1px solid var(--border);
     overflow-y: auto;
     overscroll-behavior: contain;
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 4px 8px 16px;
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .wm {
-    font-family: var(--mono);
-    font-weight: 600;
-    font-size: 17px;
-    letter-spacing: -0.06em;
-    line-height: 1;
   }
 
   .group {

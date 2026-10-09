@@ -56,7 +56,7 @@
       <li class="card" data-workspace={i.id} data-state={i.state}>
         <header>
           <h2>{i.name}</h2>
-          <span class="kind">{i.kind === 'personal' ? 'Personal · this computer' : i.role ? `Team · ${i.role}` : 'Team'}</span>
+          <span class="kind">{i.kind === 'personal' ? 'Individual · this computer' : i.role ? `Team · ${i.role}` : 'Team'}</span>
         </header>
         <p class="standing" data-state={i.state}>{e ? standing(e) : i.detail || i.state}</p>
 
@@ -88,13 +88,16 @@
           {#if i.state === 'setup' || i.state === 'connecting' || i.state === 'ready' || i.state === 'offline'}
             <button class="btn" type="button" onclick={() => model.open(i.id)}>{i.state === 'setup' ? 'Finish setting up' : 'Open'}</button>
           {/if}
+          {#if i.kind === 'personal' && model.personalOutdated}
+            <button class="btn primary" type="button" onclick={() => model.updatePersonal()} disabled={!!model.busy}>Update Werkbord…</button>
+          {/if}
           {#if i.kind === 'team' && i.state !== 'setup'}
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=hosts')} data-testid="manage-hosts">Hosts and devices</button>
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=connectivity')}>Connectivity</button>
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=backups')}>Backups</button>
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=settings')}>Settings and leaving</button>
             {#if i.state !== 'leaving' && !roles.includes('runner')}
-              <button class="btn" type="button" onclick={() => model.connectRunner(i.id)} data-testid="connect-runner">Connect my Personal runner</button>
+              <button class="btn" type="button" onclick={() => model.connectRunner(i.id)} data-testid="connect-runner">Connect my Individual runner</button>
             {/if}
           {/if}
           {#if i.kind === 'team' && (i.state === 'setup' || i.state === 'leaving' || (i.state === 'connecting' && !i.role))}

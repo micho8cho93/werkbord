@@ -41,6 +41,18 @@ signed command. Existing device-message/handoff protocols and their local trust
 checks are independent. There is no remotely selectable controller URL, runner,
 agent, shell command, environment, filesystem path or execution policy in v1.
 
+## In the desktop app
+
+With the Werkbord desktop app no connector setup is needed. Connecting your Individual runner to a Team workspace
+(Team Settings → Connect my Individual runner) hands that workspace's Team service on your computer the narrow
+`execution-local-v1` grant, and the service runs this same synchronization every cycle and right after a claim: every
+project you are on, except those turned off under Team Settings → Tickets in Individual. That grant can import text and
+read projected status; it cannot start a run. Held tickets whose repository is not a project in Individual are reported
+with `PUT /api/integration/v1/waiting` (one replaceable set per workspace source, text only, at most 64) and shown in
+Individual's Control Center until the person chooses a matching folder (`POST /api/integration/waiting/link`, which
+refuses a folder that is not a clone of the repository) or clones it with their GitHub sign-in. The CLI connector below
+remains the way to synchronize without the desktop app; both use the same provenance, so they never duplicate a task.
+
 ## Enable synchronization as your login user
 
 Install both products using their existing installers. Enroll a separate member

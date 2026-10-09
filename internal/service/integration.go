@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/integration"
@@ -190,9 +192,131 @@ func (s *Tasks) Import(ctx context.Context, in integration.Import) (integration.
 				return err
 			}
 		}
-		return nil
+		// The ticket has a task now: it no longer waits for a repository.
+		return s.saveWaiting(ctx, tx, em, func(items []WaitingItem) []WaitingItem {
+			return slicesDelete(items, func(it WaitingItem) bool { return it.SourceRef == in.SourceRef })
+		})
 	})
 	return out, err
+}
+
+// waitingKey holds the held tickets a synchronizing client could not import because no project here has their repository.
+const waitingKey = "integration:waiting"
+
+// maxWaitingTotal bounds what is kept across every source.
+const maxWaitingTotal = 256
+
+// WaitingItem is a ticket waiting for its repository to be added here, as the Control Center shows it.
+type WaitingItem struct {
+	integration.Waiting
+	Since time.Time `json:"since"`
+	// GitHub is owner/name when the repository is on github.com, so it can be cloned with the GitHub sign-in.
+	GitHub string `json:"github,omitempty"`
+}
+
+func slicesDelete(items []WaitingItem, drop func(WaitingItem) bool) []WaitingItem {
+	out := items[:0:0]
+	for _, it := range items {
+		if !drop(it) {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+func readWaiting(ctx context.Context, tx store.Tx) ([]WaitingItem, error) {
+	var items []WaitingItem
+	if err := tx.Settings().Get(ctx, waitingKey, &items); err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return nil, err
+	}
+	return items, nil
+}
+
+// saveWaiting changes the list and says so on the event stream when it did change.
+func (s *Tasks) saveWaiting(ctx context.Context, tx store.Tx, em *emitter, change func([]WaitingItem) []WaitingItem) error {
+	before, err := readWaiting(ctx, tx)
+	if err != nil {
+		return err
+	}
+	after := change(append([]WaitingItem(nil), before...))
+	if len(after) > maxWaitingTotal {
+		return fmt.Errorf("%w: too many tickets are waiting for a repository", domain.ErrInvalid)
+	}
+	if waitingEqual(before, after) {
+		return nil
+	}
+	if err := tx.Settings().Set(ctx, waitingKey, after, s.now()); err != nil {
+		return err
+	}
+	return em.emit(newEvent(domain.EventSettingsUpdated, map[string]string{"key": "integration-waiting"}))
+}
+
+func waitingEqual(a, b []WaitingItem) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Waiting != b[i].Waiting {
+			return false
+		}
+	}
+	return true
+}
+
+// SetWaiting replaces what one source said is waiting for a repository. A ticket that already has a task here is not
+// waiting, whatever the source says. Nothing is created: adding the repository is the person's choice.
+func (s *Tasks) SetWaiting(ctx context.Context, in integration.WaitingSet) error {
+	if err := in.Valid(); err != nil {
+		return fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+	}
+	return s.update(ctx, func(tx store.Tx, em *emitter) error {
+		var keep []integration.Waiting
+		for _, it := range in.Items {
+			var bound integration.Imported
+			err := tx.Settings().Get(ctx, integrationSourceKey(it.SourceRef), &bound)
+			if errors.Is(err, domain.ErrNotFound) {
+				keep = append(keep, it)
+			} else if err != nil {
+				return err
+			}
+		}
+		return s.saveWaiting(ctx, tx, em, func(items []WaitingItem) []WaitingItem {
+			since := map[string]time.Time{}
+			for _, it := range items {
+				since[it.SourceRef] = it.Since
+			}
+			items = slicesDelete(items, func(it WaitingItem) bool { return strings.HasPrefix(it.SourceRef, in.Source) })
+			for _, it := range keep {
+				at, ok := since[it.SourceRef]
+				if !ok {
+					at = s.now()
+				}
+				items = append(items, WaitingItem{Waiting: it, Since: at})
+			}
+			return items
+		})
+	})
+}
+
+// Waiting lists the tickets waiting for a repository, oldest first.
+func (s *Tasks) Waiting(ctx context.Context) ([]WaitingItem, error) {
+	var items []WaitingItem
+	err := s.Store.View(ctx, func(tx store.Tx) error {
+		var err error
+		items, err = readWaiting(ctx, tx)
+		return err
+	})
+	for i := range items {
+		if id, err := integration.RepositoryIdentity(items[i].Repository); err == nil {
+			if name, ok := strings.CutPrefix(id, "github.com/"); ok && strings.Count(name, "/") == 1 {
+				items[i].GitHub = name
+			}
+		}
+	}
+	if items == nil {
+		items = []WaitingItem{}
+	}
+	return items, err
 }
 
 func executionMetadata(r domain.Run) integration.Execution {

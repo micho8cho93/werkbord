@@ -523,6 +523,8 @@ func (d *Daemon) finishLeave(ctx context.Context) error {
 	if !plan.Revoked {
 		return errors.New("workspace departure is waiting for device revocation")
 	}
+	// The synchronization journal lives in the workspace's data and leaves with it.
+	d.closeJournal()
 	source := d.workspaceConfig().DataDir
 	if plan.RemoveData {
 		err = os.RemoveAll(source)

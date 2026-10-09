@@ -46,19 +46,46 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  browser = await chromium.launch({ headless: true }); const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
  await context.addInitScript(() => { if (window.parent !== window) return; window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => { const r = await fetch('/fixture/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Method: method, Args: args }) }); const d = await r.json(); if (!r.ok) throw Error(d.error); return d; } }) } }; });
  const page = await context.newPage(); testPage = page; page.setDefaultTimeout(90000); const errors = []; page.on('pageerror', e => errors.push(e.message));
- const switchTo = async (id) => { await page.getByTestId('workspace-switcher').click(); await page.locator('.menu [data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); };
+ // Switching is the product name in the shown workspace's own header (or, on the shell's own pages, in their bar).
+ let current = 'personal';
+ const switcher = async () => { const shell = page.getByTestId('workspace-switcher'); if (await shell.count()) await shell.click(); else await page.frameLocator('iframe[data-workspace="' + current + '"]').locator('[data-testid=product-switch]:visible').click(); await page.getByTestId('switcher-menu').waitFor(); };
+ const switchTo = async (id) => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
  await page.goto(origin + '/shell/shell/index.html'); await page.locator('iframe[data-workspace=personal]').waitFor();
+ for (const section of ['Overview', 'Board', 'Git', 'Runs']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
+ console.log('PASS Individual keeps its own design: rail, project tabs and the product switcher in its header');
  await switchTo('team:main'); const firstFrame = page.frameLocator('iframe[data-workspace="team:main"]');
  await firstFrame.locator('nav').getByRole('button', { name: 'Settings', exact: true }).click();
- await firstFrame.getByRole('button', { name: 'Connect my Personal runner', exact: true }).click();
+ await firstFrame.getByRole('button', { name: 'Connect my Individual runner', exact: true }).click();
  await wait(async () => (await dev('GET', '/state')).runner.connected, 'explicit narrow grant connection');
- await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: /Improve sign-in/ }).click();
+ // Claimed before the runner was connected: the Team service on this computer copies it into Individual, and the ticket opens there.
+ await wait(async () => ((await dev('GET', '/state')).sync?.tickets || []).some(t => t.ticketId === ticket.id && t.taskId), 'claimed ticket copied into Individual');
+ await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: new RegExp(ticket.key + ' Improve sign-in') }).click(); current = 'team:main';
+ await firstFrame.getByTestId('open-in-individual').click();
+ await page.locator('iframe[data-workspace=personal]').waitFor({ state: 'visible' }); current = 'personal';
+ await page.frameLocator('iframe[data-workspace=personal]').getByRole('heading', { name: ticket.key + ': Improve sign-in' }).waitFor();
+ console.log('PASS claim in Team, task in Individual, Open in Individual switches to it');
+ // A held ticket whose repository is not a project here waits for it in Individual's Needs you; linking a clone imports it.
+ const billing = await team('POST', '/projects', { name: 'Billing', repository: 'https://github.com/acme/billing' });
+ const invoice = await team('POST', `/projects/${billing.id}/tickets`, { title: 'Retry failed invoices', status: 'available' }); await team('POST', `/projects/${billing.id}/tickets/${invoice.id}/claim`, {});
+ await wait(async () => (await api(personalURL, 'disposable-browser-credential', 'GET', '/api/integration/waiting')).items.length === 1, 'ticket waiting for its repository');
+ await page.frameLocator('iframe[data-workspace=personal]').getByRole('link', { name: 'Close', exact: true }).click();
+ await page.frameLocator('iframe[data-workspace=personal]').getByRole('link', { name: /Control Center/ }).first().click();
+ await page.frameLocator('iframe[data-workspace=personal]').getByTestId('waiting-repository').filter({ hasText: invoice.key }).waitFor();
+ const billingRepo = path.join(temp, 'billing'); fs.mkdirSync(billingRepo); run('git', ['-C', billingRepo, 'init', '-b', 'main']); run('git', ['-C', billingRepo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture']); run('git', ['-C', billingRepo, 'remote', 'add', 'origin', 'git@github.com:acme/billing.git']);
+ await assert.rejects(api(personalURL, 'disposable-browser-credential', 'POST', '/api/integration/waiting/link', { path: repo, repository: 'https://github.com/acme/billing' }), /not a clone/);
+ const linked = await api(personalURL, 'disposable-browser-credential', 'POST', '/api/integration/waiting/link', { path: billingRepo, repository: 'https://github.com/acme/billing' });
+ await wait(async () => (await api(personalURL, 'disposable-browser-credential', 'GET', `/api/projects/${linked.id}/tasks`)).tasks.some(t => t.title.startsWith(invoice.key)), 'linked repository imports the waiting ticket');
+ assert.equal((await api(personalURL, 'disposable-browser-credential', 'GET', '/api/integration/waiting')).items.length, 0);
+ console.log('PASS waiting for a repository in Individual, wrong folder refused, linking imports the ticket');
+ await switchTo('team:main');
+ await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: new RegExp(ticket.key + ' Improve sign-in') }).click(); current = 'team:main';
  await firstFrame.getByRole('button', { name: 'Agent controls', exact: true }).click();
  await firstFrame.getByRole('button', { name: 'Review execution policy', exact: true }).click(); await firstFrame.getByRole('button', { name: 'Approve and start my run', exact: true }).click();
  await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  const projects = (await api(personalURL, full, 'GET', '/api/projects')).projects; const localProject = projects.find(p => p.name === 'Customer portal');
  let active; await wait(async () => { const runs = (await api(personalURL, full, 'GET', `/api/projects/${localProject.id}/runs`)).runs; active = runs.find(r => ['running', 'waiting_for_user'].includes(r.state)); return !!active; }, 'agent process running');
  console.log('PASS shell opening, Team ticket deep link and locally approved agent process');
+ await page.locator('[data-page=mywork]').click(); // the open ticket covers Team's rail; switch from a shell page, leaving it open
  await switchTo('personal'); await switchTo('team:' + slot);
  const secondFrame = page.frameLocator('iframe[data-workspace="team:' + slot + '"]'); await secondFrame.locator('nav').getByRole('button', { name: 'Settings', exact: true }).click();
  assert.equal(await secondFrame.getByRole('button', { name: 'Make Workspace Host', exact: true }).count(), 0, 'member has no host authority');

@@ -149,7 +149,7 @@ func TestDirectoryPickerReturnsOnlyTheUserSelection(t *testing.T) {
 // Wails makes every exported method of the struct it binds callable from a page the controller
 // served. This list is that surface: a new method is a decision, made here, not an accident.
 func TestThePageFacingSurfaceIsExactlyWhatIsListed(t *testing.T) {
-	want := []string{"ActivateTeam", "AddTeam", "CheckForUpdates", "ChooseDirectory", "Connect", "Diagnostics", "ForgetWorkspace", "Info", "LoadWorkspace", "Migrate", "MigrationStatus", "OpenExternal", "OpenInBrowser", "OpenLogs", "OpenWorkspace", "Overview", "PendingInvitation", "Relay", "Reload", "RememberPlace", "RequestUpdate", "ShowDiagnostics", "TeamService", "UpdateStatus", "Workspaces"}
+	want := []string{"ActivateTeam", "AddTeam", "CheckForUpdates", "ChooseDirectory", "Connect", "Diagnostics", "ForgetWorkspace", "Info", "LoadWorkspace", "Migrate", "MigrationStatus", "OpenExternal", "OpenInBrowser", "OpenLogs", "OpenWorkspace", "Overview", "PendingInvitation", "Relay", "Reload", "RememberPlace", "RequestUpdate", "ShowDiagnostics", "TeamService", "UpdatePersonal", "UpdateStatus", "Workspaces"}
 	var got []string
 	typ := reflect.TypeOf(&Shell{})
 	for i := 0; i < typ.NumMethod(); i++ {
@@ -578,5 +578,21 @@ func TestShellOpensWhenThePersonalRunnerIsUnavailable(t *testing.T) {
 	got, err := s.Connect()
 	if err != nil || got.Shell != "shell/shell/index.html" {
 		t.Fatalf("Team workspaces blocked by Personal failure: %+v %v", got, err)
+	}
+}
+
+func TestUpdatePersonalBringsTheControllerUpAndSaysWhenItCouldNot(t *testing.T) {
+	l := &fakeLauncher{}
+	s := newShell(t, l, &fakeUI{})
+	if err := s.UpdatePersonal(); err != nil {
+		t.Fatal(err)
+	}
+	l.conn = launcher.Connection{Notice: "Werkbord could not replace v1.3.1 yet: coding agents are active on this computer"}
+	if err := s.UpdatePersonal(); err == nil || !strings.Contains(err.Error(), "agents are active") {
+		t.Fatalf("a refused update must be reported, not hidden: %v", err)
+	}
+	l.conn, l.connErr = launcher.Connection{}, errors.New("not answering")
+	if err := s.UpdatePersonal(); err == nil {
+		t.Fatal("a failed connection was reported as updated")
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"devboard/internal/envelope"
+	"devboard/internal/integration"
 )
 
 // RemoteStart says whether this computer's runner may be asked to start work from another of its owner's devices.
@@ -56,7 +57,13 @@ type Settings struct {
 	OfferConnectivityHost bool   `json:"offerConnectivityHost,omitempty"`
 	// WerkbordBase is where Werkbord listens on this computer, when it is not the usual place.
 	WerkbordBase string `json:"werkbordBase,omitempty"`
+	// SyncOff are the Team projects whose held tickets are not copied into the person's own Werkbord. Every other
+	// project is, once the person connects their runner.
+	SyncOff []string `json:"syncOff,omitempty"`
 }
+
+// MaxSyncOff bounds the projects a computer can opt out of synchronizing.
+const MaxSyncOff = 256
 
 // DefaultSettings are what a computer has until its person chooses.
 func DefaultSettings() Settings { return Settings{RemoteStart: RemoteStartAsk, RemoteOpen: true} }
@@ -305,6 +312,14 @@ func (s *State) SetSettings(v Settings) error {
 	case "", "desktop", "laptop", "server":
 	default:
 		return fmt.Errorf("devicestate: a computer is a desktop, a laptop or a server, not %q", v.Form)
+	}
+	if len(v.SyncOff) > MaxSyncOff {
+		return fmt.Errorf("devicestate: at most %d projects can be left out of synchronization", MaxSyncOff)
+	}
+	for _, id := range v.SyncOff {
+		if !integration.Identifier(id) {
+			return fmt.Errorf("devicestate: %q is not a project", id)
+		}
 	}
 	return s.update(func(d *filedata) error { d.Settings = v; return nil })
 }

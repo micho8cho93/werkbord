@@ -231,3 +231,86 @@ func TestIntegrationCompletionSummaryContainsOnlyMeasuredFacts(t *testing.T) {
 		t.Fatal("summary leaked local content")
 	}
 }
+
+func TestIntegrationWaitingIsReplacedPerSourceAndClearedByImport(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	src := integration.SourcePrefix + "w1:"
+	a := integration.Waiting{SourceRef: src + "p:t1:m", Repository: "https://github.com/acme/billing", Title: "WB-1: Retry", From: "Northstar"}
+	b := integration.Waiting{SourceRef: src + "p:t2:m", Repository: "git@example.com:acme/other.git", Title: "WB-2: Other", From: "Northstar"}
+	other := integration.Waiting{SourceRef: integration.SourcePrefix + "w2:p:t9:m", Repository: "https://github.com/acme/billing", Title: "X-9", From: "Second"}
+	if err := f.tasks.SetWaiting(ctx, integration.WaitingSet{Schema: integration.Schema, Source: src, Items: []integration.Waiting{a, b}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.tasks.SetWaiting(ctx, integration.WaitingSet{Schema: integration.Schema, Source: integration.SourcePrefix + "w2:", Items: []integration.Waiting{other}}); err != nil {
+		t.Fatal(err)
+	}
+	items, err := f.tasks.Waiting(ctx)
+	if err != nil || len(items) != 3 || items[0].GitHub != "acme/billing" || items[1].GitHub != "" {
+		t.Fatalf("%+v %v", items, err)
+	}
+	first := items[0].Since
+	// Replacing one source keeps the other's items and the time an unchanged item started waiting.
+	if err := f.tasks.SetWaiting(ctx, integration.WaitingSet{Schema: integration.Schema, Source: src, Items: []integration.Waiting{a}}); err != nil {
+		t.Fatal(err)
+	}
+	items, _ = f.tasks.Waiting(ctx)
+	if len(items) != 2 || items[0].SourceRef != other.SourceRef && items[1].SourceRef != other.SourceRef {
+		t.Fatalf("other source lost: %+v", items)
+	}
+	for _, it := range items {
+		if it.SourceRef == a.SourceRef && !it.Since.Equal(first) {
+			t.Fatal("waiting time reset")
+		}
+	}
+	// An item from outside the source, a bad repository or a foreign schema is refused whole.
+	for _, bad := range []integration.WaitingSet{
+		{Schema: integration.Schema, Source: src, Items: []integration.Waiting{other}},
+		{Schema: integration.Schema, Source: src, Items: []integration.Waiting{{SourceRef: src + "x", Repository: "/local/path", Title: "t"}}},
+		{Schema: "other", Source: src},
+		{Schema: integration.Schema, Source: "not-a-source:"},
+	} {
+		if err := f.tasks.SetWaiting(ctx, bad); !errors.Is(err, domain.ErrInvalid) {
+			t.Fatalf("accepted %+v: %v", bad, err)
+		}
+	}
+	// Once the repository is here and the ticket is imported, it no longer waits, and a later report cannot bring it back.
+	p, err := f.projects.Register(ctx, "/repos/billing", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.deps.Store.Update(ctx, func(tx store.Tx) error {
+		r, e := tx.Repositories().Get(ctx, p.ID)
+		if e != nil {
+			return e
+		}
+		r.Remotes = []domain.GitRemote{{URL: "git@github.com:acme/billing.git"}}
+		return tx.Repositories().Upsert(ctx, r)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.tasks.Import(ctx, integration.Import{Schema: integration.Schema, ProjectID: p.ID, Repository: a.Repository, SourceRef: a.SourceRef, Title: a.Title, Description: "d"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.tasks.SetWaiting(ctx, integration.WaitingSet{Schema: integration.Schema, Source: src, Items: []integration.Waiting{a}}); err != nil {
+		t.Fatal(err)
+	}
+	items, _ = f.tasks.Waiting(ctx)
+	if len(items) != 1 || items[0].SourceRef != other.SourceRef {
+		t.Fatalf("imported ticket still waiting: %+v", items)
+	}
+}
+
+func TestRegisterForRefusesAFolderOfAnotherRepository(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	if _, err := f.projects.RegisterFor(ctx, "/repos/elsewhere", "", "https://github.com/acme/billing"); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("registered a folder without the repository: %v", err)
+	}
+	if ps, _ := f.projects.List(ctx); len(ps) != 0 {
+		t.Fatal("refused folder was registered")
+	}
+	if _, err := f.projects.RegisterFor(ctx, "/repos/elsewhere", "", "/not/a/repository"); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatal(err)
+	}
+}

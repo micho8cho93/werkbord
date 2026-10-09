@@ -1,7 +1,8 @@
 # Unified desktop workspaces (Phases 3–4)
 
 Werkbord 1.8.0-preview.1 and Team 3.7.0 provide one everyday macOS window with
-Personal and multiple Team workspaces. Phase 1 association/progress and Phase 2
+Individual (formerly "Personal") and multiple Team workspaces; Werkbord 1.10.0-preview.1 and Team 3.9.0 move switching
+into each workspace's own header and synchronize claimed tickets into Individual. Phase 1 association/progress and Phase 2
 owner-approved execution remain the prerequisites; their APIs, fencing,
 credentials and independent services are preserved.
 
@@ -14,22 +15,53 @@ Team backend imports. Team continues serving its existing console, including
 `?tab=…&project=…&ticket=…` routes. Personal keeps its `#/p/…` routes, CLI,
 `devboard` aliases and every `DEVBOARD_*` variable.
 
-The persistent switcher offers Personal, enrolled Team workspaces, and Add a
-Team. Creating and joining reuse Team's first-host and administrator-approved
-enrollment screens. Installation is an explicit action, followed by a native
-confirmation and macOS administrator authorization. The primary installer now includes Team’s separately versioned native installer as an inert nested bundle. Existing standalone Team apps remain compatible fallbacks. No Team installation or activation happens on startup.
+Switching between Individual and Team works like switching modes in other two-mode apps: click the product name in
+the header of the workspace on show (**werkbord / Individual ▾** at the top of Individual's rail, **werkbord TEAM /
+<workspace> ▾** at the top of Team's) and the window's menu opens under it: Individual, each enrolled Team workspace,
+and Add a Team. Choosing one shows it at once. A framed page only tells the shell where its name is
+(`werkbord.frame`/`switcher`, a bounded rectangle) and is told when the menu closes (`werkbord.switcher`); outside the
+desktop app both pages show their plain brand. On narrow windows Individual's phone layout offers a compact switcher
+(its mark) in the page header. ⌘⇧K opens the same menu.
+
+Each workspace keeps its own design and navigation: Individual is the same web app as on its own (Control Center,
+projects with Overview, Board, Calendar, Git and Runs, runners, settings); Team is its own console. Beside them, the
+window's own collapsible sidebar holds what spans every workspace: My Work, Calendar, Needs you and Workspaces and
+devices. It folds to icons below about 1180px of window width so Individual keeps its full layout; the person's choice
+is remembered per device. Creating and joining a Team reuse Team's first-host and administrator-approved enrollment
+screens. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
+The primary installer includes Team’s separately versioned native installer as an inert nested bundle. Existing
+standalone Team apps remain compatible fallbacks. No Team installation or activation happens on startup.
+
+An Individual controller older than 1.6 refuses to be framed and lacks the summary the window reads. Instead of a blank
+page the window says which version is running and offers **Update Werkbord…**: it adopts the existing installation
+(backed up, after a native confirmation) and then lets the launcher install the bundled program, which refuses while
+agents are working and restores the previous one if the new one does not start. An older Team service is left as it is
+and does not block that adoption; it is updated through Team's own path (Workspaces and devices → Update Team).
 
 My Work, Calendar and Needs you read a bounded neutral summary from each
 accessible service. Links open the relevant workspace and project in the same
 window. Shared reviews/PRs, member management, personal agent controls on Team
 tickets and all existing project views remain in their workspace's existing
-screens. The shell never sends an aggregate or Personal data to Team.
+screens. The shell never sends an aggregate or Individual data to Team.
+
+## From a Team ticket to Individual
+
+Once the person connects their Individual runner to a Team workspace (an explicit native action, below), the Team
+service on their computer copies every ticket they hold in that workspace's projects into Individual as a backlog task,
+using the same synchronization as the CLI connector ([INTEGRATION.md](INTEGRATION.md)): text only, idempotent by
+provenance, never starting a run. Projects can be turned off under Team Settings → Tickets in Individual. A claim made
+through the console wakes the synchronization at once. The ticket then shows **Open in Individual**, which switches the
+window to Individual at that task (a frame may only ask the shell to show Individual at a `#/…` place), ready for the
+person to start it with Individual's own approvals. When no local project has the ticket's repository, Individual's
+Control Center lists it under "Team tickets waiting for a repository" with **Choose folder…** (refused unless the folder
+is a clone of that repository) and, for GitHub repositories, **Clone from GitHub**; the ticket is imported as soon as
+the repository is added.
 
 The last accessible workspace and its internal route are saved in the user's
-`werkbord-desktop/shell.json` configuration file (mode 0600); otherwise Personal
+`werkbord-desktop/shell.json` configuration file (mode 0600); otherwise Individual
 opens. No credential or workspace content is saved there. Open workspace frames
 remain mounted while switching; removed, leaving or unavailable workspaces are
-removed from the UI. Personal runner failure does not prevent the Team UI opening.
+removed from the UI. Individual runner failure does not prevent the Team UI opening.
 
 ## Devices and hosts
 
@@ -71,7 +103,7 @@ kind. Frames cannot request the workspace registry, aggregates or another
 workspace's native operations. URLs are literal loopback, without proxy or
 redirects. Summary and navigation inputs are bounded and validated.
 
-Connecting a Personal runner is a separate explicit native action. The desktop
+Connecting an Individual runner is a separate explicit native action. The desktop
 mints only an `execution-local-v1` revocable grant and delivers it to the selected
 Team slot; it never delivers the controller credential. Grant names include the
 slot identity so teams with the same display name remain independent. Individual

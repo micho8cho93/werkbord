@@ -356,13 +356,13 @@ func TestOnlyATeamWorkspaceCanBeRemovedFromTheList(t *testing.T) {
 func TestAPageMayAskOnlyWhatItsKindOfWorkspaceMayAndTheKindIsTheAppsKnowledge(t *testing.T) {
 	r := newRig(t, "Connect runner")
 	// A Personal page cannot ask for what is a Team workspace's, even if it knows the name.
-	for _, m := range []string{"ConnectRunner", "TeamService", "PendingInvitation", "AddTeam", "ActivateTeam", "ForgetWorkspace", "OpenWorkspace", "Workspaces", "Overview", "Relay", "Connect", "Reload", "Diagnostics", "ShowDiagnostics", "OpenLogs", "OpenInBrowser", "CheckForUpdates"} {
+	for _, m := range []string{"ConnectRunner", "TeamService", "PendingInvitation", "AddTeam", "ActivateTeam", "ForgetWorkspace", "OpenWorkspace", "Workspaces", "Overview", "Relay", "Connect", "Reload", "Diagnostics", "ShowDiagnostics", "OpenLogs", "OpenInBrowser", "CheckForUpdates", "UpdatePersonal", "Migrate"} {
 		if _, err := r.Relay("personal", m, nil); err == nil {
 			t.Errorf("a Personal page asked for %s", m)
 		}
 	}
 	// A Team page cannot choose a folder or update the app.
-	for _, m := range []string{"ChooseDirectory", "RequestUpdate", "UpdateStatus", "Workspaces", "AddTeam", "ActivateTeam", "ForgetWorkspace", "Relay", "Reload"} {
+	for _, m := range []string{"ChooseDirectory", "RequestUpdate", "UpdateStatus", "Workspaces", "AddTeam", "ActivateTeam", "ForgetWorkspace", "Relay", "Reload", "UpdatePersonal", "Migrate"} {
 		if _, err := r.Relay("team:main", m, args(false)); err == nil {
 			t.Errorf("a Team page asked for %s", m)
 		}

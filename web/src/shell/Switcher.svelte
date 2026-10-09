@@ -3,27 +3,51 @@
   import { model } from './model.svelte';
   import type { Item } from './types';
 
-  // The persistent switcher. Personal is always first and always there; Team workspaces follow. Choosing one changes what the
-  // window shows and nothing else: whatever is running in any workspace keeps running.
+  // The switcher: Individual first, then each Team workspace, then adding one. It opens under the product name the person
+  // clicked, in the header of whichever page is showing (a workspace's own page tells the shell where its name is).
+  // Choosing one changes what the window shows and nothing else: whatever is running in any workspace keeps running.
 
   let { onadd }: { onadd: () => void } = $props();
 
   const items = $derived(model.view?.items.filter((i) => i.state !== 'setup' || i.id === model.current) ?? []);
-  const active = $derived(items.find((i) => i.id === model.current));
-  const tone = (i: Item): string => (i.state === 'ready' ? 'ok' : i.state === 'offline' || i.state === 'unavailable' ? 'bad' : 'wait');
-  const role = (i: Item): string => (i.kind === 'personal' ? 'This computer' : i.role ? i.role[0].toUpperCase() + i.role.slice(1) : 'Team');
+  const personal = $derived(items.filter((i) => i.kind === 'personal'));
+  const teams = $derived(items.filter((i) => i.kind === 'team'));
+  const team = $derived(model.view?.team);
+  const tone = (i: Item): string =>
+    i.state === 'ready' ? 'ok' : i.state === 'offline' || i.state === 'unavailable' ? 'bad' : 'wait';
+  const sub = (i: Item): string => {
+    if (i.kind === 'personal') return model.personalOutdated ? 'Needs an update' : i.state === 'unavailable' ? 'Not running' : 'This computer';
+    const role = i.role ? i.role[0].toUpperCase() + i.role.slice(1) : '';
+    return ['Team', role, i.state !== 'ready' ? i.state : ''].filter(Boolean).join(' · ');
+  };
+  // Team itself needs something before any of its workspaces can be listed: say so where the workspaces would be.
+  const teamProblem = $derived(
+    teams.length === 0 && team && team.state !== 'ready' && team.state !== 'not_installed'
+      ? { outdated: 'Needs an update', stopped: 'Not running', refused: 'Not available to this app' }[team.state]
+      : '',
+  );
+
+  const pos = $derived.by(() => {
+    const a = model.switcher;
+    if (!a) return { left: 8, top: 8 };
+    const width = 300;
+    const vw = typeof innerWidth === 'number' ? innerWidth : 1024;
+    return { left: Math.max(8, Math.min(a.x, vw - width - 8)), top: Math.max(8, a.y + a.height + 6) };
+  });
 
   let menu: HTMLElement | undefined = $state();
-  let button: HTMLButtonElement | undefined = $state();
 
   $effect(() => {
-    if (model.switcherOpen) queueMicrotask(() => (menu?.querySelector<HTMLElement>('[role="menuitem"][aria-current="true"]') ?? menu?.querySelector<HTMLElement>('[role="menuitem"]'))?.focus());
+    if (model.switcher)
+      queueMicrotask(() =>
+        (menu?.querySelector<HTMLElement>('[role="menuitem"][aria-current="true"]') ?? menu?.querySelector<HTMLElement>('[role="menuitem"]'))?.focus(),
+      );
   });
 
   function onkey(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
-      model.switcherOpen = false;
-      button?.focus();
+      e.preventDefault();
+      model.closeSwitcher(true);
       return;
     }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -34,80 +58,106 @@
   }
 </script>
 
-<div class="switcher">
-  <button
-    bind:this={button}
-    class="current"
-    type="button"
-    aria-haspopup="menu"
-    aria-expanded={model.switcherOpen}
-    onclick={() => (model.switcherOpen = !model.switcherOpen)}
-    data-testid="workspace-switcher"
-  >
-    {#if active}<span class="dot" data-tone={tone(active)} aria-hidden="true"></span>{/if}
-    <span class="name">{active?.name ?? 'Personal'}</span>
-    <span class="kind">{active ? role(active) : ''}</span>
-    <Icon name="down" size={14} />
+{#snippet row(i: Item)}
+  {@const chosen = i.id === model.current && model.page === 'workspace'}
+  <button class="item" type="button" role="menuitem" aria-current={chosen} onclick={() => model.open(i.id)} data-workspace={i.id}>
+    <span class="check" aria-hidden="true">{#if chosen}<Icon name="check" size={14} />{/if}</span>
+    <span class="text">
+      <span class="name">{i.name}</span>
+      <span class="sub">{sub(i)}</span>
+    </span>
+    <span class="dot" data-tone={tone(i)} aria-hidden="true"></span>
   </button>
+{/snippet}
 
-  {#if model.switcherOpen}
-    <div class="scrim" onclick={() => (model.switcherOpen = false)} role="presentation"></div>
-    <div class="menu" role="menu" aria-label="Workspaces" tabindex="-1" bind:this={menu} onkeydown={onkey}>
-      {#each items as i (i.id)}
-        <button class="item" type="button" role="menuitem" aria-current={i.id === model.current && model.page === 'workspace'} onclick={() => model.open(i.id)} data-workspace={i.id}>
-          <span class="dot" data-tone={tone(i)} aria-hidden="true"></span>
-          <span class="text">
-            <span class="name">{i.name}</span>
-            <span class="sub">{role(i)}{i.state !== 'ready' && i.detail ? ` · ${i.detail}` : ''}</span>
-          </span>
-          {#if i.state === 'offline' || i.state === 'unavailable'}<span class="flag">{i.state}</span>{/if}
-        </button>
-      {/each}
-      <div class="rule" role="separator"></div>
-      <button class="item add" type="button" role="menuitem" onclick={() => { model.switcherOpen = false; onadd(); }} data-testid="add-team">
-        <Icon name="plus" size={14} /><span class="name">Add a Team…</span>
+<div class="scrim" onclick={() => model.closeSwitcher()} role="presentation"></div>
+<div class="menu" role="menu" aria-label="Switch between Individual and Team" tabindex="-1" bind:this={menu} onkeydown={onkey} style:left="{pos.left}px" style:top="{pos.top}px" data-testid="switcher-menu">
+  {#each personal as i (i.id)}{@render row(i)}{/each}
+  {#if teams.length || teamProblem}
+    <div class="rule" role="separator"></div>
+    {#each teams as i (i.id)}{@render row(i)}{/each}
+    {#if teamProblem}
+      <button class="item" type="button" role="menuitem" onclick={() => model.go('workspaces')} data-testid="team-problem">
+        <span class="check" aria-hidden="true"></span>
+        <span class="text"><span class="name">Team</span><span class="sub">{teamProblem}</span></span>
+        <span class="dot" data-tone="bad" aria-hidden="true"></span>
       </button>
-      <button class="item add" type="button" role="menuitem" onclick={() => model.go('workspaces')}>
-        <Icon name="settings" size={14} /><span class="name">Workspaces and devices</span>
-      </button>
-    </div>
+    {/if}
   {/if}
+  <div class="rule" role="separator"></div>
+  <button class="item add" type="button" role="menuitem" onclick={() => { model.closeSwitcher(); onadd(); }} data-testid="add-team">
+    <span class="check" aria-hidden="true"><Icon name="plus" size={14} /></span><span class="name">Add a Team…</span>
+  </button>
 </div>
 
 <style>
-  .switcher {
-    position: relative;
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
   }
-  .current {
-    display: inline-flex;
+  .menu {
+    position: fixed;
+    z-index: 41;
+    width: 300px;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--win-sh);
+  }
+  .item {
+    display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 32px;
-    max-width: 320px;
-    padding: 0 10px;
-    border: 1px solid var(--border);
+    width: 100%;
+    min-height: 42px;
+    padding: 4px 10px 4px 6px;
+    border: 0;
     border-radius: var(--radius-sm);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-sh);
+    background: none;
     color: var(--text);
     font: inherit;
-    font-weight: 600;
     font-size: 13px;
+    text-align: left;
     cursor: pointer;
   }
-  .current:focus-visible,
+  .item:hover,
+  .item:focus-visible {
+    background: var(--surface-2);
+  }
   .item:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
-  .kind {
+  .check {
+    display: inline-flex;
+    justify-content: center;
+    width: 18px;
+    flex: none;
     color: var(--text-2);
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 400;
+  }
+  .item[aria-current='true'] .check {
+    color: var(--accent);
+  }
+  .text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
   }
   .name {
-    min-width: 0;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sub {
+    color: var(--text-2);
+    font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -127,67 +177,6 @@
   }
   .dot[data-tone='wait'] {
     background: var(--warn);
-  }
-  .scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-  }
-  .menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 21;
-    min-width: 300px;
-    max-width: 380px;
-    padding: 6px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--win-sh);
-  }
-  .item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    min-height: 40px;
-    padding: 4px 10px;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: none;
-    color: var(--text);
-    font: inherit;
-    font-size: 13px;
-    text-align: left;
-    cursor: pointer;
-  }
-  .item:hover {
-    background: var(--surface-2);
-  }
-  .item[aria-current='true'] {
-    background: var(--surface-2);
-    box-shadow: var(--press-sh);
-  }
-  .text {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  .sub {
-    color: var(--text-2);
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .flag {
-    margin-left: auto;
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--danger-text);
   }
   .add {
     min-height: 34px;

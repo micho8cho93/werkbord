@@ -32,8 +32,9 @@ advisory lock, so stale lock files do not block retry. A corrupt/unknown marker 
 changed snapshot fails closed and is preserved for inspection. Keep every affected
 directory and resolve it with an administrator; never delete the marker to guess
 an identity. Verification requires Personal health/authentication and accessible
-enrolled Team workspaces. Legacy Team versions without a compatible device listing
-must first follow [TEAM_INSTALL.md](TEAM_INSTALL.md), with checked Host backups.
+enrolled Team workspaces. A legacy Team version without a compatible device listing is left exactly as it is and no
+longer blocks adopting Individual (the window then offers **Update Werkbord…** for an Individual controller older than
+1.6); update Team by following [TEAM_INSTALL.md](TEAM_INSTALL.md), with checked Host backups.
 
 Rollback changes only the adoption marker. Because original state was never
 relocated or rewritten, restoring an old database over current tasks would lose

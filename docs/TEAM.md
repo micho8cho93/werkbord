@@ -658,4 +658,4 @@ The full review (every surface, the evidence for each, and the risks that remain
 
 ## Automatic Individual synchronization
 
-Members can opt projects into a persistent user connector: claiming/accepting a ticket imports it into their own Individual workspace, and local lifecycle/Git metadata is reported automatically. The ticket panel shows Individual execution separately from Team review/completion. Manual handoff/report/watch remain supported. Setup and conflict recovery: [INTEGRATION.md](INTEGRATION.md).
+In the desktop app, connecting your Individual runner synchronizes every project you are on (turn projects off in Settings → Tickets in Individual) and each held ticket offers **Open in Individual**. Without it, members can opt projects into a persistent user connector: claiming/accepting a ticket imports it into their own Individual workspace, and local lifecycle/Git metadata is reported automatically. The ticket panel shows Individual execution separately from Team review/completion. Manual handoff/report/watch remain supported. Setup and conflict recovery: [INTEGRATION.md](INTEGRATION.md).

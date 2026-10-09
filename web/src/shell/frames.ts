@@ -17,11 +17,29 @@ export interface MessageLike {
   data: unknown;
 }
 
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface Deps {
   relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   remember(id: string, place: string): Promise<void>;
   ready(id: string): void;
   reply(frame: FrameRef, message: Record<string, unknown>): void;
+  /** The person clicked the product name in a frame's own header: open the switcher there (rect is in the frame's viewport). */
+  switcher(id: string, rect: Rect): void;
+  /** A frame asks to show the person's own Werkbord at a place inside it. */
+  open(id: string, target: 'personal', place: string): void;
+}
+
+/** A rectangle a frame says its switcher button occupies: four small finite numbers, nothing else. */
+export function isRect(r: unknown): r is Rect {
+  if (!r || typeof r !== 'object') return false;
+  const o = r as Record<string, unknown>;
+  return Object.keys(o).length === 4 && ['x', 'y', 'width', 'height'].every((k) => typeof o[k] === 'number' && Number.isFinite(o[k]) && Math.abs(o[k] as number) < 100000);
 }
 
 const METHOD = /^[A-Za-z]{1,40}$/;
@@ -69,5 +87,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
   if (m.type === 'werkbord.frame') {
     if (m.event === 'ready') d.ready(frame.id);
     else if (m.event === 'place' && isPlace(m.place)) await d.remember(frame.id, m.place).catch(() => {});
+    else if (m.event === 'switcher' && isRect(m.rect)) d.switcher(frame.id, m.rect);
+    else if (m.event === 'open' && m.target === 'personal' && isPlace(m.place) && String(m.place).startsWith('#')) d.open(frame.id, 'personal', m.place as string);
   }
 }

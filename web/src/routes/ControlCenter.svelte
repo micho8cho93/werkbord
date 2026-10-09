@@ -3,6 +3,7 @@
   import AttentionCard from '../lib/attention/AttentionCard.svelte';
   import { matchesScheduledExecution } from '../lib/control';
   import ControlInfrastructure from '../lib/ControlInfrastructure.svelte';
+  import WaitingRepository from '../lib/WaitingRepository.svelte';
   import { agentName, cardActivity, oneLine, runElapsed } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
   import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
@@ -125,9 +126,17 @@
 
   <div class="split">
     <div class="pane" aria-label="Needs you">
+      {#if app.waiting.length && segment === 'all'}
+        <section class="waiting-list" aria-labelledby="waiting-h">
+          <h2 id="waiting-h" class="ph">Team tickets waiting for a repository<span class="chip">{app.waiting.length}</span></h2>
+          <ul>
+            {#each app.waiting as item (item.sourceRef)}<WaitingRepository {item} />{/each}
+          </ul>
+        </section>
+      {/if}
       {#if !loaded}
         <p class="empty">Loading…</p>
-      {:else if shown.length === 0}
+      {:else if shown.length === 0 && !(app.waiting.length && segment === 'all')}
         <div class="clear">
           <span class="dot" data-tone="ok"></span>
           <div>
@@ -395,5 +404,18 @@
     .filters {
       margin-left: 0;
     }
+  }
+  .waiting-list {
+    margin-bottom: 18px;
+  }
+  .waiting-list h2 {
+    margin: 0 0 8px;
+  }
+  .waiting-list ul {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
   }
 </style>

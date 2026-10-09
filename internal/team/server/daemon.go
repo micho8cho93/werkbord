@@ -68,6 +68,8 @@ type Daemon struct {
 	role            string
 	bridge          *localwerkbord.Client
 	handler         *runnerlink.Handler
+	journal         *devicestate.SyncJournal
+	sync            syncView
 	lastSync        time.Time
 	lastRunnerCheck time.Time
 	runnerOK        bool
@@ -132,7 +134,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	done := make(chan error, 1)
 	go func() { done <- srv.Serve(ln) }()
 	loopDone := make(chan struct{})
-	go func() { defer close(loopDone); d.deviceLoop(runCtx) }()
+	go func() { defer close(loopDone); defer d.closeJournal(); d.deviceLoop(runCtx) }()
 	d.o.Log.Info("Team device service is running", "version", d.o.Version, "addr", ln.Addr().String())
 	select {
 	case err = <-done:
@@ -309,6 +311,11 @@ func (d *Daemon) workspaceRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(status)
 	_, _ = w.Write(raw)
+	// A claim, an assignment or a release changes what is synchronized with the person's Werkbord: look again now rather
+	// than at the next tick, so a claimed ticket appears there within moments.
+	if r.Method != http.MethodGet && status < 300 {
+		d.notify()
+	}
 }
 
 func (d *Daemon) licenseClaims() (license.Claims, error) {
@@ -372,14 +379,14 @@ func (d *Daemon) localState(w http.ResponseWriter, r *http.Request) {
 // stateView is everything the window may know about this device and its workspace. The Hub lists one per workspace.
 func (d *Daemon) stateView() map[string]any {
 	d.mu.RLock()
-	op, problem, mat, bridge, lastSync, runnerCheck, runnerOK, role := d.operation, d.lastError, d.mat, d.bridge, d.lastSync, d.lastRunnerCheck, d.runnerOK, d.role
+	op, problem, mat, bridge, lastSync, runnerCheck, runnerOK, role, synced := d.operation, d.lastError, d.mat, d.bridge, d.lastSync, d.lastRunnerCheck, d.runnerOK, d.role, d.sync
 	d.mu.RUnlock()
 	var senders []map[string]any
 	for _, s := range d.state.Senders() {
 		key, _ := deviceid.ParsePublicKey(s.PublicKey)
 		senders = append(senders, map[string]any{"deviceId": s.DeviceID, "name": s.Name, "publicKey": s.PublicKey, "identity": deviceid.Fingerprint(key), "approved": s.Approved()})
 	}
-	out := map[string]any{"daemon": true, "version": d.o.Version, "operation": op, "error": problem, "settings": d.state.Settings(), "senders": senders, "opened": d.state.OpenedTasks(), "approvals": d.state.Approvals(), "runner": map[string]any{"connected": runnerOK && time.Since(runnerCheck) < time.Minute, "configured": bridge != nil}}
+	out := map[string]any{"daemon": true, "version": d.o.Version, "operation": op, "error": problem, "settings": d.state.Settings(), "senders": senders, "opened": d.state.OpenedTasks(), "approvals": d.state.Approvals(), "runner": map[string]any{"connected": runnerOK && time.Since(runnerCheck) < time.Minute, "configured": bridge != nil}, "sync": synced}
 	if d.o.Slot != "" {
 		out["slot"] = d.o.Slot
 	}

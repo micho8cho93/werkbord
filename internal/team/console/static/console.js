@@ -132,8 +132,9 @@ function availableSettings() { return ADMIN_TABS.filter(([id]) => !['hosts', 'co
 function navigation(counts) {
   const projects = state.ov.projects.filter(p => !p.project.archived);
   return h('aside', { class: 'rail', 'aria-label': 'Werkbord Team navigation' },
-    h('button', { class: 'brand-home', type: 'button', onclick: () => go('workspace'), 'aria-label': 'Werkbord Team workspace' }, brand()),
-    h('div', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name),
+    FRAMED ? productSwitch() : [
+      h('button', { class: 'brand-home', type: 'button', onclick: () => go('workspace'), 'aria-label': 'Werkbord Team workspace' }, brand()),
+      h('div', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name)],
     h('nav', { class: 'rail-primary', 'aria-label': 'Werkbord Team' }, TABS.map(([id, label]) =>
       h('button', { name: 'nav-' + id, type: 'button', 'aria-label': label, 'aria-description': counts[id] ? plural(counts[id], 'ticket') : null, 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, icon(id), h('span', { class: 'nav-label' }, label),
         badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'reviews' ? '' : 'quiet')))),
@@ -812,8 +813,11 @@ function workItem(it, extra) {
     extra || '',
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
     mine && (k.status === 'in_progress' || k.status === 'review')
-      ? h('div', { class: 'actions' }, h('button', { class: 'primary small', onclick: () => openInRunner(it) }, 'Open in my runner'),
-          h('button', { class: 'plain small', onclick: () => openTicket(it.project.id, k.id) }, 'Open ticket'))
+      ? (() => {
+          const individual = typeof individualActions === 'function' ? individualActions(it.project.id, k.id, true) : '';
+          return h('div', { class: 'actions' }, individual, h('button', { class: (individual ? 'plain' : 'primary') + ' small', onclick: () => openInRunner(it) }, 'Open in my runner'),
+            h('button', { class: 'plain small', onclick: () => openTicket(it.project.id, k.id) }, 'Open ticket'));
+        })()
       : '');
 }
 
@@ -965,8 +969,10 @@ function ticketPanel(d, k) {
     if (b.member && pcan('tickets.claim')) actions.push(h('button', { class: 'primary', onclick: run('POST', '/claim') }, 'Claim this ticket'));
     if (isCreator || pcan('tickets.edit')) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'backlog' }) }, 'Move to backlog'));
   }
+  const individual = mine && (k.status === 'in_progress' || k.status === 'review') && typeof individualActions === 'function' ? individualActions(k.projectId, k.id) : '';
+  if (individual) actions.push(individual);
   if ((k.status === 'in_progress' || k.status === 'review') && mine && pcan('handoff.own'))
-    actions.push(h('button', { class: 'primary', onclick: () => act(async () => { state.handoff = await api('POST', path + '/handoff'); }) }, 'Open in my runner'));
+    actions.push(h('button', { class: individual ? 'plain' : 'primary', onclick: () => act(async () => { state.handoff = await api('POST', path + '/handoff'); }) }, 'Open in my runner'));
   if (k.status === 'in_progress' && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Take it back'));
   if (k.status === 'review' && pcan('tickets.review')) {
     const note = h('input', { name: 'rc-note-' + k.id, placeholder: 'What should change? (optional)', maxlength: 1000 });
@@ -1211,6 +1217,34 @@ window.addEventListener('keydown', e => {
   if (e.key.toLowerCase() === 'n' && state.tab === 'board' && pcan('tickets.create') && !state.data.board.project.archived) {
     e.preventDefault(); state.newTicketOpen = true; render().then(() => app.querySelector('[name="t-title"]')?.focus());
   }
+});
+// Inside the desktop app this page is one workspace beside the person's own Werkbord. The product name at the top of the rail
+// is then the switcher between Individual and Team: the shell opens it under the name. Only where the name is, and a place
+// in the person's own Werkbord to show ("Open in Individual"), are ever sent to the shell.
+const FRAMED = window.parent !== window;
+function productSwitch() {
+  const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [k, v] of Object.entries({ viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.4', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) chevron.setAttribute(k, v);
+  const path = document.createElementNS(chevron.namespaceURI, 'path'); path.setAttribute('d', 'M4 6l4 4 4-4'); chevron.append(path);
+  return h('button', { class: 'product-switch', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-testid': 'product-switch',
+    'aria-label': 'Switch between Individual and Team. Showing ' + state.me.workspace.name, onclick: (e) => openShellSwitcher(e.currentTarget) },
+    brand(), h('span', { class: 'switch-row' }, h('span', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name), chevron));
+}
+function openShellSwitcher(el) {
+  const r = el.getBoundingClientRect();
+  window.parent.postMessage({ type: 'werkbord.frame', event: 'switcher', rect: { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) } }, '*');
+}
+function openInIndividual(place) {
+  if (FRAMED && /^#\/[A-Za-z0-9/_-]{0,200}$/.test(place)) window.parent.postMessage({ type: 'werkbord.frame', event: 'open', target: 'personal', place }, '*');
+}
+window.addEventListener('message', e => {
+  if (!FRAMED || e.source !== window.parent) return;
+  const m = e.data;
+  if (!m || m.type !== 'werkbord.switcher' || typeof m.open !== 'boolean') return;
+  const button = app.querySelector('.product-switch');
+  if (!button) return;
+  button.setAttribute('aria-expanded', String(m.open));
+  if (!m.open && m.focus === true) button.focus();
 });
 // The desktop app's shell can ask this page, framed beside a person's other workspaces, to open a place in it (a ticket that
 // needs them). Only the window that framed this page is believed, and only a place inside it: a query on this page.

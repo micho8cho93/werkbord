@@ -10,6 +10,7 @@ import (
 
 	"devboard/internal/domain"
 	"devboard/internal/gitrepo"
+	"devboard/internal/integration"
 	"devboard/internal/store"
 )
 
@@ -58,9 +59,33 @@ type ProjectDetail struct {
 // registers the whole repository. Registering the same repository twice
 // returns domain.ErrDuplicate. Nothing is copied.
 func (s *Projects) Register(ctx context.Context, path, name string) (*ProjectDetail, error) {
+	return s.register(ctx, path, name, "")
+}
+
+// RegisterFor registers the folder at path only if one of its remotes is repository: the folder the person chose for a
+// ticket that waits for it. A folder of another repository is refused before anything is registered.
+func (s *Projects) RegisterFor(ctx context.Context, path, name, repository string) (*ProjectDetail, error) {
+	if _, err := integration.RepositoryIdentity(repository); err != nil {
+		return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+	}
+	return s.register(ctx, path, name, repository)
+}
+
+func (s *Projects) register(ctx context.Context, path, name, repository string) (*ProjectDetail, error) {
 	repo, err := s.Git.Inspect(ctx, path)
 	if err != nil {
 		return nil, err
+	}
+	if repository != "" {
+		want, _ := integration.RepositoryIdentity(repository)
+		matched := false
+		for _, r := range repo.Remotes {
+			got, err := integration.RepositoryIdentity(r.URL)
+			matched = matched || err == nil && got == want
+		}
+		if !matched {
+			return nil, fmt.Errorf("%w: this folder is not a clone of %s (none of its remotes is)", domain.ErrInvalid, want)
+		}
 	}
 	if strings.TrimSpace(name) == "" {
 		name = filepath.Base(repo.RootPath)

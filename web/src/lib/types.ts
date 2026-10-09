@@ -431,6 +431,18 @@ export interface AttentionRun {
 }
 
 /** What `GET /api/control-center` returns: what needs the user, and what is going on, in every project. */
+/** A ticket claimed in a Team workspace that waits for its repository to be added here before it can become a task. */
+export interface WaitingItem {
+  sourceRef: string;
+  repository: string;
+  title: string;
+  /** The Team workspace it comes from. */
+  from: string;
+  since: string;
+  /** owner/name, when the repository is on GitHub and can be cloned with the GitHub sign-in. */
+  github?: string;
+}
+
 export interface Overview {
  runners?: Runner[]; usage?: UsageSummary[];
  orchestration?: AttentionSchedule[];

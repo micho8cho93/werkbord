@@ -53,7 +53,8 @@ class GitStore {
     this.watchers++;
     if (!this.overview && !this.loading) void this.load();
     else if (this.stale) void this.load();
-    if (!this.health && !this.healthLoading) void this.loadHealth();
+    // After a failure, a screen that keeps looking must not ask again in a loop: the next change or refresh asks.
+    if (!this.health && !this.healthLoading && !this.healthError) void this.loadHealth();
     return () => {
       this.watchers = Math.max(0, this.watchers - 1);
     };

@@ -32,8 +32,24 @@
         if (place) navigate(id, place);
       },
       reply: (frame, message) => send(frame.id, message),
+      // The frame says where its product name is in its own page; the switcher opens under it, in the window.
+      switcher: (id, r) => {
+        if (model.switcher) return model.closeSwitcher();
+        const box = elements[id]?.getBoundingClientRect();
+        if (!box || model.current !== id) return;
+        model.openSwitcher({ x: box.left + r.x, y: box.top + r.y, width: r.width, height: r.height, from: id });
+        send(id, { type: 'werkbord.switcher', open: true });
+      },
+      // "Open in Individual" on a Team ticket: show the person's own Werkbord at that task.
+      open: (_id, _target, place) => void model.open('personal', place),
     });
   }
+
+  // The frame whose name opened the switcher is told it closed, and takes the focus back when the person pressed Escape.
+  model.onSwitcherClosed = (from, focus) => {
+    if (focus) elements[from]?.focus();
+    send(from, { type: 'werkbord.switcher', open: false, focus });
+  };
 
   // A place asked for while the page was still loading is followed once it says it is ready; one asked for after is followed now.
   $effect(() => {

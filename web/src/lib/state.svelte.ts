@@ -14,7 +14,7 @@ import { gitEvent } from './git/store.svelte';
 import { QuestionBook } from './questions';
 import { notifyEvent } from './notifications';
 import { ProjectScope } from './scope.svelte';
-import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, Onboarding, Overview, Project, Question, Runner, UpdateStatus } from './types';
+import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, Onboarding, Overview, Project, Question, Runner, UpdateStatus, WaitingItem } from './types';
 
 export type Connection = 'connecting' | 'live' | 'offline' | 'unauthorized';
 
@@ -146,7 +146,9 @@ class AppState {
    * a next message, and repositories at risk. Counted for the badge. Housekeeping and ordinary
    * repository findings are not: a badge that is always lit is a badge nobody reads.
    */
-  needsYou = $derived(this.questions.length + this.blockedCount + this.idleCount + this.failedCount + this.riskCount);
+  /** Team tickets the person holds that wait for their repository to be added here. */
+  waiting = $state<WaitingItem[]>([]);
+  needsYou = $derived(this.questions.length + this.blockedCount + this.idleCount + this.failedCount + this.riskCount + this.waiting.length);
   /** How many questions are waiting for an answer: what the "needs input" signals count. */
   needsInput = $derived(this.questions.length);
 
@@ -313,12 +315,22 @@ class AppState {
   private async loadOverview(): Promise<void> {
     try {
       const sync = this.book.beginSync();
-      const overview = await api.controlCenter();
+      const [overview, waiting] = await Promise.all([api.controlCenter(), this.loadWaiting()]);
       this.overview = overview;
+      this.waiting = waiting;
  this.runners=overview.runners??[];
       if (this.book.replace(sync, overview.questions.map((q) => q.question))) this.questions = this.book.pending;
     } catch (err) {
       this.handleError(err);
+    }
+  }
+
+  /** Team tickets waiting for their repository. An older controller has no such list: then there are none. */
+  private async loadWaiting(): Promise<WaitingItem[]> {
+    try {
+      return (await api.waiting()).items ?? [];
+    } catch {
+      return this.waiting;
     }
   }
 
@@ -441,6 +453,11 @@ class AppState {
         );
         break;
       case 'settings.updated':
+        // A Team ticket started or stopped waiting for its repository.
+        if ((ev.payload as { key?: string } | undefined)?.key === 'integration-waiting') {
+          this.refreshOverview();
+          break;
+        }
         // Another device changed the defaults, or finished setup: follow it.
         void Promise.all([api.getSettings(), api.onboarding()]).then(
           ([execution, onboarding]) => {
