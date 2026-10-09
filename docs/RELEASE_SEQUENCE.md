@@ -62,5 +62,5 @@ discovery in the Team installer. A pushed tag is not proof that a release is ins
 | Team | `werkbord-team-v2.6.1` | `0.6.0` | Published |
 | Team | `werkbord-team-v2.8.0` | `0.7.0` | Published |
 | Team | `werkbord-team-v2.8.1` | `0.7.1` | Published |
-| Individual | `werkbord-v1.4.0-preview.3` | `0.7.0-preview.2` | Reserved for next preview |
-| Team | `werkbord-team-v3.2.0` | `0.8.0` | Reserved; signed packages pending |
+| Individual | `werkbord-v1.4.0-preview.3` | `0.7.0-preview.2` | Published CLI preview |
+| Team | `werkbord-team-v3.2.0` | `0.8.0` | Draft; signed packages pending |
