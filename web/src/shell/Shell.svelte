@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import Sidebar from './Sidebar.svelte';
   import Switcher from './Switcher.svelte';
-  import SwitcherButton from './SwitcherButton.svelte';
   import FrameHost from './FrameHost.svelte';
   import WorkspaceProblem from './WorkspaceProblem.svelte';
   import MyWork from './MyWork.svelte';
@@ -13,8 +12,8 @@
   import { model, type Page } from './model.svelte';
   import { onApp } from './native';
 
-  // The window: the shell's own sidebar (what spans every workspace) beside the workspace on show, which keeps its own
-  // design and navigation. Switching between Individual and Team is the product name in that workspace's own header.
+  // The window: one sidebar (switching workspace, what spans every workspace, and the navigation of the workspace on show)
+  // beside the workspace's own pages, which carry no navigation of their own here.
   const pages: Page[] = ['workspace', 'mywork', 'calendar', 'inbox', 'workspaces'];
   // The person's own Werkbord cannot be shown (too old, or not running): say so instead of a blank frame.
   const problem = $derived(model.current === 'personal' && model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
@@ -52,10 +51,9 @@
     <main>
       <FrameHost shown={model.page === 'workspace' && !problem} />
       {#if model.page === 'workspace' && problem}
-        <div class="page-area"><div class="pagebar"><SwitcherButton /></div><WorkspaceProblem /></div>
+        <div class="page-area"><WorkspaceProblem /></div>
       {:else if model.page !== 'workspace'}
         <div class="page-area">
-          <div class="pagebar"><SwitcherButton /></div>
           {#if model.page === 'mywork'}<MyWork overview={model.overview} />
           {:else if model.page === 'calendar'}<Calendar overview={model.overview} />
           {:else if model.page === 'inbox'}<Inbox overview={model.overview} />
@@ -92,17 +90,6 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-  }
-  .pagebar {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    min-height: 48px;
-    padding: 6px clamp(10px, 3vw, 40px);
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
   }
   .loading {
     padding: 20px;

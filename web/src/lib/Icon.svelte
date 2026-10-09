@@ -31,7 +31,8 @@
     | 'expand'
     | 'branch'
     | 'link'
-    | 'grip';
+    | 'grip'
+    | 'people';
 </script>
 
 <script lang="ts">
@@ -105,6 +106,8 @@
     <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9" />
   {:else if name === 'link'}
     <path d="M9 2.5h4.5V7M13.5 2.5L7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3" />
+  {:else if name === 'people'}
+    <circle cx="6" cy="5.5" r="2.3" /><path d="M1.8 13c0-2.3 1.9-3.8 4.2-3.8s4.2 1.5 4.2 3.8M10.6 3.6a2.2 2.2 0 0 1 0 3.8M12.4 9.5c1.2.5 1.8 1.6 1.8 3.5" />
   {:else if name === 'grip'}
     <circle cx="6" cy="4" r="0.5" /><circle cx="10" cy="4" r="0.5" /><circle cx="6" cy="8" r="0.5" /><circle cx="10" cy="8" r="0.5" /><circle cx="6" cy="12" r="0.5" /><circle cx="10" cy="12" r="0.5" />
   {/if}

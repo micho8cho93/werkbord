@@ -1,8 +1,8 @@
 # Unified desktop workspaces (Phases 3–4)
 
 Werkbord 1.8.0-preview.1 and Team 3.7.0 provide one everyday macOS window with
-Individual (formerly "Personal") and multiple Team workspaces; Werkbord 1.10.0-preview.1 and Team 3.9.0 move switching
-into each workspace's own header and synchronize claimed tickets into Individual. Phase 1 association/progress and Phase 2
+Individual (formerly "Personal") and multiple Team workspaces; Werkbord 1.10.0-preview.1 and Team 3.9.0 synchronize
+claimed tickets into Individual; Werkbord 1.11.0-preview.1 and Team 3.10.0 give the window one sidebar. Phase 1 association/progress and Phase 2
 owner-approved execution remain the prerequisites; their APIs, fencing,
 credentials and independent services are preserved.
 
@@ -15,20 +15,27 @@ Team backend imports. Team continues serving its existing console, including
 `?tab=…&project=…&ticket=…` routes. Personal keeps its `#/p/…` routes, CLI,
 `devboard` aliases and every `DEVBOARD_*` variable.
 
-Switching between Individual and Team works like switching modes in other two-mode apps: click the product name in
-the header of the workspace on show (**werkbord / Individual ▾** at the top of Individual's rail, **werkbord TEAM /
-<workspace> ▾** at the top of Team's) and the window's menu opens under it: Individual, each enrolled Team workspace,
-and Add a Team. Choosing one shows it at once. A framed page only tells the shell where its name is
-(`werkbord.frame`/`switcher`, a bounded rectangle) and is told when the menu closes (`werkbord.switcher`); outside the
-desktop app both pages show their plain brand. On narrow windows Individual's phone layout offers a compact switcher
-(its mark) in the page header. ⌘⇧K opens the same menu.
+The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name with the open
+workspace under it (**werkbord / Individual ▾**, **werkbord / <workspace> ▾**), which opens the switcher (Individual,
+each enrolled Team workspace, and Add a Team; ⌘⇧K opens the same menu); **Everywhere**, what spans every workspace
+(My Work, Calendar and Needs you); the open workspace's own places, listed under its name (Individual: Control Center,
+Projects and each project, Add project; Team: Workspace, Projects and each project, Reviews, Members); and last Workspaces
+and devices, the Settings of the workspace that is open, and the theme. Choosing a place asks the workspace to show it
+(`werkbord.navigate`, a place inside the page); the workspace says where it is (`werkbord.frame`/`place`) and the sidebar
+marks that entry. The projects are the ones each workspace reports in its summary. There is no connection-status
+indicator anywhere.
 
-Each workspace keeps its own design and navigation: Individual is the same web app as on its own (Control Center,
-projects with Overview, Board, Calendar, Git and Runs, runners, settings); Team is its own console. Beside them, the
-window's own collapsible sidebar holds what spans every workspace: My Work, Calendar, Needs you and Workspaces and
-devices. It folds to icons below about 1180px of window width so Individual keeps its full layout; the person's choice
-is remembered per device. Creating and joining a Team reuse Team's first-host and administrator-approved enrollment
-screens. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
+The workspaces themselves keep their design and their pages, but inside the window they carry no navigation of their own:
+Individual does not show its rail, and Team does not show its rail; a project's own sections stay with the project
+(Individual's Overview, Board, Calendar, Git and Runs in its header; Team's Board, Git, Activity and People as tabs above
+the project). The theme is chosen in the sidebar and told to the open workspaces (`werkbord.theme`, `light` or `dark`),
+so a Team opened later starts in the same theme. Outside the desktop app (Individual in a browser or as a phone app,
+Team's own console) both pages keep their own sidebars exactly as they were, apart from the status indicator, which is gone
+there too.
+
+On narrow windows the sidebar folds to icons below about 1110px of window width so a workspace keeps its full layout;
+the person's choice is remembered per device. Individual's runners are under Workspaces and devices → Runners.
+Creating and joining a Team reuse Team's first-host and administrator-approved enrollment screens. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
 The primary installer includes Team’s separately versioned native installer as an inert nested bundle. Existing
 standalone Team apps remain compatible fallbacks. No Team installation or activation happens on startup.
 

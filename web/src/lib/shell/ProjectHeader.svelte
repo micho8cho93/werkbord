@@ -1,5 +1,4 @@
 <script lang="ts">
-  import ProductSwitch from './ProductSwitch.svelte';
   import { embedded } from '../embed';
 
   const framed = embedded();
@@ -27,7 +26,6 @@
   <div class="where">
     <!-- On a phone the project name opens the switcher: it is the only way between projects there. -->
     <div class="name-row">
-      {#if framed}<span class="phone-mark"><ProductSwitch variant="compact" /></span>{/if}
       <button class="name" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Switch project, current: {project.name}">
         {#if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
         <h1>{project.name}</h1>

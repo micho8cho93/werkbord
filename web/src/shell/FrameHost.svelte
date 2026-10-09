@@ -5,6 +5,7 @@
   import { ask } from './native';
   import { handle, type FrameRef } from './frames';
   import { model } from './model.svelte';
+  import { theme } from '../lib/theme.svelte';
 
   let { shown }: { shown: boolean } = $props();
 
@@ -18,6 +19,11 @@
     elements[id]?.contentWindow?.postMessage(message, f?.target.origin ?? '');
   }
 
+  /** Tells a workspace the theme the person chose in the sidebar, which is where it is chosen. Nothing is sent until they choose. */
+  function tell(id: string): void {
+    if (theme.choice) send(id, { type: 'werkbord.theme', theme: theme.choice });
+  }
+
   /** Asks an open workspace to go to a place inside itself. */
   export function navigate(id: string, href: string): void {
     send(id, { type: 'werkbord.navigate', href });
@@ -26,30 +32,27 @@
   function onMessage(e: MessageEvent): void {
     void handle(refs(), e, {
       relay: (id, method, args) => ask((a) => a.Relay(id, method, args)),
-      remember: (id, place) => ask((a) => a.RememberPlace(id, place)),
+      remember: (id, place) => {
+        model.setPlace(id, place);
+        return ask((a) => a.RememberPlace(id, place));
+      },
       ready: (id) => {
+        tell(id);
         const place = model.frameReady(id);
         if (place) navigate(id, place);
       },
       reply: (frame, message) => send(frame.id, message),
-      // The frame says where its product name is in its own page; the switcher opens under it, in the window.
-      switcher: (id, r) => {
-        if (model.switcher) return model.closeSwitcher();
-        const box = elements[id]?.getBoundingClientRect();
-        if (!box || model.current !== id) return;
-        model.openSwitcher({ x: box.left + r.x, y: box.top + r.y, width: r.width, height: r.height, from: id });
-        send(id, { type: 'werkbord.switcher', open: true });
-      },
       // "Open in Individual" on a Team ticket: show the person's own Werkbord at that task.
       open: (_id, _target, place) => void model.open('personal', place),
     });
   }
 
-  // The frame whose name opened the switcher is told it closed, and takes the focus back when the person pressed Escape.
-  model.onSwitcherClosed = (from, focus) => {
-    if (focus) elements[from]?.focus();
-    send(from, { type: 'werkbord.switcher', open: false, focus });
-  };
+  // Changing the theme in the sidebar changes it in every workspace that is open.
+  $effect(() => {
+    const choice = theme.choice;
+    if (!choice) return;
+    for (const id of Object.keys(model.frames)) send(id, { type: 'werkbord.theme', theme: choice });
+  });
 
   // A place asked for while the page was still loading is followed once it says it is ready; one asked for after is followed now.
   $effect(() => {

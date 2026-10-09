@@ -46,15 +46,36 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  browser = await chromium.launch({ headless: true }); const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
  await context.addInitScript(() => { if (window.parent !== window) return; window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => { const r = await fetch('/fixture/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Method: method, Args: args }) }); const d = await r.json(); if (!r.ok) throw Error(d.error); return d; } }) } }; });
  const page = await context.newPage(); testPage = page; page.setDefaultTimeout(90000); const errors = []; page.on('pageerror', e => errors.push(e.message));
- // Switching is the product name in the shown workspace's own header (or, on the shell's own pages, in their bar).
+ // Switching is the workspace name at the top of the window's one sidebar, which is also where every workspace is navigated.
  let current = 'personal';
- const switcher = async () => { const shell = page.getByTestId('workspace-switcher'); if (await shell.count()) await shell.click(); else await page.frameLocator('iframe[data-workspace="' + current + '"]').locator('[data-testid=product-switch]:visible').click(); await page.getByTestId('switcher-menu').waitFor(); };
+ const switcher = async () => { await page.getByTestId('workspace-switcher').click(); await page.getByTestId('switcher-menu').waitFor(); };
+ const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
  const switchTo = async (id) => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
  await page.goto(origin + '/shell/shell/index.html'); await page.locator('iframe[data-workspace=personal]').waitFor();
  for (const section of ['Overview', 'Board', 'Git', 'Runs']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
- console.log('PASS Individual keeps its own design: rail, project tabs and the product switcher in its header');
+ // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
+ assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');
+ await side.locator('[data-project][aria-current=page]').waitFor(); // the sidebar marks the project Individual is showing
+ for (const entry of ['Control Center', 'Projects', 'Customer portal', 'Settings', 'My Work', 'Calendar', 'Needs you', 'Workspaces and devices']) await side.getByRole('button', { name: entry }).first().waitFor();
+ assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
+ assert.equal(await page.frameLocator('iframe[data-workspace=personal]').getByText('Live', { exact: true }).count(), 0, 'no live status indicator in Individual');
+ console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
+ // The theme is chosen in the sidebar and reaches the workspace that is open.
+ const themeOf = id => page.frameLocator('iframe[data-workspace="' + id + '"]').locator('html').getAttribute('data-theme');
+ await side.getByRole('button', { name: /(light|dark) theme/i }).click(); const chosen = await page.locator('html').getAttribute('data-theme'); assert(chosen === 'light' || chosen === 'dark');
+ await wait(async () => (await themeOf('personal')) === chosen, 'theme reaches Individual');
  await switchTo('team:main'); const firstFrame = page.frameLocator('iframe[data-workspace="team:main"]');
- await firstFrame.locator('nav').getByRole('button', { name: 'Settings', exact: true }).click();
+ await wait(async () => (await themeOf('team:main')) === chosen, 'theme reaches Team');
+ assert.equal(await firstFrame.locator('aside.rail').count(), 0, 'Team shows no rail of its own in the window');
+ for (const entry of ['Workspace', 'Projects', 'Reviews', 'Members', 'Settings']) await side.getByRole('button', { name: entry, exact: true }).first().waitFor();
+ // A project is opened from the sidebar; its own sections are tabs above it, and the sidebar marks it.
+ await side.getByRole('button', { name: 'Customer portal' }).click();
+ await firstFrame.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Git', exact: true }).waitFor();
+ await side.locator('[data-project][aria-current=page]').waitFor();
+ assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
+ await side.getByRole('button', { name: 'Reviews', exact: true }).click(); await side.locator('[data-page=ws-reviews][aria-current=page]').waitFor();
+ console.log('PASS Team: the same sidebar lists its places, theme follows the sidebar, no rail of its own');
+ await side.locator('[data-page=settings]').click();
  await firstFrame.getByRole('button', { name: 'Connect my Individual runner', exact: true }).click();
  await wait(async () => (await dev('GET', '/state')).runner.connected, 'explicit narrow grant connection');
  // Claimed before the runner was connected: the Team service on this computer copies it into Individual, and the ticket opens there.
@@ -69,7 +90,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const invoice = await team('POST', `/projects/${billing.id}/tickets`, { title: 'Retry failed invoices', status: 'available' }); await team('POST', `/projects/${billing.id}/tickets/${invoice.id}/claim`, {});
  await wait(async () => (await api(personalURL, 'disposable-browser-credential', 'GET', '/api/integration/waiting')).items.length === 1, 'ticket waiting for its repository');
  await page.frameLocator('iframe[data-workspace=personal]').getByRole('link', { name: 'Close', exact: true }).click();
- await page.frameLocator('iframe[data-workspace=personal]').getByRole('link', { name: /Control Center/ }).first().click();
+ await side.locator('[data-page=ws-home]').click();
  await page.frameLocator('iframe[data-workspace=personal]').getByTestId('waiting-repository').filter({ hasText: invoice.key }).waitFor();
  const billingRepo = path.join(temp, 'billing'); fs.mkdirSync(billingRepo); run('git', ['-C', billingRepo, 'init', '-b', 'main']); run('git', ['-C', billingRepo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture']); run('git', ['-C', billingRepo, 'remote', 'add', 'origin', 'git@github.com:acme/billing.git']);
  await assert.rejects(api(personalURL, 'disposable-browser-credential', 'POST', '/api/integration/waiting/link', { path: repo, repository: 'https://github.com/acme/billing' }), /not a clone/);
@@ -85,9 +106,9 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const projects = (await api(personalURL, full, 'GET', '/api/projects')).projects; const localProject = projects.find(p => p.name === 'Customer portal');
  let active; await wait(async () => { const runs = (await api(personalURL, full, 'GET', `/api/projects/${localProject.id}/runs`)).runs; active = runs.find(r => ['running', 'waiting_for_user'].includes(r.state)); return !!active; }, 'agent process running');
  console.log('PASS shell opening, Team ticket deep link and locally approved agent process');
- await page.locator('[data-page=mywork]').click(); // the open ticket covers Team's rail; switch from a shell page, leaving it open
+ await page.locator('[data-page=mywork]').click(); // leave the open ticket as it is; switch from a shell page
  await switchTo('personal'); await switchTo('team:' + slot);
- const secondFrame = page.frameLocator('iframe[data-workspace="team:' + slot + '"]'); await secondFrame.locator('nav').getByRole('button', { name: 'Settings', exact: true }).click();
+ const secondFrame = page.frameLocator('iframe[data-workspace="team:' + slot + '"]'); await side.locator('[data-page=settings]').click();
  assert.equal(await secondFrame.getByRole('button', { name: 'Make Workspace Host', exact: true }).count(), 0, 'member has no host authority');
  await secondFrame.locator('[name=offer-workspace-host]').check(); await secondFrame.locator('[name=computer-sleeps]').check(); await secondFrame.getByRole('button', { name: 'Save settings', exact: true }).click();
  await wait(async () => (await secondDev('GET', '/state')).settings.offerWorkspaceHost, 'volunteer persisted');

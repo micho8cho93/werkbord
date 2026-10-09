@@ -3,7 +3,7 @@ import { handle, isPlace, type FrameRef, type Deps } from './frames';
 
 const personal = {} as Window, team = {} as Window;
 const frames: FrameRef[] = [{ id: 'personal', origin: 'http://127.0.0.1:7420', window: personal }, { id: 'team:main', origin: 'http://127.0.0.1:7431', window: team }];
-const deps = (): Deps => ({ relay: vi.fn().mockResolvedValue('ok'), reply: vi.fn(), remember: vi.fn().mockResolvedValue(undefined), ready: vi.fn(), switcher: vi.fn(), open: vi.fn() });
+const deps = (): Deps => ({ relay: vi.fn().mockResolvedValue('ok'), reply: vi.fn(), remember: vi.fn().mockResolvedValue(undefined), ready: vi.fn(), open: vi.fn() });
 const data = { type: 'werkbord.native.request', id: 'request1', method: 'Info', args: [] };
 
 describe('frame authority', () => {
@@ -29,15 +29,6 @@ describe('frame authority', () => {
     for (const place of ['https://evil.example', '?tab=//evil', '?tab=../personal', '?token=SECRET', '?tab=board&join=SECRET', '#/p/prj_1?invite=SECRET', '?%74oken=SECRET', '?tab=board&project=tpj_1']) await handle(frames, { source: team, origin: frames[1].origin, data: { type: 'werkbord.frame', event: 'place', place } }, d);
     expect(d.remember).toHaveBeenCalledExactlyOnceWith('team:main', '?tab=board&project=tpj_1');
     expect(isPlace('#/p/prj_1/task/tsk_1')).toBe(true);
-  });
-  it('opens the switcher only for a well-formed rectangle from a known frame', async () => {
-    const d = deps();
-    const rect = { x: 12, y: 8, width: 120, height: 32 };
-    await handle(frames, { source: {}, origin: frames[1].origin, data: { type: 'werkbord.frame', event: 'switcher', rect } }, d);
-    for (const bad of [null, { x: 1, y: 2, width: 3 }, { ...rect, extra: 1 }, { ...rect, x: 'left' }, { ...rect, y: Infinity }]) await handle(frames, { source: team, origin: frames[1].origin, data: { type: 'werkbord.frame', event: 'switcher', rect: bad } }, d);
-    expect(d.switcher).not.toHaveBeenCalled();
-    await handle(frames, { source: team, origin: frames[1].origin, data: { type: 'werkbord.frame', event: 'switcher', rect } }, d);
-    expect(d.switcher).toHaveBeenCalledExactlyOnceWith('team:main', rect);
   });
   it('lets a frame open only a place in the person’s own Werkbord', async () => {
     const d = deps();

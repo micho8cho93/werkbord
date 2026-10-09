@@ -117,21 +117,10 @@ export function reportFrame(place, w = globalThis.window) {
   };
   w.parent.postMessage({ type: 'werkbord.frame', event: 'ready' }, '*');
   send();
-  w.addEventListener('hashchange', send);
-  w.addEventListener('popstate', send);
-  return () => { w.removeEventListener('hashchange', send); w.removeEventListener('popstate', send); };
-}
-
-/**
- * Asks the shell to open its workspace switcher under el, the product name the person clicked in this page's own header.
- * Returns false outside the desktop app, where there is nothing to switch to. Only where the element is is sent.
- */
-export function openSwitcher(el, w = globalThis.window) {
-  if (!isEmbedded(w) || !el?.getBoundingClientRect) return false;
-  const r = el.getBoundingClientRect();
-  const rect = { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) };
-  w.parent.postMessage({ type: 'werkbord.frame', event: 'switcher', rect }, '*');
-  return true;
+  // 'werkbord:place' is raised by a page that settles its own address (history.replaceState raises no event of its own).
+  const events = ['hashchange', 'popstate', 'werkbord:place'];
+  for (const name of events) w.addEventListener(name, send);
+  return () => { for (const name of events) w.removeEventListener(name, send); };
 }
 
 /**
@@ -144,14 +133,17 @@ export function openWorkspace(target, place, w = globalThis.window) {
   return true;
 }
 
-/** Calls handler({ open, focus }) when the shell's switcher opened from this page opens or closes. */
-export function onSwitcher(handler, w = globalThis.window) {
+/**
+ * Calls handler('light' | 'dark') when the shell that framed this page says which theme the person chose (the window's one
+ * sidebar is where it is chosen). Only the parent window is believed, and only those two words.
+ */
+export function onTheme(handler, w = globalThis.window) {
   if (!isEmbedded(w)) return () => {};
   const listener = (event) => {
     if (event.source !== w.parent) return;
     const m = event.data;
-    if (!m || m.type !== 'werkbord.switcher' || typeof m.open !== 'boolean') return;
-    handler({ open: m.open, focus: m.focus === true });
+    if (!m || m.type !== 'werkbord.theme' || (m.theme !== 'light' && m.theme !== 'dark')) return;
+    handler(m.theme);
   };
   w.addEventListener('message', listener);
   return () => w.removeEventListener('message', listener);

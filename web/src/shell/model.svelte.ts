@@ -8,14 +8,12 @@ import type { Overview, Target, WorkspaceView } from './types';
 
 export type Page = 'workspace' | 'mywork' | 'calendar' | 'inbox' | 'workspaces';
 
-/** Where the switcher opens: under the product name the person clicked, in the window's coordinates. */
+/** Where the switcher opens: under the workspace name at the top of the sidebar, in the window's coordinates. */
 export interface Anchor {
   x: number;
   y: number;
   width: number;
   height: number;
-  /** The workspace whose page the name was clicked in, told when the switcher closes; null for the shell's own pages. */
-  from: string | null;
 }
 
 const COLLAPSED_KEY = 'werkbord.shell.sidebar';
@@ -50,8 +48,10 @@ export class Model {
   busy = $state('');
   /** The open switcher, and where it opens; null when closed. */
   switcher = $state<Anchor | null>(null);
-  /** Told when the switcher that a frame opened closes, so that frame can show it and take the focus back. */
-  onSwitcherClosed: (from: string, focus: boolean) => void = () => {};
+  /** The button the switcher opens under: the workspace name at the top of the sidebar. */
+  switcherButton: HTMLElement | undefined;
+  /** Where each open workspace says it is, as a place inside it: what the sidebar marks as current. */
+  places = $state<Record<string, string>>({});
   sidebarCollapsed = $state(readCollapsed());
   addOpen = $state(false);
   loaded = $state(false);
@@ -62,20 +62,36 @@ export class Model {
     return this.switcher !== null;
   }
 
-  /** Opens the switcher under anchor (by default under the top of the window, for the keyboard and the menu). */
-  openSwitcher(anchor: Anchor = { x: this.sidebarCollapsed ? 56 : 196, y: 8, width: 0, height: 32, from: null }): void {
-    this.switcher = anchor;
+  /** Opens the switcher under the workspace name in the sidebar (for the button and for the keyboard). */
+  openSwitcher(): void {
+    const r = this.switcherButton?.getBoundingClientRect();
+    this.switcher = r ? { x: r.left, y: r.top, width: r.width, height: r.height } : { x: 8, y: 8, width: 0, height: 32 };
   }
 
+  /** Closes the switcher; focus goes back to the name it opened under when the person pressed Escape. */
   closeSwitcher(focus = false): void {
-    const from = this.switcher?.from;
     this.switcher = null;
-    if (from) this.onSwitcherClosed(from, focus);
+    if (focus) this.switcherButton?.focus();
   }
 
   toggleSwitcher(): void {
     if (this.switcher) this.closeSwitcher(true);
     else this.openSwitcher();
+  }
+
+  /** Records where a workspace's page says it is. */
+  setPlace(id: string, place: string): void {
+    if (this.frames[id]) this.places[id] = place;
+  }
+
+  /** Shows a place inside the workspace on show (a project, Settings…): the sidebar's way of navigating a workspace. */
+  async visit(place: string): Promise<void> {
+    const frame = this.frames[this.current];
+    if (!frame) return this.open(this.current, place);
+    frame.pending = place;
+    this.places[this.current] = place;
+    this.page = 'workspace';
+    this.closeSwitcher();
   }
 
   toggleSidebar(): void {
@@ -99,6 +115,7 @@ export class Model {
     try {
       await ask((a) => (a.UpdatePersonal ? a.UpdatePersonal() : Promise.reject(new Error('This app cannot update Werkbord.'))));
       delete this.frames.personal;
+      delete this.places.personal;
       await this.refresh();
       await this.open('personal');
     } catch (e) {
@@ -137,7 +154,10 @@ export class Model {
         const item = view.items.find(i => i.id === id);
         const old = previous?.items.find(i => i.id === id);
         const wasJoined = old && old.state !== 'setup';
-        if (!item || item.state === 'leaving' || item.state === 'unavailable' || (item.state === 'setup' && wasJoined)) delete this.frames[id];
+        if (!item || item.state === 'leaving' || item.state === 'unavailable' || (item.state === 'setup' && wasJoined)) {
+          delete this.frames[id];
+          delete this.places[id];
+        }
       }
       // Removed/revoked workspace content must disappear, including old aggregate rows.
       if (this.overview) this.overview.entries = this.accessibleEntries(this.overview);
@@ -168,6 +188,7 @@ export class Model {
     if (id === 'personal' && item?.state === 'unavailable') {
       // There is no page to show: the Workspace page says why and what to do instead of a blank frame.
       delete this.frames.personal;
+      delete this.places.personal;
       this.current = id;
       this.page = 'workspace';
       this.closeSwitcher();
@@ -178,8 +199,10 @@ export class Model {
     const existing = this.frames[id];
     if (!existing) {
       this.frames[id] = { target, ready: false, pending: place || target.place || undefined };
+      this.places[id] = place || target.place || '';
     } else if (place) {
       existing.pending = place;
+      this.places[id] = place;
     }
     this.current = id;
     this.page = 'workspace';
@@ -212,6 +235,7 @@ export class Model {
     try {
       const target = await ask((a) => a.AddTeam());
       this.frames[target.id] = { target, ready: false, pending: undefined };
+      this.places[target.id] = target.place || '';
       await this.refresh();
       this.current = target.id;
       this.page = 'workspace';
@@ -270,6 +294,7 @@ export class Model {
     try {
       await ask((a) => a.ForgetWorkspace(id));
       delete this.frames[id];
+      delete this.places[id];
       if (this.current === id) await this.open('personal');
     } catch (e) {
       this.error = (e as Error).message;

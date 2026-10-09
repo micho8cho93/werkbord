@@ -26,6 +26,11 @@ const BASE = (/^\/w\/[a-z0-9_]{1,24}(?=\/|$)/.exec(location.pathname) || [''])[0
 const SLOT = BASE.slice(3) || 'main';
 const KEY = (name) => 'werkbord-team-' + name + (BASE ? ':' + SLOT : '');
 
+// Inside the desktop app this page is one workspace beside the person's other workspaces, and the window's own sidebar is the
+// navigation (the shell asks this page to go to a place with a query such as ?tab=board&project=…). Only a place in the
+// person's own Werkbord ("Open in Individual") is ever sent back to the shell.
+const FRAMED = window.parent !== window;
+
 const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['members', 'Members']];
 const ADMIN_TABS = [['settings', 'This computer'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
 const PROJECT_TABS = new Set(['board', 'repository', 'activity', 'people']);
@@ -130,11 +135,11 @@ function settingsTab() { return ADMIN_TABS.some(([id]) => id === state.tab); }
 function availableSettings() { return ADMIN_TABS.filter(([id]) => !['hosts', 'connectivity', 'backups'].includes(id) || can('devices.view_all')); }
 
 function navigation(counts) {
+  if (FRAMED) return '';
   const projects = state.ov.projects.filter(p => !p.project.archived);
   return h('aside', { class: 'rail', 'aria-label': 'Werkbord Team navigation' },
-    FRAMED ? productSwitch() : [
-      h('button', { class: 'brand-home', type: 'button', onclick: () => go('workspace'), 'aria-label': 'Werkbord Team workspace' }, brand()),
-      h('div', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name)],
+    h('button', { class: 'brand-home', type: 'button', onclick: () => go('workspace'), 'aria-label': 'Werkbord Team workspace' }, brand()),
+    h('div', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name),
     h('nav', { class: 'rail-primary', 'aria-label': 'Werkbord Team' }, TABS.map(([id, label]) =>
       h('button', { name: 'nav-' + id, type: 'button', 'aria-label': label, 'aria-description': counts[id] ? plural(counts[id], 'ticket') : null, 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, icon(id), h('span', { class: 'nav-label' }, label),
         badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'reviews' ? '' : 'quiet')))),
@@ -146,8 +151,7 @@ function navigation(counts) {
       h('nav', { class: 'rail-settings', 'aria-label': 'Settings' }, h('button', { name: 'nav-settings', type: 'button', 'aria-label': 'Settings', 'aria-current': settingsTab() ? 'page' : null, onclick: () => go('settings') }, icon('settings'), h('span', {}, 'Settings'))),
       themeButton(),
       h('div', { class: 'profile' }, initial(state.me.member.name), h('div', { class: 'grow' }, h('strong', {}, state.me.member.name), h('span', { class: 'muted small' }, state.me.member.role)),
-        state.desktop ? '' : h('button', { class: 'link small', onclick: signOut }, 'Sign out')),
-      h('span', { class: 'connection', role: 'status' }, h('span', { class: 'status-dot', 'data-online': String(state.online), 'aria-hidden': 'true' }), state.online ? 'Connected' : 'Reconnecting')));
+        state.desktop ? '' : h('button', { class: 'link small', onclick: signOut }, 'Sign out'))));
 }
 
 function settingsLayout(body) {
@@ -321,8 +325,6 @@ document.body.prepend(banner);
 document.body.append(toasts);
 function setOnline(on) {
   state.online = on; banner.hidden = on;
-  const status = app.querySelector('.connection');
-  if (status) status.replaceChildren(h('span', { class: 'status-dot', 'data-online': String(on), 'aria-hidden': 'true' }), on ? 'Connected' : 'Reconnecting');
 }
 
 // When the workspace's storage has no quorum of Workspace Hosts, reading works and every change is refused until enough of them
@@ -428,7 +430,7 @@ async function renderNow() {
     repository: sum(ov.projects, (p) => p.problems),
   };
   const title = settingsTab() ? 'Settings' : TABS.find(([id]) => id === navTab())?.[1] || 'Projects';
-  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' ? ' is-board' : '') },
+  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' ? ' is-board' : '') + (FRAMED ? ' framed' : '') },
     h('button', { class: 'skip-link', onclick: () => app.querySelector('#main-title').focus() }, 'Skip to content'),
     navigation(counts),
     h('main', { class: 'main-pane' },
@@ -744,11 +746,13 @@ async function projectScopedView() {
   const p = d.board.project;
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
+  const mine = state.ov.projects.find((x) => x.project.id === p.id);
+  const tabs = FRAMED ? projectTabs(p.id, [['board', 'Board', mine?.counts.available || 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Activity', 0], ['people', 'People', 0]]) : '';
   const content = state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
   return h('div', { class: 'project-view' },
     state.tab === 'people' ? h('p', {}, h('button', { class: 'link', onclick: () => go('projects') }, '← Projects')) : '',
     h('div', { class: 'project-head' },
-      h('div', { class: 'project-bar' }, h('label', { class: 'inline' }, 'Project ', switcher),
+      h('div', { class: 'project-bar' }, FRAMED ? '' : h('label', { class: 'inline' }, 'Project ', switcher),
         state.tab === 'board' ? h('button', { class: 'plain small', onclick: () => openProject(p.id, 'people') }, 'People & invites') : '',
         h('details', { class: 'project-details' }, h('summary', {}, 'Project details'),
           h('div', { class: 'project-detail-content' },
@@ -756,7 +760,15 @@ async function projectScopedView() {
             p.repository ? h('p', {}, isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
             h('span', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'),
             can('projects.manage') ? h('button', { class: 'danger small', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project') : '')))),
+    tabs,
     content);
+}
+
+// A project's own sections, where the window's sidebar (which lists the project) does not: Board, Git, Activity, People.
+function projectTabs(projectId, choices) {
+  return h('nav', { class: 'project-tabs', 'aria-label': 'Project sections' }, choices.map(([id, title, count]) =>
+    h('button', { name: 'project-tab-' + id, type: 'button', 'aria-current': state.tab === id ? 'page' : null, onclick: () => openProject(projectId, id) }, title,
+      count > 0 ? h('span', { class: 'count' + (id === 'repository' ? ' bad' : ' quiet') }, String(count)) : '')));
 }
 
 // ---- My Work ----
@@ -1218,33 +1230,15 @@ window.addEventListener('keydown', e => {
     e.preventDefault(); state.newTicketOpen = true; render().then(() => app.querySelector('[name="t-title"]')?.focus());
   }
 });
-// Inside the desktop app this page is one workspace beside the person's own Werkbord. The product name at the top of the rail
-// is then the switcher between Individual and Team: the shell opens it under the name. Only where the name is, and a place
-// in the person's own Werkbord to show ("Open in Individual"), are ever sent to the shell.
-const FRAMED = window.parent !== window;
-function productSwitch() {
-  const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  for (const [k, v] of Object.entries({ viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.4', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) chevron.setAttribute(k, v);
-  const path = document.createElementNS(chevron.namespaceURI, 'path'); path.setAttribute('d', 'M4 6l4 4 4-4'); chevron.append(path);
-  return h('button', { class: 'product-switch', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-testid': 'product-switch',
-    'aria-label': 'Switch between Individual and Team. Showing ' + state.me.workspace.name, onclick: (e) => openShellSwitcher(e.currentTarget) },
-    brand(), h('span', { class: 'switch-row' }, h('span', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name), chevron));
-}
-function openShellSwitcher(el) {
-  const r = el.getBoundingClientRect();
-  window.parent.postMessage({ type: 'werkbord.frame', event: 'switcher', rect: { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) } }, '*');
-}
 function openInIndividual(place) {
   if (FRAMED && /^#\/[A-Za-z0-9/_-]{0,200}$/.test(place)) window.parent.postMessage({ type: 'werkbord.frame', event: 'open', target: 'personal', place }, '*');
 }
+// The theme is chosen in the window's sidebar and told to this page; only the window that framed it is believed.
 window.addEventListener('message', e => {
   if (!FRAMED || e.source !== window.parent) return;
   const m = e.data;
-  if (!m || m.type !== 'werkbord.switcher' || typeof m.open !== 'boolean') return;
-  const button = app.querySelector('.product-switch');
-  if (!button) return;
-  button.setAttribute('aria-expanded', String(m.open));
-  if (!m.open && m.focus === true) button.focus();
+  if (!m || m.type !== 'werkbord.theme' || (m.theme !== 'light' && m.theme !== 'dark')) return;
+  teamTheme.set(m.theme);
 });
 // The desktop app's shell can ask this page, framed beside a person's other workspaces, to open a place in it (a ticket that
 // needs them). Only the window that framed this page is believed, and only a place inside it: a query on this page.

@@ -38,8 +38,11 @@ class Router {
   go(loc: Location, replace = false): void {
     const href = hrefOf(loc);
     if (location.hash === href) return;
-    if (replace) history.replaceState(null, '', location.pathname + location.search + href);
-    else location.hash = href;
+    if (replace) {
+      history.replaceState(null, '', location.pathname + location.search + href);
+      // Settling an address raises no hashchange; the desktop window, which marks where this page is, is told this way.
+      window.dispatchEvent(new Event('werkbord:place'));
+    } else location.hash = href;
     this.read();
   }
 }

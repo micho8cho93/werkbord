@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "shell": "1.10.x",
+  "shell": "1.11.x",
   "personal": {
     "bundledMajor": 1,
     "minimumUnifiedVersion": "1.6.0",

@@ -26,7 +26,10 @@ window.teamTheme = (() => {
   return {
     get dark() { return dark(); },
     toggle() {
-      choice = dark() ? 'light' : 'dark';
+      this.set(dark() ? 'light' : 'dark');
+    },
+    set(next) {
+      choice = next;
       try { localStorage.setItem(key, choice); } catch (_) {}
       apply();
     },

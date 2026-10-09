@@ -2,6 +2,7 @@
   import Migration from './Migration.svelte';
   import { hosting, standing } from './aggregate';
   import { model } from './model.svelte';
+  import { runnersPlace } from './nav';
   import type { Item, Overview } from './types';
 
   // Every workspace on this computer, what this computer does for each, and where to manage it. Hosting is shown here as
@@ -87,6 +88,9 @@
         <div class="actions">
           {#if i.state === 'setup' || i.state === 'connecting' || i.state === 'ready' || i.state === 'offline'}
             <button class="btn" type="button" onclick={() => model.open(i.id)}>{i.state === 'setup' ? 'Finish setting up' : 'Open'}</button>
+          {/if}
+          {#if i.kind === 'personal' && i.state === 'ready'}
+            <button class="btn" type="button" onclick={() => model.open(i.id, runnersPlace('personal'))} data-testid="manage-runners">Runners</button>
           {/if}
           {#if i.kind === 'personal' && model.personalOutdated}
             <button class="btn primary" type="button" onclick={() => model.updatePersonal()} disabled={!!model.busy}>Update Werkbord…</button>

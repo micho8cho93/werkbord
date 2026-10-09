@@ -1,27 +1,27 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
-  import ProductSwitch from './ProductSwitch.svelte';
+  import Mark from '../Mark.svelte';
   import { attentionCount } from '../projects';
   import { globalHref, hrefOf, router, switchedTo } from '../router.svelte';
   import { app } from '../state.svelte';
   import { theme } from '../theme.svelte';
 
   // The rail is the map of everything: what needs you, every project, every machine. One click
-  // reaches any of them; nothing here hides behind a menu.
+  // reaches any of them; nothing here hides behind a menu. (Inside the desktop app the window's own sidebar does this
+  // job and this rail is not shown: see App.svelte.)
 
   const current = $derived(router.projectId);
   const activity = (id: string) => app.overview?.projects.find((p) => p.projectId === id);
-
-  const statusLabel = $derived(
-    { connecting: 'Connecting', live: 'Live', offline: 'Controller offline', unauthorized: 'Token required' }[app.connection],
-  );
 
   /** Switching keeps the section you are in, where the other project has one. */
   const hrefFor = (id: string): string => hrefOf(switchedTo(router.location, id));
 </script>
 
 <aside class="rail" aria-label="Werkbord">
-  <ProductSwitch />
+  <a class="brand" href={globalHref('control')} aria-label="Werkbord, Control Center">
+    <Mark height={20} />
+    <span class="wm">werkbord</span>
+  </a>
 
   <nav class="group" aria-label="Everywhere">
     <a class="nav" href={globalHref('control')} aria-current={router.view === 'control' ? 'page' : undefined}>
@@ -75,9 +75,6 @@
       <Icon name="settings" />Settings
     </a>
     <div class="row">
-      <span class="status" data-state={app.connection} title={statusLabel}>
-        <span class="dot" aria-hidden="true"></span>{statusLabel}
-      </span>
       <button class="btn quiet small icon" type="button" onclick={() => theme.toggle()} aria-label={theme.dark ? 'Switch to light' : 'Switch to dark'} title={theme.dark ? 'Light' : 'Dark'}>
         <Icon name={theme.dark ? 'sun' : 'moon'} />
       </button>
@@ -95,6 +92,23 @@
     border-right: 1px solid var(--border);
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px 16px;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .wm {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.06em;
+    line-height: 1;
   }
 
   .group {
@@ -210,34 +224,7 @@
   .row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     padding: 4px 4px 0 10px;
-  }
-
-  .status {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-2);
-  }
-
-  .status .dot {
-    width: 7px;
-    height: 7px;
-    background: var(--warn);
-  }
-
-  .status[data-state='live'] .dot {
-    background: var(--ok);
-  }
-
-  .status[data-state='offline'] {
-    color: var(--danger-text);
-  }
-
-  .status[data-state='offline'] .dot {
-    background: var(--danger);
   }
 </style>

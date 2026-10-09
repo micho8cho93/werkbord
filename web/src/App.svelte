@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon, { type IconName } from './lib/Icon.svelte';
-  import ProductSwitch from './lib/shell/ProductSwitch.svelte';
+  import Mark from './lib/Mark.svelte';
+  import { embedded } from './lib/embed';
   import NeedsInputBanner from './lib/NeedsInputBanner.svelte';
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
   import ProjectSwitcher from './lib/ProjectSwitcher.svelte';
@@ -25,6 +26,8 @@
   import Settings from './routes/Settings.svelte';
   import TaskPanel from './routes/TaskPanel.svelte';
 
+  // Inside the desktop app the window's own sidebar is the navigation: this page shows only the work.
+  const framed = embedded();
   const loaded = $derived(app.projects.length > 0 || app.overview !== null);
   const inside = $derived(inProject(router.view));
   /** The project the page is in, or, on a global page, the one last used: what the phone's tabs point at. */
@@ -119,8 +122,8 @@
 {#if app.connection === 'unauthorized'}
   <TokenPrompt />
 {:else}
-  <div class="shell">
-    <div class="rail-area"><Rail /></div>
+  <div class="shell" class:framed>
+    {#if !framed}<div class="rail-area"><Rail /></div>{/if}
 
     <div class="main-area">
       {#if inside && project}
@@ -128,7 +131,7 @@
       {:else}
         <header class="ghead">
           <div class="gtitle">
-            <span class="phone-mark"><ProductSwitch variant="compact" /></span>
+            {#if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
             <h1>{globalTitle}</h1>
           </div>
           <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
@@ -206,6 +209,10 @@
     display: grid;
     grid-template-columns: var(--rail-w) minmax(0, 1fr);
     overflow: hidden;
+  }
+
+  .shell.framed {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .rail-area {
