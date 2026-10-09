@@ -103,3 +103,37 @@ func TestAWindowRequiresItsMatchingDeviceService(t *testing.T) {
 		}
 	}
 }
+
+func TestAnIsolatedServiceIsToldNothingOfThePersonsWerkbord(t *testing.T) {
+	b, err := LaunchDaemon(SystemDir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, banned := range []string{"--runner-config", "werkbord/config.json", "/Users/"} {
+		if strings.Contains(string(b), banned) {
+			t.Fatalf("an isolated service was given %q", banned)
+		}
+	}
+	for _, want := range []string{"--local-key-file", "--data-dir", "<key>KeepAlive</key><true/>"} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("lost %q", want)
+		}
+	}
+	// A relative runner path is still refused when one is given.
+	if _, err := LaunchDaemon(SystemDir, "relative/config.json"); err == nil {
+		t.Fatal("relative runner path accepted")
+	}
+}
+
+func TestOnlyTheFixedOperationsAreInstallerActions(t *testing.T) {
+	for _, a := range []string{"install", "install-isolated", "start", "stop", "uninstall"} {
+		if !ValidAction(a) {
+			t.Errorf("%s refused", a)
+		}
+	}
+	for _, a := range []string{"", "run", "sh", "install ", "install; rm -rf /", "Install"} {
+		if ValidAction(a) {
+			t.Errorf("%q accepted", a)
+		}
+	}
+}

@@ -259,6 +259,17 @@ func (s *Server) handleControlCenter(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, o)
 }
 
+// handleWorkspaceSummary is the Personal workspace in the desktop shell's words (internal/workspace): the same snapshot as
+// the Control Center, translated. It is behind the controller's own credential like every other route.
+func (s *Server) handleWorkspaceSummary(w http.ResponseWriter, r *http.Request) {
+	sum, err := s.opt.Control.WorkspaceSummary(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sum)
+}
+
 // handleGetWorktree says where a run's work is: its branch and directory.
 func (s *Server) handleGetWorktree(w http.ResponseWriter, r *http.Request) {
 	if s.opt.Worktrees == nil {

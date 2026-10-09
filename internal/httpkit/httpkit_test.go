@@ -65,3 +65,36 @@ func TestMiddlewareRecoversLogsAndSetsHeaders(t *testing.T) {
 		t.Fatalf("the query string reached the log: %s", logs.String())
 	}
 }
+
+func TestOnlyExactLoopbackOriginsMayBeAddedAsFramingParents(t *testing.T) {
+	got, err := ParseEmbedOrigins("http://127.0.0.1:5173, http://localhost:8080")
+	if err != nil || len(got) != 2 || got[0] != "http://127.0.0.1:5173" {
+		t.Fatalf("%v %v", got, err)
+	}
+	for _, bad := range []string{"https://evil.example", "http://evil.example:80", "http://127.0.0.1", "http://127.0.0.1:80/", "http://127.0.0.1:80/x", "*", "http://*:80", "http://127.0.0.1.evil.example:80", "http://user@127.0.0.1:80", "wails:", "http://127.0.0.1:1,http://127.0.0.1:2,http://127.0.0.1:3,http://127.0.0.1:4,http://127.0.0.1:5"} {
+		if _, err := ParseEmbedOrigins(bad); err == nil {
+			t.Errorf("%q was accepted", bad)
+		}
+	}
+}
+
+func TestAFramedPageNamesTheDesktopWindowAndNoOneElse(t *testing.T) {
+	csp := FramedCSP(DefaultCSP, []string{"http://127.0.0.1:9"})
+	if !strings.Contains(csp, "frame-ancestors wails: http://127.0.0.1:9;") || strings.Contains(csp, "frame-ancestors 'none'") || strings.Contains(csp, "*") {
+		t.Fatalf("csp = %s", csp)
+	}
+	if !strings.Contains(FramedCSP(DefaultCSP, nil), "frame-ancestors wails;") && !strings.Contains(FramedCSP(DefaultCSP, nil), "frame-ancestors wails:;") {
+		t.Fatalf("csp = %s", FramedCSP(DefaultCSP, nil))
+	}
+	rec := httptest.NewRecorder()
+	SecurityHeadersFramed(csp, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Header().Get("X-Frame-Options") != "" || rec.Header().Get("Content-Security-Policy") != csp || rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("headers = %v", rec.Header())
+	}
+	// A product that does not opt in still refuses every frame.
+	rec = httptest.NewRecorder()
+	SecurityHeaders(DefaultCSP, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Header().Get("X-Frame-Options") != "DENY" || !strings.Contains(rec.Header().Get("Content-Security-Policy"), "frame-ancestors 'none'") {
+		t.Fatalf("headers = %v", rec.Header())
+	}
+}

@@ -349,3 +349,21 @@ func TestNoUpdateCheckFromFileAndEnvironment(t *testing.T) {
 		t.Fatal("a value that is not a boolean was accepted for a setting that stops something")
 	}
 }
+
+func TestEmbedOriginsAreExactLoopbackOriginsFromTheEnvironmentOrTheFile(t *testing.T) {
+	t.Setenv("WERKBORD_EMBED_ORIGINS", "http://127.0.0.1:5173")
+	c, err := Load()
+	if err != nil || len(c.EmbedOrigins) != 1 || c.EmbedOrigins[0] != "http://127.0.0.1:5173" {
+		t.Fatalf("%+v %v", c.EmbedOrigins, err)
+	}
+	t.Setenv("WERKBORD_EMBED_ORIGINS", "https://evil.example")
+	if _, err := Load(); err == nil {
+		t.Fatal("a non-loopback origin was accepted from the environment")
+	}
+	t.Setenv("WERKBORD_EMBED_ORIGINS", "")
+	c = Default()
+	c.EmbedOrigins = []string{"https://evil.example"}
+	if err := c.Validate(); err == nil {
+		t.Fatal("a non-loopback origin was accepted from config.json")
+	}
+}

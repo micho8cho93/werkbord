@@ -15,6 +15,8 @@ import (
 	"devboard/internal/httpkit"
 	"devboard/internal/team/devicestate"
 	"devboard/internal/team/domain"
+	"devboard/internal/team/hostclient"
+	"devboard/internal/team/infra/pki"
 	"devboard/internal/team/localwerkbord"
 	"devboard/internal/team/runnerlink"
 )
@@ -109,6 +111,13 @@ func (d *Daemon) attachRunner(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	return d.useRunner(ctx, v, mat, host, base, token)
+}
+
+// useRunner keeps a narrow execution grant for this workspace's device, and tells the workspace the device is a runner.
+// The grant is the only thing of the person's Werkbord this service ever holds: it is stored in the workspace's own sealed
+// vault, so one workspace's grant is not another's, and it can be revoked in the person's Werkbord at any time.
+func (d *Daemon) useRunner(ctx context.Context, v *pki.Vault, mat *pki.Material, host *hostclient.Client, base, token string) error {
 	if err := v.SaveSecret("runner-access", []byte(token)); err != nil {
 		return err
 	}
@@ -138,6 +147,60 @@ func (d *Daemon) attachRunner(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// acceptRunnerGrant takes a narrow execution grant that the person's own app (running as the person) minted from their
+// Werkbord and delivers here. This is the way that never gives the privileged service the person's Werkbord credential:
+// the service is handed only the revocable, single-purpose grant, checked to be exactly that, for this workspace.
+func (d *Daemon) acceptRunnerGrant(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Token string `json:"token"`
+		Base  string `json:"base"`
+	}
+	if !daemonDecode(w, r, &in) {
+		return
+	}
+	d.control.Lock()
+	defer d.control.Unlock()
+	d.mu.RLock()
+	v, mat, host := d.vault, d.mat, d.host
+	d.mu.RUnlock()
+	if v == nil || mat == nil {
+		daemonFail(w, errors.New("join or create a workspace before connecting your runner"))
+		return
+	}
+	if len(in.Token) > 256 || !strings.HasPrefix(in.Token, "wba_") {
+		daemonFail(w, errors.New("a narrow local access grant is required, never Werkbord's own credential"))
+		return
+	}
+	base := in.Base
+	if base == "" {
+		base = localwerkbord.DefaultBase
+	}
+	base, err := localwerkbord.CheckBase(base)
+	if err != nil {
+		daemonFail(w, err)
+		return
+	}
+	if _, err := localwerkbord.Probe(r.Context(), base); err != nil {
+		daemonFail(w, err)
+		return
+	}
+	probe, err := localwerkbord.New(base, in.Token)
+	if err != nil {
+		daemonFail(w, err)
+		return
+	}
+	if err := probe.RequireExecutionAccess(r.Context()); err != nil {
+		daemonFail(w, err)
+		return
+	}
+	if err := d.useRunner(r.Context(), v, mat, host, base, in.Token); err != nil {
+		daemonFail(w, err)
+		return
+	}
+	d.notify()
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (d *Daemon) trustSender(w http.ResponseWriter, r *http.Request) {

@@ -660,6 +660,22 @@ func (c *Client) TaskDetail(ctx context.Context, pid, tid string) (map[string]an
 	}
 	return map[string]any{"runs": own, "questions": qs, "runners": runners, "agents": agentReply.Agents, "stopBehavior": "stop/restart; no live pause"}, nil
 }
+
+// RequireExecutionAccess checks the grant is the per-device execution grant (execution-local-v1) and nothing broader or
+// different, so a credential handed over by another program cannot be mistaken for one.
+func (c *Client) RequireExecutionAccess(ctx context.Context) error {
+	var entry struct {
+		Scope string `json:"scope"`
+	}
+	if err := c.do(ctx, "GET", "/api/local-access/self", nil, &entry); err != nil {
+		return err
+	}
+	if entry.Scope != "execution-local-v1" {
+		return errors.New("this grant is not a per-workspace execution grant; make one for this workspace in Werkbord")
+	}
+	return nil
+}
+
 func (c *Client) RequireDispatchAccess(ctx context.Context) error {
 	var entry struct {
 		Scope string `json:"scope"`

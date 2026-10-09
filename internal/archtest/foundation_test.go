@@ -19,6 +19,7 @@ import (
 // say nothing about a product, and each other, and no package of either product.
 var sharedPackages = []string{
 	module + "/internal/integration",
+	module + "/internal/workspace",
 	module + "/internal/nativebridge",
 	module + "/internal/httpkit",
 	module + "/internal/sqlitekit",

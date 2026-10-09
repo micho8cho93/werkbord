@@ -107,3 +107,64 @@ describe('links that leave Werkbord', () => {
     expect(externalLinkTarget(null, here)).toBeNull();
   });
 });
+
+/** A page the desktop shell shows in a frame: it has a parent window, and talks to it with postMessage. */
+function framedWindow() {
+  const sent: { msg: Record<string, unknown>; target: string }[] = [];
+  const listeners: ((e: { source: unknown; data: unknown }) => void)[] = [];
+  const parent = { postMessage: (msg: Record<string, unknown>, target: string) => sent.push({ msg, target }) };
+  const win: Record<string, unknown> = {
+    parent,
+    // The runtime exists in every frame in WebKit, but only the window's own page gets its answers.
+    webkit: { messageHandlers: { external: { postMessage: () => { throw new Error('a frame must not use the runtime directly'); } } } },
+    addEventListener: (_: string, l: (e: { source: unknown; data: unknown }) => void) => listeners.push(l),
+    removeEventListener: () => {},
+  };
+  vi.stubGlobal('window', win);
+  const deliver = (source: unknown, data: unknown) => listeners.forEach((l) => l({ source, data }));
+  return { sent, parent, deliver };
+}
+
+describe('the desktop bridge in a frame of the shell', () => {
+  it('asks the page that framed it, never the runtime, and resolves with its answer', async () => {
+    const { sent, parent, deliver } = framedWindow();
+    const { callDesktop } = await import('./desktop');
+    const p = callDesktop<{ version: string }>('Info');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].msg).toMatchObject({ type: 'werkbord.native.request', method: 'Info', args: [] });
+    const id = sent[0].msg.id as string;
+    deliver({}, { type: 'werkbord.native.result', id, ok: true, result: { version: 'x' } }); // not the parent: ignored
+    deliver(parent, { type: 'werkbord.native.result', id, ok: true, result: { version: 'v1.8.0' } });
+    await expect(p).resolves.toEqual({ version: 'v1.8.0' });
+  });
+
+  it('carries the shell’s refusal as an error', async () => {
+    const { sent, parent, deliver } = framedWindow();
+    const { callDesktop } = await import('./desktop');
+    const p = callDesktop('ChooseDirectory');
+    deliver(parent, { type: 'werkbord.native.result', id: sent[0].msg.id, ok: false, error: 'not for this workspace' });
+    await expect(p).rejects.toThrow('not for this workspace');
+  });
+
+  it('follows the shell to a place inside the page and nowhere else', async () => {
+    const { parent, deliver } = framedWindow();
+    const loc = { hash: '' };
+    vi.stubGlobal('location', loc);
+    const { followShell } = await import('./embed');
+    followShell();
+    deliver({}, { type: 'werkbord.navigate', href: '#/control' }); // not the parent
+    expect(loc.hash).toBe('');
+    for (const bad of ['https://evil.example/', '//evil.example', '/p/x', 'javascript:alert(1)', '#/../x', '?tab=board']) {
+      deliver(parent, { type: 'werkbord.navigate', href: bad });
+    }
+    expect(loc.hash).toBe('');
+    deliver(parent, { type: 'werkbord.navigate', href: '#/p/prj_1/task/tsk_1' });
+    expect(loc.hash).toBe('#/p/prj_1/task/tsk_1');
+  });
+
+  it('does not follow anyone in a page that has no parent', async () => {
+    vi.stubGlobal('window', { addEventListener: () => { throw new Error('nothing to listen to'); } });
+    const { followShell } = await import('./embed');
+    expect(() => followShell()).not.toThrow();
+  });
+});

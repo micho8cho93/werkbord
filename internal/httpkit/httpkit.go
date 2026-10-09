@@ -11,6 +11,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -113,6 +115,57 @@ func RecoverPanics(log *slog.Logger, next http.Handler) http.Handler {
 // static web app and talks only to its own origin.
 const DefaultCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
 	"connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+
+// DesktopFrameAncestor is the one scheme that may show a page of a product inside a frame without being asked twice: the
+// Werkbord desktop app's own window, whose pages come from the app and from no network. A web page on the Internet or in a
+// browser cannot have it as its address, so allowing it lets the app compose Personal and Team workspaces in one window
+// and lets nothing else frame them.
+const DesktopFrameAncestor = "wails:"
+
+// MaxEmbedOrigins bounds the extra origins ParseEmbedOrigins accepts.
+const MaxEmbedOrigins = 4
+
+// ParseEmbedOrigins reads a comma-separated list of exact loopback origins (http://127.0.0.1:PORT or
+// http://localhost:PORT) that may also frame a product's pages. It exists so the desktop shell can be run from source and
+// tested in an ordinary browser, where its address is a loopback port rather than the app's scheme; nothing else is
+// accepted, so it cannot be used to let another site in.
+func ParseEmbedOrigins(list string) ([]string, error) {
+	var out []string
+	for _, o := range strings.Split(list, ",") {
+		o = strings.TrimSpace(o)
+		if o == "" {
+			continue
+		}
+		u, err := url.Parse(o)
+		if err != nil || u.Scheme != "http" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost") || u.Port() == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil || o != u.Scheme+"://"+u.Host {
+			return nil, fmt.Errorf("%q is not an exact loopback origin such as http://127.0.0.1:8080", o)
+		}
+		out = append(out, o)
+	}
+	if len(out) > MaxEmbedOrigins {
+		return nil, fmt.Errorf("at most %d origins may be listed", MaxEmbedOrigins)
+	}
+	return out, nil
+}
+
+// FramedCSP is csp with frame-ancestors opened to the desktop app's window and to extra (from ParseEmbedOrigins).
+func FramedCSP(csp string, extra []string) string {
+	ancestors := strings.TrimSpace(DesktopFrameAncestor + " " + strings.Join(extra, " "))
+	return strings.Replace(csp, "frame-ancestors 'none'", "frame-ancestors "+ancestors, 1)
+}
+
+// SecurityHeadersFramed is SecurityHeaders for a product the desktop app shows in a frame. It sends no X-Frame-Options
+// (which cannot name an allowed ancestor); the Content-Security-Policy's frame-ancestors, which csp must carry, says who
+// may frame it and every other page is refused as before.
+func SecurityHeadersFramed(csp string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Content-Security-Policy", csp)
+		next.ServeHTTP(w, r)
+	})
+}
 
 // SecurityHeaders sets the headers every response carries.
 func SecurityHeaders(csp string, next http.Handler) http.Handler {

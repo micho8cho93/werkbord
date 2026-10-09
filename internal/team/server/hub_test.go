@@ -454,3 +454,104 @@ func TestTheHubServesEveryWorkspaceFromOneLocalAddress(t *testing.T) {
 		t.Fatal("the hub could be served to other computers")
 	}
 }
+
+func TestTheConsoleMayBeFramedByTheDesktopWindowAndNoOneElse(t *testing.T) {
+	h := testHub(t)
+	for _, path := range []string{"/", "/w/main/", "/w/main/api/device/v1/state"} {
+		w := hubCall(h, "GET", path, "")
+		csp := w.Header().Get("Content-Security-Policy")
+		if !strings.Contains(csp, "frame-ancestors wails:;") || w.Header().Get("X-Frame-Options") != "" {
+			t.Fatalf("%s: csp = %q, x-frame-options = %q", path, csp, w.Header().Get("X-Frame-Options"))
+		}
+	}
+	// A browser test may add its own exact loopback origin, and nothing else.
+	c := config.Default()
+	c.DataDir = t.TempDir()
+	c.EmbedOrigins = []string{"http://127.0.0.1:5999"}
+	h2, err := NewHub(DaemonOptions{Config: c, Log: quiet(), Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if csp := hubCall(h2, "GET", "/w/main/", "").Header().Get("Content-Security-Policy"); !strings.Contains(csp, "frame-ancestors wails: http://127.0.0.1:5999;") {
+		t.Fatalf("csp = %q", csp)
+	}
+	c.EmbedOrigins = []string{"https://evil.example"}
+	if err := c.Validate(); err == nil {
+		t.Fatal("a non-loopback origin was accepted")
+	}
+}
+
+// fakeController answers the few routes a Team service uses to check a runner grant, with a scope of the test's choosing.
+func fakeController(t *testing.T, scope string, token string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/health":
+			_, _ = w.Write([]byte(`{"status":"ok","version":"test"}`))
+		case "/api/local-access/self":
+			if r.Header.Get("Authorization") != "Bearer "+token {
+				w.WriteHeader(401)
+				return
+			}
+			_, _ = w.Write([]byte(`{"name":"Team execution","scope":"` + scope + `"}`))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestTheServiceTakesAWorkspacesRunnerGrantAndNeverTheControllersOwnCredential(t *testing.T) {
+	h := testHub(t)
+	main := h.slots[MainSlot]
+	v, _ := main.d.setupVault(main.d.workspaceConfig())
+	occupyAsHost(t, v, "tws_grant", "10.234.0.0/16")
+	if err := main.d.loadDevice(); err != nil {
+		t.Fatal(err)
+	}
+	good := "wba_goodgrant"
+	srv := fakeController(t, "execution-local-v1", good)
+	grant := func(token, base string) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(map[string]string{"token": token, "base": base})
+		return hubCall(h, "POST", "/w/main/api/device/v1/runner/grant", string(body))
+	}
+	// Anything that is not a narrow grant is refused: the controller's own credential has no such prefix.
+	if w := grant("a-controller-token-that-can-do-everything", srv.URL); w.Code != 409 {
+		t.Fatalf("a full credential was accepted: %d", w.Code)
+	}
+	// Another scope is refused, so a grant made for something else cannot be used to run work.
+	other := fakeController(t, "integration-v1", "wba_sync")
+	if w := grant("wba_sync", other.URL); w.Code != 409 || !strings.Contains(w.Body.String(), "execution grant") {
+		t.Fatalf("a metadata grant was accepted: %d %s", w.Code, w.Body)
+	}
+	// Not an address on this computer.
+	if w := grant(good, "http://192.0.2.10:7420"); w.Code != 409 {
+		t.Fatalf("a remote controller was accepted: %d", w.Code)
+	}
+	if main.d.bridge != nil {
+		t.Fatal("a refused grant became the runner")
+	}
+	if w := grant(good, srv.URL); w.Code != 204 {
+		t.Fatalf("the right grant: %d %s", w.Code, w.Body)
+	}
+	if main.d.bridge == nil {
+		t.Fatal("the grant was not used")
+	}
+	stored, err := v.Secret("runner-access")
+	if err != nil || string(stored) != good {
+		t.Fatalf("the grant is not in this workspace's vault: %q %v", stored, err)
+	}
+	// It is this workspace's alone: another slot's vault has no grant.
+	second := addSlot(t, h)
+	if _, err := h.slots[second].d.setupVault(h.slots[second].d.workspaceConfig()); err != nil {
+		t.Fatal(err)
+	}
+	if h.slots[second].d.bridge != nil {
+		t.Fatal("the grant reached another workspace")
+	}
+	// And the service's state never reports it.
+	if w := hubCall(h, "GET", "/w/main/api/device/v1/state", ""); strings.Contains(w.Body.String(), good) {
+		t.Fatal("the grant reached the window")
+	}
+}

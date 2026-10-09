@@ -22,7 +22,7 @@ func appleString(s string) string {
 
 // AuthorizeService invokes this signed application's fixed installer through macOS's normal administrator dialog.
 func AuthorizeService(ctx context.Context, action string) error {
-	if action != "install" && action != "stop" && action != "start" && action != "uninstall" {
+	if !ValidAction(action) {
 		return errors.New("no such service action")
 	}
 	exe, err := os.Executable()
@@ -55,8 +55,13 @@ func PrivilegedService(action, uid string) error {
 	if err != nil {
 		return err
 	}
-	if action != "install" && action != "start" && action != "stop" && action != "uninstall" {
+	if !ValidAction(action) {
 		return errors.New("no such service action")
+	}
+	// An isolated installation is an installation whose service is told nothing about the person's own Werkbord.
+	isolated := action == ActionInstallIsolated
+	if isolated {
+		action = ActionInstall
 	}
 	ownerPath := filepath.Join(SystemDir, "owner")
 	if b, err := os.ReadFile(ownerPath); err == nil && strings.TrimSpace(string(b)) != uid {
@@ -188,6 +193,9 @@ func PrivilegedService(action, uid string) error {
 		if _, err := os.Stat(filepath.Dir(legacy)); err == nil {
 			runner = legacy
 		}
+	}
+	if isolated {
+		runner = ""
 	}
 	plist, err := LaunchDaemon(SystemDir, runner)
 	if err != nil {

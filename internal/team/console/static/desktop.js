@@ -210,17 +210,23 @@ function licenseView() {
 }
 
 let nativeTransport;
+// The desktop app shows this console in a frame beside a person's other workspaces. A framed page cannot reach the app's
+// runtime, so it asks the shell that framed it (the bridge does that on its own), and the shell offers it only what a Team
+// workspace may ask: to connect the person's own runner to this workspace, to start or stop the Team service, to open the
+// invitation the app was started with, and to open a web link in the browser.
 function nativeApp() {
   if (window.go?.main?.App) return window.go.main.App;
-  if (!window.webkit?.messageHandlers?.external) return null;
+  const framed = window.parent !== window;
+  if (!framed && !window.webkit?.messageHandlers?.external) return null;
   if (!nativeTransport) nativeTransport = import(BASE + '/native-bridge.js').then(m => m.createNativeBridge('main.App'));
   const invoke = (method, ...args) => nativeTransport.then(call => call(method, args, 0));
+  if (framed) return { SetupRunner: () => invoke('ConnectRunner'), Service: action => invoke('TeamService', action), PendingInvitation: () => invoke('PendingInvitation'), Info: () => invoke('Info'), OpenExternal: address => invoke('OpenExternal', address) };
   return { SetupRunner: () => invoke('SetupRunner'), Service: action => invoke('Service', action), PendingInvitation: () => invoke('PendingInvitation'), Info: () => invoke('Info'), OpenExternal: address => invoke('OpenExternal', address) };
 }
 function runnerSetup() {
   return h('section', { class: 'panel' }, h('h2', {}, 'Your runner on this computer'), h('p', { class: 'muted' }, state.device.runner.connected ? 'Connected to your own Werkbord. It keeps its normal execution policies and approvals.' : 'The free Werkbord app runs your agents with your credentials. Team communicates with it only on this computer.'),
-    h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => act(async () => { await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is connected.'; }) }, state.device.runner.connected ? 'Reconnect runner' : 'Connect existing runner'),
-      nativeApp() ? h('button', { class: 'plain', onclick: () => act(async () => { await nativeApp().SetupRunner(); await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is ready.'; }) }, 'Install / set up free runner') : extLink('https://github.com/micho8cho93/werkbord/releases', 'Download free Werkbord')));
+    h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => act(async () => { if (window.parent !== window) await nativeApp().SetupRunner(); else await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is connected.'; }) }, state.device.runner.connected ? 'Reconnect runner' : 'Connect existing runner'),
+      nativeApp() ? h('button', { class: 'plain', onclick: () => act(async () => { await nativeApp().SetupRunner(); if (window.parent === window) await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is ready.'; }) }, window.parent === window ? 'Install / set up free runner' : 'Connect my Personal runner') : extLink('https://github.com/micho8cho93/werkbord/releases', 'Download free Werkbord')));
 }
 
 async function settingsView() {

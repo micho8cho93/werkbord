@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"devboard/internal/domain"
+	"devboard/internal/httpkit"
 )
 
 // DefaultAddr is loopback-only on purpose; see docs/ARCHITECTURE.md, Security.
@@ -50,6 +51,10 @@ type Config struct {
 	// controller would otherwise look up on its own; everything else it reaches
 	// out for is something the user asked for.
 	NoUpdateCheck bool `json:"noUpdateCheck,omitempty"`
+	// EmbedOrigins are extra exact loopback origins (http://127.0.0.1:PORT) that may show the web app in a frame, besides
+	// the desktop app's own window. It is for running the desktop shell from source and testing it in a browser; leave it
+	// empty otherwise. Only loopback origins are accepted (httpkit.ParseEmbedOrigins).
+	EmbedOrigins []string `json:"embedOrigins,omitempty"`
 
 	ShutdownTimeout Duration `json:"shutdownTimeout"`
 
@@ -348,6 +353,13 @@ func (c *Config) loadEnv() error {
 		}
 		c.Network.Enabled = &b
 	}
+	if v, from := Env("EMBED_ORIGINS"); v != "" {
+		origins, err := httpkit.ParseEmbedOrigins(v)
+		if err != nil {
+			return fmt.Errorf("%s: %w", from, err)
+		}
+		c.EmbedOrigins = origins
+	}
 	if v, from := Env("NO_UPDATE_CHECK"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
@@ -392,6 +404,11 @@ func (c Config) Validate() error {
 	}
 	if u := c.Network.ControlURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
 		return fmt.Errorf("network.controlUrl %q: want an http(s) URL", u)
+	}
+	if len(c.EmbedOrigins) > 0 {
+		if _, err := httpkit.ParseEmbedOrigins(strings.Join(c.EmbedOrigins, ",")); err != nil {
+			return fmt.Errorf("embedOrigins: %w", err)
+		}
 	}
 	if strings.ContainsAny(c.GitHub.Command, "\x00\n") {
 		return errors.New("github.command contains a control character")

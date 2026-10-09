@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"devboard/internal/httpkit"
 )
 
 // DefaultAddr listens on this computer only. A team server is reached by other
@@ -101,7 +103,10 @@ type Config struct {
 	// that belongs to the customer. Empty means no scheduled backups (a manual one needs a directory too).
 	// BackupEvery is how often (0 turns the schedule off); the newest BackupKeep are always kept, and any younger
 	// than BackupKeepFor.
-	BackupDir     string
+	BackupDir string
+	// EmbedOrigins are extra exact loopback origins that may show the device service's pages in a frame, besides the
+	// Werkbord desktop app's window. For running the desktop shell from source and testing it in a browser.
+	EmbedOrigins  []string
 	BackupEvery   time.Duration
 	BackupKeep    int
 	BackupKeepFor time.Duration
@@ -158,6 +163,9 @@ func Load() Config {
 	}
 	set("WERKBORD_TEAM_STORAGE", &c.Storage)
 	set("WERKBORD_TEAM_BACKUP_DIR", &c.BackupDir)
+	if v := os.Getenv("WERKBORD_TEAM_EMBED_ORIGINS"); v != "" {
+		c.EmbedOrigins = splitList(v)
+	}
 	if v := os.Getenv("WERKBORD_TEAM_DATABASE_DIR"); v != "" {
 		c.DatabaseDirs = splitList(v)
 	}
@@ -215,6 +223,11 @@ func (c Config) Validate() error {
 	}
 	if c.DataDir == "" {
 		return fmt.Errorf("the data directory is required")
+	}
+	if len(c.EmbedOrigins) > 0 {
+		if _, err := httpkit.ParseEmbedOrigins(strings.Join(c.EmbedOrigins, ",")); err != nil {
+			return fmt.Errorf("embed origins: %w", err)
+		}
 	}
 	switch c.LogFormat {
 	case "text", "json":

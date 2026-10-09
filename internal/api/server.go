@@ -29,14 +29,16 @@ type Options struct {
 	Tasks       *service.Tasks
 	Runs        *service.Runs
 	Control     *service.ControlCenter // the cross-project overview; built from Store if nil
-	Runner      *runner.Manager        // starts and drives agent sessions
-	Worktrees   *service.Worktrees
-	Git         *service.GitControl // the Git Control Center; nil disables its endpoints
-	Health      *service.GitHealth  // repository health; nil disables its endpoints
-	Agents      *agent.Registry
-	Settings    *service.Settings    // global defaults, onboarding and the runner; nil disables those endpoints
-	Network     NetworkController    // the private network; nil disables its endpoints
-	GitHub      *service.GitHubSetup // connecting GitHub and choosing repositories; nil disables those endpoints
+	// EmbedOrigins are extra loopback origins that may frame the web app (development and tests; see config.EmbedOrigins).
+	EmbedOrigins []string
+	Runner       *runner.Manager // starts and drives agent sessions
+	Worktrees    *service.Worktrees
+	Git          *service.GitControl // the Git Control Center; nil disables its endpoints
+	Health       *service.GitHealth  // repository health; nil disables its endpoints
+	Agents       *agent.Registry
+	Settings     *service.Settings    // global defaults, onboarding and the runner; nil disables those endpoints
+	Network      NetworkController    // the private network; nil disables its endpoints
+	GitHub       *service.GitHubSetup // connecting GitHub and choosing repositories; nil disables those endpoints
 	// Doctor runs the health checks with the controller's live parts; nil disables /api/doctor.
 	Doctor func(context.Context) doctor.Report
 	// Update says whether a newer release exists (force: look again, within limits);
@@ -135,6 +137,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/onboarding/complete", s.handleCompleteOnboarding)
 	mux.HandleFunc("POST /api/onboarding/reset", s.handleResetOnboarding)
 	mux.HandleFunc("GET /api/control-center", s.handleControlCenter)
+	mux.HandleFunc("GET /api/workspace/v1/summary", s.handleWorkspaceSummary)
 	mux.HandleFunc("GET /api/events", s.handleEvents) // ?project=<id> narrows it to one project
 
 	mux.HandleFunc("GET /api/projects", s.handleListProjects)
@@ -214,7 +217,8 @@ func (s *Server) Handler() http.Handler {
 	})
 	h = s.checkOrigin(h)
 	h = s.checkHost(h)
-	h = httpkit.SecurityHeaders(httpkit.DefaultCSP, h)
+	// The desktop app shows this web app in a frame beside a person's other workspaces: its window may, and nothing else.
+	h = httpkit.SecurityHeadersFramed(httpkit.FramedCSP(httpkit.DefaultCSP, s.opt.EmbedOrigins), h)
 	h = httpkit.LogRequests(s.log, h)
 	h = httpkit.RecoverPanics(s.log, h)
 	return h

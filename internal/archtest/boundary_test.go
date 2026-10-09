@@ -35,6 +35,7 @@ var teamAllowed = []string{
 	module + "/internal/httpkit",
 	module + "/internal/integration",  // product-neutral versioned task/status DTOs and repository identity validation
 	module + "/internal/nativebridge", // neutral web-to-native messaging; native methods stay in each product
+	module + "/internal/workspace",    // the neutral summary a workspace gives the desktop shell; strict, bounded, no behaviour
 	module + "/internal/sqlitekit",
 	module + "/internal/logging",
 	// What a Team server needs to know a device is who it says: public keys and the

@@ -57,6 +57,20 @@ func AccessKey() (string, error) {
 	return key, cerr
 }
 
+// ServiceIsolated reports whether the installed service was installed without a path to the person's own Werkbord, which is
+// what keeps it from ever reading that credential. A service from before this existed carries one in its definition.
+// The definition is world-readable by design; an absent one means no service is installed.
+func ServiceIsolated() (installed, isolated bool, err error) {
+	b, err := os.ReadFile(ServicePlist)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	return true, !strings.Contains(string(b), "--runner-config"), nil
+}
+
 // Probe contacts only the local device service, without proxies or redirects.
 func Probe(ctx context.Context, key, expectedVersion string) error {
 	cl := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

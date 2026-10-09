@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -147,7 +148,65 @@ func (a *App) receive(link string) {
 	}
 }
 
+// headless runs one explicit service operation for the Werkbord desktop app, which has no installer of its own: it shows
+// the person what is about to happen and asks them, and this program, which is Team's own signed installer, performs it
+// (macOS asks for an administrator's authorization, as it does when this app's own window installs the service). It opens no
+// window, takes no argument that names a path or a program, and prints one line of JSON.
+//
+//	--activate            install the Team service, with no path to the person's own Werkbord, or bring it up to date
+//	--service start|stop|uninstall
+func headless(args []string) int {
+	say := func(ok bool, detail string) int {
+		out, _ := json.Marshal(map[string]any{"ok": ok, "version": version, "detail": detail})
+		fmt.Println(string(out))
+		if ok {
+			return 0
+		}
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	switch {
+	case len(args) == 1 && args[0] == "--activate":
+		key, err := platform.AccessKey()
+		if err != nil {
+			return say(false, err.Error())
+		}
+		installed, isolated, err := platform.ServiceIsolated()
+		if err != nil {
+			return say(false, err.Error())
+		}
+		running := platform.Probe(ctx, key, version) == nil
+		if !(installed && isolated && running) {
+			if err := platform.AuthorizeService(ctx, platform.ActionInstallIsolated); err != nil {
+				return say(false, err.Error())
+			}
+		}
+		deadline := time.Now().Add(60 * time.Second)
+		for platform.Probe(ctx, key, version) != nil {
+			if time.Now().After(deadline) {
+				return say(false, "the Team service is starting; try again in a moment")
+			}
+			select {
+			case <-ctx.Done():
+				return say(false, ctx.Err().Error())
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+		return say(true, "the Team service is running")
+	case len(args) == 2 && args[0] == "--service" && (args[1] == platform.ActionStart || args[1] == platform.ActionStop || args[1] == platform.ActionUninstall):
+		if err := platform.AuthorizeService(ctx, args[1]); err != nil {
+			return say(false, err.Error())
+		}
+		return say(true, "done")
+	}
+	return say(false, "unknown request")
+}
+
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "--activate" || os.Args[1] == "--service") {
+		os.Exit(headless(os.Args[1:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--team-service" {
 		if len(os.Args) != 4 {
 			fmt.Fprintln(os.Stderr, "invalid native service request")

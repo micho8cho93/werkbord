@@ -168,6 +168,7 @@ func (d *Daemon) RunDevice(ctx context.Context) {
 func (d *Daemon) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/device/v1/state", d.localState)
+	mux.HandleFunc("GET /api/device/v1/summary", d.workspaceSummary)
 	mux.HandleFunc("POST /api/device/v1/create", d.createWorkspace)
 	mux.HandleFunc("POST /api/device/v1/invitation", d.inspectInvitation)
 	mux.HandleFunc("POST /api/device/v1/join", d.joinWorkspace)
@@ -180,6 +181,7 @@ func (d *Daemon) Handler() http.Handler {
 	mux.HandleFunc("GET /api/device/v1/execution/detail", d.executionDetail)
 	mux.HandleFunc("POST /api/device/v1/execution/{action}", d.executionControl)
 	mux.HandleFunc("POST /api/device/v1/runner/connect", d.connectRunner)
+	mux.HandleFunc("POST /api/device/v1/runner/grant", d.acceptRunnerGrant)
 	mux.HandleFunc("POST /api/device/v1/senders/{id}/trust", d.trustSender)
 	mux.HandleFunc("POST /api/device/v1/senders/{id}/revoke", d.revokeSender)
 	mux.HandleFunc("POST /api/device/v1/tasks/{id}/approve", d.approveTask)
@@ -202,7 +204,8 @@ func (d *Daemon) Handler() http.Handler {
 	root := http.NewServeMux()
 	root.Handle("/api/", secured)
 	root.Handle("/", console.Handler())
-	return httpkit.SecurityHeaders(httpkit.DefaultCSP, daemonOrigin(root))
+	// The Werkbord desktop app shows this service's console in a frame next to a person's other workspaces: its window may.
+	return httpkit.SecurityHeadersFramed(httpkit.FramedCSP(httpkit.DefaultCSP, d.o.Config.EmbedOrigins), daemonOrigin(root))
 }
 
 func daemonOrigin(next http.Handler) http.Handler {

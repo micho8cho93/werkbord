@@ -1211,6 +1211,16 @@ window.addEventListener('keydown', e => {
     e.preventDefault(); state.newTicketOpen = true; render().then(() => app.querySelector('[name="t-title"]')?.focus());
   }
 });
+// The desktop app's shell can ask this page, framed beside a person's other workspaces, to open a place in it (a ticket that
+// needs them). Only the window that framed this page is believed, and only a place inside it: a query on this page.
+window.addEventListener('message', e => {
+  if (window.parent === window || e.source !== window.parent) return;
+  const m = e.data;
+  if (!m || m.type !== 'werkbord.navigate' || typeof m.href !== 'string' || !/^\?[A-Za-z0-9/_.:=&%?#-]{0,299}$/.test(m.href) || m.href.includes('//') || m.href.includes('..')) return;
+  closeSearch(false); captureDrafts();
+  history.pushState(null, '', location.pathname + m.href);
+  readLocation(); focusMain = true; state.data = null; state.handoff = null; render();
+});
 document.addEventListener('click', e => { app.querySelectorAll('.member-manage[open]').forEach(menu => { if (!menu.contains(e.target)) menu.open = false; }); });
 window.addEventListener('load', () => render());
 

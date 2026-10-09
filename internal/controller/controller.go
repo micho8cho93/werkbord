@@ -201,8 +201,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("api token: %w", err)
 	}
 	apiOpts := api.Options{
-		Distributed: distributed,
-		Scheduler:   scheduler, Handoffs: handoffs,
+		EmbedOrigins: c.cfg.EmbedOrigins,
+		Distributed:  distributed,
+		Scheduler:    scheduler, Handoffs: handoffs,
 		Projects:     projects,
 		Tasks:        tasks,
 		Runs:         runs,
