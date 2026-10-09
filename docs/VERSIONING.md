@@ -84,7 +84,11 @@ service lifecycle and release requirements.
 ## Releases
 
 Pushing a product tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, run `make check`,
-build the archives for every platform, and publish a GitHub release named after the tag:
+build the archives for every platform, and publish a GitHub release associated with the tag.
+GitHub display titles use the separate presentation sequence recorded in
+[RELEASE_SEQUENCE.md](RELEASE_SEQUENCE.md); build versions and tags keep the semantic
+versions described above. Apply the reserved title and original build version note to
+new releases without changing their assets or latest selection:
 
 - `werkbord-vX.Y.Z` → `werkbord_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `checksums.txt`, marked **latest**.
   A stable one (no `-` after the version) also gets, from the macOS jobs of the same workflow, the Mac app:

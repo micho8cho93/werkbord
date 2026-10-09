@@ -74,6 +74,15 @@ Do not create tags for documentation-only commits unless the documentation repre
 
 Tags are created locally. Do not push commits or tags unless the user asks.
 
+### GitHub release presentation
+
+GitHub release display numbers are separate from the build versions and Git tags.
+Follow `docs/RELEASE_SEQUENCE.md` when preparing or publishing a release: reserve its
+display sequence, apply the product's presentation title and add the original build
+version note. Preserve the actual tag, VERSION metadata, assets, preview status and
+latest selection. Keep incomplete Team releases as drafts until reviewed signed
+packages are available. Do not reset build versions to the display sequence.
+
 ### Where versions live and how to apply the policy here
 
 - Individual Werkbord: `cmd/werkbord/VERSION` (the executable is `werkbord`; `devboard`, its name before the rename, is
