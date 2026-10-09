@@ -58,6 +58,7 @@ cmd/werkbord-team/desktop/ APP  separate Team Wails window and local OS installe
 
 internal/sqlitekit/      SHARED opening, migrating and backing up a SQLite database
 internal/httpkit/        SHARED JSON responses, error envelope, strict body decoding, request logging, security headers
+internal/integration/    SHARED versioned task/status DTOs and canonical repository identity
 internal/logging/        SHARED the structured logger
 internal/team/           TEAM-ONLY everything specific to Team (below)
 internal/<everything else>/       the individual product's code (domain, store, service, api, runner, agent, gitrepo, …)
@@ -70,6 +71,7 @@ A package is **shared** when both products use it and it holds no behaviour of e
 
 | Package | What it is | Used by |
 | --- | --- | --- |
+| `internal/integration` | Versioned task/status DTOs and canonical repository identity validation; no product behavior | Individual metadata API, Team user connector |
 | `internal/sqlitekit` | Opens a SQLite file (one writer, a pool of readers, WAL), runs versioned migrations, copies the database before an upgrade, inspects it read-only. Knows no schema. | `internal/store/sqlite` (individual), `internal/team/store` (Team) |
 | `internal/httpkit` | `WriteJSON`/`WriteError` and the error envelope, strict `DecodeJSON`, and the `LogRequests`, `RecoverPanics` and `SecurityHeaders` middleware. Holds no route. | `internal/api` (individual), `internal/team/api` (Team) |
 | `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |
@@ -256,3 +258,7 @@ already allows it.
 
 Every implementation commit bumps and tags the product(s) it changes: [VERSIONING.md](VERSIONING.md) and
 [AGENTS.md](../AGENTS.md).
+
+## Phase 1 integration
+
+The optional login-user connector synchronizes held Team tickets and safe Individual execution metadata through a versioned contract. The backends retain separate authority and credentials; the connector never runs in a privileged Workspace Host. See [INTEGRATION.md](INTEGRATION.md) for setup, project matching, reconciliation and the authority model.

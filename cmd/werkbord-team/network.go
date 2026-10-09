@@ -378,10 +378,15 @@ func cmdDeviceRevoke(ctx context.Context, args []string, stdout, stderr io.Write
 }
 
 func cmdDeviceJoin(ctx context.Context, cfg config.Config, args []string, stdout, stderr io.Writer) error {
+	return cmdDeviceJoinAs(ctx, cfg, args, stdout, stderr, false)
+}
+
+func cmdDeviceJoinAs(ctx context.Context, cfg config.Config, args []string, stdout, stderr io.Writer, memberDevice bool) error {
 	fs := flag.NewFlagSet("device join", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	commonFlags(fs, &cfg)
 	name := fs.String("name", hostLabel(), "a name for this host")
+	memberName := fs.String("member-name", "", "your member name (connector enrollment)")
 	expect := fs.String("expect-fingerprint", "", "the workspace's fingerprint, as the person who invited you read it out (recommended)")
 	wait := fs.Duration("wait", 10*time.Minute, "how long to wait for an administrator to approve, if the workspace requires it")
 	passphrase := fs.String("passphrase-file", cfg.PassphraseFile, "seal this host's keys with the passphrase in this file instead of a key kept beside them")
@@ -401,8 +406,14 @@ func cmdDeviceJoin(ctx context.Context, cfg config.Config, args []string, stdout
 	for _, c := range inv.Capabilities {
 		isHost = isHost || c == string(domain.CapabilityWorkspaceHost) || c == string(domain.CapabilityConnectivityHost)
 	}
-	if !isHost {
+	if !isHost && !memberDevice {
 		return errors.New("this invitation is for a member's own device: join it with Werkbord, which holds that device's own key. `werkbord-team device join` is for the machines that run the workspace (an invitation made with --capability workspace_host or connectivity_host)")
+	}
+	if memberDevice && isHost {
+		return errors.New("a user connector requires a member device invitation, never a host invitation")
+	}
+	if memberDevice && *expect == "" {
+		return errors.New("connector enrollment requires --expect-fingerprint")
 	}
 	if _, err := os.Stat(cfg.PKIDir()); err == nil {
 		return fmt.Errorf("%s exists: this data directory already belongs to a workspace; use another --data-dir", cfg.PKIDir())
@@ -428,7 +439,7 @@ func cmdDeviceJoin(ctx context.Context, cfg config.Config, args []string, stdout
 		return err
 	}
 	fail := func(err error) error { _ = os.RemoveAll(cfg.PKIDir()); return err }
-	res, err := enrollment.Join(ctx, inv, enrollment.JoinParams{Signer: keys, DeviceName: *name, NetworkPublicKeyPEM: string(netPub), SealingPublicKey: keys.SealingPublicKey(),
+	res, err := enrollment.Join(ctx, inv, enrollment.JoinParams{Signer: keys, DeviceName: *name, MemberName: *memberName, NetworkPublicKeyPEM: string(netPub), SealingPublicKey: keys.SealingPublicKey(),
 		ExpectFingerprint: *expect, Wait: *wait})
 	if err != nil {
 		if errors.Is(err, enrollment.ErrPending) {
@@ -460,6 +471,10 @@ func cmdDeviceJoin(ctx context.Context, cfg config.Config, args []string, stdout
 	}
 	fmt.Fprintf(stdout, "\nThis host (%s) joined %q as device %s at %s on the private network.\n", *name, inv.WorkspaceName, res.Response.DeviceID, res.Network.OverlayAddr)
 	fmt.Fprintln(stdout, "Its keys are sealed in", cfg.PKIDir())
+	if memberDevice {
+		fmt.Fprintln(stdout, "Add this user-owned device directory to your connector configuration. Run the Nebula network node separately with the required OS privileges; the connector itself needs none.")
+		return nil
+	}
 	fmt.Fprintln(stdout, "\nNext: run `werkbord-team network node` to bring this host onto the network. To make it a Workspace Host that can take over the workspace's authority,")
 	fmt.Fprintf(stdout, "an administrator runs `werkbord-team host promote %s`, then this host runs `werkbord-team host collect`.\n", res.Response.DeviceID)
 	return nil

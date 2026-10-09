@@ -34,6 +34,10 @@ type scopedRoute struct {
 }
 
 var scopedRoutes = []scopedRoute{
+	{method: "GET", pattern: "/api/integration/v1/projects"},
+	{method: "POST", pattern: "/api/integration/v1/import", fields: []string{"schema", "sourceRef", "sourceAliases", "projectId", "repository", "title", "description", "workBranch", "baseBranch", "previous"}},
+	{method: "GET", pattern: "/api/integration/v1/projects/{}/tasks/{}/status"},
+	{method: "GET", pattern: "/api/integration/v1/projects/{}/tasks/{}/events"},
 	// what is there
 	{method: "GET", pattern: "/api/projects"},
 	{method: "GET", pattern: "/api/projects/{}"},
@@ -97,6 +101,12 @@ func fromThisComputer(r *http.Request) bool {
 func (s *Server) scoped(entry localaccess.Entry, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route, ok := scopedRouteFor(r.Method, r.URL.Path)
+		if entry.Scope != "" && entry.Scope != "integration-v1" {
+			ok = false
+		}
+		if entry.Scope == "integration-v1" && !strings.HasPrefix(r.URL.Path, "/api/integration/v1/") && !(r.Method == "GET" && r.URL.Path == "/api/local-access/self") {
+			ok = false
+		}
 		if !ok {
 			writeError(w, http.StatusForbidden, "forbidden", "this program's access to Werkbord does not include that")
 			return
@@ -158,13 +168,14 @@ func (s *Server) handleLocalAccessCreate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req struct {
-		Name string `json:"name"`
+		Name  string `json:"name"`
+		Scope string `json:"scope"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	e, token, err := s.opt.LocalAccess.Create(req.Name)
+	e, token, err := s.opt.LocalAccess.CreateScoped(req.Name, req.Scope)
 	if err != nil {
 		if err == localaccess.ErrTooMany {
 			writeError(w, http.StatusConflict, "conflict", err.Error())

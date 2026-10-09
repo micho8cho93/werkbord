@@ -368,3 +368,7 @@ running without its network.
 - A member device's own **runner** joining through the individual product (the protocol and the client package are shared and
   ready; the individual product does not use them yet).
 - Linux Secret Service integration and Windows. macOS uses Keychain; Linux requires an external protected passphrase file.
+
+## User connector and privileged networking
+
+`werkbord-team connector` runs as the login user, independently of Workspace Host/privileged network services. It reuses enrolled device authentication and the existing workspace-only host client; it does not supervise a network node. `scripts/install-team-connector.sh` creates a LaunchAgent or systemd user service and refuses root. Keep TUN/root-required networking separate and keep the Individual access grant in the user connector directory. See [INTEGRATION.md](INTEGRATION.md).

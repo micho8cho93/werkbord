@@ -33,6 +33,7 @@ var teamAllowed = []string{
 	teamCmd,
 	teamTree, // and below
 	module + "/internal/httpkit",
+	module + "/internal/integration",  // product-neutral versioned task/status DTOs and repository identity validation
 	module + "/internal/nativebridge", // neutral web-to-native messaging; native methods stay in each product
 	module + "/internal/sqlitekit",
 	module + "/internal/logging",

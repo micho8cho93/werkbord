@@ -45,6 +45,7 @@ var ErrTooMany = fmt.Errorf("localaccess: at most %d programs may have access; r
 
 // Entry is what is known about a program's access, and never its token.
 type Entry struct {
+	Scope      string     `json:"scope,omitempty"`
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
 	CreatedAt  time.Time  `json:"createdAt"`
@@ -112,6 +113,14 @@ func hashOf(token string) string {
 // Create gives a program access and returns its token, once. A program that already has access under the
 // same name is replaced: reconnecting never leaves two.
 func (s *Store) Create(name string) (Entry, string, error) {
+	return s.CreateScoped(name, "")
+}
+
+// CreateScoped can restrict a grant to metadata exchange with no run control.
+func (s *Store) CreateScoped(name, scope string) (Entry, string, error) {
+	if scope != "" && scope != "integration-v1" {
+		return Entry{}, "", errors.New("unsupported local access scope")
+	}
 	name, err := CleanName(name)
 	if err != nil {
 		return Entry{}, "", err
@@ -124,7 +133,7 @@ func (s *Store) Create(name string) (Entry, string, error) {
 		}
 	}
 	token := TokenPrefix + hex.EncodeToString(tok[:])
-	e := Entry{ID: "la_" + hex.EncodeToString(id[:8]), Name: name, CreatedAt: s.now().UTC().Truncate(time.Second)}
+	e := Entry{ID: "la_" + hex.EncodeToString(id[:8]), Name: name, Scope: scope, CreatedAt: s.now().UTC().Truncate(time.Second)}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

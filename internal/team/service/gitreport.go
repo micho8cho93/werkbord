@@ -52,74 +52,82 @@ func (s *Service) ReportGit(ctx context.Context, a Actor, projectID, ticketID st
 		if !k.Status.Held() {
 			return fmt.Errorf("%w: %s is %s; Git work is reported for tickets in progress or in review", domain.ErrConflict, k.Key, k.Status.Label())
 		}
-		now := s.stamp()
-		if in.Branch != "" {
-			b, err := domain.CleanBranch(in.Branch)
-			if err != nil {
-				return err
-			}
-			if b != k.Branch {
-				others, err := tx.Tickets(ctx, a.Workspace.ID, projectID)
-				if err != nil {
-					return err
-				}
-				for _, o := range others {
-					if o.ID != k.ID && o.Branch == b {
-						return fmt.Errorf("%w: branch %q already belongs to %s", domain.ErrConflict, b, o.Key)
-					}
-				}
-				k.Branch = b
-			}
-		}
-		var madePR, merged bool
-		if in.PullRequest != nil {
-			wasMerged := k.PullRequest != nil && k.PullRequest.State == domain.PRMerged
-			if madePR, err = s.applyPullRequest(&k, a, *in.PullRequest, now); err != nil {
-				return err
-			}
-			merged = k.PullRequest.State == domain.PRMerged && !wasMerged
-		}
-		if in.Commits != nil {
-			if len(*in.Commits) > domain.MaxCommitsPerTick {
-				return fmt.Errorf("%w: more than %d commits reported for one ticket", domain.ErrInvalid, domain.MaxCommitsPerTick)
-			}
-			clean := make([]domain.Commit, 0, len(*in.Commits))
-			for _, c := range *in.Commits {
-				cc, err := domain.CleanCommit(c)
-				if err != nil {
-					return err
-				}
-				clean = append(clean, cc)
-			}
-			if err := tx.ReplaceCommits(ctx, k.ID, clean); err != nil {
-				return err
-			}
-			k.Commits = clean
-		}
-		k.UpdatedAt = now
-		if k, err = s.save(ctx, tx, a, k); err != nil {
-			return err
-		}
-		if k.Branch != "" && (in.State != nil || in.PullRequest != nil) {
-			b, err := branchRecord(projectID, k.Branch, a.Member.ID, now, in.State, k.PullRequest)
-			if err != nil {
-				return err
-			}
-			if err := tx.UpsertBranch(ctx, a.Workspace.ID, b); err != nil {
-				return err
-			}
-		}
-		if madePR {
-			if err := s.record(ctx, tx, a, k, domain.ActPullRequestMade, k.PullRequest.URL); err != nil {
-				return err
-			}
-		}
-		if merged {
-			return s.record(ctx, tx, a, k, domain.ActPullRequestMerged, k.PullRequest.URL)
-		}
-		return nil
+		return s.applyGitReport(ctx, tx, a, &k, in)
 	})
 	return k, err
+}
+
+// applyGitReport is shared by manual reports and ordered connector observations.
+func (s *Service) applyGitReport(ctx context.Context, tx store.Tx, a Actor, k *domain.Ticket, in GitReport) (err error) {
+	projectID := k.ProjectID
+	now := s.stamp()
+	if in.Branch != "" {
+		b, err := domain.CleanBranch(in.Branch)
+		if err != nil {
+			return err
+		}
+		if b != k.Branch {
+			others, err := tx.Tickets(ctx, a.Workspace.ID, projectID)
+			if err != nil {
+				return err
+			}
+			for _, o := range others {
+				if o.ID != k.ID && o.Branch == b {
+					return fmt.Errorf("%w: branch %q already belongs to %s", domain.ErrConflict, b, o.Key)
+				}
+			}
+			k.Branch = b
+		}
+	}
+	var madePR, merged bool
+	if in.PullRequest != nil {
+		wasMerged := k.PullRequest != nil && k.PullRequest.State == domain.PRMerged
+		if madePR, err = s.applyPullRequest(k, a, *in.PullRequest, now); err != nil {
+			return err
+		}
+		merged = k.PullRequest.State == domain.PRMerged && !wasMerged
+	}
+	if in.Commits != nil {
+		if len(*in.Commits) > domain.MaxCommitsPerTick {
+			return fmt.Errorf("%w: more than %d commits reported for one ticket", domain.ErrInvalid, domain.MaxCommitsPerTick)
+		}
+		clean := make([]domain.Commit, 0, len(*in.Commits))
+		for _, c := range *in.Commits {
+			cc, err := domain.CleanCommit(c)
+			if err != nil {
+				return err
+			}
+			clean = append(clean, cc)
+		}
+		if err := tx.ReplaceCommits(ctx, k.ID, clean); err != nil {
+			return err
+		}
+		k.Commits = clean
+	}
+	k.UpdatedAt = now
+	saved, err := s.save(ctx, tx, a, *k)
+	if err != nil {
+		return err
+	}
+	*k = saved
+	if k.Branch != "" && (in.State != nil || in.PullRequest != nil) {
+		b, err := branchRecord(projectID, k.Branch, a.Member.ID, now, in.State, k.PullRequest)
+		if err != nil {
+			return err
+		}
+		if err := tx.UpsertBranch(ctx, a.Workspace.ID, b); err != nil {
+			return err
+		}
+	}
+	if madePR {
+		if err := s.record(ctx, tx, a, *k, domain.ActPullRequestMade, k.PullRequest.URL); err != nil {
+			return err
+		}
+	}
+	if merged {
+		return s.record(ctx, tx, a, *k, domain.ActPullRequestMerged, k.PullRequest.URL)
+	}
+	return nil
 }
 
 // branchRecord builds the project-level record of a ticket's branch from what was reported.

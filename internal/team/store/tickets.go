@@ -34,7 +34,7 @@ func (t *sqlTx) Revision(ctx context.Context, workspaceID, projectID string) (in
 
 const ticketCols = `id, project_id, number, title, description, requirements, status, assignee_id, creator_id, reviewer_id, branch,
 	pr_url, pr_number, pr_state, pr_draft, pr_mergeable, pr_base, pr_behind, pr_ahead, pr_reported_by, pr_reported_at, pr_created_at,
-	version, created_at, updated_at, claimed_at, submitted_at, completed_at, archived_at`
+	version, created_at, updated_at, claimed_at, submitted_at, completed_at, archived_at, assignment`
 
 func optMS(v sql.NullInt64) *time.Time {
 	if !v.Valid {
@@ -70,7 +70,7 @@ func scanTicket(s interface{ Scan(...any) error }) (domain.Ticket, error) {
 	var prBase string
 	err := s.Scan(&t.ID, &t.ProjectID, &t.Number, &t.Title, &t.Description, &t.Requirements, &status, &assignee, &t.CreatorID, &reviewer, &t.Branch,
 		&prURL, &prNumber, &prState, &prDraft, &prMergeable, &prBase, &prBehind, &prAhead, &prBy, &prReported, &prCreated,
-		&t.Version, &created, &updated, &claimed, &submitted, &completed, &archived)
+		&t.Version, &created, &updated, &claimed, &submitted, &completed, &archived, &t.Assignment)
 	if err != nil {
 		return t, err
 	}
@@ -171,7 +171,8 @@ func (t *sqlTx) SaveTicket(ctx context.Context, workspaceID string, k domain.Tic
 		return k, fmt.Errorf("%w: the ticket was changed by someone else; reload it and try again", domain.ErrConflict)
 	}
 	k.Version++
-	return k, nil
+	err = t.q.QueryRowContext(ctx, `SELECT assignment FROM tickets WHERE workspace_id=? AND project_id=? AND id=?`, workspaceID, k.ProjectID, k.ID).Scan(&k.Assignment)
+	return k, err
 }
 
 // ReplaceCommits sets the commits reported for a ticket.

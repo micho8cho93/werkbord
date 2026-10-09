@@ -354,10 +354,12 @@ func (c *Client) Devices(ctx context.Context) ([]domain.Device, error) {
 type Handoff struct {
 	Schema string `json:"schema"`
 	Ticket struct {
+		ID    string `json:"id"`
 		Key   string `json:"key"`
 		Title string `json:"title"`
 	} `json:"ticket"`
 	Project struct {
+		ID   string `json:"id"`
 		Name string `json:"name"`
 	} `json:"project"`
 	Git struct {
@@ -365,6 +367,9 @@ type Handoff struct {
 		Repository string `json:"repository"`
 		Branch     string `json:"branch"`
 	} `json:"git"`
+	For struct {
+		ID string `json:"id"`
+	} `json:"for"`
 	Prompt string `json:"prompt"`
 }
 

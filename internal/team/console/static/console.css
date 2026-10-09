@@ -490,3 +490,5 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
   .member-row .member-manage { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
 }
 @keyframes search-in { from { opacity: .7; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+.execution-progress + .execution-progress { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }

@@ -31,6 +31,7 @@ var publicRoutes = map[string]bool{
 // projectRoutes are scoped to one project: a person who is not on it must not be
 // able to tell it exists. Path parameters: {id} project, {tid} ticket.
 var projectRoutes = []string{
+	"PUT /projects/{id}/tickets/{tid}/progress", "GET /projects/{id}/tickets/{tid}/progress", // metadata observations only; no execution effects
 	"GET /projects/{id}", "PATCH /projects/{id}",
 	"GET /projects/{id}/members", "PUT /projects/{id}/members/{memberId}", "DELETE /projects/{id}/members/{memberId}",
 	"GET /projects/{id}/board", "GET /projects/{id}/people", "GET /projects/{id}/sync",

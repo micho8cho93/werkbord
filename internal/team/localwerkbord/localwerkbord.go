@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"devboard/internal/integration"
 	"devboard/internal/team/domain"
 )
 
@@ -115,10 +116,78 @@ func New(base, token string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if token == "" {
-		return nil, errors.New("localwerkbord: no access token")
+	if !strings.HasPrefix(token, "wba_") {
+		return nil, errors.New("localwerkbord: a narrow local access token is required")
 	}
 	return &Client{base: b, token: token, hc: newHTTP()}, nil
+}
+
+// IntegrationProjects reads only the versioned discovery projection.
+func (c *Client) IntegrationProjects(ctx context.Context) ([]Project, error) {
+	var out integration.Projects
+	if err := c.do(ctx, "GET", "/api/integration/v1/projects", nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Schema != integration.Schema {
+		return nil, ErrNotAnswering
+	}
+	projects := []Project{}
+	for _, p := range out.Projects {
+		if !integration.Identifier(p.ID) {
+			return nil, ErrNotAnswering
+		}
+		projects = append(projects, Project{ID: p.ID, Name: p.Name, Remotes: p.Remotes})
+	}
+	return projects, nil
+}
+func (c *Client) RequireIntegrationAccess(ctx context.Context) error {
+	var entry struct {
+		Scope string `json:"scope"`
+	}
+	if err := c.do(ctx, "GET", "/api/local-access/self", nil, &entry); err != nil {
+		return err
+	}
+	if entry.Scope != "integration-v1" {
+		return errors.New("connector requires an integration-v1 grant; reconnect with connector connect")
+	}
+	return nil
+}
+
+func (c *Client) Import(ctx context.Context, in integration.Import) (integration.Imported, error) {
+	var out integration.Imported
+	err := c.do(ctx, "POST", "/api/integration/v1/import", in, &out)
+	if err == nil && (out.Schema != integration.Schema || !integration.Identifier(out.TaskID) || out.ProjectID != in.ProjectID) {
+		err = ErrNotAnswering
+	}
+	return out, err
+}
+func (c *Client) Snapshot(ctx context.Context, pid, tid string) (integration.Snapshot, error) {
+	var out integration.Snapshot
+	if err := checkID(pid); err != nil {
+		return out, err
+	}
+	if err := checkID(tid); err != nil {
+		return out, err
+	}
+	err := c.do(ctx, "GET", "/api/integration/v1/projects/"+pid+"/tasks/"+tid+"/status", nil, &out)
+	if err == nil && (out.Schema != integration.Schema || !out.Execution.Valid()) {
+		err = ErrNotAnswering
+	}
+	return out, err
+}
+func (c *Client) Events(ctx context.Context, pid, tid string, after int64) (integration.Feed, error) {
+	var out integration.Feed
+	if err := checkID(pid); err != nil {
+		return out, err
+	}
+	if err := checkID(tid); err != nil {
+		return out, err
+	}
+	err := c.do(ctx, "GET", "/api/integration/v1/projects/"+pid+"/tasks/"+tid+"/events?after="+strconv.FormatInt(after, 10), nil, &out)
+	if err == nil && out.Schema != integration.Schema {
+		err = ErrNotAnswering
+	}
+	return out, err
 }
 
 // Base is the address this client talks to.
@@ -220,6 +289,12 @@ func Probe(ctx context.Context, base string) (Health, error) {
 // the person's say-so and which is not kept: what comes back is a local access token, narrower and revocable, and that is
 // all this package ever holds on to.
 func Connect(ctx context.Context, base, controllerToken, name string) (string, error) {
+	return connect(ctx, base, controllerToken, name, "")
+}
+func ConnectSync(ctx context.Context, base, controllerToken string) (string, error) {
+	return connect(ctx, base, controllerToken, "Werkbord Team connector", "integration-v1")
+}
+func connect(ctx context.Context, base, controllerToken, name, scope string) (string, error) {
 	b, err := CheckBase(base)
 	if err != nil {
 		return "", err
@@ -230,7 +305,7 @@ func Connect(ctx context.Context, base, controllerToken, name string) (string, e
 	var out struct {
 		Token string `json:"token"`
 	}
-	if err := call(ctx, newHTTP(), b, controllerToken, "POST", "/api/local-access", map[string]string{"name": name}, &out); err != nil {
+	if err := call(ctx, newHTTP(), b, controllerToken, "POST", "/api/local-access", map[string]string{"name": name, "scope": scope}, &out); err != nil {
 		return "", err
 	}
 	if !strings.HasPrefix(out.Token, "wba_") {

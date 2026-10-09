@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"devboard/internal/domain"
+	"devboard/internal/integration"
 	"devboard/internal/store"
 )
 
@@ -84,6 +86,20 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
 		if _, err := tx.Projects().Get(ctx, projectID); err != nil {
 			return err
+		}
+		if in.SourceRef != "" {
+			var bound integration.Imported
+			err := tx.Settings().Get(ctx, integrationSourceKey(in.SourceRef), &bound)
+			if err == nil {
+				if bound.ProjectID != projectID {
+					return fmt.Errorf("%w: source already belongs to another project", domain.ErrConflict)
+				}
+				t, err = tx.Tasks().Get(ctx, bound.TaskID)
+				return err
+			}
+			if !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
 		}
 		if in.SourceRef != "" || in.WorkBranch != "" {
 			all, err := tx.Tasks().ListByProject(ctx, projectID)

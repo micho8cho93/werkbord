@@ -655,3 +655,7 @@ The full review (every surface, the evidence for each, and the risks that remain
 
 `internal/team/{domain,store,service,api,console,config,server}` and `cmd/werkbord-team`; see
 [PRODUCTS.md](PRODUCTS.md#where-team-specific-functionality-belongs).
+
+## Automatic Individual synchronization
+
+Members can opt projects into a persistent user connector: claiming/accepting a ticket imports it into their own Individual workspace, and local lifecycle/Git metadata is reported automatically. The ticket panel shows Individual execution separately from Team review/completion. Manual handoff/report/watch remain supported. Setup and conflict recovery: [INTEGRATION.md](INTEGRATION.md).

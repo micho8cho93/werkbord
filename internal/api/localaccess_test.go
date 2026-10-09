@@ -114,6 +114,7 @@ func TestOnlyTheOwnerGivesAProgramAccessAndSeesAndRevokesIt(t *testing.T) {
 
 // The list of what a program may do is exactly this, and every other route the controller has refuses it.
 var reviewedScopedRoutes = []string{
+	"GET /api/integration/v1/projects", "POST /api/integration/v1/import", "GET /api/integration/v1/projects/{}/tasks/{}/status", "GET /api/integration/v1/projects/{}/tasks/{}/events", // projected metadata only; raw event route remains forbidden
 	"GET /api/projects", "GET /api/projects/{}", "GET /api/projects/{}/tasks", "GET /api/projects/{}/runs", "GET /api/projects/{}/runs/{}",
 	"GET /api/projects/{}/questions", "GET /api/projects/{}/questions/{}", "GET /api/runners", "GET /api/control-center", "GET /api/local-access/self",
 	"POST /api/projects/{}/tasks", "POST /api/projects/{}/tasks/{}/runs", "POST /api/projects/{}/runs/{}/stop", "POST /api/projects/{}/questions/{}/answer",
@@ -132,6 +133,9 @@ func TestAProgramMayDoExactlyWhatWasReviewed(t *testing.T) {
 	}
 	// Nothing in the list reaches anything that changes settings, Git, repositories, runners' pairing or the token.
 	for _, r := range scopedRoutes {
+		if strings.HasPrefix(r.pattern, "/api/integration/v1/") {
+			continue
+		} // reviewed separately by integration tests; no raw event payloads
 		for _, bad := range []string{"settings", "git", "github", "network", "folders", "pair", "revoke", "routing", "doctor", "update", "onboarding", "handoff", "continue", "worktrees", "execution", "orchestration", "usage", "assessment", "refresh", "events", "archive"} {
 			if strings.Contains(r.pattern, bad) {
 				t.Errorf("%s %s mentions %q", r.method, r.pattern, bad)
@@ -247,5 +251,38 @@ func TestAProgramsTokenWorksOnlyFromThisComputer(t *testing.T) {
 	})
 	if code, _ := call(t, "POST", open.URL+"/api/local-access", "", `{"name":"x"}`); code != 409 {
 		t.Fatalf("minting on a controller that does not require its token: %d", code)
+	}
+}
+
+func TestIntegrationGrantCannotControlRunsOrReadPrivateExecution(t *testing.T) {
+	s := &Server{}
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
+	for _, tc := range []struct {
+		method, path, body string
+		want               int
+	}{
+		{"GET", "/api/integration/v1/projects", "", 204},
+		{"GET", "/api/integration/v1/projects/p/tasks/t/events?after=0", "", 204},
+		{"GET", "/api/projects", "", 403},
+		{"GET", "/api/projects/p/runs", "", 403},
+		{"GET", "/api/events", "", 403},
+		{"GET", "/api/runners", "", 403},
+		{"POST", "/api/projects/p/tasks/t/runs", "{}", 403},
+		{"POST", "/api/projects/p/runs/r/stop", "{}", 403},
+		{"POST", "/api/projects/p/questions/q/answer", `{"answer":"text"}`, 403},
+		{"POST", "/api/integration/v1/import", `{"execution":{"agentId":"agent"}}`, 403},
+	} {
+		t.Run(tc.path+tc.method, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			s.scoped(localaccess.Entry{Scope: "integration-v1"}, next).ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body)))
+			if w.Code != tc.want {
+				t.Fatalf("%d expected %d", w.Code, tc.want)
+			}
+		})
+	}
+	w := httptest.NewRecorder()
+	s.scoped(localaccess.Entry{Scope: "future-unknown"}, next).ServeHTTP(w, httptest.NewRequest("GET", "/api/integration/v1/projects", nil))
+	if w.Code != 403 {
+		t.Fatal("unknown scope failed open")
 	}
 }

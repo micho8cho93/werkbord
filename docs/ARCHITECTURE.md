@@ -942,3 +942,7 @@ ships if there is none, and start the controller, all by running the `werkbord` 
 *installing* one is only ever `werkbord update`, run on this computer, which the app runs when its user asks.
 [DESKTOP.md](DESKTOP.md) has the details, the bridge a page may use, building and signing.
 
+
+## Individual–Team integration contract
+
+Phase 1 adds `internal/integration` as a neutral DTO/identity-validation package. Individual exposes text-only imports and projected durable lifecycle events; Team accepts device-signed ordered progress reports. `internal/team/connector` reconciles them from a user-owned journal through the existing local bridge and host client. It never launches agents or handles the execution inbox. See [INTEGRATION.md](INTEGRATION.md).

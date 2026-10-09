@@ -114,6 +114,8 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/request-changes", s.handleRequestChanges)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/complete", s.handleCompleteTicket)
 	api.HandleFunc("PUT /api/team/v1/projects/{id}/tickets/{tid}/git", s.handleReportGit)
+	api.HandleFunc("PUT /api/team/v1/projects/{id}/tickets/{tid}/progress", s.handleReportProgress)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/tickets/{tid}/progress", s.handleTicketProgress)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/handoff", s.handleHandoff)
 	// repository awareness, activity and invites
 	api.HandleFunc("GET /api/team/v1/projects/{id}/repository", s.handleRepositoryState)

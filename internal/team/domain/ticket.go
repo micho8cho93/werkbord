@@ -144,6 +144,7 @@ type Commit struct {
 // two members cannot both get a ticket; Version also lets a client notice that the
 // ticket changed under it.
 type Ticket struct {
+	Assignment   int64        `json:"assignment"` // monotonic ownership interval, independent of text/report version
 	ArchivedAt   *time.Time   `json:"archivedAt,omitempty"`
 	ID           string       `json:"id"`
 	ProjectID    string       `json:"projectId"`

@@ -547,6 +547,8 @@ function startSync() {
           if (r.reset || r.truncated) toast('You were away for a while, so everything was reloaded.');
           else announce(r.events || []);
           await render();
+        } else if (state.ticketId && state.data?.progress?.some(p => !p.stale && Date.now() - new Date(p.reportedAt).getTime() > 120000)) {
+          await render();
         }
       } catch (e) {
         if (ctl.signal.aborted) return;
@@ -710,7 +712,10 @@ async function loadProject() {
   const id = state.projectId;
   const board = await api('GET', '/projects/' + id + '/board');
   const d = { id, board, tab: state.tab };
-  if (state.ticketId) d.ticket = await api("GET", "/projects/" + id + "/tickets/" + state.ticketId);
+  if (state.ticketId) {
+    d.ticket = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId);
+    d.progress = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId + '/progress');
+  }
   if (state.tab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
   if (state.tab === 'activity') d.activity = await api('GET', '/projects/' + id + '/activity?limit=100');
   if (state.tab === 'people') {
@@ -1001,8 +1006,27 @@ function ticketPanel(d, k) {
         h('h3', {}, 'Description'), h('p', { class: 'prose' }, k.description || '—'),
         h('h3', {}, 'Requirements and context'), h('p', { class: 'prose' }, k.requirements || '—'),
         canEditText ? editTicket(k, path) : ''),
-      h('div', {}, facts, h('h3', {}, 'Commits'), commits,
+      h('div', {}, facts, executionProgress(d.progress || []), h('h3', {}, 'Commits'), commits,
         !k.archivedAt && (mine || pcan('git.report_any')) && (k.status === 'in_progress' || k.status === 'review') ? gitForm(k, path) : '')));
+}
+
+function executionProgress(records) {
+  const labels = { queued: 'Queued', running: 'Running', needs_input: 'Needs input', blocked: 'Blocked', completed: 'Completed', failed: 'Failed', canceled: 'Canceled' };
+  const rows = records.map(p => {
+    const e = p.execution;
+    return h('div', { class: 'execution-progress' },
+      records.length > 1 ? h('p', { class: 'muted small' }, 'Device ', h('code', { title: p.deviceId }, p.deviceId.slice(-12))) : '',
+      h('p', {}, h('span', { class: 'badge' + (p.stale || ['needs_input', 'blocked'].includes(e.state) ? ' warn' : e.state === 'failed' ? ' bad' : '') }, labels[e.state] || 'Unknown'), ' · Reported ', when(p.reportedAt)),
+      p.stale ? h('p', { class: 'muted' }, 'Update overdue. Runner availability is unknown until the connector reconnects.') : h('p', { class: 'muted' }, e.runnerOnline ? (e.runnerAvailable ? 'Runner online · capacity available' : 'Runner online · no spare capacity') : 'Runner offline'),
+      h('dl', { class: 'facts' },
+        e.startedAt ? [h('dt', {}, 'Run started'), h('dd', {}, when(e.startedAt))] : '',
+        e.completedAt ? [h('dt', {}, 'Run finished'), h('dd', {}, when(e.completedAt))] : '',
+        h('dt', {}, p.stale ? 'Last handoff report' : 'Handoff'), h('dd', {}, e.handoffAvailable ? (p.stale ? 'Was available in the owner’s Werkbord' : 'Available in the owner’s Werkbord') : (p.stale ? 'Was not available' : 'Not available'))),
+      p.gitUnavailable ? h('p', { class: 'muted small' }, 'Git metadata is unavailable; previously reported Git facts are retained.') : '');
+  });
+  return h('section', { 'aria-label': 'Individual execution' }, h('h3', {}, 'Individual execution'),
+    rows.length ? rows : h('p', { class: 'muted' }, 'No execution reported. The owner can enable their connector to synchronize this ticket.'),
+    rows.length ? h('p', { class: 'muted small' }, 'Execution completion leaves ticket review and approval to the team.') : '');
 }
 
 function statusLabel(b, s) { const c = b.statuses.find((x) => x.status === s); return c ? c.label : s; }
