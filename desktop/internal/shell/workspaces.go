@@ -196,14 +196,19 @@ func (s *Shell) teamError(err error) error {
 }
 
 // ActivateTeam sets Team up on this computer, or brings its service up to date, after asking the person in a dialog a web
-// page cannot press. It runs Team's own installer; macOS then asks for an administrator's authorization.
+// page cannot press. It runs Team's own installer; macOS then asks for an administrator's authorization. A service that
+// belongs to a Team workspace is not replaced: the installer says so before it asks for anything, and the person is told.
 func (s *Shell) ActivateTeam() (teamlink.Status, error) {
 	exe, err := s.o.TeamInstaller.Find()
 	if err != nil {
 		return teamlink.Status{State: "not_installed", Detail: err.Error()}, err
 	}
 	_ = exe
-	choice := s.o.UI.Ask(Dialog{
+	// An installed service that is too old is being updated, not set up, and the person is told which.
+	listCtx, listCancel := s.timeout(10 * time.Second)
+	updating := s.teamStatus(s.o.Workspaces.Refresh(listCtx)).State == "outdated"
+	listCancel()
+	dialog := Dialog{
 		Kind:  Question,
 		Title: "Set up Werkbord Team on this Mac?",
 		Message: "Team adds shared workspaces next to your Personal one.\n\n" +
@@ -211,16 +216,30 @@ func (s *Shell) ActivateTeam() (teamlink.Status, error) {
 			"The service never runs your coding agents and never sees your Werkbord's credentials: your agents keep running as you, in your own Werkbord, " +
 			"and Team can only ask it to start work you approve.\n\nNothing is installed until you choose Set up.",
 		Buttons: []string{"Set up Team", "Not now"}, Default: "Not now", Cancel: "Not now",
-	})
-	if choice != "Set up Team" {
+	}
+	yes := "Set up Team"
+	if updating {
+		yes = "Update Team"
+		dialog.Title = "Update the Team service on this Mac?"
+		dialog.Message = "Team's background service on this Mac is older than this app. Updating replaces it, with your administrator password.\n\n" +
+			"If the service belongs to a Team workspace on this Mac, it is not replaced: that takes coordinated administrator maintenance with a verified backup. " +
+			"You are told so before your password is asked for, and nothing is changed.\n\nNothing is replaced until you choose Update."
+		dialog.Buttons = []string{yes, "Not now"}
+	}
+	if s.o.UI.Ask(dialog) != yes {
 		return teamlink.Status{State: "not_installed", Detail: "Team was not set up."}, errors.New("Team was not set up")
 	}
-	s.o.Log.Info("setting up Team on the person's say-so")
+	s.o.Log.Info("setting up Team on the person's say-so", "updating", updating)
 	ctx, cancel := s.timeout(4 * time.Minute)
 	defer cancel()
 	if _, err := s.o.TeamInstaller.Activate(ctx); err != nil {
 		s.o.Log.Warn("Team could not be set up", "err", err)
-		return teamlink.Status{State: "not_installed", Detail: err.Error()}, err
+		// A service that is installed stays what it was when its update is refused.
+		state := "not_installed"
+		if updating {
+			state = "outdated"
+		}
+		return teamlink.Status{State: state, Detail: err.Error()}, err
 	}
 	return s.teamStatus(s.o.Workspaces.Refresh(ctx)), nil
 }

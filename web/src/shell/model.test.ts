@@ -28,3 +28,35 @@ describe('workspace retirement', () => {
     expect(model.overview?.entries.map(e => e.workspace.id)).toEqual(['personal']);
   });
 });
+
+describe('Team activation', () => {
+  it('says update for an older service, and shows the installer\'s refusal as it is', async () => {
+    const model = new Model();
+    model.view = { ...view([personal]), team: { state: 'outdated', detail: 'older' } };
+    const seen: string[] = [];
+    native.app.Workspaces = async () => model.view as WorkspaceView;
+    native.app.ActivateTeam = async () => {
+      seen.push(model.busy);
+      throw new Error('Team\'s service on this Mac belongs to a Team workspace, so it will not be replaced or removed automatically.');
+    };
+    await model.activateTeam();
+    expect(seen).toEqual(['Updating Team…']);
+    expect(model.error).toContain('belongs to a Team workspace');
+    expect(model.notice).not.toContain('updated');
+    expect(model.busy).toBe('');
+  });
+
+  it('says set up when nothing is installed', async () => {
+    const model = new Model();
+    model.view = { ...view([personal]), team: { state: 'not_installed', detail: '' } };
+    const seen: string[] = [];
+    native.app.Workspaces = async () => model.view as WorkspaceView;
+    native.app.ActivateTeam = async () => {
+      seen.push(model.busy);
+      return model.view!.team;
+    };
+    await model.activateTeam();
+    expect(seen).toEqual(['Setting up Team…']);
+    expect(model.notice).toBe('Team is set up.');
+  });
+});

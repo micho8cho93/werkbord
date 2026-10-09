@@ -94,6 +94,11 @@ swaps helpers atomically, probes the new service, and commits only after health.
 Failures restore the old helpers and metadata; interruption recovery retains failed
 generations and previous helpers. Joined Host updates require coordinated
 administrator maintenance; no rolling-cluster updater is claimed by this phase.
+Before it asks for an administrator's password, the installer asks the running
+service (with the person's own credential) whether it holds a workspace, and says
+so in plain words if it does; the root-run check over the data on disk still decides
+and cannot be waived by that answer. The shell words the same request as an update
+when the installed service is older, and shows the installer's reply unchanged.
 
 Stopping/removing Team never removes Personal data. Service removal requires safely
 leaving every slot, and retains local identities, signed licenses, archives and

@@ -250,6 +250,62 @@ func TestWorkspacesAreSlotsThatSurviveARestartAndAnEmptyOneIsReused(t *testing.T
 	}
 }
 
+// The native installer (cmd/werkbord-team/desktop/internal/platform.PreflightReplacement) asks the running service whether it
+// holds a workspace, in these words, before it asks the person for an administrator's password. It cannot import this package,
+// so this is the one place that keeps the two agreed: renaming one of these fields without it would silently turn that
+// question into "no".
+func TestTheInstallerCanAskTheServiceWhetherItHoldsAWorkspace(t *testing.T) {
+	h := testHub(t)
+	ask := func(path string) map[string]any {
+		t.Helper()
+		w := hubCall(h, "GET", path, "")
+		if w.Code != 200 {
+			t.Fatalf("%s: %d %s", path, w.Code, w.Body)
+		}
+		var out map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	firstSlot := func() map[string]any {
+		t.Helper()
+		slots, _ := ask("/api/device/v1/workspaces")["workspaces"].([]any)
+		if len(slots) == 0 {
+			t.Fatal("no workspaces listed")
+		}
+		return slots[0].(map[string]any)
+	}
+	// Nothing on it: the answer is present and false, not absent.
+	if v, ok := firstSlot()["enrolled"].(bool); !ok || v {
+		t.Fatalf("an empty slot: %v", firstSlot())
+	}
+	if st := ask("/api/device/v1/state"); st["daemon"] != true || st["enrolled"] == true {
+		t.Fatalf("an empty service: %v", st)
+	}
+	// A workspace on it.
+	pki := h.slots[MainSlot].d.workspaceConfig().PKIDir()
+	if err := os.MkdirAll(pki, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pki, "workspace.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := firstSlot()["enrolled"].(bool); !v {
+		t.Fatalf("an occupied slot is not enrolled: %v", firstSlot())
+	}
+	if st := ask("/api/device/v1/state"); st["daemon"] != true || st["enrolled"] != true {
+		t.Fatalf("an occupied service: %v", st)
+	}
+	// Joining and leaving are told apart from nothing too.
+	if err := os.WriteFile(filepath.Join(h.slots[MainSlot].d.o.Config.DataDir, "leaving"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := firstSlot()["leaving"].(bool); !v {
+		t.Fatalf("a slot being left does not say so: %v", firstSlot())
+	}
+}
+
 func TestOnlyOneWorkspaceOnAComputerCanBeAWorkspaceHost(t *testing.T) {
 	h := testHub(t)
 	main := h.slots[MainSlot]

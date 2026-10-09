@@ -71,6 +71,9 @@ func (a *App) Connect() (string, error) {
 		return "", err
 	}
 	if err := platform.Probe(a.context(), key, version); err != nil {
+		if err := platform.PreflightReplacement(a.context(), key); err != nil {
+			return "", err
+		}
 		if err := platform.AuthorizeService(a.context(), "install"); err != nil {
 			return "", err
 		}
@@ -188,6 +191,11 @@ func headless(args []string) int {
 		}
 		running := platform.Probe(ctx, key, version) == nil
 		if !(installed && isolated && running) {
+			// A service that belongs to a workspace is never replaced here. Say so now, not after an administrator's
+			// password has been asked for.
+			if err := platform.PreflightReplacement(ctx, key); err != nil {
+				return say(false, err.Error())
+			}
 			if err := platform.AuthorizeService(ctx, platform.ActionInstallIsolated); err != nil {
 				return say(false, err.Error())
 			}

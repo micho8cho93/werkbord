@@ -47,7 +47,7 @@ func AuthorizeService(ctx context.Context, action string) error {
 		if strings.Contains(string(out), "-128") {
 			return errors.New("service installation was cancelled; choose Try again when you are ready")
 		}
-		return fmt.Errorf("macOS could not %s the Team service: %s", action, strings.TrimSpace(string(out)))
+		return installerRefusal(action, string(out))
 	}
 	return nil
 }

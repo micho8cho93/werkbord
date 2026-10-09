@@ -81,6 +81,8 @@ func (t *fakeTeam) StatusOf(err error) teamlink.Status {
 		return teamlink.Status{State: "ready"}
 	case errors.Is(err, workspaces.ErrNotRunning):
 		return teamlink.Status{State: "not_installed", Detail: "Team is not set up on this computer."}
+	case errors.Is(err, workspaces.ErrOutdated):
+		return teamlink.Status{State: "outdated", Detail: "Team's service is older than this app."}
 	}
 	return teamlink.Status{State: "stopped", Detail: err.Error()}
 }
@@ -302,6 +304,39 @@ func TestTeamIsSetUpOnlyWhenThePersonSaysSoInADialogAPageCannotPress(t *testing.
 	r = newRig(t, "Set up Team")
 	r.ins.err = errors.New("service installation was cancelled")
 	if st, err := r.ActivateTeam(); err == nil || st.State != "not_installed" || !strings.Contains(st.Detail, "cancelled") {
+		t.Fatalf("%+v %v", st, err)
+	}
+}
+
+func TestAnOlderServiceIsUpdatedNotSetUpAndARefusedUpdateLeavesItAnOlderService(t *testing.T) {
+	older := func(t *testing.T, answers ...string) *rig {
+		r := newRig(t, answers...)
+		r.reg.problems = []workspaces.Problem{{Source: "Team", Kind: "outdated", Detail: "older"}}
+		return r
+	}
+	// The person is asked about an update, in words about an update, and may decline it.
+	r := older(t)
+	if _, err := r.ActivateTeam(); err == nil || r.ins.activate != 0 {
+		t.Fatalf("declining updated Team: %v %d", err, r.ins.activate)
+	}
+	ask := r.ui.asked[0]
+	if !strings.Contains(ask.Title, "Update") || strings.Contains(ask.Title, "Set up") || !reflect.DeepEqual(ask.Buttons, []string{"Update Team", "Not now"}) || ask.Default != "Not now" ||
+		!strings.Contains(ask.Message, "belongs to a Team workspace") || !strings.Contains(ask.Message, "Nothing is replaced until you choose Update") {
+		t.Fatalf("%+v", ask)
+	}
+	// The set-up button does not answer an update question.
+	r = older(t, "Set up Team")
+	if _, err := r.ActivateTeam(); err == nil || r.ins.activate != 0 {
+		t.Fatalf("%v %d", err, r.ins.activate)
+	}
+	r = older(t, "Update Team")
+	if st, err := r.ActivateTeam(); err != nil || r.ins.activate != 1 {
+		t.Fatalf("%+v %v %d", st, err, r.ins.activate)
+	}
+	// A service that belongs to a workspace is not replaced: the person reads the installer's words and the service is still the older one.
+	r = older(t, "Update Team")
+	r.ins.err = errors.New("Team's service on this Mac belongs to a Team workspace, so it will not be replaced or removed automatically.")
+	if st, err := r.ActivateTeam(); err == nil || st.State != "outdated" || !strings.Contains(st.Detail, "belongs to a Team workspace") || strings.Contains(st.Detail, "execution error") {
 		t.Fatalf("%+v %v", st, err)
 	}
 }

@@ -248,13 +248,14 @@ export class Model {
     }
   }
 
-  /** Sets Team up on this Mac, after the app has asked the person. */
+  /** Sets Team up on this Mac, or updates its service, after the app has asked the person. */
   async activateTeam(): Promise<void> {
-    this.busy = 'Setting up Team…';
+    const updating = this.view?.team.state === 'outdated';
+    this.busy = updating ? 'Updating Team…' : 'Setting up Team…';
     this.error = '';
     try {
       await ask((a) => a.ActivateTeam());
-      this.notice = 'Team is set up.';
+      this.notice = updating ? 'Team is updated.' : 'Team is set up.';
     } catch (e) {
       this.error = (e as Error).message;
     } finally {

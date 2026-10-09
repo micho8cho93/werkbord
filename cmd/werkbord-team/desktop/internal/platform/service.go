@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 // LaunchDaemon is fixed to Team's own program and sidecars. Data and keys stay in a root-owned directory.
@@ -75,4 +77,29 @@ func (p InstallationPlan) Validate() error {
 		return errors.New("leave the workspace safely before removing local secrets or data")
 	}
 	return nil
+}
+
+// osascriptFraming is what AppleScript wraps around a failed "do shell script": a source position in front and the exit status
+// behind ("0:279: execution error: <what the program printed> (1)"). It says nothing the person can use.
+var osascriptFraming = regexp.MustCompile(`^\d+:\d+: execution error: |\s*\(\d+\)$`)
+
+// installerDetail is what the installer itself said, without AppleScript's framing.
+func installerDetail(out string) string {
+	return strings.TrimSpace(osascriptFraming.ReplaceAllString(strings.TrimSpace(out), ""))
+}
+
+// installerRefusal turns what a failed installer run printed into the error the person reads. A refusal to touch a service
+// that belongs to a workspace is the installer working as designed, so it is given as itself; anything else keeps what the
+// installer said, under a name for what was being done. A refusal joined with another failure (a rollback that did not
+// complete, say) is not hidden behind the refusal.
+func installerRefusal(action, out string) error {
+	detail := installerDetail(out)
+	if detail == ErrReplacementDeferred.Error() {
+		return ErrReplacementDeferred
+	}
+	what := map[string]string{ActionInstall: "install or update", ActionInstallIsolated: "install or update", ActionStart: "start", ActionStop: "stop", ActionUninstall: "remove"}[action]
+	if what == "" {
+		what = action
+	}
+	return fmt.Errorf("macOS could not %s the Team service: %s", what, detail)
 }
