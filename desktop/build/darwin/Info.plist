@@ -30,6 +30,18 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Werkbord runs on your own computer.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<!-- A Team invitation (werkbord://join/…) opens here and is handed to the shell, which sets up the workspace it is for. -->
+			<key>CFBundleURLName</key>
+			<string>dev.werkbord.desktop.join</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>werkbord</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- The window loads the controller's web app from 127.0.0.1, over plain HTTP: it never leaves this computer. -->

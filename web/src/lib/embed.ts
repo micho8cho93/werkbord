@@ -5,13 +5,15 @@
  * app's old single-window mode, nothing here does anything.
  */
 
-import { isEmbedded, onNavigate } from '../../../internal/nativebridge/bridge.js';
+import { isEmbedded, onNavigate, reportFrame } from '../../../internal/nativebridge/bridge.js';
 
 /** Follows the shell's requests to go to a place in this page. Returns a function that stops following. */
 export function followShell(): () => void {
-  return onNavigate((href: string) => {
+  const stopReporting = reportFrame(() => location.hash || '#/');
+  const stopNavigation = onNavigate((href: string) => {
     if (href.startsWith('#')) location.hash = href;
   });
+  return () => { stopReporting(); stopNavigation(); };
 }
 
 /** Whether a desktop shell frames this page. */

@@ -62,6 +62,7 @@ function remember() {
   if (state.projectId) q.set("project", state.projectId);
   if (state.ticketId) q.set("ticket", state.ticketId);
   history.pushState(null, "", location.pathname + "?" + q.toString());
+  reportPlace();
   try {
     sessionStorage.setItem(KEY('tab'), state.tab);
     if (state.projectId) sessionStorage.setItem(KEY('project'), state.projectId);
@@ -1219,10 +1220,17 @@ window.addEventListener('message', e => {
   if (!m || m.type !== 'werkbord.navigate' || typeof m.href !== 'string' || !/^\?[A-Za-z0-9/_.:=&%?#-]{0,299}$/.test(m.href) || m.href.includes('//') || m.href.includes('..')) return;
   closeSearch(false); captureDrafts();
   history.pushState(null, '', location.pathname + m.href);
-  readLocation(); focusMain = true; state.data = null; state.handoff = null; render();
+  readLocation(); reportPlace(); focusMain = true; state.data = null; state.handoff = null; render();
 });
 document.addEventListener('click', e => { app.querySelectorAll('.member-manage[open]').forEach(menu => { if (!menu.contains(e.target)) menu.open = false; }); });
-window.addEventListener('load', () => render());
+function reportPlace() {
+  if (window.parent !== window) window.parent.postMessage({ type: 'werkbord.frame', event: 'place', place: location.search || '?tab=workspace' }, '*');
+}
+window.addEventListener('load', () => {
+  render();
+  if (window.parent !== window) window.parent.postMessage({ type: 'werkbord.frame', event: 'ready' }, '*');
+});
+window.addEventListener('popstate', reportPlace);
 
 const scheduleDrafts = new Map();
 function teamSchedulePanel(k) {

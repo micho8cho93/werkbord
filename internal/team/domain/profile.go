@@ -49,8 +49,11 @@ type DeviceProfile struct {
 	// Version is the Team software on the device.
 	Version string `json:"version,omitempty"`
 	// HostConflict: the device already hosts another Team workspace, and a computer hosts for only one.
-	HostConflict bool      `json:"hostConflict,omitempty"`
-	ReportedAt   time.Time `json:"reportedAt"`
+	HostConflict bool `json:"hostConflict,omitempty"`
+	// Volunteering is an owner's offer; only an administrator grants either role.
+	OfferWorkspaceHost    bool      `json:"offerWorkspaceHost,omitempty"`
+	OfferConnectivityHost bool      `json:"offerConnectivityHost,omitempty"`
+	ReportedAt            time.Time `json:"reportedAt"`
 }
 
 // Validate checks a profile is well formed.
@@ -74,7 +77,7 @@ func (p DeviceProfile) Validate() error {
 
 // Same reports whether two profiles say the same thing about a device (when they were reported is not part of it).
 func (p DeviceProfile) Same(o DeviceProfile) bool {
-	return p.Platform == o.Platform && p.Form == o.Form && p.Sleeps == o.Sleeps && p.SleepEvents == o.SleepEvents && p.Version == o.Version && p.HostConflict == o.HostConflict
+	return p.Platform == o.Platform && p.Form == o.Form && p.Sleeps == o.Sleeps && p.SleepEvents == o.SleepEvents && p.Version == o.Version && p.HostConflict == o.HostConflict && p.OfferWorkspaceHost == o.OfferWorkspaceHost && p.OfferConnectivityHost == o.OfferConnectivityHost
 }
 
 // HostFit says how good a device is as a Workspace Host: whether it can be one at all, whether it is a good

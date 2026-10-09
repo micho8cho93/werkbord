@@ -12,10 +12,26 @@ const projectURL = "https://github.com/micho8cho93/werkbord"
 // buildMenu is the menu bar: the standard application, Edit and Window menus (which is what makes
 // copy and paste, hiding, minimising and Cmd-Q work as on any Mac), and what is particular to Werkbord.
 // Menu actions that wait for anything run off the menu's own thread.
-func buildMenu(sh *shell.Shell, ui *wailsUI) *menu.Menu {
+func buildMenu(sh *shell.Shell, ui *wailsUI, withShell bool) *menu.Menu {
 	m := menu.NewMenu()
 	m.Append(menu.AppMenu())
 	m.Append(menu.EditMenu())
+
+	// Workspaces: where the person is going, which the shell page decides what to do about. The menu only says where.
+	if withShell {
+		ws := m.AddSubmenu("Workspace")
+		go2 := func(where string) func(*menu.CallbackData) {
+			return func(*menu.CallbackData) { ui.Emit("shell:go", where) }
+		}
+		ws.AddText("Personal", keys.CmdOrCtrl("1"), go2("personal"))
+		ws.AddText("My Work", keys.CmdOrCtrl("2"), go2("mywork"))
+		ws.AddText("Calendar", keys.CmdOrCtrl("3"), go2("calendar"))
+		ws.AddText("Needs Attention", keys.CmdOrCtrl("4"), go2("inbox"))
+		ws.AddSeparator()
+		ws.AddText("Switch Workspace…", keys.Combo("k", keys.CmdOrCtrlKey, keys.ShiftKey), go2("switch"))
+		ws.AddText("Workspaces and Devices", keys.CmdOrCtrl("0"), go2("workspaces"))
+		ws.AddText("Add a Team…", nil, go2("add-team"))
+	}
 
 	view := m.AddSubmenu("View")
 	view.AddText("Reload", keys.CmdOrCtrl("r"), func(*menu.CallbackData) { sh.Reload() })

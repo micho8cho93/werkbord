@@ -952,3 +952,12 @@ authorizations. Only Individual stores and consumes them with run creation.
 Team schedules use the replicated transaction fence and permanently bind an
 execution to an enrolled owner device. Signed starts carry IDs only.
 See [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md).
+
+## Unified desktop workspaces
+
+Phase 3 adds one everyday desktop shell with Personal and multiple Team
+workspaces while retaining isolated backend services, user-owned execution and
+explicit Team installation. The existing Team app remains a compatible installer
+and console; it is no longer required as a second everyday window. See
+[UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
+security boundaries, lifecycle, validation and operational limits.

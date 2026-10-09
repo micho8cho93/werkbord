@@ -214,3 +214,38 @@ func TestTheFirstHostCanBeGivenACredentialForItsOwnDevice(t *testing.T) {
 		t.Fatal("a revoked device's credential works")
 	}
 }
+
+func TestHostingOffersAreOwnDeviceMetadataAndNeverGrantCapabilities(t *testing.T) {
+	n := withNetwork(t)
+	r := n.invite(n.owner, EnrollInviteInput{Capabilities: []domain.Capability{domain.CapabilityRunner}})
+	d := laptop(t, "volunteer-mac")
+	resp := n.mustJoin(r, d, "Bo")
+	a := n.deviceActor(resp.DeviceToken)
+	p := desktopProfile()
+	p.DeviceID = n.host.DeviceID() // a signed reporter cannot volunteer someone else's device
+	p.OfferWorkspaceHost, p.OfferConnectivityHost, p.Sleeps = true, true, true
+	if err := n.svc.Heartbeat(bg, a, p); err != nil {
+		t.Fatal(err)
+	}
+	res, err := n.svc.Resilience(bg, n.owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, device := range res.Devices {
+		if device.DeviceID == d.DeviceID() {
+			found = true
+			if device.Profile == nil || !device.Profile.OfferWorkspaceHost || !device.Profile.OfferConnectivityHost || device.HostFit.Ideal {
+				t.Fatalf("offer missing or sleeping host marked ideal: %+v", device)
+			}
+			if len(device.Capabilities) != 1 || device.Capabilities[0] != domain.CapabilityRunner {
+				t.Fatal("volunteering granted a host role")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("volunteer missing")
+	}
+	_, err = n.svc.SetDeviceCapabilities(bg, a, d.DeviceID(), []domain.Capability{domain.CapabilityRunner, domain.CapabilityWorkspaceHost})
+	wantErr(t, err, domain.ErrForbidden)
+}

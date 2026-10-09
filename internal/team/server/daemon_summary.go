@@ -36,6 +36,7 @@ type summaryInputs struct {
 	ReadOnly   bool
 	// Schedules are the shared schedule requests, by project.
 	Schedules map[string][]domain.Schedule
+	Progress  map[string]*domain.ProgressRecord
 }
 
 func ticketHref(projectID, ticketID string) string {
@@ -56,16 +57,41 @@ func statusOf(s domain.TicketStatus) workspace.Status {
 
 func scheduleExecution(state string) workspace.Execution {
 	switch state {
-	case "started", "running":
+	case "started", "running", "executing":
 		return workspace.ExecRunning
-	case "claimed", "approved", "waiting", "scheduled", "pending":
+	case "claimed", "approved", "waiting", "scheduled", "pending", "waiting_for_runner", "awaiting_approval", "queued":
 		return workspace.ExecQueued
+	case "blocked":
+		return workspace.ExecBlocked
 	case "failed", "refused", "missed":
 		return workspace.ExecFailed
 	case "canceled":
 		return workspace.ExecCanceled
 	case "completed":
 		return workspace.ExecCompleted
+	}
+	return workspace.ExecNone
+}
+
+func executionOf(p *domain.ProgressRecord) workspace.Execution {
+	if p == nil || p.Stale {
+		return workspace.ExecNone
+	}
+	switch p.Execution.State {
+	case "queued", "pending":
+		return workspace.ExecQueued
+	case "running":
+		return workspace.ExecRunning
+	case "waiting_for_user":
+		return workspace.ExecNeedsInput
+	case "blocked":
+		return workspace.ExecBlocked
+	case "completed", "succeeded":
+		return workspace.ExecCompleted
+	case "failed":
+		return workspace.ExecFailed
+	case "stopped", "canceled":
+		return workspace.ExecCanceled
 	}
 	return workspace.ExecNone
 }
@@ -115,7 +141,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 				seen[k.ID] = true
 				titles[k.ID] = k.Key + " " + k.Title
 				out.Work = append(out.Work, workspace.Item{ID: k.ID, Title: k.Key + " " + k.Title, Project: w.Project.Name, Status: statusOf(k.Status),
-					Href: ticketHref(k.ProjectID, k.ID), UpdatedAt: k.UpdatedAt})
+					Href: ticketHref(k.ProjectID, k.ID), Execution: executionOf(in.Progress[k.ID]), UpdatedAt: k.UpdatedAt})
 			}
 		}
 		add(in.MyWork.InProgress)
@@ -231,7 +257,10 @@ func (d *Daemon) workspaceSummary(w http.ResponseWriter, r *http.Request) {
 	httpkit.WriteJSON(w, http.StatusOK, d.gatherSummary(r.Context()))
 }
 
-func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
+// summaryHeader is what is known about this workspace without asking its Workspace Host: what the person sees in the
+// switcher. A slot with nothing in it is in setup; one that is being created, or joined and waiting for approval, is
+// connecting, so the shell can tell a place to add a Team from a Team that is on its way.
+func (d *Daemon) summaryHeader() summaryInputs {
 	slot := d.o.Slot
 	if slot == "" {
 		slot = MainSlot
@@ -258,7 +287,7 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 	case occ.Leaving:
 		in.State, in.Detail = workspace.StateLeaving, "Leaving this workspace."
 	case !occ.Enrolled && (occ.Pending || op != ""):
-		in.State = workspace.StateSetup
+		in.State = workspace.StateConnecting
 		in.Detail = "Setting up this workspace."
 		if occ.Pending {
 			in.Detail = "Waiting for an administrator to approve this computer."
@@ -279,10 +308,17 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 	default:
 		in.State = workspace.StateReady
 	}
+	if in.Name == "" {
+		in.Name = "Team"
+	}
+	return in
+}
+
+func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
+	in := d.summaryHeader()
 	if in.State != workspace.StateReady {
 		return buildSummary(in)
 	}
-
 	d.mu.RLock()
 	host := d.host
 	member := d.memberID
@@ -299,6 +335,17 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 		return buildSummary(in)
 	}
 	in.MyWork = &mw
+	// Read only the current holder's allowlisted progress, never raw runner output.
+	in.Progress = map[string]*domain.ProgressRecord{}
+	for i, w := range append(append([]service.WorkItem{}, mw.InProgress...), mw.Submitted...) {
+		if i >= 32 {
+			break
+		}
+		var p *domain.ProgressRecord
+		if err := host.Do(ctx, http.MethodGet, "/projects/"+w.Ticket.ProjectID+"/tickets/"+w.Ticket.ID+"/progress", nil, &p); err == nil {
+			in.Progress[w.Ticket.ID] = p
+		}
+	}
 	var ov service.Overview
 	if err := host.Do(ctx, http.MethodGet, "/overview", nil, &ov); err == nil {
 		in.Overview = &ov
@@ -331,11 +378,11 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 			in.ReadOnly = health.Storage.ReadOnly
 		}
 	}
-	// Only the projects the person has something scheduled in are asked about, and at most a few of them.
+	// Bound summary requests to eight accessible projects; the workspace's Calendar can show the rest.
 	in.Schedules = map[string][]domain.Schedule{}
 	asked := 0
-	for _, w := range append(append([]service.WorkItem{}, mw.InProgress...), mw.Submitted...) {
-		pid := w.Project.ID
+	for _, project := range ov.Projects {
+		pid := project.Project.ID
 		if _, done := in.Schedules[pid]; done || asked >= 8 {
 			continue
 		}

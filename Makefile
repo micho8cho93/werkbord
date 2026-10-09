@@ -19,10 +19,10 @@ TEAM_LDFLAGS = -X main.version=$(WERKBORD_TEAM_VERSION)
 BIN      := bin/werkbord
 TEAM_BIN := bin/werkbord-team
 
-.PHONY: all build werkbord web web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
+.PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check verify-isolation \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser team-desktop team-desktop-package team-desktop-release team-desktop-test team-desktop-check test-team-desktop-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser team-desktop team-desktop-package team-desktop-release team-desktop-test team-desktop-check test-team-desktop-browser test-unified-desktop-browser
 
 all: check build build-team
 
@@ -32,6 +32,9 @@ werkbord: build
 
 web: web/node_modules
 	cd web && $(NPM) run build
+
+web-shell: web/node_modules
+	cd web && $(NPM) run build:shell
 
 web/node_modules: web/package-lock.json
 	cd web && $(NPM) ci
@@ -97,7 +100,7 @@ lint: web/node_modules
 	cd web && $(NPM) run check && $(NPM) run lint
 
 ## check: everything CI should run
-check: test lint desktop-test team-desktop-test test-notarize-desktop test-workflows
+check: web-shell test lint desktop-test team-desktop-test test-notarize-desktop test-workflows
 	$(GO) build ./...
 	cd web && $(NPM) run build
 
@@ -110,21 +113,21 @@ DESKTOP_DEV_DATA   ?= $(CURDIR)/.desktop-dev/data
 DESKTOP_DEV_ADDR   ?= 127.0.0.1:7499
 
 ## desktop: Werkbord.app for this Mac, in dist/desktop (ad-hoc signed; CODESIGN_IDENTITY signs it for distribution)
-desktop: web web-embed
+desktop: web web-embed web-shell
 	scripts/build-desktop.sh
 
 ## desktop-package: Werkbord.app and Werkbord_<version>_darwin_<arch>.dmg in dist/desktop
-desktop-package: web web-embed
+desktop-package: web web-embed web-shell
 	scripts/build-desktop.sh --package
 
 ## desktop-release: the signed, notarized, universal disk image a release publishes, in dist/desktop (needs the Developer ID
 ## and notary credentials in the environment: docs/DESKTOP_RELEASE.md. It refuses to build anything else.)
-desktop-release: web web-embed
+desktop-release: web web-embed web-shell
 	scripts/build-desktop.sh --package --release
 
 ## desktop-preview: universal Mac DMG for testing before Developer ID approval (not notarized; no Sparkle)
 ## Published separately as a prerelease, never as Werkbord.dmg or an appcast update.
-desktop-preview: web web-embed
+desktop-preview: web web-embed web-shell
 	VERSION=v$$(scripts/product.sh werkbord version) ARCH=universal SPARKLE=0 CODESIGN_IDENTITY=- RELEASE=0 NOTARIZE=0 \
 		scripts/build-desktop.sh --package dist/desktop-preview
 	cp dist/desktop-preview/Werkbord_$$(scripts/product.sh werkbord version)_darwin_universal.dmg dist/desktop-preview/Werkbord-preview.dmg
@@ -132,7 +135,7 @@ desktop-preview: web web-embed
 
 ## desktop-dev: run the window from source, with a controller built from this tree on its own port and data
 ## (nothing is installed and no login service is made: delete .desktop-dev to start over)
-desktop-dev: build
+desktop-dev: build web-shell
 	@mkdir -p $(DESKTOP_DEV_DATA)
 	cd desktop && WERKBORD_DESKTOP_CLI=$(CURDIR)/$(BIN) WERKBORD_DATA_DIR=$(DESKTOP_DEV_DATA) WERKBORD_ADDR=$(DESKTOP_DEV_ADDR) \
 		CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" \
@@ -232,3 +235,7 @@ team-desktop-check: team-desktop-test
 	cd cmd/werkbord-team/desktop && CGO_ENABLED=1 CGO_LDFLAGS="-framework UniformTypeIdentifiers" $(GO) build -tags desktop,production -o /tmp/werkbord-team-window-check .
 test-team-desktop-browser: web web-embed rqlite
 	node scripts/test-team-desktop-browser.cjs
+
+## Unified shell, real isolated services and headless browser; no native service installed.
+test-unified-desktop-browser: web web-embed web-shell rqlite
+	node scripts/test-unified-desktop-browser.cjs

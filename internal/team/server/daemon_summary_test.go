@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -130,5 +132,39 @@ func TestAWorkspaceThatIsNotUsableYetSaysSoAndShowsNoWork(t *testing.T) {
 	got, _, err = workspace.Decode(strings.NewReader(w.Body.String()), workspace.TeamID("main"))
 	if err != nil || got.Workspace.State != workspace.StateOffline || !strings.Contains(got.Workspace.Detail, "offline") {
 		t.Fatalf("%v %+v", err, got.Workspace)
+	}
+}
+
+func TestTheListingTellsAnEmptySlotFromATeamOnItsWayAndPointsOnlyAtItself(t *testing.T) {
+	h := testHub(t)
+	second := addSlot(t, h)
+	if second != MainSlot {
+		t.Fatal("main is empty, so it is the one offered")
+	}
+	// Make main a Team that is waiting for approval, then add another slot.
+	if err := writeDaemonFile(filepath.Join(h.slots[MainSlot].d.o.Config.DataDir, "pending-join"), []byte("waiting\n")); err != nil {
+		t.Fatal(err)
+	}
+	spare := addSlot(t, h)
+	w := hubCall(h, "GET", "/api/device/v1/listing", "")
+	if w.Code != 200 {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	l, err := workspace.DecodeListing(strings.NewReader(w.Body.String()))
+	if err != nil || len(l.Workspaces) != 2 {
+		t.Fatalf("%v %+v", err, l)
+	}
+	if l.Workspaces[0].Entry.ID != "team:main" || l.Workspaces[0].Entry.State != workspace.StateConnecting || !strings.Contains(l.Workspaces[0].Entry.Detail, "approve") {
+		t.Fatalf("a team waiting for approval: %+v", l.Workspaces[0].Entry)
+	}
+	if l.Workspaces[1].Entry.ID != "team:"+spare || l.Workspaces[1].Entry.State != workspace.StateSetup || l.Workspaces[1].Root != "/w/"+spare+"/" {
+		t.Fatalf("an empty slot: %+v", l.Workspaces[1])
+	}
+	// The listing needs the credential like everything else.
+	r := httptest.NewRequest("GET", "http://127.0.0.1:7431/api/device/v1/listing", nil)
+	rec := httptest.NewRecorder()
+	h.Handler().ServeHTTP(rec, r)
+	if rec.Code != 401 {
+		t.Fatalf("an unauthenticated listing: %d", rec.Code)
 	}
 }

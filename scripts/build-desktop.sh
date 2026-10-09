@@ -84,6 +84,7 @@ for tool in go sips iconutil plutil "$CODESIGN"; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is needed (install the Xcode command line tools: xcode-select --install)"
 done
 [ -z "$PACKAGE" ] || command -v "$HDIUTIL" >/dev/null 2>&1 || die "hdiutil is needed to make a disk image"
+[ -f desktop/frontend/dist/shell/shell/index.html ] || die "the workspace shell is not built: run make web-shell first"
 [ -f internal/webui/dist/index.html ] || die "the web app is not built: run 'make web web-embed' first"
 
 # What a release is built for is both kinds of Mac; anything else defaults to the Mac that is building.

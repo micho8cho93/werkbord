@@ -535,5 +535,5 @@ func (d *Daemon) profile() domain.DeviceProfile {
 	d.mu.RUnlock()
 	// A device that does not host this workspace but already hosts another cannot be asked to host this one.
 	conflict := !authority && d.hostingAllowed() != nil
-	return domain.DeviceProfile{Platform: runtime.GOOS, Form: form, Sleeps: form == domain.FormLaptop, Version: d.o.Version, HostConflict: conflict}
+	return domain.DeviceProfile{Platform: runtime.GOOS, Form: form, Sleeps: s.Sleeps || form == domain.FormLaptop, OfferWorkspaceHost: s.OfferWorkspaceHost, OfferConnectivityHost: s.OfferConnectivityHost, Version: d.o.Version, HostConflict: conflict}
 }

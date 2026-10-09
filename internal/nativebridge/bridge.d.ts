@@ -6,3 +6,5 @@ export function isEmbedded(w?: unknown): boolean;
 export function isWorkspaceHref(href: unknown): boolean;
 /** Calls handler with a place the shell that framed this page asks it to go to. Returns a function that stops listening. */
 export function onNavigate(handler: (href: string) => void, w?: unknown): () => void;
+
+export function reportFrame(place: () => string, w?: unknown): () => void;

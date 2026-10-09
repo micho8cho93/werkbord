@@ -374,3 +374,12 @@ Apple's notary service and Gatekeeper are fakes that behave as Apple does in eac
 | What the controller did | **Help → Show Controller Log**, or `werkbord logs` |
 | Everything at once, safe to paste into a bug report | **Help → Show Diagnostics…** (the token is never in it) |
 | Is it the same installation as my terminal's? | `werkbord status` prints the data directory and address; Diagnostics prints the same |
+
+## Unified desktop workspaces
+
+Phase 3 adds one everyday desktop shell with Personal and multiple Team
+workspaces while retaining isolated backend services, user-owned execution and
+explicit Team installation. The existing Team app remains a compatible installer
+and console; it is no longer required as a second everyday window. See
+[UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
+security boundaries, lifecycle, validation and operational limits.

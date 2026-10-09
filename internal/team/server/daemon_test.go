@@ -402,3 +402,71 @@ func TestDemotionRetainsDataAndCanResumeAfterMetadataChanges(t *testing.T) {
 		t.Fatal("old database not preserved", err)
 	}
 }
+
+// A genuine multi-workspace Hub, plus an independent second customer's host.
+// The browser test substitutes only private-network TCP routing and native dialogs.
+func TestUnifiedDesktopBrowserFixture(t *testing.T) {
+	dir := os.Getenv("WERKBORD_UNIFIED_BROWSER_FIXTURE")
+	if dir == "" {
+		t.Skip("browser harness only")
+	}
+	pub, key, _ := ed25519.GenerateKey(rand.Reader)
+	claims, _ := json.Marshal(license.Claims{Product: "werkbord-team", ID: "lic_fixture", Customer: "Shell fixture", Seats: 10, IssuedAt: time.Now().Add(-time.Hour), ExpiresAt: time.Now().Add(time.Hour)})
+	doc := []byte(`{"claims":` + string(claims) + `,"signature":"` + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, license.SigningBytes(claims))) + `"}`)
+	_ = os.WriteFile(filepath.Join(dir, "license.json"), doc, 0600)
+	options := func() DaemonOptions {
+		cfg := storageCfg(t)
+		cfg.RunNode = false
+		cfg.Addr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
+		cfg.BootstrapAddr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
+		cfg.EmbedOrigins = []string{os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")}
+		return DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), LicenseKey: pub, Log: quiet(), Version: "browser-fixture"}
+	}
+	hub, err := NewHub(options())
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := NewDaemon(options())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub.hostDial = func(ctx context.Context, network, address string) (net.Conn, error) {
+		// The second workspace has a disjoint overlay range.
+		other.mu.RLock()
+		var prefix netip.Prefix
+		if other.mat != nil {
+			prefix, _ = netip.ParsePrefix(other.mat.Meta.NetworkPrefix)
+		}
+		other.mu.RUnlock()
+		host, _, _ := net.SplitHostPort(address)
+		ip, _ := netip.ParseAddr(host)
+		if prefix.IsValid() && prefix.Contains(ip) {
+			address = other.o.Config.Addr
+		} else {
+			address = hub.o.Config.Addr
+		}
+		return (&net.Dialer{}).DialContext(ctx, network, address)
+	}
+	hub.slots[MainSlot].d.hostDial = hub.hostDial
+	ctx, cancel := context.WithCancel(bg)
+	defer cancel()
+	done := make(chan error, 2)
+	go func() { done <- hub.Run(ctx) }()
+	go func() { done <- other.Run(ctx) }()
+	meta, _ := json.Marshal(map[string]string{"first": "http://" + hub.o.LocalAddr, "firstKey": hub.key, "other": "http://" + other.o.LocalAddr, "otherKey": other.key()})
+	_ = os.WriteFile(filepath.Join(dir, "team-ready.json"), meta, 0600)
+	deadline := time.Now().Add(10 * time.Minute)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(filepath.Join(dir, "done")); err == nil {
+			cancel()
+			for i := 0; i < 2; i++ {
+				if err := <-done; err != nil {
+					t.Fatal(err)
+				}
+			}
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatal("unified browser harness did not finish")
+}

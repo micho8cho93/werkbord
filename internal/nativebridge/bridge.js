@@ -107,3 +107,17 @@ export function createNativeBridge(namespace, messages = {}) {
     return wait(id, timeoutMs, () => handler.postMessage('C' + JSON.stringify({ name: namespace + '.' + method, args, callbackID: id })));
   };
 }
+
+/** Report only a validated local route. Tokens and enrollment secrets never leave the frame. */
+export function reportFrame(place, w = globalThis.window) {
+  if (!isEmbedded(w)) return () => {};
+  const send = () => {
+    const href = place();
+    if (isWorkspaceHref(href) && !/(token|join|invite)=/i.test(href)) w.parent.postMessage({ type: 'werkbord.frame', event: 'place', place: href }, '*');
+  };
+  w.parent.postMessage({ type: 'werkbord.frame', event: 'ready' }, '*');
+  send();
+  w.addEventListener('hashchange', send);
+  w.addEventListener('popstate', send);
+  return () => { w.removeEventListener('hashchange', send); w.removeEventListener('popstate', send); };
+}

@@ -9,3 +9,5 @@
 /.desktop-dev/
 /.cache/
 /.impeccable/review/
+
+/desktop/frontend/dist/shell/

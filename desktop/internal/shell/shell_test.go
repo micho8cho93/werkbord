@@ -149,7 +149,7 @@ func TestDirectoryPickerReturnsOnlyTheUserSelection(t *testing.T) {
 // Wails makes every exported method of the struct it binds callable from a page the controller
 // served. This list is that surface: a new method is a decision, made here, not an accident.
 func TestThePageFacingSurfaceIsExactlyWhatIsListed(t *testing.T) {
-	want := []string{"CheckForUpdates", "ChooseDirectory", "Connect", "Diagnostics", "Info", "OpenExternal", "OpenInBrowser", "OpenLogs", "Reload", "RequestUpdate", "ShowDiagnostics", "UpdateStatus"}
+	want := []string{"ActivateTeam", "AddTeam", "CheckForUpdates", "ChooseDirectory", "Connect", "Diagnostics", "ForgetWorkspace", "Info", "LoadWorkspace", "OpenExternal", "OpenInBrowser", "OpenLogs", "OpenWorkspace", "Overview", "PendingInvitation", "Relay", "Reload", "RememberPlace", "RequestUpdate", "ShowDiagnostics", "TeamService", "UpdateStatus", "Workspaces"}
 	var got []string
 	typ := reflect.TypeOf(&Shell{})
 	for i := 0; i < typ.NumMethod(); i++ {
@@ -569,5 +569,14 @@ func TestTheShellTalksToTheControllerOnlyThroughTheLauncher(t *testing.T) {
 				t.Errorf("%s mentions %q: the shell reaches the controller and the internet only through the launcher, whose calls are pinned", e.Name(), banned)
 			}
 		}
+	}
+}
+
+func TestShellOpensWhenThePersonalRunnerIsUnavailable(t *testing.T) {
+	l := &fakeLauncher{connErr: errors.New("controller unavailable")}
+	s := New(Options{Launcher: l, UI: &fakeUI{}, ShellPage: "shell/shell/index.html"})
+	got, err := s.Connect()
+	if err != nil || got.Shell != "shell/shell/index.html" {
+		t.Fatalf("Team workspaces blocked by Personal failure: %+v %v", got, err)
 	}
 }

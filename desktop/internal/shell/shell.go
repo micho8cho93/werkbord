@@ -113,6 +113,17 @@ type Options struct {
 	Ctx context.Context
 	// Updater replaces the app itself. Nil in a build that cannot (development, or no signing key).
 	Updater Updater
+
+	// The workspaces. Registry lists them; Team, TeamInstaller and Grants are how the app reaches Team's service, Team's own
+	// installer and the person's Werkbord for the one grant a Team workspace is given. Invites holds an invitation the app
+	// was opened with. ShellPage is where the window loads its own page after connecting ("" loads Personal's web app
+	// directly, as the app did before there was a shell).
+	Workspaces    Registry
+	Team          Team
+	TeamInstaller TeamInstaller
+	Grants        Grants
+	Invites       *Invites
+	ShellPage     string
 }
 
 // Shell is the app, as the loading screen, the menu and the web app see it.
@@ -170,6 +181,8 @@ type Connected struct {
 	// nothing else: it is not logged, shown or kept.
 	SignInURL string `json:"signInUrl"`
 	Version   string `json:"version"`
+	// Shell is the app's own page, which shows every workspace; the loading screen goes there when it is set.
+	Shell string `json:"shell,omitempty"`
 }
 
 // Connect makes sure the controller is running and opens to it, reporting what it is doing as
@@ -182,6 +195,10 @@ func (s *Shell) Connect() (Connected, error) {
 	})
 	if err != nil {
 		s.o.Log.Error("could not connect", "err", err)
+		// Team workspaces remain useful if the Personal runner is unavailable.
+		if s.o.ShellPage != "" {
+			return Connected{Shell: s.o.ShellPage}, nil
+		}
 		return Connected{}, err
 	}
 	s.o.Log.Info("connected", "controller", conn.Version, "url", conn.URL)
@@ -189,7 +206,7 @@ func (s *Shell) Connect() (Connected, error) {
 		s.o.Log.Warn("notice", "text", conn.Notice)
 		go s.o.UI.Ask(Dialog{Kind: Info, Title: "Werkbord", Message: conn.Notice, Buttons: []string{"OK"}, Default: "OK", Cancel: "OK"})
 	}
-	return Connected{SignInURL: conn.SignInURL, Version: conn.Version}, nil
+	return Connected{SignInURL: conn.SignInURL, Version: conn.Version, Shell: s.o.ShellPage}, nil
 }
 
 // Diagnostics is what to look at when Werkbord does not open, as text with no secret in it.

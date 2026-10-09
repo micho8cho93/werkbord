@@ -50,7 +50,10 @@ type Settings struct {
 	// RemoteOpen: whether another of the person's trusted devices may open a ticket here (as a task in Werkbord's backlog).
 	RemoteOpen bool `json:"remoteOpen"`
 	// Form is what the person says this computer is: desktop, laptop, server, or "" for not said.
-	Form string `json:"form,omitempty"`
+	Form                  string `json:"form,omitempty"`
+	Sleeps                bool   `json:"sleeps,omitempty"`
+	OfferWorkspaceHost    bool   `json:"offerWorkspaceHost,omitempty"`
+	OfferConnectivityHost bool   `json:"offerConnectivityHost,omitempty"`
 	// WerkbordBase is where Werkbord listens on this computer, when it is not the usual place.
 	WerkbordBase string `json:"werkbordBase,omitempty"`
 }

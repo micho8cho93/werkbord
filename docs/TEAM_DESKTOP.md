@@ -89,3 +89,12 @@ Phase 2 owner controls and shared request scheduling are documented in
 cannot dispatch; a dispatch-only grant cannot approve. Valid signatures never
 replace local policy checks. Revocation prevents new authorization without
 silently terminating an accepted local process.
+
+## Unified desktop workspaces
+
+Phase 3 adds one everyday desktop shell with Personal and multiple Team
+workspaces while retaining isolated backend services, user-owned execution and
+explicit Team installation. The existing Team app remains a compatible installer
+and console; it is no longer required as a second everyday window. See
+[UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
+security boundaries, lifecycle, validation and operational limits.

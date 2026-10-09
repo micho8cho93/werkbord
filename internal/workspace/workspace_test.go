@@ -137,3 +137,44 @@ func TestAnInfrastructureReportCannotClaimMoreHostsOnlineThanExist(t *testing.T)
 		t.Fatalf("infra = %+v", got.Infra)
 	}
 }
+
+func listing(t *testing.T, mutate func(*Listing)) string {
+	t.Helper()
+	l := Listing{Schema: Schema, Workspaces: []Listed{
+		{Entry: Entry{ID: TeamID("main"), Kind: KindTeam, Name: "Acme", State: StateReady, Role: "member"}, Root: "/w/main/", SummaryPath: "/w/main/api/device/v1/summary"},
+		{Entry: Entry{ID: TeamID("ws_ab12"), Kind: KindTeam, Name: "Globex", State: StateSetup}, Root: "/w/ws_ab12/", SummaryPath: "/w/ws_ab12/api/device/v1/summary"},
+	}}
+	if mutate != nil {
+		mutate(&l)
+	}
+	b, err := json.Marshal(l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestAListingPointsOnlyAtItsProvider(t *testing.T) {
+	got, err := DecodeListing(strings.NewReader(listing(t, nil)))
+	if err != nil || len(got.Workspaces) != 2 || got.Workspaces[1].Root != "/w/ws_ab12/" {
+		t.Fatalf("%+v %v", got, err)
+	}
+	bad := map[string]func(*Listing){
+		"another host":           func(l *Listing) { l.Workspaces[0].Root = "//evil.example/" },
+		"a scheme":               func(l *Listing) { l.Workspaces[0].SummaryPath = "http://evil.example/x" },
+		"climbing":               func(l *Listing) { l.Workspaces[0].Root = "/w/../../" },
+		"a root without a slash": func(l *Listing) { l.Workspaces[0].Root = "/w/main" },
+		"a query":                func(l *Listing) { l.Workspaces[0].SummaryPath = "/x?y=1" },
+		"the same twice":         func(l *Listing) { l.Workspaces[1].Entry.ID = l.Workspaces[0].Entry.ID },
+		"personal named team":    func(l *Listing) { l.Workspaces[0].Entry.Kind = KindPersonal },
+		"another schema":         func(l *Listing) { l.Schema = "nope" },
+	}
+	for name, mutate := range bad {
+		if _, err := DecodeListing(strings.NewReader(listing(t, mutate))); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+	if _, err := DecodeListing(strings.NewReader(strings.Replace(listing(t, nil), `"schema"`, `"extra":1,"schema"`, 1))); err == nil {
+		t.Error("an unknown field was accepted")
+	}
+}

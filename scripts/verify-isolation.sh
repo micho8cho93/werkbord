@@ -47,12 +47,17 @@ if ! go test -timeout 30m ./... > "$WORK/test.log" 2>&1; then
 fi
 grep -c '^ok' "$WORK/test.log" | sed 's/$/ packages pass/' 
 
+# The product-neutral shell must also test with Team source absent. It reaches a
+# separately installed service over HTTP; it cannot link the removed backend.
+echo "desktop shell tests with Team absent"
+(cd desktop && go vet ./internal/... && go test ./internal/...)
+
 echo "running the executable"
 go build -o "$WORK/werkbord" ./cmd/werkbord
 "$WORK/werkbord" version
 WERKBORD_DATA_DIR="$WORK/data" "$WORK/werkbord" migrate
 
-if grep -rIl --exclude-dir=.git --exclude-dir=node_modules -e 'internal/team' -e 'werkbord-team' . | grep -v -e '^./docs/' -e '^./AGENTS.md' -e '^./scripts/' -e '^./Makefile' -e '^./.github/' -e '^./internal/archtest/' -e '^./internal/update/' -e '^./README.md' ; then
+if grep -rIl --exclude-dir=.git --exclude-dir=node_modules -e 'internal/team' -e 'werkbord-team' . | grep -v -e '^./docs/' -e '^./AGENTS.md' -e '^./scripts/' -e '^./Makefile' -e '^./.github/' -e '^./internal/archtest/' -e '^./internal/update/' -e '^./desktop/' -e '^./web/src/shell/' -e '^./README.md' ; then
   echo "verify-isolation: the files above mention Team outside documentation and build tooling" >&2
   exit 1
 fi

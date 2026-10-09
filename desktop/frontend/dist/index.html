@@ -103,7 +103,8 @@
       clearTimeout(slowTimer);
       // The address carries the access token in its fragment, which only this window ever sees.
       // The web app keeps it and takes it out of the address bar.
-      window.location.replace(res.signInUrl);
+      // The app's own page shows every workspace; a build without it opens the web app directly, as before.
+      window.location.replace(res.shell || res.signInUrl);
     }, function (err) {
       show(true, String(err && err.message || err || 'Unknown error'));
     });

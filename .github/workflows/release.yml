@@ -183,7 +183,7 @@ jobs:
       - name: The signing and notarization secrets are all there
         run: scripts/check-release-secrets.sh desktop
       - name: Build the web app
-        run: make web web-embed
+        run: make web web-embed web-shell
       - name: Put the Developer ID certificate in a temporary keychain
         run: scripts/ci-keychain.sh create --require
       - name: Put the notarization key where only this job can read it

@@ -231,6 +231,75 @@ type Infra struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
+// Listed is a workspace as a provider lists it: the workspace, and where its own interface and its summary are on the
+// provider's address. The paths are the provider's own and are checked: a provider can point the shell only at itself.
+type Listed struct {
+	Entry Entry `json:"entry"`
+	// Root is where the workspace's own interface is, ending in a slash: "/" for Personal, "/w/<slot>/" for a Team workspace.
+	Root string `json:"root"`
+	// SummaryPath is where its Summary is.
+	SummaryPath string `json:"summary"`
+}
+
+// Listing is what a provider that holds several workspaces answers when asked which it has.
+type Listing struct {
+	Schema     string   `json:"schema"`
+	Workspaces []Listed `json:"workspaces"`
+}
+
+// MaxListed bounds a listing.
+const MaxListed = 32
+
+var pathPattern = regexp.MustCompile(`^/[A-Za-z0-9_/.-]{0,100}$`)
+
+// ValidPath reports whether s is a path on the provider's own address: absolute, plain, and with nothing in it that climbs.
+func ValidPath(s string) bool {
+	return pathPattern.MatchString(s) && !strings.Contains(s, "//") && !strings.Contains(s, "..")
+}
+
+// DecodeListing reads a listing strictly: bounded, unknown fields refused, every entry valid, every path the provider's own,
+// and no workspace named twice.
+func DecodeListing(r io.Reader) (Listing, error) {
+	raw, err := io.ReadAll(io.LimitReader(r, MaxBytes+1))
+	if err != nil {
+		return Listing{}, err
+	}
+	if len(raw) > MaxBytes {
+		return Listing{}, errors.New("workspace: the listing is too large")
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var l Listing
+	if err := dec.Decode(&l); err != nil {
+		return Listing{}, fmt.Errorf("workspace: the listing is unreadable: %w", err)
+	}
+	if dec.More() {
+		return Listing{}, errors.New("workspace: the listing has more than one document")
+	}
+	if l.Schema != Schema {
+		return Listing{}, fmt.Errorf("workspace: schema %q is not %q", l.Schema, Schema)
+	}
+	if len(l.Workspaces) > MaxListed {
+		return Listing{}, errors.New("workspace: too many workspaces")
+	}
+	seen := map[string]bool{}
+	for i := range l.Workspaces {
+		e := &l.Workspaces[i]
+		e.Entry.Name, e.Entry.Detail = clip(e.Entry.Name, MaxName), clip(e.Entry.Detail, 500)
+		if err := e.Entry.validate(); err != nil {
+			return Listing{}, err
+		}
+		if !ValidPath(e.Root) || !strings.HasSuffix(e.Root, "/") || !ValidPath(e.SummaryPath) {
+			return Listing{}, fmt.Errorf("workspace: %q has a path that is not its provider's own", e.Entry.ID)
+		}
+		if seen[e.Entry.ID] {
+			return Listing{}, fmt.Errorf("workspace: %q is listed twice", e.Entry.ID)
+		}
+		seen[e.Entry.ID] = true
+	}
+	return l, nil
+}
+
 // Summary is everything the shell shows of one workspace outside the workspace's own interface.
 type Summary struct {
 	Schema    string      `json:"schema"`

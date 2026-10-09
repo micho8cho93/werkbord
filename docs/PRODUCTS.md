@@ -19,7 +19,7 @@ own executable, version, data directory, installer, release artifacts and licenc
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` |
 | Build | `make build` (or `make werkbord`); the Mac app: `make desktop` | `make build-team` (or `make werkbord-team`) |
 
-The two can be installed, run and upgraded independently, on the same computer or on different ones. Installing one does not start or change the other. The Team desktop app offers an explicit, optional local
+The two backend products can be installed, run and upgraded independently, on the same computer or on different ones. Phase 3 adds a product-neutral desktop shell for everyday Personal and Team workspaces; see [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md). Installing one does not start or change the other. The Team desktop app offers an explicit, optional local
 installation of the free individual runner through that product’s normal setup.
 
 Team 3.0 defaults to customer-owned Nebula, administrator-approved enrollment, device-signed remote API requests and offline signed license enforcement. There is no Team Tailscale account or vendor runtime requirement. Customers operate their Workspace/Connectivity Hosts, backups and local runners. Individual tsnet and `DEVBOARD_*` compatibility stay separate. See [TEAM_SECURITY.md](TEAM_SECURITY.md), [TEAM_INSTALL.md](TEAM_INSTALL.md), [TEAM_LICENSE.md](TEAM_LICENSE.md) and the [release gate](TEAM_SECURITY_GATE.md).
@@ -91,7 +91,7 @@ Everything else under `internal/` outside `internal/team` is the **individual pr
 of those, the answer is to move the non-product-specific part into a shared package (as `sqlitekit` and `httpkit` were),
 not to reach across.
 
-The same goes for the web: `web/` is the individual product's app and is untouched by Team. Team has its own small
+The same goes for the web: the PWA in `web/` is the individual product's app. `web/src/shell/` is a separately built product-neutral desktop frontend, never embedded in the PWA; it displays Team-owned screens without importing their code. Team has its own small
 console (`internal/team/console`). When Team needs real UI reuse, extract the components both use into a shared web
 package (for example `web-ui/`) that `web/` and a Team web app both depend on; do not put Team screens in `web/`.
 
@@ -269,3 +269,11 @@ Team stores shared schedule requests and routes owner-signed semantic controls.
 Individual retains task-bound local approval, execution policy and idempotent
 run creation through its existing scheduler/runtime. See
 [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md).
+
+## Phase 3 desktop unification
+
+The neutral shell in `desktop/` reaches separately installed Personal and Team
+services through authenticated loopback HTTP. `web/src/shell/` reuses existing
+Svelte primitives and tokens, and has its own build. Team screens and backend
+behavior remain under `internal/team`; the shell never links either execution
+engine or Team backend. See [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md).

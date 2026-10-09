@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"devboard/internal/httpkit"
+	"devboard/internal/workspace"
 )
 
 // A person can belong to several Team workspaces, and a computer can be a device in each of them. The device
@@ -280,6 +281,7 @@ func (h *Hub) authorized(r *http.Request) bool {
 // Handler routes to the workspace a path names. Only loopback serves it.
 func (h *Hub) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/device/v1/listing", h.secured(h.listing))
 	mux.HandleFunc("GET /api/device/v1/workspaces", h.secured(h.listSlots))
 	mux.HandleFunc("POST /api/device/v1/workspaces", h.secured(h.addSlot))
 	mux.HandleFunc("DELETE /api/device/v1/workspaces/{id}", h.secured(h.removeSlot))
@@ -392,6 +394,34 @@ func summarize(id string, v map[string]any) SlotSummary {
 		s.Workspace.Name, _ = w["name"].(string)
 	}
 	return s
+}
+
+// listing is the neutral answer to "which workspaces does this provider hold, and where are they": what the desktop shell
+// builds its switcher from. It asks no Workspace Host anything, so it is quick, and answers while a workspace is offline.
+func (h *Hub) listing(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	ids := make([]string, 0, len(h.slots))
+	byID := make(map[string]*hubSlot, len(h.slots))
+	for id, s := range h.slots {
+		ids = append(ids, id)
+		byID[id] = s
+	}
+	h.mu.RUnlock()
+	sort.Slice(ids, func(i, j int) bool {
+		if ids[i] == MainSlot || ids[j] == MainSlot {
+			return ids[i] == MainSlot
+		}
+		return ids[i] < ids[j]
+	})
+	out := workspace.Listing{Schema: workspace.Schema, Workspaces: []workspace.Listed{}}
+	for _, id := range ids {
+		in := byID[id].d.summaryHeader()
+		out.Workspaces = append(out.Workspaces, workspace.Listed{
+			Entry: workspace.Entry{ID: workspace.TeamID(id), Kind: workspace.KindTeam, Name: workspace.Clip(in.Name, workspace.MaxName), Role: in.Role, State: in.State, Detail: in.Detail, DeviceRoles: in.DeviceRoles},
+			Root:  "/w/" + id + "/", SummaryPath: "/w/" + id + "/api/device/v1/summary",
+		})
+	}
+	httpkit.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Hub) listSlots(w http.ResponseWriter, r *http.Request) {
