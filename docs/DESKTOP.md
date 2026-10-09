@@ -389,6 +389,15 @@ Apple's notary service and Gatekeeper are fakes that behave as Apple does in eac
 | Everything at once, safe to paste into a bug report | **Help → Show Diagnostics…** (the token is never in it) |
 | Is it the same installation as my terminal's? | `werkbord status` prints the data directory and address; Diagnostics prints the same |
 
+**Individual is blank in the window, though the rest of it shows.** Werkbord before 1.11.3 registered its service worker
+(the page's offline support) in the window too, and WebKit never completes a framed load that a worker answers: the page
+loaded once and was blank from the next launch on, for every address it had been opened at. From 1.11.3 the page does not
+register one when the window frames it, the worker leaves framed loads to the network, and the page removes one that an
+earlier version registered. A window that still has an old worker is blank for one more launch and then works. To clear
+it at once, quit the app and delete the `ServiceWorkers` folders under
+`~/Library/WebKit/<bundle id>/WebsiteData/Default/*/*/` (the bundle id is `dev.werkbord.desktop`); nothing else there needs
+to go, and the worker is not registered again.
+
 ## Unified desktop workspaces
 
 Phase 3 adds one everyday desktop shell with Personal and multiple Team

@@ -2,7 +2,7 @@ import { mount } from 'svelte';
 import App from './App.svelte';
 import { adoptTokenFromURL } from './lib/api';
 import { detectDesktop, openLinksInBrowser } from './lib/desktop.svelte';
-import { followShell } from './lib/embed';
+import { embedded, followShell } from './lib/embed';
 import { app } from './lib/state.svelte';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
@@ -19,9 +19,18 @@ followShell();
 mount(App, { target: document.getElementById('app')! });
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // The app works without offline support.
+  if (embedded()) {
+    // The desktop window shows this page in a frame, where a worker only does harm (see public/sw.js) and nothing is
+    // installed or used offline. Remove one that an earlier version registered there.
+    void navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
+      .catch(() => {});
+  } else {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        // The app works without offline support.
+      });
     });
-  });
+  }
 }

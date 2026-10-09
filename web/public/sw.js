@@ -23,6 +23,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // A page shown in a frame, as the desktop app's window shows each workspace, is left to the network: WebKit never
+  // completes a framed navigation that a worker answers, so the frame stayed blank from its second load on. (The page does
+  // not register this worker when it is framed, and removes one that an earlier version registered.)
+  if (req.destination === 'iframe' || req.destination === 'frame') {
+    return;
+  }
+
   // Navigations: network first so a new build is picked up, cached shell offline.
   if (req.mode === 'navigate') {
     event.respondWith(
