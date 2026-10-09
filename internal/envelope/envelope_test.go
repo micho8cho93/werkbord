@@ -345,6 +345,8 @@ func TestAnActionThatActsOnADeviceMustNameIt(t *testing.T) {
 
 func samplePayload(a Action) any {
 	switch a {
+	case ActionStartAuthorizedExecution:
+		return StartAuthorizedExecution{ProjectID: "p", TicketID: "t", ExecutionID: "e", FenceID: "f"}
 	case ActionOpenTicketOnRunner:
 		return OpenTicketOnRunner{ProjectID: "p", TicketID: "t"}
 	case ActionStartApprovedRun:

@@ -1001,6 +1001,8 @@ function ticketPanel(d, k) {
       h('button', { class: 'plain', onclick: () => { state.ticketId = null; state.handoff = null; remember(); render(); } }, 'Close')),
     h('div', { class: 'actions' }, actions),
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
+    mine && state.desktop && !k.archivedAt && ['in_progress', 'review'].includes(k.status) ? ownExecutionPanel(k) : '',
+    !k.archivedAt ? teamSchedulePanel(k) : '',
     h('div', { class: 'two' },
       h('div', {},
         h('h3', {}, 'Description'), h('p', { class: 'prose' }, k.description || '—'),
@@ -1204,3 +1206,36 @@ window.addEventListener('keydown', e => {
 });
 document.addEventListener('click', e => { app.querySelectorAll('.member-manage[open]').forEach(menu => { if (!menu.contains(e.target)) menu.open = false; }); });
 window.addEventListener('load', () => render());
+
+const scheduleDrafts = new Map();
+function teamSchedulePanel(k) {
+  const box = h('section', { class: 'handoff' }, h('h3', {}, 'Shared schedule'), h('p', { class: 'muted' }, 'A schedule requests work. Only the holder’s local approval can authorize execution.'));
+  api('GET', '/projects/' + k.projectId + '/schedules').then(schedules => {
+    const current = schedules.find(s => s.ticketId === k.id);
+    if (current) box.append(h('p', { role: 'status' }, (current.stale ? 'Runner update overdue; last state: ' : '') + current.state.replaceAll('_', ' ') + (current.reason ? ' · ' + current.reason : '')), h('p', {}, new Date(current.at).toLocaleString() + ' · ' + current.timezone));
+    const allowed = k.assigneeId === state.me.member.id || pcan('tickets.assign');
+    if (!allowed || !['in_progress', 'review'].includes(k.status)) return;
+    const key = k.projectId + ':' + k.id;
+    let draft = scheduleDrafts.get(key);
+    if (!draft || draft.version !== (current?.version || 0)) {
+      draft = { version: current?.version || 0, at: current?.at || '', timezone: current?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, missed: current?.missedPolicy || 'run_late', grace: current?.graceSeconds ?? 300, order: current?.order ?? 0, priority: current?.priority ?? 1, dependencies: current?.dependencies?.join(', ') || '' };
+      scheduleDrafts.set(key, draft);
+    }
+    const edit = field => e => { draft[field] = e.target.value; };
+    const at = h('input', { name: 'schedule-at-' + k.id, value: draft.at, oninput: edit('at'), placeholder: '2026-10-10T09:00:00+02:00', required: true });
+    const timezone = h('input', { name: 'schedule-zone-' + k.id, value: draft.timezone, oninput: edit('timezone'), required: true });
+    const missed = h('select', { name: 'schedule-missed-' + k.id, onchange: edit('missed') }, [['run_late', 'Wait and run when eligible'], ['skip', 'Skip after grace window']].map(([value, label]) => h('option', { value, selected: value === draft.missed }, label)));
+    const grace = h('input', { name: 'schedule-grace-' + k.id, type: 'number', min: 0, max: 86400, value: draft.grace, oninput: edit('grace') });
+    const order = h('input', { name: 'schedule-order-' + k.id, type: 'number', min: 0, value: draft.order, oninput: edit('order') });
+    const priority = h('select', { name: 'schedule-priority-' + k.id, onchange: edit('priority') }, [['0', 'Low'], ['1', 'Normal'], ['2', 'High']].map(([value, label]) => h('option', { value, selected: Number(value) === Number(draft.priority) }, label)));
+    const dependencies = h('input', { name: 'schedule-deps-' + k.id, value: draft.dependencies, oninput: edit('dependencies'), placeholder: 'Ticket IDs, separated by commas' });
+    box.append(h('form', { onsubmit: e => { e.preventDefault(); act(async () => {
+      if (!/(Z|[+-]\d\d:\d\d)$/.test(at.value) || !Number.isFinite(Date.parse(at.value))) throw new Error('Use an ISO timestamp with an explicit UTC offset or Z.');
+      await api('PUT', projectPath(k) + '/schedule', { version: current?.version || 0, at: new Date(at.value).toISOString(), timezone: timezone.value, missedPolicy: missed.value, graceSeconds: Number(grace.value), order: Number(order.value), priority: Number(priority.value), dependencies: dependencies.value.split(',').map(v => v.trim()).filter(Boolean) });
+      scheduleDrafts.delete(key);
+      if (state.desktop) executionViews.delete(k.projectId + ':' + k.id);
+    }); } }, field('Start time with UTC offset', at), field('Display timezone', timezone), field('Missed execution', missed), field('Grace window (seconds)', grace), field('Execution order', order), field('Priority', priority), field('Dependencies', dependencies), h('button', { class: 'plain' }, current ? 'Reschedule request' : 'Propose schedule')));
+    if (current && !['completed', 'canceled'].includes(current.state)) box.append(h('button', { class: 'danger', onclick: () => act(() => api('POST', projectPath(k) + '/schedule/cancel', { version: current.version })) }, 'Cancel request'));
+  }).catch(err => box.append(h('p', { class: 'advice', role: 'alert' }, err.message)));
+  return box;
+}

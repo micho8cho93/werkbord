@@ -75,6 +75,49 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await wait(async()=>{const result=await team('GET','/messages/'+message.id);if(result.state==='refused')throw Error(JSON.stringify(result.result));return result.state==='done';},'signed semantic handoff');
  const opened=await dev('second','GET','/state');assert.equal(opened.opened.length,1);assert.equal((opened.approvals||[]).length,0);
  console.log('PASS signed cross-device handoff to the actual narrow individual bridge; task opened with no run start');
+ // Phase 2: authenticated local controls, effective policy, one-shot launch,
+ // privileged question answer and shared scheduling through the owner controller.
+ await page.goto(m.first+`/?tab=board&project=${project.id}&ticket=${ticket.id}`);
+ await page.getByRole('button',{name:'Agent controls',exact:true}).click();
+ await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Review execution policy',exact:true}).count();},'local execution controls');
+ await page.getByRole('button',{name:'Review execution policy',exact:true}).click();
+ await page.getByRole('heading',{name:'Effective policy',exact:true}).waitFor();
+ await shot(page,'agent-policy');await shot(page,'agent-policy-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
+ await page.getByRole('button',{name:'Approve and start my run',exact:true}).click();
+ await page.getByRole('button',{name:'Stop my run',exact:true}).waitFor();
+ const localProjects=await http(personalURL,full,'GET','/api/projects');
+ const localProject=localProjects.projects.find(p=>p.name==='Customer portal');
+ const localRuns=await http(personalURL,full,'GET',`/api/projects/${localProject.id}/runs`);
+ const running=localRuns.runs.find(r=>['running','waiting_for_user'].includes(r.state));assert(running,'local run launched');
+ await http(personalURL,full,'POST',`/api/projects/${localProject.id}/runs/${running.id}/input`,{text:'ask'});
+ await wait(async()=>{const detail=await dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${ticket.id}`);return detail.questions.length===1;},'agent question');
+ await page.getByRole('button',{name:'Refresh progress',exact:true}).click();
+ await page.getByText('Commit the fixture work?',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Yes',exact:true}).click();
+ await wait(async()=>{const detail=await dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${ticket.id}`);return detail.questions.length===0;},'owner answer delivered');
+ await page.getByRole('button',{name:'Stop my run',exact:true}).click();
+ await wait(async()=>{const r=await http(personalURL,full,'GET',`/api/projects/${localProject.id}/runs/${running.id}`);return r.state==='stopped';},'owner stop');
+ await page.waitForFunction(()=>!actionBusy);
+ const scheduledAt=new Date(Date.now()+3600000).toISOString();
+ await page.locator(`[name=schedule-at-${ticket.id}]`).fill(scheduledAt);
+ await page.evaluate(()=>render());
+ await wait(async()=>await page.locator(`[name=schedule-at-${ticket.id}]`).inputValue()===scheduledAt,'schedule draft survives refresh');
+ const formStatus=await page.getByRole('button',{name:'Propose schedule',exact:true}).evaluate(b=>({valid:b.form.checkValidity(),fields:[...b.form.elements].map(e=>({name:e.name,value:e.value,valid:e.checkValidity()}))}));
+ assert(formStatus.valid,JSON.stringify(formStatus));
+ const scheduleReply=page.waitForResponse(r=>r.request().method()==='PUT'&&r.url().endsWith('/schedule'),{timeout:10000});
+ await page.getByRole('button',{name:'Propose schedule',exact:true}).click();
+ const createdSchedule=await scheduleReply;assert(createdSchedule.ok(),await createdSchedule.text());
+ await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Cancel request',exact:true}).count();},'shared schedule created');
+ await page.getByRole('button',{name:'Agent controls',exact:true}).click();
+ await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Review execution policy',exact:true}).count();},'local execution controls');
+ await page.getByRole('button',{name:'Review execution policy',exact:true}).click();
+ await page.getByRole('button',{name:'Approve this execution once',exact:true}).click();
+ await page.getByText(/Authorized once until/).waitFor();
+ await shot(page,'scheduled-policy');await shot(page,'scheduled-policy-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
+ await page.getByRole('button',{name:'Cancel request',exact:true}).click();
+ await wait(async()=>{const list=await team('GET',`/projects/${project.id}/schedules`);return list[0]?.state==='canceled';},'canceled schedule');
+ console.log('PASS local agent controls, policy review, start, question, stop, scheduled preapproval and cancellation');
+
  // Presentation-only regression: a request remains observable through queued → delivered → done.
  let progressCalls=0;await page.route('**/api/team/v1/messages/ui-progress-fixture',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({id:'ui-progress-fixture',state:++progressCalls===1?'queued':progressCalls===2?'delivered':'done',result:{}})}));
  await page.evaluate(async()=>{activeRequest={id:'ui-progress-fixture'};await pollRequest();});

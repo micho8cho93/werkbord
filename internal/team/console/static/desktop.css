@@ -33,3 +33,7 @@ input, textarea { caret-color: var(--accent); }
   .setup-panel { padding: 20px; }
   .health-checks { grid-template-columns: minmax(130px, 1fr) minmax(0, 1.4fr); }
 }
+
+.execution-preapproval { display: flex; align-items: center; gap: .5rem; margin-block: .75rem; }
+.execution-preapproval input[type="checkbox"] { width: auto; flex: 0 0 auto; }
+.execution-row { padding-block: .75rem; border-block-start: 1px solid var(--line); margin-block-start: .75rem; }

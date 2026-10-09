@@ -1,5 +1,6 @@
 // Package connector runs on a member's own computer as that user. It imports
-// context and reports metadata; it has no launch, filesystem or network API.
+// context and reports metadata. Optional scheduling dispatches an exact local
+// approval through Individual; the connector has no agent runtime or command API.
 package connector
 
 import (
@@ -37,8 +38,9 @@ type Connector struct {
 	Journal                         *devicestate.SyncJournal
 	// Projects is the locally opted-in Team project → Individual project map.
 	// An empty value selects the unique canonical repository match.
-	Projects map[string]string
-	Now      func() time.Time
+	Execution ExecutionLocal
+	Projects  map[string]string
+	Now       func() time.Time
 }
 
 func (c *Connector) now() time.Time {
@@ -267,6 +269,30 @@ func (c *Connector) Tick(ctx context.Context) error {
 		}
 		if err := c.deliver(ctx, a); err != nil {
 			problems = append(problems, err)
+		}
+	}
+	if c.Execution != nil {
+		for pid := range c.Projects {
+			var schedules []domain.Schedule
+			if err := c.Host.Do(ctx, "GET", "/projects/"+pid+"/schedules", nil, &schedules); err != nil {
+				problems = append(problems, err)
+				continue
+			}
+			for _, v := range schedules {
+				if v.MemberID != c.MemberID {
+					continue
+				}
+				for _, a := range as {
+					if a.TeamProjectID == pid && a.TicketID == v.TicketID && a.Suspended == "" && !a.Conflict && a.Assignment == v.Assignment && a.TaskID != "" {
+						err := CoordinateSchedule(ctx, c.Host, c.Execution, c.DeviceID, v, func(req integration.ExecutionRequest) bool {
+							return req.ProjectID == a.LocalProjectID && req.TaskID == a.TaskID
+						})
+						if err != nil {
+							problems = append(problems, err)
+						}
+					}
+				}
+			}
 		}
 	}
 	return errors.Join(problems...)

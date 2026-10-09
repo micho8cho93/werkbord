@@ -236,7 +236,7 @@ async function settingsView() {
     h('section', { class: 'panel' }, h('h2', {}, 'Trust your other devices'), h('p', { class: 'muted' }, 'Approve a device here before it can ask your runner to act. Compare its identity with the value shown in Settings on that device.'),
       h('p', { class: 'muted' }, 'This computer’s identity: ', h('code', {}, state.device.identity)),
       (state.device.senders || []).map(d => h('div', { class: 'row' }, h('div', { class: 'grow' }, d.name, h('code', {}, d.identity)), h('button', { class: 'plain', onclick: () => act(() => deviceApi('POST', '/senders/' + d.deviceId + (d.approved ? '/revoke' : '/trust'), d.approved ? {} : { publicKey: d.publicKey })) }, d.approved ? 'Stop trusting' : 'Trust this device')))),
-    h('section', { class: 'panel' }, h('h2', {}, 'Tasks waiting for your permission'), (state.device.opened || []).length ? state.device.opened.map(t => h('div', { class: 'row' }, h('div', { class: 'grow' }, t.ticket), h('button', { class: 'plain', onclick: () => act(async () => { await deviceApi('POST', '/tasks/' + t.taskId + '/approve'); state.info = 'This task can be started once from your trusted devices during the next hour.'; }) }, 'Allow remote start once'))) : h('p', { class: 'muted' }, 'No tickets have been opened here from your other devices.')),
+    h('section', { class: 'panel' }, h('h2', {}, 'Execution approvals'), h('p', { class: 'muted' }, 'Open a held ticket’s Agent controls to select its runner, agent, model and policy. Review the effective runtime permissions before approving a single execution.')),
     h('section', { class: 'panel' }, h('h2', {}, 'Service and uninstall'), h('p', { class: 'muted' }, 'Removing the GUI leaves the Team service, your runner and your workspace running. You can keep or stop the Team service separately. Leaving the workspace can keep a local archive or remove its local secrets and data.'),
       plan.reason ? h('p', { class: 'advice' }, plan.reason) : '',
       h('div', { class: 'actions' }, nativeApp() ? h('button', { class: 'plain', onclick: () => act(() => nativeApp().Service('stop')) }, 'Stop Team service, keep data') : '',
@@ -276,7 +276,7 @@ function requestPanel() {
   return h('div', { class: 'request-status', role: 'status' }, h('p', {}, ({ queued: 'Your request is queued. Your runner will receive it when it is online.', delivered: 'Your runner is processing the request.', done: 'Your runner completed the request.', refused: m.result?.reason || 'Your runner refused the request. Check its local approvals in Settings.', expired: 'The request expired before your runner handled it. Try again when it is online.' })[m.state] || m.state),
     m.result?.approvalId && m.result?.taskId ? h('button', { class: 'primary', onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: m.toDeviceId, action: 'start_approved_run', payload: { taskId: m.result.taskId, approvalId: m.result.approvalId } }); await pollRequest(); }) }, 'Start approved task') : '');
 }
-function runnerStatusPanel() { const policy = { ask: 'Each task needs approval on this computer.', off: 'Remote starts are turned off on this computer.', auto: 'Tickets from your trusted devices can be started here.' }[runnerStatus.remoteStart] || 'Check this computer’s approvals in Settings.'; return h('section', { class: 'panel' }, h('h2', {}, 'Your runner'), h('p', { class: 'muted' }, policy), (runnerStatus.approvals || []).map(a => h('div', { class: 'row' }, h('div', { class: 'grow' }, a.ticket || 'Approved task'), h('button', { class: 'primary', onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: activeRequest.toDeviceId, action: 'start_approved_run', payload: { taskId: a.taskId, approvalId: a.approvalId } }); runnerStatus = null; await pollRequest(); }) }, 'Start approved task')))); }
+function runnerStatusPanel() { const policy = { ask: 'Each task needs approval on this computer.', off: 'Remote starts are turned off on this computer.', auto: 'Tickets from your trusted devices can be started here.' }[runnerStatus.remoteStart] || 'Check this computer’s approvals in Settings.'; return h('section', { class: 'panel' }, h('h2', {}, 'Your runner'), h('p', { class: 'muted' }, policy), (runnerStatus.executions || []).map(a => h('div', { class: 'row' }, h('div', { class: 'grow' }, a.title || 'Approved task'), h('button', { class: 'primary', onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: activeRequest.toDeviceId, action: 'start_authorized_run', payload: { projectId: a.teamProjectId, ticketId: a.ticketId, executionId: a.executionId, fenceId: a.fence } }); runnerStatus = null; await pollRequest(); }) }, 'Start approved task')))); }
 
 window.addEventListener('load', () => {
   const native = nativeApp();
@@ -294,3 +294,47 @@ window.addEventListener('load', () => {
     native.OpenExternal(link.href).catch(err => { state.error = err.message; render(); });
   });
 });
+
+const executionViews = new Map();
+function ownExecutionPanel(k) {
+  const key = k.projectId + ':' + k.id;
+  let view = executionViews.get(key);
+  const refresh = async () => {
+    const detail = await deviceApi('GET', '/execution/detail?projectId=' + encodeURIComponent(k.projectId) + '&ticketId=' + encodeURIComponent(k.id));
+    const schedules = await api('GET', '/projects/' + k.projectId + '/schedules');
+    const scheduled = schedules.find(s => s.ticketId === k.id && !['completed', 'canceled'].includes(s.state));
+    view = { ...view, detail, schedule: scheduled };
+    if (!view.selection) view.selection = { projectId: k.projectId, ticketId: k.id, executionId: scheduled?.executionId || 'exe_' + crypto.randomUUID().replaceAll('-', ''), runnerId: detail.runners.find(r => r.kind === 'local' && !r.disabled && !r.removed)?.id || '', agentId: detail.agents.find(a => a.available)?.id || 'codex', model: 'default', reasoning: 'default', interaction: 'interactive' };
+    if (scheduled && view.selection.executionId !== scheduled.executionId) { view.selection.executionId = scheduled.executionId; view.preview = null; }
+    executionViews.set(key, view);
+  };
+  if (!view) return h('section', { class: 'handoff' }, h('h3', {}, 'Your agent'), h('p', { class: 'muted' }, 'Choose your own runner and review its effective policy before approving a run.'), h('button', { class: 'primary', onclick: () => act(refresh) }, 'Agent controls'));
+  const selection = view.selection;
+  const change = (field, value) => { selection[field] = value; view.preview = null; view.approval = null; };
+  const agent = h('select', { name: 'agent-' + k.id, onchange: e => change('agentId', e.target.value) }, view.detail.agents.map(a => h('option', { value: a.id, selected: a.id === selection.agentId }, a.name + (a.available ? '' : ' · unavailable'))));
+  const runner = h('select', { name: 'runner-' + k.id, onchange: e => change('runnerId', e.target.value) }, view.detail.runners.filter(r => r.kind === 'local' && !r.removed && !r.disabled).map(r => h('option', { value: r.id, selected: r.id === selection.runnerId }, r.name + (r.online ? ' · online' : ' · offline'))));
+  const model = h('input', { name: 'model-' + k.id, value: selection.model, maxlength: 100, oninput: e => change('model', e.target.value), placeholder: 'default' });
+  const reasoning = h('input', { name: 'reasoning-' + k.id, value: selection.reasoning, maxlength: 40, oninput: e => change('reasoning', e.target.value), placeholder: 'default' });
+  const interaction = h('select', { name: 'interaction-' + k.id, onchange: e => change('interaction', e.target.value) }, [['interactive', 'Ask me when needed'], ['autonomous', 'Investigate independently'], ['autonomous_stop_if_blocked', 'Stop if blocked']].map(([value, label]) => h('option', { value, selected: value === selection.interaction }, label)));
+  const preapprove = h('input', { type: 'checkbox', name: 'preapprove-' + k.id, checked: !!selection.preapprove, onchange: e => { selection.preapprove = e.target.checked; } });
+  const request = () => ({ ...selection, digest: view.preview?.digest || '' });
+  const control = (action, run, question, option, reply) => act(async () => { await deviceApi('POST', '/execution/' + action, { projectId: k.projectId, ticketId: k.id, runId: run, questionId: question || '', option: option || '', reply: reply || '' }); await refresh(); });
+  const questions = view.detail.questions.filter(q => q.state === 'pending').map(q => {
+    const answer = h('input', { name: 'agent-reply-' + q.id, maxlength: 2000, 'aria-label': 'Your answer' });
+    return h('div', { class: 'execution-row' }, h('strong', {}, q.kind === 'approval' ? 'Permission requested' : 'Your agent asks'), h('p', { class: 'prose' }, q.prompt), q.context ? h('pre', {}, q.context) : '',
+      q.options?.length ? h('div', { class: 'actions' }, q.options.map(o => h('button', { class: 'plain', onclick: () => control('answer', q.runId, q.id, o) }, o))) : h('div', { class: 'actions' }, answer, h('button', { class: 'primary', onclick: () => control('answer', q.runId, q.id, '', answer.value) }, 'Reply')));
+  });
+  const runs = view.detail.runs.map(run => h('div', { class: 'execution-row' }, h('strong', {}, run.agentId + ' · ' + run.state), run.branch ? h('p', {}, 'Branch: ', h('code', {}, run.branch)) : '',
+    ['starting', 'running', 'waiting_for_user'].includes(run.state) ? h('button', { class: 'danger', onclick: () => control('stop', run.id) }, 'Stop my run') : '',
+    run.handoff ? h('details', {}, h('summary', {}, ['completed','failed','stopped','blocked'].includes(run.state) ? 'Review final handoff' : 'Review handoff'), h('pre', { class: 'prose' }, JSON.stringify(run.handoff, null, 2))) : ''));
+  return h('section', { class: 'handoff' }, h('h3', {}, 'Your agent'), h('p', { class: 'muted' }, 'Stop/restart is supported. Live pause is unavailable. Agent permissions remain configured on this computer.'),
+    field('Runner on this computer', runner), field('Agent', agent), field('Model', model), field('Reasoning', reasoning), field('Conversation policy', interaction),
+    h('p', { class: 'muted' }, 'To use another enrolled device, open this ticket there and approve its exact execution locally; use “Open in my runner” to send the signed request.'),
+    view.schedule ? h('p', {}, 'Scheduled request: ' + view.schedule.state + ' · ' + new Date(view.schedule.at).toLocaleString() + ' · ' + view.schedule.timezone) : '',
+    h('label', { class: 'execution-preapproval' }, preapprove, ' Keep this exact one-shot authorization for up to 30 days'),
+    h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: () => act(async () => { view.preview = await deviceApi('POST', '/execution/preview', request()); view.approval = null; }) }, 'Review execution policy'), h('button', { class: 'plain', onclick: () => act(refresh) }, 'Refresh progress')),
+    view.preview ? h('div', {}, h('h4', {}, 'Effective policy'), h('pre', {}, JSON.stringify({ runner: view.preview.request.runnerId, agent: view.preview.request.agentId, model: view.preview.request.model, interaction: view.preview.request.interaction, ...view.preview.runtimePolicy }, null, 2)),
+      h('details', {}, h('summary', {}, 'Untrusted task context'), h('pre', { class: 'prose' }, view.preview.title + '\n' + view.preview.description)),
+      h('button', { class: 'primary', onclick: () => act(async () => { view.approval = await deviceApi('POST', '/execution/approve', request()); if (!view.schedule && !selection.preapprove) { await deviceApi('POST', '/execution/start', request()); view.preview = null; view.approval = null; selection.executionId = 'exe_' + crypto.randomUUID().replaceAll('-', ''); await refresh(); } }) }, view.schedule || selection.preapprove ? 'Approve this execution once' : 'Approve and start my run')) : '',
+    view.approval ? h('p', { role: 'status' }, 'Authorized once until ' + new Date(view.approval.expiresAt).toLocaleString() + '. The scheduled request will wait for eligibility and this runner.') : '', questions, runs);
+}

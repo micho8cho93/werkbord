@@ -187,3 +187,7 @@ func lastLine(s string) string {
 	}
 	return s
 }
+
+func (a *Adapter) ExecutionPolicy() map[string]string {
+	return map[string]string{"sandbox": a.cfg.Sandbox, "approvalPolicy": a.cfg.ApprovalPolicy, "defaultModel": a.cfg.Model}
+}

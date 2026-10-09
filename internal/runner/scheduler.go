@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"devboard/internal/domain"
+	"devboard/internal/integration"
 	"devboard/internal/store"
 	"time"
 )
@@ -95,4 +97,14 @@ func (m *Manager) ScheduleLoop(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
+}
+
+// ScheduleAuthorized dispatches an externally coordinated, locally approved
+// request through Start's scheduler, capacity, repository and runtime gates.
+// No external context alters the existing Individual scheduling configuration.
+func (m *Manager) ScheduleAuthorized(ctx context.Context, in integration.ExecutionDispatch) (*domain.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return m.Start(ctx, StartInput{Authorization: &in})
 }

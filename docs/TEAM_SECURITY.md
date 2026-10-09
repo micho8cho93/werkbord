@@ -70,3 +70,9 @@ Nebula **1.11.2** (MIT) and rqlite **10.5.2** (MIT, source commit `a73dd2e63acb7
 ## User connector boundary
 
 Phase 1 uses an `integration-v1` revocable loopback grant. Workspace Hosts never receive the Individual controller token or this grant. The login-user connector refuses root and authority vaults, exposes no execution interface, and signs allowlisted metadata reports with its enrolled device. Team fences each report to current project membership, device, holder and assignment generation; it never interprets run success as approval. Raw output, credentials and detailed handoffs stay local. See [INTEGRATION.md](INTEGRATION.md).
+
+Phase 2 owner controls and shared request scheduling are documented in
+[EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md). Metadata-only grants
+cannot dispatch; a dispatch-only grant cannot approve. Valid signatures never
+replace local policy checks. Revocation prevents new authorization without
+silently terminating an accepted local process.

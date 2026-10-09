@@ -17,8 +17,9 @@ import (
 type Action string
 
 const (
-	// OpenTicketOnRunner: show a ticket the sender holds in the target runner's
-	// own Werkbord, as a task to start there (what "Open in my runner" does).
+	// StartAuthorizedExecution dispatches an exact Individual-owned authorization.
+	ActionStartAuthorizedExecution Action = "start_authorized_run"
+	// OpenTicketOnRunner shows a held ticket in the owner's Individual controller.
 	ActionOpenTicketOnRunner Action = "open_ticket_on_runner"
 	// StartApprovedRun: start a run the target runner's owner has already approved.
 	ActionStartApprovedRun Action = "start_approved_run"
@@ -39,16 +40,17 @@ type spec struct {
 }
 
 var specs = map[Action]spec{
-	ActionOpenTicketOnRunner:     {NeedsTarget: true, Payload: OpenTicketOnRunner{}},
-	ActionStartApprovedRun:       {NeedsTarget: true, Payload: StartApprovedRun{}},
-	ActionCancelRun:              {NeedsTarget: true, Payload: CancelRun{}},
-	ActionRespondToAgentQuestion: {NeedsTarget: true, Payload: RespondToAgentQuestion{}},
-	ActionFetchRunnerStatus:      {NeedsTarget: true, Payload: FetchRunnerStatus{}},
+	ActionStartAuthorizedExecution: {NeedsTarget: true, Payload: StartAuthorizedExecution{}},
+	ActionOpenTicketOnRunner:       {NeedsTarget: true, Payload: OpenTicketOnRunner{}},
+	ActionStartApprovedRun:         {NeedsTarget: true, Payload: StartApprovedRun{}},
+	ActionCancelRun:                {NeedsTarget: true, Payload: CancelRun{}},
+	ActionRespondToAgentQuestion:   {NeedsTarget: true, Payload: RespondToAgentQuestion{}},
+	ActionFetchRunnerStatus:        {NeedsTarget: true, Payload: FetchRunnerStatus{}},
 }
 
 // Actions lists every action, in a stable order.
 func Actions() []Action {
-	return []Action{ActionOpenTicketOnRunner, ActionStartApprovedRun, ActionCancelRun, ActionRespondToAgentQuestion, ActionFetchRunnerStatus}
+	return []Action{ActionStartAuthorizedExecution, ActionOpenTicketOnRunner, ActionStartApprovedRun, ActionCancelRun, ActionRespondToAgentQuestion, ActionFetchRunnerStatus}
 }
 
 // Known reports whether a is an action that exists.
@@ -76,8 +78,16 @@ type OpenTicketOnRunner struct {
 	TicketID  string `json:"ticketId"`
 }
 
-// StartApprovedRun names a task and the approval that allows its run. The target
-// checks the approval is its own owner's; the sender cannot supply one.
+// StartAuthorizedExecution carries no execution settings or runtime authority.
+type StartAuthorizedExecution struct {
+	ProjectID   string `json:"projectId"`
+	TicketID    string `json:"ticketId"`
+	ExecutionID string `json:"executionId"`
+	FenceID     string `json:"fenceId"`
+}
+
+// StartApprovedRun is the legacy task approval action. Production execution
+// bridges require an Individual-owned task/policy-bound authorization instead.
 type StartApprovedRun struct {
 	TaskID     string `json:"taskId"`
 	ApprovalID string `json:"approvalId"`
@@ -164,6 +174,13 @@ func checkPayload(a Action, v any) error {
 		return nil
 	}
 	switch p := v.(type) {
+	case StartAuthorizedExecution:
+		for name, value := range map[string]string{"projectId": p.ProjectID, "ticketId": p.TicketID, "executionId": p.ExecutionID, "fenceId": p.FenceID} {
+			if err := id(name, value); err != nil {
+				return err
+			}
+		}
+		return nil
 	case OpenTicketOnRunner:
 		if err := id("projectId", p.ProjectID); err != nil {
 			return err

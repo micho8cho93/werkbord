@@ -117,6 +117,10 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("PUT /api/team/v1/projects/{id}/tickets/{tid}/progress", s.handleReportProgress)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/tickets/{tid}/progress", s.handleTicketProgress)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/handoff", s.handleHandoff)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/schedules", s.handleSchedules)
+	api.HandleFunc("PUT /api/team/v1/projects/{id}/tickets/{tid}/schedule", s.handleSetSchedule)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/schedule/dispatch", s.handleDispatchSchedule)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/schedule/cancel", s.handleCancelSchedule)
 	// repository awareness, activity and invites
 	api.HandleFunc("GET /api/team/v1/projects/{id}/repository", s.handleRepositoryState)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/repository/branches", s.handleReportBranches)

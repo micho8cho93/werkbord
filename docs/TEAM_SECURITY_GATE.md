@@ -16,7 +16,7 @@ Canonical schema 2 Ed25519 licenses are verified offline and stored with replica
 
 Mac services use separate Keychain wrapping keys for ordinary device material and workspace root/CA/database authority material. Unsupported OS storage fails closed and requires a protected external passphrase file. The explicit adjacent-file mode is transition/evaluation support. Authority encryption separation does not protect against the same authorized service UID or root.
 
-The runner verifies envelopes using sender keys approved and pinned locally. A Workspace Host cannot substitute a pin. The local bridge has five closed semantic operations: open a held ticket, start a locally approved task, cancel a mapped run, answer an existing question and fetch mapped status. Local start approvals are task-bound and spent durably before dispatch. No arbitrary shell, process, filesystem, HTTP proxy, SSH, PTY or Git command is exposed.
+The runner verifies envelopes using sender keys approved and pinned locally. A Workspace Host cannot substitute a pin. The local bridge retains closed semantic operations: open a held ticket, start a locally approved task, cancel a mapped run, answer an existing question and fetch mapped status. Phase 2 local start approvals bind exact task context and policy and are consumed with the run identifier by Individual in the run-creation transaction. No arbitrary shell, process, filesystem, HTTP proxy, SSH, PTY or Git command is exposed.
 
 The offline vendor utility is separate source under `cmd/werkbord-team/vendor`, excluded from customer packages. It receives PKCS#8 private key material on stdin and writes a new owner-only license or release signature. License and release keys are distinct. CLI installers authenticate a product/tag-bound Ed25519 checksum manifest using an independently provisioned public PEM before extracting or executing a package. Online generic CI no longer publishes unsigned Team CLI archives. Mac DMGs retain the separate Apple Developer ID/notarization trust path.
 
@@ -172,3 +172,9 @@ No human-operated clean install, clean Mac install, real boot/unlock service tes
 6. Restore a customer-encrypted backup onto a replacement host with separate authority unlock material. Demonstrate stopped/fenced old hosts, correct fingerprints, expired replay windows, reapplied revocations and the expected data-loss boundary. Do not count a local scratch restore as this acceptance.
 
 No commit or tag from this gate is permission to publish or deploy. See [TEAM_INSTALL.md](TEAM_INSTALL.md), [TEAM_BACKUP_RECOVERY.md](TEAM_BACKUP_RECOVERY.md), [TEAM_HOST_REPLACEMENT.md](TEAM_HOST_REPLACEMENT.md) and [TEAM_DISASTER_RECOVERY.md](TEAM_DISASTER_RECOVERY.md) for operator procedures.
+
+Phase 2 owner controls and shared request scheduling are documented in
+[EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md). Metadata-only grants
+cannot dispatch; a dispatch-only grant cannot approve. Valid signatures never
+replace local policy checks. Revocation prevents new authorization without
+silently terminating an accepted local process.

@@ -45,6 +45,8 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, domain.ErrDuplicate):
 		writeError(w, http.StatusConflict, "duplicate", err.Error())
+	case errors.Is(err, domain.ErrForbidden):
+		writeError(w, 403, "forbidden", err.Error())
 	case errors.Is(err, domain.ErrConflict):
 		writeError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, domain.ErrInvalid), errors.Is(err, domain.ErrTransition):

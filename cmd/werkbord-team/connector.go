@@ -26,11 +26,12 @@ import (
 )
 
 type connectorConfig struct {
-	Version         int                  `json:"version"`
-	StateDir        string               `json:"stateDir"`
-	RunnerBase      string               `json:"runnerBase"`
-	AccessTokenFile string               `json:"accessTokenFile"`
-	Workspaces      []connectorWorkspace `json:"workspaces"`
+	Version            int                  `json:"version"`
+	StateDir           string               `json:"stateDir"`
+	RunnerBase         string               `json:"runnerBase"`
+	ExecutionTokenFile string               `json:"executionTokenFile,omitempty"`
+	AccessTokenFile    string               `json:"accessTokenFile"`
+	Workspaces         []connectorWorkspace `json:"workspaces"`
 }
 type connectorWorkspace struct {
 	DataDir        string            `json:"dataDir"`
@@ -38,6 +39,25 @@ type connectorWorkspace struct {
 	PassphraseFile string            `json:"passphraseFile,omitempty"`
 	Bases          []string          `json:"bases,omitempty"`
 	Projects       map[string]string `json:"projects"`
+}
+
+func loadConnectorExecution(ctx context.Context, base, tokenFile string) (connector.ExecutionLocal, error) {
+	if tokenFile == "" {
+		return nil, nil
+	}
+	raw, err := privateConnectorFile(tokenFile, 4096)
+	if err != nil {
+		return nil, err
+	}
+	client, err := localwerkbord.New(base, strings.TrimSpace(string(raw)))
+	clear(raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := client.RequireDispatchAccess(ctx); err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 func privateConnectorFile(path string, limit int64) ([]byte, error) {
@@ -64,6 +84,7 @@ func cmdConnector(ctx context.Context, cfg config.Config, args []string, stdout,
 	fs := flag.NewFlagSet("connector "+args[0], flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	if args[0] == "connect" {
+		execution := fs.Bool("execution", false, "mint dispatch-only access for locally approved scheduled work")
 		base := fs.String("runner", localwerkbord.DefaultBase, "your controller's loopback address")
 		full := fs.String("controller-token-file", "", "controller credential used once to mint narrow access")
 		access := fs.String("access-file", "", "private file to save the revocable local access grant")
@@ -94,7 +115,12 @@ func cmdConnector(ctx context.Context, cfg config.Config, args []string, stdout,
 				_ = os.Remove(*access)
 			}
 		}()
-		token, err := localwerkbord.ConnectSync(ctx, *base, strings.TrimSpace(string(raw)))
+		var token string
+		if *execution {
+			token, err = localwerkbord.ConnectDispatch(ctx, *base, strings.TrimSpace(string(raw)))
+		} else {
+			token, err = localwerkbord.ConnectSync(ctx, *base, strings.TrimSpace(string(raw)))
+		}
 		clear(raw)
 		if err != nil {
 			return err
@@ -200,6 +226,10 @@ func cmdConnector(ctx context.Context, cfg config.Config, args []string, stdout,
 	if err := local.RequireIntegrationAccess(ctx); err != nil {
 		return err
 	}
+	execution, err := loadConnectorExecution(ctx, cc.RunnerBase, cc.ExecutionTokenFile)
+	if err != nil {
+		return err
+	}
 	cs := []*connector.Connector{}
 	seen := map[string]bool{}
 	for _, wc := range cc.Workspaces {
@@ -242,7 +272,7 @@ func cmdConnector(ctx context.Context, cfg config.Config, args []string, stdout,
 		if err != nil {
 			return err
 		}
-		cs = append(cs, &connector.Connector{WorkspaceID: mat.Meta.WorkspaceID, MemberID: string(member), DeviceID: mat.Host.DeviceID(), Host: host, Local: local, Journal: j, Projects: wc.Projects})
+		cs = append(cs, &connector.Connector{WorkspaceID: mat.Meta.WorkspaceID, MemberID: string(member), DeviceID: mat.Host.DeviceID(), Host: host, Local: local, Execution: execution, Journal: j, Projects: wc.Projects})
 	}
 	// Each workspace has its own retry schedule. An offline team never stops another.
 	runOne := func(c *connector.Connector) error { return c.Tick(ctx) }

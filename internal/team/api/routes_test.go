@@ -34,7 +34,11 @@ var projectRoutes = []string{
 	"PUT /projects/{id}/tickets/{tid}/progress", "GET /projects/{id}/tickets/{tid}/progress", // metadata observations only; no execution effects
 	"GET /projects/{id}", "PATCH /projects/{id}",
 	"GET /projects/{id}/members", "PUT /projects/{id}/members/{memberId}", "DELETE /projects/{id}/members/{memberId}",
-	"GET /projects/{id}/board", "GET /projects/{id}/people", "GET /projects/{id}/sync",
+	"GET /projects/{id}/board",
+	"GET /projects/{id}/schedules",
+	"PUT /projects/{id}/tickets/{tid}/schedule",
+	"POST /projects/{id}/tickets/{tid}/schedule/dispatch",
+	"POST /projects/{id}/tickets/{tid}/schedule/cancel", "GET /projects/{id}/people", "GET /projects/{id}/sync",
 	// Archive routes only change stored ticket metadata; they cannot execute work or reach a member.
 	"POST /projects/{id}/tickets/archive-done", "POST /projects/{id}/tickets/{tid}/archive",
 	"POST /projects/{id}/tickets", "GET /projects/{id}/tickets/{tid}", "PATCH /projects/{id}/tickets/{tid}",

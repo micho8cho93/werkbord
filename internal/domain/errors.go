@@ -7,6 +7,7 @@ import "errors"
 // Sentinel errors shared across layers. Adapters wrap these so callers can use
 // errors.Is regardless of where the failure originated.
 var (
+	ErrForbidden  = errors.New("forbidden")
 	ErrNotFound   = errors.New("not found")
 	ErrConflict   = errors.New("conflict")
 	ErrInvalid    = errors.New("invalid")

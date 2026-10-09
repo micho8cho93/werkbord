@@ -19,8 +19,9 @@ import (
 // for them, and only from this computer. It cannot register or change a repository, change a setting, touch Git or
 // GitHub, pair a runner, read the controller's own token, or mint another token. What a run is allowed to do is still
 // decided by the task's and the project's own execution settings and by the agent's own permission prompts, which come
-// to the person at the controller: a request through this door starts a run with the task's own configuration or not at
-// all (it cannot name an agent, a model, a policy, instructions or a runner).
+// to the person at the controller. Legacy grants cannot name an agent, model, policy, instructions or runner. The
+// separate execution-local-v1 scope can review exact selections and approve a task-bound execution; execution-dispatch-v1
+// can only retrieve and dispatch an existing approval. Neither can change runtime permissions or choose dispatch overrides.
 //
 // The owner sees every program that has access and revokes any of them at once (GET and DELETE /api/local-access).
 
@@ -31,6 +32,16 @@ type scopedRoute struct {
 	// fields are the top-level JSON fields a request body may have. nil means the route takes no body (an empty
 	// body, or {}, is fine); a body with any other field is refused.
 	fields []string
+}
+
+var executionScopedRoutes = []scopedRoute{
+	{method: "GET", pattern: "/api/agents"},
+	{method: "GET", pattern: "/api/projects/{}/tasks/{}/runs"},
+	{method: "POST", pattern: "/api/execution/v1/preview", fields: []string{"executionId", "projectId", "taskId", "fence", "runnerId", "agentId", "model", "reasoning", "interaction", "notBefore", "deadline"}},
+	{method: "POST", pattern: "/api/execution/v1/approvals", fields: []string{"preview", "expiresAt"}},
+	{method: "GET", pattern: "/api/execution/v1/approvals/{}"},
+	{method: "DELETE", pattern: "/api/execution/v1/approvals/{}"},
+	{method: "POST", pattern: "/api/execution/v1/dispatch", fields: []string{"executionId", "fence"}},
 }
 
 var scopedRoutes = []scopedRoute{
@@ -101,10 +112,26 @@ func fromThisComputer(r *http.Request) bool {
 func (s *Server) scoped(entry localaccess.Entry, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route, ok := scopedRouteFor(r.Method, r.URL.Path)
-		if entry.Scope != "" && entry.Scope != "integration-v1" {
+		if entry.Scope == "execution-local-v1" || entry.Scope == "execution-dispatch-v1" {
+			for _, candidate := range executionScopedRoutes {
+				if candidate.method == r.Method && matchSegments(candidate.pattern, r.URL.Path) {
+					route, ok = candidate, true
+				}
+			}
+		}
+		if entry.Scope != "" && entry.Scope != "integration-v1" && entry.Scope != "execution-local-v1" && entry.Scope != "execution-dispatch-v1" {
 			ok = false
 		}
 		if entry.Scope == "integration-v1" && !strings.HasPrefix(r.URL.Path, "/api/integration/v1/") && !(r.Method == "GET" && r.URL.Path == "/api/local-access/self") {
+			ok = false
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/execution/v1/") && entry.Scope != "execution-local-v1" && entry.Scope != "execution-dispatch-v1" {
+			ok = false
+		}
+		if entry.Scope == "execution-local-v1" && r.Method == "POST" && matchSegments("/api/projects/{}/tasks/{}/runs", r.URL.Path) {
+			ok = false
+		}
+		if entry.Scope == "execution-dispatch-v1" && !(r.Method == "POST" && r.URL.Path == "/api/execution/v1/dispatch" || r.Method == "GET" && (strings.HasPrefix(r.URL.Path, "/api/execution/v1/approvals/") || r.URL.Path == "/api/local-access/self")) {
 			ok = false
 		}
 		if !ok {

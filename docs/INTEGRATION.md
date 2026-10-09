@@ -243,3 +243,7 @@ replicated service harness with a pinned source build, including no-quorum
 refusal and retry after healing. `scripts/test-team-integration-browser.cjs`
 checks real signed progress and stale/multiple-device/empty states on desktop and
 phone, using disposable APIs and storage.
+
+Phase 2 adds separately scoped, owner-approved execution and shared schedules.
+See [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md); the v1 metadata grant
+and existing synchronization behavior remain unchanged.

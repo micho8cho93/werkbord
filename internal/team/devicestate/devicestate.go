@@ -94,10 +94,11 @@ type Approval struct {
 
 // Outcome is what was done with a request, kept so that a request handed over twice is answered the same way and done once.
 type Outcome struct {
-	MessageID string          `json:"messageId"`
-	State     string          `json:"state"` // done or refused
-	Result    json.RawMessage `json:"result,omitempty"`
-	At        time.Time       `json:"at"`
+	RequestHash string          `json:"requestHash,omitempty"`
+	MessageID   string          `json:"messageId"`
+	State       string          `json:"state"` // done or refused
+	Result      json.RawMessage `json:"result,omitempty"`
+	At          time.Time       `json:"at"`
 }
 
 // Limits.
@@ -118,13 +119,14 @@ var (
 )
 
 type filedata struct {
-	Settings  Settings             `json:"settings"`
-	Senders   []Sender             `json:"senders"`
-	Opened    []Opened             `json:"opened"`
-	Approvals []Approval           `json:"approvals"`
-	Outcomes  []Outcome            `json:"outcomes"`
-	Replays   map[string]time.Time `json:"replays"`
-	LocalKey  string               `json:"localKey"`
+	Executions []ExecutionRef       `json:"executions,omitempty"`
+	Settings   Settings             `json:"settings"`
+	Senders    []Sender             `json:"senders"`
+	Opened     []Opened             `json:"opened"`
+	Approvals  []Approval           `json:"approvals"`
+	Outcomes   []Outcome            `json:"outcomes"`
+	Replays    map[string]time.Time `json:"replays"`
+	LocalKey   string               `json:"localKey"`
 }
 
 // State is the daemon's memory on this computer.
@@ -250,6 +252,7 @@ func (s *State) update(fn func(d *filedata) error) error {
 	// fn works on a copy of the slices it appends to: the previous state is put back if saving fails.
 	prev.Senders = append([]Sender(nil), s.d.Senders...)
 	prev.Opened = append([]Opened(nil), s.d.Opened...)
+	prev.Executions = append([]ExecutionRef(nil), s.d.Executions...)
 	prev.Approvals = append([]Approval(nil), s.d.Approvals...)
 	prev.Outcomes = append([]Outcome(nil), s.d.Outcomes...)
 	prev.Replays = map[string]time.Time{}
@@ -308,6 +311,7 @@ func (s *State) SetSettings(v Settings) error {
 func (s *State) ResetWorkspace() error {
 	return s.update(func(d *filedata) error {
 		d.Senders, d.Opened, d.Approvals, d.Outcomes = nil, nil, nil, nil
+		d.Executions = nil
 		d.Replays = map[string]time.Time{}
 		return nil
 	})

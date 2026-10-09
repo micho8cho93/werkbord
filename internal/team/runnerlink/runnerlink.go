@@ -18,6 +18,8 @@ package runnerlink
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,10 +28,13 @@ import (
 	"time"
 
 	"devboard/internal/envelope"
+	"devboard/internal/integration"
+	"devboard/internal/team/connector"
 	"devboard/internal/team/devicestate"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/hostclient"
 	"devboard/internal/team/localwerkbord"
+	"strings"
 )
 
 // Bridge is what the handler needs of the person's own Werkbord. *localwerkbord.Client is one.
@@ -107,7 +112,15 @@ func clip(s string, n int) string {
 func (h *Handler) Handle(ctx context.Context, m domain.DeviceMessage) Result {
 	h.workMu.Lock()
 	defer h.workMu.Unlock()
+	var request envelope.Envelope
+	_ = json.Unmarshal(m.Envelope, &request)
+	canonical, _ := json.Marshal(request)
+	digest := sha256.Sum256(canonical)
+	requestHash := hex.EncodeToString(digest[:])
 	if o, ok := h.State.Outcome(m.ID); ok {
+		if o.RequestHash == "" || o.RequestHash != requestHash {
+			return refuse("the completed request was altered")
+		}
 		var body map[string]any
 		_ = json.Unmarshal(o.Result, &body)
 		return Result{State: domain.MessageState(o.State), Body: body}
@@ -125,7 +138,7 @@ func (h *Handler) Handle(ctx context.Context, m domain.DeviceMessage) Result {
 		return res
 	}
 	raw, _ := json.Marshal(res.Body)
-	if err := h.State.RecordOutcome(devicestate.Outcome{MessageID: m.ID, State: string(res.State), Result: raw}); err != nil && h.Log != nil {
+	if err := h.State.RecordOutcome(devicestate.Outcome{MessageID: m.ID, RequestHash: requestHash, State: string(res.State), Result: raw}); err != nil && h.Log != nil {
 		h.Log.Warn("could not remember what was done with a request", "err", err)
 	}
 	return res
@@ -189,6 +202,8 @@ func (h *Handler) process(ctx context.Context, m domain.DeviceMessage) (Result, 
 	}
 	var res Result
 	switch p := ver.Payload.(type) {
+	case envelope.StartAuthorizedExecution:
+		res = h.startAuthorized(ctx, env.WorkspaceID, p)
 	case envelope.FetchRunnerStatus:
 		res = h.status(ctx)
 	case envelope.OpenTicketOnRunner:
@@ -233,7 +248,7 @@ func (h *Handler) status(ctx context.Context) Result {
 			approvals = append(approvals, map[string]string{"taskId": a.TaskID, "approvalId": a.ID, "ticket": a.Ticket})
 		}
 	}
-	return done(map[string]any{"status": st, "approvals": approvals, "remoteStart": string(h.State.Settings().RemoteStart)})
+	return done(map[string]any{"executions": h.State.Executions(), "status": st, "approvals": approvals, "remoteStart": string(h.State.Settings().RemoteStart)})
 }
 
 func (h *Handler) open(ctx context.Context, env envelope.Envelope, p envelope.OpenTicketOnRunner) Result {
@@ -260,7 +275,20 @@ func (h *Handler) open(ctx context.Context, env envelope.Envelope, p envelope.Op
 	if h.SourceRef != nil {
 		task.SourceRef = h.SourceRef(p.ProjectID, p.TicketID)
 	}
-	id, err := h.Bridge.CreateTask(ctx, proj.ID, task)
+	var id string
+	if bridge, ok := h.Bridge.(interface {
+		Import(context.Context, integration.Import) (integration.Imported, error)
+	}); ok {
+		prefix := "wb/" + env.WorkspaceID + "/"
+		branch := ho.Git.Branch
+		if !strings.HasPrefix(branch, prefix) {
+			branch = prefix + branch
+		}
+		imported, e := bridge.Import(ctx, integration.Import{Schema: integration.Schema, SourceRef: connector.Source(env.WorkspaceID, p.ProjectID, p.TicketID, h.Self.MemberID), ProjectID: proj.ID, Repository: ho.Git.Repository, Title: task.Title, Description: "Local working branch: " + branch + ". Use this task's working branch in place of the Team branch suggestion below.\n\n" + ho.Prompt, WorkBranch: branch, BaseBranch: ho.Git.BaseBranch})
+		id, err = imported.TaskID, e
+	} else {
+		id, err = h.Bridge.CreateTask(ctx, proj.ID, task)
+	}
 	if err != nil {
 		return h.fromBridge(err, nil)
 	}
@@ -276,6 +304,9 @@ func (h *Handler) open(ctx context.Context, env envelope.Envelope, p envelope.Op
 }
 
 func (h *Handler) start(ctx context.Context, p envelope.StartApprovedRun) Result {
+	if _, ok := h.Bridge.(executionBridge); ok {
+		return refuse("legacy start approval cannot launch here; review the effective policy and approve an execution locally")
+	}
 	if h.State.Settings().RemoteStart == devicestate.RemoteStartOff {
 		return refuse("starting work from another device is turned off on this computer")
 	}

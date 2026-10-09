@@ -9,8 +9,8 @@
 //     loopback address, whatever name was given, and redirects are not followed.
 //   - It holds a *local access token* (internal/localaccess in the individual product), not Werkbord's own token. That
 //     token is accepted by Werkbord on a short list of routes and cannot register repositories, change settings, touch Git,
-//     pair runners or choose how a run runs. The bridge asks only for what that list allows, and never sends a field that
-//     would name an agent, a model, a policy, instructions, a runner or a schedule.
+//     pair runners or set runtime permissions. Local owner interaction can review and approve an exact runner, agent,
+//     model and interaction policy. Remote dispatch has a separate scope and carries only an approved identifier and fence.
 //   - It has no way to run a command, read a file or reach a path: there is no such method, and nothing it sends has a field
 //     that could carry one.
 //
@@ -562,4 +562,113 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 		st.Runner = st.Runner || r.Online
 	}
 	return st, nil
+}
+
+// ConnectExecution grants the authenticated local desktop task-bound controls.
+// Hosts never receive it. The signed mailbox cannot call preview or approval.
+func ConnectExecution(ctx context.Context, base, token string, names ...string) (string, error) {
+	name := "Werkbord Team execution"
+	if len(names) > 0 {
+		name = names[0]
+	}
+	return connect(ctx, base, token, name, "execution-local-v1")
+}
+func ConnectDispatch(ctx context.Context, base, token string) (string, error) {
+	return connect(ctx, base, token, "Werkbord Team scheduled dispatch", "execution-dispatch-v1")
+}
+func (c *Client) ExecutionPreview(ctx context.Context, in integration.ExecutionRequest) (integration.ExecutionPreview, error) {
+	var out integration.ExecutionPreview
+	err := c.do(ctx, "POST", "/api/execution/v1/preview", in, &out)
+	return out, err
+}
+func (c *Client) ApproveExecution(ctx context.Context, in integration.ExecutionPreview, expires time.Time) (integration.ExecutionApproval, error) {
+	var out integration.ExecutionApproval
+	err := c.do(ctx, "POST", "/api/execution/v1/approvals", map[string]any{"preview": in, "expiresAt": expires}, &out)
+	return out, err
+}
+func (c *Client) ExecutionApproval(ctx context.Context, in integration.ExecutionDispatch) (integration.ExecutionApproval, error) {
+	var out integration.ExecutionApproval
+	if err := checkID(in.ExecutionID); err != nil {
+		return out, err
+	}
+	err := c.do(ctx, "GET", "/api/execution/v1/approvals/"+in.ExecutionID+"?fence="+url.QueryEscape(in.Fence), nil, &out)
+	return out, err
+}
+func (c *Client) DispatchExecution(ctx context.Context, in integration.ExecutionDispatch) (string, error) {
+	var out struct {
+		RunID string `json:"runId"`
+	}
+	err := c.do(ctx, "POST", "/api/execution/v1/dispatch", in, &out)
+	return out.RunID, err
+}
+func (c *Client) RevokeExecution(ctx context.Context, id string) error {
+	if err := checkID(id); err != nil {
+		return err
+	}
+	return c.do(ctx, "DELETE", "/api/execution/v1/approvals/"+id, nil, nil)
+}
+
+// Local detail is returned only to the authenticated owner renderer, never in
+// workspace progress reports or remote fetch_runner_status responses.
+func (c *Client) TaskDetail(ctx context.Context, pid, tid string) (map[string]any, error) {
+	if err := checkID(pid); err != nil {
+		return nil, err
+	}
+	if err := checkID(tid); err != nil {
+		return nil, err
+	}
+	var runReply struct {
+		Runs []map[string]any `json:"runs"`
+	}
+	var questionReply struct {
+		Questions []map[string]any `json:"questions"`
+	}
+	var agentReply struct {
+		Agents []map[string]any `json:"agents"`
+	}
+	var runnerReply struct {
+		Runners []map[string]any `json:"runners"`
+	}
+	if err := c.do(ctx, "GET", "/api/projects/"+pid+"/tasks/"+tid+"/runs", nil, &runReply); err != nil {
+		return nil, err
+	}
+	if err := c.do(ctx, "GET", "/api/projects/"+pid+"/questions", nil, &questionReply); err != nil {
+		return nil, err
+	}
+	if err := c.do(ctx, "GET", "/api/runners", nil, &runnerReply); err != nil {
+		return nil, err
+	}
+	if err := c.do(ctx, "GET", "/api/agents", nil, &agentReply); err != nil {
+		return nil, err
+	}
+	runs, questions, runners := runReply.Runs, questionReply.Questions, runnerReply.Runners
+	own := []map[string]any{}
+	ids := map[string]bool{}
+	for _, run := range runs {
+		if run["taskId"] == tid {
+			own = append(own, run)
+			if id, ok := run["id"].(string); ok {
+				ids[id] = true
+			}
+		}
+	}
+	qs := []map[string]any{}
+	for _, q := range questions {
+		if id, ok := q["runId"].(string); ok && ids[id] {
+			qs = append(qs, q)
+		}
+	}
+	return map[string]any{"runs": own, "questions": qs, "runners": runners, "agents": agentReply.Agents, "stopBehavior": "stop/restart; no live pause"}, nil
+}
+func (c *Client) RequireDispatchAccess(ctx context.Context) error {
+	var entry struct {
+		Scope string `json:"scope"`
+	}
+	if err := c.do(ctx, "GET", "/api/local-access/self", nil, &entry); err != nil {
+		return err
+	}
+	if entry.Scope != "execution-dispatch-v1" {
+		return errors.New("scheduled connector requires an execution-dispatch-v1 grant")
+	}
+	return nil
 }

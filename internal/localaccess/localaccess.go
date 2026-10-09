@@ -118,7 +118,7 @@ func (s *Store) Create(name string) (Entry, string, error) {
 
 // CreateScoped can restrict a grant to metadata exchange with no run control.
 func (s *Store) CreateScoped(name, scope string) (Entry, string, error) {
-	if scope != "" && scope != "integration-v1" {
+	if scope != "" && scope != "integration-v1" && scope != "execution-local-v1" && scope != "execution-dispatch-v1" {
 		return Entry{}, "", errors.New("unsupported local access scope")
 	}
 	name, err := CleanName(name)

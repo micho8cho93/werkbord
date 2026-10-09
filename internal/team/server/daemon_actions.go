@@ -104,7 +104,7 @@ func (d *Daemon) attachRunner(ctx context.Context) error {
 		cfg.Token = strings.TrimSpace(string(b))
 	}
 	// A previously revoked token is not silently reissued: reconnection is the explicit local button.
-	token, err := localwerkbord.Connect(ctx, base, cfg.Token, "Werkbord Team")
+	token, err := localwerkbord.ConnectExecution(ctx, base, cfg.Token, "Team execution "+mat.Host.DeviceID())
 	cfg.Token = ""
 	if err != nil {
 		return err
@@ -177,19 +177,7 @@ func (d *Daemon) revokeSender(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *Daemon) approveTask(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	for _, t := range d.state.OpenedTasks() {
-		if t.TaskID == id {
-			a, err := d.state.Allow(t.TaskID, t.ProjectID, t.Ticket)
-			if err != nil {
-				daemonFail(w, err)
-				return
-			}
-			httpkit.WriteJSON(w, 200, a)
-			return
-		}
-	}
-	daemonFail(w, errors.New("only a task opened on this computer may be approved here"))
+	daemonFail(w, errors.New("open this ticket's Agent controls and review its effective execution policy before approving"))
 }
 
 func (d *Daemon) sendRequest(w http.ResponseWriter, r *http.Request) {

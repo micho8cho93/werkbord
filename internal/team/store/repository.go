@@ -40,6 +40,9 @@ type Store interface {
 // Tx is a transaction's queries. It is deliberately a plain list of questions in
 // the domain's terms, with no SQL, row or cursor in any signature.
 type Tx interface {
+	Schedule(context.Context, string, string, string) (domain.Schedule, error)
+	Schedules(context.Context, string, string) ([]domain.Schedule, error)
+	SaveSchedule(context.Context, string, domain.Schedule, int64) error
 	Progress(context.Context, string, string, string, string) (domain.ProgressRecord, error)
 	SaveProgress(context.Context, string, string, string, domain.ProgressRecord) error
 	TicketProgress(context.Context, string, string, string) ([]domain.ProgressRecord, error)

@@ -946,3 +946,9 @@ ships if there is none, and start the controller, all by running the `werkbord` 
 ## Individual–Team integration contract
 
 Phase 1 adds `internal/integration` as a neutral DTO/identity-validation package. Individual exposes text-only imports and projected durable lifecycle events; Team accepts device-signed ordered progress reports. `internal/team/connector` reconciles them from a user-owned journal through the existing local bridge and host client. It never launches agents or handles the execution inbox. See [INTEGRATION.md](INTEGRATION.md).
+
+Phase 2 extends the neutral integration DTOs with exact-context execution
+authorizations. Only Individual stores and consumes them with run creation.
+Team schedules use the replicated transaction fence and permanently bind an
+execution to an enrolled owner device. Signed starts carry IDs only.
+See [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md).
