@@ -52,6 +52,47 @@ func TestOnlyADeviceReportsForItself(t *testing.T) {
 	}
 }
 
+// A device on a computer that already hosts another workspace says so, and the administrator is told it cannot be a Host.
+func TestADeviceThatHostsAnotherWorkspaceIsNotOfferedAsAHost(t *testing.T) {
+	n := withNetwork(t)
+	r := n.invite(n.owner, EnrollInviteInput{Capabilities: []domain.Capability{domain.CapabilityRunner}})
+	d := laptop(t, "bo-mac-mini")
+	resp := n.mustJoin(r, d, "Bo")
+	devActor := n.deviceActor(resp.DeviceToken)
+	p := desktopProfile()
+	p.HostConflict = true
+	if err := n.svc.Heartbeat(bg, devActor, p); err != nil {
+		t.Fatal(err)
+	}
+	rs, err := n.svc.Resilience(bg, n.owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, dh := range rs.Devices {
+		if dh.DeviceID == d.DeviceID() {
+			found = true
+			if dh.HostFit.Possible || len(dh.HostFit.Reasons) == 0 || dh.HostFit.Reasons[0] != domain.AdviceHostsElsewhere {
+				t.Fatalf("fit = %+v", dh.HostFit)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the device is not in the report")
+	}
+	// It is a fact about the device, and the device can take it back when the other workspace is gone.
+	p.HostConflict = false
+	if err := n.svc.Heartbeat(bg, devActor, p); err != nil {
+		t.Fatal(err)
+	}
+	rs, _ = n.svc.Resilience(bg, n.owner)
+	for _, dh := range rs.Devices {
+		if dh.DeviceID == d.DeviceID() && !dh.HostFit.Possible {
+			t.Fatalf("the device is still refused: %+v", dh.HostFit)
+		}
+	}
+}
+
 func TestResilienceIsForThosePeopleWhoManageDevices(t *testing.T) {
 	n := withNetwork(t)
 	bo, _ := n.member(n.owner, "Bo")

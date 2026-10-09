@@ -306,7 +306,12 @@ func (c *Client) Me(ctx context.Context) (Me, error) {
 
 // Heartbeat says this device is here and what kind of machine it is.
 func (c *Client) Heartbeat(ctx context.Context, p domain.DeviceProfile) error {
-	return c.Do(ctx, "POST", "/device/heartbeat", map[string]any{"platform": p.Platform, "form": string(p.Form), "sleeps": p.Sleeps, "sleepEvents": p.SleepEvents, "version": p.Version}, nil)
+	body := map[string]any{"platform": p.Platform, "form": string(p.Form), "sleeps": p.Sleeps, "sleepEvents": p.SleepEvents, "version": p.Version}
+	if p.HostConflict {
+		// Sent only when true: a Workspace Host from before this field existed refuses a field it does not know.
+		body["hostConflict"] = true
+	}
+	return c.Do(ctx, "POST", "/device/heartbeat", body, nil)
 }
 
 // Inbox collects the signed requests waiting for this device, waiting up to wait for one.

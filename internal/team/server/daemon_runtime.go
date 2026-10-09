@@ -135,7 +135,9 @@ func (d *Daemon) deviceLoop(ctx context.Context) {
 				d.problem(nil)
 			}
 			if !mat.Meta.Authority {
-				_ = d.collectHost(ctx)
+				if err := d.collectHost(ctx); errors.Is(err, errHostingBlocked) {
+					d.problem(err)
+				}
 			}
 			d.mu.RLock()
 			roleChanged := d.mat != nil && d.mat.Meta.Authority != hostRole
@@ -210,6 +212,7 @@ func (d *Daemon) reconcileDevice(ctx context.Context) error {
 	}
 	d.mu.Lock()
 	d.lastSync = time.Now()
+	d.role = string(me.Member.Role)
 	d.mu.Unlock()
 	if err := host.Heartbeat(ctx, d.profile()); err != nil {
 		return err
@@ -378,6 +381,11 @@ func (d *Daemon) collectHost(ctx context.Context) error {
 	}
 	ca, err := v.CACertificate()
 	if err != nil {
+		return err
+	}
+	// Something is waiting for this device: it has been asked to be a Workspace Host. Another workspace on this computer
+	// that already is one has the ports; say so rather than start a second that cannot run.
+	if err := d.hostingAllowed(); err != nil {
 		return err
 	}
 	secrets, err := mat.Host.OpenSecrets(time.Now(), mat.Meta.WorkspaceID, mat.Meta.Fingerprint, string(ca), sealed)

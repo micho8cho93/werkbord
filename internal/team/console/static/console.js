@@ -19,6 +19,13 @@
 
 const app = document.getElementById('app');
 
+// A device service that holds several Team workspaces serves each under /w/<slot>/. Everything this page asks for is under
+// the same prefix, and what it remembers is its own workspace's alone: two workspaces open side by side in one window
+// share an origin, and so would otherwise share a token.
+const BASE = (/^\/w\/[a-z0-9_]{1,24}(?=\/|$)/.exec(location.pathname) || [''])[0];
+const SLOT = BASE.slice(3) || 'main';
+const KEY = (name) => 'werkbord-team-' + name + (BASE ? ':' + SLOT : '');
+
 const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['members', 'Members']];
 const ADMIN_TABS = [['settings', 'This computer'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
 const PROJECT_TABS = new Set(['board', 'repository', 'activity', 'people']);
@@ -39,13 +46,13 @@ try {
   const tok = /(?:^|[#&])token=([^&]+)/.exec(location.hash);
   const inv = /(?:^|[#&])invite=([^&]+)/.exec(location.hash);
   const join = /(?:^|[#&])join=([^&]+)/.exec(location.hash);
-  if (tok) sessionStorage.setItem('werkbord-team-token', decodeURIComponent(tok[1]));
+  if (tok) sessionStorage.setItem(KEY('token'), decodeURIComponent(tok[1]));
   if (inv) state.invite = decodeURIComponent(inv[1]);
   if (join) state.joinLink = decodeURIComponent(join[1]);
   if (tok || inv || join) history.replaceState(null, '', location.pathname + location.search); // tokens and codes never stay in the address bar
-  state.token = sessionStorage.getItem('werkbord-team-token');
-  state.projectId = sessionStorage.getItem('werkbord-team-project');
-  const t = sessionStorage.getItem('werkbord-team-tab');
+  state.token = sessionStorage.getItem(KEY('token'));
+  state.projectId = sessionStorage.getItem(KEY('project'));
+  const t = sessionStorage.getItem(KEY('tab'));
   if (t && (TABS.some((x) => x[0] === t) || t === 'people')) state.tab = t;
 } catch (_) { /* storage can be unavailable; the sign-in form still works for the session */ }
 
@@ -56,8 +63,8 @@ function remember() {
   if (state.ticketId) q.set("ticket", state.ticketId);
   history.pushState(null, "", location.pathname + "?" + q.toString());
   try {
-    sessionStorage.setItem('werkbord-team-tab', state.tab);
-    if (state.projectId) sessionStorage.setItem('werkbord-team-project', state.projectId);
+    sessionStorage.setItem(KEY('tab'), state.tab);
+    if (state.projectId) sessionStorage.setItem(KEY('project'), state.projectId);
   } catch (_) {}
 }
 
@@ -166,7 +173,7 @@ function initial(name) { return h('span', { class: 'av', 'aria-hidden': 'true' }
 
 async function api(method, path, body, opts) {
   const credential = state.token;
-  const res = await fetch('/api/team/v1' + path, {
+  const res = await fetch(BASE + '/api/team/v1' + path, {
     method,
     headers: { ...(credential ? { Authorization: 'Bearer ' + credential } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
@@ -199,7 +206,7 @@ function pcan(permission) { return !!(state.data && state.data.board.can.include
 
 function signOut() {
   closeSearch(false);
-  try { sessionStorage.removeItem('werkbord-team-token'); } catch (_) {}
+  try { sessionStorage.removeItem(KEY('token')); } catch (_) {}
   stopSync();
   drafts.clear(); draftVersions.clear(); renderedScope = "";
   Object.assign(state, { token: null, me: null, ov: null, secret: null, data: null, ticketId: null, handoff: null, memberQuery: '' });
@@ -322,7 +329,7 @@ const readOnly = h('p', { class: 'banner', role: 'status', hidden: true });
 document.body.prepend(readOnly);
 async function checkReadOnly() {
   try {
-    const res = await fetch('/api/team/v1/health', { headers: { Accept: 'application/json', ...(state.token ? { Authorization: 'Bearer ' + state.token } : {}) } });
+    const res = await fetch(BASE + '/api/team/v1/health', { headers: { Accept: 'application/json', ...(state.token ? { Authorization: 'Bearer ' + state.token } : {}) } });
     const j = await res.json();
     const st = j && j.storage;
     const previouslyReadOnly = !readOnly.hidden;
@@ -454,7 +461,7 @@ function signIn() {
       state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
       h('p', { class: 'muted' }, 'Paste your token. The person who runs the server gave it to you.'),
       h('form', { onsubmit: (e) => { e.preventDefault(); state.token = input.value.trim(); state.error = '';
-          try { sessionStorage.setItem('werkbord-team-token', state.token); } catch (_) {} render(); } },
+          try { sessionStorage.setItem(KEY('token'), state.token); } catch (_) {} render(); } },
         h('label', {}, 'Token', input), h('button', { class: 'primary' }, 'Sign in'))));
 }
 
@@ -464,7 +471,7 @@ function secretBox() {
   const invite = s.kind === 'invite';
   // A project invite is a code and nothing else. A link would carry this window's own address, which is this computer's
   // (the Team app's window is a page of a service on 127.0.0.1) and means nothing on anyone else's.
-  const link = invite ? '' : location.origin + '/#token=' + s.token;
+  const link = invite ? '' : location.origin + BASE + '/#token=' + s.token;
   return h('div', { class: 'secret', role: 'status' },
     h('strong', {}, invite ? 'Invite code for ' + s.name : s.self ? 'Your token' : 'Token for ' + s.name),
     h('p', { class: 'muted' }, invite
@@ -499,7 +506,7 @@ function joinScreen() {
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => {
           const j = await api('POST', '/invites/redeem', { code, name: name.value, email: email.value });
           done();
-          try { sessionStorage.setItem('werkbord-team-token', j.token); } catch (_) {}
+          try { sessionStorage.setItem(KEY('token'), j.token); } catch (_) {}
           state.token = j.token; state.tab = 'board'; state.projectId = j.project.id; remember();
           state.secret = { kind: 'token', name: j.member.name, self: true, token: j.token };
           state.info = 'Welcome to ' + j.project.name + '. Keep your token somewhere safe: it is how you sign in again.';
@@ -633,7 +640,7 @@ function membersPanels(members) {
     if (!state.desktop && (m.id === state.me.member.id || can('members.manage'))) actions.push(
       h('button', { class: 'plain', type: 'button', onclick: () => act(async () => {
         const r = await api('POST', '/members/' + m.id + '/token'); const self = r.member.id === state.me.member.id;
-        if (self) { stopSync(); state.token = r.token; try { sessionStorage.setItem('werkbord-team-token', r.token); } catch (_) {} }
+        if (self) { stopSync(); state.token = r.token; try { sessionStorage.setItem(KEY('token'), r.token); } catch (_) {} }
         state.secret = { kind: 'token', name: r.member.name, self, token: r.token };
       }) }, 'New token'));
     if (can('admins.manage') && m.role !== 'owner') actions.push(h('button', { class: 'plain', type: 'button', onclick: () => act(() => api('PUT', '/members/' + m.id + '/role', { role: m.role === 'admin' ? 'member' : 'admin' })) }, m.role === 'admin' ? 'Remove admin role' : 'Make admin'));

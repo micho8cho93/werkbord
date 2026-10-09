@@ -217,6 +217,7 @@ func TestHostFit(t *testing.T) {
 		{"a desktop that sleeps", &DeviceProfile{Platform: "darwin", Form: FormDesktop, Sleeps: true}, true, false},
 		{"nobody said", &DeviceProfile{Platform: "linux", Form: FormUnknown}, true, false},
 		{"Windows", &DeviceProfile{Platform: "windows", Form: FormDesktop}, false, false},
+		{"a Mac mini that already hosts another workspace", &DeviceProfile{Platform: "darwin", Form: FormDesktop, HostConflict: true}, false, false},
 	}
 	for _, c := range cases {
 		got := HostFitOf(c.p)

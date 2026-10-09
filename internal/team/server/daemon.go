@@ -43,6 +43,12 @@ type DaemonOptions struct {
 	LicenseKey       ed25519.PublicKey
 	Version          string
 	Log              *slog.Logger
+	// Slot names this workspace among the workspaces on this computer ("main" for the first and, on an installation
+	// from before several were possible, the only one). HostingGuard and NetworkGuard are supplied by the Hub so that
+	// workspaces on one computer cannot take the same host ports or private-network addresses. Both may be nil.
+	Slot         string
+	HostingGuard func() error
+	NetworkGuard func(netip.Prefix) error
 }
 
 // Daemon owns one device and its connection to a workspace. Its local API is never served on the overlay.
@@ -59,6 +65,7 @@ type Daemon struct {
 	mat             *pki.Material
 	vault           *pki.Vault
 	memberID        string
+	role            string
 	bridge          *localwerkbord.Client
 	handler         *runnerlink.Handler
 	lastSync        time.Time
@@ -145,6 +152,18 @@ func (d *Daemon) Run(ctx context.Context) error {
 	return err
 }
 
+// RunDevice keeps this workspace's infrastructure alive without a listener of its own: the Hub that owns several
+// workspaces serves them all. It returns when ctx ends and everything it started has stopped.
+func (d *Daemon) RunDevice(ctx context.Context) {
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	d.mu.Lock()
+	d.ctx = runCtx
+	d.mu.Unlock()
+	d.deviceLoop(runCtx)
+	d.job.Wait()
+}
+
 // Handler is used only on loopback. Workspace credentials never reach the renderer.
 func (d *Daemon) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -189,14 +208,22 @@ func (d *Daemon) Handler() http.Handler {
 func daemonOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" {
-			u, err := url.Parse(origin)
-			if err != nil || u.Scheme != "http" || u.Host != r.Host {
+			if err := sameHostOrigin(origin, r.Host); err != nil {
 				httpkit.WriteError(w, 403, "forbidden_origin", "open Werkbord Team on this computer")
 				return
 			}
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// sameHostOrigin accepts only a page that this same loopback service served.
+func sameHostOrigin(origin, host string) error {
+	u, err := url.Parse(origin)
+	if err != nil || u.Scheme != "http" || u.Host != host {
+		return errors.New("a page from somewhere else")
+	}
+	return nil
 }
 
 func daemonFail(w http.ResponseWriter, err error) {
@@ -336,8 +363,13 @@ func (d *Daemon) importLicense(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *Daemon) localState(w http.ResponseWriter, r *http.Request) {
+	httpkit.WriteJSON(w, 200, d.stateView())
+}
+
+// stateView is everything the window may know about this device and its workspace. The Hub lists one per workspace.
+func (d *Daemon) stateView() map[string]any {
 	d.mu.RLock()
-	op, problem, mat, bridge, lastSync, runnerCheck, runnerOK := d.operation, d.lastError, d.mat, d.bridge, d.lastSync, d.lastRunnerCheck, d.runnerOK
+	op, problem, mat, bridge, lastSync, runnerCheck, runnerOK, role := d.operation, d.lastError, d.mat, d.bridge, d.lastSync, d.lastRunnerCheck, d.runnerOK, d.role
 	d.mu.RUnlock()
 	var senders []map[string]any
 	for _, s := range d.state.Senders() {
@@ -345,6 +377,9 @@ func (d *Daemon) localState(w http.ResponseWriter, r *http.Request) {
 		senders = append(senders, map[string]any{"deviceId": s.DeviceID, "name": s.Name, "publicKey": s.PublicKey, "identity": deviceid.Fingerprint(key), "approved": s.Approved()})
 	}
 	out := map[string]any{"daemon": true, "version": d.o.Version, "operation": op, "error": problem, "settings": d.state.Settings(), "senders": senders, "opened": d.state.OpenedTasks(), "approvals": d.state.Approvals(), "runner": map[string]any{"connected": runnerOK && time.Since(runnerCheck) < time.Minute, "configured": bridge != nil}}
+	if d.o.Slot != "" {
+		out["slot"] = d.o.Slot
+	}
 	if c, err := d.licenseClaims(); err == nil {
 		out["license"] = c
 	} else {
@@ -356,14 +391,50 @@ func (d *Daemon) localState(w http.ResponseWriter, r *http.Request) {
 		out["identity"] = deviceid.Fingerprint(mat.Host.PublicKey())
 		out["workspaceHost"] = mat.Meta.Authority
 		out["connected"] = !lastSync.IsZero() && time.Since(lastSync) < time.Minute
+		if role != "" {
+			out["role"] = role
+		}
 	}
-	if _, err := os.Stat(filepath.Join(d.workspaceConfig().PKIDir(), "workspace.json")); err == nil {
+	occ := d.occupancy()
+	if occ.Enrolled {
 		out["enrolled"] = true
 	}
-	if _, err := os.Stat(filepath.Join(d.o.Config.DataDir, "pending-join")); err == nil {
+	if occ.Pending {
 		out["pending"] = true
 	}
-	httpkit.WriteJSON(w, 200, out)
+	if occ.Leaving {
+		out["leaving"] = true
+	}
+	if err := d.hostingAllowed(); err != nil {
+		out["hostingBlocked"] = err.Error()
+	}
+	return out
+}
+
+// occupancy is what is on this workspace slot, read from the disk and not from any other slot, so it can be asked while the
+// Hub holds its lock.
+type occupancy struct{ Enrolled, Pending, Leaving bool }
+
+func (d *Daemon) occupancy() occupancy {
+	var o occupancy
+	_, err := os.Stat(filepath.Join(d.workspaceConfig().PKIDir(), "workspace.json"))
+	o.Enrolled = err == nil
+	_, err = os.Stat(filepath.Join(d.o.Config.DataDir, "pending-join"))
+	o.Pending = err == nil
+	_, err = os.Stat(filepath.Join(d.o.Config.DataDir, "leaving"))
+	o.Leaving = err == nil
+	return o
+}
+
+var errHostingBlocked = errors.New("this computer already hosts another Team workspace, and a computer can host only one")
+
+// hostingAllowed says whether this workspace may hold a Workspace Host or Connectivity Host role on this computer.
+// A Host listens on fixed, workspace-wide ports; two workspaces on one computer would take the same ones.
+func (d *Daemon) hostingAllowed() error {
+	if d.o.HostingGuard == nil {
+		return nil
+	}
+	return d.o.HostingGuard()
 }
 
 // workspaceDirectory uses a key pinned on this computer. A Host's rewritten registry cannot forge a trusted sender.
@@ -456,5 +527,10 @@ func (d *Daemon) profile() domain.DeviceProfile {
 	if form == "" {
 		form = domain.FormUnknown
 	}
-	return domain.DeviceProfile{Platform: runtime.GOOS, Form: form, Sleeps: form == domain.FormLaptop, Version: d.o.Version}
+	d.mu.RLock()
+	authority := d.mat != nil && d.mat.Meta.Authority
+	d.mu.RUnlock()
+	// A device that does not host this workspace but already hosts another cannot be asked to host this one.
+	conflict := !authority && d.hostingAllowed() != nil
+	return domain.DeviceProfile{Platform: runtime.GOOS, Form: form, Sleeps: form == domain.FormLaptop, Version: d.o.Version, HostConflict: conflict}
 }

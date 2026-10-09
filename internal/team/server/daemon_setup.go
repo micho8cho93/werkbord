@@ -65,6 +65,11 @@ func (d *Daemon) createWorkspace(w http.ResponseWriter, r *http.Request) {
 	if !daemonDecode(w, r, &in) {
 		return
 	}
+	// The first Workspace Host is a host: it takes this computer's host ports. Say so before asking for a license.
+	if err := d.hostingAllowed(); err != nil {
+		daemonFail(w, err)
+		return
+	}
 	if _, err := d.licenseClaims(); err != nil {
 		daemonFail(w, errors.New("import an active Team license before creating your workspace"))
 		return
@@ -356,6 +361,11 @@ func (d *Daemon) finishJoin(inv enrollment.Invitation, keys *pki.HostKeys, res *
 	prefix := netip.PrefixFrom(addr, nc.PrefixBits).Masked()
 	if err := pki.CheckNetworkRange(prefix); err != nil {
 		return errors.New("the invitation supplied an unsupported private network")
+	}
+	if d.o.NetworkGuard != nil {
+		if err := d.o.NetworkGuard(prefix); err != nil {
+			return err
+		}
 	}
 	if nc.DeviceID != keys.DeviceID() || res.Response.DeviceID != keys.DeviceID() || res.Response.MemberID == "" {
 		return errors.New("the enrollment response belongs to a different device")

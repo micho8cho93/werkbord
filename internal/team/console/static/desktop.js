@@ -9,7 +9,7 @@ let runnerStatus = null;
 let requestRefresh = null;
 
 async function deviceApi(method, path, body) {
-  const res = await fetch('/api/device/v1' + path, { method, headers: { Authorization: 'Bearer ' + state.token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const res = await fetch(BASE + '/api/device/v1' + path, { method, headers: { Authorization: 'Bearer ' + state.token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   if (res.status === 204) return null;
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || 'The device service could not complete this step.');
@@ -213,7 +213,7 @@ let nativeTransport;
 function nativeApp() {
   if (window.go?.main?.App) return window.go.main.App;
   if (!window.webkit?.messageHandlers?.external) return null;
-  if (!nativeTransport) nativeTransport = import('/native-bridge.js').then(m => m.createNativeBridge('main.App'));
+  if (!nativeTransport) nativeTransport = import(BASE + '/native-bridge.js').then(m => m.createNativeBridge('main.App'));
   const invoke = (method, ...args) => nativeTransport.then(call => call(method, args, 0));
   return { SetupRunner: () => invoke('SetupRunner'), Service: action => invoke('Service', action), PendingInvitation: () => invoke('PendingInvitation'), Info: () => invoke('Info'), OpenExternal: address => invoke('OpenExternal', address) };
 }

@@ -44,9 +44,11 @@ func cmdDaemon(ctx context.Context, cfg config.Config, args []string, stderr io.
 	if err != nil {
 		return err
 	}
-	d, err := server.NewDaemon(server.DaemonOptions{Config: cfg, LocalAddr: *local, LocalKey: key, RunnerConfigPath: *runner, LicenseKey: pub, Version: version, Log: log})
+	// One local service for every Team workspace on this computer; the first is where a single-workspace installation
+	// always kept its data, so an upgrade moves nothing.
+	hub, err := server.NewHub(server.DaemonOptions{Config: cfg, LocalAddr: *local, LocalKey: key, RunnerConfigPath: *runner, LicenseKey: pub, Version: version, Log: log})
 	if err != nil {
 		return err
 	}
-	return d.Run(ctx)
+	return hub.Run(ctx)
 }

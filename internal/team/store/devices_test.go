@@ -361,7 +361,7 @@ func TestTheProfileTableHasNoColumnForASecretOrAnAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := strings.Join(cols, " "), "device_id workspace_id platform form sleeps sleep_events version reported_at"; got != want {
+	if got, want := strings.Join(cols, " "), "device_id workspace_id platform form sleeps sleep_events version reported_at other_workspace"; got != want {
 		t.Fatalf("columns = %s\nwant %s", got, want)
 	}
 	for _, c := range cols {

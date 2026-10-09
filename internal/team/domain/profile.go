@@ -47,8 +47,10 @@ type DeviceProfile struct {
 	// SleepEvents is how many times it was seen to wake in the last seven days.
 	SleepEvents int `json:"sleepEvents"`
 	// Version is the Team software on the device.
-	Version    string    `json:"version,omitempty"`
-	ReportedAt time.Time `json:"reportedAt"`
+	Version string `json:"version,omitempty"`
+	// HostConflict: the device already hosts another Team workspace, and a computer hosts for only one.
+	HostConflict bool      `json:"hostConflict,omitempty"`
+	ReportedAt   time.Time `json:"reportedAt"`
 }
 
 // Validate checks a profile is well formed.
@@ -72,7 +74,7 @@ func (p DeviceProfile) Validate() error {
 
 // Same reports whether two profiles say the same thing about a device (when they were reported is not part of it).
 func (p DeviceProfile) Same(o DeviceProfile) bool {
-	return p.Platform == o.Platform && p.Form == o.Form && p.Sleeps == o.Sleeps && p.SleepEvents == o.SleepEvents && p.Version == o.Version
+	return p.Platform == o.Platform && p.Form == o.Form && p.Sleeps == o.Sleeps && p.SleepEvents == o.SleepEvents && p.Version == o.Version && p.HostConflict == o.HostConflict
 }
 
 // HostFit says how good a device is as a Workspace Host: whether it can be one at all, whether it is a good
@@ -94,6 +96,7 @@ const (
 	AdviceWindowsNoHost    = "Windows cannot be a Workspace Host yet: the private network program Team ships runs on macOS and Linux."
 	AdviceNoProfileYet     = "This device has not reported what kind of computer it is yet."
 	AdviceNoNetworkProgram = "This device cannot run the workspace's private network."
+	AdviceHostsElsewhere   = "This computer already hosts another Team workspace. A computer can host for only one workspace, so it cannot also host this one."
 )
 
 // HostFitOf judges a profile; nil means the device has not reported one.
@@ -102,6 +105,11 @@ func HostFitOf(p *DeviceProfile) HostFit {
 		return HostFit{Possible: true, Reasons: []string{AdviceNoProfileYet}}
 	}
 	fit := HostFit{Possible: true, Ideal: true}
+	if p.HostConflict {
+		fit.Possible, fit.Ideal = false, false
+		fit.Reasons = append(fit.Reasons, AdviceHostsElsewhere)
+		return fit
+	}
 	if p.Platform == "windows" {
 		fit.Possible, fit.Ideal = false, false
 		fit.Reasons = append(fit.Reasons, AdviceWindowsNoHost)
