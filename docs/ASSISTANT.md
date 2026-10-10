@@ -4,8 +4,8 @@ The assistant lets you talk to Claude Code or Codex, signed in the way you alrea
 what is blocked, what an agent is asking, what is planned for next week. It can **look** at the board and **propose**
 changes; you confirm each change before anything happens.
 
-This is the backend. There is no screen for it yet (the conversation view is a later stage). Everything here is reachable
-through an HTTP API on this computer ([the API](#the-api)), so the screen, and later an MCP server, have one foundation.
+It has a screen ([The screen](#the-screen)): a full-window conversation that opens out of the Assistant button in the sidebar.
+Everything the screen does is the HTTP API on this computer ([the API](#the-api)), so it, and later an MCP server, have one foundation.
 
 ```
  you ──▶ API (loopback, your token only)
@@ -139,8 +139,8 @@ What was found by trying the real command lines (Claude Code 2.1.285, Codex 0.15
 | Tools turned off | `--tools ""`, `--safe-mode`, `--strict-mcp-config`, `--disable-slash-commands`, `--setting-sources ""`. The `init` event lists `tools: []` and `mcp_servers: []`; if it lists any, the turn is ended | `--disable` of the tool features this Codex has, read-only sandbox, approval `never`. **Some tools cannot be removed** by any setting (`functions.exec`, `collaboration.*`, `request_user_input`); so every item of a turn is checked against an allow-list (message, reasoning, plan, compaction) and anything else interrupts and ends the turn |
 | Native tool calling | Supported by the CLI (MCP servers). **Not used** | Supported (MCP servers, and "dynamic tools" the client registers). **Not used** |
 | Usage | tokens, reported per turn (not stored, not priced) | tokens, reported per turn (not stored, not priced) |
-| Voice | **Not supported**: Claude Code has no voice input or output when run headless | **Experimental**: the protocol has realtime audio (`thread/realtime/*`), gated by account support. **Not used** |
-| Images and files | **Not used** in this stage | **Not used** in this stage |
+| Voice | **Not supported**: Claude Code has no voice input or output when run headless | **Experimental**: the protocol has realtime audio (`thread/realtime/*`), gated by account support. **Not used.** Dictation on the screen ([Dictation](#dictation)) is the browser's own, and is not either provider's voice |
+| Images and files | **Not used.** Text files are shown to it inside the message itself ([Attachments](#attachments)); a PDF or a picture is refused, because with no tools there is nothing to read it with | **Not used**, the same |
 | Deleting the provider's copy of a conversation | **Not possible** (no command); Werkbord forgets its handle | Possible in the protocol (`thread/delete`); **not used** |
 | Where the conversation lives | Claude Code's own storage, under the assistant's private directory | Codex's own storage (`~/.codex/sessions`) |
 
@@ -165,9 +165,131 @@ turn.
 **Both CLIs change often.** `go test ./internal/assistant/provider/live -v` with
 `WERKBORD_LIVE_ASSISTANT=1` repeats these checks against the real command lines (a handful of one-word turns).
 
+## The screen
+
+The assistant is one page of Individual, not a second app. It is a button, a surface and a box.
+
+**The way in.** An *Assistant* button sits at the top of the sidebar (on a phone, an icon in the page heading; in the desktop
+window, the window's own sidebar, [below](#in-the-desktop-window)). It is quiet until something needs you: it shows a count when a
+change is waiting for your confirmation and a pulse while a reply is on its way, so you know without opening it.
+
+**Opening and closing.** The surface grows from the button's centre until it covers the window, while its background moves from the
+sidebar's colour to its own paper (light and dark each have their own). Closing runs the same movement backwards into the button,
+and focus goes back to it. Closing it half way through opening turns it round rather than jumping. With *reduce motion* on, nothing
+moves: it is there, or it is gone. The workspace underneath is only covered (and made inert, so focus and screen readers stay in the
+assistant): the same page elements, the same place, the same half-typed text are there when you come back
+(`scripts/browser-assistant.cjs` checks this by identity, not by eye).
+
+**Closing is not stopping.** The conversation lives in the page's memory, not in the surface. Close it, go to the board, come back:
+a reply that was streaming has gone on streaming and is complete; a change that was waiting is still waiting, and says so on the
+button. Only the *Stop* button stops a reply, and only your answer carries out a change.
+
+**What is on it.** A heading with *which assistant answers* (provider, model, how hard it thinks) and *New*/*Close*; the
+conversation; a box. Nothing else: there is no history list, no sidebar of past chats and no way to browse them, because the server
+keeps none ([What is kept](#what-is-kept-and-what-is-not)).
+
+- **The box** takes words, files (the paperclip) and speech (the microphone). Enter sends, Shift+Enter makes a new line; on a phone
+  Enter is a new line and the arrow sends. It grows to a few lines.
+- **A reply** streams in a few words at a time and is drawn from a small, safe reader (paragraphs, lists, bold, italic, `code`, code
+  blocks) that builds elements, never HTML: markup in a reply, or in anything it read, is shown as text, and links are not made
+  clickable. While it works there is one quiet line (*Looking for what is blocked…*, *Thinking…*); afterwards, a collapsed *What I
+  looked at*. Operation names never appear.
+- **A change** is a card: what Werkbord (not the model) says will happen, *Confirm* and *Not now*, and *Nothing changes until you
+  confirm*. It then says what became of it (done, not done, expired, no longer waiting). It cannot be pressed twice.
+- **Choosing the assistant.** The heading's *Claude Code · Sonnet* opens the provider, model and thinking-level chooser, which can be
+  used at any time. A model your plan cannot use ends the turn with *That model is not available to your account* and offers *Choose
+  another model* and *Try again*. Moving to the other provider starts a fresh conversation with it, and the screen says so. Files you
+  had agreed to share with the first are taken back, because the agreement was for that provider.
+- **Starting over** (*New*) ends the conversation. If a reply is running or a change is waiting, it asks twice and says what it will
+  drop.
+
+**When there is nothing to talk to**, it says why, in words, and offers what can be done:
+
+| State | Shown | Offered |
+| --- | --- | --- |
+| Getting ready | *Getting ready…* | |
+| No provider ready | *Sign in to Claude Code or Codex first*, with each one's own reason and command | *Check again* |
+| Controller not answering | *Cannot reach Werkbord* | *Try again*; the screen keeps trying by itself |
+| Connection dropped mid-reply | *Reconnecting… your reply keeps going meanwhile* | none needed |
+| Turned off in settings | *The assistant is turned off* (`assistant.disabled`) | |
+| Not signed in to Werkbord | *This device is not signed in* | open Werkbord from its link |
+| A turn failed | what happened, in words, from the error code | *Try again*, *Choose another model*, *Check again*, as it fits |
+| Empty | *What can I help with?* and three questions to start from | |
+
+**Coming back.** The page keeps what is on screen in the tab (`sessionStorage`, which goes with the tab, is never sent anywhere, and is
+cleared by *New*): capped to the last 40 items, without file contents. After a reload the conversation is back; the reply that was
+streaming goes on from the last event the page saw (the server remembers 1024 recent events and says when it cannot); a change that
+is still waiting is found from the server even if the tab forgot it; one that was answered or timed out meanwhile is shown as no
+longer waiting. If the controller was restarted its events count from 1 again, and the page counts with it (it compares the
+server's last event number on every connection, so the next reply is not thrown away as "already seen"). If the controller no
+longer has the conversation, the screen says so and the next message starts a new one. The stream is read with `fetch`, because
+`EventSource` cannot send the token and the server refuses it in a URL.
+
+**For people who cannot see it.** The surface is a dialog with a name, Tab stays inside it, Esc closes it (the chooser first), every
+control has a name, text is at least 16 px in the box on a phone (so it does not zoom), tap targets are at least 44 px, and what
+happens is said in words in a status line (*The assistant is working*, *…has finished. A change is waiting for your
+confirmation*). The reply text itself is not read out word by word. Nothing relies on colour alone.
+
+### In the desktop window
+
+Individual is shown in the window in a frame, and the assistant belongs to that page (it holds the token and speaks to the
+controller). The window's sidebar has the button, and asks the page to open or close it:
+
+- The page is told *where the button is*, in its own coordinates (they are left of its edge, since the sidebar is beside it), so the
+  surface still grows out of the sidebar's button and collapses back into it.
+- From another workspace (Team, a window page such as My Work) the window brings Individual forward, and, when the assistant closes,
+  puts you back where you were. Choosing something else in the sidebar while it is open closes it first.
+- The page tells the window three things and nothing else: whether it is open, how many changes wait, whether a reply is running.
+  They are the sidebar button's badge. No word of the conversation crosses, and a Team frame cannot say any of it
+  (`shell/frames.ts`, tested; `scripts/browser-shell-assistant.cjs` checks the whole path in a real frame).
+
+## Attachments
+
+You can show the assistant a text file with a message: notes, a spec, a CSV, a log. A file is held only under these rules.
+
+- **Explicit, per file, before anything leaves the page.** Picking (or dropping) a file asks *Share this file with Claude Code?* and
+  says what happens next. The page holds the file and sends nothing until you say yes. The request carries your yes
+  (`X-Attachment-Authorized: true`); without it the server refuses, and the authorization is recorded in the audit (name, size, how
+  long, which provider; never the content).
+- **Short-lived, in memory only.** Held for up to `assistant.attachmentRetentionMinutes` (default 30, 1 to 1440) unless you send it
+  first, then dropped. Never written to disk; a restart forgets them. They go too when you remove one, when the conversation is
+  deleted or the provider is changed, and at shutdown. The chip says until when.
+- **Sent once.** A message names the files it carries; they are put in that message and forgotten here. The next message does not
+  carry them, and the audit records what was shown to which provider. The provider keeps its own copy as part of the conversation,
+  in its own storage, and **Werkbord cannot delete that**; the question says so before you agree.
+- **Bounded.** 256 KB a file, 4 files and 512 KB a message, 8 waiting in a conversation and 8 MB waiting in all. Plain text only (UTF-8, no control
+  characters): a PDF or a picture is refused, saying so. The assistant runs with no tools, so there would be nothing to read one with;
+  PDFs, Markdown libraries and images are the resources library's work (stage 4).
+- **Data, not instructions.** The content is escaped (`<`, `>`, `&` and backticks) inside `<werkbord-attachment>`, so a file cannot
+  close its wrapper, forge a notice or write a tool call, and the assistant is told the file is yours to read, not to obey
+  (`TestAFileCannotBreakOutOfItsWrapperOrOpenACall`). Names are cleaned the same way.
+- **Off if you like.** `assistant.attachmentsDisabled` removes the paperclip and refuses the route.
+
+Checked against the real command lines (`TestLiveAttachmentTravelsInTheMessage`, Claude Code 2.1.285 and Codex 0.155.1): both read the
+file and answered from it, and neither obeyed the "reply only PWNED" planted inside it. The provider's answer to such a file is still
+a request kept, not a guarantee; what a manipulated model can do is limited as described under [What a model that has been talked
+into misbehaving can do](#what-a-model-that-has-been-talked-into-misbehaving-can-do).
+
+## Dictation
+
+The microphone types what you say into the box. It is the browser's (or the desktop app's web view's) own speech recognition, and
+only that: **it is not Claude's or ChatGPT's voice.** Neither provider offers voice input to a program that runs it this way (the
+table above), and the screen says "not Claude or ChatGPT" in the notice and never claims otherwise.
+
+- **Where the audio goes is disclosed before the first use.** Chrome sends it to Google, Edge to Microsoft, Safari to Apple, unless
+  the browser reports that it can recognise speech on the device (`SpeechRecognition.available` with `processLocally`), in which
+  case it is asked to, and the notice says nothing leaves the device. Anything that is not known to be local is treated as sending.
+  You agree once per device and service; the agreement is kept in that browser only.
+- **When it is not available** (no recogniser in this browser, or the page is not a secure context) the button says so and points to
+  the microphone key on your phone's keyboard, which types locally.
+- Speech is typed into the box, where you can read and change it before sending, and mixed freely with typing. A blocked
+  microphone, a missing microphone and a speech service that cannot be reached each say so in words; silence is not an error.
+- Whether on-device recognition is possible is asked only when you press the microphone, never when the assistant opens. (Asking in
+  headless Chromium crashed the page, and opening the assistant should not wake a speech service anyway.)
+
 ## Choosing the provider, model and reasoning level
 
-A screen offers all three, and can change them at any point, so that someone whose plan cannot use a model can move to one it can.
+The screen offers all three, and can change them at any point, so that someone whose plan cannot use a model can move to one it can.
 `GET /api/assistant/providers` returns, for each provider: whether it is ready (and what to do if not), its models (with the
 reasoning levels each takes, and which is the default), `custom` (a name not in the list may still be typed) and its
 capabilities. `POST /sessions` takes `{provider, model, reasoning}`; `PATCH /sessions/{id}` changes any of them between messages.
@@ -221,6 +343,13 @@ many turns it has had, the state (`idle`, `running`, `awaiting_confirmation`) an
 messages, the replies, or any history; and there is no way to browse one. The conversation itself is kept by the provider,
 in its own storage, under the assistant's private directory (`<data dir>/assistant`, mode 0700, empty).
 
+Per file waiting to be sent: its name, size, content and time limit, **in memory only** (never in the database or on disk), for at
+most the retention period. The audit records that it was authorized, shown or dropped, without its content.
+
+In the browser tab: what is on screen, so a reload comes back to it (`sessionStorage`: the last 40 items, no file contents, gone with
+the tab or with *New*), and, in `localStorage`, which provider/model/level you chose last and whether you have read the dictation
+notice. Nothing else of a conversation is kept anywhere by Werkbord.
+
 Per proposed change (`assistant_actions`): the operation, the exact arguments and their digest, the summary shown, who
 proposed it, its state, and what came of it. Deleted with the conversation.
 
@@ -252,12 +381,14 @@ answers `503` if `assistant.disabled` is set.
 
 | | |
 | --- | --- |
-| `GET /api/assistant/providers` | what is installed, signed in, and which models and reasoning levels it offers; capabilities |
+| `GET /api/assistant/providers` | what is installed, signed in, and which models and reasoning levels it offers; capabilities; and the attachment limits (`attachments`) |
 | `POST /api/assistant/sessions` `{provider, model?, reasoning?}` | start a conversation (fails at once, with what to do, if the provider is not ready) |
-| `GET /api/assistant/sessions`, `GET …/{id}` | conversations, with the changes waiting and the last event number |
+| `GET /api/assistant/sessions`, `GET …/{id}` | conversations, with the changes waiting, the files waiting (never their content) and the last event number |
 | `PATCH …/{id}` `{provider?, model?, reasoning?}` | change provider, model or reasoning level for the next turn (see below) |
 | `DELETE …/{id}` | stop it, drop what it left waiting, forget it (the audit stays) |
-| `POST …/{id}/messages` `{text}` → `202 {turnId}` | send a message; read the reply from the events |
+| `POST …/{id}/messages` `{text, attachments?: [id]}` → `202 {turnId}` | send a message (words, files, or both); read the reply from the events |
+| `POST …/{id}/attachments` (body: the file; `X-Attachment-Name`, percent-encoded; `X-Attachment-Authorized: true`) → `201 {id, name, bytes, expiresAt}` | hold a text file for the next message ([Attachments](#attachments)); `413` over the limit, `400` without the yes or if not text |
+| `DELETE …/{id}/attachments/{attachment}` | drop a file that has not been sent |
 | `GET …/{id}/events` (SSE) | `turn_started`, `delta`, `tool_call`, `tool_result`, `confirmation_required`, `confirmation_resolved`, `notice`, `retry`, `turn_completed`, `turn_failed`, `turn_cancelled`, `gap` |
 | `POST …/{id}/cancel` | stop the turn in progress |
 | `POST …/{id}/actions/{action}` `{decision: "approve"\|"decline"}` | the person's answer to a proposal |
@@ -275,7 +406,9 @@ answers `503` if `assistant.disabled` is set.
     "projects": ["prj_…"],
     "turnTimeoutSeconds": 300,
     "idleTimeoutSeconds": 90,
-    "auditRetentionDays": 400
+    "auditRetentionDays": 400,
+    "attachmentRetentionMinutes": 30,
+    "attachmentsDisabled": false
   }
 }
 ```
@@ -297,9 +430,14 @@ chose none gets.
 | HTTP: end to end, SSE resume, status codes, **no local-access token and no private network can reach it** | `internal/api`, `internal/controller` |
 | The store: compare-and-swap, one claim per action, append-only audit | `internal/store/sqlite` |
 | The boundaries | `internal/archtest/assistant_test.go` |
+| Attachments: authorization, once-only, limits, expiry, isolation, escaping, fail-closed | `internal/assistant/attachments_test.go`, `internal/api` |
+| The screen's logic: the transcript from events (retries, rounds, replays, gaps), the stream (cut anywhere, reconnects, restarts), dictation, the animation's plan, the safe reader, choices, words | `web/src/lib/assistant/*.test.ts` |
+| The screen against a stand-in controller: opening/closing, sending, confirming, choosing, files, reload, restart, no conversation, no provider | `web/src/lib/assistant/store.test.ts` |
+| The screen in a real browser, with the real engine and API and a scripted provider: the animation frame by frame (light, dark, reduced motion), the workspace left untouched, streaming, tool progress, confirmations that survive closing/reload/restart, files, dictation, keyboard and screen-reader behaviour, a phone | `make test-assistant-browser` (`scripts/browser-assistant.cjs`) |
+| The same from the desktop window's sidebar, in a real frame | `make test-assistant-browser` (`scripts/browser-shell-assistant.cjs`) |
 
 ## Not in this stage
 
-The conversation view, attachments, dictation and voice (stage 3); the resources library (4); analytics on model usage and
-cost (5); the MCP server and external clients (6; it will use `appops.Service` with a principal of its own); native voice
-and communication integrations (7).
+PDFs, images and other resources, and reading them (the resources library, stage 4); analytics on model usage and cost (5); the MCP
+server and external clients (6; it will use `appops.Service` with a principal of its own); native voice and communication
+integrations (7). The screen has no keyboard shortcut of its own yet, and keeps no history on purpose.

@@ -1,6 +1,7 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { adoptTokenFromURL } from './lib/api';
+import { assistant } from './lib/assistant/store.svelte';
 import { detectDesktop, openLinksInBrowser } from './lib/desktop.svelte';
 import { embedded, followShell } from './lib/embed';
 import { app } from './lib/state.svelte';
@@ -15,6 +16,8 @@ openLinksInBrowser();
 void detectDesktop();
 // When the desktop app's shell shows this page as one workspace among several, it can ask it to go to a place in it.
 followShell();
+// A conversation this tab already had (a reload, a return) is picked up where it was; nothing starts until the person opens it.
+assistant.init();
 
 mount(App, { target: document.getElementById('app')! });
 

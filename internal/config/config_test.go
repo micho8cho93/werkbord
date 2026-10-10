@@ -397,6 +397,8 @@ func TestAssistantSettingsAreLoadedAndChecked(t *testing.T) {
 		"project with a space": `{"assistant": {"projects": ["prj_a b"]}}`,
 		"negative timeout":     `{"assistant": {"turnTimeoutSeconds": -1}}`,
 		"huge timeout":         `{"assistant": {"idleTimeoutSeconds": 100000}}`,
+		"negative retention":   `{"assistant": {"attachmentRetentionMinutes": -5}}`,
+		"retention over a day": `{"assistant": {"attachmentRetentionMinutes": 1441}}`,
 	} {
 		write(body)
 		c, err := Load()
@@ -414,5 +416,26 @@ func TestAuditRetentionForEverIsAllowed(t *testing.T) {
 	c.Assistant.AuditRetentionDays = -1
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAttachmentSettingsAreLoadedAndDefaultToHalfAnHourWithFilesOn(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DEVBOARD_DATA_DIR", dir)
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"assistant": {"attachmentRetentionMinutes": 10, "attachmentsDisabled": true}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if c.Assistant.AttachmentRetentionMinutes != 10 || !c.Assistant.AttachmentsDisabled {
+		t.Fatalf("assistant = %+v", c.Assistant)
+	}
+	if d := Default().Assistant; d.AttachmentRetentionMinutes != 0 || d.AttachmentsDisabled {
+		t.Fatalf("by default files are accepted and the engine's own 30 minutes applies: %+v", d)
 	}
 }

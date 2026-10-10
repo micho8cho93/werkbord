@@ -3,7 +3,7 @@ import { handle, isPlace, type FrameRef, type Deps } from './frames';
 
 const individual = {} as Window, team = {} as Window;
 const frames: FrameRef[] = [{ id: 'personal', origin: 'http://127.0.0.1:7420', window: individual }, { id: 'team:main', origin: 'http://127.0.0.1:7431', window: team }];
-const deps = (): Deps => ({ relay: vi.fn().mockResolvedValue('ok'), reply: vi.fn(), remember: vi.fn().mockResolvedValue(undefined), ready: vi.fn(), open: vi.fn() });
+const deps = (): Deps => ({ relay: vi.fn().mockResolvedValue('ok'), reply: vi.fn(), remember: vi.fn().mockResolvedValue(undefined), ready: vi.fn(), open: vi.fn(), assistant: vi.fn() });
 const data = { type: 'werkbord.native.request', id: 'request1', method: 'Info', args: [] };
 
 describe('frame authority', () => {
@@ -36,5 +36,23 @@ describe('frame authority', () => {
     expect(d.open).not.toHaveBeenCalled();
     await handle(frames, { source: team, origin: frames[1].origin, data: { type: 'werkbord.frame', event: 'open', target: 'personal', place: '#/p/prj_1/task/tsk_1' } }, d);
     expect(d.open).toHaveBeenCalledExactlyOnceWith('team:main', 'personal', '#/p/prj_1/task/tsk_1');
+  });
+});
+
+describe('the assistant report', () => {
+  const say = (data: Record<string, unknown>, from = individual, origin = frames[0].origin) => ({ source: from, origin, data: { type: 'werkbord.frame', event: 'assistant', ...data } });
+  it('takes a count and two flags from the person’s own Werkbord', async () => {
+    const d = deps();
+    await handle(frames, say({ open: true, waiting: 2, running: false }), d);
+    expect(d.assistant).toHaveBeenCalledWith('personal', { open: true, waiting: 2, running: false });
+  });
+  it('ignores a Team frame, a forged origin and anything that is not exactly that shape', async () => {
+    const d = deps();
+    await handle(frames, say({ open: true, waiting: 1, running: false }, team, frames[1].origin), d);
+    await handle(frames, say({ open: true, waiting: 1, running: false }, individual, 'https://evil.example'), d);
+    for (const bad of [{ open: 'yes', waiting: 1, running: false }, { open: true, waiting: -1, running: false }, { open: true, waiting: 1.5, running: false }, { open: true, waiting: 100, running: false }, { open: true, waiting: '3', running: false }, { open: true, waiting: 1 }]) {
+      await handle(frames, say(bad), d);
+    }
+    expect(d.assistant).not.toHaveBeenCalled();
   });
 });

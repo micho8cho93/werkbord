@@ -656,6 +656,12 @@ kbd.key {
   }
 }
 
+/* While the assistant covers the page, the page behind it does not scroll. */
+html.asst-open,
+html.asst-open body {
+  overflow: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

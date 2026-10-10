@@ -1,0 +1,256 @@
+<script lang="ts">
+  import { onDestroy, untrack } from 'svelte';
+  import Icon from '../Icon.svelte';
+  import Composer from './Composer.svelte';
+  import Conversation from './Conversation.svelte';
+  import ModelPicker from './ModelPicker.svelte';
+  import { assistant } from './store.svelte';
+  import { colourOf, plan, prefersReducedMotion, Reveal } from './transition';
+
+  // The assistant's whole-window surface. It opens out of the button that was pressed and closes back into it. The workspace
+  // underneath stays mounted and untouched (the page keeps its place, its drafts, its running agents); this only covers it.
+  // Closing the surface does not stop anything either: a reply keeps streaming, and changes waiting for the person keep waiting,
+  // with the button showing that they do.
+
+  let surface: HTMLDivElement | undefined = $state();
+  let reveal: Reveal | null = null;
+  let armed = $state(false);
+  let announcement = $state('');
+
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+  // ---- opening and closing ----
+  $effect(() => {
+    const phase = assistant.phase;
+    const el = surface;
+    if (!el) return;
+    untrack(() => {
+      if (phase === 'opening') {
+        if (!reveal || reveal.el !== el) {
+          reveal?.destroy();
+          const from = colourOf(el, '--asst-from', '#ffffff');
+          const to = colourOf(el, '--asst-to', '#f5f5f2');
+          reveal = new Reveal(el, plan(assistant.origin, window.innerWidth, window.innerHeight, prefersReducedMotion(), from, to));
+        }
+        void reveal.open().then(() => assistant.opened());
+      } else if (phase === 'closing') {
+        // A surface nobody can see (the desktop window moved to another page, or the tab is hidden) has no movement to show:
+        // it is simply closed, and an animation that cannot run does not hold it open.
+        if (!reveal || el.getClientRects().length === 0 || document.hidden) {
+          reveal?.destroy();
+          reveal = null;
+          assistant.closed();
+        } else void reveal.close().then(() => assistant.closed());
+      }
+    });
+  });
+  $effect(() => {
+    if (!assistant.mounted && reveal) {
+      reveal.destroy();
+      reveal = null;
+    }
+  });
+  onDestroy(() => reveal?.destroy());
+
+  // ---- the page behind it ----
+  $effect(() => {
+    document.documentElement.classList.toggle('asst-open', assistant.mounted);
+    return () => document.documentElement.classList.remove('asst-open');
+  });
+
+  // On a phone the on-screen keyboard shrinks the visual viewport but not the layout viewport; keep the box above it.
+  $effect(() => {
+    if (!assistant.mounted) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const fit = () => {
+      surface?.style.setProperty('--vvh', `${vv.height}px`);
+      surface?.style.setProperty('--vvt', `${vv.offsetTop}px`);
+    };
+    fit();
+    vv.addEventListener('resize', fit);
+    vv.addEventListener('scroll', fit);
+    return () => {
+      vv.removeEventListener('resize', fit);
+      vv.removeEventListener('scroll', fit);
+    };
+  });
+
+  // ---- for people who cannot see it move: say what happens, in words ----
+  let lastRunning = false;
+  let lastWaiting = 0;
+  $effect(() => {
+    const running = assistant.running;
+    const waiting = assistant.waiting;
+    if (running && !lastRunning) announcement = 'The assistant is working.';
+    else if (!running && lastRunning) announcement = waiting > 0 ? `The assistant has finished. ${waiting === 1 ? 'A change is' : `${waiting} changes are`} waiting for your confirmation.` : 'The assistant has finished.';
+    else if (waiting > lastWaiting) announcement = 'A change is waiting for your confirmation.';
+    lastRunning = running;
+    lastWaiting = waiting;
+  });
+
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]):not([aria-hidden="true"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+  /** Keeps Tab inside the assistant: past the last control it goes to the first, before the first it goes to the last. */
+  function trap(e: KeyboardEvent) {
+    if (!surface) return;
+    const items = [...surface.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const at = document.activeElement as HTMLElement | null;
+    if (!at || !surface.contains(at)) {
+      e.preventDefault();
+      first.focus();
+    } else if (e.shiftKey && at === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && at === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (!assistant.mounted || e.defaultPrevented) return;
+    if (e.key === 'Tab') return trap(e);
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    assistant.hide();
+  }
+
+  // Starting over asks twice, when it would cost something.
+  let armedTimer: ReturnType<typeof setTimeout> | undefined;
+  const costs = $derived(assistant.running || assistant.waiting > 0);
+  function startOver() {
+    if (costs && !armed) {
+      armed = true;
+      clearTimeout(armedTimer);
+      armedTimer = setTimeout(() => (armed = false), 5000);
+      return;
+    }
+    armed = false;
+    void assistant.startOver();
+  }
+</script>
+
+<svelte:window onkeydown={onKey} />
+
+{#if assistant.mounted}
+  <div
+    bind:this={surface}
+    class="surface"
+    data-phase={assistant.phase}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="asst-title"
+    inert={assistant.phase === 'closing'}
+    data-testid="assistant"
+  >
+    <div class="inner">
+      <header class="top">
+        <div class="who">
+          <h1 id="asst-title">Assistant</h1>
+          <ModelPicker />
+        </div>
+        <div class="acts">
+          {#if assistant.hasConversation || assistant.session}
+            <button class="btn quiet small" class:armed type="button" onclick={startOver} aria-label={armed ? 'Confirm starting over' : 'Start a new conversation'} data-testid="assistant-new">
+              <Icon name="plus" size={14} /><span class="wide">{armed ? (assistant.waiting > 0 ? 'Drops what is waiting' : 'Stops the reply') + '. Sure?' : 'New'}</span>
+            </button>
+          {/if}
+          <button class="btn quiet close" type="button" onclick={() => assistant.hide()} aria-label="Close assistant" title="Close ({isMac ? '' : 'Esc'})" data-testid="assistant-close">
+            <Icon name="close" size={16} /><span class="wide">Close</span><kbd class="key wide">Esc</kbd>
+          </button>
+        </div>
+      </header>
+
+      <Conversation />
+
+      {#if assistant.status === 'ready' || assistant.hasConversation}
+        <Composer />
+      {/if}
+    </div>
+    <p class="visually-hidden" role="status" aria-live="polite" data-testid="assistant-announce">{announcement}</p>
+  </div>
+{/if}
+
+<style>
+  .surface {
+    --asst-w: 46rem;
+    --asst-from: var(--surface);
+    --asst-to: var(--bg);
+    position: fixed;
+    top: var(--vvt, 0px);
+    left: 0;
+    width: 100%;
+    height: var(--vvh, 100dvh);
+    z-index: 60;
+    background: var(--asst-to);
+    color: var(--text);
+    overflow: hidden;
+  }
+  .inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  /* The content arrives a moment after the surface has started to open, and leaves as soon as it starts to close. With reduced
+     motion the animation is switched off, and the content is simply there. */
+  .surface[data-phase='opening'] .inner,
+  .surface[data-phase='open'] .inner {
+    animation: arrive 0.2s ease 0.12s backwards;
+  }
+  .surface[data-phase='closing'] .inner {
+    opacity: 0;
+    transition: opacity 0.1s ease;
+  }
+  @keyframes arrive {
+    from {
+      opacity: 0;
+    }
+  }
+  .top {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px 16px;
+  }
+  .who {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .acts {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+  }
+  .close {
+    gap: 8px;
+  }
+  .btn.armed {
+    color: #fff;
+  }
+  @media (max-width: 640px) {
+    .wide {
+      display: none;
+    }
+    .btn.armed .wide {
+      display: inline;
+    }
+    .close {
+      width: 44px;
+      padding: 0;
+    }
+  }
+</style>

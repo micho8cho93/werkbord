@@ -55,6 +55,14 @@ export class Model {
   sidebarCollapsed = $state(readCollapsed());
   addOpen = $state(false);
   loaded = $state(false);
+  /** How Individual's assistant stands, as it last said: open over its page, something waiting for the person, a reply on the way. */
+  assistant = $state({ open: false, waiting: 0, running: false });
+  /** A request for the assistant, handed to the frame by FrameHost once the frame can take it (see toggleAssistant). */
+  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor } | null>(null);
+  /** The sidebar's Assistant button: the assistant opens out of it, and focus comes back to it. */
+  assistantButton: HTMLElement | undefined;
+  /** What was showing when the assistant was opened from somewhere else, so closing it puts the person back there. */
+  private assistantReturn: { page: Page; current: string } | null = null;
 
   private timers: ReturnType<typeof setInterval>[] = [];
 
@@ -84,8 +92,49 @@ export class Model {
     if (this.frames[id]) this.places[id] = place;
   }
 
+  /** Opens or closes Individual's assistant. It lives in Individual's page; this brings that page forward and asks it. */
+  async toggleAssistant(rect: Anchor): Promise<void> {
+    const showing = this.page === 'workspace' && this.current === 'personal';
+    if (this.assistant.open && showing) {
+      this.assistantAsk = { action: 'close', rect };
+      return;
+    }
+    if (this.assistant.open) {
+      // Open, but behind another page: bring it forward rather than close it.
+      await this.open('personal', undefined, true);
+      return;
+    }
+    if (!showing) this.assistantReturn = { page: this.page, current: this.current };
+    await this.open('personal', undefined, true);
+    this.assistantAsk = { action: 'open', rect };
+  }
+
+  /** The assistant's page says how it stands. When it has closed, the person goes back to what they were looking at. */
+  setAssistant(s: { open: boolean; waiting: number; running: boolean }): void {
+    const was = this.assistant.open;
+    this.assistant = s;
+    if (!was || s.open) return;
+    const back = this.assistantReturn;
+    this.assistantReturn = null;
+    if (back && (back.page !== 'workspace' || this.frames[back.current])) {
+      if (back.page === 'workspace') void this.open(back.current, undefined, true);
+      else this.page = back.page;
+    }
+    queueMicrotask(() => this.assistantButton?.focus({ preventScroll: true }));
+  }
+
+  /** Closes the assistant if it is open, for a destination the person chose in the sidebar. */
+  private leaveAssistant(): void {
+    if (!this.assistant.open) return;
+    this.assistantReturn = null;
+    const r = this.assistantButton?.getBoundingClientRect();
+    if (this.page === 'workspace' && this.current === 'personal' && r) this.assistantAsk = { action: 'close', rect: { x: r.left, y: r.top, width: r.width, height: r.height } };
+    else this.assistantAsk = { action: 'close', rect: { x: 24, y: 24, width: 0, height: 0 } };
+  }
+
   /** Shows a place inside the workspace on show (a project, Settings…): the sidebar's way of navigating a workspace. */
   async visit(place: string): Promise<void> {
+    this.leaveAssistant();
     const frame = this.frames[this.current];
     if (!frame) return this.open(this.current, place);
     frame.pending = place;
@@ -160,7 +209,8 @@ export class Model {
   }
 
   /** Opens a workspace on the Workspace page, and optionally somewhere inside it. */
-  async open(id: string, place?: string): Promise<void> {
+  async open(id: string, place?: string, keepAssistant = false): Promise<void> {
+    if (!keepAssistant && id !== this.current) this.leaveAssistant();
     this.error = '';
     const item = this.view?.items.find((i) => i.id === id);
     if (id === 'personal' && item?.state === 'unavailable') {
@@ -201,6 +251,7 @@ export class Model {
 
   /** Shows a page of the shell's own. */
   go(p: Page): void {
+    this.leaveAssistant();
     this.page = p;
     this.closeSwitcher();
     if (p === 'mywork' || p === 'calendar' || p === 'inbox' || p === 'workspaces') void this.refreshOverview();

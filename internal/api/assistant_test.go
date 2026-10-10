@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -344,6 +346,7 @@ func TestTheAssistantBelongsToTheOwnerAlone(t *testing.T) {
 		{"GET", "/api/assistant/providers"}, {"GET", "/api/assistant/sessions"}, {"POST", "/api/assistant/sessions"},
 		{"GET", "/api/assistant/sessions/" + sid}, {"PATCH", "/api/assistant/sessions/" + sid}, {"DELETE", "/api/assistant/sessions/" + sid},
 		{"POST", "/api/assistant/sessions/" + sid + "/messages"}, {"POST", "/api/assistant/sessions/" + sid + "/cancel"},
+		{"POST", "/api/assistant/sessions/" + sid + "/attachments"}, {"DELETE", "/api/assistant/sessions/" + sid + "/attachments/att_1"},
 		{"GET", "/api/assistant/sessions/" + sid + "/events"}, {"POST", "/api/assistant/sessions/" + sid + "/actions/act_1"},
 		{"GET", "/api/assistant/audit"}, {"GET", "/api/assistant/audit/verify"},
 	}
@@ -448,5 +451,111 @@ func TestTheModelAndReasoningCanBeChangedBetweenMessages(t *testing.T) {
 	<-done
 	if tr := a.prov.Turns()[0]; tr.Model != "m2" || tr.Reasoning != "" {
 		t.Fatalf("turn = %+v", tr)
+	}
+}
+
+// attach is POST .../attachments the way the screen does it: the file is the body, the name is percent-encoded in a header
+// and the person's yes is another.
+func (a *asst) attach(t *testing.T, sid, name, content string, authorized bool) (int, []byte) {
+	t.Helper()
+	req, _ := http.NewRequest("POST", a.url+"/api/assistant/sessions/"+sid+"/attachments", strings.NewReader(content))
+	req.Header.Set("Authorization", "Bearer "+a.owner)
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("X-Attachment-Name", url.PathEscape(name))
+	if authorized {
+		req.Header.Set("X-Attachment-Authorized", "true")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, b
+}
+
+func TestAFileIsAttachedSentOnceAndForgottenOverHTTP(t *testing.T) {
+	a := newAsst(t, true)
+	sid := a.newSession(t)
+
+	code, b := a.req(t, "GET", "/api/assistant/providers", "")
+	if code != 200 || !strings.Contains(string(b), `"attachments":{"enabled":true,"maxBytes":262144,"maxFiles":4,"maxBytesTotal":524288,"retentionSeconds":1800}`) {
+		t.Fatalf("the screen learns the limits from here: %d %s", code, b)
+	}
+
+	if code, b := a.attach(t, sid, "notes.md", "remember the milk", false); code != 400 || !strings.Contains(string(b), "authorization") {
+		t.Fatalf("without the person's yes: %d %s", code, b)
+	}
+	code, b = a.attach(t, sid, "my notes é.md", "remember the milk", true)
+	var att assistant.AttachmentInfo
+	if code != 201 || json.Unmarshal(b, &att) != nil || !strings.HasPrefix(att.ID, "att_") || att.Name != "my notes é.md" || att.Bytes != 17 {
+		t.Fatalf("attach: %d %s", code, b)
+	}
+	if strings.Contains(string(b), "milk") {
+		t.Fatalf("an answer never repeats the content: %s", b)
+	}
+	code, b = a.req(t, "GET", "/api/assistant/sessions/"+sid, "")
+	var v assistant.SessionView
+	if code != 200 || json.Unmarshal(b, &v) != nil || len(v.Attachments) != 1 || v.Attachments[0].ID != att.ID {
+		t.Fatalf("a reloaded screen sees the waiting file: %d %s", code, b)
+	}
+
+	a.prov.Queue(fake.Reply("It says to buy milk."))
+	code, b = a.req(t, "POST", "/api/assistant/sessions/"+sid+"/messages", `{"text":"what does it say?","attachments":["`+att.ID+`"]}`)
+	if code != 202 {
+		t.Fatalf("send: %d %s", code, b)
+	}
+	a.stream(t, sid, "", untilEnd)
+	turns := a.prov.Turns()
+	if len(turns) != 1 || !strings.Contains(turns[0].Prompt, "remember the milk") || !strings.Contains(turns[0].Prompt, "what does it say?") {
+		t.Fatalf("the provider must get the words and the file: %+v", turns)
+	}
+	code, b = a.req(t, "POST", "/api/assistant/sessions/"+sid+"/messages", `{"text":"again","attachments":["`+att.ID+`"]}`)
+	if code != 404 {
+		t.Fatalf("a file already sent is gone: %d %s", code, b)
+	}
+	code, _ = a.req(t, "DELETE", "/api/assistant/sessions/"+sid+"/attachments/"+att.ID, "")
+	if code != 404 {
+		t.Fatalf("removing a sent file: %d", code)
+	}
+}
+
+func TestAWaitingFileCanBeRemovedAndOnlyTextWithinTheLimitIsTaken(t *testing.T) {
+	a := newAsst(t, true)
+	sid := a.newSession(t)
+	code, b := a.attach(t, sid, "a.txt", "x", true)
+	var att assistant.AttachmentInfo
+	_ = json.Unmarshal(b, &att)
+	if code != 201 {
+		t.Fatalf("%d %s", code, b)
+	}
+	if code, _ := a.req(t, "DELETE", "/api/assistant/sessions/"+sid+"/attachments/"+att.ID, ""); code != 204 {
+		t.Fatalf("remove: %d", code)
+	}
+	if code, b := a.attach(t, sid, "pic.png", "\x89PNG\r\n\x1a\n\x00\x00", true); code != 400 || !strings.Contains(string(b), "not plain text") {
+		t.Fatalf("a picture: %d %s", code, b)
+	}
+	if code, b := a.attach(t, sid, "big.txt", strings.Repeat("a", assistant.MaxAttachmentBytes+10), true); code != 413 {
+		t.Fatalf("a big file is stopped while it is read: %d %s", code, b)
+	}
+	if code, _ := a.attach(t, "ast_nope", "a.txt", "x", true); code != 404 {
+		t.Fatalf("a conversation that does not exist: %d", code)
+	}
+}
+
+func TestNoLocalAccessTokenCanAttachAFile(t *testing.T) {
+	a := newAsst(t, true)
+	sid := a.newSession(t)
+	token := a.mint(t, "script")
+	req, _ := http.NewRequest("POST", a.url+"/api/assistant/sessions/"+sid+"/attachments", strings.NewReader("x"))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Attachment-Authorized", "true")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 403 && resp.StatusCode != 401 {
+		t.Fatalf("a program's token must not reach attachments: %d", resp.StatusCode)
 	}
 }

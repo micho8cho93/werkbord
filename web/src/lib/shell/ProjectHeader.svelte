@@ -2,6 +2,7 @@
   import { embedded } from '../embed';
 
   const framed = embedded();
+  import AssistantButton from '../assistant/AssistantButton.svelte';
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
   import { shortPath } from '../projects';
@@ -39,6 +40,7 @@
     {/if}
   </div>
   <div class="acts">
+    <span class="phone-only"><AssistantButton variant="icon" /></span>
     <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
       <Icon name="search" /><span class="wide">Jump to</span><kbd class="key wide">{isMac ? '⌘' : 'Ctrl'} K</kbd>
     </button>
@@ -140,6 +142,10 @@
     flex: none;
   }
 
+  .phone-only {
+    display: none;
+  }
+
   .gear[aria-current='page'] {
     box-shadow: var(--press-sh);
     background: var(--surface-2);
@@ -203,6 +209,10 @@
     .phone-mark {
       display: inline-flex;
       margin-right: 4px;
+    }
+
+    .phone-only {
+      display: inline-flex;
     }
 
     .wide,

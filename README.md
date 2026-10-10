@@ -88,11 +88,14 @@ dependencies and never reschedules anything. A *work project* has a board and a 
 for work that is not code. Team has the same, with labels shared by the workspace and managed by its owner and
 admins. See [docs/PLANNING.md](docs/PLANNING.md).
 
-**Assistant (backend).** A conversation with your own Claude Code or Codex, signed in as you already are, about your board:
-it can look up tickets, schedules, blockers and what agents are waiting on, and *propose* a new ticket, a change to one, or
-an answer to an agent's question. Nothing happens until you confirm it, every operation is audited, and it has no
-operation that runs, stops or configures anything. No API key, no account of its own; there is no screen for it yet. See
-[docs/ASSISTANT.md](docs/ASSISTANT.md).
+**Assistant.** A conversation with your own Claude Code or Codex, signed in as you already are, about your board: press
+*Assistant* in the sidebar (or the icon at the top on a phone) and a full-window conversation opens out of the button. It can
+look up tickets, schedules, blockers and what agents are waiting on, and *propose* a new ticket, a change to one, or an answer to
+an agent's question. Nothing happens until you confirm it on the screen, every operation is audited, and it has no operation that
+runs, stops or configures anything. You choose the provider, model and thinking level, and can change them mid-conversation. You can
+show it a text file (asked first, kept in memory for at most half an hour, shown once) and dictate with your browser's own speech
+recognition (told first where the audio may go; not Claude or ChatGPT voice). Closing it stops nothing: a reply keeps streaming and
+a waiting change keeps waiting. No API key, no account of its own, no chat history. See [docs/ASSISTANT.md](docs/ASSISTANT.md).
 
 **Orchestration.** Schedule the same Board tasks in a day/week Calendar, queue work by order and priority,
 and add dependencies. The controller runs schedules from SQLite while your browser is closed, with explicit

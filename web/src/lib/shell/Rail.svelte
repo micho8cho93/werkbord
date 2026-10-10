@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AssistantButton from '../assistant/AssistantButton.svelte';
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
   import { attentionCount } from '../projects';
@@ -22,6 +23,8 @@
     <Mark height={20} />
     <span class="wm">werkbord</span>
   </a>
+
+  <div class="ask"><AssistantButton variant="rail" /></div>
 
   <nav class="group" aria-label="Everywhere">
     <a class="nav" href={globalHref('control')} aria-current={router.view === 'control' ? 'page' : undefined}>
@@ -115,6 +118,10 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .ask {
+    padding: 0 0 10px;
   }
 
   .nav {

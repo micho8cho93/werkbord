@@ -104,7 +104,7 @@ export function adoptTokenFromURL(): void {
   history.replaceState(null, '', location.pathname + '#/');
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const token = getToken();
@@ -133,7 +133,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 /** For an answer with no body (204). Errors are the same as `request`'s. */
-async function requestNoContent(method: string, path: string): Promise<void> {
+export async function requestNoContent(method: string, path: string): Promise<void> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;

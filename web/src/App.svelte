@@ -1,6 +1,9 @@
 <script lang="ts">
   import Icon, { type IconName } from './lib/Icon.svelte';
   import Mark from './lib/Mark.svelte';
+  import Assistant from './lib/assistant/Assistant.svelte';
+  import AssistantButton from './lib/assistant/AssistantButton.svelte';
+  import { assistant } from './lib/assistant/store.svelte';
   import { embedded } from './lib/embed';
   import NeedsInputBanner from './lib/NeedsInputBanner.svelte';
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
@@ -100,11 +103,12 @@
   // ⌘/Ctrl K: Jump to, from anywhere. N: a new task in the project you are in.
   function onKey(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
+      if (assistant.mounted) return;
       e.preventDefault();
       app.switcherOpen = !app.switcherOpen;
       return;
     }
-    if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented || assistant.mounted) return;
     const el = e.target as HTMLElement | null;
     const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
     if (typing || app.switcherOpen || app.newTaskOpen) return;
@@ -134,7 +138,8 @@
 {#if app.connection === 'unauthorized'}
   <TokenPrompt />
 {:else}
-  <div class="shell" class:framed>
+  <!-- The workspace stays mounted while the assistant is over it; inert keeps focus and screen readers on the assistant. -->
+  <div class="shell" class:framed inert={assistant.mounted}>
     {#if !framed}<div class="rail-area"><Rail /></div>{/if}
 
     <div class="main-area">
@@ -146,9 +151,12 @@
             {#if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
             <h1>{globalTitle}</h1>
           </div>
-          <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
-            <Icon name="search" /><span class="wide">Jump to</span>
-          </button>
+          <div class="gacts">
+            <span class="phone-only"><AssistantButton variant="icon" /></span>
+            <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
+              <Icon name="search" /><span class="wide">Jump to</span>
+            </button>
+          </div>
         </header>
       {/if}
 
@@ -214,6 +222,7 @@
     {#if app.newTaskOpen && project}<NewTaskDialog {project} />{/if}
     <Toasts />
   </div>
+  <Assistant />
 {/if}
 
 <style>
@@ -272,6 +281,16 @@
     display: none;
   }
 
+  .gacts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .phone-only {
+    display: none;
+  }
+
   .tabbar {
     display: none;
   }
@@ -317,6 +336,10 @@
     }
 
     .phone-mark {
+      display: inline-flex;
+    }
+
+    .phone-only {
       display: inline-flex;
     }
 

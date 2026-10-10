@@ -46,6 +46,9 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 		TurnTimeout:    time.Duration(a.TurnTimeoutSeconds) * time.Second,
 		IdleTimeout:    time.Duration(a.IdleTimeoutSeconds) * time.Second,
 		AuditRetention: auditRetention(a),
+
+		AttachmentRetention: time.Duration(a.AttachmentRetentionMinutes) * time.Minute,
+		AttachmentsDisabled: a.AttachmentsDisabled,
 	})
 	return eng, nil
 }

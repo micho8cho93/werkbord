@@ -327,6 +327,7 @@ or if `desktop/` stops being a separate module or reaches Team.
 | Version and update logic: newer/older/equal/pre-release/source builds, caching, opt-out | `internal/update/update_test.go` |
 | What a page may ask, the update confirmation, Later, refused updates, diagnostics | `desktop/internal/shell/shell_test.go` |
 | The bridge's protocol, external-link rules, update offers | `web/src/lib/desktop.test.ts`, `updates.test.ts` |
+| The Assistant button in the window's sidebar: the surface opens out of it across the frame boundary, the workspace you were in is put back untouched, what waits shows as a badge, no conversation crosses | `web/src/shell/frames.test.ts`, `scripts/browser-shell-assistant.cjs` (`make test-assistant-browser`) |
 | Wails and the window build and sign | `make desktop-check`, `make desktop-package` (CI, on macOS) |
 | The signing policy, the temporary keychain, what a release refuses, and that the hardened program, controller, Tailscale node and app (both chips) run | `scripts/test-desktop-sign.sh` (`make test-desktop-sign`) |
 | The app updating itself with the real Sparkle: a good update; a tampered archive, a wrong key, a wrong feed key, an unsigned feed, a lower version and an old archive under a newer number refused; nothing asked when updates are off; the controller kept running while agents work; one menu item | `scripts/test-desktop-update.sh` (`make test-desktop-update`; builds the app twice) |

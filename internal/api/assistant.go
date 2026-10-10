@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -57,7 +59,7 @@ func (s *Server) handleAssistantProviders(w http.ResponseWriter, r *http.Request
 	if !s.assistantReady(w) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"providers": s.opt.Assistant.Providers(r.Context())})
+	writeJSON(w, http.StatusOK, map[string]any{"providers": s.opt.Assistant.Providers(r.Context()), "attachments": s.opt.Assistant.AttachmentPolicy()})
 }
 
 func (s *Server) handleAssistantSessions(w http.ResponseWriter, r *http.Request) {
@@ -158,19 +160,63 @@ func (s *Server) handleAssistantSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Text string `json:"text"`
+		Text        string   `json:"text"`
+		Attachments []string `json:"attachments"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	turn, err := s.opt.Assistant.Send(r.Context(), r.PathValue("id"), req.Text)
+	turn, err := s.opt.Assistant.SendMessage(r.Context(), r.PathValue("id"), req.Text, req.Attachments)
 	if err != nil {
 		s.assistantFail(w, r, err)
 		return
 	}
 	// The reply is read from the event stream; the turn does not depend on this request staying open.
 	writeJSON(w, http.StatusAccepted, map[string]any{"turnId": turn})
+}
+
+// handleAssistantAttach holds one text file for the person's next message. The file is the request's body, its name travels
+// percent-encoded in X-Attachment-Name, and the person's yes is X-Attachment-Authorized: true; a request without it is refused.
+// Nothing is written to disk.
+func (s *Server) handleAssistantAttach(w http.ResponseWriter, r *http.Request) {
+	if !s.assistantReady(w) {
+		return
+	}
+	authorized := r.Header.Get("X-Attachment-Authorized") == "true"
+	name, err := url.PathUnescape(r.Header.Get("X-Attachment-Name"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid", "the file name is not valid")
+		return
+	}
+	// One byte over the limit is enough to know it is too big.
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, assistant.MaxAttachmentBytes+1))
+	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeError(w, http.StatusRequestEntityTooLarge, "too_large", fmt.Sprintf("a file is at most %d KB", assistant.MaxAttachmentBytes>>10))
+			return
+		}
+		writeError(w, http.StatusBadRequest, "invalid", "the file could not be read")
+		return
+	}
+	info, err := s.opt.Assistant.Attach(r.Context(), r.PathValue("id"), name, data, authorized)
+	if err != nil {
+		s.assistantFail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, info)
+}
+
+func (s *Server) handleAssistantDetach(w http.ResponseWriter, r *http.Request) {
+	if !s.assistantReady(w) {
+		return
+	}
+	if err := s.opt.Assistant.Detach(r.Context(), r.PathValue("id"), r.PathValue("aid")); err != nil {
+		s.assistantFail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleAssistantCancel(w http.ResponseWriter, r *http.Request) {

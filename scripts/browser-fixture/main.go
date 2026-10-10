@@ -45,13 +45,16 @@ func main() {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	dir, err := os.MkdirTemp("", "werkbord-browser-fixture-")
-	if err != nil {
-		log.Fatal(err)
+	// WERKBORD_BROWSER_DIR keeps the fixture's storage where a test can start it again on the same data, as a restarted controller is.
+	dir := os.Getenv("WERKBORD_BROWSER_DIR")
+	var err error
+	if dir == "" {
+		if dir, err = os.MkdirTemp("", "werkbord-browser-fixture-"); err != nil {
+			log.Fatal(err)
+		}
+		defer os.RemoveAll(dir)
 	}
-	defer os.RemoveAll(dir)
-	dir, err = filepath.EvalSymlinks(dir)
-	if err != nil {
+	if dir, err = filepath.EvalSymlinks(dir); err != nil {
 		log.Fatal(err)
 	}
 	db, err := sqlite.Open(ctx, filepath.Join(dir, "fixture.db"), nil)
@@ -93,7 +96,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	handler := api.New(api.Options{EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	assistantEngine := newFixtureAssistant(os.Getenv("WERKBORD_BROWSER_ASSISTANT"), dir, db, deps, projects, tasks, runs, mgr)
+	if assistantEngine != nil {
+		defer func() {
+			stop, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = assistantEngine.Shutdown(stop)
+		}()
+	}
+	handler := api.New(api.Options{Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

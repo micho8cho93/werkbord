@@ -86,6 +86,24 @@ Members is an organization directory: initials, names, email and roles, with fil
 Light/dark sits beside Settings (an icon on phones), with Team's own per-device preference, independent of the
 individual app. `theme.js` resolves it before styles load and keeps the mark and browser chrome in step.
 
+## The assistant surface (4.10)
+
+A full-window conversation, opened from the Assistant button (the top of the rail; the sidebar in the desktop window; an icon in the
+heading on a phone). It is the quietest screen in the product: paper, one column of at most 46rem, no history list, no chrome beyond a
+heading (the provider chooser, New, Close) and the box.
+
+- **Movement.** A circle grows from the button's centre until it covers the window (440ms, the product's `cubic-bezier(.16, 1, .3, 1)`)
+  while the background moves from `--surface` (the sidebar) to `--bg` (paper): `#FFFFFF → #F5F5F2`, `#141415 → #0B0B0C`. The content
+  arrives 120ms in. Closing runs it backwards, 35% faster, into the button. It can be turned round half way. Under *reduce motion* it
+  is simply there or gone: the movement is a Web Animation, so the page checks the setting itself and the global CSS rule that
+  switches off transitions is not what it relies on.
+- **Reading.** A reply is plain text on paper, 15px/1.55, no bubble; what you said is a tray (`--surface-2`) at the right. Progress is
+  one quiet line, never operation names. A change is a raised card with an amber left rule ("needs you"), turning green when done.
+- **The box** is raised, 14px corners, with attach, dictate and send/stop at its edge; 16px on a phone so the page does not zoom, 44px
+  targets. The send arrow is cobalt only when there is something to send.
+- **Not a place to browse.** No history, no list of conversations, no search of them. *New* starts again.
+- **Counts on the button.** Amber `.num.pend` for changes waiting; a cobalt pulse while a reply is on its way.
+
 ## Interaction rules
 
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).

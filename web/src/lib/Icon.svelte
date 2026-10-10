@@ -33,7 +33,11 @@
     | 'branch'
     | 'link'
     | 'grip'
-    | 'people';
+    | 'people'
+    | 'assistant'
+    | 'attach'
+    | 'mic'
+    | 'send';
 </script>
 
 <script lang="ts">
@@ -51,7 +55,15 @@
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  {#if name === 'control'}
+  {#if name === 'assistant'}
+    <path d="M6.8 2.2l1.4 3.8 3.8 1.4-3.8 1.4-1.4 3.8-1.4-3.8L1.6 7.4 5.4 6z" /><path d="M12.6 1.6v2.8M11.2 3h2.8" />
+  {:else if name === 'attach'}
+    <path d="M12.6 7.6l-4.7 4.7a2.6 2.6 0 0 1-3.7-3.7l5.1-5.1a1.8 1.8 0 0 1 2.6 2.6L6.8 11.2a.9.9 0 0 1-1.3-1.3l4.5-4.5" />
+  {:else if name === 'mic'}
+    <rect x="6" y="1.8" width="4" height="7.4" rx="2" /><path d="M3.4 7.6a4.6 4.6 0 0 0 9.2 0M8 12.2v2M5.8 14.2h4.4" />
+  {:else if name === 'send'}
+    <path d="M8 13V3.2M3.8 7.4L8 3.2l4.2 4.2" />
+  {:else if name === 'control'}
     <rect x="2" y="2" width="5" height="5" rx="1" /><rect x="9" y="2" width="5" height="5" rx="1" /><rect x="2" y="9" width="5" height="5" rx="1" /><rect x="9" y="9" width="5" height="5" rx="1" />
   {:else if name === 'overview'}
     <rect x="2" y="2" width="12" height="12" rx="1.5" /><path d="M2 6.5h12M6.5 6.5V14" />

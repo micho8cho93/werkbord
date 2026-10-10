@@ -42,6 +42,26 @@
   $effect(() => {
     model.switcherButton = switchButton;
   });
+
+  // Individual's assistant: the button it opens out of, and whether it can be reached at all.
+  let assistantButton: HTMLButtonElement | undefined = $state();
+  $effect(() => {
+    model.assistantButton = assistantButton;
+  });
+  const assistantReachable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state !== 'unavailable');
+  const assistantLabel = $derived(
+    !assistantReachable
+      ? 'Assistant, unavailable: Individual is not running'
+      : model.assistant.waiting > 0
+        ? `Assistant, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'change is' : 'changes are'} waiting for you`
+        : model.assistant.running
+          ? 'Assistant, working'
+          : 'Assistant',
+  );
+  function askAssistant() {
+    const r = assistantButton?.getBoundingClientRect();
+    if (r) void model.toggleAssistant({ x: r.left, y: r.top, width: r.width, height: r.height });
+  }
 </script>
 
 {#snippet item(title: string, icon: IconName, current: boolean, go: () => void, id: string, count = 0)}
@@ -60,6 +80,17 @@
     <span class="brand"><Mark height={20} /><span class="wm">werkbord</span></span>
     <span class="mode"><span class="mode-name">{name}</span><Icon name="down" size={14} /></span>
   </button>
+
+  <div class="group ask">
+    <button bind:this={assistantButton} class="nav assistant" type="button" aria-haspopup="dialog" aria-expanded={model.assistant.open} aria-label={assistantLabel} title={assistantReachable ? 'Assistant' : 'Individual is not running'} disabled={!assistantReachable} onclick={askAssistant} data-page="assistant">
+      <span class="aico"><Icon name="assistant" /></span><span class="label">Assistant</span>
+      {#if model.assistant.waiting > 0}
+        <span class="num" aria-hidden="true">{model.assistant.waiting}</span>
+      {:else if model.assistant.running}
+        <span class="live" aria-hidden="true"></span>
+      {/if}
+    </button>
+  </div>
 
   <div class="group">
     <div class="lbl">Everywhere</div>
@@ -196,6 +227,36 @@
   }
   .bottom {
     margin-top: auto;
+  }
+  .ask {
+    padding: 6px 0 0;
+  }
+  .assistant {
+    position: relative;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-weight: 500;
+  }
+  .assistant:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .aico {
+    display: inline-flex;
+    color: var(--accent);
+  }
+  .live {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .collapsed .live {
+    position: absolute;
+    top: 3px;
+    right: 3px;
   }
   .lbl {
     min-height: 14px;

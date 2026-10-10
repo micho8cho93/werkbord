@@ -59,6 +59,10 @@ type Config struct {
 	MaxSessions int
 	// AuditRetention is how long audit entries are kept. Default 400 days; at least 30; negative keeps them for ever.
 	AuditRetention time.Duration
+	// AttachmentRetention is how long a file the person attached is kept if they do not send it. Default 30 minutes; between 1 minute and 24 hours.
+	AttachmentRetention time.Duration
+	// AttachmentsDisabled refuses files altogether.
+	AttachmentsDisabled bool
 }
 
 // DefaultAuditRetention is a little over a year: long enough to look back a full cycle of work, short enough that the
@@ -86,6 +90,10 @@ type Engine struct {
 	mu   sync.Mutex
 	runs map[string]*activeTurn
 	hubs map[string]*hub
+
+	// amu guards atts: the files the person attached and has not sent. They live in memory only (attachments.go).
+	amu  sync.Mutex
+	atts map[string]*attachment
 
 	workOnce sync.Once
 	work     string
@@ -221,6 +229,8 @@ type SessionView struct {
 	Pending []domain.AssistantAction `json:"pending"`
 	// LastEvent is the newest event's Seq, for resuming a stream.
 	LastEvent int64 `json:"lastEvent"`
+	// Attachments are the files attached and not yet sent, which a client that reloaded needs to show.
+	Attachments []AttachmentInfo `json:"attachments"`
 }
 
 // CreateSession starts a conversation with a provider. It fails at once, with what to do about it, if the provider is
@@ -299,7 +309,7 @@ func (e *Engine) view(ctx context.Context, s *domain.AssistantSession) (*Session
 	if pending == nil {
 		pending = []domain.AssistantAction{}
 	}
-	return &SessionView{AssistantSession: *s, Running: running, Pending: pending, LastEvent: e.hub(s.ID).last()}, nil
+	return &SessionView{AssistantSession: *s, Running: running, Pending: pending, LastEvent: e.hub(s.ID).last(), Attachments: e.attachmentsOf(s.ID)}, nil
 }
 
 // Session returns a conversation.
@@ -371,6 +381,10 @@ func (e *Engine) Configure(ctx context.Context, id, providerID, model, reasoning
 	note := "model " + orDefault(model) + ", reasoning " + orDefault(reasoning)
 	if switched {
 		note = "provider " + cur.Provider + " -> " + providerID + ", " + note
+		// A file was authorized for showing to the provider it was attached under, not to another.
+		if n := e.dropAttachments(id); n > 0 {
+			note += fmt.Sprintf(", %d unsent file(s) dropped", n)
+		}
 	}
 	if err := e.ops.Note(ctx, e.principal(s), "session_configured", note); err != nil {
 		return nil, err
@@ -469,7 +483,8 @@ func (e *Engine) DeleteSession(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if err := e.ops.Note(ctx, p, "session_deleted", fmt.Sprintf("%d waiting change(s) dropped", n)); err != nil {
+	files := e.dropAttachments(id)
+	if err := e.ops.Note(ctx, p, "session_deleted", fmt.Sprintf("%d waiting change(s) dropped, %d unsent file(s) dropped", n, files)); err != nil {
 		return err
 	}
 	if err := e.st.Update(ctx, func(tx store.Tx) error { return tx.Assistant().DeleteSession(ctx, id) }); err != nil {
@@ -483,11 +498,16 @@ func (e *Engine) DeleteSession(ctx context.Context, id string) error {
 
 // ---- sending ----
 
-// Send starts a turn: the person's message goes to the provider and the reply streams as events. It returns as soon
-// as the turn has begun. A conversation has one turn at a time.
+// Send starts a turn with a message of words alone. See SendMessage.
 func (e *Engine) Send(ctx context.Context, sessionID, text string) (string, error) {
+	return e.SendMessage(ctx, sessionID, text, nil)
+}
+
+// SendMessage starts a turn: the person's message, and the files they attached to it, go to the provider and the reply
+// streams as events. It returns as soon as the turn has begun. A conversation has one turn at a time.
+func (e *Engine) SendMessage(ctx context.Context, sessionID, text string, attachmentIDs []string) (string, error) {
 	text = strings.TrimSpace(text)
-	if text == "" {
+	if text == "" && len(attachmentIDs) == 0 {
 		return "", fmt.Errorf("%w: there is nothing to send", domain.ErrInvalid)
 	}
 	if len([]rune(text)) > maxMessageChars {
@@ -504,6 +524,10 @@ func (e *Engine) Send(ctx context.Context, sessionID, text string) (string, erro
 	if info := prov.Detect(ctx); !info.Available {
 		return "", unavailable(info)
 	}
+	e.sweepAttachments(ctx, e.now())
+	if _, err := e.peekAttachments(sessionID, attachmentIDs); err != nil {
+		return "", err
+	}
 
 	e.mu.Lock()
 	if e.base.Err() != nil {
@@ -519,6 +543,21 @@ func (e *Engine) Send(ctx context.Context, sessionID, text string) (string, erro
 	run := &activeTurn{id: turnID, cancel: cancel, done: make(chan struct{})}
 	e.runs[sessionID] = run
 	e.mu.Unlock()
+
+	// The files change hands here, once: they leave this store as they enter the message. If handing them over cannot be written
+	// down, nothing is sent.
+	files, err := e.takeAttachments(sessionID, attachmentIDs)
+	if err == nil && len(files) > 0 {
+		err = e.ops.Note(ctx, e.principal(s), "attachments_shared", fmt.Sprintf("%s shown to %s", attachmentNames(files), s.Provider))
+	}
+	if err != nil {
+		e.release(sessionID, run)
+		return "", err
+	}
+	if text == "" {
+		text = "Please look at the attached file(s)."
+	}
+	text += formatAttachments(files)
 
 	s, err = e.update(ctx, sessionID, func(s *domain.AssistantSession) { s.State, s.LastError = domain.AssistantRunning, "" })
 	if err != nil {
@@ -587,6 +626,9 @@ func (e *Engine) Subscribe(ctx context.Context, sessionID string, after int64) (
 // Shutdown stops every turn and waits for them to finish recording where they ended.
 func (e *Engine) Shutdown(ctx context.Context) error {
 	e.cancelBase(errShutdown)
+	e.amu.Lock()
+	e.atts = nil // files that were waiting are forgotten with the process, as promised
+	e.amu.Unlock()
 	done := make(chan struct{})
 	go func() { e.wg.Wait(); close(done) }()
 	select {
@@ -661,9 +703,22 @@ func mapOpsError(err error) error {
 	return err
 }
 
-// Start begins the engine's housekeeping: the audit is pruned to its retention period now and once a day while the
+// Start begins the engine's housekeeping: unsent attachments past their time are dropped every minute, and the audit is
+// pruned to its retention period now and once a day while the
 // controller runs. Call it after Recover. Shutdown stops it.
 func (e *Engine) Start() {
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		for {
+			select {
+			case <-time.After(time.Minute):
+				e.sweepAttachments(e.base, e.now())
+			case <-e.base.Done():
+				return
+			}
+		}
+	}()
 	keep := e.cfg.AuditRetention
 	if keep < 0 {
 		return

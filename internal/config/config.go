@@ -90,6 +90,10 @@ type AssistantConfig struct {
 	IdleTimeoutSeconds int `json:"idleTimeoutSeconds,omitempty"`
 	// AuditRetentionDays is how long the record of what the assistant did is kept. Default 400; at least 30; -1 keeps it for ever.
 	AuditRetentionDays int `json:"auditRetentionDays,omitempty"`
+	// AttachmentRetentionMinutes is how long a file the person attached is kept if they do not send it. Default 30; 1 to 1440.
+	AttachmentRetentionMinutes int `json:"attachmentRetentionMinutes,omitempty"`
+	// AttachmentsDisabled stops the assistant accepting files at all.
+	AttachmentsDisabled bool `json:"attachmentsDisabled,omitempty"`
 }
 
 // NetworkConfig is the user's choices for the private network that lets a phone
@@ -455,6 +459,9 @@ func (c Config) validateAssistant() error {
 	}
 	if a.AuditRetentionDays != 0 && a.AuditRetentionDays != -1 && (a.AuditRetentionDays < 30 || a.AuditRetentionDays > 36500) {
 		return errors.New("assistant.auditRetentionDays: want 30 or more, or -1 to keep it for ever")
+	}
+	if a.AttachmentRetentionMinutes < 0 || a.AttachmentRetentionMinutes > 1440 {
+		return errors.New("assistant.attachmentRetentionMinutes: want 1 to 1440")
 	}
 	return nil
 }

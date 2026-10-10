@@ -24,6 +24,8 @@ export interface Deps {
   reply(frame: FrameRef, message: Record<string, unknown>): void;
   /** A frame asks to show the person's own Werkbord at a place inside it. */
   open(id: string, target: 'personal', place: string): void;
+  /** Individual's assistant says whether it is open and whether something there needs the person. */
+  assistant(id: string, state: { open: boolean; waiting: number; running: boolean }): void;
 }
 
 const METHOD = /^[A-Za-z]{1,40}$/;
@@ -72,5 +74,9 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     if (m.event === 'ready') d.ready(frame.id);
     else if (m.event === 'place' && isPlace(m.place)) await d.remember(frame.id, m.place).catch(() => {});
     else if (m.event === 'open' && m.target === 'personal' && isPlace(m.place) && String(m.place).startsWith('#')) d.open(frame.id, 'personal', m.place as string);
+    // Only the person's own Werkbord has an assistant. A count and two flags are all that cross: never a word of the conversation.
+    else if (m.event === 'assistant' && frame.id === 'personal' && typeof m.open === 'boolean' && typeof m.running === 'boolean' && Number.isInteger(m.waiting) && (m.waiting as number) >= 0 && (m.waiting as number) <= 99) {
+      d.assistant(frame.id, { open: m.open, waiting: m.waiting as number, running: m.running });
+    }
   }
 }

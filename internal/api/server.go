@@ -160,6 +160,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/assistant/sessions/{id}", s.handleAssistantConfigure)
 	mux.HandleFunc("DELETE /api/assistant/sessions/{id}", s.handleAssistantDeleteSession)
 	mux.HandleFunc("POST /api/assistant/sessions/{id}/messages", s.handleAssistantSend)
+	mux.HandleFunc("POST /api/assistant/sessions/{id}/attachments", s.handleAssistantAttach)
+	mux.HandleFunc("DELETE /api/assistant/sessions/{id}/attachments/{aid}", s.handleAssistantDetach)
 	mux.HandleFunc("POST /api/assistant/sessions/{id}/cancel", s.handleAssistantCancel)
 	mux.HandleFunc("GET /api/assistant/sessions/{id}/events", s.handleAssistantEvents)
 	mux.HandleFunc("POST /api/assistant/sessions/{id}/actions/{aid}", s.handleAssistantResolve)

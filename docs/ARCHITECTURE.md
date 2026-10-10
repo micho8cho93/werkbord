@@ -995,6 +995,14 @@ so a Team opened later starts in the same theme. Outside the desktop app (Indivi
 Team's own console) both pages keep their own sidebars exactly as they were, apart from the status indicator, which is gone
 there too.
 
+Under the product name the sidebar has an **Assistant** button. The assistant is a page of Individual ([ASSISTANT.md](ASSISTANT.md#the-screen)),
+because that page holds the controller token and is on the controller's origin, so the button asks Individual's frame to open or
+close it (`werkbord.assistant`, `open`/`close`/`toggle`, with where the button is in the frame's own coordinates) and the frame reports
+only `werkbord.frame`/`assistant` (`open`, a count of changes waiting, whether a reply is running) for the button's badge. The shell
+brings Individual forward if another workspace or one of its own pages is showing, and puts that back when the assistant closes;
+choosing another place in the sidebar closes it first. No conversation, text or file crosses the frame boundary, a Team frame cannot
+send the report, and the shell accepts only that exact shape (`web/src/shell/frames.ts`).
+
 On narrow windows the sidebar folds to icons below about 1110px of window width so a workspace keeps its full layout;
 the person's choice is remembered per device. Individual's runners are under Workspaces and devices → Runners.
 Creating and joining a Team reuse Team's first-host and administrator-approved enrollment screens. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
