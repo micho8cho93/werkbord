@@ -332,6 +332,55 @@ func TestAReplyThatEndsOnTheClosingFenceStillRunsItsCall(t *testing.T) {
 	}
 }
 
+// A call written without its opening fence (a real Claude Sonnet reply: the JSON, then a stray closing fence) is not run and must
+// not be left on the person's screen as raw JSON with the turn ending as if it were an answer. It is taken out of the reply, the
+// assistant is told it was not run and how to write it, and its second try is run.
+func TestACallWithoutItsFenceIsTakenOffTheScreenAndTheAssistantIsToldToWriteItAsABlock(t *testing.T) {
+	f := newEfx(t)
+	s := f.session()
+	f.project("Alpha")
+	f.prov.Queue(
+		fake.Reply("Let me look.\n{\"id\":\"c1\",\"name\":\"list_projects\",\"arguments\":{}}\n```"),
+		fake.Reply("Sorry.\n", callBlock("c2", "list_projects", map[string]any{})),
+		fake.Reply("You have one project: Alpha."),
+	)
+	evs := f.send(s.ID, "which projects?")
+	if end(evs).Type != EventCompleted {
+		t.Fatalf("events %v", types(evs))
+	}
+	// What the person sees once the retraction is applied: the sentence, and never the JSON or the fence.
+	var seen strings.Builder
+	attempt := -1
+	start := 0
+	for _, e := range evs {
+		switch e.Type {
+		case EventDelta:
+			if e.Attempt != attempt {
+				attempt, start = e.Attempt, seen.Len()
+			}
+			seen.WriteString(e.Text)
+		case EventRetry:
+			s := seen.String()[:start]
+			seen.Reset()
+			seen.WriteString(s)
+			attempt = e.Attempt
+		}
+	}
+	if got := seen.String(); strings.Contains(got, "{\"id\"") || strings.Contains(got, "```") || !strings.Contains(got, "Let me look.") || !strings.Contains(got, "Alpha") {
+		t.Fatalf("the person saw %q", got)
+	}
+	turns := f.prov.Turns()
+	if len(turns) != 3 {
+		t.Fatalf("the assistant was asked %d times", len(turns))
+	}
+	if p := turns[1].Prompt; !strings.Contains(p, `status="error"`) || !strings.Contains(p, "invalid_call") || !strings.Contains(p, "not written as a call block") {
+		t.Fatalf("the assistant was not told what was wrong:\n%s", p)
+	}
+	if p := turns[2].Prompt; !strings.Contains(p, `name="list_projects" status="ok"`) || !strings.Contains(p, "Alpha") {
+		t.Fatalf("the second try was not run:\n%s", p)
+	}
+}
+
 func TestAChangeIsOnlyProposedUntilThePersonConfirmsAndTheAssistantIsToldWhatHappened(t *testing.T) {
 	f := newEfx(t)
 	s := f.session()

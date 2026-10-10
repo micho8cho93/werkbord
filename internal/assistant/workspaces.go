@@ -67,7 +67,12 @@ func (e *Engine) requestWorkspace(ctx context.Context, session, workspace, metho
 	e.wrequests.Unlock()
 	defer func() { e.wrequests.Lock(); delete(e.wrequests.pending, id); e.wrequests.Unlock() }()
 	e.hub(session).publish(Event{SessionID: session, Type: EventWorkspaceRequest, Workspace: &WorkspaceRequest{ID: id, WorkspaceID: workspace, Method: method, Args: args}})
-	timer := time.NewTimer(60 * time.Second)
+	// A read is answered at once or not at all; a creation waits for the person to answer a dialog in the window.
+	limit := 25 * time.Second
+	if method == "create_ticket" {
+		limit = 120 * time.Second
+	}
+	timer := time.NewTimer(limit)
 	defer timer.Stop()
 	select {
 	case reply := <-wait.reply:

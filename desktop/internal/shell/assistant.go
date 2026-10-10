@@ -49,7 +49,9 @@ func (s *Shell) AssistantWorkspaceCall(request, id, method string, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := s.timeout(45 * time.Second)
+	// A read is answered quickly or not at all. A creation waits for the person, whose time is not the service's: the service is
+	// asked with a fresh limit once they have answered.
+	ctx, cancel := s.timeout(20 * time.Second)
 	defer cancel()
 	view := s.o.Workspaces.Refresh(ctx)
 	name := ""
@@ -81,15 +83,33 @@ func (s *Shell) AssistantWorkspaceCall(request, id, method string, raw json.RawM
 	if len(s.workspaceCalls.results) >= 1000 {
 		return nil, errors.New("restart Werkbord before creating more workspace tickets")
 	}
+	// The person is shown the project by its name, as they know it, and not by an identifier.
+	project := in.ProjectID
+	if v, perr := client.AssistantBoard(ctx, id, "get_project", teamlink.BoardArgs{ProjectID: in.ProjectID}); perr == nil {
+		if p, ok := v.(interface{ ProjectName() string }); ok && p.ProjectName() != "" {
+			project = p.ProjectName()
+		}
+	}
 	choice := s.o.UI.Ask(Dialog{Kind: Question, Title: fmt.Sprintf("Create a ticket in %s?", name),
-		Message: fmt.Sprintf("Create %q in project %s.\n\n%s\n\nThis adds a ticket to Backlog. It starts no agent work.", in.Title, in.ProjectID, in.Description),
+		Message: fmt.Sprintf("Create %q in the project %q.\n\n%s\n\nThis adds a ticket to Backlog. It starts no agent work.", clipDialog(in.Title, 200), clipDialog(project, 120), clipDialog(in.Description, 600)),
 		Buttons: []string{"Create ticket", "Cancel"}, Default: "Cancel", Cancel: "Cancel"})
 	var result any
 	if choice != "Create ticket" {
 		err = errors.New("the ticket was not created")
 	} else {
-		result, err = client.AssistantBoard(ctx, id, method, in)
+		cctx, ccancel := s.timeout(30 * time.Second)
+		defer ccancel()
+		result, err = client.AssistantBoard(cctx, id, method, in)
 	}
 	s.workspaceCalls.results[request] = workspaceCallResult{data: result, err: err}
 	return result, err
+}
+
+// clipDialog shortens text for a dialog, which has no scroll bar.
+func clipDialog(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max-1]) + "…"
 }

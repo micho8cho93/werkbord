@@ -399,6 +399,26 @@ func (t *turnRun) attempt(ctx context.Context, system, prompt string) (r roundRe
 	if res.Ref != "" {
 		t.setRef(res.Ref)
 	}
+	// A call that was not written as one is taken out of what the person sees, and the assistant is told it was not run.
+	names := map[string]bool{}
+	for _, spec := range e.ops.Catalog(t.p) {
+		names[spec.Name] = true
+	}
+	if clean, problems, changed := repairReply(visible.String(), func(n string) bool { return names[n] }, hasProperCall(f.calls)); changed {
+		t.mu.Lock()
+		t.attempts++
+		n2 := t.attempts
+		t.mu.Unlock()
+		t.publish(Event{Type: EventRetry, Attempt: n2})
+		if strings.TrimSpace(clean) != "" {
+			t.publish(Event{Type: EventDelta, Text: clean, Attempt: n2})
+		}
+		visible.Reset()
+		visible.WriteString(clean)
+		for _, c := range problems {
+			f.add(c)
+		}
+	}
 	if strings.TrimSpace(visible.String()) == "" && len(f.calls) == 0 {
 		return roundResult{}, provider.Errorf(provider.KindTransient, true, "The provider sent an empty reply.")
 	}
@@ -474,4 +494,14 @@ func sentence(s string) string {
 		s += "."
 	}
 	return s
+}
+
+// hasProperCall says whether any of the calls was written as it should be.
+func hasProperCall(calls []call) bool {
+	for _, c := range calls {
+		if c.problem == "" {
+			return true
+		}
+	}
+	return false
 }

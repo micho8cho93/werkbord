@@ -212,3 +212,71 @@ func TestTheSystemPromptListsExactlyTheOperationsAndTheRules(t *testing.T) {
 		t.Errorf("the prompt is %d bytes", len(p))
 	}
 }
+
+// ---- a call that was not written as one ----
+
+func isOp(n string) bool { return n == "list_projects" || n == "list_tickets" || n == "create_ticket" }
+
+// Each of these is a shape a real model wrote (Claude Sonnet 5.5 and Haiku, Codex), or the person saw on screen.
+func TestACallThatWasNotWrittenAsOneIsTakenOutOfTheReplyAndReported(t *testing.T) {
+	const obj = `{"id":"c2","name":"list_tickets","arguments":{"projectId":"prj_1"}}`
+	pretty := "{\n  \"id\": \"c2\",\n  \"name\": \"list_tickets\",\n  \"arguments\": {\n    \"projectId\": \"prj_1\"\n  }\n}"
+	for name, c := range map[string]struct{ in, want string }{
+		"no opening fence, a stray closing one": {"I found it.\n" + obj + "\n```", "I found it."},
+		"no opening fence, nothing after":       {"I found it.\n" + obj, "I found it."},
+		"a json block":                          {"Let me look.\n```json\n" + obj + "\n```\n", "Let me look."},
+		"a plain block":                         {"```\n" + obj + "\n```", ""},
+		"written out over several lines":        {"Looking.\n" + pretty + "\n```\n", "Looking."},
+		"indented":                              {"Looking.\n   " + obj + "\n", "Looking."},
+		"text on both sides":                    {"Before.\n" + obj + "\n```\nAfter.", "Before.\nAfter."},
+	} {
+		clean, problems, changed := repairReply(c.in, isOp, false)
+		if !changed || clean != c.want || len(problems) != 1 || problems[0].Name != "list_tickets" || problems[0].ID != "c2" || !strings.Contains(problems[0].problem, "not written as a call block") || !strings.Contains(string(problems[0].Arguments), "prj_1") {
+			t.Errorf("%s: clean %q problems %+v changed %v", name, clean, problems, changed)
+		}
+	}
+}
+
+func TestClaudesOwnToolSyntaxIsRemovedAndOnlyComplainedAboutWhenNothingElseWasAsked(t *testing.T) {
+	junk := "<invoke name=\"list_projects\">\n</invoke>\n\n\n\n"
+	clean, problems, changed := repairReply(junk, isOp, false)
+	if !changed || clean != "" || len(problems) != 1 || !strings.Contains(problems[0].problem, "<invoke>") {
+		t.Fatalf("clean %q problems %+v", clean, problems)
+	}
+	// With a proper call in the same reply (which is what Haiku did), it only had to go.
+	clean, problems, changed = repairReply("Looking.\n"+junk, isOp, true)
+	if !changed || clean != "Looking." || len(problems) != 0 {
+		t.Fatalf("clean %q problems %+v", clean, problems)
+	}
+	clean, _, changed = repairReply("<function_calls>\n<invoke name=\"x\">\n<parameter name=\"a\">1</parameter>\n</invoke>\n</function_calls>\nDone.", isOp, true)
+	if !changed || clean != "Done." {
+		t.Fatalf("clean %q", clean)
+	}
+}
+
+func TestTextThatOnlyLooksLikeJsonOrMentionsACallIsLeftAlone(t *testing.T) {
+	for _, text := range []string{
+		"Plain words.",
+		"```json\n{\"name\":\"Alice\",\"age\":3}\n```",                         // JSON that is not a call
+		"{\"name\":\"list_tickets\"}",                                          // names an operation but is not a call: no arguments
+		"{\"name\":\"nobody\",\"arguments\":{}}",                               // has arguments, but no such operation
+		"The call {\"name\":\"list_tickets\",\"arguments\":{}} lists tickets.", // part of a sentence
+		"```werkbord\nnot a call\n```",
+		"A set {a, b} and a brace { that is never closed",
+		"{\"name\":\"list_tickets\",\"arguments\":{}} and then more words on the line",
+	} {
+		clean, problems, changed := repairReply(text, isOp, false)
+		if changed || clean != text || len(problems) != 0 {
+			t.Errorf("%q was changed to %q (%+v)", text, clean, problems)
+		}
+	}
+}
+
+func TestAProperCallIsNotTouchedAndTheBlockAroundItIsNotMistakenForAStrayFence(t *testing.T) {
+	// repairReply only ever sees the text the filter showed, which has no proper call in it; but a text that quotes JSON inside an
+	// ordinary code block, after real text, must come through whole.
+	text := "Here is the shape:\n```json\n{\"a\": 1}\n```\nand more."
+	if clean, _, changed := repairReply(text, isOp, false); changed || clean != text {
+		t.Fatalf("%q", clean)
+	}
+}

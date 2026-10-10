@@ -94,6 +94,8 @@ export class AssistantStore {
   link = $state<Link>('idle');
   draft = $state('');
   staged = $state<Staged[]>([]);
+  /** An "all of them" answer that is under way. */
+  batch = $state<{ done: number; total: number; decision: 'approve' | 'decline' } | null>(null);
   sending = $state(false);
   /** The clock the screen reads, so a file's time running out shows without anyone touching anything. */
   now = $state(Date.now());
@@ -458,6 +460,31 @@ export class AssistantStore {
       }
     }
     this.save();
+  }
+
+  /** The changes waiting for the person, in the order they were proposed. */
+  get waitingItems(): ConfirmItem[] {
+    return this.transcript.items.filter((i): i is ConfirmItem => i.kind === 'confirm' && i.state === 'waiting');
+  }
+
+  /**
+   * Answers every change that is waiting, one after another, each with its own request: the person pressed one button, and each
+   * change is still confirmed (or declined) on its own, in order. It stops at the first one that could not be answered, which then
+   * says why, so that nothing is pressed on behalf of a person who is no longer connected.
+   */
+  async resolveAll(decision: 'approve' | 'decline'): Promise<void> {
+    if (this.batch) return;
+    const items = this.waitingItems;
+    this.batch = { done: 0, total: items.length, decision };
+    try {
+      for (const item of items) {
+        await this.resolve(item, decision);
+        if (item.state === 'waiting') break;
+        this.batch = { ...this.batch, done: this.batch.done + 1 };
+      }
+    } finally {
+      this.batch = null;
+    }
   }
 
   // ---- choosing the provider, model and level ----

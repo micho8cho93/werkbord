@@ -174,13 +174,14 @@ func opOverview(ctx context.Context, e *env, _ map[string]any) (any, error) {
 	}
 	type out struct {
 		Projects          []service.ProjectActivity `json:"projects"`
+		Unavailable       []WorkspaceProblem        `json:"unavailableWorkspaces,omitempty"`
 		QuestionsWaiting  int                       `json:"questionsWaiting"`
 		RunsBlocked       int                       `json:"runsBlocked"`
 		RunsFailed        int                       `json:"runsFailed"`
 		TicketsInReview   int                       `json:"ticketsInReview"`
 		WaitingDependency int                       `json:"ticketsWaitingOnDependencies"`
 	}
-	res := out{Projects: []service.ProjectActivity{}}
+	res := out{Projects: []service.ProjectActivity{}, Unavailable: unavailableOf(e.b)}
 	for _, p := range ov.Projects {
 		if !e.p.CanSee(p.ProjectID) {
 			continue
@@ -206,7 +207,12 @@ func opListProjects(ctx context.Context, e *env, _ map[string]any) (any, error) 
 			out = append(out, projectView(p))
 		}
 	}
-	return map[string]any{"projects": out}, nil
+	res := map[string]any{"projects": out}
+	if down := unavailableOf(e.b); len(down) > 0 {
+		res["unavailableWorkspaces"] = down
+		res["note"] = "Some connected workspaces could not be read just now, so their projects are not in this list. Say so; do not say they have no projects."
+	}
+	return res, nil
 }
 
 func opListLabels(ctx context.Context, e *env, _ map[string]any) (any, error) {

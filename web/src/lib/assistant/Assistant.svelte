@@ -243,10 +243,12 @@
       circle at var(--ox) var(--oy),
       transparent calc(var(--r) - 150px),
       color-mix(in srgb, var(--accent) 12%, transparent) calc(var(--r) - 48px),
-      color-mix(in srgb, var(--accent) 34%, transparent) calc(var(--r) - 9px),
-      color-mix(in srgb, white 80%, var(--accent)) calc(var(--r) - 2px),
-      color-mix(in srgb, var(--accent) 60%, transparent) calc(var(--r) + 2px),
-      color-mix(in srgb, var(--accent) 18%, transparent) calc(var(--r) + 28px),
+      color-mix(in srgb, var(--accent) 30%, transparent) calc(var(--r) - 16px),
+      color-mix(in srgb, white 55%, var(--accent)) calc(var(--r) - 4px),
+      color-mix(in srgb, white 78%, var(--accent)) calc(var(--r) - 0.5px),
+      color-mix(in srgb, white 45%, var(--accent)) calc(var(--r) + 3px),
+      color-mix(in srgb, var(--accent) 40%, transparent) calc(var(--r) + 9px),
+      color-mix(in srgb, var(--accent) 16%, transparent) calc(var(--r) + 32px),
       transparent calc(var(--r) + 96px)
     );
   }

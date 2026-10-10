@@ -57,6 +57,37 @@ func (s *Service) backend(p Principal) Backend {
 type workspaceBackend struct {
 	Backend
 	binding workspaceBinding
+	// down are the workspaces that could not be read during this call. One that cannot be reached (its service stopped, the window
+	// slow to answer) must not take the person's own board away from the assistant, nor leave it saying the workspace is empty.
+	down []WorkspaceProblem
+}
+
+// WorkspaceProblem is a connected workspace that could not be read just now.
+type WorkspaceProblem struct {
+	Workspace string `json:"workspace"`
+	Problem   string `json:"problem"`
+}
+
+// unavailable is what a backend that reaches other boards says it could not read.
+type unavailable interface{ Unavailable() []WorkspaceProblem }
+
+func (b *workspaceBackend) Unavailable() []WorkspaceProblem { return b.down }
+
+// skip notes a workspace that could not be read, and says whether the call may go on without it: an interrupted call may not.
+func (b *workspaceBackend) skip(ctx context.Context, w Workspace, err error) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	b.down = append(b.down, WorkspaceProblem{Workspace: w.Name, Problem: clip(err.Error(), 200)})
+	return true
+}
+
+// unavailableOf lists what a backend could not read, if it reaches other boards.
+func unavailableOf(b Backend) []WorkspaceProblem {
+	if u, ok := b.(unavailable); ok {
+		return u.Unavailable()
+	}
+	return nil
 }
 
 func workspaceProjectID(w, p string) string { return "workspace:" + w + "/" + p }
@@ -92,6 +123,9 @@ func (b *workspaceBackend) Projects(ctx context.Context) ([]service.ProjectDetai
 	for _, w := range b.binding.workspaces {
 		var projects []ProjectView
 		if err := b.read(ctx, w, "list_projects", map[string]string{}, &projects); err != nil {
+			if b.skip(ctx, w, err) {
+				continue
+			}
 			return nil, err
 		}
 		for _, p := range projects {
@@ -181,6 +215,9 @@ func (b *workspaceBackend) Overview(ctx context.Context) (*service.Overview, err
 	for _, w := range b.binding.workspaces {
 		var projects []service.ProjectActivity
 		if err := b.read(ctx, w, "get_overview", map[string]string{}, &projects); err != nil {
+			if b.skip(ctx, w, err) {
+				continue
+			}
 			return nil, err
 		}
 		for _, p := range projects {

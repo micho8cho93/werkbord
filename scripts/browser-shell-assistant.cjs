@@ -253,11 +253,18 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await proposals.nth(2).waitFor();
         assert.equal(teamTickets.length, 0, 'all Team tickets are only proposed before approval');
         assert.match(await proposals.first().innerText(), /Northstar/);
-        for (let i = 0; i < 3; i++) {
-            await proposals.first().getByRole('button', { name: /confirm/i }).click();
-            for (let j = 0; j < 100 && teamTickets.length !== i + 1; j++) await sleep(30);
-            assert.equal(teamTickets.length, i + 1);
-        }
+        // Three changes waiting: one press answers them all, each with its own request, in order.
+        const all = assistantFrame.getByTestId('assistant-confirm-all');
+        assert.match(await all.innerText(), /3 changes are waiting/);
+        await sleep(500); // let the view settle at the bottom, where the bar is
+        const geo = await all.evaluate(el => { const r = el.getBoundingClientRect(), sc = el.closest('[role=log]'), box = sc.getBoundingClientRect(); return { barBottom: r.bottom, boxBottom: box.bottom, top: sc.scrollTop, height: sc.scrollHeight, client: sc.clientHeight }; });
+        assert.ok(geo.barBottom <= geo.boxBottom + 1, 'the bar is fully in view, not hidden behind the box: ' + JSON.stringify(geo));
+        await page.screenshot({ path: path.join(artifacts, 'shell-assistant-confirm-all.png') });
+        await all.getByRole('button', { name: 'Confirm all 3' }).click();
+        for (let j = 0; j < 200 && teamTickets.length !== 3; j++) await sleep(30);
+        assert.equal(teamTickets.length, 3);
+        await assistantFrame.locator('section.confirm[data-state="confirmed"]').nth(2).waitFor();
+        assert.equal(await all.count(), 0, 'nothing is left to answer, so the bar is gone');
         assert.deepEqual(teamTickets.map(t => t.title), ['Extract LinkedIn and CV information', 'Extract coding projects from GitHub', 'Create a website design system']);
         assert.equal((await api(ind, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, 0, 'Team approval never writes the Individual board');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-team-tickets.png') });

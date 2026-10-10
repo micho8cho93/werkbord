@@ -290,3 +290,158 @@ func clipText(s string, max int) string {
 	}
 	return string(r[:max-1]) + "…"
 }
+
+// ---- a call that was not written as one ----
+//
+// Models do not always write the block exactly. Seen with the real ones: the JSON on its own with no opening fence and a stray
+// closing one after it; the call in a ```json block; Claude's own tool syntax (<invoke name="…"></invoke>) written into the reply.
+// None of these is run: only the exact block is, so that text which merely quotes a call can never run one. But dropping it
+// quietly leaves the model to carry on as if it had asked, the person looking at a line of raw JSON, and the turn ending with
+// nothing done. So what looks like a call and was not written as one is taken out of the reply, and the model is told so, with
+// the call it wrote, and asked to write it as a block.
+
+// maxObjectBytes bounds how far a JSON object is followed when looking for a call that is not in a block.
+const maxObjectBytes = 64 << 10
+
+// repairReply finds the calls in a reply's text that were not written as call blocks. It returns the text without them (and
+// without the fence lines that only wrapped them), one problem per call it found, and whether it changed anything. known says
+// whether a name is an operation; haveCalls says the reply also holds calls that were written properly, in which case Claude's
+// own tool syntax, which then only repeats one of them, is removed without a complaint.
+func repairReply(text string, known func(string) bool, haveCalls bool) (clean string, problems []call, changed bool) {
+	lines := strings.SplitAfter(text, "\n")
+	var out strings.Builder
+	for i := 0; i < len(lines); {
+		t := strings.TrimSpace(lines[i])
+		if end, ok := toolSyntaxEnd(lines, i); ok {
+			if !haveCalls {
+				problems = append(problems, call{problem: "tool calls written as <invoke> are not understood here; write the call as a block that starts with a line holding three backticks and werkbord-call, then one JSON object with \"id\", \"name\" and \"arguments\", then a line holding three backticks"})
+			}
+			i, changed = end+1, true
+			continue
+		}
+		// A fence of some other kind around nothing but a call.
+		if strings.HasPrefix(t, "```") && t != callFence {
+			j := nextContent(lines, i+1)
+			if c, last, ok := objectCall(lines, j, known); ok {
+				if k := nextContent(lines, last+1); k < len(lines) && strings.TrimSpace(lines[k]) == "```" {
+					problems = append(problems, c)
+					i, changed = k+1, true
+					continue
+				}
+			}
+		}
+		if strings.HasPrefix(t, "{") {
+			if c, last, ok := objectCall(lines, i, known); ok {
+				problems = append(problems, c)
+				i, changed = last+1, true
+				// What was meant to close the block it was not written in.
+				if k := nextContent(lines, i); k < len(lines) && strings.TrimSpace(lines[k]) == "```" {
+					i = k + 1
+				}
+				continue
+			}
+		}
+		out.WriteString(lines[i])
+		i++
+	}
+	if !changed {
+		return text, nil, false
+	}
+	clean = strings.TrimSpace(out.String())
+	for strings.Contains(clean, "\n\n\n") {
+		clean = strings.ReplaceAll(clean, "\n\n\n", "\n\n")
+	}
+	return clean, problems, true
+}
+
+// nextContent is the index of the first line from i on that is not blank (len(lines) if there is none).
+func nextContent(lines []string, i int) int {
+	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+		i++
+	}
+	return i
+}
+
+// toolSyntaxEnd recognises Claude's native tool syntax starting at lines[i], and says where it ends.
+func toolSyntaxEnd(lines []string, i int) (int, bool) {
+	t := strings.TrimSpace(lines[i])
+	var closer string
+	switch {
+	case strings.HasPrefix(t, "<invoke ") || strings.HasPrefix(t, "<invoke>"):
+		closer = "</invoke>"
+	case strings.HasPrefix(t, "<function_calls>"):
+		closer = "</function_calls>"
+	default:
+		return 0, false
+	}
+	for j := i; j < len(lines) && j < i+200; j++ {
+		if strings.Contains(lines[j], closer) {
+			return j, true
+		}
+	}
+	return i, true // never closed: the line itself is what goes
+}
+
+// objectCall reads the JSON object that starts at lines[i] and stands alone, and says whether it is a call: it names an
+// operation and carries "arguments". last is the index of the line it ends on.
+func objectCall(lines []string, i int, known func(string) bool) (c call, last int, ok bool) {
+	if i >= len(lines) {
+		return call{}, 0, false
+	}
+	var b strings.Builder
+	depth, inStr, esc := 0, false, false
+	for j := i; j < len(lines) && b.Len() < maxObjectBytes; j++ {
+		l := lines[j]
+		if j == i {
+			l = strings.TrimLeft(l, " \t")
+			if !strings.HasPrefix(l, "{") {
+				return call{}, 0, false
+			}
+		}
+		for k := 0; k < len(l); k++ {
+			ch := l[k]
+			switch {
+			case esc:
+				esc = false
+			case inStr && ch == '\\':
+				esc = true
+			case ch == '"':
+				inStr = !inStr
+			case inStr:
+			case ch == '{':
+				depth++
+			case ch == '}':
+				depth--
+				if depth == 0 {
+					if strings.TrimSpace(l[k+1:]) != "" {
+						return call{}, 0, false // something follows it on the line: it is part of a sentence
+					}
+					b.WriteString(l[:k+1])
+					c := asCall(b.String(), known)
+					return c, j, c.Name != ""
+				}
+			}
+		}
+		b.WriteString(l)
+	}
+	return call{}, 0, false
+}
+
+// asCall reads a JSON object as a call, or returns the zero call when it is not one: it must name an operation and have "arguments".
+func asCall(raw string, known func(string) bool) call {
+	var m map[string]json.RawMessage
+	if json.Unmarshal([]byte(raw), &m) != nil {
+		return call{}
+	}
+	var name, id string
+	if json.Unmarshal(m["name"], &name) != nil || name == "" || !known(name) {
+		return call{}
+	}
+	args, hasArgs := m["arguments"]
+	if !hasArgs {
+		return call{}
+	}
+	_ = json.Unmarshal(m["id"], &id)
+	return call{ID: clipText(id, 60), Name: name, Arguments: args,
+		problem: "this call was not written as a call block, so it was not run. Write it as a block that starts with a line holding three backticks and werkbord-call, then the JSON object, then a line holding three backticks. You wrote: " + clipText(raw, 400)}
+}

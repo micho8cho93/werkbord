@@ -3,6 +3,7 @@ package shell
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"devboard/desktop/internal/teamlink"
@@ -11,10 +12,18 @@ import (
 
 type assistantTeam struct {
 	*fakeTeam
-	calls int
+	calls int // creations
 }
 
-func (a *assistantTeam) AssistantBoard(_ context.Context, _ string, _ string, _ teamlink.BoardArgs) (any, error) {
+// namedProject is a project as the app’s link describes it, which can say its name.
+type namedProject struct{ name string }
+
+func (p namedProject) ProjectName() string { return p.name }
+
+func (a *assistantTeam) AssistantBoard(_ context.Context, _ string, method string, _ teamlink.BoardArgs) (any, error) {
+	if method == "get_project" {
+		return namedProject{"Personal Portfolio Website"}, nil
+	}
 	a.calls++
 	return map[string]string{"id": "t1"}, nil
 }
@@ -31,6 +40,10 @@ func TestAssistantWorkspaceMutationsRequireNativeConsentAndDoNotReplay(t *testin
 	}
 	if client.calls != 1 || len(r.ui.asked) != 1 {
 		t.Fatalf("replayed creation: %d calls, %d dialogs", client.calls, len(r.ui.asked))
+	}
+	// The person is asked about the project by its name, and about the workspace by its name.
+	if d := r.ui.asked[0]; !strings.Contains(d.Message, `"Personal Portfolio Website"`) || strings.Contains(d.Message, "p1") || !strings.Contains(d.Title, "Acme") {
+		t.Fatalf("the dialog: %+v", d)
 	}
 	if _, err := r.AssistantWorkspaceCall("wreq_2", "team:main", "create_ticket", raw); err == nil || client.calls != 1 {
 		t.Fatal("a declined native confirmation created a ticket")

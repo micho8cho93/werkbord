@@ -74,14 +74,28 @@ func TestLiveTheAssistantAsksForAnOperationInTheWayTheEngineReads(t *testing.T) 
 // Exercise the complete task-creation conversation, including the real provider's separate commentary and final
 // messages, lookup, four proposals, confirmation and persisted cards. All data belongs to the disposable fixture.
 func TestLiveCodexCreatesPortfolioTasksAfterConfirmation(t *testing.T) {
+	liveCreatesPortfolioTasks(t, codex.New(codex.Config{}), codex.ID, os.Getenv("WERKBORD_LIVE_ASSISTANT_MODEL"))
+}
+
+// The same conversation with Claude Code, which asks for operations in text rather than through registered functions: the way
+// the person who reported "went round in circles" was using it. WERKBORD_LIVE_ASSISTANT_CLAUDE_MODEL picks the model (sonnet).
+func TestLiveClaudeCreatesPortfolioTasksAfterConfirmation(t *testing.T) {
+	model := os.Getenv("WERKBORD_LIVE_ASSISTANT_CLAUDE_MODEL")
+	if model == "" {
+		model = "sonnet"
+	}
+	liveCreatesPortfolioTasks(t, claude.New(claude.Config{}), claude.ID, model)
+}
+
+func liveCreatesPortfolioTasks(t *testing.T, p provider.Provider, id, model string) {
+	t.Helper()
 	if os.Getenv("WERKBORD_LIVE_ASSISTANT") == "" {
 		t.Skip("set WERKBORD_LIVE_ASSISTANT=1 to run against the real CLI")
 	}
-	p := codex.New(codex.Config{})
-	ctx, cancel := context.WithTimeout(bg, 3*time.Minute)
+	ctx, cancel := context.WithTimeout(bg, 4*time.Minute)
 	defer cancel()
 	if info := p.Detect(ctx); !info.Available {
-		t.Skipf("Codex is not available here: %s", info.Detail)
+		t.Skipf("%s is not available here: %s", id, info.Detail)
 	}
 	f := newEfx(t, func(c *Config) {
 		c.Now = time.Now
@@ -92,7 +106,7 @@ func TestLiveCodexCreatesPortfolioTasksAfterConfirmation(t *testing.T) {
 		c.TurnTimeout = 2 * time.Minute
 	})
 	a := f.project("personal portfolio")
-	s, err := f.eng.CreateSession(ctx, CreateRequest{Provider: codex.ID, Model: os.Getenv("WERKBORD_LIVE_ASSISTANT_MODEL")})
+	s, err := f.eng.CreateSession(ctx, CreateRequest{Provider: id, Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -257,6 +257,64 @@ describe('the person’s answer to a proposed change', () => {
   });
 });
 
+describe('answering several waiting changes at once', () => {
+  async function several(n: number) {
+    const a = await page();
+    const s = await talk(a);
+    srv.emit(s.id, { type: 'turn_started' });
+    for (let i = 1; i <= n; i++) {
+      srv.emit(s.id, { type: 'confirmation_required', actionId: `act_${i}`, proposal: { actionId: `act_${i}`, operation: 'create_ticket', summary: `Create task "T${i}"`, expiresAt: '2026-03-09T09:15:00Z' } });
+    }
+    srv.emit(s.id, { type: 'turn_completed' });
+    await srv.until(() => a.waiting === n);
+    return a;
+  }
+
+  it('lists what is waiting, in the order it was proposed', async () => {
+    const a = await several(3);
+    expect(a.waitingItems.map((i) => i.id)).toEqual(['act_1', 'act_2', 'act_3']);
+  });
+
+  it('confirms every one with its own request, in order, and says how far it is', async () => {
+    const a = await several(3);
+    const seen: number[] = [];
+    const run = a.resolveAll('approve');
+    seen.push(a.batch?.total ?? -1);
+    await run;
+    expect(seen).toEqual([3]);
+    expect(srv.called('POST', '/actions/act_1')[0].body).toEqual({ decision: 'approve' });
+    expect(srv.called('POST', '/actions/act_2')[0].body).toEqual({ decision: 'approve' });
+    expect(srv.called('POST', '/actions/act_3')[0].body).toEqual({ decision: 'approve' });
+    expect(a.transcript.items.filter((i) => i.kind === 'confirm').every((i) => i.kind === 'confirm' && i.state === 'confirmed')).toBe(true);
+    expect(a.batch).toBeNull();
+    expect(a.waiting).toBe(0);
+  });
+
+  it('can decline them all', async () => {
+    const a = await several(2);
+    await a.resolveAll('decline');
+    expect(srv.called('POST', '/actions/act_1')[0].body).toEqual({ decision: 'decline' });
+    expect(srv.called('POST', '/actions/act_2')[0].body).toEqual({ decision: 'decline' });
+  });
+
+  it('stops at the first that could not be answered, and leaves the rest waiting to be pressed again', async () => {
+    const a = await several(3);
+    srv.fail.set('POST /api/assistant/sessions/ast_1/actions/act_2', 500);
+    vi.stubGlobal('fetch', ((orig) => (input: RequestInfo | URL, init?: RequestInit) => (String(input).includes('act_2') ? Promise.reject(new TypeError('Failed to fetch')) : orig(input, init)))(globalThis.fetch));
+    await a.resolveAll('approve');
+    const states = a.transcript.items.filter((i) => i.kind === 'confirm').map((i) => (i.kind === 'confirm' ? i.state : ''));
+    expect(states).toEqual(['confirmed', 'waiting', 'waiting']);
+    expect(srv.called('POST', '/actions/act_3')).toHaveLength(0);
+    expect(a.batch).toBeNull();
+  });
+
+  it('does not start a second round while one is under way', async () => {
+    const a = await several(2);
+    await Promise.all([a.resolveAll('approve'), a.resolveAll('approve')]);
+    expect(srv.called('POST', '/actions/act_1')).toHaveLength(1);
+  });
+});
+
 describe('choosing the provider, model and level', () => {
   it('changes the model mid-conversation and keeps the conversation', async () => {
     const a = await page();

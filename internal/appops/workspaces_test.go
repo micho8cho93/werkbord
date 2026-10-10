@@ -81,3 +81,46 @@ func TestAConnectedMutationStillFailsClosedWhenItsAuditCannotBeWritten(t *testin
 		t.Fatalf("unrecorded connected mutation: %v, %v", err, created)
 	}
 }
+
+// One connected workspace that cannot be reached (its service stopped, the window slow to answer) must not take away the person's
+// own projects, and the assistant must be told it was not read, so that it does not say the workspace is empty.
+func TestAWorkspaceThatCannotBeReadDoesNotTakeTheLocalBoardAwayAndIsReported(t *testing.T) {
+	f := newFx(t)
+	local := f.project("test-site")
+	p := f.session("ast_down")
+	f.svc.BindWorkspaces(p.SessionID, []Workspace{{ID: "board_up", Name: "Up"}, {ID: "board_down", Name: "TestTeam"}}, func(_ context.Context, w Workspace, method string, _ any) (json.RawMessage, error) {
+		if w.ID == "board_down" {
+			return nil, errorf(CodeUnavailable, "Team's service is not running")
+		}
+		switch method {
+		case "list_projects":
+			return json.RawMessage(`[{"id":"p1","name":"Portfolio"}]`), nil
+		case "get_overview":
+			return json.RawMessage(`[]`), nil
+		}
+		t.Fatalf("unexpected %s", method)
+		return nil, nil
+	})
+	for _, op := range []string{"list_projects", "get_overview"} {
+		raw, _ := json.Marshal(f.mustCall(p, op, map[string]any{}).Data)
+		got := string(raw)
+		if op == "list_projects" && (!strings.Contains(got, local.ID) || !strings.Contains(got, "Portfolio")) {
+			t.Fatalf("%s lost what could be read: %s", op, got)
+		}
+		if op == "get_overview" && !strings.Contains(got, local.ID) {
+			t.Fatalf("%s lost the local board: %s", op, got)
+		}
+		if !strings.Contains(got, `"unavailableWorkspaces"`) || !strings.Contains(got, "TestTeam") || !strings.Contains(got, "not running") {
+			t.Fatalf("%s did not say what could not be read: %s", op, got)
+		}
+		if strings.Contains(got, `"workspace":"Up"`) {
+			t.Fatalf("%s reported a workspace that was read: %s", op, got)
+		}
+	}
+	// A call that was interrupted is not a workspace being down.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := f.svc.Call(ctx, p, "list_projects", json.RawMessage(`{}`)); err == nil {
+		t.Fatal("an interrupted call carried on")
+	}
+}

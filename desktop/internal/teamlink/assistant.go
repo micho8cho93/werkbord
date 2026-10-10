@@ -60,6 +60,10 @@ type boardProject struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
+
+// ProjectName lets the app name the project to the person without knowing this type.
+func (p boardProject) ProjectName() string { return p.Name }
+
 type boardPlan struct {
 	Start     string `json:"start"`
 	End       string `json:"end"`

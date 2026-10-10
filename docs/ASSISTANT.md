@@ -121,8 +121,11 @@ The assistant belongs to the Individual controller, on your computer, and runs *
   rechecks that the workspace is connected, validates a fixed semantic operation and calls Team's existing API through `teamlink`.
   The desktop credential stays there. Only project and ticket metadata returns; no raw API objects, credentials, repository paths,
   branches or execution settings cross. Team's current member/project permissions apply to every read and write.
+- A connected workspace that cannot be read just now (its service stopped, the window slow to answer: a read waits 25 seconds) does not
+  take the person's own board away: `list_projects` and `get_overview` still answer for everything else and add
+  `unavailableWorkspaces`, so that the assistant says the workspace could not be read rather than that it has no projects.
 - Creation goes through the usual audited proposal and confirmation first, followed by a native confirmation the page cannot
-  press. The native shell caches mutation request IDs so a reloaded frame cannot create a ticket twice. Requests are session-bound,
+  press, which names the workspace and the project as the person knows them, not by identifiers. The native shell caches mutation request IDs so a reloaded frame cannot create a ticket twice. Requests are session-bound,
   expire when cancelled or timed out, and replays of completed requests are ignored. An unavailable desktop fails with a message
   to check the destination board before retrying. After a controller restart the frame reconnects before sending or confirming.
 - Imported Team tasks still use the Individual integration as before. Creating a connected ticket changes only its own workspace;
@@ -176,6 +179,20 @@ The engine finds these as the reply streams, **without showing them**, runs each
 results back inside `<werkbord-results>` for the assistant to answer from. At most six calls a message and six trips a
 turn.
 
+**A call that was not written as a call block.** Only the exact block runs, so text that merely quotes a call can never run one. But
+the real models do not always write it exactly (Claude Sonnet and Haiku, checked live): the JSON alone with no opening fence and a
+stray closing one after it, the call in a `json` block, several calls in one block, Claude's own `<invoke>` syntax written into the
+reply. A reply ends the turn when it holds no call, so such a reply used to leave a line of raw JSON on the screen and the turn over
+with nothing done ("the assistant went round in circles"). Now `repairReply` finds what looks like a call in the text that was not
+written as one (a JSON object that names a real operation and has `"arguments"`, alone on its line or in a fence of its own), takes
+it out of what the person sees (the screen drops the attempt's text, as for a retry, and shows the rest), and tells the assistant, in
+the result for that call, that it was not run and how to write it, quoting what it wrote. Its second try is run like any other.
+A reply that ends on its closing fence with no newline after it, which is how both CLIs end a reply that asks for something, is a
+proper call: it was once reported as "never closed". Several calls in one block, with or without commas, or as an array, are each a
+call, up to the same limit. Checked against the real command lines by `TestLiveTheAssistantAsksForAnOperationInTheWayTheEngineReads`
+and, for the whole conversation (lookup, four proposals, confirmation, no duplicates on the next turn), `TestLiveClaudeCreatesPortfolioTasksAfterConfirmation`
+and `TestLiveCodexCreatesPortfolioTasksAfterConfirmation` (`WERKBORD_LIVE_ASSISTANT=1`; the model of each can be chosen).
+
 Codex message boundaries are preserved in that text: a commentary message followed by a call message has a blank line
 between them, even when the provider sends neither a trailing nor a leading newline. Each message can stream or arrive
 whole independently; completed messages are not repeated and no earlier message is discarded. The live
@@ -226,7 +243,9 @@ keeps none ([What is kept](#what-is-kept-and-what-is-not)).
   clickable. While it works there is one quiet line (*Looking for what is blocked…*, *Thinking…*); afterwards, a collapsed *What I
   looked at*. Operation names never appear.
 - **A change** is a card: what Werkbord (not the model) says will happen, *Confirm* and *Not now*, and *Nothing changes until you
-  confirm*. It then says what became of it (done, not done, expired, no longer waiting). It cannot be pressed twice.
+  confirm*. It then says what became of it (done, not done, expired, no longer waiting). It cannot be pressed twice. When several
+  are waiting (four tasks asked for in one message, say) a bar under them offers *Confirm all 4* and *Not now*: it answers them one after
+  another, each with its own request and its own record, and stops at the first that cannot be answered, leaving the rest waiting.
 - **Choosing the assistant.** The heading's *Claude Code · Sonnet* opens the provider, model and thinking-level chooser, which can be
   used at any time. A model your plan cannot use ends the turn with *That model is not available to your account* and offers *Choose
   another model* and *Try again*. Moving to the other provider starts a fresh conversation with it, and the screen says so. Files you

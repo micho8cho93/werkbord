@@ -10,6 +10,7 @@
   // What is on the screen between the heading and the box: the conversation, or, where there cannot be one yet, why not.
 
   let scroller: HTMLElement | undefined = $state();
+  let col: HTMLElement | undefined = $state();
   let stuck = $state(true);
   let behind = $state(false);
 
@@ -18,7 +19,9 @@
   const tail = $derived.by(() => {
     const last = items[items.length - 1];
     if (!last) return '0';
-    return last.kind === 'reply' ? `${items.length}:${last.text.length}:${last.steps.length}:${last.status}` : `${items.length}:${last.kind === 'confirm' ? last.state : ''}`;
+    // The bar that answers several changes at once is at the bottom too, and comes and goes with how many are waiting.
+    const bar = `${assistant.waitingItems.length >= 2 || assistant.batch ? 'all' : ''}`;
+    return last.kind === 'reply' ? `${items.length}:${last.text.length}:${last.steps.length}:${last.status}:${bar}` : `${items.length}:${last.kind === 'confirm' ? last.state : ''}:${bar}`;
   });
 
   function onScroll() {
@@ -36,6 +39,16 @@
   $effect(() => {
     void tail;
     void tick().then(() => (stuck ? toEnd() : (behind = true)));
+  });
+  // Whatever makes the conversation taller (a reply settling, a card, the bar that answers several changes) keeps the end in view for
+  // someone who is following it; someone who scrolled up to read is left where they are.
+  $effect(() => {
+    if (!col || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (stuck) toEnd();
+    });
+    ro.observe(col);
+    return () => ro.disconnect();
   });
   // Opening the screen on a conversation that is already there starts at its end.
   $effect(() => {
@@ -59,7 +72,7 @@
 
 {#if assistant.status === 'ready' || assistant.hasConversation}
   <div class="scroll" bind:this={scroller} onscroll={onScroll} role="log" aria-label="Conversation" aria-live="off" tabindex="-1" data-testid="assistant-log">
-    <div class="col">
+    <div class="col" bind:this={col}>
       {#if items.length === 0}
         <div class="hello" data-testid="assistant-empty">
           <Mark height={34} />
@@ -88,6 +101,19 @@
           <p class="notice">{it.text}</p>
         {/if}
       {/each}
+      <!-- Several changes at once (four tasks, say): one press answers them all, each still on its own. -->
+      {#if assistant.batch || assistant.waitingItems.length >= 2}
+        {@const total = assistant.batch?.total ?? assistant.waitingItems.length}
+        <div class="all" role="group" aria-label="All the changes waiting" data-testid="assistant-confirm-all">
+          {#if assistant.batch}
+            <span class="count" role="status">{assistant.batch.decision === 'approve' ? 'Confirming' : 'Declining'} {Math.min(assistant.batch.done + 1, total)} of {total}…</span>
+          {:else}
+            <span class="count">{total} changes are waiting for you.</span>
+            <button class="btn primary" type="button" onclick={() => assistant.resolveAll('approve')} data-testid="assistant-confirm-all-yes">Confirm all {total}</button>
+            <button class="btn" type="button" onclick={() => assistant.resolveAll('decline')}>Not now</button>
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
   {#if behind}
@@ -126,6 +152,21 @@
 {/if}
 
 <style>
+  .all {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 13.5px;
+  }
+  .all .count {
+    margin-right: auto;
+    color: var(--text-2);
+  }
   .scroll {
     flex: 1;
     min-height: 0;
