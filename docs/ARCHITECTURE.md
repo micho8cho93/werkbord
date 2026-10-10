@@ -103,6 +103,9 @@ GitRepository    │
   A task also carries its **labels** (names and colours the person made, shared by every project), its
   **work mode** (`human`, `agent` or `hybrid`: who is expected to do it, deliberately not a label) and a
   **plan** (planned dates and milestones, deliberately not its schedule). See [PLANNING.md](PLANNING.md).
+- **Assistant session / action / audit entry**: the conversational assistant's small private state ([ASSISTANT.md](ASSISTANT.md)):
+  the handle to continue a provider's conversation, a change proposed and waiting for the person, and an append-only chained
+  record of every application operation. No transcript.
 - **Run**: one interactive agent session working on a task. Its `State` is one of
   `starting`, `running`, `waiting_for_user`, `blocked`, `completed`, `failed`, `stopped`. While it
   waits, `Waiting` says what for: `question` (blocked on an answer) or `idle` (the agent finished a

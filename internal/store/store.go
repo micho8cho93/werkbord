@@ -43,6 +43,7 @@ type Tx interface {
 	Settings() SettingsRepo
 	Runners() RunnerRepo
 	Events() EventRepo
+	Assistant() AssistantRepo
 }
 
 // ProjectRepo persists projects. GetByPath returns domain.ErrNotFound when no
@@ -214,4 +215,37 @@ type EventRepo interface {
 	// `before` (0 means from the end of the log): the newest such events, in
 	// ascending order. To page backwards, pass the first Seq of the previous page.
 	ListByRun(ctx context.Context, runID string, before int64, limit int) ([]domain.Event, error)
+}
+
+// AssistantRepo persists the assistant's private state (see domain.AssistantSession): the handle to continue a
+// provider's conversation, the changes it proposed, and its append-only audit.
+//
+// Deleting a session also removes its actions, but never its audit: the trail outlives the session it describes.
+type AssistantRepo interface {
+	CreateSession(ctx context.Context, s *domain.AssistantSession) error
+	GetSession(ctx context.Context, id string) (*domain.AssistantSession, error)
+	// UpdateSession is compare-and-swap like TaskRepo.Update.
+	UpdateSession(ctx context.Context, s *domain.AssistantSession) error
+	// ListSessions returns every session, most recently active first.
+	ListSessions(ctx context.Context) ([]domain.AssistantSession, error)
+	DeleteSession(ctx context.Context, id string) error
+
+	CreateAction(ctx context.Context, a *domain.AssistantAction) error
+	GetAction(ctx context.Context, id string) (*domain.AssistantAction, error)
+	// TransitionAction moves an action from one state to another and records the outcome, only if it is still in
+	// from. Otherwise it returns domain.ErrConflict, which is what stops two confirmations of one action from both
+	// carrying it out. The caller says which moves are allowed (appops); the repository only guarantees the swap.
+	TransitionAction(ctx context.Context, id string, from, to domain.AssistantActionState, outcome string, at time.Time) error
+	ListActions(ctx context.Context, sessionID string) ([]domain.AssistantAction, error)
+	// ListOpenActions returns every action that is pending or executing, oldest first.
+	ListOpenActions(ctx context.Context) ([]domain.AssistantAction, error)
+
+	// AppendAudit adds an entry to the end of the trail. The repository assigns Seq and PrevHash and computes Hash;
+	// the caller fills the rest.
+	AppendAudit(ctx context.Context, e *domain.AssistantAuditEntry) error
+	// ListAudit returns up to limit entries with Seq below before (all if before is 0), newest first. A non-empty
+	// sessionID limits it to that session's entries.
+	ListAudit(ctx context.Context, sessionID string, before int64, limit int) ([]domain.AssistantAuditEntry, error)
+	// AllAudit returns the whole trail in order, for verifying the chain.
+	AllAudit(ctx context.Context) ([]domain.AssistantAuditEntry, error)
 }

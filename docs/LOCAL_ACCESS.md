@@ -33,6 +33,9 @@ What a run may do is still decided where it always was: by the task's and the pr
 own permission prompts, which come to you, and by the interaction policy you chose. A program that starts a run does not
 choose how it runs.
 
+The conversational assistant ([ASSISTANT.md](ASSISTANT.md)) is not on that list: a local access token, whatever its scope,
+is refused on every `/api/assistant` route. The assistant drives your own coding agent runtime, which is yours alone.
+
 ## Where it is accepted
 
 Only from this computer (a loopback address), and only on the controller's loopback listener. The private network that

@@ -65,6 +65,8 @@ internal/integration/    SHARED versioned task/status DTOs and canonical reposit
 internal/planning/       SHARED label names and colours, work modes, planned dates and the analysis of dependencies
 internal/logging/        SHARED the structured logger
 internal/team/           TEAM-ONLY everything specific to Team (below)
+internal/appops/         INDIVIDUAL the application operations a model (the assistant, later MCP) may use: permission, proposal, confirmation, audit
+internal/assistant/      INDIVIDUAL the conversational assistant's engine, and its providers (Claude Code, Codex) under provider/
 internal/<everything else>/       Individual's code (domain, store, service, api, runner, agent, gitrepo, …)
 web/                     Individual's web app (Svelte PWA)
 ```
@@ -91,8 +93,9 @@ Each was extracted from Individual (which now uses it too) rather than copied in
 SQLite open path and one set of security headers.
 
 Everything else under `internal/` outside `internal/team` is **Individual's**: `domain`, `store`,
-`service`, `api`, `controller`, and especially the machinery that executes things — `runner`, `remote`, `runnerwire`,
-`agent`, `gitrepo`, `github`, `daemon`, `netprivate`. Team may not import any of it. If Team needs something from one
+`service`, `api`, `controller`, `appops`, `assistant`, and especially the machinery that executes things — `runner`, `remote`,
+`runnerwire`, `agent`, `gitrepo`, `github`, `daemon`, `netprivate`. The assistant (`appops`, `assistant`) runs the person's own
+coding agent runtime and is never part of Team ([ASSISTANT.md](ASSISTANT.md)). Team may not import any of it. If Team needs something from one
 of those, the answer is to move the non-product-specific part into a shared package (as `sqlitekit` and `httpkit` were),
 not to reach across.
 
@@ -237,6 +240,18 @@ Beyond those, `internal/archtest` also keeps the production foundation honest (s
     Team could be pointed at;
 16. every setting Team reads is its own (`WERKBORD_TEAM_*`) and none names a service, an account or a URL;
 17. coordination records contain no device/authority private signing key. The service verifies licenses using only a vendor public key; the separate offline issuer is under `cmd/werkbord-team/vendor` and is never packaged with customers.
+
+The assistant has its own (`internal/archtest/assistant_test.go`, [ASSISTANT.md](ASSISTANT.md)):
+
+18. Team's build links neither `internal/appops` nor `internal/assistant`;
+19. the operations import only the domain, planning, the services and the store (for the assistant's own records), and the
+    engine only the operations, the providers, the domain and the store: a model's request reaches the board through the
+    services' rules and the confirmation, never round them;
+20. only the providers start a process, and they import nothing of the board;
+21. no provider is ever run with its safety checks off (`--dangerously…`, `bypassPermissions`, a writable sandbox, MCP
+    configuration, extra directories), and the flags that turn its tools off are still there;
+22. the assistant's permissions are the reviewed list: none of them is about starting or stopping a run, Git, a setting,
+    a repository, or deleting.
 
 The gate also fixes the production license/authentication wiring in architecture tests and restricts the native Keychain wrapper to reviewed Security/memory calls. Typed local license-file/public-key configuration is permitted; no online license/vendor URL is introduced. Runner operations stay the reviewed semantic bridge, never a general remote administration API.
 

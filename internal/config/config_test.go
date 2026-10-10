@@ -367,3 +367,44 @@ func TestEmbedOriginsAreExactLoopbackOriginsFromTheEnvironmentOrTheFile(t *testi
 		t.Fatal("a non-loopback origin was accepted from config.json")
 	}
 }
+
+func TestAssistantSettingsAreLoadedAndChecked(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DEVBOARD_DATA_DIR", dir)
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(`{"assistant": {"readOnly": true, "projects": ["prj_abc123"], "turnTimeoutSeconds": 120, "idleTimeoutSeconds": 30}}`)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	a := c.Assistant
+	if !a.ReadOnly || a.Disabled || len(a.Projects) != 1 || a.TurnTimeoutSeconds != 120 || a.IdleTimeoutSeconds != 30 {
+		t.Fatalf("assistant = %+v", a)
+	}
+	if d := Default().Assistant; d.Disabled || d.ReadOnly || len(d.Projects) != 0 {
+		t.Fatalf("by default the assistant is on, can propose changes, and sees every project: %+v", d)
+	}
+	for name, body := range map[string]string{
+		"not a project id":     `{"assistant": {"projects": ["../../etc"]}}`,
+		"project with a space": `{"assistant": {"projects": ["prj_a b"]}}`,
+		"negative timeout":     `{"assistant": {"turnTimeoutSeconds": -1}}`,
+		"huge timeout":         `{"assistant": {"idleTimeoutSeconds": 100000}}`,
+	} {
+		write(body)
+		c, err := Load()
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "assistant.") {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+}

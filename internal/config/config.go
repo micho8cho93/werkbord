@@ -69,6 +69,25 @@ type Config struct {
 	// GitHub tunes the optional GitHub integration, which runs the user's own
 	// GitHub CLI. Dev Board has no GitHub account or token of its own.
 	GitHub GitHubConfig `json:"github,omitempty"`
+	// Assistant tunes the conversational assistant (internal/assistant).
+	Assistant AssistantConfig `json:"assistant,omitempty"`
+}
+
+// AssistantConfig is the user's choices for the assistant. The assistant borrows the sign-in of Claude Code or Codex
+// that is already on this computer: it has no account, key or model of its own, and the commands, models and reasoning
+// levels it offers are the ones set for those agents under "agents".
+type AssistantConfig struct {
+	// Disabled turns the assistant off: its API answers that it is unavailable, and nothing is ever started for it.
+	Disabled bool `json:"disabled,omitempty"`
+	// ReadOnly lets the assistant look at the board and nothing else: it is not even offered the operations that
+	// propose changes.
+	ReadOnly bool `json:"readOnly,omitempty"`
+	// Projects limits the assistant to these project IDs. Leave it out for every project.
+	Projects []string `json:"projects,omitempty"`
+	// TurnTimeoutSeconds bounds one message, from sending to the end of the reply. Default 300.
+	TurnTimeoutSeconds int `json:"turnTimeoutSeconds,omitempty"`
+	// IdleTimeoutSeconds is how long the provider may say nothing before an attempt is given up. Default 90.
+	IdleTimeoutSeconds int `json:"idleTimeoutSeconds,omitempty"`
 }
 
 // NetworkConfig is the user's choices for the private network that lets a phone
@@ -413,7 +432,26 @@ func (c Config) Validate() error {
 	if strings.ContainsAny(c.GitHub.Command, "\x00\n") {
 		return errors.New("github.command contains a control character")
 	}
+	if err := c.validateAssistant(); err != nil {
+		return err
+	}
 	return c.validateAgents()
+}
+
+func (c Config) validateAssistant() error {
+	a := c.Assistant
+	for _, id := range a.Projects {
+		if !strings.HasPrefix(id, domain.PrefixProject+"_") || len(id) > 80 || strings.ContainsAny(id, " \t\n\x00") {
+			return fmt.Errorf("assistant.projects: %q is not a project id", id)
+		}
+	}
+	if a.TurnTimeoutSeconds < 0 || a.TurnTimeoutSeconds > 3600 {
+		return errors.New("assistant.turnTimeoutSeconds: want 1 to 3600")
+	}
+	if a.IdleTimeoutSeconds < 0 || a.IdleTimeoutSeconds > 3600 {
+		return errors.New("assistant.idleTimeoutSeconds: want 1 to 3600")
+	}
+	return nil
 }
 
 // WorktreesPath is where agent worktrees are created.

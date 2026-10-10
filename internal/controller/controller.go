@@ -18,6 +18,7 @@ import (
 	"devboard/internal/agent/claude"
 	"devboard/internal/agent/codex"
 	"devboard/internal/api"
+	"devboard/internal/assistant"
 	"devboard/internal/config"
 	"devboard/internal/doctor"
 	"devboard/internal/domain"
@@ -48,6 +49,7 @@ type Controller struct {
 	db         *sqlite.DB
 	broker     *events.Broker
 	runner     *runner.Manager
+	assistant  *assistant.Engine
 	health     *service.GitHealth
 	stopHealth context.CancelFunc
 	server     *http.Server
@@ -236,6 +238,19 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
 	privateOpts.AuthRequired, privateOpts.Token = true, token
+	privateOpts.Assistant = nil // the assistant is not served on the private network
+	// The assistant borrows the sign-in of the coding agents already on this computer and reaches the board only through the
+	// domain services, by way of application operations (internal/appops). It is served on the loopback listener only.
+	if !c.cfg.Assistant.Disabled {
+		if c.assistant, err = newAssistant(c.cfg, c.db, c.log, assistantServices{projects: projects, tasks: tasks, labels: labels, runs: runs,
+			control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner}); err != nil {
+			return fmt.Errorf("assistant: %w", err)
+		}
+		if err := c.assistant.Recover(ctx); err != nil {
+			return fmt.Errorf("recover the assistant: %w", err)
+		}
+		apiOpts.Assistant = c.assistant
+	}
 	// Other programs on this computer may be given a narrow credential of their own (internal/localaccess). That is for
 	// the loopback listener only: the private network, which anyone on it can reach, never takes one.
 	access, err := localaccess.Open(filepath.Join(c.cfg.DataDir, "local-access.json"))
@@ -352,6 +367,17 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 // broker and the database.
 func (c *Controller) teardown(ctx ...context.Context) error {
 	var err error
+	// The assistant's turns run provider processes and record their end in the database: stop them while it is still there.
+	if c.assistant != nil {
+		stop := context.Background()
+		if len(ctx) > 0 {
+			stop = ctx[0]
+		}
+		if e := c.assistant.Shutdown(stop); e != nil {
+			err = fmt.Errorf("stop the assistant: %w", e)
+		}
+		c.assistant = nil
+	}
 	if c.stopScheduler != nil {
 		c.stopScheduler()
 		<-c.schedulerDone

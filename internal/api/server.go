@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"devboard/internal/agent"
+	"devboard/internal/assistant"
 	"devboard/internal/doctor"
 	"devboard/internal/events"
 	"devboard/internal/httpkit"
@@ -55,6 +56,10 @@ type Options struct {
 	Log          *slog.Logger
 	Version      string
 	Web          http.Handler // serves the PWA; nil disables it
+
+	// Assistant is the conversational assistant (internal/assistant); nil disables its endpoints. It is set on the loopback
+	// listener only: the private network does not serve it.
+	Assistant *assistant.Engine
 
 	// AuthRequired makes every /api request except /api/health present Token.
 	AuthRequired bool
@@ -146,6 +151,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/control-center", s.handleControlCenter)
 	mux.HandleFunc("GET /api/workspace/v1/summary", s.handleWorkspaceSummary)
 	mux.HandleFunc("GET /api/events", s.handleEvents) // ?project=<id> narrows it to one project
+
+	// The assistant: only the person's own token reaches these (see assistant.go).
+	mux.HandleFunc("GET /api/assistant/providers", s.handleAssistantProviders)
+	mux.HandleFunc("GET /api/assistant/sessions", s.handleAssistantSessions)
+	mux.HandleFunc("POST /api/assistant/sessions", s.handleAssistantCreateSession)
+	mux.HandleFunc("GET /api/assistant/sessions/{id}", s.handleAssistantGetSession)
+	mux.HandleFunc("PATCH /api/assistant/sessions/{id}", s.handleAssistantConfigure)
+	mux.HandleFunc("DELETE /api/assistant/sessions/{id}", s.handleAssistantDeleteSession)
+	mux.HandleFunc("POST /api/assistant/sessions/{id}/messages", s.handleAssistantSend)
+	mux.HandleFunc("POST /api/assistant/sessions/{id}/cancel", s.handleAssistantCancel)
+	mux.HandleFunc("GET /api/assistant/sessions/{id}/events", s.handleAssistantEvents)
+	mux.HandleFunc("POST /api/assistant/sessions/{id}/actions/{aid}", s.handleAssistantResolve)
+	mux.HandleFunc("GET /api/assistant/audit", s.handleAssistantAudit)
+	mux.HandleFunc("GET /api/assistant/audit/verify", s.handleAssistantAuditVerify)
 
 	mux.HandleFunc("GET /api/projects", s.handleListProjects)
 	mux.HandleFunc("POST /api/projects", s.handleRegisterProject)
