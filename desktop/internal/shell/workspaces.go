@@ -296,7 +296,7 @@ func (s *Shell) PendingInvitation() string {
 // always could (to open a link in the browser, to choose a folder for a project, to update); a Team page may ask to connect
 // the person's runner to its own workspace and to start or stop the Team service. Neither may ask what the other may.
 var relayable = map[workspace.Kind]map[string]bool{
-	workspace.KindIndividual: {"Info": true, "OpenExternal": true, "ChooseDirectory": true, "RequestUpdate": true, "UpdateStatus": true},
+	workspace.KindIndividual: {"Info": true, "OpenExternal": true, "ChooseDirectory": true, "ChooseFiles": true, "RequestUpdate": true, "UpdateStatus": true},
 	workspace.KindTeam:       {"Info": true, "OpenExternal": true, "ConnectRunner": true, "TeamService": true, "PendingInvitation": true},
 }
 
@@ -338,6 +338,11 @@ func (s *Shell) Relay(id, method string, args []json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return s.ChooseDirectory()
+	case "ChooseFiles":
+		if err := none(); err != nil {
+			return nil, err
+		}
+		return s.chooseFiles()
 	case "RequestUpdate":
 		if err := none(); err != nil {
 			return nil, err

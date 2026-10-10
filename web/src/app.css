@@ -656,6 +656,20 @@ kbd.key {
   }
 }
 
+/* The radius of the circle the assistant opens as, so that the light on its edge can be drawn from it and animated with it. */
+@property --r {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* The assistant's own frame in the desktop window shows nothing but the assistant, over whatever the window is showing. */
+html.asst-surface,
+html.asst-surface body {
+  background: transparent;
+  overflow: hidden;
+}
+
 /* While the assistant covers the page, the page behind it does not scroll. */
 html.asst-open,
 html.asst-open body {

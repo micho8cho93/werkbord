@@ -9,6 +9,7 @@
   import Inbox from './Inbox.svelte';
   import Workspaces from './Workspaces.svelte';
   import AddTeam from './AddTeam.svelte';
+  import AssistantFrame from './AssistantFrame.svelte';
   import { model, type Page } from './model.svelte';
   import { onApp } from './native';
 
@@ -38,7 +39,8 @@
 </script>
 
 <svelte:window onkeydown={key} />
-<div class="shell">
+<!-- While the assistant is over the window, what is under it is not reachable by keyboard or screen reader either. -->
+<div class="shell" inert={model.assistantShown}>
   <Sidebar />
   <div class="content">
     {#if model.error}
@@ -65,6 +67,7 @@
   {#if model.switcher}<Switcher onadd={() => (model.addOpen = true)} />{/if}
   {#if model.addOpen}<AddTeam />{/if}
 </div>
+<AssistantFrame />
 
 <style>
   .shell {

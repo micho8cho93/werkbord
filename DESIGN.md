@@ -86,21 +86,26 @@ Members is an organization directory: initials, names, email and roles, with fil
 Light/dark sits beside Settings (an icon on phones), with Team's own per-device preference, independent of the
 individual app. `theme.js` resolves it before styles load and keeps the mark and browser chrome in step.
 
-## The assistant surface (4.10)
+## The assistant surface (4.11)
 
 A full-window conversation, opened from the Assistant button (the top of the rail; the sidebar in the desktop window; an icon in the
 heading on a phone). It is the quietest screen in the product: paper, one column of at most 46rem, no history list, no chrome beyond a
 heading (the provider chooser, New, Close) and the box.
 
-- **Movement.** A circle grows from the button's centre until it covers the window (440ms, the product's `cubic-bezier(.16, 1, .3, 1)`)
+- **Movement.** A circle grows from the button's centre until it covers the window (950ms, `cubic-bezier(.72, 0, .18, 1)`), with a cobalt
+  light along its edge that fades as it arrives,
   while the background moves from `--surface` (the sidebar) to `--bg` (paper): `#FFFFFF → #F5F5F2`, `#141415 → #0B0B0C`. The content
-  arrives 120ms in. Closing runs it backwards, 35% faster, into the button. It can be turned round half way. Under *reduce motion* it
+  arrives from 540ms in, in a short sequence from the heading to the composer. Closing runs it backwards, 30% faster, into the button.
+  It can be turned round in either direction half way. In the desktop app a dedicated transparent frame covers the entire viewport,
+  including the sidebar, while the workspace beneath keeps its state. Under *reduce motion* it
   is simply there or gone: the movement is a Web Animation, so the page checks the setting itself and the global CSS rule that
   switches off transitions is not what it relies on.
 - **Reading.** A reply is plain text on paper, 15px/1.55, no bubble; what you said is a tray (`--surface-2`) at the right. Progress is
   one quiet line, never operation names. A change is a raised card with an amber left rule ("needs you"), turning green when done.
 - **The box** is raised, 14px corners, with attach, dictate and send/stop at its edge; 16px on a phone so the page does not zoom, 44px
   targets. The send arrow is cobalt only when there is something to send.
+- **Dictation** shows the words in the box while listening. X cancels and preserves the earlier typed draft; the tick finishes into
+  an editable draft; Send waits for transcription to finish before sending. Failed recognition keeps the draft for review.
 - **Not a place to browse.** No history, no list of conversations, no search of them. *New* starts again.
 - **Counts on the button.** Amber `.num.pend` for changes waiting; a cobalt pulse while a reply is on its way.
 

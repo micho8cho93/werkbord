@@ -42,6 +42,12 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Dictation in the assistant (the microphone button in its message box). The web view asks macOS on the app's behalf, and macOS
+	     refuses silently, or ends the app, when these are missing. The microphone is opened only while dictation is on. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Werkbord listens only while you use dictation in the assistant, to turn what you say into text in its message box.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Werkbord uses Apple’s speech recognition to turn what you say into text when you use dictation in the assistant.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- The window loads the controller's web app from 127.0.0.1, over plain HTTP: it never leaves this computer. -->

@@ -2,7 +2,6 @@
   // Every workspace the person has opened lives in a frame of its own and stays there, hidden when another is shown, so that
   // going to Individual from a Team ticket and back changes nothing in either. The page of a workspace cannot call the app;
   // it posts messages to this page, which believes only the ones frames.ts accepts.
-  import { untrack } from 'svelte';
   import { ask } from './native';
   import { handle, type FrameRef } from './frames';
   import { model } from './model.svelte';
@@ -45,30 +44,10 @@
       reply: (frame, message) => send(frame.id, message),
       // "Open in Individual" on a Team ticket: show the person's own Werkbord at that task.
       open: (_id, _target, place) => void model.open('personal', place),
-      assistant: (_id, state) => model.setAssistant(state),
+      // The assistant has a frame of its own (AssistantFrame); a workspace's page has nothing to say about it.
+      assistant: () => {},
     });
   }
-
-  // The assistant opens out of the sidebar's button. The page it opens in is a frame, so the button's place is given in the
-  // frame's own coordinates (which are left of its edge, since the sidebar is beside it). The request waits until the page is
-  // loaded and on show: a hidden frame has no place to measure from.
-  $effect(() => {
-    const ask = model.assistantAsk;
-    const f = model.frames.personal;
-    // Opening needs the page on show (a hidden frame has no place to measure from). Closing does not: a window that went to another
-    // page while the assistant was open closes it where it is, without a movement nobody can see.
-    if (!ask || !f?.ready || model.current !== 'personal' || (ask.action !== 'close' && !shown)) return;
-    untrack(() => {
-      const box = elements.personal?.getBoundingClientRect();
-      if (!box) return;
-      model.assistantAsk = null;
-      send('personal', {
-        type: 'werkbord.assistant',
-        action: ask.action,
-        origin: { x: ask.rect.x + ask.rect.width / 2 - box.left, y: ask.rect.y + ask.rect.height / 2 - box.top },
-      });
-    });
-  });
 
   // Changing the theme in the sidebar changes it in every workspace that is open.
   $effect(() => {

@@ -65,7 +65,7 @@ async function record(page, until) {
             const el = document.querySelector('[data-testid="assistant"]');
             if (el) {
                 const cs = getComputedStyle(el);
-                const s = { t: performance.now() - t0, clip: cs.clipPath, bg: cs.backgroundColor, circle: parse(cs.clipPath), phase: el.dataset.phase, anims: el.getAnimations().length, opacity: getComputedStyle(el.firstElementChild).opacity };
+                const s = { t: performance.now() - t0, clip: cs.clipPath, bg: cs.backgroundColor, circle: parse(cs.clipPath), phase: el.dataset.phase, anims: el.getAnimations().length, opacity: getComputedStyle(el.querySelector('.inner > :last-child') || el.firstElementChild).opacity };
                 window.__samples.push(s);
                 last = s;
             } else if (last) window.__samples.push({ t: performance.now() - t0, gone: true });
@@ -131,11 +131,13 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const hashBefore = await page.evaluate(() => location.hash);
 
             const from = await center(button);
-            const stopRec = await record(page, 900);
+            const stopRec = await record(page, 1800);
             await button.click();
             const samples = await stopRec();
             const circles = samples.filter(s => s.circle);
-            assert.ok(circles.length >= 6, 'the opening should take many frames, got ' + circles.length);
+            assert.ok(circles.length >= 25, 'the opening should take many frames, got ' + circles.length);
+            const took = circles.at(-1).t - circles[0].t;
+            assert.ok(circles.some(c => c.phase === 'opening') && took > 700, 'and most of a second: ' + Math.round(took) + ' ms');
             assert.ok(circles[0].circle.r < 120, 'it starts small: ' + circles[0].clip);
             for (let i = 1; i < circles.length; i++) assert.ok(circles[i].circle.r >= circles[i - 1].circle.r - 0.01, 'it only grows');
             for (const c of circles) { assert.ok(Math.abs(c.circle.x - from.x) < 2 && Math.abs(c.circle.y - from.y) < 2, `grows from the button's centre (${from.x},${from.y}), not ${c.circle.x},${c.circle.y}`); }
@@ -146,7 +148,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.notEqual(first.bg, last.bg, 'the background changes while it opens');
             assert.match(first.bg, /rgb\(25[0-5], 25[0-5], 25[0-5]\)|rgb\(24[0-9]/, 'it starts as the sidebar’s colour (white): ' + first.bg);
             assert.equal(last.bg, 'rgb(245, 245, 242)', 'it ends as the assistant’s own paper');
-            assert.ok(Number(first.opacity) < 0.5 && Number(samples.at(-1).opacity) === 1, `the content arrives after the surface starts to open (${first.opacity} → ${samples.at(-1).opacity}, ${samples.length} samples, phases ${[...new Set(samples.map(x => x.phase))]})`);
+            assert.ok(Number(first.opacity) < 0.5 && Number(samples.at(-1).opacity) > 0.99, `the content arrives after the surface starts to open (${first.opacity} → ${samples.at(-1).opacity}, ${samples.length} samples, phases ${[...new Set(samples.map(x => x.phase))]})`);
             ok('opens out of the button: circle grows from its centre to cover the window, background settles (light)');
             await page.screenshot({ path: path.join(artifacts, 'assistant-empty-light.png') });
 
@@ -156,7 +158,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(await page.evaluate(() => document.activeElement?.closest('[data-testid="assistant"]') !== null), true, 'focus is in the assistant');
 
             // Closing collapses toward the same place.
-            const stopClose = await record(page, 900);
+            const stopClose = await record(page, 1100);
             await page.getByTestId('assistant-close').click();
             const closing = await stopClose();
             const shrink = closing.filter(s => s.circle);
@@ -181,7 +183,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.goto(base + '/#token=' + token);
             await page.goto(base + '/#/projects');
             await page.getByTestId('assistant-button').first().waitFor();
-            const stopRec = await record(page, 800);
+            const stopRec = await record(page, 1800);
             await page.getByTestId('assistant-button').first().click();
             const s = await stopRec();
             const first = s.find(x => x.bg), last = s.at(-1);
@@ -488,20 +490,87 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.screenshot({ path: path.join(artifacts, 'assistant-dictation-notice.png') });
             await notice.getByRole('button', { name: 'Use dictation' }).click();
             await page.waitForFunction(() => window.__rec?.started === 1);
-            assert.equal(await mic.getAttribute('aria-pressed'), 'true');
+            // While it listens: a strip says so, the box shows what is being said as it is said, and there are three ways out.
+            const listening = page.getByTestId('assistant-listening');
+            await listening.waitFor();
+            assert.match(await listening.innerText(), /Listening|Starting the microphone/);
+            assert.equal(await page.getByTestId('assistant-dictation-cancel').count(), 1, 'a cross to cancel');
+            assert.match(await mic.getAttribute('aria-label'), /^Done dictating/);
+            const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+            assert.equal(await box.getAttribute('readonly'), '', 'the box is not typed into while it listens');
+            await page.evaluate(() => window.__rec.onspeechstart?.());
+            await page.waitForFunction(() => document.querySelector('[data-testid="assistant-listening"]')?.dataset.phase === 'hearing');
             await page.evaluate(() => window.__rec.say([['what is bl', false]]));
-            await page.getByText('what is bl', { exact: false }).first().waitFor();
+            await page.waitForFunction(() => document.querySelector('textarea').value === 'what is bl');
+            await page.screenshot({ path: path.join(artifacts, 'assistant-dictation-listening.png') });
             await page.evaluate(() => window.__rec.say([['what is blocked', true]]));
             await page.waitForFunction(() => document.querySelector('textarea').value === 'what is blocked');
+            // The microphone button now means "done": what was said stays in the box, to be edited.
             await mic.click();
-            await page.waitForFunction(() => document.querySelector('[data-testid="assistant-mic"]').getAttribute('aria-pressed') === 'false');
-            await page.getByRole('textbox', { name: 'Message to the assistant' }).press('End');
-            await page.getByRole('textbox', { name: 'Message to the assistant' }).type(' today');
-            assert.equal(await page.getByRole('textbox', { name: 'Message to the assistant' }).inputValue(), 'what is blocked today', 'speech and typing mix in the one box');
+            await page.waitForFunction(() => !document.querySelector('[data-testid="assistant-listening"]'));
+            assert.equal(await box.getAttribute('readonly'), null, 'it can be edited again');
+            assert.equal(await box.inputValue(), 'what is blocked');
+            assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('textarea')), true, 'and the cursor is in it');
+            await box.press('End');
+            await box.type(' today');
+            assert.equal(await box.inputValue(), 'what is blocked today', 'speech and typing mix in the one box');
+            ok('dictation says where audio may go before it starts, is not presented as Claude or ChatGPT voice, shows the words as they are said, and the microphone button finishes it into the box for editing');
+
+            // The cross throws away what was said, and only that.
             await mic.click();
             await page.waitForFunction(() => window.__made === 2 && window.__rec.started === 1);
             assert.equal(await page.getByTestId('assistant-dictation-notice').count(), 0, 'told once per device, not every time');
-            ok('dictation says where audio may go before it starts, is not presented as Claude or ChatGPT voice, and types into the box');
+            await page.evaluate(() => window.__rec.say([['something I did not mean', true]]));
+            await page.waitForFunction(() => document.querySelector('textarea').value === 'what is blocked today something I did not mean');
+            await page.getByTestId('assistant-dictation-cancel').click();
+            await page.waitForFunction(() => !document.querySelector('[data-testid="assistant-listening"]'));
+            assert.equal(await box.inputValue(), 'what is blocked today', 'cancelling puts the box back as it was');
+            ok('the cross cancels the dictation and keeps what was typed');
+
+            // Escape does the same, and does not close the assistant.
+            await mic.click();
+            await page.waitForFunction(() => window.__made === 3);
+            await page.evaluate(() => window.__rec.say([['nor this', true]]));
+            await page.keyboard.press('Escape');
+            await page.waitForFunction(() => !document.querySelector('[data-testid="assistant-listening"]'));
+            assert.equal(await box.inputValue(), 'what is blocked today');
+            assert.equal(await surface(page).count(), 1, 'Escape ended the dictation, not the assistant');
+            ok('Escape cancels the dictation without closing the assistant');
+
+            // Send, while it listens, finishes it and sends the message once the last words are text.
+            await box.fill('');
+            await mic.click();
+            await page.waitForFunction(() => window.__made === 4);
+            await page.evaluate(() => window.__rec.say([['hello from my voice', true]]));
+            await page.evaluate(() => window.__rec.say([['and the last bit', false]], 1));
+            await page.getByTestId('assistant-send').click();
+            await page.locator('.user .bubble').last().waitFor();
+            assert.equal(await page.locator('.user .bubble').last().innerText(), 'hello from my voice and the last bit', 'the words that had not yet settled are in it');
+            assert.equal(await page.getByTestId('assistant-listening').count(), 0);
+            ok('Send finishes the dictation and sends what was said, including the last words');
+
+            // An engine that ends by itself does not end the dictation.
+            await page.waitForFunction(() => !document.querySelector('[data-testid="assistant-send"][disabled]') || true);
+            await page.locator('article.reply').last().waitFor();
+            await box.fill('');
+            await mic.click();
+            await page.waitForFunction(() => window.__made === 5);
+            await page.evaluate(() => { const r = window.__rec; r.onend?.(); });
+            await page.waitForFunction(() => window.__made === 6 && window.__rec.started === 1);
+            assert.equal(await page.getByTestId('assistant-listening').count(), 1, 'still listening');
+            await page.evaluate(() => window.__rec.say([['carried on', true]]));
+            await mic.click();
+            await page.waitForFunction(() => document.querySelector('textarea').value === 'carried on');
+            ok('when the speech engine stops by itself, dictation goes on');
+
+            // A refused microphone is explained, in words for this app or for the browser.
+            await box.fill('');
+            await mic.click();
+            await page.waitForFunction(() => window.__made === 7);
+            await page.evaluate(() => { const r = window.__rec; r.onerror?.({ error: 'not-allowed' }); r.onend?.(); });
+            await page.getByTestId('assistant-dictation-note').filter({ hasText: 'The microphone is blocked' }).waitFor();
+            assert.equal(await page.getByTestId('assistant-listening').count(), 0);
+            ok('a refused microphone is explained and dictation stops');
             await ctx.close();
         }
         {

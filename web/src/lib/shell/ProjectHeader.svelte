@@ -40,7 +40,7 @@
     {/if}
   </div>
   <div class="acts">
-    <span class="phone-only"><AssistantButton variant="icon" /></span>
+    {#if !framed}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
     <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
       <Icon name="search" /><span class="wide">Jump to</span><kbd class="key wide">{isMac ? '⌘' : 'Ctrl'} K</kbd>
     </button>

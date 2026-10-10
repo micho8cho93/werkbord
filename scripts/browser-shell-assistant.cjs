@@ -2,10 +2,12 @@
 // stand-in for the native app answering its calls, in front of the real Individual page in a real frame, with the scripted-provider
 // assistant behind it (scripts/browser-fixture/assistant.go). Team is a plain page here: the point is the window, not Team.
 //
-// It checks that the assistant opens out of the sidebar's own button across the frame boundary (the circle's centre is the
-// button's, though the button is outside the page the surface lives in), that the workspace that was showing is put back when it
-// closes and has lost nothing, that what waits for the person is shown on the sidebar button without the conversation ever
-// crossing, that choosing somewhere else in the sidebar closes it, and that reduced motion is respected here too.
+// The assistant is a frame of its own, as large as the window and above everything in it, the sidebar included. It checks that the
+// assistant opens out of the sidebar's own button and covers the whole window (the circle's centre is the button's, in the window's
+// coordinates; it ends covering every pixel, the sidebar too), slowly enough to be seen; that whatever workspace was showing is
+// still there, with a half-written note untouched, when it closes; that what waits for the person is shown on the sidebar button
+// without the conversation ever crossing; that the window under it cannot be reached while it is open; and that reduced motion is
+// respected here too.
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), http = require('node:http');
 const cp = require('node:child_process'), net = require('node:net');
 const { once } = require('node:events');
@@ -48,11 +50,27 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     // The stand-in for the native app: what the shell asks, in the shapes internal/workspace defines.
     const entry = (id, kind, name) => ({ id, kind, name, state: 'ready' });
     const items = [{ ...entry('personal', 'personal', 'Individual'), source: 'local' }, { ...entry('team:main', 'team', 'Northstar'), source: 'team', role: 'owner' }];
+    const teamTickets = [], workspaceRequests = new Map();
     const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/board` }] : [], work: [], attention: [], schedule: [], at: new Date().toISOString() });
     const calls = {
         Info: () => ({ version: 'fixture', platform: 'darwin' }),
         Workspaces: () => ({ items, selected: 'personal', problems: null, team: { state: 'ready' }, teamInstaller: false, invitation: false }),
         Overview: () => ({ entries: items.map(i => ({ workspace: entry(i.id, i.kind, i.name), summary: summary(entry(i.id, i.kind, i.name)) })), at: new Date().toISOString() }),
+        LoadWorkspace: id => id === 'personal' ? { id, kind: 'personal', url: ind + '/#token=' + token, origin: ind, place: '' } : null,
+        AssistantWorkspaces: () => [{ id: 'team:main', name: 'Northstar' }],
+        AssistantWorkspaceCall: (request, id, method, args) => {
+            assert.equal(id, 'team:main');
+            const p = { id: 'p_portfolio', name: 'Personal Portfolio Website' };
+            if (method === 'list_projects') return [p];
+            if (method === 'get_project') { assert.equal(args.projectId, p.id); return p; }
+            if (method === 'list_tickets') return teamTickets;
+            if (method === 'get_overview') return [{ projectId: p.id, name: p.name, review: 0 }];
+            assert.equal(method, 'create_ticket');
+            assert.equal(args.projectId, p.id);
+            if (workspaceRequests.has(request)) return workspaceRequests.get(request);
+            const ticket = { id: 't_' + (teamTickets.length + 1), projectId: p.id, title: args.title, state: 'backlog', version: 1 };
+            teamTickets.push(ticket); workspaceRequests.set(request, ticket); return ticket;
+        },
         OpenWorkspace: id => id === 'personal' ? { id, kind: 'personal', url: ind + '/#token=' + token, origin: ind, place: '' } : { id, kind: 'team', url: shellOrigin + '/team-stub.html', origin: shellOrigin, place: '' },
         RememberPlace: () => null, Relay: () => null, PendingInvitation: () => '', OpenExternal: () => null,
     };
@@ -100,12 +118,12 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const sampleInFrame = (frame, until) => frame.evaluate(until => new Promise(resolve => {
         const out = []; const t0 = performance.now();
         const parse = c => { const m = /circle\(([\d.]+)px at (-?[\d.]+)px (-?[\d.]+)px\)/.exec(c || ''); return m ? { r: +m[1], x: +m[2], y: +m[3] } : null; };
-        // A frame that is hidden (the shell puts the other workspace back once the assistant has closed) gets no animation frames.
         setTimeout(() => resolve(out), until + 100);
         const tick = () => {
             const el = document.querySelector('[data-testid="assistant"]');
             const cs = el && getComputedStyle(el);
-            out.push(el ? { clip: cs.clipPath, circle: parse(cs.clipPath), anims: el.getAnimations().length, phase: el.dataset.phase } : { gone: true });
+            const edge = document.querySelector('.fx.edge');
+            out.push(el ? { t: performance.now() - t0, clip: cs.clipPath, circle: parse(cs.clipPath), anims: el.getAnimations().length, phase: el.dataset.phase, edge: edge ? { r: parseFloat(getComputedStyle(edge).getPropertyValue('--r')), opacity: +getComputedStyle(edge).opacity } : null } : { gone: true, t: performance.now() - t0 });
             performance.now() - t0 < until ? requestAnimationFrame(tick) : resolve(out);
         };
         requestAnimationFrame(tick);
@@ -115,10 +133,12 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const { ctx, page } = await open();
         const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
         const button = side.getByRole('button', { name: /^Assistant/ });
-        const personal = page.frameLocator('iframe[data-workspace=personal]');
+        const surfaceEl = page.getByTestId('assistant-frame');
+        const assistantFrame = page.frameLocator('[data-testid=assistant-frame]');
         await button.waitFor();
         assert.equal(await button.getAttribute('aria-haspopup'), 'dialog');
         assert.equal(await button.getAttribute('aria-expanded'), 'false');
+        assert.equal(await surfaceEl.count(), 0, 'nothing is loaded for the assistant until it is opened');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-button.png') });
         ok('the sidebar has an Assistant button');
 
@@ -130,49 +150,67 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
         assert.equal(await page.locator('iframe[data-workspace=personal]').isVisible(), false);
 
-        // Open it from the sidebar: it opens in Individual's page, out of the sidebar's button.
-        const frameEl = await page.locator('iframe[data-workspace=personal]').elementHandle();
-        const indFrame = await frameEl.contentFrame();
+        // Open it from the sidebar. The first time, its frame is made; it covers the whole window.
         const bb = await button.boundingBox();
-        const sampling = sampleInFrame(indFrame, 1100).catch(() => []);
-        await sleep(30);
         await button.click();
-        const samples = await sampling;
-        await personal.getByTestId('assistant').waitFor();
-        const fb = await page.locator('iframe[data-workspace=personal]').boundingBox();
-        const want = { x: bb.x + bb.width / 2 - fb.x, y: bb.y + bb.height / 2 - fb.y };
+        await surfaceEl.waitFor({ state: 'attached' });
+        const frameEl = await surfaceEl.elementHandle();
+        const indFrame = await frameEl.contentFrame();
+        await indFrame.waitForSelector('[data-testid="assistant"]');
+        const samples = await sampleInFrame(indFrame, 1300).catch(() => []);
+        const want = { x: bb.x + bb.width / 2, y: bb.y + bb.height / 2 };
+        const fb = await surfaceEl.boundingBox();
+        assert.deepEqual({ x: fb.x, y: fb.y, w: fb.width, h: fb.height }, { x: 0, y: 0, w: 1440, h: 900 }, 'the frame is the whole window');
+        assert.equal(await surfaceEl.evaluate(el => getComputedStyle(el).visibility), 'visible');
+        await assistantFrame.getByTestId('assistant').waitFor();
         const circles = samples.filter(s => s.circle);
-        assert.ok(circles.length >= 6, 'it takes many frames: ' + circles.length);
-        assert.ok(want.x < 0, 'the button is outside the page the surface lives in (' + want.x + ')');
+        assert.ok(want.x < 260, 'the button is in the sidebar (' + want.x + ')');
         for (const c of circles) assert.ok(Math.abs(c.circle.x - want.x) < 2 && Math.abs(c.circle.y - want.y) < 2, `grows from the sidebar button (${want.x},${want.y}), not (${c.circle.x},${c.circle.y})`);
         for (let i = 1; i < circles.length; i++) assert.ok(circles[i].circle.r >= circles[i - 1].circle.r - 0.01);
-        assert.ok(circles.at(-1).circle.r > fb.width * 0.9, 'it ends covering the page');
+        // It reaches the farthest corner, so the sidebar is under it too.
+        const far = Math.hypot(Math.max(want.x, 1440 - want.x), Math.max(want.y, 900 - want.y));
+        assert.ok(circles.at(-1).circle.r >= far - 1, 'it ends covering the whole window, the sidebar included');
+        assert.ok(circles.length >= 25, 'it is slow enough to be seen: ' + circles.length + ' frames');
+        const span = circles.at(-1).t - circles[0].t;
+        assert.ok(circles.some(c => c.phase === 'opening') && span > 700, 'it takes most of a second: ' + Math.round(span) + ' ms');
+        // The light on its edge follows the circle’s radius, then goes out.
+        const lit = samples.filter(s => s.edge && s.circle && s.edge.opacity > 0.3);
+        assert.ok(lit.length >= 8, 'the edge is lit for a good part of it: ' + lit.length);
+        for (const s of lit) assert.ok(Math.abs(s.edge.r - s.circle.r) < s.circle.r * 0.1 + 6, `the light is on the edge (${s.edge.r} vs ${s.circle.r})`);
         assert.equal(await button.getAttribute('aria-expanded'), 'true');
-        assert.equal(await page.locator('iframe[data-workspace=personal]').isVisible(), true, 'Individual was brought forward');
+        assert.equal(await page.locator('.shell').getAttribute('inert'), '', 'what is under it cannot be reached while it is open');
+        assert.equal(await page.locator('iframe[data-workspace="team:main"]').isVisible(), true, 'the workspace that was showing was not touched');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-open.png') });
-        ok('opens out of the sidebar’s own button, across the frame, from another workspace');
+        ok('opens out of the sidebar’s own button, slowly, over the whole window, sidebar included, from another workspace');
 
-        // Close with the same button: it collapses back, and the workspace that was showing is put back.
-        const closing = sampleInFrame(indFrame, 900).catch(() => []);
+        // Close with the Close button: it collapses back toward the button, and the workspace that was showing has lost nothing.
+        const closing = sampleInFrame(indFrame, 1000).catch(() => []);
         await sleep(30);
-        await button.click();
+        await assistantFrame.getByTestId('assistant-close').click();
         const shrink = (await closing).filter(s => s.circle);
-        assert.ok(shrink.length >= 3, 'closing takes frames: ' + shrink.length);
+        assert.ok(shrink.length >= 15, 'closing takes frames: ' + shrink.length);
         for (const c of shrink) assert.ok(Math.abs(c.circle.x - want.x) < 2 && Math.abs(c.circle.y - want.y) < 2, 'collapses toward the button');
-        await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
         assert.equal(await teamFrame.locator('#draft').inputValue(), 'a half-written note', 'the workspace you came from lost nothing');
         assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-page')), 'assistant', 'focus is back on the button');
         assert.equal(await button.getAttribute('aria-expanded'), 'false');
-        ok('closing collapses toward the button and puts you back where you were, untouched');
+        assert.equal(await page.locator('.shell').getAttribute('inert'), null);
+        // And the window under it can be used again.
+        await side.getByRole('button', { name: 'My Work' }).click();
+        await page.locator('[data-page=mywork][aria-current=page]').waitFor();
+        await page.getByTestId('workspace-switcher').click();
+        await page.getByTestId('switcher-menu').locator('[data-workspace="team:main"]').click();
+        await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
+        ok('closing collapses toward the button and leaves the window as it was');
 
         // Something waits for the person: the button says so, and no word of the conversation crossed.
         await button.click();
-        await personal.getByTestId('assistant').waitFor();
-        await personal.getByRole('textbox', { name: 'Message to the assistant' }).fill(`add a ticket to ${project.id}`);
-        await personal.getByRole('button', { name: 'Send', exact: true }).click();
-        await personal.locator('section.confirm').waitFor();
-        await personal.getByTestId('assistant-close').click(); // closed from inside the page, with its own button
-        await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
+        await assistantFrame.getByTestId('assistant').waitFor();
+        await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill(`add a ticket to ${project.id}`);
+        await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
+        await assistantFrame.locator('section.confirm').waitFor();
+        await assistantFrame.getByTestId('assistant-close').click(); // closed from inside the page, with its own button
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
         await page.waitForFunction(() => /1 change is waiting for you/.test(document.querySelector('[data-page=assistant]')?.getAttribute('aria-label') || ''));
         assert.equal(await button.locator('.num').innerText(), '1');
         const crossed = (await page.evaluate(() => window.__frameMessages)).filter(m => /assistant/.test(m));
@@ -183,33 +221,59 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         ok('a change waiting for you shows on the sidebar button; only a count and two flags ever cross to the shell');
 
         await button.click();
-        await personal.locator('section.confirm[data-state="waiting"]').waitFor();
-        ok('and is still waiting when it is opened again from another workspace');
+        await assistantFrame.locator('section.confirm[data-state="waiting"]').waitFor();
+        ok('and is still waiting when it is opened again, from the same frame');
+        await assistantFrame.locator('section.confirm[data-state="waiting"]').getByRole('button', { name: 'Not now', exact: true }).click();
+        await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill('Add portfolio tickets to the Northstar workspace');
+        await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
+        const proposals = assistantFrame.locator('section.confirm[data-state="waiting"]');
+        await proposals.nth(2).waitFor();
+        assert.equal(teamTickets.length, 0, 'all Team tickets are only proposed before approval');
+        assert.match(await proposals.first().innerText(), /Northstar/);
+        for (let i = 0; i < 3; i++) {
+            await proposals.first().getByRole('button', { name: /confirm/i }).click();
+            for (let j = 0; j < 100 && teamTickets.length !== i + 1; j++) await sleep(30);
+            assert.equal(teamTickets.length, i + 1);
+        }
+        assert.deepEqual(teamTickets.map(t => t.title), ['Extract LinkedIn and CV information', 'Extract coding projects from GitHub', 'Create a website design system']);
+        assert.equal((await api(ind, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, 0, 'Team approval never writes the Individual board');
+        await page.screenshot({ path: path.join(artifacts, 'shell-assistant-team-tickets.png') });
+        ok('looks up a Team project and creates all three portfolio tickets only after approval, without changing the Individual board');
+        await assistantFrame.getByTestId('assistant-close').click();
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
 
-        // Choosing somewhere else in the sidebar closes it, then goes there.
-        await side.getByRole('button', { name: 'Control Center' }).click();
-        await personal.getByTestId('assistant').waitFor({ state: 'detached' });
-        assert.equal(await button.getAttribute('aria-expanded'), 'false');
-        assert.equal(await page.locator('iframe[data-workspace=personal]').isVisible(), true);
-        ok('choosing another place in the sidebar closes the assistant and goes there');
+        // BROWSER_FILMSTRIP=1: stills of the opening, with the animation held at fixed moments, for a person to look at.
+        if (process.env.BROWSER_FILMSTRIP) {
+            await button.click();
+            await assistantFrame.getByTestId('assistant').waitFor();
+            for (const t of [60, 180, 320, 450, 580, 700, 820, 960, 1250]) {
+                await indFrame.evaluate(t => document.getAnimations().forEach(a => { a.pause(); a.currentTime = t; }), t);
+                await sleep(60);
+                await page.screenshot({ path: path.join(artifacts, `film-${String(t).padStart(4, '0')}.png`) });
+            }
+            await indFrame.evaluate(() => document.getAnimations().forEach(a => a.play()));
+            await sleep(900);
+            await assistantFrame.getByTestId('assistant-close').click();
+            await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
+        }
 
-        // Another page of the shell while it is open.
-        await button.click();
-        await personal.getByTestId('assistant').waitFor();
-        await side.getByRole('button', { name: 'My Work' }).click();
-        await personal.getByTestId('assistant').waitFor({ state: 'detached' });
-        await page.locator('[data-page=mywork][aria-current=page]').waitFor();
-        ok('going to a page of the window itself closes it too');
+        // The page of the Individual workspace has no assistant of its own in the window: there is exactly one conversation.
+        await page.getByTestId('workspace-switcher').click();
+        await page.getByTestId('switcher-menu').locator('[data-workspace="personal"]').click();
+        const personal = page.frameLocator('iframe[data-workspace=personal]');
+        await personal.locator('main').waitFor();
+        assert.equal(await personal.getByTestId('assistant-button').count(), 0);
+        assert.equal(await personal.getByTestId('assistant').count(), 0);
+        ok('the workspace’s own page carries no second assistant');
         await ctx.close();
 
         // Reduced motion applies here as well.
         {
             const { ctx, page } = await open({ reducedMotion: 'reduce' });
             const button = page.getByRole('navigation', { name: 'Werkbord', exact: true }).getByRole('button', { name: /^Assistant/ });
-            const frame = await (await page.locator('iframe[data-workspace=personal]').elementHandle()).contentFrame();
-            const sampling = sampleInFrame(frame, 500).catch(() => []);
-            await sleep(30);
             await button.click();
+            const frame = await (await page.getByTestId('assistant-frame').elementHandle()).contentFrame();
+            const sampling = sampleInFrame(frame, 500).catch(() => []);
             const s = await sampling;
             assert.ok(s.some(x => !x.gone));
             assert.ok(s.every(x => x.gone || (x.clip === 'none' && x.anims === 0)), 'no movement under reduced motion');

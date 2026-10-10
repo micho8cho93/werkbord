@@ -9,6 +9,9 @@ const enc = encodeURIComponent;
 
 export const assistantApi = {
   providers: () => request<ProvidersResponse>('GET', `${base}/providers`),
+  workspaces: (id: string, workspaces: { id: string; name: string }[]) => request<unknown>('POST', `${base}/sessions/${enc(id)}/workspaces`, { workspaces }),
+  workspacePending: (id: string, requestId: string) => request<{ pending: boolean }>('GET', `${base}/sessions/${enc(id)}/workspace-requests/${enc(requestId)}`),
+  workspaceAnswer: (id: string, requestId: string, data: unknown, error = '') => request<unknown>('POST', `${base}/sessions/${enc(id)}/workspace-requests/${enc(requestId)}`, { data, error }),
   create: (b: { provider: string; model?: string; reasoning?: string }) => request<SessionView>('POST', `${base}/sessions`, b),
   get: (id: string) => request<SessionView>('GET', `${base}/sessions/${enc(id)}`),
   /** Changes provider, model or reasoning level between messages. Another provider starts a fresh conversation. */

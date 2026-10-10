@@ -33,7 +33,8 @@ const (
 	EventCancelled EventType = "turn_cancelled"
 	// EventGap says the events the client asked to resume from have been dropped from memory; it should reload the
 	// session (its pending changes) rather than assume it has seen everything.
-	EventGap EventType = "gap"
+	EventGap              EventType = "gap"
+	EventWorkspaceRequest EventType = "workspace_request"
 )
 
 // Event is one thing that happened. Seq is per session and only ever grows, so a client that was disconnected resumes
@@ -58,7 +59,8 @@ type Event struct {
 	// Usage is set on EventCompleted when the provider said.
 	Usage *Usage `json:"usage,omitempty"`
 	// State is the session's state after this event, on events that end a turn.
-	State domain.AssistantSessionState `json:"state,omitempty"`
+	State     domain.AssistantSessionState `json:"state,omitempty"`
+	Workspace *WorkspaceRequest            `json:"workspace,omitempty"`
 }
 
 // ToolEvent describes a call and, once run, how it went.

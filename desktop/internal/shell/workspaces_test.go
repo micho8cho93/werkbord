@@ -397,7 +397,7 @@ func TestAPageMayAskOnlyWhatItsKindOfWorkspaceMayAndTheKindIsTheAppsKnowledge(t 
 		}
 	}
 	// A Team page cannot choose a folder or update the app.
-	for _, m := range []string{"ChooseDirectory", "RequestUpdate", "UpdateStatus", "Workspaces", "AddTeam", "ActivateTeam", "ForgetWorkspace", "Relay", "Reload"} {
+	for _, m := range []string{"ChooseDirectory", "ChooseFiles", "RequestUpdate", "UpdateStatus", "Workspaces", "AddTeam", "ActivateTeam", "ForgetWorkspace", "Relay", "Reload"} {
 		if _, err := r.Relay("team:main", m, args(false)); err == nil {
 			t.Errorf("a Team page asked for %s", m)
 		}

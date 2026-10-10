@@ -9,6 +9,7 @@
 import { ApiError } from '../api';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { assistantApi } from './api';
+import { connectWorkspaces, answerWorkspace } from './workspaces';
 import { modelName, pickChoice, reasoningLevels, summary, type Choice } from './choice';
 import { Connection, type Link } from './stream';
 import { FALLBACK_ORIGIN, type Origin } from './transition';
@@ -314,6 +315,7 @@ export class AssistantStore {
   }
 
   private onEvent(e: AssistantEvent): void {
+    if (e.type === 'workspace_request') answerWorkspace(e);
     const r = apply(this.transcript, e);
     if (r === 'gap') {
       const reply = activeReply(this.transcript);
@@ -377,6 +379,7 @@ export class AssistantStore {
     try {
       if (!(await this.ensureSession())) return;
       const id = this.session!.id;
+      await connectWorkspaces(id);
       const user: UserItem | null = opts.again ? null : { kind: 'user', id: uid('u'), text, files: files.map((f) => ({ name: f.name, bytes: f.bytes })) };
       if (user) this.transcript.items.push(user);
       const before = this.draft;
@@ -395,6 +398,8 @@ export class AssistantStore {
         if (e instanceof ApiError && (e.status === 404 || e.status === 409)) void assistantApi.get(id).then((v) => this.adopt(v), () => {});
       }
       this.save();
+    } catch (e) {
+      this.problem = explain(e);
     } finally {
       this.sending = false;
     }
@@ -432,6 +437,7 @@ export class AssistantStore {
     item.state = 'working';
     this.problem = '';
     try {
+      if (decision === 'approve') await connectWorkspaces(this.session.id);
       await assistantApi.resolve(this.session.id, item.id, decision);
       // The event that follows carries the details; this settles the card even if the stream is down.
       if (item.state === 'working') item.state = decision === 'approve' ? 'confirmed' : 'declined';

@@ -127,6 +127,8 @@ export interface App {
   Workspaces(): Promise<WorkspaceView>;
   OpenWorkspace(id: string): Promise<Target>;
   LoadWorkspace(id: string): Promise<Target>;
+  AssistantWorkspaces(): Promise<{ id: string; name: string }[]>;
+  AssistantWorkspaceCall(request: string, id: string, method: string, args: unknown): Promise<unknown>;
   Overview(): Promise<Overview>;
   RememberPlace(id: string, place: string): Promise<void>;
   AddTeam(): Promise<Target>;

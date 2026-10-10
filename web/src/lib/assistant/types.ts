@@ -92,6 +92,7 @@ export interface ErrorInfo {
 }
 
 export type EventType =
+  | 'workspace_request'
   | 'turn_started'
   | 'delta'
   | 'tool_call'
@@ -106,6 +107,7 @@ export type EventType =
   | 'gap';
 
 export interface AssistantEvent {
+  workspace?: { id: string; workspaceId: string; method: string; args: unknown };
   seq: number;
   sessionId: string;
   turnId?: string;

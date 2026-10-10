@@ -346,6 +346,8 @@ func TestTheAssistantBelongsToTheOwnerAlone(t *testing.T) {
 		{"GET", "/api/assistant/providers"}, {"GET", "/api/assistant/sessions"}, {"POST", "/api/assistant/sessions"},
 		{"GET", "/api/assistant/sessions/" + sid}, {"PATCH", "/api/assistant/sessions/" + sid}, {"DELETE", "/api/assistant/sessions/" + sid},
 		{"POST", "/api/assistant/sessions/" + sid + "/messages"}, {"POST", "/api/assistant/sessions/" + sid + "/cancel"},
+		{"POST", "/api/assistant/sessions/" + sid + "/workspaces"},
+		{"GET", "/api/assistant/sessions/" + sid + "/workspace-requests/wreq_1"}, {"POST", "/api/assistant/sessions/" + sid + "/workspace-requests/wreq_1"},
 		{"POST", "/api/assistant/sessions/" + sid + "/attachments"}, {"DELETE", "/api/assistant/sessions/" + sid + "/attachments/att_1"},
 		{"GET", "/api/assistant/sessions/" + sid + "/events"}, {"POST", "/api/assistant/sessions/" + sid + "/actions/act_1"},
 		{"GET", "/api/assistant/audit"}, {"GET", "/api/assistant/audit/verify"},

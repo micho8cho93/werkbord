@@ -405,8 +405,9 @@ CODESIGN="$SHIM" scripts/check-team-payload.sh --distribution "$T" >/dev/null ||
 ok "the Team service is universal and passes its own check"
 /usr/bin/codesign --verify --strict --deep "$APP" || bad "the app does not verify"
 /usr/bin/codesign -dvv "$APP" 2>&1 | grep -q 'runtime' || bad "the real signature has no hardened runtime flag" "$(/usr/bin/codesign -dvv "$APP" 2>&1)"
-/usr/bin/codesign -d --entitlements - --xml "$APP" 2>/dev/null | grep -q 'com.apple' && bad "the app asks for an entitlement"
-ok "the signed app verifies (strictly, deeply), is hardened, and holds no entitlement"
+held=$(/usr/bin/codesign -d --entitlements - --xml "$APP" 2>/dev/null | grep -o 'com\.apple\.[A-Za-z0-9._-]*' | sort -u | tr '\n' ' ')
+[ "$held" = "com.apple.security.device.audio-input " ] || bad "the app holds entitlements other than the one reviewed (the microphone, for dictation)" "$held"
+ok "the signed app verifies (strictly, deeply), is hardened, and holds only the microphone entitlement"
 expected="v$(scripts/product.sh werkbord version)"
 reported=$("$APP/Contents/Helpers/werkbord" version)
 case "$cur_ver" in "$expected") [ "$reported" = "$expected" ] || bad "the signed program says $reported" ;; *) contains "$reported" "$expected" || bad "the signed program says $reported" ;; esac

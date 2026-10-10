@@ -49,8 +49,8 @@ setting, archive or delete anything, or give an agent permission to run a comman
 | `update_ticket` | changes a ticket | `tickets:update` | **proposes** |
 | `answer_question` | gives an agent the answer it asked for | `questions:answer` | **proposes** |
 
-"Ticket" is the board's card, which the rest of Werkbord calls a task. A Team ticket is reached only as the task it was
-imported as (see [Team](#team-and-the-coordination-only-boundary)).
+"Ticket" is the board's card, which the rest of Werkbord calls a task. In the desktop app, project lookup and confirmed ticket
+creation also reach connected workspaces through a narrow desktop bridge (see [Team](#team-and-the-coordination-only-boundary)).
 
 These are the same operations an MCP server will offer: one catalog (`appops.Service.Catalog`), one input schema each
 (JSON Schema, enforced exactly as advertised), one permission each, one audit.
@@ -111,9 +111,21 @@ The assistant belongs to the Individual controller, on your computer, and runs *
 
 - Team's build links none of it (`TestTeamLinksNeitherTheAssistantNorItsOperations`), so a Team workspace remains a place
   that coordinates and never runs a model or an agent. The controller still holds no Team credential and makes no call to Team.
-- A Team ticket is visible to the assistant only as the task your own Werkbord imported it as (its `source` says where it
-  came from), through the same integration as before. Anything the assistant changes, it changes on your board; Team learns
-  of it the way it learns of any change you make: from your own Werkbord, if you have it reporting.
+- In the desktop app, the assistant's dedicated surface connects the available workspace identities to its conversation. A generic
+  metadata transport (`appops.WorkspaceCall`) appends their projects to `list_projects`, with the workspace name and namespaced IDs
+  (`workspace:<workspace>/<project>`). It supports overview counts, project lookup, listing tickets and creating a ticket in Backlog.
+  It exposes no run, repository, settings, deletion, or arbitrary HTTP operation. Project creation and editing connected tickets
+  remain actions in the workspace itself. Browser/PWA sessions see their own Individual board.
+- The engine emits a `workspace_request`; only the dedicated desktop assistant frame forwards it to the native shell. The shell
+  rechecks that the workspace is connected, validates a fixed semantic operation and calls Team's existing API through `teamlink`.
+  The desktop credential stays there. Only project and ticket metadata returns; no raw API objects, credentials, repository paths,
+  branches or execution settings cross. Team's current member/project permissions apply to every read and write.
+- Creation goes through the usual audited proposal and confirmation first, followed by a native confirmation the page cannot
+  press. The native shell caches mutation request IDs so a reloaded frame cannot create a ticket twice. Requests are session-bound,
+  expire when cancelled or timed out, and replays of completed requests are ignored. An unavailable desktop fails with a message
+  to check the destination board before retrying. After a controller restart the frame reconnects before sending or confirming.
+- Imported Team tasks still use the Individual integration as before. Creating a connected ticket changes only its own workspace;
+  it does not create a local task or start an agent.
 - Execution stays with your runner. The assistant never starts a run. Answering a question goes through the runner the
   run is on (`Runner.Answer`), exactly as answering in the app does.
 
@@ -174,8 +186,9 @@ window, the window's own sidebar, [below](#in-the-desktop-window)). It is quiet 
 change is waiting for your confirmation and a pulse while a reply is on its way, so you know without opening it.
 
 **Opening and closing.** The surface grows from the button's centre until it covers the window, while its background moves from the
-sidebar's colour to its own paper (light and dark each have their own). Closing runs the same movement backwards into the button,
-and focus goes back to it. Closing it half way through opening turns it round rather than jumping. With *reduce motion* on, nothing
+sidebar's colour to its own paper (light and dark each have their own). It takes 950ms, with a fading light along the edge and the
+content arriving from 540ms. Closing runs the same movement backwards into the button, 30% faster,
+and focus goes back to it. It can reverse in either direction halfway through without jumping. With *reduce motion* on, nothing
 moves: it is there, or it is gone. The workspace underneath is only covered (and made inert, so focus and screen readers stay in the
 assistant): the same page elements, the same place, the same half-typed text are there when you come back
 (`scripts/browser-assistant.cjs` checks this by identity, not by eye).
@@ -232,15 +245,15 @@ confirmation*). The reply text itself is not read out word by word. Nothing reli
 
 ### In the desktop window
 
-Individual is shown in the window in a frame, and the assistant belongs to that page (it holds the token and speaks to the
-controller). The window's sidebar has the button, and asks the page to open or close it:
+The assistant has its own Individual page (`?surface=assistant`), holding the controller token, in a dedicated transparent frame
+over the entire viewport, including the sidebar. The frame is created on first use and kept alive while closed.
 
-- The page is told *where the button is*, in its own coordinates (they are left of its edge, since the sidebar is beside it), so the
+- The page is told *where the button is*, in window coordinates (the frame covers that same window), so the
   surface still grows out of the sidebar's button and collapses back into it.
-- From another workspace (Team, a window page such as My Work) the window brings Individual forward, and, when the assistant closes,
-  puts you back where you were. Choosing something else in the sidebar while it is open closes it first.
-- The page tells the window three things and nothing else: whether it is open, how many changes wait, whether a reply is running.
-  They are the sidebar button's badge. No word of the conversation crosses, and a Team frame cannot say any of it
+- Every workspace and window page stays in place beneath it. Closing restores access and focus to the sidebar button.
+- The page's sidebar state report carries only whether it is open, how many changes wait, and whether a reply is running.
+  The separate workspace bridge carries only bounded semantic requests and metadata; no transcript is handed to a workspace page,
+  and a Team frame cannot report assistant state or call the privileged bridge
   (`shell/frames.ts`, tested; `scripts/browser-shell-assistant.cjs` checks the whole path in a real frame).
 
 ## Attachments
@@ -264,6 +277,8 @@ You can show the assistant a text file with a message: notes, a spec, a CSV, a l
   close its wrapper, forge a notice or write a tool call, and the assistant is told the file is yours to read, not to obey
   (`TestAFileCannotBreakOutOfItsWrapperOrOpenACall`). Names are cleaned the same way.
 - **Off if you like.** `assistant.attachmentsDisabled` removes the paperclip and refuses the route.
+- **Choosing on Mac.** The paperclip uses the native app's file dialog, avoiding WebKit's framed file-input sheet dismissal.
+  Only chosen filenames and bounded contents return, never disk paths. Browsers retain their ordinary file picker.
 
 Checked against the real command lines (`TestLiveAttachmentTravelsInTheMessage`, Claude Code 2.1.285 and Codex 0.155.1): both read the
 file and answered from it, and neither obeyed the "reply only PWNED" planted inside it. The provider's answer to such a file is still
@@ -284,6 +299,11 @@ table above), and the screen says "not Claude or ChatGPT" in the notice and neve
   the microphone key on your phone's keyboard, which types locally.
 - Speech is typed into the box, where you can read and change it before sending, and mixed freely with typing. A blocked
   microphone, a missing microphone and a speech service that cannot be reached each say so in words; silence is not an error.
+- During dictation, X (or Escape) cancels and restores the earlier draft, the tick finishes into an editable draft, and Send
+  queues sending until the final words arrive. Recognition failure retains what was heard for review and does not send it.
+  A continuous engine that stops during silence is restarted with a bounded limit. Finishing has a timeout so the box cannot hang.
+- The Mac bundle declares microphone/speech usage descriptions and the audio-input entitlement. Denied permission is explained
+  using macOS settings; the microphone is never opened before the person starts dictation.
 - Whether on-device recognition is possible is asked only when you press the microphone, never when the assistant opens. (Asking in
   headless Chromium crashed the page, and opening the assistant should not wake a speech service anyway.)
 

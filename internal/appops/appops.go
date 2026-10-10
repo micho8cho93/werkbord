@@ -18,7 +18,7 @@
 //     If the audit cannot be written, the call is refused.
 //
 // Nothing here starts, stops or configures a run, touches Git or a repository, or changes a setting: those are the
-// person's. Team's tickets are reached only as the tasks they were imported as; this package knows no Team code.
+// person's. Connected boards are reached through a generic desktop metadata transport; this package knows no Team code.
 package appops
 
 import (
@@ -220,12 +220,13 @@ type Config struct {
 
 // Service runs the operations.
 type Service struct {
-	b   Backend
-	st  store.Store
-	log *slog.Logger
-	now func() time.Time
-	ttl time.Duration
-	ops map[string]*operation
+	b          Backend
+	st         store.Store
+	log        *slog.Logger
+	now        func() time.Time
+	ttl        time.Duration
+	ops        map[string]*operation
+	workspaces workspaceBindings
 }
 
 const (
@@ -317,7 +318,7 @@ func (s *Service) Call(ctx context.Context, p Principal, name string, raw json.R
 		return nil, s.refuseWith(ctx, p, name, kind, hash, domain.AuditOutcomeDenied, "a project outside this principal's projects",
 			errorf(CodeNotFound, "project %s was not found", pid))
 	}
-	e := &env{b: s.b, p: p, now: s.time()}
+	e := &env{b: s.backend(p), p: p, now: s.time()}
 
 	if op.Kind == KindRead {
 		data, err := op.run(ctx, e, args)
@@ -488,7 +489,7 @@ func (s *Service) Resolve(ctx context.Context, d Decision) (*Result, error) {
 	if pid, ok := args["projectId"].(string); ok && !d.Executor.CanSee(pid) {
 		return fail("outside the assistant's projects", errorf(CodeNotFound, "project %s was not found", pid))
 	}
-	data, err := op.run(ctx, &env{b: s.b, p: d.Executor, now: now}, args)
+	data, err := op.run(ctx, &env{b: s.backend(d.Executor), p: d.Executor, now: now}, args)
 	if err != nil {
 		ce := classify(s.log, act.Operation, err)
 		return fail(ce.Message, ce)

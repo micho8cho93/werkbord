@@ -13,6 +13,8 @@
   // with the button showing that they do.
 
   let surface: HTMLDivElement | undefined = $state();
+  let fxEdge: HTMLDivElement | undefined = $state();
+  let fxBloom: HTMLDivElement | undefined = $state();
   let reveal: Reveal | null = null;
   let armed = $state(false);
   let announcement = $state('');
@@ -30,7 +32,7 @@
           reveal?.destroy();
           const from = colourOf(el, '--asst-from', '#ffffff');
           const to = colourOf(el, '--asst-to', '#f5f5f2');
-          reveal = new Reveal(el, plan(assistant.origin, window.innerWidth, window.innerHeight, prefersReducedMotion(), from, to));
+          reveal = new Reveal(el, plan(assistant.origin, window.innerWidth, window.innerHeight, prefersReducedMotion(), from, to), { edge: fxEdge, bloom: fxBloom });
         }
         void reveal.open().then(() => assistant.opened());
       } else if (phase === 'closing') {
@@ -137,6 +139,8 @@
 <svelte:window onkeydown={onKey} />
 
 {#if assistant.mounted}
+  <!-- The light that travels with the edge of the circle as it opens (see transition.ts); it takes no part once the surface is open. -->
+  <div class="fx bloom" bind:this={fxBloom} aria-hidden="true"></div>
   <div
     bind:this={surface}
     class="surface"
@@ -173,6 +177,7 @@
     </div>
     <p class="visually-hidden" role="status" aria-live="polite" data-testid="assistant-announce">{announcement}</p>
   </div>
+  <div class="fx edge" bind:this={fxEdge} aria-hidden="true"></div>
 {/if}
 
 <style>
@@ -195,20 +200,63 @@
     flex-direction: column;
     height: 100%;
   }
-  /* The content arrives a moment after the surface has started to open, and leaves as soon as it starts to close. With reduced
-     motion the animation is switched off, and the content is simply there. */
-  .surface[data-phase='opening'] .inner,
-  .surface[data-phase='open'] .inner {
-    animation: arrive 0.2s ease 0.12s backwards;
+  /* The content arrives after the circle has mostly grown, one part after another from the top down, each rising a little into place,
+     so the eye is led through it; it leaves as soon as the surface starts to close. With reduced motion the animation is switched
+     off, and the content is simply there. */
+  .surface[data-phase='opening'] .inner > :global(*),
+  .surface[data-phase='open'] .inner > :global(*) {
+    animation: arrive 760ms var(--ease, cubic-bezier(0.16, 1, 0.3, 1)) backwards;
+  }
+  .surface .inner > :global(:nth-child(1)) {
+    animation-delay: 540ms;
+  }
+  .surface .inner > :global(:nth-child(2)) {
+    animation-delay: 640ms;
+  }
+  .surface .inner > :global(:nth-child(3)) {
+    animation-delay: 740ms;
   }
   .surface[data-phase='closing'] .inner {
     opacity: 0;
-    transition: opacity 0.1s ease;
+    transition: opacity 0.16s ease;
   }
   @keyframes arrive {
     from {
       opacity: 0;
+      transform: translateY(18px);
     }
+  }
+  /* The light that travels with the edge. Each layer is the size of the window and draws its gradients from --r, the circle's radius,
+     which transition.ts animates. They are invisible until they move and again once the surface is open. */
+  .fx {
+    position: fixed;
+    inset: 0;
+    z-index: 61;
+    pointer-events: none;
+    opacity: 0;
+    --r: 0px;
+    --ox: 0px;
+    --oy: 0px;
+  }
+  .edge {
+    background: radial-gradient(
+      circle at var(--ox) var(--oy),
+      transparent calc(var(--r) - 150px),
+      color-mix(in srgb, var(--accent) 12%, transparent) calc(var(--r) - 48px),
+      color-mix(in srgb, var(--accent) 34%, transparent) calc(var(--r) - 9px),
+      color-mix(in srgb, white 80%, var(--accent)) calc(var(--r) - 2px),
+      color-mix(in srgb, var(--accent) 60%, transparent) calc(var(--r) + 2px),
+      color-mix(in srgb, var(--accent) 18%, transparent) calc(var(--r) + 28px),
+      transparent calc(var(--r) + 96px)
+    );
+  }
+  .bloom {
+    background: radial-gradient(
+      circle at var(--ox) var(--oy),
+      color-mix(in srgb, var(--accent) 38%, transparent) 0,
+      color-mix(in srgb, var(--accent) 14%, transparent) calc(var(--r) * 0.35 + 36px),
+      transparent calc(var(--r) * 0.7 + 90px)
+    );
   }
   .top {
     flex: none;

@@ -152,7 +152,7 @@
             <h1>{globalTitle}</h1>
           </div>
           <div class="gacts">
-            <span class="phone-only"><AssistantButton variant="icon" /></span>
+            {#if !framed}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
             <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
               <Icon name="search" /><span class="wide">Jump to</span>
             </button>
@@ -222,7 +222,8 @@
     {#if app.newTaskOpen && project}<NewTaskDialog {project} />{/if}
     <Toasts />
   </div>
-  <Assistant />
+  <!-- In the desktop window the assistant is the shell's own frame over the whole window (lib/assistant/AssistantSurface). -->
+  {#if !framed}<Assistant />{/if}
 {/if}
 
 <style>

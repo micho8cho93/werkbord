@@ -293,8 +293,10 @@ thin release archive anyway. If the 35 MB ever matters, thin it with Go's `debug
 own signature) rather than with a tool the person may not have.
 
 It does **not** contain Codex or Claude Code: Werkbord finds the ones you have installed, as it always did. The app is
-not sandboxed (it must run your agents and Git in your repositories and write the login service), and asks for no
-entitlements ([entitlements.plist](../desktop/build/darwin/entitlements.plist) says why).
+not sandboxed (it must run your agents and Git in your repositories and write the login service), and asks for one
+entitlement, the microphone, so that dictation in the assistant can listen
+([entitlements.plist](../desktop/build/darwin/entitlements.plist) says why; `Info.plist` carries the two sentences macOS shows when
+it asks).
 
 ### Where the code is
 
@@ -348,12 +350,13 @@ owner's Apple credentials (the steps to get and install them are in [DESKTOP_REL
 | --- | --- | --- |
 | `scripts/build-desktop.sh --release` | the build | Refuses to build unless the result can be published: a Developer ID Application identity (never ad hoc), a secure timestamp, the hardened runtime, a version that is exactly a release and equals `cmd/werkbord/VERSION`, and credentials to notarize. It then checks all of that on what it made. |
 | signing, inside-out | the build | The program in `Contents/Helpers` first, then the app that holds it, then the disk image; each piece by name (never `--deep`, which signs whatever is there the same way and hides what should not be). |
-| `scripts/check-desktop-signature.sh` | the build, the tests, the release check | One definition of "signed for distribution": **every** piece of code in the bundle is signed by the same Developer ID team with the hardened runtime and a timestamp, and the app holds only the entitlements in `desktop/build/darwin/entitlements.plist` (none). Code added later (an updater and its helpers) is caught here. |
+| `scripts/check-desktop-signature.sh` | the build, the tests, the release check | One definition of "signed for distribution": **every** piece of code in the bundle is signed by the same Developer ID team with the hardened runtime and a timestamp, and the app holds only the entitlements in `desktop/build/darwin/entitlements.plist` (the microphone). Code added later (an updater and its helpers) is caught here. |
 | `scripts/notarize-desktop.sh` | the build | Sends the app, then the disk image, to Apple's notary service with an App Store Connect API key (not an Apple ID password), waits for **Accepted** (Apple's own log is printed and the build fails on anything else), staples the ticket, and asks Gatekeeper. The app is done first so that an app dragged out of the disk image carries its own ticket and opens offline. |
 | `scripts/verify-desktop-release.sh <tag>` | CI after the upload, and by hand | Downloads the image as a person would, checks its `.sha256`, mounts it, and checks signature, ticket, Gatekeeper and versions of what is inside. |
 | `scripts/ci-keychain.sh` | CI | Imports the certificate into a temporary keychain with a random password, never the login keychain and never to disk outside the runner's temporary directory, and deletes it when the job ends. |
 
-Entitlements: none are requested. Under the hardened runtime the app and the program it carries run with no exception:
+Entitlements: one is requested, the microphone (`com.apple.security.device.audio-input`), for dictation in the assistant; without it the
+hardened runtime refuses the microphone silently. The program it carries holds none. Under the hardened runtime the app and the program run with no other exception:
 the launcher's end-to-end scenarios, the embedded Tailscale node and a controller started from the signed program all
 pass on hardened-runtime binaries (`scripts/test-desktop-sign.sh`). If a future change needs one, it goes in the entitlements file
 with the reason next to it, and `check-desktop-signature.sh` will fail until the two agree.

@@ -307,6 +307,31 @@ func TestTheAssistantLooksThingsUpThroughOperationsAndNeverShowsTheCalls(t *test
 	}
 }
 
+// Both real providers end a reply that asks for something on the closing fence, with no newline after it (checked live).
+// That reply was once reported to the model as "never closed", every round, until the turn gave up.
+func TestAReplyThatEndsOnTheClosingFenceStillRunsItsCall(t *testing.T) {
+	f := newEfx(t)
+	s := f.session()
+	f.project("Alpha")
+	f.prov.Queue(
+		fake.Reply(strings.TrimSuffix(callBlock("c1", "list_projects", map[string]any{}), "\n")),
+		fake.Reply("You have one project: Alpha."),
+	)
+	evs := f.send(s.ID, "which projects do I have?")
+	if end(evs).Type != EventCompleted {
+		t.Fatalf("events %v", types(evs))
+	}
+	if result := has(evs, EventToolResult); result == nil || result.Tool.Status != "ok" || result.Tool.CallID != "c1" {
+		t.Fatalf("the call was not run: %v", types(evs))
+	}
+	if p := f.lastPrompt(); strings.Contains(p, "never closed") || !strings.Contains(p, `status="ok"`) || !strings.Contains(p, "Alpha") {
+		t.Fatalf("the provider was told:\n%s", p)
+	}
+	if got := shown(evs); strings.Contains(got, "werkbord-call") || !strings.Contains(got, "Alpha") {
+		t.Fatalf("shown %q", got)
+	}
+}
+
 func TestAChangeIsOnlyProposedUntilThePersonConfirmsAndTheAssistantIsToldWhatHappened(t *testing.T) {
 	f := newEfx(t)
 	s := f.session()

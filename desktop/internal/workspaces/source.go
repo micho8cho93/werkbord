@@ -6,7 +6,8 @@
 // credential the app is allowed to hold for it, treats every answer as something to validate, and hands the app's window
 // only what the window needs. It starts no process, writes no credential into any page's storage and gives no workspace
 // anything of another's: Individual's data is never sent to a Team service, and a Team workspace's is never sent anywhere
-// but the window of the person it belongs to.
+// but the window of the person it belongs to, except the bounded project/ticket metadata the person asks their own assistant
+// to read through the desktop's semantic bridge (docs/ASSISTANT.md). Credentials and execution configuration never cross it.
 package workspaces
 
 import (

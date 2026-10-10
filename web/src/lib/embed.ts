@@ -21,6 +21,19 @@ export function followShell(): () => void {
 /** Whether a desktop shell frames this page. */
 export const embedded = (): boolean => isEmbedded();
 
+/**
+ * Whether this page is the assistant's own frame in the desktop shell (the shell loads the same app with ?surface=assistant): the
+ * assistant over the whole window, and nothing else. It is decided once, when the page starts, because adopting the sign-in rewrites
+ * the address.
+ */
+export const surface: boolean = (() => {
+  try {
+    return isEmbedded() && new URLSearchParams(location.search).get('surface') === 'assistant';
+  } catch {
+    return false;
+  }
+})();
+
 // ---- the assistant, between the page and the window's sidebar ----
 //
 // The assistant opens out of the button that was pressed. When the window's sidebar holds that button, the button is outside this

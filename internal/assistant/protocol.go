@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -72,10 +73,15 @@ func (f *filter) Write(s string) {
 	}
 }
 
-// Flush says the reply is over.
+// Flush says the reply is over. A reply that ends on its last line without a newline is the normal case for a model that
+// has finished with a call (the closing fence is the last thing it writes), so the line still being held is settled first,
+// exactly as if its newline had come.
 func (f *filter) Flush() {
+	if f.inBlock && f.line != "" {
+		f.complete()
+	}
 	if f.inBlock {
-		f.calls = append(f.calls, call{problem: "a tool call was started but never closed with ``` on its own line"})
+		f.add(call{problem: "a tool call was started but never closed with ``` on its own line"})
 		f.inBlock, f.tooBig = false, false
 		f.block.Reset()
 		f.line, f.shown = "", 0
@@ -136,24 +142,54 @@ func (f *filter) complete() {
 func (f *filter) endBlock() {
 	defer f.block.Reset()
 	if f.tooBig {
-		f.calls = append(f.calls, call{problem: fmt.Sprintf("a tool call was larger than %d KB", maxCallBytes>>10)})
+		f.add(call{problem: fmt.Sprintf("a tool call was larger than %d KB", maxCallBytes>>10)})
 		return
 	}
-	dec := json.NewDecoder(bytes.NewReader(f.block.Bytes()))
-	dec.DisallowUnknownFields()
-	var c call
-	if err := dec.Decode(&c); err != nil {
-		f.calls = append(f.calls, call{problem: "the tool call is not valid JSON of the form {\"id\",\"name\",\"arguments\"}: " + clipText(err.Error(), 120)})
+	// Normally one object. A model also writes several in one block, with or without commas between them, or as a JSON
+	// array; each is still one strictly parsed call, and all of them count towards the limit per message.
+	data := bytes.TrimSpace(f.block.Bytes())
+	if len(data) > 0 && data[0] == '[' {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		var list []call
+		err := dec.Decode(&list)
+		var extra any
+		if err != nil || dec.Decode(&extra) != io.EOF {
+			f.add(call{problem: "the tool call is not valid JSON of the form {\"id\",\"name\",\"arguments\"}: " + clipText(fmt.Sprint(err), 120)})
+			return
+		}
+		for _, c := range list {
+			f.addChecked(c)
+		}
 		return
 	}
-	if dec.More() {
-		f.calls = append(f.calls, call{ID: c.ID, Name: c.Name, problem: "a tool call block must hold exactly one JSON object"})
-		return
+	for len(data) > 0 {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		var c call
+		if err := dec.Decode(&c); err != nil {
+			f.add(call{problem: "the tool call is not valid JSON of the form {\"id\",\"name\",\"arguments\"}: " + clipText(err.Error(), 120)})
+			return
+		}
+		f.addChecked(c)
+		data = bytes.TrimLeft(data[dec.InputOffset():], " \t\r\n,")
 	}
+}
+
+// addChecked records a call that parsed, noting if it is not one that can be run.
+func (f *filter) addChecked(c call) {
 	if c.Name == "" {
 		c.problem = "the tool call has no name"
 	}
-	f.calls = append(f.calls, c)
+	f.add(c)
+}
+
+// add records a call, up to a few more than a message may use: the rest could only be refused, and a model's output is not
+// trusted to be small.
+func (f *filter) add(c call) {
+	if len(f.calls) < maxCallsPerMessage+2 {
+		f.calls = append(f.calls, c)
+	}
 }
 
 // SystemPrompt is what the provider is told on every turn: who it is, how to ask for things, and what it may ask for.
@@ -173,10 +209,12 @@ To use an operation, write a call as a fenced block with the info string werkbor
 {"id":"c1","name":"list_tickets","arguments":{"projectId":"prj_example"}}
 ` + "```" + `
 
-- Put calls at the end of your message and then stop writing. Werkbord runs them and answers in the next message, inside <werkbord-results>. Then continue.
+- One call per block. Put the blocks at the end of your message and then stop writing. Werkbord runs them and answers in the next message, inside <werkbord-results>. Then continue.
 - At most ` + fmt.Sprint(maxCallsPerMessage) + ` calls per message. Calls that do not depend on each other can go in the same message.
 - Use only ids you were given in results. Never invent an id. If you need one, look it up first.
 - If a call fails, read the error and fix the call, or tell the person what is in the way. Do not repeat the same failing call.
+- list_projects includes connected desktop workspaces when available. Their project names include the workspace name and their IDs begin with workspace:. Use the workspace the person named; if names are ambiguous, ask which one. Connected boards support list_projects, get_overview, list_tickets and create_ticket. Other operations apply to the Individual board only. If no connected projects appear, say that the desktop workspace is not connected here; never claim the workspace has no projects based only on the Individual list.
+- You cannot create a project. Ask the person to create it in the appropriate workspace, then use list_projects again to find it. Do not ask for IDs they can look up for you.
 
 # Changes need the person's confirmation
 

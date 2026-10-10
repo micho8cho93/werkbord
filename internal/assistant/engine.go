@@ -87,9 +87,10 @@ type Engine struct {
 	cancelBase context.CancelCauseFunc
 	wg         sync.WaitGroup
 
-	mu   sync.Mutex
-	runs map[string]*activeTurn
-	hubs map[string]*hub
+	mu        sync.Mutex
+	runs      map[string]*activeTurn
+	hubs      map[string]*hub
+	wrequests workspaceRequests
 
 	// amu guards atts: the files the person attached and has not sent. They live in memory only (attachments.go).
 	amu  sync.Mutex
@@ -493,6 +494,7 @@ func (e *Engine) DeleteSession(ctx context.Context, id string) error {
 	e.mu.Lock()
 	delete(e.hubs, id)
 	e.mu.Unlock()
+	e.ops.BindWorkspaces(id, nil, nil)
 	return nil
 }
 

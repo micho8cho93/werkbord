@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import Icon from '../Icon.svelte';
-  import { detect, Dictation, disclosure, joinSpoken, recognisesLocally } from './dictation';
+  import { desktop } from '../desktop.svelte';
+  import { chooseFiles } from './nativefiles';
+  import { detect, Dictation, disclosure, joinSpoken, recognisesLocally, type DictationPhase } from './dictation';
   import { assistant } from './store.svelte';
   import { clock, retentionNote, size } from './words';
 
@@ -34,8 +36,13 @@
 
   function submit(e?: Event) {
     e?.preventDefault();
+    // While dictating, Send means "that is all, send it": the dictation is finished, and the message goes as soon as the last
+    // words have been turned into text.
+    if (listening) {
+      if (canFinishAndSend) finishDictation(true);
+      return;
+    }
     if (!canSend) return;
-    stopDictation();
     void assistant.send();
   }
   function onKey(e: KeyboardEvent) {
@@ -44,6 +51,26 @@
   }
 
   // ---- files ----
+  // In the Mac app the app's own file dialog is used: the web view's file chooser opens as a sheet that can close again by itself
+  // inside a framed page. Anywhere else (a browser, a phone) it is the page's own file input.
+  let nativePicker = true;
+  async function attach() {
+    if (desktop.available && nativePicker) {
+      try {
+        const files = await chooseFiles();
+        if (files.length) void assistant.stageFiles(files);
+        return;
+      } catch (e) {
+        // An app that does not know the request is as good as no app: the page's own chooser is used from now on.
+        nativePicker = false;
+        if (!(e instanceof Error && /not something this workspace may ask|unknown request/.test(e.message))) {
+          assistant.problem = 'The file dialog could not be opened. ' + (e instanceof Error ? e.message : '');
+          return;
+        }
+      }
+    }
+    picker?.click();
+  }
   function picked(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
     const files = [...(input.files ?? [])];
@@ -60,15 +87,37 @@
   const TEXT_TYPES = '.txt,.md,.markdown,.csv,.tsv,.json,.jsonl,.log,.yaml,.yml,.toml,.xml,.html,.css,.js,.ts,.py,.go,.rb,.rs,.java,.sh,.sql,.ini,.cfg,.env.example,text/*';
 
   // ---- dictation ----
+  // Pressing the microphone starts it. While it listens the words appear in the box as they are said, and there are three ways out:
+  // the cross drops it all, the (now ticked) microphone button finishes it and leaves the text in the box to be edited, and Send
+  // finishes it and sends the message as soon as the last words are text.
   const support = detect();
   const lang = typeof navigator !== 'undefined' ? navigator.language || 'en-US' : 'en-US';
   const ACK_KEY = 'werkbord.assistant.dictation';
   let local = $state(false);
-  let listening = $state(false);
-  let caption = $state('');
+  let phase = $state<DictationPhase | 'idle'>('idle');
+  const listening = $derived(phase !== 'idle');
+  let spoken = $state('');
+  let interim = $state('');
+  let quiet = $state(false);
+  let baseDraft = $state('');
   let askFirst = $state(false);
   let dictationNote = $state('');
   let dictation: Dictation | null = null;
+  let sendAfter = false;
+  /** What the box shows while listening: what was typed, what has been settled, and what is being said right now. */
+  const preview = $derived(joinSpoken(joinSpoken(baseDraft, spoken), interim));
+  const canFinishAndSend = $derived(!assistant.running && assistant.asking.length === 0 && !assistant.staged.some((s) => s.state === 'uploading') && phase !== 'finishing');
+  const statusLine = $derived(
+    phase === 'starting'
+      ? 'Starting the microphone… if your Mac asks, choose Allow.'
+      : phase === 'finishing'
+        ? 'Finishing what you said…'
+        : phase === 'hearing'
+          ? 'Hearing you…'
+          : quiet
+            ? 'I can’t hear anything yet. Check that the right microphone is chosen in System Settings → Sound.'
+            : `Listening${local ? ' (on this device)' : ''}… go ahead and speak.`,
+  );
 
   function acknowledged(): boolean {
     try {
@@ -97,26 +146,61 @@
   function startDictation() {
     dictationNote = '';
     askFirst = false;
-    dictation = new Dictation(
+    quiet = false;
+    baseDraft = assistant.draft;
+    spoken = '';
+    interim = '';
+    sendAfter = false;
+    const d = new Dictation(
       {
-        onInterim: (t) => (caption = t),
-        onFinal: (t) => (assistant.draft = joinSpoken(assistant.draft, t)),
-        onEnd: () => {
-          listening = false;
-          caption = '';
-          dictation = null;
-        },
+        onPhase: (p) => (phase = p),
+        onInterim: (t) => (interim = t),
+        onFinal: (t) => (spoken = joinSpoken(spoken, t)),
+        onQuiet: () => (quiet = true),
         onError: (m) => (dictationNote = m),
+        onEnd: (how) => ended(how),
       },
-      { lang, local },
+      { lang, local, inApp: desktop.available },
     );
-    listening = dictation.start();
+    dictation = d;
+    d.start();
   }
-  function stopDictation() {
-    dictation?.stop();
+
+  /** The dictation is over. What it heard goes into the box (after what was typed), and is sent if the person asked for that. */
+  function ended(how: 'finished' | 'cancelled' | 'failed') {
+    const text = how === 'cancelled' ? '' : spoken;
+    const send = sendAfter && how === 'finished';
+    phase = 'idle';
+    interim = '';
+    quiet = false;
+    dictation = null;
+    sendAfter = false;
+    if (how === 'cancelled') {
+      void tick().then(() => box?.focus({ preventScroll: true }));
+      return;
+    }
+    if (text.trim() !== '') assistant.draft = joinSpoken(baseDraft, text);
+    else if (how === 'finished') dictationNote = 'I didn’t catch anything. Try again, a little closer to the microphone.';
+    void tick().then(() => {
+      if (send && canSend) {
+        void assistant.send();
+        return;
+      }
+      box?.focus({ preventScroll: true });
+      box?.setSelectionRange(box.value.length, box.value.length);
+    });
+  }
+
+  function finishDictation(thenSend = false) {
+    if (!dictation) return;
+    sendAfter = sendAfter || thenSend;
+    dictation.finish();
+  }
+  function cancelDictation() {
+    dictation?.cancel();
   }
   async function mic() {
-    if (listening) return stopDictation();
+    if (listening) return finishDictation();
     if (!support.available) {
       dictationNote = support.reason ?? 'Dictation is not available here.';
       return;
@@ -132,8 +216,22 @@
     acknowledge();
     startDictation();
   }
-  onDestroy(() => dictation?.abort());
+  /** Escape drops the dictation (and nothing else) while one is going. */
+  function escape(e: KeyboardEvent) {
+    if (!listening || e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    cancelDictation();
+  }
+  // Keep the newest words in view while the box fills.
+  $effect(() => {
+    void preview;
+    if (phase !== 'idle') void tick().then(() => { fit(); if (box) box.scrollTop = box.scrollHeight; });
+  });
+  onDestroy(() => dictation?.cancel());
 </script>
+
+<svelte:window onkeydowncapture={escape} />
 
 <form class="composer" onsubmit={submit} ondragover={(e) => { if (assistant.canAttach) { e.preventDefault(); dragging = true; } }} ondragleave={() => (dragging = false)} ondrop={dropped} class:dragging>
   {#if assistant.problem}
@@ -181,36 +279,59 @@
     </ul>
   {/if}
 
-  {#if listening || dictationNote}
-    <p class="caption" role="status">
-      {#if listening}<span class="rec" aria-hidden="true"></span>Listening{local ? ' (on this device)' : ''}… {caption}{:else}{dictationNote}{/if}
-    </p>
+  {#if listening}
+    <div class="listen" role="status" aria-live="polite" data-phase={phase} data-testid="assistant-listening">
+      <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <span class="msg">{statusLine}</span>
+      <kbd class="key">Esc</kbd><span class="esc">cancels</span>
+    </div>
+  {:else if dictationNote}
+    <p class="caption" role="status" data-testid="assistant-dictation-note">{dictationNote}</p>
   {/if}
 
   <div class="box">
     {#if assistant.canAttach}
-      <button class="tool" type="button" aria-label="Attach a text file" title="Attach a text file" onclick={() => picker?.click()} disabled={assistant.running}><Icon name="attach" size={18} /></button>
+      <button class="tool" type="button" aria-label="Attach a text file" title="Attach a text file" onclick={attach} disabled={assistant.running || listening} data-testid="assistant-attach"><Icon name="attach" size={18} /></button>
       <input bind:this={picker} class="visually-hidden" type="file" multiple accept={TEXT_TYPES} onchange={picked} tabindex="-1" aria-hidden="true" data-testid="assistant-file-input" />
     {/if}
     <textarea
       bind:this={box}
-      bind:value={assistant.draft}
+      value={listening ? preview : assistant.draft}
       class="field"
+      class:live={listening}
       rows="1"
-      placeholder={assistant.hasConversation ? 'Reply…' : 'Ask about your board, or tell me what to do'}
+      readonly={listening}
+      placeholder={listening ? 'Speak now…' : assistant.hasConversation ? 'Reply…' : 'Ask about your board, or tell me what to do'}
       aria-label="Message to the assistant"
       enterkeyhint={touch ? 'enter' : 'send'}
       autocomplete="off"
       onkeydown={onKey}
-      oninput={fit}
+      oninput={(e) => {
+        assistant.draft = e.currentTarget.value;
+        fit();
+      }}
     ></textarea>
-    <button class="tool" class:on={listening} type="button" aria-label={listening ? 'Stop dictation' : 'Dictate'} aria-pressed={listening} title={listening ? 'Stop dictation' : 'Dictate'} onclick={mic} data-testid="assistant-mic">
-      <Icon name="mic" size={18} />
+    {#if listening}
+      <button class="tool cancel" type="button" aria-label="Cancel dictation and throw away what was heard" title="Cancel (Esc)" onclick={cancelDictation} data-testid="assistant-dictation-cancel"><Icon name="close" size={18} /></button>
+    {/if}
+    <button
+      class="tool"
+      class:on={listening}
+      type="button"
+      aria-label={listening ? 'Done dictating: keep the text so I can edit it' : 'Dictate'}
+      title={listening ? 'Done: keep the text to edit' : 'Dictate'}
+      onclick={mic}
+      disabled={phase === 'finishing'}
+      data-testid="assistant-mic"
+    >
+      <Icon name={listening ? 'check' : 'mic'} size={18} />
     </button>
     {#if assistant.running}
       <button class="go stop" type="button" aria-label="Stop the reply" title="Stop" onclick={() => assistant.cancel()}><Icon name="stop" size={16} /></button>
+    {:else if listening}
+      <button class="go" type="submit" aria-label="Finish dictating and send" title="Finish and send" disabled={!canFinishAndSend} data-testid="assistant-send"><Icon name="send" size={18} /></button>
     {:else}
-      <button class="go" type="submit" aria-label="Send" title="Send" disabled={!canSend}><Icon name="send" size={18} /></button>
+      <button class="go" type="submit" aria-label="Send" title="Send" disabled={!canSend} data-testid="assistant-send"><Icon name="send" size={18} /></button>
     {/if}
   </div>
 </form>
@@ -273,8 +394,29 @@
     color: var(--text);
   }
   .tool.on {
+    position: relative;
     background: var(--tint);
     color: var(--accent);
+  }
+  /* A quiet ring that breathes while the microphone is open, so it is plain that it is. */
+  .tool.on::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 13px;
+    border: 2px solid var(--accent);
+    opacity: 0;
+    animation: breathe 1.8s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .tool.cancel:hover:not(:disabled) {
+    background: var(--surface-2);
+    color: var(--danger-text);
+  }
+  .field.live {
+    color: var(--text);
+    caret-color: transparent;
+    cursor: default;
   }
   .tool:disabled {
     opacity: 0.4;
@@ -298,7 +440,7 @@
     border-radius: var(--radius-sm);
     background: var(--surface);
     border: 1px solid var(--border);
-    border-left: 3px solid var(--danger);
+    border-color: var(--danger);
     color: var(--danger-text);
     font-size: 13px;
   }
@@ -379,12 +521,79 @@
     font-size: 13px;
     min-height: 20px;
   }
-  .rec {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--danger);
-    animation: pulse 1.2s ease-in-out infinite;
+  .listen {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 28px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--tint);
+    color: var(--text);
+    font-size: 13px;
+  }
+  .listen .msg {
+    min-width: 0;
+    flex: 1;
+  }
+  .listen .esc {
+    flex: none;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+  .listen .key {
+    flex: none;
+  }
+  /* Five bars: still while the microphone is starting, a gentle sway while it listens, lively while it hears someone. */
+  .bars {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+  }
+  .bars i {
+    display: block;
+    width: 3px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    opacity: 0.55;
+    transform-origin: center;
+  }
+  .listen[data-phase='listening'] .bars i {
+    animation: sway 1.6s ease-in-out infinite;
+  }
+  .listen[data-phase='hearing'] .bars i {
+    opacity: 1;
+    animation: talk 0.55s ease-in-out infinite;
+  }
+  .bars i:nth-child(2) { animation-delay: 0.12s; }
+  .bars i:nth-child(3) { animation-delay: 0.24s; }
+  .bars i:nth-child(4) { animation-delay: 0.08s; }
+  .bars i:nth-child(5) { animation-delay: 0.18s; }
+  @keyframes sway {
+    50% { height: 8px; }
+  }
+  @keyframes talk {
+    0%, 100% { height: 5px; }
+    50% { height: 18px; }
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 0; transform: scale(0.96); }
+    50% { opacity: 0.55; transform: scale(1.04); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bars i,
+    .tool.on::after {
+      animation: none !important;
+    }
+    .tool.on::after {
+      opacity: 0.4;
+    }
+    .listen[data-phase='hearing'] .bars i {
+      height: 14px;
+    }
   }
   @media (pointer: coarse) {
     .field {

@@ -3,11 +3,16 @@
 <plist version="1.0">
 <dict>
 	<!--
-		Nothing is requested. The app is not sandboxed, because what it opens has to be able to run the user's own
+		One entitlement is requested: the microphone (com.apple.security.device.audio-input), so that the assistant's dictation can
+		listen. Under the hardened runtime that Developer ID signing turns on, macOS refuses an app the microphone without it, and
+		without a word: the button simply hears nothing. It only lets the app ask; macOS still asks the person (Info.plist says
+		why), and the microphone is opened only while the person has dictation on, never otherwise. The app is not sandboxed, because what it opens has to be able to run the user's own
 		coding agents and Git in the user's own repositories (as the command line does), write the login service
 		to ~/Library/LaunchAgents and the program to ~/.local/bin. It needs no JIT or unsigned-memory entitlement:
 		Go does not use them, and the web view is Apple's, in its own process. Add an entitlement here only with a
 		reason written next to it; the hardened runtime (which Developer ID signing turns on) denies the rest.
 	-->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
 </dict>
 </plist>

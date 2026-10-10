@@ -146,10 +146,65 @@ func TestDirectoryPickerReturnsOnlyTheUserSelection(t *testing.T) {
 	}
 }
 
+type filesUI struct {
+	*fakeUI
+	paths []string
+	err   error
+}
+
+func (u *filesUI) ChooseFiles() ([]string, error) { return u.paths, u.err }
+
+// The assistant's file dialog is the app's own, and gives the page a name and the content, never a path.
+func TestChoosingFilesGivesBackNamesAndContentsAndRefusesWhatIsNotAPlainSmallFile(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	notes, spec := write("notes.txt", "hello"), write("spec.md", "# spec")
+	big := write("big.log", strings.Repeat("x", maxChosenBytes+1))
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink("/dev/zero", link); err != nil {
+		t.Fatal(err)
+	}
+	shell := func(u UI) *Shell { return New(Options{Launcher: &fakeLauncher{}, UI: u}) }
+
+	got, err := shell(&filesUI{fakeUI: &fakeUI{}, paths: []string{notes, spec}}).chooseFiles()
+	if err != nil || len(got) != 2 || got[0].Name != "notes.txt" || string(got[0].Data) != "hello" || got[1].Name != "spec.md" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	for _, c := range got {
+		if strings.Contains(c.Name, string(filepath.Separator)) {
+			t.Errorf("a path went back to the page: %q", c.Name)
+		}
+	}
+	if got, err := shell(&filesUI{fakeUI: &fakeUI{}}).chooseFiles(); err != nil || got != nil {
+		t.Errorf("cancelling is not an error: %v %v", got, err)
+	}
+	for name, paths := range map[string][]string{"too big": {big}, "not a regular file": {link}, "missing": {filepath.Join(dir, "nope")}} {
+		if _, err := shell(&filesUI{fakeUI: &fakeUI{}, paths: paths}).chooseFiles(); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+	many := make([]string, maxChosenFiles+1)
+	for i := range many {
+		many[i] = notes
+	}
+	if _, err := shell(&filesUI{fakeUI: &fakeUI{}, paths: many}).chooseFiles(); err == nil {
+		t.Error("more files than allowed were accepted")
+	}
+	if _, err := shell(&fakeUI{}).chooseFiles(); err == nil {
+		t.Error("a host without a file dialog must report that it is unavailable")
+	}
+}
+
 // Wails makes every exported method of the struct it binds callable from a page the controller
 // served. This list is that surface: a new method is a decision, made here, not an accident.
 func TestThePageFacingSurfaceIsExactlyWhatIsListed(t *testing.T) {
-	want := []string{"ActivateTeam", "AddTeam", "CheckForUpdates", "ChooseDirectory", "Connect", "Diagnostics", "ForgetWorkspace", "Info", "LoadWorkspace", "OpenExternal", "OpenInBrowser", "OpenLogs", "OpenWorkspace", "Overview", "PendingInvitation", "Relay", "Reload", "RememberPlace", "RequestUpdate", "ShowDiagnostics", "TeamService", "UpdateStatus", "Workspaces"}
+	want := []string{"ActivateTeam", "AddTeam", "AssistantWorkspaceCall", "AssistantWorkspaces", "CheckForUpdates", "ChooseDirectory", "Connect", "Diagnostics", "ForgetWorkspace", "Info", "LoadWorkspace", "OpenExternal", "OpenInBrowser", "OpenLogs", "OpenWorkspace", "Overview", "PendingInvitation", "Relay", "Reload", "RememberPlace", "RequestUpdate", "ShowDiagnostics", "TeamService", "UpdateStatus", "Workspaces"}
 	var got []string
 	typ := reflect.TypeOf(&Shell{})
 	for i := 0; i < typ.NumMethod(); i++ {

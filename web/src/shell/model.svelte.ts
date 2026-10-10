@@ -4,6 +4,7 @@
 // workspace: those are asked of the app, by name, one at a time, in dialogs the person answers.
 
 import { ask } from './native';
+import { surfaceUrl } from './frames';
 import type { Overview, Target, WorkspaceView } from './types';
 
 export type Page = 'workspace' | 'mywork' | 'calendar' | 'inbox' | 'workspaces';
@@ -55,14 +56,22 @@ export class Model {
   sidebarCollapsed = $state(readCollapsed());
   addOpen = $state(false);
   loaded = $state(false);
-  /** How Individual's assistant stands, as it last said: open over its page, something waiting for the person, a reply on the way. */
+  /** How Individual's assistant stands, as it last said: open over everything, something waiting for the person, a reply on the way. */
   assistant = $state({ open: false, waiting: 0, running: false });
-  /** A request for the assistant, handed to the frame by FrameHost once the frame can take it (see toggleAssistant). */
+  /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
   assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor } | null>(null);
   /** The sidebar's Assistant button: the assistant opens out of it, and focus comes back to it. */
   assistantButton: HTMLElement | undefined;
-  /** What was showing when the assistant was opened from somewhere else, so closing it puts the person back there. */
-  private assistantReturn: { page: Page; current: string } | null = null;
+  /**
+   * The assistant's own frame: a page of Individual that is nothing but the assistant, as large as the window. It is made the first
+   * time the assistant is opened and then kept, so that closing it stops nothing. It is not a workspace, and it is not in `frames`.
+   */
+  assistantFrame = $state<{ url: string; origin: string } | null>(null);
+  /** Whether that frame is on screen (or about to be): it then covers the whole window, the sidebar included. */
+  assistantShown = $state(false);
+  /** An opening has been asked for and the frame has not yet said it is open. */
+  private assistantOpening = false;
+  private assistantWatch: ReturnType<typeof setTimeout> | undefined;
 
   private timers: ReturnType<typeof setInterval>[] = [];
 
@@ -92,44 +101,58 @@ export class Model {
     if (this.frames[id]) this.places[id] = place;
   }
 
-  /** Opens or closes Individual's assistant. It lives in Individual's page; this brings that page forward and asks it. */
+  /**
+   * Opens or closes Individual's assistant. It is a frame of its own over the whole window, so nothing else is brought forward and
+   * nothing underneath is touched: whatever was showing is still there, covered, when it closes. The frame is told where the button
+   * is (in the window's coordinates, which are the frame's) so that it grows out of it and collapses back into it.
+   */
   async toggleAssistant(rect: Anchor): Promise<void> {
-    const showing = this.page === 'workspace' && this.current === 'personal';
-    if (this.assistant.open && showing) {
+    if (this.assistantShown) {
       this.assistantAsk = { action: 'close', rect };
       return;
     }
-    if (this.assistant.open) {
-      // Open, but behind another page: bring it forward rather than close it.
-      await this.open('personal', undefined, true);
-      return;
+    this.error = '';
+    if (!this.assistantFrame) {
+      try {
+        const target = await ask((a) => a.LoadWorkspace('personal'));
+        this.assistantFrame = { url: surfaceUrl(target.url), origin: target.origin };
+      } catch (e) {
+        this.error = (e as Error).message;
+        return;
+      }
     }
-    if (!showing) this.assistantReturn = { page: this.page, current: this.current };
-    await this.open('personal', undefined, true);
+    this.assistantShown = true;
+    this.assistantOpening = true;
+    // A frame that never answers must not be left over the window with nothing on it.
+    clearTimeout(this.assistantWatch);
+    this.assistantWatch = setTimeout(() => {
+      this.assistantOpening = false;
+      if (!this.assistant.open) this.assistantShown = false;
+    }, 5000);
     this.assistantAsk = { action: 'open', rect };
   }
 
-  /** The assistant's page says how it stands. When it has closed, the person goes back to what they were looking at. */
+  /** The assistant's page says how it stands. When it has closed, the frame is put away and focus goes back to the button. */
   setAssistant(s: { open: boolean; waiting: number; running: boolean }): void {
     const was = this.assistant.open;
     this.assistant = s;
-    if (!was || s.open) return;
-    const back = this.assistantReturn;
-    this.assistantReturn = null;
-    if (back && (back.page !== 'workspace' || this.frames[back.current])) {
-      if (back.page === 'workspace') void this.open(back.current, undefined, true);
-      else this.page = back.page;
+    if (s.open) {
+      this.assistantOpening = false;
+      clearTimeout(this.assistantWatch);
+      this.assistantShown = true;
+      return;
     }
-    queueMicrotask(() => this.assistantButton?.focus({ preventScroll: true }));
+    // Before the opening that was asked for begins, the page has only said that it is closed.
+    if (this.assistantOpening) return;
+    this.assistantShown = false;
+    if (was) queueMicrotask(() => this.assistantButton?.focus({ preventScroll: true }));
   }
 
-  /** Closes the assistant if it is open, for a destination the person chose in the sidebar. */
+  /** Closes the assistant if it is open, for a destination that is chosen some other way than through the sidebar it covers. */
   private leaveAssistant(): void {
-    if (!this.assistant.open) return;
-    this.assistantReturn = null;
+    if (!this.assistantShown) return;
     const r = this.assistantButton?.getBoundingClientRect();
-    if (this.page === 'workspace' && this.current === 'personal' && r) this.assistantAsk = { action: 'close', rect: { x: r.left, y: r.top, width: r.width, height: r.height } };
-    else this.assistantAsk = { action: 'close', rect: { x: 24, y: 24, width: 0, height: 0 } };
+    this.assistantAsk = { action: 'close', rect: r ? { x: r.left, y: r.top, width: r.width, height: r.height } : { x: 24, y: 24, width: 0, height: 0 } };
   }
 
   /** Shows a place inside the workspace on show (a project, Settings…): the sidebar's way of navigating a workspace. */
@@ -209,8 +232,8 @@ export class Model {
   }
 
   /** Opens a workspace on the Workspace page, and optionally somewhere inside it. */
-  async open(id: string, place?: string, keepAssistant = false): Promise<void> {
-    if (!keepAssistant && id !== this.current) this.leaveAssistant();
+  async open(id: string, place?: string): Promise<void> {
+    if (id !== this.current) this.leaveAssistant();
     this.error = '';
     const item = this.view?.items.find((i) => i.id === id);
     if (id === 'personal' && item?.state === 'unavailable') {

@@ -87,6 +87,22 @@ func (u *wailsUI) ChooseDirectory() (string, error) {
 	return runtime.OpenDirectoryDialog(u.context(), runtime.OpenDialogOptions{Title: "Choose a project folder"})
 }
 
+// ChooseFiles shows the app's own file dialog (not the web view's file chooser, which is a sheet that can close again by itself
+// when it is opened from a page in a frame) and returns the paths the person chose; none if they cancel.
+func (u *wailsUI) ChooseFiles() ([]string, error) {
+	ctx := u.context()
+	if ctx == nil {
+		return nil, nil
+	}
+	return runtime.OpenMultipleFilesDialog(ctx, runtime.OpenDialogOptions{
+		Title: "Choose files to show the assistant",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Text files", Pattern: "*.txt;*.md;*.markdown;*.csv;*.tsv;*.json;*.jsonl;*.log;*.yaml;*.yml;*.toml;*.xml;*.html;*.css;*.js;*.ts;*.py;*.go;*.rb;*.rs;*.java;*.sh;*.sql;*.ini;*.cfg"},
+			{DisplayName: "All files", Pattern: "*.*"},
+		},
+	})
+}
+
 // Reload sends the window back to the loading screen, which connects again and so also
 // picks up the access token as it is now.
 func (u *wailsUI) Reload() {

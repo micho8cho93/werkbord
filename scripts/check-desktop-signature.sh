@@ -14,7 +14,7 @@
 #   and strict; EVERY Mach-O file in the bundle (the window, the program it carries, anything added later,
 #   such as an updater and its helpers) must be signed with a Developer ID Application certificate, never
 #   ad hoc, by the same team, with the hardened runtime and a secure timestamp; and the app may hold only
-#   the entitlements desktop/build/darwin/entitlements.plist lists (none today), so that a hardened
+#   the entitlements desktop/build/darwin/entitlements.plist lists (the microphone, today), so that a hardened
 #   runtime exception can only arrive through a reviewed change to that file.
 #
 # CODESIGN names the codesign program (tests substitute a recorder).

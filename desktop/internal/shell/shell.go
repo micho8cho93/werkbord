@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -130,8 +131,9 @@ type Options struct {
 
 // Shell is the app, as the loading screen, the menu and the web app see it.
 type Shell struct {
-	o        Options
-	updating atomic.Bool
+	workspaceCalls workspaceCallCache
+	o              Options
+	updating       atomic.Bool
 }
 
 // New returns a shell.
@@ -185,6 +187,73 @@ func (s *Shell) ChooseDirectory() (string, error) {
 		return picker.ChooseDirectory()
 	}
 	return "", errors.New("the folder picker is unavailable")
+}
+
+// ChosenFile is a file the person picked in the app's own dialog, as the page that asked for it receives it: a name and the
+// content, never a path. (The page that asked is the person's own Werkbord, which asks the person again before it shows the
+// content to anything.)
+type ChosenFile struct {
+	Name string `json:"name"`
+	Data []byte `json:"data"`
+}
+
+// Limits on what one choice may carry back through the relay. The assistant accepts far less (docs/ASSISTANT.md); a file over the
+// limit is reported by name, so the person is told which one and why.
+const (
+	maxChosenFiles = 8
+	maxChosenBytes = 1 << 20
+	maxChosenTotal = 4 << 20
+)
+
+// chooseFiles opens the app's file dialog and returns what the person chose. It is not callable from a page directly: the relay
+// offers it to Individual's page only, and the dialog is the person's say-so for each file.
+func (s *Shell) chooseFiles() ([]ChosenFile, error) {
+	picker, ok := s.o.UI.(interface{ ChooseFiles() ([]string, error) })
+	if !ok {
+		return nil, errors.New("the file dialog is unavailable")
+	}
+	paths, err := picker.ChooseFiles()
+	if err != nil || len(paths) == 0 {
+		return nil, err
+	}
+	if len(paths) > maxChosenFiles {
+		return nil, fmt.Errorf("choose at most %d files at a time", maxChosenFiles)
+	}
+	var out []ChosenFile
+	total := 0
+	for _, p := range paths {
+		data, err := readChosen(p)
+		if err != nil {
+			return nil, err
+		}
+		if total += len(data); total > maxChosenTotal {
+			return nil, errors.New("those files are too large together")
+		}
+		out = append(out, ChosenFile{Name: filepath.Base(p), Data: data})
+	}
+	return out, nil
+}
+
+// readChosen reads one file the person chose: a regular file, not larger than the limit, however it was reached.
+func readChosen(path string) ([]byte, error) {
+	name := filepath.Base(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("%s could not be opened", name)
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil || !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a file", name)
+	}
+	if st.Size() > maxChosenBytes {
+		return nil, fmt.Errorf("%s is larger than %d KB", name, maxChosenBytes>>10)
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maxChosenBytes+1))
+	if err != nil || len(data) > maxChosenBytes {
+		return nil, fmt.Errorf("%s could not be read", name)
+	}
+	return data, nil
 }
 
 // Connected is what the loading screen needs to open the web app.

@@ -111,6 +111,15 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 	low := strings.ToLower(p)
 	afterResults := strings.Contains(p, "<werkbord-results>")
 	switch {
+	case strings.Contains(low, "portfolio tickets") && !afterResults:
+		return say("Looking up the portfolio project.\n```werkbord-call\n{\"id\":\"p1\",\"name\":\"list_projects\",\"arguments\":{}}\n```")
+	case afterResults && strings.Contains(p, "workspace:") && strings.Contains(p, `name="list_projects"`):
+		pid := regexp.MustCompile(`workspace:[A-Za-z0-9:_-]+/[A-Za-z0-9_-]+`).FindString(p)
+		var calls strings.Builder
+		for i, title := range []string{"Extract LinkedIn and CV information", "Extract coding projects from GitHub", "Create a website design system"} {
+			fmt.Fprintf(&calls, "```werkbord-call\n{\"id\":\"c%d\",\"name\":\"create_ticket\",\"arguments\":{\"projectId\":%q,\"title\":%q}}\n```\n", i+1, pid, title)
+		}
+		return say(calls.String())
 	case strings.Contains(low, "fail model") && t.Model == "":
 		return provider.Result{}, provider.Errorf(provider.KindModelUnavailable, false, "The default model is not available to your account.")
 	case strings.HasPrefix(low, "hang on"):

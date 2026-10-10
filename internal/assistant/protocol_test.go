@@ -51,6 +51,33 @@ func TestACallIsFoundAndHiddenHoweverTheReplyIsCutUp(t *testing.T) {
 	}
 }
 
+// A model that has finished with a call stops on the closing fence: nothing follows it, not even a newline. Both Claude Code and
+// Codex write exactly this (checked live: `"```werkbord-call\n{…}\n```"`, 70 bytes), and it was once reported back to the model
+// as "never closed", which it could not fix, round after round.
+func TestACallIsUnderstoodWhenTheReplyEndsOnTheClosingFence(t *testing.T) {
+	const call = "{\"id\":\"p1\",\"name\":\"list_projects\",\"arguments\":{}}"
+	for name, c := range map[string]struct{ reply, shown string }{
+		"only a call":          {"```werkbord-call\n" + call + "\n```", ""},
+		"text then a call":     {"Let me look.\n```werkbord-call\n" + call + "\n```", "Let me look.\n"},
+		"closing fence padded": {"Let me look.\n```werkbord-call\n" + call + "\n  ```  ", "Let me look.\n"},
+		"windows line ends":    {"Let me look.\r\n```werkbord-call\r\n" + call + "\r\n```\r", "Let me look.\r\n"},
+	} {
+		for _, pieces := range splits(c.reply) {
+			shown, calls, _ := feed(pieces...)
+			if len(calls) != 1 || calls[0].problem != "" || calls[0].ID != "p1" || calls[0].Name != "list_projects" || shown != c.shown {
+				t.Fatalf("%s, pieces %q: shown %q calls %+v", name, pieces, shown, calls)
+			}
+		}
+	}
+	// A block that really is never closed is still reported, with or without the last newline.
+	for _, reply := range []string{"```werkbord-call\n{\"id\":\"a\",\"name\":\"x\"}", "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\"}\n", "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\"}\n``"} {
+		_, calls, _ := feed(reply)
+		if len(calls) != 1 || calls[0].problem == "" {
+			t.Errorf("%q: calls %+v", reply, calls)
+		}
+	}
+}
+
 func TestPlainTextAndOtherCodeBlocksPassThroughUntouched(t *testing.T) {
 	for _, reply := range []string{
 		"Just text, no newline",
@@ -93,14 +120,39 @@ func TestSeveralCallsAndTextBetweenThem(t *testing.T) {
 	}
 }
 
+// Models put several calls in one block, with commas between them (Claude Haiku did, checked live) or as an array. Each is still
+// one strictly parsed call.
+func TestSeveralCallsInOneBlockAreSeveralCalls(t *testing.T) {
+	one := func(id, name string) string { return `{"id":"` + id + `","name":"` + name + `","arguments":{}}` }
+	for name, block := range map[string]string{
+		"commas":       one("a", "get_overview") + ",\n" + one("b", "list_blockers"),
+		"no separator": one("a", "get_overview") + "\n" + one("b", "list_blockers"),
+		"an array":     "[" + one("a", "get_overview") + "," + one("b", "list_blockers") + "]",
+	} {
+		for _, pieces := range splits("Looking.\n```werkbord-call\n" + block + "\n```") {
+			shown, calls, _ := feed(pieces...)
+			if shown != "Looking.\n" || len(calls) != 2 || calls[0].ID != "a" || calls[1].ID != "b" || calls[1].Name != "list_blockers" || calls[0].problem != "" || calls[1].problem != "" {
+				t.Fatalf("%s, pieces %q: shown %q calls %+v", name, pieces, shown, calls)
+			}
+		}
+	}
+	// What follows the calls is still held to the same rules, and an unreasonable number is cut off.
+	_, calls, _ := feed("```werkbord-call\n" + strings.Repeat(one("a", "get_overview")+",", 1000) + "\n```")
+	if len(calls) != maxCallsPerMessage+2 {
+		t.Fatalf("%d calls were kept", len(calls))
+	}
+}
+
 func TestACallThatCannotBeUnderstoodIsReportedNotGuessed(t *testing.T) {
 	for name, reply := range map[string]string{
-		"not json":      "```werkbord-call\nlist all the tickets\n```\n",
-		"unknown field": "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\",\"arguments\":{},\"sudo\":true}\n```\n",
-		"two objects":   "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\"}{\"id\":\"b\",\"name\":\"y\"}\n```\n",
-		"no name":       "```werkbord-call\n{\"id\":\"a\",\"arguments\":{}}\n```\n",
-		"never closed":  "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\"}\n",
-		"too large":     "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\",\"arguments\":{\"t\":\"" + strings.Repeat("x", maxCallBytes+10) + "\"}}\n```\n",
+		"not json":               "```werkbord-call\nlist all the tickets\n```\n",
+		"unknown field":          "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\",\"arguments\":{},\"sudo\":true}\n```\n",
+		"words first":            "```werkbord-call\nplease run {\"id\":\"a\",\"name\":\"x\"}\n```\n",
+		"array of junk":          "```werkbord-call\n[1,2]\n```\n",
+		"array trailing bracket": "```werkbord-call\n[{\"id\":\"a\",\"name\":\"list_projects\",\"arguments\":{}}]]\n```\n",
+		"no name":                "```werkbord-call\n{\"id\":\"a\",\"arguments\":{}}\n```\n",
+		"never closed":           "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\"}\n",
+		"too large":              "```werkbord-call\n{\"id\":\"a\",\"name\":\"x\",\"arguments\":{\"t\":\"" + strings.Repeat("x", maxCallBytes+10) + "\"}}\n```\n",
 	} {
 		shown, calls, _ := feed(reply)
 		if len(calls) != 1 || calls[0].problem == "" || strings.TrimSpace(shown) != "" {
