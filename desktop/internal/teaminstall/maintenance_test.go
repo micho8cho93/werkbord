@@ -31,6 +31,7 @@ func TestStoppedHostsAndAdditionalSlotsCannotBeReplacedOrRemoved(t *testing.T) {
 }
 
 func TestRemovingTeamCapabilityPreservesIndividualAndRetainedTeamState(t *testing.T) {
+	recordKeychainDeletes(t) // the real keychain is the Mac's: not touched by a test, and absent on the Linux runners
 	root := t.TempDir()
 	team := filepath.Join(root, "team")
 	plist := filepath.Join(root, "team.plist")
