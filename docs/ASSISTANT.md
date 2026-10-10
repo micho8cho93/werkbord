@@ -304,6 +304,9 @@ table above), and the screen says "not Claude or ChatGPT" in the notice and neve
   A continuous engine that stops during silence is restarted with a bounded limit. Finishing has a timeout so the box cannot hang.
 - The Mac bundle declares microphone/speech usage descriptions and the audio-input entitlement. Denied permission is explained
   using macOS settings; the microphone is never opened before the person starts dictation.
+- macOS Dictation must also be enabled in **System Settings → Keyboard → Dictation**. Apple's speech service can end immediately
+  when it is off, even after microphone and Speech Recognition permissions are granted. The app stops that failed startup without
+  retrying it and points to the relevant settings, preserving the typed draft.
 - Whether on-device recognition is possible is asked only when you press the microphone, never when the assistant opens. (Asking in
   headless Chromium crashed the page, and opening the assistant should not wake a speech service anyway.)
 

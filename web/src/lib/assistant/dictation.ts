@@ -21,7 +21,7 @@ export interface RecognitionLike {
   interimResults: boolean;
   processLocally?: boolean;
   onresult: ((e: RecognitionEventLike) => void) | null;
-  onerror: ((e: { error: string }) => void) | null;
+  onerror: ((e: { error: string; message?: string }) => void) | null;
   onend: (() => void) | null;
   onstart: (() => void) | null;
   onaudiostart?: (() => void) | null;
@@ -93,7 +93,11 @@ export function disclosure(s: Support, local: boolean): string {
  * What an error from the recogniser means for the person. Silence and stopping are not errors. `inApp` is the Mac app, where
  * the permission is the app's own (System Settings), not a page's.
  */
-export function errorMessage(code: string, inApp = false): string | null {
+export function errorMessage(code: string, inApp = false, detail = ''): string | null {
+  // WebKit may expose Apple's underlying failure here; never treat a disabled service as a pause in speaking.
+  if (inApp && /Siri and Dictation are disabled/i.test(detail)) {
+    return 'Dictation is turned off on this Mac. Turn it on in System Settings → Keyboard → Dictation, then try again.';
+  }
   switch (code) {
     case 'no-speech':
     case 'aborted':
@@ -110,7 +114,9 @@ export function errorMessage(code: string, inApp = false): string | null {
     case 'language-not-supported':
       return 'That language is not supported for dictation here.';
     default:
-      return 'Dictation stopped unexpectedly.';
+      return inApp
+        ? 'The Mac speech service stopped. Check that Dictation is on in System Settings → Keyboard, and allow Werkbord under Privacy & Security → Microphone and Speech Recognition, then try again.'
+        : 'Dictation stopped unexpectedly.';
   }
 }
 
@@ -156,6 +162,7 @@ const MAX_QUICK_ENDS = 3;
 const QUICK_END_MS = 700;
 /** After the person finishes it, the engine is given this long to hand over the last words before they are taken as they are. */
 const FINISH_WAIT_MS = 2500;
+const MAC_START_ERROR = 'The Mac speech service stopped before it could hear you. Check that Dictation is on in System Settings → Keyboard, and allow Werkbord under Privacy & Security → Microphone and Speech Recognition, then try again.';
 
 /**
  * One dictation: start it, and it speaks through the handlers until the person finishes it (the last words are kept) or cancels
@@ -250,7 +257,7 @@ export class Dictation {
     };
     rec.onerror = (e) => {
       if (this.rec !== rec) return;
-      const m = errorMessage(e.error, this.opts.inApp);
+      const m = errorMessage(e.error, this.opts.inApp, e.message);
       if (m) {
         // Not being allowed, no microphone and no network are not mended by trying again.
         this.failed = true;
@@ -278,6 +285,13 @@ export class Dictation {
     if (this.rec !== rec) return;
     this.rec = null;
     if (this.wanted && !this.cancelled) {
+      // Apple can immediately end with "no-speech"/"aborted" when system Dictation is disabled. Restarting synchronously
+      // repeats the same failed service request. A silence after listening still takes the normal continuous restart path.
+      if (this.opts.inApp && !this.heard && Date.now() - this.startedAt < QUICK_END_MS) {
+        this.h.onError(MAC_START_ERROR);
+        this.failed = true;
+        return this.conclude('failed');
+      }
       // It stopped by itself. What it had not settled is kept, and it listens again.
       this.settle();
       this.quickEnds = Date.now() - this.startedAt < QUICK_END_MS ? this.quickEnds + 1 : 0;
@@ -287,7 +301,7 @@ export class Dictation {
         this.restarts++;
         if (this.launch(Ctor)) return;
       } else if (this.quickEnds >= MAX_QUICK_ENDS) {
-        this.h.onError('Dictation stopped unexpectedly.');
+        this.h.onError(this.opts.inApp ? MAC_START_ERROR : 'Dictation stopped unexpectedly.');
       } else {
         this.h.onError('Dictation stopped after listening for a long time. What it heard is kept.');
       }

@@ -102,6 +102,13 @@ describe('words for what goes wrong', () => {
     expect(errorMessage('service-not-allowed', true)).toMatch(/Speech Recognition/);
     expect(errorMessage('not-allowed', true)).not.toMatch(/browser/);
   });
+
+  it('explains a disabled Apple service even when WebKit calls it an abort or silence', () => {
+    for (const code of ['aborted', 'no-speech', 'unknown']) {
+      expect(errorMessage(code, true, 'Siri and Dictation are disabled')).toMatch(/turned off.*System Settings → Keyboard → Dictation/);
+    }
+    expect(errorMessage('unknown', true)).toMatch(/Dictation is on in System Settings → Keyboard/);
+  });
 });
 
 describe('putting speech into the box', () => {
@@ -241,6 +248,37 @@ describe('a dictation', () => {
     expect(h.onEnd).toHaveBeenCalledWith('failed');
   });
 
+  it('stops an immediately ending Mac service without retrying, and explains the system Dictation setting', () => {
+    const { h, d } = make(handlers(), { inApp: true });
+    d.start();
+    const first = FakeRecognition.last!;
+    first.onerror?.({ error: 'no-speech' });
+    first.onend?.();
+    expect(FakeRecognition.last).toBe(first);
+    expect(h.onError).toHaveBeenCalledWith(expect.stringMatching(/System Settings → Keyboard/));
+    expect(h.onEnd).toHaveBeenCalledOnce();
+    expect(h.onEnd).toHaveBeenCalledWith('failed');
+    expect(d.listening).toBe(false);
+  });
+
+  it('still restarts Mac dictation after real listening and silence', () => {
+    vi.useFakeTimers();
+    try {
+      const { h, d } = make(handlers(), { inApp: true });
+      d.start();
+      const first = FakeRecognition.last!;
+      vi.advanceTimersByTime(5000);
+      first.onerror?.({ error: 'no-speech' });
+      first.onend?.();
+      expect(FakeRecognition.last).not.toBe(first);
+      expect(h.onError).not.toHaveBeenCalled();
+      expect(h.onEnd).not.toHaveBeenCalled();
+      d.cancel();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('is not left waiting for an engine that never answers a stop', () => {
     vi.useFakeTimers();
     try {
@@ -310,6 +348,19 @@ describe('a dictation', () => {
     d.start();
     FakeRecognition.last!.onerror?.({ error: 'service-not-allowed' });
     expect(h.onError).toHaveBeenCalledWith(expect.stringMatching(/System Settings/));
+  });
+
+  it('passes the Apple service failure through and ends even if WebKit never emits end', () => {
+    const { h, d } = make(handlers(), { inApp: true });
+    d.start();
+    const first = FakeRecognition.last!;
+    first.abort = () => {};
+    first.onerror?.({ error: 'aborted', message: 'Siri and Dictation are disabled' });
+    expect(FakeRecognition.last).toBe(first);
+    expect(h.onError).toHaveBeenCalledWith(expect.stringMatching(/Dictation is turned off/));
+    expect(h.onEnd).toHaveBeenCalledOnce();
+    expect(h.onEnd).toHaveBeenCalledWith('failed');
+    expect(d.listening).toBe(false);
   });
 
   it('does not start twice, and says so if it cannot start at all', () => {

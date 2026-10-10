@@ -72,7 +72,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
             teamTickets.push(ticket); workspaceRequests.set(request, ticket); return ticket;
         },
         OpenWorkspace: id => id === 'personal' ? { id, kind: 'personal', url: ind + '/#token=' + token, origin: ind, place: '' } : { id, kind: 'team', url: shellOrigin + '/team-stub.html', origin: shellOrigin, place: '' },
-        RememberPlace: () => null, Relay: () => null, PendingInvitation: () => '', OpenExternal: () => null,
+        RememberPlace: () => null, Relay: (_id, method) => method === 'Info' ? calls.Info() : null, PendingInvitation: () => '', OpenExternal: () => null,
     };
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.woff': 'font/woff' };
     const server = http.createServer((req, res) => {
@@ -107,6 +107,17 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     let current = null;
     async function open(opts = {}) {
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...opts });
+        await ctx.addInitScript(() => {
+            window.__speechStarts = 0;
+            window.SpeechRecognition = class {
+                start() {
+                    window.__speechStarts++;
+                    queueMicrotask(() => { this.onstart?.(); this.onerror?.({ error: 'no-speech' }); this.onend?.(); });
+                }
+                stop() { this.onend?.(); }
+                abort() { this.onend?.(); }
+            };
+        });
         const page = await ctx.newPage(); current = page;
         page.setDefaultTimeout(15000);
         page.on('pageerror', e => errors.push(e.message));
@@ -182,6 +193,18 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await page.locator('iframe[data-workspace="team:main"]').isVisible(), true, 'the workspace that was showing was not touched');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-open.png') });
         ok('opens out of the sidebar’s own button, slowly, over the whole window, sidebar included, from another workspace');
+
+        // Apple's service can end immediately when system Dictation is off. No restart loop and no lost typed draft.
+        const message = assistantFrame.getByRole('textbox', { name: 'Message to the assistant' });
+        await message.fill('keep this draft');
+        await assistantFrame.getByRole('button', { name: 'Dictate', exact: true }).click();
+        await assistantFrame.getByTestId('assistant-dictation-notice').getByRole('button', { name: 'Use dictation', exact: true }).click();
+        await assistantFrame.getByTestId('assistant-dictation-note').filter({ hasText: 'System Settings → Keyboard' }).waitFor();
+        assert.equal(await message.inputValue(), 'keep this draft');
+        assert.equal(await indFrame.evaluate(() => window.__speechStarts), 1, 'a failed Mac startup is not retried');
+        assert.equal(await assistantFrame.getByRole('button', { name: 'Dictate', exact: true }).count(), 1, 'the microphone can be tried again');
+        await message.fill('');
+        ok('a failed Mac dictation startup points to Keyboard settings, stops once, and preserves the draft');
 
         // Close with the Close button: it collapses back toward the button, and the workspace that was showing has lost nothing.
         const closing = sampleInFrame(indFrame, 1000).catch(() => []);
