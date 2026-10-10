@@ -1,7 +1,13 @@
 # Products: individual Werkbord and Werkbord Team
 
-This repository builds two products. They share code and infrastructure, and they are otherwise separate: each has its
-own executable, version, data directory, CLI installer and release artifacts. The primary desktop installer bundles both components; Personal is free, Team workspaces carry offline licenses.
+> **Direction.** Werkbord is **one product with one version and one release** (`cmd/werkbord/VERSION`, tag
+> `werkbord-vX.Y.Z`). The table and sections below still describe the two executables, data directories and code
+> boundaries that exist today; where they say "separately versioned", "own version file" or "own release tag" they are
+> out of date. The separate version, tag, release and installer are retired, and the rest of the separation is removed in
+> stages: see [UNIFICATION.md](UNIFICATION.md).
+
+This repository builds two executables that are released together. They share code and infrastructure, and they have their
+own data directory and CLI. The primary desktop installer bundles both components; Personal is free, Team workspaces carry offline licenses.
 
 | | **Werkbord** (individual) | **Werkbord Team** |
 | --- | --- | --- |
@@ -10,8 +16,8 @@ own executable, version, data directory, CLI installer and release artifacts. Th
 | Executable | `werkbord` (and `devboard`, its name before the rename) | `werkbord-team` |
 | Main package | `cmd/werkbord` | `cmd/werkbord-team` |
 | Team/own code lives in | the shared `internal/` packages and `web/` | `internal/team/…` only |
-| Version file | `cmd/werkbord/VERSION` | `cmd/werkbord-team/VERSION` |
-| Release tag | `werkbord-vX.Y.Z` | `werkbord-team-vX.Y.Z` |
+| Version file | `cmd/werkbord/VERSION` | the same file (`cmd/werkbord-team/VERSION` is gone) |
+| Release tag | `werkbord-vX.Y.Z` | the same tag |
 | Release archives | `werkbord_<version>_<os>_<arch>` (also published as `devboard_…` for older updaters) | `werkbord-team_<version>_<os>_<arch>` |
 | Installer | `scripts/install.sh`, `scripts/install.ps1`; on a Mac, the app in `desktop/` ([DESKTOP.md](DESKTOP.md)), which installs the same program | `scripts/install-team.sh`; the separate Team app in `cmd/werkbord-team/desktop/` ([TEAM_DESKTOP.md](TEAM_DESKTOP.md)) |
 | Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory |

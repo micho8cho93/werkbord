@@ -15,8 +15,8 @@ if [ "$mode" = --release ]; then
 fi
 personal=$("$app/Contents/Helpers/werkbord" version)
 team_version=$("$team/Contents/Helpers/werkbord-team" version)
-case "$personal" in v1.[6-9].*|v1.[1-9][0-9].*) ;; *) die "Personal component outside compatibility matrix" ;; esac
-case "$team_version" in v3.[7-9].*|v3.[1-9][0-9].*) ;; *) die "Team component outside compatibility matrix" ;; esac
+# One release, one version: both executables in the bundle are the release's, so they report the same one.
+[ "$personal" = "$team_version" ] || die "Personal ($personal) and Team ($team_version) are not the same release"
 grep -Fx "Personal: $personal" "$app/Contents/Resources/components.txt" >/dev/null || die "Personal diagnostics do not match executable"
 grep -Fx "Team: $team_version" "$app/Contents/Resources/components.txt" >/dev/null || die "Team diagnostics do not match executable"
 cmp desktop/build/compatibility.json "$app/Contents/Resources/compatibility.json" || die "compatibility matrix differs from reviewed source"

@@ -4,10 +4,10 @@ A local-first remote control for coding agents. The controller runs on your comp
 owns the board, calendar and database. Your machines execute agents with their own repositories and credentials. Your phone, tablet or
 browser connects to it. There is no hosted backend and no Werkbord account.
 
-Werkbord is two products in one repository: this one, **individual Werkbord** (the `werkbord` program), and
-**Werkbord Team**, an independently versioned workspace that coordinates a team's members and projects
-without ever running anything on anyone's computer. See [docs/PRODUCTS.md](docs/PRODUCTS.md) and
-[docs/TEAM.md](docs/TEAM.md). The primary desktop installer bundles both backends in one window; Personal is free and requires no Team license or network. Team installation/activation is explicit, and each workspace enforces its own offline license. See the [unified distribution](docs/UNIFIED_DISTRIBUTION.md), [migration guide](docs/MIGRATION.md) and [Phase 4 readiness report](docs/PHASE4_READINESS.md). The CLI products remain separately installable.
+Werkbord is one product with one version and one release. It has two parts: **individual Werkbord** (the `werkbord`
+program), and **Werkbord Team**, a workspace that coordinates a team's members and projects without ever running anything
+on anyone's computer. They are released together and are being folded into one app: see
+[docs/UNIFICATION.md](docs/UNIFICATION.md), [docs/PRODUCTS.md](docs/PRODUCTS.md) and [docs/TEAM.md](docs/TEAM.md). The primary desktop installer bundles both backends in one window; Personal is free and requires no Team license or network. Team installation/activation is explicit, and each workspace enforces its own offline license. See the [unified distribution](docs/UNIFIED_DISTRIBUTION.md), [migration guide](docs/MIGRATION.md) and [Phase 4 readiness report](docs/PHASE4_READINESS.md). The CLI products remain separately installable.
 
 Team uses customer-owned Nebula networking by default and needs no Tailscale account or vendor runtime service. Customers run their Workspace Hosts, Connectivity Hosts, backups and local runners. Team requires a verified offline license and authenticated release artifacts; see [Team installation](docs/TEAM_INSTALL.md), [threat model](docs/TEAM_SECURITY.md), and the [production gate report](docs/TEAM_SECURITY_GATE.md). Individual Werkbord's tsnet support remains separate.
 
@@ -213,7 +213,7 @@ make check
 ```
 
 Every implementation commit bumps the changed product's `VERSION` file and gets a product tag
-(`werkbord-vX.Y.Z` or `werkbord-team-vX.Y.Z`): see [docs/VERSIONING.md](docs/VERSIONING.md).
+(`werkbord-vX.Y.Z`, one version for the whole release): see [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## Using it from your phone
 

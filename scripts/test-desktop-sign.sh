@@ -307,10 +307,9 @@ expect_fail "a release is never the build that installs updates without asking" 
 # (cmd/werkbord/VERSION says 1.3.1-preview.2, say) never gets that far. So this one is tried on a copy of the scripts whose
 # VERSION is a release, which refuses before it builds anything and leaves this tree alone.
 RELTREE="$WORK/reltree"
-mkdir -p "$RELTREE/cmd/werkbord" "$RELTREE/cmd/werkbord-team" "$RELTREE/internal/webui"
+mkdir -p "$RELTREE/cmd/werkbord" "$RELTREE/internal/webui"
 cp -R scripts "$RELTREE/"
 echo 1.2.3 > "$RELTREE/cmd/werkbord/VERSION"
-cp cmd/werkbord-team/VERSION "$RELTREE/cmd/werkbord-team/"
 ln -s "$PWD/internal/webui/dist" "$RELTREE/internal/webui/dist"
 [ ! -d desktop ] || ln -s "$PWD/desktop" "$RELTREE/desktop"
 in_reltree() { (cd "$RELTREE" && "$@"); }

@@ -1,5 +1,9 @@
 # GitHub release display sequence
 
+> **One release.** From `werkbord-v4.0.0-preview.1` there is a single release series, so a single display sequence. The
+> Individual and Team sequences below are history; continue the **Individual** sequence for the unified releases and
+> reserve no more Team numbers.
+
 GitHub release titles use a separate display sequence for each product, beginning at
 `0.1.0` for its first published release. This is a presentation convention, not the
 application's semantic version. Product tags, committed VERSION files, archive names,

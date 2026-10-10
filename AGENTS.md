@@ -5,39 +5,31 @@ others). `CLAUDE.md` only points here, so there is one policy and it cannot drif
 
 ## Versioning and Git Tag Policy
 
+Werkbord is **one product with one version and one release**. The Mac app, the `werkbord` controller and command line,
+and the Werkbord Team service (`werkbord-team`, the Workspace Host and its command line) are built, versioned, tagged and
+released together, at all times unified. There is no separate Team version, tag, release or installer.
+
 Every implementation commit MUST have a corresponding version update and Git tag.
 
-Werkbord contains separately versioned products.
+Use semantic versions and one tag series:
 
-### Individual Werkbord
+`werkbord-vMAJOR.MINOR.PATCH` (a preview adds `-preview.N`)
 
-Use semantic versions and tags:
+Example: `werkbord-v4.0.0-preview.1`
 
-`werkbord-vMAJOR.MINOR.PATCH`
-
-Example: `werkbord-v1.4.2`
-
-### Werkbord Team
-
-Werkbord Team is a separately installable and separately versioned product even though it lives in the same
-repository.
-
-Use:
-
-`werkbord-team-vMAJOR.MINOR.PATCH`
-
-Example: `werkbord-team-v2.1.3`
+The unified series starts at `4.0.0-preview.1`, above Individual's last `1.11.4-preview.1` and Team's last `3.10.2`, so no
+update path ever sees a downgrade. The `werkbord-team-v*` tags are history: never create another one, and never create a
+generic repository-wide tag such as `v2.1.0`.
 
 ### Rules
 
 For EVERY implementation commit:
 
-1. Determine which product(s) were changed.
-2. Increment the appropriate semantic version before completing the commit.
-3. Ensure the application's version metadata reflects that version.
-4. Commit the implementation and version change together.
-5. Create the corresponding Git tag pointing to that commit.
-6. Verify the tag points to the correct commit.
+1. Increment the version in `cmd/werkbord/VERSION` (the one version file) before completing the commit.
+2. Ensure the application's version metadata reflects it: both executables and the Mac app are stamped from that file.
+3. Commit the implementation and version change together.
+4. Create the tag with `make tag`, pointing at that commit.
+5. Verify it with `make verify-tag`.
 
 Use semantic versioning appropriately:
 
@@ -45,25 +37,18 @@ Use semantic versioning appropriately:
 - **MINOR**: new backward-compatible features or meaningful functionality.
 - **MAJOR**: breaking changes or major product generations.
 
-If a commit changes both Werkbord and Werkbord Team, independently determine whether each product requires a version
-increment and tag. Shared-package changes should only increment product versions when they affect that product.
-
-### Important
-
-Do NOT use generic repository-wide tags such as `v2.1.0`. Use product-specific tags: `werkbord-v1.5.0`,
-`werkbord-team-v2.1.0`. The two products must be able to evolve independently.
+A change to any part of Werkbord, Team included, bumps the one version. Do not decide per component.
 
 ### Agent workflow
 
 Before finishing any coding task:
 
-- inspect the current product version
-- inspect existing Git tags
+- inspect the current version in `cmd/werkbord/VERSION`
+- inspect existing Git tags (`git tag --list 'werkbord-v*'`)
 - determine the correct next semantic version
-- update version metadata
+- update `cmd/werkbord/VERSION`
 - commit
-- create the corresponding tag
-- verify the tag
+- run `make tag`, then `make verify-tag`
 
 An implementation task is NOT complete until this process has been performed.
 
@@ -78,30 +63,25 @@ Tags are created locally. Do not push commits or tags unless the user asks.
 
 GitHub release display numbers are separate from the build versions and Git tags.
 Follow `docs/RELEASE_SEQUENCE.md` when preparing or publishing a release: reserve its
-display sequence, apply the product's presentation title and add the original build
+display sequence, apply the presentation title and add the original build
 version note. Preserve the actual tag, VERSION metadata, assets, preview status and
-latest selection. Keep incomplete Team releases as drafts until reviewed signed
-packages are available. Do not reset build versions to the display sequence.
+latest selection. Do not reset build versions to the display sequence.
 
 ### Where versions live and how to apply the policy here
 
-- Individual Werkbord: `cmd/werkbord/VERSION` (the executable is `werkbord`; `devboard`, its name before the rename, is
-  installed beside it and must keep working, as must every `DEVBOARD_*` variable). Tag `werkbord-vX.Y.Z`.
-- Werkbord Team: `cmd/werkbord-team/VERSION`. Tag `werkbord-team-vX.Y.Z`.
-- Existing tags: `git tag --list 'werkbord-v*'` and `git tag --list 'werkbord-team-v*'`. The bare `v0.7.0` and earlier
-  are history; never create another bare `vX.Y.Z`.
-- After committing: `make tag PRODUCT=werkbord` and/or `make tag PRODUCT=werkbord-team` (annotated tag from the VERSION
-  file, then verified), and `make verify-tag PRODUCT=<product>` to check again. Details: `docs/VERSIONING.md`.
-- A commit is "individual" if it changes anything the `werkbord` executable is built from (everything under `cmd/werkbord`,
-  `internal/` outside `internal/team`, `web/`, its scripts) or the Mac app (`desktop/`, which is part of the individual
-  product, has no version of its own, and is a Go module of its own: `docs/DESKTOP.md`); "Team" if it changes `internal/team`, `cmd/werkbord-team` or
-  Team's installer. Shared packages (`internal/sqlitekit`, `internal/httpkit`, `internal/logging`) count for a product only
-  if they change that product's behaviour.
+- Everything: `cmd/werkbord/VERSION`. Tag `werkbord-vX.Y.Z`. `cmd/werkbord-team/VERSION` no longer exists and
+  `internal/archtest` fails if it comes back. The executable is `werkbord`; `devboard`, its name before the rename, is
+  installed beside it and must keep working, as must every `DEVBOARD_*` variable.
+- Existing tags: `git tag --list 'werkbord-v*'`. The `werkbord-team-v*` tags and the bare `v0.7.0` and earlier are history.
+- After committing: `make tag` (annotated tag from the VERSION file, then verified) and `make verify-tag` to check again.
+  Details: `docs/VERSIONING.md`.
+- The Mac app (`desktop/`) and the Team service are part of the one release and have no version of their own.
 
 ## Product boundaries
 
-The two products live in one repository and must stay separable. Read `docs/PRODUCTS.md` before changing code near the
-boundary. In short:
+Individual and Team are one release, but the *code* still has a boundary that is about trust, not packaging. Read
+`docs/PRODUCTS.md` before changing code near it. The unification work is retiring the rest of the separation in stages
+(see `docs/UNIFICATION.md`); until a stage lands, its rules here still hold. In short:
 
 - Team-specific code lives only under `internal/team/` and `cmd/werkbord-team/`. Never add a Team flag, branch or screen
   to the individual product, and never import Team from outside those two places.

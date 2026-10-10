@@ -1,24 +1,29 @@
 #!/bin/sh
-# Describes the products this repository releases, in one place. The Makefile, the
-# release scripts and CI all read it, so a product's name, version file and tag
-# prefix are written down once.
+# Describes what this repository releases, in one place. The Makefile, the release
+# scripts and CI all read it, so an executable's name and the version and tag it is
+# released under are written down once.
 #
-#   scripts/product.sh <product> <field>
-#   scripts/product.sh from-tag <tag>          which product a release tag belongs to
+# There is ONE version and ONE release (docs/VERSIONING.md): cmd/werkbord/VERSION,
+# the tag werkbord-vX.Y.Z, one Mac app. Werkbord and Werkbord Team are the two
+# executables of that release; they differ in name and archive, never in version.
 #
-# Products and fields:
-#   werkbord        the individual product  (cmd/werkbord, executable "werkbord")
-#   werkbord-team   the Team product        (cmd/werkbord-team)
+#   scripts/product.sh <executable> <field>
+#   scripts/product.sh from-tag <tag>          check that a release tag is the release's
 #
-#   cmd             the directory of the product's main package; its VERSION file lives there
+# Executables and fields:
+#   werkbord        the controller and command line (cmd/werkbord)
+#   werkbord-team   the Team service and command line (cmd/werkbord-team)
+#
+#   cmd             the directory of the executable's main package
 #   binary          the executable's name
 #   asset           the prefix of the release archives:   <asset>_<version>_<os>_<arch>.tar.gz
 #   legacy-asset    an older name the same archives are also published under, for the
 #                   updaters and installers of releases from before a rename (empty if none)
 #   readme          the README packed into the archives
+#   version-file    the one VERSION file, for both executables: cmd/werkbord/VERSION
 #   tag-prefix      what every release tag starts with:    werkbord-v
-#   version         the version in the VERSION file, without a "v": 0.8.0
-#   tag             the tag of that version:               werkbord-v0.8.0
+#   version         the version in the VERSION file, without a "v": 4.0.0
+#   tag             the tag of that version:               werkbord-v4.0.0
 #   build-version   what a build from this working tree reports (see below)
 #
 # build-version is "v0.8.0" only for a clean checkout of the commit its release tag
@@ -31,9 +36,9 @@ die() { echo "product.sh: $*" >&2; exit 2; }
 
 if [ "${1:-}" = from-tag ]; then
   case "${2:-}" in
-    werkbord-team-v[0-9]*.[0-9]*.[0-9]*) echo werkbord-team ;;
+    werkbord-team-v[0-9]*) die "\"${2:-}\" is a retired tag series: Werkbord Team is released with Werkbord, under werkbord-vX.Y.Z" ;;
     werkbord-v[0-9]*.[0-9]*.[0-9]*) echo werkbord ;;
-    *) die "\"${2:-}\" is not a product release tag (werkbord-vX.Y.Z or werkbord-team-vX.Y.Z)" ;;
+    *) die "\"${2:-}\" is not a release tag (werkbord-vX.Y.Z)" ;;
   esac
   exit 0
 fi
@@ -45,14 +50,16 @@ case "$product" in
   werkbord-team) cmd=cmd/werkbord-team;  binary=werkbord-team; asset=werkbord-team; legacy="";      readme=cmd/werkbord-team/README.md ;;
   *) die "unknown product \"$product\" (want werkbord or werkbord-team)" ;;
 esac
-prefix="$product-v"
+# One version for everything that is released together.
+versionfile=cmd/werkbord/VERSION
+prefix="werkbord-v"
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 version() {
-  v=$(tr -d '[:space:]' < "$root/$cmd/VERSION" 2>/dev/null) || die "$cmd/VERSION is missing"
+  v=$(tr -d '[:space:]' < "$root/$versionfile" 2>/dev/null) || die "$versionfile is missing"
   case "$v" in
     [0-9]*.[0-9]*.[0-9]*) ;;
-    *) die "$cmd/VERSION says \"$v\": want MAJOR.MINOR.PATCH" ;;
+    *) die "$versionfile says \"$v\": want MAJOR.MINOR.PATCH" ;;
   esac
   printf '%s' "$v"
 }
@@ -63,6 +70,7 @@ case "$field" in
   asset) echo "$asset" ;;
   legacy-asset) echo "$legacy" ;;
   readme) echo "$readme" ;;
+  version-file) echo "$versionfile" ;;
   tag-prefix) echo "$prefix" ;;
   version) version; echo ;;
   tag) echo "$prefix$(version)" ;;

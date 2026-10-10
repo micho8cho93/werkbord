@@ -15,9 +15,10 @@ while [ $# -gt 0 ]; do
 done
 ARCH=${ARCH:-universal}
 case "$ARCH" in universal) ARCHS="arm64 amd64" ;; arm64|amd64) ARCHS=$ARCH ;; *) die "ARCH must be universal, arm64 or amd64" ;; esac
-VERSION=${VERSION:-$(scripts/product.sh werkbord-team build-version)}
+VERSION=${VERSION:-$(scripts/product.sh werkbord build-version)}
 RUNNER_VERSION=$(scripts/product.sh werkbord build-version)
-PLIST_VERSION=$(scripts/product.sh werkbord-team version)
+# The bundle's own version is numbers only (the part before any "-" that marks a preview).
+PLIST_VERSION=$(scripts/product.sh werkbord version | sed 's/-.*//')
 IDENTITY=${CODESIGN_IDENTITY:--}
 ISSUER=${LICENSE_ISSUER_PUBLIC_KEY:-}
 RELEASE_KEY=${TEAM_RELEASE_PUBLIC_KEY:-}
@@ -28,7 +29,7 @@ fi
 if [ -n "$RELEASE" ]; then
   case "$IDENTITY" in 'Developer ID Application: '*) ;; *) die "a release requires a Developer ID Application identity" ;; esac
   [ "$ARCH" = universal ] || die "a release is universal so users do not need to choose their chip"
-  [ "$VERSION" = "v$PLIST_VERSION" ] || die "release VERSION must match cmd/werkbord-team/VERSION"
+  [ "$VERSION" = "v$(scripts/product.sh werkbord version)" ] || die "release VERSION must match cmd/werkbord/VERSION"
   [ -n "$RELEASE_KEY" ] || die "a release requires the independently provisioned TEAM_RELEASE_PUBLIC_KEY"
   [ -n "${TEAM_OFFLINE_MANIFEST:-}" ] && [ -f "$TEAM_OFFLINE_MANIFEST" ] && [ -f "$TEAM_OFFLINE_MANIFEST.sig" ] || die "a release requires TEAM_OFFLINE_MANIFEST and its offline signature from the reviewed payload"
   [ -n "$ISSUER" ] || die "a release requires LICENSE_ISSUER_PUBLIC_KEY; no test issuer is shipped"

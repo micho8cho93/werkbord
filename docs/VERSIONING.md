@@ -1,89 +1,88 @@
 # Versioning and tags
 
-The repository contains two **separately versioned products** (see [PRODUCTS.md](PRODUCTS.md)). Each has its own
-semantic version, its own tag series, and its own release. The same policy is in [AGENTS.md](../AGENTS.md) so that every
-coding agent follows it.
+Werkbord is **one product with one version and one release** (see [PRODUCTS.md](PRODUCTS.md) and
+[UNIFICATION.md](UNIFICATION.md)). The Mac app, the `werkbord` controller and command line, and the Werkbord Team
+service (`werkbord-team`) are built, versioned, tagged and released together. The same policy is in
+[AGENTS.md](../AGENTS.md) so that every coding agent follows it.
 
-| Product | Version file | Tag | Example |
-| --- | --- | --- | --- |
-| Individual Werkbord | `cmd/werkbord/VERSION` | `werkbord-vMAJOR.MINOR.PATCH` | `werkbord-v1.4.2` |
-| Werkbord Team | `cmd/werkbord-team/VERSION` | `werkbord-team-vMAJOR.MINOR.PATCH` | `werkbord-team-v2.1.3` |
+| | |
+| --- | --- |
+| Version file | `cmd/werkbord/VERSION` (the only one) |
+| Tag | `werkbord-vMAJOR.MINOR.PATCH`, with `-preview.N` for a preview |
+| Example | `werkbord-v4.0.0-preview.1` |
 
-There are **no generic repository-wide tags** (`v2.1.0`). The products must be able to evolve independently: a Team fix
-does not bump the individual product, and the reverse. (`werkbord-v…` never matches `werkbord-team-v…`: after
-`werkbord-` comes `v` or `team-v`, so a tag pattern for one never selects the other.)
+There are **no generic repository-wide tags** (`v2.1.0`) and no new `werkbord-team-v…` tags. The unified series starts at
+`4.0.0-preview.1`, above Individual's last release (`1.11.4-preview.1`) and Team's last (`3.10.2`), so an installed copy of
+either is always updated upwards.
 
 ## The rule
 
 **Every implementation commit has a version bump and a tag.** For each one:
 
-1. Work out which product(s) it changes.
-2. Raise that product's version in its `VERSION` file, before the commit is complete.
-3. Make sure the version metadata agrees (`VERSION` is the source; builds are stamped from it, see below).
-4. Commit the change **and** the version bump together.
-5. Tag that commit with the product's tag.
-6. Verify the tag.
+1. Raise the version in `cmd/werkbord/VERSION`, before the commit is complete.
+2. Make sure the version metadata agrees (`VERSION` is the source; both executables and the Mac app are stamped from it).
+3. Commit the change **and** the version bump together.
+4. Tag that commit.
+5. Verify the tag.
 
 ```bash
-# 1–4: edit cmd/<product>/VERSION in the same commit as the change
+# 1–3: edit cmd/werkbord/VERSION in the same commit as the change
 git commit -am "…"
 
-# 5–6: annotated tag on HEAD, named from the VERSION file; make tag then verifies it
-make tag PRODUCT=werkbord            # werkbord-v<cmd/werkbord/VERSION>
-make tag PRODUCT=werkbord-team       # werkbord-team-v<cmd/werkbord-team/VERSION>
-make verify-tag PRODUCT=werkbord     # run again at any time
+# 4–5: annotated tag on HEAD, named from the VERSION file; make tag then verifies it
+make tag                  # werkbord-v<cmd/werkbord/VERSION>
+make verify-tag           # run again at any time
 ```
 
-If one commit changes both products, decide for each independently and tag both (two tags on one commit is fine). If
-several implementation commits are made in a task, every one is bumped and tagged, not only the last. Documentation-only
-commits get no tag (unless the documentation is the release). Tags are created locally; pushing them
-(`git push origin werkbord-v1.4.2`) is a separate, deliberate step.
+A change to Team bumps the same version as a change to the controller or the app: there is nothing to decide per
+component. If several implementation commits are made in a task, every one is bumped and tagged, not only the last.
+Documentation-only commits get no tag (unless the documentation is the release). Tags are created locally; pushing them
+(`git push origin werkbord-v4.0.0-preview.1`) is a separate, deliberate step.
 
 ### Which number
 
 - **PATCH** — bug fixes, small improvements, refactors without meaningful new functionality.
 - **MINOR** — new backward-compatible features or meaningful functionality.
 - **MAJOR** — breaking changes (a data or API change that is not backward compatible) or a new product generation.
-  While a product is `0.x`, a breaking change raises MINOR.
-
-A change to a **shared package** (`internal/sqlitekit`, `internal/httpkit`, `internal/logging`) bumps a product only if
-it changes that product's behaviour. A pure refactor that both products pick up is a PATCH for each product whose
-behaviour it could touch; a change only one product's code path reaches bumps only that product.
+  While the version is `0.x`, a breaking change raises MINOR.
 
 ### What `make verify-tag` / `scripts/verify-tag.sh` checks
 
-The tag exists and is annotated; it points at the commit (HEAD by default); the product's `VERSION` file **at that
-commit** says the tag's version; the version is higher than the product's other tags; and the tag follows the product's
-naming. CI repeats this when a tag is pushed.
+The tag exists and is annotated; it points at the commit (HEAD by default); `cmd/werkbord/VERSION` **at that commit** says
+the tag's version; the version is higher than the other release tags; and the tag is named `werkbord-vX.Y.Z`. CI repeats
+this when a tag is pushed.
 
 ## Where the version shows up
 
-`VERSION` is the single source for each product. `scripts/product.sh <product> build-version` turns it into what a build
-reports (`werkbord version`, `werkbord-team version`, `/api/health`):
+`VERSION` is the single source. `scripts/product.sh <executable> build-version` turns it into what a build reports
+(`werkbord version`, `werkbord-team version`, `/api/health`), and gives the same answer for both executables:
 
 - a clean checkout of the commit its tag points at reports exactly `v0.8.0`;
 - anything else (a later commit, a dirty tree, a tag not made yet) reports `v0.8.0-<commits since the tag>-g<sha>[-dirty]`,
   which the updater treats as *built from source*, never as an installed release;
 - release builds (`make dist`, CI) are stamped with the bare tag version.
 
-`make build` and `make build-team` stamp the right one. A plain `go build` reports `dev`.
+`make build` and `make build-team` stamp it. A plain `go build` reports `dev`.
 
-The Mac app (`desktop/`) belongs to the individual product and has no version of its own: `make desktop` stamps the
-window and the `werkbord` program inside it with the same version (the bundle's `CFBundleShortVersionString` is its
-numbers), so a change to `desktop/`, `internal/launcher` or any `scripts/*desktop*` script is a change to Werkbord and bumps
-`cmd/werkbord/VERSION`. Its disk image is `Werkbord_<version>_darwin_universal.dmg` (one image for Apple Silicon and Intel),
-and the release workflow attaches it to the individual release (see [Releases](#releases) and
-[DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
-`internal/archtest` fails the tests if a `VERSION` file is malformed.
+The Mac app (`desktop/`) has no version of its own: `make desktop` stamps the window and the `werkbord` program inside it
+with the same version (the bundle's `CFBundleShortVersionString` is its numbers), so a change to `desktop/`,
+`internal/launcher` or any `scripts/*desktop*` script bumps `cmd/werkbord/VERSION`. Its disk image is
+`Werkbord_<version>_darwin_universal.dmg` (one image for Apple Silicon and Intel), and the release workflow attaches it to
+the release (see [Releases](#releases) and [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
+`internal/archtest` fails the tests if `VERSION` is malformed, or if a second `VERSION` file for Team comes back.
 
-The separate Team Mac app (`cmd/werkbord-team/desktop/`) uses the Team version. Its background service and window
-share that version; the optional bundled individual runner keeps its own individual version. `make team-desktop-package`
-creates `WerkbordTeam_<version>_darwin_universal.dmg`. See [TEAM_DESKTOP.md](TEAM_DESKTOP.md) for its independent build,
-service lifecycle and release requirements.
+Werkbord Team's service, window installer and helpers are stamped with this same version. While the unification is under
+way, the separate Team app (`cmd/werkbord-team/desktop/`) is still built, from the same version; see
+[UNIFICATION.md](UNIFICATION.md) for what is being folded into the one app and in which order.
 
 ## Releases
 
-Pushing a product tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, run `make check`,
+> **Transition.** There is one release and one tag series, `werkbord-vX.Y.Z`. The `werkbord-team-v…` tag series, Team's
+> own release workflow and its offline-signed release chain, described in the second bullet below, are retired in stage 2
+> of [UNIFICATION.md](UNIFICATION.md); they remain in the workflows until then but no tag we create will trigger them.
+> `scripts/product.sh from-tag` already refuses a `werkbord-team-v…` tag.
+
+Pushing a release tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, run `make check`,
 build the archives for every platform, and publish a GitHub release associated with the tag.
 GitHub display titles use the separate presentation sequence recorded in
 [RELEASE_SEQUENCE.md](RELEASE_SEQUENCE.md); build versions and tags keep the semantic

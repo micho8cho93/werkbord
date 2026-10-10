@@ -319,7 +319,7 @@ func TestTeamDependenciesAreClassified(t *testing.T) {
 	}
 }
 
-// Rule 6: each product has a well-formed version, and the two files are separate.
+// Rule 6: the release has a well-formed version, in one file.
 // Prerelease identifiers follow SemVer: numeric identifiers have no leading zero.
 var productSemver = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-((0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$`)
 
@@ -335,20 +335,20 @@ func TestProductVersionSyntax(t *testing.T) {
 		}
 	}
 }
-func TestEachProductHasItsOwnVersionFile(t *testing.T) {
-	files := map[string]string{"werkbord": "cmd/werkbord/VERSION", "werkbord-team": "cmd/werkbord-team/VERSION"}
-	for product, rel := range files {
-		b, err := os.ReadFile(filepath.Join(moduleRoot(t), rel))
-		if os.IsNotExist(err) && product == "werkbord-team" && !hasTeam(t) {
-			continue
-		}
-		if err != nil {
-			t.Errorf("%s: %v", product, err)
-			continue
-		}
-		if v := strings.TrimSpace(string(b)); !productSemver.MatchString(v) || string(b) != v+"\n" {
-			t.Errorf("%s says %q: it must be a semantic version (optionally with prerelease identifiers) and a newline", rel, string(b))
-		}
+
+// The whole release has one version: cmd/werkbord/VERSION. Werkbord Team's executable is stamped with it, so there is no
+// second version file for it to disagree with.
+func TestTheReleaseHasOneVersionFile(t *testing.T) {
+	root := moduleRoot(t)
+	b, err := os.ReadFile(filepath.Join(root, "cmd/werkbord/VERSION"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := strings.TrimSpace(string(b)); !productSemver.MatchString(v) || string(b) != v+"\n" {
+		t.Errorf("cmd/werkbord/VERSION says %q: it must be a semantic version (optionally with prerelease identifiers) and a newline", string(b))
+	}
+	if _, err := os.Stat(filepath.Join(root, "cmd/werkbord-team/VERSION")); err == nil {
+		t.Error("cmd/werkbord-team/VERSION exists: Werkbord Team is released under the one version in cmd/werkbord/VERSION")
 	}
 }
 

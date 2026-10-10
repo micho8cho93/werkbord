@@ -1,21 +1,20 @@
-# Two products live in this repository (see docs/PRODUCTS.md):
+# One release, two executables (see docs/PRODUCTS.md):
 #
-#   werkbord        the individual product       cmd/werkbord        make build   (the default product)
-#   werkbord-team   the Team product             cmd/werkbord-team   make build-team
+#   werkbord        the controller and command line   cmd/werkbord        make build   (the default)
+#   werkbord-team   the Team service and command line  cmd/werkbord-team   make build-team
 #
-# Each has its own VERSION file, executable, release archives and release tag
-# (werkbord-vX.Y.Z / werkbord-team-vX.Y.Z); scripts/product.sh is where that is
-# written down. Targets that act on one product take PRODUCT=, e.g.
+# They are released together, under ONE version (cmd/werkbord/VERSION) and one tag
+# (werkbord-vX.Y.Z); scripts/product.sh is where that is written down. Only the
+# archives differ, so make dist takes the executable to archive with PRODUCT=, e.g.
 #   make dist PRODUCT=werkbord-team
 GO      ?= go
 NPM     ?= npm
 PRODUCT ?= werkbord
 
-# Recursive (=), so a product's version is only worked out by a target that uses it.
-WERKBORD_VERSION      = $(shell scripts/product.sh werkbord build-version)
-WERKBORD_TEAM_VERSION = $(shell scripts/product.sh werkbord-team build-version)
+# Recursive (=), so the version is only worked out by a target that uses it. Both executables report the same one.
+WERKBORD_VERSION = $(shell scripts/product.sh werkbord build-version)
 LDFLAGS      = -X main.version=$(WERKBORD_VERSION)
-TEAM_LDFLAGS = -X main.version=$(WERKBORD_TEAM_VERSION)
+TEAM_LDFLAGS = -X main.version=$(WERKBORD_VERSION)
 BIN      := bin/werkbord
 TEAM_BIN := bin/werkbord-team
 
@@ -59,7 +58,7 @@ PREFIX ?= $(HOME)/.local
 install-team: build-team
 	install -d $(PREFIX)/bin
 	install -m 755 $(TEAM_BIN) $(PREFIX)/bin/werkbord-team
-	@echo "installed $(PREFIX)/bin/werkbord-team ($(WERKBORD_TEAM_VERSION))"
+	@echo "installed $(PREFIX)/bin/werkbord-team ($(WERKBORD_VERSION))"
 
 ## nebula: fetch the pinned Nebula release into .cache/nebula (checked against internal/team/infra/nebula/manifest.go);
 ## test-nebula: and run Team's tests that start the real program, which then must not be skipped
@@ -203,18 +202,18 @@ dev-team:
 	@flags=$$(scripts/team-build-flags.sh) || exit 1; \
 		$(GO) run -ldflags "$$flags" ./cmd/werkbord-team serve --log-level debug
 
-## tag: annotated tag for PRODUCT's VERSION on HEAD, e.g. make tag PRODUCT=werkbord-team (see docs/VERSIONING.md)
+## tag: annotated tag for the release's VERSION on HEAD (see docs/VERSIONING.md)
 tag:
-	@tag=$$(scripts/product.sh $(PRODUCT) tag) || exit 1; \
+	@tag=$$(scripts/product.sh werkbord tag) || exit 1; \
 	[ -z "$$(git status --porcelain)" ] || { echo "the working tree is not clean: commit first"; exit 1; }; \
 	! git rev-parse -q --verify "refs/tags/$$tag" >/dev/null || { echo "$$tag already exists"; exit 1; }; \
-	git tag -a "$$tag" -m "$$tag — $$(git log -1 --format=%s)" && echo "tagged $$tag" && scripts/verify-tag.sh $(PRODUCT)
+	git tag -a "$$tag" -m "$$tag — $$(git log -1 --format=%s)" && echo "tagged $$tag" && scripts/verify-tag.sh
 
-## verify-tag: check that PRODUCT's tag points at HEAD and agrees with its VERSION file
+## verify-tag: check that the release's tag points at HEAD and agrees with the VERSION file
 verify-tag:
-	scripts/verify-tag.sh $(PRODUCT)
+	scripts/verify-tag.sh
 
-## dist: release archives and checksums for PRODUCT on every platform (what CI publishes)
+## dist: release archives and checksums for the PRODUCT executable on every platform (what CI publishes)
 dist:
 	@[ "$(PRODUCT)" != werkbord ] || $(MAKE) web web-embed
 	scripts/build-release.sh $(PRODUCT) v$$(scripts/product.sh $(PRODUCT) version) dist
