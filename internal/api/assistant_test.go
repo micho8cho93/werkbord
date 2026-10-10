@@ -406,10 +406,10 @@ func TestWithoutTheAssistantItsRoutesSayTheyAreUnavailable(t *testing.T) {
 func TestTheModelAndReasoningCanBeChangedBetweenMessages(t *testing.T) {
 	a := newAsst(t, true)
 	sid := a.newSession(t)
-	code, b := a.req(t, "PATCH", "/api/assistant/sessions/"+sid, `{"model":"m2","reasoning":"high"}`)
+	code, b := a.req(t, "PATCH", "/api/assistant/sessions/"+sid, `{"model":"m2","reasoning":"medium"}`)
 	var v assistant.SessionView
 	_ = json.Unmarshal(b, &v)
-	if code != 200 || v.Model != "m2" || v.Reasoning != "high" {
+	if code != 200 || v.Model != "m2" || v.Reasoning != "medium" {
 		t.Fatalf("%d %s", code, b)
 	}
 	if code, _ = a.req(t, "PATCH", "/api/assistant/sessions/"+sid, `{"reasoning":""}`); code != 200 {
@@ -423,6 +423,22 @@ func TestTheModelAndReasoningCanBeChangedBetweenMessages(t *testing.T) {
 	}
 	if code, _ = a.req(t, "PATCH", "/api/assistant/sessions/"+sid, `{"model":"-bad"}`); code != 400 {
 		t.Fatal(code)
+	}
+	if code, b = a.req(t, "PATCH", "/api/assistant/sessions/"+sid, `{"reasoning":"high"}`); code != 400 || !strings.Contains(string(b), "medium") {
+		t.Fatalf("a level the model does not take: %d %s", code, b)
+	}
+	if code, _ = a.req(t, "PATCH", "/api/assistant/sessions/"+sid, `{"provider":"nope"}`); code != 400 {
+		t.Fatal(code)
+	}
+	// Choosing the same provider again keeps the model; naming another one drops the old model and level.
+	if code, _ = a.req(t, "PATCH", "/api/assistant/sessions/"+sid, `{"provider":"fake"}`); code != 200 {
+		t.Fatal(code)
+	}
+	code, b = a.req(t, "GET", "/api/assistant/sessions/"+sid, "")
+	v = assistant.SessionView{}
+	_ = json.Unmarshal(b, &v)
+	if v.Model != "m2" || v.Reasoning != "" {
+		t.Fatalf("%+v", v)
 	}
 	a.prov.Queue(fake.Reply("ok"))
 	done := make(chan struct{})

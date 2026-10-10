@@ -165,6 +165,23 @@ turn.
 **Both CLIs change often.** `go test ./internal/assistant/provider/live -v` with
 `WERKBORD_LIVE_ASSISTANT=1` repeats these checks against the real command lines (a handful of one-word turns).
 
+## Choosing the provider, model and reasoning level
+
+A screen offers all three, and can change them at any point, so that someone whose plan cannot use a model can move to one it can.
+`GET /api/assistant/providers` returns, for each provider: whether it is ready (and what to do if not), its models (with the
+reasoning levels each takes, and which is the default), `custom` (a name not in the list may still be typed) and its
+capabilities. `POST /sessions` takes `{provider, model, reasoning}`; `PATCH /sessions/{id}` changes any of them between messages.
+
+- **Same provider, another model or level:** the conversation continues where it was.
+- **Another provider:** a fresh conversation with it begins (each provider keeps its own), the model and level are chosen again
+  (they belong to the provider), the assistant is told it remembers nothing from before, and any change already waiting for
+  confirmation is untouched and can still be confirmed.
+- **A level the model does not take** is refused at once, with the ones it does take, before anything is spent. A model the
+  provider does not list is let through; the provider has the last word, and a model the account cannot use ends the turn with
+  `model_unavailable`, after which the choice can simply be changed.
+- **Nothing chosen** means the provider's own default, which can itself be a model your plan does not offer; the same error applies.
+- Claude Code cannot list its models (aliases, or the list in `config.json`); Codex lists them itself.
+
 ## Streaming, cancelling, timing out, reconnecting
 
 - **Streaming.** A turn's reply is published as `delta` events as it is generated. Events have a per-conversation sequence
@@ -212,8 +229,13 @@ conversation, with its outcome (`ok`, `proposed`, `confirmed`, `rejected`, `expi
 the argument digest. Reads record identifiers and filters, never prose; a change records the summary you were shown. It is
 append-only (the database refuses an update or a delete), chained (each line carries the hash of the one before:
 `GET /api/assistant/audit/verify`), and fail-closed: an operation whose record cannot be written is not done, and a
-confirmation is recorded **before** the change is carried out. It outlives the conversations it describes. It grows
-without bound at a few hundred bytes an operation; there is no pruning in this stage.
+confirmation is recorded **before** the change is carried out. It outlives the conversations it describes.
+
+**Retention.** Entries are a few hundred bytes each; a busy day is tens of kilobytes. They are kept for 400 days
+(`assistant.auditRetentionDays`: at least 30, or `-1` for ever), pruned at start and once a day. Pruning removes only the
+oldest entries as one unbroken run and leaves a checkpoint holding the hash of the last one removed; the entries that remain
+still verify against it, a line taken from the middle or the end is still caught, and the pruning writes its own line
+(`audit_pruned`). The database refuses any other delete.
 
 ## Recovery
 
@@ -233,7 +255,7 @@ answers `503` if `assistant.disabled` is set.
 | `GET /api/assistant/providers` | what is installed, signed in, and which models and reasoning levels it offers; capabilities |
 | `POST /api/assistant/sessions` `{provider, model?, reasoning?}` | start a conversation (fails at once, with what to do, if the provider is not ready) |
 | `GET /api/assistant/sessions`, `GET …/{id}` | conversations, with the changes waiting and the last event number |
-| `PATCH …/{id}` `{model?, reasoning?}` | change the model for the next turn |
+| `PATCH …/{id}` `{provider?, model?, reasoning?}` | change provider, model or reasoning level for the next turn (see below) |
 | `DELETE …/{id}` | stop it, drop what it left waiting, forget it (the audit stays) |
 | `POST …/{id}/messages` `{text}` → `202 {turnId}` | send a message; read the reply from the events |
 | `GET …/{id}/events` (SSE) | `turn_started`, `delta`, `tool_call`, `tool_result`, `confirmation_required`, `confirmation_resolved`, `notice`, `retry`, `turn_completed`, `turn_failed`, `turn_cancelled`, `gap` |
@@ -252,7 +274,8 @@ answers `503` if `assistant.disabled` is set.
     "readOnly": false,
     "projects": ["prj_…"],
     "turnTimeoutSeconds": 300,
-    "idleTimeoutSeconds": 90
+    "idleTimeoutSeconds": 90,
+    "auditRetentionDays": 400
   }
 }
 ```

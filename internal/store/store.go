@@ -248,4 +248,9 @@ type AssistantRepo interface {
 	ListAudit(ctx context.Context, sessionID string, before int64, limit int) ([]domain.AssistantAuditEntry, error)
 	// AllAudit returns the whole trail in order, for verifying the chain.
 	AllAudit(ctx context.Context) ([]domain.AssistantAuditEntry, error)
+	// AuditCheckpoint returns what retention has removed, or nil if nothing ever has.
+	AuditCheckpoint(ctx context.Context) (*domain.AuditCheckpoint, error)
+	// PruneAudit removes the oldest entries, as one unbroken prefix, up to the first entry made at or after before, and
+	// remembers where it stopped. It returns how many it removed.
+	PruneAudit(ctx context.Context, before time.Time, at time.Time) (int64, error)
 }

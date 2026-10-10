@@ -110,6 +110,7 @@ func (s *Server) handleAssistantConfigure(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req struct {
+		Provider  *string `json:"provider"`
 		Model     *string `json:"model"`
 		Reasoning *string `json:"reasoning"`
 	}
@@ -122,14 +123,18 @@ func (s *Server) handleAssistantConfigure(w http.ResponseWriter, r *http.Request
 		s.assistantFail(w, r, err)
 		return
 	}
-	model, reasoning := cur.Model, cur.Reasoning
+	providerID, model, reasoning := cur.Provider, cur.Model, cur.Reasoning
+	if req.Provider != nil && *req.Provider != cur.Provider {
+		// A model and a level belong to a provider: the old ones do not carry over to another.
+		providerID, model, reasoning = *req.Provider, "", ""
+	}
 	if req.Model != nil {
 		model = *req.Model
 	}
 	if req.Reasoning != nil {
 		reasoning = *req.Reasoning
 	}
-	v, err := s.opt.Assistant.Configure(r.Context(), cur.ID, model, reasoning)
+	v, err := s.opt.Assistant.Configure(r.Context(), cur.ID, providerID, model, reasoning)
 	if err != nil {
 		s.assistantFail(w, r, err)
 		return

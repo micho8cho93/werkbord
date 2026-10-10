@@ -186,3 +186,12 @@ func AuditHash(e AssistantAuditEntry) string {
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
+
+// AuditCheckpoint remembers the end of the audit that was removed under the retention period: everything up to ThroughSeq is
+// gone, and Hash is the hash of the last entry removed, which the first entry that remains must follow.
+type AuditCheckpoint struct {
+	ThroughSeq int64     `json:"throughSeq"`
+	Hash       string    `json:"hash"`
+	Pruned     int64     `json:"pruned"` // how many entries have been removed in all
+	UpdatedAt  time.Time `json:"updatedAt"`
+}

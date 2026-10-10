@@ -40,11 +40,12 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 	a := cfg.Assistant
 	eng := assistant.New(assistant.Config{
 		Providers: reg, Ops: ops, Store: db, Log: log,
-		WorkDir:     filepath.Join(cfg.DataDir, "assistant"),
-		Grants:      assistantGrants(a),
-		Projects:    assistantProjects(a),
-		TurnTimeout: time.Duration(a.TurnTimeoutSeconds) * time.Second,
-		IdleTimeout: time.Duration(a.IdleTimeoutSeconds) * time.Second,
+		WorkDir:        filepath.Join(cfg.DataDir, "assistant"),
+		Grants:         assistantGrants(a),
+		Projects:       assistantProjects(a),
+		TurnTimeout:    time.Duration(a.TurnTimeoutSeconds) * time.Second,
+		IdleTimeout:    time.Duration(a.IdleTimeoutSeconds) * time.Second,
+		AuditRetention: auditRetention(a),
 	})
 	return eng, nil
 }
@@ -86,4 +87,15 @@ func providerModels(in []config.ModelChoice) []provider.Model {
 		out = append(out, provider.Model{ID: m.ID, Name: name, Description: m.Description})
 	}
 	return out
+}
+
+// auditRetention is how long the audit is kept: the default, a number of days, or for ever.
+func auditRetention(a config.AssistantConfig) time.Duration {
+	switch {
+	case a.AuditRetentionDays < 0:
+		return -1
+	case a.AuditRetentionDays == 0:
+		return 0
+	}
+	return time.Duration(a.AuditRetentionDays) * 24 * time.Hour
 }

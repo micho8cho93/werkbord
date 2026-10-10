@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"devboard/internal/appops"
 	"devboard/internal/config"
@@ -74,5 +75,13 @@ func TestAReadOnlyAssistantIsNotGrantedAnythingThatChangesThings(t *testing.T) {
 	}
 	if p := assistantProjects(config.AssistantConfig{Projects: []string{"prj_a"}}); len(p) != 1 || p[0] != "prj_a" {
 		t.Errorf("projects = %v", p)
+	}
+}
+
+func TestAuditRetentionSettings(t *testing.T) {
+	for days, want := range map[int]time.Duration{0: 0, -1: -1, 90: 90 * 24 * time.Hour} {
+		if got := auditRetention(config.AssistantConfig{AuditRetentionDays: days}); got != want {
+			t.Errorf("%d days -> %v, want %v", days, got, want)
+		}
 	}
 }

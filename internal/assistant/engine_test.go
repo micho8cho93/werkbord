@@ -1135,10 +1135,10 @@ func TestRequestsAreChecked(t *testing.T) {
 			t.Errorf("%+v: %v", bad, err)
 		}
 	}
-	if _, err := f.eng.Configure(bg, s.ID, "-x", ""); !errors.Is(err, domain.ErrInvalid) {
+	if _, err := f.eng.Configure(bg, s.ID, "fake", "-x", ""); !errors.Is(err, domain.ErrInvalid) {
 		t.Errorf("configure: %v", err)
 	}
-	v, err := f.eng.Configure(bg, s.ID, "claude-opus-4-1", "high")
+	v, err := f.eng.Configure(bg, s.ID, "fake", "claude-opus-4-1", "high")
 	if err != nil || v.Model != "claude-opus-4-1" || v.Reasoning != "high" {
 		t.Fatalf("configure = %+v %v", v, err)
 	}
@@ -1165,7 +1165,7 @@ func TestAProviderThatIsNotReadyIsReportedBeforeAnythingStarts(t *testing.T) {
 		t.Fatalf("nothing was started: %d", n)
 	}
 	st := f.eng.Providers(bg)
-	if len(st) != 1 || st[0].Available || st[0].Guidance == "" || len(st[0].Models.Models) != 1 {
+	if len(st) != 1 || st[0].Available || st[0].Guidance == "" || len(st[0].Models.Models) != 2 {
 		t.Fatalf("providers = %+v", st)
 	}
 }
@@ -1267,5 +1267,127 @@ func TestUsageIsReportedWithTheEndOfATurn(t *testing.T) {
 	e := end(f.send(s.ID, "hi"))
 	if e.Usage == nil || e.Usage.InputTokens != 20 || e.Usage.OutputTokens != 4 {
 		t.Fatalf("usage adds up over the trips of one message: %+v", e.Usage)
+	}
+}
+
+func TestAPersonWhoCannotUseAModelPicksAnotherOrAnotherProviderAndKeepsTheirPlace(t *testing.T) {
+	f := newEfx(t)
+	other := fake.New("other")
+	if err := f.eng.provs.Register(other); err != nil {
+		t.Fatal(err)
+	}
+	a := f.project("Alpha")
+	s := f.session()
+	f.prov.Queue(
+		fake.Reply(callBlock("c1", "create_ticket", map[string]any{"projectId": a.ID, "title": "Kept"})), fake.Reply("proposed"),
+		fake.Step{Err: provider.Errorf(provider.KindModelUnavailable, false, "That model is not available to your account")},
+	)
+	req := has(f.send(s.ID, "go"), EventConfirmationRequired)
+	e := end(f.send(s.ID, "again"))
+	if e.Type != EventFailed || e.Error.Code != "model_unavailable" {
+		t.Fatalf("end = %+v", e)
+	}
+
+	// Another model of the same provider: the conversation continues.
+	v, err := f.eng.Configure(bg, s.ID, "fake", "m2", "medium")
+	if err != nil || v.Model != "m2" || v.Reasoning != "medium" || v.ProviderRef == "" || v.LastError != "model_unavailable" {
+		t.Fatalf("view = %+v %v", v, err)
+	}
+	f.send(s.ID, "with m2")
+	turns := f.prov.Turns()
+	if last := turns[len(turns)-1]; last.Model != "m2" || last.Reasoning != "medium" || last.Ref == "" {
+		t.Fatalf("turn = %+v", last)
+	}
+
+	// Another provider: a fresh conversation there, which it is told, and the pending change is untouched.
+	v, err = f.eng.Configure(bg, s.ID, "other", "m1", "low")
+	if err != nil || v.Provider != "other" || v.ProviderRef != "" || v.LastError != "" || len(v.Pending) != 1 || v.Pending[0].ID != req.ActionID {
+		t.Fatalf("view = %+v %v", v, err)
+	}
+	f.send(s.ID, "hello over there")
+	ot := other.Turns()
+	if len(ot) != 1 || ot[0].Ref != "" || ot[0].Model != "m1" || ot[0].Reasoning != "low" || !strings.Contains(ot[0].Prompt, "fresh conversation") || !strings.HasSuffix(ot[0].Prompt, "hello over there") {
+		t.Fatalf("the new provider must start fresh and be told: %+v", ot)
+	}
+	if _, err := f.eng.Resolve(bg, s.ID, req.ActionID, true); err != nil {
+		t.Fatalf("the change proposed through the first provider can still be confirmed: %v", err)
+	}
+	if got := f.tickets(a.ID); len(got) != 1 || got[0].Title != "Kept" {
+		t.Fatalf("tickets = %+v", got)
+	}
+	if !strings.Contains(strings.Join(f.auditOps(), " "), "session_configured:ok") {
+		t.Errorf("audit = %v", f.auditOps())
+	}
+}
+
+func TestAChoiceThatCannotWorkIsRefusedBeforeAnythingIsSpent(t *testing.T) {
+	f := newEfx(t)
+	other := fake.New("other")
+	_ = f.eng.provs.Register(other)
+	s := f.session()
+	for name, c := range map[string]struct{ provider, model, reasoning string }{
+		"a level the model does not take":   {"fake", "m2", "high"},
+		"a level the default does not take": {"fake", "", "medium"},
+		"an unknown provider":               {"gpt-free", "", ""},
+	} {
+		if _, err := f.eng.Configure(bg, s.ID, c.provider, c.model, c.reasoning); !errors.Is(err, domain.ErrInvalid) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if _, err := f.eng.CreateSession(bg, CreateRequest{Provider: "fake", Model: "m2", Reasoning: "high"}); err == nil || !strings.Contains(err.Error(), "medium") {
+		t.Errorf("the refusal says what the model does take: %v", err)
+	}
+	// A model the provider does not list is let through: it may know better.
+	if _, err := f.eng.Configure(bg, s.ID, "fake", "brand-new-model", "high"); err != nil {
+		t.Errorf("an unlisted model: %v", err)
+	}
+	// Moving to a provider that is not ready is refused, and nothing changes.
+	no := false
+	other.SetInfo(func(i *provider.Info) {
+		i.Available, i.SignedIn, i.Detail, i.Guidance = false, &no, "not signed in", "Run `other login`."
+	})
+	if _, err := f.eng.Configure(bg, s.ID, "other", "", ""); !errors.Is(err, domain.ErrAgent) || !strings.Contains(err.Error(), "other login") {
+		t.Errorf("unavailable target: %v", err)
+	}
+	if v, _ := f.eng.Session(bg, s.ID); v.Provider != "fake" {
+		t.Errorf("view = %+v", v)
+	}
+}
+
+func TestTheEngineKeepsTheAuditToItsRetentionPeriod(t *testing.T) {
+	f := newEfx(t, func(c *Config) { c.AuditRetention = 30 * 24 * time.Hour })
+	s := f.session()
+	f.send(s.ID, "hi")
+	before, _ := f.eng.Audit(bg, "", 0, 500)
+	f.clock.Add((45 * 24 * time.Hour).Milliseconds()) // the person comes back a month and a half later
+	f.eng.Start()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		es, _ := f.eng.Audit(bg, "", 0, 500)
+		if len(es) > 0 && es[0].Operation == "audit_pruned" {
+			if len(es) != 1 {
+				t.Fatalf("only the note about pruning is left: %+v", es)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("nothing was pruned; %d entries before, %d now", len(before), len(es))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if rep, err := f.eng.VerifyAudit(bg); err != nil || rep.BrokenAt != 0 || rep.Pruned != int64(len(before)) {
+		t.Fatalf("%+v %v", rep, err)
+	}
+}
+
+func TestAuditRetentionCanBeTurnedOff(t *testing.T) {
+	f := newEfx(t, func(c *Config) { c.AuditRetention = -1 })
+	s := f.session()
+	_ = s
+	f.clock.Add((900 * 24 * time.Hour).Milliseconds())
+	f.eng.Start()
+	time.Sleep(200 * time.Millisecond)
+	if es, _ := f.eng.Audit(bg, "", 0, 50); len(es) != 1 || es[0].Operation != "session_started" {
+		t.Fatalf("nothing is pruned when retention is off: %+v", es)
 	}
 }

@@ -96,7 +96,10 @@ func (p *Provider) Detect(context.Context) provider.Info {
 
 // Models implements provider.Provider.
 func (p *Provider) Models(context.Context) provider.Models {
-	return provider.Models{ProviderID: p.id, Source: "builtin", Custom: true, Models: []provider.Model{{ID: "m1", Name: "M1", Default: true}}}
+	return provider.Models{ProviderID: p.id, Source: "builtin", Custom: true, Models: []provider.Model{
+		{ID: "m1", Name: "M1", Default: true, Reasoning: []string{"low", "high"}},
+		{ID: "m2", Name: "M2", Reasoning: []string{"medium"}},
+	}}
 }
 
 // Run implements provider.Provider.

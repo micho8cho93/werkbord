@@ -200,7 +200,14 @@ func (r assistantRepo) AppendAudit(ctx context.Context, e *domain.AssistantAudit
 	// The write transaction holds the only writer, so the last hash read here is still the last when this row lands.
 	var prev string
 	err := r.q.QueryRowContext(ctx, `SELECT hash FROM assistant_audit ORDER BY seq DESC LIMIT 1`).Scan(&prev)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
+		// Everything so far has been removed under retention: the chain continues from where it stopped.
+		err = r.q.QueryRowContext(ctx, `SELECT hash FROM assistant_audit_checkpoint WHERE id = 1`).Scan(&prev)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+	}
+	if err != nil {
 		return err
 	}
 	e.At = time.UnixMilli(ms(e.At)).UTC() // the precision the database keeps, so the hash can be recomputed from it
@@ -254,4 +261,59 @@ func (r assistantRepo) scanAuditRows(ctx context.Context, q string, args ...any)
 		out = append(out, *e)
 	}
 	return out, rows.Err()
+}
+
+func (r assistantRepo) AuditCheckpoint(ctx context.Context) (*domain.AuditCheckpoint, error) {
+	var c domain.AuditCheckpoint
+	var at int64
+	err := r.q.QueryRowContext(ctx, `SELECT through_seq, hash, pruned, updated_at FROM assistant_audit_checkpoint WHERE id = 1`).
+		Scan(&c.ThroughSeq, &c.Hash, &c.Pruned, &at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c.UpdatedAt = fromMS(at)
+	return &c, nil
+}
+
+func (r assistantRepo) PruneAudit(ctx context.Context, before, at time.Time) (int64, error) {
+	// The prefix ends just before the first entry that is new enough to keep, so what is removed is unbroken whatever the
+	// clock did in between.
+	var through sql.NullInt64
+	if err := r.q.QueryRowContext(ctx, `SELECT COALESCE((SELECT MIN(seq) FROM assistant_audit WHERE at >= ?) - 1,
+		(SELECT MAX(seq) FROM assistant_audit))`, ms(before)).Scan(&through); err != nil {
+		return 0, err
+	}
+	if !through.Valid || through.Int64 <= 0 {
+		return 0, nil
+	}
+	var hash string
+	err := r.q.QueryRowContext(ctx, `SELECT hash FROM assistant_audit WHERE seq = ?`, through.Int64).Scan(&hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil // nothing at or before that point
+	}
+	if err != nil {
+		return 0, err
+	}
+	// Open the window the delete trigger honours, remove, close it: all inside the caller's transaction.
+	if _, err := r.q.ExecContext(ctx, `UPDATE assistant_audit_window SET through_seq = ? WHERE id = 1`, through.Int64); err != nil {
+		return 0, err
+	}
+	res, err := r.q.ExecContext(ctx, `DELETE FROM assistant_audit WHERE seq <= ?`, through.Int64)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := r.q.ExecContext(ctx, `UPDATE assistant_audit_window SET through_seq = 0 WHERE id = 1`); err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return 0, nil
+	}
+	_, err = r.q.ExecContext(ctx, `INSERT INTO assistant_audit_checkpoint (id, through_seq, hash, pruned, updated_at) VALUES (1, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET through_seq = excluded.through_seq, hash = excluded.hash,
+		pruned = assistant_audit_checkpoint.pruned + excluded.pruned, updated_at = excluded.updated_at`, through.Int64, hash, n, ms(at))
+	return n, err
 }

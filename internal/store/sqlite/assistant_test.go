@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/store"
@@ -176,5 +177,51 @@ func TestDeletingASessionKeepsItsAudit(t *testing.T) {
 	err := db.Update(ctx, func(tx store.Tx) error { return tx.Assistant().DeleteSession(ctx, s.ID) })
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestAuditRetentionRemovesOnlyAnUnbrokenPrefixAndKeepsTheChain(t *testing.T) {
+	db, path := openTemp(t)
+	base := now().Add(-100 * 24 * time.Hour)
+	for i := 0; i < 6; i++ {
+		at := base
+		if i >= 3 {
+			at = now() // three old entries, then three new
+		}
+		e := &domain.AssistantAuditEntry{At: at, Actor: "a", Operation: "op", Kind: domain.AuditRead, Outcome: domain.AuditOutcomeOK}
+		if err := db.Update(ctx, func(tx store.Tx) error { return tx.Assistant().AppendAudit(ctx, e) }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var n int64
+	var all []domain.AssistantAuditEntry
+	var cp *domain.AuditCheckpoint
+	if err := db.Update(ctx, func(tx store.Tx) (err error) {
+		n, err = tx.Assistant().PruneAudit(ctx, now().Add(-30*24*time.Hour), now())
+		return
+	}); err != nil || n != 3 {
+		t.Fatalf("pruned %d, %v", n, err)
+	}
+	_ = db.View(ctx, func(tx store.Tx) (err error) {
+		all, _ = tx.Assistant().AllAudit(ctx)
+		cp, err = tx.Assistant().AuditCheckpoint(ctx)
+		return
+	})
+	if len(all) != 3 || all[0].Seq != 4 || cp == nil || cp.ThroughSeq != 3 || cp.Pruned != 3 || all[0].PrevHash != cp.Hash {
+		t.Fatalf("all=%v cp=%+v", all, cp)
+	}
+	// The window is closed again: nothing else can be removed.
+	raw, _ := openRaw(path)
+	defer raw.Close()
+	if _, err := raw.ExecContext(ctx, `DELETE FROM assistant_audit WHERE seq = 5`); err == nil || !strings.Contains(err.Error(), "append-only") {
+		t.Fatalf("a middle entry must not go: %v", err)
+	}
+	// A prune that finds nothing old changes nothing.
+	_ = db.Update(ctx, func(tx store.Tx) (err error) {
+		n, err = tx.Assistant().PruneAudit(ctx, now().Add(-30*24*time.Hour), now())
+		return
+	})
+	if n != 0 {
+		t.Fatalf("pruned %d", n)
 	}
 }

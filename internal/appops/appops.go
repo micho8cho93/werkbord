@@ -619,19 +619,37 @@ type AuditReport struct {
 	// BrokenAt is the Seq of the first entry whose hash or link is wrong; 0 if the chain is intact.
 	BrokenAt int64  `json:"brokenAt"`
 	Problem  string `json:"problem,omitempty"`
+	// Pruned is how many of the oldest entries have been removed under the retention period; the entries that remain are
+	// checked from where they stopped.
+	Pruned int64 `json:"pruned,omitempty"`
 }
 
 // VerifyAudit walks the whole trail and checks that every entry's hash is what its contents say and that each links to
-// the one before it. A line taken out, edited or reordered in a copy of the database shows here.
+// the one before it. A line taken out, edited or reordered in a copy of the database shows here. If old entries were removed
+// under retention, the first that remains must follow the checkpoint that was left.
 func (s *Service) VerifyAudit(ctx context.Context) (AuditReport, error) {
 	var all []domain.AssistantAuditEntry
-	if err := s.st.View(ctx, func(tx store.Tx) (err error) { all, err = tx.Assistant().AllAudit(ctx); return }); err != nil {
+	var cp *domain.AuditCheckpoint
+	if err := s.st.View(ctx, func(tx store.Tx) (err error) {
+		if all, err = tx.Assistant().AllAudit(ctx); err != nil {
+			return err
+		}
+		cp, err = tx.Assistant().AuditCheckpoint(ctx)
+		return err
+	}); err != nil {
 		return AuditReport{}, err
 	}
 	rep := AuditReport{Entries: len(all)}
 	prev := ""
-	for _, e := range all {
+	if cp != nil {
+		prev, rep.Pruned = cp.Hash, cp.Pruned
+	}
+	for i, e := range all {
 		switch {
+		case cp != nil && e.Seq <= cp.ThroughSeq:
+			rep.BrokenAt, rep.Problem = e.Seq, "this entry should have been removed under retention"
+		case e.PrevHash != prev && i == 0 && cp != nil:
+			rep.BrokenAt, rep.Problem = e.Seq, "the oldest entry does not follow where retention stopped: something was removed or changed"
 		case e.PrevHash != prev:
 			rep.BrokenAt, rep.Problem = e.Seq, "this entry does not follow the one before it: something was removed or reordered"
 		case domain.AuditHash(e) != e.Hash:
@@ -643,6 +661,31 @@ func (s *Service) VerifyAudit(ctx context.Context) (AuditReport, error) {
 		prev = e.Hash
 	}
 	return rep, nil
+}
+
+// MinAuditRetention is the shortest time the audit is kept.
+const MinAuditRetention = 30 * 24 * time.Hour
+
+// PruneAudit removes the audit entries older than keep, as one unbroken prefix, and records that it did. keep is never
+// less than MinAuditRetention. It returns how many were removed.
+func (s *Service) PruneAudit(ctx context.Context, keep time.Duration) (int64, error) {
+	if keep < MinAuditRetention {
+		keep = MinAuditRetention
+	}
+	now := s.time()
+	var n int64
+	if err := s.st.Update(ctx, func(tx store.Tx) (err error) {
+		n, err = tx.Assistant().PruneAudit(ctx, now.Add(-keep), now)
+		return err
+	}); err != nil {
+		return 0, err
+	}
+	if n > 0 {
+		if err := s.Note(ctx, Principal{Actor: "assistant:retention"}, "audit_pruned", fmt.Sprintf("%d entries older than %d days removed", n, int(keep.Hours()/24))); err != nil {
+			return n, err
+		}
+	}
+	return n, nil
 }
 
 // ---- helpers ----

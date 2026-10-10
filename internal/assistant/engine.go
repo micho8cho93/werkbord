@@ -57,7 +57,13 @@ type Config struct {
 	Backoff func(attempt int) time.Duration
 	// MaxSessions bounds how many conversations exist at once. Default 50.
 	MaxSessions int
+	// AuditRetention is how long audit entries are kept. Default 400 days; at least 30; negative keeps them for ever.
+	AuditRetention time.Duration
 }
+
+// DefaultAuditRetention is a little over a year: long enough to look back a full cycle of work, short enough that the
+// audit stays a few tens of megabytes however much the assistant is used.
+const DefaultAuditRetention = 400 * 24 * time.Hour
 
 // Limits.
 const (
@@ -230,6 +236,9 @@ func (e *Engine) CreateSession(ctx context.Context, req CreateRequest) (*Session
 	if info := prov.Detect(ctx); !info.Available {
 		return nil, unavailable(info)
 	}
+	if err := checkReasoning(ctx, prov, req.Model, req.Reasoning); err != nil {
+		return nil, err
+	}
 	now := e.now()
 	s := &domain.AssistantSession{ID: domain.NewID(domain.PrefixAssistantSession), Provider: req.Provider, Model: req.Model, Reasoning: req.Reasoning,
 		State: domain.AssistantIdle, CreatedAt: now, UpdatedAt: now, ReportedAt: now}
@@ -319,9 +328,29 @@ func (e *Engine) Sessions(ctx context.Context) ([]SessionView, error) {
 	return out, nil
 }
 
-// Configure changes the model and reasoning level for the turns that follow.
-func (e *Engine) Configure(ctx context.Context, id, model, reasoning string) (*SessionView, error) {
+// Configure changes which provider, model and reasoning level the turns that follow use. A person whose plan cannot use a
+// model chooses another here, or moves to the other provider. Moving to another provider starts a fresh conversation
+// with it (each provider keeps its own), which the assistant is told; changes waiting for confirmation are unaffected.
+// Because a model belongs to its provider, the model and level must be given again when the provider changes.
+func (e *Engine) Configure(ctx context.Context, id, providerID, model, reasoning string) (*SessionView, error) {
 	if err := checkChoice(model, reasoning); err != nil {
+		return nil, err
+	}
+	cur, err := e.loadSession(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	prov, ok := e.provs.Get(providerID)
+	if !ok {
+		return nil, fmt.Errorf("%w: there is no assistant provider %q", domain.ErrInvalid, clipText(providerID, 40))
+	}
+	switched := providerID != cur.Provider
+	if switched {
+		if info := prov.Detect(ctx); !info.Available {
+			return nil, unavailable(info)
+		}
+	}
+	if err := checkReasoning(ctx, prov, model, reasoning); err != nil {
 		return nil, err
 	}
 	e.mu.Lock()
@@ -330,14 +359,54 @@ func (e *Engine) Configure(ctx context.Context, id, model, reasoning string) (*S
 	if running {
 		return nil, fmt.Errorf("%w: wait for the reply to finish before changing the model", domain.ErrConflict)
 	}
-	s, err := e.update(ctx, id, func(s *domain.AssistantSession) { s.Model, s.Reasoning = model, reasoning })
+	s, err := e.update(ctx, id, func(s *domain.AssistantSession) {
+		s.Model, s.Reasoning = model, reasoning
+		if switched {
+			s.Provider, s.ProviderRef, s.LastError = providerID, "", ""
+		}
+	})
 	if err != nil {
 		return nil, err
 	}
-	if err := e.ops.Note(ctx, e.principal(s), "session_configured", "model "+orDefault(model)+", reasoning "+orDefault(reasoning)); err != nil {
+	note := "model " + orDefault(model) + ", reasoning " + orDefault(reasoning)
+	if switched {
+		note = "provider " + cur.Provider + " -> " + providerID + ", " + note
+	}
+	if err := e.ops.Note(ctx, e.principal(s), "session_configured", note); err != nil {
 		return nil, err
 	}
 	return e.view(ctx, s)
+}
+
+// checkReasoning refuses a reasoning level the chosen model does not take, and says which it does. Where the provider
+// cannot say (a model it does not list, or no levels at all) the choice is let through and the provider has the last word.
+func checkReasoning(ctx context.Context, prov provider.Provider, model, reasoning string) error {
+	if reasoning == "" {
+		return nil
+	}
+	m := prov.Models(ctx)
+	var allowed []string
+	for _, x := range m.Models {
+		if (model != "" && x.ID == model) || (model == "" && x.Default) {
+			allowed = x.Reasoning
+		}
+	}
+	if len(allowed) == 0 {
+		allowed = m.Reasoning
+	}
+	if len(allowed) == 0 {
+		return nil
+	}
+	for _, l := range allowed {
+		if l == reasoning {
+			return nil
+		}
+	}
+	which := "that model"
+	if model == "" {
+		which = "the default model"
+	}
+	return fmt.Errorf("%w: %q is not a reasoning level %s takes (it takes: %s)", domain.ErrInvalid, reasoning, which, strings.Join(allowed, ", "))
 }
 
 func orDefault(s string) string {
@@ -590,6 +659,34 @@ func mapOpsError(err error) error {
 		return nil
 	}
 	return err
+}
+
+// Start begins the engine's housekeeping: the audit is pruned to its retention period now and once a day while the
+// controller runs. Call it after Recover. Shutdown stops it.
+func (e *Engine) Start() {
+	keep := e.cfg.AuditRetention
+	if keep < 0 {
+		return
+	}
+	if keep == 0 {
+		keep = DefaultAuditRetention
+	}
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		for {
+			if n, err := e.ops.PruneAudit(e.base, keep); err != nil && e.base.Err() == nil {
+				e.log.Error("could not prune the assistant audit", "err", err)
+			} else if n > 0 {
+				e.log.Info("assistant audit pruned", "entries", n, "kept_days", int(keep.Hours()/24))
+			}
+			select {
+			case <-time.After(24 * time.Hour):
+			case <-e.base.Done():
+				return
+			}
+		}
+	}()
 }
 
 // ---- recovery ----

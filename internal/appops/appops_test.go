@@ -1188,3 +1188,111 @@ func TestServiceErrorsAreReportedWithoutInternals(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// ---- retention ----
+
+func TestOldAuditIsPrunedAsAPrefixAndWhatRemainsStillVerifies(t *testing.T) {
+	f := newFx(t)
+	p := f.session("ast_1")
+	a := f.project("Alpha")
+	for i := 0; i < 4; i++ {
+		f.mustCall(p, "list_projects", map[string]any{})
+	}
+	f.advance(40 * 24 * time.Hour)
+	for i := 0; i < 3; i++ {
+		f.mustCall(p, "list_tickets", map[string]any{"projectId": a.ID})
+	}
+	before := len(f.audit())
+
+	// Within the retention period nothing goes, and a period shorter than the floor is raised to it.
+	if n, err := f.svc.PruneAudit(bg, 100*24*time.Hour); err != nil || n != 0 || len(f.audit()) != before {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+	n, err := f.svc.PruneAudit(bg, time.Hour)
+	if err != nil || n != 4 { // four reads, all 40 days old; the floor is 30 days
+		t.Fatalf("pruned %d, %v", n, err)
+	}
+	rest := f.audit()
+	if rest[0].Operation != "list_tickets" || rest[len(rest)-1].Operation != "audit_pruned" || !strings.Contains(rest[len(rest)-1].Detail, "4 entries") {
+		var ops []string
+		for _, e := range rest {
+			ops = append(ops, e.Operation)
+		}
+		t.Fatalf("remaining = %v", ops)
+	}
+	rep, err := f.svc.VerifyAudit(bg)
+	if err != nil || rep.BrokenAt != 0 || rep.Pruned != 4 || rep.Entries != len(rest) {
+		t.Fatalf("a pruned trail still verifies: %+v %v", rep, err)
+	}
+	// It goes on growing, still chained.
+	f.mustCall(p, "list_projects", map[string]any{})
+	if rep, _ = f.svc.VerifyAudit(bg); rep.BrokenAt != 0 {
+		t.Fatalf("%+v", rep)
+	}
+	// Pruning again has nothing to do.
+	if n, _ := f.svc.PruneAudit(bg, time.Hour); n != 0 {
+		t.Fatalf("pruned %d again", n)
+	}
+}
+
+func TestPruningEverythingLeavesTheChainToContinue(t *testing.T) {
+	f := newFx(t)
+	p := f.session("ast_1")
+	f.mustCall(p, "list_projects", map[string]any{})
+	f.advance(60 * 24 * time.Hour)
+	// Every entry is old: all go, and the next one follows the checkpoint, not nothing.
+	if n, err := f.svc.PruneAudit(bg, MinAuditRetention); err != nil || n != 1 {
+		t.Fatalf("pruned %d, %v", n, err)
+	}
+	f.mustCall(p, "list_projects", map[string]any{})
+	rep, _ := f.svc.VerifyAudit(bg)
+	if rep.BrokenAt != 0 || rep.Pruned != 1 || rep.Entries != 2 {
+		t.Fatalf("%+v", rep)
+	}
+}
+
+func TestPruningDoesNotHideTamperingWithWhatRemains(t *testing.T) {
+	f := newFx(t)
+	p := f.session("ast_1")
+	for i := 0; i < 3; i++ {
+		f.mustCall(p, "list_projects", map[string]any{})
+	}
+	f.advance(45 * 24 * time.Hour)
+	for i := 0; i < 4; i++ {
+		f.mustCall(p, "list_projects", map[string]any{})
+	}
+	if _, err := f.svc.PruneAudit(bg, MinAuditRetention); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := sql.Open("sqlite", f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+
+	// The database refuses to remove anything that retention has not been asked to.
+	if _, err := raw.Exec(`DELETE FROM assistant_audit`); err == nil || !strings.Contains(err.Error(), "append-only") {
+		t.Fatalf("a delete outside a pruning must be refused: %v", err)
+	}
+	// Someone with the file can still take the guard away; the chain notices.
+	mustExec := func(q string, a ...any) {
+		t.Helper()
+		if _, err := raw.Exec(q, a...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustExec(`DROP TRIGGER assistant_audit_no_delete`)
+	mustExec(`DROP TRIGGER assistant_audit_no_update`)
+	var first, second int64
+	_ = raw.QueryRow(`SELECT MIN(seq) FROM assistant_audit`).Scan(&first)
+	_ = raw.QueryRow(`SELECT MIN(seq) FROM assistant_audit WHERE seq > ?`, first).Scan(&second)
+
+	mustExec(`DELETE FROM assistant_audit WHERE seq = ?`, first) // the oldest remaining one
+	if rep, _ := f.svc.VerifyAudit(bg); rep.BrokenAt != second || !strings.Contains(rep.Problem, "where retention stopped") {
+		t.Fatalf("removing the oldest remaining entry: %+v", rep)
+	}
+	mustExec(`UPDATE assistant_audit_checkpoint SET hash = 'forged'`)
+	if rep, _ := f.svc.VerifyAudit(bg); rep.BrokenAt == 0 {
+		t.Fatalf("a forged checkpoint: %+v", rep)
+	}
+}

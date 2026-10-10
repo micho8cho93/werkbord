@@ -249,6 +249,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		if err := c.assistant.Recover(ctx); err != nil {
 			return fmt.Errorf("recover the assistant: %w", err)
 		}
+		c.assistant.Start()
 		apiOpts.Assistant = c.assistant
 	}
 	// Other programs on this computer may be given a narrow credential of their own (internal/localaccess). That is for

@@ -88,6 +88,8 @@ type AssistantConfig struct {
 	TurnTimeoutSeconds int `json:"turnTimeoutSeconds,omitempty"`
 	// IdleTimeoutSeconds is how long the provider may say nothing before an attempt is given up. Default 90.
 	IdleTimeoutSeconds int `json:"idleTimeoutSeconds,omitempty"`
+	// AuditRetentionDays is how long the record of what the assistant did is kept. Default 400; at least 30; -1 keeps it for ever.
+	AuditRetentionDays int `json:"auditRetentionDays,omitempty"`
 }
 
 // NetworkConfig is the user's choices for the private network that lets a phone
@@ -450,6 +452,9 @@ func (c Config) validateAssistant() error {
 	}
 	if a.IdleTimeoutSeconds < 0 || a.IdleTimeoutSeconds > 3600 {
 		return errors.New("assistant.idleTimeoutSeconds: want 1 to 3600")
+	}
+	if a.AuditRetentionDays != 0 && a.AuditRetentionDays != -1 && (a.AuditRetentionDays < 30 || a.AuditRetentionDays > 36500) {
+		return errors.New("assistant.auditRetentionDays: want 30 or more, or -1 to keep it for ever")
 	}
 	return nil
 }

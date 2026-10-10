@@ -189,6 +189,13 @@ func (t *turnRun) conversation(ctx context.Context, text string) (Usage, error) 
 	t.told = told
 	t.mu.Unlock()
 	prompt := formatNotices(notices) + text
+	if t.ref() == "" && t.sess.Turns > 0 {
+		// A conversation that has had turns but has no handle was moved to another provider (or lost its handle): the provider
+		// has none of it, and is told so rather than left to pretend.
+		t.mu.Lock()
+		t.preamble = "<werkbord-notice>\nThis is a fresh conversation with you: you remember nothing from before. If you need something from earlier, ask the person.\n</werkbord-notice>\n\n"
+		t.mu.Unlock()
+	}
 	system := SystemPrompt(e.ops.Catalog(t.p), e.cfg.Now())
 
 	var total Usage

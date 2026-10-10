@@ -377,7 +377,7 @@ func TestAssistantSettingsAreLoadedAndChecked(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write(`{"assistant": {"readOnly": true, "projects": ["prj_abc123"], "turnTimeoutSeconds": 120, "idleTimeoutSeconds": 30}}`)
+	write(`{"assistant": {"readOnly": true, "projects": ["prj_abc123"], "turnTimeoutSeconds": 120, "idleTimeoutSeconds": 30, "auditRetentionDays": 90}}`)
 	c, err := Load()
 	if err != nil {
 		t.Fatal(err)
@@ -386,7 +386,7 @@ func TestAssistantSettingsAreLoadedAndChecked(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := c.Assistant
-	if !a.ReadOnly || a.Disabled || len(a.Projects) != 1 || a.TurnTimeoutSeconds != 120 || a.IdleTimeoutSeconds != 30 {
+	if !a.ReadOnly || a.Disabled || len(a.Projects) != 1 || a.TurnTimeoutSeconds != 120 || a.IdleTimeoutSeconds != 30 || a.AuditRetentionDays != 90 {
 		t.Fatalf("assistant = %+v", a)
 	}
 	if d := Default().Assistant; d.Disabled || d.ReadOnly || len(d.Projects) != 0 {
@@ -406,5 +406,13 @@ func TestAssistantSettingsAreLoadedAndChecked(t *testing.T) {
 		if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "assistant.") {
 			t.Errorf("%s: err = %v", name, err)
 		}
+	}
+}
+
+func TestAuditRetentionForEverIsAllowed(t *testing.T) {
+	c := Default()
+	c.Assistant.AuditRetentionDays = -1
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
 	}
 }
