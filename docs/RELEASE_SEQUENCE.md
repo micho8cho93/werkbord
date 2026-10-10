@@ -68,3 +68,4 @@ discovery in the Team installer. A pushed tag is not proof that a release is ins
 | Team | `werkbord-team-v2.8.1` | `0.7.1` | Published |
 | Individual | `werkbord-v1.4.0-preview.3` | `0.7.0-preview.2` | Published CLI preview |
 | Team | `werkbord-team-v3.2.0` | `0.8.0` | Draft; signed packages pending |
+| Individual | `werkbord-v4.5.4-preview.1` | `0.8.0-preview.1` | Published unified CLI preview; no Mac app asset |
