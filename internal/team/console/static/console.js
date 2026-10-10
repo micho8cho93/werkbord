@@ -31,9 +31,9 @@ const KEY = (name) => 'werkbord-team-' + name + (BASE ? ':' + SLOT : '');
 // person's own Werkbord ("Open in Individual") is ever sent back to the shell.
 const FRAMED = window.parent !== window;
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['members', 'Members']];
-const ADMIN_TABS = [['settings', 'This computer'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
-const PROJECT_TABS = new Set(['board', 'repository', 'activity', 'people']);
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['timeline', 'Timeline'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['members', 'Members']];
+const ADMIN_TABS = [['settings', 'This computer'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
+const PROJECT_TABS = new Set(['board', 'timeline', 'repository', 'activity', 'people']);
 
 const state = {
   token: null, me: null, tab: 'workspace', projectId: null, ticketId: null, secret: null, error: '', info: '',
@@ -42,6 +42,8 @@ const state = {
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
   showArchived: false, newTicketOpen: false, column: 'in_progress', repoSection: 'attention',
+  filter: { labels: [], mode: '', match: 'any' }, // the board's and the timeline's label and work-mode filter: a way of looking, never stored
+  tlZoom: 'month', tlGroup: 'none', tlCollapsed: {},
   online: true,   // whether the live connection to the server is up
   desktop: null, device: null, joinLink: null,
   memberQuery: '',
@@ -97,6 +99,7 @@ function icon(name) {
     workspace: 'M2 2h5v5H2z M9 2h5v5H9z M2 9h5v5H2z M9 9h5v5H9z',
     projects: 'M1.5 4V2.5h5l1.5 2h6.5v9H1.5z',
     board: 'M2 2h12v12H2z M6 2v12 M10 2v12',
+    timeline: 'M2 3h6v2.5H2z M5 6.8h9v2.5H5z M3 10.6h6v2.5H3z',
     mywork: 'M5 3H2v11h12V3h-3 M5 2h6v3H5z M5 9l2 2 4-4',
     reviews: 'M3 2h10v12H3z M5 8l2 2 4-4',
     repository: 'M5 2v7a3 3 0 0 0 6 0V7 M3 2a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M9 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M3 13a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M5 9v2',
@@ -132,7 +135,7 @@ window.addEventListener('teamthemechange', () => {
 });
 
 function settingsTab() { return ADMIN_TABS.some(([id]) => id === state.tab); }
-function availableSettings() { return ADMIN_TABS.filter(([id]) => !['hosts', 'connectivity', 'backups'].includes(id) || can('devices.view_all')); }
+function availableSettings() { return ADMIN_TABS.filter(([id]) => id === 'labels' ? can('labels.manage') : !['hosts', 'connectivity', 'backups'].includes(id) || can('devices.view_all')); }
 
 function navigation(counts) {
   if (FRAMED) return '';
@@ -409,7 +412,7 @@ async function renderNow() {
       case 'mywork': body = await myWorkView(); break;
       case 'reviews': body = await reviewsView(); break;
       case 'members': body = await membersView(); break;
-      case 'devices': case 'hosts': case 'connectivity': case 'backups': case 'license': case 'settings': body = await administrationView(state.tab); break;
+      case 'devices': case 'hosts': case 'connectivity': case 'backups': case 'license': case 'settings': case 'labels': body = await administrationView(state.tab); break;
       default: body = await projectScopedView();
     }
   } catch (e) {
@@ -430,7 +433,7 @@ async function renderNow() {
     repository: sum(ov.projects, (p) => p.problems),
   };
   const title = settingsTab() ? 'Settings' : TABS.find(([id]) => id === navTab())?.[1] || 'Projects';
-  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' ? ' is-board' : '') + (FRAMED ? ' framed' : '') },
+  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' || state.tab === 'timeline' ? ' is-board' : '') + (FRAMED ? ' framed' : '') },
     h('button', { class: 'skip-link', onclick: () => app.querySelector('#main-title').focus() }, 'Skip to content'),
     navigation(counts),
     h('main', { class: 'main-pane' },
@@ -727,6 +730,7 @@ async function loadProject() {
     d.ticket = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId);
     d.progress = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId + '/progress');
   }
+  if (state.tab === 'timeline') d.timeline = await api('GET', '/projects/' + id + '/timeline');
   if (state.tab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
   if (state.tab === 'activity') d.activity = await api('GET', '/projects/' + id + '/activity?limit=100');
   if (state.tab === 'people') {
@@ -747,8 +751,8 @@ async function projectScopedView() {
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
-  const tabs = FRAMED ? projectTabs(p.id, [['board', 'Board', mine?.counts.available || 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Activity', 0], ['people', 'People', 0]]) : '';
-  const content = state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
+  const tabs = FRAMED ? projectTabs(p.id, [['board', 'Board', mine?.counts.available || 0], ['timeline', 'Timeline', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Activity', 0], ['people', 'People', 0]]) : '';
+  const content = state.tab === 'timeline' ? timelineTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
   return h('div', { class: 'project-view' },
     state.tab === 'people' ? h('p', {}, h('button', { class: 'link', onclick: () => go('projects') }, '← Projects')) : '',
     h('div', { class: 'project-head' },
@@ -824,7 +828,7 @@ function workItem(it, extra) {
     commits,
     extra || '',
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
-    mine && (k.status === 'in_progress' || k.status === 'review')
+    mine && (k.workMode || 'agent') !== 'human' && (k.status === 'in_progress' || k.status === 'review')
       ? (() => {
           const individual = typeof individualActions === 'function' ? individualActions(it.project.id, k.id, true) : '';
           return h('div', { class: 'actions' }, individual, h('button', { class: (individual ? 'plain' : 'primary') + ' small', onclick: () => openInRunner(it) }, 'Open in my runner'),
@@ -887,14 +891,52 @@ function dropAction(d, k, to) {
   if (k.status === 'done' && to === 'available' && pcan('tickets.reopen')) return ['move', { status: to }];
   return null;
 }
+// The same rule as the server's: every part of the filter that is set must hold.
+function matchesFilter(k) {
+  const f = state.filter;
+  if (f.mode && (k.workMode || 'agent') !== f.mode) return false;
+  if (!f.labels.length) return true;
+  const have = new Set(k.labelIds || []);
+  return f.match === 'all' ? f.labels.every((id) => have.has(id)) : f.labels.some((id) => have.has(id));
+}
+function filterActive() { return state.filter.labels.length > 0 || state.filter.mode !== ''; }
+
+function labelChip(l) {
+  const chip = h('span', { class: 'lbl', title: l.name }, l.name);
+  const color = WerkbordTimeline.safeColor(l.color);
+  chip.style.background = color; // the colour is set through the style object, never built into markup
+  chip.style.color = WerkbordTimeline.inkFor(color);
+  return chip;
+}
+function labelsOf(k, labels) { const by = new Map((labels || []).map((l) => [l.id, l])); return (k.labelIds || []).map((id) => by.get(id)).filter(Boolean); }
+const MODES = [['human', 'Human', 'A person does it. No agent is asked to.'], ['agent', 'Agent', 'An agent does it, through its owner’s own Werkbord.'], ['hybrid', 'Hybrid', 'An agent may start on it and a person finishes it.']];
+const modeName = (m) => (MODES.find((x) => x[0] === (m || 'agent')) || [])[1] || m;
+
+// The label and work-mode filter shared by the board and the timeline. It narrows what is shown and changes nothing.
+function filterBar(d) {
+  const labels = d.board.labels || [];
+  const refresh = () => render();
+  const mode = h('select', { name: 'filter-mode', 'aria-label': 'Filter by who does the work', onchange: (e) => { state.filter.mode = e.target.value; refresh(); } },
+    h('option', { value: '' }, 'Anyone'), MODES.map(([id, name]) => h('option', { value: id, selected: state.filter.mode === id }, name)));
+  const picker = labels.length ? h('details', { class: 'label-filter' }, h('summary', {}, state.filter.labels.length ? plural(state.filter.labels.length, 'label') : 'Labels'),
+    h('div', { class: 'label-menu' }, labels.map((l) => h('label', { class: 'check' },
+      h('input', { type: 'checkbox', checked: state.filter.labels.includes(l.id), onchange: (e) => { state.filter.labels = e.target.checked ? [...state.filter.labels, l.id] : state.filter.labels.filter((x) => x !== l.id); refresh(); } }), ' ', labelChip(l))),
+      state.filter.labels.length > 1 ? h('div', { class: 'inline' }, h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.filter.match === 'any', onclick: () => { state.filter.match = 'any'; refresh(); } }, 'Any'),
+        h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.filter.match === 'all', onclick: () => { state.filter.match = 'all'; refresh(); } }, 'All')) : '')) : '';
+  // A label deleted meanwhile cannot hide every ticket.
+  state.filter.labels = state.filter.labels.filter((id) => labels.some((l) => l.id === id));
+  return h('div', { class: 'filter-bar', role: 'group', 'aria-label': 'Filter by label and who does the work' }, picker, h('label', { class: 'inline' }, 'Who ', mode),
+    filterActive() ? h('button', { class: 'plain small', type: 'button', onclick: () => { state.filter = { labels: [], mode: '', match: 'any' }; refresh(); } }, 'Clear filter') : '');
+}
+
 function boardTab(d) {
   const b = d.board;
-  const toolbar = h('div', { class: 'actions board-tools' },
+  const toolbar = h('div', { class: 'actions board-tools' }, filterBar(d),
     h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
     pcan('tickets.reopen') ? h('button', { class: 'plain', disabled: !b.tickets.some(k => k.status === 'done'), onclick: () => act(async () => { const result = await api('POST', '/projects/' + d.id + '/tickets/archive-done'); state.info = plural(result.archived, 'ticket') + ' moved to the archive.'; }) }, 'Clear Done') : '',
     pcan('tickets.create') && !b.project.archived ? h('button', { class: 'primary', title: state.newTicketOpen ? 'Cancel new ticket' : 'New ticket (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '');
   const cols = b.statuses.map((s) => {
-    const items = b.tickets.filter((k) => k.status === s.status);
+    const items = b.tickets.filter((k) => k.status === s.status && matchesFilter(k));
     return h('section', { class: 'col', 'aria-label': s.label, 'data-active': String(state.column === s.status),
       ondragover: e => { const k = b.tickets.find(t => t.id === draggedTicket); if (!k || !dropAction(d, k, s.status)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drop-over'); },
       ondragleave: e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drop-over'); },
@@ -937,9 +979,11 @@ function card(d, k) {
       'PR' + (pr.number ? ' #' + pr.number : '') + ' ' + pr.state + (pr.state === 'open' && pr.mergeable === 'conflicting' ? ' · conflicts' : '')));
     if (pr.state === 'open' && pr.behind > 0) flags.push(h('span', { class: 'badge warn' }, pr.behind + ' behind'));
   }
+  if ((k.workMode || 'agent') !== 'agent') flags.push(h('span', { class: 'badge', title: (MODES.find((x) => x[0] === k.workMode) || [])[2] }, modeName(k.workMode)));
   return h('article', { class: 'card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : ''), draggable: !pendingTickets.has(k.id), 'aria-busy': pendingTickets.has(k.id), ondragstart: e => { draggedTicket = k.id; e.dataTransfer.setData('text/plain', k.id); e.dataTransfer.effectAllowed = 'move'; }, ondragend: () => { draggedTicket = null; document.querySelectorAll('.drop-over').forEach(el => el.classList.remove('drop-over')); } },
     h('div', { class: 'muted small' }, k.key),
     h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
+    labelsOf(k, d.board.labels).length ? h('div', { class: 'lbls', 'aria-label': 'Labels' }, labelsOf(k, d.board.labels).map(labelChip)) : '',
     k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId), k.status === 'in_progress' ? ' · active' : '') : '',
     flags.length ? h('div', { class: 'flags' }, flags) : '',
     (k.status === 'available' && d.board.member && pcan('tickets.claim'))
@@ -948,16 +992,51 @@ function card(d, k) {
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }
 
-function newTicketForm() {
+// The planning side of a ticket: its labels, who does it, when it is planned for and what it waits for. For a new ticket
+// k is null. read() gives what the person chose, in the shape the API takes.
+function planFields(d, k) {
+  const sfx = k ? k.id : 'new';
+  const b = d.board;
+  const chosen = new Set(k ? k.labelIds || [] : []);
+  const deps = new Set(k ? k.dependencies || [] : []);
+  const labelBoxes = (b.labels || []).map((l) => ({ l, box: h('input', { type: 'checkbox', name: 'p-label_' + l.id + '-' + sfx, checked: chosen.has(l.id) }) }));
+  const mode = h('select', { name: 'p-mode-' + sfx, 'aria-label': 'Who does it' },
+    MODES.map(([id, name, hint]) => h('option', { value: id, title: hint, selected: id === (k ? k.workMode || 'agent' : (b.project.repository ? 'agent' : 'human')) }, name)));
+  const plan = (k && k.plan) || {};
+  const start = h('input', { type: 'date', name: 'p-start-' + sfx, value: plan.start || '' });
+  const end = h('input', { type: 'date', name: 'p-end-' + sfx, value: plan.end || '' });
+  const milestone = h('input', { type: 'checkbox', name: 'p-milestone-' + sfx, checked: !!plan.milestone });
+  const others = [...b.tickets, ...(b.archived || [])].filter((t) => !k || t.id !== k.id).filter((t) => !t.archivedAt || deps.has(t.id));
+  const depBoxes = others.map((t) => ({ t, box: h('input', { type: 'checkbox', name: 'p-dep_' + t.id + '-' + sfx, checked: deps.has(t.id) }) }));
+  const node = h('div', { class: 'stack plan-fields' },
+    h('fieldset', {}, h('legend', {}, 'Labels'),
+      labelBoxes.length ? h('div', { class: 'label-menu' }, labelBoxes.map(({ l, box }) => h('label', { class: 'check' }, box, ' ', labelChip(l))))
+        : h('p', { class: 'muted small' }, can('labels.manage') ? 'No labels yet. Make some under Settings → Labels.' : 'No labels yet. A workspace owner or admin makes them.')),
+    field('Who does it', mode),
+    h('fieldset', {}, h('legend', {}, 'Planned for ', h('span', { class: 'muted small' }, 'optional · for the timeline only')),
+      h('div', { class: 'inline dates' }, field('Start or date', start), field('End', end), h('label', { class: 'check' }, milestone, ' Milestone'))),
+    depBoxes.length ? h('fieldset', {}, h('legend', {}, 'Depends on ', h('span', { class: 'muted small' }, 'must finish first')),
+      h('div', { class: 'dep-list' }, depBoxes.map(({ t, box }) => h('label', { class: 'check' }, box, ' ', t.key + ' · ' + t.title)))) : '');
+  const read = () => ({
+    workMode: mode.value,
+    labelIds: labelBoxes.filter((x) => x.box.checked).map((x) => x.l.id),
+    plan: milestone.checked ? { start: start.value || end.value, milestone: true } : { start: start.value, end: end.value },
+    dependencies: depBoxes.filter((x) => x.box.checked).map((x) => x.t.id),
+  });
+  return { node, read };
+}
+
+function newTicketForm(d) {
   const title = h('input', { name: 't-title', required: true, maxlength: 200 });
   const desc = h('textarea', { name: 't-desc', rows: 3, maxlength: 20000 });
   const reqs = h('textarea', { name: 't-reqs', rows: 3, maxlength: 20000, placeholder: 'Acceptance criteria, constraints, links, anything the person doing it needs to know' });
   const ready = h('input', { name: 't-ready', type: 'checkbox' });
+  const plan = planFields(d, null);
   return h('div', { class: 'panel' }, h('h2', {}, 'New ticket'),
     h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); act(async () => {
-        await api('POST', '/projects/' + state.projectId + '/tickets', { title: title.value, description: desc.value, requirements: reqs.value, status: ready.checked ? 'available' : 'backlog' }); state.newTicketOpen = false;
+        await api('POST', '/projects/' + state.projectId + '/tickets', { title: title.value, description: desc.value, requirements: reqs.value, status: ready.checked ? 'available' : 'backlog', ...plan.read() }); state.newTicketOpen = false;
         title.value = ''; desc.value = ''; reqs.value = ''; ready.checked = false; }); } },
-      field('Title', title), field('Description', desc), field('Requirements and context', reqs),
+      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node,
       h('label', { class: 'check' }, ready, ' Ready to be claimed (otherwise it goes to the backlog)'),
       h('button', { class: 'primary' }, 'Create ticket')));
 }
@@ -981,9 +1060,10 @@ function ticketPanel(d, k) {
     if (b.member && pcan('tickets.claim')) actions.push(h('button', { class: 'primary', onclick: run('POST', '/claim') }, 'Claim this ticket'));
     if (isCreator || pcan('tickets.edit')) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'backlog' }) }, 'Move to backlog'));
   }
-  const individual = mine && (k.status === 'in_progress' || k.status === 'review') && typeof individualActions === 'function' ? individualActions(k.projectId, k.id) : '';
+  const agentWork = (k.workMode || 'agent') !== 'human'; // no agent is asked to do human work: nothing to open in a runner
+  const individual = mine && agentWork && (k.status === 'in_progress' || k.status === 'review') && typeof individualActions === 'function' ? individualActions(k.projectId, k.id) : '';
   if (individual) actions.push(individual);
-  if ((k.status === 'in_progress' || k.status === 'review') && mine && pcan('handoff.own'))
+  if ((k.status === 'in_progress' || k.status === 'review') && mine && agentWork && pcan('handoff.own'))
     actions.push(h('button', { class: individual ? 'plain' : 'primary', onclick: () => act(async () => { state.handoff = await api('POST', path + '/handoff'); }) }, 'Open in my runner'));
   if (k.status === 'in_progress' && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Take it back'));
   if (k.status === 'review' && pcan('tickets.review')) {
@@ -1014,6 +1094,10 @@ function ticketPanel(d, k) {
     k.submittedAt ? [h('dt', {}, 'Submitted'), h('dd', {}, when(k.submittedAt), k.reviewerId ? ' · reviewer ' + personName(d, k.reviewerId) : '')] : '',
     k.completedAt ? [h('dt', {}, 'Completed'), h('dd', {}, when(k.completedAt))] : '',
     h('dt', {}, 'Updated'), h('dd', {}, when(k.updatedAt)),
+    h('dt', {}, 'Who'), h('dd', {}, modeName(k.workMode)),
+    labelsOf(k, b.labels).length ? [h('dt', {}, 'Labels'), h('dd', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip))] : '',
+    WerkbordTimeline.spanOf(k) ? [h('dt', {}, 'Planned'), h('dd', {}, (k.plan.milestone ? 'Milestone · ' : '') + WerkbordTimeline.spanTitle(WerkbordTimeline.spanOf(k), new Date().getFullYear()))] : '',
+    (k.dependencies || []).length ? [h('dt', {}, 'Waits for'), h('dd', {}, k.dependencies.map((id) => { const t = [...b.tickets, ...(b.archived || [])].find((x) => x.id === id); return t ? t.key + ' · ' + t.title : 'a ticket that is not here'; }).join(', '))] : '',
     h('dt', {}, 'Branch'), h('dd', {}, k.branch ? [h('code', {}, k.branch), ' ', copy(k.branch, 'Copy')] : h('span', { class: 'muted' }, 'chosen when someone claims it')),
     h('dt', {}, 'Pull request'), h('dd', {}, pr ? prLine(pr) : h('span', { class: 'muted' }, 'none reported')));
 
@@ -1033,7 +1117,7 @@ function ticketPanel(d, k) {
       h('div', {},
         h('h3', {}, 'Description'), h('p', { class: 'prose' }, k.description || '—'),
         h('h3', {}, 'Requirements and context'), h('p', { class: 'prose' }, k.requirements || '—'),
-        canEditText ? editTicket(k, path) : ''),
+        canEditText ? editTicket(d, k, path) : ''),
       h('div', {}, facts, executionProgress(d.progress || []), h('h3', {}, 'Commits'), commits,
         !k.archivedAt && (mine || pcan('git.report_any')) && (k.status === 'in_progress' || k.status === 'review') ? gitForm(k, path) : '')));
 }
@@ -1070,14 +1154,15 @@ function prLine(pr) {
   return parts;
 }
 
-function editTicket(k, path) {
+function editTicket(d, k, path) {
+  const plan = planFields(d, k);
   const title = h('input', { name: 'e-title-' + k.id, value: k.title, maxlength: 200 });
   const desc = h('textarea', { name: 'e-desc-' + k.id, rows: 3 }); desc.value = k.description;
   const reqs = h('textarea', { name: 'e-reqs-' + k.id, rows: 3 }); reqs.value = k.requirements;
   return h('details', {}, h('summary', {}, 'Edit this ticket'),
     ticketVersion(k) !== k.version ? h('div', { role: 'alert' }, h('p', { class: 'error' }, 'Someone changed this ticket while you were editing. Your draft is kept. Copy your text before loading their version and combining the changes.'), h('button', { class: 'plain', type: 'button', onclick: () => { discardTicketDraft(k.id); render(); } }, 'Load latest version')) : '',
-    h('form', { class: 'stack', 'data-ticket-id': k.id, 'data-ticket-version': k.version, onsubmit: (e) => { e.preventDefault(); act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, version: ticketVersion(k) }).then(() => discardTicketDraft(k.id)));  } },
-      field('Title', title), field('Description', desc), field('Requirements and context', reqs), h('button', { class: 'plain' }, 'Save')));
+    h('form', { class: 'stack', 'data-ticket-id': k.id, 'data-ticket-version': k.version, onsubmit: (e) => { e.preventDefault(); act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, ...plan.read(), version: ticketVersion(k) }).then(() => discardTicketDraft(k.id)));  } },
+      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node, h('button', { class: 'plain' }, 'Save')));
 }
 
 // What the member's own Werkbord reports, entered by hand: useful until it reports for them.
@@ -1286,4 +1371,106 @@ function teamSchedulePanel(k) {
     if (current && !['completed', 'canceled'].includes(current.state)) box.append(h('button', { class: 'danger', onclick: () => act(() => api('POST', projectPath(k) + '/schedule/cancel', { version: current.version })) }, 'Cancel request'));
   }).catch(err => box.append(h('p', { class: 'advice', role: 'alert' }, err.message)));
   return box;
+}
+
+// ---- the timeline ----
+// A project's tickets placed in time: planned date ranges, milestones and the dependencies between them, grouped as the
+// person chooses. It shows and never moves anything: a conflict is marked (the server finds them) and the person decides.
+
+const TL = WerkbordTimeline;
+function svgEl(name, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', name);
+  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, String(v));
+  return el;
+}
+
+function timelineTab(d) {
+  const b = d.board, warnings = (d.timeline && d.timeline.warnings) || [];
+  const today = TL.localToday(Date.now());
+  const year = Number(today.slice(0, 4));
+  const px = TL.PX_PER_DAY[state.tlZoom];
+  const visible = b.tickets.filter(matchesFilter);
+  const dated = visible.filter((k) => TL.spanOf(k));
+  const undated = visible.filter((k) => !TL.spanOf(k));
+  const groups = TL.groupTasks(dated, b.labels, state.tlGroup);
+  const range = TL.viewRange(dated.map((k) => TL.spanOf(k)), today);
+  const width = (TL.daysBetween(range.start, range.end) + 1) * px;
+  const todayX = TL.daysBetween(range.start, today) * px + px / 2;
+  const byTicket = TL.warningsByTask(warnings);
+  const ticketOf = (id) => [...b.tickets, ...(b.archived || [])].find((k) => k.id === id);
+
+  const rows = [];
+  for (const g of groups) {
+    if (state.tlGroup !== 'none') rows.push({ kind: 'group', key: g.key, group: g });
+    if (state.tlGroup !== 'none' && state.tlCollapsed[g.key]) continue;
+    for (const k of g.tasks) rows.push({ kind: 'ticket', key: g.key + ':' + k.id, k });
+  }
+  const bars = TL.barsFor(dated, range, state.tlZoom);
+  const rowOf = TL.firstRows(rows.map((r) => (r.kind === 'ticket' ? r.k.id : null)));
+  const links = TL.arrows(bars, rowOf, TL.dependencyMap(dated));
+  const open = (k) => () => openTicket(d.id, k.id);
+
+  const tools = h('div', { class: 'actions board-tools tl-tools' },
+    h('div', { class: 'inline', role: 'group', 'aria-label': 'Zoom' }, ['week', 'month', 'quarter'].map((z) => h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.tlZoom === z, onclick: () => { state.tlZoom = z; render(); } }, z[0].toUpperCase() + z.slice(1)))),
+    h('label', { class: 'inline' }, 'Group ', h('select', { name: 'tl-group', 'aria-label': 'Group work by', onchange: (e) => { state.tlGroup = e.target.value; render(); } },
+      [['none', 'Nothing'], ['label', 'Label'], ['status', 'Status'], ['mode', 'Who does it']].map(([id, name]) => h('option', { value: id, selected: state.tlGroup === id }, name)))),
+    h('button', { type: 'button', class: 'plain small', onclick: () => { const s = app.querySelector('.tl-scroller'); if (s) s.scrollLeft = Math.max(0, todayX - s.clientWidth / 2 + 120); } }, 'Today'),
+    filterBar(d));
+
+  const warnPanel = warnings.length ? h('section', { class: 'tl-warns', 'aria-label': 'Needs a look' }, h('h3', {}, 'Needs a look ', h('span', { class: 'badge' }, String(warnings.length))),
+    h('ul', {}, warnings.map((w) => { const k = ticketOf(w.itemId); return h('li', { 'data-sev': w.severity },
+      h('span', { class: 'sev' }, w.severity === 'error' ? 'Problem' : w.severity === 'warning' ? 'Conflict' : 'Note'), h('span', { class: 'msg' }, w.message),
+      k ? h('button', { type: 'button', class: 'plain small', onclick: open(k) }, 'Open ' + k.key) : ''); })),
+    h('p', { class: 'muted small' }, 'Nothing has been moved. Change a date or a dependency on the ticket when you decide how to resolve it.')) : '';
+
+  let chart;
+  if (!dated.length) {
+    chart = h('div', { class: 'tl-empty' }, h('p', {}, filterActive() ? 'No planned work matches the filter.' : 'Nothing is planned yet.'), h('p', { class: 'muted' }, 'Give a ticket a start and end date (or make it a milestone) and it appears here.'));
+  } else {
+    const axis = h('div', { class: 'tl-axis' }, TL.ticks(range, state.tlZoom).map((t) => { const el = h('span', { class: 'tl-tick' + (t.major ? ' major' : '') }, t.label); el.style.left = t.x + 'px'; return el; }));
+    axis.style.width = width + 'px';
+    const names = h('div', { class: 'tl-names' }, rows.map((r) => {
+      if (r.kind === 'group') {
+        const btn = h('button', { type: 'button', class: 'tl-group', 'aria-expanded': String(!state.tlCollapsed[r.key]), onclick: () => { state.tlCollapsed[r.key] = !state.tlCollapsed[r.key]; render(); } },
+          h('span', { class: 'caret' }, state.tlCollapsed[r.key] ? '▸' : '▾'), r.group.color ? labelChip({ name: r.group.title, color: r.group.color }) : h('span', {}, r.group.title), h('span', { class: 'badge' }, String(r.group.tasks.length)));
+        return btn;
+      }
+      const ws = byTicket.get(r.k.id), worst = TL.worst(ws), span = TL.spanOf(r.k);
+      return h('button', { type: 'button', class: 'tl-name', 'data-status': r.k.status, title: r.k.key + ' · ' + r.k.title, onclick: open(r.k) },
+        worst ? h('span', { class: 'tl-warn', 'data-sev': worst, title: ws.map((x) => x.message).join('\n'), 'aria-label': 'Has ' + plural(ws.length, 'warning') }, '!') : '',
+        h('span', { class: 'nt' }, r.k.key + ' · ' + r.k.title), span ? h('span', { class: 'when' }, TL.spanTitle(span, year)) : '');
+    }));
+    const plot = h('div', { class: 'tl-plot' });
+    plot.style.width = width + 'px'; plot.style.height = rows.length * TL.ROW_HEIGHT + 'px';
+    for (const t of TL.ticks(range, state.tlZoom)) { const g = h('span', { class: 'tl-grid' + (t.major ? ' major' : '') }); g.style.left = t.x + 'px'; plot.append(g); }
+    const tl = h('span', { class: 'tl-today', title: 'Today' }); tl.style.left = todayX + 'px'; plot.append(tl);
+    rows.forEach((r, i) => {
+      if (r.kind === 'group') { const band = h('span', { class: 'tl-band' }); band.style.top = i * TL.ROW_HEIGHT + 'px'; band.style.height = TL.ROW_HEIGHT + 'px'; plot.append(band); return; }
+      const bar = bars.get(r.k.id);
+      if (!bar) return;
+      const worst = TL.worst(byTicket.get(r.k.id)), label = r.k.key + ' · ' + r.k.title + ' · ' + TL.spanTitle(bar.span, year);
+      if (bar.milestone) {
+        const m = h('button', { type: 'button', class: 'tl-ms', 'data-status': r.k.status, 'data-sev': worst, 'aria-label': 'Milestone: ' + label, title: label, onclick: open(r.k) }, h('span', {}));
+        m.style.left = bar.x + bar.width / 2 - 8 + 'px'; m.style.top = i * TL.ROW_HEIGHT + TL.ROW_HEIGHT / 2 - 8 + 'px';
+        const t = h('span', { class: 'tl-mt' }, r.k.title); t.style.left = bar.x + bar.width / 2 + 14 + 'px'; t.style.top = i * TL.ROW_HEIGHT + 9 + 'px';
+        plot.append(m, t);
+      } else {
+        const rb = h('button', { type: 'button', class: 'tl-bar', 'data-status': r.k.status, 'data-sev': worst, title: label, onclick: open(r.k) }, h('span', { class: 'bt' }, r.k.title));
+        rb.style.left = bar.x + 'px'; rb.style.width = Math.max(bar.width - 2, 6) + 'px'; rb.style.top = i * TL.ROW_HEIGHT + 6 + 'px'; rb.style.height = TL.ROW_HEIGHT - 12 + 'px';
+        plot.append(rb);
+      }
+    });
+    const svg = svgEl('svg', { class: 'tl-links', width, height: rows.length * TL.ROW_HEIGHT, 'aria-hidden': 'true' });
+    const defs = svgEl('defs'), marker = svgEl('marker', { id: 'tl-head', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto' });
+    marker.append(svgEl('path', { d: 'M0 0 L8 4 L0 8 z', fill: 'currentColor' })); defs.append(marker); svg.append(defs);
+    for (const l of links) svg.append(svgEl('path', { d: l.d, class: 'tl-link' + (l.conflict ? ' clash' : ''), 'marker-end': 'url(#tl-head)' }));
+    plot.append(svg);
+    chart = h('div', { class: 'tl-chart' }, h('div', { class: 'tl-axis-row' }, h('div', { class: 'tl-corner' }, 'Work'), axis), h('div', { class: 'tl-body' }, names, plot));
+  }
+
+  const unplanned = undated.length ? h('section', { class: 'tl-undated', 'aria-label': 'Not planned yet' }, h('h3', {}, 'Not planned yet ', h('span', { class: 'badge' }, String(undated.length))),
+    undated.map((k) => h('div', { class: 'row' }, h('div', { class: 'grow' }, h('button', { type: 'button', class: 'link', onclick: open(k) }, k.key + ' · ' + k.title)),
+      h('span', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip)), (k.workMode || 'agent') !== 'agent' ? h('span', { class: 'badge' }, modeName(k.workMode)) : ''))) : '';
+
+  return h('div', { class: 'timeline-view' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline' }, chart), unplanned);
 }

@@ -11,7 +11,7 @@ import (
 
 func TestTheConsoleIsServedAndReadOnlyForOtherMethods(t *testing.T) {
 	h := Handler()
-	for _, path := range []string{"/", "/console.js", "/console.css", "/theme.js", "/search.js", "/mark-dark.svg"} {
+	for _, path := range []string{"/", "/console.js", "/console.css", "/theme.js", "/search.js", "/timeline.js", "/mark-dark.svg"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-cache" {
@@ -64,5 +64,34 @@ func TestTheConsoleNeverBuildsHTMLFromData(t *testing.T) {
 	// Every address handed to extLink is shown only if it is https (extLink checks it).
 	if !regexp.MustCompile(`function extLink\(u, label\) \{ return isHTTPS\(u\)`).MatchString(string(js)) {
 		t.Error("extLink must check isHTTPS")
+	}
+}
+
+// The timeline and the labels put server data on the page: names, colours, dates. Names are text, and a colour is only ever
+// used if it is #rrggbb, and only through the element's style object, never built into markup.
+func TestTheTimelineAndLabelsNeverBuildMarkupFromData(t *testing.T) {
+	root, _ := fs.Sub(static, "static")
+	timeline, err := fs.ReadFile(root, "timeline.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, banned := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
+		if strings.Contains(string(timeline), banned) {
+			t.Errorf("timeline.js uses %s", banned)
+		}
+	}
+	if !regexp.MustCompile(`safeColor = \(c\) => \(typeof c === 'string' && /\^#\[0-9a-f\]\{6\}\$/i\.test\(c\)`).Match(timeline) {
+		t.Error("a label colour must be checked to be #rrggbb before it is used")
+	}
+	js, _ := fs.ReadFile(root, "console.js")
+	desktop, _ := fs.ReadFile(root, "desktop.js")
+	for name, src := range map[string]string{"console.js": string(js), "desktop.js": string(desktop)} {
+		if regexp.MustCompile(`setAttribute\(\s*['"]style['"]|\bstyle:\s*['"]`).MatchString(src) {
+			t.Errorf("%s builds a style attribute from a string: set colours through element.style", name)
+		}
+	}
+	index, _ := fs.ReadFile(root, "index.html")
+	if strings.Index(string(index), "timeline.js") < 0 || strings.Index(string(index), "timeline.js") > strings.Index(string(index), "console.js") {
+		t.Error("index.html must load timeline.js before console.js")
 	}
 }

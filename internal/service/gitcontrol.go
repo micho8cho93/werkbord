@@ -110,6 +110,9 @@ func (s *GitControl) resolve(ctx context.Context, projectID string) (*gitCtx, er
 	}); err != nil {
 		return nil, err
 	}
+	if !p.HasRepository() {
+		return nil, fmt.Errorf("%w: %q is a work project with no Git repository", domain.ErrInvalid, p.Name)
+	}
 	repo, err := s.Git.Inspect(ctx, p.RepoPath)
 	if err != nil {
 		return nil, err

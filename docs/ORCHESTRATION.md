@@ -46,6 +46,10 @@ blocked. Approvals always go to the user. The schedule never invents an answer.
 
 ## Dependencies, order and deterministic decisions
 
+> A task's **plan** (the dates of the Timeline) is separate from this schedule: planning a task never schedules, delays or moves a run, and
+> the Timeline only reads the dependencies listed below. **Human** work is never started: the plan blocks it with "This task is marked as human
+> work", and a project with no repository (a *work project*) has nothing for an agent to work in. See [PLANNING.md](PLANNING.md).
+
 Dependencies must be distinct other tasks in the same project. The service
 checks the complete proposed graph in the write transaction and rejects direct
 and indirect cycles. Completion means a latest completed run or a task explicitly

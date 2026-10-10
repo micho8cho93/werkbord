@@ -106,6 +106,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	settings := &service.Settings{Deps: deps, Catalog: agents, Version: c.version}
 	projects := &service.Projects{Deps: deps, Git: git, Catalog: agents}
 	tasks := &service.Tasks{Deps: deps, Catalog: agents}
+	labels := &service.Labels{Deps: deps}
 	runs := &service.Runs{Deps: deps}
 	worktrees := &service.Worktrees{Deps: deps, Root: worktreeRoot}
 	gitControl := &service.GitControl{Deps: deps, Git: git, Worktrees: worktrees}
@@ -143,7 +144,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		_ = c.db.View(ctx, func(tx store.Tx) error {
 			ps, e := tx.Projects().List(ctx)
 			for _, p := range ps {
-				caps.Repositories = append(caps.Repositories, p.ID)
+				if p.HasRepository() {
+					caps.Repositories = append(caps.Repositories, p.ID)
+				}
 			}
 			return e
 		})
@@ -206,6 +209,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Scheduler:    scheduler, Handoffs: handoffs,
 		Projects:     projects,
 		Tasks:        tasks,
+		Labels:       labels,
 		Runs:         runs,
 		Runner:       c.runner,
 		Worktrees:    worktrees,

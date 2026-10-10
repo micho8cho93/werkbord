@@ -88,8 +88,10 @@ GitRepository    │
    (snapshot)    └─ events reference project/task/run IDs, no foreign keys
 ```
 
-- **Project**: a registered local Git repository. `RepoPath` is the repository's
-  top-level directory, absolute and symlink-resolved. The repository is never copied.
+- **Project**: a registered local Git repository (`Kind` `repository`). `RepoPath` is the repository's
+  top-level directory, absolute and symlink-resolved. The repository is never copied. A **work project**
+  (`Kind` `work`) has no repository at all: a board and a timeline for work that is not code, with no Git,
+  worktrees or runs. Everything that reads a repository asks `Project.HasRepository` first.
 - **GitRepository**: the last inspection snapshot of a project's repository (branch, HEAD,
   origin/HEAD, remotes with any embedded credentials redacted). Refreshed on demand. It
   records the repository's **common directory** (the shared `.git`), which is the
@@ -98,6 +100,9 @@ GitRepository    │
 - **Task**: a card on the board. Its `State` is one of exactly four workflow states:
   `backlog`, `doing`, `review`, `done`. Ordered within a column by `Position`. It carries an
   execution `Policy` (§17): how its runs are carried out, interactive by default.
+  A task also carries its **labels** (names and colours the person made, shared by every project), its
+  **work mode** (`human`, `agent` or `hybrid`: who is expected to do it, deliberately not a label) and a
+  **plan** (planned dates and milestones, deliberately not its schedule). See [PLANNING.md](PLANNING.md).
 - **Run**: one interactive agent session working on a task. Its `State` is one of
   `starting`, `running`, `waiting_for_user`, `blocked`, `completed`, `failed`, `stopped`. While it
   waits, `Waiting` says what for: `question` (blocked on an answer) or `idle` (the agent finished a
@@ -661,8 +666,8 @@ domain, not left to the frontend.
 ```
 Global                      Control Center (aggregates actionable state across every project)
                             Projects (every repository; registering one)
-Project A                   Board · Git · Activity       (Calendar will be a further section)
-Project B                   Board · Git · Activity
+Project A                   Board · Timeline · Calendar · Git · Runs
+Project B (work project)    Board · Timeline             (no repository: no Calendar, Git or Runs)
 ```
 
 **API.** Everything that belongs to a project is reached *through* it:

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"devboard/internal/httpkit"
+	"devboard/internal/planning"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/service"
 )
@@ -35,16 +36,21 @@ func (s *Server) handleProjectPeople(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateTicket(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Title        string `json:"title"`
-		Description  string `json:"description"`
-		Requirements string `json:"requirements"`
-		Status       string `json:"status"`
+		Title        string                 `json:"title"`
+		Description  string                 `json:"description"`
+		Requirements string                 `json:"requirements"`
+		Status       string                 `json:"status"`
+		WorkMode     planning.ExecutionMode `json:"workMode"`
+		LabelIDs     []string               `json:"labelIds"`
+		Plan         planning.Range         `json:"plan"`
+		Dependencies []string               `json:"dependencies"`
 	}
 	if !s.decode(w, r, &in) {
 		return
 	}
 	k, err := s.opt.Service.CreateTicket(r.Context(), actorOf(r), r.PathValue("id"),
-		service.TicketInput{Title: in.Title, Description: in.Description, Requirements: in.Requirements, Status: domain.TicketStatus(in.Status)})
+		service.TicketInput{Title: in.Title, Description: in.Description, Requirements: in.Requirements, Status: domain.TicketStatus(in.Status),
+			WorkMode: in.WorkMode, LabelIDs: in.LabelIDs, Plan: in.Plan, Dependencies: in.Dependencies})
 	s.respond(w, r, http.StatusCreated, k, err)
 }
 
@@ -55,16 +61,21 @@ func (s *Server) handleGetTicket(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateTicket(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Title        *string `json:"title"`
-		Description  *string `json:"description"`
-		Requirements *string `json:"requirements"`
-		Version      *int64  `json:"version"`
+		Title        *string                 `json:"title"`
+		Description  *string                 `json:"description"`
+		Requirements *string                 `json:"requirements"`
+		Version      *int64                  `json:"version"`
+		WorkMode     *planning.ExecutionMode `json:"workMode"`
+		LabelIDs     *[]string               `json:"labelIds"`
+		Plan         *planning.Range         `json:"plan"`
+		Dependencies *[]string               `json:"dependencies"`
 	}
 	if !s.decode(w, r, &in) {
 		return
 	}
 	k, err := s.opt.Service.UpdateTicket(r.Context(), actorOf(r), r.PathValue("id"), r.PathValue("tid"),
-		service.TicketPatch{Title: in.Title, Description: in.Description, Requirements: in.Requirements, Version: in.Version})
+		service.TicketPatch{Title: in.Title, Description: in.Description, Requirements: in.Requirements, Version: in.Version,
+			WorkMode: in.WorkMode, LabelIDs: in.LabelIDs, Plan: in.Plan, Dependencies: in.Dependencies})
 	s.respond(w, r, http.StatusOK, k, err)
 }
 

@@ -60,6 +60,9 @@ func (s *Service) SetSchedule(ctx context.Context, a Actor, pid, tid string, in 
 			return domain.ErrInvalid
 		}
 
+		if why := k.AgentRefusal(); why != "" {
+			return fmt.Errorf("%w: %s", domain.ErrConflict, why)
+		}
 		if !x.can(domain.PPTicketsAssign) && k.AssigneeID != a.Member.ID {
 			return forbidden("propose another member's schedule")
 		}

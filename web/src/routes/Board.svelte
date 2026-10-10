@@ -1,10 +1,13 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ApiError, api } from '../lib/api';
-  import { dropAction } from '../lib/board';
+  import { agentWorkable, dropAction } from '../lib/board';
   import Archive from '../lib/board/Archive.svelte';
   import TaskCard from '../lib/board/TaskCard.svelte';
   import { agentLabel, resolveFor, type Resolved } from '../lib/execution';
+  import { filterFor, setFilter } from '../lib/filters.svelte';
+  import { filterActive, matches, noFilter } from '../lib/labels';
+  import TaskFilterBar from '../lib/TaskFilterBar.svelte';
   import { runStatus } from '../lib/format';
   import GitSheets from '../lib/git/GitSheets.svelte';
   import { sheets } from '../lib/git/sheets.svelte';
@@ -25,12 +28,14 @@
   let agentFilter = $state('');
   let runnerFilter = $state('');
   let priorityFilter = $state<Priority | ''>('');
-  const filtering = $derived(!!(agentFilter || runnerFilter || priorityFilter));
+  const labelFilter = $derived(filterFor(project.id));
+  const filtering = $derived(!!(agentFilter || runnerFilter || priorityFilter) || filterActive(labelFilter));
 
   const effectiveOf = (t: Task): Resolved => resolveFor(t.execution, project.execution, app.globalExecution);
 
   function shown(t: Task): boolean {
     if (!filtering) return true;
+    if (!matches(t, labelFilter)) return false;
     const run = scope.latestRun[t.id];
     const eff = effectiveOf(t);
     if (agentFilter && (run?.agentId ?? eff.agent) !== agentFilter) return false;
@@ -177,7 +182,7 @@
     onDragEnd();
     if (!task) return;
     const run = scope.latestRun[task.id];
-    switch (dropAction(task, run, state, mergeable(task))) {
+    switch (dropAction(task, run, state, mergeable(task), agentWorkable(task, project))) {
       case 'start':
         void start(task);
         break;
@@ -194,7 +199,7 @@
   function dropHint(state: TaskState): string {
     if (!dragging || state === dragging.state) return '';
     const run = scope.latestRun[dragging.id];
-    const a = dropAction(dragging, run, state, mergeable(dragging));
+    const a = dropAction(dragging, run, state, mergeable(dragging), agentWorkable(dragging, project));
     return a === 'start' ? 'Drop to start an agent' : a === 'merge' ? 'Drop to merge' : `Move to ${TASK_STATE_LABELS[state]}`;
   }
 
@@ -264,10 +269,11 @@
           <option value="low">low</option>
         </select>
       </label>
+      <TaskFilterBar projectId={project.id} />
       <button class="btn small" aria-pressed={viewingArchive} onclick={() => viewingArchive = !viewingArchive}>{viewingArchive ? 'Back to board' : `Archive (${scope.archivedTasks.length})`}</button>
       <button class="btn small" disabled={clearingDone || !scope.activeTasks.some(t => t.state === 'done')} onclick={clearDone} title="Move all Done tasks into the archive and keep their details">{clearingDone ? 'Clearing…' : 'Clear Done'}</button>
       {#if filtering}
-        <button class="btn quiet small" onclick={() => ((agentFilter = ''), (runnerFilter = ''), (priorityFilter = ''))}>Clear</button>
+        <button class="btn quiet small" onclick={() => ((agentFilter = ''), (runnerFilter = ''), (priorityFilter = ''), setFilter(project.id, noFilter()))}>Clear all</button>
       {/if}
     </div>
     <ul class="legend" aria-label="Agents at a glance">
@@ -349,6 +355,7 @@
               effective={effectiveOf(task)}
               selected={router.taskId === task.id}
               mergeable={mergeable(task)}
+              agentWork={agentWorkable(task, project)}
               branch={branchOf(task)}
               onstart={start}
               onmerge={merge}
@@ -361,8 +368,8 @@
               {#if !scope.loaded}Loading…
               {:else if filtering}Nothing matches the filters.
               {:else if col.state === 'backlog'}Nothing waiting. Add a task with <kbd class="key">N</kbd>.
-              {:else if col.state === 'doing'}No agent is working. Start one from Backlog.
-              {:else if col.state === 'review'}Finished work lands here for you to review.
+              {:else if col.state === 'doing'}{project.kind === 'work' ? 'Nothing is under way.' : 'No agent is working. Start one from Backlog.'}
+              {:else if col.state === 'review'}{project.kind === 'work' ? 'Work that needs a second look.' : 'Finished work lands here for you to review.'}
               {:else}Merged work lands here.{/if}
             </li>
           {/each}

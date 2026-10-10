@@ -5,7 +5,7 @@
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
   import { shortPath } from '../projects';
-  import { PROJECT_TABS, projectHref, router } from '../router.svelte';
+  import { projectHref, router, tabsFor } from '../router.svelte';
   import { app } from '../state.svelte';
   import type { Project } from '../types';
 
@@ -32,7 +32,11 @@
         <span class="chev"><Icon name="down" size={14} /></span>
       </button>
     </div>
-    <p class="path" title={project.repoPath}>{shortPath(project.repoPath)}{branch ? ` · ${branch}` : ''}</p>
+    {#if project.kind === 'work'}
+      <p class="path">Work project · no Git repository</p>
+    {:else}
+      <p class="path" title={project.repoPath}>{shortPath(project.repoPath)}{branch ? ` · ${branch}` : ''}</p>
+    {/if}
   </div>
   <div class="acts">
     <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
@@ -54,7 +58,7 @@
 </header>
 
 <nav class="tabs" aria-label="{project.name} sections">
-  {#each PROJECT_TABS as s (s.id)}
+  {#each tabsFor(project.kind) as s (s.id)}
     <a class="tab" href={projectHref(project.id, s.id)} aria-current={active === s.id ? 'page' : undefined}>
       {s.label}
       {#if s.id === 'git' && gitItems > 0}<span class="num pend" aria-label="{gitItems} Git items need attention">{gitItems}</span>{/if}

@@ -81,6 +81,13 @@ runs, and inside one you see that project and nothing else. Switch with the proj
 project name at the top on a phone; Ctrl/⌘ K anywhere). The **Control Center** is the one view across
 all projects: what needs you, wherever it is.
 
+**Flexible work organization.** Put your own labels (names and colours you choose, shared by all projects) on any
+task, filter the Board by them, say who does the work (a person, an agent or both: separate from labels), and see the
+planned dates, milestones and dependencies of a project on its **Timeline**, which warns about circular or conflicting
+dependencies and never reschedules anything. A *work project* has a board and a timeline with no Git repository,
+for work that is not code. Team has the same, with labels shared by the workspace and managed by its owner and
+admins. See [docs/PLANNING.md](docs/PLANNING.md).
+
 **Orchestration.** Schedule the same Board tasks in a day/week Calendar, queue work by order and priority,
 and add dependencies. The controller runs schedules from SQLite while your browser is closed, with explicit
 missed-time policies and durable claims that prevent duplicate dispatch after restart. Conservative repository

@@ -754,7 +754,9 @@ func (h *GitHealth) checkAll(ctx context.Context) {
 	if err := h.Store.View(ctx, func(tx store.Tx) error {
 		ps, err := tx.Projects().List(ctx)
 		for _, p := range ps {
-			ids = append(ids, p.ID)
+			if p.HasRepository() {
+				ids = append(ids, p.ID)
+			}
 		}
 		return err
 	}); err != nil {

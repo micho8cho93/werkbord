@@ -76,7 +76,13 @@ func (t *sqlTx) HeldTickets(ctx context.Context, workspaceID string) ([]domain.T
 		}
 		out = append(out, k)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := t.fillPlanning(ctx, workspaceID, out, `t.status IN ('in_progress', 'review') AND t.archived_at IS NULL`); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // ActivityAfter lists a workspace's history after an entry id, oldest first, for

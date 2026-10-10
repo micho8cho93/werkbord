@@ -47,6 +47,7 @@ The console (the page Team serves at its address) is organised around one questi
 | **Workspace** | What needs me? What is everyone doing? | Working now, actionable attention, shortcuts to your work and reviews, and each project's active work. |
 | **Projects** | Which projects are there, and who is on them? | The projects, creating one, each project's **People & invites**. |
 | **Board** | What work is there in this project? | The shared board: Backlog, Available, In Progress, Review, Done, and a ticket's details and actions. A project switcher keeps the Board, Git and Activity sections on one project. |
+| **Timeline** | When is the work planned, and what waits for what? | The project's tickets as date bars and milestones, grouped by label, status or who does the work, with dependencies as arrows and a list of conflicts. It only shows: nothing is ever rescheduled. See [PLANNING.md](PLANNING.md). |
 | **My Work** | What am I doing, and what waits for me? | What needs your attention (changes requested, a pull request with conflicts, behind its base, ready to submit, stale), your tickets in progress and in review with their Git links, your open pull requests, and the state of your own branches. **Open in my runner** is on every ticket you hold. |
 | **Reviews** | What needs a decision? | Tickets in review, those asked of you first: author, branch, pull request, commits, mergeability, and links to the pull request, branch and comparison on the Git host. Record that you merged, mark done, or request changes. Team does not reproduce a code-review interface; the diff is on the Git host. |
 | **Git** | What is the Git state? | What members' Werkbords reported: branches, pull requests, and what needs attention. The existing `?tab=repository` address is unchanged. |
@@ -113,6 +114,7 @@ Authorization asks *"may this member do X?"*, never *"is this member an Owner?"*
 | `projects.create` | ✓ | ✓ | |
 | `projects.manage` — edit or archive any project | ✓ | ✓ | |
 | `project_members.manage` — change who is on a project | ✓ | ✓ | |
+| `labels.manage` — define, rename, recolour and delete the workspace's shared labels (every member sees and may use them) | ✓ | ✓ | |
 | `admins.manage` — appoint admins, and act on their accounts | ✓ | | |
 | `workspace.ownership` — the workspace's ownership authority (its licence, in time) | ✓ | | |
 | `devices.own` — register, rename and revoke your own devices | ✓ | ✓ | ✓ |
@@ -218,6 +220,13 @@ A ticket has a **title**, **description**, **requirements/context**, **status**,
 is held), **creator**, **timestamps** (created, updated, claimed, submitted, completed), and Git facts: the related
 **branch**, **commits** and **pull request**. Numbers (`WB-142`) run across the whole workspace, so two projects that
 share a repository never produce the same branch name.
+
+A ticket also carries the **planning** side of the work ([PLANNING.md](PLANNING.md)): any number of the workspace's shared **labels**, a
+**work mode** (`human`, `agent`, `hybrid`: who is expected to do it, a fixed classification that is not a label), an optional planned
+**date range or milestone**, and the other tickets of its project it **depends on**. Putting these on a ticket is a ticket edit (the
+creator, or `tickets.edit`); defining the labels is `labels.manage`. Human work is never the subject of a shared request for agent
+work, and nothing here moves a ticket or a date: `GET /projects/{id}/timeline` only reports what contradicts itself. A project
+without a repository runs the whole workflow with no Git report.
 
 The legal moves are written once, in `domain.TicketStatus.CanTransitionTo`:
 

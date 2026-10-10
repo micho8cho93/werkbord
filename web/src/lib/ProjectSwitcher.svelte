@@ -2,7 +2,7 @@
   import { tick } from 'svelte';
   import Icon, { type IconName } from './Icon.svelte';
   import { activitySummary, attentionCount, filterProjects, shortPath, stepIndex } from './projects';
-  import { GLOBAL_VIEWS, PROJECT_SECTIONS, globalHref, projectHref, router, switchedTo, taskHref } from './router.svelte';
+  import { GLOBAL_VIEWS, globalHref, sectionsFor, projectHref, router, switchedTo, taskHref } from './router.svelte';
   import { app } from './state.svelte';
   import { theme } from './theme.svelte';
   import { TASK_STATE_LABELS } from './types';
@@ -44,7 +44,7 @@
         id: `p-${p.id}`,
         group: 'Projects',
         label: p.name,
-        sub: activitySummary(a) || shortPath(p.repoPath),
+        sub: activitySummary(a) || (p.kind === 'work' ? 'Work project' : shortPath(p.repoPath)),
         count: attentionCount(a),
         current: p.id === currentId,
         run: () => {
@@ -55,7 +55,7 @@
     }
 
     if (current) {
-      for (const s of PROJECT_SECTIONS) {
+      for (const s of sectionsFor(current.kind)) {
         if (matchesText(q, s.label, 'go to')) {
           out.push({ id: `s-${s.id}`, group: `Go to · ${current.name}`, label: s.label, icon: s.id, run: go(projectHref(current.id, s.id)) });
         }

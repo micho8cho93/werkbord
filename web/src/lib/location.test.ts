@@ -9,7 +9,10 @@ import {
   parse,
   projectHref,
   resolved,
+  sectionApplies,
+  sectionsFor,
   switchedTo,
+  tabsFor,
   taskHref,
 } from './location';
 
@@ -78,7 +81,7 @@ describe('links', () => {
 // entry to it is all the shell, the switcher and the tab bar need.
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
-    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'runs', 'defaults']);
+    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'defaults']);
     expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'settings']);
   });
 
@@ -86,6 +89,25 @@ describe('navigation is data, so it can grow', () => {
     for (const s of PROJECT_SECTIONS) {
       expect(switchedTo({ view: s.id, projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: s.id, projectId: 'prj_b', taskId: '' });
     }
+  });
+});
+
+describe('a work project has no repository to show', () => {
+  it('lacks the calendar, Git and runs, and keeps the rest', () => {
+    expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'timeline', 'defaults']);
+    expect(tabsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'timeline']);
+  });
+
+  it('shows a repository project, or one of an older controller, everything', () => {
+    expect(sectionsFor('repository')).toEqual(PROJECT_SECTIONS);
+    expect(sectionsFor(undefined)).toEqual(PROJECT_SECTIONS);
+    expect(sectionApplies('git', undefined)).toBe(true);
+    expect(sectionApplies('timeline', 'work')).toBe(true);
+  });
+
+  it('knows the timeline address', () => {
+    expect(parse('#/p/prj_a/timeline')).toEqual({ view: 'timeline', projectId: 'prj_a', taskId: '' });
+    expect(hrefOf({ view: 'timeline', projectId: 'prj_a', taskId: '' })).toBe('#/p/prj_a/timeline');
   });
 });
 

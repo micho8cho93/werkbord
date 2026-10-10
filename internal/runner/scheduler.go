@@ -31,6 +31,9 @@ func (m *Manager) ScheduleOnce(ctx context.Context) error {
 	m.mu.Unlock()
 	for i := range projects {
 		p := projects[(start+i)%len(projects)]
+		if !p.HasRepository() {
+			continue // no agent works on a project with no repository
+		}
 		plan, err := m.opt.Scheduler.Plan(ctx, p.ID)
 		if err != nil {
 			return err

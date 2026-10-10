@@ -17,7 +17,7 @@ func TestEachRoleHasExactlyItsPermissions(t *testing.T) {
 	tables := map[Role]map[Permission]bool{
 		RoleAdmin: {
 			PermWorkspaceView: true, PermWorkspaceManage: true, PermMembersView: true, PermMembersManage: true,
-			PermProjectsViewAll: true, PermProjectsCreate: true, PermProjectsManage: true, PermProjectMembersManage: true,
+			PermProjectsViewAll: true, PermProjectsCreate: true, PermProjectsManage: true, PermProjectMembersManage: true, PermLabelsManage: true,
 			PermDevicesOwn: true, PermDevicesViewAll: true, PermDevicesManage: true,
 		},
 		RoleMember: {PermWorkspaceView: true, PermMembersView: true, PermDevicesOwn: true},

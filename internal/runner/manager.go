@@ -254,6 +254,9 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	if err != nil {
 		return nil, err
 	}
+	if why := domain.AgentRefusal(project.Project, *task); why != "" {
+		return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, why)
+	}
 	resolved, err := m.resolve(ctx, task, in)
 	if err != nil {
 		return nil, err

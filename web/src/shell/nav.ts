@@ -42,8 +42,8 @@ export function runnersPlace(kind: Kind): string | undefined {
   return kind === 'personal' ? '#/settings?runners' : undefined;
 }
 
-const TEAM_PROJECT_TABS = new Set(['board', 'repository', 'activity', 'people']);
-const TEAM_SETTINGS = new Set(['settings', 'devices', 'hosts', 'connectivity', 'backups', 'license']);
+const TEAM_PROJECT_TABS = new Set(['board', 'timeline', 'repository', 'activity', 'people']);
+const TEAM_SETTINGS = new Set(['settings', 'labels', 'devices', 'hosts', 'connectivity', 'backups', 'license']);
 
 function decode(s: string): string {
   try {

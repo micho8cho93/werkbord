@@ -14,7 +14,7 @@ import { gitEvent } from './git/store.svelte';
 import { QuestionBook } from './questions';
 import { notifyEvent } from './notifications';
 import { ProjectScope } from './scope.svelte';
-import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, Onboarding, Overview, Project, Question, Runner, UpdateStatus, WaitingItem } from './types';
+import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, LabelUse, Onboarding, Overview, Project, Question, Runner, UpdateStatus, WaitingItem } from './types';
 
 export type Connection = 'connecting' | 'live' | 'offline' | 'unauthorized';
 
@@ -32,6 +32,9 @@ function loadLastProject(): string {
 const EVENT_TYPES = [
   'project.registered',
   'settings.updated',
+  'label.created',
+  'label.updated',
+  'label.deleted',
   'project.inspected',
   'project.updated',
   'settings.updated',
@@ -98,6 +101,8 @@ function readDismissedUpdate(): string {
 class AppState {
   connection = $state<Connection>('connecting');
   projects = $state<Project[]>([]);
+  /** The reusable labels, with how many open tasks carry each. Shared by every project. */
+  labels = $state<LabelUse[]>([]);
   agents = $state<Agent[]>([]);
  runners = $state<Runner[]>([]);
   /** The global execution defaults: the bottom level of the hierarchy (a project, then a task, override it). */
@@ -226,14 +231,16 @@ class AppState {
   async refresh(): Promise<void> {
     try {
       const sync = this.book.beginSync();
-      const [projects, agents, overview, execution, onboarding] = await Promise.all([
+      const [projects, agents, overview, execution, onboarding, labels] = await Promise.all([
         api.listProjects(),
         api.listAgents(),
         api.controlCenter(),
         api.getSettings().catch(() => ({}) as ExecutionConfig),
         api.onboarding().catch(() => null),
+        api.listLabels().catch(() => this.labels), // an older controller has none
       ]);
       this.projects = projects;
+      this.labels = labels;
       this.agents = agents;
       this.overview = overview;
  this.runners=overview.runners??[];
@@ -304,6 +311,15 @@ class AppState {
     } catch {
       // Remembered for this page only.
     }
+  }
+
+  private labelTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** How many tasks carry each label changes with tasks: ask again soon, once for a burst of events. */
+  private refreshLabelCounts(): void {
+    if (!this.labels.length) return;
+    clearTimeout(this.labelTimer);
+    this.labelTimer = setTimeout(() => void api.listLabels().then((ls) => (this.labels = ls), () => {}), 500);
   }
 
   /** Fetches the Control Center's overview: soon, and once for a burst of events. */
@@ -452,6 +468,15 @@ class AppState {
           (err) => this.handleError(err),
         );
         break;
+      case 'label.created':
+      case 'label.updated':
+      case 'label.deleted':
+        // Names, colours and counts all change with these: ask for the list again.
+        void api.listLabels().then(
+          (ls) => (this.labels = ls),
+          (err) => this.handleError(err),
+        );
+        break;
       case 'settings.updated':
         // A Team ticket started or stopped waiting for its repository.
         if ((ev.payload as { key?: string } | undefined)?.key === 'integration-waiting') {
@@ -476,6 +501,7 @@ class AppState {
       }
     }
     if (OVERVIEW_EVENTS.has(ev.type)) this.refreshOverview();
+    if (ev.type === 'task.created' || ev.type === 'task.updated') this.refreshLabelCounts();
   }
 }
 

@@ -3,6 +3,7 @@
   import { api } from '../lib/api';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
+  import LabelManager from '../lib/LabelManager.svelte';
   import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
   import { globalHref, router } from '../lib/router.svelte';
   import RoutingRules from '../lib/RoutingRules.svelte';
@@ -20,6 +21,7 @@
 
   const SECTIONS = [
     { id: 'defaults', label: 'Task defaults' },
+    { id: 'labels', label: 'Labels' },
     { id: 'runners', label: 'Runners' },
     { id: 'routing', label: 'Routing rules' },
     { id: 'phone', label: 'Phone access' },
@@ -131,6 +133,17 @@
           {#if dirty}<button class="btn quiet" onclick={() => (draft = { ...app.globalExecution })}>Discard</button>{/if}
           {#if saved && !dirty}<span class="ok" role="status">Saved</span>{/if}
         </div>
+      </section>
+    {:else if section === 'labels'}
+      <section class="pn">
+        <div class="head">
+          <h3>Labels</h3>
+          <p class="muted">
+            Names and colours of your own choosing, put on any task in any project and used to filter the board and the timeline. A label never changes how a
+            task runs; who does the work (a person, an agent or both) is a separate setting on the task.
+          </p>
+        </div>
+        <LabelManager />
       </section>
     {:else if section === 'runners'}
       <RunnersPanel />

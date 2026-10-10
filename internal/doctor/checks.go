@@ -271,6 +271,9 @@ func (e Env) projects(ctx context.Context) []Check {
 	}
 	var bad []string
 	for _, p := range ps {
+		if !p.HasRepository() {
+			continue // a work project has no folder to lose
+		}
 		if _, err := os.Stat(p.RepoPath); err != nil {
 			bad = append(bad, fmt.Sprintf("%s: %s no longer exists", p.Name, p.RepoPath))
 			continue

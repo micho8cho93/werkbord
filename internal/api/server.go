@@ -27,6 +27,7 @@ type Options struct {
 	Handoffs    *service.Handoffs
 	Projects    *service.Projects
 	Tasks       *service.Tasks
+	Labels      *service.Labels // the reusable labels; built from Store if nil
 	Runs        *service.Runs
 	Control     *service.ControlCenter // the cross-project overview; built from Store if nil
 	// EmbedOrigins are extra loopback origins that may frame the web app (development and tests; see config.EmbedOrigins).
@@ -77,6 +78,9 @@ type Server struct {
 func New(opt Options) *Server {
 	if opt.Control == nil && opt.Store != nil {
 		opt.Control = &service.ControlCenter{Deps: service.Deps{Store: opt.Store}, Scheduler: opt.Scheduler, Runners: opt.Distributed}
+	}
+	if opt.Labels == nil && opt.Store != nil {
+		opt.Labels = &service.Labels{Deps: service.Deps{Store: opt.Store}}
 	}
 	log := opt.Log
 	if log == nil {
@@ -155,6 +159,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/{pid}/runs/{id}/handoff", s.handleGenerateHandoff)
 	mux.HandleFunc("PUT /api/projects/{pid}/runs/{id}/handoff", s.handleSaveHandoff)
 	mux.HandleFunc("POST /api/projects/{pid}/runs/{id}/continue", s.handleContinue)
+	mux.HandleFunc("GET /api/labels", s.handleListLabels)
+	mux.HandleFunc("POST /api/labels", s.handleCreateLabel)
+	mux.HandleFunc("PATCH /api/labels/{id}", s.handleUpdateLabel)
+	mux.HandleFunc("DELETE /api/labels/{id}", s.handleDeleteLabel)
+	mux.HandleFunc("GET /api/projects/{pid}/timeline", s.handleTimeline)
 	mux.HandleFunc("GET /api/projects/{pid}/tasks", s.handleListTasks)
 	mux.HandleFunc("GET /api/folders", s.handleFolders)
 	mux.HandleFunc("POST /api/projects/{pid}/tasks", s.handleCreateTask)

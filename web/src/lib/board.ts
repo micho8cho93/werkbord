@@ -3,6 +3,13 @@
 import { cardActivity, oneLine, runElapsed, runStatus, type Tone } from './format';
 import type { Question, Run, SchedulingDecision, Task, TaskState } from './types';
 import { schedulingLabels } from './scheduling';
+import { modeOf } from './labels';
+import type { Project } from './types';
+
+/** Whether an agent may be started on the task: not human work, and not in a project with no repository. */
+export function agentWorkable(task: Pick<Task, 'workMode'>, project: Pick<Project, 'kind'> | undefined): boolean {
+  return project?.kind !== 'work' && modeOf(task) !== 'human';
+}
 
 /**
  * What dropping a card on a column does. The board follows the rules of the work, not of the
@@ -16,10 +23,12 @@ import { schedulingLabels } from './scheduling';
  */
 export type DropAction = 'start' | 'merge' | 'move' | 'none';
 
-export function dropAction(task: Task, run: Run | undefined, to: TaskState, mergeableBranch: boolean): DropAction {
+export function dropAction(task: Task, run: Run | undefined, to: TaskState, mergeableBranch: boolean, agentWork = true): DropAction {
   if (to === task.state) return 'none';
   const active = !!run && runStatus(run).active;
-  if (task.state === 'backlog' && to === 'doing' && !active) return 'start';
+  // Work no agent can do (human work, or a project with no repository) only moves: dropping it on Doing
+  // means a person has started it.
+  if (agentWork && task.state === 'backlog' && to === 'doing' && !active) return 'start';
   if (task.state === 'review' && to === 'done' && mergeableBranch && !active) return 'merge';
   return 'move';
 }

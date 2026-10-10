@@ -49,6 +49,18 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
   let section = $state<'defaults' | 'capacity' | 'repository'>('defaults');
 </script>
 
+{#if project.kind === 'work'}
+  <div class="settings single">
+    <section class="pn">
+      <h3>{project.name}</h3>
+      <p class="muted">
+        A work project: a board and a timeline with no Git repository behind it. It has no folder on this computer, no Git and no agent
+        runs, so there are no task defaults or capacity to set. Labels are shared with your other projects (Settings → Labels).
+      </p>
+      <dl class="kv"><dt>Project ID</dt><dd class="mono">{project.id}</dd></dl>
+    </section>
+  </div>
+{:else}
 <div class="settings">
   <nav class="sections" aria-label="Project settings sections">
     <button class="btn" aria-pressed={section === 'defaults'} onclick={() => section = 'defaults'}><Icon name="defaults" />Task defaults</button>
@@ -99,6 +111,7 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
   {/if}
   </div>
 </div>
+{/if}
 
 <style>
   .settings {
@@ -108,6 +121,7 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
     width: 100%;
   }
 
+  .single { grid-template-columns: minmax(0, 1fr); max-width: 720px; }
   .sections { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
   .sections button { justify-content: start; }
   .sections button[aria-pressed='true'] { color: var(--accent); box-shadow: var(--press-sh); }

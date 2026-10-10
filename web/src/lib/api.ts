@@ -19,6 +19,11 @@ import type {
   GitOverview,
   Health,
   InteractionPolicy,
+  Label,
+  LabelUse,
+  Plan,
+  TimelineWarning,
+  WorkMode,
   NetworkStatus,
   Onboarding,
   Overview,
@@ -127,6 +132,29 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return (await res.json()) as T;
 }
 
+/** For an answer with no body (204). Errors are the same as `request`'s. */
+async function requestNoContent(method: string, path: string): Promise<void> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(path, { method, headers });
+  } catch {
+    throw new ApiError(0, 'offline', 'Cannot reach the controller.');
+  }
+  if (res.ok) return;
+  let code = 'http_error';
+  let message = `${res.status} ${res.statusText}`;
+  try {
+    const data = (await res.json()) as { error?: { code: string; message: string } };
+    if (data.error) ({ code, message } = data.error);
+  } catch {
+    // Non-JSON error body.
+  }
+  throw new ApiError(res.status, code, message);
+}
+
 const enc = encodeURIComponent;
 
 /** Everything that belongs to a project is asked for through it: there is no way to name a task, run or question without its project. */
@@ -140,6 +168,19 @@ export interface TaskEdit {
   state?: TaskState;
   /** Replaces the task's overrides: what is left out is inherited. */
   execution?: ExecutionConfig;
+  workMode?: WorkMode;
+  /** Replaces the whole set of labels. */
+  labelIds?: string[];
+  /** Replaces the planned dates; `{}` clears them. */
+  plan?: Plan;
+}
+
+/** What a new task can say beyond its title and description. */
+export interface NewTaskOptions {
+  execution?: ExecutionConfig;
+  workMode?: WorkMode;
+  labelIds?: string[];
+  plan?: Plan;
 }
 
 /** What may differ for one run only: the task's, the project's and the global choices apply to the rest. */
@@ -201,6 +242,8 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   // Global: the projects, and the one view that looks across all of them.
   listProjects: () => request<{ projects: Project[] }>('GET', '/api/projects').then((r) => r.projects),
   registerProject: (path: string, name: string) => request<Project>('POST', '/api/projects', { path, name }),
+  /** A board and timeline with no Git repository behind it. */
+  createWorkProject: (name: string) => request<Project>('POST', '/api/projects', { kind: 'work', name }),
   controlCenter: () => request<Overview>('GET', '/api/control-center'),
   waiting: () => request<{ items: WaitingItem[] }>('GET', '/api/integration/waiting'),
   /** Registers the folder chosen for a waiting ticket; refused unless it is a clone of that repository. */
@@ -213,8 +256,17 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   folders: (path = '') => request<{ path: string; parent: string; folders: { name: string; path: string; repository: boolean }[] }>('GET', `/api/folders?path=${enc(path)}`),
   archiveTask: (task: Task, archived = true) => request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, { archived, version: task.version }),
   archiveDone: (projectId: string) => request<{ tasks: Task[] }>('POST', `${inProject(projectId)}/tasks/archive-done`).then(r => r.tasks),
-  createTask: (projectId: string, title: string, description = '', execution?: ExecutionConfig) =>
-    request<Task>('POST', `${inProject(projectId)}/tasks`, { title, description, ...(execution ? { execution } : {}) }),
+  createTask: (projectId: string, title: string, description = '', execution?: ExecutionConfig, more: Omit<NewTaskOptions, 'execution'> = {}) =>
+    request<Task>('POST', `${inProject(projectId)}/tasks`, { title, description, ...(execution ? { execution } : {}), ...more }),
+  /** What is wrong with a project's dependencies and planned dates. It only reports. */
+  timeline: (projectId: string) => request<{ warnings: TimelineWarning[] }>('GET', `${inProject(projectId)}/timeline`).then((r) => r.warnings ?? []),
+
+  // Labels: defined once, reused by every project.
+  listLabels: () => request<{ labels: LabelUse[] }>('GET', '/api/labels').then((r) => r.labels),
+  createLabel: (name: string, color: string, description = '') => request<Label>('POST', '/api/labels', { name, color, description }),
+  editLabel: (label: Label, edit: { name?: string; color?: string; description?: string }) =>
+    request<Label>('PATCH', `/api/labels/${enc(label.id)}`, { ...edit, version: label.version }),
+  deleteLabel: (id: string) => requestNoContent('DELETE', `/api/labels/${enc(id)}`),
   editTask: (task: Task, edit: TaskEdit) =>
     request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, { ...edit, version: task.version }),
   moveTask: (task: Task, state: TaskState) => api.editTask(task, { state }),

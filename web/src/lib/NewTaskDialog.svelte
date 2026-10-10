@@ -1,11 +1,14 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { api } from './api';
   import { compact, executionAgents, resolveFor } from './execution';
+  import { agentWorkable } from './board';
   import ExecutionFields from './ExecutionFields.svelte';
   import { router } from './router.svelte';
   import Sheet from './Sheet.svelte';
+  import TaskPlanFields from './TaskPlanFields.svelte';
   import { app } from './state.svelte';
-  import type { ExecutionConfig, Project } from './types';
+  import type { ExecutionConfig, Plan, Project, WorkMode } from './types';
 
   // New work in one step: what it is, how it should run, and whether an agent starts on it now.
   // Everything the task can set is visible here; nothing waits behind an "Options" toggle.
@@ -15,11 +18,17 @@
   let title = $state('');
   let description = $state('');
   let execution = $state<ExecutionConfig>({});
+  let labelIds = $state<string[]>([]);
+  // A work project has no repository for an agent, so its tasks start out as work for a person.
+  let workMode = $state<WorkMode>(untrack(() => (project.kind === 'work' ? 'human' : 'agent')));
+  let plan = $state<Plan>({});
   let busy = $state(false);
   let error = $state('');
 
   const inherited = $derived(resolveFor({}, project.execution, app.globalExecution));
-  const agentReady = $derived(executionAgents(app.agents, app.runners, project.id, execution.runner || inherited.runner).length > 0);
+  const isWork = $derived(project.kind === 'work');
+  const canAgent = $derived(agentWorkable({ workMode }, project));
+  const agentReady = $derived(canAgent && executionAgents(app.agents, app.runners, project.id, execution.runner || inherited.runner).length > 0);
 
   function close() {
     app.newTaskOpen = false;
@@ -31,7 +40,11 @@
     busy = true;
     error = '';
     try {
-      const task = await api.createTask(project.id, t, description.trim(), compact(execution));
+      const task = await api.createTask(project.id, t, description.trim(), isWork ? undefined : compact(execution), {
+        workMode,
+        labelIds,
+        plan: plan.start || plan.end ? { ...plan, ...(plan.milestone ? {} : { end: plan.end || undefined }) } : undefined,
+      });
       const scope = app.scope(project.id);
       scope?.upsertTask(task);
       if (start) {
@@ -69,26 +82,31 @@
     }}
   >
     <label class="field">
-      <span class="lab">What should an agent do?</span>
-      <input class="input big" maxlength="200" placeholder="Fix the flaky auth test" bind:value={title} data-autofocus required />
+      <span class="lab">{isWork ? 'What needs doing?' : 'What should an agent do?'}</span>
+      <input class="input big" maxlength="200" placeholder={isWork ? 'Book the venue' : 'Fix the flaky auth test'} bind:value={title} data-autofocus required />
     </label>
     <label class="field">
       <span class="lab">Details <span class="opt">optional</span></span>
-      <textarea class="input" rows="3" placeholder="Context, constraints, where to look…" bind:value={description}></textarea>
+      <textarea class="input" rows="3" placeholder={isWork ? 'Context, links, who to ask…' : 'Context, constraints, where to look…'} bind:value={description}></textarea>
     </label>
-    <div class="exec">
-      <ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" dense />
-    </div>
+    <TaskPlanFields bind:labelIds bind:workMode bind:plan repository={!isWork} idPrefix="new-task" />
+    {#if canAgent}
+      <div class="exec">
+        <ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" dense />
+      </div>
+    {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </form>
 
   {#snippet footer()}
-    <span class="tip"><kbd class="key">⌘</kbd><kbd class="key">↵</kbd> start</span>
+    {#if canAgent}<span class="tip"><kbd class="key">⌘</kbd><kbd class="key">↵</kbd> start</span>{/if}
     <button class="btn" type="button" onclick={close}>Cancel</button>
-    <button class="btn" type="submit" form="new-task-form" disabled={busy || !title.trim()}>Add to Backlog</button>
-    <button class="btn primary" type="button" disabled={busy || !title.trim() || !agentReady} onclick={() => add(true)} title={agentReady ? '' : 'No agent is available on an online runner'}>
-      {busy ? 'Adding…' : 'Add and start agent'}
-    </button>
+    <button class="btn" class:primary={!canAgent} type="submit" form="new-task-form" disabled={busy || !title.trim()}>Add to Backlog</button>
+    {#if canAgent}
+      <button class="btn primary" type="button" disabled={busy || !title.trim() || !agentReady} onclick={() => add(true)} title={agentReady ? '' : 'No agent is available on an online runner'}>
+        {busy ? 'Adding…' : 'Add and start agent'}
+      </button>
+    {/if}
   {/snippet}
 </Sheet>
 

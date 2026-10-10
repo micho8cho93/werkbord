@@ -97,6 +97,13 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/team/v1/reviews", s.handleReviews)
 	api.HandleFunc("GET /api/team/v1/search", s.handleSearch)
 	api.HandleFunc("GET /api/team/v1/sync", s.handleWorkspaceSync)
+	// the workspace's shared labels, and a project's timeline: names, colours, planned dates and dependencies, all
+	// stored metadata. Only people who manage the workspace change a label (labels.manage).
+	api.HandleFunc("GET /api/team/v1/labels", s.handleListLabels)
+	api.HandleFunc("POST /api/team/v1/labels", s.handleCreateLabel)
+	api.HandleFunc("PATCH /api/team/v1/labels/{id}", s.handleUpdateLabel)
+	api.HandleFunc("DELETE /api/team/v1/labels/{id}", s.handleDeleteLabel)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/timeline", s.handleTimeline)
 	// the board and its tickets
 	api.HandleFunc("GET /api/team/v1/projects/{id}/board", s.handleBoard)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/archive-done", s.handleArchiveDone)

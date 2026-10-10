@@ -18,6 +18,10 @@
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
+  import { agentWorkable } from '../lib/board';
+  import LabelChip from '../lib/LabelChip.svelte';
+  import { labelsOf, modeLabel, modeOf } from '../lib/labels';
+  import { spanOf, spanTitle } from '../lib/timeline';
   import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
   import { TASK_STATES, TASK_STATE_LABELS, type ExecutionConfig, type Project, type Run, type TaskState, type Worktree } from '../lib/types';
 
@@ -241,7 +245,9 @@
   const canMessage = $derived(
     viewingLatest && !!run && (run.state === 'running' || run.state === 'blocked' || (run.state === 'waiting_for_user' && run.waiting === 'idle')),
   );
-  const canStart = $derived(!task?.archivedAt && (!latest || !runStatus(latest).active));
+  /** Human work, and work in a project with no repository, is never handed to an agent. */
+  const agentWork = $derived(!!task && agentWorkable(task, project));
+  const canStart = $derived(agentWork && !task?.archivedAt && (!latest || !runStatus(latest).active));
   const isDone = $derived(task?.state === 'done');
 
   let copied = $state(false);
@@ -275,6 +281,12 @@
   }
 
   let factsSection = $state<'details' | 'run' | 'schedule' | 'history'>('details');
+  // A task that is not agent work has no execution or schedule to show.
+  $effect(() => {
+    if (!agentWork && (factsSection === 'run' || factsSection === 'schedule')) factsSection = 'details';
+  });
+  const taskLabels = $derived(task ? labelsOf(task, app.labels) : []);
+  const planSpan = $derived(task ? spanOf(task) : null);
   let factsOpen = $state(false);
   const narrow = new MediaQuery('(max-width: 1280px)');
   const runWith = $derived(summaryLine(effective, app.agents, app.agentOptions) || 'the first agent that works');
@@ -311,10 +323,17 @@
         <a class="btn quiet small icon close" href={boardHref} aria-label="Close" title="Close (Esc)"><Icon name="close" /></a>
       </div>
       <h1 class="title">{task.title}</h1>
-      <p class="runs-with">
-        Runs with <strong>{runWith}</strong>
-        <span class="muted">· {interactionLabel({ interaction: effective.interaction })}{effective.priority !== 'normal' ? ` · ${priorityLabel(effective.priority)} priority` : ''}</span>
-      </p>
+      {#if agentWork}
+        <p class="runs-with">
+          Runs with <strong>{runWith}</strong>
+          <span class="muted">· {interactionLabel({ interaction: effective.interaction })}{effective.priority !== 'normal' ? ` · ${priorityLabel(effective.priority)} priority` : ''}</span>
+        </p>
+      {:else}
+        <p class="runs-with">{project.kind === 'work' ? 'Done by hand: this project has no repository for an agent.' : 'Done by a person: no agent is started on it.'}</p>
+      {/if}
+      {#if taskLabels.length}
+        <ul class="task-labels" aria-label="Labels">{#each taskLabels as l (l.id)}<li><LabelChip label={l} /></li>{/each}</ul>
+      {/if}
     </header>
 
     {#snippet facts()}
@@ -322,6 +341,14 @@
           <section>
             <h2>Details</h2>
             <p class="desc">{task.description || 'No description added.'}</p>
+          </section>
+          <section>
+            <div class="sh"><h2>Plan</h2><button class="btn quiet small" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
+            <dl class="kv">
+              <dt>Who</dt><dd>{modeLabel(modeOf(task))}</dd>
+              <dt>When</dt><dd>{planSpan ? `${planSpan.milestone ? 'Milestone · ' : ''}${spanTitle(planSpan, new Date().getFullYear())}` : 'Not planned'}</dd>
+              {#if dependencies.length}<dt>After</dt><dd>{dependencies.map((d) => d?.title ?? 'a removed task').join(', ')}</dd>{/if}
+            </dl>
           </section>
         {/if}
 
@@ -386,7 +413,7 @@
 
     <nav class="facts-tabs" aria-label="Task details sections">
       {#if narrow.current}<button class="btn small quiet" aria-pressed={!factsOpen} onclick={() => factsOpen = false}>Activity</button>{/if}
-      {#each ['details', 'run', 'schedule', 'history'] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Details' : 'Schedule'}</button>{/each}
+      {#each agentWork ? ['details', 'run', 'schedule', 'history'] : ['details', 'history'] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Details' : 'Schedule'}</button>{/each}
     </nav>
     <div class="body" class:facts-open={factsOpen}>
       <!-- The run: what needs you, what happened, and what to say next. -->
@@ -631,6 +658,15 @@
     letter-spacing: -0.015em;
     line-height: 1.25;
     overflow-wrap: anywhere;
+  }
+
+  .task-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
   }
 
   .runs-with {

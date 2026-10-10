@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { addDays, clockAt, lanes, minuteOf, rangeTitle, visibleDays } from '../lib/calendar';
+  import { agentWorkable } from '../lib/board';
   import { agentLabel, resolveFor } from '../lib/execution';
   import { runStatus } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
@@ -46,7 +47,8 @@
     return !!r && runStatus(r).active;
   };
   const scheduledIn = (t: Task) => (t.orchestration?.scheduledAt ? wallTime(t.orchestration.scheduledAt, zone) : '');
-  const unscheduled = $derived(scope.activeTasks.filter((t) => t.state !== 'done' && !active(t) && !(t.orchestration?.enabled && t.orchestration.scheduledAt)));
+  // Only work an agent can do is placed here: the calendar says when a task is started, and human work is never started.
+  const unscheduled = $derived(scope.activeTasks.filter((t) => agentWorkable(t, project) && t.state !== 'done' && !active(t) && !(t.orchestration?.enabled && t.orchestration.scheduledAt)));
   const upcoming = $derived(
     scope.activeTasks
       .filter((t) => t.orchestration?.enabled && !t.orchestration.runId)

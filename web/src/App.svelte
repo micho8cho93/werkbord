@@ -6,7 +6,7 @@
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
   import ProjectSwitcher from './lib/ProjectSwitcher.svelte';
   import { pageTitle } from './lib/questions';
-  import { GLOBAL_VIEWS, globalHref, hrefOf, inProject, projectHref, resolved, router } from './lib/router.svelte';
+  import { GLOBAL_VIEWS, globalHref, hrefOf, inProject, projectHref, resolved, router, sectionApplies } from './lib/router.svelte';
   import ScheduleWatch from './lib/ScheduleWatch.svelte';
   import ProjectHeader from './lib/shell/ProjectHeader.svelte';
   import Rail from './lib/shell/Rail.svelte';
@@ -21,8 +21,10 @@
   import Onboarding from './routes/Onboarding.svelte';
   import ProjectSettings from './routes/ProjectSettings.svelte';
   import ProjectOverview from './routes/ProjectOverview.svelte';
+  import WorkOverview from './routes/WorkOverview.svelte';
   import Projects from './routes/Projects.svelte';
   import Runs from './routes/Runs.svelte';
+  import Timeline from './routes/Timeline.svelte';
   import Settings from './routes/Settings.svelte';
   import TaskPanel from './routes/TaskPanel.svelte';
 
@@ -48,6 +50,14 @@
       app.lastProjectId,
     );
     if (hrefOf(fixed) !== hrefOf(loc)) router.go(fixed, true);
+  });
+
+  // A work project has no calendar, Git or runs: an address that names one lands on its board.
+  $effect(() => {
+    const v = router.view;
+    if (project && inProject(v) && v !== 'task' && !sectionApplies(v, project.kind)) {
+      router.go({ view: 'board', projectId: project.id, taskId: '' }, true);
+    }
   });
 
   // First-time setup opens by itself, once, until it is finished or skipped. It is a page like any other: nothing is
@@ -107,9 +117,11 @@
   /** The phone's tabs, as on the identity sheet: what needs you first, then the project's sections. */
   const phoneTabs = $derived<{ id: string; label: string; icon: IconName; href: string; current: boolean; count?: number }[]>([
     { id: 'control', label: 'Needs you', icon: 'control', href: globalHref('control'), current: router.view === 'control', count: app.needsYou },
-    ...(['board', 'calendar', 'git', 'runs'] as const).map((s) => ({
+    ...(['board', 'calendar', 'timeline', 'git', 'runs'] as const)
+      .filter((s) => sectionApplies(s, project?.kind))
+      .map((s) => ({
       id: s,
-      label: { board: 'Board', calendar: 'Calendar', git: 'Git', runs: 'Runs' }[s],
+      label: { board: 'Board', calendar: 'Calendar', timeline: 'Timeline', git: 'Git', runs: 'Runs' }[s],
       icon: s,
       href: project ? projectHref(project.id, s) : globalHref('projects'),
       current: inside && (router.view === s || (s === 'board' && router.view === 'task')),
@@ -166,9 +178,11 @@
           {#key project.id}
             <ScheduleWatch {scope} />
             {#if router.view === 'overview'}
-              <ProjectOverview {scope} {project} />
+              {#if project.kind === 'work'}<WorkOverview {scope} {project} />{:else}<ProjectOverview {scope} {project} />{/if}
             {:else if router.view === 'calendar'}
               <Calendar {scope} {project} />
+            {:else if router.view === 'timeline'}
+              <Timeline {scope} {project} />
             {:else if router.view === 'git'}
               {#if router.sub}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
             {:else if router.view === 'runs'}

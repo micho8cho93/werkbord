@@ -18,6 +18,7 @@ const (
 	PrefixWorkspace = "tws"
 	PrefixMember    = "tmb"
 	PrefixProject   = "tpj"
+	PrefixLabel     = "tlb"
 	// PrefixEnrollment marks a request to join the workspace.
 	PrefixEnrollment = "tenr"
 )
@@ -69,6 +70,11 @@ type Project struct {
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
+
+// HasRepository reports whether the project says where its code lives. A project without a repository is
+// ordinary: it coordinates work that is not code (a launch, a hiring round), and no agent is ever asked to work
+// on its tickets.
+func (p Project) HasRepository() bool { return p.Repository != "" }
 
 // ProjectMember records that a member takes part in a project.
 type ProjectMember struct {

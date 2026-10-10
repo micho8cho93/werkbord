@@ -40,6 +40,9 @@ const (
 	PermProjectsCreate       Permission = "projects.create"
 	PermProjectsManage       Permission = "projects.manage"        // edit or archive any project
 	PermProjectMembersManage Permission = "project_members.manage" // add and remove people on a project
+	// PermLabelsManage defines, renames, recolours and deletes the workspace's shared labels. Every member sees and may
+	// use the labels (putting one on a ticket they may edit); only people who manage the workspace change what they are.
+	PermLabelsManage Permission = "labels.manage"
 
 	// PermAdminsManage appoints and removes admins, and acts on their accounts. Only the owner has it.
 	PermAdminsManage Permission = "admins.manage"
@@ -61,7 +64,7 @@ func AllPermissions() []Permission {
 	return []Permission{
 		PermWorkspaceView, PermWorkspaceManage,
 		PermMembersView, PermMembersManage,
-		PermProjectsViewAll, PermProjectsCreate, PermProjectsManage, PermProjectMembersManage,
+		PermProjectsViewAll, PermProjectsCreate, PermProjectsManage, PermProjectMembersManage, PermLabelsManage,
 		PermAdminsManage, PermOwnership,
 		PermDevicesOwn, PermDevicesViewAll, PermDevicesManage,
 	}

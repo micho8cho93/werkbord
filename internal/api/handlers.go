@@ -10,6 +10,7 @@ import (
 
 	"devboard/internal/domain"
 	"devboard/internal/httpkit"
+	"devboard/internal/planning"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 )
@@ -106,9 +107,29 @@ func (s *Server) handleRegisterProject(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Path string `json:"path"`
 		Name string `json:"name"`
+		// Kind is "repository" (the default: Path is a Git repository to register) or "work" (a board
+		// and timeline with no repository: only Name is used).
+		Kind domain.ProjectKind `json:"kind"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
+		return
+	}
+	if req.Kind != "" && !req.Kind.Valid() {
+		s.fail(w, r, fmt.Errorf("%w: unknown project kind %q (use repository or work)", domain.ErrInvalid, req.Kind))
+		return
+	}
+	if req.Kind == domain.ProjectWork {
+		if req.Path != "" {
+			s.fail(w, r, fmt.Errorf("%w: a work project has no repository path", domain.ErrInvalid))
+			return
+		}
+		p, err := s.opt.Projects.CreateWork(r.Context(), req.Name)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, p)
 		return
 	}
 	p, err := s.opt.Projects.Register(r.Context(), req.Path, req.Name)
@@ -137,8 +158,34 @@ func (s *Server) handleRefreshProject(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
+// taskFilter reads ?label=<id> (repeatable; any of them, or all with match=all) and ?mode=human|agent|hybrid.
+func taskFilter(r *http.Request) (service.TaskFilter, error) {
+	q := r.URL.Query()
+	f := service.TaskFilter{Labels: q["label"]}
+	switch q.Get("match") {
+	case "", "any":
+	case "all":
+		f.AllLabels = true
+	default:
+		return f, fmt.Errorf("%w: match must be any or all", domain.ErrInvalid)
+	}
+	if m := q.Get("mode"); m != "" {
+		mode, err := planning.ParseExecutionMode(m)
+		if err != nil {
+			return f, fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+		}
+		f.Mode = mode
+	}
+	return f, nil
+}
+
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
-	ts, err := s.opt.Tasks.List(r.Context(), r.PathValue("pid"))
+	f, err := taskFilter(r)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	ts, err := s.opt.Tasks.ListFiltered(r.Context(), r.PathValue("pid"), f)
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -155,6 +202,9 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Description   string                 `json:"description"`
 		Execution     domain.ExecutionConfig `json:"execution"`
 		Orchestration domain.Orchestration   `json:"orchestration"`
+		WorkMode      planning.ExecutionMode `json:"workMode"`
+		LabelIDs      []string               `json:"labelIds"`
+		Plan          domain.Plan            `json:"plan"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
@@ -163,6 +213,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	t, err := s.opt.Tasks.CreateTask(r.Context(), service.NewTask{
 		SourceRef: req.SourceRef, WorkBranch: req.WorkBranch, BaseBranch: req.BaseBranch,
 		ProjectID: r.PathValue("pid"), Title: req.Title, Description: req.Description, Execution: req.Execution, Orchestration: req.Orchestration,
+		WorkMode: req.WorkMode, LabelIDs: req.LabelIDs, Plan: req.Plan,
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -179,6 +230,9 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		Position      *float64                `json:"position"`
 		Execution     *domain.ExecutionConfig `json:"execution"`
 		Orchestration *domain.Orchestration   `json:"orchestration"`
+		WorkMode      *planning.ExecutionMode `json:"workMode"`
+		LabelIDs      *[]string               `json:"labelIds"`
+		Plan          *domain.Plan            `json:"plan"`
 		Version       *int64                  `json:"version"`
 		Archived      *bool                   `json:"archived"`
 	}
@@ -194,7 +248,8 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	patch := service.TaskPatch{Title: req.Title, Description: req.Description, Position: req.Position, Execution: req.Execution, Orchestration: req.Orchestration, Version: *req.Version, Archived: req.Archived}
+	patch := service.TaskPatch{Title: req.Title, Description: req.Description, Position: req.Position, Execution: req.Execution, Orchestration: req.Orchestration,
+		WorkMode: req.WorkMode, LabelIDs: req.LabelIDs, Plan: req.Plan, Version: *req.Version, Archived: req.Archived}
 	if req.State != nil {
 		st, err := domain.ParseTaskState(*req.State)
 		if err != nil {

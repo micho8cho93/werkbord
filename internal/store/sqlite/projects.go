@@ -11,14 +11,20 @@ import (
 
 type projectRepo struct{ q queryer }
 
-const projectCols = `id, name, repo_path, created_at, updated_at, execution`
+const projectCols = `id, name, repo_path, created_at, updated_at, execution, kind`
+
+// workPathPrefix starts the placeholder a work project keeps in repo_path (see migration 0013).
+const workPathPrefix = "work:"
 
 func scanProject(s interface{ Scan(...any) error }) (*domain.Project, error) {
 	var p domain.Project
 	var created, updated int64
 	var execution string
-	if err := s.Scan(&p.ID, &p.Name, &p.RepoPath, &created, &updated, &execution); err != nil {
+	if err := s.Scan(&p.ID, &p.Name, &p.RepoPath, &created, &updated, &execution, &p.Kind); err != nil {
 		return nil, err
+	}
+	if p.Kind == domain.ProjectWork {
+		p.RepoPath = "" // the stored placeholder is not a path
 	}
 	p.CreatedAt, p.UpdatedAt = fromMS(created), fromMS(updated)
 	var err error
@@ -33,9 +39,23 @@ func (r projectRepo) Create(ctx context.Context, p *domain.Project) error {
 	if err != nil {
 		return err
 	}
+	kind, path := p.Kind, p.RepoPath
+	if kind == "" {
+		kind = domain.ProjectRepository
+	}
+	if !kind.Valid() {
+		return fmt.Errorf("%w: unknown project kind %q", domain.ErrInvalid, kind)
+	}
+	p.Kind = kind
+	if kind == domain.ProjectWork {
+		if path != "" {
+			return fmt.Errorf("%w: a work project has no repository path", domain.ErrInvalid)
+		}
+		path = workPathPrefix + p.ID
+	}
 	_, err = r.q.ExecContext(ctx,
-		`INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?)`,
-		p.ID, p.Name, p.RepoPath, ms(p.CreatedAt), ms(p.UpdatedAt), execution)
+		`INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, p.Name, path, ms(p.CreatedAt), ms(p.UpdatedAt), execution, kind)
 	if isUniqueViolation(err) {
 		return fmt.Errorf("project with path %s: %w", p.RepoPath, domain.ErrDuplicate)
 	}

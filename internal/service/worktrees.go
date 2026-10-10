@@ -179,6 +179,9 @@ func (s *Worktrees) placement(ctx context.Context, tx store.Tx, root string) (do
 		return pl, err
 	}
 	for _, p := range projects {
+		if !p.HasRepository() {
+			continue
+		}
 		pl.RepoRoots = append(pl.RepoRoots, p.RepoPath)
 		repo, err := tx.Repositories().Get(ctx, p.ID)
 		if err != nil {

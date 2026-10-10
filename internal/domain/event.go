@@ -13,6 +13,9 @@ const (
 	EventProjectInspected  EventType = "project.inspected"
 	EventProjectUpdated    EventType = "project.updated"  // its execution defaults changed; payload: the project
 	EventSettingsUpdated   EventType = "settings.updated" // a global setting changed; payload: {key}
+	EventLabelCreated      EventType = "label.created"    // payload: the label. Labels belong to no project, so these carry no project ID
+	EventLabelUpdated      EventType = "label.updated"    // payload: the label
+	EventLabelDeleted      EventType = "label.deleted"    // payload: {id}; the tasks that carried it each get a task.updated
 	EventTaskCreated       EventType = "task.created"
 	EventTaskUpdated       EventType = "task.updated"
 	EventRunStateChanged   EventType = "run.state_changed"

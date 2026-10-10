@@ -91,6 +91,10 @@ func (s *Service) HandoffTicketToRunner(ctx context.Context, a Actor, projectID,
 		if k.AssigneeID != a.Member.ID || !k.Status.Held() {
 			return fmt.Errorf("%w: only the member who holds %s can open it in their runner; claim it first", domain.ErrForbidden, k.Key)
 		}
+		// The handoff is what an agent starts from: human work has none.
+		if why := k.AgentRefusal(); why != "" {
+			return fmt.Errorf("%w: %s", domain.ErrConflict, why)
+		}
 		base := ""
 		if k.PullRequest != nil {
 			base = k.PullRequest.BaseBranch

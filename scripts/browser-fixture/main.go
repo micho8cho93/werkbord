@@ -93,7 +93,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	handler := api.New(api.Options{EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	handler := api.New(api.Options{EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

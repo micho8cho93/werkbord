@@ -34,6 +34,15 @@ func configureOrchestration(ctx context.Context, tx store.Tx, task *domain.Task,
 		}
 		seen[id] = true
 	}
+	if o.Enabled {
+		project, err := tx.Projects().Get(ctx, task.ProjectID)
+		if err != nil {
+			return err
+		}
+		if why := domain.AgentRefusal(*project, *task); why != "" {
+			return fmt.Errorf("%w: %s, so it cannot be scheduled to start automatically", domain.ErrInvalid, strings.ToLower(why[:1])+why[1:])
+		}
+	}
 	old := task.Orchestration
 	if o.Rearm || old.Key == "" {
 		o.Key, o.RunID, o.DispatchedAt, o.Missed, o.Error = "", "", nil, false, ""
@@ -198,6 +207,9 @@ func baseDecision(task domain.Task, x scheduleSnapshot, now time.Time, manual bo
 	set := func(state, reason string) domain.SchedulingDecision { d.State = state; d.Reason = reason; return d }
 	if task.ArchivedAt != nil {
 		return set("blocked", "Task is archived")
+	}
+	if why := domain.AgentRefusal(*x.project, task); why != "" {
+		return set("blocked", why)
 	}
 	if r, ok := x.latest[task.ID]; ok && r.State.Active() {
 		return set("queued", "An agent session is already active")

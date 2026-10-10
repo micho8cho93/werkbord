@@ -8,7 +8,7 @@
   import { projectHref, router, switchedTo } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
 
-  let source = $state<'local' | 'github'>('local');
+  let source = $state<'local' | 'github' | 'work'>('local');
   let github = $state<GitHubStatusInfo | null>(null);
   let path = $state('');
   let name = $state('');
@@ -22,6 +22,23 @@
     try {
       const p = await api.registerProject(path.trim(), name.trim());
       path = '';
+      name = '';
+      app.upsertProject(p);
+      app.enter(p.id);
+      router.go(switchedTo(router.location, p.id));
+    } catch (err) {
+      formError = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function createWork(e: SubmitEvent) {
+    e.preventDefault();
+    busy = true;
+    formError = '';
+    try {
+      const p = await api.createWorkProject(name.trim());
       name = '';
       app.upsertProject(p);
       app.enter(p.id);
@@ -49,7 +66,7 @@
               <span class="sq"></span>
               <span class="what">
                 <span class="name">{p.name}</span>
-                <span class="mm path">{shortPath(p.repoPath)}{p.repository ? ` · ${p.repository.currentBranch || 'detached'}` : ''}</span>
+                <span class="mm path">{p.kind === 'work' ? 'Work project · no repository' : shortPath(p.repoPath)}{p.repository ? ` · ${p.repository.currentBranch || 'detached'}` : ''}</span>
               </span>
               <span class="mm sum">{activitySummary(a) || 'quiet'}</span>
               {#if n}<span class="num pend">{n}</span>{/if}
@@ -58,7 +75,7 @@
         {/each}
       </ul>
     {:else}
-      <p class="muted">No projects yet. Register a local Git repository to get a board, a calendar and its Git.</p>
+      <p class="muted">No projects yet. Register a local Git repository to get a board, a calendar and its Git, or start a work project for anything that is not code.</p>
     {/if}
   </section>
 
@@ -67,7 +84,19 @@
     <div class="seg" role="group" aria-label="Project source">
       <button aria-pressed={source === 'local'} onclick={() => source = 'local'}>Local folder</button>
       <button aria-pressed={source === 'github'} onclick={() => source = 'github'}>GitHub repository</button>
+      <button aria-pressed={source === 'work'} onclick={() => source = 'work'}>Work project</button>
     </div>
+    {#if source === 'work'}
+      <p class="muted">A board and a timeline with no Git repository, for work that is not code: a launch, a hiring round, a renovation. Nothing is read from or written to your disk.</p>
+      <form onsubmit={createWork}>
+        <label>
+          <span>Name</span>
+          <input class="input" placeholder="Q4 launch" maxlength="120" required bind:value={name} />
+        </label>
+        {#if formError}<p class="error" role="alert">{formError}</p>{/if}
+        <button class="btn primary" type="submit" disabled={busy || !name.trim()}>{busy ? 'Creating…' : 'Create work project'}</button>
+      </form>
+    {/if}
     {#if source === 'local'}
     <p class="muted">Choose a Git repository on the computer running Werkbord. Each project gets its own board, calendar, Git and runs.</p>
     <FolderPicker bind:value={path} disabled={busy} />
@@ -83,7 +112,7 @@
       {#if formError}<p class="error" role="alert">{formError}</p>{/if}
       <button class="btn primary" type="submit" disabled={busy || !path.trim()}>{busy ? 'Checking…' : 'Add project'}</button>
     </form>
-    {:else}
+    {:else if source === 'github'}
       <GitHubCard onchange={s => github = s} />
       <ReposCard {github} showFolder={false} />
     {/if}

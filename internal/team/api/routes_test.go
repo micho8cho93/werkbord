@@ -35,6 +35,7 @@ var projectRoutes = []string{
 	"GET /projects/{id}", "PATCH /projects/{id}",
 	"GET /projects/{id}/members", "PUT /projects/{id}/members/{memberId}", "DELETE /projects/{id}/members/{memberId}",
 	"GET /projects/{id}/board",
+	"GET /projects/{id}/timeline", // dependency and date warnings: read-only, computed from stored tickets
 	"GET /projects/{id}/schedules",
 	"PUT /projects/{id}/tickets/{tid}/schedule",
 	"POST /projects/{id}/tickets/{tid}/schedule/dispatch",
@@ -55,6 +56,8 @@ var workspaceRoutes = []string{
 	"GET /me", "GET /roles", "GET /workspace", "PATCH /workspace",
 	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token", "PUT /members/{id}/role",
 	"GET /projects", "POST /projects",
+	// The workspace's shared labels: names and colours. Every member lists them; only labels.manage changes them.
+	"GET /labels", "POST /labels", "PATCH /labels/{id}", "DELETE /labels/{id}",
 	"GET /overview", "GET /my-work", "GET /reviews", "GET /sync",
 	"GET /search", // bounded, read-only lookup of visible projects and stored tickets; cannot execute or reach a computer
 	"POST /invites/join",

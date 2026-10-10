@@ -76,6 +76,9 @@ export interface GitRepository {
 export interface Project {
   id: string;
   name: string;
+  /** A work project has no Git repository. Absent on an older controller: a repository project. */
+  kind?: 'repository' | 'work';
+  /** Empty for a work project. */
   repoPath: string;
   /** The project's defaults for how its tasks are carried out. */
   execution: ExecutionConfig;
@@ -110,8 +113,47 @@ export interface Handoff {
  nextAction: string; generatedAt: string;
 }
 export interface AttentionSchedule { task: Task; projectName: string; decision: SchedulingDecision }
+/** Who is expected to do a task: a fixed classification, separate from labels. */
+export type WorkMode = 'human' | 'agent' | 'hybrid';
+
+/** A name and a colour the person chose, reusable on any task in any project. */
+export interface Label {
+  id: string;
+  name: string;
+  /** #rrggbb */
+  color: string;
+  description?: string;
+  version: number;
+}
+
+/** A label with how many open tasks carry it. */
+export interface LabelUse extends Label {
+  tasks: number;
+}
+
+/** When a task is planned, in whole days (YYYY-MM-DD). A milestone is the single date in `start`. */
+export interface Plan {
+  start?: string;
+  end?: string;
+  milestone?: boolean;
+}
+
+/** One thing the timeline found wrong with the dependencies or dates. It only reports. */
+export interface TimelineWarning {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  itemId: string;
+  otherId?: string;
+  cycle?: string[];
+  message: string;
+}
+
 export interface Task {
   archivedAt?: string;
+  /** Who is expected to do it. Absent on an older controller: agent work. */
+  workMode?: WorkMode;
+  labelIds?: string[];
+  plan?: Plan;
   id: string;
   projectId: string;
   title: string;

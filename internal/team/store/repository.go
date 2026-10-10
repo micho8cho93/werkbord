@@ -47,6 +47,7 @@ type Tx interface {
 	SaveProgress(context.Context, string, string, string, domain.ProgressRecord) error
 	TicketProgress(context.Context, string, string, string) ([]domain.ProgressRecord, error)
 	SecurityQueries
+	PlanningQueries
 	WorkspaceQueries
 	MemberQueries
 	ProjectQueries
@@ -120,6 +121,27 @@ type TicketQueries interface {
 	ProjectsOfMemberWithHeldTickets(ctx context.Context, workspaceID, memberID string) ([]string, error)
 	TicketCounts(ctx context.Context, workspaceID string) (map[string]map[domain.TicketStatus]int, error)
 	HeldTickets(ctx context.Context, workspaceID string) ([]domain.Ticket, error)
+}
+
+// PlanningQueries are the workspace's shared labels and the planning side of tickets (the labels on them and the
+// tickets they wait for). The ticket's own planning columns (mode, dates) are written with the ticket.
+type PlanningQueries interface {
+	InsertLabel(ctx context.Context, workspaceID string, l domain.Label) error
+	Label(ctx context.Context, workspaceID, id string) (domain.Label, error)
+	// Labels lists the workspace's labels by name.
+	Labels(ctx context.Context, workspaceID string) ([]domain.Label, error)
+	CountLabels(ctx context.Context, workspaceID string) (int, error)
+	// UpdateLabel writes a label if its version is still the caller's (compare-and-swap) and bumps it.
+	UpdateLabel(ctx context.Context, workspaceID string, l domain.Label) (domain.Label, error)
+	// DeleteLabel removes a label from every ticket that carries it (moving those tickets' versions on) and then
+	// the label, and returns the projects whose tickets were touched, so their boards are told.
+	DeleteLabel(ctx context.Context, workspaceID, id string, now time.Time) ([]string, error)
+	// LabelUsage counts the open tickets carrying each label, in all projects, or only in those onlyMemberID is on.
+	LabelUsage(ctx context.Context, workspaceID, onlyMemberID string) (map[string]int, error)
+	// SetTicketLabels replaces the labels on a ticket, keeping the order given. It does nothing when they are already those.
+	SetTicketLabels(ctx context.Context, workspaceID, ticketID string, labelIDs []string) error
+	// SetTicketDependencies replaces what a ticket waits for. It does nothing when it already waits for exactly those.
+	SetTicketDependencies(ctx context.Context, workspaceID, ticketID string, dependsOn []string) error
 }
 
 // ActivityQueries are the history.

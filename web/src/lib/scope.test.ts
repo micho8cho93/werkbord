@@ -10,6 +10,7 @@ const db = vi.hoisted(() => ({
   history: {} as Record<string, unknown[]>,
   questions: {} as Record<string, unknown[]>,
   overview: { projects: [], questions: [], runs: [], failed: [], review: [], repository: [] } as unknown,
+  labels: [] as unknown[],
   calls: [] as string[],
 }));
 
@@ -24,6 +25,7 @@ vi.mock('./api', () => {
     api: {
       listProjects: () => Promise.resolve(db.projects),
       listAgents: () => Promise.resolve([]),
+      listLabels: () => Promise.resolve(db.labels),
       controlCenter: () => Promise.resolve(db.overview),
       getSettings: () => Promise.resolve({}),
       onboarding: () => Promise.resolve({ completedAt: '2026-10-04T10:00:00Z' }),
@@ -316,3 +318,16 @@ describe('the Control Center stays across projects', () => {
   const first=run('one','task','project',{attempt:1});const second=run('two','task','project',{attempt:2});
   expect(newer(first,second)).toBe(second);expect(newer(second,first)).toBe(second);
  });
+
+describe('labels', () => {
+  it('are fetched with everything else, and again when one changes', async () => {
+    db.labels = [{ id: 'lbl_1', name: 'Design', color: '#336699', version: 1, tasks: 2 }];
+    await app.refresh();
+    expect(app.labels.map((l) => l.name)).toEqual(['Design']);
+    db.labels = [{ id: 'lbl_1', name: 'Design systems', color: '#336699', version: 2, tasks: 2 }];
+    // A label event for no project is the app's own business, not any project's.
+    app['apply'](event('label.updated', undefined as unknown as string, { id: 'lbl_1' }));
+    await settle();
+    expect(app.labels[0].name).toBe('Design systems');
+  });
+});

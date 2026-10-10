@@ -30,6 +30,9 @@ func (s *Tasks) IntegrationProjects(ctx context.Context) (integration.Projects, 
 			return err
 		}
 		for _, p := range ps {
+			if !p.HasRepository() {
+				continue // Team tickets are handed to a clone of their repository; a work project has none
+			}
 			v := integration.Project{ID: p.ID, Name: p.Name, Remotes: []string{}}
 			repo, err := tx.Repositories().Get(ctx, p.ID)
 			if err != nil && !errors.Is(err, domain.ErrNotFound) {

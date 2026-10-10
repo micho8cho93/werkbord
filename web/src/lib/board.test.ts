@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardStatus, dropAction, quickChoices, sinceShort } from './board';
+import { agentWorkable, cardStatus, dropAction, quickChoices, sinceShort } from './board';
 import type { Question, Run, Task } from './types';
 
 const now = Date.parse('2026-10-05T10:30:00Z');
@@ -32,6 +32,22 @@ const run = (o: Partial<Run> = {}): Run => ({
 });
 
 const ctx = { now, questions: [] as Question[], waitingFor: [] as string[] };
+
+describe('agentWorkable', () => {
+  it('refuses human work and work projects, and nothing else', () => {
+    expect(agentWorkable({}, { kind: 'repository' })).toBe(true);
+    expect(agentWorkable({}, undefined)).toBe(true);
+    expect(agentWorkable({ workMode: 'agent' }, {})).toBe(true);
+    expect(agentWorkable({ workMode: 'hybrid' }, {})).toBe(true);
+    expect(agentWorkable({ workMode: 'human' }, {})).toBe(false);
+    expect(agentWorkable({ workMode: 'agent' }, { kind: 'work' })).toBe(false);
+  });
+
+  it('only moves work an agent cannot do', () => {
+    expect(dropAction(task(), undefined, 'doing', false, false)).toBe('move');
+    expect(dropAction(task({ state: 'review' }), run({ state: 'completed' }), 'done', true, false)).toBe('merge');
+  });
+});
 
 describe('dropAction', () => {
   it('starts an agent when a backlog card is dropped in Doing', () => {

@@ -123,6 +123,9 @@ func fromMS(v int64) time.Time { return time.UnixMilli(v).UTC() }
 func isUnique(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
+func containsFK(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "FOREIGN KEY constraint failed")
+}
 func notFound(err error, what string) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("%w: %s", domain.ErrNotFound, what)

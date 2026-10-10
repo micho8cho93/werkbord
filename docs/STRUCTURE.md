@@ -62,6 +62,7 @@ cmd/werkbord-team/       APP    the Team service and command line
 internal/sqlitekit/      SHARED opening, migrating and backing up a SQLite database
 internal/httpkit/        SHARED JSON responses, error envelope, strict body decoding, request logging, security headers
 internal/integration/    SHARED versioned task/status DTOs and canonical repository identity
+internal/planning/       SHARED label names and colours, work modes, planned dates and the analysis of dependencies
 internal/logging/        SHARED the structured logger
 internal/team/           TEAM-ONLY everything specific to Team (below)
 internal/<everything else>/       Individual's code (domain, store, service, api, runner, agent, gitrepo, …)
@@ -75,6 +76,7 @@ A package is **shared** when both products use it and it holds no behaviour of e
 | Package | What it is | Used by |
 | --- | --- | --- |
 | `internal/integration` | Versioned task/status DTOs and canonical repository identity validation; no product behavior | Individual metadata API, Team user connector |
+| `internal/planning` | What a label may be called and coloured, the three work modes (human, agent, hybrid), planned date ranges, and the analysis that finds invalid and conflicting dependencies. Pure functions: no storage, workspace, role or process. See [PLANNING.md](PLANNING.md). | `internal/domain`, `internal/service` (individual); `internal/team/domain`, `internal/team/service` (Team) |
 | `internal/sqlitekit` | Opens a SQLite file (one writer, a pool of readers, WAL), runs versioned migrations, copies the database before an upgrade, inspects it read-only. Knows no schema. | `internal/store/sqlite` (individual), `internal/team/store` (Team) |
 | `internal/httpkit` | `WriteJSON`/`WriteError` and the error envelope, strict `DecodeJSON`, and the `LogRequests`, `RecoverPanics` and `SecurityHeaders` middleware. Holds no route. | `internal/api` (individual), `internal/team/api` (Team) |
 | `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |

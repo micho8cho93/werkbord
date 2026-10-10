@@ -134,6 +134,31 @@ func (s *Projects) register(ctx context.Context, path, name, repository string) 
 	return &ProjectDetail{Project: *p, Repository: repo}, nil
 }
 
+// CreateWork adds a work project: a board and a timeline with no Git repository behind it, for work
+// that is not code. It has no folder, so nothing on the disk is read, created or watched, and no
+// agent is ever started on it. Its tasks default to human work.
+func (s *Projects) CreateWork(ctx context.Context, name string) (*ProjectDetail, error) {
+	name, err := domain.ValidateProjectName(name)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	p := &domain.Project{ID: domain.NewID(domain.PrefixProject), Name: name, Kind: domain.ProjectWork, CreatedAt: now, UpdatedAt: now}
+	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
+		if err := tx.Projects().Create(ctx, p); err != nil {
+			return err
+		}
+		ev := newEvent(domain.EventProjectRegistered, ProjectDetail{Project: *p})
+		ev.ProjectID = p.ID
+		return em.emit(ev)
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log().Info("work project created", "project", p.ID)
+	return &ProjectDetail{Project: *p}, nil
+}
+
 // Refresh re-inspects a project's repository and stores the new snapshot.
 func (s *Projects) Refresh(ctx context.Context, id string) (*ProjectDetail, error) {
 	unlock, err := s.lock(ctx, id)
@@ -149,6 +174,9 @@ func (s *Projects) Refresh(ctx context.Context, id string) (*ProjectDetail, erro
 		return err
 	}); err != nil {
 		return nil, err
+	}
+	if !p.HasRepository() {
+		return nil, fmt.Errorf("%w: %q is a work project with no Git repository to inspect", domain.ErrInvalid, p.Name)
 	}
 	repo, err := s.Git.Inspect(ctx, p.RepoPath)
 	if err != nil {

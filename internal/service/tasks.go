@@ -8,6 +8,7 @@ import (
 
 	"devboard/internal/domain"
 	"devboard/internal/integration"
+	"devboard/internal/planning"
 	"devboard/internal/store"
 )
 
@@ -30,8 +31,14 @@ type TaskPatch struct {
 	// it started with.
 	Execution     *domain.ExecutionConfig
 	Orchestration *domain.Orchestration
-	Version       int64
-	Archived      *bool
+	// WorkMode, LabelIDs and Plan are the planning side of the task: who does it, how it is
+	// described, when it is planned for. LabelIDs replaces the whole set. None of them changes
+	// anything the scheduler or a runner does, except that human work is never handed to an agent.
+	WorkMode *planning.ExecutionMode
+	LabelIDs *[]string
+	Plan     *domain.Plan
+	Version  int64
+	Archived *bool
 }
 
 // NewTask describes a task to add.
@@ -46,6 +53,11 @@ type NewTask struct {
 	// anything unset is inherited. A new task starts with no overrides.
 	Execution     domain.ExecutionConfig
 	Orchestration domain.Orchestration
+	// WorkMode is who is expected to do the task. Empty means agent work in a repository project
+	// and human work in a work project.
+	WorkMode planning.ExecutionMode
+	LabelIDs []string
+	Plan     domain.Plan
 }
 
 // Create adds a task with no overrides to the bottom of the project's Backlog.
@@ -77,14 +89,41 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 	if err := validateExecution(ctx, s.Catalog, exec); err != nil {
 		return nil, err
 	}
+	if in.WorkMode != "" {
+		if _, err := planning.ParseExecutionMode(string(in.WorkMode)); err != nil {
+			return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+		}
+	}
+	plan, err := planning.CleanRange(in.Plan)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+	}
+	labelIDs, err := planning.CleanLabelIDs(in.LabelIDs)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+	}
 	now := s.now()
 	t := &domain.Task{
 		SourceRef: in.SourceRef, WorkBranch: in.WorkBranch, BaseBranch: in.BaseBranch,
 		ID: domain.NewID(domain.PrefixTask), ProjectID: projectID, Title: title, Description: in.Description,
 		State: domain.TaskBacklog, Execution: exec, Orchestration: in.Orchestration, CreatedAt: now, UpdatedAt: now,
+		WorkMode: in.WorkMode, LabelIDs: labelIDs, Plan: plan,
 	}
 	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
-		if _, err := tx.Projects().Get(ctx, projectID); err != nil {
+		project, err := tx.Projects().Get(ctx, projectID)
+		if err != nil {
+			return err
+		}
+		if !project.HasRepository() && (in.SourceRef != "" || in.WorkBranch != "" || in.BaseBranch != "") {
+			return fmt.Errorf("%w: a work project has no repository, so a task there has no branch or source to track", domain.ErrInvalid)
+		}
+		if t.WorkMode == "" {
+			t.WorkMode = planning.ModeAgent
+			if !project.HasRepository() {
+				t.WorkMode = planning.ModeHuman
+			}
+		}
+		if err := requireLabels(ctx, tx, t.LabelIDs); err != nil {
 			return err
 		}
 		if in.SourceRef != "" {
@@ -196,6 +235,35 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 				return err
 			}
 			t.Execution = exec
+		}
+		if patch.WorkMode != nil {
+			mode, err := planning.ParseExecutionMode(string(*patch.WorkMode))
+			if err != nil {
+				return fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+			}
+			t.WorkMode = mode
+			if !mode.AllowsAgent() {
+				// Human work is never handed to an agent, so an automatic start that was set up
+				// for it is switched off, as closing the task would.
+				t.Orchestration.Enabled = false
+			}
+		}
+		if patch.LabelIDs != nil {
+			ids, err := planning.CleanLabelIDs(*patch.LabelIDs)
+			if err != nil {
+				return fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+			}
+			if err := requireLabels(ctx, tx, ids); err != nil {
+				return err
+			}
+			t.LabelIDs = ids
+		}
+		if patch.Plan != nil {
+			plan, err := planning.CleanRange(*patch.Plan)
+			if err != nil {
+				return fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+			}
+			t.Plan = plan
 		}
 		if patch.Orchestration != nil {
 			if err := configureOrchestration(ctx, tx, t, *patch.Orchestration); err != nil {
@@ -336,4 +404,94 @@ func moveTaskToDoing(ctx context.Context, tx store.Tx, em *emitter, taskID strin
 	ev := newEvent(domain.EventTaskUpdated, t)
 	ev.ProjectID, ev.TaskID = t.ProjectID, t.ID
 	return em.emit(ev)
+}
+
+// requireLabels checks that every label a task is to carry exists.
+func requireLabels(ctx context.Context, tx store.Tx, ids []string) error {
+	for _, id := range ids {
+		if _, err := tx.Labels().Get(ctx, id); err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				return fmt.Errorf("%w: label %s does not exist", domain.ErrInvalid, id)
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// TaskFilter narrows a project's tasks. Every field that is set must hold.
+type TaskFilter struct {
+	// Labels keeps tasks that carry any of these labels, or all of them when AllLabels is set.
+	Labels    []string
+	AllLabels bool
+	// Mode keeps tasks of one work mode.
+	Mode planning.ExecutionMode
+}
+
+// Matches reports whether t passes the filter.
+func (f TaskFilter) Matches(t domain.Task) bool {
+	if f.Mode != "" && t.Mode() != f.Mode {
+		return false
+	}
+	if len(f.Labels) == 0 {
+		return true
+	}
+	have := map[string]bool{}
+	for _, id := range t.LabelIDs {
+		have[id] = true
+	}
+	for _, want := range f.Labels {
+		if f.AllLabels && !have[want] {
+			return false
+		}
+		if !f.AllLabels && have[want] {
+			return true
+		}
+	}
+	return f.AllLabels
+}
+
+// ListFiltered returns a project's tasks that pass the filter, in the order List gives them.
+func (s *Tasks) ListFiltered(ctx context.Context, projectID string, f TaskFilter) ([]domain.Task, error) {
+	all, err := s.List(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Task, 0, len(all))
+	for _, t := range all {
+		if f.Matches(t) {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+// Timeline is what the timeline view needs beyond the tasks themselves, which it already has: what is
+// wrong with the dependencies and the dates among them. It only reports. Nothing here, or anywhere
+// that calls it, moves a date, a task or a dependency.
+type Timeline struct {
+	Warnings []planning.Warning `json:"warnings"`
+}
+
+// Timeline checks a project's dependencies and planned dates. The dependencies are the ones the
+// scheduler already waits on (Orchestration.Dependencies).
+func (s *Tasks) Timeline(ctx context.Context, projectID string) (*Timeline, error) {
+	tasks, err := s.List(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return &Timeline{Warnings: TimelineWarnings(tasks)}, nil
+}
+
+// TimelineWarnings is the analysis behind Tasks.Timeline, on tasks already in hand. Closed tasks are
+// part of the picture (a task may depend on one) but are not themselves reported on.
+func TimelineWarnings(tasks []domain.Task) []planning.Warning {
+	items := make([]planning.Item, 0, len(tasks))
+	for _, t := range tasks {
+		items = append(items, planning.Item{
+			ID: t.ID, Title: t.Title, Range: t.Plan, Done: t.State == domain.TaskDone,
+			Archived: t.ArchivedAt != nil, Dependencies: t.Orchestration.Dependencies,
+		})
+	}
+	return planning.AnalyzeOpen(items)
 }

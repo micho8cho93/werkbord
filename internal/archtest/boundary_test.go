@@ -41,6 +41,7 @@ var teamAllowed = []string{
 	teamTree, // and below
 	module + "/internal/httpkit",
 	module + "/internal/integration",  // product-neutral versioned task/status DTOs and repository identity validation
+	module + "/internal/planning",     // label names and colours, work modes, planned dates and dependency analysis: pure functions, no storage, no workspace, no role
 	module + "/internal/nativebridge", // neutral web-to-native messaging; native methods stay in each product
 	module + "/internal/workspace",    // the neutral summary a workspace gives the desktop shell; strict, bounded, no behaviour
 	module + "/internal/sqlitekit",

@@ -34,7 +34,7 @@ func (t *sqlTx) Revision(ctx context.Context, workspaceID, projectID string) (in
 
 const ticketCols = `id, project_id, number, title, description, requirements, status, assignee_id, creator_id, reviewer_id, branch,
 	pr_url, pr_number, pr_state, pr_draft, pr_mergeable, pr_base, pr_behind, pr_ahead, pr_reported_by, pr_reported_at, pr_created_at,
-	version, created_at, updated_at, claimed_at, submitted_at, completed_at, archived_at, assignment`
+	version, created_at, updated_at, claimed_at, submitted_at, completed_at, archived_at, assignment, work_mode, plan_start, plan_end, milestone`
 
 func optMS(v sql.NullInt64) *time.Time {
 	if !v.Valid {
@@ -68,12 +68,15 @@ func scanTicket(s interface{ Scan(...any) error }) (domain.Ticket, error) {
 	var prReported, prCreated, created, updated int64
 	var claimed, submitted, completed, archived sql.NullInt64
 	var prBase string
+	var milestone int
 	err := s.Scan(&t.ID, &t.ProjectID, &t.Number, &t.Title, &t.Description, &t.Requirements, &status, &assignee, &t.CreatorID, &reviewer, &t.Branch,
 		&prURL, &prNumber, &prState, &prDraft, &prMergeable, &prBase, &prBehind, &prAhead, &prBy, &prReported, &prCreated,
-		&t.Version, &created, &updated, &claimed, &submitted, &completed, &archived, &t.Assignment)
+		&t.Version, &created, &updated, &claimed, &submitted, &completed, &archived, &t.Assignment, &t.WorkMode, &t.Plan.Start, &t.Plan.End, &milestone)
 	if err != nil {
 		return t, err
 	}
+	t.Plan.Milestone = milestone == 1
+	t.LabelIDs, t.Dependencies = []string{}, []string{}
 	t.Status, t.AssigneeID, t.ReviewerID = domain.TicketStatus(status), assignee.String, reviewer.String
 	t.Key = domain.TicketKey(t.Number)
 	t.CreatedAt, t.UpdatedAt = fromMS(created), fromMS(updated)
@@ -98,10 +101,18 @@ func (t *sqlTx) NextTicketNumber(ctx context.Context, workspaceID string) (int, 
 // InsertTicket stores a new ticket.
 func (t *sqlTx) InsertTicket(ctx context.Context, workspaceID string, k domain.Ticket) error {
 	_, err := t.q.ExecContext(ctx, `INSERT INTO tickets (id, workspace_id, project_id, number, title, description, requirements, status,
-		assignee_id, creator_id, reviewer_id, branch, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+		assignee_id, creator_id, reviewer_id, branch, version, created_at, updated_at, work_mode, plan_start, plan_end, milestone)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
 		k.ID, workspaceID, k.ProjectID, k.Number, k.Title, k.Description, k.Requirements, string(k.Status),
-		nullStr(k.AssigneeID), k.CreatorID, nullStr(k.ReviewerID), k.Branch, ms(k.CreatedAt), ms(k.UpdatedAt))
-	return err
+		nullStr(k.AssigneeID), k.CreatorID, nullStr(k.ReviewerID), k.Branch, ms(k.CreatedAt), ms(k.UpdatedAt),
+		string(k.Mode()), k.Plan.Start, k.Plan.End, b2i(k.Plan.Milestone))
+	if err != nil {
+		return err
+	}
+	if err := t.SetTicketLabels(ctx, workspaceID, k.ID, k.LabelIDs); err != nil {
+		return err
+	}
+	return t.SetTicketDependencies(ctx, workspaceID, k.ID, k.Dependencies)
 }
 
 // Ticket returns a ticket of a project, with its commits.
@@ -111,7 +122,14 @@ func (t *sqlTx) Ticket(ctx context.Context, workspaceID, projectID, id string) (
 		return k, notFound(err, "ticket")
 	}
 	k.Commits, err = t.commits(ctx, k.ID)
-	return k, err
+	if err != nil {
+		return k, err
+	}
+	one := []domain.Ticket{k}
+	if err := t.fillPlanning(ctx, workspaceID, one, `t.id = ?`, id); err != nil {
+		return k, err
+	}
+	return one[0], nil
 }
 
 // Tickets lists a project's tickets, newest number first within a status; commits are not loaded.
@@ -129,7 +147,13 @@ func (t *sqlTx) Tickets(ctx context.Context, workspaceID, projectID string) ([]d
 		}
 		out = append(out, k)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := t.fillPlanning(ctx, workspaceID, out, `t.project_id = ?`, projectID); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // ClaimTicket takes an available ticket for a member. It is one guarded UPDATE:
@@ -158,11 +182,13 @@ func (t *sqlTx) SaveTicket(ctx context.Context, workspaceID string, k domain.Tic
 	}
 	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET title = ?, description = ?, requirements = ?, status = ?, assignee_id = ?, reviewer_id = ?, branch = ?,
 		pr_url = ?, pr_number = ?, pr_state = ?, pr_draft = ?, pr_mergeable = ?, pr_base = ?, pr_behind = ?, pr_ahead = ?, pr_reported_by = ?, pr_reported_at = ?, pr_created_at = ?,
-		claimed_at = ?, submitted_at = ?, completed_at = ?, archived_at = ?, updated_at = ?, version = version + 1
+		claimed_at = ?, submitted_at = ?, completed_at = ?, archived_at = ?, updated_at = ?,
+		work_mode = ?, plan_start = ?, plan_end = ?, milestone = ?, version = version + 1
 		WHERE workspace_id = ? AND project_id = ? AND id = ? AND version = ?`,
 		k.Title, k.Description, k.Requirements, string(k.Status), nullStr(k.AssigneeID), nullStr(k.ReviewerID), k.Branch,
 		pr.URL, pr.Number, string(pr.State), b2i(pr.Draft), string(pr.Mergeable), pr.BaseBranch, pr.Behind, pr.Ahead, pr.ReportedBy, ms(pr.ReportedAt), ms(pr.CreatedAt),
 		nullMS(k.ClaimedAt), nullMS(k.SubmittedAt), nullMS(k.CompletedAt), nullMS(k.ArchivedAt), ms(k.UpdatedAt),
+		string(k.Mode()), k.Plan.Start, k.Plan.End, b2i(k.Plan.Milestone),
 		workspaceID, k.ProjectID, k.ID, k.Version)
 	if err != nil {
 		return k, err
@@ -171,6 +197,12 @@ func (t *sqlTx) SaveTicket(ctx context.Context, workspaceID string, k domain.Tic
 		return k, fmt.Errorf("%w: the ticket was changed by someone else; reload it and try again", domain.ErrConflict)
 	}
 	k.Version++
+	if err := t.SetTicketLabels(ctx, workspaceID, k.ID, k.LabelIDs); err != nil {
+		return k, err
+	}
+	if err := t.SetTicketDependencies(ctx, workspaceID, k.ID, k.Dependencies); err != nil {
+		return k, err
+	}
 	err = t.q.QueryRowContext(ctx, `SELECT assignment FROM tickets WHERE workspace_id=? AND project_id=? AND id=?`, workspaceID, k.ProjectID, k.ID).Scan(&k.Assignment)
 	return k, err
 }

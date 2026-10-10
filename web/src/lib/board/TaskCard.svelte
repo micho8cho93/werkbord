@@ -2,6 +2,8 @@
   import { api } from '../api';
   import { cardStatus, quickChoices, type CardStatus } from '../board';
   import { agentLabel, priorityLabel, type Resolved } from '../execution';
+  import LabelChip from '../LabelChip.svelte';
+  import { labelsOf, modeLabel, modeOf } from '../labels';
   import Icon from '../Icon.svelte';
   import { choicesOf, describeAnswerFailure, isAllow, isDeny } from '../questions';
   import { taskHref } from '../router.svelte';
@@ -20,6 +22,7 @@
     selected = false,
     pending = false,
     mergeable = false,
+    agentWork = true,
     branch,
     onstart,
     onmerge,
@@ -34,6 +37,8 @@
     selected?: boolean;
     pending?: boolean;
     mergeable?: boolean;
+    /** An agent may be started on it: not human work, and not in a project with no repository. */
+    agentWork?: boolean;
     /** The task's branch, when Git knows it: what review means, and what a merge takes. */
     branch?: GitBranch;
     onstart: (task: Task) => void;
@@ -66,7 +71,9 @@
   const choices = $derived(question ? quickChoices(choicesOf(question)) : []);
   const blockerChoices = $derived(run?.state === 'blocked' ? quickChoices(run.blocker?.options ?? []) : []);
   const agent = $derived(run ? agentLabel(app.agents, run.agentId) : effective.agent ? agentLabel(app.agents, effective.agent) : 'Any agent');
-  const canStart = $derived(task.state !== 'done' && (!run || ['completed', 'failed', 'stopped'].includes(run.state)) && task.state !== 'review');
+  const labels = $derived(labelsOf(task, app.labels));
+  const mode = $derived(modeOf(task));
+  const canStart = $derived(agentWork && task.state !== 'done' && (!run || ['completed', 'failed', 'stopped'].includes(run.state)) && task.state !== 'review');
   const href = $derived(taskHref(task.projectId, task.id));
 
   let busy = $state('');
@@ -147,8 +154,15 @@
     <div class="acts"><button class="btn small" disabled={pending} onclick={() => onstart(task)} aria-label="Run an agent again on “{task.title}”"><Icon name="play" size={12} />Run again</button></div>
   {/if}
 
+  {#if labels.length}
+    <ul class="labels" aria-label="Labels">
+      {#each labels as l (l.id)}<li><LabelChip label={l} small /></li>{/each}
+    </ul>
+  {/if}
+
   <div class="mt">
-    <span class="chip">{agent}</span>
+    {#if agentWork}<span class="chip">{agent}</span>{/if}
+    {#if mode !== 'agent'}<span class="chip mode" title={mode === 'human' ? 'A person does this: no agent is started on it' : 'An agent may start on it and a person finishes it'}>{modeLabel(mode)}</span>{/if}
     {#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}
   </div>
 </li>
@@ -271,6 +285,19 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+  }
+
+  .labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mode {
+    margin-right: auto;
   }
 
   .prio {

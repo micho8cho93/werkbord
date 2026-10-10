@@ -35,6 +35,7 @@ type Tx interface {
 	Projects() ProjectRepo
 	Repositories() GitRepositoryRepo
 	Tasks() TaskRepo
+	Labels() LabelRepo
 	Runs() RunRepo
 	Questions() QuestionRepo
 	Worktrees() WorktreeRepo
@@ -96,6 +97,23 @@ type TaskRepo interface {
 	Update(ctx context.Context, t *domain.Task) error
 	// MaxPosition returns the largest position in a column, or 0 when empty.
 	MaxPosition(ctx context.Context, projectID string, state domain.TaskState) (float64, error)
+}
+
+// LabelRepo persists the reusable labels. Create and Update return domain.ErrDuplicate for a name that
+// another label has (ignoring case and spacing); Update is compare-and-swap like TaskRepo.Update.
+// Deleting a label takes it off every task without touching the tasks themselves.
+type LabelRepo interface {
+	Create(ctx context.Context, l *domain.Label) error
+	Get(ctx context.Context, id string) (*domain.Label, error)
+	// List returns every label, by name.
+	List(ctx context.Context) ([]domain.Label, error)
+	Update(ctx context.Context, l *domain.Label) error
+	Delete(ctx context.Context, id string) error
+	Count(ctx context.Context) (int, error)
+	// Usage returns how many open (not archived) tasks carry each label that any does.
+	Usage(ctx context.Context) (map[string]int, error)
+	// TaskIDs returns every task, archived or not, that carries the label.
+	TaskIDs(ctx context.Context, labelID string) ([]string, error)
 }
 
 // RunRepo persists runs. Update is compare-and-swap like TaskRepo.Update.

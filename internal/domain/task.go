@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"devboard/internal/planning"
 )
 
 // TaskState is a task's position in the workflow. It is deliberately separate
@@ -61,10 +63,40 @@ type Task struct {
 	// is inherited from the project, then the global defaults (ResolveExecution).
 	Execution     ExecutionConfig `json:"execution"`
 	Orchestration Orchestration   `json:"orchestration"`
-	Version       int64           `json:"version"`
-	CreatedAt     time.Time       `json:"createdAt"`
-	UpdatedAt     time.Time       `json:"updatedAt"`
-	ArchivedAt    *time.Time      `json:"archivedAt,omitempty"`
+	// WorkMode is who is expected to do the work: a person, an agent, or both. It is a fixed
+	// classification, separate from Labels (which are the person's own words), and it decides only
+	// whether an agent may be started on the task. Empty means ModeAgent, as every task was before.
+	WorkMode planning.ExecutionMode `json:"workMode"`
+	// LabelIDs are the labels on the task, in the order they were put on.
+	LabelIDs []string `json:"labelIds"`
+	// Plan is when the work is planned to happen, for the timeline. Dependencies are
+	// Orchestration.Dependencies: the same list the scheduler waits on.
+	Plan       Plan       `json:"plan"`
+	Version    int64      `json:"version"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+}
+
+// Mode is the task's work mode, with the empty one read as it always was: agent work.
+func (t Task) Mode() planning.ExecutionMode {
+	if t.WorkMode == "" {
+		return planning.ModeAgent
+	}
+	return t.WorkMode
+}
+
+// AgentRefusal says why no agent may be started on t in project p, or returns "" when one may. It is
+// the one rule behind a manual start, a scheduled one and the scheduler's own plan, so they cannot
+// disagree.
+func AgentRefusal(p Project, t Task) string {
+	switch {
+	case !p.HasRepository():
+		return "This is a work project with no Git repository, so no agent can work on it"
+	case !t.Mode().AllowsAgent():
+		return "This task is marked as human work, so no agent is started on it"
+	}
+	return ""
 }
 
 const (

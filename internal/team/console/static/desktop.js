@@ -147,7 +147,39 @@ async function administrationView(tab) {
     case 'backups': return backupsView();
     case 'license': return licenseView();
     case 'settings': return settingsView();
+    case 'labels': return labelsView();
   }
+}
+
+// The workspace's shared labels. Every member can use them; only people with labels.manage (the owner and admins) get here.
+const LABEL_COLORS = ['#d14d41', '#da702c', '#d0a215', '#879a39', '#3aa99f', '#4385be', '#8b7ec8', '#ce5d97', '#6f6e69'];
+let editingLabel = null;
+async function labelsView() {
+  if (!can('labels.manage')) return h('section', { class: 'panel' }, h('h2', {}, 'Labels'), h('p', { class: 'muted' }, 'Labels are made by the workspace owner and admins. You can put any of them on a ticket you may edit.'));
+  const { labels } = await api('GET', '/labels');
+  const name = h('input', { name: 'label-name', maxlength: 40, required: true, placeholder: 'Q4 launch, Waiting on legal, Design…' });
+  const desc = h('input', { name: 'label-desc', maxlength: 200, placeholder: 'What it is for (optional)' });
+  const color = h('input', { name: 'label-color', type: 'color', value: LABEL_COLORS[5], 'aria-label': 'Colour' });
+  const swatches = h('div', { class: 'swatches', role: 'group', 'aria-label': 'Suggested colours' }, LABEL_COLORS.map((c) => { const b = h('button', { type: 'button', class: 'sw', 'aria-label': 'Colour ' + c, onclick: () => { color.value = c; } }); b.style.background = c; return b; }));
+  const rows = labels.map((l) => {
+    if (editingLabel === l.id) {
+      const n = h('input', { name: 'edit-label-name', value: l.name, maxlength: 40, required: true });
+      const ds = h('input', { name: 'edit-label-desc', value: l.description || '', maxlength: 200 });
+      const co = h('input', { name: 'edit-label-color', type: 'color', value: WerkbordTimeline.safeColor(l.color), 'aria-label': 'Colour' });
+      return h('form', { class: 'row label-row', onsubmit: (e) => { e.preventDefault(); act(async () => { await api('PATCH', '/labels/' + l.id, { name: n.value, description: ds.value, color: co.value, version: l.version }); editingLabel = null; }); } },
+        h('div', { class: 'grow stack' }, field('Name', n), field('What it is for', ds), field('Colour', co)),
+        h('button', { class: 'primary small' }, 'Save'), h('button', { class: 'plain small', type: 'button', onclick: () => { editingLabel = null; render(); } }, 'Cancel'));
+    }
+    return h('div', { class: 'row label-row' }, h('div', { class: 'grow' }, labelChip(l), l.description ? h('p', { class: 'muted small' }, l.description) : ''),
+      h('span', { class: 'muted small' }, plural(l.tickets, 'open ticket')),
+      h('button', { class: 'plain small', onclick: () => { editingLabel = l.id; render(); } }, 'Edit'),
+      h('button', { class: 'danger small', onclick: () => confirm('Delete “' + l.name + '”? It comes off ' + plural(l.tickets, 'ticket') + ' and nothing else changes.') && act(() => api('DELETE', '/labels/' + l.id)) }, 'Delete'));
+  });
+  return h('div', {}, h('section', { class: 'panel' }, h('h2', {}, 'Labels'),
+    h('p', { class: 'muted' }, 'Names and colours of your own choosing, shared by every project in this workspace. A label never changes how a ticket moves; who does the work is a separate setting on the ticket.'),
+    h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); act(async () => { await api('POST', '/labels', { name: name.value, description: desc.value, color: color.value }); name.value = ''; desc.value = ''; }); } },
+      field('Name', name), field('What it is for', desc), h('div', { class: 'inline' }, field('Colour', color), swatches), h('button', { class: 'primary' }, 'Add label'))),
+    h('section', { class: 'panel' }, h('h2', {}, 'In this workspace'), rows.length ? rows : h('p', { class: 'muted' }, 'No labels yet.')));
 }
 
 async function devicesView(hostsOnly) {

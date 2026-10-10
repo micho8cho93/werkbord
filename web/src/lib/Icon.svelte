@@ -5,6 +5,7 @@
     | 'overview'
     | 'board'
     | 'calendar'
+    | 'timeline'
     | 'git'
     | 'activity'
     | 'runs'
@@ -56,6 +57,8 @@
     <rect x="2" y="2" width="12" height="12" rx="1.5" /><path d="M2 6.5h12M6.5 6.5V14" />
   {:else if name === 'board'}
     <rect x="2" y="2.5" width="3.2" height="11" rx="0.8" /><rect x="6.4" y="2.5" width="3.2" height="7.5" rx="0.8" /><rect x="10.8" y="2.5" width="3.2" height="5" rx="0.8" />
+  {:else if name === 'timeline'}
+    <rect x="2" y="2.8" width="6" height="2.6" rx="0.8" /><rect x="5" y="6.7" width="9" height="2.6" rx="0.8" /><rect x="3" y="10.6" width="6" height="2.6" rx="0.8" />
   {:else if name === 'calendar'}
     <rect x="2" y="3" width="12" height="11" rx="1.2" /><path d="M5 1.8v2.4M11 1.8v2.4M2 7h12" />
   {:else if name === 'git' || name === 'branch'}

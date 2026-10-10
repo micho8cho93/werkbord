@@ -3,6 +3,7 @@ package domain
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"devboard/internal/planning"
 	"encoding/hex"
 	"fmt"
 	"net/url"
@@ -160,12 +161,42 @@ type Ticket struct {
 	Branch       string       `json:"branch,omitempty"`
 	Commits      []Commit     `json:"commits"`
 	PullRequest  *PullRequest `json:"pullRequest,omitempty"`
-	Version      int64        `json:"version"`
-	CreatedAt    time.Time    `json:"createdAt"`
-	UpdatedAt    time.Time    `json:"updatedAt"`
-	ClaimedAt    *time.Time   `json:"claimedAt,omitempty"`
-	SubmittedAt  *time.Time   `json:"submittedAt,omitempty"`
-	CompletedAt  *time.Time   `json:"completedAt,omitempty"`
+	// WorkMode is who is expected to do the work: a person, an agent (a member's own, through their own
+	// Werkbord) or both. A fixed classification, separate from the workspace's labels. Team never runs
+	// anything; the mode only decides whether a request for agent work may be made for the ticket. Empty
+	// means ModeAgent, as every ticket was before.
+	WorkMode planning.ExecutionMode `json:"workMode"`
+	// LabelIDs are the workspace labels on the ticket.
+	LabelIDs []string `json:"labelIds"`
+	// Plan is when the work is planned to happen, for the timeline only.
+	Plan planning.Range `json:"plan"`
+	// Dependencies are the tickets of the same project that must finish before this one starts.
+	Dependencies []string   `json:"dependencies"`
+	Version      int64      `json:"version"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
+	ClaimedAt    *time.Time `json:"claimedAt,omitempty"`
+	SubmittedAt  *time.Time `json:"submittedAt,omitempty"`
+	CompletedAt  *time.Time `json:"completedAt,omitempty"`
+}
+
+// Mode is the ticket's work mode, with the empty one read as it always was: agent work.
+func (k Ticket) Mode() planning.ExecutionMode {
+	if k.WorkMode == "" {
+		return planning.ModeAgent
+	}
+	return k.WorkMode
+}
+
+// AgentRefusal says why no agent may be asked to work on k, or "" when one may: the one rule behind a shared
+// request for agent work. (Whether it is carried out is each member's own Werkbord's decision.) A ticket of a
+// project with no repository is not refused here: that was never a rule, and the member's Werkbord, which alone
+// knows whether it has the code, answers it.
+func (k Ticket) AgentRefusal() string {
+	if !k.Mode().AllowsAgent() {
+		return "this ticket is marked as human work, so no agent is asked to do it"
+	}
+	return ""
 }
 
 // TicketKey renders a ticket number the way people say it.

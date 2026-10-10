@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"devboard/internal/planning"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/store"
 )
@@ -37,6 +38,8 @@ type Board struct {
 	// Member is whether the actor is on the project (and so may hold tickets).
 	Member     bool              `json:"member"`
 	Completion map[string]string `json:"completion"`
+	// Labels are the workspace's shared labels, which any ticket here may carry.
+	Labels []domain.Label `json:"labels"`
 }
 
 type statusColumn struct {
@@ -78,6 +81,9 @@ func (s *Service) Board(ctx context.Context, a Actor, projectID string) (Board, 
 			_, reason := canComplete(k, x.Role, a.Member.ID)
 			b.Completion[k.ID] = reason
 		}
+		if b.Labels, err = tx.Labels(ctx, a.Workspace.ID); err != nil {
+			return err
+		}
 		b.People, err = people(ctx, tx, a.Workspace.ID, projectID)
 		return err
 	})
@@ -104,6 +110,11 @@ type TicketInput struct {
 	Requirements string
 	// Status is backlog (the default) or available.
 	Status domain.TicketStatus
+	// WorkMode is who is expected to do it; empty means agent work. LabelIDs, Plan and Dependencies are optional.
+	WorkMode     planning.ExecutionMode
+	LabelIDs     []string
+	Plan         planning.Range
+	Dependencies []string
 }
 
 // CreateTicket adds a ticket to a project's board.
@@ -141,7 +152,17 @@ func (s *Service) CreateTicket(ctx context.Context, a Actor, projectID string, i
 		}
 		now := s.stamp()
 		k = domain.Ticket{ID: domain.NewID(domain.PrefixTicket), ProjectID: projectID, Number: n, Key: domain.TicketKey(n), Title: title,
-			Description: desc, Requirements: req, Status: in.Status, CreatorID: a.Member.ID, Version: 1, CreatedAt: now, UpdatedAt: now, Commits: []domain.Commit{}}
+			Description: desc, Requirements: req, Status: in.Status, CreatorID: a.Member.ID, Version: 1, CreatedAt: now, UpdatedAt: now, Commits: []domain.Commit{},
+			LabelIDs: []string{}, Dependencies: []string{}}
+		// Unset is agent work, as every ticket was before modes existed, whatever the project: choosing who does it is
+		// the creator's to say (the console starts a project with no repository on "Human").
+		mode := in.WorkMode
+		if mode == "" {
+			mode = planning.ModeAgent
+		}
+		if err := s.applyPlanning(ctx, tx, a, x, &k, ticketPlanning{mode: &mode, plan: &in.Plan, labelIDs: &in.LabelIDs, dependencies: &in.Dependencies}); err != nil {
+			return err
+		}
 		if err := tx.InsertTicket(ctx, a.Workspace.ID, k); err != nil {
 			return err
 		}
@@ -168,6 +189,12 @@ type TicketPatch struct {
 	Title        *string
 	Description  *string
 	Requirements *string
+	// WorkMode, LabelIDs, Plan and Dependencies are the planning side of the ticket. LabelIDs and Dependencies
+	// replace the whole set.
+	WorkMode     *planning.ExecutionMode
+	LabelIDs     *[]string
+	Plan         *planning.Range
+	Dependencies *[]string
 	// Version, if set, must equal the ticket's current version: the edit is refused
 	// if someone else changed the ticket since the editor loaded it.
 	Version *int64
@@ -203,6 +230,9 @@ func (s *Service) UpdateTicket(ctx context.Context, a Actor, projectID, ticketID
 			if k.Requirements, err = domain.CleanTicketText("requirements", *patch.Requirements); err != nil {
 				return err
 			}
+		}
+		if err := s.applyPlanning(ctx, tx, a, x, &k, ticketPlanning{mode: patch.WorkMode, plan: patch.Plan, labelIDs: patch.LabelIDs, dependencies: patch.Dependencies}); err != nil {
+			return err
 		}
 		k.UpdatedAt = s.stamp()
 		k, err = s.save(ctx, tx, a, k)
