@@ -11,7 +11,7 @@ Everything the screen does is the HTTP API on this computer ([the API](#the-api)
  you ──▶ API (loopback, your token only)
             │
             ▼
-        Engine ──────────────▶ Provider ──▶ claude / codex   (no tools, empty directory, your sign-in)
+        Engine ──────────────▶ Provider ──▶ claude / codex   (board tools only, private directory, your sign-in)
    (conversation, streaming,        ▲                 │
     retries, recovery)              │   text          │ text (the reply, with any calls in it)
             │                       └─────────────────┘
@@ -83,7 +83,8 @@ Everything the assistant reads (titles, descriptions, an agent's question) was w
 your instructions and …". The assistant is told that what it reads is data, but that is a request, not a guarantee. The
 guarantees are elsewhere:
 
-- It has no tools. Both providers are run with theirs off (below), and a turn in which one is announced is ended.
+- Runtime command, file, browser and agent tools are disabled and guarded. Codex can call only registered board
+  functions through an engine-owned callback. Claude asks for the same operations through text calls.
 - Its only effects are the operations above, and those only propose. The worst a fully manipulated model can do is put a
   harmless-looking proposal in front of you, which you read before confirming, in words Werkbord wrote.
 - Tool results are given back to it with `<`, `>`, `&` and backticks escaped, so data cannot close the wrapper or open a
@@ -148,18 +149,19 @@ What was found by trying the real command lines (Claude Code 2.1.285, Codex 0.15
 | Cancelling | SIGTERM to the process group, SIGKILL after 2 s; measured about 0.6 s, children included | `turn/interrupt`, then the process is ended; measured about 0.4 s |
 | Model choice | **Yes**, `--model` (an alias or a full name). There is **no way to list models**: aliases `sonnet`, `opus`, `haiku`, or the list in `config.json`. An unknown one is an API 404 → `model_unavailable` | **Yes**, `model/list` gives names, the default, and the reasoning levels of each. A model the account cannot use → `model_unavailable` |
 | Reasoning level | `--effort` (levels read from the CLI's own help) | `effort` on the turn, from the model's own levels |
-| Tools turned off | `--tools ""`, `--safe-mode`, `--strict-mcp-config`, `--disable-slash-commands`, `--setting-sources ""`. The `init` event lists `tools: []` and `mcp_servers: []`; if it lists any, the turn is ended | `--disable` of the tool features this Codex has, read-only sandbox, approval `never`. **Some tools cannot be removed** by any setting (`functions.exec`, `collaboration.*`, `request_user_input`); so every item of a turn is checked against an allow-list (message, reasoning, plan, compaction) and anything else interrupts and ends the turn |
-| Native tool calling | Supported by the CLI (MCP servers). **Not used** | Supported (MCP servers, and "dynamic tools" the client registers). **Not used** |
+| Tools turned off | `--tools ""`, `--safe-mode`, `--strict-mcp-config`, `--disable-slash-commands`, `--setting-sources ""`. The `init` event lists `tools: []` and `mcp_servers: []`; if it lists any, the turn is ended | Runtime execution features disabled, read-only sandbox, approval `never`. The isolated code-mode dispatcher remains available for registered board functions. Item and request guards reject unregistered tools, commands, approvals and other agent actions |
+| Native tool calling | Supported by the CLI (MCP servers). **Not used** | Client-registered board functions call back into the engine's `runCalls`, with the same permissions, validation, audit and confirmation as text calls |
 | Usage | tokens, reported per turn (not stored, not priced) | tokens, reported per turn (not stored, not priced) |
 | Voice | **Not supported**: Claude Code has no voice input or output when run headless | **Experimental**: the protocol has realtime audio (`thread/realtime/*`), gated by account support. **Not used.** Dictation on the screen ([Dictation](#dictation)) is the browser's own, and is not either provider's voice |
 | Images and files | **Not used.** Text files are shown to it inside the message itself ([Attachments](#attachments)); a PDF or a picture is refused, because with no tools there is nothing to read it with | **Not used**, the same |
 | Deleting the provider's copy of a conversation | **Not possible** (no command); Werkbord forgets its handle | Possible in the protocol (`thread/delete`); **not used** |
 | Where the conversation lives | Claude Code's own storage, under the assistant's private directory | Codex's own storage (`~/.codex/sessions`) |
 
-**Why the assistant does not use native tool calling.** It could: both CLIs can call tools through MCP. It does not, for
-three reasons: it behaves differently in each; it would hand the model a way to act that skips the engine; and the engine's
-own protocol (below) makes the operations the same for every provider and, later, for MCP clients. Native tools through
-the MCP server belong to the stage that builds it.
+**Two transports, one operation boundary.** Claude uses text calls. Codex registers the catalog as application functions
+so the model can request real tools instead of interpreting disabled runtime tools as unavailable board access. The
+provider has no board imports or credentials: its callback belongs to the engine and calls the same operation service.
+Calls are bounded to 36 per attempt; audit failures stop the turn with their original reason. A tool request must belong
+to the active thread and turn and name a registered operation. Command and approval requests still end the turn.
 
 **The text protocol.** The system prompt lists the operations and their input schemas. To use one, the assistant writes a
 fenced block in its reply:
@@ -179,6 +181,12 @@ between them, even when the provider sends neither a trailing nor a leading newl
 whole independently; completed messages are not repeated and no earlier message is discarded. The live
 `TestLiveCodexCreatesPortfolioTasksAfterConfirmation` exercises project lookup, four task proposals, confirmation and the
 persisted Backlog cards in a disposable board. Set `WERKBORD_LIVE_ASSISTANT_MODEL` to check a specific Codex model.
+
+The Codex adapter replaces the default coding-agent base instructions with Werkbord's board instructions on both new
+and resumed threads. Existing text-only Codex chats reconnect once to register the functions, with the engine's explicit
+conversation-recovery notice. New handles carry a `werkbord-tools:` prefix; the adapter strips it before addressing
+Codex. The live check uses the spoken numbered portfolio request with the current date, confirms four cards, then
+resumes the conversation and checks that an existing task list produces no duplicate proposals.
 
 The conversation keeps a working indicator until the turn ends and marks completed replies explicitly. Operation errors
 show their reason in the conversation. After a reconnect, partial text alone never implies success: an unrecovered final

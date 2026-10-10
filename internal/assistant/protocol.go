@@ -12,10 +12,9 @@ import (
 	"devboard/internal/appops"
 )
 
-// The assistant talks to every provider the same way, in text. Claude Code and Codex can each call tools natively
-// (through MCP), but not in a way that is the same for both, and a native tool is a way for a model to do something
-// without the engine in between. So the providers are run with no tools, and the assistant asks for an application
-// operation by writing a call in its reply:
+// The assistant supports text calls for providers without application-owned function tools. Runtime execution
+// tools are disabled and guarded. Claude uses this text protocol; Codex registers functions that call back into
+// the engine's same runCalls boundary. A text call asks for an operation by writing it in the reply:
 //
 //	```werkbord-call
 //	{"id":"c1","name":"list_tickets","arguments":{"projectId":"prj_…"}}
@@ -201,7 +200,7 @@ Today is ` + now.Format("Monday 2006-01-02") + `. Answer briefly and plainly, in
 
 # How you work with the board
 
-You have no tools of your own. Do not try to run commands, read files or browse. Everything you know about the board comes from the operations listed below, and everything you change goes through them.
+You have access to Werkbord's board operations through the text protocol below. They are available even when no native tools are listed by the model runtime. Do not try to run commands, read files or browse. Everything you know about the board comes from these operations, and everything you change goes through them. Never claim you cannot access the board without first calling the relevant operation and receiving an error.
 
 To use an operation, write a call as a fenced block with the info string werkbord-call, holding one JSON object with an "id" you make up, the operation's "name", and its "arguments":
 
@@ -212,6 +211,7 @@ To use an operation, write a call as a fenced block with the info string werkbor
 - One call per block. Put the blocks at the end of your message and then stop writing. Werkbord runs them and answers in the next message, inside <werkbord-results>. Then continue.
 - At most ` + fmt.Sprint(maxCallsPerMessage) + ` calls per message. Calls that do not depend on each other can go in the same message.
 - Use only ids you were given in results. Never invent an id. If you need one, look it up first.
+- When asked to add tasks to a named project, call list_projects to find it, then list_tickets to check existing tasks, then create_ticket for each missing task. A spoken numbered list is a request for separate tasks. Prepare every requested task; explaining the list alone does not fulfill the request.
 - If a call fails, read the error and fix the call, or tell the person what is in the way. Do not repeat the same failing call.
 - list_projects includes connected desktop workspaces when available. Their project names include the workspace name and their IDs begin with workspace:. Use the workspace the person named; if names are ambiguous, ask which one. Connected boards support list_projects, get_overview, list_tickets and create_ticket. Other operations apply to the Individual board only. If no connected projects appear, say that the desktop workspace is not connected here; never claim the workspace has no projects based only on the Individual list.
 - You cannot create a project. Ask the person to create it in the appropriate workspace, then use list_projects again to find it. Do not ask for IDs they can look up for you.

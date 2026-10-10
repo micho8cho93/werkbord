@@ -101,11 +101,19 @@ func server(args []string) int {
 				{"id": "fake-hidden", "model": "fake-hidden", "hidden": true},
 			}})
 		case "thread/start":
+			if os.Getenv("FAKE_CODEX_REQUIRE_BOARD_ROLE") != "" && (m.Params["baseInstructions"] != "board role" || m.Params["developerInstructions"] != "board role") {
+				fail("default coding role still active")
+				continue
+			}
 			thread = "thr-new-" + fmt.Sprint(time.Now().UnixNano())
 			known[thread] = true
 			reply(map[string]any{"thread": map[string]any{"id": thread}})
 			notify("thread/started", map[string]any{"thread": map[string]any{"id": thread}})
 		case "thread/resume":
+			if os.Getenv("FAKE_CODEX_REQUIRE_BOARD_ROLE") != "" && (m.Params["baseInstructions"] != "board role" || m.Params["developerInstructions"] != "board role") {
+				fail("old coding role retained on resume")
+				continue
+			}
 			id, _ := m.Params["threadId"].(string)
 			if !known[id] {
 				fail("no rollout found for thread id " + id)
@@ -152,6 +160,33 @@ func runTurn(thread, turn, text string, params map[string]any, in *bufio.Reader)
 	notify("turn/started", map[string]any{"threadId": thread, "turn": map[string]any{"id": turn}})
 	notify("item/started", map[string]any{"item": map[string]any{"type": "userMessage", "id": "u"}})
 	switch word {
+	case "BOARD", "UNKNOWNBOARD", "WRONGTHREAD":
+		name, target := "list_projects", thread
+		if word == "UNKNOWNBOARD" {
+			name = "delete_ticket"
+		}
+		if word == "WRONGTHREAD" {
+			target = "another-thread"
+		}
+		notify("item/started", map[string]any{"item": map[string]any{"type": "dynamicToolCall", "id": "board-call", "tool": name}})
+		send(map[string]any{"id": 77, "method": "item/tool/call", "params": map[string]any{"threadId": target, "turnId": turn, "callId": "board-call", "tool": name, "arguments": map[string]any{}}})
+		if word != "BOARD" {
+			return waitInterrupt(thread, turn, in, true)
+		}
+		line, _ := in.ReadBytes('\n')
+		var response struct {
+			Result struct {
+				Success bool `json:"success"`
+				Content []struct {
+					Text string `json:"text"`
+				} `json:"contentItems"`
+			} `json:"result"`
+		}
+		if json.Unmarshal(line, &response) != nil || !response.Result.Success || len(response.Result.Content) != 1 {
+			return 2
+		}
+		agentMessage(response.Result.Content[0].Text)
+		completed(thread, turn, "completed", "")
 	case "TOOL":
 		notify("item/started", map[string]any{"item": map[string]any{"type": "commandExecution", "id": "c", "command": "cat ~/.ssh/id_rsa"}})
 		return waitInterrupt(thread, turn, in, true)

@@ -67,6 +67,8 @@ func New(cfg Config) *Provider {
 // ID implements provider.Provider.
 func (p *Provider) ID() string { return ID }
 
+func (p *Provider) UsesOperationTools() bool { return true }
+
 const (
 	detectTTL = 30 * time.Second
 	modelsTTL = 5 * time.Minute
@@ -98,7 +100,7 @@ func capabilities() provider.Capabilities {
 		Streaming: provider.StreamTokens, Resume: true, Cancel: true, ModelChoice: true, ReasoningChoice: true,
 		NativeTools: "mcp", Voice: "experimental",
 		Notes: []string{
-			"Codex is run without its tools, in a read-only sandbox that never asks for approval. Its conversation is kept by Codex itself, in its own storage; Werkbord keeps only the handle.",
+			"Codex uses Werkbord's board tools through the assistant engine, in a read-only sandbox with command tools disabled. Its conversation is kept by Codex itself; Werkbord keeps only the handle.",
 			"Codex's app-server protocol is marked experimental by Codex, so a Codex update can change it.",
 			"Codex has an experimental realtime (audio) path in the same protocol. The assistant does not use it.",
 		},

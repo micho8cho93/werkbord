@@ -84,6 +84,7 @@ func TestLiveCodexCreatesPortfolioTasksAfterConfirmation(t *testing.T) {
 		t.Skipf("Codex is not available here: %s", info.Detail)
 	}
 	f := newEfx(t, func(c *Config) {
+		c.Now = time.Now
 		c.Providers = provider.NewRegistry()
 		if err := c.Providers.Register(p); err != nil {
 			t.Fatal(err)
@@ -99,7 +100,7 @@ func TestLiveCodexCreatesPortfolioTasksAfterConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.eng.Send(ctx, s.ID, "add tasks to my personal portfolio project:\n1. extract career information from LinkedIn\n2. extract coding projects from GitHub\n3. create design system\n4. code website mvp in html, css and js"); err != nil {
+	if _, err := f.eng.Send(ctx, s.ID, "OK I had the following tasks to my personal portfolio project number one Extract career information from LinkedIn number two Extract coding project information from GitHub number three create a design system for the website number four Create the website in HTML JavaScript and CSS"); err != nil {
 		t.Fatal(err)
 	}
 	var evs []Event
@@ -119,7 +120,7 @@ events:
 		}
 	}
 	if end(evs).Type != EventCompleted {
-		t.Fatalf("turn ended: %+v", end(evs))
+		t.Fatalf("turn ended: %+v; error: %+v; reply: %q", end(evs), end(evs).Error, shown(evs))
 	}
 	if strings.Contains(shown(evs), "werkbord-call") {
 		t.Fatalf("operation calls reached the conversation: %q", shown(evs))
@@ -147,10 +148,19 @@ events:
 		}
 		titles = append(titles, strings.ToLower(task.Title))
 	}
-	for _, want := range []string{"linkedin", "github", "design system", "mvp"} {
+	for _, want := range []string{"linkedin", "github", "design system", "website"} {
 		if !strings.Contains(strings.Join(titles, "\n"), want) {
 			t.Fatalf("missing task %q: %v", want, titles)
 		}
 	}
 	t.Logf("confirmed and persisted four tasks: %v", titles)
+	// Continue the same native-tool conversation and verify existing cards prevent duplicate proposals.
+	ev := f.send(s.ID, "Check those four tasks on the portfolio board. If they are already there, do not add duplicates.")
+	if end(ev).Type != EventCompleted {
+		t.Fatalf("resumed turn: %+v", end(ev).Error)
+	}
+	v, err = f.eng.Session(ctx, s.ID)
+	if err != nil || len(v.Pending) != 0 || len(f.tickets(a.ID)) != 4 {
+		t.Fatalf("resumed conversation created duplicate proposals: %+v; %v", v, err)
+	}
 }

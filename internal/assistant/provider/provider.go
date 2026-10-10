@@ -3,10 +3,9 @@
 //
 // A provider answers one turn: it is given standing instructions, a message and, to continue a conversation, the
 // handle it returned last time; it streams text back and says how the turn ended. That is all. A provider is not an
-// agent here: it is run with every tool it has turned off, in an empty directory, and a turn in which it tries to
-// use one anyway is ended as a violation (ErrPolicy). What the assistant can do to the board it does through
-// application operations (internal/appops), in a protocol of its own text that the engine parses
-// (internal/assistant), so the same operations serve every provider and, later, MCP.
+// agent here: it runs in an empty directory with execution tools disabled and guarded. Board requests use either
+// the engine's text protocol or application-owned functions whose callback belongs to the engine. Neither path
+// gives an adapter board access; both execute through the same application operations and confirmation policy.
 //
 // Nothing here asks for, stores or passes an API key. The provider's own command line does its own sign-in, and
 // Detect reports whether it is signed in so the person can be told how to fix it.
@@ -14,6 +13,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -32,6 +32,21 @@ type Turn struct {
 	Reasoning string
 	// WorkDir is an empty directory private to the assistant. Providers keep their per-directory state under it.
 	WorkDir string
+	// Operations are application-owned tools. The adapter can expose them to the model, but only this engine
+	// callback may execute them; it enforces the same permissions, audit and confirmation as text calls.
+	Operations    []Operation
+	CallOperation func(context.Context, string, string, json.RawMessage) (string, error)
+}
+
+type Operation struct {
+	Name        string
+	Description string
+	Input       json.RawMessage
+}
+
+// OperationProvider opts into application tools rather than the text-call transport.
+type OperationProvider interface {
+	UsesOperationTools() bool
 }
 
 // EventKind classifies an Event.
@@ -126,8 +141,8 @@ type Capabilities struct {
 	// ModelChoice and ReasoningChoice: the person can pick them for the assistant.
 	ModelChoice     bool `json:"modelChoice"`
 	ReasoningChoice bool `json:"reasoningChoice"`
-	// NativeTools says how the provider could call tools itself: "mcp" for both today. The assistant does not use it
-	// (see docs/ASSISTANT.md); it uses the text protocol, which behaves the same everywhere.
+	// NativeTools describes the runtime's native tool transport. Codex uses client-registered application functions;
+	// Claude uses the engine's text protocol. Both reach the same application operation boundary.
 	NativeTools string `json:"nativeTools"`
 	// Voice: "none", or "experimental" for a voice path that exists but is not used.
 	Voice string `json:"voice"`

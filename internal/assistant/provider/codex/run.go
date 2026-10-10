@@ -18,15 +18,20 @@ var violationGrace = 3 * time.Second
 // cancelGrace is how long a cancelled turn gets to acknowledge being interrupted before it is killed.
 var cancelGrace = 400 * time.Millisecond
 
-// allowedItems are the only kinds of thing a turn may produce. Anything else is a tool being used, whatever it is
-// called, and ends the turn: the list of what is allowed is short, the list of what is not is not.
+const operationRefPrefix = "werkbord-tools:"
+
+// allowedItems are the non-action items a turn may produce. Registered application functions are checked separately;
+// every other tool item ends the turn.
 var allowedItems = map[string]bool{
 	"userMessage": true, "agentMessage": true, "reasoning": true, "contextCompaction": true, "plan": true,
 }
 
 // turn follows one turn's notifications.
 type turn struct {
-	emit func(provider.Event)
+	emit          func(provider.Event)
+	ctx           context.Context
+	operations    map[string]bool
+	callOperation func(context.Context, string, string, json.RawMessage) (string, error)
 
 	mu         sync.Mutex
 	threadID   string
@@ -126,15 +131,19 @@ func (t *turn) notification(method string, params json.RawMessage) {
 	case "item/started", "item/completed":
 		var p struct {
 			Item struct {
-				Type string `json:"type"`
-				ID   string `json:"id"`
-				Text string `json:"text"`
+				Type      string  `json:"type"`
+				ID        string  `json:"id"`
+				Text      string  `json:"text"`
+				Tool      string  `json:"tool"`
+				Name      string  `json:"name"`
+				Namespace *string `json:"namespace"`
 			} `json:"item"`
 		}
 		if json.Unmarshal(params, &p) != nil {
 			return
 		}
-		if !allowedItems[p.Item.Type] {
+		applicationCall := p.Item.Type == "dynamicToolCall" && p.Item.Namespace == nil && t.operations[firstNonEmpty(p.Item.Tool, p.Item.Name)]
+		if !allowedItems[p.Item.Type] && !applicationCall {
 			t.violate(fmt.Sprintf("Codex tried to do something other than reply (%q)", clip(p.Item.Type, 40)))
 			return
 		}
@@ -199,9 +208,33 @@ func (t *turn) notification(method string, params json.RawMessage) {
 	}
 }
 
-// request handles what the server asks of the client. A turn that is only meant to reply has no reason to be asked for
-// an approval, a choice or an answer; being asked means it is trying to act.
-func (t *turn) request(c *client, id json.RawMessage, method string, _ json.RawMessage) {
+// request allows only registered application functions through the engine callback. Runtime approvals, choices,
+// commands and unregistered tools are rejected and end the turn.
+func (t *turn) request(c *client, id json.RawMessage, method string, params json.RawMessage) {
+	if method == "item/tool/call" && t.callOperation != nil {
+		var p struct {
+			CallID    string          `json:"callId"`
+			ThreadID  string          `json:"threadId"`
+			TurnID    string          `json:"turnId"`
+			Tool      string          `json:"tool"`
+			Namespace *string         `json:"namespace"`
+			Arguments json.RawMessage `json:"arguments"`
+		}
+		t.mu.Lock()
+		threadID, turnID, violation := t.threadID, t.turnID, t.violation
+		t.mu.Unlock()
+		if json.Unmarshal(params, &p) == nil && violation == "" && t.ctx.Err() == nil && p.Namespace == nil && p.CallID != "" && p.ThreadID == threadID && p.TurnID == turnID && t.operations[p.Tool] && len(p.Arguments) > 0 && len(p.Arguments) <= 64<<10 {
+			t.emit(provider.Event{Kind: provider.EventAlive})
+			result, err := t.callOperation(t.ctx, p.CallID, p.Tool, p.Arguments)
+			if err != nil {
+				_ = c.respondError(id, -32603, "Werkbord could not complete the board operation")
+				t.violate("Werkbord stopped the board operation")
+				return
+			}
+			_ = c.send(map[string]any{"id": id, "result": map[string]any{"success": true, "contentItems": []map[string]any{{"type": "inputText", "text": result}}}})
+			return
+		}
+	}
 	_ = c.respondError(id, -32601, "the assistant does not do that")
 	if strings.HasPrefix(method, "item/") || strings.Contains(method, "Approval") || strings.Contains(method, "elicitation") ||
 		strings.Contains(method, "requestUserInput") || strings.Contains(method, "ynamicTool") || strings.Contains(method, "tool/call") {
@@ -225,6 +258,16 @@ func (t *turn) violate(why string) {
 
 // Run implements provider.Provider.
 func (p *Provider) Run(ctx context.Context, t provider.Turn, emit func(provider.Event)) (provider.Result, error) {
+	native := len(t.Operations) > 0 && t.CallOperation != nil
+	if native && t.Ref != "" {
+		if !strings.HasPrefix(t.Ref, operationRefPrefix) {
+			return provider.Result{}, provider.Errorf(provider.KindSessionLost, false, "This conversation needs to reconnect with Werkbord's board tools.")
+		}
+		t.Ref = strings.TrimPrefix(t.Ref, operationRefPrefix)
+	}
+	if native {
+		t.System += "\n# Application tool transport\nThe board operations listed above are registered as native function tools for this conversation. Call these functions directly instead of writing werkbord-call blocks. Their results arrive as tool responses wrapped in <werkbord-results>. These are the only native tools you may use. Complete the requested board actions before your final answer; never end with a promise to look something up or make a proposal. The confirmation rules still apply.\n"
+	}
 	info := p.Detect(ctx)
 	if !info.Installed {
 		return provider.Result{}, provider.Errorf(provider.KindNotInstalled, false, "%s. %s", info.Detail, info.Guidance)
@@ -242,18 +285,35 @@ func (p *Provider) Run(ctx context.Context, t provider.Turn, emit func(provider.
 
 	var emitMu sync.Mutex
 	safeEmit := func(e provider.Event) {
+		if native && e.Kind == provider.EventRef && e.Ref != "" {
+			e.Ref = operationRefPrefix + e.Ref
+		}
 		emitMu.Lock()
 		defer emitMu.Unlock()
 		emit(e)
 	}
 
-	ts := &turn{emit: safeEmit, finished: make(chan struct{})}
+	ts := &turn{emit: safeEmit, ctx: ctx, operations: make(map[string]bool), callOperation: t.CallOperation, finished: make(chan struct{})}
+	for _, op := range t.Operations {
+		ts.operations[op.Name] = true
+	}
 	// The process runs under its own context, so that a cancellation can first ask Codex to stop the turn (which it
 	// writes down properly) and only then end the process.
 	runCtx, cancelRun := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelRun()
 
-	c, err := start(runCtx, path, p.serverArgs(ctx, path), t.WorkDir, handlers{notification: ts.notification, request: ts.request})
+	args := p.serverArgs(ctx, path)
+	if native {
+		// Current Codex models reach registered application functions through the isolated code-mode host.
+		// Keep that dispatcher available; command, filesystem and other native tools remain disabled/guarded.
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--disable" && args[i+1] == "code_mode_host" {
+				args = append(args[:i], args[i+2:]...)
+				break
+			}
+		}
+	}
+	c, err := start(runCtx, path, args, t.WorkDir, handlers{notification: ts.notification, request: ts.request})
 	if err != nil {
 		return provider.Result{}, startError(err)
 	}
@@ -282,6 +342,10 @@ func (p *Provider) Run(ctx context.Context, t provider.Turn, emit func(provider.
 	// Open the thread: a new one, or the one the last turn left.
 	threadParams := map[string]any{
 		"cwd": t.WorkDir, "approvalPolicy": "never", "sandbox": "read-only", "serviceName": "werkbord-assistant",
+		// Replace the coding-agent persona as well as supplying the application instructions. Otherwise Codex can
+		// interpret disabled native tools as a lack of board access and decline without emitting a text operation.
+		// Apply this on resume too, including conversations created with the old default persona.
+		"baseInstructions":      t.System,
 		"developerInstructions": t.System,
 	}
 	model := firstNonEmpty(t.Model, p.cfg.Model)
@@ -289,6 +353,13 @@ func (p *Provider) Run(ctx context.Context, t provider.Turn, emit func(provider.
 		threadParams["model"] = model
 	}
 	method := "thread/start"
+	if native && t.Ref == "" {
+		var tools []map[string]any
+		for _, op := range t.Operations {
+			tools = append(tools, map[string]any{"type": "function", "name": op.Name, "description": op.Description, "inputSchema": op.Input})
+		}
+		threadParams["dynamicTools"] = tools
+	}
 	if t.Ref != "" {
 		method, threadParams["threadId"] = "thread/resume", t.Ref
 	}
@@ -361,7 +432,11 @@ func (p *Provider) result(ctx context.Context, ts *turn, c *client) (provider.Re
 				messages = append(messages, text)
 			}
 		}
-		return provider.Result{Text: strings.Join(messages, "\n\n"), Ref: ts.threadID, Usage: ts.usage}, nil
+		ref := ts.threadID
+		if ts.callOperation != nil && len(ts.operations) > 0 {
+			ref = operationRefPrefix + ref
+		}
+		return provider.Result{Text: strings.Join(messages, "\n\n"), Ref: ref, Usage: ts.usage}, nil
 	case ts.status == "interrupted":
 		return provider.Result{}, provider.Errorf(provider.KindTransient, true, "Codex ended the turn early")
 	case ts.status == "failed":

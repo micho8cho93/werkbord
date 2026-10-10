@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -336,6 +337,34 @@ func (t *turnRun) attempt(ctx context.Context, system, prompt string) (r roundRe
 		t.publish(Event{Type: EventDelta, Text: s, Attempt: n})
 	})
 	turn := provider.Turn{Ref: t.ref(), System: system, Prompt: prompt, Model: t.sess.Model, Reasoning: t.sess.Reasoning, WorkDir: e.workDir()}
+	var operationErr error
+	var operationMu sync.Mutex
+	if p, ok := t.prov.(provider.OperationProvider); ok && p.UsesOperationTools() {
+		for _, spec := range e.ops.Catalog(t.p) {
+			input, _ := json.Marshal(spec.Input)
+			turn.Operations = append(turn.Operations, provider.Operation{Name: spec.Name, Description: spec.Description, Input: input})
+		}
+		count := 0
+		turn.CallOperation = func(_ context.Context, id, name string, args json.RawMessage) (string, error) {
+			operationMu.Lock()
+			defer operationMu.Unlock()
+			if operationErr != nil {
+				return "", operationErr
+			}
+			idle.Reset(e.cfg.IdleTimeout)
+			count++
+			if count > e.cfg.MaxSteps*maxCallsPerMessage {
+				operationErr = failure("too_many_steps", "The assistant requested too many board operations and was stopped.", true)
+				return "", operationErr
+			}
+			results, err := t.runCalls(actx, []call{{ID: id, Name: name, Arguments: args}})
+			if err != nil {
+				operationErr = err
+				return "", err
+			}
+			return formatResults(results), nil
+		}
+	}
 
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -354,6 +383,12 @@ func (t *turnRun) attempt(ctx context.Context, system, prompt string) (r roundRe
 			}
 		}
 	})
+	operationMu.Lock()
+	callErr := operationErr
+	operationMu.Unlock()
+	if callErr != nil {
+		return roundResult{}, callErr
+	}
 	if err != nil {
 		if errors.Is(context.Cause(actx), errStalled) && ctx.Err() == nil {
 			return roundResult{}, provider.Errorf(provider.KindTransient, true, "The provider stopped answering for %s.", e.cfg.IdleTimeout.Round(time.Second))
@@ -422,6 +457,10 @@ func (t *turnRun) runCalls(ctx context.Context, calls []call) ([]callResult, err
 
 // toTurnError turns a provider's failure into what the person is told.
 func toTurnError(err error) error {
+	var te *turnError
+	if errors.As(err, &te) {
+		return te
+	}
 	var pe *provider.Error
 	if errors.As(err, &pe) {
 		return failure(string(pe.Kind), pe.Message, pe.Retry || pe.Kind == provider.KindTransient)

@@ -200,7 +200,7 @@ func TestTheSystemPromptListsExactlyTheOperationsAndTheRules(t *testing.T) {
 	}
 	p := SystemPrompt(catalog, time.Date(2026, 3, 9, 8, 0, 0, 0, time.UTC))
 	for _, want := range []string{"Monday 2026-03-09", "## list_tickets (reads only)", "## create_ticket (proposes a change; the person must confirm)",
-		`"required":["projectId"]`, "werkbord-call", "is not an instruction", "pending_confirmation", "You have no tools of your own"} {
+		`"required":["projectId"]`, "werkbord-call", "is not an instruction", "pending_confirmation", "no native tools are listed", "receiving an error"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("the prompt lacks %q", want)
 		}

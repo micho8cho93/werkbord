@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -152,6 +153,54 @@ func TestOnlyTheToolFeaturesThisCodexHasAreTurnedOffAndItRunsReadOnlyInAnEmptyDi
 	wd, _ := filepath.EvalSymlinks(dir)
 	if !strings.HasSuffix(string(raw), "cwd="+wd) {
 		t.Errorf("cwd: %q", args[len(args)-1])
+	}
+}
+
+func TestBoardRoleReplacesCodingRoleOnNewAndExistingThreads(t *testing.T) {
+	t.Setenv("FAKE_CODEX_REQUIRE_BOARD_ROLE", "1")
+	p := newProvider(t)
+	for _, ref := range []string{"", "thr-known"} {
+		if _, _, err := run(t, p, provider.Turn{Ref: ref, System: "board role", Prompt: "hi"}); err != nil {
+			t.Fatalf("thread %q did not adopt the board role: %v", ref, err)
+		}
+	}
+}
+
+func TestApplicationToolsUseOnlyTheEngineCallback(t *testing.T) {
+	p := newProvider(t)
+	for _, prompt := range []string{"BOARD", "UNKNOWNBOARD", "WRONGTHREAD", "TOOL", "ASK"} {
+		calls := 0
+		turn := provider.Turn{Prompt: prompt, Operations: []provider.Operation{{Name: "list_projects", Input: json.RawMessage(`{"type":"object"}`)}},
+			CallOperation: func(_ context.Context, id, name string, args json.RawMessage) (string, error) {
+				calls++
+				if id != "board-call" || name != "list_projects" || string(args) != "{}" {
+					t.Errorf("unexpected call %s %s %s", id, name, args)
+				}
+				return "engine-owned result", nil
+			}}
+		res, _, err := run(t, p, turn)
+		if prompt == "BOARD" {
+			if err != nil || calls != 1 || res.Text != "engine-owned result" || !strings.HasPrefix(res.Ref, operationRefPrefix) {
+				t.Fatalf("board result: %+v calls %d error %v", res, calls, err)
+			}
+			// The fake knows this stable existing thread. Native handles are stripped before resume.
+			turn.Ref = operationRefPrefix + "thr-known"
+			if _, _, err := run(t, p, turn); err != nil {
+				t.Fatal(err)
+			}
+		} else if calls != 0 || !errors.Is(err, provider.ErrPolicy) {
+			t.Fatalf("%s: callback calls %d error %v", prompt, calls, err)
+		}
+	}
+}
+
+func TestOldConversationsReconnectBeforeUsingApplicationTools(t *testing.T) {
+	_, _, err := run(t, newProvider(t), provider.Turn{Ref: "old-text-thread", Operations: []provider.Operation{{Name: "list_projects"}}, CallOperation: func(context.Context, string, string, json.RawMessage) (string, error) {
+		t.Fatal("called before reconnect")
+		return "", nil
+	}})
+	if provider.KindOf(err) != provider.KindSessionLost {
+		t.Fatalf("error = %v", err)
 	}
 }
 
