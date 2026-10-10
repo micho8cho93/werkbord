@@ -1,7 +1,7 @@
 #!/bin/sh
-# Werkbord Team installer for macOS and Linux. This is Team's own installer: it
-# installs the Team product, which is a different program from the individual
-# Werkbord (scripts/install.sh) and is released and versioned separately.
+# Werkbord Team installer for macOS and Linux, for a Workspace Host or any computer that runs the Team
+# service from the command line. Werkbord is one release with one version: this installs the Team executable
+# of that same release (the individual one is scripts/install.sh), and a Mac with the Werkbord app needs neither.
 #
 #   sh /trusted/installer/install-team.sh
 # Obtain this script and the release verification PEM through an independently trusted channel.
@@ -13,7 +13,7 @@
 # It starts nothing and installs no service; see docs/TEAM.md for what to do next.
 #
 # Environment:
-#   WERKBORD_TEAM_VERSION      install this release (v1.2.3 or werkbord-team-v1.2.3) instead of the latest
+#   WERKBORD_TEAM_VERSION      install this release (v1.2.3 or werkbord-v1.2.3; a preview such as v4.0.0-preview.1 only by name) instead of the latest stable one
 #   WERKBORD_TEAM_INSTALL_DIR  where the executable goes (default ~/.local/bin)
 #   WERKBORD_TEAM_BASE_URL     where releases are (default: this project's GitHub releases)
 #   WERKBORD_TEAM_FEED_URL     the releases feed used to find the latest Team release (default: <base>.atom)
@@ -62,39 +62,40 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/werkbord-team-install.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
 # ---- which release ----
-# The repository releases two products, and /releases/latest belongs to the individual
-# one, so use Team's stable release links in the feed. Release descriptions can
-# contain old tags, comparison URLs and prereleases; they are not release entries.
+# There is one release series, werkbord-vX.Y.Z, and /releases/latest is the one the individual installer follows, so use the
+# stable release links in the feed. Release descriptions can contain old tags, comparison URLs and prereleases; they are not
+# release entries.
 tag=${WERKBORD_TEAM_VERSION:-}
 if [ -z "$tag" ]; then
-  say "Looking for the latest Werkbord Team release..."
+  say "Looking for the latest Werkbord release..."
   fetch "$FEED" "$tmp/feed" || fail "could not read the releases feed at $FEED"
   tag=$(awk -v RS='<' '
-    /^link[[:space:]]/ && match($0, /href="[^"]*\/releases\/tag\/werkbord-team-v[0-9]+\.[0-9]+\.[0-9]+"/) {
+    /^link[[:space:]]/ && match($0, /href="[^"]*\/releases\/tag\/werkbord-v[0-9]+\.[0-9]+\.[0-9]+"/) {
       tag = substr($0, RSTART, RLENGTH)
       sub(/^.*\//, "", tag); sub(/"$/, "", tag)
       print tag; exit
     }
   ' "$tmp/feed")
-  [ -n "$tag" ] || fail "no Werkbord Team release has been published yet"
+  [ -n "$tag" ] || fail "no stable Werkbord release has been published yet (name a preview with WERKBORD_TEAM_VERSION=v4.0.0-preview.1)"
 fi
 case "$tag" in
-  werkbord-team-v[0-9]*.[0-9]*.[0-9]*) version=v${tag#werkbord-team-v} ;;
-  v[0-9]*.[0-9]*.[0-9]*) version=$tag; tag=werkbord-team-$tag ;;
-  [0-9]*.[0-9]*.[0-9]*) version=v$tag; tag=werkbord-team-v$tag ;;
-  werkbord-v[0-9]*|devboard*) fail "\"$tag\" is an individual Werkbord release. This installer is for Werkbord Team; the individual product has its own (scripts/install.sh)" ;;
-  *) fail "\"$tag\" is not a Team release version (expected something like v1.2.3)" ;;
+  werkbord-v[0-9]*.[0-9]*.[0-9]*) version=v${tag#werkbord-v} ;;
+  v[0-9]*.[0-9]*.[0-9]*) version=$tag; tag=werkbord-$tag ;;
+  [0-9]*.[0-9]*.[0-9]*) version=v$tag; tag=werkbord-v$tag ;;
+  werkbord-team-v[0-9]*) fail "\"$tag\" is from the retired Team release series. Werkbord Team is released with Werkbord now: name a werkbord-vX.Y.Z release (4.0.0-preview.1 was the first)" ;;
+  devboard*) fail "\"$tag\" is a release from before the rename; name a werkbord-vX.Y.Z release" ;;
+  *) fail "\"$tag\" is not a release version (expected something like v4.0.0)" ;;
 esac
 
 asset="werkbord-team_${version#v}_${os}_${arch}.tar.gz"
 case "$tag" in *[!A-Za-z0-9.+-]*) fail "invalid characters in release identity" ;; esac
 say "Installing Werkbord Team $version for $os/$arch"
-fetch "$BASE/download/$tag/checksums.txt" "$tmp/checksums.txt" || fail "could not download the checksums for $tag"
+fetch "$BASE/download/$tag/checksums-team.txt" "$tmp/checksums.txt" || fail "could not download Team's checksums for $tag (is Team's signed build attached to this release yet?)"
 key=${WERKBORD_TEAM_RELEASE_PUBLIC_KEY_FILE:-"$(dirname "$0")/keys/werkbord-team-release.pub"}
 [ -f "$key" ] || fail "a trusted vendor release verification public key is required; obtain it independently and set WERKBORD_TEAM_RELEASE_PUBLIC_KEY_FILE (never download it from this release)"
 command -v openssl >/dev/null 2>&1 || fail "OpenSSL with Ed25519 support is required to authenticate Team releases"
-fetch "$BASE/download/$tag/checksums.txt.sig" "$tmp/checksums.txt.sig" || fail "the release has no signed manifest; nothing was installed"
-# Bind the manifest to this product and tag, not merely to a list of hashes.
+fetch "$BASE/download/$tag/checksums-team.txt.sig" "$tmp/checksums.txt.sig" || fail "the release has no signed manifest; nothing was installed"
+# Bind the manifest to Team's archives and this release tag, not merely to a list of hashes.
 printf 'werkbord-team/release/v1\000%s\000' "$tag" > "$tmp/signed-manifest"
 cat "$tmp/checksums.txt" >> "$tmp/signed-manifest"
 openssl pkeyutl -verify -pubin -inkey "$key" -rawin -in "$tmp/signed-manifest" -sigfile "$tmp/checksums.txt.sig" >/dev/null 2>&1 || fail "the release manifest signature is not valid (OpenSSL must support Ed25519); nothing was installed"

@@ -137,13 +137,18 @@ done
 cd "$OUT"
 set -- "${ASSET}"_*
 [ -n "$LEGACY" ] && set -- "$@" "${LEGACY}"_*
+# Both executables are archived into the one release, so each has its own list: checksums.txt is Werkbord's (what the
+# installer and `werkbord update` read), checksums-team.txt is Team's.
+LIST=checksums.txt
+[ "$PRODUCT" != werkbord-team ] || LIST=checksums-team.txt
 if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum "$@" > checksums.txt
+  sha256sum "$@" > "$LIST"
 else
-  shasum -a 256 "$@" > checksums.txt
+  shasum -a 256 "$@" > "$LIST"
 fi
+# Team's archives are signed offline (the release key never touches CI) and the signature names the one release tag.
 if [ "$PRODUCT" = werkbord-team ] && [ -n "${WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE:-}" ]; then
   cd - >/dev/null
-  go run ./cmd/werkbord-team/vendor release --input "$OUT/checksums.txt" --out "$OUT/checksums.txt.sig" --tag "werkbord-team-$VERSION" < "$WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE"
+  go run ./cmd/werkbord-team/vendor release --input "$OUT/$LIST" --out "$OUT/$LIST.sig" --tag "werkbord-$VERSION" < "$WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE"
 fi
 echo "wrote release files to $OUT"

@@ -174,12 +174,12 @@ func headless(args []string) int {
 	case len(args) == 1 && args[0] == "--verify-release":
 		exe, err := os.Executable()
 		if err == nil {
-			err = platform.RequireRelease(filepath.Clean(filepath.Join(filepath.Dir(exe), "..")), version)
+			err = platform.RequireRelease(filepath.Clean(filepath.Join(filepath.Dir(exe), "..", "..")))
 		}
 		if err != nil {
 			return say(false, err.Error())
 		}
-		return say(true, "offline Team payload verified")
+		return say(true, "signed by the Werkbord release team")
 	case len(args) == 1 && args[0] == "--activate":
 		key, err := platform.AccessKey()
 		if err != nil {

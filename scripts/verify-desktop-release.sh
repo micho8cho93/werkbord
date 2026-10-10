@@ -102,18 +102,18 @@ plist=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Con
 step "ok  the app and the program it carries are both $version"
 xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");Safari;" "$APP"
 
-# Phase 4 distributions retain the separately authenticated Team payload.
+# Unified releases carry Team's installer, signed by the same team as the app.
 case "$version" in
   1.[0-8].*|0.*) ;;
   *)
     TEAM_APP="$APP/Contents/Helpers/Werkbord Team.app"
     [ -d "$TEAM_APP" ] || die "the unified installer has no Team payload"
     "$root/scripts/check-team-desktop.sh" --distribution "$TEAM_APP" || die "Team signature validation failed"
-    "$root/scripts/check-unified-desktop.sh" --release "$APP" || die "component compatibility or offline proof check failed"
-    "$TEAM_APP/Contents/MacOS/Werkbord Team" --verify-release || die "Team offline release verification failed"
+    "$root/scripts/check-unified-desktop.sh" --release "$APP" || die "the bundled components are not this release, or are not signed by its team"
+    "$TEAM_APP/Contents/MacOS/Werkbord Team" --verify-release || die "the Team installer is not signed by the release team"
     $XCRUN stapler validate "$TEAM_APP" || die "Team notarization ticket missing"
     [ -s "$APP/Contents/Resources/components.txt" ] || die "component diagnostics missing"
-    step "ok  independently signed offline Team payload and component versions"
+    step "ok  the Team installer is this release, and signed by the same team"
     ;;
 esac
 

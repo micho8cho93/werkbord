@@ -41,43 +41,21 @@ the unified shell can verify them; their existing console/CLI stays available.
 
 ## Building and signing
 
-`make desktop-package` builds an ad hoc development DMG with both components.
-`make test-unified-installer` mounts it and checks versions, checksums, signatures,
-compatibility and refusal to authorize a development payload as an offline release.
-These tests never install a service or use the user's production licenses.
+`make desktop-package` builds an ad hoc development DMG with both components, building Team's installer from this tree.
+`make test-unified-installer` mounts it and checks versions, checksums, signatures, compatibility and that a development build
+is refused as a release. These tests never install a service or use the user's production licenses.
 
-A production build takes `TEAM_DESKTOP_APP` pointing to a reviewed, independently
-signed/notarized Team bundle. It checks Team's offline manifest, Apple signature,
-notarization ticket and Gatekeeper before copying the bundle without re-signing it.
-The builder and fresh release checker also verify the bytes with the separately
-provisioned `TEAM_RELEASE_PUBLIC_KEY`, using the repository verifier rather than
-trusting a key or verification result supplied by the downloaded bundle.
-Individual's existing Sparkle signatures and Apple release checks remain intact.
-There is no private Team release key in the online Individual workflow.
+A production build is the one release workflow (`.github/workflows/release.yml`, [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)). It
+builds Team's installer itself from the same commit and version (`scripts/build-team-desktop.sh --nested`), signs and
+notarizes it with the same Developer ID as the app, and checks it with `scripts/check-team-desktop.sh --distribution` and the
+installer's own `--verify-release`, which tests that it was signed by the release's Apple Developer team. Individual's existing
+Sparkle signatures and Apple release checks remain intact. There is no second release, no Team release key in CI, and no
+downloaded Team payload to authenticate: the older offline manifest (`werkbord-team/desktop-release/v1`, `TEAM_RELEASE_PUBLIC_KEY`,
+`TEAM_OFFLINE_MANIFEST`) existed only because Team was released separately and fetched, and is gone.
 
-The Team workflow produces **review candidates only**, retained as workflow
-artifacts. Finalize on the authorized release workstation:
-
-1. Review the candidate helper bytes and public `team-desktop.manifest.json`.
-2. Sign that input with the **separate release key** on the offline workstation:
-   `go run ./cmd/werkbord-team/vendor desktop-release --input manifest.json --out manifest.json.sig --tag werkbord-team-v3.8.0 < /secure/release-key.pem`.
-3. Build with `TEAM_RELEASE_PUBLIC_KEY` (raw URL-base64 public key),
-   `LICENSE_ISSUER_PUBLIC_KEY`, `TEAM_REVIEWED_HELPERS` (the exact candidate Helpers
-   plus its `rqlited.build`), and `TEAM_OFFLINE_MANIFEST` (the signed manifest path).
-   Run `make team-desktop-release` with the existing Developer ID/notary credentials.
-   The builder verifies the exact copied bytes before distribution.
-4. Verify the final artifact on a fresh Mac, keep its release draft until reviewed,
-   and upload only with explicit release authorization. Follow RELEASE_SEQUENCE.md.
-5. The Individual signing workflow fetches that compatible Team release through
-   `prepare-unified-team.sh`. It refuses missing/invalid proof. Its feed is still
-   published only after fresh-runner release verification.
-
-The signed payload is `werkbord-team/desktop-release/v1`, NUL, the Team tag, NUL,
-then the exact JSON manifest bytes. The manifest binds all five installable helper/
-database-record paths. Apple signs the native verifier and outer resources. CLI
-release signatures use their existing separate domain; neither they nor an
-Individual update signature can authorize a desktop Team payload. Test keys are
-generated at runtime in disposable tests, never shipped as customer trust anchors.
+Team's command-line archives (for a Workspace Host without the Mac app) are still signed OFFLINE with a release key that is not
+in CI, now against the one release tag: `make dist PRODUCT=werkbord-team` on the release workstation writes
+`checksums-team.txt` and `checksums-team.txt.sig`, which are attached to the release ([TEAM_INSTALL.md](TEAM_INSTALL.md)).
 
 ## Updates and removal
 

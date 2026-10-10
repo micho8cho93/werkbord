@@ -51,15 +51,26 @@ func TestOfflineIssuerUsesExplicitInputAndNeverOverwrites(t *testing.T) {
 	manifest := filepath.Join(dir, "checksums.txt")
 	_ = os.WriteFile(manifest, []byte("public fixture hashes\n"), 0600)
 	sigPath := filepath.Join(dir, "sig")
-	if err := run([]string{"release", "--input", manifest, "--out", sigPath, "--tag", "werkbord-team-v9.0.0"}, bytes.NewReader(secret)); err != nil {
+	if err := run([]string{"release", "--input", manifest, "--out", sigPath, "--tag", "werkbord-v9.0.0"}, bytes.NewReader(secret)); err != nil {
 		t.Fatal(err)
 	}
 	sig, _ := os.ReadFile(sigPath)
-	message := []byte("werkbord-team/release/v1\x00werkbord-team-v9.0.0\x00public fixture hashes\n")
+	message := []byte("werkbord-team/release/v1\x00werkbord-v9.0.0\x00public fixture hashes\n")
 	if !ed25519.Verify(pub, message, sig) {
 		t.Fatal("release signature did not bind product/tag")
 	}
 	if ed25519.Verify(pub, bytes.Replace(message, []byte("v9.0.0"), []byte("v9.0.1"), 1), sig) {
 		t.Fatal("tag substitution accepted")
+	}
+	// The retired Team tag series and the desktop-manifest commands are gone.
+	for _, args := range [][]string{
+		{"release", "--input", manifest, "--out", filepath.Join(dir, "sig2"), "--tag", "werkbord-team-v9.0.0"},
+		{"release", "--input", manifest, "--out", filepath.Join(dir, "sig3")},
+		{"desktop-release", "--input", manifest, "--out", filepath.Join(dir, "sig4"), "--tag", "werkbord-v9.0.0"},
+		{"verify-desktop-release", "--contents", dir, "--version", "v9.0.0", "--public-key", "x"},
+	} {
+		if err := run(args, bytes.NewReader(secret)); err == nil {
+			t.Errorf("%v was accepted", args)
+		}
 	}
 }

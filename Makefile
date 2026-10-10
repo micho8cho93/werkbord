@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check verify-isolation \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser team-desktop team-desktop-package team-desktop-release team-desktop-test team-desktop-check test-team-desktop-browser test-unified-desktop-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser team-desktop team-desktop-package team-desktop-test team-desktop-check test-team-desktop-browser test-unified-desktop-browser
 
 all: check build build-team
 
@@ -244,8 +244,6 @@ team-desktop: web web-embed
 	scripts/build-team-desktop.sh
 team-desktop-package: web web-embed
 	scripts/build-team-desktop.sh --package
-team-desktop-release: web web-embed
-	scripts/build-team-desktop.sh --release
 team-desktop-test:
 	cd cmd/werkbord-team/desktop && $(GO) test ./internal/platform && $(GO) vet ./internal/platform
 team-desktop-check: team-desktop-test

@@ -172,8 +172,8 @@ make dist                    # dist/werkbord_<version>_<os>_<arch>.tar.gz|zip an
 make test-install            # the installer, end to end, against a release server on this computer
 ```
 
-Pushing a tag `werkbord-vX.Y.Z` (the individual product's tag; see [VERSIONING.md](VERSIONING.md)) runs
+Pushing a tag `werkbord-vX.Y.Z` (the one tag of the whole release; see [VERSIONING.md](VERSIONING.md)) runs
 `.github/workflows/release.yml`, which checks that the tag agrees with `cmd/werkbord/VERSION`, runs the checks, builds those
 archives and publishes them as the GitHub release marked *latest*, which is where `install.sh` and `werkbord update` look.
-`WERKBORD_VERSION` takes `v1.2.3` or the tag `werkbord-v1.2.3`. Werkbord Team is released and installed separately, with
-its own tag (`werkbord-team-vX.Y.Z`) and installer; see [TEAM.md](TEAM.md).
+`WERKBORD_VERSION` takes `v1.2.3` or the tag `werkbord-v1.2.3`. Werkbord Team is part of the same release: the Mac app carries its
+installer, and a computer that hosts a workspace from the command line uses `scripts/install-team.sh`; see [TEAM.md](TEAM.md).

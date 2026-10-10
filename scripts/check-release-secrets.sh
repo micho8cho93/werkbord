@@ -2,8 +2,7 @@
 # Says, before anything is built, whether the secrets a desktop release needs are there and look like
 # what they should, without ever printing one.
 #
-#   scripts/check-release-secrets.sh desktop        the signing, notarization and update-signing secrets
-#   scripts/check-release-secrets.sh team-desktop   the signing, notarization and license issuer secrets
+#   scripts/check-release-secrets.sh desktop   the signing, notarization, update-signing and license issuer secrets
 #
 # They come from the environment, which is where the workflow puts the repository's secrets. A missing one is named,
 # on one line, with the product's release setup guide, and the exit is non-zero: a release must not
@@ -17,15 +16,15 @@
 #   NOTARY_KEY_ID                  5     its Key ID (the workflow's name for the APPLE_NOTARY_KEY_ID secret)
 #   NOTARY_ISSUER                  5     the Issuer ID, a UUID (the APPLE_NOTARY_ISSUER secret)
 #   SPARKLE_ED_PRIVATE_KEY         6     the private half of the update-signing key
-#   LICENSE_ISSUER_PUBLIC_KEY            Team's 32-byte Ed25519 public key (TEAM_LICENSE_ISSUER_PUBLIC_KEY secret)
+#   LICENSE_ISSUER_PUBLIC_KEY            Team's 32-byte Ed25519 public key (TEAM_LICENSE_ISSUER_PUBLIC_KEY secret); the app carries
+#                                        Team's installer, which checks every license with it
 # APPLE_SIGNING_IDENTITY is optional (only when the certificate holds several identities).
 set -eu
 
 kind=${1:-}
 case "$kind" in
   desktop) guide=docs/DESKTOP_RELEASE.md ;;
-  team-desktop) guide=docs/TEAM_DESKTOP.md ;;
-  *) echo "usage: check-release-secrets.sh desktop|team-desktop" >&2; exit 2 ;;
+  *) echo "usage: check-release-secrets.sh desktop" >&2; exit 2 ;;
 esac
 
 missing=""
@@ -34,7 +33,7 @@ need() { # <env name> <secret name shown> <step>
   eval "value=\${$1:-}"
   if [ -z "$value" ]; then
     label=$2
-    [ "$kind" != desktop ] || label="$label (step $3)"
+    case "$3" in license) ;; *) label="$label (step $3)" ;; esac
     missing="${missing:+$missing; }$label"
     return 1
   fi
@@ -58,15 +57,13 @@ fi
 if need NOTARY_ISSUER APPLE_NOTARY_ISSUER 5; then
   printf '%s' "$NOTARY_ISSUER" | grep -Eq '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$' || bad "APPLE_NOTARY_ISSUER should be the Issuer ID, a UUID"
 fi
-if [ "$kind" = desktop ]; then
-  # Only the individual app carries the updater and needs its update-signing keys.
-  if [ ! -s "${SPARKLE_PUBLIC_KEY_FILE:-$(dirname "$0")/../desktop/build/darwin/sparkle-public-key}" ]; then
-    missing="${missing:+$missing; }desktop/build/darwin/sparkle-public-key, the update-signing public key that is committed (step 6)"
-  fi
-  if need SPARKLE_ED_PRIVATE_KEY SPARKLE_ED_PRIVATE_KEY 6; then
-    printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | grep -Eq '^[A-Za-z0-9+/=]{40,}$' || bad "SPARKLE_ED_PRIVATE_KEY should be one line of base64 (what generate_keys -x wrote)"
-  fi
-elif need LICENSE_ISSUER_PUBLIC_KEY TEAM_LICENSE_ISSUER_PUBLIC_KEY license; then
+if [ ! -s "${SPARKLE_PUBLIC_KEY_FILE:-$(dirname "$0")/../desktop/build/darwin/sparkle-public-key}" ]; then
+  missing="${missing:+$missing; }desktop/build/darwin/sparkle-public-key, the update-signing public key that is committed (step 6)"
+fi
+if need SPARKLE_ED_PRIVATE_KEY SPARKLE_ED_PRIVATE_KEY 6; then
+  printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | grep -Eq '^[A-Za-z0-9+/=]{40,}$' || bad "SPARKLE_ED_PRIVATE_KEY should be one line of base64 (what generate_keys -x wrote)"
+fi
+if need LICENSE_ISSUER_PUBLIC_KEY TEAM_LICENSE_ISSUER_PUBLIC_KEY license; then
   if [ ${#LICENSE_ISSUER_PUBLIC_KEY} -ne 43 ]; then
     bad "TEAM_LICENSE_ISSUER_PUBLIC_KEY must be a 32-byte Ed25519 public key encoded as raw URL base64 (43 characters, no padding)"
   else

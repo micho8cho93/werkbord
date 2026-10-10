@@ -71,7 +71,7 @@ if rel
   check(names.include?("push") && names.include?("workflow_dispatch"), "release.yml runs on a tag push and, for the dry run, workflow_dispatch")
   check(!names.include?("pull_request") && !names.include?("pull_request_target"), "release.yml must not be started by a pull request")
   tags = rel.dig(true, "push", "tags") || rel.dig("on", "push", "tags") || []
-  check(tags.all? { |t| t.start_with?("werkbord-v") || t.start_with?("werkbord-team-v") }, "release.yml's tags are the product tags")
+  check(!tags.empty? && tags.all? { |t| t.start_with?("werkbord-v") }, "release.yml's tags are the release's tags (werkbord-v...): there is no Team tag series")
   check(perms({}, rel) == { "contents" => "read" }, "release.yml's default permissions are contents: read")
 
   jobs = rel["jobs"]
@@ -85,7 +85,9 @@ if rel
     check(perms(build, rel) == { "contents" => "read" }, "desktop-build (which holds the secrets) must have contents: read only")
     check(build["environment"] == "desktop-release", "desktop-build uses the desktop-release environment")
     check(Array(build["needs"]).include?("release"), "desktop-build needs the release job")
-    check(Array(build["needs"]).include?("plan"), "desktop-build needs plan, which keeps Team's tags and pre-releases out")
+    check(Array(build["needs"]).include?("plan"), "desktop-build needs plan, which keeps pre-releases out")
+    check(build.dig("env", "LICENSE_ISSUER_PUBLIC_KEY").to_s.include?("secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY"), "desktop-build builds Team's installer, so it needs the license issuer's public key")
+    check(JSON.generate(build["steps"]).include?("scripts/check-release-secrets.sh desktop"), "desktop-build checks every release secret before it builds")
     check(build["runs-on"].to_s.start_with?("macos"), "desktop-build runs on macOS")
     check(build["if"].to_s.include?("plan.outputs.desktop"), "desktop-build runs only when plan says so")
     steps = JSON.generate(build["steps"])
@@ -119,7 +121,7 @@ if rel
   # the existing release job is as it was
   r = jobs["release"]
   if r
-    check(r["if"].to_s == "github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')", "the online release job publishes only individual archives; Team manifests require offline signatures")
+    check(r["if"].to_s == "github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')", "the online release job publishes only the controller's archives; Team's archives are signed offline")
     check(perms(r, rel) == { "contents" => "write" }, "the release job creates the release, so it can write")
     cmd = JSON.generate(r["steps"])
     check(cmd.include?("gh release create") && cmd.include?("--latest=false") && cmd.include?("--latest"), "the release job still marks only the individual product's releases latest")
@@ -140,31 +142,13 @@ if rel
   check(jobs.dig("desktop-publish", "steps").to_a.none? { |st| st["run"].to_s.include?("appcast.xml") }, "the feed is not published together with the disk image: it comes after the check")
 end
 
-team = workflows["#{DIR}/release-team-desktop.yml"]
-check(team, "separate Team desktop workflow is missing")
-if team
-  names = trigger_names(team)
-  check(names.include?("push") && names.include?("workflow_dispatch") && !names.include?("pull_request"), "Team installer runs only on trusted tags or a dry run")
-  tags = team.dig(true,"push","tags") || team.dig("on","push","tags") || []
-  check(tags == ["werkbord-team-v*"], "Team installer must use Team product tags alone")
-  jobs = team["jobs"]
-  check(jobs.select { |_,j| mentions_secret?(j) }.keys == ["build"], "Team signing secrets belong only in the read-only build job")
-  check(perms(jobs["build"], team) == {"contents"=>"read"} && jobs["build"]["environment"] == "team-desktop-release", "Team signing needs its own protected environment")
-  steps = jobs["build"]["steps"]
-  preflight = steps.index { |s| s["run"].to_s == "scripts/check-release-secrets.sh team-desktop" }
-  check(preflight, "Team release must check all required credentials")
-  steps.each_with_index do |s, i|
-    handles_credentials = s["run"].to_s.match?(/ci-keychain.sh create|AuthKey\.p8|make team-desktop-release/)
-    sets_up_build = s["uses"].to_s.match?(%r{\Aactions/setup-(go|node)@})
-    check(preflight && preflight < i, "Team credentials must be checked before #{s['name'] || s['uses']}") if handles_credentials || sets_up_build
-  end
-  check(jobs["build"]["steps"].any? { |s| s["if"].to_s == "always()" && s["run"].to_s.include?("ci-keychain.sh delete") }, "Team signing keychain must always be removed")
-  check(!jobs.key?("publish") && !jobs.key?("verify"), "Team candidates require offline finalization before publishing")
-  check(JSON.generate(jobs).include?("Team-review.zip"), "Team workflow retains exact helper bytes for offline review")
-  check(JSON.generate(rel).include?("prepare-unified-team.sh"), "unified signing job requires the independently verified Team release")
-  check(rel.dig("env", "TEAM_RELEASE_PUBLIC_KEY").to_s.include?("vars.TEAM_RELEASE_PUBLIC_KEY"), "release verification needs a public trust anchor independent of downloaded code")
-  check(JSON.generate(jobs).include?("make web web-embed"), "Team candidate builder needs the free helper's web assets on a fresh checkout")
-
+# There is one release workflow. A second one for Team, its own protected environment, and the fetching of a separately
+# released Team installer are exactly what the unification removed.
+check(!workflows.key?("#{DIR}/release-team-desktop.yml"), "there is no separate Team release workflow")
+if rel
+  all = JSON.generate(rel)
+  check(!all.include?("prepare-unified-team") && !all.include?("TEAM_RELEASE_PUBLIC_KEY") && !all.include?("TEAM_DESKTOP_APP"), "the release builds Team's installer itself and fetches no separately released one")
+  check(!all.include?("werkbord-team-v"), "release.yml names no Team tag series")
 end
 
 if $failures.empty?

@@ -94,6 +94,10 @@ Secrets live in an **environment**, which only the macOS signing job uses and wh
 | `APPLE_NOTARY_KEY` | the **whole text** of `AuthKey_XXXXXXXXXX.p8`, including the `-----BEGIN PRIVATE KEY-----` lines |
 | `APPLE_NOTARY_KEY_ID` | the Key ID (step 4) |
 | `APPLE_NOTARY_ISSUER` | the Issuer ID (step 4) |
+| `TEAM_LICENSE_ISSUER_PUBLIC_KEY` | the vendor's 32-byte Ed25519 **public** key for Team licenses, raw URL base64 (43 characters, no padding). The app carries Team's installer, which checks every license with it. The private half stays with the offline license issuer and is never uploaded |
+
+   Werkbord is one release, so this one environment signs everything in the app, Team's installer included. (There used to
+   be a second environment, `team-desktop-release`, for a separate Team release: delete it.)
 
    (`APPLE_SIGNING_IDENTITY` is optional: only if the `.p12` holds more than one "Developer ID Application" identity, the
    full name, "Developer ID Application: Your Name (TEAMID)".)

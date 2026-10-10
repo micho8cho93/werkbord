@@ -1,20 +1,21 @@
 name: release
 
-# Publishes a release when a product's version tag is pushed. The tag says which
-# product it is (docs/VERSIONING.md):
+# Publishes THE release when a version tag is pushed. Werkbord is one product with one version and one release
+# (docs/VERSIONING.md, docs/UNIFICATION.md): the tag is werkbord-vX.Y.Z, it is what cmd/werkbord/VERSION says, and it carries
 #
-#   werkbord-vX.Y.Z        the individual product: werkbord_<version>_<os>_<arch> archives, which is
-#                          what scripts/install.sh and `werkbord update` read, and the same archives
-#                          as devboard_<version>_<os>_<arch>, which is what releases from before the
-#                          rename read to update themselves; and, from the jobs below, the Mac app's
-#                          disk image (Werkbord_<version>_darwin_universal.dmg) and its .sha256
-#   werkbord-team-vX.Y.Z   Werkbord Team: werkbord-team_<version>_<os>_<arch> archives
+#   werkbord_<version>_<os>_<arch> archives, which is what scripts/install.sh and `werkbord update` read, and the same
+#                          archives as devboard_<version>_<os>_<arch>, which is what releases from before the rename
+#                          read to update themselves, with checksums.txt
+#   the Mac app            Werkbord_<version>_darwin_universal.dmg, which carries Werkbord Team too (below)
+#   werkbord-team_<version>_<os>_<arch> archives and checksums-team.txt(.sig), for a computer that hosts a workspace from the
+#                          command line. These are signed OFFLINE: the release key for them is never in CI, so a person who
+#                          holds it builds them (`make dist PRODUCT=werkbord-team` with WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE,
+#                          docs/TEAM_INSTALL.md) and attaches them to the release this workflow made. CI never publishes
+#                          unauthenticated Team packages.
 #
-# Each release carries one archive per platform and a checksums.txt. Only the
-# individual product's releases are marked "latest": /releases/latest is how the
-# individual installer and updater find their product, so a Team release must never take it.
+# Only stable releases are marked "latest": /releases/latest is how the installer and `werkbord update` find their program.
 #
-# The Mac app (docs/DESKTOP_RELEASE.md) is added to an individual release by four more jobs, and only to it:
+# The Mac app (docs/DESKTOP_RELEASE.md) is added to a stable release by four more jobs:
 #
 #   desktop-build    macOS. The ONLY job that holds the signing, notarization and update-signing secrets. It builds the
 #                    universal app, signs it with the Developer ID, has Apple notarize it, signs the update archive and
@@ -43,20 +44,14 @@ on:
     tags:
       - 'werkbord-v[0-9]+.[0-9]+.[0-9]+'
       - 'werkbord-v[0-9]+.[0-9]+.[0-9]+-*'
-      - 'werkbord-team-v[0-9]+.[0-9]+.[0-9]+'
-      - 'werkbord-team-v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
 
 # Nothing is writable unless a job says so.
 permissions:
   contents: read
 
-# Public trust anchor, separately provisioned from the downloaded Team artifact.
-env:
-  TEAM_RELEASE_PUBLIC_KEY: ${{ vars.TEAM_RELEASE_PUBLIC_KEY }}
-
 jobs:
-  # Does this tag get a disk image? The individual product's stable releases do; Team's, and pre-releases, do not.
+  # Does this tag get a disk image? A stable release does; a pre-release does not.
   plan:
     runs-on: ubuntu-latest
     permissions: {}
@@ -74,7 +69,6 @@ jobs:
             desktop=true
           else
             case "$REF_NAME" in
-              werkbord-team-v*) ;;
               werkbord-v[0-9]*.[0-9]*.[0-9]*-*) ;;
               werkbord-v[0-9]*.[0-9]*.[0-9]*) desktop=true ;;
             esac
@@ -82,7 +76,7 @@ jobs:
           echo "desktop=$desktop" >> "$GITHUB_OUTPUT"
 
   release:
-    # Team CLI archives are signed on the offline release workstation. This job
+    # Team's command-line archives are signed on the offline release workstation. This job
     # has no vendor release key and must never publish unauthenticated Team packages.
     if: github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')
     runs-on: ubuntu-latest
@@ -98,20 +92,19 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Which product, and does the tag agree with its VERSION file
+      - name: Is this the release's tag, and does it agree with the VERSION file
         id: product
         run: |
           # checkout fetches the tag as a bare ref; fetch the real tag objects so "annotated" can be checked
           git fetch --force --tags origin
           product=$(scripts/product.sh from-tag "$GITHUB_REF_NAME")
-          scripts/verify-tag.sh "$product" "$GITHUB_REF_NAME" "$GITHUB_SHA"
+          scripts/verify-tag.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
           version=$(scripts/product.sh "$product" version)
           echo "product=$product" >> "$GITHUB_OUTPUT"
           echo "version=v$version" >> "$GITHUB_OUTPUT"
       - name: Check
         run: make check
       - name: Team's tests that start real database clusters (the pinned program, fetched and checked against the pin)
-        if: startsWith(github.ref_name, 'werkbord-team-v')
         env:
           WERKBORD_REQUIRE_RQLITE: "1"
         run: make test-rqlite
@@ -124,12 +117,7 @@ jobs:
           flags=""
           case "${{ steps.product.outputs.version }}" in
             *-*) flags="--prerelease --latest=false" ;;
-            *)
-              if [ "${{ steps.product.outputs.product }}" = werkbord ]; then
-                flags="--latest"
-              else
-                flags="--latest=false"
-              fi ;;
+            *) flags="--latest" ;;
           esac
           # A manually tested Mac preview may already have its DMG on this prerelease.
           # Add only the CLI archives; preserve its preview notes, status and installer.
@@ -159,6 +147,8 @@ jobs:
       NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
       NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
       SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+      # Public: the key that checks every Team license. The app carries Team's installer, built here with this key in it.
+      LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -196,11 +186,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/notary"
           printf '%s\n' "$APPLE_NOTARY_KEY" > "$RUNNER_TEMP/notary/AuthKey.p8"
           echo "NOTARY_KEY_FILE=$RUNNER_TEMP/notary/AuthKey.p8" >> "$GITHUB_ENV"
-      - name: Obtain the compatible independently signed and notarized Team installer
-        run: |
-          scripts/prepare-unified-team.sh "$RUNNER_TEMP/unified-team"
-          echo "TEAM_DESKTOP_APP=$RUNNER_TEMP/unified-team/Werkbord Team.app" >> "$GITHUB_ENV"
-      - name: Build, sign, notarize and staple the universal app and disk image
+      - name: Build, sign, notarize and staple the universal app (Team's installer in it) and disk image
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: scripts/build-desktop.sh --package --release dist/desktop

@@ -26,26 +26,13 @@ func main() {
 }
 
 func run(args []string, keyInput io.Reader) error {
-	if len(args) > 0 && args[0] == "verify-desktop-release" {
-		f := flag.NewFlagSet("offline release verification", flag.ContinueOnError)
-		contents := f.String("contents", "", "reviewed bundle Contents directory")
-		version := f.String("version", "", "expected Team build version")
-		publicKey := f.String("public-key", "", "independently trusted raw URL-base64 release public key")
-		if err := f.Parse(args[1:]); err != nil {
-			return err
-		}
-		if *contents == "" || *version == "" || *publicKey == "" || f.NArg() != 0 {
-			return errors.New("contents, version and independently trusted public-key are required")
-		}
-		return verifyDesktopRelease(*contents, *version, *publicKey)
-	}
-	if len(args) == 0 || (args[0] != "license" && args[0] != "release" && args[0] != "desktop-release") {
-		return errors.New("usage: vendor <license|release|desktop-release> --input <claims.json|checksums.txt> --out <license.json|checksums.txt.sig> [--tag werkbord-team-vX.Y.Z] < private-key.pem")
+	if len(args) == 0 || (args[0] != "license" && args[0] != "release") {
+		return errors.New("usage: vendor <license|release> --input <claims.json|checksums-team.txt> --out <license.json|checksums-team.txt.sig> [--tag werkbord-vX.Y.Z] < private-key.pem")
 	}
 	f := flag.NewFlagSet("offline issuer", flag.ContinueOnError)
 	input := f.String("input", "", "public input document")
 	output := f.String("out", "", "new output file (never overwritten)")
-	tag := f.String("tag", "", "Team release identity")
+	tag := f.String("tag", "", "the release the Team archives belong to (werkbord-vX.Y.Z, the one tag of the whole release)")
 	if err := f.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -94,14 +81,12 @@ func run(args []string, keyInput io.Reader) error {
 		}
 		out = append(out, '\n')
 	} else {
-		if !strings.HasPrefix(*tag, "werkbord-team-v") || strings.ContainsAny(*tag, "\r\n\x00 /\\") {
-			return errors.New("a product-specific Team release tag is required")
+		if !strings.HasPrefix(*tag, "werkbord-v") || strings.ContainsAny(*tag, "\r\n\x00 /\\") {
+			return errors.New("the release tag (werkbord-vX.Y.Z) is required")
 		}
-		domain := "werkbord-team/release/v1"
-		if args[0] == "desktop-release" {
-			domain = "werkbord-team/desktop-release/v1"
-		}
-		out = ed25519.Sign(key, append([]byte(domain+"\x00"+*tag+"\x00"), data...))
+		// The signature binds the archives' checksums to this release and to Team's archives, so it cannot be replayed
+		// for another release.
+		out = ed25519.Sign(key, append([]byte("werkbord-team/release/v1\x00"+*tag+"\x00"), data...))
 	}
 	file, err := os.OpenFile(*output, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {

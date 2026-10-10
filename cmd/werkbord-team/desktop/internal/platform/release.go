@@ -1,87 +1,63 @@
 package platform
 
 import (
-	"bytes"
-	"crypto/ed25519"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 )
 
-type DesktopManifest struct {
-	Tag   string            `json:"tag"`
-	Files map[string]string `json:"files"`
+// signingTeam is the Apple Developer team that signs a Werkbord release, stamped into a release build (-X
+// devboard/cmd/werkbord-team/desktop/internal/platform.signingTeam=ABCDE12345). It is public. The Team service is installed
+// into a root-owned directory, so before it replaces anything it checks that the app it is running from was signed by that
+// team under Apple's own certificate chain: a modified copy, or one signed by anyone else, is refused. The app is built,
+// signed and notarized by the same release as everything else in Werkbord, so this is the one trust anchor a release has.
+// A development build has no team and is ad hoc signed, and is not checked.
+var signingTeam string
+
+var teamIdentifier = regexp.MustCompile(`^[A-Z0-9]{10}$`)
+
+// signingRequirement is the code-signing requirement a release's executables must satisfy for the team.
+func signingRequirement(team string) (string, error) {
+	if !teamIdentifier.MatchString(team) {
+		return "", errors.New("invalid release signing team")
+	}
+	return `=anchor apple generic and certificate leaf[subject.OU] = "` + team + `"`, nil
 }
 
-var releaseFiles = []string{"Helpers/werkbord-team", "Helpers/nebula", "Helpers/rqlited", "Helpers/werkbord", "Resources/rqlited.build"}
+// codesignRequirement asks the system whether path satisfies requirement. It is a variable so tests do not need a certificate.
+var codesignRequirement = func(requirement, path string) error {
+	return exec.Command("/usr/bin/codesign", "--verify", "--strict", "-R", requirement, path).Run()
+}
 
-func verifyRelease(contents, version, encodedKey string) error {
-	key, err := base64.RawURLEncoding.DecodeString(encodedKey)
-	if err != nil || len(key) != ed25519.PublicKeySize {
-		return errors.New("invalid offline Team release public key")
+// VerifyRelease checks that the app and the Team service in it were signed by the release's team. It allows the
+// established ad hoc workflow only when no team is configured.
+func VerifyRelease(appRoot string) error {
+	if signingTeam == "" {
+		return nil
 	}
-	raw, err := os.ReadFile(filepath.Join(contents, "Resources", "team-release.json"))
-	if err != nil || len(raw) > 16384 {
-		return errors.New("a signed offline Team desktop release manifest is required")
+	return verifySignedBy(signingTeam, appRoot)
+}
+
+// RequireRelease is VerifyRelease for a caller that must not accept a development build.
+func RequireRelease(appRoot string) error {
+	if signingTeam == "" {
+		return errors.New("this development build has no release signing team")
 	}
-	sig, err := os.ReadFile(filepath.Join(contents, "Resources", "team-release.json.sig"))
+	return verifySignedBy(signingTeam, appRoot)
+}
+
+func verifySignedBy(team, appRoot string) error {
+	requirement, err := signingRequirement(team)
 	if err != nil {
-		return errors.New("the offline Team release signature is missing")
+		return err
 	}
-	tag := "werkbord-team-" + version
-	if !ed25519.Verify(key, append([]byte("werkbord-team/desktop-release/v1\x00"+tag+"\x00"), raw...), sig) {
-		return errors.New("the offline Team release signature is invalid")
-	}
-	var manifest DesktopManifest
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if dec.Decode(&manifest) != nil || dec.Decode(new(any)) != io.EOF || manifest.Tag != tag || len(manifest.Files) != len(releaseFiles) {
-		return errors.New("invalid Team desktop release manifest")
-	}
-	for _, name := range releaseFiles {
-		want, ok := manifest.Files[name]
-		if !ok || len(want) != 64 {
-			return fmt.Errorf("missing signed component: %s", name)
-		}
-		path := filepath.Join(contents, filepath.FromSlash(name))
-		fi, err := os.Lstat(path)
-		if err != nil || !fi.Mode().IsRegular() {
-			return fmt.Errorf("invalid signed component: %s", name)
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		h := sha256.New()
-		_, err = io.Copy(h, f)
-		f.Close()
-		if err != nil || hex.EncodeToString(h.Sum(nil)) != want {
-			return fmt.Errorf("offline Team component checksum mismatch: %s", name)
+	// Nebula keeps its upstream signature and is checked against its pin, so only the code Werkbord signs is tested here.
+	for _, path := range []string{appRoot, filepath.Join(appRoot, "Contents", "Helpers", "werkbord-team")} {
+		if err := codesignRequirement(requirement, path); err != nil {
+			return fmt.Errorf("%s was not signed by the Werkbord release team", filepath.Base(path))
 		}
 	}
 	return nil
-}
-
-// Only the public release trust anchor is stamped into customer builds.
-var releasePublicKey string
-
-// VerifyRelease allows the established ad hoc workflow only when no release key is configured.
-func VerifyRelease(contents, version string) error {
-	if releasePublicKey == "" {
-		return nil
-	}
-	return verifyRelease(contents, version, releasePublicKey)
-}
-
-func RequireRelease(contents, version string) error {
-	if releasePublicKey == "" {
-		return errors.New("this development build has no offline Team release key")
-	}
-	return VerifyRelease(contents, version)
 }

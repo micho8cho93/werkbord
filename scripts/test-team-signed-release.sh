@@ -16,7 +16,7 @@ die() { printf 'signed-release test: %s\n' "$*" >&2; exit 1; }
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$(uname -m)" in arm64|aarch64) arch=arm64 ;; x86_64|amd64) arch=amd64 ;; *) die "unsupported architecture" ;; esac
 version=v$(scripts/product.sh werkbord-team version)
-tag=werkbord-team-$version
+tag=werkbord-$version
 openssl genpkey -algorithm ED25519 -out "$WORK/license.pem" >/dev/null 2>&1
 openssl pkey -in "$WORK/license.pem" -pubout -outform DER -out "$WORK/license-public.der" >/dev/null 2>&1
 openssl genpkey -algorithm ED25519 -out "$WORK/release.pem" >/dev/null 2>&1

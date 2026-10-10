@@ -162,7 +162,7 @@ func PrivilegedService(action, uid string) (resultErr error) {
 	if err := exec.Command("/usr/bin/codesign", "--verify", "--strict", filepath.Join(helpers, "werkbord-team")).Run(); err != nil {
 		return errors.New("the Team service's signature could not be verified")
 	}
-	if err := VerifyRelease(filepath.Join(appRoot, "Contents"), nativeVersion); err != nil {
+	if err := VerifyRelease(appRoot); err != nil {
 		return err
 	}
 	// Stop the candidate before recovering a previous generation. A healthy but

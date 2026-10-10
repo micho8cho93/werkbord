@@ -1,90 +1,51 @@
 package platform
 
 import (
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
-	"os"
-	"path/filepath"
+	"errors"
+	"strings"
 	"testing"
 )
 
-func TestOfflineDesktopReleaseTrust(t *testing.T) {
-	pub, key, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
+func TestSigningRequirementNamesOnlyAWellFormedTeam(t *testing.T) {
+	got, err := signingRequirement("ABCDE12345")
+	if err != nil || got != `=anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345"` {
+		t.Fatalf("%q, %v", got, err)
 	}
-	encoded := base64.RawURLEncoding.EncodeToString(pub)
-	dir := t.TempDir()
-	version := "v3.8.0"
-	m := DesktopManifest{Tag: "werkbord-team-" + version, Files: map[string]string{}}
-	for _, name := range releaseFiles {
-		p := filepath.Join(dir, name)
-		os.MkdirAll(filepath.Dir(p), 0700)
-		raw := []byte(name)
-		os.WriteFile(p, raw, 0700)
-		h := sha256.Sum256(raw)
-		m.Files[name] = hex.EncodeToString(h[:])
-	}
-	raw, _ := json.Marshal(m)
-	path := filepath.Join(dir, "Resources", "team-release.json")
-	os.WriteFile(path, raw, 0600)
-	sign := func(domain string) {
-		os.WriteFile(path+".sig", ed25519.Sign(key, append([]byte(domain+"\x00"+m.Tag+"\x00"), raw...)), 0600)
-	}
-	sign("werkbord-team/desktop-release/v1")
-	if err = verifyRelease(dir, version, encoded); err != nil {
-		t.Fatal(err)
-	}
-	for _, tc := range []struct {
-		name   string
-		mutate func()
-	}{
-		{"wrong product domain", func() { sign("werkbord/release/v1") }},
-		{"CLI signature cannot authorize desktop", func() { sign("werkbord-team/release/v1") }},
-		{"tampered payload", func() { os.WriteFile(filepath.Join(dir, releaseFiles[0]), []byte("changed"), 0700) }},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			tc.mutate()
-			if err = verifyRelease(dir, version, encoded); err == nil {
-				t.Fatal("invalid release accepted")
-			}
-			os.WriteFile(filepath.Join(dir, releaseFiles[0]), []byte(releaseFiles[0]), 0700)
-			sign("werkbord-team/desktop-release/v1")
-		})
-	}
-	if err = verifyRelease(dir, "v3.9.0", encoded); err == nil {
-		t.Fatal("release replay accepted")
-	}
-	other, _, _ := ed25519.GenerateKey(rand.Reader)
-	if err = verifyRelease(dir, version, base64.RawURLEncoding.EncodeToString(other)); err == nil {
-		t.Fatal("wrong key accepted")
-	}
-	os.Remove(path + ".sig")
-	if err = verifyRelease(dir, version, encoded); err == nil {
-		t.Fatal("missing signature accepted")
+	// The team is spliced into requirement text, so nothing but ten letters and digits may get in.
+	for _, bad := range []string{"", "abcde12345", "ABCDE1234", "ABCDE123456", `ABCDE1234"`, "ABCDE1234 ", "ABCDE1234\n", `A" or anchor apple generic and "1`} {
+		if _, err := signingRequirement(bad); err == nil {
+			t.Errorf("accepted %q", bad)
+		}
 	}
 }
 
-func TestReplacementRefusesEveryEnrolledSlotAndTransition(t *testing.T) {
-	for _, name := range []string{"workspace", "pending", "leaving", "demoting", "slots/second/workspace", "slots/second/pending"} {
-		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			if err := CheckReplacement(dir); err != nil {
-				t.Fatal(err)
-			}
-			p := filepath.Join(dir, name)
-			os.MkdirAll(filepath.Dir(p), 0700)
-			os.WriteFile(p, []byte("preserved"), 0600)
-			if err := CheckReplacement(dir); err == nil {
-				t.Fatal("unsafe service replacement allowed")
-			}
-			if b, err := os.ReadFile(p); err != nil || string(b) != "preserved" {
-				t.Fatal("state changed")
-			}
-		})
+func TestReleaseVerificationChecksTheAppAndTheService(t *testing.T) {
+	old := codesignRequirement
+	t.Cleanup(func() { codesignRequirement = old; signingTeam = "" })
+	var checked []string
+	codesignRequirement = func(requirement, path string) error {
+		if !strings.Contains(requirement, `"ABCDE12345"`) {
+			t.Errorf("wrong requirement %q", requirement)
+		}
+		checked = append(checked, path)
+		return nil
+	}
+	signingTeam = ""
+	if err := VerifyRelease("/Applications/Werkbord Team.app"); err != nil || len(checked) != 0 {
+		t.Fatalf("a development build is not checked: %v %v", err, checked)
+	}
+	if err := RequireRelease("/Applications/Werkbord Team.app"); err == nil {
+		t.Fatal("a development build satisfied a required release check")
+	}
+	signingTeam = "ABCDE12345"
+	if err := VerifyRelease("/Applications/Werkbord Team.app"); err != nil {
+		t.Fatal(err)
+	}
+	if len(checked) != 2 || checked[0] != "/Applications/Werkbord Team.app" || checked[1] != "/Applications/Werkbord Team.app/Contents/Helpers/werkbord-team" {
+		t.Fatalf("checked %v", checked)
+	}
+	codesignRequirement = func(string, string) error { return errors.New("not signed by them") }
+	if err := VerifyRelease("/x.app"); err == nil || RequireRelease("/x.app") == nil {
+		t.Fatal("a copy signed by someone else was accepted")
 	}
 }

@@ -145,56 +145,36 @@ release_secrets_env() { # <product kind> [NAME=value …]: disposable fixtures, 
     APPLE_CERTIFICATE_P12=eA== APPLE_CERTIFICATE_PASSWORD=pw APPLE_NOTARY_KEY="-----BEGIN PRIVATE KEY-----
 abc
 -----END PRIVATE KEY-----" NOTARY_KEY_ID=ABCDE12345 NOTARY_ISSUER=11111111-2222-3333-4444-555555555555 \
-    SPARKLE_ED_PRIVATE_KEY=c2VlZHNlZWRzZWVkc2VlZHNlZWRzZWVkc2VlZHNlZWQ= "$@" scripts/check-release-secrets.sh "$kind" 2>&1
+    SPARKLE_ED_PRIVATE_KEY=c2VlZHNlZWRzZWVkc2VlZHNlZWRzZWVkc2VlZHNlZWQ= \
+    LICENSE_ISSUER_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "$@" scripts/check-release-secrets.sh "$kind" 2>&1
 }
 secrets_env() { release_secrets_env desktop "$@"; }
 RC=0; OUT=$(secrets_env) || RC=$?
 [ $RC = 0 ] || bad "a release with every secret was refused" "$OUT"
 RC=0; OUT=$(env -i PATH="$PATH" SPARKLE_PUBLIC_KEY_FILE="$WORK/none" scripts/check-release-secrets.sh desktop 2>&1) || RC=$?
 [ $RC -ne 0 ] || bad "a release with no secret was accepted"
-for name in APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_NOTARY_KEY APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER SPARKLE_ED_PRIVATE_KEY sparkle-public-key; do
+for name in APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_NOTARY_KEY APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER SPARKLE_ED_PRIVATE_KEY sparkle-public-key TEAM_LICENSE_ISSUER_PUBLIC_KEY; do
   contains "$OUT" "$name" || bad "no mention of $name when nothing is set" "$OUT"
 done
 for step in "step 5" "step 6"; do contains "$OUT" "$step" || bad "the message does not say which checklist step makes them ($step)" "$OUT"; done
 # each one alone
-for var in APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER SPARKLE_ED_PRIVATE_KEY; do
+for var in APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER SPARKLE_ED_PRIVATE_KEY LICENSE_ISSUER_PUBLIC_KEY; do
   RC=0; OUT=$(secrets_env "$var=") || RC=$?
   [ $RC -ne 0 ] && contains "$OUT" "missing secrets" || bad "$var empty must be reported as missing" "$OUT"
 done
 # present but the wrong thing
-for pair in "APPLE_CERTIFICATE_P12=%%%not-base64%%%:not base64" "APPLE_NOTARY_KEY=just a password:the text of the .p8" "NOTARY_KEY_ID=short:Key ID" "NOTARY_ISSUER=not-a-uuid:Issuer ID" "SPARKLE_ED_PRIVATE_KEY=short:one line of base64"; do
+for pair in "APPLE_CERTIFICATE_P12=%%%not-base64%%%:not base64" "APPLE_NOTARY_KEY=just a password:the text of the .p8" "NOTARY_KEY_ID=short:Key ID" "NOTARY_ISSUER=not-a-uuid:Issuer ID" "SPARKLE_ED_PRIVATE_KEY=short:one line of base64" "LICENSE_ISSUER_PUBLIC_KEY=short:32-byte Ed25519" "LICENSE_ISSUER_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:raw URL base64" "LICENSE_ISSUER_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+:raw URL base64"; do
   RC=0; OUT=$(secrets_env "${pair%%:*}") || RC=$?
   [ $RC -ne 0 ] && contains "$OUT" "${pair#*:}" || bad "${pair%%=*} that is the wrong thing was accepted" "$OUT"
 done
 case $(secrets_env "APPLE_CERTIFICATE_PASSWORD=hunter2-must-not-show" SPARKLE_ED_PRIVATE_KEY=short) in *hunter2-must-not-show*|*c2VlZHNlZWRz*) bad "a secret was printed" ;; esac
 ok "a release names every missing secret and the step that makes it, notices the wrong thing in a present one, and prints no value"
 
-# Team must diagnose every missing credential before importing a certificate. It needs the license public key,
-# independently of the individual updater's keys, and never needs the issuer's private signing key.
-team_secrets_env() {
-  release_secrets_env team-desktop SPARKLE_PUBLIC_KEY_FILE="$WORK/none" SPARKLE_ED_PRIVATE_KEY= \
-    LICENSE_ISSUER_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "$@"
-}
-RC=0; OUT=$(team_secrets_env) || RC=$?
-[ $RC = 0 ] || bad "Team credentials were refused without individual updater keys" "$OUT"
-RC=0; OUT=$(env -i PATH="$PATH" scripts/check-release-secrets.sh team-desktop 2>&1) || RC=$?
-[ $RC -ne 0 ] || bad "Team with no credentials was accepted"
-for name in APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_NOTARY_KEY APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER TEAM_LICENSE_ISSUER_PUBLIC_KEY docs/TEAM_DESKTOP.md; do
-  contains "$OUT" "$name" || bad "Team did not report $name when no credentials are set" "$OUT"
-done
-case "$OUT" in *SPARKLE*|*sparkle-public-key*|*docs/DESKTOP_RELEASE.md*) bad "Team was given individual release requirements" "$OUT" ;; esac
-for var in APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER LICENSE_ISSUER_PUBLIC_KEY; do
-  RC=0; OUT=$(team_secrets_env "$var=") || RC=$?
-  [ $RC -ne 0 ] && contains "$OUT" "missing secrets" || bad "Team must reject missing $var" "$OUT"
-done
-for pair in "APPLE_CERTIFICATE_P12=%%%not-base64%%%:not base64" "APPLE_NOTARY_KEY=just a password:the text of the .p8" "NOTARY_KEY_ID=short:Key ID" "NOTARY_ISSUER=not-a-uuid:Issuer ID" "LICENSE_ISSUER_PUBLIC_KEY=short:32-byte Ed25519" "LICENSE_ISSUER_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:raw URL base64" "LICENSE_ISSUER_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+:raw URL base64"; do
-  RC=0; OUT=$(team_secrets_env "${pair%%:*}") || RC=$?
-  [ $RC -ne 0 ] && contains "$OUT" "${pair#*:}" || bad "Team accepted malformed ${pair%%=*}" "$OUT"
-done
-case $(team_secrets_env APPLE_CERTIFICATE_PASSWORD=team-password-must-not-show LICENSE_ISSUER_PUBLIC_KEY=short) in
-  *team-password-must-not-show*|*eA==*|*BEGIN\ PRIVATE\ KEY*) bad "Team printed a credential" ;;
-esac
-ok "Team checks all Apple credentials and its license issuer public key, without updater keys or secret values"
+# There is one release and one set of secrets: Team's installer is built and signed in the same job as the app, and the only
+# Team-specific input is the license issuer's public key, checked above. The old separate Team kind is gone.
+RC=0; OUT=$(release_secrets_env team-desktop) || RC=$?
+[ $RC -ne 0 ] && contains "$OUT" "usage" || bad "the retired team-desktop kind was accepted" "$OUT"
+ok "there is one set of release secrets, and the license issuer's public key is among them"
 
 # ---------------------------------------------------------------- the check of a published release
 if [ "$(uname -s)" != Darwin ]; then
