@@ -242,7 +242,31 @@ func Installed(ctx context.Context, o Options) (Manager, bool) {
 		return m, false
 	}
 	st, err := m.Status(ctx)
-	return m, err == nil && st.Installed
+	if err != nil || !st.Installed {
+		return m, false
+	}
+	// A service that keeps its data elsewhere is another installation's, not this
+	// one's: `stop`, `restart` and `start` for a sandbox data directory must not
+	// reach the controller you actually use.
+	if o.DataDir != "" {
+		if body, ok := definition(ctx, m); ok {
+			if d, ok := parsePlist(body); ok && d.DataDir != "" && !sameDir(d.DataDir, o.DataDir) {
+				return m, false
+			}
+		}
+	}
+	return m, true
+}
+
+// sameDir reports whether two paths name the same directory.
+func sameDir(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if a == b {
+		return true
+	}
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && ra == rb
 }
 
 // ServicePATH builds the PATH a service runs with: the one setup was run with,

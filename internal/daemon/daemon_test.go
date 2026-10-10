@@ -524,3 +524,29 @@ func TestDescribeFindsAServiceInstalledUnderTheOldLabel(t *testing.T) {
 		t.Fatalf("Describe = %+v, %v", def, ok)
 	}
 }
+
+// `werkbord stop` for a sandbox data directory must not reach the controller installed
+// for another one.
+func TestAServiceForAnotherDataDirIsNotInstalledForThisOne(t *testing.T) {
+	ok := func(context.Context, string, ...string) (string, error) { return "", nil }
+	home := t.TempDir()
+	agents := filepath.Join(home, "Library", "LaunchAgents")
+	if err := os.MkdirAll(agents, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	real, sandbox := t.TempDir(), t.TempDir()
+	l := &Launchd{Options: Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501}}
+	plist, err := l.Plist(Spec{Binary: "/bin/werkbord", Args: []string{"serve"}, DataDir: real, Path: "/usr/bin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(agents, "dev.werkbord.controller.plist"), []byte(plist), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, inst := Installed(bg, Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501, DataDir: real}); !inst {
+		t.Error("the service for this data directory was not found")
+	}
+	if _, inst := Installed(bg, Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501, DataDir: sandbox}); inst {
+		t.Error("another data directory's service was taken for this one")
+	}
+}
