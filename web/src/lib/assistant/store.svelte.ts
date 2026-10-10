@@ -279,7 +279,7 @@ export class AssistantStore {
     // A server that was restarted counts events from the start again; the transcript must count with it.
     reconcileSeq(this.transcript, v.lastEvent);
     adoptPending(this.transcript, v.pending ?? []);
-    settleStale(this.transcript, v.running);
+    settleStale(this.transcript, v.running, v.lastError);
     this.choice = this.choiceOf(v);
     // The files the server holds are the truth; ones it no longer holds ran out of time or were sent.
     const held = (v.attachments ?? []).map((a) => a.id);

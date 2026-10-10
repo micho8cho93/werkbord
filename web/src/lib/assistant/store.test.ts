@@ -491,7 +491,8 @@ describe('coming back after a reload', () => {
     b.init();
     await srv.until(() => b.waiting === 1);
     expect(confirmOf(b).id).toBe(act.id);
-    expect(replyOf(b).status).toBe('done'); // it stopped while the page was away
+    expect(replyOf(b).status).toBe('cancelled'); // its final result was missed while the page was away
+    expect(replyOf(b).notices.join(' ')).toContain('final result could not be recovered');
   });
 
   it('closes a change that was settled while it was away', async () => {

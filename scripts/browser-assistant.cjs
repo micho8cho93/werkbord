@@ -107,7 +107,13 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
     const surface = page => page.getByTestId('assistant');
     const openAssistant = async page => { await page.getByTestId('assistant-button').first().click(); await surface(page).waitFor(); await page.waitForFunction(() => document.querySelector('[data-testid="assistant"]')?.dataset.phase === 'open'); };
     const closeAssistant = async page => { await page.getByTestId('assistant-close').click(); await surface(page).waitFor({ state: 'detached' }); };
-    const sendText = async (page, text) => { const box = page.getByRole('textbox', { name: 'Message to the assistant' }); await box.fill(text); await page.getByRole('button', { name: 'Send', exact: true }).click(); };
+    const sendText = async (page, text) => {
+        const before = await page.locator('article.reply').count();
+        const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+        await box.fill(text);
+        await page.getByRole('button', { name: 'Send', exact: true }).click();
+        await page.waitForFunction(n => document.querySelectorAll('article.reply').length > n, before);
+    };
     const lastReply = page => page.locator('article.reply').last();
 
     try {
@@ -262,6 +268,13 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.match(await looked.textContent(), /Looking for what is blocked/, 'and says what was looked at, in plain words');
             ok('tool progress is a single quiet line while it works, and a collapsed note after');
 
+            await sendText(page, 'show a failed board action');
+            await lastReply(page).getByRole('alert').waitFor();
+            assert.match(await lastReply(page).getByRole('alert').innerText(), /prj_missing.*not found/);
+            await lastReply(page).getByRole('status').filter({ hasText: 'Reply finished.' }).waitFor();
+            await page.screenshot({ path: path.join(artifacts, 'assistant-operation-error-desktop.png') });
+            ok('a failed board operation shows its reason without opening a disclosure, and the reply visibly finishes');
+
             // Safe rendering: formatting works, markup does not.
             await sendText(page, 'show markdown');
             await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
@@ -372,7 +385,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.reload();
             await openAssistant(page);
             await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done', null, { timeout: 15000 });
-            const text = await lastReply(page).innerText();
+            const text = await lastReply(page).locator('.md').innerText();
             assert.match(text, /^One two three four five six seven eight nine ten eleven twelve\.\s*$/, 'complete and not doubled: ' + JSON.stringify(text));
             ok('a reload in the middle of a reply picks it up and finishes it exactly once');
             await ctx.close();
@@ -650,7 +663,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const sendBox = await page.getByRole('button', { name: 'Send', exact: true }).boundingBox();
             const closeBox = await page.getByTestId('assistant-close').boundingBox();
             const micBox = await page.getByTestId('assistant-mic').boundingBox();
-            for (const b of [sendBox, closeBox, micBox]) assert.ok(b.width >= 44 && b.height >= 44, 'tap targets are at least 44px: ' + JSON.stringify(b));
+            // Transformed bounds can report 43.999999px for a 44px control; allow only subpixel rounding.
+            for (const b of [sendBox, closeBox, micBox]) assert.ok(b.width >= 44 - 0.001 && b.height >= 44 - 0.001, 'tap targets are at least 44px: ' + JSON.stringify(b));
             assert.equal(await page.getByRole('textbox', { name: 'Message to the assistant' }).evaluate(el => parseFloat(getComputedStyle(el).fontSize)), 16, 'the box is 16px so the phone does not zoom');
             const comp = await page.getByRole('textbox', { name: 'Message to the assistant' }).boundingBox();
             assert.ok(comp.y + comp.height <= 844, 'the box is on screen');

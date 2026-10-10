@@ -8,6 +8,7 @@
   const line = $derived(reply.status === 'working' ? progressLine(reply) : '');
   const looked = $derived(reply.status === 'done' ? lookedAt(reply) : []);
   const fail = $derived(reply.error ? failure(reply.error) : null);
+  const failedSteps = $derived(reply.steps.filter((s) => s.status === 'error'));
 </script>
 
 <article class="reply" aria-busy={reply.status === 'working'} data-status={reply.status}>
@@ -27,6 +28,14 @@
   {/if}
 
   {#if reply.status === 'cancelled'}<p class="note">Stopped.</p>{/if}
+  {#if reply.status === 'done'}<p class="note" role="status">Reply finished.</p>{/if}
+
+  {#each failedSteps as step (step)}
+    <div class="fail" role="alert">
+      <strong>Could not complete a board action</strong>
+      <p>{step.detail || 'The action failed. Ask the assistant to try again.'}</p>
+    </div>
+  {/each}
 
   {#if fail}
     <div class="fail" role="alert">

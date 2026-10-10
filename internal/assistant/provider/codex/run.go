@@ -31,9 +31,9 @@ type turn struct {
 	mu         sync.Mutex
 	threadID   string
 	turnID     string
-	text       strings.Builder
-	final      string // the completed agent message, which is authoritative over the pieces
-	sawDelta   bool
+	hasText    bool
+	messages   []*agentMessageReply
+	messageID  string
 	usage      provider.Usage
 	lastError  string
 	violation  string
@@ -42,6 +42,56 @@ type turn struct {
 	interrupts func() // asks the server to stop the turn
 	finished   chan struct{}
 	once       sync.Once
+}
+
+type agentMessageReply struct {
+	id        string
+	text      strings.Builder
+	final     string // the completed message is authoritative over its own pieces
+	completed bool
+}
+
+// messageText preserves the boundary between commentary and subsequent messages. Without it a call fence can be
+// glued to the previous sentence, making the engine treat the operation as ordinary text. It also handles a server
+// that streams some messages but delivers others whole, without dropping or repeating either.
+// The caller holds t.mu.
+func (t *turn) messageText(id, text string, completed bool) {
+	if t.violation != "" {
+		return
+	}
+	if id == "" {
+		id = t.messageID
+	}
+	var message *agentMessageReply
+	for _, m := range t.messages {
+		if m.id == id {
+			message = m
+			break
+		}
+	}
+	if message == nil {
+		message = &agentMessageReply{id: id}
+		t.messages = append(t.messages, message)
+	}
+	t.messageID = id
+	if completed {
+		if message.completed {
+			return
+		}
+		message.final, message.completed = text, true
+		if message.text.Len() > 0 {
+			return // its deltas have already reached the engine
+		}
+	}
+	if text == "" {
+		return
+	}
+	if message.text.Len() == 0 && t.hasText {
+		t.emit(provider.Event{Kind: provider.EventText, Text: "\n\n"})
+	}
+	message.text.WriteString(text)
+	t.hasText = true
+	t.emit(provider.Event{Kind: provider.EventText, Text: text})
 }
 
 func (t *turn) finish() { t.once.Do(func() { close(t.finished) }) }
@@ -61,21 +111,15 @@ func (t *turn) notification(method string, params json.RawMessage) {
 		}
 	case "item/agentMessage/delta":
 		var p struct {
-			Delta string `json:"delta"`
+			Delta  string `json:"delta"`
+			ItemID string `json:"itemId"`
 		}
 		if json.Unmarshal(params, &p) != nil || p.Delta == "" {
 			return
 		}
 		t.mu.Lock()
-		quiet := t.violation != ""
-		if !quiet {
-			t.sawDelta = true
-			t.text.WriteString(p.Delta)
-		}
+		t.messageText(p.ItemID, p.Delta, false)
 		t.mu.Unlock()
-		if !quiet {
-			t.emit(provider.Event{Kind: provider.EventText, Text: p.Delta})
-		}
 	case "item/reasoning/summaryTextDelta", "item/reasoning/textDelta":
 		// Reasoning is never shown or kept; it only proves the turn is alive.
 		t.emit(provider.Event{Kind: provider.EventAlive})
@@ -83,6 +127,7 @@ func (t *turn) notification(method string, params json.RawMessage) {
 		var p struct {
 			Item struct {
 				Type string `json:"type"`
+				ID   string `json:"id"`
 				Text string `json:"text"`
 			} `json:"item"`
 		}
@@ -93,10 +138,12 @@ func (t *turn) notification(method string, params json.RawMessage) {
 			t.violate(fmt.Sprintf("Codex tried to do something other than reply (%q)", clip(p.Item.Type, 40)))
 			return
 		}
-		if method == "item/completed" && p.Item.Type == "agentMessage" {
+		if p.Item.Type == "agentMessage" {
 			t.mu.Lock()
-			if t.violation == "" {
-				t.final = p.Item.Text
+			if method == "item/completed" {
+				t.messageText(p.Item.ID, p.Item.Text, true)
+			} else {
+				t.messageID = p.Item.ID
 			}
 			t.mu.Unlock()
 		}
@@ -304,14 +351,17 @@ func (p *Provider) result(ctx context.Context, ts *turn, c *client) (provider.Re
 	case ctx.Err() != nil:
 		return provider.Result{}, ctx.Err()
 	case ts.status == "completed":
-		text := ts.final
-		if text == "" {
-			text = ts.text.String()
+		var messages []string
+		for _, m := range ts.messages {
+			text := m.text.String()
+			if m.completed && m.final != "" {
+				text = m.final
+			}
+			if text != "" {
+				messages = append(messages, text)
+			}
 		}
-		if !ts.sawDelta && text != "" { // a version that does not stream: the reply arrives whole
-			ts.emit(provider.Event{Kind: provider.EventText, Text: text})
-		}
-		return provider.Result{Text: text, Ref: ts.threadID, Usage: ts.usage}, nil
+		return provider.Result{Text: strings.Join(messages, "\n\n"), Ref: ts.threadID, Usage: ts.usage}, nil
 	case ts.status == "interrupted":
 		return provider.Result{}, provider.Errorf(provider.KindTransient, true, "Codex ended the turn early")
 	case ts.status == "failed":

@@ -104,8 +104,9 @@ describe('what the assistant looked up', () => {
     apply(t, ev('tool_result', { tool: { callId: 'c1', name: 'list_blockers', status: 'ok' } }));
     expect(progressLine(reply(t))).toBe('Thinking…');
     apply(t, ev('delta', { text: 'None.', attempt: 2 }));
-    expect(progressLine(reply(t))).toBe('');
+    expect(progressLine(reply(t))).toBe('Working…');
     apply(t, ev('turn_completed'));
+    expect(progressLine(reply(t))).toBe('');
     expect(lookedAt(reply(t))).toEqual(['Looking for what is blocked']);
   });
 
@@ -190,7 +191,21 @@ describe('failures', () => {
     settleStale(t, true);
     expect(reply(t).status).toBe('working');
     settleStale(t, false);
+    expect(reply(t).status).toBe('cancelled');
+    expect(reply(t).notices.join(' ')).toContain('final result could not be recovered');
+    apply(t, ev('turn_completed'));
     expect(reply(t).status).toBe('done');
+    expect(reply(t).notices).toEqual([]);
+  });
+
+  it('recovers a missed failure after reconnecting, even if part of the reply was received', () => {
+    const t = fresh();
+    apply(t, ev('turn_started'));
+    apply(t, ev('delta', { text: 'I will look that up.', attempt: 1 }));
+    settleStale(t, false, 'rate_limited');
+    expect(reply(t)).toMatchObject({ status: 'failed', error: { code: 'rate_limited' } });
+    apply(t, ev('turn_failed', { error: { code: 'rate_limited', message: 'Your allowance resets tomorrow.', retryable: false } }));
+    expect(reply(t).error?.message).toBe('Your allowance resets tomorrow.');
   });
 });
 

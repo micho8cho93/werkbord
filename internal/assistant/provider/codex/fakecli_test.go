@@ -185,6 +185,18 @@ func runTurn(thread, turn, text string, params map[string]any, in *bufio.Reader)
 	case "WHOLE":
 		agentMessage("whole reply") // a server that does not stream
 		completed(thread, turn, "completed", "")
+	case "MESSAGES", "MIXED", "MIXEDREVERSE", "WHOLEMESSAGES":
+		for i, message := range []string{"I'll find the portfolio project.", "```werkbord-call\n{\"id\":\"p1\",\"name\":\"list_projects\",\"arguments\":{}}\n```"} {
+			id := fmt.Sprintf("msg-%d", i)
+			notify("item/started", map[string]any{"item": map[string]any{"type": "agentMessage", "id": id}})
+			if word == "MESSAGES" || word == "MIXED" && i == 0 || word == "MIXEDREVERSE" && i == 1 {
+				for _, piece := range []string{message[:3], message[3:]} {
+					notify("item/agentMessage/delta", map[string]any{"itemId": id, "delta": piece})
+				}
+			}
+			notify("item/completed", map[string]any{"item": map[string]any{"type": "agentMessage", "id": id, "text": message}})
+		}
+		completed(thread, turn, "completed", "")
 	default:
 		model, _ := params["model"].(string)
 		effort, _ := params["effort"].(string)

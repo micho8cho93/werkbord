@@ -11,6 +11,7 @@ import (
 	"devboard/internal/assistant/provider"
 	"devboard/internal/assistant/provider/claude"
 	"devboard/internal/assistant/provider/codex"
+	"devboard/internal/domain"
 )
 
 // TestLiveTheAssistantAsksForAnOperationInTheWayTheEngineReads checks, against the real command lines, that a model given the
@@ -68,4 +69,88 @@ func TestLiveTheAssistantAsksForAnOperationInTheWayTheEngineReads(t *testing.T) 
 			}
 		})
 	}
+}
+
+// Exercise the complete task-creation conversation, including the real provider's separate commentary and final
+// messages, lookup, four proposals, confirmation and persisted cards. All data belongs to the disposable fixture.
+func TestLiveCodexCreatesPortfolioTasksAfterConfirmation(t *testing.T) {
+	if os.Getenv("WERKBORD_LIVE_ASSISTANT") == "" {
+		t.Skip("set WERKBORD_LIVE_ASSISTANT=1 to run against the real CLI")
+	}
+	p := codex.New(codex.Config{})
+	ctx, cancel := context.WithTimeout(bg, 3*time.Minute)
+	defer cancel()
+	if info := p.Detect(ctx); !info.Available {
+		t.Skipf("Codex is not available here: %s", info.Detail)
+	}
+	f := newEfx(t, func(c *Config) {
+		c.Providers = provider.NewRegistry()
+		if err := c.Providers.Register(p); err != nil {
+			t.Fatal(err)
+		}
+		c.TurnTimeout = 2 * time.Minute
+	})
+	a := f.project("personal portfolio")
+	s, err := f.eng.CreateSession(ctx, CreateRequest{Provider: codex.ID, Model: os.Getenv("WERKBORD_LIVE_ASSISTANT_MODEL")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := f.eng.Subscribe(ctx, s.ID, s.LastEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.eng.Send(ctx, s.ID, "add tasks to my personal portfolio project:\n1. extract career information from LinkedIn\n2. extract coding projects from GitHub\n3. create design system\n4. code website mvp in html, css and js"); err != nil {
+		t.Fatal(err)
+	}
+	var evs []Event
+events:
+	for {
+		select {
+		case ev, ok := <-ch:
+			if !ok {
+				t.Fatal("the stream closed before the turn ended")
+			}
+			evs = append(evs, ev)
+			if isTerminal(ev.Type) {
+				break events
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	if end(evs).Type != EventCompleted {
+		t.Fatalf("turn ended: %+v", end(evs))
+	}
+	if strings.Contains(shown(evs), "werkbord-call") {
+		t.Fatalf("operation calls reached the conversation: %q", shown(evs))
+	}
+	v, err := f.eng.Session(ctx, s.ID)
+	if err != nil || len(v.Pending) != 4 {
+		t.Fatalf("expected four task proposals: %+v; error %v; reply %q", v, err, shown(evs))
+	}
+	if len(f.tickets(a.ID)) != 0 {
+		t.Fatal("tasks were created before confirmation")
+	}
+	for _, action := range v.Pending {
+		if _, err := f.eng.Resolve(ctx, s.ID, action.ID, true); err != nil {
+			t.Fatalf("confirm %s: %v", action.Summary, err)
+		}
+	}
+	tasks := f.tickets(a.ID)
+	if len(tasks) != 4 {
+		t.Fatalf("expected four persisted tasks, got %+v", tasks)
+	}
+	var titles []string
+	for _, task := range tasks {
+		if task.State != domain.TaskBacklog || task.ProjectID != a.ID {
+			t.Fatalf("task is on the wrong board or column: %+v", task)
+		}
+		titles = append(titles, strings.ToLower(task.Title))
+	}
+	for _, want := range []string{"linkedin", "github", "design system", "mvp"} {
+		if !strings.Contains(strings.Join(titles, "\n"), want) {
+			t.Fatalf("missing task %q: %v", want, titles)
+		}
+	}
+	t.Logf("confirmed and persisted four tasks: %v", titles)
 }

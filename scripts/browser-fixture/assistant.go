@@ -111,6 +111,10 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 	low := strings.ToLower(p)
 	afterResults := strings.Contains(p, "<werkbord-results>")
 	switch {
+	case strings.Contains(low, "failed board action") && !afterResults:
+		return say("I'll read that board.\n```werkbord-call\n{\"id\":\"c1\",\"name\":\"list_tickets\",\"arguments\":{\"projectId\":\"prj_missing\"}}\n```")
+	case afterResults && strings.Contains(p, `status="error"`):
+		return say("I could not read that board.")
 	case strings.Contains(low, "portfolio tickets") && !afterResults:
 		return say("Looking up the portfolio project.\n```werkbord-call\n{\"id\":\"p1\",\"name\":\"list_projects\",\"arguments\":{}}\n```")
 	case afterResults && strings.Contains(p, "workspace:") && strings.Contains(p, `name="list_projects"`):

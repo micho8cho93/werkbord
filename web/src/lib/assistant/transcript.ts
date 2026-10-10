@@ -67,6 +67,7 @@ export const emptyTranscript = (): Transcript => ({ items: [], lastSeq: 0 });
 export type Applied = 'applied' | 'ignored' | 'gap';
 
 const MAX_ITEMS = 80;
+const MISSING_END = 'Werkbord reports that this reply has ended, but its final result could not be recovered. Check the board before retrying any changes.';
 
 function replyOf(t: Transcript, turnId: string | undefined): ReplyItem | undefined {
   if (!turnId) return undefined;
@@ -173,7 +174,8 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
       const r = ensureReply(t, e.turnId);
       if (!r) break;
       r.status = e.type === 'turn_completed' ? 'done' : e.type === 'turn_failed' ? 'failed' : 'cancelled';
-      if (e.type === 'turn_failed') r.error = e.error ?? { code: 'internal', message: 'The assistant could not finish.', retryable: true };
+      r.error = e.type === 'turn_failed' ? e.error ?? { code: 'internal', message: 'The assistant could not finish.', retryable: true } : undefined;
+      r.notices = r.notices.filter((n) => n !== MISSING_END);
       for (const s of r.steps) if (s.status === 'running') s.status = r.status === 'done' ? 'ok' : 'stopped';
       break;
     }
@@ -214,11 +216,13 @@ export function reconcileSeq(t: Transcript, serverLast: number): boolean {
 }
 
 /** A turn that was in progress when the page went away but is not any more, as far as the server says. */
-export function settleStale(t: Transcript, running: boolean): void {
+export function settleStale(t: Transcript, running: boolean, lastError?: string): void {
   if (running) return;
   for (const it of t.items) {
     if (it.kind === 'reply' && it.status === 'working') {
-      it.status = it.text.trim() ? 'done' : 'cancelled';
+      it.status = lastError ? 'failed' : 'cancelled';
+      if (lastError) it.error = { code: lastError, message: MISSING_END, retryable: true };
+      else if (!it.notices.includes(MISSING_END)) it.notices.push(MISSING_END);
       for (const s of it.steps) if (s.status === 'running') s.status = 'stopped';
     }
   }
@@ -249,10 +253,11 @@ export function stepLabel(name: string): string {
 
 /** The one quiet line shown while the assistant works. */
 export function progressLine(r: ReplyItem): string {
+  if (r.status !== 'working') return '';
   const running = [...r.steps].reverse().find((s) => s.status === 'running');
   if (running) return stepLabel(running.name) + '…';
   if (r.text.trim() === '') return 'Thinking…';
-  return '';
+  return 'Working…';
 }
 
 /** What the finished reply looked at, for the details shown on request: each kind once. */

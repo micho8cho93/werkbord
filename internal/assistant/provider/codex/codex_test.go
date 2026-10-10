@@ -218,6 +218,21 @@ func TestAServerThatDoesNotStreamStillDeliversTheReplyOnce(t *testing.T) {
 	}
 }
 
+func TestSeparateAgentMessagesKeepTheirBoundariesAndAllTheirText(t *testing.T) {
+	const want = "I'll find the portfolio project.\n\n```werkbord-call\n{\"id\":\"p1\",\"name\":\"list_projects\",\"arguments\":{}}\n```"
+	for _, prompt := range []string{"MESSAGES x", "MIXED x", "MIXEDREVERSE x", "WHOLEMESSAGES x"} {
+		t.Run(prompt, func(t *testing.T) {
+			res, c, err := run(t, newProvider(t), provider.Turn{Prompt: prompt})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Join(c.texts(), ""); got != want || res.Text != want {
+				t.Fatalf("stream %q; whole reply %q; want %q", got, res.Text, want)
+			}
+		})
+	}
+}
+
 func cancelAfterFirstPiece(t *testing.T, prompt string) (time.Duration, error) {
 	t.Helper()
 	p := newProvider(t)

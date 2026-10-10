@@ -174,6 +174,16 @@ The engine finds these as the reply streams, **without showing them**, runs each
 results back inside `<werkbord-results>` for the assistant to answer from. At most six calls a message and six trips a
 turn.
 
+Codex message boundaries are preserved in that text: a commentary message followed by a call message has a blank line
+between them, even when the provider sends neither a trailing nor a leading newline. Each message can stream or arrive
+whole independently; completed messages are not repeated and no earlier message is discarded. The live
+`TestLiveCodexCreatesPortfolioTasksAfterConfirmation` exercises project lookup, four task proposals, confirmation and the
+persisted Backlog cards in a disposable board. Set `WERKBORD_LIVE_ASSISTANT_MODEL` to check a specific Codex model.
+
+The conversation keeps a working indicator until the turn ends and marks completed replies explicitly. Operation errors
+show their reason in the conversation. After a reconnect, partial text alone never implies success: an unrecovered final
+result is shown as stopped or failed, with a note to check the board before retrying changes.
+
 **Both CLIs change often.** `go test ./internal/assistant/provider/live -v` with
 `WERKBORD_LIVE_ASSISTANT=1` repeats these checks against the real command lines (a handful of one-word turns).
 
