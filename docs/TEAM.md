@@ -223,7 +223,9 @@ share a repository never produce the same branch name.
 
 A ticket also carries the **planning** side of the work ([PLANNING.md](PLANNING.md)): any number of the workspace's shared **labels**, a
 **work mode** (`human`, `agent`, `hybrid`: who is expected to do it, a fixed classification that is not a label), an optional planned
-**date range or milestone**, and the other tickets of its project it **depends on**. Putting these on a ticket is a ticket edit (the
+**date range or milestone**, and the other tickets of its project it **depends on**. That list is the only one: the timeline draws it and a
+shared request for agent work waits for it (Done, or a completed request), so changing it makes a live request stale until it is proposed
+again ([PLANNING.md](PLANNING.md#team-one-list-of-dependencies)). Putting these on a ticket is a ticket edit (the
 creator, or `tickets.edit`); defining the labels is `labels.manage`. Human work is never the subject of a shared request for agent
 work, and nothing here moves a ticket or a date: `GET /projects/{id}/timeline` only reports what contradicts itself. A project
 without a repository runs the whole workflow with no Git report.

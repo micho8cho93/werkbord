@@ -568,6 +568,7 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
 .tl-mt { position: absolute; z-index: 2; font-size: 12px; white-space: nowrap; pointer-events: none; }
 .tl-links { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: visible; color: var(--muted); }
 .tl-link { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.tl-link.gates { stroke: var(--accent); color: var(--accent); stroke-width: 3; }
 .tl-link.clash { stroke: var(--danger); color: var(--danger); }
 .tl-undated h3 { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 @media (max-width: 899px) { .tl-chart { --names-w: 150px; } .tl-name .when { display: none; } }

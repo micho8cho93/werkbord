@@ -730,7 +730,11 @@ async function loadProject() {
     d.ticket = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId);
     d.progress = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId + '/progress');
   }
-  if (state.tab === 'timeline') d.timeline = await api('GET', '/projects/' + id + '/timeline');
+  if (state.tab === 'timeline') {
+    d.timeline = await api('GET', '/projects/' + id + '/timeline');
+    // Which tickets have a shared request for agent work: their dependencies gate its start. Only a marking, so it is optional.
+    d.schedules = await api('GET', '/projects/' + id + '/schedules').catch(() => []);
+  }
   if (state.tab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
   if (state.tab === 'activity') d.activity = await api('GET', '/projects/' + id + '/activity?limit=100');
   if (state.tab === 'people') {
@@ -1112,7 +1116,7 @@ function ticketPanel(d, k) {
     h('div', { class: 'actions' }, actions),
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
     mine && state.desktop && !k.archivedAt && ['in_progress', 'review'].includes(k.status) ? ownExecutionPanel(k) : '',
-    !k.archivedAt ? teamSchedulePanel(k) : '',
+    !k.archivedAt ? teamSchedulePanel(k, b) : '',
     h('div', { class: 'two' },
       h('div', {},
         h('h3', {}, 'Description'), h('p', { class: 'prose' }, k.description || '—'),
@@ -1341,17 +1345,39 @@ window.addEventListener('load', () => {
 window.addEventListener('popstate', reportPlace);
 
 const scheduleDrafts = new Map();
-function teamSchedulePanel(k) {
+// Names the tickets k waits for: they are set on the ticket and nowhere else, and a request for agent work waits for them.
+function waitsForText(k, b) {
+  const all = [...b.tickets, ...(b.archived || [])];
+  const names = (k.dependencies || []).map((id) => { const t = all.find((x) => x.id === id); return t ? t.key + ' ' + t.title + (t.archivedAt && t.status !== 'done' ? ' (archived, not finished)' : '') : 'a ticket that is not here'; });
+  return names.length ? 'Waits for ' + names.join(', ') + ' (set on the ticket)' : 'Waits for nothing (dependencies are set on the ticket)';
+}
+// Opens the ticket's own edit form at its dependencies.
+function showTicketDependencies(k) {
+  const form = [...app.querySelectorAll('form[data-ticket-id]')].find((f) => f.getAttribute('data-ticket-id') === k.id);
+  const details = form && form.closest('details');
+  if (!details) return;
+  details.open = true;
+  const first = form.querySelector('.dep-list input') || form.querySelector('input');
+  details.scrollIntoView({ block: 'center' });
+  if (first) first.focus();
+}
+function teamSchedulePanel(k, b) {
   const box = h('section', { class: 'handoff' }, h('h3', {}, 'Shared schedule'), h('p', { class: 'muted' }, 'A schedule requests work. Only the holder’s local approval can authorize execution.'));
   api('GET', '/projects/' + k.projectId + '/schedules').then(schedules => {
     const current = schedules.find(s => s.ticketId === k.id);
+    const live = current && !['completed', 'canceled'].includes(current.state);
+    const editable = [...app.querySelectorAll('form[data-ticket-id]')].some((f) => f.getAttribute('data-ticket-id') === k.id);
+    box.append(h('p', { class: 'waits-for' }, waitsForText(k, b), editable ? [' ', h('button', { type: 'button', class: 'link', onclick: () => showTicketDependencies(k) }, 'Change on the ticket')] : ''));
     if (current) box.append(h('p', { role: 'status' }, (current.stale ? 'Runner update overdue; last state: ' : '') + current.state.replaceAll('_', ' ') + (current.reason ? ' · ' + current.reason : '')), h('p', {}, new Date(current.at).toLocaleString() + ' · ' + current.timezone));
+    // What the request was proposed to wait for is no longer what the ticket waits for: it is stale until it is proposed again.
+    const proposed = new Set(current ? current.dependencies || [] : []), now = new Set(k.dependencies || []);
+    if (live && (proposed.size !== now.size || [...now].some((id) => !proposed.has(id)))) box.append(h('p', { class: 'advice', role: 'alert' }, 'This request is stale: the ticket’s dependencies changed after it was proposed. It will not start until you propose it again below.'));
     const allowed = k.assigneeId === state.me.member.id || pcan('tickets.assign');
     if (!allowed || !['in_progress', 'review'].includes(k.status)) return;
     const key = k.projectId + ':' + k.id;
     let draft = scheduleDrafts.get(key);
     if (!draft || draft.version !== (current?.version || 0)) {
-      draft = { version: current?.version || 0, at: current?.at || '', timezone: current?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, missed: current?.missedPolicy || 'run_late', grace: current?.graceSeconds ?? 300, order: current?.order ?? 0, priority: current?.priority ?? 1, dependencies: current?.dependencies?.join(', ') || '' };
+      draft = { version: current?.version || 0, at: current?.at || '', timezone: current?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, missed: current?.missedPolicy || 'run_late', grace: current?.graceSeconds ?? 300, order: current?.order ?? 0, priority: current?.priority ?? 1 };
       scheduleDrafts.set(key, draft);
     }
     const edit = field => e => { draft[field] = e.target.value; };
@@ -1361,13 +1387,12 @@ function teamSchedulePanel(k) {
     const grace = h('input', { name: 'schedule-grace-' + k.id, type: 'number', min: 0, max: 86400, value: draft.grace, oninput: edit('grace') });
     const order = h('input', { name: 'schedule-order-' + k.id, type: 'number', min: 0, value: draft.order, oninput: edit('order') });
     const priority = h('select', { name: 'schedule-priority-' + k.id, onchange: edit('priority') }, [['0', 'Low'], ['1', 'Normal'], ['2', 'High']].map(([value, label]) => h('option', { value, selected: Number(value) === Number(draft.priority) }, label)));
-    const dependencies = h('input', { name: 'schedule-deps-' + k.id, value: draft.dependencies, oninput: edit('dependencies'), placeholder: 'Ticket IDs, separated by commas' });
     box.append(h('form', { onsubmit: e => { e.preventDefault(); act(async () => {
       if (!/(Z|[+-]\d\d:\d\d)$/.test(at.value) || !Number.isFinite(Date.parse(at.value))) throw new Error('Use an ISO timestamp with an explicit UTC offset or Z.');
-      await api('PUT', projectPath(k) + '/schedule', { version: current?.version || 0, at: new Date(at.value).toISOString(), timezone: timezone.value, missedPolicy: missed.value, graceSeconds: Number(grace.value), order: Number(order.value), priority: Number(priority.value), dependencies: dependencies.value.split(',').map(v => v.trim()).filter(Boolean) });
+      await api('PUT', projectPath(k) + '/schedule', { version: current?.version || 0, at: new Date(at.value).toISOString(), timezone: timezone.value, missedPolicy: missed.value, graceSeconds: Number(grace.value), order: Number(order.value), priority: Number(priority.value) });
       scheduleDrafts.delete(key);
       if (state.desktop) executionViews.delete(k.projectId + ':' + k.id);
-    }); } }, field('Start time with UTC offset', at), field('Display timezone', timezone), field('Missed execution', missed), field('Grace window (seconds)', grace), field('Execution order', order), field('Priority', priority), field('Dependencies', dependencies), h('button', { class: 'plain' }, current ? 'Reschedule request' : 'Propose schedule')));
+    }); } }, field('Start time with UTC offset', at), field('Display timezone', timezone), field('Missed execution', missed), field('Grace window (seconds)', grace), field('Execution order', order), field('Priority', priority), h('button', { class: 'plain' }, current ? 'Reschedule request' : 'Propose schedule')));
     if (current && !['completed', 'canceled'].includes(current.state)) box.append(h('button', { class: 'danger', onclick: () => act(() => api('POST', projectPath(k) + '/schedule/cancel', { version: current.version })) }, 'Cancel request'));
   }).catch(err => box.append(h('p', { class: 'advice', role: 'alert' }, err.message)));
   return box;
@@ -1408,6 +1433,8 @@ function timelineTab(d) {
   const bars = TL.barsFor(dated, range, state.tlZoom);
   const rowOf = TL.firstRows(rows.map((r) => (r.kind === 'ticket' ? r.k.id : null)));
   const links = TL.arrows(bars, rowOf, TL.dependencyMap(dated));
+  const requested = new Set((d.schedules || []).filter((v) => !['completed', 'canceled'].includes(v.state)).map((v) => v.ticketId));
+  const gates = (l) => requested.has(l.to);
   const open = (k) => () => openTicket(d.id, k.id);
 
   const tools = h('div', { class: 'actions board-tools tl-tools' },
@@ -1463,7 +1490,7 @@ function timelineTab(d) {
     const svg = svgEl('svg', { class: 'tl-links', width, height: rows.length * TL.ROW_HEIGHT, 'aria-hidden': 'true' });
     const defs = svgEl('defs'), marker = svgEl('marker', { id: 'tl-head', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto' });
     marker.append(svgEl('path', { d: 'M0 0 L8 4 L0 8 z', fill: 'currentColor' })); defs.append(marker); svg.append(defs);
-    for (const l of links) svg.append(svgEl('path', { d: l.d, class: 'tl-link' + (l.conflict ? ' clash' : ''), 'marker-end': 'url(#tl-head)' }));
+    for (const l of links) svg.append(svgEl('path', { d: l.d, class: 'tl-link' + (gates(l) ? ' gates' : '') + (l.conflict ? ' clash' : ''), 'marker-end': 'url(#tl-head)' }));
     plot.append(svg);
     chart = h('div', { class: 'tl-chart' }, h('div', { class: 'tl-axis-row' }, h('div', { class: 'tl-corner' }, 'Work'), axis), h('div', { class: 'tl-body' }, names, plot));
   }
@@ -1472,5 +1499,6 @@ function timelineTab(d) {
     undated.map((k) => h('div', { class: 'row' }, h('div', { class: 'grow' }, h('button', { type: 'button', class: 'link', onclick: open(k) }, k.key + ' · ' + k.title)),
       h('span', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip)), (k.workMode || 'agent') !== 'agent' ? h('span', { class: 'badge' }, modeName(k.workMode)) : ''))) : '';
 
-  return h('div', { class: 'timeline-view' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline' }, chart), unplanned);
+  const gating = links.some(gates) ? h('p', { class: 'muted small tl-legend' }, 'Heavier arrows gate an agent start: the ticket has a shared request, and it waits for the work the arrow comes from.') : '';
+  return h('div', { class: 'timeline-view' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline' }, chart), gating, unplanned);
 }

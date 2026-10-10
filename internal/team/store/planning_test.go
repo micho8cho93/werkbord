@@ -18,7 +18,7 @@ func TestPlanningUpgradeKeepsExistingTicketsAsTheyWere(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "team.db")
 	ms, _ := Migrations()
-	before := len(ms) - 1 // everything but the planning migration
+	before := migrationNamed(t, ms, "planning") // everything before the planning migration
 	p, err := sqlitekit.Open(ctx, path, sqlitekit.Options{Migrations: ms[:before], Product: productName, BackupPrefix: backupPrefix})
 	if err != nil {
 		t.Fatal(err)

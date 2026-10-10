@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	"devboard/internal/planning"
 )
 
 type ScheduleInput struct {
@@ -22,16 +24,61 @@ type ScheduleInput struct {
 	GraceSeconds int       `json:"graceSeconds"`
 	Order        int       `json:"order"`
 	Priority     int       `json:"priority"`
-	Dependencies []string  `json:"dependencies"`
+	// Dependencies is accepted from older clients and nothing else: what a request waits for is the ticket's own
+	// dependency list, edited on the ticket. A list that is not exactly the ticket's current one is refused.
+	Dependencies []string `json:"dependencies"`
 }
 
+// ScheduleContext is what a shared request is bound to: the ticket as it was proposed, including the tickets it
+// waits for. A ticket whose dependencies change after a request was made therefore no longer matches the request's
+// fence, and the request is stale until it is proposed again, exactly as when the title or the assignee changes.
+// The dependencies are sorted (their order means nothing) and left out when there are none, which keeps the fence
+// of a ticket that waits for nothing what it was before dependencies were part of it.
 func ScheduleContext(w string, p domain.Project, k domain.Ticket) string {
+	return scheduleContext(w, p, k, sortedIDs(k.Dependencies))
+}
+
+func scheduleContext(w string, p domain.Project, k domain.Ticket, deps []string) string {
 	raw, _ := json.Marshal(struct {
 		Workspace, Project, Ticket, Member, Repository, Title, Description, Requirements string
 		Assignment                                                                       int64
-	}{w, p.ID, k.ID, k.AssigneeID, p.Repository, k.Title, k.Description, k.Requirements, k.Assignment})
+		Dependencies                                                                     []string `json:",omitempty"`
+	}{w, p.ID, k.ID, k.AssigneeID, p.Repository, k.Title, k.Description, k.Requirements, k.Assignment, deps})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+// contextHolds reports whether ticket k is still what request v was proposed for. A request proposed before
+// dependencies were part of the context carries a fence without them; it still holds when the ticket waits for
+// exactly the tickets the request recorded and nothing else changed, so an upgrade does not make every request that
+// had dependencies stale (and does not stop a run that is already executing from reporting it finished).
+func contextHolds(w string, p domain.Project, k domain.Ticket, v domain.Schedule) bool {
+	if ScheduleContext(w, p, k) == v.Fence {
+		return true
+	}
+	return sameIDs(v.Dependencies, k.Dependencies) && scheduleContext(w, p, k, nil) == v.Fence
+}
+
+func sortedIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := append([]string(nil), ids...)
+	sort.Strings(out)
+	return out
+}
+
+func sameIDs(a, b []string) bool {
+	a, b = sortedIDs(a), sortedIDs(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 func ScheduleFence(s domain.Schedule) string {
 	raw, _ := json.Marshal(struct {
@@ -50,7 +97,7 @@ func (s *Service) SetSchedule(ctx context.Context, a Actor, pid, tid string, in 
 		if err != nil {
 			return err
 		}
-		if in.At.IsZero() || in.At.Year() < 2020 || in.At.Year() > 9999 || in.Timezone == "" || len(in.Dependencies) > 100 || in.GraceSeconds < 0 || in.GraceSeconds > 86400 || in.Priority < 0 || in.Priority > 2 || in.Order < 0 {
+		if in.At.IsZero() || in.At.Year() < 2020 || in.At.Year() > 9999 || in.Timezone == "" || in.GraceSeconds < 0 || in.GraceSeconds > 86400 || in.Priority < 0 || in.Priority > 2 || in.Order < 0 {
 			return domain.ErrInvalid
 		}
 		if _, err := time.LoadLocation(in.Timezone); err != nil {
@@ -79,59 +126,59 @@ func (s *Service) SetSchedule(ctx context.Context, a Actor, pid, tid string, in 
 		if (old.DeviceID != "" || old.RunID != "") && !old.Terminal() {
 			return fmt.Errorf("%w: cancel this shared request before rescheduling; stop an accepted run locally if needed", domain.ErrConflict)
 		}
-		all, err := tx.Schedules(ctx, a.Workspace.ID, pid)
-		if err != nil {
-			return err
+		// What the request waits for is the ticket's own dependency list. An older client may still send one; it is
+		// only accepted when it says what the ticket already says.
+		if in.Dependencies != nil && !sameIDs(in.Dependencies, k.Dependencies) {
+			return fmt.Errorf("%w: set what this request waits for in the ticket's dependencies, not on its schedule", domain.ErrInvalid)
 		}
-		graph := map[string][]string{}
-		for _, v := range all {
-			if !v.Terminal() {
-				graph[v.TicketID] = v.Dependencies
-			}
-		}
-		graph[tid] = in.Dependencies
-		seen := map[string]bool{}
-		for _, id := range in.Dependencies {
-			if !integration.Identifier(id) || id == tid || seen[id] {
-				return domain.ErrInvalid
-			}
-			seen[id] = true
-			dep, err := tx.Ticket(ctx, a.Workspace.ID, pid, id)
+		// Dependencies are checked for circles where they are written, so a circle can only come from data that
+		// arrived another way (a migration copied them). Such a ticket cannot be proposed: it could never start.
+		if len(k.Dependencies) > 0 {
+			all, err := tx.Tickets(ctx, a.Workspace.ID, pid)
 			if err != nil {
 				return err
 			}
-			if dep.ArchivedAt != nil {
-				return domain.ErrConflict
+			if planning.HasCycle(reachableDependencies(all, tid)) {
+				return fmt.Errorf("%w: dependency cycle; fix the ticket's dependencies first", domain.ErrInvalid)
 			}
 		}
-		var visit func(string, map[string]bool) bool
-		visit = func(id string, path map[string]bool) bool {
-			if path[id] {
-				return true
-			}
-			path[id] = true
-			for _, d := range graph[id] {
-				if visit(d, path) {
-					return true
-				}
-			}
-			delete(path, id)
-			return false
-		}
-		if visit(tid, map[string]bool{}) {
-			return fmt.Errorf("%w: dependency cycle", domain.ErrInvalid)
-		}
-		out = domain.Schedule{ID: domain.NewID("sch"), ExecutionID: domain.NewID("exe"), ProjectID: pid, TicketID: tid, MemberID: k.AssigneeID, Assignment: k.Assignment, Fence: ScheduleContext(a.Workspace.ID, x.Project, k), Version: old.Version + 1, At: in.At.UTC(), Timezone: in.Timezone, MissedPolicy: in.MissedPolicy, GraceSeconds: in.GraceSeconds, Order: in.Order, Priority: in.Priority, Dependencies: in.Dependencies, State: "waiting_for_runner", UpdatedAt: s.stamp()}
+		out = domain.Schedule{ID: domain.NewID("sch"), ExecutionID: domain.NewID("exe"), ProjectID: pid, TicketID: tid, MemberID: k.AssigneeID, Assignment: k.Assignment, Fence: ScheduleContext(a.Workspace.ID, x.Project, k), Version: old.Version + 1, At: in.At.UTC(), Timezone: in.Timezone, MissedPolicy: in.MissedPolicy, GraceSeconds: in.GraceSeconds, Order: in.Order, Priority: in.Priority, Dependencies: append([]string{}, k.Dependencies...), State: "waiting_for_runner", UpdatedAt: s.stamp()}
 		return tx.SaveSchedule(ctx, a.Workspace.ID, out, old.Version)
 	})
 	return out, err
 }
+
+// reachableDependencies is the dependency graph of the tickets that tid waits for, directly or not.
+func reachableDependencies(all []domain.Ticket, tid string) map[string][]string {
+	by := make(map[string][]string, len(all))
+	for _, t := range all {
+		by[t.ID] = t.Dependencies
+	}
+	graph := map[string][]string{}
+	for todo := []string{tid}; len(todo) > 0; {
+		id := todo[len(todo)-1]
+		todo = todo[:len(todo)-1]
+		if _, seen := graph[id]; seen {
+			continue
+		}
+		graph[id] = by[id]
+		todo = append(todo, by[id]...)
+	}
+	return graph
+}
+
 func (s *Service) scheduleEligibility(ctx context.Context, tx store.Tx, a Actor, x access, v domain.Schedule) (string, error) {
 	k, err := tx.Ticket(ctx, a.Workspace.ID, v.ProjectID, v.TicketID)
 	if err != nil {
 		return "", err
 	}
-	if x.Project.Archived || k.ArchivedAt != nil || !k.Status.Held() || k.AssigneeID != v.MemberID || k.Assignment != v.Assignment || ScheduleContext(a.Workspace.ID, x.Project, k) != v.Fence {
+	if x.Project.Archived || k.ArchivedAt != nil || !k.Status.Held() || k.AssigneeID != v.MemberID || k.Assignment != v.Assignment {
+		return "ticket context or assignment changed", nil
+	}
+	if !contextHolds(a.Workspace.ID, x.Project, k, v) {
+		if !sameIDs(v.Dependencies, k.Dependencies) {
+			return "the ticket's dependencies changed after this request was proposed; propose it again", nil
+		}
 		return "ticket context or assignment changed", nil
 	}
 	on, err := tx.IsProjectMember(ctx, a.Workspace.ID, v.ProjectID, v.MemberID)
@@ -153,7 +200,8 @@ func (s *Service) scheduleEligibility(ctx context.Context, tx store.Tx, a Actor,
 	if v.MissedPolicy == "skip" && s.stamp().After(v.At.Add(time.Duration(v.GraceSeconds)*time.Second)) {
 		return "missed allowed start window", nil
 	}
-	for _, id := range v.Dependencies {
+	// What it waits for is the ticket's own list (the fence above makes it the list the request was proposed with).
+	for _, id := range k.Dependencies {
 		dep, err := tx.Ticket(ctx, a.Workspace.ID, v.ProjectID, id)
 		if err != nil {
 			return "dependency unavailable", nil
@@ -163,7 +211,10 @@ func (s *Service) scheduleEligibility(ctx context.Context, tx store.Tx, a Actor,
 			done = done || schedule.State == "completed"
 		}
 		if !done {
-			return "waiting for dependency", nil
+			if dep.ArchivedAt != nil {
+				return "waiting for dependency " + dep.Key + ", which was archived without being finished; finish it or remove it from this ticket's dependencies", nil
+			}
+			return "waiting for dependency " + dep.Key, nil
 		}
 	}
 	all, err := tx.Schedules(ctx, a.Workspace.ID, v.ProjectID)

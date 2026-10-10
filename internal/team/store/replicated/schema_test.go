@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"devboard/internal/sqlitekit"
+	"devboard/internal/team/domain"
 	"devboard/internal/team/infra/rqlite/rqlitetest"
 	"devboard/internal/team/store"
 )
@@ -81,5 +82,76 @@ func TestASchemaUpgradeRunsOnceAcrossHostsAndAnOlderHostRefusesWhatItDoesNotKnow
 	// The new hosts carry on, and the cluster is writable.
 	if _, err := note(news[0], k); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The migration that gives a ticket one list of dependencies runs on the replicated store with a workspace's data in it: what a
+// shared request waited for becomes what its ticket waits for, a row that cannot be carried over is skipped, and it is
+// applied once for the whole cluster.
+func TestTheOneDependencyListMigrationCarriesDataAcrossOnTheCluster(t *testing.T) {
+	c := rqlitetest.New(t, rqlitetest.Options{Nodes: 3})
+	all, err := store.Migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := len(all) - 1
+	if !strings.Contains(all[last].Name, "one_dependency_list") {
+		t.Fatalf("this test expects the migration to be the newest, it is %q", all[last].Name)
+	}
+	before := all[:last]
+	old := open(t, c, 0, func(o *Options) { o.Migrations = before })
+	k := seed(t, old)
+	second, gone := domain.NewID(domain.PrefixTicket), domain.NewID(domain.PrefixTicket)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	if err := old.Update(bg, func(tx store.Tx) error {
+		n, err := tx.NextTicketNumber(bg, k.ws)
+		if err != nil {
+			return err
+		}
+		return tx.InsertTicket(bg, k.ws, domain.Ticket{ID: second, ProjectID: k.project, Number: n, Title: "Second", Status: domain.TicketAvailable, CreatorID: k.owner, CreatedAt: now, UpdatedAt: now})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// The first ticket's request waited for the second, for a ticket that is gone, and for itself. A request that is not JSON is skipped.
+	if err := old.update(bg, func(q store.Queryer) error {
+		for _, s := range []struct{ ticket, doc string }{
+			{k.ticket, `{"dependencies":["` + second + `","` + gone + `","` + k.ticket + `"]}`},
+			{second, `not json`},
+		} {
+			if _, err := q.ExecContext(bg, `INSERT INTO ticket_schedules (workspace_id, project_id, ticket_id, version, document) VALUES (?, ?, ?, 1, ?)`, k.ws, k.project, s.ticket, s.doc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	settle(t, old)
+	seq := position(t, old).Seq
+	_ = old.Close()
+
+	upgraded := open(t, c, 1)
+	settle(t, upgraded)
+	if v, _ := upgraded.SchemaVersion(bg); v != len(all) {
+		t.Fatalf("schema %d, want %d", v, len(all))
+	}
+	var got, other []string
+	eventually(t, 10*time.Second, "the migrated dependencies", func() bool {
+		return upgraded.View(bg, func(tx store.Tx) error {
+			a, err := tx.Ticket(bg, k.ws, k.project, k.ticket)
+			if err != nil {
+				return err
+			}
+			b, err := tx.Ticket(bg, k.ws, k.project, second)
+			got, other = a.Dependencies, b.Dependencies
+			return err
+		}) == nil && len(got) == 1
+	})
+	if got[0] != second || len(other) != 0 {
+		t.Fatalf("dependencies after the upgrade: %v and %v", got, other)
+	}
+	// Applied once, as one write.
+	if got := position(t, upgraded).Seq; got != seq+1 {
+		t.Errorf("the cluster is at position %d, want %d: the migration was not one write", got, seq+1)
 	}
 }

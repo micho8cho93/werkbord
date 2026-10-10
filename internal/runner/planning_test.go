@@ -82,3 +82,36 @@ func TestTheSchedulerLeavesWorkProjectsAlone(t *testing.T) {
 		t.Fatal("the scheduler started an agent")
 	}
 }
+
+// Team gave its tickets one list of dependencies. Individual already had one, and this release does not touch it: the
+// list on the task's orchestration is what the scheduler waits for and also what the timeline draws and checks.
+func TestIndividualHasOneDependencyListForTheSchedulerAndTheTimeline(t *testing.T) {
+	e := newEnv(t)
+	now := time.Now().UTC()
+	e.orchestrate(&now)
+	design, err := e.tasks.CreateTask(ctx, service.NewTask{ProjectID: e.project.ID, Title: "Design", Description: "Do it.", Plan: domain.Plan{Start: "2026-10-05", End: "2026-10-09"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	build, err := e.tasks.CreateTask(ctx, service.NewTask{ProjectID: e.project.ID, Title: "Build", Description: "Do it.", Plan: domain.Plan{Start: "2026-10-07", End: "2026-10-14"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	build = e.arm(build, domain.Orchestration{Dependencies: []string{design.ID}})
+
+	// The scheduler does not start the dependent task while what it waits for is not finished…
+	if err := e.mgr.ScheduleOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.adapter.Sessions()) != 0 {
+		t.Fatal("the scheduler started a task before its dependency finished")
+	}
+	// …and the timeline reads that same list: it is the only place a dependency is set.
+	tl, err := e.tasks.Timeline(ctx, e.project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tl.Warnings) != 1 || tl.Warnings[0].Code != planning.CodeStartsBeforeDependent || tl.Warnings[0].ItemID != build.ID || tl.Warnings[0].OtherID != design.ID {
+		t.Fatalf("the timeline did not read the orchestration's dependencies: %+v", tl.Warnings)
+	}
+}

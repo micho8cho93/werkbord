@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -131,5 +132,36 @@ func TestAProjectWithNoRepositoryRunsTheWholeBoardWithoutGit(t *testing.T) {
 	done := owner.want(200, "POST", base+"/"+id+"/complete", nil)
 	if str(done, "status") != "done" {
 		t.Fatalf("done = %v", done)
+	}
+}
+
+// What a shared request waits for is set on the ticket. PUT schedule still accepts the dependencies an older client
+// sends when they are the ticket's own, and answers 400, saying where to set them, when they are not.
+func TestAScheduleWaitsForTheTicketsDependenciesOverHTTP(t *testing.T) {
+	ts := newServer(t)
+	owner := client{t: t, base: ts.URL, token: ownerToken}
+	pid := str(owner.want(201, "POST", v1+"/projects", `{"name":"Launch week"}`), "id")
+	base := v1 + "/projects/" + pid + "/tickets"
+	first := str(owner.want(201, "POST", base, `{"title":"First","status":"available"}`), "id")
+	second := str(owner.want(201, "POST", base, fmt.Sprintf(`{"title":"Second","status":"available","dependencies":[%q]}`, first)), "id")
+	owner.want(200, "POST", base+"/"+second+"/claim", nil)
+	put := func(deps string) (int, map[string]any, []byte) {
+		return owner.do("PUT", base+"/"+second+"/schedule", `{"version":0,"at":"2026-10-12T09:00:00Z","timezone":"Europe/Madrid","missedPolicy":"run_late","priority":1`+deps+`}`)
+	}
+	code, got, raw := put(fmt.Sprintf(`,"dependencies":[%q,"tkt_unrelated"]`, first))
+	if code != 400 || !strings.Contains(string(raw), "ticket's dependencies") || errCode(got) == "" {
+		t.Fatalf("a different list: %d %s", code, raw)
+	}
+	if code, _, raw := put(`,"dependencies":[]`); code != 400 {
+		t.Fatalf("an empty list for a ticket that waits for something: %d %s", code, raw)
+	}
+	code, got, raw = put(fmt.Sprintf(`,"dependencies":[%q]`, first))
+	if code != 200 || fmt.Sprint(got["dependencies"]) != "["+first+"]" {
+		t.Fatalf("the ticket's own list: %d %s", code, raw)
+	}
+	// Leaving them out is the same thing, and the request is stated by the ticket's list.
+	got = owner.want(200, "PUT", base+"/"+second+"/schedule", `{"version":1,"at":"2026-10-12T09:00:00Z","timezone":"Europe/Madrid","missedPolicy":"run_late","priority":1}`)
+	if fmt.Sprint(got["dependencies"]) != "["+first+"]" {
+		t.Fatalf("the request does not carry the ticket's dependencies: %v", got)
 	}
 }

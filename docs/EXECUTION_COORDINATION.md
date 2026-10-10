@@ -77,7 +77,8 @@ remain live; existing recovery/expiry requirements still apply.
 
 The ticket's **Shared schedule** stores an offset-bearing one-time instant,
 explicit IANA display timezone, `run_late` or `skip` missed policy, grace window,
-priority, order and dependency ticket IDs. A manager can propose, reschedule or
+priority and order. What it waits for is the ticket's own dependencies
+([PLANNING.md](PLANNING.md#team-one-list-of-dependencies)), recorded on the request as it was proposed. A manager can propose, reschedule or
 cancel a held ticket's request. Only its holder's enrolled runner device may
 acknowledge dispatch. A proposed schedule is never permission to launch.
 
@@ -101,8 +102,9 @@ States are `waiting_for_runner`, `awaiting_approval`, `queued`, `executing`,
 instead of claiming current availability. Earlier nonterminal ordered requests
 block later ones for the same member/project. Dependencies need a completed
 execution or a Done ticket; canceled/failed work does not satisfy dependencies.
-Cycles are rejected. Assignment generation, member/device/project membership,
-repository and ticket text changes block dispatch and require deliberate review.
+Cycles are rejected. A dependency archived without being finished makes the request wait, with a reason that says so. Changing the
+ticket's dependencies makes a live request stale until it is proposed again. Assignment generation, member/device/project membership,
+repository, ticket text and dependency changes block dispatch and require deliberate review.
 
 The Team desktop service polls eligible requests with locally recorded approvals.
 Individual's scheduler entry point applies normal local gates and honors the

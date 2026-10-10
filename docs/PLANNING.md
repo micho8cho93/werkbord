@@ -66,10 +66,46 @@ The timeline shows a project's planned work as bars (milestones as diamonds) on 
 line for today, grouped by nothing, label, status or who does it (a task with several labels is listed under each), filtered by label
 and work mode, with dependencies as arrows. Work with no dates is listed under the chart ("Not planned yet") with a way to plan it.
 
-**Dependencies are the same list the scheduler already waits on** in Individual (`Orchestration.Dependencies`): an agent is not started
-before they finish, and the timeline draws them. In Team, a ticket's dependencies are planning only; they are separate from the
-dependencies of a shared request for agent work, which keep meaning what they meant. A dependency must be another task or ticket **of the
-same project**.
+**Dependencies are one list, and it is the one the scheduler waits on.** In Individual that is `Orchestration.Dependencies`: an agent is
+not started before they finish, and the timeline draws them. In Team it is the ticket's own list (the `ticket_dependencies` table, set in
+the ticket form): the timeline draws it and checks it, and a shared request for agent work waits on it too ([below](#team-one-list-of-dependencies)).
+A dependency must be another task or ticket **of the same project**.
+
+### Team: one list of dependencies
+
+Until 4.7.0 a Team ticket had two lists of "what must finish first": the planning one (this page) and a second, independent one on its
+shared request for agent work, typed as raw ticket IDs. Only the second made anything wait. There is now **one**, the ticket's.
+
+- **What it gates.** A shared request waits until each ticket on the list is **Done** or has a request that is **completed**: exactly what
+  it always meant. Order, priority, the missed policy, the grace window and capacity are untouched. A planning-only dependency, set in the
+  ticket form and never on a request, now holds a request back too: that is the visible change.
+- **Why one.** Two lists meant the arrows on the timeline could say one thing while the scheduler waited on another. Individual has had
+  one list from the start; Team now does as well.
+- **Archived work.** A ticket may depend on a ticket that was archived without being finished (the timeline warns). A request for it then
+  waits, and says so: `waiting for dependency WB-12, which was archived without being finished; finish it or remove it from this ticket's
+  dependencies`. Removing it is a ticket edit (see the stale rule).
+- **The request keeps a copy, not a second list.** `Schedule.Dependencies` stays in the request's stored document as a record of what the
+  request was proposed with, and in the request's fence. Nothing reads it to decide what to wait for. It was kept rather than dropped
+  because a fence identifies an execution that may already be approved on someone's computer, and recomputing it from different input would
+  invalidate every one of those; it also has no column of its own to drop (the request is a JSON document), so dropping it would have been
+  a rewrite of every stored request for no behavioural gain.
+- **`PUT …/schedule` still accepts `dependencies`**, for clients that send it, when the list is the ticket's own list (in any order);
+  leaving it out is the same. Any other list is refused with `400`: *set what this request waits for in the ticket's dependencies, not on
+  its schedule*. Nothing can be set on a request that the ticket does not say.
+- **Stale rule.** A request is bound to the ticket as it was proposed (`ScheduleContext`: the same hash that already covers the title,
+  description, requirements, assignee and repository). The ticket's dependencies, sorted, are now part of it. Changing them while a request
+  is live (not completed or canceled) makes the request **stale**: it is blocked with the reason *the ticket's dependencies changed after
+  this request was proposed; propose it again*, it cannot be dispatched, and an approval already given on a computer no longer matches.
+  Proposing it again gives a new execution identity, as for any reschedule. Putting the dependencies back as they were makes the request
+  valid again; reordering them changes nothing. A ticket that waits for nothing has exactly the fence it had before, so requests made
+  before this release keep working; one proposed before this release whose ticket waits for exactly what the request recorded also keeps
+  working (see below), and one whose ticket now waits for something else is stale.
+- **Circles.** Writing a dependency refuses a circle, as before, and a request is not proposed for a ticket that sits in one. Only data that
+  arrived another way (the migration below) can contain one: the timeline reports `dependency_cycle`, the requests in it wait and say what
+  they wait for, and nothing loops (eligibility looks one step along, never recursively). The way out is to remove one dependency.
+- **The console** shows a read-only line in the ticket's *Shared schedule* panel, *Waits for WB-12 Build, WB-14 Design (set on the ticket)*,
+  with a way to the ticket's edit form; a note when the request is stale; and, on the timeline, heavier arrows where the dependent ticket has
+  a live shared request (those gate an agent start).
 
 ### What is warned about, and what is never done
 
@@ -112,6 +148,14 @@ a dependency, is yours to decide on the task. Reading the timeline changes nothi
 | --- | --- | --- |
 | Individual | `0013_planning.sql` | `labels`, `task_labels`; `tasks.work_mode`, `plan_start`, `plan_end`, `milestone`; `projects.kind`. Existing tasks become `agent` with no labels and no plan; existing projects become `repository`. |
 | Team | `0014_planning.sql` | `labels`, `ticket_labels`, `ticket_dependencies` (all keyed by workspace); `tickets.work_mode`, `plan_start`, `plan_end`, `milestone`. Existing tickets become `agent` with no labels, plan or dependencies. |
+| Team | `0015_one_dependency_list.sql` | Copies the dependencies of every existing shared request onto its ticket's `ticket_dependencies`. Nothing is created or dropped. |
+
+**Migration 0015.** For each request it adds a ticket dependency only where both tickets exist, are in the same workspace and project, are
+different tickets, and are not already linked; the list in the request must be a JSON array and each entry a string. Any other row is skipped,
+so it cannot fail an upgrade; running it again adds nothing; it adds nothing the request did not already have (a ticket's other dependencies
+are left as they are). It copies the dependencies of every request, finished or canceled ones included, because a request that is proposed
+again would otherwise silently lose what it used to wait for. SQL cannot see circles: a ticket whose request waited for a ticket that, in
+its own planning list, waits for it, becomes a circle (see above).
 
 SQLite cannot drop `projects.repo_path`'s `NOT NULL UNIQUE` in place, and the repository avoids rebuilding that table (see migration `0003`),
 so a work project keeps the placeholder `work:<its id>` there: unique by construction and never a path. The application reads it back as
@@ -120,5 +164,7 @@ an empty `repoPath`; triggers keep the two kinds apart whoever writes the row.
 ## What does not change
 
 Scheduling, dependencies as the scheduler reads them, runner routing, capacity, the Git gates and every existing endpoint answer as before
-for a task or ticket that has no labels and no plan and is agent work, which is every one that existed. The scheduling and runner test suites
+for a task or ticket that has no labels and no plan and is agent work, which is every one that existed. (Team's one list of
+dependencies, 4.7.0, is the exception for Team tickets that have dependencies: see above. Individual is not affected, and
+`internal/runner/planning_test.go` asserts it.) The scheduling and runner test suites
 run unchanged against this release, and `internal/runner/planning_test.go` and `internal/service/planning_test.go` assert it directly.
