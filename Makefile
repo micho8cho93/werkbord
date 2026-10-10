@@ -1,4 +1,4 @@
-# One release, two executables (see docs/PRODUCTS.md):
+# One release, two executables (see docs/STRUCTURE.md):
 #
 #   werkbord        the controller and command line   cmd/werkbord        make build   (the default)
 #   werkbord-team   the Team service and command line  cmd/werkbord-team   make build-team

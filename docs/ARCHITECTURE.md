@@ -7,9 +7,10 @@ worktrees and credentials. Phones, tablets and browsers
 are remote controls for it. There is no hosted backend, no account system and no cloud
 database.
 
-The repository also builds **Werkbord Team**, a separate product that coordinates a team and never executes anything;
-this document is about the individual product, and [PRODUCTS.md](PRODUCTS.md) explains how the two relate. Nothing here
-depends on Team, and a test keeps it so.
+Werkbord also has **Team**, a service that coordinates a team and never executes anything, released and installed with
+the same app. Sections 1 to 21 are about the controller (Individual); [STRUCTURE.md](STRUCTURE.md) explains how the parts
+relate, and §22 how the window, the Team service and the installer fit together. Nothing in the controller depends on Team,
+and a test keeps it so.
 
 This document describes the system as built: the foundation, the agent runtime (§8, §14),
 questions (§15), projects as the scope of the application (§16), per-task execution policies (§17), the Git Control Center (§18) and repository health (§19) and installation, the private network and execution defaults (§20). Sections marked *Deferred* name things that are intentionally not implemented yet.
@@ -945,18 +946,229 @@ ships if there is none, and start the controller, all by running the `werkbord` 
 
 ## Individual–Team integration contract
 
-Phase 1 adds `internal/integration` as a neutral DTO/identity-validation package. Individual exposes text-only imports and projected durable lifecycle events; Team accepts device-signed ordered progress reports. `internal/team/connector` reconciles them from a user-owned journal through the existing local bridge and host client. It never launches agents or handles the execution inbox. See [INTEGRATION.md](INTEGRATION.md).
+`internal/integration` is a neutral DTO/identity-validation package. Individual exposes text-only imports and projected durable lifecycle events; Team accepts device-signed ordered progress reports. `internal/team/connector` reconciles them from a user-owned journal through the existing local bridge and host client. It never launches agents or handles the execution inbox. See [INTEGRATION.md](INTEGRATION.md).
 
-Phase 2 extends the neutral integration DTOs with exact-context execution
+The neutral integration DTOs also carry exact-context execution
 authorizations. Only Individual stores and consumes them with run creation.
 Team schedules use the replicated transaction fence and permanently bind an
 execution to an enrolled owner device. Signed starts carry IDs only.
 See [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md).
 
-## Unified desktop workspaces
+## 22. One app: the window, the Team service and how they are shipped
 
-Phase 3 adds one everyday desktop shell with Personal and multiple Team
-workspaces while retaining isolated backend services, user-owned execution and
-explicit Team installation. The installer is part of the same app; there is no second window. See
-[UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
-security boundaries, lifecycle, validation and operational limits.
+### The window and its workspaces
+
+Werkbord on a Mac is one window with the Individual workspace (the person's own Werkbord) and any number of Team workspaces. Each
+workspace keeps its own backend, database, credentials and design, isolated from the others; the window is a user-scoped
+frontend and launcher around them. The Individual controller and the Team service stay independent services.
+
+Build with `make desktop` or run with `make desktop-dev`. `make web-shell` builds
+the desktop Svelte entry separately from the Individual PWA. The shell shares
+Geist, tokens, icons, mark, theme and dialog components with the PWA. It has no
+Team backend imports. Team continues serving its existing console, including
+`?tab=…&project=…&ticket=…` routes. Individual keeps its `#/p/…` routes, CLI,
+`devboard` aliases and every `DEVBOARD_*` variable.
+
+The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name with the open
+workspace under it (**werkbord / Individual ▾**, **werkbord / <workspace> ▾**), which opens the switcher (Individual,
+each enrolled Team workspace, and Add a Team; ⌘⇧K opens the same menu); **Everywhere**, what spans every workspace
+(My Work, Calendar and Needs you); the open workspace's own places, listed under its name (Individual: Control Center,
+Projects and each project, Add project; Team: Workspace, Projects and each project, Reviews, Members); and last Workspaces
+and devices, the Settings of the workspace that is open, and the theme. Choosing a place asks the workspace to show it
+(`werkbord.navigate`, a place inside the page); the workspace says where it is (`werkbord.frame`/`place`) and the sidebar
+marks that entry. The projects are the ones each workspace reports in its summary. There is no connection-status
+indicator anywhere.
+
+The workspaces themselves keep their design and their pages, but inside the window they carry no navigation of their own:
+Individual does not show its rail, and Team does not show its rail; a project's own sections stay with the project
+(Individual's Overview, Board, Calendar, Git and Runs in its header; Team's Board, Git, Activity and People as tabs above
+the project). The theme is chosen in the sidebar and told to the open workspaces (`werkbord.theme`, `light` or `dark`),
+so a Team opened later starts in the same theme. Outside the desktop app (Individual in a browser or as a phone app,
+Team's own console) both pages keep their own sidebars exactly as they were, apart from the status indicator, which is gone
+there too.
+
+On narrow windows the sidebar folds to icons below about 1110px of window width so a workspace keeps its full layout;
+the person's choice is remembered per device. Individual's runners are under Workspaces and devices → Runners.
+Creating and joining a Team reuse Team's first-host and administrator-approved enrollment screens. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
+The app carries Team’s service and its installer (the app’s own executable in an installer mode). There is no separate
+Team app. No Team installation or activation happens on startup.
+
+The app and the programs it installs are one release, but they are not always the same version at the same moment. The
+controller is brought up to the app's version by the launcher, which refuses while agents are working and restores the previous
+program if the new one does not start. Team's service is a root-owned installation that the app never replaces on its own: if
+it is older than the app and cannot answer what the window asks (it does not know the listing), the window says so instead of
+showing a blank page and offers **Update Team** (Workspaces and devices), which replaces it, with an administrator's
+authorization, unless it belongs to a workspace (that takes coordinated administrator maintenance). What decides is whether
+the service answers, never a table of version numbers.
+
+My Work, Calendar and Needs you read a bounded neutral summary from each
+accessible service. Links open the relevant workspace and project in the same
+window. Shared reviews/PRs, member management, agent controls on Team
+tickets and all existing project views remain in their workspace's existing
+screens. The shell never sends an aggregate or Individual data to Team.
+
+#### From a Team ticket to Individual
+
+Once the person connects their Individual runner to a Team workspace (an explicit native action, below), the Team
+service on their computer copies every ticket they hold in that workspace's projects into Individual as a backlog task,
+using the synchronization described in [INTEGRATION.md](INTEGRATION.md): text only, idempotent by
+provenance, never starting a run. Projects can be turned off under Team Settings → Tickets in Individual. A claim made
+through the console wakes the synchronization at once. The ticket then shows **Open in Individual**, which switches the
+window to Individual at that task (a frame may only ask the shell to show Individual at a `#/…` place), ready for the
+person to start it with Individual's own approvals. When no local project has the ticket's repository, Individual's
+Control Center lists it under "Team tickets waiting for a repository" with **Choose folder…** (refused unless the folder
+is a clone of that repository) and, for GitHub repositories, **Clone from GitHub**; the ticket is imported as soon as
+the repository is added.
+
+The last accessible workspace and its internal route are saved in the user's
+`werkbord-desktop/shell.json` configuration file (mode 0600); otherwise Individual
+opens. No credential or workspace content is saved there. Open workspace frames
+remain mounted while switching; removed, leaving or unavailable workspaces are
+removed from the UI. Individual runner failure does not prevent the Team UI opening.
+
+#### Devices and hosts
+
+Workspaces and devices shows independent Runner, Workspace Host and Connectivity
+Host roles, host counts, write availability, replication, quorum, backup and
+network checks when the member has permission to read them. It links to the
+existing guarded management screens for promotion, demotion, replacement,
+revocation, backups, connectivity and leaving. A replacement is added and checked
+before retiring an old host. Final-host removal and insufficient quorum remain
+refused by the existing backend; the frontend cannot override those checks.
+
+In Team Settings, an owner can describe the computer, declare automatic sleeping
+and volunteer it for either host role. Offers travel in the device's signed
+heartbeat and appear in the administrator's Devices/Workspace Hosts screen.
+They grant no capability. An administrator must explicitly authorize the role;
+provisioning and reachability checks still apply. A device may hold multiple
+roles. With today's fixed hosting ports, a computer can host only one Team
+workspace, while belonging to up to 16. Overlapping private networks are refused.
+
+Connectivity enabling/disabling explains potential loss of remote access. A role
+alone does not establish reachability: unsuitable NAT/firewall arrangements are
+reported as unconfirmed remote access. Sleeping/traveling devices remain poor
+hosting choices. Reachability reports are observations, not guarantees.
+
+#### Authority and lifecycle
+
+The desktop window is a user-scoped frontend and launcher. The Individual
+controller executes agents as the user; Team's privileged network/database
+service owns only its infrastructure. Neither CLI nor service is replaced.
+Closing/hiding/quitting the window cancels only desktop reads, never an agent,
+schedule or opted-in service. Workspace selection only writes shell preferences;
+accepted runs retain their original authority and owner.
+
+Wails bindings are allowed only for the bundled shell origin, and Wails rejects
+calls from subframes on macOS. Workspace pages use the neutral `postMessage`
+transport. The shell verifies both the source frame window and its exact origin,
+then the Go relay applies the method allow-list for the registry's workspace
+kind. Frames cannot request the workspace registry, aggregates or another
+workspace's native operations. URLs are literal loopback, without proxy or
+redirects. Summary and navigation inputs are bounded and validated.
+
+Connecting an Individual runner is a separate explicit native action. The desktop
+mints only an `execution-local-v1` revocable grant and delivers it to the selected
+Team slot; it never delivers the controller credential. Grant names include the
+slot identity so teams with the same display name remain independent. Individual
+still requires exact-context local approval before any run starts. Leaving a
+Team removes its local bridge/authority through the existing leave procedure;
+it does not stop runs already accepted by Individual or affect another slot.
+
+### Distribution, licensing and updates
+
+One primary macOS installer carries everything: the app, the controller, and Team's service with its installer. Everything in the app has the one version. The preview suffix remains until production distribution acceptance. Both CLI installers and historical `devboard`/`DEVBOARD_*` behavior remain.
+
+The bundle contains the shell, the Individual helper, and Team's service (`werkbord-team`), its pinned network and database
+programs and licenses, and its installer, which is the app's own executable in an installer mode
+(`desktop/internal/teaminstall`). It installs no privileged service on launch.
+Individual works for free without a license, Team infrastructure or vendor login.
+**Add a Team** uses an explicit native dialog and administrator authorization to
+activate Team. Each workspace has a separate enrolled identity and signed license;
+up to sixteen teams are supported by the existing isolated slots.
+
+Seats remain live members of a workspace, including its owner. Additional devices
+enroll under that member and consume no additional seats. The Team backend checks
+signatures and seats transactionally; frontend controls never unlock authority.
+Renewal remains owner-authorized, offline and possible after runtime expiration.
+Support expiry does not disable the runtime. See [TEAM_LICENSE.md](TEAM_LICENSE.md).
+
+#### Compatibility
+
+Everything in the app has the one version, and the build checks that the controller and Team's service report it. There is no
+compatibility table: the contracts are the protocols (`workspace-summary-v1` and `execution-local-v1` for the controller;
+`device-v1`, `team-v1` and the multi-workspace listing for Team; `integration-v1` and `execution-v1` for synchronization),
+and clients reject schemas they do not know. Storage is separate, never merged: Individual's SQLite, and Team's SQLite or
+rqlite. A Team service installed by an earlier version of the app is the one place the versions can differ at run time; if it
+cannot answer the listing, the window offers **Update Team** (see the window section above). The version appears
+in Help → Diagnostics.
+
+#### Building and signing
+
+`make desktop-package` builds an ad hoc development DMG with both components, building Team's service from this tree.
+`make test-unified-installer` mounts it and checks versions, checksums, signatures, compatibility and that a development build
+is refused as a release. These tests never install a service or use the user's production licenses.
+
+A production build is the one release workflow (`.github/workflows/release.yml`, [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)). It
+builds the Team service, the database program and the pinned network program into the app itself, from the same commit and
+version, signs them with the same Developer ID as the app (the network program keeps its upstream signature and is held to its
+pin; the database program is signed once, early, because the service is built with its hash) and notarizes the app once. It
+checks the result with `scripts/check-desktop-signature.sh`, `scripts/check-team-payload.sh` and the app's own
+`--verify-release`, which tests that it was signed by the release's Apple Developer team. The existing
+Sparkle signatures and Apple release checks remain intact. There is no second release, no Team release key in CI, and no
+downloaded Team payload to authenticate: the older offline manifest (`werkbord-team/desktop-release/v1`, `TEAM_RELEASE_PUBLIC_KEY`,
+`TEAM_OFFLINE_MANIFEST`) existed only because Team was released separately and fetched, and is gone.
+
+Team's command-line archives (for a Workspace Host without the Mac app) are still signed OFFLINE with a release key that is not
+in CI, now against the one release tag: `make dist PRODUCT=werkbord-team` on the release workstation writes
+`checksums-team.txt` and `checksums-team.txt.sig`, which are attached to the release ([TEAM_INSTALL.md](TEAM_INSTALL.md)).
+
+#### Updates and removal
+
+Individual replacement uses its existing checksummed/signed trust paths, active-run
+and runner-journal refusal, database snapshot, executable backup and restart
+verification. Sparkle now also rechecks current safety at relaunch. Updates defer
+while local agent work is active. (The app never replaces the root-owned Team service on its own, so updating the app does not touch it.)
+
+Team native replacement authenticates/stages first, then publishes a durable
+`install-transaction.json` marker that fences device mutations. It refuses every
+enrolled, pending or transitioning workspace, including additional slots and stopped
+services. For an empty service, it saves the old service definition/access metadata,
+swaps helpers atomically, probes the new service, and commits only after health.
+Failures restore the old helpers and metadata; interruption recovery retains failed
+generations and previous helpers. Joined Host updates require coordinated
+administrator maintenance; there is no rolling-cluster updater.
+Before it asks for an administrator's password, the installer asks the running
+service (with the person's own credential) whether it holds a workspace, and says
+so in plain words if it does; the root-run check over the data on disk still decides
+and cannot be waived by that answer. The shell words the same request as an update
+when the installed service is older, and shows the installer's reply unchanged.
+
+Stopping/removing Team never removes Individual data. Service removal requires safely
+leaving every slot, and retains local identities, signed licenses, archives and
+owner metadata. Old app bundles and backups are not automatically cleaned up.
+
+#### Validation
+
+- `make check`: both products, architecture/security/permissions tests, frontend
+  unit tests, Svelte checks, lint, builds, desktop logic and release-script checks.
+- `make desktop-check`: native macOS compilation/vet and logic, the Team installer included.
+- `make test-rqlite`: pinned real clusters, promotion/demotion, lost quorum,
+  failover, backup/restore and service behavior with replicated storage.
+- `make test-unified-desktop-browser`: built Svelte components, real Go shell,
+  Individual controller and multi-workspace Hub, real separate databases and
+  signed enrollment. Covers different membership permissions, explicit grant,
+  Team ticket execution, switching without interruption, saved project/ticket
+  routes, desktop restart, frontend-close survival, hosting offers and isolated
+  leave. Native dialogs and overlay TCP routing are fixture substitutions.
+- `make test-team-desktop-browser`: existing Team routes, infrastructure and
+  owner execution/schedule controls remain compatible.
+
+Live customer networks, real agent-provider accounts, macOS privileged install /
+Keychain authorization, sleep/wake and signed/notarized release distribution
+remain production acceptance checks. The app does not add automatic NAT
+traversal, remote arbitrary commands, recurring schedules, live pause or automatic
+runner failover. Team setup uses the app's own installer and a valid customer license; release publication is a separate task.
+
+- `make test-unified-installer`: mounts the development disk image and checks versions, signatures and that a development build is refused as a release.
+- `make test-desktop-sign`, `make test-desktop-update`: how the app is signed and how it updates itself, against fakes of Apple's tools and a real Sparkle.
+

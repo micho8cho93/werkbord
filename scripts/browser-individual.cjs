@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const base = process.env.PERSONAL_BROWSER_URL || 'http://127.0.0.1:17421';
 const path = require('node:path');
 const repo = fs.realpathSync(process.env.WERKBORD_BROWSER_REPO);
-const artifacts = process.env.BROWSER_ARTIFACT_DIR || fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'werkbord-personal-browser-'));
+const artifacts = process.env.BROWSER_ARTIFACT_DIR || fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'werkbord-individual-browser-'));
 fs.mkdirSync(artifacts, { recursive: true });
 const token = 'disposable-browser-credential';
 async function api(method, path, data) { const res = await fetch(base + path, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined }); const raw = await res.text(); if (res.status >= 400)
@@ -32,7 +32,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     let projects = await api('GET', '/api/projects');
     let p = projects.projects.find(p => p.repoPath === repo);
     if (!p)
-        p = await api('POST', '/api/projects', { path: repo, name: 'Disposable personal' });
+        p = await api('POST', '/api/projects', { path: repo, name: 'Disposable individual' });
     const pair = await api('POST', '/api/runners/pair', { projects: [p.id], allowClone: false });
     const secret = pair.code.split('.')[2];
     const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
@@ -105,9 +105,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await sections.getByRole('button', { name: 'Activity', exact: true }).click();
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
-        await page.screenshot({ path: path.join(artifacts, 'personal-task-mobile.png') });
+        await page.screenshot({ path: path.join(artifacts, 'individual-task-mobile.png') });
         await page.setViewportSize({ width: 1440, height: 1000 });
-        await page.screenshot({ path: path.join(artifacts, 'personal-task-desktop.png') });
+        await page.screenshot({ path: path.join(artifacts, 'individual-task-desktop.png') });
         await page.getByRole('button', { name: 'Restore task', exact: true }).click();
         await page.getByRole('button', { name: 'Close task', exact: true }).waitFor();
         console.log('PASS Enter-to-send, Shift+Enter newline, readable handoff, header Stop, close/archive/history/restore');
@@ -140,7 +140,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByText('Saved', { exact: true }).waitFor();
         await api('PUT', '/api/settings/execution', { priority: 'low' });
         await page.waitForFunction(() => document.querySelector('#global-priority')?.value === 'low');
-        console.log('PASS personal settings preserve dirty edits and follow updates after save');
+        console.log('PASS individual settings preserve dirty edits and follow updates after save');
         await page.goto(base + `/#/p/${p.id}/defaults`);
         await page.locator('#project-priority').selectOption('high');
         await api('PUT', `/api/projects/${p.id}/execution`, { runner: remote.id, agent: 'codex', priority: 'low' });
@@ -154,7 +154,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
             for (const [size, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
                 await page.setViewportSize({ width, height });
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, name + ' ' + size + ' document overflows');
-                await page.screenshot({ path: path.join(artifacts, 'personal-' + name + '-' + size + '.png') });
+                await page.screenshot({ path: path.join(artifacts, 'individual-' + name + '-' + size + '.png') });
             }
         }
         await page.setViewportSize({ width: 1440, height: 1000 });
@@ -183,7 +183,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await privateContext.close();
         assert.deepEqual(errors, []);
         console.log('PASS page-only sign-in with browser storage unavailable, desktop/mobile without overflow');
-        console.log('PASS personal browser flows without JavaScript errors');
+        console.log('PASS individual browser flows without JavaScript errors');
     }
     finally {
         clearInterval(timer);

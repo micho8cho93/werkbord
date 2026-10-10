@@ -118,7 +118,7 @@ type Options struct {
 
 	// The workspaces. Registry lists them; Team, TeamInstaller and Grants are how the app reaches Team's service, Team's own
 	// installer and the person's Werkbord for the one grant a Team workspace is given. Invites holds an invitation the app
-	// was opened with. ShellPage is where the window loads its own page after connecting ("" loads Personal's web app
+	// was opened with. ShellPage is where the window loads its own page after connecting ("" loads Individual's web app
 	// directly, as the app did before there was a shell).
 	Workspaces    Registry
 	Team          Team
@@ -207,7 +207,7 @@ func (s *Shell) Connect() (Connected, error) {
 	})
 	if err != nil {
 		s.o.Log.Error("could not connect", "err", err)
-		// Team workspaces remain useful if the Personal runner is unavailable.
+		// Team workspaces remain useful if the Individual runner is unavailable.
 		if s.o.ShellPage != "" {
 			return Connected{Shell: s.o.ShellPage}, nil
 		}

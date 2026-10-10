@@ -1,6 +1,6 @@
 # Installing and updating Team
 
-For ordinary desktop use, the primary installer is **Werkbord.app**, which carries Team's native installer from the same release. It activates only when explicitly requested. Individual remains free, and each workspace retains backend-authoritative offline licensing. See [unified distribution](UNIFIED_DISTRIBUTION.md).
+For ordinary desktop use, the primary installer is **Werkbord.app**, which carries Team's native installer from the same release. It activates only when explicitly requested. Individual remains free, and each workspace retains backend-authoritative offline licensing. See [unified distribution](ARCHITECTURE.md#distribution-licensing-and-updates).
 
 Werkbord is one release with one version. The app is signed and notarized like everything else in it, and the Team service refuses to install unless the app was signed by the release's Apple Developer team. Joined devices and Workspace Hosts defer native service replacement until administrator maintenance; installing a newer app does not move their databases.
 

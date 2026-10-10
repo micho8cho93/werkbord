@@ -39,7 +39,7 @@ func rememberablePlace(place string) bool {
 }
 
 // OpenState reads the state at path. A missing or unreadable file is an empty state, never an error: the worst it costs is
-// opening Personal.
+// opening Individual.
 func OpenState(path string) *State {
 	s := &State{path: path, data: stateFile{Version: 1, Places: map[string]string{}}}
 	b, err := os.ReadFile(path)

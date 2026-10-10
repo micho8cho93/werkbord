@@ -53,9 +53,9 @@ async function cleanup() {
     run('git', ['-C', repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture commit'], {}, true);
     const fixture = path.join(temp, 'fixture');
     run('go', ['build', '-o', fixture, './scripts/browser-fixture'], {}, true);
-    const personalURL = 'http://127.0.0.1:' + await port();
-    const personal = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(personalURL).host, WERKBORD_BROWSER_EXECUTION: '1' });
-    await ready(personal, personalURL + '/api/health');
+    const individualURL = 'http://127.0.0.1:' + await port();
+    const individual = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(individualURL).host, WERKBORD_BROWSER_EXECUTION: '1' });
+    await ready(individual, individualURL + '/api/health');
     const teamURL = 'http://127.0.0.1:' + await port();
     // A workspace needs a signed license (Team always checks one), so the suite makes its own issuer, signs a license with it, and
     // builds a Team that trusts that issuer and no other. The key lives in this temporary directory and nowhere else.
@@ -76,8 +76,8 @@ async function cleanup() {
     fs.writeFileSync(tokenFile, created.match(/wbt_[a-zA-Z0-9]+/)[0], { mode: 0o600 });
     const team = serve(teamBinary, ['serve'], teamEnv);
     await ready(team, teamURL + '/api/team/v1/health');
-    const testEnv = { PERSONAL_BROWSER_URL: personalURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
-    run(process.execPath, ['scripts/browser-personal.cjs'], testEnv);
+    const testEnv = { PERSONAL_BROWSER_URL: individualURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
+    run(process.execPath, ['scripts/browser-individual.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-team.cjs'], testEnv);
     testEnv.TEAM_BROWSER_TOKEN_FILE = path.join(artifacts, 'active-token.txt');
     run(process.execPath, ['scripts/browser-bridge.cjs'], testEnv);

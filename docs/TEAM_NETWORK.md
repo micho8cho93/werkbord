@@ -5,7 +5,7 @@ service and no server of anyone else's. It replaces the need for a Tailscale acc
 individual Werkbord's Tailscale support is unchanged.)
 
 The decision and its reasons are [ADR 0002](adr/0002-customer-owned-network.md). The threat model and what the tests
-prove are in [TEAM_SECURITY.md](TEAM_SECURITY.md#the-private-network-team-25). This page is how it works and how to run it.
+prove are in [TEAM_SECURITY.md](TEAM_SECURITY.md). This page is how it works and how to run it.
 
 > **No Werkbord-operated infrastructure.** There is no relay, rendezvous server, control plane, discovery server,
 > network registry or customer key service that Werkbord runs, and nothing in Team's code or settings can be pointed at
@@ -45,7 +45,7 @@ issue certificates is a place where the authority can be lost. Do not make a hos
 
 A Workspace Host cannot run anything on a member's computer, read a member's files or impersonate a member's *application*
 identity (it never has a device's private key); what it can do is act as the network's authority and as the workspace.
-Team still starts no developer process anywhere ([PRODUCTS.md](PRODUCTS.md)).
+Team still starts no developer process anywhere ([STRUCTURE.md](STRUCTURE.md)).
 
 ## Starting a workspace's network
 

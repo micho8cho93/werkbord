@@ -13,11 +13,11 @@ async function wait(fn,label){for(let n=0;n<900;n++){for(const c of children)if(
 async function http(base,token,method,url,body){const r=await fetch(base+url,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});if(r.status===204)return null;const d=await r.json();if(!r.ok)throw Error(r.status+': '+JSON.stringify(d));return d;}
 async function shot(page,name,width=1440,height=1000){await page.setViewportSize({width,height});await page.evaluate(()=>document.fonts.ready);if(!process.env.BROWSER_SKIP_SCREENSHOTS)await page.screenshot({path:path.join(artifacts,name+'.png'),fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'horizontal overflow: '+name);}
 (async()=>{
- const personal=path.join(temp,'personal');run('go',['build','-o',personal,'./scripts/browser-fixture']);
- const personalURL='http://127.0.0.1:'+await port();const full='disposable-browser-credential';
- spawn(personal,[],{WERKBORD_BROWSER_ADDR:new URL(personalURL).host,WERKBORD_BROWSER_EXECUTION:'1'});
- await wait(async()=>{try{return(await fetch(personalURL+'/api/health')).ok;}catch{return false;}},'personal controller');
- fs.writeFileSync(path.join(temp,'runner-config.json'),JSON.stringify({addr:new URL(personalURL).host,token:full}),{mode:0o600});
+ const individual=path.join(temp,'personal');run('go',['build','-o',individual,'./scripts/browser-fixture']);
+ const individualURL='http://127.0.0.1:'+await port();const full='disposable-browser-credential';
+ spawn(individual,[],{WERKBORD_BROWSER_ADDR:new URL(individualURL).host,WERKBORD_BROWSER_EXECUTION:'1'});
+ await wait(async()=>{try{return(await fetch(individualURL+'/api/health')).ok;}catch{return false;}},'individual controller');
+ fs.writeFileSync(path.join(temp,'runner-config.json'),JSON.stringify({addr:new URL(individualURL).host,token:full}),{mode:0o600});
  const pins=run('sh',['scripts/team-build-flags.sh']).trim();
  spawn('go',['test','-ldflags',pins,'-run','^TestTeamDesktopBrowserFixture$','-count=1','-timeout','12m','./internal/team/server'],{WERKBORD_TEAM_BROWSER_FIXTURE:temp,WERKBORD_SKIP_RQLITE:'0',WERKBORD_REQUIRE_RQLITE:'1'});
  await wait(()=>fs.existsSync(path.join(temp,'ready.json')),'fixture');const m=JSON.parse(fs.readFileSync(path.join(temp,'ready.json')));
@@ -65,7 +65,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await page.reload();await page.getByRole('button',{name:'Switch to light mode',exact:true}).waitFor();await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
  console.log('PASS Cmd K through the enrolled device API and persistent desktop theme selection');
  const repo=path.join(temp,'repo');fs.mkdirSync(repo);run('git',['-C',repo,'init','-b','main']);run('git',['-C',repo,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','--allow-empty','-m','Initial fixture']);run('git',['-C',repo,'remote','add','origin','https://github.com/acme/shop']);
- await http(personalURL,full,'POST','/api/projects',{name:'Customer portal',path:repo});
+ await http(individualURL,full,'POST','/api/projects',{name:'Customer portal',path:repo});
  await wait(async()=>{const s=await dev('first','GET','/state');return (s.senders||[]).some(d=>d.deviceId===joined.deviceId);},'device sender discovery');
  const own=(await dev('first','GET','/state')).deviceId;
  await wait(async()=>{const s=await dev('second','GET','/state');return (s.senders||[]).some(d=>d.deviceId===own);},'target sender discovery');
@@ -85,18 +85,18 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await shot(page,'agent-policy');await shot(page,'agent-policy-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  await page.getByRole('button',{name:'Approve and start my run',exact:true}).click();
  await page.getByRole('button',{name:'Stop my run',exact:true}).waitFor();
- const localProjects=await http(personalURL,full,'GET','/api/projects');
+ const localProjects=await http(individualURL,full,'GET','/api/projects');
  const localProject=localProjects.projects.find(p=>p.name==='Customer portal');
- const localRuns=await http(personalURL,full,'GET',`/api/projects/${localProject.id}/runs`);
+ const localRuns=await http(individualURL,full,'GET',`/api/projects/${localProject.id}/runs`);
  const running=localRuns.runs.find(r=>['running','waiting_for_user'].includes(r.state));assert(running,'local run launched');
- await http(personalURL,full,'POST',`/api/projects/${localProject.id}/runs/${running.id}/input`,{text:'ask'});
+ await http(individualURL,full,'POST',`/api/projects/${localProject.id}/runs/${running.id}/input`,{text:'ask'});
  await wait(async()=>{const detail=await dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${ticket.id}`);return detail.questions.length===1;},'agent question');
  await page.getByRole('button',{name:'Refresh progress',exact:true}).click();
  await page.getByText('Commit the fixture work?',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Yes',exact:true}).click();
  await wait(async()=>{const detail=await dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${ticket.id}`);return detail.questions.length===0;},'owner answer delivered');
  await page.getByRole('button',{name:'Stop my run',exact:true}).click();
- await wait(async()=>{const r=await http(personalURL,full,'GET',`/api/projects/${localProject.id}/runs/${running.id}`);return r.state==='stopped';},'owner stop');
+ await wait(async()=>{const r=await http(individualURL,full,'GET',`/api/projects/${localProject.id}/runs/${running.id}`);return r.state==='stopped';},'owner stop');
  await page.waitForFunction(()=>!actionBusy);
  const scheduledAt=new Date(Date.now()+3600000).toISOString();
  await page.locator(`[name=schedule-at-${ticket.id}]`).fill(scheduledAt);

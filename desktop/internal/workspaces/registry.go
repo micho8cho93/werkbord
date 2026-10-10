@@ -31,7 +31,7 @@ type known struct {
 	listed workspace.Listed
 }
 
-// NewRegistry makes a registry over sources. The first source is Personal's.
+// NewRegistry makes a registry over sources. The first source is Individual's.
 func NewRegistry(state *State, log *slog.Logger, sources ...Source) *Registry {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -86,7 +86,7 @@ func Accessible(e workspace.Entry) bool {
 }
 
 // Refresh asks every source what it holds. A source that is not answering contributes no workspaces and a problem; the
-// others are unaffected, which is what lets the person keep working in Personal while a Team workspace's service is down.
+// others are unaffected, which is what lets the person keep working in Individual while a Team workspace's service is down.
 func (r *Registry) Refresh(ctx context.Context) View {
 	type result struct {
 		src Source
@@ -113,7 +113,7 @@ func (r *Registry) Refresh(ctx context.Context) View {
 		if res.err != nil {
 			r.log.Debug("source not usable", "source", res.src.Name(), "err", res.err)
 			v.Problems = append(v.Problems, problemOf(res.src.Name(), res.err))
-			// A source that needs updating may still list what it holds: Personal is always listed, so that the window can
+			// A source that needs updating may still list what it holds: Individual is always listed, so that the window can
 			// say it needs updating instead of showing nothing. Any other failure lists nothing from that source.
 			if len(res.l) == 0 || !errors.Is(res.err, ErrOutdated) {
 				continue
@@ -135,7 +135,7 @@ func (r *Registry) Refresh(ctx context.Context) View {
 }
 
 // initial is the workspace to open: the one last used if it is still there and the person can still get into it,
-// otherwise Personal.
+// otherwise Individual.
 func (r *Registry) initial(items []Item) string {
 	last := r.state.Last()
 	for _, it := range items {
@@ -143,7 +143,7 @@ func (r *Registry) initial(items []Item) string {
 			return last
 		}
 	}
-	return workspace.PersonalID
+	return workspace.IndividualID
 }
 
 // Select makes a workspace the one that is open next time, and returns the view. Only a workspace that is there and can be

@@ -10,7 +10,7 @@ import (
 	"devboard/internal/workspace"
 )
 
-func TestThePersonalWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {
+func TestTheIndividualWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {
 	at := time.Date(2026, 10, 9, 9, 0, 0, 0, time.UTC)
 	ov := &Overview{
 		Projects: []ProjectActivity{{ProjectID: "prj_1", Name: "App"}},
@@ -30,7 +30,7 @@ func TestThePersonalWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Whatever the controller says must pass the shell's own strict reader unchanged.
-	got, dropped, err := workspace.Decode(strings.NewReader(string(raw)), workspace.PersonalID)
+	got, dropped, err := workspace.Decode(strings.NewReader(string(raw)), workspace.IndividualID)
 	if err != nil || dropped != 0 {
 		t.Fatalf("%v dropped %d\n%s", err, dropped, raw)
 	}
@@ -70,7 +70,7 @@ func TestAnAgentsQuestionOrATasksTitleCannotBreakTheSummary(t *testing.T) {
 		Runs:      []AttentionRun{{Run: domain.Run{ID: "run_1", TaskID: "tsk_1", ProjectID: "prj_1", State: domain.RunRunning}, ProjectName: "App", TaskTitle: "<script>alert(1)</script>"}},
 	}
 	raw, _ := json.Marshal(SummaryOf(ov, at))
-	got, _, err := workspace.Decode(strings.NewReader(string(raw)), workspace.PersonalID)
+	got, _, err := workspace.Decode(strings.NewReader(string(raw)), workspace.IndividualID)
 	if err != nil {
 		t.Fatal(err)
 	}

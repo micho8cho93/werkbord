@@ -80,7 +80,7 @@ latest selection. Do not reset build versions to the display sequence.
 ## Product boundaries
 
 Individual and Team are one release, but the *code* still has boundaries that are about trust, not packaging. Read
-`docs/PRODUCTS.md` before changing code near them. In short:
+`docs/STRUCTURE.md` before changing code near them. In short:
 
 - Team-specific code lives only under `internal/team/` and `cmd/werkbord-team/`. Never add a Team flag, branch or screen
   to the individual product, and never import Team from outside those two places.

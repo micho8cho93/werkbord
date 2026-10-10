@@ -60,28 +60,28 @@ func (f *fake) Summary(ctx context.Context, l workspace.Listed) (workspace.Summa
 	return workspace.Summary{Schema: workspace.Schema, Workspace: l.Entry}, nil
 }
 
-func personalListed(state workspace.State) workspace.Listed {
-	return workspace.Listed{Entry: workspace.Entry{ID: workspace.PersonalID, Kind: workspace.KindPersonal, Name: "Personal", State: state}, Root: "/", SummaryPath: "/api/workspace/v1/summary"}
+func individualListed(state workspace.State) workspace.Listed {
+	return workspace.Listed{Entry: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Individual", State: state}, Root: "/", SummaryPath: "/api/workspace/v1/summary"}
 }
 
 func team(slot, name string, state workspace.State) workspace.Listed {
 	return workspace.Listed{Entry: workspace.Entry{ID: workspace.TeamID(slot), Kind: workspace.KindTeam, Name: name, State: state, Role: "member"}, Root: "/w/" + slot + "/", SummaryPath: "/w/" + slot + "/api/device/v1/summary"}
 }
 
-func registry(t *testing.T, personal, teams *fake) (*Registry, *State) {
+func registry(t *testing.T, individual, teams *fake) (*Registry, *State) {
 	t.Helper()
 	st := OpenState(filepath.Join(t.TempDir(), "shell.json"))
-	return NewRegistry(st, nil, personal, teams), st
+	return NewRegistry(st, nil, individual, teams), st
 }
 
 // ---- tests ----
 
-func TestPersonalIsAlwaysThereAndTeamsComeAndGoWithoutIt(t *testing.T) {
-	p := &fake{name: "Werkbord", listed: []workspace.Listed{personalListed(workspace.StateReady)}}
+func TestIndividualIsAlwaysThereAndTeamsComeAndGoWithoutIt(t *testing.T) {
+	p := &fake{name: "Werkbord", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
 	tm := &fake{name: "Team", listErr: ErrNotRunning}
 	r, _ := registry(t, p, tm)
 	v := r.Refresh(bg)
-	if len(v.Items) != 1 || v.Items[0].ID != workspace.PersonalID || v.Selected != workspace.PersonalID {
+	if len(v.Items) != 1 || v.Items[0].ID != workspace.IndividualID || v.Selected != workspace.IndividualID {
 		t.Fatalf("%+v", v)
 	}
 	if len(v.Problems) != 1 || v.Problems[0].Kind != "not_running" || v.Problems[0].Source != "Team" {
@@ -90,19 +90,19 @@ func TestPersonalIsAlwaysThereAndTeamsComeAndGoWithoutIt(t *testing.T) {
 	// The Team service comes up with two workspaces.
 	tm.listErr, tm.listed = nil, []workspace.Listed{team("main", "Acme", workspace.StateReady), team("ws_2", "Globex", workspace.StateOffline)}
 	v = r.Refresh(bg)
-	if len(v.Items) != 3 || v.Items[0].ID != workspace.PersonalID || len(v.Problems) != 0 {
+	if len(v.Items) != 3 || v.Items[0].ID != workspace.IndividualID || len(v.Problems) != 0 {
 		t.Fatalf("%+v", v)
 	}
-	// Personal stays when Personal's own controller is down: it is shown as unavailable, never dropped.
-	p.listed = []workspace.Listed{personalListed(workspace.StateUnavailable)}
+	// Individual stays when Individual's own controller is down: it is shown as unavailable, never dropped.
+	p.listed = []workspace.Listed{individualListed(workspace.StateUnavailable)}
 	v = r.Refresh(bg)
-	if v.Items[0].ID != workspace.PersonalID || v.Items[0].State != workspace.StateUnavailable {
+	if v.Items[0].ID != workspace.IndividualID || v.Items[0].State != workspace.StateUnavailable {
 		t.Fatalf("%+v", v.Items[0])
 	}
 }
 
-func TestTheLastWorkspaceOpensIfThePersonCanStillGetIntoItElsePersonal(t *testing.T) {
-	p := &fake{name: "Werkbord", listed: []workspace.Listed{personalListed(workspace.StateReady)}}
+func TestTheLastWorkspaceOpensIfThePersonCanStillGetIntoItElseIndividual(t *testing.T) {
+	p := &fake{name: "Werkbord", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
 	tm := &fake{name: "Team", listed: []workspace.Listed{team("main", "Acme", workspace.StateReady), team("ws_2", "Globex", workspace.StateReady)}}
 	r, st := registry(t, p, tm)
 	if v, err := r.Select(bg, "team:ws_2"); err != nil || v.Selected != "team:ws_2" {
@@ -128,8 +128,8 @@ func TestTheLastWorkspaceOpensIfThePersonCanStillGetIntoItElsePersonal(t *testin
 	} {
 		tm.listErr, tm.listed = nil, []workspace.Listed{team("main", "Acme", workspace.StateReady), team("ws_2", "Globex", workspace.StateReady)}
 		mutate()
-		if v := NewRegistry(OpenState(st.path), nil, p, tm).Refresh(bg); v.Selected != workspace.PersonalID {
-			t.Errorf("%s: opened %s instead of Personal", name, v.Selected)
+		if v := NewRegistry(OpenState(st.path), nil, p, tm).Refresh(bg); v.Selected != workspace.IndividualID {
+			t.Errorf("%s: opened %s instead of Individual", name, v.Selected)
 		}
 	}
 	// A state file nobody can read is an empty state, not a failure.
@@ -137,16 +137,16 @@ func TestTheLastWorkspaceOpensIfThePersonCanStillGetIntoItElsePersonal(t *testin
 		t.Fatal(err)
 	}
 	tm.listErr, tm.listed = nil, []workspace.Listed{team("main", "Acme", workspace.StateReady)}
-	if v := NewRegistry(OpenState(st.path), nil, p, tm).Refresh(bg); v.Selected != workspace.PersonalID {
+	if v := NewRegistry(OpenState(st.path), nil, p, tm).Refresh(bg); v.Selected != workspace.IndividualID {
 		t.Fatalf("selected = %s", v.Selected)
 	}
 }
 
 func TestChoosingAWorkspaceTouchesNothingButTheShellsOwnMemory(t *testing.T) {
-	p := &fake{name: "Werkbord", listed: []workspace.Listed{personalListed(workspace.StateReady)}}
+	p := &fake{name: "Werkbord", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
 	tm := &fake{name: "Team", listed: []workspace.Listed{team("main", "Acme", workspace.StateReady)}}
 	r, _ := registry(t, p, tm)
-	for _, id := range []string{"team:main", workspace.PersonalID, "team:main"} {
+	for _, id := range []string{"team:main", workspace.IndividualID, "team:main"} {
 		if _, err := r.Select(bg, id); err != nil {
 			t.Fatal(err)
 		}
@@ -166,7 +166,7 @@ func TestChoosingAWorkspaceTouchesNothingButTheShellsOwnMemory(t *testing.T) {
 }
 
 func TestSeveralTeamsAreSeparateWorkspacesWithSeparatePlaces(t *testing.T) {
-	p := &fake{name: "Werkbord", listed: []workspace.Listed{personalListed(workspace.StateReady)}}
+	p := &fake{name: "Werkbord", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
 	tm := &fake{name: "Team", listed: []workspace.Listed{team("main", "Acme", workspace.StateReady), team("ws_2", "Globex", workspace.StateReady)}}
 	r, _ := registry(t, p, tm)
 	r.Refresh(bg)
@@ -198,7 +198,7 @@ func TestSeveralTeamsAreSeparateWorkspacesWithSeparatePlaces(t *testing.T) {
 	if k, _ := r.Kind("team:ws_2"); k != workspace.KindTeam {
 		t.Fatal(k)
 	}
-	if k, _ := r.Kind(workspace.PersonalID); k != workspace.KindPersonal {
+	if k, _ := r.Kind(workspace.IndividualID); k != workspace.KindIndividual {
 		t.Fatal(k)
 	}
 	if _, ok := r.Kind("team:unknown"); ok {
@@ -207,7 +207,7 @@ func TestSeveralTeamsAreSeparateWorkspacesWithSeparatePlaces(t *testing.T) {
 }
 
 func TestOneWorkspaceThatDoesNotAnswerNeverHidesTheOthers(t *testing.T) {
-	p := &fake{name: "Werkbord", listed: []workspace.Listed{personalListed(workspace.StateReady)}}
+	p := &fake{name: "Werkbord", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
 	tm := &fake{name: "Team", listed: []workspace.Listed{team("main", "Acme", workspace.StateReady), team("ws_2", "Globex", workspace.StateOffline), team("ws_3", "Initech", workspace.StateReady), team("ws_4", "Hooli", workspace.StateConnecting)},
 		sumErr: map[string]error{"team:ws_2": ErrNotRunning}, slow: map[string]time.Duration{"team:ws_3": time.Minute}}
 	r, _ := registry(t, p, tm)
@@ -238,12 +238,12 @@ func TestOneWorkspaceThatDoesNotAnswerNeverHidesTheOthers(t *testing.T) {
 }
 
 func TestADuplicateWorkspaceIdIsKeptFromTheFirstSourceOnly(t *testing.T) {
-	p := &fake{name: "Werkbord", listed: []workspace.Listed{personalListed(workspace.StateReady)}}
-	evil := &fake{name: "Impostor", listed: []workspace.Listed{personalListed(workspace.StateReady)}}
-	evil.listed[0].Entry.Name = "Personal (impostor)"
+	p := &fake{name: "Werkbord", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
+	evil := &fake{name: "Impostor", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
+	evil.listed[0].Entry.Name = "Individual (impostor)"
 	r := NewRegistry(OpenState(""), nil, p, evil)
 	v := r.Refresh(bg)
-	if len(v.Items) != 1 || v.Items[0].Name != "Personal" || v.Items[0].Source != "Werkbord" {
+	if len(v.Items) != 1 || v.Items[0].Name != "Individual" || v.Items[0].Source != "Werkbord" {
 		t.Fatalf("%+v", v.Items)
 	}
 }
@@ -381,7 +381,7 @@ func TestOnlyLiteralLoopbackAddressesAreEverSpokenTo(t *testing.T) {
 	}
 }
 
-func TestPersonalIsReadWithTheControllersCredentialAndOpenedSignedIn(t *testing.T) {
+func TestIndividualIsReadWithTheControllersCredentialAndOpenedSignedIn(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/health":
@@ -391,13 +391,13 @@ func TestPersonalIsReadWithTheControllersCredentialAndOpenedSignedIn(t *testing.
 				w.WriteHeader(401)
 				return
 			}
-			_ = json.NewEncoder(w).Encode(workspace.Summary{Schema: workspace.Schema, Workspace: personalListed(workspace.StateReady).Entry})
+			_ = json.NewEncoder(w).Encode(workspace.Summary{Schema: workspace.Schema, Workspace: individualListed(workspace.StateReady).Entry})
 		default:
 			w.WriteHeader(404)
 		}
 	}))
 	defer srv.Close()
-	p := NewPersonal(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "CTL"}, nil })
+	p := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "CTL"}, nil })
 	l, err := p.List(bg)
 	if err != nil || len(l) != 1 || l[0].Entry.State != workspace.StateReady {
 		t.Fatalf("%+v %v", l, err)
@@ -406,15 +406,15 @@ func TestPersonalIsReadWithTheControllersCredentialAndOpenedSignedIn(t *testing.
 	if f.URL != srv.URL+"/#token=CTL" {
 		t.Fatalf("frame = %s", f.URL)
 	}
-	if s, err := p.Summary(bg, l[0]); err != nil || s.Workspace.ID != workspace.PersonalID {
+	if s, err := p.Summary(bg, l[0]); err != nil || s.Workspace.ID != workspace.IndividualID {
 		t.Fatalf("%+v %v", s, err)
 	}
 	srv.Close()
 	l, err = p.List(bg)
-	if err != nil || l[0].Entry.State != workspace.StateUnavailable || l[0].Entry.ID != workspace.PersonalID {
-		t.Fatalf("a controller that stopped made Personal disappear: %+v %v", l, err)
+	if err != nil || l[0].Entry.State != workspace.StateUnavailable || l[0].Entry.ID != workspace.IndividualID {
+		t.Fatalf("a controller that stopped made Individual disappear: %+v %v", l, err)
 	}
-	down := NewPersonal(func(context.Context) (Access, error) { return Access{}, errors.New("no installation") })
+	down := NewIndividual(func(context.Context) (Access, error) { return Access{}, errors.New("no installation") })
 	if l, _ := down.List(bg); l[0].Entry.State != workspace.StateUnavailable {
 		t.Fatalf("%+v", l)
 	}
@@ -447,7 +447,7 @@ func TestAGrantIsNarrowNamedAndReplacesTheOneItReconnects(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	p := NewPersonal(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "CTL"}, nil })
+	p := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "CTL"}, nil })
 	tok, base, err := p.MintExecutionGrant(bg, "Team: Acme")
 	if err != nil || tok != "wba_newgrant" || base != srv.URL {
 		t.Fatalf("%q %q %v", tok, base, err)
@@ -461,7 +461,7 @@ func TestAGrantIsNarrowNamedAndReplacesTheOneItReconnects(t *testing.T) {
 	if _, _, err := p.MintExecutionGrant(bg, ""); err == nil {
 		t.Fatal("a nameless grant was made")
 	}
-	if _, _, err := NewPersonal(func(context.Context) (Access, error) { return Access{Base: srv.URL}, nil }).MintExecutionGrant(bg, "x"); err == nil {
+	if _, _, err := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL}, nil }).MintExecutionGrant(bg, "x"); err == nil {
 		t.Fatal("a grant was made without the credential")
 	}
 }

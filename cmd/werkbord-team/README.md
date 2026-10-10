@@ -41,4 +41,4 @@ carry the database program; on macOS build it with `make rqlite`, or keep the wo
 Settings: `--addr` / `WERKBORD_TEAM_ADDR` (default `127.0.0.1:7430`), `--data-dir` / `WERKBORD_TEAM_DATA_DIR`.
 Team serves plain HTTP: to reach it from other computers put it behind HTTPS or a private network.
 
-Full documentation: `docs/TEAM.md` and `docs/PRODUCTS.md` in the repository.
+Full documentation: `docs/TEAM.md` and `docs/STRUCTURE.md` in the repository.

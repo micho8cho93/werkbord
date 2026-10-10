@@ -118,7 +118,7 @@ const DefaultCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'uns
 
 // DesktopFrameAncestor is the one scheme that may show a page of a product inside a frame without being asked twice: the
 // Werkbord desktop app's own window, whose pages come from the app and from no network. A web page on the Internet or in a
-// browser cannot have it as its address, so allowing it lets the app compose Personal and Team workspaces in one window
+// browser cannot have it as its address, so allowing it lets the app compose Individual and Team workspaces in one window
 // and lets nothing else frame them.
 const DesktopFrameAncestor = "wails:"
 

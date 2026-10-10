@@ -10,7 +10,7 @@
   let { onadd }: { onadd: () => void } = $props();
 
   const items = $derived(model.view?.items.filter((i) => i.state !== 'setup' || i.id === model.current) ?? []);
-  const personal = $derived(items.filter((i) => i.kind === 'personal'));
+  const individual = $derived(items.filter((i) => i.kind === 'personal'));
   const teams = $derived(items.filter((i) => i.kind === 'team'));
   const team = $derived(model.view?.team);
   const tone = (i: Item): string =>
@@ -72,7 +72,7 @@
 
 <div class="scrim" onclick={() => model.closeSwitcher()} role="presentation"></div>
 <div class="menu" role="menu" aria-label="Switch between Individual and Team" tabindex="-1" bind:this={menu} onkeydown={onkey} style:left="{pos.left}px" style:top="{pos.top}px" data-testid="switcher-menu">
-  {#each personal as i (i.id)}{@render row(i)}{/each}
+  {#each individual as i (i.id)}{@render row(i)}{/each}
   {#if teams.length || teamProblem}
     <div class="rule" role="separator"></div>
     {#each teams as i (i.id)}{@render row(i)}{/each}

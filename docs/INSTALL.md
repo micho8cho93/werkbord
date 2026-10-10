@@ -1,8 +1,8 @@
 # Installing Werkbord
 
-The primary macOS installer is now one Werkbord app containing separately versioned Personal and Team backends. Personal starts without a license, vendor account, Team network or privileged Team service. **Add a Team** explicitly activates Team's bundled signed installer; joining a licensed workspace consumes one member seat, regardless of personal devices. Existing CLI installation methods remain supported.
+The primary macOS installer is one Werkbord app. It carries the controller (Individual) and Team's service, with one version. Individual starts without a license, vendor account, Team network or privileged Team service. **Add a Team** explicitly installs Team's service, with an administrator's authorization; joining a licensed workspace consumes one member seat, however many devices you use. The command-line installers remain supported.
 
-See [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md) and [PHASE4_READINESS.md](PHASE4_READINESS.md). Source/development disk images are ad hoc builds for testing, not notarized production releases.
+See [ARCHITECTURE.md §22](ARCHITECTURE.md#distribution-licensing-and-updates). Source/development disk images are ad hoc builds for testing, not notarized production releases.
 
 
 This document covers individual Werkbord and its separate tsnet support. Werkbord Team uses customer-owned Nebula and has its own [signed installation/update instructions](TEAM_INSTALL.md), [offline licenses](TEAM_LICENSE.md) and [production security gate](TEAM_SECURITY_GATE.md).

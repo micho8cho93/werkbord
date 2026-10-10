@@ -2,7 +2,7 @@
 // for the workspace, its members and its projects. It is Team's own front end.
 // The individual product's web app is a different program (web/) and is not
 // changed or served by Team; sharing components between them is planned in
-// docs/PRODUCTS.md.
+// docs/STRUCTURE.md.
 package console
 
 import (

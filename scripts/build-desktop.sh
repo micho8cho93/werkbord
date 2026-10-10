@@ -224,7 +224,7 @@ fi
 chmod 755 "$APP/Contents/Helpers/werkbord" "$APP/Contents/MacOS/Werkbord"
 rm -f $HELPERS $WINDOWS
 
-# The Team service the app carries and installs when a person adds a Team (docs/UNIFIED_DISTRIBUTION.md). It is part of this
+# The Team service the app carries and installs when a person adds a Team (docs/ARCHITECTURE.md#distribution-licensing-and-updates). It is part of this
 # release: built here, from this commit, at this version, and signed with the same Developer ID, except Nebula, which keeps its
 # upstream signature and is checked against its pin. Nothing is installed or started until a person asks.
 if [ "$TEAM_PAYLOAD" != 0 ]; then

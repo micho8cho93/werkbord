@@ -1,4 +1,4 @@
-// Command werkbord-desktop is the unified Personal and Team desktop shell. See docs/DESKTOP.md.
+// Command werkbord-desktop is the unified Individual and Team desktop shell. See docs/DESKTOP.md.
 //
 // It is not a second program that does Werkbord's work. The controller (Go, SQLite, the agents) is a
 // background service exactly as `werkbord setup` makes it, and keeps running when this window is
@@ -83,7 +83,7 @@ func main() {
 	sh := shell.New(shell.Options{Launcher: l, UI: ui, Version: version, Platform: goruntime.GOOS, AppLog: appLog, Log: log, Ctx: ctx, Updater: up,
 		// An update never replaces the program under working agents, and the app's relaunch waits for them too. (The Team service
 		// is a separate root-owned installation that the app never replaces on its own, so an update of the app does not touch it.)
-		UpdateGuard: l.UpdateSafety, Workspaces: parts.registry, Team: parts.team, TeamInstaller: parts.installer, Grants: parts.personal, Invites: parts.invites, ShellPage: page})
+		UpdateGuard: l.UpdateSafety, Workspaces: parts.registry, Team: parts.team, TeamInstaller: parts.installer, Grants: parts.individual, Invites: parts.invites, ShellPage: page})
 
 	// The window's own page is the only page that may call the app: every workspace's page is shown in a
 	// frame of it, WebKit gives a frame no way to call the app, and a workspace's page asks the shell page, which asks

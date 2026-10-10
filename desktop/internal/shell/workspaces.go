@@ -209,7 +209,7 @@ func (s *Shell) ActivateTeam() (teamlink.Status, error) {
 	dialog := Dialog{
 		Kind:  Question,
 		Title: "Set up Team on this Mac?",
-		Message: "Team adds shared workspaces next to your Personal one.\n\n" +
+		Message: "Team adds shared workspaces next to your Individual one.\n\n" +
 			"It installs a background service, with your administrator password, that runs the network and the shared database for your teams. " +
 			"The service never runs your coding agents and never sees your Werkbord's credentials: your agents keep running as you, in your own Werkbord, " +
 			"and Team can only ask it to start work you approve.\n\nNothing is installed until you choose Set up.",
@@ -251,10 +251,10 @@ func (s *Shell) TeamService(action string) error {
 		title, msg, yes = "Start the Team service?", "Your Team workspaces become available again.", "Start Team"
 	case "stop":
 		title, yes = "Stop the Team service?", "Stop Team"
-		msg = "Your Team workspaces become unavailable on this Mac. If this Mac is a Workspace Host or Connectivity Host, your team loses it until you start the service again. Your agents, schedules and Personal workspace are not affected, and nothing is deleted."
+		msg = "Your Team workspaces become unavailable on this Mac. If this Mac is a Workspace Host or Connectivity Host, your team loses it until you start the service again. Your agents, schedules and Individual workspace are not affected, and nothing is deleted."
 	case "uninstall":
 		title, yes = "Remove the Team service?", "Remove Team service"
-		msg = "Leave your Team workspaces first. This removes the service and its local settings from this Mac; your Personal workspace is not affected. Archives and backups you chose to keep stay where they are."
+		msg = "Leave your Team workspaces first. This removes the service and its local settings from this Mac; your Individual workspace is not affected. Archives and backups you chose to keep stay where they are."
 	default:
 		return errors.New("choose start, stop or uninstall")
 	}
@@ -292,12 +292,12 @@ func (s *Shell) PendingInvitation() string {
 
 // ---- what a workspace's page may ask ----
 
-// relayable is, for each kind of workspace, the only things its page may ask of the app. A Personal page may ask what it
+// relayable is, for each kind of workspace, the only things its page may ask of the app. A Individual page may ask what it
 // always could (to open a link in the browser, to choose a folder for a project, to update); a Team page may ask to connect
 // the person's runner to its own workspace and to start or stop the Team service. Neither may ask what the other may.
 var relayable = map[workspace.Kind]map[string]bool{
-	workspace.KindPersonal: {"Info": true, "OpenExternal": true, "ChooseDirectory": true, "RequestUpdate": true, "UpdateStatus": true},
-	workspace.KindTeam:     {"Info": true, "OpenExternal": true, "ConnectRunner": true, "TeamService": true, "PendingInvitation": true},
+	workspace.KindIndividual: {"Info": true, "OpenExternal": true, "ChooseDirectory": true, "RequestUpdate": true, "UpdateStatus": true},
+	workspace.KindTeam:       {"Info": true, "OpenExternal": true, "ConnectRunner": true, "TeamService": true, "PendingInvitation": true},
 }
 
 // Relay performs, for the page of the workspace id, something that page asked of the app. Which kind of workspace it is
@@ -397,7 +397,7 @@ func (s *Shell) connectRunner(id string) error {
 	}
 	choice := s.o.UI.Ask(Dialog{
 		Kind:  Question,
-		Title: fmt.Sprintf("Let %q use your Personal runner?", name),
+		Title: fmt.Sprintf("Let %q use your Individual runner?", name),
 		Message: "This lets that Team workspace ask your Werkbord to prepare and start work on tickets you hold. It still cannot start anything you have not approved, " +
 			"it cannot see your files, Git or sign-ins, and your Werkbord's own approvals and limits apply.\n\nYou can revoke it any time in Werkbord's settings, under Local access.",
 		Buttons: []string{"Connect runner", "Cancel"}, Default: "Cancel", Cancel: "Cancel",

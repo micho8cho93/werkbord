@@ -398,14 +398,8 @@ it at once, quit the app and delete the `ServiceWorkers` folders under
 `~/Library/WebKit/<bundle id>/WebsiteData/Default/*/*/` (the bundle id is `dev.werkbord.desktop`); nothing else there needs
 to go, and the worker is not registered again.
 
-## Unified desktop workspaces
+## Workspaces, Team and distribution
 
-Phase 3 adds one everyday desktop shell with Personal and multiple Team
-workspaces while retaining isolated backend services, user-owned execution and
-explicit Team installation. The installer is part of the same app; there is no second window. See
-[UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
-security boundaries, lifecycle, validation and operational limits.
-
-## Phase 4 packaging
-
-The app carries Team’s service in `Contents/Helpers` (`werkbord-team`, the database program `rqlited`, and the pinned network program `nebula`), plus `Resources/components.txt` and `compatibility.json`. Team is inert for free Personal use. The upstream Nebula signature is checked against its immutable pin; it is never re-signed to make publisher checks pass. Backend upgrades retain their original trust paths. See [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md). Sparkle now rechecks active work and Team maintenance before relaunching; a pending agent or enrolled Team workspace defers the swap.
+The window shows the Individual workspace and any number of Team workspaces, and the app carries Team's service and its
+installer. Navigation, host volunteering, security boundaries, lifecycle, validation, the contents of the bundle, signing and
+updates are in [ARCHITECTURE.md §22](ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped).

@@ -18,7 +18,7 @@ import (
 // answers in the shell's words (internal/workspace) from what the person's own Workspace Host says to the person's own
 // device credential: their tickets, the reviews they may do, the schedules they own, and how the machines that keep the
 // workspace running are doing. It is a translation of reads the console makes anyway; it adds no authority and reveals
-// nothing the member cannot already see. Personal data does not come in here and nothing here goes to the Personal side.
+// nothing the member cannot already see. Individual data does not come in here and nothing here goes to the Individual side.
 
 // summaryInputs is everything the summary is made of, gathered by the caller, so the translation is a pure function.
 type summaryInputs struct {

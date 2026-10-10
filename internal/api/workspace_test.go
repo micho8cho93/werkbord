@@ -9,9 +9,9 @@ import (
 	"devboard/internal/workspace"
 )
 
-// The desktop shell reads Personal's summary with the controller's own credential, in the neutral words, and no program
+// The desktop shell reads Individual's summary with the controller's own credential, in the neutral words, and no program
 // that was given narrow access can.
-func TestThePersonalSummaryIsForTheControllersOwnCredentialAndIsReadByTheShellsStrictReader(t *testing.T) {
+func TestTheIndividualSummaryIsForTheControllersOwnCredentialAndIsReadByTheShellsStrictReader(t *testing.T) {
 	sc := newScoped(t)
 	if code, _ := call(t, "GET", sc.url+"/api/workspace/v1/summary", "", ""); code != 401 {
 		t.Fatalf("no credential: %d", code)
@@ -24,11 +24,11 @@ func TestThePersonalSummaryIsForTheControllersOwnCredentialAndIsReadByTheShellsS
 	if code != 200 {
 		t.Fatalf("summary: %d %s", code, body)
 	}
-	got, dropped, err := workspace.Decode(bytes.NewReader(body), workspace.PersonalID)
+	got, dropped, err := workspace.Decode(bytes.NewReader(body), workspace.IndividualID)
 	if err != nil || dropped != 0 {
 		t.Fatalf("the shell's reader refused the controller's summary: %v (dropped %d)\n%s", err, dropped, body)
 	}
-	if got.Workspace.Kind != workspace.KindPersonal || got.Workspace.State != workspace.StateReady {
+	if got.Workspace.Kind != workspace.KindIndividual || got.Workspace.State != workspace.StateReady {
 		t.Fatalf("%+v", got.Workspace)
 	}
 }

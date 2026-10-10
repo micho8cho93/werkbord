@@ -7,7 +7,7 @@
 //     that is not the customer's own;
 //   - the desktop app (a module of its own, because it needs cgo) links no Team code and no execution engine.
 //
-// It has no code of its own. The rules are in docs/PRODUCTS.md; each test below says which one it enforces and what to do
+// It has no code of its own. The rules are in docs/STRUCTURE.md; each test below says which one it enforces and what to do
 // when it fails.
 package archtest
 

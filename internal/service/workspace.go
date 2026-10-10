@@ -9,12 +9,12 @@ import (
 	"devboard/internal/workspace"
 )
 
-// WorkspaceSummary is this computer's Personal workspace in the words the desktop shell uses for every workspace
+// WorkspaceSummary is this computer's Individual workspace in the words the desktop shell uses for every workspace
 // (internal/workspace): the person's projects, the work an agent is doing or has finished, what waits for them and what
 // is scheduled. It is built from the Control Center's one consistent snapshot and adds nothing to it; it is the same
 // information, in a form the shell can set beside a Team workspace's.
 //
-// It is read-only and answers only to the controller's own credential. Personal data is never sent anywhere by this: the
+// It is read-only and answers only to the controller's own credential. Individual data is never sent anywhere by this: the
 // shell is a program on this computer that asks for it.
 func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary, error) {
 	ov, err := s.Overview(ctx)
@@ -50,7 +50,7 @@ func execOf(r domain.Run) workspace.Execution {
 func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 	out := workspace.Summary{
 		Schema:    workspace.Schema,
-		Workspace: workspace.Entry{ID: workspace.PersonalID, Kind: workspace.KindPersonal, Name: "Individual", State: workspace.StateReady, DeviceRoles: []string{"runner"}},
+		Workspace: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Individual", State: workspace.StateReady, DeviceRoles: []string{"runner"}},
 		Projects:  []workspace.Project{},
 		Work:      []workspace.Item{},
 		Attention: []workspace.Attention{},

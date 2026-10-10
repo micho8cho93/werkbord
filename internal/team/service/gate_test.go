@@ -137,7 +137,7 @@ func TestLicenseExpiryRenewalAndExistingDatabaseMigration(t *testing.T) {
 	}
 }
 
-func TestAdditionalPersonalDevicesDoNotConsumeLicensedSeats(t *testing.T) {
+func TestAdditionalIndividualDevicesDoNotConsumeLicensedSeats(t *testing.T) {
 	w := isolatedLicenseWorld(t)
 	pub, key, _ := ed25519.GenerateKey(rand.Reader)
 	w.svc.EnforceLicense(pub, signedLicense(t, key, 2, time.Now().Add(-time.Hour), time.Time{}))

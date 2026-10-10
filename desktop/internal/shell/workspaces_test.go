@@ -146,8 +146,8 @@ type rig struct {
 	inv *Invites
 }
 
-func personalItem() workspaces.Item {
-	return workspaces.Item{Entry: workspace.Entry{ID: "personal", Kind: workspace.KindPersonal, Name: "Personal", State: workspace.StateReady}, Source: "Werkbord"}
+func individualItem() workspaces.Item {
+	return workspaces.Item{Entry: workspace.Entry{ID: "personal", Kind: workspace.KindIndividual, Name: "Individual", State: workspace.StateReady}, Source: "Werkbord"}
 }
 func teamItem(slot, name string, st workspace.State) workspaces.Item {
 	return workspaces.Item{Entry: workspace.Entry{ID: "team:" + slot, Kind: workspace.KindTeam, Name: name, State: st}, Source: "Team"}
@@ -156,7 +156,7 @@ func teamItem(slot, name string, st workspace.State) workspaces.Item {
 func newRig(t *testing.T, answers ...string) *rig {
 	t.Helper()
 	r := &rig{
-		reg: &fakeRegistry{items: []workspaces.Item{personalItem(), teamItem("main", "Acme", workspace.StateReady), teamItem("ws_2", "Globex", workspace.StateReady)}},
+		reg: &fakeRegistry{items: []workspaces.Item{individualItem(), teamItem("main", "Acme", workspace.StateReady), teamItem("ws_2", "Globex", workspace.StateReady)}},
 		tm:  &fakeTeam{added: "team:ws_3"}, ins: &fakeInstaller{found: true}, gr: &fakeGrants{}, ui: &fakeUI{answers: answers}, inv: &Invites{},
 	}
 	l := &fakeLauncher{}
@@ -369,7 +369,7 @@ func TestStoppingAndRemovingTheServiceAreAskedAboutAndNothingElseIsAnAction(t *t
 func TestOnlyATeamWorkspaceCanBeRemovedFromTheList(t *testing.T) {
 	r := newRig(t)
 	if err := r.ForgetWorkspace("personal"); err == nil {
-		t.Fatal("Personal was removed")
+		t.Fatal("Individual was removed")
 	}
 	if err := r.ForgetWorkspace("team:unknown"); err == nil {
 		t.Fatal("a workspace that is not here was removed")
@@ -390,10 +390,10 @@ func TestOnlyATeamWorkspaceCanBeRemovedFromTheList(t *testing.T) {
 
 func TestAPageMayAskOnlyWhatItsKindOfWorkspaceMayAndTheKindIsTheAppsKnowledge(t *testing.T) {
 	r := newRig(t, "Connect runner")
-	// A Personal page cannot ask for what is a Team workspace's, even if it knows the name.
+	// A Individual page cannot ask for what is a Team workspace's, even if it knows the name.
 	for _, m := range []string{"ConnectRunner", "TeamService", "PendingInvitation", "AddTeam", "ActivateTeam", "ForgetWorkspace", "OpenWorkspace", "Workspaces", "Overview", "Relay", "Connect", "Reload", "Diagnostics", "ShowDiagnostics", "OpenLogs", "OpenInBrowser", "CheckForUpdates"} {
 		if _, err := r.Relay("personal", m, nil); err == nil {
-			t.Errorf("a Personal page asked for %s", m)
+			t.Errorf("a Individual page asked for %s", m)
 		}
 	}
 	// A Team page cannot choose a folder or update the app.

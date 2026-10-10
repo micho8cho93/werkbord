@@ -5,7 +5,7 @@
   import WorkspaceTag from './WorkspaceTag.svelte';
   import type { Overview } from './types';
 
-  // The person's own work in every workspace they can open: the tasks their agents are doing in Personal, the tickets they
+  // The person's own work in every workspace they can open: the tasks their agents are doing in Individual, the tickets they
   // hold in each Team. Each row opens where it lives; nothing here changes any of it.
   let { overview }: { overview: Overview | null } = $props();
 

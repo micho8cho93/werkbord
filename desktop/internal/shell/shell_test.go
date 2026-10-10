@@ -572,11 +572,11 @@ func TestTheShellTalksToTheControllerOnlyThroughTheLauncher(t *testing.T) {
 	}
 }
 
-func TestShellOpensWhenThePersonalRunnerIsUnavailable(t *testing.T) {
+func TestShellOpensWhenTheIndividualRunnerIsUnavailable(t *testing.T) {
 	l := &fakeLauncher{connErr: errors.New("controller unavailable")}
 	s := New(Options{Launcher: l, UI: &fakeUI{}, ShellPage: "shell/shell/index.html"})
 	got, err := s.Connect()
 	if err != nil || got.Shell != "shell/shell/index.html" {
-		t.Fatalf("Team workspaces blocked by Personal failure: %+v %v", got, err)
+		t.Fatalf("Team workspaces blocked by Individual failure: %+v %v", got, err)
 	}
 }

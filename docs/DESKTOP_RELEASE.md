@@ -57,7 +57,7 @@ On a Mac, with your account holder's Apple ID:
 ## 3. Export it as a `.p12`
 
 1. In **Keychain Access → My Certificates**, select **the certificate** ("Developer ID Application: …", not the key below it).
-2. **File → Export Items…** → format **Personal Information Exchange (.p12)** → save as `werkbord-signing.p12`.
+2. **File → Export Items…** → format **Individual Information Exchange (.p12)** → save as `werkbord-signing.p12`.
 3. Choose a long random password (a password manager's). You will need it in step 5. Remember it is the only thing that
    protects the file.
 4. Make it base64, one line, for the secret: `base64 -i werkbord-signing.p12 | tr -d '\n' | pbcopy` (it is now on the clipboard).

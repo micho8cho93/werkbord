@@ -103,7 +103,7 @@ export class Model {
     }
   }
 
-  /** Starts the shell: opens the workspace the person left open, if they can still get into it, otherwise Personal. */
+  /** Starts the shell: opens the workspace the person left open, if they can still get into it, otherwise Individual. */
   async start(): Promise<void> {
     await this.refresh();
     const first = this.view?.selected ?? 'personal';
@@ -165,8 +165,8 @@ export class Model {
     const item = this.view?.items.find((i) => i.id === id);
     if (id === 'personal' && item?.state === 'unavailable') {
       // There is no page to show: the Workspace page says why and what to do instead of a blank frame.
-      delete this.frames.personal;
-      delete this.places.personal;
+      delete this.frames.individual;
+      delete this.places.individual;
       this.current = id;
       this.page = 'workspace';
       this.closeSwitcher();

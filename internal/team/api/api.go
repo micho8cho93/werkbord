@@ -8,7 +8,7 @@
 // membership. The credential determines the workspace, never a URL selector.
 //
 // There is deliberately no route here that starts a process, reads a file, or
-// reaches a member's computer (docs/PRODUCTS.md).
+// reaches a member's computer (docs/STRUCTURE.md).
 package api
 
 import (

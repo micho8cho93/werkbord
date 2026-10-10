@@ -8,7 +8,7 @@
 // for projects they are not on.
 //
 // This is a coordination service: nothing here starts a process, runs a command,
-// or touches Git or an agent. See docs/PRODUCTS.md.
+// or touches Git or an agent. See docs/STRUCTURE.md.
 package service
 
 import (

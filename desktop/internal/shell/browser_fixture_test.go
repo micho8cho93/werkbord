@@ -35,12 +35,12 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	personal := workspaces.NewPersonal(func(context.Context) (workspaces.Access, error) {
+	individual := workspaces.NewIndividual(func(context.Context) (workspaces.Access, error) {
 		return workspaces.Access{Base: os.Getenv("WERKBORD_BROWSER_PERSONAL"), Token: "disposable-browser-credential"}, nil
 	})
-	reg := workspaces.NewRegistry(workspaces.OpenState(filepath.Join(dir, "shell.json")), nil, personal, link.Source)
+	reg := workspaces.NewRegistry(workspaces.OpenState(filepath.Join(dir, "shell.json")), nil, individual, link.Source)
 	ui := &fakeUI{answers: []string{"Connect runner", "Connect runner", "Connect runner"}}
-	sh := New(Options{Workspaces: reg, Team: link, TeamInstaller: &fakeInstaller{found: true}, Grants: personal, Invites: &Invites{}, UI: ui})
+	sh := New(Options{Workspaces: reg, Team: link, TeamInstaller: &fakeInstaller{found: true}, Grants: individual, Invites: &Invites{}, UI: ui})
 	mux := http.NewServeMux()
 	dist := filepath.Join("..", "..", "frontend", "dist")
 	mux.Handle("/", http.FileServer(http.Dir(dist)))

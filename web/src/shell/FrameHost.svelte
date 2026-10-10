@@ -1,6 +1,6 @@
 <script lang="ts">
   // Every workspace the person has opened lives in a frame of its own and stays there, hidden when another is shown, so that
-  // going to Personal from a Team ticket and back changes nothing in either. The page of a workspace cannot call the app;
+  // going to Individual from a Team ticket and back changes nothing in either. The page of a workspace cannot call the app;
   // it posts messages to this page, which believes only the ones frames.ts accepts.
   import { ask } from './native';
   import { handle, type FrameRef } from './frames';

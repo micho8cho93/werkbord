@@ -10,7 +10,7 @@ import (
 func good() Summary {
 	return Summary{
 		Schema:    Schema,
-		Workspace: Entry{ID: PersonalID, Kind: KindPersonal, Name: "Personal", State: StateReady},
+		Workspace: Entry{ID: IndividualID, Kind: KindIndividual, Name: "Individual", State: StateReady},
 		Projects:  []Project{{ID: "prj_1", Name: "App", Href: "#/p/prj_1/board"}},
 		Work:      []Item{{ID: "tsk_1", Title: "Fix login", Project: "App", Status: StatusDoing, Execution: ExecRunning, Href: "#/p/prj_1/task/tsk_1"}},
 		Attention: []Attention{{ID: "q1", Kind: AttentionNeedsInput, Severity: SeverityWarning, Title: "Which database?", Href: "#/control"}},
@@ -29,7 +29,7 @@ func encode(t *testing.T, s Summary) string {
 }
 
 func TestAGoodSummaryRoundTrips(t *testing.T) {
-	got, dropped, err := Decode(strings.NewReader(encode(t, good())), PersonalID)
+	got, dropped, err := Decode(strings.NewReader(encode(t, good())), IndividualID)
 	if err != nil || dropped != 0 {
 		t.Fatalf("%v %d", err, dropped)
 	}
@@ -57,7 +57,7 @@ func TestOneBadRowIsDroppedNotTheWholeSummary(t *testing.T) {
 	s.Work = append(s.Work, Item{ID: "tsk 3", Title: "Space in id", Project: "App", Status: StatusTodo, Href: "#/x"})
 	s.Work = append(s.Work, Item{ID: "tsk_4", Title: "Unknown status", Project: "App", Status: "wat", Href: "#/x"})
 	s.Attention = append(s.Attention, Attention{ID: "a2", Kind: "other", Severity: "dire", Title: "bad severity"})
-	got, dropped, err := Decode(strings.NewReader(encode(t, s)), PersonalID)
+	got, dropped, err := Decode(strings.NewReader(encode(t, s)), IndividualID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestOneBadRowIsDroppedNotTheWholeSummary(t *testing.T) {
 func TestTextFromAPersonIsMadePlainAndShort(t *testing.T) {
 	s := good()
 	s.Work[0].Title = "Fix\nthe\x00 login‮ " + strings.Repeat("x", 500)
-	got, _, err := Decode(strings.NewReader(encode(t, s)), PersonalID)
+	got, _, err := Decode(strings.NewReader(encode(t, s)), IndividualID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,17 +89,17 @@ func TestASummaryIsReadStrictly(t *testing.T) {
 		"another workspace": strings.Replace(good, `"id":"personal"`, `"id":"team:main"`, 1),
 	}
 	for name, body := range cases {
-		if _, _, err := Decode(strings.NewReader(body), PersonalID); err == nil {
+		if _, _, err := Decode(strings.NewReader(body), IndividualID); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
 	}
-	if _, _, err := Decode(strings.NewReader(strings.Repeat(" ", MaxBytes+1)+good), PersonalID); err == nil {
+	if _, _, err := Decode(strings.NewReader(strings.Repeat(" ", MaxBytes+1)+good), IndividualID); err == nil {
 		t.Error("an oversized summary was accepted")
 	}
 	// A provider cannot answer for a workspace the caller did not ask about.
 	team := good
 	team = strings.Replace(team, `"id":"personal","kind":"personal"`, `"id":"team:ws_1","kind":"team"`, 1)
-	if _, _, err := Decode(strings.NewReader(team), PersonalID); err == nil {
+	if _, _, err := Decode(strings.NewReader(team), IndividualID); err == nil {
 		t.Error("a team answered for personal")
 	}
 	if _, _, err := Decode(strings.NewReader(team), TeamID("ws_1")); err != nil {
@@ -107,11 +107,11 @@ func TestASummaryIsReadStrictly(t *testing.T) {
 	}
 }
 
-func TestOnlyPersonalIsPersonalAndTeamsAreNamedBySlot(t *testing.T) {
-	if err := (Entry{ID: "team:main", Kind: KindPersonal, Name: "x", State: StateReady}).validate(); err == nil {
+func TestOnlyIndividualIsIndividualAndTeamsAreNamedBySlot(t *testing.T) {
+	if err := (Entry{ID: "team:main", Kind: KindIndividual, Name: "x", State: StateReady}).validate(); err == nil {
 		t.Error("a personal workspace with a team's name")
 	}
-	if err := (Entry{ID: PersonalID, Kind: KindTeam, Name: "x", State: StateReady}).validate(); err == nil {
+	if err := (Entry{ID: IndividualID, Kind: KindTeam, Name: "x", State: StateReady}).validate(); err == nil {
 		t.Error("a team workspace with personal's name")
 	}
 	if err := (Entry{ID: "main", Kind: KindTeam, Name: "x", State: StateReady}).validate(); err == nil {
@@ -166,7 +166,7 @@ func TestAListingPointsOnlyAtItsProvider(t *testing.T) {
 		"a root without a slash": func(l *Listing) { l.Workspaces[0].Root = "/w/main" },
 		"a query":                func(l *Listing) { l.Workspaces[0].SummaryPath = "/x?y=1" },
 		"the same twice":         func(l *Listing) { l.Workspaces[1].Entry.ID = l.Workspaces[0].Entry.ID },
-		"personal named team":    func(l *Listing) { l.Workspaces[0].Entry.Kind = KindPersonal },
+		"personal named team":    func(l *Listing) { l.Workspaces[0].Entry.Kind = KindIndividual },
 		"another schema":         func(l *Listing) { l.Schema = "nope" },
 	}
 	for name, mutate := range bad {

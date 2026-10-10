@@ -1,12 +1,12 @@
 // Package workspace is the contract between the Werkbord desktop shell and the places a person's work lives.
 //
-// A person has one Personal workspace (their own computer's Werkbord) and any number of Team workspaces. The shell shows
+// A person has one Individual workspace (their own computer's Werkbord) and any number of Team workspaces. The shell shows
 // them side by side, and shows what needs the person across all of them: their work, what waits for them, what is
 // scheduled. It does that without knowing what a Team is or how a controller stores a task. Each place answers one
 // question in the words below, and the shell puts the answers together.
 //
 // The package holds no behaviour of either product: no storage, no network, no credential, nothing that executes. It is
-// plumbing, in the sense of docs/PRODUCTS.md, and so both products may import it. What it does hold is the rule for
+// plumbing, in the sense of docs/STRUCTURE.md, and so both products may import it. What it does hold is the rule for
 // what the shell will believe. A summary comes from another program, so the shell reads it strictly: unknown fields are
 // refused, sizes are bounded, text is plain, and a link can point only inside the workspace it came from (a fragment or a
 // query on that workspace's own address), never to another address or another workspace.
@@ -44,14 +44,16 @@ const (
 type Kind string
 
 const (
-	// KindPersonal is a person's own Werkbord on their own computer. There is exactly one, and it is always there.
-	KindPersonal Kind = "personal"
+	// KindIndividual is a person's own Werkbord on their own computer. There is exactly one, and it is always there. Its value on
+	// the wire, and in the shell's saved state, is "personal", its name before the product was called Individual; an installed
+	// Team service's console still says it, so it does not change.
+	KindIndividual Kind = "personal"
 	// KindTeam is a shared workspace that coordinates a team.
 	KindTeam Kind = "team"
 )
 
-// PersonalID is the identity of the Personal workspace.
-const PersonalID = "personal"
+// IndividualID is the identity of the Individual workspace ("personal" on the wire and in saved state, see KindIndividual).
+const IndividualID = "personal"
 
 // TeamID names a Team workspace by the slot it occupies on this computer.
 func TeamID(slot string) string { return "team:" + slot }
@@ -88,7 +90,7 @@ type Entry struct {
 	ID   string `json:"id"`
 	Kind Kind   `json:"kind"`
 	Name string `json:"name"`
-	// Role is the person's role in a Team workspace (owner, admin or member). Empty for Personal.
+	// Role is the person's role in a Team workspace (owner, admin or member). Empty for Individual.
 	Role   string `json:"role,omitempty"`
 	State  State  `json:"state"`
 	Detail string `json:"detail,omitempty"`
@@ -235,7 +237,7 @@ type Infra struct {
 // provider's address. The paths are the provider's own and are checked: a provider can point the shell only at itself.
 type Listed struct {
 	Entry Entry `json:"entry"`
-	// Root is where the workspace's own interface is, ending in a slash: "/" for Personal, "/w/<slot>/" for a Team workspace.
+	// Root is where the workspace's own interface is, ending in a slash: "/" for Individual, "/w/<slot>/" for a Team workspace.
 	Root string `json:"root"`
 	// SummaryPath is where its Summary is.
 	SummaryPath string `json:"summary"`
@@ -411,10 +413,10 @@ func (s Summary) Validate() error {
 }
 
 func (e Entry) validate() error {
-	if !ValidID(e.ID) || (e.Kind != KindPersonal && e.Kind != KindTeam) || !plain(e.Name, MaxName) || e.Name == "" || !e.State.Valid() || !plain(e.Detail, 500) || !plain(e.Role, 20) {
+	if !ValidID(e.ID) || (e.Kind != KindIndividual && e.Kind != KindTeam) || !plain(e.Name, MaxName) || e.Name == "" || !e.State.Valid() || !plain(e.Detail, 500) || !plain(e.Role, 20) {
 		return fmt.Errorf("workspace: workspace %q is not valid", e.ID)
 	}
-	if (e.Kind == KindPersonal) != (e.ID == PersonalID) {
+	if (e.Kind == KindIndividual) != (e.ID == IndividualID) {
 		return fmt.Errorf("workspace: %q cannot be a %s workspace", e.ID, e.Kind)
 	}
 	if e.Kind == KindTeam && !strings.HasPrefix(e.ID, "team:") {

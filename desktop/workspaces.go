@@ -21,11 +21,11 @@ const shellPage = "shell/shell/index.html"
 
 // workspaceParts is everything the shell is given to work with workspaces.
 type workspaceParts struct {
-	registry  *workspaces.Registry
-	personal  *workspaces.Personal
-	team      *teamlink.Link
-	installer *teamlink.Installer
-	invites   *shell.Invites
+	registry   *workspaces.Registry
+	individual *workspaces.Individual
+	team       *teamlink.Link
+	installer  *teamlink.Installer
+	invites    *shell.Invites
 }
 
 // shellState is where the shell remembers which workspace was open and where in each: its own small file, in the
@@ -56,7 +56,7 @@ func appBundle() string {
 
 func newWorkspaceParts(l *launcher.Launcher, log *slog.Logger) (*workspaceParts, error) {
 	home, _ := os.UserHomeDir()
-	personal := workspaces.NewPersonal(func(ctx context.Context) (workspaces.Access, error) {
+	individual := workspaces.NewIndividual(func(ctx context.Context) (workspaces.Access, error) {
 		cfg, err := l.Config(ctx)
 		if err != nil {
 			return workspaces.Access{}, err
@@ -80,10 +80,10 @@ func newWorkspaceParts(l *launcher.Launcher, log *slog.Logger) (*workspaceParts,
 	if err != nil {
 		return nil, err
 	}
-	reg := workspaces.NewRegistry(workspaces.OpenState(shellStatePath()), log, personal, team.Source)
+	reg := workspaces.NewRegistry(workspaces.OpenState(shellStatePath()), log, individual, team.Source)
 	exe, _ := os.Executable()
 	inst := &teamlink.Installer{Program: exe, Run: runProgram}
-	return &workspaceParts{registry: reg, personal: personal, team: team, installer: inst, invites: &shell.Invites{}}, nil
+	return &workspaceParts{registry: reg, individual: individual, team: team, installer: inst, invites: &shell.Invites{}}, nil
 }
 
 // hasShell says whether this build carries the shell page.

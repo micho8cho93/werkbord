@@ -6,8 +6,8 @@ browser connects to it. There is no hosted backend and no Werkbord account.
 
 Werkbord is one product with one version and one release. It has two parts: **individual Werkbord** (the `werkbord`
 program), and **Werkbord Team**, a workspace that coordinates a team's members and projects without ever running anything
-on anyone's computer. They are released together and are being folded into one app: see
-[docs/UNIFICATION.md](docs/UNIFICATION.md), [docs/PRODUCTS.md](docs/PRODUCTS.md) and [docs/TEAM.md](docs/TEAM.md). The primary desktop installer bundles both backends in one window; Personal is free and requires no Team license or network. Team installation/activation is explicit, and each workspace enforces its own offline license. See the [unified distribution](docs/UNIFIED_DISTRIBUTION.md) and [Phase 4 readiness report](docs/PHASE4_READINESS.md). The command-line programs (`werkbord`, and `werkbord-team` for a Workspace Host) are installed from the same release.
+on anyone's computer. They are released together, and the Mac app shows both in one window and installs Team's service when you add a Team: see
+[docs/STRUCTURE.md](docs/STRUCTURE.md), [docs/TEAM.md](docs/TEAM.md) and, for how the window, the Team service and the installer fit together, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped). Individual is free and requires no Team license or network. Team installation is explicit, and each workspace enforces its own offline license. The command-line programs (`werkbord`, and `werkbord-team` for a Workspace Host) are installed from the same release.
 
 Team uses customer-owned Nebula networking by default and needs no Tailscale account or vendor runtime service. Customers run their Workspace Hosts, Connectivity Hosts, backups and local runners. Team requires a verified offline license and authenticated release artifacts; see [Team installation](docs/TEAM_INSTALL.md), [threat model](docs/TEAM_SECURITY.md), and the [production gate report](docs/TEAM_SECURITY_GATE.md). Individual Werkbord's tsnet support remains separate.
 
@@ -182,10 +182,10 @@ Other commands: `werkbord project list`, `werkbord token`, `werkbord migrate`,
 `werkbord version`. Run
 `werkbord <command> -h` for flags.
 
-Werkbord Team is built and run separately: `make build-team`, with a build-time license verification public key and a valid offline license. macOS hosts also need the C toolchain for Keychain and the pinned rqlite source build.
+Werkbord Team's service is its own program (a Workspace Host without the Mac app uses it directly): `make build-team`, with a build-time license verification public key and a valid offline license. macOS hosts also need the C toolchain for Keychain and the pinned rqlite source build.
 See [docs/TEAM.md](docs/TEAM.md).
 
-The Mac app is built separately too (it needs the Xcode command line tools, for the system's web view):
+The Mac app, which carries Team's service and installer too (it needs the Xcode command line tools, for the system's web view):
 `make desktop` makes `dist/desktop/Werkbord.app`, `make desktop-package` also a `.dmg`, and `make desktop-dev` runs
 it from source against its own data and port. See [docs/DESKTOP.md](docs/DESKTOP.md#building-it).
 
@@ -307,11 +307,11 @@ when nothing would be lost).
 ```
 cmd/werkbord          CLI: setup, service commands, doctor, update; and the controller (`serve`). Individual Werkbord.
 desktop/              the Mac app: a native window (Wails) around the web app; its own Go module (docs/DESKTOP.md)
-cmd/werkbord-team     Werkbord Team: its own program, version and installer (docs/PRODUCTS.md)
+cmd/werkbord-team     the Team service and command line (docs/STRUCTURE.md)
 internal/team         everything specific to Team: domain, store, service, api, console (nothing else may import it)
-internal/sqlitekit    shared: open, migrate and back up a SQLite database (both products)
-internal/httpkit      shared: JSON responses, strict decoding, request logging, security headers (both products)
-internal/archtest     tests that enforce the boundary between the two products
+internal/sqlitekit    shared: open, migrate and back up a SQLite database
+internal/httpkit      shared: JSON responses, strict decoding, request logging, security headers
+internal/archtest     tests that enforce the trust boundaries (who may run what)
 internal/domain       entities, states, rules (no dependencies)
 internal/store        persistence interfaces; sqlite/ implementation and migrations
 internal/service      use cases

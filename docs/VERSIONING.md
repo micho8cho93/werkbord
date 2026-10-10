@@ -1,6 +1,6 @@
 # Versioning and tags
 
-Werkbord is **one product with one version and one release** (see [PRODUCTS.md](PRODUCTS.md) and
+Werkbord is **one product with one version and one release** (see [STRUCTURE.md](STRUCTURE.md) and
 [UNIFICATION.md](UNIFICATION.md)). The Mac app, the `werkbord` controller and command line, and the Werkbord Team
 service (`werkbord-team`) are built, versioned, tagged and released together. The same policy is in
 [AGENTS.md](../AGENTS.md) so that every coding agent follows it.

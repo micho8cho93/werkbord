@@ -30,7 +30,7 @@ func TestStoppedHostsAndAdditionalSlotsCannotBeReplacedOrRemoved(t *testing.T) {
 	}
 }
 
-func TestRemovingTeamCapabilityPreservesPersonalAndRetainedTeamState(t *testing.T) {
+func TestRemovingTeamCapabilityPreservesIndividualAndRetainedTeamState(t *testing.T) {
 	root := t.TempDir()
 	team := filepath.Join(root, "team")
 	plist := filepath.Join(root, "team.plist")

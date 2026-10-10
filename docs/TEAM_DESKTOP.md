@@ -1,6 +1,6 @@
 # Werkbord Team on the Mac: the background service and its installer
 
-Werkbord Team is part of the Werkbord app: there is no second app and no second window. Each workspace needs its own license. The Werkbord window shows Team in its own sidebar next to Individual (see [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md)), using Werkbord’s existing visual system, and Team keeps everyday work (Workspace, Projects, Board, My Work, Reviews, Activity) separate from administration (Members, Devices, Workspace Hosts, Connectivity, Backups, License, Settings).
+Werkbord Team is part of the Werkbord app: there is no second app and no second window. Each workspace needs its own license. The Werkbord window shows Team in its own sidebar next to Individual (see [ARCHITECTURE.md §22](ARCHITECTURE.md#the-window-and-its-workspaces)), using Werkbord’s existing visual system, and Team keeps everyday work (Workspace, Projects, Board, My Work, Reviews, Activity) separate from administration (Members, Devices, Workspace Hosts, Connectivity, Backups, License, Settings).
 
 ## For users
 
@@ -37,7 +37,7 @@ Team code is under `internal/team/` and `cmd/werkbord-team/`. The installer is p
 
 The root-owned service installation is `/Library/Application Support/Werkbord Team` and its plist is `/Library/LaunchDaemons/dev.werkbord.team.plist`. Data, keys and copied helpers use private permissions. An updated app notices that the installed service is older and, when you choose to update it, requests normal macOS authorization (a service that belongs to a workspace is never replaced this way). Updates verify the app bundle, stage every helper before stopping the old service and roll back helpers if startup fails. No service executable is run from a user-writable app location. The window’s private credential is paired through the authorized local installer.
 
-The window contacts only authenticated loopback `/api/device/v1` on port 7431. `/api/team/v1` is forwarded using this device’s sealed workspace credential to literal loopback or workspace-private addresses, with no proxy or redirects. The local policy API is never served on the overlay. A Team page cannot call the app: it asks the shell over a neutral message channel, and the shell’s relay allows only the listed methods (see UNIFIED_DESKTOP.md). The app’s native bindings exist for the shell alone; they expose no arbitrary command, file/path, HTTP request or workspace administration method. Shared `internal/nativebridge` contains only the WebKit/Wails call protocol.
+The window contacts only authenticated loopback `/api/device/v1` on port 7431. `/api/team/v1` is forwarded using this device’s sealed workspace credential to literal loopback or workspace-private addresses, with no proxy or redirects. The local policy API is never served on the overlay. A Team page cannot call the app: it asks the shell over a neutral message channel, and the shell’s relay allows only the listed methods (see ARCHITECTURE.md §22). The app’s native bindings exist for the shell alone; they expose no arbitrary command, file/path, HTTP request or workspace administration method. Shared `internal/nativebridge` contains only the WebKit/Wails call protocol.
 
 A signed request names a semantic action, target device, user, workspace, expiry and replay identity. Hosts store/route it. The recipient verifies the signature and ownership, compares the sender with a locally approved application key, and rechecks expiry/revocation on retries. A compromised routing Host cannot replace an approved sender key. Members approve their own other devices locally and compare the displayed identity fingerprints. The recipient then uses a scoped local access token for the individual controller’s narrow route allow-list. The full controller credential is exchanged once and not retained by Team. Local runner policies and normal execution approvals still apply. Phase 2 task-specific approvals are stored by Individual and consumed with the run ID in its run-creation transaction, so an uncertain response recovers that run without starting twice. No remote arbitrary-shell API exists.
 
@@ -69,16 +69,13 @@ development build is ad hoc signed, has no team, and is not checked.
 
 Validation here builds and verifies an ad hoc development bundle without installing a system service. Real-service installation at boot and production notarization require a separate clean Mac acceptance run with the distributor’s signing credentials.
 
-Phase 2 owner controls and shared request scheduling are documented in
+Owner controls and shared request scheduling are documented in
 [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md). Metadata-only grants
 cannot dispatch; a dispatch-only grant cannot approve. Valid signatures never
 replace local policy checks. Revocation prevents new authorization without
 silently terminating an accepted local process.
 
-## Unified desktop workspaces
+## The window
 
-Phase 3 adds one everyday desktop shell with Personal and multiple Team
-workspaces while retaining isolated backend services, user-owned execution and
-explicit Team installation. The installer is part of the same app; there is no second window. See
-[UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
-security boundaries, lifecycle, validation and operational limits.
+Team is shown inside the Werkbord window, next to Individual; navigation, host volunteering, security boundaries, lifecycle and
+validation are in [ARCHITECTURE.md §22](ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped).

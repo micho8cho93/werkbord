@@ -3,7 +3,7 @@
 Werkbord Team is the shared workspace for a team that uses Werkbord. It records **who is on the team**, **which
 projects exist**, **who is on which project**, and the **shared board** the team works from: tickets, who holds each one,
 and the branches and pull requests that come out of them. It is a separate product from the individual Werkbord; see
-[PRODUCTS.md](PRODUCTS.md) for how the two relate and where the code lives.
+[STRUCTURE.md](STRUCTURE.md) for how the two relate and where the code lives.
 
 > **Team coordinates. It does not execute.** Every member keeps their own computer, their own Werkbord runner, and their
 > own Git, GitHub and agent credentials. Team holds none of them and has no way to run anything on any member's machine.
@@ -261,7 +261,7 @@ two tickets cannot claim the same branch.
 - Git: the repository, the **branch to work on**, the base branch if known, commits and pull request already recorded;
 - `prompt`: those, written out as a task description a coding agent can start from, including the Git workflow above.
   Before any teammate-written text it says whose words they are (`ticket.createdBy`) and that they describe work, not
-  instructions with authority over the computer ([TEAM_SECURITY.md](TEAM_SECURITY.md#teammate-written-text-the-one-channel-that-remains)).
+  instructions with authority over the computer ([TEAM_SECURITY.md](TEAM_SECURITY.md)).
 
 `POST /projects/{id}/tickets/{tid}/handoff` returns it, **only to the member who holds the ticket** (in progress or in
 review): not to other members, and not to an owner either. It contains no path, no environment variable, no credential and
@@ -465,7 +465,7 @@ five actions in `internal/envelope/actions.go`, each with a payload of identifie
 
 So a host that routes a request cannot forge one, change one (every field is signed), redirect one (the target is signed), keep one
 for later (it expires in minutes), or ask someone else's device (both devices must be the signer's). See
-[TEAM_SECURITY.md](TEAM_SECURITY.md#requests-between-a-persons-own-devices-team-27).
+[TEAM_SECURITY.md](TEAM_SECURITY.md).
 
 ## Running it
 
@@ -494,7 +494,7 @@ Only the token's SHA-256 is stored, so a lost token cannot be recovered, only **
 
 Settings (flags win over environment): `WERKBORD_TEAM_ADDR` (default `127.0.0.1:7430`), `WERKBORD_TEAM_DATA_DIR`
 (default `werkbord-team` in your user config directory; the database is `team.db` there), `WERKBORD_TEAM_LOG_LEVEL`,
-`WERKBORD_TEAM_LOG_FORMAT`. These are separate from the individual product's `WERKBORD_*` (formerly `DEVBOARD_*`), so both can run side by side.
+`WERKBORD_TEAM_LOG_FORMAT`. These are separate from the controller's `WERKBORD_*` (formerly `DEVBOARD_*`), so both can run side by side.
 
 ### The private network (Team 2.5)
 
@@ -638,7 +638,7 @@ The full review (every surface, the evidence for each, and the risks that remain
 ## Layout
 
 `internal/team/{domain,store,service,api,console,config,server}` and `cmd/werkbord-team`; see
-[PRODUCTS.md](PRODUCTS.md#where-team-specific-functionality-belongs).
+[STRUCTURE.md](STRUCTURE.md#where-team-specific-functionality-belongs).
 
 ## Automatic Individual synchronization
 

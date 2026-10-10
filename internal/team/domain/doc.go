@@ -7,7 +7,7 @@
 // execution environment: nothing in this package, or anywhere in Team, starts a
 // process, holds a Git or GitHub credential, or reaches into another member's
 // computer. Every member keeps running their own Werkbord runner with their own
-// credentials (docs/PRODUCTS.md).
+// credentials (docs/STRUCTURE.md).
 //
 // A Team Project is not a Werkbord Project. The individual product's Project is a
 // Git checkout on one computer; a Team Project is a name the team shares, with

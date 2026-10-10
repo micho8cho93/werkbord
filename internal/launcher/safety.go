@@ -36,7 +36,7 @@ func (l *Launcher) UpdateSafety(ctx context.Context) error {
 		}
 	}
 	if _, ok := l.Health(ctx, cfg.ControllerURL()); !ok {
-		return errors.New("update deferred: the Personal controller cannot be checked")
+		return errors.New("update deferred: the Individual controller cannot be checked")
 	}
 	tok, err := cfg.ResolveToken(false)
 	if err != nil {
@@ -53,7 +53,7 @@ func (l *Launcher) UpdateSafety(ctx context.Context) error {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		return fmt.Errorf("update deferred: Personal safety check returned %d", res.StatusCode)
+		return fmt.Errorf("update deferred: Individual safety check returned %d", res.StatusCode)
 	}
 	var view struct {
 		Runs []struct {

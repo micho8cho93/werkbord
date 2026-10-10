@@ -53,7 +53,7 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 
 - Desktop (≥900px): a 220px rail (Control Center, projects with live counts, runners, Settings, theme)
   and a main column. Inside the Werkbord desktop app the window's one sidebar replaces this rail
-  ([UNIFIED_DESKTOP.md](docs/UNIFIED_DESKTOP.md)). Inside a project: header (path · branch, name, Jump to ⌘K, project
+  ([ARCHITECTURE.md §22](docs/ARCHITECTURE.md#the-window-and-its-workspaces)). Inside a project: header (path · branch, name, Jump to ⌘K, project
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
   themselves (board columns, panel feed), not the page.
 - A task opens as a panel over its board (`#/p/<id>/task/<id>`); Esc closes it.

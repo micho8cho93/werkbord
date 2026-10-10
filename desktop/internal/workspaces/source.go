@@ -1,11 +1,11 @@
-// Package workspaces is the Werkbord desktop app's model of the places work lives: Personal, and any number of Team
+// Package workspaces is the Werkbord desktop app's model of the places work lives: Individual, and any number of Team
 // workspaces, which it lists, remembers a choice among, opens, and reads a neutral summary of (internal/workspace).
 //
 // It is how the app joins two products without joining them. Each product is a program on this computer with its own
 // credential, its own data and its own authority. This package talks to each over its own loopback address with the
 // credential the app is allowed to hold for it, treats every answer as something to validate, and hands the app's window
 // only what the window needs. It starts no process, writes no credential into any page's storage and gives no workspace
-// anything of another's: Personal's data is never sent to a Team service, and a Team workspace's is never sent anywhere
+// anything of another's: Individual's data is never sent to a Team service, and a Team workspace's is never sent anywhere
 // but the window of the person it belongs to.
 package workspaces
 
