@@ -225,6 +225,10 @@ func PrivilegedService(action, uid string) (resultErr error) {
 	if err := CheckReplacement(filepath.Join(SystemDir, "data")); err != nil {
 		return err
 	}
+	// Keys left in the keychain by an earlier installation whose workspace is gone would stop this one from starting.
+	if err := forgetOrphanedSealingKeys(filepath.Join(SystemDir, "data")); err != nil {
+		return fmt.Errorf("an earlier Team installation left keys in the system keychain that could not be removed; nothing was changed: %w", err)
+	}
 	installed := filepath.Join(SystemDir, "Helpers")
 	previous := filepath.Join(SystemDir, "Helpers.previous")
 	if err := os.Rename(installed, previous); err != nil {
