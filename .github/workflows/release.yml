@@ -167,6 +167,17 @@ jobs:
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
         run: |
+          # A signed build accepts only a stable version (scripts/build-desktop.sh --release). A dry run of a pre-release
+          # (4.5.1-preview.1) is built as its stable core (4.5.1), in this runner's copy only: nothing is committed or published.
+          if [ "$EVENT" = workflow_dispatch ]; then
+            current=$(scripts/product.sh werkbord version)
+            case "$current" in
+              *-*)
+                echo "::notice::dry run: building $current as ${current%%-*}, which a signed build requires; this copy of the VERSION file is not committed"
+                printf '%s\n' "${current%%-*}" > cmd/werkbord/VERSION
+                ;;
+            esac
+          fi
           version="v$(scripts/product.sh werkbord version)"
           if [ "$EVENT" = push ] && [ "$REF_NAME" != "werkbord-$version" ]; then
             echo "::error::the tag $REF_NAME is not werkbord-$version, which cmd/werkbord/VERSION says"

@@ -138,8 +138,10 @@ Or: `gh workflow run release.yml --ref main`. Approve it when it asks for the `d
 
 It checks the secrets, builds the universal app, signs it, has Apple notarize it (this takes five to fifteen minutes the first
 time), staples it, checks it the way a stranger's Mac would, makes the update archive and the signed feed, and **publishes
-nothing**: the files are in the run's *Artifacts* (`desktop-release`, `desktop-appcast`) for 14 days. A dry run builds whatever
-version `cmd/werkbord/VERSION` says; it does not need a tag.
+nothing**: the files are in the run's *Artifacts* (`desktop-release`, `desktop-appcast`) for 14 days. A dry run builds the version
+`cmd/werkbord/VERSION` says; it does not need a tag. A signed build accepts only a stable version, so when the file says a
+pre-release (`4.5.1-preview.1`) the dry run builds it as its stable core (`4.5.1`), in the runner's copy only: nothing is
+committed. A real tag is never changed this way.
 
 If it fails, the message says which step and why. The usual ones: the secret is missing or mis-pasted (step 5), Apple rejected
 a file (the log it prints names it), the certificate is not a *Developer ID Application* one (step 2).
