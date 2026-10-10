@@ -5,7 +5,14 @@ set -eu
 cd "$(dirname "$0")/.."
 [ "$(uname -s)" = Darwin ] || { echo 'unified installer test requires macOS'; exit 1; }
 app=${1:-dist/desktop/Werkbord.app}
-scripts/check-unified-desktop.sh --development "$app"
+# One release: the controller and Team's service in the app report the same version, and the Team service is all there.
+same_release() {
+  [ -f "$1/Contents/Helpers/werkbord-team" ] || { echo "the app carries no Team service" >&2; exit 1; }
+  controller=$("$1/Contents/Helpers/werkbord" version); service=$("$1/Contents/Helpers/werkbord-team" version)
+  [ "$controller" = "$service" ] || { echo "the controller ($controller) and Team's service ($service) are not the same release" >&2; exit 1; }
+  scripts/check-team-payload.sh --adhoc "$1" >/dev/null
+}
+same_release "$app"
 scripts/check-desktop-signature.sh --adhoc "$app"
 if "$app/Contents/MacOS/Werkbord" --verify-release >/dev/null 2>&1; then
   echo 'development fixture unexpectedly accepted as a release' >&2; exit 1
@@ -18,6 +25,6 @@ trap 'hdiutil detach "$work/mounted" -quiet >/dev/null 2>&1 || true; rm -rf "$wo
 mkdir "$work/mounted"
 hdiutil attach -nobrowse -readonly -mountpoint "$work/mounted" "$dmg" -quiet
 [ -L "$work/mounted/Applications" ]
-scripts/check-unified-desktop.sh --development "$work/mounted/Werkbord.app"
+same_release "$work/mounted/Werkbord.app"
 scripts/check-desktop-signature.sh --adhoc "$work/mounted/Werkbord.app"
 echo 'PASS real unified development installer, checksum, mounted bundle, versions and development-build refusal'

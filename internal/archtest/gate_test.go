@@ -10,9 +10,6 @@ import (
 
 func TestProductionTeamAlwaysInstallsOfflineLicenseAndDeviceAuthentication(t *testing.T) {
 	root := moduleRoot(t)
-	if _, err := os.Stat(filepath.Join(root, "internal/team")); os.IsNotExist(err) {
-		t.Skip("Team is not in this tree (isolation check)")
-	}
 	for path, need := range map[string][]string{
 		"internal/team/config/config.go":         {"c.LicenseRequired = true", `c.KeyStorage = "os"`},
 		"internal/team/server/server.go":         {"RequireDeviceProof: true", "configureLicense(svc, cfg)"},
@@ -34,9 +31,6 @@ func TestProductionTeamAlwaysInstallsOfflineLicenseAndDeviceAuthentication(t *te
 }
 
 func TestNativeSecureStorageCannotGrowProcessOrNetworkCapabilities(t *testing.T) {
-	if _, err := os.Stat(filepath.Join(moduleRoot(t), "internal/team")); os.IsNotExist(err) {
-		t.Skip("Team is not in this tree (isolation check)")
-	}
 	b, err := os.ReadFile(filepath.Join(moduleRoot(t), "internal/team/infra/pki/secure_darwin.go"))
 	if err != nil {
 		t.Fatal(err)

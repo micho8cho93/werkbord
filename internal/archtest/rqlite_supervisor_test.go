@@ -143,9 +143,6 @@ func rqliteFiles(t *testing.T) (*token.FileSet, []*ast.File) {
 }
 
 func TestTheDatabaseSupervisorIsNotAGeneralRunner(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	watchSources(t)
 	fset, files := rqliteFiles(t)
 	for _, v := range supervisorViolationsFor(rqliteSpec, fset, files, rqliteSurface) {
@@ -212,9 +209,6 @@ func f() string { return "/bin/sh" }`, "names a shell"},
 // statement. So the wiring (internal/team/server) and the commands that work on a host's own files and node
 // (cmd/werkbord-team) import it, and nothing else does; and what it imports of Team is the domain and the store's interface only.
 func TestOnlyTheWiringTalksToTheDatabase(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	const replicatedPkg = teamTree + "/store/replicated"
 	pkgs := append(goList(t, "./cmd/werkbord-team/..."), goList(t, "./internal/team/...")...)
 	found := false

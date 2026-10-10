@@ -16,7 +16,7 @@
   const tone = (i: Item): string =>
     i.state === 'ready' ? 'ok' : i.state === 'offline' || i.state === 'unavailable' ? 'bad' : 'wait';
   const sub = (i: Item): string => {
-    if (i.kind === 'personal') return model.personalOutdated ? 'Needs an update' : i.state === 'unavailable' ? 'Not running' : 'This computer';
+    if (i.kind === 'personal') return i.state === 'unavailable' ? 'Not running' : 'This computer';
     const role = i.role ? i.role[0].toUpperCase() + i.role.slice(1) : '';
     return ['Team', role, i.state !== 'ready' ? i.state : ''].filter(Boolean).join(' · ');
   };

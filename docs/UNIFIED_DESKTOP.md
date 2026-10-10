@@ -39,10 +39,13 @@ Creating and joining a Team reuse Team's first-host and administrator-approved e
 The app carries Team’s service and its installer (the app’s own executable in an installer mode). There is no separate
 Team app. No Team installation or activation happens on startup.
 
-An Individual controller older than 1.6 refuses to be framed and lacks the summary the window reads. Instead of a blank
-page the window says which version is running and offers **Update Werkbord…**: it lets the launcher install the bundled
-program, which refuses while agents are working and restores the previous one if the new one does not start. An older Team
-service is left as it is; it is updated through Team's own path (Workspaces and devices → Update Team).
+The app and the programs it installs are one release, but they are not always the same version at the same moment. The
+controller is brought up to the app's version by the launcher, which refuses while agents are working and restores the previous
+program if the new one does not start. Team's service is a root-owned installation that the app never replaces on its own: if
+it is older than the app and cannot answer what the window asks (it does not know the listing), the window says so instead of
+showing a blank page and offers **Update Team** (Workspaces and devices), which replaces it, with an administrator's
+authorization, unless it belongs to a workspace (that takes coordinated administrator maintenance). What decides is whether
+the service answers, never a table of version numbers.
 
 My Work, Calendar and Needs you read a bounded neutral summary from each
 accessible service. Links open the relevant workspace and project in the same
@@ -121,8 +124,6 @@ it does not stop runs already accepted by Individual or affect another slot.
 
 - `make check`: both products, architecture/security/permissions tests, frontend
   unit tests, Svelte checks, lint, builds, desktop logic and release-script checks.
-- `make verify-isolation`: Individual builds, tests and runs with every Team source
-  removed, including tests of the desktop shell's HTTP clients and registry.
 - `make desktop-check`: native macOS compilation/vet and logic, the Team installer included.
 - `make test-rqlite`: pinned real clusters, promotion/demotion, lost quorum,
   failover, backup/restore and service behavior with replicated storage.

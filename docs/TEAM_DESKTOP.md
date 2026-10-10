@@ -52,7 +52,7 @@ make desktop-check            # native compile of the app (installer included), 
 make desktop-package          # development .app + DMG, carrying the Team service (ad hoc signature)
 make test-unified-installer   # mounts that DMG and checks versions, signatures and the Team service
 make test-team-desktop-browser # real APIs/rqlite + disposable individual bridge, no OS install
-make check verify-isolation
+make check
 ```
 
 `ARCH=arm64` or `ARCH=amd64` produces a native development build. Distribution is universal. The packager bundles the original hash-pinned and upstream-signed Nebula release. It builds rqlite from its pinned source commit, combines architectures and signs it; the exact resulting hash is stamped into the Team service and a matching build record. The optional free runner helper is separately built/versioned. Required third-party notices are included. Installer checks validate signatures and fixed program pins before use.

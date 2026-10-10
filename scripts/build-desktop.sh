@@ -227,7 +227,6 @@ rm -f $HELPERS $WINDOWS
 # The Team service the app carries and installs when a person adds a Team (docs/UNIFIED_DISTRIBUTION.md). It is part of this
 # release: built here, from this commit, at this version, and signed with the same Developer ID, except Nebula, which keeps its
 # upstream signature and is checked against its pin. Nothing is installed or started until a person asks.
-TEAM_VERSION=absent
 if [ "$TEAM_PAYLOAD" != 0 ]; then
   H="$APP/Contents/Helpers"
   mkdir -p "$APP/Contents/Resources/licenses"
@@ -267,16 +266,12 @@ if [ "$TEAM_PAYLOAD" != 0 ]; then
   rm -f $TEAMS $DATABASES
   cp -R third_party/nebula third_party/rqlite third_party/go "$APP/Contents/Resources/licenses/"
   TEAM_VERSION=$("$H/werkbord-team" version 2>/dev/null || true)
-  case "$TEAM_VERSION" in "$VERSION") ;; *)
-    # A universal build of the other architecture cannot run here; the version is then read from the build itself.
-    if [ "$ARCH" = "$HOST" ] || [ "$ARCH" = universal ]; then die "Team $TEAM_VERSION is not this release ($VERSION)"; fi
-    TEAM_VERSION=$VERSION ;;
-  esac
+  # (A build for the other architecture cannot run here, and then there is nothing to ask.)
+  if [ "$ARCH" = "$HOST" ] || [ "$ARCH" = universal ]; then
+    [ "$TEAM_VERSION" = "$VERSION" ] || die "Team's service says \"$TEAM_VERSION\", not this release ($VERSION)"
+  fi
 fi
-printf 'Shell: %s\nPersonal: %s\nTeam: %s\nPersonal API: workspace-summary-v1 + execution-local-v1\nTeam API: device-v1 + team-v1\nSync: integration-v1 + execution-v1\n' "$VERSION" "$VERSION" "$TEAM_VERSION" > "$APP/Contents/Resources/components.txt"
 
-cp desktop/build/compatibility.json "$APP/Contents/Resources/compatibility.json"
-if [ "$TEAM_PAYLOAD" != 0 ]; then scripts/check-unified-desktop.sh --development "$APP"; fi
 
 # 3. The icon, from the one 1024px picture (Apple's own tools; nothing to install).
 ICONSET="$STAGE/icon.iconset"

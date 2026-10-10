@@ -102,7 +102,6 @@ type UI interface {
 
 // Options are what a Shell is made of.
 type Options struct {
-	Components  string
 	UpdateGuard func(context.Context) error
 	Launcher    Launcher
 	UI          UI
@@ -165,9 +164,8 @@ func New(o Options) *Shell {
 
 // AppInfo says which app this is.
 type AppInfo struct {
-	Components string `json:"components,omitempty"`
-	Version    string `json:"version"`
-	Platform   string `json:"platform"`
+	Version  string `json:"version"`
+	Platform string `json:"platform"`
 	// Updater: this app can replace itself. Informational, and optional for a page to read: a page from before it
 	// existed ignores it, and an app from before it existed does not send it.
 	Updater bool `json:"updater,omitempty"`
@@ -177,7 +175,7 @@ type AppInfo struct {
 // "Update now" and to open links in the browser.
 func (s *Shell) Info() AppInfo {
 	s.o.Log.Debug("page call", "method", "Info")
-	return AppInfo{Version: s.o.Version, Platform: s.o.Platform, Updater: s.o.Updater != nil && s.o.Updater.Active(), Components: s.o.Components}
+	return AppInfo{Version: s.o.Version, Platform: s.o.Platform, Updater: s.o.Updater != nil && s.o.Updater.Active()}
 }
 
 // ChooseDirectory opens a native folder picker. It returns only the path the
@@ -226,9 +224,6 @@ func (s *Shell) Connect() (Connected, error) {
 // Diagnostics is what to look at when Werkbord does not open, as text with no secret in it.
 func (s *Shell) Diagnostics() string {
 	text := s.o.Launcher.DiagnosticsText(s.o.Ctx)
-	if s.o.Components != "" {
-		text += "\nBundled components:\n" + s.o.Components + "\n"
-	}
 	if s.o.AppLog != "" {
 		text += fmt.Sprintf("%-20s %s\n", "App log:", s.o.AppLog)
 	}
@@ -469,21 +464,4 @@ func (s *Shell) Reload() { s.o.UI.Reload() }
 func lastLine(out string) string {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	return strings.TrimSpace(lines[len(lines)-1])
-}
-
-// UpdatePersonal brings the person's own Werkbord up to the version this app carries, when the one running is too old for
-// the window to show. The launcher replaces the program, which refuses while agents are working and puts the old one back
-// if the new one does not come up. Frames cannot call it.
-func (s *Shell) UpdatePersonal() error {
-	if s.o.Launcher == nil {
-		return errors.New("this app cannot update Werkbord")
-	}
-	conn, err := s.o.Launcher.Connect(s.o.Ctx, func(step launcher.Step) { s.o.UI.Emit("progress", step) })
-	if err != nil {
-		return err
-	}
-	if conn.Notice != "" {
-		return errors.New(conn.Notice)
-	}
-	return nil
 }

@@ -16,10 +16,9 @@ import (
 // Team coordinates people; it is not a client of anything. Its server packages
 // (internal/team/...) make no outbound connection, read no file but the ones their
 // own configuration names, read the environment only in the configuration, and
-// never hand one member's request to anything on another member's computer. The
-// only program in the Team product that is an HTTP client is `werkbord-team
-// handoff` (cmd/werkbord-team/handoff.go), which runs on a developer's own
-// computer and addresses their own loopback Werkbord and their Team server.
+// never hand one member's request to anything on another member's computer. What
+// talks to a member's own Werkbord is the Team service's synchronization on that
+// member's computer (internal/team/connector), over loopback and with a narrow grant.
 //
 // Rule 4 already keeps os/exec out; this rule looks at what the code does with the
 // packages it may import.
@@ -79,9 +78,6 @@ var outboundAllowed = map[string]map[string]bool{
 }
 
 func TestTeamServerNeverReachesOut(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	watchSources(t)
 	base := filepath.Join(moduleRoot(t), "internal", "team")
 	fset := token.NewFileSet()
@@ -148,10 +144,10 @@ func TestTeamServerNeverReachesOut(t *testing.T) {
 	}
 }
 
-// The individual product does not know Team exists: none of the code it is built
-// from names Team's API, settings or executable in a string (comments may explain
-// why the updater ignores Team's tags, for instance).
-func TestIndividualProductDoesNotMentionTeam(t *testing.T) {
+// The controller holds no Team credential and makes no call to Team: none of the code it is built from names Team's API,
+// settings or executable in a string (comments may explain why the updater ignores Team's old tags, for instance). Team's
+// service on a member's own computer reaches the controller with a narrow grant; the controller never reaches back.
+func TestTheControllerHoldsNoTeamCredentialOrAPI(t *testing.T) {
 	watchSources(t)
 	closure := goList(t, "-deps", "./cmd/werkbord")
 	fset := token.NewFileSet()
@@ -180,7 +176,7 @@ func TestIndividualProductDoesNotMentionTeam(t *testing.T) {
 				}
 				for _, banned := range []string{"/api/team/v1", "WERKBORD_TEAM_", "werkbord-team"} {
 					if strings.Contains(lit.Value, banned) {
-						t.Errorf("%s has the string %s: the individual product must not know about Team", fset.Position(lit.Pos()), lit.Value)
+						t.Errorf("%s has the string %s: the controller must not call Team or hold its settings", fset.Position(lit.Pos()), lit.Value)
 					}
 				}
 				return true
@@ -188,6 +184,6 @@ func TestIndividualProductDoesNotMentionTeam(t *testing.T) {
 		}
 	}
 	if checked < 50 {
-		t.Fatalf("checked only %d files of the individual product", checked)
+		t.Fatalf("checked only %d files of the controller", checked)
 	}
 }

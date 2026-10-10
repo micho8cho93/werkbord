@@ -198,7 +198,6 @@ Tests:
 make check                 # everything: both products and the shared packages (Go tests, vet, gofmt, svelte-check, ESLint, builds)
 make test-werkbord         # the individual product's tests, and the web app's
 make test-team             # Team's tests
-make verify-isolation      # copies the repo with every Team file removed, then builds, vets, tests and runs the individual product
 make test-install test-install-team   # each installer against a local release server
 ```
 
@@ -215,7 +214,7 @@ CI does this when a product tag is pushed. See [VERSIONING.md](VERSIONING.md).
 
 `internal/archtest` fails `go test ./...` (and so `make check` and CI) when:
 
-1. anything in the individual product's build or tests reaches Team;
+1. the controller's build reaches Team;
 2. any package outside Team imports Team's packages (a shared package must not become the way in);
 3. Team's build includes any package of this module other than its own and the allow-listed shared plumbing;
 4. Team's code imports `os/exec`, `plugin` or `net/rpc`, or its build includes `tailscale.com`, SSH or a PTY package;
@@ -248,10 +247,10 @@ Beyond those, `internal/archtest` also keeps the production foundation honest (s
 
 The gate also fixes the production license/authentication wiring in architecture tests and restricts the native Keychain wrapper to reviewed Security/memory calls. Typed local license-file/public-key configuration is permitted; no online license/vendor URL is introduced. Runner operations stay the reviewed semantic bridge, never a general remote administration API.
 
-`make verify-isolation` is the empirical version of 1–2, and CI runs it. The Go module is shared, so `go.mod` lists
-every dependency of both; what counts is what each executable is built from, which is what these checks inspect. If
-Team grows dependencies of its own that make that unwieldy, give it its own module (`go.work`); the layout above
-already allows it.
+The Go module is shared, so `go.mod` lists every dependency of every executable; what counts is what each executable is
+built from, which is what these checks inspect. (There used to be an empirical copy-the-repository-without-Team build,
+`make verify-isolation`; it proved the controller could be separated from Team, which is no longer a goal. The import-graph
+checks above remain, for the security reason: the controller runs a person's agents as them and must not link Team.)
 
 ## Adding to either product
 

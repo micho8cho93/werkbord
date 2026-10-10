@@ -39,8 +39,6 @@ jobs:
           make test-rqlite
         env:
           WERKBORD_REQUIRE_RQLITE: "1"
-      - name: Individual product runs without Team (a copy of the repository with every Team file removed)
-        run: make web web-embed verify-isolation
       - name: Desktop app builds and packages (.app and .dmg)
         if: matrix.os == 'macos-latest'
         run: |

@@ -336,7 +336,9 @@ printf '#!/bin/sh\necho "HDIUTIL $1" >> "$SHIM_DIR/log"\nexec /usr/bin/hdiutil "
 chmod +x "$WORK/hdiutil"
 export FAKE_LOG="$LOG" FAKE_COUNT="$WORK/count" FAKE_MODE=accepted FAKE_KEY="$WORK/AuthKey_TEST.p8"
 echo "not a real key" > "$FAKE_KEY"
-ARCH=universal CODESIGN="$SHIM" HDIUTIL="$WORK/hdiutil" CODESIGN_IDENTITY="$ID" CODESIGN_TIMESTAMP=none CODESIGN_KEYCHAIN="$WORK/some.keychain-db" \
+# (SPARKLE=0 here and below: this is a test of how the app is signed, not of the updater, and it must not change with whether the
+# update-signing public key happens to be committed in this tree. scripts/test-desktop-update.sh tests the updater.)
+SPARKLE=0 ARCH=universal CODESIGN="$SHIM" HDIUTIL="$WORK/hdiutil" CODESIGN_IDENTITY="$ID" CODESIGN_TIMESTAMP=none CODESIGN_KEYCHAIN="$WORK/some.keychain-db" \
   XCRUN="$ROOT/scripts/test-support/fake-xcrun.sh" SPCTL="$ROOT/scripts/test-support/fake-spctl.sh" NOTARY_KEY_FILE="$FAKE_KEY" NOTARY_KEY_ID=TESTKEYID NOTARY_ISSUER=TESTISSUER NOTARY_RETRY_SLEEP=0 \
   scripts/build-desktop.sh --package --notarize "$OUTDIR" >"$WORK/build.log" 2>&1 || { cat "$WORK/build.log" >&2; bad "the build with an identity failed"; }
 contains "$(cat "$WORK/build.log")" "TEST ONLY" || bad "a build without a timestamp must say it is for tests only"
@@ -383,7 +385,7 @@ ok "the window and the program are each one universal program: Apple Silicon and
 echo "4b. the Team service in the app"
 : > "$LOG"
 OUT2="$WORK/out-team"
-TEAM_PAYLOAD=1 ARCH=universal CODESIGN="$SHIM" CODESIGN_IDENTITY="$ID" CODESIGN_TIMESTAMP=none CODESIGN_KEYCHAIN="$WORK/some.keychain-db" \
+SPARKLE=0 TEAM_PAYLOAD=1 ARCH=universal CODESIGN="$SHIM" CODESIGN_IDENTITY="$ID" CODESIGN_TIMESTAMP=none CODESIGN_KEYCHAIN="$WORK/some.keychain-db" \
   scripts/build-desktop.sh "$OUT2" >"$WORK/build2.log" 2>&1 || { cat "$WORK/build2.log" >&2; bad "the build that carries Team's service failed"; }
 signed=$(grep '^SIGN' "$LOG" | awk '{ n = split($2, p, "/"); print p[n] }' | tr '\n' ' ')
 # rqlited first and once: the Team service is built with the hash of exactly those bytes, so signing it again would make another

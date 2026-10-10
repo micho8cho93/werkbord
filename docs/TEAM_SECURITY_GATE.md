@@ -102,7 +102,7 @@ Commands below ran on this Apple Silicon Mac, except the installer and runtime c
 | Check | Result and scope |
 | --- | --- |
 | `make check` | Passed all root Go tests, web unit tests, formatting/shell checks, Go vet, Svelte/ESLint, both desktop logic modules, workflow/notarization fixtures and builds |
-| `make verify-isolation` | Passed individual build/vet/test/run/migrate in a copied tree without either Team directory |
+| `make verify-isolation` (retired) | Passed individual build/vet/test/run/migrate in a copied tree without either Team directory |
 | `make test-rqlite` | Passed real supervisor, replicated store and server suites, then service tests on real rqlite; local ports/processes, no independent machines |
 | `WERKBORD_TEST_STORE=rqlite` service rerun with embedded build pin | Passed after containment changes, including atomic seat races, expiry/recovery and active-session revocation |
 | `make test-nebula` | Passed pinned real process/configuration, handshake, missing-lighthouse, revocation/blocklist and supervisor tests; userspace firewall probes run without TUN |

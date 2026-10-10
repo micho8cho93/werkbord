@@ -40,7 +40,7 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 	})
 	reg := workspaces.NewRegistry(workspaces.OpenState(filepath.Join(dir, "shell.json")), nil, personal, link.Source)
 	ui := &fakeUI{answers: []string{"Connect runner", "Connect runner", "Connect runner"}}
-	sh := New(Options{Components: "Shell: v1.9.0-preview.1\nPersonal: v1.9.0-preview.1\nTeam: v3.8.0", Workspaces: reg, Team: link, TeamInstaller: &fakeInstaller{found: true}, Grants: personal, Invites: &Invites{}, UI: ui})
+	sh := New(Options{Workspaces: reg, Team: link, TeamInstaller: &fakeInstaller{found: true}, Grants: personal, Invites: &Invites{}, UI: ui})
 	mux := http.NewServeMux()
 	dist := filepath.Join("..", "..", "frontend", "dist")
 	mux.Handle("/", http.FileServer(http.Dir(dist)))

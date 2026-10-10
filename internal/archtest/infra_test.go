@@ -214,9 +214,6 @@ func readPackageSources(p pkg) ([]*ast.File, *token.FileSet, error) {
 // The real tree: every grant (there are none) is narrow, and nothing in Team starts
 // a process except through one.
 func TestTheInfrastructureExceptionIsNarrow(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	pkgs := append(goList(t, "./cmd/werkbord-team/..."), goList(t, "./internal/team/...")...)
 	if v := infraViolations(teamInfraExec, pkgs, readPackageSources); len(v) > 0 {
 		t.Errorf("Team's infrastructure exception is not narrow enough:\n  %s", strings.Join(v, "\n  "))

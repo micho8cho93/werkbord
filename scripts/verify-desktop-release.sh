@@ -104,13 +104,12 @@ xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");Safari;" "$APP"
 
 # Unified releases carry the Team service and its installer in the app itself, signed by the same team.
 case "$version" in
-  1.[0-8].*|0.*) ;;
+  [0-3].*) ;;
   *)
     [ -f "$APP/Contents/Helpers/werkbord-team" ] || die "the app carries no Team service"
     "$root/scripts/check-team-payload.sh" --distribution "$APP" || die "Team's service in the app is not what a release must carry"
-    "$root/scripts/check-unified-desktop.sh" --release "$APP" || die "the bundled components are not this release, or are not signed by its team"
+    [ "$("$APP/Contents/Helpers/werkbord-team" version)" = "v$version" ] || die "the Team service in the app is not this release (v$version)"
     "$APP/Contents/MacOS/Werkbord" --verify-release || die "the app is not signed by the release team, which its Team installer requires"
-    [ -s "$APP/Contents/Resources/components.txt" ] || die "component diagnostics missing"
     step "ok  the Team service is this release, and the app is signed by the team its installer requires"
     ;;
 esac

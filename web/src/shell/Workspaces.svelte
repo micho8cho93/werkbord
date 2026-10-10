@@ -91,9 +91,6 @@
           {#if i.kind === 'personal' && i.state === 'ready'}
             <button class="btn" type="button" onclick={() => model.open(i.id, runnersPlace('personal'))} data-testid="manage-runners">Runners</button>
           {/if}
-          {#if i.kind === 'personal' && model.personalOutdated}
-            <button class="btn primary" type="button" onclick={() => model.updatePersonal()} disabled={!!model.busy}>Update Werkbord…</button>
-          {/if}
           {#if i.kind === 'team' && i.state !== 'setup'}
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=hosts')} data-testid="manage-hosts">Hosts and devices</button>
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=connectivity')}>Connectivity</button>

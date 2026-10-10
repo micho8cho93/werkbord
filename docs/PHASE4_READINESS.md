@@ -44,7 +44,7 @@ the user's actual installed Team service or production licenses.
 | Command / suite | Verified result |
 | --- | --- |
 | `make check` | Both products' Go tests/vet, architectural boundary checks, web checks/build, 235 web unit tests across 25 files, workflow and release validation fixtures pass |
-| `make verify-isolation` | Individual builds, vets, tests (33 packages), migrates and runs with Team source removed; neutral desktop shell also passes |
+| `make verify-isolation` (retired) | Individual builds, vets, tests (33 packages), migrates and runs with Team source removed; neutral desktop shell also passes |
 | `make desktop-test team-desktop-test desktop-check team-desktop-check` | Native modules test/vet and desktop compilation pass |
 | Desktop migration and shell `go test -race` | Race checks pass, including verification callbacks that consult migration status |
 | `make test-install test-install-team` | Eight Individual installer cases and nine Team cases pass; legacy Devboard upgrade, data/token preservation, interruption, forged signatures, wrong tags, missing trust anchor and product separation |

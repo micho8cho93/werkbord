@@ -103,28 +103,6 @@ export class Model {
     }
   }
 
-  /** Whether the person's own Werkbord is running but too old for this window to show. */
-  get personalOutdated(): boolean {
-    return !!this.view?.problems?.some((p) => p.source === 'Werkbord' && p.kind === 'outdated');
-  }
-
-  /** Brings the person's own Werkbord up to this app's version (the app asks the person first), then shows it. */
-  async updatePersonal(): Promise<void> {
-    this.busy = 'Updating Werkbord…';
-    this.error = '';
-    try {
-      await ask((a) => (a.UpdatePersonal ? a.UpdatePersonal() : Promise.reject(new Error('This app cannot update Werkbord.'))));
-      delete this.frames.personal;
-      delete this.places.personal;
-      await this.refresh();
-      await this.open('personal');
-    } catch (e) {
-      this.error = (e as Error).message;
-    } finally {
-      this.busy = '';
-    }
-  }
-
   /** Starts the shell: opens the workspace the person left open, if they can still get into it, otherwise Personal. */
   async start(): Promise<void> {
     await this.refresh();

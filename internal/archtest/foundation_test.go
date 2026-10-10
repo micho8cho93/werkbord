@@ -80,9 +80,6 @@ func TestSharedPackagesAreProductNeutral(t *testing.T) {
 // Team sees public keys (deviceid) and checks signatures (envelope); it has no code
 // that could create, hold, load or use a key that signs for a device.
 func TestTeamNeverLinksADevicesPrivateKey(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	const keyHolder = module + "/internal/deviceid/localidentity"
 	for _, p := range goList(t, "-deps", "./cmd/werkbord-team") {
 		if p.ImportPath == keyHolder {
@@ -170,9 +167,6 @@ func TestApplicationCodeNamesNoNetworkOrDatabaseVendor(t *testing.T) {
 	for _, d := range dirs {
 		dir := filepath.Join(moduleRoot(t), filepath.FromSlash(d))
 		if _, err := os.Stat(dir); err != nil {
-			if strings.HasPrefix(d, "internal/team") && !hasTeam(t) {
-				continue
-			}
 			t.Fatalf("%s: %v", d, err)
 		}
 		names, files := codeNames(t, dir)
@@ -185,13 +179,8 @@ func TestApplicationCodeNamesNoNetworkOrDatabaseVendor(t *testing.T) {
 			}
 		}
 	}
-	// The scan must be finding the code: fewer files is expected only when Team has
-	// been removed (the isolation check), which leaves the shared packages alone.
-	want := 15
-	if !hasTeam(t) {
-		want = 8
-	}
-	if total < want {
+	// The scan must be finding the code.
+	if total < 15 {
 		t.Fatalf("scanned only %d files", total)
 	}
 }

@@ -80,9 +80,6 @@ func nonTestFiles(t *testing.T, rel string) (*token.FileSet, map[string]*ast.Fil
 // Rule 15: no URL, in the code that runs, leads anywhere. A workspace's machines are found by
 // the addresses its owner gave, never by a name Werkbord holds.
 func TestNoServiceURLIsBuiltIntoTheNetworkCode(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	watchSources(t)
 	count := 0
 	for _, dir := range networkRuntimeDirs {
@@ -138,9 +135,6 @@ func TestNoServiceURLIsBuiltIntoTheNetworkCode(t *testing.T) {
 
 // Rule 16: nothing the operator configures is a service, an account or an address that is not theirs.
 func TestTheNetworkConfigurationNamesOnlyTheCustomersOwnThings(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	watchSources(t)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filepath.Join(moduleRoot(t), "internal", "team", "config", "config.go"), nil, 0)
@@ -206,9 +200,6 @@ func TestTheNetworkConfigurationNamesOnlyTheCustomersOwnThings(t *testing.T) {
 // wiring that gives them to the service as an interface; the service, domain, API and
 // store do not name them, so nothing there could put one in a response.
 func TestNoSigningKeyCanReachAResponse(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	watchSources(t)
 	secretWords := []string{"privatekey", "signingkey", "trustseed", "cakey", "secretkey", "seed(", "pemkey"}
 	for _, dir := range []string{"internal/team/api", "internal/team/service", "internal/team/domain", "internal/team/store"} {

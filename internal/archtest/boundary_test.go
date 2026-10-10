@@ -1,7 +1,14 @@
-// Package archtest holds the tests that keep Werkbord's two products apart:
-// the individual product (cmd/werkbord) and Werkbord Team (cmd/werkbord-team).
-// It has no code of its own. The rules are in docs/PRODUCTS.md; each test below
-// says which one it enforces and what to do when it fails.
+// Package archtest holds the tests that keep Werkbord's trust boundaries. Werkbord is one product with one version and
+// one release; what these tests protect is not a packaging split but who may run what, with whose credentials:
+//
+//   - the controller (cmd/werkbord) runs a person's agents, commands and Git as them, and links no Team code;
+//   - Team (cmd/werkbord-team, internal/team) coordinates and never executes: it links none of the code that does, starts
+//     no process outside its two reviewed infrastructure supervisors, holds no private device key and reaches nothing
+//     that is not the customer's own;
+//   - the desktop app (a module of its own, because it needs cgo) links no Team code and no execution engine.
+//
+// It has no code of its own. The rules are in docs/PRODUCTS.md; each test below says which one it enforces and what to do
+// when it fails.
 package archtest
 
 import (
@@ -176,12 +183,6 @@ func goList(t *testing.T, args ...string) []pkg {
 	return pkgs
 }
 
-func hasTeam(t *testing.T) bool {
-	t.Helper()
-	_, err := os.Stat(filepath.Join(moduleRoot(t), "cmd", "werkbord-team"))
-	return err == nil
-}
-
 func isTeamPath(p string) bool {
 	// Offline tooling beneath cmd/werkbord-team obeys the same product boundary as its executable.
 	return p == teamCmd || strings.HasPrefix(p, teamCmd+"/") || p == teamTree || strings.HasPrefix(p, teamTree+"/")
@@ -196,24 +197,13 @@ func allowedForTeam(p string) bool {
 	return false
 }
 
-// Rule 1: nothing the individual product is built from, or tested with, knows Team exists.
-func TestIndividualProductDoesNotDependOnTeam(t *testing.T) {
+// Rule 1: the controller links no Team code. It runs a person's agents and commands as them, so nothing that holds Team's
+// network, database, keys or license machinery (some of it runs as root, in a service of its own) belongs in its build.
+func TestTheControllerDoesNotLinkTeam(t *testing.T) {
 	closure := goList(t, "-deps", "./cmd/werkbord")
 	for _, p := range closure {
 		if isTeamPath(p.ImportPath) {
-			t.Errorf("the individual product's build includes %s: Team code must not be reachable from cmd/werkbord", p.ImportPath)
-		}
-	}
-	// Tests too: a test in the individual product that imports Team would make Team a
-	// requirement of testing it, and so of the isolation check.
-	for _, p := range closure {
-		if !strings.HasPrefix(p.ImportPath, module+"/") {
-			continue
-		}
-		for _, imp := range append(append([]string(nil), p.Imports...), p.TestImps...) {
-			if isTeamPath(imp) {
-				t.Errorf("%s imports %s", p.ImportPath, imp)
-			}
+			t.Errorf("the controller's build includes %s: Team code must not be reachable from cmd/werkbord", p.ImportPath)
 		}
 	}
 	if !containsPkg(closure, individualCmd) {
@@ -222,7 +212,7 @@ func TestIndividualProductDoesNotDependOnTeam(t *testing.T) {
 }
 
 // Rule 2: only Team's own packages may import Team's packages, so a shared package
-// can never become the way the individual product reaches Team.
+// can never become the way the controller (or the desktop app) reaches Team.
 func TestOnlyTeamImportsTeam(t *testing.T) {
 	for _, p := range goList(t, "./...") {
 		if isTeamPath(p.ImportPath) || p.ImportPath == module+"/internal/archtest" {
@@ -238,9 +228,6 @@ func TestOnlyTeamImportsTeam(t *testing.T) {
 
 // Rule 3: Team shares only the shared plumbing. See teamAllowed.
 func TestTeamImportsOnlyWhatItMayShare(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree (the isolation check removes it)")
-	}
 	for _, p := range goList(t, "-deps", "./cmd/werkbord-team") {
 		if !strings.HasPrefix(p.ImportPath, module+"/") && p.ImportPath != module {
 			continue
@@ -255,9 +242,6 @@ func TestTeamImportsOnlyWhatItMayShare(t *testing.T) {
 
 // Rule 4: Team's own code never starts a process or reaches into a machine.
 func TestTeamCodeNeverExecutesAnything(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	for _, p := range goList(t, "-deps", "./cmd/werkbord-team") {
 		for _, bad := range teamForbiddenDeps {
 			if p.ImportPath == bad || strings.HasPrefix(p.ImportPath, bad+"/") {
@@ -285,9 +269,6 @@ func TestTeamCodeNeverExecutesAnything(t *testing.T) {
 // Rule 5: a Team-only third-party module never reaches the individual product, and
 // a new third-party module in Team's build has to be classified.
 func TestTeamDependenciesAreClassified(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	modules := func(pkgs []pkg) map[string]bool {
 		m := map[string]bool{}
 		for _, p := range pkgs {
@@ -378,21 +359,14 @@ func TestTheDesktopAppIsASeparateModuleOfTheIndividualProduct(t *testing.T) {
 	if strings.Contains(string(root), desktopToolkit) {
 		t.Errorf("go.mod requires %s: the desktop toolkit belongs in desktop/go.mod, not in the controller's module", desktopToolkit)
 	}
-	for _, cmd := range []string{"./cmd/werkbord"} {
+	for _, cmd := range []string{"./cmd/werkbord", "./cmd/werkbord-team"} {
 		for _, p := range goList(t, "-deps", cmd) {
 			if strings.HasPrefix(p.ImportPath, desktopToolkit) || strings.HasPrefix(p.ImportPath, module+"/desktop") {
-				t.Errorf("%s's build includes %s: the desktop app must not be reachable from the controller", cmd, p.ImportPath)
+				t.Errorf("%s's build includes %s: the desktop app must not be reachable from an executable", cmd, p.ImportPath)
 			}
 		}
 	}
-	if hasTeam(t) {
-		for _, p := range goList(t, "-deps", "./cmd/werkbord-team") {
-			if strings.HasPrefix(p.ImportPath, desktopToolkit) || strings.HasPrefix(p.ImportPath, module+"/desktop") {
-				t.Errorf("Team's build includes %s", p.ImportPath)
-			}
-		}
-	}
-	// The desktop app opens the individual product's controller and nobody else's.
+	// The desktop app opens the controller and reaches Team only over loopback HTTP, never by linking it.
 	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
 			return nil
@@ -400,7 +374,7 @@ func TestTheDesktopAppIsASeparateModuleOfTheIndividualProduct(t *testing.T) {
 		src, _ := os.ReadFile(path)
 		for _, banned := range []string{teamTree, teamCmd} {
 			if strings.Contains(string(src), banned) {
-				t.Errorf("%s mentions %s: the desktop app is the individual product's and never reaches Team", path, banned)
+				t.Errorf("%s mentions %s: the desktop app never links Team", path, banned)
 			}
 		}
 		return nil

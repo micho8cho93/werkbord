@@ -66,9 +66,6 @@ func supervisorFiles(t *testing.T) (*token.FileSet, []*ast.File) {
 }
 
 func TestTheNetworkSupervisorIsNotAGeneralRunner(t *testing.T) {
-	if !hasTeam(t) {
-		t.Skip("Team is not in this tree")
-	}
 	watchSources(t)
 	fset, files := supervisorFiles(t)
 	for _, v := range supervisorViolations(fset, files, supervisorSurface) {

@@ -20,22 +20,13 @@ Support expiry does not disable the runtime. See [TEAM_LICENSE.md](TEAM_LICENSE.
 
 ## Compatibility
 
-The machine-readable matrix is `desktop/build/compatibility.json`, copied into the
-bundle and checked against the reviewed source. Component versions are read from
-the actual helpers and written to `Resources/components.txt`; the shell exposes
-them in Workspaces and devices and Help → Diagnostics.
-
-| Component | Supported contract |
-| --- | --- |
-| Shell | 1.10.x, versioned with Individual; Individual + isolated Team frames |
-| Personal | Bundled 1.6–1.x; unified summary v1 and `execution-local-v1` |
-| Team | 3.7–3.x; device API v1, Team API v1, multi-workspace listing v1 |
-| Synchronization | `integration-v1` and `execution-v1`; exact-context approvals/fencing unchanged |
-| Storage | Separate Personal SQLite and Team SQLite/rqlite; never merged |
-
-Bundling rejects unknown component majors; clients reject unknown protocol schemas. Old Team installations that
-cannot serve a signed enrolled-device listing need administrator migration before
-the unified shell can verify them; their existing console/CLI stays available.
+Everything in the app has the one version, and the build checks that the controller and Team's service report it. There is no
+compatibility table: the contracts are the protocols (`workspace-summary-v1` and `execution-local-v1` for the controller;
+`device-v1`, `team-v1` and the multi-workspace listing for Team; `integration-v1` and `execution-v1` for synchronization),
+and clients reject schemas they do not know. Storage is separate, never merged: Individual's SQLite, and Team's SQLite or
+rqlite. A Team service installed by an earlier version of the app is the one place the versions can differ at run time; if it
+cannot answer the listing, the window offers **Update Team** (see [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md)). The version appears
+in Help → Diagnostics.
 
 ## Building and signing
 

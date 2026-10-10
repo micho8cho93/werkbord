@@ -22,7 +22,6 @@ import (
 	"devboard/desktop/internal/shell"
 	"devboard/desktop/internal/teaminstall"
 	"devboard/internal/launcher"
-	"devboard/internal/workspace"
 )
 
 // The loading/error page and bundled neutral workspace shell.
@@ -82,23 +81,9 @@ func main() {
 		up = nu
 	}
 	sh := shell.New(shell.Options{Launcher: l, UI: ui, Version: version, Platform: goruntime.GOOS, AppLog: appLog, Log: log, Ctx: ctx, Updater: up,
-		Components: bundledComponents(), UpdateGuard: func(ctx context.Context) error {
-			if err := l.UpdateSafety(ctx); err != nil {
-				return err
-			}
-			if parts.team.Installed() {
-				items, err := parts.team.Source.List(ctx)
-				if err != nil {
-					return err
-				}
-				for _, i := range items {
-					if i.Entry.State != workspace.StateSetup {
-						return fmt.Errorf("Update deferred: an enrolled Team workspace requires administrator maintenance before a desktop update")
-					}
-				}
-			}
-			return nil
-		}, Workspaces: parts.registry, Team: parts.team, TeamInstaller: parts.installer, Grants: parts.personal, Invites: parts.invites, ShellPage: page})
+		// An update never replaces the program under working agents, and the app's relaunch waits for them too. (The Team service
+		// is a separate root-owned installation that the app never replaces on its own, so an update of the app does not touch it.)
+		UpdateGuard: l.UpdateSafety, Workspaces: parts.registry, Team: parts.team, TeamInstaller: parts.installer, Grants: parts.personal, Invites: parts.invites, ShellPage: page})
 
 	// The window's own page is the only page that may call the app: every workspace's page is shown in a
 	// frame of it, WebKit gives a frame no way to call the app, and a workspace's page asks the shell page, which asks

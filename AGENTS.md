@@ -79,9 +79,8 @@ latest selection. Do not reset build versions to the display sequence.
 
 ## Product boundaries
 
-Individual and Team are one release, but the *code* still has a boundary that is about trust, not packaging. Read
-`docs/PRODUCTS.md` before changing code near it. The unification work is retiring the rest of the separation in stages
-(see `docs/UNIFICATION.md`); until a stage lands, its rules here still hold. In short:
+Individual and Team are one release, but the *code* still has boundaries that are about trust, not packaging. Read
+`docs/PRODUCTS.md` before changing code near them. In short:
 
 - Team-specific code lives only under `internal/team/` and `cmd/werkbord-team/`. Never add a Team flag, branch or screen
   to the individual product, and never import Team from outside those two places.
@@ -89,5 +88,6 @@ Individual and Team are one release, but the *code* still has a boundary that is
   products need becomes a shared package with no product behaviour; it is not copied and not reached across.
 - A Team workspace coordinates; it never executes. Team must not start processes, hold Git/GitHub/agent credentials, or
   reach into a member's machine. `internal/archtest` enforces part of this; do not weaken those tests to make a change fit.
-- `make check` runs everything (both products and the boundary tests); `make verify-isolation` proves the individual
-  product builds and passes without Team.
+- The controller (`cmd/werkbord`) links no Team code, and the desktop app (a module of its own) links no Team code and no
+  execution engine. The Team service is a separate executable and a separate process on purpose: some of it runs as root.
+- `make check` runs everything, the boundary tests included.

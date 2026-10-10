@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/update"
 	"devboard/internal/workspace"
 )
 
@@ -62,21 +61,7 @@ func (p *Personal) List(ctx context.Context) ([]workspace.Listed, error) {
 		Version string `json:"version"`
 	}
 	_ = json.Unmarshal(b, &health)
-	if Outdated(health.Version) {
-		v := strings.TrimPrefix(health.Version, "v")
-		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord "+v+" is running on this computer. This window shows "+MinimumVersion+" or later.")},
-			fmt.Errorf("%w: Werkbord %s", ErrOutdated, v)
-	}
 	return []workspace.Listed{p.entry(workspace.StateReady, "")}, nil
-}
-
-// MinimumVersion is the oldest Werkbord the window can show (desktop/build/compatibility.json, personal.minimumUnifiedVersion).
-// An older one refuses to be shown in a frame and lacks the summary the window reads, so it would be a blank page.
-const MinimumVersion = "1.6.0"
-
-// Outdated says whether a running Werkbord is a release older than MinimumVersion. A build from source is never outdated.
-func Outdated(version string) bool {
-	return update.Release(version) && update.Compare(version, MinimumVersion) < 0
 }
 
 func get2(ctx context.Context, hc *http.Client, base, path, key string) ([]byte, error) {

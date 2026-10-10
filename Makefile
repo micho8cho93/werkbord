@@ -19,7 +19,7 @@ BIN      := bin/werkbord
 TEAM_BIN := bin/werkbord-team
 
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
-        test test-werkbord test-team lint check verify-isolation \
+        test test-werkbord test-team lint check \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
         dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-team-desktop-browser test-unified-desktop-browser
 
@@ -185,10 +185,6 @@ test-desktop-update:
 test-desktop-sign:
 	scripts/test-desktop-updater-config.sh
 	scripts/test-desktop-sign.sh $(if $(FAST),--fast)
-
-## verify-isolation: build and test the individual product in a copy of the repository with every Team file removed
-verify-isolation:
-	scripts/verify-isolation.sh
 
 ## dev-api / dev-web: run the controller and the Vite dev server (two terminals)
 dev-api:
