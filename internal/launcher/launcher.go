@@ -93,8 +93,6 @@ type Options struct {
 	// NoInstall uses Bundled where it is, and neither copies it anywhere nor ever
 	// replaces an installed program with it. For development, from a source tree.
 	NoInstall bool
-	// AllowBundledUpgrade can defer automatic/explicit bundle adoption until legacy migration has been verified.
-	AllowBundledUpgrade func() bool
 	// NoService sets Werkbord up without a login service (`setup --no-service`): the
 	// controller runs as a background process. For development and tests.
 	NoService bool
@@ -463,9 +461,6 @@ func (l *Launcher) needsSetup(ctx context.Context, cfg config.Config, inst Insta
 // older. A program that is not a release (built from source) is never replaced, and an
 // installed program that is newer is never replaced by this older one.
 func (l *Launcher) shouldUpgrade(inst Install) bool {
-	if l.opt.AllowBundledUpgrade != nil && !l.opt.AllowBundledUpgrade() {
-		return false
-	}
 	return !l.opt.NoInstall && l.opt.Bundled != "" && update.Release(l.opt.Version) &&
 		update.Release(inst.Version) && update.Compare(inst.Version, l.opt.Version) < 0
 }

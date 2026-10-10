@@ -17,11 +17,10 @@ import (
 	"devboard/internal/team/server"
 )
 
-// This file is the whole V2 story in one test, over real HTTP and through the
-// real `werkbord-team handoff` command:
+// This file is the whole V2 story in one test, over real HTTP:
 //
 //	Developer A creates a project → invites Developer B → the owner creates tickets
-//	→ B claims one → it is unavailable to A → B opens it in B's own local Werkbord
+//	→ B claims one → it is unavailable to A → B takes its handoff to B's own Werkbord
 //	→ B works (branch, commits, pull request reported) → the ticket enters Review
 //	→ A reviews → the merge happens on the Git host → the ticket is Done
 //
@@ -161,29 +160,6 @@ func TestTheWholeTeamWorkflowFromProjectToDone(t *testing.T) {
 	}
 	a := person{t, ts.URL, created.Token}
 
-	var localAuth []string
-	var localTasks []map[string]any
-	var lmu sync.Mutex
-	local := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		lmu.Lock()
-		defer lmu.Unlock()
-		localAuth = append(localAuth, r.Header.Get("Authorization"))
-		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/projects":
-			_ = json.NewEncoder(rw).Encode(map[string]any{"projects": []map[string]any{{"id": "prj_shop", "name": "shop",
-				"repository": map[string]any{"remotes": []map[string]any{{"name": "origin", "url": "git@github.com:acme/shop.git"}}}}}})
-		case r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/tasks"):
-			var b map[string]any
-			_ = json.NewDecoder(r.Body).Decode(&b)
-			localTasks = append(localTasks, b)
-			rw.WriteHeader(201)
-			_ = json.NewEncoder(rw).Encode(map[string]any{"id": "tsk_b1"})
-		default:
-			http.NotFound(rw, r)
-		}
-	}))
-	t.Cleanup(local.Close)
-
 	// 1. A creates the project, and invites B with a link.
 	proj := a.ok("POST", "/projects", map[string]any{"name": "Shop", "description": "The shop", "repository": "https://github.com/acme/shop"})
 	pid := text(proj, "id")
@@ -265,28 +241,15 @@ func TestTheWholeTeamWorkflowFromProjectToDone(t *testing.T) {
 		t.Fatalf("A's My Work shows B's ticket: %v", ap)
 	}
 
-	// 5. B opens the ticket in B's own local Werkbord. The command runs on B's computer, with B's tokens.
-	env := map[string]string{"WERKBORD_TEAM_SERVER": ts.URL, "WERKBORD_TEAM_TOKEN": b.token, "DEVBOARD_TOKEN": localToken}
-	out, _, err := runCLI(t, env, "handoff", "--ticket", "WB-1", "--runner", local.URL)
-	if err != nil {
-		t.Fatal(err)
+	// 5. B takes the ticket's context into B's own Werkbord. Team only hands over text (the ticket's key, branch and prompt);
+	// it holds no credential and starts nothing. Importing it into B's Werkbord is B's computer's business (the connector).
+	hf := b.ok("POST", tk+"/handoff", nil)
+	if hf["schema"] != "werkbord-team.handoff/v1" || !strings.Contains(fmt.Sprint(hf["prompt"]), "wb-1-authentication-error") || !strings.Contains(fmt.Sprint(hf["ticket"]), "WB-1") {
+		t.Fatalf("the handoff does not carry the ticket's context: %v", hf)
 	}
-	if !strings.Contains(out, "tsk_b1") {
-		t.Fatalf("%s", out)
-	}
-	lmu.Lock()
-	if len(localTasks) != 1 || localTasks[0]["title"] != "WB-1: Authentication error" || !strings.Contains(fmt.Sprint(localTasks[0]["description"]), "wb-1-authentication-error") {
-		t.Fatalf("the local Werkbord was not given the task: %v", localTasks)
-	}
-	for _, h := range localAuth {
-		if h != "Bearer "+localToken {
-			t.Fatalf("something other than B's own local token reached B's Werkbord: %q", h)
-		}
-	}
-	lmu.Unlock()
 	// A cannot open B's ticket, anywhere.
-	if _, _, err := runCLI(t, map[string]string{"WERKBORD_TEAM_SERVER": ts.URL, "WERKBORD_TEAM_TOKEN": created.Token, "DEVBOARD_TOKEN": localToken}, "handoff", "--ticket", "WB-1", "--runner", local.URL); err == nil {
-		t.Fatal("A opened B's ticket in a runner")
+	if code := a.status("POST", tk+"/handoff", nil); code < 400 {
+		t.Fatalf("A opened B's ticket in a runner: %d", code)
 	}
 
 	// 6. B works. B's Werkbord reports the branch, a commit and the pull request.

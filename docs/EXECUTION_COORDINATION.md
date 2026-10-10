@@ -121,25 +121,15 @@ it still cannot manufacture an owner-device signature, local approval or broader
 policy. Short-lived, exact-context approvals bound this trust. Cryptographic
 identity does not make ticket text trustworthy.
 
-## Optional CLI connector scheduling
+## Local grants for scheduling
 
 Phase 1's `integration-v1` grant remains metadata-only. A separate opt-in
 `execution-dispatch-v1` grant can retrieve an already-approved execution and
 request its idempotent dispatch. It cannot mint approvals, choose policies, read
-questions/handoffs/raw logs, modify settings or launch an unapproved task.
-
-```sh
-werkbord-team connector connect --execution \
-  --runner http://127.0.0.1:7420 \
-  --controller-token-file /absolute/user/individual/token \
-  --access-file /absolute/user/connector/dispatch-token
-```
-
-Add `"executionTokenFile": "/absolute/user/connector/dispatch-token"` to the
-existing private connector configuration. Keep its original `accessTokenFile`
-for synchronization. The connector accepts only the dispatch scope, matches the
-locally approved task to its persistent Phase 1 association, and reconciles Team
-eligibility before each dispatch. Nothing new is installed implicitly.
+questions/handoffs/raw logs, modify settings or launch an unapproved task. In the desktop app the member's explicit
+**Connect my Individual runner** action hands it to that workspace's Team service; the service accepts only the dispatch
+scope, matches the locally approved task to its persistent Phase 1 association, and reconciles Team eligibility before each
+dispatch. Nothing new is installed implicitly. (The `werkbord-team connector` command line that used to do this is gone.)
 
 The controller's neutral local APIs are `/api/execution/v1/preview`, `approvals`,
 `approvals/{executionId}` (including revoke) and `dispatch`. `execution-local-v1`

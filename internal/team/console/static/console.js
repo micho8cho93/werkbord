@@ -1105,8 +1105,6 @@ function gitForm(k, path) {
 
 function handoffBox(hf) {
   if (state.desktop) return runnerHandoff(hf);
-  const quote = s => "'" + s.replaceAll("'", "'\"'\"'") + "'";
-  const cmd = 'werkbord-team handoff --server ' + quote(location.origin) + ' --project ' + quote(hf.project.id) + ' --ticket ' + quote(hf.ticket.id) + ' --runner http://127.0.0.1:7420';
   const json = JSON.stringify(hf, null, 2);
   return h('div', { class: 'handoff' },
     h('strong', {}, 'Open ' + hf.ticket.key + ' in your own Werkbord'),
@@ -1120,9 +1118,6 @@ function handoffBox(hf) {
         const a = h('a', { href: URL.createObjectURL(new Blob([json], { type: 'application/json' })), download: hf.ticket.key.toLowerCase() + '-handoff.json' });
         document.body.append(a); a.click(); a.remove(); } }, 'Download handoff'),
       h('button', { class: 'plain', onclick: () => { state.handoff = null; render(); } }, 'Hide')),
-    h('details', {}, h('summary', {}, 'Or from a terminal on your computer'),
-      h('p', { class: 'muted' }, 'This creates the task in the Werkbord running on your own computer (a localhost address only), using WERKBORD_TEAM_TOKEN and WERKBORD_TOKEN from your environment. Set both first. Run it again with --report after work, or add --watch to keep metadata synchronized from your computer. Repeated imports reuse your task.'),
-      h('code', {}, cmd), copy(cmd, 'Copy command')),
     h('details', {}, h('summary', {}, 'Task text'), h('pre', {}, hf.prompt)));
 }
 

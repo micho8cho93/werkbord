@@ -30,7 +30,6 @@ them in Workspaces and devices and Help → Diagnostics.
 | --- | --- |
 | Shell | 1.10.x, versioned with Individual; Individual + isolated Team frames |
 | Personal | Bundled 1.6–1.x; unified summary v1 and `execution-local-v1` |
-| Legacy Personal | 1.0–1.x basic health/projects connection for adoption; upgrade before using newer unified APIs |
 | Team | 3.7–3.x; device API v1, Team API v1, multi-workspace listing v1 |
 | Synchronization | `integration-v1` and `execution-v1`; exact-context approvals/fencing unchanged |
 | Storage | Separate Personal SQLite and Team SQLite/rqlite; never merged |
@@ -81,4 +80,4 @@ when the installed service is older, and shows the installer's reply unchanged.
 Stopping/removing Team never removes Personal data. Service removal requires safely
 leaving every slot, and retains local identities, signed licenses, archives and
 owner metadata. Old app bundles and backups are not automatically cleaned up.
-See [MIGRATION.md](MIGRATION.md) and [PHASE4_READINESS.md](PHASE4_READINESS.md).
+See [PHASE4_READINESS.md](PHASE4_READINESS.md).

@@ -10,7 +10,6 @@ package main
 import (
 	"context"
 	"embed"
-	"errors"
 	"fmt"
 	"os"
 	goruntime "runtime"
@@ -21,7 +20,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"devboard/desktop/internal/shell"
-	"devboard/desktop/internal/workspaces"
 	"devboard/internal/launcher"
 	"devboard/internal/workspace"
 )
@@ -54,13 +52,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mig := newMigrationManager(ctx)
-	lo := launcherOptions()
-	lo.AllowBundledUpgrade = func() bool {
-		st, err := mig.Status()
-		return err == nil && (st.Phase == "verified" || st.Phase == "not_needed")
-	}
-	l := launcher.New(lo)
+	l := launcher.New(launcherOptions())
 	ui := &wailsUI{}
 	parts, err := newWorkspaceParts(l, log)
 	if err != nil {
@@ -84,37 +76,7 @@ func main() {
 		up = nu
 	}
 	sh := shell.New(shell.Options{Launcher: l, UI: ui, Version: version, Platform: goruntime.GOOS, AppLog: appLog, Log: log, Ctx: ctx, Updater: up,
-		Migration: mig, Components: bundledComponents(), VerifyMigration: func(ctx context.Context) error {
-			if _, err := l.Connect(ctx, nil); err != nil {
-				return err
-			}
-			if parts.team.Installed() {
-				items, err := parts.team.Source.List(ctx)
-				if errors.Is(err, workspaces.ErrOutdated) {
-					// An older Team service is left exactly as it is (adoption copies and moves nothing of Team's) and is
-					// updated through Team's own path; it must not keep the person's own Werkbord from being adopted.
-					log.Warn("adopting with an older Team service left as it is", "err", err)
-					return nil
-				}
-				if err != nil {
-					return err
-				}
-				for _, item := range items {
-					if item.Entry.State != workspace.StateReady && item.Entry.State != workspace.StateSetup {
-						return fmt.Errorf("Team migration verification requires every enrolled workspace to be accessible; retry when its Hosts return")
-					}
-				}
-				return nil
-			}
-			return nil
-		}, UpdateGuard: func(ctx context.Context) error {
-			st, err := mig.Status()
-			if err != nil {
-				return err
-			}
-			if st.Phase != "verified" && st.Phase != "not_needed" {
-				return fmt.Errorf("Back up and verify your existing installation before updating; open Workspaces and devices")
-			}
+		Components: bundledComponents(), UpdateGuard: func(ctx context.Context) error {
 			if err := l.UpdateSafety(ctx); err != nil {
 				return err
 			}

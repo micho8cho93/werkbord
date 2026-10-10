@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"devboard/internal/integration"
+	"devboard/internal/team/connector"
 	"devboard/internal/team/devicestate"
 	"devboard/internal/team/localwerkbord"
 	"devboard/internal/team/service"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -19,10 +21,30 @@ type lostDispatch struct {
 	offline bool
 }
 
+// dispatchControl is what the Team service does with a local access grant before it lets that grant drive scheduling: none
+// means metadata only, and a grant that cannot dispatch is refused.
+func dispatchControl(ctx context.Context, base, tokenFile string) (connector.ExecutionLocal, error) {
+	if tokenFile == "" {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return nil, err
+	}
+	client, err := localwerkbord.New(base, strings.TrimSpace(string(raw)))
+	if err != nil {
+		return nil, err
+	}
+	if err := client.RequireDispatchAccess(ctx); err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
 func TestConnectorSchedulingIsExplicitlyOptedInAndRejectsMetadataGrant(t *testing.T) {
 	ctx := context.Background()
 	local := newIntegrationLocal(t)
-	control, err := loadConnectorExecution(ctx, local.url, "")
+	control, err := dispatchControl(ctx, local.url, "")
 	if err != nil || control != nil {
 		t.Fatal("metadata-only configuration enabled execution", control, err)
 	}
@@ -34,7 +56,7 @@ func TestConnectorSchedulingIsExplicitlyOptedInAndRejectsMetadataGrant(t *testin
 	if err := os.WriteFile(file, []byte(metadata), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := loadConnectorExecution(ctx, local.url, file); err == nil {
+	if _, err := dispatchControl(ctx, local.url, file); err == nil {
 		t.Fatal("metadata grant accepted for scheduling")
 	}
 	dispatch, err := localwerkbord.ConnectDispatch(ctx, local.url, local.owner)
@@ -44,7 +66,7 @@ func TestConnectorSchedulingIsExplicitlyOptedInAndRejectsMetadataGrant(t *testin
 	if err := os.WriteFile(file, []byte(dispatch), 0600); err != nil {
 		t.Fatal(err)
 	}
-	control, err = loadConnectorExecution(ctx, local.url, file)
+	control, err = dispatchControl(ctx, local.url, file)
 	if err != nil || control == nil {
 		t.Fatal("dispatch opt-in unavailable", control, err)
 	}

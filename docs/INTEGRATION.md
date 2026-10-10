@@ -2,14 +2,16 @@
 
 The two backends remain separate security domains. Individual owns execution,
 repositories, credentials, runner approvals and local history. Team owns shared
-projects, memberships, ticket text, assignments and review. A login-user connector
-imports the member's held tickets and reports a reviewed projection of local
+projects, memberships, ticket text, assignments and review. The Team service on the member's own computer
+(its synchronization, `internal/team/connector`) imports the member's held tickets and reports a reviewed projection of local
 execution metadata. Claiming a ticket never launches an agent. A successful run
 never approves a pull request, submits work for review or completes a Team ticket.
 
 This feature requires Individual's `werkbord.integration/v1` endpoints and Team's
 progress endpoints (introduced in Individual 1.5.0-preview.1 and Team 3.3.0).
-Older `werkbord-team handoff`, `--report` and `--watch` workflows remain available.
+The `werkbord-team connector` and `werkbord-team handoff` command lines this document used to describe are gone: the Team
+service does this itself once the member connects their Individual runner (below), and a ticket's handoff is a document the
+console offers to copy or download.
 
 ## Authority and implementation
 
@@ -17,7 +19,7 @@ Older `werkbord-team handoff`, `--report` and `--watch` workflows remain availab
 | --- | --- |
 | Individual controller | Local task/run history, execution settings, Git/agent sign-ins, repository paths, local durable events and provenance bindings |
 | Team backend | Ticket requirements/assignment, memberships, device registry, reported execution metadata and existing Git reports |
-| `werkbord-team connector` | Its enrolled member/device identity, opted-in project selections, associations, event cursors and outbound journal; runs as the login user |
+| Team service synchronization (`internal/team/connector`) | Its enrolled member/device identity, project selections, associations, event cursors and outbound journal; runs on the member's own computer as the member |
 | Network node / Workspace Host | Existing network/storage duties; never runs the connector or receives its Individual access grant |
 | `internal/integration` | Product-neutral v1 DTOs and canonical repository identity validation; no storage, credentials, network or execution behavior |
 
@@ -43,94 +45,27 @@ agent, shell command, environment, filesystem path or execution policy in v1.
 
 ## In the desktop app
 
-With the Werkbord desktop app no connector setup is needed. Connecting your Individual runner to a Team workspace
+No connector setup is needed. Connecting your Individual runner to a Team workspace
 (Team Settings → Connect my Individual runner) hands that workspace's Team service on your computer the narrow
 `execution-local-v1` grant, and the service runs this same synchronization every cycle and right after a claim: every
 project you are on, except those turned off under Team Settings → Tickets in Individual. That grant can import text and
 read projected status; it cannot start a run. Held tickets whose repository is not a project in Individual are reported
 with `PUT /api/integration/v1/waiting` (one replaceable set per workspace source, text only, at most 64) and shown in
 Individual's Control Center until the person chooses a matching folder (`POST /api/integration/waiting/link`, which
-refuses a folder that is not a clone of the repository) or clones it with their GitHub sign-in. The CLI connector below
-remains the way to synchronize without the desktop app; both use the same provenance, so they never duplicate a task.
+refuses a folder that is not a clone of the repository) or clones it with their GitHub sign-in.
 
-## Enable synchronization as your login user
+## Project selection
 
-Install both products using their existing installers. Enroll a separate member
-runner device with the existing member invitation, using one private user-owned
-data directory per Team. A Workspace Host invitation/authority vault is refused.
-Confirm the invitation's workspace fingerprint through a trusted channel:
+Every project the member is on is synchronized except those turned off under Team Settings → Tickets in Individual. An
+Individual project is matched by canonical repository identity; multiple matches need an explicit choice, project names never
+establish identity, and a Team project without a validated repository identity cannot sync. Up to 16 workspaces can be
+connected, each with its own enrolled device. Network functionality that needs a TUN device/root stays in the privileged
+network service, which never receives the Individual grant or runs the synchronization.
 
-```sh
-werkbord-team connector join 'werkbord://join/…' \
-  --data-dir /absolute/user/team-a-device \
-  --name 'My connector' --expect-fingerprint 'verified-fingerprint'
-
-werkbord-team connector connect \
-  --runner http://127.0.0.1:7420 \
-  --controller-token-file /absolute/user/individual-data/token \
-  --access-file /absolute/user/connector/local-access-token
-```
-
-Input configuration/credential files must be private regular files (0600 is
-appropriate); symlinks and files readable by other users are refused. The access
-file must not already exist or be the controller token file. Revoke the old local
-grant before replacing it, then remove its old access file. The controller's
-existing local-access management API/UI remains the revocation authority.
-
-Create a private `connector.json`:
-
-```json
-{
-  "version": 1,
-  "stateDir": "/absolute/user/connector",
-  "runnerBase": "http://127.0.0.1:7420",
-  "accessTokenFile": "/absolute/user/connector/local-access-token",
-  "workspaces": [
-    {
-      "dataDir": "/absolute/user/team-a-device",
-      "keyStorage": "os",
-      "bases": ["http://100.80.0.1:7430"],
-      "projects": {
-        "tpj_team_project_id": "prj_individual_project_id"
-      }
-    }
-  ]
-}
-```
-
-Use the actual IDs returned by the project APIs. Omit `bases` to use the workspace
-addresses saved by enrollment. The connector accepts only loopback addresses or
-addresses inside that workspace's enrolled network. `keyStorage` reuses existing
-`os` or `file` sealed storage; file storage also needs `passphraseFile`.
-
-Each entry in `projects` opts that Team project into synchronization. An empty
-local project value selects the unique canonical repository match. Multiple
-matches require an explicit matching Individual project ID. Project names never
-establish identity. Projects without a validated repository identity cannot sync.
-Add another workspace entry with its own enrolled device directory and project
-map to connect another Team (at most 16 workspaces).
-
-```sh
-chmod 600 /absolute/user/connector/connector.json
-werkbord-team connector run --config /absolute/user/connector/connector.json --once
-werkbord-team connector status --config /absolute/user/connector/connector.json
-scripts/install-team-connector.sh /absolute/user/connector/connector.json
-```
-
-The installer creates a macOS **LaunchAgent** or Linux **systemd user service**;
-`--write-only` writes the service without loading it. Both installer and connector
-refuse root. Network functionality that needs a TUN device/root remains in the
-existing separate network-node service. Do not point the connector at the
-privileged Workspace Host's data/vault. Network setup is described in
-[TEAM_NETWORK.md](TEAM_NETWORK.md). No service is installed merely by installing
-Individual or Team.
-
-Once configured, claim/accept an assignment in Team. The connector imports it
-into Individual's Backlog with ticket context, without copying commands or
-launching execution. Start it through your normal Individual workflow. The Team
-ticket panel shows execution status, timestamps, runner availability and handoff
-availability, independently of ticket/review status. Git/PR facts use the existing
-Team Git views. Detailed handoffs and logs remain in the owner's Individual.
+Once connected, claim/accept an assignment in Team. The ticket is imported into Individual's Backlog with its context,
+without copying commands or launching execution. Start it through your normal Individual workflow. The Team ticket panel
+shows execution status, timestamps, runner availability and handoff availability, independently of ticket/review status.
+Git/PR facts use the existing Team Git views. Detailed handoffs and logs remain in the owner's Individual.
 
 ## Durable associations and conflicting edits
 
@@ -138,7 +73,7 @@ The user's SQLite journal binds workspace, Team project/ticket, Individual
 project/task, owning member/device, canonical repository, assignment generation,
 claim time, imported text and controller cursor. Individual also binds provenance
 to the same project/task in its own transaction. A lost import response cannot
-create a second task, including after connector restart or project reselection.
+create a second task, including after a restart or project reselection.
 
 Canonical identity validates before normalization: credential-free HTTPS, SSH
 `git@` and Git URLs; normalized host/default port/`.git`, significant repository
@@ -148,26 +83,23 @@ check the selected repository. Changing the Team repository's identity suspends
 the association; an existing source cannot silently move to another repository.
 Use a reviewed new ticket for work in a different repository.
 
-New connector tasks use a workspace-prefixed working branch to keep identical
+New imported tasks use a workspace-prefixed working branch to keep identical
 Team ticket keys/slugs isolated in a shared local repository. Provenance aliases
-for the connector's known host addresses reuse existing URL-based manual
-handoffs. Imported legacy tasks keep their actual branch and local text. If a
-legacy handoff used a different historical host URL, include that workspace host
-address among the configured `bases` when migrating. The user must review any
+for the workspace's known host addresses reuse existing URL-based manual
+handoffs. Imported legacy tasks keep their actual branch and local text. The user must review any
 already-existing duplicate sources; ambiguous provenance is refused.
 
 Team text updates apply only to an untouched Backlog task that has never run,
 using the previous imported text as a comparison. Local edits, archived tasks,
 active work and any execution history produce a durable `conflict` flag; local
-text/execution settings are preserved. Inspect `connector status` and merge the
-requirements deliberately in Individual. Progress continues for the associated
+text/execution settings are preserved. Merge the requirements deliberately in Individual. Progress continues for the associated
 local task. Reporting a branch/PR never counts as a text change or resets work.
 
 ## Contract
 
 All local responses and import requests declare `schema: werkbord.integration/v1`.
 Strict decoders refuse unknown request fields. Future incompatible versions need
-a different schema/path; the connector refuses unsupported schema responses.
+a different schema/path; the service refuses unsupported schema responses.
 
 | Endpoint | v1 behavior |
 | --- | --- |
@@ -222,25 +154,17 @@ current membership, device revocation, project access, holder, claim timestamp
 and assignment generation. Release/reassignment/reclaim changes the generation
 even within the same millisecond. Archived/deleted tickets and disconnected
 projects suspend reporting and purge stale outbound work, preserving local tasks
-and runs. Revocation does the same. No connector action stops or restarts an
+and runs. Revocation does the same. No synchronization action stops or restarts an
 agent; those remain the user's decisions in Individual.
 
-After reviewing a refusal/conflict, stop the user service and use:
-
-```sh
-werkbord-team connector resume --config /absolute/user/connector/connector.json \
-  --workspace tws_id --ticket ttk_id
-```
-
-Resume clears only the local suspension/queued reports; it preserves task identity
-and sequence. The next run rechecks authority and repository. It cannot override
-revocation or move an association to another project. A lock prevents two running
-connectors from writing the same journal. `status` is safe while the service runs.
+A refusal or conflict suspends only that association; it clears when the cause is resolved (the repository, the revoked
+authority or the conflicting text) and the next cycle rechecks authority and repository. It cannot override revocation or move
+an association to another project, and a lock prevents two writers on the same journal.
 
 ## Validation
 
 `cmd/werkbord-team/connector_integration_test.go` hosts both real independent APIs
-in a test-only client harness with signed device authentication and a fake local
+in a test-only harness with signed device authentication and a fake local
 agent. It exercises claim/import, local execution, lost acknowledgment,
 offline/restart recovery, preserved text conflicts, revocation, archive/release,
 multi-workspace isolation and secret/output exclusion. Service tests cover every

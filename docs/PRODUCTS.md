@@ -152,7 +152,7 @@ but none of its code beyond the shared plumbing.
 The workflow respects the rule above: Team stores *reports* (a developer's Werkbord says "my branch is 3 commits behind");
 it does not run Git, call GitHub, or reach a runner. The desktop daemon verifies signed requests from locally approved devices belonging to that same person, then exchanges
 only semantic actions with the person’s own loopback controller using a narrow access grant. The individual product’s
-generic local access API knows no Team workspace, credential or policy. The CLI handoff remains available.
+generic local access API knows no Team workspace, credential or policy. A ticket's handoff is a document the console offers to copy or download.
 
 Roles are permission tables, not checks for a name: services ask `Role.Can(permission)`, so adding a role is one entry
 in `internal/team/domain/roles.go` and needs no schema change and no handler change.
@@ -168,9 +168,9 @@ See [TEAM_DESKTOP.md](TEAM_DESKTOP.md) for the shipped workflow and service/secu
 
 Not built yet: a payment backend, automatic seat enforcement, a Team update command, a
 Windows installer, HTTPS (put Team behind a TLS proxy), ownership transfer, comments and chat (Team coordinates; it is
-not a messenger), a Team-side automatic reporter in the individual Werkbord. Members can use the developer-owned
-`werkbord-team handoff --report` / `--watch` client; the individual product stores only generic task
-provenance and has no Team configuration, credential, API or background bridge.
+not a messenger), a Team-side automatic reporter in the individual Werkbord. The Team service on a member's own computer does the reporting
+(docs/INTEGRATION.md); the individual product stores only generic task provenance and has no Team configuration, credential,
+API or background bridge.
 
 ## Running and building
 
@@ -267,7 +267,7 @@ Every implementation commit bumps and tags the product(s) it changes: [VERSIONIN
 
 ## Phase 1 integration
 
-The optional login-user connector synchronizes held Team tickets and safe Individual execution metadata through a versioned contract; in the desktop app the Team service on the member's own computer runs the same synchronization once the member connects their runner with its narrow grant. The backends retain separate authority and credentials; no other computer, and no remote Workspace Host, ever receives that grant. See [INTEGRATION.md](INTEGRATION.md) for setup, project matching, reconciliation and the authority model.
+The Team service on the member's own computer synchronizes held Team tickets and safe Individual execution metadata through a versioned contract; in the desktop app the Team service on the member's own computer runs the same synchronization once the member connects their runner with its narrow grant. The backends retain separate authority and credentials; no other computer, and no remote Workspace Host, ever receives that grant. See [INTEGRATION.md](INTEGRATION.md) for setup, project matching, reconciliation and the authority model.
 
 ## Phase 2 execution coordination
 
@@ -286,4 +286,4 @@ engine or Team backend. See [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md).
 
 ## Phase 4 distribution
 
-One primary desktop bundle contains the isolated backends and Team’s own native installer. Independent versions, offline release trust and databases remain intact. Explicit in-place adoption replaces data relocation; see [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md), [MIGRATION.md](MIGRATION.md) and [PHASE4_READINESS.md](PHASE4_READINESS.md).
+One primary desktop bundle contains the isolated backends and Team’s own native installer. Independent versions, offline release trust and databases remain intact. See [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md) and [PHASE4_READINESS.md](PHASE4_READINESS.md).

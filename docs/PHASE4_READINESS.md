@@ -1,5 +1,10 @@
 # Phase 4 release-readiness report
 
+> **Historical.** This is a point-in-time report. Since it was written the legacy adoption/migration layer it describes
+> (`desktop/internal/migration`, the "Your existing installation" panel, `docs/MIGRATION.md`) was removed, because nobody has
+> a pre-unified installation to adopt, and Werkbord became one product under one version ([UNIFICATION.md](UNIFICATION.md)).
+> Statements below about migration, adoption, rollback or separately versioned components no longer describe the code.
+
 Assessment date: 2026-10-09. Target builds: Individual **1.9.0-preview.1** and
 Team **3.8.0**. Phases 1–3 were checked before implementation with `make check`
 and the real unified browser suite. This is a tested distribution implementation,

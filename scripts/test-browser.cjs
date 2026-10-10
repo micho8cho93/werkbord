@@ -57,11 +57,21 @@ async function cleanup() {
     const personal = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(personalURL).host, WERKBORD_BROWSER_EXECUTION: '1' });
     await ready(personal, personalURL + '/api/health');
     const teamURL = 'http://127.0.0.1:' + await port();
-    const teamBinary = path.join(root, 'bin/werkbord-team');
+    // A workspace needs a signed license (Team always checks one), so the suite makes its own issuer, signs a license with it, and
+    // builds a Team that trusts that issuer and no other. The key lives in this temporary directory and nowhere else.
+    const crypto = require('node:crypto');
+    const keys = crypto.generateKeyPairSync('ed25519');
+    const issuer = keys.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32).toString('base64url');
+    const claims = path.join(temp, 'claims.json'), licenseFile = path.join(temp, 'license.json');
+    fs.writeFileSync(claims, JSON.stringify({ schema: 2, product: 'werkbord-team', id: 'lic_browser_fixture', customer: 'org_fixture', edition: 'team', seats: 10, issuedAt: '2026-01-01T00:00:00Z' }));
+    const signed = cp.spawnSync('go', ['run', './cmd/werkbord-team/vendor', 'license', '--input', claims, '--out', licenseFile], { cwd: root, env, encoding: 'utf8', input: keys.privateKey.export({ type: 'pkcs8', format: 'pem' }), timeout: commandTimeout });
+    if (signed.status !== 0) throw Error('signing the fixture license failed: ' + signed.stderr);
+    const teamBinary = path.join(temp, 'werkbord-team');
+    run('go', ['build', '-trimpath', '-ldflags', '-X main.licenseIssuer=' + issuer, '-o', teamBinary, './cmd/werkbord-team'], {}, true);
     // This test is about the pages and the handoff, not where the workspace's data lives: one file needs no database program
     // (Team's own cluster tests cover the replicated storage).
-    const teamEnv = { WERKBORD_TEAM_DATA_DIR: path.join(temp, 'team-data'), WERKBORD_TEAM_ADDR: new URL(teamURL).host, WERKBORD_TEAM_STORAGE: 'single-file' };
-    const created = run(teamBinary, ['workspace', 'create', '--name', 'Disposable E2E', '--owner', 'Fixture owner'], teamEnv, true);
+    const teamEnv = { WERKBORD_TEAM_DATA_DIR: path.join(temp, 'team-data'), WERKBORD_TEAM_ADDR: new URL(teamURL).host, WERKBORD_TEAM_STORAGE: 'single-file', WERKBORD_TEAM_LICENSE_FILE: licenseFile, WERKBORD_TEAM_NETWORK_NODE: 'off' };
+    const created = run(teamBinary, ['workspace', 'create', '--network=false', '--name', 'Disposable E2E', '--owner', 'Fixture owner'], teamEnv, true);
     const tokenFile = path.join(temp, 'owner-token.txt');
     fs.writeFileSync(tokenFile, created.match(/wbt_[a-zA-Z0-9]+/)[0], { mode: 0o600 });
     const team = serve(teamBinary, ['serve'], teamEnv);

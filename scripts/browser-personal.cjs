@@ -178,7 +178,8 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         privatePage.on('pageerror', e => errors.push(e.message));
         await privatePage.goto(base + '/#token=' + token);
         await privatePage.waitForFunction(() => !location.hash.includes('token='));
-        await privatePage.waitForFunction(() => document.querySelector('.status[data-state="live"]'));
+        // (There is no connection-status indicator any more: the board being on screen is the sign that sign-in worked.)
+        await privatePage.waitForFunction(() => document.querySelector('main, [role="main"]'));
         await privateContext.close();
         assert.deepEqual(errors, []);
         console.log('PASS page-only sign-in with browser storage unavailable, desktop/mobile without overflow');

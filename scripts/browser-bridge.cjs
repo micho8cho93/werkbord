@@ -1,9 +1,10 @@
 // Disposable live bridge check: import → subprocess agent → Git worktree → report → review → Done.
+// The import and the report are the two calls the Team service's synchronization makes on a member's computer, made here by hand
+// against the real APIs of both servers (there is no command line for them any more).
 const fs = require('node:fs'), cp = require('node:child_process'), assert = require('node:assert/strict');
 const local = process.env.PERSONAL_BROWSER_URL || 'http://127.0.0.1:17421';
 const team = process.env.TEAM_BROWSER_URL || 'http://127.0.0.1:17430';
 const token = process.env.TEAM_BROWSER_TOKEN || fs.readFileSync(process.env.TEAM_BROWSER_TOKEN_FILE, 'utf8').match(/wbt_[a-zA-Z0-9]+/)[0];
-const binary = process.env.WERKBORD_TEAM_BINARY || require('node:path').resolve('bin/werkbord-team');
 async function api(base, credential, method, path, body) { const r = await fetch(base + path, { method, headers: { Authorization: 'Bearer ' + credential, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); const raw = await r.text(); const b = raw ? JSON.parse(raw) : null; if (!r.ok)
     throw Error(method + ' ' + path + ' ' + r.status + ' ' + JSON.stringify(b)); return b; }
 (async () => {
@@ -13,9 +14,26 @@ async function api(base, credential, method, path, body) { const r = await fetch
     let k = await api(team, token, 'POST', `/api/team/v1/projects/${p.id}/tickets`, { title: '界'.repeat(200), description: '界'.repeat(12000), requirements: 'Context preserved', status: 'available' });
     k = await api(team, token, 'POST', `/api/team/v1/projects/${p.id}/tickets/${k.id}/claim`);
     await api(team, token, 'PUT', `/api/team/v1/projects/${p.id}/tickets/${k.id}/git`, { state: { baseBranch: 'main' } });
-    const args = ['handoff', '--server', team, '--project', p.id, '--ticket', k.id, '--runner', local, '--local-project', lp.id];
-    function cli(extra = []) { const r = cp.spawnSync(binary, [...args, ...extra], { encoding: 'utf8', env: { ...process.env, WERKBORD_TEAM_TOKEN: token, WERKBORD_TOKEN: 'disposable-browser-credential' } }); assert.equal(r.status, 0, r.stderr); return r.stdout; }
-    cli();
+    const L = 'disposable-browser-credential';
+    // Import: the ticket's handoff from Team becomes a task in the member's own Werkbord. Importing again reuses the task.
+    async function importTicket() {
+        const h = await api(team, token, 'POST', `/api/team/v1/projects/${p.id}/tickets/${k.id}/handoff`);
+        assert.equal(h.schema, 'werkbord-team.handoff/v1');
+        const title = [...(h.ticket.key + ': ' + h.ticket.title)].slice(0, 200).join('');
+        const sourceRef = team + '/?tab=board&project=' + encodeURIComponent(p.id) + '&ticket=' + encodeURIComponent(k.id);
+        return api(local, L, 'POST', `/api/projects/${lp.id}/tasks`, { title, description: h.prompt, sourceRef, workBranch: h.git.branch, baseBranch: h.git.baseBranch });
+    }
+    // Report: the branch, its commits and its pull request, as the member's Werkbord sees them, to Team.
+    async function report(taskId) {
+        const base = `/api/projects/${lp.id}`;
+        const runs = (await api(local, L, 'GET', `${base}/tasks/${taskId}/runs`)).runs;
+        const last = runs[runs.length - 1];
+        const branch = (last && last.branch) || k.branch, scope = last && last.remote ? 'remote' : 'local';
+        const c = await api(local, L, 'GET', `${base}/git/compare?scope=${scope}&branch=${encodeURIComponent(branch)}&limit=200&commitLimit=200&target=main`);
+        const body = { branch, commits: c.unique.items.map(i => ({ sha: i.sha, subject: i.subject, author: i.author, committedAt: i.date })), state: { headSha: c.branchSha, baseBranch: c.target, ahead: c.ahead, behind: c.behind, files: c.files.map(f => f.path) } };
+        await api(team, token, 'PUT', `/api/team/v1/projects/${p.id}/tickets/${k.id}/git`, body);
+    }
+    await importTicket();
     let tasks = await api(local, 'disposable-browser-credential', 'GET', `/api/projects/${lp.id}/tasks`);
     let task = tasks.tasks.find(x => x.workBranch === k.branch);
     assert(task);
@@ -24,7 +42,7 @@ async function api(base, credential, method, path, body) { const r = await fetch
     assert(task.description.includes('界'.repeat(12000)));
     assert.equal(task.baseBranch, 'main');
     await api(local, 'disposable-browser-credential', 'PATCH', `/api/projects/${lp.id}/tasks/${task.id}`, { version: task.version, title: 'Locally edited imported task' });
-    cli();
+    await importTicket();
     tasks = await api(local, 'disposable-browser-credential', 'GET', `/api/projects/${lp.id}/tasks`);
     assert.equal(tasks.tasks.filter(x => x.sourceRef === task.sourceRef).length, 1);
     assert.equal(tasks.tasks.find(x => x.id === task.id).title, 'Locally edited imported task');
@@ -54,7 +72,7 @@ async function api(base, credential, method, path, body) { const r = await fetch
     const sha = git('rev-parse', k.branch);
     assert.equal(git('show', k.branch + ':executed.txt'), 'Committed by the disposable runner agent');
     assert.equal(git('branch', '--show-current'), 'main', 'user checkout must be preserved');
-    cli(['--report']);
+    await report(task.id);
     k = await api(team, token, 'GET', `/api/team/v1/projects/${p.id}/tickets/${k.id}`);
     assert.equal(k.commits.length, 1);
     assert.equal(k.commits[0].sha, sha);

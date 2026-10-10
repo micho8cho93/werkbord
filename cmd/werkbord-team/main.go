@@ -8,7 +8,6 @@
 //	werkbord-team host …             add a Workspace Host (its keys and a copy of the data), remove one
 //	werkbord-team storage …          where the workspace's data is: status, backups, moving it into a cluster
 //	werkbord-team migrate            apply database migrations and exit
-//	werkbord-team handoff            open a ticket you hold in your own local Werkbord
 //	werkbord-team version            print the version
 //
 // Team is a separate product from the individual Werkbord (cmd/werkbord): its own
@@ -45,7 +44,6 @@ var version = "dev"
 const usage = `usage: werkbord-team <command> [flags]
 
 commands:
-	connector          user-scoped automatic task/progress synchronization (connect, join, run, status, resume)
   daemon             run this device's background service (workspace, networking and local runner bridge)
   workspace create   start a workspace with Nebula; prints the owner's local token once
   serve              run the Team server in the foreground
@@ -55,7 +53,6 @@ commands:
   storage            where the workspace's data is kept: status, backup, restore, move it into a cluster
   migrate            apply database migrations and exit
   license import     replace the workspace's signed offline license (owner only)
-  handoff            open a ticket you hold in your own local Werkbord
   version            print the version
 
 Run "werkbord-team <command> -h" for command flags.
@@ -80,8 +77,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	cfg := config.Load()
 	cfg.LicenseKey, _ = base64.RawURLEncoding.DecodeString(licenseIssuer)
 	switch args[0] {
-	case "connector":
-		return cmdConnector(ctx, cfg, args[1:], stdout, stderr)
 	case "daemon":
 		return cmdDaemon(ctx, cfg, args[1:], stderr)
 	case "serve":
@@ -100,8 +95,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return cmdStorage(ctx, cfg, args[1:], stdout, stderr)
 	case "license":
 		return cmdLicense(ctx, cfg, args[1:], stdout, stderr)
-	case "handoff":
-		return cmdHandoff(ctx, args[1:], stdout, stderr)
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, version)
 		return nil

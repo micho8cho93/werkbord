@@ -123,15 +123,7 @@ export interface Overview {
 }
 
 /** The app's page-callable surface, as the shell uses it. */
-export interface MigrationStatus {
-  phase: string;
-  installations: { kind: string; path: string }[];
-  backup?: string;
-}
-
 export interface App {
-  MigrationStatus?(): Promise<MigrationStatus>;
-  Migrate?(action: 'adopt' | 'rollback'): Promise<MigrationStatus>;
   Workspaces(): Promise<WorkspaceView>;
   OpenWorkspace(id: string): Promise<Target>;
   LoadWorkspace(id: string): Promise<Target>;

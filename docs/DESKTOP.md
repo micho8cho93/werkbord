@@ -407,6 +407,6 @@ and console; it is no longer required as a second everyday window. See
 [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
 security boundaries, lifecycle, validation and operational limits.
 
-## Phase 4 packaging and adoption
+## Phase 4 packaging
 
-The primary bundle includes `Contents/Helpers/Werkbord Team.app`, preserved with its independent Apple and offline release signatures, plus `Resources/components.txt` and `compatibility.json`. Team is inert for free Personal use. The nested upstream Nebula signature is checked against its immutable pin by Team’s verifier; it is never re-signed to make publisher checks pass. Backend upgrades retain their original trust paths. See [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md) and [MIGRATION.md](MIGRATION.md). Sparkle now rechecks active work and Team maintenance before relaunching; a pending agent or enrolled Team workspace defers the swap.
+The primary bundle includes `Contents/Helpers/Werkbord Team.app`, preserved with its independent Apple and offline release signatures, plus `Resources/components.txt` and `compatibility.json`. Team is inert for free Personal use. The nested upstream Nebula signature is checked against its immutable pin by Team’s verifier; it is never re-signed to make publisher checks pass. Backend upgrades retain their original trust paths. See [UNIFIED_DISTRIBUTION.md](UNIFIED_DISTRIBUTION.md). Sparkle now rechecks active work and Team maintenance before relaunching; a pending agent or enrolled Team workspace defers the swap.

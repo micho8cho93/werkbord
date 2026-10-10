@@ -30,7 +30,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"devboard/desktop/internal/migration"
 	"devboard/internal/config"
 	"devboard/internal/launcher"
 	"devboard/internal/update"
@@ -103,12 +102,10 @@ type UI interface {
 
 // Options are what a Shell is made of.
 type Options struct {
-	Migration       *migration.Manager
-	VerifyMigration func(context.Context) error
-	Components      string
-	UpdateGuard     func(context.Context) error
-	Launcher        Launcher
-	UI              UI
+	Components  string
+	UpdateGuard func(context.Context) error
+	Launcher    Launcher
+	UI          UI
 	// Version is the app's version; Platform is runtime.GOOS.
 	Version, Platform string
 	// AppLog is where the app writes its own log, mentioned in the diagnostics.
@@ -206,19 +203,6 @@ type Connected struct {
 // "progress" events. A failure is returned as it is, for the loading screen to show, and Diagnostics
 // says more.
 func (s *Shell) Connect() (Connected, error) {
-	cleanInstall := false
-	if s.o.Migration != nil {
-		st, err := s.o.Migration.Status()
-		if err != nil {
-			return Connected{}, err
-		}
-		cleanInstall = st.Phase == "not_needed"
-		if st.Phase == "detected" || st.Phase == "prepared" {
-			if _, err := s.Migrate("adopt"); err != nil {
-				s.o.Log.Warn("migration deferred", "err", err)
-			}
-		}
-	}
 	conn, err := s.o.Launcher.Connect(s.o.Ctx, func(step launcher.Step) {
 		s.o.Log.Info("connecting", "phase", step.Phase, "text", step.Text)
 		s.o.UI.Emit("progress", step)
@@ -230,16 +214,6 @@ func (s *Shell) Connect() (Connected, error) {
 			return Connected{Shell: s.o.ShellPage}, nil
 		}
 		return Connected{}, err
-	}
-	if cleanInstall && s.o.Migration != nil {
-		if _, err := s.o.Migration.Prepare(s.o.Ctx); err == nil {
-			_, err = s.o.Migration.Verify(s.o.Ctx, func(context.Context) error { return nil })
-			if err != nil {
-				s.o.Log.Warn("clean installation registration failed", "err", err)
-			}
-		} else {
-			s.o.Log.Warn("clean installation registration failed", "err", err)
-		}
 	}
 	s.o.Log.Info("connected", "controller", conn.Version, "url", conn.URL)
 	if conn.Notice != "" {
@@ -495,4 +469,21 @@ func (s *Shell) Reload() { s.o.UI.Reload() }
 func lastLine(out string) string {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	return strings.TrimSpace(lines[len(lines)-1])
+}
+
+// UpdatePersonal brings the person's own Werkbord up to the version this app carries, when the one running is too old for
+// the window to show. The launcher replaces the program, which refuses while agents are working and puts the old one back
+// if the new one does not come up. Frames cannot call it.
+func (s *Shell) UpdatePersonal() error {
+	if s.o.Launcher == nil {
+		return errors.New("this app cannot update Werkbord")
+	}
+	conn, err := s.o.Launcher.Connect(s.o.Ctx, func(step launcher.Step) { s.o.UI.Emit("progress", step) })
+	if err != nil {
+		return err
+	}
+	if conn.Notice != "" {
+		return errors.New(conn.Notice)
+	}
+	return nil
 }

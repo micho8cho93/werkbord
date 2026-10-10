@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"devboard/desktop/internal/migration"
 	"devboard/desktop/internal/teamlink"
 	"devboard/desktop/internal/workspaces"
 )
@@ -40,12 +39,8 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 		return workspaces.Access{Base: os.Getenv("WERKBORD_BROWSER_PERSONAL"), Token: "disposable-browser-credential"}, nil
 	})
 	reg := workspaces.NewRegistry(workspaces.OpenState(filepath.Join(dir, "shell.json")), nil, personal, link.Source)
-	legacy := filepath.Join(dir, "legacy-personal")
-	_ = os.MkdirAll(legacy, 0700)
-	_ = os.WriteFile(filepath.Join(legacy, "token"), []byte("disposable-migration-credential"), 0600)
-	mig := &migration.Manager{Dir: filepath.Join(dir, "migration"), Roots: []migration.Installation{{Kind: "personal_data", Path: legacy}}}
 	ui := &fakeUI{answers: []string{"Connect runner", "Connect runner", "Connect runner"}}
-	sh := New(Options{Migration: mig, VerifyMigration: func(ctx context.Context) error { _, err := link.Source.List(ctx); return err }, Components: "Shell: v1.9.0-preview.1\nPersonal: v1.9.0-preview.1\nTeam: v3.8.0", Workspaces: reg, Team: link, TeamInstaller: &fakeInstaller{found: true}, Grants: personal, Invites: &Invites{}, UI: ui})
+	sh := New(Options{Components: "Shell: v1.9.0-preview.1\nPersonal: v1.9.0-preview.1\nTeam: v3.8.0", Workspaces: reg, Team: link, TeamInstaller: &fakeInstaller{found: true}, Grants: personal, Invites: &Invites{}, UI: ui})
 	mux := http.NewServeMux()
 	dist := filepath.Join("..", "..", "frontend", "dist")
 	mux.Handle("/", http.FileServer(http.Dir(dist)))
@@ -77,18 +72,6 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 		switch in.Method {
 		case "Info":
 			out = sh.Info()
-		case "MigrationStatus":
-			out, err = sh.MigrationStatus()
-		case "Migrate":
-			// Substitute native dialog response only in this disposable browser fixture.
-			ui.mu.Lock()
-			if id == "adopt" {
-				ui.answers = append([]string{"Back up and adopt"}, ui.answers...)
-			} else {
-				ui.answers = append([]string{"Roll back adoption"}, ui.answers...)
-			}
-			ui.mu.Unlock()
-			out, err = sh.Migrate(id)
 		case "Workspaces":
 			out = sh.Workspaces()
 		case "Overview":

@@ -40,10 +40,9 @@ The primary installer includes Team’s separately versioned native installer as
 standalone Team apps remain compatible fallbacks. No Team installation or activation happens on startup.
 
 An Individual controller older than 1.6 refuses to be framed and lacks the summary the window reads. Instead of a blank
-page the window says which version is running and offers **Update Werkbord…**: it adopts the existing installation
-(backed up, after a native confirmation) and then lets the launcher install the bundled program, which refuses while
-agents are working and restores the previous one if the new one does not start. An older Team service is left as it is
-and does not block that adoption; it is updated through Team's own path (Workspaces and devices → Update Team).
+page the window says which version is running and offers **Update Werkbord…**: it lets the launcher install the bundled
+program, which refuses while agents are working and restores the previous one if the new one does not start. An older Team
+service is left as it is; it is updated through Team's own path (Workspaces and devices → Update Team).
 
 My Work, Calendar and Needs you read a bounded neutral summary from each
 accessible service. Links open the relevant workspace and project in the same
@@ -55,7 +54,7 @@ screens. The shell never sends an aggregate or Individual data to Team.
 
 Once the person connects their Individual runner to a Team workspace (an explicit native action, below), the Team
 service on their computer copies every ticket they hold in that workspace's projects into Individual as a backlog task,
-using the same synchronization as the CLI connector ([INTEGRATION.md](INTEGRATION.md)): text only, idempotent by
+using the synchronization described in [INTEGRATION.md](INTEGRATION.md): text only, idempotent by
 provenance, never starting a run. Projects can be turned off under Team Settings → Tickets in Individual. A claim made
 through the console wakes the synchronization at once. The ticket then shows **Open in Individual**, which switches the
 window to Individual at that task (a frame may only ask the shell to show Individual at a `#/…` place), ready for the

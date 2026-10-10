@@ -3,7 +3,6 @@ package main
 // These tests host both independent APIs in the developer-client test harness.
 // Neither shipped product links the other product's backend.
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -27,7 +26,6 @@ import (
 	"devboard/internal/runner"
 	localservice "devboard/internal/service"
 	localsqlite "devboard/internal/store/sqlite"
-	"devboard/internal/team/config"
 	"devboard/internal/team/connector"
 	"devboard/internal/team/devicestate"
 	"devboard/internal/team/domain"
@@ -430,32 +428,4 @@ func TestConnectorBrowserFixture(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("browser fixture not stopped")
-}
-
-func TestConnectorConnectExistingFileDoesNotRevokeActiveGrant(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("connector is intentionally refused for root")
-	}
-	ctx := context.Background()
-	local := newIntegrationLocal(t)
-	dir := t.TempDir()
-	full := filepath.Join(dir, "owner-token")
-	access := filepath.Join(dir, "access-token")
-	if err := os.WriteFile(full, []byte(local.owner), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(access, []byte("existing grant"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	var out bytes.Buffer
-	err := cmdConnector(ctx, config.Default(), []string{"connect", "--runner", local.url, "--controller-token-file", full, "--access-file", access}, &out, &out)
-	if err == nil {
-		t.Fatal("overwrote existing access file")
-	}
-	if err := local.bridge.RequireIntegrationAccess(ctx); err != nil {
-		t.Fatal("failed connect revoked active access", err)
-	}
-	if strings.Contains(out.String(), local.owner) {
-		t.Fatal("printed controller credential")
-	}
 }
