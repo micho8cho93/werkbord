@@ -139,27 +139,34 @@ func TestSlotsAreAddedForgottenAndGivenGrantsOnlyByTheirOwnIdentity(t *testing.T
 
 // ---- the installer ----
 
-func fakeApp(t *testing.T, dir string) string {
+// fakeApp is an app bundle as a release has it: the executable, and Team's service beside the other helpers.
+func fakeApp(t *testing.T, dir string, withService bool) string {
 	t.Helper()
-	exe := filepath.Join(dir, "Werkbord Team.app", "Contents", "MacOS", ExecutableName)
+	exe := filepath.Join(dir, "Werkbord.app", "Contents", "MacOS", "Werkbord")
 	if err := os.MkdirAll(filepath.Dir(exe), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(exe, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return filepath.Join(dir, "Werkbord Team.app")
+	if withService {
+		helper := filepath.Join(dir, "Werkbord.app", "Contents", "Helpers", "werkbord-team")
+		if err := os.MkdirAll(filepath.Dir(helper), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(helper, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return exe
 }
 
-func TestOnlyTeamsOwnSignedInstallerIsRunAndOnlyWithFixedArguments(t *testing.T) {
+func TestOnlyTheAppsOwnInstallerIsRunAndOnlyWithFixedArguments(t *testing.T) {
 	dir := t.TempDir()
-	app := fakeApp(t, dir)
+	exe := fakeApp(t, dir, true)
 	var ran [][]string
-	var verified []string
-	verifyErr := error(nil)
 	i := &Installer{
-		Candidates: []string{filepath.Join(dir, "missing.app"), app},
-		Verify:     func(_ context.Context, p string) error { verified = append(verified, p); return verifyErr },
+		Program: exe,
 		Run: func(_ context.Context, name string, args ...string) (string, error) {
 			ran = append(ran, append([]string{name}, args...))
 			return "noise from a library\n" + `{"ok":true,"version":"3.6.0","detail":"the Team service is running"}` + "\n", nil
@@ -169,11 +176,8 @@ func TestOnlyTeamsOwnSignedInstallerIsRunAndOnlyWithFixedArguments(t *testing.T)
 	if err != nil || !r.OK || r.Version != "3.6.0" {
 		t.Fatalf("%+v %v", r, err)
 	}
-	if len(ran) != 1 || ran[0][1] != "--activate" || len(ran[0]) != 2 || !strings.HasSuffix(ran[0][0], "/Contents/MacOS/"+ExecutableName) {
+	if len(ran) != 1 || ran[0][0] != exe || ran[0][1] != "--activate" || len(ran[0]) != 2 {
 		t.Fatalf("ran %v", ran)
-	}
-	if len(verified) != 1 || verified[0] != ran[0][0] {
-		t.Fatalf("verified %v", verified)
 	}
 	for _, a := range []string{"start", "stop", "uninstall"} {
 		if _, err := i.Service(bg, a); err != nil {
@@ -183,42 +187,33 @@ func TestOnlyTeamsOwnSignedInstallerIsRunAndOnlyWithFixedArguments(t *testing.T)
 	if len(ran) != 4 || ran[3][1] != "--service" || ran[3][2] != "uninstall" {
 		t.Fatalf("ran %v", ran)
 	}
-	n := len(ran)
 	for _, bad := range []string{"", "install", "--activate", "stop; rm -rf /", "Stop"} {
 		if _, err := i.Service(bg, bad); err == nil {
 			t.Errorf("%q was run", bad)
 		}
 	}
-	// A copy whose signature does not check out is never run.
-	verifyErr = errors.New("a sealed resource is missing")
-	if _, err := i.Activate(bg); err == nil || !strings.Contains(err.Error(), "could not be verified") {
-		t.Fatalf("%v", err)
+	if len(ran) != 4 {
+		t.Fatal("a refused action was run")
 	}
-	if len(ran) != n {
-		t.Fatal("an unverified installer was run")
+	// A build that does not carry Team's service (run from source) cannot install it, and nothing runs.
+	bare := fakeApp(t, t.TempDir(), false)
+	for _, none := range []*Installer{{Program: bare, Run: i.Run}, {Program: filepath.Join(dir, "missing"), Run: i.Run}, {Run: i.Run}} {
+		if _, err := none.Activate(bg); err == nil || !strings.Contains(err.Error(), "does not carry Team's service") {
+			t.Fatalf("%v", err)
+		}
 	}
-	// Not installed: the person is told where to get it, and nothing runs.
-	none := &Installer{Candidates: []string{filepath.Join(dir, "missing.app")}, Run: i.Run}
-	if _, err := none.Activate(bg); err == nil || !strings.Contains(err.Error(), "not installed") {
-		t.Fatalf("%v", err)
+	if len(ran) != 4 {
+		t.Fatal("an installer that is not there was run")
 	}
 	// The installer's own words reach the person when it fails.
-	failing := &Installer{Candidates: []string{app}, Run: func(context.Context, string, ...string) (string, error) {
+	failing := &Installer{Program: exe, Run: func(context.Context, string, ...string) (string, error) {
 		return `{"ok":false,"version":"3.6.0","detail":"service installation was cancelled; choose Try again when you are ready"}`, errors.New("exit status 1")
 	}}
 	if _, err := failing.Activate(bg); err == nil || !strings.Contains(err.Error(), "was cancelled") {
 		t.Fatalf("%v", err)
 	}
-	garbled := &Installer{Candidates: []string{app}, Run: func(context.Context, string, ...string) (string, error) { return "<html>", nil }}
+	garbled := &Installer{Program: exe, Run: func(context.Context, string, ...string) (string, error) { return "<html>", nil }}
 	if _, err := garbled.Activate(bg); err == nil {
 		t.Fatal("an answer that is not JSON was believed")
-	}
-}
-
-func TestTeamsAppIsLookedForInsideThisAppFirstThenInApplications(t *testing.T) {
-	got := DefaultCandidates("/Applications/Werkbord.app", "/Users/a")
-	want := []string{"/Applications/Werkbord.app/Contents/Helpers/Werkbord Team.app", "/Applications/Werkbord Team.app", "/Users/a/Applications/Werkbord Team.app"}
-	if strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Fatalf("%v", got)
 	}
 }

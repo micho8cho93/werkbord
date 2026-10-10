@@ -47,8 +47,6 @@ jobs:
           make desktop-check
           make desktop-package
           scripts/test-unified-installer.sh
-          make team-desktop-check
-          ARCH="$(go env GOARCH)" make team-desktop-package
           codesign --verify --strict --deep dist/desktop/Werkbord.app
       - name: Desktop app signing, notarization and release checks (against a temporary keychain and fakes of Apple's tools)
         if: matrix.os == 'macos-latest'

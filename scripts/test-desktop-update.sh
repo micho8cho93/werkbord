@@ -32,7 +32,7 @@
 set -eu
 # Isolated Individual signature/updater fixtures. Unified payloads are tested by
 # test-unified-installer.sh; production --release rejects this override.
-export UNIFIED_DESKTOP=0
+export TEAM_PAYLOAD=0
 
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)

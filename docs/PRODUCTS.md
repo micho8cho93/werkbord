@@ -19,13 +19,13 @@ own data directory and CLI. The primary desktop installer bundles both component
 | Version file | `cmd/werkbord/VERSION` | the same file (`cmd/werkbord-team/VERSION` is gone) |
 | Release tag | `werkbord-vX.Y.Z` | the same tag |
 | Release archives | `werkbord_<version>_<os>_<arch>` (also published as `devboard_…` for older updaters) | `werkbord-team_<version>_<os>_<arch>` |
-| Installer | `scripts/install.sh`, `scripts/install.ps1`; on a Mac, the app in `desktop/` ([DESKTOP.md](DESKTOP.md)), which installs the same program | `scripts/install-team.sh`; the separate Team app in `cmd/werkbord-team/desktop/` ([TEAM_DESKTOP.md](TEAM_DESKTOP.md)) |
+| Installer | `scripts/install.sh`, `scripts/install.ps1`; on a Mac, the app in `desktop/` ([DESKTOP.md](DESKTOP.md)), which installs the same program | `scripts/install-team.sh` for a command-line host; on a Mac, the same app, which installs Team's service ([TEAM_DESKTOP.md](TEAM_DESKTOP.md)) |
 | Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory |
 | Settings | `WERKBORD_*` (and the older `DEVBOARD_*`) | `WERKBORD_TEAM_*` |
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` |
 | Build | `make build` (or `make werkbord`); the Mac app: `make desktop` | `make build-team` (or `make werkbord-team`) |
 
-The two backend products can be installed, run and upgraded independently, on the same computer or on different ones. Phase 3 adds a product-neutral desktop shell for everyday Personal and Team workspaces; see [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md). Bundling one does not activate or start the other; native Team activation remains explicit. The Team desktop app offers an explicit, optional local
+The two backend products can be installed, run and upgraded independently, on the same computer or on different ones. Phase 3 adds a product-neutral desktop shell for everyday Personal and Team workspaces; see [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md). Bundling one does not activate or start the other; native Team activation remains explicit. The app offers an explicit, optional local
 installation of the free individual runner through that product’s normal setup.
 
 Team 3.0 defaults to customer-owned Nebula, administrator-approved enrollment, device-signed remote API requests and offline signed license enforcement. There is no Team Tailscale account or vendor runtime requirement. Customers operate their Workspace/Connectivity Hosts, backups and local runners. Individual tsnet and `DEVBOARD_*` compatibility stay separate. See [TEAM_SECURITY.md](TEAM_SECURITY.md), [TEAM_INSTALL.md](TEAM_INSTALL.md), [TEAM_LICENSE.md](TEAM_LICENSE.md) and the [release gate](TEAM_SECURITY_GATE.md).
@@ -60,7 +60,6 @@ The repository is one Go module. The usual monorepo split (`apps/` and `packages
 cmd/werkbord/            APP    the individual product
 desktop/                 APP    the individual product's Mac app: a native window around web/ (its own Go module; DESKTOP.md)
 cmd/werkbord-team/       APP    Werkbord Team
-cmd/werkbord-team/desktop/ APP  separate Team Wails window and local OS installer (own Go module)
 
 internal/sqlitekit/      SHARED opening, migrating and backing up a SQLite database
 internal/httpkit/        SHARED JSON responses, error envelope, strict body decoding, request logging, security headers
@@ -206,8 +205,8 @@ make test-install test-install-team   # each installer against a local release s
 The individual Mac app (needs the Xcode command line tools): `make desktop`, `make desktop-package` (adds a
 `.dmg`), `make desktop-dev` (and `make desktop-dev-stop`), `make desktop-check`. See [DESKTOP.md](DESKTOP.md).
 
-The separate Team Mac app: `make team-desktop`, `make team-desktop-package`, `make team-desktop-check`.
-Production distribution: `make team-desktop-release`; see [TEAM_DESKTOP.md](TEAM_DESKTOP.md).
+There is no separate Team Mac app: `make desktop-package` builds the one app, Team's service and installer included
+([TEAM_DESKTOP.md](TEAM_DESKTOP.md)).
 
 Releases: `make dist PRODUCT=werkbord` or `PRODUCT=werkbord-team` writes the archives and `checksums.txt` to `dist/`.
 CI does this when a product tag is pushed. See [VERSIONING.md](VERSIONING.md).

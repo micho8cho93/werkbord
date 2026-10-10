@@ -36,8 +36,8 @@ there too.
 On narrow windows the sidebar folds to icons below about 1110px of window width so a workspace keeps its full layout;
 the person's choice is remembered per device. Individual's runners are under Workspaces and devices → Runners.
 Creating and joining a Team reuse Team's first-host and administrator-approved enrollment screens. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
-The primary installer includes Team’s separately versioned native installer as an inert nested bundle. Existing
-standalone Team apps remain compatible fallbacks. No Team installation or activation happens on startup.
+The app carries Team’s service and its installer (the app’s own executable in an installer mode). There is no separate
+Team app. No Team installation or activation happens on startup.
 
 An Individual controller older than 1.6 refuses to be framed and lacks the summary the window reads. Instead of a blank
 page the window says which version is running and offers **Update Werkbord…**: it lets the launcher install the bundled
@@ -123,7 +123,7 @@ it does not stop runs already accepted by Individual or affect another slot.
   unit tests, Svelte checks, lint, builds, desktop logic and release-script checks.
 - `make verify-isolation`: Individual builds, tests and runs with every Team source
   removed, including tests of the desktop shell's HTTP clients and registry.
-- `make desktop-check team-desktop-check`: native macOS compilation/vet and logic.
+- `make desktop-check`: native macOS compilation/vet and logic, the Team installer included.
 - `make test-rqlite`: pinned real clusters, promotion/demotion, lost quorum,
   failover, backup/restore and service behavior with replicated storage.
 - `make test-unified-desktop-browser`: built Svelte components, real Go shell,

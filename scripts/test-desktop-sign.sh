@@ -30,7 +30,7 @@
 set -eu
 # Isolated Individual signature/updater fixtures. Unified payloads are tested by
 # test-unified-installer.sh; production --release rejects this override.
-export UNIFIED_DESKTOP=0
+export TEAM_PAYLOAD=0
 
 FAST=""
 [ "${1:-}" != --fast ] || FAST=1
@@ -378,6 +378,29 @@ done
 # the two are not the same file under two names (the window, a few MB, and the program, tens of MB, are different programs)
 [ "$(lipo -archs "$APP/Contents/MacOS/Werkbord" | wc -w | tr -d ' ')" = 2 ] && ! cmp -s "$APP/Contents/MacOS/Werkbord" "$APP/Contents/Helpers/werkbord" || bad "the window and the program are the same file"
 ok "the window and the program are each one universal program: Apple Silicon and Intel in one app"
+
+# =================================================================== 4b. the Team service the app carries
+echo "4b. the Team service in the app"
+: > "$LOG"
+OUT2="$WORK/out-team"
+TEAM_PAYLOAD=1 ARCH=universal CODESIGN="$SHIM" CODESIGN_IDENTITY="$ID" CODESIGN_TIMESTAMP=none CODESIGN_KEYCHAIN="$WORK/some.keychain-db" \
+  scripts/build-desktop.sh "$OUT2" >"$WORK/build2.log" 2>&1 || { cat "$WORK/build2.log" >&2; bad "the build that carries Team's service failed"; }
+signed=$(grep '^SIGN' "$LOG" | awk '{ n = split($2, p, "/"); print p[n] }' | tr '\n' ' ')
+# rqlited first and once: the Team service is built with the hash of exactly those bytes, so signing it again would make another
+# file. Nebula is never signed: it keeps its makers' signature and is held to its pin.
+[ "$signed" = "rqlited werkbord werkbord-team Werkbord.app " ] || bad "the Team service's pieces are not signed as they must be" "got: $signed"
+ok "signed: the database program first and once, then the programs, then the app; the network program never"
+T="$OUT2/Werkbord.app"
+want=$(sed -n 's/.*"sha256":"\([a-f0-9]*\)".*/\1/p' "$T/Contents/Resources/rqlited.build")
+[ "$(shasum -a 256 "$T/Contents/Helpers/rqlited" | cut -d' ' -f1)" = "$want" ] || bad "the database program is not the one the build record names"
+grep -aq "$want" "$T/Contents/Helpers/werkbord-team" || bad "the Team service was not built with the hash of the database program it ships with"
+ok "the Team service carries the hash of the database program it ships with"
+for exe in "$T/Contents/Helpers/werkbord-team" "$T/Contents/Helpers/rqlited"; do
+  archs=$(lipo -archs "$exe")
+  [ "$archs" = "x86_64 arm64" ] || [ "$archs" = "arm64 x86_64" ] || bad "$exe is not universal ($archs)"
+done
+CODESIGN="$SHIM" scripts/check-team-payload.sh --distribution "$T" >/dev/null || bad "check-team-payload refuses the Team service in a build it should accept"
+ok "the Team service is universal and passes its own check"
 /usr/bin/codesign --verify --strict --deep "$APP" || bad "the app does not verify"
 /usr/bin/codesign -dvv "$APP" 2>&1 | grep -q 'runtime' || bad "the real signature has no hardened runtime flag" "$(/usr/bin/codesign -dvv "$APP" 2>&1)"
 /usr/bin/codesign -d --entitlements - --xml "$APP" 2>/dev/null | grep -q 'com.apple' && bad "the app asks for an entitlement"

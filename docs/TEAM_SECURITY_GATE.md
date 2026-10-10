@@ -86,7 +86,7 @@ A reverse proxy exposing/stripping provenance from the local member API is unsup
 | Nebula | **1.11.2**, MIT | Upstream archive/binary SHA-256 pins; original universal Mac signature retained; notices in `third_party/nebula` |
 | Rqlite | **10.5.2**, commit `a73dd2e63acb72080f5eb20881a03bb06a464f89`, MIT | Linux archive/binary pins; fresh Mac source builds; exact build/signature hash embedded in Team; `third_party/rqlite` notices |
 | Go | **1.27.1** for local Team/rqlite builds, BSD-style license | Bundled Go notice; upstream Nebula has its own embedded dependency/toolchain versions |
-| Wails | **2.16.0**, MIT | Separately versioned Team desktop module; native universal compile and desktop source scan |
+| Wails | **2.16.0**, MIT | The desktop app's module (it carries Team's installer); native universal compile and desktop source scan |
 | Go module dependencies | `go.mod`/`go.sum` and desktop module pins | Generated Nebula/rqlite dependency notices ship with bundles; no runtime dependency downloads |
 
 Reviewed primary references include the [Nebula releases](https://github.com/slackhq/nebula/releases), [Nebula P256 blocklist advisory](https://github.com/slackhq/nebula/security/advisories/GHSA-69x3-g4r3-p962), [rqlite releases](https://github.com/rqlite/rqlite/releases) and Go's vulnerability database. Nebula 1.11.2 is outside the P256 advisory's affected range, and Team uses Ed25519 CA certificates. This limited upstream review is not a complete audit of either project.
@@ -145,15 +145,15 @@ Specific executed scenarios include seeded random host kills/restarts (seed 42/1
 Agent-driven packaging and scan commands:
 
 ```sh
-ARCH=universal GOFLAGS=-p=2 scripts/build-team-desktop.sh --package /tmp/werkbord-gate-package
-scripts/check-team-desktop.sh --adhoc '/tmp/werkbord-gate-package/Werkbord Team.app'
+ARCH=universal GOFLAGS=-p=2 scripts/build-desktop.sh --package /tmp/werkbord-gate-package
+scripts/check-team-payload.sh --adhoc /tmp/werkbord-gate-package/Werkbord.app
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -show verbose ./...
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -mode binary .cache/rqlite/10.5.2/darwin_arm64/rqlited
 lipo .cache/nebula/1.11.2/darwin_arm64/nebula -thin arm64 -output /tmp/werkbord-gate-nebula-arm64
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -mode binary /tmp/werkbord-gate-nebula-arm64
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -mode binary .cache/nebula/1.11.2/linux_arm64/nebula
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -mode binary .cache/rqlite/10.5.2/linux_arm64/rqlited
-# From cmd/werkbord-team/desktop:
+# From desktop:
 CGO_ENABLED=1 CGO_LDFLAGS='-framework UniformTypeIdentifiers' \
   go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -tags desktop,production ./...
 ```

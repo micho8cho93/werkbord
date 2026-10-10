@@ -7,8 +7,7 @@ cd "$(dirname "$0")/.."
 app=${1:-dist/desktop/Werkbord.app}
 scripts/check-unified-desktop.sh --development "$app"
 scripts/check-desktop-signature.sh --adhoc "$app"
-team="$app/Contents/Helpers/Werkbord Team.app"
-if "$team/Contents/MacOS/Werkbord Team" --verify-release >/dev/null 2>&1; then
+if "$app/Contents/MacOS/Werkbord" --verify-release >/dev/null 2>&1; then
   echo 'development fixture unexpectedly accepted as a release' >&2; exit 1
 fi
 dmg=$(find dist/desktop -maxdepth 1 -name 'Werkbord_*.dmg' | sort | tail -1)

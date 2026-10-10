@@ -17,9 +17,9 @@
   {#if model.view?.invitation}<p class="note">You opened a Team invitation. It will be used to join.</p>{/if}
 
   {#if noInstaller}
-    <p>Werkbord Team is not installed on this Mac. It is a separate download with its own license.</p>
+    <p>This build of Werkbord does not include Team's service. Team comes with the Werkbord app from a release; each workspace needs its own license.</p>
     <div class="actions">
-      <button class="btn primary" type="button" onclick={() => ask((a) => a.OpenExternal(releases))}>Get Werkbord Team</button>
+      <button class="btn primary" type="button" onclick={() => ask((a) => a.OpenExternal(releases))}>Get the Werkbord app</button>
       <button class="btn" type="button" onclick={() => (model.addOpen = false)}>Close</button>
     </div>
   {:else if needsSetup}

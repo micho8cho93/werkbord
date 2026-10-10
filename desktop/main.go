@@ -20,6 +20,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"devboard/desktop/internal/shell"
+	"devboard/desktop/internal/teaminstall"
 	"devboard/internal/launcher"
 	"devboard/internal/workspace"
 )
@@ -45,6 +46,11 @@ var version = "dev"
 type App struct{ *shell.Shell }
 
 func main() {
+	// Team's installer is this same program, run with a fixed argument by the app (or, for its one privileged step, by macOS as
+	// root after an administrator's authorization). It never opens a window, a log or the web view.
+	if teaminstall.Handles(os.Args[1:]) {
+		os.Exit(teaminstall.Run(version, os.Args[1:], os.Stdout, os.Stderr))
+	}
 	log, appLog, closeLog := openLog()
 	defer closeLog()
 	log.Info("starting", "version", version, "os", goruntime.GOOS, "arch", goruntime.GOARCH)

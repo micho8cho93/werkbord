@@ -1,5 +1,8 @@
-// Package platform owns native, locally initiated installation. It is never linked into a Workspace Host.
-package platform
+// Package teaminstall is Werkbord's own installer for the Team service on a Mac: native, locally initiated, and never linked
+// into a Workspace Host. The app's executable is the installer. Run with --activate or --service it does one fixed thing and
+// prints one line of JSON; macOS asks for an administrator's authorization, and the privileged step runs this same executable
+// as root with --team-service (it does so before any window exists). It takes no argument that names a path or a program.
+package teaminstall
 
 import (
 	"context"
@@ -16,7 +19,8 @@ import (
 	"time"
 )
 
-var nativeVersion = "dev" // stamped independently from the Personal shell
+// nativeVersion is the version the service must report once it is installed: the app's own, set by Run.
+var nativeVersion = "dev"
 
 const ServiceLabel = "dev.werkbord.team"
 const BaseURL = "http://127.0.0.1:7431"

@@ -1,4 +1,4 @@
-package platform
+package teaminstall
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 )
 
 // signingTeam is the Apple Developer team that signs a Werkbord release, stamped into a release build (-X
-// devboard/cmd/werkbord-team/desktop/internal/platform.signingTeam=ABCDE12345). It is public. The Team service is installed
+// devboard/desktop/internal/teaminstall.signingTeam=ABCDE12345). It is public. The Team service is installed
 // into a root-owned directory, so before it replaces anything it checks that the app it is running from was signed by that
 // team under Apple's own certificate chain: a modified copy, or one signed by anyone else, is refused. The app is built,
 // signed and notarized by the same release as everything else in Werkbord, so this is the one trust anchor a release has.

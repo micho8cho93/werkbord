@@ -13,41 +13,30 @@ import (
 // Exec runs a program and returns what it printed (standard output only is the answer; standard error is for a log).
 type Exec func(ctx context.Context, name string, args ...string) (stdout string, err error)
 
-// Installer finds and drives Team's own installer. It runs nothing but that program, with the fixed arguments below, and
-// only a copy whose signature checks out.
+// Installer drives Team's installer, which is this app's own executable run in its installer mode (internal/teaminstall). It
+// runs nothing but that program, with the fixed arguments below.
 type Installer struct {
-	// Candidates are the places Team's app may be: inside this app, then the usual folders.
-	Candidates []string
-	// Verify checks a program's signature; nil means a development build that cannot (and says so).
-	Verify func(ctx context.Context, path string) error
-	Run    Exec
+	// Program is the app's own executable.
+	Program string
+	Run     Exec
 }
 
-// DefaultCandidates lists where Werkbord Team.app can be, for an app at appBundle and a person at home.
-func DefaultCandidates(appBundle, home string) []string {
-	var out []string
-	if appBundle != "" {
-		out = append(out, filepath.Join(appBundle, "Contents", "Helpers", "Werkbord Team.app"))
-	}
-	out = append(out, "/Applications/Werkbord Team.app")
-	if home != "" {
-		out = append(out, filepath.Join(home, "Applications", "Werkbord Team.app"))
-	}
-	return out
+// payload is the Team service the installer puts in place; it sits beside the app's other helpers. A build without it (a
+// development build run from source) cannot install Team.
+func payload(program string) string {
+	return filepath.Join(filepath.Dir(program), "..", "Helpers", "werkbord-team")
 }
 
-// ExecutableName is the name of the program inside Team's app.
-const ExecutableName = "Werkbord Team"
-
-// Find returns Team's installer program, or an error saying where the person can get Team.
+// Find returns the installer program, or an error saying why this build cannot install Team.
 func (i *Installer) Find() (string, error) {
-	for _, app := range i.Candidates {
-		exe := filepath.Join(app, "Contents", "MacOS", ExecutableName)
-		if fi, err := os.Stat(exe); err == nil && fi.Mode().IsRegular() && fi.Mode()&0o111 != 0 {
-			return exe, nil
+	if i.Program != "" {
+		if fi, err := os.Stat(i.Program); err == nil && fi.Mode().IsRegular() {
+			if _, err := os.Stat(payload(i.Program)); err == nil {
+				return i.Program, nil
+			}
 		}
 	}
-	return "", errors.New("Werkbord Team is not installed on this Mac. Install the unified Werkbord desktop bundle or the compatible signed Team app, and try again")
+	return "", errors.New("this build of Werkbord does not carry Team's service (a development build); use the Werkbord app from a release to add a Team")
 }
 
 // Result is what Team's installer printed.
@@ -62,11 +51,6 @@ func (i *Installer) run(ctx context.Context, args ...string) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if i.Verify != nil {
-		if err := i.Verify(ctx, exe); err != nil {
-			return Result{}, fmt.Errorf("Werkbord Team's installer could not be verified (%v); it was not run", err)
-		}
-	}
 	out, err := i.Run(ctx, exe, args...)
 	var r Result
 	line := strings.TrimSpace(out)
@@ -75,9 +59,9 @@ func (i *Installer) run(ctx context.Context, args ...string) (Result, error) {
 	}
 	if jerr := json.Unmarshal([]byte(line), &r); jerr != nil {
 		if err != nil {
-			return Result{}, fmt.Errorf("Werkbord Team's installer stopped: %w", err)
+			return Result{}, fmt.Errorf("Team's installer stopped: %w", err)
 		}
-		return Result{}, errors.New("Werkbord Team's installer gave an answer this app does not understand")
+		return Result{}, errors.New("Team's installer gave an answer this app does not understand")
 	}
 	if !r.OK {
 		if r.Detail == "" {

@@ -9,6 +9,9 @@
 #   Contents/MacOS/Werkbord        the window (desktop/, Wails)
 #   Contents/Helpers/werkbord      the controller and command line, the same program the release
 #                                  archives and the installer carry, with the web app embedded
+#   Contents/Helpers/werkbord-team  the Team service, which the app installs (with an administrator's say-so) when a person adds a Team
+#   Contents/Helpers/nebula        the pinned private-network program Team supervises, with its upstream signature, never re-signed
+#   Contents/Helpers/rqlited       the pinned database program Team supervises, built from its pinned source
 #   Contents/Resources/icon.icns   made from desktop/build/appicon.png
 #
 # Codex and Claude Code are not in it: Werkbord finds the ones the person has installed.
@@ -146,12 +149,48 @@ else
   [ "$IDENTITY" = "-" ] || [ "$TIMESTAMP" != none ] || echo "build-desktop: TEST ONLY: signing without a secure timestamp. Do not distribute this build." >&2
 fi
 
+# ---- the Team service the app carries ----
+# TEAM_PAYLOAD=0 leaves it out, for the tests that are about signing and updating and not about Team. A release always has it.
+TEAM_PAYLOAD=${TEAM_PAYLOAD:-1}
+ISSUER=${LICENSE_ISSUER_PUBLIC_KEY:-}
+if [ -n "$ISSUER" ]; then
+  [ ${#ISSUER} -eq 43 ] || die "the license issuer's public key must encode 32 bytes"
+  case "$ISSUER" in *[!A-Za-z0-9_-]*) die "the license issuer's public key must use raw URL base64" ;; esac
+fi
+SIGNING_TEAM=""
+if [ -n "$RELEASE" ]; then
+  [ "$TEAM_PAYLOAD" != 0 ] || die "a release carries Team's service"
+  [ -n "$ISSUER" ] || die "a release requires LICENSE_ISSUER_PUBLIC_KEY (the public key that checks Team licenses); no test issuer is shipped"
+  # The Team service refuses to install unless the app was signed by this Apple Developer team (desktop/internal/teaminstall/release.go).
+  SIGNING_TEAM=$(printf '%s' "$IDENTITY" | sed -n 's/^Developer ID Application: .* (\([A-Z0-9]\{10\}\))$/\1/p')
+  [ -n "$SIGNING_TEAM" ] || die "cannot read the Apple Developer team from the identity \"$IDENTITY\" (expected \"Developer ID Application: Name (TEAMID)\")"
+fi
+
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT INT TERM
 APP="$STAGE/Werkbord.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
 
 echo "building Werkbord $VERSION for darwin/$ARCH"
+
+# ---- signing ----
+#
+# sign_code <path> [entitlements]: one piece of code. A real identity gets the hardened runtime
+# (which notarization requires) and Apple's secure timestamp (so the signature outlives the
+# certificate); ad hoc is for this computer and is neither.
+sign_code() {
+  _path=$1
+  _entitlements=${2:-}
+  set -- --force --sign "$IDENTITY"
+  [ -z "${CODESIGN_KEYCHAIN:-}" ] || set -- "$@" --keychain "$CODESIGN_KEYCHAIN"
+  if [ "$IDENTITY" != "-" ]; then
+    set -- "$@" --options runtime
+    if [ "$TIMESTAMP" = none ]; then set -- "$@" --timestamp=none; else set -- "$@" --timestamp; fi
+  fi
+  [ -z "$_entitlements" ] || set -- "$@" --entitlements "$_entitlements"
+  "$CODESIGN" "$@" "$_path" || die "could not sign $_path"
+}
+
 
 # 1. The controller and command line: exactly what a release archive carries (scripts/build-release.sh).
 # 2. The window. It is its own module (desktop/go.mod) because it needs cgo and the system's web view.
@@ -168,7 +207,7 @@ for a in $ARCHS; do
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a \
     CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" \
     CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0 -framework UniformTypeIdentifiers" \
-      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w -X main.version=$VERSION" \
+      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w -X main.version=$VERSION -X devboard/desktop/internal/teaminstall.signingTeam=$SIGNING_TEAM" \
       -o "$STAGE/window-$a" .
   )
   HELPERS="$HELPERS $STAGE/helper-$a"; WINDOWS="$WINDOWS $STAGE/window-$a"
@@ -185,42 +224,59 @@ fi
 chmod 755 "$APP/Contents/Helpers/werkbord" "$APP/Contents/MacOS/Werkbord"
 rm -f $HELPERS $WINDOWS
 
-# The app carries Team's native installer, the nested Werkbord Team.app. It is part of this release: built here, from this
-# commit, at this version, and signed with the same Developer ID. It is inert until a person asks to add a Team.
-# A release signs it as a release (and Apple notarizes it); its service installer later refuses to run unless the app was
-# signed by this Apple Developer team (cmd/werkbord-team/desktop/internal/platform/release.go).
-TEAM_APP=${TEAM_DESKTOP_APP:-}
-if [ "${UNIFIED_DESKTOP:-1}" = 0 ]; then
-  [ -z "$RELEASE" ] || die "a release carries Team's installer"
-else
-  [ -z "$TEAM_APP" ] || [ -z "$RELEASE" ] || die "TEAM_DESKTOP_APP is for tests only: a release builds Team's installer itself, from this commit"
-  if [ -z "$TEAM_APP" ]; then
-    if [ -n "$RELEASE" ]; then
-      ARCH="$ARCH" VERSION="$VERSION" CODESIGN_IDENTITY="$IDENTITY" OUT="$STAGE/team" scripts/build-team-desktop.sh --nested
-    else
-      ARCH="$ARCH" VERSION="$VERSION" OUT="$STAGE/team" scripts/build-team-desktop.sh
-    fi
-    TEAM_APP="$STAGE/team/Werkbord Team.app"
-  fi
-  if [ -n "$RELEASE" ]; then
-    scripts/check-team-desktop.sh --distribution "$TEAM_APP"
-    "$TEAM_APP/Contents/MacOS/Werkbord Team" --verify-release
-    xcrun stapler validate "$TEAM_APP"
-    spctl --assess --type execute --verbose=2 "$TEAM_APP"
-  else
-    scripts/check-team-desktop.sh --adhoc "$TEAM_APP"
-  fi
-  ditto "$TEAM_APP" "$APP/Contents/Helpers/Werkbord Team.app"
-fi
+# The Team service the app carries and installs when a person adds a Team (docs/UNIFIED_DISTRIBUTION.md). It is part of this
+# release: built here, from this commit, at this version, and signed with the same Developer ID, except Nebula, which keeps its
+# upstream signature and is checked against its pin. Nothing is installed or started until a person asks.
 TEAM_VERSION=absent
-if [ -d "$APP/Contents/Helpers/Werkbord Team.app" ]; then
-  TEAM_VERSION=$("$APP/Contents/Helpers/Werkbord Team.app/Contents/Helpers/werkbord-team" version)
+if [ "$TEAM_PAYLOAD" != 0 ]; then
+  H="$APP/Contents/Helpers"
+  mkdir -p "$APP/Contents/Resources/licenses"
+  # Fetch verifies the upstream hash/source commit BEFORE anything is combined or signed.
+  NEBULA=$(scripts/fetch-nebula.sh darwin arm64)
+  cp "$NEBULA/nebula" "$H/nebula"
+  DATABASES=""
+  for a in $ARCHS; do
+    RQLITE=$(scripts/fetch-rqlite.sh darwin "$a")
+    cp "$RQLITE/rqlited" "$STAGE/database-$a"
+    DATABASES="$DATABASES $STAGE/database-$a"
+  done
+  if [ "$ARCH" = universal ]; then
+    # shellcheck disable=SC2086
+    lipo -create -output "$H/rqlited" $DATABASES
+  else cp "$STAGE/database-$ARCH" "$H/rqlited"; fi
+  # Signed once, here, and never again: the Team service is built with the hash of exactly these bytes, and signing twice
+  # would make a different file.
+  sign_code "$H/rqlited"
+  DATABASE_SHA=$(shasum -a 256 "$H/rqlited" | cut -d' ' -f1)
+  RQLITE_VERSION=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/team/infra/rqlite/manifest.go)
+  RQLITE_COMMIT=$(sed -n 's/^const SourceCommit = "\(.*\)"$/\1/p' internal/team/infra/rqlite/manifest.go)
+  printf '{"version":"v%s","commit":"%s","sha256":"%s"}\n' "$RQLITE_VERSION" "$RQLITE_COMMIT" "$DATABASE_SHA" > "$APP/Contents/Resources/rqlited.build"
+  TEAMS=""
+  for a in $ARCHS; do
+    c=$(carch "$a")
+    CGO_ENABLED=1 GOOS=darwin GOARCH=$a CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0" \
+      go build -trimpath -ldflags "-s -w -X main.version=$VERSION -X main.licenseIssuer=$ISSUER -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA" \
+      -o "$STAGE/team-$a" ./cmd/werkbord-team
+    TEAMS="$TEAMS $STAGE/team-$a"
+  done
+  if [ "$ARCH" = universal ]; then
+    # shellcheck disable=SC2086
+    lipo -create -output "$H/werkbord-team" $TEAMS
+  else cp "$STAGE/team-$ARCH" "$H/werkbord-team"; fi
+  chmod 755 "$H/werkbord-team" "$H/rqlited" "$H/nebula"
+  rm -f $TEAMS $DATABASES
+  cp -R third_party/nebula third_party/rqlite third_party/go "$APP/Contents/Resources/licenses/"
+  TEAM_VERSION=$("$H/werkbord-team" version 2>/dev/null || true)
+  case "$TEAM_VERSION" in "$VERSION") ;; *)
+    # A universal build of the other architecture cannot run here; the version is then read from the build itself.
+    if [ "$ARCH" = "$HOST" ] || [ "$ARCH" = universal ]; then die "Team $TEAM_VERSION is not this release ($VERSION)"; fi
+    TEAM_VERSION=$VERSION ;;
+  esac
 fi
-case "$TEAM_VERSION" in "$VERSION"|absent) ;; *) die "Team $TEAM_VERSION is not this release ($VERSION)" ;; esac
 printf 'Shell: %s\nPersonal: %s\nTeam: %s\nPersonal API: workspace-summary-v1 + execution-local-v1\nTeam API: device-v1 + team-v1\nSync: integration-v1 + execution-v1\n' "$VERSION" "$VERSION" "$TEAM_VERSION" > "$APP/Contents/Resources/components.txt"
 
 cp desktop/build/compatibility.json "$APP/Contents/Resources/compatibility.json"
-if [ "${UNIFIED_DESKTOP:-1}" != 0 ]; then scripts/check-unified-desktop.sh --development "$APP"; fi
+if [ "$TEAM_PAYLOAD" != 0 ]; then scripts/check-unified-desktop.sh --development "$APP"; fi
 
 # 3. The icon, from the one 1024px picture (Apple's own tools; nothing to install).
 ICONSET="$STAGE/icon.iconset"
@@ -270,24 +326,6 @@ if [ -n "$WITH_SPARKLE" ]; then
   plutil -lint "$P" >/dev/null
 fi
 
-# ---- signing ----
-#
-# sign_code <path> [entitlements]: one piece of code. A real identity gets the hardened runtime
-# (which notarization requires) and Apple's secure timestamp (so the signature outlives the
-# certificate); ad hoc is for this computer and is neither.
-sign_code() {
-  _path=$1
-  _entitlements=${2:-}
-  set -- --force --sign "$IDENTITY"
-  [ -z "${CODESIGN_KEYCHAIN:-}" ] || set -- "$@" --keychain "$CODESIGN_KEYCHAIN"
-  if [ "$IDENTITY" != "-" ]; then
-    set -- "$@" --options runtime
-    if [ "$TIMESTAMP" = none ]; then set -- "$@" --timestamp=none; else set -- "$@" --timestamp; fi
-  fi
-  [ -z "$_entitlements" ] || set -- "$@" --entitlements "$_entitlements"
-  "$CODESIGN" "$@" "$_path" || die "could not sign $_path"
-}
-
 # sign_bundle: inside-out. Code signs what it contains by hash, so whatever is inside must be signed
 # before the thing that holds it, or the outer signature seals a stale hash and the app fails to verify.
 # Each piece is signed by name, and nothing with --deep, which signs everything the same way and hides
@@ -304,6 +342,9 @@ sign_bundle() {
     sign_code "$fw"
   fi
   sign_code "$app/Contents/Helpers/werkbord"
+  # Team's service is ours to sign. rqlited was signed when it was built (its hash is in the service), and Nebula keeps the
+  # signature its makers gave it: neither is signed here.
+  [ ! -f "$app/Contents/Helpers/werkbord-team" ] || sign_code "$app/Contents/Helpers/werkbord-team"
   sign_code "$app" "$ENTITLEMENTS"
 }
 

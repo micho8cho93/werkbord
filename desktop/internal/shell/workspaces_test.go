@@ -110,9 +110,9 @@ type fakeInstaller struct {
 
 func (i *fakeInstaller) Find() (string, error) {
 	if !i.found {
-		return "", errors.New("Werkbord Team is not installed on this Mac")
+		return "", errors.New("this build of Werkbord does not carry Team's service")
 	}
-	return "/Applications/Werkbord Team.app/Contents/MacOS/Werkbord Team", nil
+	return "/Applications/Werkbord.app/Contents/MacOS/Werkbord", nil
 }
 func (i *fakeInstaller) Activate(context.Context) (teamlink.Result, error) {
 	i.activate++

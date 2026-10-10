@@ -196,21 +196,19 @@ func (s *Shell) teamError(err error) error {
 }
 
 // ActivateTeam sets Team up on this computer, or brings its service up to date, after asking the person in a dialog a web
-// page cannot press. It runs Team's own installer; macOS then asks for an administrator's authorization. A service that
+// page cannot press. It runs the app's own installer; macOS then asks for an administrator's authorization. A service that
 // belongs to a Team workspace is not replaced: the installer says so before it asks for anything, and the person is told.
 func (s *Shell) ActivateTeam() (teamlink.Status, error) {
-	exe, err := s.o.TeamInstaller.Find()
-	if err != nil {
+	if _, err := s.o.TeamInstaller.Find(); err != nil {
 		return teamlink.Status{State: "not_installed", Detail: err.Error()}, err
 	}
-	_ = exe
 	// An installed service that is too old is being updated, not set up, and the person is told which.
 	listCtx, listCancel := s.timeout(10 * time.Second)
 	updating := s.teamStatus(s.o.Workspaces.Refresh(listCtx)).State == "outdated"
 	listCancel()
 	dialog := Dialog{
 		Kind:  Question,
-		Title: "Set up Werkbord Team on this Mac?",
+		Title: "Set up Team on this Mac?",
 		Message: "Team adds shared workspaces next to your Personal one.\n\n" +
 			"It installs a background service, with your administrator password, that runs the network and the shared database for your teams. " +
 			"The service never runs your coding agents and never sees your Werkbord's credentials: your agents keep running as you, in your own Werkbord, " +

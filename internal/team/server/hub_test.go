@@ -250,7 +250,7 @@ func TestWorkspacesAreSlotsThatSurviveARestartAndAnEmptyOneIsReused(t *testing.T
 	}
 }
 
-// The native installer (cmd/werkbord-team/desktop/internal/platform.PreflightReplacement) asks the running service whether it
+// The native installer (desktop/internal/teaminstall.PreflightReplacement) asks the running service whether it
 // holds a workspace, in these words, before it asks the person for an administrator's password. It cannot import this package,
 // so this is the one place that keeps the two agreed: renaming one of these fields without it would silently turn that
 // question into "no".

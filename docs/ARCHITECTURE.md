@@ -957,7 +957,6 @@ See [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md).
 
 Phase 3 adds one everyday desktop shell with Personal and multiple Team
 workspaces while retaining isolated backend services, user-owned execution and
-explicit Team installation. The existing Team app remains a compatible installer
-and console; it is no longer required as a second everyday window. See
+explicit Team installation. The installer is part of the same app; there is no second window. See
 [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md) for navigation, host volunteering,
 security boundaries, lifecycle, validation and operational limits.

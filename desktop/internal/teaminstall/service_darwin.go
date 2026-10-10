@@ -1,4 +1,4 @@
-package platform
+package teaminstall
 
 import (
 	"context"
@@ -281,51 +281,5 @@ func PrivilegedService(action, uid string) (resultErr error) {
 		return err
 	}
 	rollback = false
-	return nil
-}
-
-// SetupRunner opens an installed free Werkbord app, or uses its bundled signed CLI to do the normal supported setup.
-// This is a local native action. The Team daemon and Hosts have no entry point to it.
-func SetupRunner(ctx context.Context) error {
-	if _, err := os.Stat("/Applications/Werkbord.app"); err == nil {
-		return exec.CommandContext(ctx, "/usr/bin/open", "/Applications/Werkbord.app").Run()
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	cli := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", "Helpers", "werkbord"))
-	if _, err := os.Stat(cli); err != nil {
-		return errors.New("this app has no runner installer; download the supported Werkbord app from its release page")
-	}
-	if err := exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--strict", cli).Run(); err != nil {
-		return errors.New("the bundled runner's signature could not be verified")
-	}
-	// Werkbord's own installer preserves DEVBOARD aliases and credentials, installs its login service and applies its own policies.
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	bin := filepath.Join(home, ".local", "bin")
-	if err := os.MkdirAll(bin, 0755); err != nil {
-		return err
-	}
-	installed := filepath.Join(bin, "werkbord")
-	if _, err := os.Stat(installed); errors.Is(err, os.ErrNotExist) {
-		if err := copyFile(cli, installed, 0755); err != nil {
-			return err
-		}
-	}
-	alias := filepath.Join(bin, "devboard")
-	if _, err := os.Lstat(alias); errors.Is(err, os.ErrNotExist) {
-		if err := os.Symlink("werkbord", alias); err != nil {
-			return err
-		}
-	}
-	cmd := exec.CommandContext(ctx, installed, "setup", "--no-open", "--no-network")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("Werkbord setup could not finish: %s", strings.TrimSpace(string(out)))
-	}
 	return nil
 }

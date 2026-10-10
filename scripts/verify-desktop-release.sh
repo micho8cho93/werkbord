@@ -102,18 +102,16 @@ plist=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Con
 step "ok  the app and the program it carries are both $version"
 xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");Safari;" "$APP"
 
-# Unified releases carry Team's installer, signed by the same team as the app.
+# Unified releases carry the Team service and its installer in the app itself, signed by the same team.
 case "$version" in
   1.[0-8].*|0.*) ;;
   *)
-    TEAM_APP="$APP/Contents/Helpers/Werkbord Team.app"
-    [ -d "$TEAM_APP" ] || die "the unified installer has no Team payload"
-    "$root/scripts/check-team-desktop.sh" --distribution "$TEAM_APP" || die "Team signature validation failed"
+    [ -f "$APP/Contents/Helpers/werkbord-team" ] || die "the app carries no Team service"
+    "$root/scripts/check-team-payload.sh" --distribution "$APP" || die "Team's service in the app is not what a release must carry"
     "$root/scripts/check-unified-desktop.sh" --release "$APP" || die "the bundled components are not this release, or are not signed by its team"
-    "$TEAM_APP/Contents/MacOS/Werkbord Team" --verify-release || die "the Team installer is not signed by the release team"
-    $XCRUN stapler validate "$TEAM_APP" || die "Team notarization ticket missing"
+    "$APP/Contents/MacOS/Werkbord" --verify-release || die "the app is not signed by the release team, which its Team installer requires"
     [ -s "$APP/Contents/Resources/components.txt" ] || die "component diagnostics missing"
-    step "ok  the Team installer is this release, and signed by the same team"
+    step "ok  the Team service is this release, and the app is signed by the team its installer requires"
     ;;
 esac
 

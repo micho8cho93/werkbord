@@ -1,13 +1,12 @@
 # Unified distribution (Phase 4)
 
 Individual 1.9.0-preview.1 / Team 3.8.0 implement one primary macOS installer.
-The preview suffix remains until production distribution acceptance. The shell
-tracks Individual's version; Team retains its own executable, version and tag.
+The preview suffix remains until production distribution acceptance. Everything in the app, Team's service included, has the one version.
 Both CLI installers and historical `devboard`/`DEVBOARD_*` behavior remain.
 
-The bundle contains the shell, the Personal helper, and an inert nested
-`Werkbord Team.app` with Team's own native installer, backend, pinned sidecars,
-license verification and offline release proof. It installs no privileged service on launch.
+The bundle contains the shell, the Personal helper, and Team's service (`werkbord-team`), its pinned network and database
+programs and licenses, and its installer, which is the app's own executable in an installer mode
+(`desktop/internal/teaminstall`). It installs no privileged service on launch.
 Personal works for free without a license, Team infrastructure or vendor login.
 **Add a Team** uses an explicit native dialog and administrator authorization to
 activate Team. Each workspace has a separate enrolled identity and signed license;
@@ -40,14 +39,16 @@ the unified shell can verify them; their existing console/CLI stays available.
 
 ## Building and signing
 
-`make desktop-package` builds an ad hoc development DMG with both components, building Team's installer from this tree.
+`make desktop-package` builds an ad hoc development DMG with both components, building Team's service from this tree.
 `make test-unified-installer` mounts it and checks versions, checksums, signatures, compatibility and that a development build
 is refused as a release. These tests never install a service or use the user's production licenses.
 
 A production build is the one release workflow (`.github/workflows/release.yml`, [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)). It
-builds Team's installer itself from the same commit and version (`scripts/build-team-desktop.sh --nested`), signs and
-notarizes it with the same Developer ID as the app, and checks it with `scripts/check-team-desktop.sh --distribution` and the
-installer's own `--verify-release`, which tests that it was signed by the release's Apple Developer team. Individual's existing
+builds the Team service, the database program and the pinned network program into the app itself, from the same commit and
+version, signs them with the same Developer ID as the app (the network program keeps its upstream signature and is held to its
+pin; the database program is signed once, early, because the service is built with its hash) and notarizes the app once. It
+checks the result with `scripts/check-desktop-signature.sh`, `scripts/check-team-payload.sh` and the app's own
+`--verify-release`, which tests that it was signed by the release's Apple Developer team. Individual's existing
 Sparkle signatures and Apple release checks remain intact. There is no second release, no Team release key in CI, and no
 downloaded Team payload to authenticate: the older offline manifest (`werkbord-team/desktop-release/v1`, `TEAM_RELEASE_PUBLIC_KEY`,
 `TEAM_OFFLINE_MANIFEST`) existed only because Team was released separately and fetched, and is gone.

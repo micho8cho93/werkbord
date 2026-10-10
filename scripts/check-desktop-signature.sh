@@ -68,15 +68,15 @@ find "$target" -type f ! -name '*.png' ! -name '*.icns' ! -name '*.plist' ! -nam
   done > "$list"
 [ -s "$list" ] || die "found no code in $target"
 
-# Team retains its upstream pinned Nebula signature. Validate its whole bundle
-# separately before excluding this one known immutable binary from publisher equality.
-TEAM_APP="$target/Contents/Helpers/Werkbord Team.app"
-if [ -d "$TEAM_APP" ]; then
-  "$root/scripts/check-team-desktop.sh" "--$mode" "$TEAM_APP" >/dev/null
+# Team's network program keeps its upstream signature and is held to its pin: check it separately, then leave this one known
+# immutable binary out of the publisher equality below.
+NEBULA="$target/Contents/Helpers/nebula"
+if [ -f "$target/Contents/Helpers/werkbord-team" ]; then
+  CODESIGN="$CODESIGN" "$root/scripts/check-team-payload.sh" "--$mode" "$target" >/dev/null
 fi
 team=""
 while IFS= read -r f; do
-  [ "$f" != "$TEAM_APP/Contents/Helpers/nebula" ] || continue
+  [ "$f" != "$NEBULA" ] || continue
   info=$("$CODESIGN" -dvv "$f" 2>&1) || die "$f is not signed"
   if [ "$mode" = adhoc ]; then
     case $info in *Signature=adhoc*) ;; *) die "$f is not signed ad hoc like the rest of the bundle" ;; esac

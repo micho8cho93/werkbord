@@ -2,13 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
-	goruntime "runtime"
 	"strings"
 
 	"devboard/desktop/internal/shell"
@@ -83,7 +81,8 @@ func newWorkspaceParts(l *launcher.Launcher, log *slog.Logger) (*workspaceParts,
 		return nil, err
 	}
 	reg := workspaces.NewRegistry(workspaces.OpenState(shellStatePath()), log, personal, team.Source)
-	inst := &teamlink.Installer{Candidates: teamlink.DefaultCandidates(appBundle(), home), Verify: verifyProgram, Run: runProgram}
+	exe, _ := os.Executable()
+	inst := &teamlink.Installer{Program: exe, Run: runProgram}
 	return &workspaceParts{registry: reg, personal: personal, team: team, installer: inst, invites: &shell.Invites{}}, nil
 }
 
@@ -104,40 +103,4 @@ func runProgram(ctx context.Context, name string, args ...string) (string, error
 	cmd.Stdout = &out
 	err := cmd.Run()
 	return out.String(), err
-}
-
-// verifyProgram checks the code signature of a program before it is run. On a Mac every copy of Team's app, ad hoc signed
-// or Developer ID signed, carries one; a copy that was altered does not verify.
-func verifyProgram(ctx context.Context, path string) error {
-	if goruntime.GOOS != "darwin" {
-		return nil
-	}
-	app := filepath.Clean(filepath.Join(filepath.Dir(path), "..", ".."))
-	if err := exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--strict", "--deep", app).Run(); err != nil {
-		return err
-	}
-	// A distributed primary shell may only activate a Team installer from the
-	// same Apple publisher. Development shells retain ad hoc source builds.
-	primary := appBundle()
-	if primary != "" {
-		parentInfo, _ := exec.CommandContext(ctx, "/usr/bin/codesign", "-dvv", primary).CombinedOutput()
-		if strings.Contains(string(parentInfo), "Authority=Developer ID Application:") {
-			childInfo, err := exec.CommandContext(ctx, "/usr/bin/codesign", "-dvv", app).CombinedOutput()
-			if err != nil {
-				return err
-			}
-			team := func(b []byte) string {
-				for _, line := range strings.Split(string(b), "\n") {
-					if strings.HasPrefix(line, "TeamIdentifier=") {
-						return strings.TrimPrefix(line, "TeamIdentifier=")
-					}
-				}
-				return ""
-			}
-			if team(parentInfo) == "" || team(childInfo) != team(parentInfo) || !strings.Contains(string(childInfo), "Authority=Developer ID Application:") {
-				return fmt.Errorf("Team's installer has a different or unverified publisher")
-			}
-		}
-	}
-	return nil
 }

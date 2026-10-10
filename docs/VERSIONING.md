@@ -71,9 +71,8 @@ with the same version (the bundle's `CFBundleShortVersionString` is its numbers)
 the release (see [Releases](#releases) and [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
 `internal/archtest` fails the tests if `VERSION` is malformed, or if a second `VERSION` file for Team comes back.
 
-Werkbord Team's service, window installer and helpers are stamped with this same version. While the unification is under
-way, the separate Team app (`cmd/werkbord-team/desktop/`) is still built, from the same version; see
-[UNIFICATION.md](UNIFICATION.md) for what is being folded into the one app and in which order.
+Werkbord Team's service and the installer in the app are stamped with this same version; see
+[UNIFICATION.md](UNIFICATION.md) for what remains of the old separation.
 
 ## Releases
 
