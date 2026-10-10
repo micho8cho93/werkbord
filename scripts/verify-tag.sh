@@ -7,7 +7,9 @@
 # With no argument it checks the tag for the version in cmd/werkbord/VERSION (the one
 # version of the whole release), against HEAD. It fails unless:
 #   - the tag exists and is an annotated tag;
-#   - it points at the commit (default HEAD);
+#   - it points at the commit (default HEAD). With no commit argument HEAD may be later than the tag, if every commit
+#     since changed only documentation (docs/ and top-level *.md), which gets no tag (AGENTS.md). With an explicit commit,
+#     as the release workflow gives, the tag must point at exactly that commit;
 #   - the VERSION file AT THAT COMMIT says the tag's version;
 #   - the version is higher than every other release tag;
 #   - the tag follows the release's naming (werkbord-vX.Y.Z).
@@ -22,6 +24,7 @@ versionfile=$("$here/product.sh" "$product" version-file)
 tag=${1:-$("$here/product.sh" "$product" tag)}
 cd "$here/.."
 commit=$(git rev-parse --verify "${2:-HEAD}^{commit}") || fail "no such commit ${2:-HEAD}"
+explicit=${2:+yes}
 
 case "$tag" in
   "$prefix"[0-9]*.[0-9]*.[0-9]*) ;;
@@ -31,7 +34,12 @@ want=${tag#"$prefix"}
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null || fail "the tag $tag does not exist (make tag)"
 [ "$(git cat-file -t "refs/tags/$tag")" = tag ] || fail "$tag is not an annotated tag"
 at=$(git rev-parse "refs/tags/$tag^{commit}")
-[ "$at" = "$commit" ] || fail "$tag points at $(git rev-parse --short "$at"), not at $(git rev-parse --short "$commit")"
+if [ "$at" != "$commit" ]; then
+  [ -z "$explicit" ] && git merge-base --is-ancestor "$at" "$commit" || fail "$tag points at $(git rev-parse --short "$at"), not at $(git rev-parse --short "$commit")"
+  # HEAD is past the tag: allowed only when everything since is documentation
+  other=$(git diff --name-only "$at" "$commit" | grep -v -e '^docs/' -e '^[^/]*\.md$' || true)
+  [ -z "$other" ] || fail "$tag points at $(git rev-parse --short "$at"), not at $(git rev-parse --short "$commit"): $(echo "$other" | head -1) changed since, so a new tag is needed (make tag)"
+fi
 have=$(git show "$commit:$versionfile" 2>/dev/null | tr -d '[:space:]') || fail "$versionfile does not exist at $(git rev-parse --short "$commit")"
 [ "$have" = "$want" ] || fail "$tag points at a commit whose $versionfile says $have, not $want"
 

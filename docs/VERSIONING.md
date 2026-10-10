@@ -48,7 +48,8 @@ Documentation-only commits get no tag (unless the documentation is the release).
 
 ### What `make verify-tag` / `scripts/verify-tag.sh` checks
 
-The tag exists and is annotated; it points at the commit (HEAD by default); `cmd/werkbord/VERSION` **at that commit** says
+The tag exists and is annotated; it points at the commit (HEAD by default; with no commit given, HEAD may be later than the tag
+if every commit since changed only `docs/` or a top-level `*.md`, which get no tag, whereas CI passes the commit and needs an exact match); `cmd/werkbord/VERSION` **at that commit** says
 the tag's version; the version is higher than the other release tags; and the tag is named `werkbord-vX.Y.Z`. CI repeats
 this when a tag is pushed.
 
