@@ -2,6 +2,7 @@
 // these functions put them side by side. Nothing here asks a workspace anything, so a workspace that does not answer is a
 // row that says so, never a reason another workspace's work is missing.
 
+import { formatDateTime } from '../lib/clock.svelte';
 import type { Attention, Entry, Execution, Overview, OverviewEntry, Scheduled, Severity, WorkItem } from './types';
 
 export interface Labeled<T> {
@@ -60,7 +61,7 @@ export function executionLabel(execution: Execution): string {
 }
 
 export function recordedTime(at?: string): string {
-  return at && Number.isFinite(Date.parse(at)) ? new Date(at).toLocaleString() : '';
+  return at && Number.isFinite(Date.parse(at)) ? formatDateTime(at) : '';
 }
 
 /** Everything that waits for the person, worst first, then newest. */

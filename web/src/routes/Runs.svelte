@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatWeekdayTime } from '../lib/clock.svelte';
   import { agentLabel, optionLabel } from '../lib/execution';
   import { runElapsed, runStatus } from '../lib/format';
   import HistoryStrip from '../lib/HistoryStrip.svelte';
@@ -44,8 +45,7 @@
   let answering = $state('');
   const askedOf = (r: Run) => scope.pendingFor(r.id)[0];
 
-  const started = (iso: string) =>
-    new Date(iso).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const started = (iso: string) => formatWeekdayTime(iso);
 </script>
 
 <div class="runs">

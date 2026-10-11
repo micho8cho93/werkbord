@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatTime } from './clock.svelte';
   import type { FeedItem } from './feed';
   import { messageParts } from './handoff';
   import HandoffSummary from './HandoffSummary.svelte';
@@ -14,7 +15,7 @@
     /** Questions the screen already asks, with their answers, elsewhere: the feed keeps them out until they are settled. */
     answeredBelow?: ReadonlySet<string> } = $props();
 
-  const when = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const when = (iso: string) => formatTime(iso);
 </script>
 
 <ol class="feed" aria-label="Agent activity">

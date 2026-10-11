@@ -14,16 +14,18 @@
   let gh = $state<GitHubStatusInfo | null>(null);
   let busy = $state(false);
   let error = $state('');
+  /** Looking up the connection failed. GitHub is optional, so this is a quiet line with a retry, never a red alert on first run. */
+  let unreachable = $state('');
   let copied = $state(false);
 
   async function refresh() {
     try {
       const was = gh?.state;
       gh = await api.github();
-      error = '';
+      unreachable = '';
       if (was !== gh.state) onchange?.(gh);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      unreachable = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -77,7 +79,10 @@
 </script>
 
 <SetupCard title="GitHub" {status} {summary}>
-  {#if !gh}
+  {#if !gh && unreachable}
+    <p class="muted" role="status">GitHub could not be checked just now ({unreachable}). It is optional: everything local works without it.</p>
+    <div class="row"><button class="btn" onclick={refresh}>Try again</button></div>
+  {:else if !gh}
     <p class="muted">Checking…</p>
   {:else if gh.state === 'signed_in'}
     <p>

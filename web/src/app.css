@@ -238,6 +238,41 @@ code {
   font-size: max(0.88em, 11.5px);
 }
 
+/* One disclosure affordance for every <details>: a chevron that turns down when it opens. The browser's own triangle is
+   dropped because it disappears on a flex summary (Optional connections, Model and reasoning) and differs by engine. */
+summary {
+  list-style: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::before {
+  content: '';
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  margin-inline-end: 9px;
+  border-right: 1.4px solid currentColor;
+  border-bottom: 1.4px solid currentColor;
+  vertical-align: 0.1em;
+  transform: rotate(-45deg);
+  transition: transform 0.15s var(--ease);
+}
+
+details[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  details > summary::before {
+    transition: none;
+  }
+}
+
 button,
 input,
 select,

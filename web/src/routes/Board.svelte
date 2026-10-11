@@ -249,7 +249,7 @@
   <div class="bar">
     <button class="btn phone-filters" type="button" aria-expanded={filtersOpen} aria-controls="board-filters" onclick={() => filtersOpen = !filtersOpen}>Filters <span class="chip">{activeFilters}</span></button>
     <div class="filters" id="board-filters" class:expanded={filtersOpen} role="group" aria-label="Filter the board">
-      {#if app.agents.length > 1}
+      {#if app.agents.length > 1 && project.kind !== 'work'}
         <label class="pick" class:on={agentFilter}>
           <span>Agent</span>
           <select bind:value={agentFilter} aria-label="Filter by agent">
@@ -258,7 +258,7 @@
           </select>
         </label>
       {/if}
-      {#if app.runners.length > 1}
+      {#if app.runners.length > 1 && project.kind !== 'work'}
         <label class="pick" class:on={runnerFilter}>
           <span>Runner</span>
           <select bind:value={runnerFilter} aria-label="Filter by runner">
@@ -283,11 +283,14 @@
         <button class="btn quiet small" onclick={() => ((agentFilter = ''), (runnerFilter = ''), (priorityFilter = ''), setFilter(project.id, noFilter()))}>Clear all</button>
       {/if}
     </div>
-    <ul class="legend" aria-label="Agents at a glance">
-      {#each legend as l (l.tone)}
-        <li class:zero={l.n === 0}><span class="dot" data-tone={l.tone}></span>{l.n} {l.label}</li>
-      {/each}
-    </ul>
+    <!-- What agents are doing: a work project has none. -->
+    {#if project.kind !== 'work'}
+      <ul class="legend" aria-label="Agents at a glance">
+        {#each legend as l (l.tone)}
+          <li class:zero={l.n === 0}><span class="dot" data-tone={l.tone}></span>{l.n} {l.label}</li>
+        {/each}
+      </ul>
+    {/if}
   </div>
 
   {#if viewingArchive}
@@ -355,6 +358,7 @@
               selected={router.taskId === task.id}
               mergeable={mergeable(task)}
               agentWork={agentWorkable(task, project)}
+              work={project.kind === 'work'}
               branch={branchOf(task)}
               onstart={start}
               onmerge={merge}

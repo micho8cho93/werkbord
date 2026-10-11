@@ -78,7 +78,7 @@
           <Mark height={34} />
           <h2 class="hi">What can I help with?</h2>
           <p class="sub">Ask where things stand, or tell me what to change. I will ask you before I change anything.</p>
-          <div class="suggest">
+          <div class="suggest" role="group" aria-label="Things to ask">
             {#each suggestions as s (s)}
               <button class="pill" type="button" onclick={() => assistant.send(s)}>{s}</button>
             {/each}
@@ -228,6 +228,18 @@
   }
   .pill:hover {
     background: var(--surface-2);
+  }
+  /* On a phone the three questions are one even column of 44px targets, not a ragged cluster of different widths. */
+  @media (max-width: 600px) {
+    .suggest {
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+    }
+    .pill {
+      min-height: 44px;
+      width: 100%;
+    }
   }
   .user {
     align-self: flex-end;

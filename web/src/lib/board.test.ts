@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentWorkable, cardStatus, dropAction, firstNeedsYouColumn, quickChoices, sinceShort } from './board';
+import { agentWorkable, cardStatus, dropAction, firstNeedsYouColumn, modeChipShown, quickChoices, sinceShort } from './board';
 import type { Question, Run, Task } from './types';
 
 const now = Date.parse('2026-10-05T10:30:00Z');
@@ -133,5 +133,15 @@ describe('firstNeedsYouColumn', () => {
 
   it('counts a blocked run', () => {
     expect(firstNeedsYouColumn([task({ state: 'doing' })], { tsk_1: run({ state: 'blocked' }) }, none)).toBe('doing');
+  });
+});
+
+describe('modeChipShown', () => {
+  it('names who does the work, except "Human" in a work project where it is true of every card', () => {
+    expect(modeChipShown('human', false)).toBe(true);
+    expect(modeChipShown('human', true)).toBe(false);
+    expect(modeChipShown('hybrid', true)).toBe(true);
+    expect(modeChipShown('agent', false)).toBe(false);
+    expect(modeChipShown('agent', true)).toBe(false);
   });
 });

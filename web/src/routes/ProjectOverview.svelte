@@ -1,5 +1,6 @@
 <script lang="ts">
   import { attentionItems } from '../lib/attention';
+  import { formatTime } from '../lib/clock.svelte';
   import AttentionCard from '../lib/attention/AttentionCard.svelte';
   import { agentLabel } from '../lib/execution';
   import { runElapsed, runStatus } from '../lib/format';
@@ -56,7 +57,7 @@
   const when = (iso: string) => {
     const d = new Date(iso);
     return app.now - d.getTime() < 86_400_000
-      ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      ? formatTime(d)
       : d.toLocaleDateString([], { weekday: 'short' });
   };
 

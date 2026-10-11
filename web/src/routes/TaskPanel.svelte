@@ -344,6 +344,8 @@
   // A task that is not agent work has no execution or schedule to show.
   $effect(() => {
     if (!agentWork && (factsSection === 'run' || factsSection === 'schedule')) factsSection = 'details';
+    // A work project has no runs: its task has only its details.
+    if (project.kind === 'work' && factsSection === 'history') factsSection = 'details';
   });
   const taskLabels = $derived(task ? labelsOf(task, app.labels) : []);
   const planSpan = $derived(task ? spanOf(task) : null);
@@ -393,7 +395,7 @@
           <span class="muted">· {interactionLabel({ interaction: effective.interaction })}{effective.priority !== 'normal' ? ` · ${priorityLabel(effective.priority)} priority` : ''}</span>
         </p>
       {:else}
-        <p class="runs-with">{project.kind === 'work' ? 'Done by hand: this project has no repository for an agent.' : 'Done by a person: no agent is started on it.'}</p>
+        <p class="runs-with">{project.kind === 'work' ? 'Done by a person. Move it across the board as the work goes.' : 'Done by a person: no agent is started on it.'}</p>
       {/if}
       {#if taskLabels.length}
         <ul class="task-labels" aria-label="Labels">{#each taskLabels as l (l.id)}<li><LabelChip label={l} /></li>{/each}</ul>
@@ -477,7 +479,7 @@
 
     <nav class="facts-tabs" aria-label="Task details sections">
       {#if narrow.current}<button class="btn small quiet" aria-pressed={!factsOpen} onclick={() => factsOpen = false}>Activity</button>{/if}
-      {#each agentWork ? ['details', 'run', 'schedule', 'history'] : ['details', 'history'] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Details' : 'Schedule'}</button>{/each}
+      {#each agentWork ? ['details', 'run', 'schedule', 'history'] : project.kind === 'work' ? ['details'] : ['details', 'history'] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Details' : 'Schedule'}</button>{/each}
     </nav>
     <div class="body" class:facts-open={factsOpen}>
       <!-- The run: what needs you, what happened, and what to say next. -->

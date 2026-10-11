@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
+  import { clock, formatTime } from '../lib/clock.svelte';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
   import LabelManager from '../lib/LabelManager.svelte';
@@ -23,7 +24,7 @@
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'labels', label: 'Labels' }, { id: 'routing', label: 'Routing rules' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
     { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'github', label: 'GitHub' }] },
-    { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and theme' }] },
+    { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
   const SECTIONS = GROUPS.flatMap(g => [...g.sections]);
   type SectionId = (typeof SECTIONS)[number]['id'];
@@ -122,8 +123,7 @@
         <div class="head">
           <h3>Defaults for every task</h3>
           <p class="muted">
-            What a task uses unless its project or the task itself says otherwise. You do not have to set any of it: left alone, the agent picks its
-            own model and reasoning.
+            What a task uses unless its project or the task says otherwise. Leave it alone and the agent picks its own model and reasoning.
           </p>
         </div>
         <ExecutionFields bind:value={draft} idPrefix="global" columns />
@@ -163,15 +163,17 @@
         <div class="head">
           <h3>Browser alerts</h3>
           <p class="muted">
-            Alerts for questions, blocked or failed runs, finished work and repository risk. They come only while this browser can stay connected: there is
-            no push relay. The choice is kept on this device.
+            Alerts for questions, blocked or failed runs, finished work and repository risk. They arrive only while this page stays open in a
+            browser: Werkbord has no push service. Kept on this device.
           </p>
         </div>
         <div class="row">
           {#if permission === 'unsupported'}
             <span class="muted">This browser does not support alerts.</span>
+          {:else if permission === 'denied' && !optedIn}
+            <span class="muted">Your browser is blocking alerts from this site. Allow them in the browser's site settings, then reload this page.</span>
           {:else}
-            <button class="btn" class:primary={!optedIn} onclick={toggleNotifications}>{optedIn ? 'Turn alerts off' : permission === 'denied' ? 'Blocked by the browser' : 'Turn alerts on'}</button>
+            <button class="btn" class:primary={!optedIn} onclick={toggleNotifications}>{optedIn ? 'Turn alerts off' : 'Turn alerts on'}</button>
             <span class="note"><span class="dot" data-tone={optedIn ? 'ok' : 'neutral'}></span> {optedIn ? 'On' : 'Off'}</span>
           {/if}
         </div>
@@ -187,12 +189,23 @@
           <button aria-pressed={theme.choice === 'dark'} onclick={() => theme.set('dark')}>Dark</button>
         </div>
       </section>
+      <section class="pn">
+        <div class="head">
+          <h3>Clock</h3>
+          <p class="muted">How times are written everywhere: {formatTime(app.now)} now. Follows your device unless you choose. Kept on this device.</p>
+        </div>
+        <div class="seg" role="group" aria-label="Clock">
+          <button aria-pressed={clock.choice === ''} onclick={() => clock.set('')}>Device</button>
+          <button aria-pressed={clock.choice === '12'} onclick={() => clock.set('12')}>12-hour</button>
+          <button aria-pressed={clock.choice === '24'} onclick={() => clock.set('24')}>24-hour</button>
+        </div>
+      </section>
     {:else if section === 'computer'}
       <section class="pn">
         <div class="head">
           <h3>This computer</h3>
           {#if runner}
-            <p class="muted">{runner.name} · {runner.os}/{runner.arch}. It is your first runner and {runner.online ? 'online' : 'offline'}: agents run here, in Git worktrees, as you.</p>
+            <p class="muted">{runner.name} · {runner.os}/{runner.arch}. It is the runner on this computer, and it is {runner.online ? 'online' : 'offline'}: agents work here, in Git worktrees, as you.</p>
           {/if}
         </div>
         {#if health}
@@ -204,7 +217,7 @@
               {#if !app.update}
                 <span class="muted">Not checked</span>
               {:else if app.update.disabled}
-                <span class="muted">Checking is turned off (<code>noUpdateCheck</code>)</span>
+                <span class="muted">Update checks are turned off in config.json</span>
               {:else if !app.update.release}
                 <span class="muted">Built from source: update it from its source tree</span>
               {:else if app.update.available}

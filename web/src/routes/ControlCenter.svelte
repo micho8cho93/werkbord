@@ -119,7 +119,7 @@
           class="btn small alerts"
           class:on={optedIn}
           onclick={toggleNotifications}
-          title="Browser alerts for questions, blocked or failed runs, review and repository risk, while this browser stays connected. There is no push relay."
+          title="Browser alerts for questions, blocked or failed runs, review and repository risk, while this page stays open in a browser. Werkbord has no push service."
         >
           <span class="dot" data-tone={optedIn ? 'ok' : 'neutral'}></span>{optedIn ? 'Alerts on' : permission === 'denied' ? 'Alerts blocked' : 'Alerts off'}
         </button>

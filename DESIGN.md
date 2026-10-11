@@ -121,6 +121,18 @@ heading (the provider chooser, New, Close) and the box.
 
 ## Interaction rules
 
+- **One clock.** Every time of day is written by `lib/clock.svelte.ts`: 12-hour or 24-hour as the device's locale writes it, unless
+  the person picks one under Settings → Alerts and display (kept per device). The Calendar's hour column, its events, the run
+  history, the feed and the desktop Calendar all follow it; nothing hard-codes `HH:MM`.
+- **One disclosure.** Every `<details>` shows the same chevron, which turns down when it opens (`app.css`); the browser's own
+  triangle is not used, because it disappears on a flex summary.
+- **An empty view says so.** A Calendar week with nothing scheduled says "Nothing is scheduled to run this week" above the grid.
+- **A work project speaks of work, not agents.** Its board has no Agent or Runner filter and no agents legend, its cards do not
+  say "Human", its task panel has no Runs tab and its Timeline does not send you to a Calendar it does not have.
+- **First run is quiet.** Failing to look up an optional connection (GitHub, phone access) is a muted line with *Try again*;
+  red is for something the person asked for that failed.
+- **A blocked permission is an explanation, not a button.** Alerts blocked by the browser say where to allow them.
+
 - First-run setup leads with three local requirements: an enabled online runner with capacity configured, a usable coding
   agent and a registered Git repository. A planning project does not count as a repository. One primary action advances
   the missing requirement or opens task creation; planning remains available separately. Phone access and GitHub are

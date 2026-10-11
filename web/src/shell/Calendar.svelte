@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatTime } from '../lib/clock.svelte';
   import { agenda, standing } from './aggregate';
   import { model } from './model.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
@@ -10,7 +11,7 @@
 
   const days = $derived(overview ? agenda(overview) : []);
   const dayLabel = (d: string): string => new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date(`${d}T12:00:00`));
-  const time = (iso: string): string => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+  const time = (iso: string): string => formatTime(iso);
   const silent = $derived(overview ? overview.entries.filter((e) => !e.summary && (e.error || e.workspace.state !== 'ready')) : []);
 </script>
 

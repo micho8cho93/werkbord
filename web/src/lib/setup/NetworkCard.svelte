@@ -12,16 +12,18 @@
   let phone = $state<PhoneLink | null>(null);
   let busy = $state(false);
   let error = $state('');
+  /** Looking up the network failed. Phone access is optional, so this is a quiet line with a retry, never a red alert on first run. */
+  let unreachable = $state('');
   let copied = $state(false);
 
   async function refresh() {
     try {
       net = await api.network();
-      error = '';
+      unreachable = '';
       if (net.state === 'connected' && !phone) phone = await api.phoneLink().catch(() => null);
       if (net.state !== 'connected') phone = null;
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      unreachable = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -77,7 +79,10 @@
 </script>
 
 <SetupCard title="Phone access" {status} {summary}>
-  {#if !net}
+  {#if !net && unreachable}
+    <p class="muted" role="status">Phone access could not be checked just now ({unreachable}). It is optional: Werkbord works on this computer without it.</p>
+    <div class="row"><button class="btn" onclick={refresh}>Try again</button></div>
+  {:else if !net}
     <p class="muted">Checking…</p>
   {:else if net.state === 'connected'}
     <p>

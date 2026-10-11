@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { addDays, clockAt, lanes, minuteOf, rangeTitle, visibleDays } from '../lib/calendar';
+  import { formatWall, hourLabel } from '../lib/clock.svelte';
   import { agentWorkable } from '../lib/board';
   import { agentLabel, resolveFor } from '../lib/execution';
   import { runStatus } from '../lib/format';
@@ -61,6 +62,8 @@
   const waiting = $derived(
     scope.activeTasks.filter((t) => t.state !== 'done' && (t.orchestration?.dependencies ?? []).some((id) => scope.tasks.find((d) => d.id === id && d.state !== 'review' && d.state !== 'done'))),
   );
+  /** Whether the days on show hold nothing to run: the grid alone does not say so. */
+  const emptyView = $derived(days.every((d) => !scope.activeTasks.some((t) => scheduledIn(t).startsWith(d))));
   function eventsOn(day: string) {
     const evs = scope.activeTasks.filter((t) => scheduledIn(t).startsWith(day)).map((t) => ({ start: minuteOf(scheduledIn(t)), item: t }));
     return lanes(evs, EVENT_MIN);
@@ -89,7 +92,7 @@
       const scheduledAt = instantFromWall(`${day}T${time}`, zone);
       const o = editableOrchestration(task.orchestration ?? emptyOrchestration());
       scope.upsertTask(await api.editTask(task, { orchestration: { ...o, enabled: true, scheduledAt, timezone: zone } }));
-      app.notify(`“${task.title}” runs ${new Date(`${day}T12:00Z`).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })} ${time}.`, 4000);
+      app.notify(`“${task.title}” runs ${new Date(`${day}T12:00Z`).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })} ${formatWall(time)}.`, 4000);
       picked = null;
     } catch (e) {
       app.notify(e instanceof Error ? e.message : String(e));
@@ -221,10 +224,16 @@
           <div class="dh" class:today={d === today}><span>{h.dow}</span><i>{h.n}</i></div>
         {/each}
       </div>
+      {#if emptyView}
+        <p class="empty-view" role="status">
+          Nothing is scheduled to run {view === 'day' ? 'on this day' : 'this week'}.
+          {unscheduled.length ? '' : 'Add a task on the Board and it can be scheduled here.'}
+        </p>
+      {/if}
       <div class="grid-scroll" bind:this={grid}>
         <div class="grid" style:--days={days.length} style:height="{24 * HOUR}px">
           <div class="hours" aria-hidden="true">
-            {#each Array.from({ length: 24 }, (_, i) => i) as h (h)}<span class="hl" style:top="{h * HOUR - 7}px">{String(h).padStart(2, '0')}:00</span>{/each}
+            {#each Array.from({ length: 24 }, (_, i) => i) as h (h)}<span class="hl" style:top="{h * HOUR - 7}px">{hourLabel(h)}</span>{/each}
           </div>
           {#each days as d (d)}
             <!-- Clicking a time is a shortcut for the pointer; from the keyboard a task is scheduled from its own Schedule dialog. -->
@@ -263,7 +272,7 @@
                   title="{t.title} · {decision ? `${schedulingLabels[decision.state]}: ${decision.reason}` : ''}"
                 >
                   <b>{t.title}</b>
-                  <span>{scheduledIn(t).slice(11)} · {s ? s.label.toLowerCase() : eff.agent ? agentLabel(app.agents, eff.agent) : decision ? schedulingLabels[decision.state].toLowerCase() : 'scheduled'}</span>
+                  <span>{formatWall(scheduledIn(t).slice(11))} · {s ? s.label.toLowerCase() : eff.agent ? agentLabel(app.agents, eff.agent) : decision ? schedulingLabels[decision.state].toLowerCase() : 'scheduled'}</span>
                   {#if t.orchestration?.enabled && !t.orchestration.runId}
                     <button
                       class="x"
@@ -469,6 +478,15 @@
     background: var(--pri-bg);
     color: var(--accent-text);
     box-shadow: var(--pri-sh);
+  }
+
+  .empty-view {
+    flex: none;
+    margin: 0;
+    padding: 8px 0;
+    font-size: 13px;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border);
   }
 
   .grid-scroll {

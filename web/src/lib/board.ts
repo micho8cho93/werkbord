@@ -1,7 +1,7 @@
 // What the board does and says, without the framework, so it can be tested on its own.
 
 import { cardActivity, oneLine, runElapsed, runStatus, type Tone } from './format';
-import type { Question, Run, SchedulingDecision, Task, TaskState } from './types';
+import type { Question, Run, SchedulingDecision, Task, TaskState, WorkMode } from './types';
 import { schedulingLabels } from './scheduling';
 import { modeOf } from './labels';
 import type { Project } from './types';
@@ -10,6 +10,14 @@ import { TASK_STATES } from './types';
 /** Whether an agent may be started on the task: not human work, and not in a project with no repository. */
 export function agentWorkable(task: Pick<Task, 'workMode'>, project: Pick<Project, 'kind'> | undefined): boolean {
   return project?.kind !== 'work' && modeOf(task) !== 'human';
+}
+
+/**
+ * Whether a card names who does the work. In a work project every task is a person's, so "Human" on each card says
+ * nothing; an agent or shared task is still named there.
+ */
+export function modeChipShown(mode: WorkMode, work: boolean): boolean {
+  return mode !== 'agent' && !(work && mode === 'human');
 }
 
 /**

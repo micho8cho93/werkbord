@@ -54,8 +54,8 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
     <section class="pn">
       <h3>{project.name}</h3>
       <p class="muted">
-        A work project: a board and a timeline with no Git repository behind it. It has no folder on this computer, no Git and no agent
-        runs, so there are no task defaults or capacity to set. Labels are shared with your other projects (Settings → Labels).
+        A work project is a board and a timeline for anything that is not code. It has no repository, so there are no agents, runs or task
+        defaults to set. Labels are shared with your other projects (Settings → Labels).
       </p>
       <dl class="kv"><dt>Project ID</dt><dd class="mono">{project.id}</dd></dl>
     </section>

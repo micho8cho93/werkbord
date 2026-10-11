@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from './api';
+  import { formatDateTime, formatTime } from './clock.svelte';
   import { runnerSlots, runnerState } from './format';
   import { app } from './state.svelte';
   import type { Pairing, Runner } from './types';
@@ -77,7 +78,7 @@
       {#if pairing}
         <label for="runner-join">Run on the other machine</label>
         <textarea id="runner-join" class="input" rows="3" readonly value={`werkbord join ${pairing.code}${pairing.allowClone ? ' --allow-clone' : ''}`}></textarea>
-        <div class="heading"><span role="status" class="muted">{expired ? 'Expired. Generate a new code.' : `Expires at ${new Date(pairing.expiresAt).toLocaleTimeString()}`}</span><button class="btn small" disabled={expired} onclick={copy}>{copied ? 'Copied' : 'Copy command'}</button></div>
+        <div class="heading"><span role="status" class="muted">{expired ? 'Expired. Generate a new code.' : `Expires at ${formatTime(pairing.expiresAt)}`}</span><button class="btn small" disabled={expired} onclick={copy}>{copied ? 'Copied' : 'Copy command'}</button></div>
         <p class="muted">For an existing clone, run <code>werkbord runner repo &lt;project-id&gt; &lt;clone-path&gt;</code>. Project IDs appear below.</p>
       {/if}
     </div>
@@ -99,7 +100,7 @@
             <label class="check"><input type="checkbox" bind:checked={r.allowClone} />Allow cloning (runner must also opt in)</label>
           {/if}
           <div class="heading"><button class="btn primary" disabled={!!busy} onclick={() => save(r)}>{busy === r.id ? 'Saving…' : 'Save runner'}</button>{#if r.kind === 'remote'}<button class="btn" disabled={!!busy || r.currentRuns > 0} onclick={() => remove(r)}>Remove runner</button><button class="btn" disabled={!!busy} onclick={() => revoke(r)}>Revoke lost runner</button>{/if}</div>
-          <dl><dt>CPU</dt><dd>{r.capabilities?.cpu || 'Unknown'} logical cores</dd><dt>RAM / available</dt><dd>{size(r.capabilities?.ramBytes)} / {size(r.capabilities?.availableRamBytes)}</dd><dt>Free storage</dt><dd>{size(r.capabilities?.storageBytes)}</dd><dt>Last seen</dt><dd>{r.kind === 'local' ? 'This controller is online' : r.lastSeenAt.startsWith('0001') ? 'Waiting for first heartbeat' : new Date(r.lastSeenAt).toLocaleString()}</dd></dl>
+          <dl><dt>CPU</dt><dd>{r.capabilities?.cpu || 'Unknown'} logical cores</dd><dt>RAM / available</dt><dd>{size(r.capabilities?.ramBytes)} / {size(r.capabilities?.availableRamBytes)}</dd><dt>Free storage</dt><dd>{size(r.capabilities?.storageBytes)}</dd><dt>Last seen</dt><dd>{r.kind === 'local' ? 'This controller is online' : r.lastSeenAt.startsWith('0001') ? 'Waiting for first heartbeat' : formatDateTime(r.lastSeenAt)}</dd></dl>
           {#if r.capabilities?.diagnostics}<p class="error">{r.capabilities.diagnostics}</p>{/if}
           {#each r.capabilities?.agents ?? [] as a (a.id)}<p class="muted">{a.name} {a.version ?? ''} · {a.available ? 'Available' : a.detail || 'Unavailable'}</p>{/each}
           {#if r.kind === 'remote'}<p class="muted">An offline runner keeps ownership of its runs. Reconnect it to stop work; removal is available after every run ends. For a permanently lost machine, revoke its identity and wait for the fence window.</p>{/if}

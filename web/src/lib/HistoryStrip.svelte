@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatTime } from './clock.svelte';
   import { historyCells } from './runs';
   import { app } from './state.svelte';
   import type { Run } from './types';
@@ -10,7 +11,7 @@
   // Recomputed once a minute, not every second: a cell is half an hour.
   const minute = $derived(Math.floor(app.now / 60_000));
   const cells = $derived(historyCells(runs, minute * 60_000));
-  const time = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const time = (ms: number) => formatTime(ms);
   const word: Record<string, string> = { work: 'running', ask: 'needs you', idle: 'waiting for you', block: 'blocked', ok: 'finished', bad: 'failed', neutral: 'stopped' };
   const ran = $derived(cells.filter((c) => c.runs).length);
 </script>

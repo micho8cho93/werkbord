@@ -5,6 +5,7 @@
   import { filterFor } from '../lib/filters.svelte';
   import Icon from '../lib/Icon.svelte';
   import LabelChip from '../lib/LabelChip.svelte';
+  import { modeChipShown } from '../lib/board';
   import { filterActive, labelsOf, matches, modeLabel, modeOf } from '../lib/labels';
   import { taskHref } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
@@ -177,7 +178,7 @@
     {:else if dated.length === 0}
       <div class="empty">
         <p>{filtering ? 'No planned work matches the filters.' : 'Nothing is planned yet.'}</p>
-        <p class="muted">To choose when an agent runs, use Calendar.</p>
+        {#if project.kind !== 'work'}<p class="muted">To choose when an agent runs, use Calendar.</p>{/if}
         <p class="muted">Give a task a start and end date (or make it a milestone) and it appears here. {undated.length ? 'Tasks without dates are listed below.' : ''}</p>
       </div>
     {:else}
@@ -272,7 +273,7 @@
             <li>
               <a href={taskHref(project.id, t.id)} class="ut">{t.title}</a>
               {#each ls as l (l.id)}<LabelChip label={l} small />{/each}
-              {#if modeOf(t) !== 'agent'}<span class="chip">{modeLabel(modeOf(t))}</span>{/if}
+              {#if modeChipShown(modeOf(t), project.kind === 'work')}<span class="chip">{modeLabel(modeOf(t))}</span>{/if}
               <button class="btn small" onclick={() => (editing = t)}>Plan…</button>
             </li>
           {/each}
