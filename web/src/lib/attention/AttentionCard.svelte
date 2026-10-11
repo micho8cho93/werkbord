@@ -182,7 +182,7 @@
   }
 
   @media (max-width: 899px), (pointer: coarse) {
-    .acts :global(.btn) {
+    .acts :global(.btn), .row > .btn {
       min-height: 44px;
     }
   }

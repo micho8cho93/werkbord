@@ -171,6 +171,13 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: /Review the customer portal/ }).waitFor();
  const individualWork = page.getByTestId('work-item').filter({ hasText: importedTask.title });
  await individualWork.getByText('Reported: Waiting for your next message', { exact: true }).waitFor();
+ await page.setViewportSize({ width: 1440, height: 900 });
+ const reportBounds = await individualWork.locator('.badge').evaluate(el => {
+   const range = document.createRange(); range.selectNodeContents(el);
+   const text = range.getBoundingClientRect(), cell = el.closest('.report').getBoundingClientRect();
+   return { textRight: text.right, cellRight: cell.right, textLeft: text.left, cellLeft: cell.left };
+ });
+ assert(reportBounds.textRight <= reportBounds.cellRight + 1 && reportBounds.textLeft >= reportBounds.cellLeft - 1, 'reported execution text stays inside its My Work cell');
  await page.locator('[data-page=inbox]').click();
  const idleAction = page.getByRole('button', { name: 'Review turn: ' + importedTask.title + ' is waiting for your next message', exact: true });
  await idleAction.waitFor();

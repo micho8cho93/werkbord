@@ -10,7 +10,7 @@
 
 {#if execution}
   <span class="report">
-    <span class="badge" data-tone={stale ? 'idle' : tone(execution)}><span class="dot" aria-hidden="true"></span>{stale ? 'Last reported: ' : 'Reported: '}{executionLabel(execution)}</span>
+    <span class="badge" data-tone={stale ? 'idle' : tone(execution)}><span class="dot" aria-hidden="true"></span><span class="label">{stale ? 'Last reported: ' : 'Reported: '}{executionLabel(execution)}</span></span>
     {#if stale}<span class="note">Availability unknown</span>{/if}
     {#if recorded}<span class="note">State recorded {recorded}</span>{/if}
     {#each report?.pendingRequests ?? [] as request (request)}<span class="note" role="status">{requests[request]} · awaiting acknowledgment</span>{/each}
@@ -20,7 +20,9 @@
 <style>
   .badge {
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
+    min-width: 0;
+    white-space: normal;
     gap: 6px;
     font-family: var(--mono);
     font-size: 11.5px;
@@ -28,8 +30,10 @@
     overflow-wrap: anywhere;
   }
   .report { display: grid; gap: 3px; min-width: 0; }
+  .label { min-width: 0; overflow-wrap: anywhere; }
   .note { font-size: 11.5px; color: var(--text-2); overflow-wrap: anywhere; }
   .dot {
+    flex: 0 0 7px;
     width: 7px;
     height: 7px;
     border-radius: 50%;

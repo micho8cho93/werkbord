@@ -124,7 +124,7 @@
   }
 
   .why[data-severity='action'] {
-    color: var(--warn);
+    color: var(--warn-text);
   }
 
   .why[data-severity='warn'] {

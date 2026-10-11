@@ -134,6 +134,22 @@ function measure(minPx) {
         for (const s of ['board', 'runs']) pages.push([`other-${p.name}-${s}`, `#/p/${p.id}/${s}`]);
         for (const t of tasks.filter((t) => t.state === 'review')) pages.push([`other-${p.name}-task-review`, `#/p/${p.id}/task/${t.id}`]);
     }
+    // Git's subsections and drill-downs contain text not visible on its overview.
+    // Read actual fixture branches/files so the matrix covers committed review evidence without invented API states.
+    for (const p of projects.filter(p => p.kind !== 'work')) {
+        const prefix = `git-${p.id}`;
+        for (const s of ['health', 'branches', 'prs', 'changes', 'worktrees', 'history']) pages.push([`${prefix}-${s}`, `#/p/${p.id}/git?${s}`]);
+        pages.push([`${prefix}-working-changes`, `#/p/${p.id}/git/changes`]);
+        const git = await api(`/api/projects/${p.id}/git`);
+        for (const b of git.branches.filter(b => b.scope === 'local')) {
+            const branch = encodeURIComponent(b.name);
+            const base = `#/p/${p.id}/git/branch/local/${branch}`;
+            pages.push([`${prefix}-${branch}-branch`, base]);
+            pages.push([`${prefix}-${branch}-commits`, `#/p/${p.id}/git/commits/local/${branch}`]);
+            const compare = await api(`/api/projects/${p.id}/git/compare?scope=local&branch=${branch}`);
+            if (compare.files[0]) pages.push([`${prefix}-${branch}-file`, `${base}/file?${new URLSearchParams({ path: compare.files[0].path })}`]);
+        }
+    }
     const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) });
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
@@ -142,9 +158,9 @@ function measure(minPx) {
     await page.goto(base + '/#token=' + token);
     await page.waitForTimeout(800);
     await page.goto(base + '/#/control');
-    const allTab = page.getByRole('tab', { name: /^All: \d+ items?, including \d+ ready for review$/ });
+    const allTab = page.getByRole('button', { name: /^All: \d+ items?, including \d+ ready for review$/ });
     await allTab.waitFor();
-    assert.equal(await page.getByRole('tab', { name: /^Review: \d+ items?$/ }).count(), 1, 'Review remains an explicit filter');
+    assert.equal(await page.getByRole('button', { name: /^Review: \d+ items?$/ }).count(), 1, 'Review remains an explicit filter');
     assert(await page.getByText('Needs you and project badges count interruptions. All also includes work ready for review.', { exact: true }).isVisible(), 'the page explains why All can exceed interruption badges');
     assert.match(await page.locator('.rail .project .num.pend').first().getAttribute('aria-label'), /^\d+ interruptions?; excludes work ready for review$/);
     assert(await page.getByText(/\d+ questions? needs? you/, { exact: false }).count() > 0, 'project summaries use Needs you vocabulary');

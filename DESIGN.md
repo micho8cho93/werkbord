@@ -223,3 +223,16 @@ heading (the provider chooser, New, Close) and the box.
 - Anything that changes the repository is confirmed in a `Sheet` with the controller's own checks.
 - Keyboard: ⌘/Ctrl K Jump to (projects, sections, tasks, actions), N new task, Esc closes.
 - Motion is state, not decoration: 150–250ms, `cubic-bezier(.16, 1, .3, 1)`, and none under reduced motion.
+
+### Final verification refinements (4.19.1)
+
+Needs you's All, Questions and Review choices are native filter buttons in a labelled group, with pressed state.
+Tab and Space/Enter activate them; they do not announce a tab widget or imply arrow-key tab navigation.
+Count scope is unchanged. The attention-card Review action follows the same 44px phone/coarse-pointer height
+floor as its answer actions. In the desktop shell, reported execution text wraps within the My Work status cell;
+the dot remains compact and supplementary. Reported state, timestamps, stale availability and acknowledgment
+remain visible. These refinements do not establish physical-device or screen-reader usability; see the final audit
+and the unconducted five-developer formative test guide for evidence limits.
+Git branch headlines that call work ready for review use `--warn-text` for readable status words; `--warn` remains
+appropriate for the accompanying border/dot. Final legibility checks include Git subsections and branch, commit and
+file drill-downs rather than treating the overview as evidence for text hidden elsewhere.

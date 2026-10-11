@@ -733,3 +733,120 @@ suite passed. Neither failure was hidden or used to relax a check. Vite's existi
 The comprehension exercise was prepared but not conducted; no human discovery or understanding is claimed. No fresh
 heuristic assessment was run, so this pass claims no score change. The version is MINOR `4.19.0-preview.1`; commit and
 local tag are recorded in the release history. Nothing is pushed.
+
+## Prompt 7 — full verification and independent reassessment (11 October 2026)
+
+This final pass assessed the accumulated Individual and desktop-shell changes against the embedded disposable fixture.
+It made four bounded, reproduced corrections: the Needs you filters now use native pressed-button group semantics;
+the attention-card Review action meets the 44px phone/coarse-pointer height floor; shell My Work execution text wraps
+inside its report cell; and Git Branches' ready-review headline uses the existing `--warn-text` token. Count scope,
+question provenance, pending acknowledgment, stale/offline guards, review/merge confirmations, drafts, Archive Undo,
+weekly destinations and existing relay/API behavior remain intact. No Go or Team source changed; VERSION is the required
+metadata exception. No real controller was operated, no outreach sent, and nothing pushed.
+
+**Independent method and honest score.** Impeccable ran two isolated assessors: `/root/assessor_a` (design) and
+`/root/assessor_b` (browser/accessibility/detector evidence). A had current PRODUCT/DESIGN/source and fresh fixture
+views/images only, and locked all ten scores before detector findings entered synthesis. A stayed blind to the historical
+scores, target scores and B throughout final reassessment. Both assessors distinguish their own browser inspection from
+parent-produced images and source inference. A personally inspected initial answer/review/Git/merge-cancellation views;
+its final native IAB request returned “Browser is not available: iab,” so final source and fresh captures support its
+final-phase findings. B personally confirmed final filter behavior and Review geometry in a fresh Chrome tab after IAB
+became unavailable. Both independently inspected four final shell My Work images; neither claims personal live shell
+interaction. Reports are in `.impeccable/review/workstream-7/assessor-{a,b}*.md`.
+
+| Heuristic | Historical | Previous baseline | Fresh final | Evidence / remaining limit |
+| --- | ---: | ---: | ---: | --- |
+| System status | 3 | 3 | 3 | Count scope and acknowledgment are explicit; comprehension with people unmeasured. |
+| Real-world language | 3 | 3 | 3 | Planning and scheduling distinct; verdicts remain under Execution. |
+| User control | 3 | 3 | 3 | Keyboard/focus/draft guards tested; real AT/device use absent. |
+| Consistency | 2 | 3 | 3 | Native filters fixed; global and Individual attention names share scope ambiguity. |
+| Error prevention | 3 | 3 | 4 | Sampled merge preflight, reviewed SHAs, local-only impact and recheck. |
+| Recognition | 3 | 3 | 2 | Verdict location and task-to-Git context require discovery/recall. |
+| Efficiency | 3 | 3 | 3 | Direct answers/review and larger Review target; real task times unmeasured. |
+| Minimalist design | 2 | 4 | 3 | Quiet authored system; competing branch actions still increase review load. |
+| Error recovery | 2 | 3 | 3 | Safe uncertain delivery and retained drafts; request reconciliation requires an API contract. |
+| Help | 2 | 2 | 3 | Bundled guidance and links verified; usefulness with people not observed. |
+| **Total** | **26/40** | **30/40** | **30/40** | **Good; no fresh score increase or 40/40 claim.** |
+
+Individual band changes reflect independent judgment, not measured participant improvement/deterioration. Three P2
+follow-ups remain: put outcome assessment with review rather than execution settings; retain task/result/test context
+through the Git handoff; distinguish shell-wide from Individual attention scopes in accessible names. The first two
+are live/source observations with comprehension hypotheses; the duplicate-scope finding is source-derived and its
+exact duplicate state was not personally rendered by A. Direct shell Help access and compact secondary touch controls
+remain P3 discovery/target-audit opportunities. They are bounded follow-ups, not a reason to hide weekly destinations
+or continue polishing until a target score appears. The eight-item cognitive checklist has two failures (choice density
+and working memory), moderate load concentrated in review. The final critique is saved through Impeccable storage,
+with historical snapshots preserved.
+
+**Formative human evidence.** [Five-developer guide](ux-formative-test-guide.md) covers answering, fixture review/merge,
+verdict meaning, planning/scheduling, Git/Help navigation and draft recovery. It includes phone-heavy and keyboard users,
+a separate assistive-technology check, neutral prompts, counterbalancing, critical-error definitions, assistance and timing
+rules. No participant results were available or invented. n=0: success counts, wrong turns, assistance, critical errors
+and time are **not measured**, rather than zero errors or five successes. Physical phones, VoiceOver/NVDA speech, system
+zoom and real-device reduced-motion observations remain missing. Scripted tasks do not establish human discoverability.
+
+**Reproductions and behavior regressions.** B observed that the original attention Review target was 62.7×28px at
+390px with a fine pointer; source retained 36px on coarse pointers. `scripts/browser-final-accessibility.cjs` failed
+against the pre-fix filter semantics, then passed on the rebuilt fixture: native keyboard selection changes the list,
+All restores mixed question/review state, Review reaches the correct focused task, and its target is at least 44px at
+375×812 and at 1440×900 with coarse-pointer emulation. `scripts/test-unified-desktop-browser.cjs` now asserts actual text
+bounds within the My Work report cell. Its first final run caught the inherited global nowrap despite a shrinkable span;
+that failure is retained in `shell-final.log`. The corrected `white-space: normal` passes and wraps visibly in all four
+final theme/size captures. Expanded routed measurement found 3.64:1 light ready-review text, missed by the old overview
+matrix. `legibility-expanded-before.log/json` records the failing check, and `extra-legibility-before-contrast-fix.json`
+records the initial two measured nodes. The matrix now reads actual fixture Git subsections, local branches, commits and
+first changed-file drill-downs, rather than inventing API evidence.
+
+**Checks.** The final source passed `make check`: all Go/Team/boundary, desktop and release-workflow checks; 46 web test
+files/541 tests; lint; Svelte check with zero errors/warnings. Production `make web web-embed web-shell` passed.
+`node --test scripts/seed-browser-fixture.test.cjs` passed 3/3. Unified desktop shell and both Individual/shell assistant
+suites passed on disposable services after the final changes; logs and screenshots are in the respective `*-release`
+directories. `make test-browser` passed Individual and Team UI flows but failed its separate bridge integration with
+“Integration state did not settle.” This reproduced in every full-suite run in this pass, including `browser-release.log`;
+the command is **not** claimed as passing. Its root cause is unestablished and crosses the authorized Go/Team scope; no
+source change, timeout extension or assertion weakening was attempted. Vite still emits the existing >500 KB chunk
+advisory. The first Help harness invocation omitted its required SEED_PROJECTS setting; its subsequent explicit-seed
+run passed. Extended local shell captures initially tried to click theme controls behind a modal, then used an obsolete
+Settings link name; all failed runs are preserved. The corrected standalone shell Help capture through “Help and keyboard
+shortcuts” passed. A local completed-state capture initially had an ambiguous Merge selector; narrowing it to the task
+review region then passed genuine fixture merge/Done and cancelled Delete confirmation captures. These are harness
+failures/corrections, not undisclosed product passes. `git diff --check` passed; the prohibited source diff was empty.
+
+**Detector provenance.** B's initial CLI scan had two broken-image warnings, both false positives: dynamic QrImage src
+and an intentionally malicious image string in a transcript test. The final changed-markup scan in `detector-release.json`
+is clean (zero findings). B attempted native mutable injection; the read-only evaluation rejected document.title as
+getter-only. No detector overlay, in-page console scan or live visualization server was created. Native source/AX/screenshots
+and actual CLI results are the fallback, not fabricated live inspection.
+
+**Artifact and coverage accounting.** Evidence lives in `.impeccable/review/workstream-7/`; earlier attempts remain alongside
+final outputs. `health.json`, `projects.json` and copied fixture logs preserve identity and seeded provenance. Final baseline
+and expanded Git routes are in `surfaces-release/` and `legibility-release.json`. Help filtered/empty/keyboard, onboarding,
+Git read-failure/sparse routes and shared dialogs are in `extra/`, with `extra-inventory.json` and `extra-legibility.json`.
+Routed text is measured; dialog screenshots are visual-only evidence. New task and Assistant are also visual-only in the
+baseline script. Shell collapsed/expanded question and My Work captures are in `shell-release/`; exact-size Calendar,
+Workspaces, switcher and Add a Team extensions are in `shell-extra-verified/`, and Help in `shell-help-verified/`.
+`recovery-release/` has controlled long/localized errors, offline/reconnect, disabled/unknown/failed health and lost-response
+variants. `completed/` preserves actual local fixture merge results and cancelled Delete confirmations. Keyboard focus,
+coarse-pointer geometry and reduced-motion behavior have explicit browser assertions; screenshots alone are not their proof.
+A capture inventory and check manifest retain exact counts and paths. The old 120 captures are a historical baseline, not
+this pass's completeness claim. The Open a pull request Sheet is source-reviewed but not rendered: the guarded seed has
+no usable GitHub remote/provider state, and this pass never fabricated enabling evidence, used personal credentials or
+pushed. Native OS dialogs and real-device/AT observations remain unverified. File views are representative first-file
+samples, not a screenshot of every possible repository file. Team console changes were outside scope.
+
+**Release and shutdown.** These bug fixes use unified PATCH `4.19.1-preview.1`; implementation, tests, DESIGN and audit
+are committed together, with local `werkbord-v4.19.1-preview.1` created by `make tag` and checked by `make verify-tag`.
+Only recorded owned fixture children are signalled and waited for; standalone suites clean up their own disposable
+services. Logs, screenshots and critique artifacts remain local. Nothing is pushed and no next numbered pass starts.
+
+Final quantitative coverage: **52 routed entries × two themes × two sizes**, **9,342 measured text nodes**, zero contrast
+failures and zero text below 11.5px. `surfaces-release/` has 216 captures (208 routed, 8 visual-only New task/Assistant).
+The extended inventory has 90 distinct files,56 with routed-text measurement and 34 visual-only dialog captures; its 2,162
+measured nodes also have zero contrast/size failures and overlap some matrix pages. The local extension initially reused
+four Git changes filenames; the inventory counts final distinct files only, while the production matrix separately
+captures both the subsection and working-changes drill-down. The named combined inventory records **400 captures**,
+including shell, recovery and completed-state evidence; assistant-suite assets are retained additionally. Counts describe
+this evidence set, not exhaustive physical-device or all-data-state coverage. The final contrast correction was visually
+inspected on the phone light Branches view and checked by the expanded measurement after guarded rebuild/reseed.
+
+Local critique snapshot: `.impeccable/critique/2026-10-11T20-04-05Z__web-src.md`; persisted trend 26→30→30, all out of 40.

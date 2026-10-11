@@ -77,12 +77,12 @@
 <div class="cc">
   <div class="bar">
     <p class="summary mm">{summary}{projectFilter ? '' : ' · all projects'}</p>
-    <div class="seg segs" role="tablist" aria-label="What to show">
+    <div class="seg segs" role="group" aria-label="What to show">
       {#each SEGMENTS as s (s.id)}
         {@const n = segmentCount(items, s.kinds)}
         {@const reviewCount = segmentCount(items, ['review'])}
         {#if s.id === 'all' || n > 0}
-          <button role="tab" aria-label="{s.label}: {n} {n === 1 ? 'item' : 'items'}{s.id === 'all' ? `, including ${reviewCount} ready for review` : ''}" aria-selected={segment === s.id} onclick={() => (segment = s.id)}>{s.label}<span class="mono n" aria-hidden="true">{n}</span></button>
+          <button aria-label="{s.label}: {n} {n === 1 ? 'item' : 'items'}{s.id === 'all' ? `, including ${reviewCount} ready for review` : ''}" aria-pressed={segment === s.id} onclick={() => (segment = s.id)}>{s.label}<span class="mono n" aria-hidden="true">{n}</span></button>
         {/if}
       {/each}
     </div>
