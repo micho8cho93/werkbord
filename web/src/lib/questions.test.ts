@@ -113,7 +113,8 @@ describe('what the user is told when an answer does not go through', () => {
     const f = describeAnswerFailure(new ApiError(0, 'offline', 'Cannot reach the controller.'));
     expect(f.settled).toBe(false);
     expect(f.notice).toBe(false);
-    expect(f.message).toMatch(/safe to try again/);
+    expect(f.message).toMatch(/Could not confirm/);
+    expect(f.message).toMatch(/retry the same answer/);
   });
 
   it('shows a refused answer inline, and does not drop the question', () => {

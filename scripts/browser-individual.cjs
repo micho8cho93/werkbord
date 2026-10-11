@@ -392,10 +392,11 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal(await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).isDisabled(), true);
         await page.screenshot({ path: path.join(artifacts, 'creation-retry-mobile-light.png') });
         await page.getByRole('button', { name: 'Retry start', exact: true }).click();
-        await page.getByRole('alert').filter({ hasText: 'Launch response lost' }).waitFor();
-        await page.getByRole('button', { name: 'Retry start', exact: true }).click();
+        await page.getByRole('alert').filter({ hasText: 'Could not confirm whether the agent started' }).waitFor();
+        assert.equal(await page.getByRole('button', { name: 'Retry start', exact: true }).isDisabled(), true, 'uncertain launch cannot be repeated');
+        await page.getByRole('button', { name: 'View saved task', exact: true }).click();
         await page.getByRole('heading', { name: 'Recover saved task fixture', exact: true }).waitFor();
-        assert.equal(launches, 3, 'retry reuses the active run after a lost response');
+        assert.equal(launches, 3, 'viewing the saved task after a lost response sends no new launch');
         savedTasks = (await api('GET', `/api/projects/${p.id}/tasks`)).tasks.filter(t => t.title === 'Recover saved task fixture');
         assert.equal(savedTasks.length, 1);
         const recoveredRuns = (await api('GET', `/api/projects/${p.id}/tasks/${savedTasks[0].id}/runs`)).runs;
@@ -588,11 +589,13 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal(await page.locator('#project-priority').inputValue(), 'high');
         console.log('PASS unsaved project defaults survive SSE refresh');
         for (const [name, route] of [['board', `/p/${p.id}/board`], ['project-settings', `/p/${p.id}/defaults`], ['settings', '/settings'], ['runs', `/p/${p.id}/runs`], ['git', `/p/${p.id}/git`], ['projects', '/projects']]) {
+            await page.setViewportSize({ width: 1440, height: 1000 });
             await page.goto(base + '/#' + route);
             if (name === 'git') await page.getByRole('navigation', { name: 'Git sections' }).waitFor({ timeout: 120000 });
             else await page.waitForTimeout(250);
             for (const [size, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
                 await page.setViewportSize({ width, height });
+                if (name === 'git' && size === 'mobile') await page.getByRole('combobox', { name: 'Git section', exact: true }).waitFor();
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, name + ' ' + size + ' document overflows');
                 await page.screenshot({ path: path.join(artifacts, 'individual-' + name + '-' + size + '.png') });
             }

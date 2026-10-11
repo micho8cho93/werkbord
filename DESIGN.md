@@ -163,6 +163,17 @@ heading (the provider chooser, New, Close) and the box.
 - **An empty view says so.** A Calendar week with nothing scheduled says "Nothing is scheduled to run this week" above the grid.
 - **A work project speaks of work, not agents.** Its board has no Agent or Runner filter and no agents legend, its cards do not
   say "Human", its task panel has no Runs tab and its Timeline does not send you to a Calendar it does not have.
+- **Recovery keeps uncertainty visible.** Git health recognizes disabling only from the controller's explicit
+  disabled response. Failed reads say current health is unknown; retained findings and scores are last known evidence,
+  never a new healthy result. Check now reads Git metadata and leaves repository confirmations under controller checks.
+- **Drafts stay with their source.** New task briefs, execution/planning choices, quick-add titles and typed answers
+  remain in origin-scoped, tab-session storage, keyed by project and question. Closing or reloading keeps an unsent
+  draft; Discard draft clears an unsent New task brief. Storage failure explains that reload recovery is unavailable.
+- **A lost response is not a refusal.** Persist an uncertainty guard before sending a task save or start; network,
+  server and malformed-response failures keep it through reload. Check Board or View saved task is the next step,
+  without replaying the mutation. Opening a known saved task clears its creation draft. A controller refusal permits
+  correction/retry. An unconfirmed answer offers only Retry same answer, using the controller's one-answer guarantee;
+  stale/offline shell guards and runner acknowledgment still govern delivery.
 - **First run is quiet.** Failing to look up an optional connection (GitHub, phone access) is a muted line with *Try again*;
   red is for something the person asked for that failed.
 - **A blocked permission is an explanation, not a button.** Alerts blocked by the browser say where to allow them.

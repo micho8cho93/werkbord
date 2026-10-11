@@ -117,7 +117,7 @@ export function describeAnswerFailure(err: unknown): AnswerFailure {
       return { message: closedText(q), settled: true, notice: true };
     }
     if (err.code === 'offline') {
-      return { message: 'Cannot reach the controller. Your answer was not sent; it is safe to try again.', settled: false, notice: false };
+      return { message: 'Cannot reach the controller. Could not confirm whether your answer was saved. Reconnect, then retry the same answer.', settled: false, notice: false };
     }
     if (err.code === 'not_found') {
       return { message: 'This question no longer exists.', settled: true, notice: true };

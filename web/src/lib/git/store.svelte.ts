@@ -5,6 +5,7 @@
 // slow, offline or signed out must not slow down or empty the local overview.
 
 import { ApiError, api } from '../api';
+import { healthDisabled } from '../recovery';
 import { nowISO } from '../format';
 import type { ControllerEvent, GitActionResult, GitHubState, GitOverview, RepositoryHealth } from '../types';
 
@@ -36,6 +37,7 @@ class GitStore {
   health = $state<RepositoryHealth | null>(null);
   healthLoading = $state(false);
   healthError = $state('');
+  healthDisabled = $state(false);
 
   private loadId = 0;
   private ghId = 0;
@@ -124,9 +126,11 @@ class GitStore {
       if (id !== this.healthId) return;
       this.health = h;
       this.healthError = '';
+      this.healthDisabled = false;
     } catch (err) {
       if (id !== this.healthId) return;
       this.healthError = describe(err);
+      this.healthDisabled = healthDisabled(err);
     } finally {
       if (id === this.healthId) this.healthLoading = false;
     }

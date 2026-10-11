@@ -252,7 +252,7 @@
     {/if}
 
     <ProjectSwitcher />
-    {#if app.newTaskOpen && project}<NewTaskDialog {project} />{/if}
+    {#if app.newTaskOpen && project}{#key project.id}<NewTaskDialog {project} />{/key}{/if}
     <Toasts />
   </div>
   <!-- In the desktop window the assistant is the shell's own frame over the whole window (lib/assistant/AssistantSurface). -->

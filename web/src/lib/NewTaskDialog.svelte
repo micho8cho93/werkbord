@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { ApiError, api } from './api';
+  import { readDraft, writeDraft, uncertainMutation } from './recovery';
+  import { api } from './api';
   import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, resolveFor, sourceLabel } from './execution';
   import { agentWorkable } from './board';
   import { INTERACTION_OPTIONS, PERMISSIONS_NOTE } from './policy';
@@ -16,18 +17,25 @@
 
   let { project }: { project: Project } = $props();
 
-  let title = $state('');
-  let description = $state('');
-  let execution = $state<ExecutionConfig>({});
-  let labelIds = $state<string[]>([]);
+  const draftKey = untrack(() => `new-task.${project.id}`);
+  const restored = untrack(() => readDraft<{ title: string; description: string; execution: ExecutionConfig; labelIds: string[]; workMode: WorkMode; plan: Plan; saved: Task | null; uncertainSave: boolean; uncertainStart: boolean }>(draftKey));
+  let title = $state(restored?.title ?? '');
+  let description = $state(restored?.description ?? '');
+  let execution = $state<ExecutionConfig>(restored?.execution ?? {});
+  let labelIds = $state<string[]>(restored?.labelIds ?? []);
   // A work project has no repository for an agent, so its tasks start out as work for a person.
-  let workMode = $state<WorkMode>(untrack(() => (project.kind === 'work' ? 'human' : 'agent')));
-  let plan = $state<Plan>({});
+  let workMode = $state<WorkMode>(untrack(() => (restored?.workMode ?? (project.kind === 'work' ? 'human' : 'agent'))));
+  let plan = $state<Plan>(restored?.plan ?? {});
   let busy = $state(false);
   let error = $state('');
-  let saved = $state<Task | null>(null);
+  let saved = $state<Task | null>(restored?.saved ?? null);
   let phase = $state('');
-  let uncertainSave = $state(false);
+  let uncertainSave = $state(restored?.uncertainSave ?? false);
+  let uncertainStart = $state(restored?.uncertainStart ?? false);
+  let draftStored = $state(true);
+  let cleared = false;
+  function persist() { if (cleared) return; draftStored = writeDraft(draftKey, { title, description, execution, labelIds, workMode, plan, saved, uncertainSave, uncertainStart }); }
+  $effect(() => { void title; void description; JSON.stringify(execution); JSON.stringify(labelIds); void workMode; JSON.stringify(plan); void saved; void uncertainSave; void uncertainStart; untrack(persist); });
 
   const inherited = $derived(resolveFor({}, project.execution, app.globalExecution));
   const isWork = $derived(project.kind === 'work');
@@ -45,17 +53,20 @@
 
   async function add(start: boolean) {
     const t = title.trim();
-    if (!t || busy || uncertainSave || (start && !saved && !agentReady)) return;
+    if (!t || busy || uncertainSave || uncertainStart || (start && !saved && !agentReady)) return;
     busy = true;
     error = '';
     try {
       phase = saved ? 'Requesting agent…' : 'Saving task…';
+      if (!saved) { uncertainSave = true; persist(); }
       const task = saved ?? await api.createTask(project.id, t, description.trim(), isWork ? undefined : compact(execution), {
         workMode,
         labelIds,
         plan: plan.start || plan.end ? { ...plan, ...(plan.milestone ? {} : { end: plan.end || undefined }) } : undefined,
       });
       saved = task;
+      uncertainSave = false;
+      persist();
       const scope = app.scope(project.id);
       scope?.upsertTask(task);
       if (start) {
@@ -64,16 +75,23 @@
         const runs = await api.listTaskRuns(project.id, task.id);
         const existing = runs.at(-1); // task history is oldest first
         if (!existing && !agentReady) throw new Error('The selected agent or runner is unavailable. Retry when it is ready.');
+        uncertainStart = true;
+        persist();
         const run = existing ?? await api.startRun(project.id, task.id);
+        uncertainStart = false;
         scope?.upsertRun(run);
         router.go({ view: 'task', projectId: project.id, taskId: task.id });
       } else {
         app.notify(`“${t}” saved.`, 4000);
       }
+      cleared = true;
+      writeDraft(draftKey, null);
       close();
     } catch (err) {
-      uncertainSave = !saved && err instanceof ApiError && (err.code === 'offline' || err.status >= 500);
-      error = uncertainSave ? 'Could not confirm whether the task was saved. Check the Board before adding it again.' : `${saved ? 'Task saved. Agent could not start: ' : ''}${err instanceof Error ? err.message : String(err)}`;
+      uncertainSave = !saved && uncertainMutation(err);
+      uncertainStart = !!saved && uncertainStart && uncertainMutation(err);
+      persist();
+      error = uncertainStart ? 'Task saved. Could not confirm whether the agent started. Open the saved task and check Runs before starting again.' : uncertainSave ? 'Could not confirm whether the task was saved. Check the Board before adding it again.' : `${saved ? 'Task saved. Agent could not start: ' : ''}${err instanceof Error ? err.message : String(err)}`;
     } finally {
       busy = false;
     }
@@ -87,7 +105,7 @@
   }
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onpagehide={persist} />
 
 <Sheet title="New task in {project.name}" onclose={close} width="40rem">
   <form
@@ -98,6 +116,7 @@
       void add(false);
     }}
   >
+    <p class="draft-note">Drafts stay in this tab when closed or reloaded.</p>
     <label class="field">
       <span class="lab">{isWork ? 'What needs doing?' : 'What should an agent do?'}</span>
       <input class="input big" disabled={!!saved || uncertainSave} maxlength="200" placeholder={isWork ? 'Book the venue' : 'Fix the flaky auth test'} bind:value={title} data-autofocus required />
@@ -117,15 +136,19 @@
     {/if}
     <details><summary>Labels, ownership and planning</summary><fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:labelIds bind:workMode bind:plan repository={!isWork} idPrefix="new-task" /></fieldset></details>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-    {#if saved}<button class="btn" type="button" onclick={() => { if (saved) router.go({ view: 'task', projectId: project.id, taskId: saved.id }); close(); }}>View saved task</button>{/if}
+    {#if uncertainSave}<p role="status">Save status is unknown. Your brief is kept in this tab; check the Board before creating another task.</p><a class="btn" href={`#/p/${project.id}/board`} onclick={close}>Check Board</a>{/if}
+    {#if uncertainStart && !error}<p role="status">Start status is unknown. Open the saved task to check Runs before starting again.</p>{/if}
+    {#if !draftStored}<p role="status">This browser cannot keep the brief through reload. Copy it before closing or reloading.</p>{/if}
+    {#if saved}<button class="btn" type="button" onclick={() => { if (saved) { router.go({ view: 'task', projectId: project.id, taskId: saved.id }); cleared = true; writeDraft(draftKey, null); } close(); }}>View saved task</button>{/if}
   </form>
 
   {#snippet footer()}
     {#if canAgent}<span class="tip"><kbd class="key">⌘</kbd><kbd class="key">↵</kbd> start</span>{/if}
+    {#if !saved && !uncertainSave}<button class="btn quiet" type="button" onclick={() => { cleared = true; writeDraft(draftKey, null); close(); }}>Discard draft</button>{/if}
     <button class="btn" type="button" onclick={close}>{saved || uncertainSave ? 'Close' : 'Cancel'}</button>
-    <button class="btn" class:primary={!canAgent} type="submit" form="new-task-form" disabled={busy || !title.trim() || uncertainSave}>{saved ? 'Keep saved task' : 'Add to Backlog'}</button>
+    <button class="btn" class:primary={!canAgent} type="submit" form="new-task-form" disabled={busy || !title.trim() || uncertainSave || uncertainStart}>{saved ? 'Keep saved task' : 'Add to Backlog'}</button>
     {#if canAgent}
-      <button class="btn primary" type="button" disabled={busy || !title.trim() || (!saved && !agentReady) || uncertainSave} onclick={() => add(true)} title={agentReady ? '' : busyOnly ? 'Every runner that can take this task is busy' : 'No agent is available on an online runner'}>
+      <button class="btn primary" type="button" disabled={busy || !title.trim() || (!saved && !agentReady) || uncertainSave || uncertainStart} onclick={() => add(true)} title={agentReady ? '' : busyOnly ? 'Every runner that can take this task is busy' : 'No agent is available on an online runner'}>
         {busy ? phase : saved ? 'Retry start' : 'Add and start agent'}
       </button>
     {/if}
@@ -133,6 +156,7 @@
 </Sheet>
 
 <style>
+  .draft-note { font-size: 12px; color: var(--text-2); }
   .form {
     display: grid;
     gap: 14px;

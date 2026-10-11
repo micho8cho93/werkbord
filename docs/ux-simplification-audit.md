@@ -625,3 +625,78 @@ The timeout was not relaxed; the captured Runs/Settings/Project settings screens
 `make test-unified-desktop-browser` did pass.
 Production web/embed/shell builds succeeded; Vite reports the 554.18 KB main chunk above its 500 KB
 advisory threshold.
+
+### Workstream 5 — recovery, drafts and uncertain delivery (11 October 2026)
+
+**Baseline verified before fixes.** On the guarded, embedded fixture, New task and a controlled free-text question lost
+both drafts on reload. Aborting the answer response produced “Your answer was not sent; it is safe to try again.”
+Quick add likewise lost its title on reload and left Add enabled after an aborted save response. Controlled Git health
+responses reproduced enabled success, enabled read/request failure, explicit disabling and generic unavailable states;
+errors offered Check now but did not explain explicit disabling or identify retained results as last known. A controlled
+malformed run response triggered the task-panel boundary; after the mock was corrected, Try again still redrew its cached
+bad evidence without refetching it. Baseline screenshots and `baseline.json` are in `.impeccable/review/workstream-5/`.
+Early health captures accidentally reused the Git cache; the baseline was rerun with reloads so each response was actually
+consumed. The free-text flag is a browser response mock; the seed's real decision only offers Yes/No.
+
+**Changed behavior.** Health now recognizes only the existing explicit `503 / unavailable / repository health is not
+enabled` contract as disabled. Generic 503s and unreachable reads remain unknown. Failed reads retain findings and scores
+as last known evidence and offer Check now beside the explanation; they no longer proclaim “Nothing needs you.” The
+boundary's retry refreshes existing task/run/question read APIs before resetting the panel, and a failed refresh stays
+beside the retry. Connection banners give the safe refresh step without promising agents stopped.
+
+New task briefs, execution/planning choices, quick-add titles and typed answers persist in tab-session storage, scoped by
+origin/project/question. Closing or reloading keeps drafts. Discard draft explicitly clears an unsent New task brief;
+success or opening a known saved task clears its creation draft. Before a save/start/answer request, the frontend persists
+an uncertainty marker. Lost, server-error and malformed responses keep that guard through reload. Task saves and starts
+are not replayed: Check Board or View saved task is the adjacent next step. Controller refusals remain correctable and
+retryable. Uncertain answers offer Retry same answer and disable competing choices, using the controller's existing
+one-answer acceptance/conflict guarantee. Saved answers still wait for runner acknowledgment; the shell still uses only
+its existing Individual relay and refuses stale/offline answers. Recovery buttons on Health, the boundary and question
+cards measure at least 44px high on phones/coarse pointers. Existing optional setup failures keep their quiet treatment.
+
+**API evidence and dependencies.** `internal/api/githealth.go` emits the explicit disabled contract when its health service
+is absent. Normal startup in `internal/controller/controller.go` installs that service; the disabled browser fixture alone
+is not a production health defect. No authorized UI/API enabling switch exists, so the explanation has no invented Enable
+link. An enabling path would require a separate backend/product decision. Task creation/start APIs expose no request
+identity for resolving a lost response. This pass cannot prove that an absent Board item means a save never committed, so
+it retains the uncertain draft and refuses automatic replay. Automatic reconciliation/release of that guard needs a
+controller idempotency or request-status contract, outside this pass. Answer acceptance and repeated/competing-answer
+behavior were read in `internal/service/runner_events.go`, `internal/service/runs.go` and `internal/domain/question.go`, and
+confirmed through the existing fixture endpoint. No Go or Team source was edited.
+
+**Regression and rendered evidence.** `scripts/browser-recovery-workstream-5.cjs` requires an explicit fixture URL, checks
+`version: browser-fixture`, and uses controlled responses for success, read failure, generic failure, disabled, unreachable
+and changed Git evidence. It covers offline entry/reconnect, long German/CJK/Arabic errors, corrected boundary evidence,
+brief/planning/answer reload recovery, rejected versus committed-but-lost task saves, guarded quick add, unchanged saved
+answer/timestamp on repeat, keyboard reachability, and phone/coarse-pointer/reduced-motion behavior. It passes against the
+rebuilt/restarted/reseeded embedded UI. `recovery-verified/` contains 54 captures: 13 cases at 1440×900 and 375×812 in both
+themes, plus offline entry and a coarse-pointer capture. Phone recovery targets are asserted at 44px and the answer retry
+is scrolled fully into view. The original routed matrix measured 5,326 text nodes across 28 pages × two themes × two sizes,
+with zero contrast or text-size failures. The final fresh-seed measurement reproduced those results on the final build;
+its JSON and 120 captures are in `legibility-final.json` and `surfaces-final/`. Earlier captures remain in `surfaces/`.
+
+**Checks and failures.** Targeted Vitest recovery/question tests passed (35 tests); all web tests passed (45 files, 538
+tests), Svelte check reported zero errors/warnings, lint passed, and production web/embed/shell builds completed. Full
+`make check` runs passed; logs are retained under `workstream-5/`. The unified desktop browser suite and both assistant
+suites passed, including stale/offline refusal, acknowledgment, reduced motion, confirmations and draft behavior. Vite
+continues to report its main chunk above the 500 KB advisory threshold; builds succeed. The
+Impeccable detector reported two existing false positives: QrImage's dynamic `src` and an intentional malicious-image
+string in the assistant transcript test; neither is a broken product image.
+
+The broad browser suite first exposed my failure to clear a known saved task's creation draft on View saved task; that
+was fixed and its creation journey passed on rerun. A later wrapper run expired at 120 seconds. Running the Individual
+script directly identified a stale capture assertion from workstream 4: it entered Git at phone width and waited for the
+desktop navigation. The harness now enters the route at desktop width and separately asserts the phone's Git chooser,
+without extending timeouts. In the final `make test-browser` run, **Individual and Team browser flows passed**, but the
+separate bridge integration failed with **“Integration state did not settle”** in its existing polling window. The bridge
+failure is retained in `browser-suite-verified.log`; the full command is not claimed as passing and its timeout was not
+relaxed. Prior failure logs and the direct run are also retained. No Team or Go fix was attempted. A final legibility
+rerun initially refused its baseline vocabulary assertion because the recovery test had already answered the seeded
+question. The fixture was restarted and freshly seeded for the measurement; no assertion was removed.
+
+**Limits.** Drafts last for this browser tab session, not across closing the tab or switching devices. Denied storage is
+reported in the form; reload persistence cannot be guaranteed there. Browser mocks establish frontend handling, not that
+production health is disabled or failing. No human comprehension study, physical touch device or VoiceOver session was
+conducted, and no new heuristic score is claimed. Fixtures were rebuilt/reseeded after UI changes, and only owned fixture
+children are stopped after verification. The release is PATCH `4.18.5-preview.1`, committed and tagged locally; nothing
+is pushed.

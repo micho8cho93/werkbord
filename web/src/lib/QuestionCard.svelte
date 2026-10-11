@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { readDraft, writeDraft, uncertainMutation } from './recovery';
   import { api } from './api';
   import { timeAgo } from './format';
   import {
@@ -23,7 +25,21 @@
     answerWith?: (q: Question, answer: string) => Promise<Question>; onSettled?: (q: Question) => void; notify?: (message: string) => void;
   } = $props();
 
-  let text = $state('');
+  const draftKey = $derived(`answer.${question.projectId}.${question.id}`);
+  let loadedKey = untrack(() => draftKey);
+  const restored = untrack(() => readDraft<{ text: string; uncertain: string }>(draftKey));
+  let text = $state(restored?.text ?? '');
+  let uncertain = $state(restored?.uncertain ?? '');
+  let draftStored = $state(true);
+  $effect(() => {
+    if (draftKey !== loadedKey) {
+      loadedKey = draftKey;
+      const next = readDraft<{ text: string; uncertain: string }>(draftKey);
+      text = next?.text ?? ''; uncertain = next?.uncertain ?? ''; error = '';
+    }
+  });
+  function persist() { draftStored = writeDraft(draftKey, { text, uncertain }); }
+  $effect(() => { void text; void uncertain; untrack(persist); });
   /** The choice being sent, so its button can say so. */
   let sending = $state('');
   let busy = $state(false);
@@ -39,23 +55,30 @@
 
   async function answer(value: string) {
     value = value.trim();
-    if (!value || busy || disabled) return;
+    if (!value || busy || disabled || (uncertain && value !== uncertain)) return;
     busy = true;
     sending = value;
     error = '';
+    uncertain = value;
+    persist();
     try {
       const settled = await answerWith(question, value);
       onSettled(settled);
       if (settled.state === 'answered') notify(answeredNotice(settled, value));
       text = '';
+      uncertain = '';
+      writeDraft(draftKey, null);
     } catch (err) {
       const failure = describeAnswerFailure(err);
       if (failure.settled) {
         // Someone else answered, or the agent moved on: say so, and stop offering it.
+        text = ''; uncertain = ''; writeDraft(draftKey, null);
         onSettled(question);
         notify(failure.message);
       } else {
-        error = failure.message; // the typed answer stays, so trying again is one tap
+        if (!uncertainMutation(err)) uncertain = '';
+        error = failure.message;
+        persist();
       }
     } finally {
       busy = false;
@@ -70,6 +93,8 @@
     }
   }
 </script>
+
+<svelte:window onpagehide={persist} />
 
 <div class="ask" data-kind={question.kind} role="group" aria-label="{kindLabel(question.kind)}: {question.prompt}">
   {#if showMeta}
@@ -97,7 +122,7 @@
           class="btn choice"
           class:primary={isAllow(o)}
           class:danger={isDeny(o, question.kind)}
-          disabled={busy || disabled}
+          disabled={busy || disabled || !!uncertain}
           onclick={() => answer(o)}
         >
           {sending === o ? 'Sending…' : o}
@@ -119,7 +144,7 @@
         <textarea
           id="answer-{question.id}"
           class="input"
-          disabled={busy || disabled}
+          disabled={busy || disabled || !!uncertain}
           rows="2"
           placeholder={freeTextHint(question)}
           bind:value={text}
@@ -130,30 +155,35 @@
         <input
           id="answer-{question.id}"
           class="input"
-          disabled={busy || disabled}
+          disabled={busy || disabled || !!uncertain}
           placeholder={freeTextHint(question)}
           autocomplete="off"
           bind:value={text}
           onkeydown={onKey}
         />
       {/if}
-      <button class="btn primary" type="submit" disabled={busy || disabled || !text.trim()}>
+      <button class="btn primary" type="submit" disabled={busy || disabled || !!uncertain || !text.trim()}>
         {busy && sending === text.trim() ? 'Sending…' : 'Send'}
       </button>
     </form>
   {/if}
 
-  {#if error}
-    <p class="error" role="alert">{error}</p>
+  {#if error}<p class="error" role="alert">{error}</p>{/if}
+  {#if uncertain && !busy}
+    <p role="status">Delivery is unconfirmed. Reconnect before retrying “{uncertain}”. The controller accepts each question’s answer once.</p>
+    <button class="btn recovery" disabled={disabled || busy} onclick={() => answer(uncertain)}>Retry same answer</button>
   {/if}
+  {#if !draftStored}<p role="status">This browser cannot keep your answer through reload. Copy it before reloading.</p>{/if}
 </div>
 
 <style>
+  @media (max-width: 899px), (pointer: coarse) { .recovery { min-height: 44px; } }
   .full-context { margin: 0; padding: 10px; background: var(--surface-2); border-radius: var(--radius-sm); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 var(--mono); }
   .ask {
     display: grid;
     gap: 10px;
     min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .meta {

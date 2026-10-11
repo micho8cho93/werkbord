@@ -13,20 +13,22 @@
 
   let { project, store, compact = false }: { project: Project; store: GitStore; compact?: boolean } = $props();
 
-  const h = $derived(store.health);
+  const h = $derived(store.healthDisabled ? null : store.health);
   const split = $derived(splitFindings(h));
-  const tone = $derived(headlineTone(h));
+  const tone = $derived(h?.check?.error ? 'neutral' : headlineTone(h));
   const tidy = $derived(housekeepingLine(split.housekeeping.length));
 </script>
 
-<section class="card g-card health" aria-label="Repository health" data-state={h?.summary.state ?? 'unknown'}>
+<section class="card g-card health" aria-label="Repository health" data-state={store.healthError || h?.check?.error ? 'unknown' : h?.summary.state ?? 'unknown'}>
   <header class="head">
     <div class="g-wrap">
       <h2>Repository health</h2>
-      {#if h}
-        <p class="headline" data-tone={tone}>{h.summary.headline}</p>
+      {#if store.healthDisabled}
+        <p class="headline muted">Checks are disabled</p>
       {:else if store.healthError}
-        <p class="headline" data-tone="neutral">Could not be checked</p>
+        <p class="headline muted">Current health is unknown</p>
+      {:else if h}
+        <p class="headline" data-tone={tone}>{h.check?.error ? 'Current health is unknown' : h.summary.headline}</p>
       {:else}
         <p class="headline muted">Checking…</p>
       {/if}
@@ -38,17 +40,21 @@
     </div>
   </header>
 
-  {#if store.healthError}<p class="error" role="alert">{store.healthError}</p>{/if}
+  {#if store.healthDisabled}
+    <p class="g-small muted">This controller has repository health checks disabled. There is no switch to enable them in this app. Other Git views remain available.</p>
+  {:else if store.healthError}
+    <div role="alert"><p class="error">{store.healthError}</p><p class="g-small">Reconnect if needed, then use Check now. This only reads Git metadata.{h ? ' Findings below are from the last successful check.' : ''}</p></div>
+  {/if}
 
   {#if h}
     <p class="meta g-small muted">
-      {#if h.check}Checked {timeAgo(h.check.checkedAt, app.now)}{/if}
+      {#if store.healthError || h.check?.error}Last known result · {/if}{#if h.check}Checked {timeAgo(h.check.checkedAt, app.now)}{/if}
       {#if tidy}<span> · {tidy}</span>{/if}
       <span class="score" title="A rough number, derived from the findings. The findings are what matters."> · score {h.summary.score}</span>
     </p>
 
     {#if h.check?.error}
-      <p class="g-notice" data-tone="bad">The repository could not be read at the last check, so what follows is as of before that: {h.check.error}</p>
+      <p class="g-notice" data-tone="bad">The repository could not be read at the last check, so current health is unknown. Use Check now to retry; findings below are from before that: {h.check.error}</p>
     {/if}
 
     {#if compact}
@@ -58,7 +64,7 @@
       <ul class="g-list">
         {#each split.needs as f (f.id)}<FindingCard finding={f} projectId={project.id} {store} />{/each}
       </ul>
-    {:else if h.summary.state === 'healthy'}
+    {:else if h.summary.state === 'healthy' && !store.healthError && !h.check?.error}
       <p class="calm g-small">Nothing needs you. Branches that are finished, pushed and waiting for review are normal and are not reported here.</p>
     {/if}
 
@@ -110,6 +116,8 @@
 </section>
 
 <style>
+  .health { min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: 899px), (pointer: coarse) { .head .btn { min-height: 44px; } }
   .head {
     display: flex;
     flex-wrap: wrap;

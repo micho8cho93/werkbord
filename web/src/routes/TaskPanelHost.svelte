@@ -17,6 +17,18 @@
     if (failedHeading) void tick().then(() => failedHeading?.focus());
   });
   let failed = $state(false);
+  let retrying = $state(false);
+  let retryError = $state('');
+  async function retry(reset: () => void) {
+    if (retrying) return;
+    retrying = true; retryError = '';
+    try {
+      await scope.load(); // Refresh evidence only; never replay a task, run or answer action.
+      failed = false; reset();
+    } catch (error) {
+      retryError = `Could not refresh this task. Reconnect, then try again. ${reason(error)}`;
+    } finally { retrying = false; }
+  }
   function report(error: unknown) {
     failed = true;
     console.error('The task panel failed to render', error);
@@ -39,8 +51,9 @@
       <div class="body">
         <p>Something went wrong while drawing it. Your task and its runs are not affected, and the board still works.</p>
         <p class="well">{reason(error)}</p>
+        {#if retryError}<p class="error" role="alert">{retryError}</p>{/if}
         <div class="row">
-          <button class="btn primary" onclick={() => { failed = false; reset(); }}>Try again</button>
+          <button class="btn primary" disabled={retrying} onclick={() => retry(reset)}>{retrying ? 'Refreshing…' : 'Try again'}</button>
           <a class="btn" href={boardHref}>Back to the board</a>
         </div>
       </div>
@@ -94,12 +107,15 @@
     align-content: start;
     padding: 20px 24px;
     overflow-wrap: anywhere;
+    overflow-y: auto;
+    min-height: 0;
   }
   .row {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   }
+  @media (max-width: 899px), (pointer: coarse) { .row .btn { min-height: 44px; } }
   @media (max-width: 899px) {
     .panel {
       width: 100vw;

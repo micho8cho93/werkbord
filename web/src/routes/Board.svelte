@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { readDraft, writeDraft, uncertainMutation } from '../lib/recovery';
   import { ApiError, api } from '../lib/api';
   import { agentWorkable, dropAction, firstNeedsYouColumn } from '../lib/board';
   import Archive from '../lib/board/Archive.svelte';
@@ -219,8 +220,15 @@
   }
 
   // ---- quick add, in Backlog ----
-  let adding = $state(false);
-  let newTitle = $state('');
+  const quickKey = untrack(() => `quick-task.${project.id}`);
+  const quickDraft = untrack(() => readDraft<{ title: string; uncertain: boolean }>(quickKey));
+  let adding = $state(!!quickDraft?.title);
+  let newTitle = $state(quickDraft?.title ?? '');
+  let addUncertain = $state(quickDraft?.uncertain ?? false);
+  let addError = $state('');
+  let quickStored = $state(true);
+  function persistQuick() { quickStored = writeDraft(quickKey, { title: newTitle, uncertain: addUncertain }); }
+  $effect(() => { void newTitle; void addUncertain; untrack(persistQuick); });
   let addBusy = $state(false);
   let addInput = $state<HTMLInputElement>();
 
@@ -231,19 +239,28 @@
   async function quickAdd(e: SubmitEvent) {
     e.preventDefault();
     const title = newTitle.trim();
-    if (!title || addBusy) return;
+    if (!title || addBusy || addUncertain) return;
     addBusy = true;
+    addError = '';
+    addUncertain = true;
+    persistQuick();
     try {
       scope.upsertTask(await api.createTask(project.id, title));
       newTitle = '';
+      addUncertain = false;
+      writeDraft(quickKey, null);
     } catch (err) {
-      app.notify(err instanceof Error ? err.message : String(err));
+      addUncertain = uncertainMutation(err);
+      addError = addUncertain ? 'Save status is unknown. Reconnect and check Backlog before adding this task again.' : `${err instanceof Error ? err.message : String(err)} Correct the title, then try Add again.`;
+      persistQuick();
     } finally {
       addBusy = false;
       addInput?.focus();
     }
   }
 </script>
+
+<svelte:window onpagehide={persistQuick} />
 
 <div class="view">
   <div class="bar">
@@ -327,6 +344,7 @@
             <label class="visually-hidden" for="quick-add">New task title</label>
             <input
               id="quick-add"
+              disabled={addBusy || addUncertain}
               class="input"
               placeholder="Task title, then Enter"
               maxlength="200"
@@ -335,13 +353,15 @@
               onkeydown={(e) => {
                 if (e.key === 'Escape') {
                   adding = false;
-                  newTitle = '';
                 }
               }}
             />
+            {#if addError}<p class="error" role="alert">{addError}</p>{/if}
+            {#if addUncertain && !addError}<p role="status">Save status is unknown. Reconnect and check Backlog before adding again.</p>{/if}
+            {#if !quickStored}<p role="status">Copy this title before reloading; browser draft storage is unavailable.</p>{/if}
             <div class="quick-row">
-              <button class="btn small primary" type="submit" disabled={addBusy || !newTitle.trim()}>Add</button>
-              <button class="btn small quiet" type="button" onclick={() => ((app.newTaskOpen = true), (adding = false))}>More options…</button>
+              <button class="btn small primary" type="submit" disabled={addBusy || addUncertain || !newTitle.trim()}>Add</button>
+              <button class="btn small quiet" type="button" disabled={addUncertain} onclick={() => { app.newTaskOpen = true; adding = false; }}>More options…</button>
             </div>
           </form>
         {/if}
