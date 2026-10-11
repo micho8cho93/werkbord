@@ -37,7 +37,11 @@
     query?.addEventListener('change', change);
     return () => query?.removeEventListener('change', change);
   });
-  const collapsed = $derived(model.sidebarCollapsed || narrow);
+  // At intermediate window widths the rail starts with icons to leave room for work, but the
+  // person can reveal the labels and project list without needing to guess what an icon means.
+  let labelsOpen = $state(false);
+  const collapsed = $derived(narrow ? !labelsOpen : model.sidebarCollapsed);
+  const sidebarToggleLabel = $derived(collapsed ? (narrow ? 'Show sidebar labels' : 'Expand sidebar') : (narrow ? 'Hide sidebar labels' : 'Collapse sidebar'));
 
   let switchButton: HTMLButtonElement | undefined = $state();
   $effect(() => {
@@ -73,7 +77,7 @@
 {/snippet}
 
 <nav class="side" class:collapsed aria-label="Werkbord">
-  <button class="toggle" type="button" hidden={narrow} onclick={() => model.toggleSidebar()} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!collapsed}>
+  <button class="toggle" type="button" onclick={() => { if (narrow) labelsOpen = !labelsOpen; else model.toggleSidebar(); }} aria-label={sidebarToggleLabel} title={sidebarToggleLabel} aria-expanded={!collapsed} data-testid="sidebar-label-toggle">
     <Icon name={collapsed ? 'right' : 'left'} size={14} />
   </button>
 
@@ -172,9 +176,6 @@
   }
   .collapsed .toggle {
     align-self: center;
-  }
-  .toggle[hidden] {
-    display: none;
   }
   .switch {
     display: flex;

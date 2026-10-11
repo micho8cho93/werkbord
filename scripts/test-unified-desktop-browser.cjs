@@ -39,6 +39,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await wait(() => fs.existsSync(path.join(temp, 'shell-ready')), 'Go desktop shell');
  const repo = path.join(temp, 'repo'); fs.mkdirSync(repo); run('git', ['-C', repo, 'init', '-b', 'main']); run('git', ['-C', repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture']); run('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/acme/shop']);
  const full = 'disposable-browser-credential'; await api(individualURL, full, 'POST', '/api/projects', { name: 'Customer portal', path: repo });
+ const longRepo = path.join(temp, 'long-project'); fs.mkdirSync(longRepo); run('git', ['-C', longRepo, 'init', '-b', 'main']); run('git', ['-C', longRepo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Long name fixture']);
+ const longProjectName = 'Northern European Venue Operations and Logistics'; await api(individualURL, full, 'POST', '/api/projects', { name: longProjectName, path: longRepo });
  const project = await team('POST', '/projects', { name: 'Customer portal', repository: 'https://github.com/acme/shop' });
  const ticket = await team('POST', `/projects/${project.id}/tickets`, { title: 'Improve sign-in', status: 'available' }); await team('POST', `/projects/${project.id}/tickets/${ticket.id}/claim`, {});
  const scheduled = await team('POST', `/projects/${project.id}/tickets`, { title: 'Review the customer portal navigation', status: 'available' }); await team('POST', `/projects/${project.id}/tickets/${scheduled.id}/claim`, {});
@@ -63,6 +65,30 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').getByText('Live', { exact: true }).count(), 0, 'no live status indicator in Individual');
  console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
+ // At intermediate widths the icon rail has a keyboard- and pointer-discoverable way to reveal names.
+ await page.setViewportSize({ width: 1024, height: 768 });
+ const railToggle = side.getByTestId('sidebar-label-toggle');
+ await railToggle.waitFor();
+ await page.waitForFunction(() => matchMedia('(max-width: 1107px)').matches && document.querySelector('[data-testid="sidebar-label-toggle"]')?.getAttribute('aria-label') === 'Show sidebar labels');
+ assert.equal(await railToggle.getAttribute('aria-label'), 'Show sidebar labels');
+ assert.equal(await railToggle.getAttribute('aria-expanded'), 'false');
+ await railToggle.focus(); await page.keyboard.press('Enter');
+ await page.getByRole('button', { name: 'Hide sidebar labels', exact: true }).waitFor();
+ assert.equal(await railToggle.getAttribute('aria-expanded'), 'true', 'keyboard activation reveals the section labels');
+ const longProjectLink = side.locator('[data-project]').filter({ hasText: longProjectName });
+ await longProjectLink.waitFor();
+ assert.equal(await longProjectLink.getAttribute('title'), longProjectName, 'a long project name remains available in the expanded rail');
+ assert.equal(await side.evaluate(el => el.scrollWidth <= el.clientWidth), true, 'the expanded shell rail does not overflow horizontally');
+ const shellReview = path.join(root, '.impeccable/review/workstream-4/shell'); fs.mkdirSync(shellReview, { recursive: true });
+ for (const themeName of ['light', 'dark']) {
+   await page.evaluate(value => document.documentElement.dataset.theme = value, themeName);
+   await page.screenshot({ path: path.join(shellReview, `rail-expanded-1024-${themeName}.png`) });
+ }
+ await railToggle.click();
+ await page.getByRole('button', { name: 'Show sidebar labels', exact: true }).waitFor();
+ assert.equal(await railToggle.getAttribute('aria-expanded'), 'false', 'pointer activation collapses the labeled rail');
+ console.log('PASS shell rail expands its accessible labels and long project name by keyboard or pointer at 1024px');
+ await page.setViewportSize({ width: 1440, height: 1000 });
  // A single workspace hides Everywhere, keeps attention count, and native destinations remain routable.
  const many = await api(origin, '', 'POST', '/fixture/call', { Method: 'Workspaces', Args: [] });
  await page.route('**/fixture/call', async route => { try {

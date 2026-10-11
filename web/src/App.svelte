@@ -43,6 +43,7 @@
   const scope = $derived(router.projectId ? app.scopes.get(router.projectId) : undefined);
 
   const globalTitle = $derived(router.view === 'onboarding' ? 'Set up Werkbord' : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? ''));
+  const phoneMoreLocation = $derived(router.view === 'overview' ? 'Overview' : router.view === 'defaults' ? 'Project settings' : '');
 
   // An address that names no project (an old link, or none) is settled to the project last used. Until the
   // projects are known there is nothing to settle it against.
@@ -177,6 +178,7 @@
       <UpdateBanner />
 
       <main id="main-content" tabindex="-1" bind:this={mainEl}>
+        {#if phoneMoreLocation && !framed}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
         {#if router.view === 'control'}
           <ControlCenter />
         {:else if router.view === 'projects'}
@@ -349,6 +351,8 @@
     display: none;
   }
 
+  .phone-more-location { display: none; }
+
   .tabbar {
     display: none;
   }
@@ -427,6 +431,13 @@
 
     .phone-only {
       display: inline-flex;
+    }
+
+    .phone-more-location {
+      display: block;
+      margin: 12px 16px 0;
+      font-size: 18px;
+      font-weight: 600;
     }
 
     .wide {

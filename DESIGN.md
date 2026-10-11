@@ -68,7 +68,12 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
 - Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Timeline · Git ·
   Runs · More; one equal column per tab, so a work project's shorter set fills the bar too), floating New task button,
-  horizontally scrolling Kanban columns, tables as two-line rows. The installed app starts on Needs you
+  horizontally scrolling Kanban columns and tables as two-line rows. Git and Settings use a compact, labeled native
+  section chooser. Its selected option states the current subsection;
+  choosing one keeps the existing hash address, direct links and browser Back behavior. The desktop section navigation
+  remains visible at wide widths. In the desktop shell's intermediate-width icon rail, an accessible expand control
+  reveals the section names and project list without changing workspace or project routes.
+  The installed app starts on Needs you
   (`start_url` `/#/control`). More is a sheet reaching what the bar has no room for: the project's Overview and
   settings, Projects and Settings. The board opens on the first column holding something that needs you (a question,
   a reply, blocked work, or work in Review). Buttons that answer from a card are at least 44px tall, and a task
@@ -139,6 +144,11 @@ heading (the provider chooser, New, Close) and the box.
   and returns focus to its opener on close. Task detail view controls are a labelled button group, not a navigation
   landmark; links remain the navigation pattern. These rules complement the 11.5px type floor and shared disclosure
   chevron above; compact secondary controls still need a separate touch-target audit.
+- **Navigation levels stay named.** The phone's primary destinations remain visible in the bottom bar; More retains
+  Overview, Project settings, Projects and Settings, with Overview and Project settings titled on the page. Git and
+  Settings show a visible level label beside the selected
+  section chooser on phones. In the desktop shell, the narrow rail's expand/collapse control has a matching accessible
+  name and tooltip so icon-only navigation can reveal its labels and project names.
 - **Shortcuts respect editing.** Jump to and New task are available from the page, but app shortcuts do not intercept
   keystrokes while an input, select, textarea or editable region has focus.
 - **A confirmation keeps focus.** Only the topmost Sheet handles its keyboard events. Tab and Shift+Tab cycle through

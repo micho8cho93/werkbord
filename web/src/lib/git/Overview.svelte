@@ -95,6 +95,12 @@
   <p class="empty">Loading the repository…</p>
 {:else}
   <div class="git-view">
+  <label class="mobile-section">
+    <span>Git section</span>
+    <select aria-label="Git section" value={section} onchange={(event) => { location.hash = `${projectHref(project.id, 'git')}?${event.currentTarget.value}`; }}>
+    {#each sections as s (s.id)}<option value={s.id}>{s.label}{#if count(s.id) !== undefined} · {count(s.id)}{/if}</option>{/each}
+    </select>
+  </label>
   <nav class="sections" aria-label="Git sections">
     {#each sections as s (s.id)}<a class="btn small" href={`${projectHref(project.id, 'git')}?${s.id}`} aria-current={section === s.id ? 'page' : undefined}><Icon name={s.icon} />{s.label}{#if count(s.id) !== undefined}<span class="chip">{count(s.id)}</span>{/if}</a>{/each}
   </nav>
@@ -422,6 +428,7 @@
 
 <style>
   .git-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  .mobile-section { display: none; }
   .sections { display: flex; gap: 8px; flex-wrap: wrap; padding: 16px 24px 0; flex: none; }
   .sections a[aria-current='page'] { box-shadow: var(--press-sh); color: var(--accent); }
   .git { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr); --side: minmax(340px, 0.8fr); }
@@ -429,7 +436,33 @@
   .pane { scrollbar-gutter: stable; }
   .scopes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   @media (max-width: 1180px) { .git.overview { grid-template-columns: minmax(0, 1fr); } }
-  @media (max-width: 899px) { .git-view { height: auto; } .sections { padding: 8px 16px; } .scopes { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 899px) {
+    .git-view { height: auto; }
+    .sections { display: none; }
+    .mobile-section {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      color: var(--text-2);
+      font-size: 13px;
+    }
+    .mobile-section select {
+      width: 100%;
+      min-width: 0;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 500;
+    }
+    .mobile-section select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .scopes { grid-template-columns: minmax(0, 1fr); }
+  }
 
   .pad {
     margin: 20px 24px;

@@ -104,6 +104,12 @@
 </script>
 
 <div class="settings">
+  <label class="mobile-section">
+    <span>Settings section</span>
+    <select aria-label="Settings section" value={section} onchange={(event) => { location.hash = href(event.currentTarget.value as SectionId); }}>
+      {#each SECTIONS as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
+    </select>
+  </label>
   <nav class="sections" aria-label="Settings sections">
     {#each GROUPS as group (group.label)}
       <div class="section-group" role="group" aria-label={group.label}>
@@ -260,6 +266,8 @@
     overflow-y: auto;
   }
 
+  .mobile-section { display: none; }
+
   .sections a {
     display: flex;
     align-items: center;
@@ -352,33 +360,35 @@
     }
 
     .sections {
-      flex-direction: row;
-      overflow-x: auto;
-      scrollbar-width: none;
-      padding: 0 16px 8px;
-      border-right: 0;
+      display: none;
     }
+
+    .mobile-section {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      color: var(--text-2);
+      font-size: 13px;
+    }
+
+    .mobile-section select {
+      width: 100%;
+      min-width: 0;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 500;
+    }
+
+    .mobile-section select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
     .section-group { flex: none; }
-    .section-group + .section-group { margin-top: 0; margin-left: 16px; }
-    .section-group h2 { margin-left: 0; }
-    .section-links { flex-direction: row; gap: 6px; }
-
-    .sections a {
-      flex: none;
-      min-height: 40px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      font-size: 14px;
-    }
-
-    .sections a[aria-current='page'] {
-      background: var(--text);
-      color: var(--bg);
-      border-color: var(--text);
-      box-shadow: none;
-    }
 
     .content {
       overflow: visible;

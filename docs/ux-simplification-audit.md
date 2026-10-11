@@ -564,3 +564,64 @@ Behavior evidence:
 
 No out-of-scope API dependency was identified. Review and merge continue to use the existing controller evidence
 and confirmation APIs.
+
+### Workstream 4 — phone navigation hierarchy (11 October 2026)
+
+**Baseline, verified on the isolated fixture before editing.** The seeded phone capture at 375×812 showed seven Git
+section links wrapping across four rows above the repository content; at least 104px of vertical space went to the
+section row before the first Git section. The existing grouped Settings navigation was a horizontally scrolling row;
+the current group and selected item could move off-screen. Runs remained a visible primary tab. Overview, Project
+settings and global Settings were reachable through More. The project switcher and project header already exposed the
+current project, and the seeded work project correctly omitted Calendar, Git and Runs.
+
+Two concrete phone alternatives were compared:
+
+1. **Existing grouped/wrapped links:** each subsection is a pill link in the current row. It preserves one-tap access,
+   but Git takes four rows and Settings can hide later groups off-screen. Baseline captures are in
+   `.impeccable/review/workstream-4/baseline/`.
+2. **Compact labeled chooser:** a visible level label (`Git section` or `Settings section`) and a native select show
+   the active location continuously and expose every destination through the platform's normal menu. The existing
+   desktop link lists stay in place. This is implemented and captured in
+   `.impeccable/review/workstream-4/individual/` and `final/`.
+
+There were no participant observations to choose between these by task completion. I asked for a preference while
+continuing route and focus checks; the user chose the compact chooser. This is a provisional preference-based choice,
+not evidence of human discoverability or task-completion improvement.
+
+**Implemented:** the Individual app replaces Git's wrapped phone links and Settings' horizontally scrolling group
+row with the compact chooser at widths below 900px. Selecting an item retains the existing `?section` address, direct
+links select the matching item, and browser Back restores it. Runs and the other weekly destinations remain in the
+bottom bar; More still contains Overview, Project settings, Projects and Settings, and the first two now show their
+current location as a phone page heading. The bottom bar reserves its own
+height plus the CSS safe-area inset. The desktop shell's icon rail now has an accessible expand/collapse control at
+intermediate widths; expanding it reveals section and project labels, including long project names.
+
+**Behavior and rendered evidence:** `scripts/browser-navigation-workstream-4.cjs` covers the seeded repository and
+work project, Runs, More destinations, Git/Settings deep links, selector changes, browser Back, keyboard focus,
+task-panel return to its owning board, no horizontal overflow at a 720×450 zoom-equivalent viewport, coarse-pointer
+44px chooser targets, the bottom-bar viewport boundary, and reduced-motion preference exposure. A controlled browser
+response supplies a long project display name without changing fixture data. `make test-unified-desktop-browser`
+passed with two workspaces; its shell case verifies the 1024px rail labels and long project name by keyboard and
+pointer, and its captures are in `.impeccable/review/workstream-4/shell/`. Final light/dark captures for 1440×900
+and 375×812 are in `.impeccable/review/workstream-4/final/`; the focused Git subsection and Settings captures are
+in `individual/`. The final post-build legibility run measured 5,326 text nodes across 28 routes × two themes × two sizes,
+with zero contrast failures and zero text below 11.5px.
+The Impeccable detector returned no findings for the changed UI components.
+After the version bump, `make check` passed, including Go tests/vet/builds, 44 web test files (534 tests), Svelte check,
+lint, desktop checks, release/notarization checks and workflow checks. `make test-assistant-browser` also passed in
+the browser and desktop shell, including reduced motion, confirmations, recovery, dictation and phone controls.
+
+**Limits:** Playwright's coarse-pointer emulation and viewport-bound checks passed, and the page declares
+`viewport-fit=cover` with top/bottom `env(safe-area-inset-*)` handling. A physical iPhone safe-area inset was not
+available in this browser environment. No VoiceOver session or human task-completion observation was conducted.
+No score increase is claimed. Existing APIs cover all navigation; no out-of-scope API dependency was identified.
+No Go or Team source was changed.
+
+The broader `make test-browser` command did not complete: its 120-second `spawnSync` limit expired while
+`scripts/test-browser.cjs` was running `scripts/browser-individual.cjs`, after the suite had rendered its Settings and
+Project settings routes. The run exited with `ETIMEDOUT`; its Team and bridge browser sub-suites were not reached.
+The timeout was not relaxed; the captured Runs/Settings/Project settings screens are preserved in
+`.impeccable/review/workstream-4/browser-suite-timeout/`. The focused navigation browser script and
+`make test-unified-desktop-browser` did pass.
+Production web/embed/shell builds succeeded; Vite reports the 554.18 KB main chunk above its 500 KB
+advisory threshold.
