@@ -100,28 +100,6 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 		if e := s.Runs.end(ctx, tx, em, r, Ended{State: ob.Result.State, Reason: ob.Result.Reason, ExitCode: &code}, domain.CancelRunEnded); e != nil {
 			return e
 		}
-		if r.State == domain.RunCompleted {
-			t, e := tx.Tasks().Get(ctx, r.TaskID)
-			if e != nil {
-				return e
-			}
-			if t.State != domain.TaskDone && t.State != domain.TaskReview {
-				max, e := tx.Tasks().MaxPosition(ctx, t.ProjectID, domain.TaskReview)
-				if e != nil {
-					return e
-				}
-				t.State = domain.TaskReview
-				t.Position = max + 1
-				t.UpdatedAt = now
-				if e := tx.Tasks().Update(ctx, t); e != nil {
-					return e
-				}
-				ev := newEvent(domain.EventTaskUpdated, t)
-				ev.ProjectID = t.ProjectID
-				ev.TaskID = t.ID
-				return em.emit(ev)
-			}
-		}
 		return nil
 	case "command":
 		var cmd *runnerwire.Command

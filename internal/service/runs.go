@@ -225,6 +225,8 @@ type Ended struct {
 	State    domain.RunState // completed, failed or stopped
 	Reason   string
 	ExitCode *int
+	// commitEvidence is controller-observed Git evidence, never caller input.
+	commitEvidence bool
 }
 
 // End moves a run to a terminal state. Questions still pending are cancelled,
@@ -234,6 +236,7 @@ func (s *Runs) End(ctx context.Context, id string, in Ended) (*domain.Run, error
 	if !in.State.Terminal() {
 		return nil, fmt.Errorf("%w: %s is not a final run state", domain.ErrInvalid, in.State)
 	}
+	in.commitEvidence = in.State == domain.RunCompleted && s.localCommitEvidence(ctx, id)
 	var r *domain.Run
 	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
 		var err error
@@ -253,6 +256,52 @@ func (s *Runs) End(ctx context.Context, id string, in Ended) (*domain.Run, error
 		}
 	}
 	return r, nil
+}
+
+// localCommitEvidence compares the finished branch with the current target using
+// read-only Git plumbing, outside the write transaction. Missing evidence leaves
+// the manual Move to Review action available; it never prevents recording an end.
+func (s *Runs) localCommitEvidence(ctx context.Context, id string) bool {
+	if s.Handoffs == nil || s.Handoffs.Git == nil {
+		return false
+	}
+	var r *domain.Run
+	var p *domain.Project
+	var branch string
+	err := s.Store.View(ctx, func(tx store.Tx) error {
+		var e error
+		r, e = tx.Runs().Get(ctx, id)
+		if e != nil {
+			return e
+		}
+		if r.Remote || r.WorktreeID == "" {
+			return nil
+		}
+		wt, e := tx.Worktrees().Get(ctx, r.WorktreeID)
+		if e != nil {
+			return e
+		}
+		if wt.State != domain.WorktreeActive || wt.Removing() {
+			return nil
+		}
+		branch = wt.Branch
+		p, e = tx.Projects().Get(ctx, r.ProjectID)
+		return e
+	})
+	if err != nil || r.Remote || branch == "" {
+		return false
+	}
+	g := s.Handoffs.Git
+	target, err := g.DetectTarget(ctx, p.RepoPath)
+	if err != nil || target.Sha == "" {
+		return false
+	}
+	head, err := g.ResolveCommit(ctx, p.RepoPath, "refs/heads/"+branch)
+	if err != nil || head == "" {
+		return false
+	}
+	ahead, _, err := g.Divergence(ctx, p.RepoPath, head, target.Sha)
+	return err == nil && ahead > 0
 }
 
 // end moves a run to its final state. Its open questions are cancelled for
@@ -279,12 +328,12 @@ func (s *Runs) end(ctx context.Context, tx store.Tx, em *emitter, r *domain.Run,
 	if err := emitRun(em, r, from); err != nil {
 		return err
 	}
-	if r.ScheduleKey != "" && r.State == domain.RunCompleted {
+	if r.State == domain.RunCompleted && (in.commitEvidence || r.Remote && validCommit(r.BaseCommit) && validCommit(r.HeadCommit) && r.HeadCommit != r.BaseCommit) {
 		t, e := tx.Tasks().Get(ctx, r.TaskID)
 		if e != nil {
 			return e
 		}
-		if t.State != domain.TaskDone && t.State != domain.TaskReview {
+		if t.State == domain.TaskDoing {
 			max, e := tx.Tasks().MaxPosition(ctx, t.ProjectID, domain.TaskReview)
 			if e != nil {
 				return e

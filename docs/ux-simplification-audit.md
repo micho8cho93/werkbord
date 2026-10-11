@@ -266,8 +266,7 @@ Also corrected: DESIGN.md's phone tab list (it said five tabs).
 
 In order of expected value. Each needs a product decision or a larger change than this pass allowed.
 
-1. **B2 · Move finished work to Review automatically** (High). A completed run with commits should land in Review
-   without a click. This changes task-state rules shared with the scheduler and the Team bridge.
+1. **B2 · Move finished work to Review automatically** (High) · **implemented**. `internal/service/runs.go` checks local branch divergence before completion; remote completion uses valid differing base/HEAD commits. Only Doing moves, with one normal versioned task event. Scheduled and remote paths use the same rule (`runner_events.go`). Tests cover no evidence, failure, stop, prior moves, scheduling, stale versions and replay. Team progress deliberately leaves ticket status alone; submission remains explicit (see INTEGRATION.md).
 2. **A2 · Answer from the desktop Inbox** (High). Carry the question's options and context in the workspace summary,
    then answer inline for the person's own workspace. Approvals stay disabled until the context is visible, and Team
    rows stay open-only.

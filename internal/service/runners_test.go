@@ -257,7 +257,7 @@ func TestDisconnectedOwnershipSurvivesControllerRestartAndDuplicateReports(t *te
 	_ = rt.syncMust(t, nil)
 	out := agent.Event{Kind: agent.KindOutput, Stream: domain.StreamAssistant, Text: "done"}
 	res := agent.Result{State: domain.RunCompleted, ExitCode: 0}
-	report := []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run), {Seq: 2, Kind: "event", Event: &out}, {Seq: 3, Kind: "ended", Result: &res}}}}
+	report := []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run), {Seq: 2, Kind: "event", Event: &out}, {Seq: 3, Kind: "ended", HeadCommit: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", Result: &res}}}}
 	reply, e := rt.sync(report)
 	if e != nil {
 		t.Fatal(e)

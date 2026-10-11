@@ -183,3 +183,7 @@ phone, using disposable APIs and storage.
 Phase 2 adds separately scoped, owner-approved execution and shared schedules.
 See [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md); the v1 metadata grant
 and existing synchronization behavior remain unchanged.
+
+### Automatic Individual review
+
+Individual moves completed tasks still in Doing to Review when there is commit evidence. The Team connector reports execution and Git observations; `internal/team/service/progress.go` deliberately keeps ticket board/review status separate. A Team ticket therefore stays in its current state until the member explicitly submits it for review, preserving reviewer selection and Team permissions.

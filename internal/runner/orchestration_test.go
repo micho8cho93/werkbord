@@ -72,8 +72,8 @@ func TestScheduledExecutionRecoveryNoDuplicatesAndDependencies(t *testing.T) {
 		runs, err := e.runs.ListByTask(ctx, a.ID)
 		return err == nil && len(runs) == 1 && runs[0].State == domain.RunCompleted && runs[0].Handoff != nil && len(runs[0].Handoff.Tests) == 1
 	})
-	if e.taskState(a.ID) != domain.TaskReview {
-		t.Fatal("scheduled completion should be reviewable")
+	if e.taskState(a.ID) != domain.TaskDoing {
+		t.Fatal("scheduled completion without commits should stay in Doing")
 	}
 	if err := e.mgr.ScheduleOnce(ctx); err != nil {
 		t.Fatal(err)

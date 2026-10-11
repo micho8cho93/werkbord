@@ -39,8 +39,7 @@ Choose an explicit missed-time policy:
 A passed deadline blocks execution. Not-before is a gate even for manual Start;
 a manual Start may otherwise intentionally run before the scheduled time.
 A scheduled session finishes after an agent turn that ends without a question
-or blocker. Completed scheduled work moves to Review, releases capacity, and
-can unblock dependencies. An interactive question waits for the user as usual;
+or blocker. Completed work releases capacity and can unblock dependencies. A completed run moves a task still in Doing to Review only when its branch is ahead of the target, or a remote runner reports a valid HEAD different from its starting commit. No commits, failed/stopped runs, and tasks already moved by the person stay where they are. An interactive question waits for the user as usual;
 autonomous questions use the existing autonomy rules; stop-if-blocked remains
 blocked. Approvals always go to the user. The schedule never invents an answer.
 
