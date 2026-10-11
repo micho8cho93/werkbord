@@ -245,7 +245,7 @@
   }
 
   .note[data-where='local'] {
-    color: var(--ok);
+    color: var(--ok-text);
   }
 
   .outcome {
@@ -253,7 +253,7 @@
   }
 
   .outcome[data-state='done'] {
-    color: var(--ok);
+    color: var(--ok-text);
   }
 
   .outcome[data-state='failed'] {

@@ -70,9 +70,9 @@
   }
 
   [data-status='done'] .mark {
-    background: var(--ok);
+    background: var(--ok-text);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    color: #fff;
+    color: var(--accent-text);
   }
 
   [data-status='wait'] .pip {

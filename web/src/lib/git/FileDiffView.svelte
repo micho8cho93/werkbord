@@ -91,7 +91,7 @@
   }
 
   .add {
-    color: var(--ok);
+    color: var(--ok-text);
     font-family: var(--mono);
   }
 

@@ -721,7 +721,7 @@
 
   .side :global(h3) {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.14em;
@@ -939,7 +939,7 @@
 
   .field .muted {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 400;
   }
 
@@ -978,7 +978,7 @@
     background: var(--bg);
   }
 
-  .message-help { flex-basis: 100%; font-size: 11px; }
+  .message-help { flex-basis: 100%; font-size: 11.5px; }
 
   .composer.blocked {
     border-top-color: color-mix(in srgb, var(--block) 50%, var(--border));

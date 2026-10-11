@@ -213,11 +213,11 @@
   }
 
   .marker[data-tone='ok'] {
-    --tone: var(--ok);
+    --tone: var(--ok-text);
   }
 
   .marker[data-tone='bad'] {
-    --tone: var(--danger);
+    --tone: var(--danger-text);
   }
 
   .marker[data-tone='info'] {

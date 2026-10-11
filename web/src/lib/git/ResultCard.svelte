@@ -82,7 +82,7 @@
   }
 
   .ok {
-    color: var(--ok);
+    color: var(--ok-text);
   }
 
   .unconfirmed {

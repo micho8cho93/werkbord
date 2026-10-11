@@ -444,7 +444,7 @@
     align-items: center;
     gap: 2px;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-2);
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -490,7 +490,7 @@
     position: absolute;
     right: 8px;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-2);
   }
 
@@ -576,7 +576,7 @@
   .ev span {
     display: block;
     font-family: var(--mono);
-    font-size: 10.5px;
+    font-size: 11.5px;
     color: var(--text-2);
     overflow: hidden;
     text-overflow: ellipsis;

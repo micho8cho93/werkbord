@@ -106,7 +106,7 @@
   }
   .group { margin-top: 24px; }
   h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; }
-  .count { color: var(--text-2); font-family: var(--mono); font-size: 11px; }
+  .count { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; }
   ul {
     list-style: none;
     margin: 0;
@@ -160,7 +160,7 @@
     line-height: 1.5;
     max-width: 70ch;
   }
-  .context { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--text-2); font-size: 11px; }
+  .context { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--text-2); font-size: 11.5px; }
   .alert {
     margin: 0 0 8px;
     padding: 10px 14px;

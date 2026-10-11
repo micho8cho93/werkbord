@@ -415,9 +415,10 @@
       inset: auto 0 0 0;
       z-index: 10;
       display: grid;
-      /* One equal column per tab: a work project has fewer sections than a repository, and none may wrap out of sight. */
+      /* One equal column per tab: a work project has fewer sections than a repository, and none may wrap out of sight.
+         A column never goes narrower than its own label, so 11.5px text is never clipped on the narrowest phones. */
       grid-auto-flow: column;
-      grid-auto-columns: minmax(0, 1fr);
+      grid-auto-columns: minmax(min-content, 1fr);
       height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
       padding-bottom: env(safe-area-inset-bottom);
       background: color-mix(in srgb, var(--bg) 94%, transparent);
@@ -435,7 +436,7 @@
       align-items: center;
       justify-content: center;
       gap: 4px;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 500;
       color: var(--text-2);
       text-decoration: none;
@@ -449,10 +450,10 @@
       white-space: nowrap;
     }
 
-    /* Seven tabs on a phone: a size smaller rather than a clipped word. */
+    /* Seven tabs on a phone: the labels sit a little closer rather than being clipped. */
     @media (max-width: 430px) {
       .tab {
-        font-size: 10px;
+        letter-spacing: -0.02em;
       }
     }
 
@@ -471,7 +472,7 @@
       left: calc(100% - 4px);
       min-width: 18px;
       height: 18px;
-      font-size: 10.5px;
+      font-size: 11.5px;
       padding: 0 5px;
     }
   }

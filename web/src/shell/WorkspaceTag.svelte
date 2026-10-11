@@ -15,7 +15,7 @@
     background: var(--surface-2);
     color: var(--text-2);
     font-family: var(--mono);
-    font-size: 10.5px;
+    font-size: 11.5px;
     letter-spacing: 0.02em;
     overflow: hidden;
     text-overflow: ellipsis;

@@ -86,7 +86,7 @@
 
   .opt {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 400;
     color: var(--text-2);
     margin-left: 4px;

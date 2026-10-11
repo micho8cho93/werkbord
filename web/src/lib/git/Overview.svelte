@@ -473,7 +473,7 @@
   }
 
   .ok {
-    color: var(--ok);
+    color: var(--ok-text);
   }
 
   .sync {

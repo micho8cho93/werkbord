@@ -168,7 +168,7 @@
 
   .opt {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 400;
     color: var(--text-2);
   }
@@ -242,7 +242,7 @@
 
   .n {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-2);
     white-space: nowrap;
   }

@@ -272,7 +272,7 @@
     white-space: nowrap;
     color: var(--text-2);
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 11.5px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
@@ -355,7 +355,7 @@
     background: var(--warn);
     color: var(--on-accent, #fff);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     line-height: 18px;
     text-align: center;
   }
@@ -364,7 +364,7 @@
     top: 1px;
     right: 1px;
     min-width: 14px;
-    font-size: 9px;
+    font-size: 11.5px;
     line-height: 14px;
     padding: 0 3px;
   }

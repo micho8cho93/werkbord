@@ -166,7 +166,7 @@
 
   .kind {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.12em;

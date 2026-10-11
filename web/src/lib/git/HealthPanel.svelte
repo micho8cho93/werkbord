@@ -133,7 +133,7 @@
   }
 
   .headline[data-tone='ok'] {
-    color: var(--ok);
+    color: var(--ok-text);
   }
   .headline[data-tone='ask'] {
     color: var(--warn);

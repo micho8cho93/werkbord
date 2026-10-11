@@ -430,8 +430,9 @@
     gap: 7px;
   }
 
-  .legend .zero {
-    opacity: 0.6;
+  /* Nothing there: the dot steps back, the words stay at the secondary text colour (dimming them too put them under 4.5:1). */
+  .legend .zero .dot {
+    opacity: 0.45;
   }
 
   .cols {
@@ -498,7 +499,7 @@
     border: 1px dashed var(--accent);
     border-radius: 6px;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--accent);
     text-align: center;
   }

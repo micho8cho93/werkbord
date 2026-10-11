@@ -158,7 +158,7 @@
 
   .n {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-2);
   }
 
@@ -192,7 +192,7 @@
     gap: 10px;
     font-family: var(--mono);
     font-weight: 500;
-    font-size: 10px;
+    font-size: 11.5px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--text-2);

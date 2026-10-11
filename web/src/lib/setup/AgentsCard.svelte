@@ -81,7 +81,7 @@
   }
 
   .status[data-ready='true'] {
-    color: var(--ok);
+    color: var(--ok-text);
   }
 
   .guidance {

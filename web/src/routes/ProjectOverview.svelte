@@ -223,7 +223,7 @@
     min-height: 26px;
     border-top: 0;
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 11.5px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--text-2);

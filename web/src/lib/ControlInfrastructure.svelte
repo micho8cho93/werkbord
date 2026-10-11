@@ -157,7 +157,7 @@
 
   .nums dt {
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 11.5px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--text-2);

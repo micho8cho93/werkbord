@@ -64,7 +64,7 @@
     padding: 0.05em 0.35em;
     border-radius: 4px;
     background: var(--surface-2);
-    font-size: 0.88em;
+    font-size: max(0.88em, 11.5px);
   }
   pre {
     margin: 0;

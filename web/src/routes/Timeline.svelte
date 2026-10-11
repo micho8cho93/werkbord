@@ -393,7 +393,7 @@
   .sev {
     flex: none;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     text-transform: uppercase;
     color: var(--warn-text);
   }
@@ -484,7 +484,7 @@
     padding-left: 4px;
     border-left: 1px solid var(--border);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-2);
     white-space: nowrap;
   }
@@ -545,7 +545,7 @@
   .when {
     flex: none;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-2);
   }
 
@@ -586,7 +586,7 @@
     display: inline-grid;
     place-items: center;
     border-radius: 50%;
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 700;
     color: #fff;
     background: var(--warn);

@@ -181,7 +181,7 @@
   .n {
     margin-left: auto;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-2);
   }
 

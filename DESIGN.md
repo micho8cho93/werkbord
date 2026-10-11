@@ -31,9 +31,14 @@ Theme follows the OS unless the person picks one (sun/moon in the rail, stored p
 ## Type
 
 Geist for the interface (400/500/600), Geist Mono for machine text: paths, branches, IDs, counts, times,
-commands, keys, and the uppercase section labels (`.lab`, 11px, `letter-spacing: .14em`). Both are bundled
+commands, keys, and the uppercase section labels (`.lab`, 11.5px, `letter-spacing: .14em`). Both are bundled
 (`@fontsource-variable/*`), never loaded from a CDN. Page titles 20px/600; card titles 14px/500; body 13–14px.
 The wordmark is `werkbord`, lowercase, Geist Mono 600, tracking −6%.
+
+**The legibility floor:** no text is smaller than 11.5px, and all text is at least 4.5:1 against what is behind it (3:1
+for large text) in both themes. Status words on paper use the `*-text` tokens; the bare `--ok`, `--warn` and `--danger`
+are for dots, borders and fills. A dimmed state (a zero count) lowers the dot, not the words. `web/src/lib/contrast.test.ts`
+checks the tokens and `scripts/measure-legibility.cjs` every rendered screen ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)).
 
 ## Material
 

@@ -23,12 +23,12 @@
     align-items: center;
     gap: 6px;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-2);
     overflow-wrap: anywhere;
   }
   .report { display: grid; gap: 3px; min-width: 0; }
-  .note { font-size: 11px; color: var(--text-2); overflow-wrap: anywhere; }
+  .note { font-size: 11.5px; color: var(--text-2); overflow-wrap: anywhere; }
   .dot {
     width: 7px;
     height: 7px;
