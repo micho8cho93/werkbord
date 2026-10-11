@@ -41,7 +41,7 @@ const state = {
   ov: null,       // the workspace overview: the projects, and the counts the navigation shows
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
-  showArchived: false, newTicketOpen: false, column: 'in_progress', repoSection: 'attention',
+  showArchived: false, newTicketOpen: false, repoSection: 'attention',
   filter: { labels: [], mode: '', match: 'any' }, // the board's and the timeline's label and work-mode filter: a way of looking, never stored
   tlZoom: 'month', tlGroup: 'none', tlCollapsed: {},
   online: true,   // whether the live connection to the server is up
@@ -445,9 +445,6 @@ async function renderNow() {
         secretBox(), settingsTab() ? settingsLayout(body) : body))));
   restore(app, keep, previousScope === screenScope());
   revealActiveNavigation();
-  const columnNav = app.querySelector('.column-pills nav');
-  const activeColumn = columnNav?.querySelector('[aria-current="page"]');
-  if (activeColumn) columnNav.scrollLeft = Math.max(0, activeColumn.offsetLeft - columnNav.offsetLeft - (columnNav.clientWidth - activeColumn.offsetWidth) / 2);
   if (focusMain) { app.querySelector('#main-title').focus({ preventScroll: true }); focusMain = false; }
   renderedScope = screenScope();
   refreshSearch();
@@ -941,24 +938,22 @@ function boardTab(d) {
     pcan('tickets.create') && !b.project.archived ? h('button', { class: 'primary', title: state.newTicketOpen ? 'Cancel new ticket' : 'New ticket (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '');
   const cols = b.statuses.map((s) => {
     const items = b.tickets.filter((k) => k.status === s.status && matchesFilter(k));
-    return h('section', { class: 'col', 'aria-label': s.label, 'data-active': String(state.column === s.status),
+    return h('section', { class: 'col', 'aria-label': s.label,
       ondragover: e => { const k = b.tickets.find(t => t.id === draggedTicket); if (!k || !dropAction(d, k, s.status)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drop-over'); },
       ondragleave: e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drop-over'); },
       ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('drop-over'); const k = b.tickets.find(t => t.id === draggedTicket); if (!k) return; const action = dropAction(d, k, s.status); draggedTicket = null; if (!action) return; pendingTickets.add(k.id); toast('Updating ' + k.key + '…'); act(async () => { try { await api('POST', projectPath(k) + '/' + action[0], action[1]); } finally { pendingTickets.delete(k.id); } }); }
     },
       h('h3', {}, s.label, ' ', h('span', { class: 'badge' }, String(items.length))),
-      h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.map((k) => card(d, k))));
+      h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.length ? items.map((k) => card(d, k)) : h('p', { class: 'muted small' }, 'No tickets' + (state.filter.labels.length || state.filter.mode ? ' match the filters.' : ' here yet.'))));
   });
   let open = null;
   if (state.ticketId) {
     const k = [...b.tickets, ...(b.archived || [])].find((x) => x.id === state.ticketId);
     if (k) open = ticketPanel(d, d.ticket || k); else state.ticketId = null;
   }
-  const columns = h('div', { class: 'column-pills' }, sectionButtons('column', b.statuses.map(s => [s.status, s.label, b.tickets.filter(k => k.status === s.status).length]), 'Board columns'));
   return h('div', { class: 'board-view' }, toolbar,
     state.newTicketOpen ? newTicketForm(d) : '',
-    !state.showArchived ? columns : '',
-    h('div', { class: 'tboard' + (open ? ' with-ticket' : '') }, state.showArchived ? archiveTab(d) : h('div', { class: 'board' }, cols), open || ''));
+    h('div', { class: 'tboard' + (open ? ' with-ticket' : '') }, state.showArchived ? archiveTab(d) : h('div', { class: 'board', role: 'region', 'aria-label': 'Kanban board', tabindex: '0', 'data-scroll-key': 'kanban-board' }, cols), open || ''));
 }
 function archiveTab(d) {
   const rows = (d.board.archived || []).slice().reverse().map(k => h('div', { class: 'row', 'data-search': (k.title + ' ' + k.description + ' ' + k.key).toLowerCase() },

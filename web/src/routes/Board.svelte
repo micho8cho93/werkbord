@@ -228,15 +228,6 @@
       addInput?.focus();
     }
   }
-
-  // On a phone one column shows at a time.
-  let activeColumn = $state<TaskState>('doing');
-  $effect(() => {
-    // Start on the column where things are happening; Backlog when nothing is.
-    untrack(() => {
-      if (scope.activeTasks.length && !scope.activeTasks.some((t) => t.state === 'doing')) activeColumn = 'backlog';
-    });
-  });
 </script>
 
 <div class="view">
@@ -286,15 +277,8 @@
   {#if viewingArchive}
     <Archive {scope} />
   {:else}
-  <div class="pills" role="tablist" aria-label="Columns">
-    {#each columns as col (col.state)}
-      <button role="tab" class="pill" aria-selected={activeColumn === col.state} aria-controls="col-{col.state}" onclick={() => (activeColumn = col.state)}>
-        {TASK_STATE_LABELS[col.state]}<span class="mono">{col.total}</span>
-      </button>
-    {/each}
-  </div>
-
-  <div class="cols">
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scrollable board needs keyboard focus for horizontal panning.) -->
+  <div class="cols" role="region" aria-label="Kanban board" tabindex="0">
     {#each columns as col (col.state)}
       {@const hint = dropHint(col.state)}
       <section
@@ -302,7 +286,6 @@
         class="col tray"
         class:over={over === col.state && !!hint}
         class:target={!!hint}
-        data-active={activeColumn === col.state}
         aria-label={TASK_STATE_LABELS[col.state]}
         ondragover={(e) => onDragOver(e, col.state)}
         ondragleave={(e) => { if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) over = over === col.state ? '' : over; }}
@@ -434,23 +417,24 @@
     opacity: 0.6;
   }
 
-  .pills {
-    display: none;
-  }
-
   .cols {
     flex: 1;
     min-height: 0;
+    min-width: 0;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(240px, 1fr));
     gap: 16px;
     padding: 0 24px 24px;
+    overflow-x: auto;
+    scroll-padding-inline: 24px;
+    overscroll-behavior-x: contain;
   }
 
   .col {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
     padding: 10px 6px 6px 10px;
     transition: box-shadow 0.15s;
   }
@@ -549,16 +533,11 @@
     display: none;
   }
 
-  /* Small windows: choose a column instead of scrolling the board sideways. */
-  @media (max-width: 1180px) {
+  /* Keep the workflow side by side; narrow screens pan across the same board. */
+  @media (max-width: 899px) {
     .bar {
       padding: 4px 16px 8px;
       min-height: 0;
-      order: 2;
-    }
-
-    .filters {
-      display: flex;
     }
 
     .legend {
@@ -570,77 +549,21 @@
       display: none;
     }
 
-    .pills {
-      order: 1;
-      display: flex;
-      gap: 8px;
-      padding: 4px 16px 8px;
-      flex-wrap: wrap;
-      flex: none;
-    }
-
-    .pill {
-      flex: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      height: 40px;
-      padding: 0 14px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text-2);
-      font-weight: 500;
-      font-size: 14px;
-    }
-
-    .pill .mono {
-      font-size: 12px;
-    }
-
-    .pill[aria-selected='true'] {
-      background: linear-gradient(#2b2b2b, #0f0f0f);
-      border-color: var(--text);
-      color: #f5f5f2;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.18),
-        0 1px 2px rgba(21, 21, 21, 0.35);
-    }
-
-    :global(:root[data-theme='dark']) .pill[aria-selected='true'] {
-      background: linear-gradient(#ffffff, #dcdcd7);
-      color: #0b0b0c;
-    }
-
     .view {
       height: auto;
     }
 
     .cols {
-      order: 3;
-      display: block;
-      padding: 0 16px 96px;
+      flex: none;
+      height: max(360px, calc(100dvh - 280px));
+      grid-template-columns: repeat(4, minmax(min(80vw, 320px), 1fr));
+      padding: 0 16px 16px;
+      margin-bottom: 80px;
+      scroll-padding-inline: 16px;
+      scroll-snap-type: x proximity;
     }
 
-    .col {
-      display: none;
-      background: none;
-      box-shadow: none;
-      padding: 0;
-    }
-
-    .col[data-active='true'] {
-      display: flex;
-    }
-
-    .ch {
-      display: none;
-    }
-
-    .list {
-      overflow: visible;
-      padding: 0;
-    }
+    .col { scroll-snap-align: start; }
 
     .fab {
       position: fixed;
@@ -656,13 +579,6 @@
       background: var(--pri-bg);
       box-shadow: var(--pri-sh);
       color: var(--accent-text);
-    }
-  }
-
-  @media (max-width: 899px) and (prefers-color-scheme: dark) {
-    :global(:root:not([data-theme='light'])) .pill[aria-selected='true'] {
-      background: linear-gradient(#ffffff, #dcdcd7);
-      color: #0b0b0c;
     }
   }
 </style>

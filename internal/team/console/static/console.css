@@ -155,12 +155,10 @@ summary { cursor: pointer; color: var(--accent); font-weight: 500; font-size: 13
 .project-bar select { width: auto; min-width: 12rem; font-family: var(--sans); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text); }
 .project-head p { font-size: 13px; }
 
-/* The board: five inset columns; an open ticket sits beside them. */
-.tboard { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 16px; }
-.tboard.with-ticket { grid-template-columns: minmax(0, 1fr) minmax(360px, 34%); }
-.board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: start; }
-.with-ticket .board { grid-template-columns: repeat(5, minmax(150px, 1fr)); overflow-x: auto; padding-bottom: 4px; }
-.col { background: var(--s2); border-radius: 8px; padding: 12px; min-height: 8rem; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* The board: five inset columns; ticket details open over the board. */
+.tboard { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; min-width: 0; margin-bottom: 16px; }
+.board { display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 12px; align-items: stretch; min-width: 0; min-height: 0; overflow-x: auto; padding-bottom: 6px; overscroll-behavior-x: contain; }
+.col { background: var(--s2); border-radius: 8px; padding: 12px; min-height: 0; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .col h3 { font-size: 14px; font-weight: 600; margin: 2px 2px 0; display: flex; gap: 8px; align-items: center; }
 .col h3 .badge { margin-left: auto; }
 .card { border: 1px solid var(--line); border-radius: 6px; padding: 14px; background: var(--panel); display: grid; gap: 8px; min-width: 0; }
@@ -216,7 +214,6 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
 @media (max-width: 1100px) {
   .tboard.with-ticket { grid-template-columns: minmax(0, 1fr); }
   .ticket { position: static; max-height: none; }
-  .board, .with-ticket .board { grid-template-columns: repeat(5, minmax(200px, 1fr)); overflow-x: auto; padding-bottom: 6px; }
 }
 @media (max-width: 900px) {
   .two { grid-template-columns: minmax(0, 1fr); }
@@ -226,8 +223,6 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
   header.top { gap: 10px 16px; }
   nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   nav button { flex: none; }
-  .board, .with-ticket .board { grid-template-columns: repeat(5, minmax(78vw, 1fr)); scroll-snap-type: x mandatory; }
-  .col { scroll-snap-align: start; }
   input, select, textarea { font-size: 16px; min-height: 44px; }
   button.primary, button.plain, button.danger { min-height: 44px; }
 }
@@ -235,8 +230,8 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
 /* Only histories scroll; each board column owns its viewport. */
 .project-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .7fr); gap: 20px; align-items: start; }
 .board-tools { margin-top: 0; }
-.column-pills { display: none; }
-.column-cards { display: grid; align-content: start; gap: 10px; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.column-cards { flex: 1; display: grid; align-content: start; gap: 10px; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.col h3 { flex: none; }
 .col.drop-over { outline: 2px solid var(--accent); outline-offset: -2px; }
 .archive-list { max-height: 60vh; overflow-y: auto; scrollbar-gutter: stable; }
 .archive-list [hidden] { display: none; }
@@ -245,19 +240,16 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
 .ticket-head { position: sticky; top: -16px; padding: 12px 0; background: var(--panel); z-index: 1; }
 .ticket pre, .handoff pre { overflow-wrap: anywhere; }
 @media (min-width: 1280px) {
-  .board, .with-ticket .board { grid-template-columns: repeat(5, minmax(0, 1fr)); overflow-x: visible; align-items: stretch; }
-  .col { min-height: 0; max-height: none; }
   .tboard.with-ticket { grid-template-columns: minmax(0, 1fr); }
   .with-ticket .ticket { position: fixed; z-index: 8; top: 12px; bottom: 12px; right: 12px; width: min(560px, 45vw); box-shadow: 0 12px 36px -12px rgba(0,0,0,.4); }
 }
 @media (max-width: 1279px) {
-  .column-pills { display: block; }
-  .column-pills nav { flex-wrap: wrap; overflow: visible; }
-  .board, .with-ticket .board { display: block; overflow: visible; }
-  .col { display: none; }
-  .col[data-active='true'] { display: flex; }
   .with-ticket .ticket { position: fixed; z-index: 8; inset: 8px; max-height: none; box-shadow: 0 12px 36px -12px rgba(0,0,0,.4); }
   .project-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 899px) {
+  .board { height: max(360px, calc(100dvh - 280px)); grid-template-columns: repeat(5, minmax(min(80vw, 320px), 1fr)); scroll-snap-type: x proximity; }
+  .col { scroll-snap-align: start; }
 }
 
 /* One map for everyday work; administration has its own Settings screen. */
@@ -409,7 +401,7 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
   body:has(#app.signed-in) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
   #app.signed-in { flex: 1; min-height: 0; }
 }
-@media (min-width: 1280px) {
+@media (min-width: 900px) {
   .main-content > .project-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   .project-view > .project-head { flex: none; }
   .board-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -478,8 +470,6 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
   .ticket { padding: 20px; }
   .ticket-head { top: -20px; }
   .board-tools > button { padding-left: 10px; padding-right: 10px; }
-  .column-pills .section-controls { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .column-pills .section-controls button { flex: none; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .jump-search[open] { animation: search-in 180ms cubic-bezier(.16, 1, .3, 1); }

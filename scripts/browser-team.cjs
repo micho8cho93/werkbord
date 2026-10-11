@@ -175,6 +175,9 @@ async function api(method, path, data, credential = token) {
     await page.waitForFunction(id => state.tab === 'repository' && state.projectId === id && state.data?.id === id, p.id);
     await primary.getByRole('button', { name: 'Board', exact: true }).click();
     console.log('PASS N / Escape shortcuts, viewport-sized board and project switching that keeps the Git section');
+    for (let i = 0; i < 10; i++) await api('POST', `/projects/${p.id}/tickets`, { title: `Kanban scroll fixture ${i}`, status: 'backlog' });
+    await page.getByRole('region', { name: 'Backlog', exact: true }).getByRole('button', { name: 'Kanban scroll fixture 9', exact: true }).waitFor();
+    await require('./browser-kanban.cjs')(page, 5, artifacts, 'team');
     let dragged = await api('POST', `/projects/${p.id}/tickets`, { title: 'Team drag fixture', description: 'Keep this context', status: 'backlog' });
     await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
     const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/assign'));
@@ -213,7 +216,7 @@ async function api(method, path, data, credential = token) {
     const ticketBounds = await page.locator('.ticket').boundingBox();
     assert.ok(ticketBounds.y >= 0 && ticketBounds.y < 100, 'mobile ticket opens within the viewport');
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByRole('navigation', { name: 'Board columns' }).getByRole('button', { name: /^Review/ }).click();
+    await page.getByRole('region', { name: 'Review', exact: true }).evaluate(el => el.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
     await page.getByRole('region', { name: 'Review', exact: true }).waitFor({ state: 'visible' });
     for (const tab of ['workspace', 'projects', 'repository']) {
         await page.goto(base + `/?tab=${tab}&project=${p.id}`);

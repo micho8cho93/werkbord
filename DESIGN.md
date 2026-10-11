@@ -62,7 +62,7 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
 - Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git ·
-  Runs), floating New task button, column pills on the board, tables as two-line rows.
+  Runs), floating New task button, horizontally scrolling Kanban columns, tables as two-line rows.
 
 ### Team console (3.2)
 
@@ -76,7 +76,7 @@ the existing `?tab=…` addresses still work. Host resilience lives under Settin
 The default Workspace shows Working now beside Needs you and Projects. Lists use spacing and dividers;
 cards are reserved for movable board tickets and focused ticket details. Team page titles are 24px,
 ticket titles 15px. The board fills the available width and height, with each column scrolling internally.
-Below 1280px, a single selected column replaces the five-column board. Below 900px, primary navigation
+The five Kanban columns stay side by side at every width, scrolling horizontally when they no longer fit. Below 900px, primary navigation
 becomes a sticky scrolling row with an always-visible Settings button; the document scrolls, and actionable
 attention appears before the working list. N opens a new ticket and Escape closes ticket details.
 

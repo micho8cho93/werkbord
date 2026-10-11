@@ -118,7 +118,7 @@ function paintSearch(session) {
     .slice(0, session.query ? 20 : 6).map(p => ({ key: 'project:' + p.id, title: p.name, detail: p.archived ? 'Archived project' : 'Project', symbol: 'projects', open: () => openProject(p.id, 'board') }));
   const tickets = (session.results?.tickets || []).map(k => ({ key: 'ticket:' + k.id, title: k.title, ticketKey: k.key,
     detail: k.project.name + ' · ' + (k.archived ? 'Archived' : statusName(k.status)) + (k.project.archived ? ' · Archived project' : ''), symbol: 'board',
-    open: () => { if (k.archived) state.showArchived = true; state.column = k.status; openTicket(k.project.id, k.id); } }));
+    open: () => { if (k.archived) state.showArchived = true; openTicket(k.project.id, k.id); } }));
   const groups = session.query ? [['Tickets', tickets], ['Projects', projects], ['Sections', sections]] : [['Sections', sections], ['Projects', projects]];
   const selected = session.items[session.active]?.key;
   session.items = groups.flatMap(([, items]) => items);

@@ -123,6 +123,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('button', { name: 'Restore', exact: true }).click();
         await page.getByRole('button', { name: 'Back to board', exact: true }).click();
         await page.getByRole('link', { name: finished.title, exact: true }).waitFor();
+        for (let i = 0; i < 10; i++) await api('POST', `/api/projects/${p.id}/tasks`, { title: `Kanban scroll fixture ${i}` });
+        await page.getByRole('link', { name: 'Kanban scroll fixture 9', exact: true }).waitFor();
+        await require('./browser-kanban.cjs')(page, 4, artifacts, 'individual');
         const dragTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Drag to Doing fixture' });
         await page.getByRole('link', { name: dragTask.title, exact: true }).waitFor();
         await page.getByRole('link', { name: dragTask.title, exact: true }).locator('..').dragTo(page.getByRole('region', { name: 'Doing', exact: true }));

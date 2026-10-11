@@ -170,6 +170,7 @@
 <style>
   .task {
     position: relative;
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     gap: 9px;
