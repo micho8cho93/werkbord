@@ -80,11 +80,13 @@
     <div class="seg segs" role="tablist" aria-label="What to show">
       {#each SEGMENTS as s (s.id)}
         {@const n = segmentCount(items, s.kinds)}
+        {@const reviewCount = segmentCount(items, ['review'])}
         {#if s.id === 'all' || n > 0}
-          <button role="tab" aria-selected={segment === s.id} onclick={() => (segment = s.id)}>{s.label}<span class="mono n">{n}</span></button>
+          <button role="tab" aria-label="{s.label}: {n} {n === 1 ? 'item' : 'items'}{s.id === 'all' ? `, including ${reviewCount} ready for review` : ''}" aria-selected={segment === s.id} onclick={() => (segment = s.id)}>{s.label}<span class="mono n" aria-hidden="true">{n}</span></button>
         {/if}
       {/each}
     </div>
+    <p class="scope-note muted small">Needs you and project badges count interruptions. All also includes work ready for review.</p>
     <div class="filters">
       {#if app.projects.length > 1}
         <label class="pick" class:on={projectFilter}>
@@ -234,6 +236,11 @@
 
   .summary {
     display: none;
+  }
+
+  .scope-note {
+    margin: 0;
+    font-size: 12px;
   }
 
   .segs .n {

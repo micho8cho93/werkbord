@@ -50,6 +50,7 @@
 
 <fieldset class="group">
   <legend>Planned for <span class="opt">optional · for the timeline only</span></legend>
+  <p class="hint muted">{repository ? 'These dates plan the work on Timeline; they do not schedule an agent. Use Calendar to choose when an agent runs.' : 'These dates plan the work on Timeline. This project does not run agents.'}</p>
   <div class="dates">
     <label>
       <span>{milestone ? 'Date' : 'Start'}</span>

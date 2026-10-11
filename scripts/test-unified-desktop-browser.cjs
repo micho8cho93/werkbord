@@ -148,6 +148,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/input`, { text: 'ask' });
  const answer = page.getByRole('button', { name: 'Answer', exact: true });
  await answer.waitFor();
+ const collapsedQuestionTitle = page.getByText('An agent is asking: Commit the fixture work?', { exact: true });
+ await collapsedQuestionTitle.waitFor();
  assert.equal(await idleAction.count(), 0, 'an unanswered question replaces idle attention');
  const capture = async name => {
    for (const theme of ['light', 'dark']) {
@@ -163,6 +165,9 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await answer.click();
  const inline = page.getByRole('region', { name: 'Answer: Commit the fixture work?', exact: true });
  await inline.waitFor();
+ const questionRow = page.getByTestId('attention-item').filter({ hasText: 'Answering this question' });
+ assert.equal(await page.getByText('Commit the fixture work?', { exact: true }).count(), 1, 'expanded shell Inbox states the question only in its answer card');
+ assert(await questionRow.innerText().then(text => text.includes('Individual') && text.includes('Customer portal') && text.includes(importedTask.title)), 'expanded question keeps workspace, project and task provenance');
  assert.equal(await inline.locator(':focus').count(), 0, 'no choice is focused on expansion');
  await capture('attention-expanded');
  const realOverview = await api(origin, '', 'POST', '/fixture/call', { Method: 'Overview', Args: [] });

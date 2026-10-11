@@ -83,6 +83,7 @@
     One attempt per schedule. Saving edits keeps the same attempt. Use Rearm to request another execution. Your browser can
     be closed.
   </p>
+  <p class="muted small">This schedules when the controller starts agent work. To plan work dates or milestones, use Timeline.</p>
   <div class="fields">
     <label
       >Timezone<input

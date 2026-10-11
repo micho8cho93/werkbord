@@ -31,7 +31,7 @@
     <a class="nav" href={globalHref('control')} aria-current={router.view === 'control' ? 'page' : undefined}>
       <Icon name="control" />
       Needs you
-      {#if app.needsYou > 0}<span class="num" aria-label="{app.needsYou} waiting for you">{app.needsYou}</span>{/if}
+      {#if app.needsYou > 0}<span class="num" aria-label="{app.needsYou} interruption{app.needsYou === 1 ? '' : 's'}; excludes work ready for review">{app.needsYou}</span>{/if}
     </a>
   </nav>
 
@@ -49,7 +49,7 @@
         <span class="sq" aria-hidden="true"></span>
         <span class="name">{p.name}</span>
         {#if n > 0}
-          <span class="num pend" aria-label="{n} need you">{n}</span>
+          <span class="num pend" aria-label="{n} interruption{n === 1 ? '' : 's'}; excludes work ready for review">{n}</span>
         {:else if a?.running}
           <span class="n" aria-label="{a.running} running">{a.running}</span>
         {/if}

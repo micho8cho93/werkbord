@@ -21,11 +21,11 @@ export function filterProjects(projects: readonly Project[], query: string): Pro
     .map((x) => x.p);
 }
 
-/** What a project is asking of the user, as a short list of words: "2 need input · 1 blocked". Empty if nothing. */
+/** What a project is asking of the user, as a short list of words. Empty if nothing. */
 export function activitySummary(a: ProjectActivity | undefined): string {
   if (!a) return '';
   const parts: string[] = [];
-  if (a.needsInput) parts.push(`${a.needsInput} ${a.needsInput === 1 ? 'needs' : 'need'} input`);
+  if (a.needsInput) parts.push(`${a.needsInput} question${a.needsInput === 1 ? '' : 's'} ${a.needsInput === 1 ? 'needs' : 'need'} you`);
   if (a.blocked) parts.push(`${a.blocked} blocked`);
   if (a.failed) parts.push(`${a.failed} failed`);
   if (a.repoRisk) parts.push(`${a.repoRisk} ${a.repoRisk === 1 ? 'repository risk' : 'repository risks'}`);

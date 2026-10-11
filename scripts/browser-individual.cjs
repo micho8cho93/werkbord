@@ -18,6 +18,16 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     let errors = [];
     page.on('pageerror', e => errors.push(e.message));
     page.setDefaultTimeout(10000);
+    async function captureDecisionSurface(name) {
+        for (const theme of ['light', 'dark']) {
+            await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+            for (const [size, width, height] of [['desktop', 1440, 900], ['phone', 375, 812]]) {
+                await page.setViewportSize({ width, height });
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, `${name} has no horizontal overflow at ${size}/${theme}`);
+                await page.screenshot({ path: path.join(artifacts, `${name}-${size}-${theme}.png`), fullPage: true });
+            }
+        }
+    }
     await page.goto(base + '/#token=' + token);
     await page.getByRole('heading', { name: 'Welcome to Werkbord', exact: true }).waitFor();
     await page.getByText('2 of 3 requirements verified', { exact: true }).waitFor();
@@ -39,6 +49,24 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     let p = projects.projects.find(p => p.repoPath === repo);
     if (!p)
         p = await api('POST', '/api/projects', { path: repo, name: 'Disposable individual' });
+    const workProject = await api('POST', '/api/projects', { kind: 'work', name: 'Planning fixture' });
+    await api('POST', `/api/projects/${workProject.id}/tasks`, { title: 'Plan the migration' });
+    await page.goto(base + `/#/p/${workProject.id}/timeline`);
+    await page.getByRole('button', { name: 'Plan…', exact: true }).click();
+    const workEdit = page.getByRole('dialog', { name: 'Edit task', exact: true });
+    await workEdit.getByText('These dates plan the work on Timeline. This project does not run agents.', { exact: true }).waitFor();
+    assert.equal(await workEdit.getByText('Run automatically from the controller', { exact: true }).count(), 0, 'work projects keep planning without execution controls');
+    await captureDecisionSurface('work-plan-edit');
+    await workEdit.getByRole('button', { name: 'Cancel', exact: true }).click();
+    const repositoryTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Schedule fixture work' });
+    await page.goto(base + `/#/p/${p.id}/task/${repositoryTask.id}`);
+    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await page.getByRole('button', { name: 'Schedule this task', exact: true }).click();
+    const scheduleSheet = page.getByRole('dialog', { name: 'Schedule and dependencies', exact: true });
+    await scheduleSheet.getByText('This schedules when the controller starts agent work. To plan work dates or milestones, use Timeline.', { exact: true }).waitFor();
+    await captureDecisionSurface('execution-schedule');
+    await scheduleSheet.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.route('**/api/runners', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'unavailable', message: 'Runner readiness unavailable' } }) }));
     await page.goto(base + '/#/onboarding');
     await page.getByRole('alert').filter({ hasText: 'Runner readiness unavailable' }).waitFor();

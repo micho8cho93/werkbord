@@ -8,6 +8,7 @@
 // --screenshots DIR also captures the final-pass matrix at 1440x900 and 375x812, including New task and Assistant.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs');
+const assert = require('node:assert/strict');
 const base = process.env.PERSONAL_BROWSER_URL || 'http://127.0.0.1:17421';
 const token = 'disposable-browser-credential';
 const MIN_PX = 11.5;
@@ -140,6 +141,13 @@ function measure(minPx) {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(base + '/#token=' + token);
     await page.waitForTimeout(800);
+    await page.goto(base + '/#/control');
+    const allTab = page.getByRole('tab', { name: /^All: \d+ items?, including \d+ ready for review$/ });
+    await allTab.waitFor();
+    assert.equal(await page.getByRole('tab', { name: /^Review: \d+ items?$/ }).count(), 1, 'Review remains an explicit filter');
+    assert(await page.getByText('Needs you and project badges count interruptions. All also includes work ready for review.', { exact: true }).isVisible(), 'the page explains why All can exceed interruption badges');
+    assert.match(await page.locator('.rail .project .num.pend').first().getAttribute('aria-label'), /^\d+ interruptions?; excludes work ready for review$/);
+    assert(await page.getByText(/\d+ questions? needs? you/, { exact: false }).count() > 0, 'project summaries use Needs you vocabulary');
     const all = [];
     const small = [];
     let nodes = 0;

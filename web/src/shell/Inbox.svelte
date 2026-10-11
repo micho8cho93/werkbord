@@ -61,11 +61,12 @@
     <h2 id="attention-{group.id}">{group.label}<span class="count">{group.rows.length}</span></h2>
     <ul>
     {#each group.rows as r, i (r.workspace.id + r.item.id)}
+      {@const answering = expanded[r.item.id] && r.workspace.kind === 'personal' && r.item.kind === 'needs_input' && r.item.question}
       <li>
         <div class="row" data-severity={r.item.severity} data-testid="attention-item">
           <span class="sev" title={word[r.item.severity]} aria-label={word[r.item.severity]}></span>
           <span class="text">
-            <span class="title">{r.item.title}</span>
+            <span class="title">{answering ? 'Answering this question' : r.item.title}</span>
             <span class="context"><WorkspaceTag workspace={r.workspace} />{#if r.item.project}<span>{r.item.project}</span>{/if}</span>
             {#if r.item.detail}<span class="detail">{r.item.detail}</span>{/if}
           </span>

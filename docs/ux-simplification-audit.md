@@ -414,3 +414,48 @@ disposable services. Assistant interaction/motion checks run with `scripts/brows
 Local, ignored artifacts: `.impeccable/review/final-pass-4.18.1/` contains the final screenshot matrix, shell captures,
 legibility JSON and independent assessment reports. The critique snapshot is also kept in `.impeccable/critique/`.
 Fixtures are stopped after verification. The unified version is bumped and tagged locally; nothing is pushed.
+
+### Workstream 1 — attention counts and work vocabulary (11 October 2026)
+
+Verified the mixed question/Review seed before editing: the Individual Needs you page showed `All 2`, `Questions 1`, and
+`Review 1`; the Fixture repo interruption badge showed `1`, while Second repo had one item ready for review and no
+interruption badge. The project summary said “1 needs input.” The shell's collapsed question row named the prompt and
+kept workspace, project and task provenance. The answer card then stated the same prompt after expansion.
+
+Changes in this pass:
+
+- Project summaries now say “1 question needs you” / “2 questions need you.” Internal `needsInput` and API states are unchanged.
+- Project and Needs you interruption badge accessible names say that work ready for review is excluded. The visible count
+  note explains that the All list also includes work ready for review; each segment's accessible name announces its count,
+  with All naming the included Review count.
+- An expanded shell question row now says “Answering this question.” Workspace, project and task provenance remain on the
+  row, and the actual prompt appears once in the answer card. The collapsed row continues to show what the agent asked.
+- Timeline date fields explain that they plan work and do not schedule an agent; execution schedule fields explain that
+  they start agent work and point to Timeline for dates and milestones. The work-project edit sheet keeps planning fields
+  and omits the execution schedule controls.
+
+Evidence and regression coverage:
+
+- The refreshed isolated fixture retained the seeded question, Review task and Venue search work project. Browser assertions
+  verified the 2/1/1 mixed counts, count accessible names, visible scope explanation, project vocabulary, one prompt after
+  expanding the shell answer, and retained workspace/project/task provenance.
+- Browser assertions verified that work projects retain timeline planning without the controller-run schedule control, and
+  that the execution schedule sheet explains the other meaning of dates. Existing shell checks still verify stale-answer
+  disabling, reconnect, delivery and pending acknowledgment.
+- Final Individual screenshots cover 28 routed pages at 1440×900 and 375×812 in light and dark. The measurement reported
+  5,422 visible text nodes, zero contrast failures, and zero text below 11.5px. Reduced-motion media was enabled for that
+  matrix. A separate touch-emulated run confirmed coarse pointer mode and 46px-high answer targets. Keyboard Tab showed a
+  visible focus indicator on the Needs you link.
+- The shell answer state was captured at 1440×900 and 375×812 in both themes. Planning and execution date sheets were also
+  captured at those four viewport/theme combinations. Baseline and final files are in
+  `.impeccable/review/workstream-1/` (`baseline-individual/`, `baseline-shell/`, `final/individual/surfaces/`,
+  `final/shell/`, `final/date-controls/`, plus the keyboard and coarse-pointer captures).
+- `npm test -- src/lib/projects.test.ts src/lib/attention.test.ts`, `npm run check`, and `npm run lint` passed. `make
+  test-browser` passed the Individual, Team and bridge browser flows, including the new date-copy and work-project checks.
+  `scripts/test-unified-desktop-browser.cjs` passed the shell question-count/provenance check and its stale/offline and
+  delivery coverage. The first test attempts exposed errors in my new test setup (singular wording, sheet close control,
+  and viewport restoration); I corrected those assertions/setup issues and reran the browser suite successfully.
+
+No API dependency was needed. The fixture is stopped. No human comprehension study, VoiceOver session, or physical-device
+observation was performed; browser and emulated-pointer results do not establish those outcomes. This pass does not claim
+an updated heuristic score.

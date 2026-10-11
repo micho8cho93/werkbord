@@ -125,6 +125,12 @@ heading (the provider chooser, New, Close) and the box.
   ("Not scheduled to run"); Timeline plans work dates and milestones ("Not planned yet"). Review means work is ready
   for a person's inspection, Done means the work was completed or merged, and Archive keeps a task out of the active
   board. Accept work / Reject work record a verdict; Merge… changes the repository after confirmation.
+- **Attention counts.** The Needs you and project interruption badges exclude work ready for review; the Needs you
+  page's All list includes it. Keep that scope visible beside the counts and in their accessible names. Project summaries
+  call pending questions "Needs you".
+- **Planning dates and execution schedules.** Date fields on Timeline plan work; they do not start an agent. Calendar
+  schedules when the controller starts agent work. Explain this at both sets of date controls. Work projects keep
+  their timeline planning fields and have no execution controls.
 - **Touch and keyboard.** Answer choices and card actions are at least 44px tall on phones and coarse pointers, with
   spacing between choices. Coarse-pointer form fields use 16px text to prevent zoom. A task panel receives focus on
   its heading and returns focus to its opener on close. These rules complement the 11.5px type floor and shared
@@ -154,6 +160,9 @@ heading (the provider chooser, New, Close) and the box.
   or stale reports retain their last state with availability unknown. Pending requests remain awaiting acknowledgment.
 - The window's Needs you view orders urgent problems, actions and operational warnings. Each row preserves its workspace,
   project and detail, and names its next action. Individual questions expand in place with context before choices; answering uses the owning controller and stays disabled for stale or offline reports. Team rows open the owning workspace. Saved answers remain awaiting acknowledgment until the runner confirms delivery. Only the first urgent or actionable item has primary emphasis.
+- In the window's Needs you view, a collapsed question row says what the agent asked. When expanded, its row changes to
+  "Answering this question" while workspace, project and task provenance stay visible; the answer card states the
+  question once. Stale/offline refusal and pending acknowledgment remain unchanged.
 
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).
 - Inline actions on cards: Start, Approve/Deny, Reply, Merge…, Move to Review, Run again. A Runs row whose run waits on a

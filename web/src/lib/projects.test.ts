@@ -46,8 +46,8 @@ describe('what a project asks of the user', () => {
   it('is said in a few words, and nothing when quiet', () => {
     expect(activitySummary(undefined)).toBe('');
     expect(activitySummary(a())).toBe('');
-    expect(activitySummary(a({ needsInput: 1, blocked: 2, idle: 1, running: 3 }))).toBe('1 needs input · 2 blocked · 1 waiting · 3 running');
-    expect(activitySummary(a({ needsInput: 2 }))).toBe('2 need input');
+    expect(activitySummary(a({ needsInput: 1, blocked: 2, idle: 1, running: 3 }))).toBe('1 question needs you · 2 blocked · 1 waiting · 3 running');
+    expect(activitySummary(a({ needsInput: 2 }))).toBe('2 questions need you');
   });
 
   it('puts exceptions before activity, and counts Git findings once', () => {
@@ -57,7 +57,7 @@ describe('what a project asks of the user', () => {
     expect(activitySummary(a({ repoAttention: 1 }))).toBe('1 Git item');
     expect(activitySummary(a({ repoAttention: 2, repoRisk: 2 }))).toBe('2 repository risks');
     expect(activitySummary(a({ needsInput: 1, blocked: 1, failed: 1, repoRisk: 1, repoAttention: 1, review: 1, idle: 1, running: 1 }))).toBe(
-      '1 needs input · 1 blocked · 1 failed · 1 repository risk · 1 to review · 1 waiting · 1 running',
+      '1 question needs you · 1 blocked · 1 failed · 1 repository risk · 1 to review · 1 waiting · 1 running',
     );
   });
 
