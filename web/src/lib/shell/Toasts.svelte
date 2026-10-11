@@ -4,6 +4,13 @@
 
   // Messages that outlive what raised them ("answered on another device", "started"), and
   // errors from the controller. They float at the bottom, never shifting the page.
+
+  /** Takes the action before dismissing: dismissing clears it. */
+  function act() {
+    const action = app.noticeAction;
+    app.dismissNotice();
+    action?.run();
+  }
 </script>
 
 <div class="toasts" aria-live="polite">
@@ -16,6 +23,9 @@
   {#if app.notice}
     <div class="toast" role="status">
       <span>{app.notice}</span>
+      {#if app.noticeAction}
+        <button class="act" onclick={act}>{app.noticeAction.label}</button>
+      {/if}
       <button class="x" onclick={() => app.dismissNotice()} aria-label="Dismiss"><Icon name="close" size={14} /></button>
     </div>
   {/if}
@@ -55,6 +65,23 @@
   .toast.bad {
     background: var(--danger);
     color: #fff;
+  }
+
+  .act {
+    flex: none;
+    align-self: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+  }
+
+  .act:hover {
+    background: rgba(127, 127, 127, 0.25);
   }
 
   .x {

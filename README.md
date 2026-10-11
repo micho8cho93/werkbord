@@ -129,7 +129,7 @@ an interaction policy and a priority, set globally, per project, and per task; t
 agent picks its own model and reasoning. See [docs/EXECUTION.md](docs/EXECUTION.md).
 
 **Work without losing its history.** Messages send with Enter; Shift+Enter adds a line. An active task's header
-keeps **Stop agent** visible. Stop its run before using **Close task**, which moves the task into the board's
+keeps **Stop agent** visible. Stop its run before using **Archive task**, which moves the task into the board's
 searchable **Archive**. **Clear Done** archives the whole Done column; descriptions, branches, handoffs and runs
 remain available, and **Restore** returns a task to its previous column with automatic scheduling disabled.
 Project settings and Git use section controls so their details do not compete for the same viewport.

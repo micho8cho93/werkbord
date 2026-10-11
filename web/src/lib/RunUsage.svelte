@@ -19,7 +19,14 @@
   <p class="muted">Input tokens: {run.usage?.inputTokens?.toLocaleString() ?? 'Unknown'} · Output tokens: {run.usage?.outputTokens?.toLocaleString() ?? 'Unknown'}</p>
   <p class="muted">{#if run.usage?.costUsd !== undefined}{run.usage.costKind==='actual_api'?'Known API cost':'API-equivalent estimate (not a bill)'}: {new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(run.usage.costUsd)}{:else}Usage only · cost unknown{/if}</p>
   {#if run.usage?.source}<p class="muted small">Source: {run.usage.source}</p>{/if}
-  {#if run.endedAt}<div class="assessment"><span>Human assessment: {run.usage?.acceptance ?? 'Not recorded'}</span><button class="btn small" disabled={busy} onclick={()=>assess('accepted')}>Accept work</button><button class="btn small" disabled={busy} onclick={()=>assess('rejected')}>Reject work</button></div>{/if}
+  {#if run.endedAt}
+    <div class="assessment" role="group" aria-label="Your assessment of this run" aria-describedby="assess-help-{run.id}">
+      <span role="status">Your assessment: <strong>{run.usage?.acceptance === 'accepted' ? 'Accepted' : run.usage?.acceptance === 'rejected' ? 'Rejected' : 'Not recorded'}</strong></span>
+      <button class="btn small" aria-pressed={run.usage?.acceptance === 'accepted'} disabled={busy} onclick={()=>assess('accepted')}>Accept work</button>
+      <button class="btn small" aria-pressed={run.usage?.acceptance === 'rejected'} disabled={busy} onclick={()=>assess('rejected')}>Reject work</button>
+    </div>
+    <p class="muted small" id="assess-help-{run.id}">Tell Werkbord whether this run's work was good enough. It is only recorded, and counted as Kept in the usage by runner and agent. It does not merge, move or archive the task, and you can change it later.</p>
+  {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </div>
 <style>

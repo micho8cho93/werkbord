@@ -75,6 +75,14 @@ export function answerLine(q: Question): string {
     : `You answered: ${q.answer ?? ''}`;
 }
 
+/** What the person is told right after answering: what was sent, and whether the agent has it yet. */
+export function answeredNotice(q: Question, answer: string): string {
+  const said = answer.length > 80 ? `${answer.slice(0, 79).trimEnd()}…` : answer;
+  return q.deliveredAt
+    ? `Answered “${said}”. The agent has it and is carrying on.`
+    : `Answered “${said}”. Saved: waiting for the runner to confirm the agent has it.`;
+}
+
 /** Says in a sentence why a question was closed. */
 export function closedText(q: Question): string {
   const kept = q.answer ? ' Your answer was not delivered.' : '';

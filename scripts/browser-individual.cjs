@@ -128,14 +128,18 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal((await stopResponse).status(), 200);
         await page.getByTestId('pending-requests').filter({ hasText: 'stop requested' }).waitFor();
         await sync([{ runId: run.id, observations: [{ seq: 5, kind: 'ended', result: { state: 'stopped', exitCode: 0 }, headCommit: 'b'.repeat(40), uncommitted: false }] }]);
-        await page.getByRole('button', { name: 'Close task', exact: true }).waitFor({ state: 'visible' });
+        await page.getByRole('button', { name: 'Archive task', exact: true }).waitFor({ state: 'visible' });
         await page.getByRole('heading', { name: 'Run result', exact: true }).waitFor();
         await page.getByTestId('pending-requests').waitFor({ state: 'hidden' });
         assert.equal(await page.locator('.scroll').evaluate(el => el.scrollTop), 0);
         await page.getByText('Recorded test notes — not independently verified:', { exact: false }).waitFor();
+        assert.equal(await page.getByRole('button', { name: 'Merge…', exact: true }).count(), 0, 'work kept on a remote runner has no local branch to merge');
+        await page.getByRole('button', { name: 'Execution', exact: true }).click();
+        await page.getByText('It does not merge, move or archive the task', { exact: false }).waitFor();
         const closeResponse = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/tasks/' + task.id));
-        await page.getByRole('button', { name: 'Close task', exact: true }).click();
+        await page.getByRole('button', { name: 'Archive task', exact: true }).click();
         assert.equal((await closeResponse).status(), 200);
+        await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
         await page.getByRole('button', { name: /^Archive/ }).click();
         await page.getByRole('link', { name: task.title, exact: true }).waitFor();
         await page.getByRole('link', { name: task.title, exact: true }).click();
@@ -152,7 +156,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.waitForTimeout(400);
         await page.screenshot({ path: path.join(artifacts, 'individual-task-desktop.png') });
         await page.getByRole('button', { name: 'Restore task', exact: true }).click();
-        await page.getByRole('button', { name: 'Close task', exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Archive task', exact: true }).waitFor();
         console.log('PASS Enter-to-send, Shift+Enter newline, readable handoff, header Stop, close/archive/history/restore');
 
         await page.goto(base + `/#/p/${p.id}/board`);

@@ -2,6 +2,7 @@
   import { api } from './api';
   import { timeAgo } from './format';
   import {
+    answeredNotice,
     choicesOf,
     contextIsLong,
     contextSummary,
@@ -45,7 +46,7 @@
     try {
       const settled = await answerWith(question, value);
       onSettled(settled);
-      if(settled.state === "answered" && !settled.deliveredAt) notify("Answer saved. Waiting for the runner to acknowledge delivery.");
+      if (settled.state === 'answered') notify(answeredNotice(settled, value));
       text = '';
     } catch (err) {
       const failure = describeAnswerFailure(err);

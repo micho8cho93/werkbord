@@ -6,7 +6,7 @@
   import LabelChip from '../LabelChip.svelte';
   import { labelsOf, modeLabel, modeOf } from '../labels';
   import Icon from '../Icon.svelte';
-  import { choicesOf, describeAnswerFailure, isAllow, isDeny } from '../questions';
+  import { answeredNotice, choicesOf, describeAnswerFailure, isAllow, isDeny } from '../questions';
   import { branchHref } from '../gitroute';
   import { taskHref } from '../router.svelte';
   import type { ProjectScope } from '../scope.svelte';
@@ -87,6 +87,7 @@
     try {
       const settled = await api.answerQuestion(question, value);
       app.resolveQuestion(settled);
+      if (settled.state === 'answered') app.notify(answeredNotice(settled, value));
     } catch (err) {
       const failure = describeAnswerFailure(err);
       if (failure.settled) app.resolveQuestion(question);

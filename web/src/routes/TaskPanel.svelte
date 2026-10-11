@@ -24,7 +24,7 @@
   import { labelsOf, modeLabel, modeOf } from '../lib/labels';
   import { spanOf, spanTitle } from '../lib/timeline';
   import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
-  import { TASK_STATES, TASK_STATE_LABELS, type ExecutionConfig, type Project, type Run, type TaskState, type Worktree } from '../lib/types';
+  import { TASK_STATES, TASK_STATE_LABELS, type ExecutionConfig, type Project, type Run, type Task, type TaskState, type Worktree } from '../lib/types';
 
   // A task, opened over its board: the run and the conversation on the left, the facts about the
   // task on the right. What needs you (a question, a blocker) comes first. Esc closes.
@@ -317,8 +317,27 @@
   async function archive(archived: boolean) {
     if (!task || busy) return;
     const saved = await act(() => api.archiveTask(task, archived));
-    if (saved) { scope.upsertTask(saved); if (archived) { close(); app.notify('Task closed. Find its details in the board archive.'); } }
-    else await scope.load().catch(e => app.handleError(e));
+    if (!saved) {
+      await scope.load().catch((e) => app.handleError(e));
+      return;
+    }
+    scope.upsertTask(saved);
+    if (archived) {
+      close();
+      app.notify(`Archived “${saved.title}”. Its history stays in the board's Archive.`, 12000, { label: 'Undo', run: () => void undoArchive(saved) });
+    }
+  }
+
+  /** Puts an archived task back where it was. The panel may be gone by then, so this uses the saved task, not the open one. */
+  async function undoArchive(archivedTask: Task) {
+    try {
+      const restored = await api.archiveTask(archivedTask, false);
+      scope.upsertTask(restored);
+      app.notify(`Restored “${restored.title}” to ${TASK_STATE_LABELS[restored.state]}.`);
+    } catch (e) {
+      app.handleError(e);
+      await scope.load().catch((err) => app.handleError(err));
+    }
   }
 
   let factsSection = $state<'details' | 'run' | 'schedule' | 'history'>('details');
@@ -362,7 +381,7 @@
           <span class="chip">Archived</span><button class="btn small" disabled={busy} onclick={() => archive(false)}>Restore task</button>
         {:else}
           {#if latest && runStatus(latest).active}<button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>{/if}
-          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Close this task and keep its history in the archive">Close task</button>
+          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
           <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
         {/if}
         <a class="btn quiet small icon close" href={boardHref} aria-label="Close panel" title="Close (Esc)"><Icon name="close" /></a>
@@ -515,7 +534,7 @@
           {#if actionError}<p class="error banner" role="alert">{actionError}</p>{/if}
 
           {#if run && status && !status.active}
-            <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} />
+            <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} />
           {/if}
 
           {#if feed}
@@ -1113,7 +1132,7 @@
       padding: 8px 16px 12px;
     }
 
-    /* Back, the column, Stop, Close task and Edit do not fit one row at 375px: the actions wrap rather than clip. */
+    /* Back, the column, Stop, Archive task and Edit do not fit one row at 375px: the actions wrap rather than clip. */
     .top {
       flex-wrap: wrap;
     }

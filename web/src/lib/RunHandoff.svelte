@@ -3,6 +3,8 @@
   import { gitStore } from './git/store.svelte';
   import { branchHref } from './gitroute';
   import { safeURL } from './gitui';
+  import { sheets } from './git/sheets.svelte';
+  import Icon from './Icon.svelte';
   import { api } from "./api";
   import ExecutionFields from "./ExecutionFields.svelte";
   import { compact, executionAgents, type Resolved } from "./execution";
@@ -14,11 +16,14 @@
     scope,
     inherited,
     canContinue,
+    onmerged,
   }: {
     run: Run;
     scope: ProjectScope;
     inherited: Resolved;
     canContinue: boolean;
+    /** Runs once the work is merged: the task panel moves the task to Done. */
+    onmerged?: () => void;
   } = $props();
   const current = $derived(
     scope.history.find((r) => r.id === run.id && r.version >= run.version) ??
@@ -26,6 +31,8 @@
   );
   const git = $derived(gitStore(run.projectId));
   const branch = $derived(!current.remote ? git.overview?.branches.find(b => b.scope === 'local' && (b.devboard.runId === current.id || (!!current.branch && b.name === current.branch))) : undefined);
+  /** The same test as the board's Merge…: its own local branch, ahead of the target and not merged yet. */
+  const canMerge = $derived(!!branch && !branch.merged && branch.vsTarget.ahead > 0);
   const pr = $derived(git.github?.pullRequests.find(p => p.runId === current.id));
   const prURL = $derived(pr ? safeURL(pr.url) : '#');
   $effect(() => { const store = git; return untrack(() => { const stop = store.watch(); void store.loadGitHub(); return stop; }); });
@@ -136,7 +143,8 @@
   <p class="text"><strong>{current.state === 'completed' ? 'Session finished — ready for your review.' : current.state === 'failed' ? 'The run failed. Your task and recorded activity are retained.' : 'The run stopped. Your task and recorded activity are retained.'}</strong></p>
   {#if current.reason}<p class="text">{current.reason}</p>{/if}
   <p class="text">Branch: <code>{branch?.name || current.branch || 'No branch recorded'}</code></p>
-  {#if branch}<a class="btn primary" href={branchHref(current.projectId, branch.scope, branch.name)}>Review changes</a>
+  {#if branch}<div class="review-acts"><a class="btn primary" href={branchHref(current.projectId, branch.scope, branch.name)}>Review changes</a>{#if canMerge}<button class="btn" onclick={() => sheets.open({ kind: 'merge', branch: branch.name, onmerged })}><Icon name="merge" size={14} />Merge…</button>{/if}</div>
+  {#if canMerge}<p class="muted small">Merge… shows what will change and asks you to confirm before anything is merged into the target branch. A finished agent never merges by itself.</p>{:else if branch.merged}<p class="muted small">This branch is already merged.</p>{/if}
   {:else if pr && prURL !== '#'}<a class="btn primary" href={prURL} target="_blank" rel="noopener noreferrer">Review pull request #{pr.number}</a>
   {:else}<p class="muted">{git.loading || git.githubLoading ? 'Checking available review evidence…' : current.remote ? 'Changes remain on the runner. No pull request is available here.' : 'No local diff or pull request is available here.'}</p>{/if}
   {#if git.error}<p class="error" role="alert">Could not load Git evidence: {git.error}</p>{/if}
@@ -306,6 +314,7 @@
 </section>
 
 <style>
+  .review-acts { display: flex; flex-wrap: wrap; gap: 8px; }
   .handoff,
   form {
     display: grid;

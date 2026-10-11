@@ -4,6 +4,7 @@ import {
   QuestionBook,
   bannerQuestions,
   answerLine,
+  answeredNotice,
   choicesOf,
   closedText,
   contextIsLong,
@@ -241,5 +242,21 @@ describe('the banner states a question once', () => {
 
   it('leaves out the task whose panel is open, and nothing else', () => {
     expect(bannerQuestions(all, { view: 'task', projectId: 'prj_1', taskId: 'tsk_a' })).toEqual([open, other]);
+  });
+});
+
+describe('the line shown after answering', () => {
+  it('says the agent has the answer once delivery is confirmed', () => {
+    expect(answeredNotice(q({ state: 'answered', deliveredAt: '2026-10-04T10:01:00.000Z' }), 'Yes')).toBe('Answered “Yes”. The agent has it and is carrying on.');
+  });
+
+  it('says it is only saved while the runner has not confirmed delivery', () => {
+    expect(answeredNotice(q({ state: 'answered' }), 'Yes')).toBe('Answered “Yes”. Saved: waiting for the runner to confirm the agent has it.');
+  });
+
+  it('shortens a long typed answer', () => {
+    const line = answeredNotice(q({ state: 'answered' }), 'x'.repeat(200));
+    expect(line.length).toBeLessThan(160);
+    expect(line).toContain('…”');
   });
 });
