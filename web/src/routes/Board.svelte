@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ApiError, api } from '../lib/api';
-  import { agentWorkable, dropAction } from '../lib/board';
+  import { agentWorkable, dropAction, firstNeedsYouColumn } from '../lib/board';
   import Archive from '../lib/board/Archive.svelte';
   import TaskCard from '../lib/board/TaskCard.svelte';
   import { agentLabel, resolveFor, type Resolved } from '../lib/execution';
@@ -59,6 +59,19 @@
       return { state, tasks: limited, total: sorted.length };
     }),
   );
+
+  // On a phone the columns are wider than the screen, so the board opens on the first one that needs you (a question,
+  // a reply, finished work to review). Once, when the board has loaded; after that the person's own panning rules.
+  let cols = $state<HTMLElement>();
+  let opened = false;
+  $effect(() => {
+    if (opened || !scope.loaded || !cols || !window.matchMedia('(max-width: 899px)').matches) return;
+    opened = true;
+    if (router.taskId) return;
+    const state = firstNeedsYouColumn(scope.activeTasks, scope.latestRun, (r) => scope.pendingFor(r.id).length > 0);
+    const col = state && cols.querySelector<HTMLElement>(`#col-${state}`);
+    if (col) cols.scrollTo({ left: col.getBoundingClientRect().left - cols.getBoundingClientRect().left + cols.scrollLeft - 16 });
+  });
 
   // ---- the legend: what the agents are doing, at a glance ----
   const legend = $derived.by(() => {
@@ -281,7 +294,7 @@
     <Archive {scope} />
   {:else}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scrollable board needs keyboard focus for horizontal panning.) -->
-  <div class="cols" role="region" aria-label="Kanban board" tabindex="0">
+  <div class="cols" role="region" aria-label="Kanban board" tabindex="0" bind:this={cols}>
     {#each columns as col (col.state)}
       {@const hint = dropHint(col.state)}
       <section

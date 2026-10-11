@@ -227,6 +227,13 @@
     padding-block: 6px;
   }
 
+  @media (max-width: 899px) {
+    .choice,
+    .free .btn {
+      min-height: 44px;
+    }
+  }
+
   /* On a touch screen a wrong tap is as costly as a right one: big targets, side by side for a dialog. */
   @media (pointer: coarse) {
     .choices {

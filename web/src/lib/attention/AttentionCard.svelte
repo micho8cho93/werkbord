@@ -181,6 +181,12 @@
     gap: 8px;
   }
 
+  @media (max-width: 899px), (pointer: coarse) {
+    .acts :global(.btn) {
+      min-height: 44px;
+    }
+  }
+
   .expl {
     font-size: 13px;
     color: var(--text-2);

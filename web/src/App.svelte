@@ -10,7 +10,8 @@
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
   import ProjectSwitcher from './lib/ProjectSwitcher.svelte';
   import { pageTitle } from './lib/questions';
-  import { GLOBAL_VIEWS, globalHref, hrefOf, inProject, projectHref, resolved, router, sectionApplies } from './lib/router.svelte';
+  import { GLOBAL_VIEWS, globalHref, hrefOf, inMore, inProject, moreEntries, projectHref, resolved, router, sectionApplies } from './lib/router.svelte';
+  import Sheet from './lib/Sheet.svelte';
   import ScheduleWatch from './lib/ScheduleWatch.svelte';
   import ProjectHeader from './lib/shell/ProjectHeader.svelte';
   import Rail from './lib/shell/Rail.svelte';
@@ -120,6 +121,14 @@
   }
 
   /** The phone's tabs, as on the identity sheet: what needs you first, then the project's sections. */
+  let moreOpen = $state(false);
+  const more = $derived(moreEntries(project?.id ?? ''));
+  // A page opened from the sheet, or by the back button, leaves the sheet behind.
+  $effect(() => {
+    void [router.view, router.projectId];
+    moreOpen = false;
+  });
+
   const phoneTabs = $derived<{ id: string; label: string; icon: IconName; href: string; current: boolean; count?: number }[]>([
     { id: 'control', label: 'Needs you', icon: 'control', href: globalHref('control'), current: router.view === 'control', count: app.needsYou },
     ...(['board', 'calendar', 'timeline', 'git', 'runs'] as const)
@@ -218,7 +227,25 @@
           <span>{t.label}</span>
         </a>
       {/each}
+      <button type="button" class="tab" aria-haspopup="dialog" aria-expanded={moreOpen} aria-current={inMore(router.view) ? 'page' : undefined} onclick={() => (moreOpen = true)}>
+        <span class="icon"><Icon name="more" size={20} /></span>
+        <span>More</span>
+      </button>
     </nav>
+
+    {#if moreOpen}
+      <Sheet title="More" onclose={() => (moreOpen = false)}>
+        <ul class="more">
+          {#each more as m (m.id)}
+            <li>
+              <a href={m.href} aria-current={router.view === m.id ? 'page' : undefined}>
+                <Icon name={m.id === 'defaults' ? 'defaults' : m.id} size={18} />{m.label}
+              </a>
+            </li>
+          {/each}
+        </ul>
+      </Sheet>
+    {/if}
 
     <ProjectSwitcher />
     {#if app.newTaskOpen && project}<NewTaskDialog {project} />{/if}
@@ -298,6 +325,34 @@
     display: none;
   }
 
+  .more {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+  }
+
+  .more a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 0 4px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .more li:last-child a {
+    border-bottom: 0;
+  }
+
+  .more a[aria-current='page'] {
+    color: var(--accent-text);
+  }
+
   /* Phone: a heading, the page, and the tabs in thumb reach. The document scrolls, as phones expect. */
   @media (max-width: 899px) {
     .shell {
@@ -371,6 +426,10 @@
     }
 
     .tab {
+      appearance: none;
+      border: 0;
+      background: none;
+      font-family: inherit;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -390,8 +449,8 @@
       white-space: nowrap;
     }
 
-    /* Six tabs on the narrowest phones: a size smaller rather than a clipped word. */
-    @media (max-width: 340px) {
+    /* Seven tabs on a phone: a size smaller rather than a clipped word. */
+    @media (max-width: 430px) {
       .tab {
         font-size: 10px;
       }

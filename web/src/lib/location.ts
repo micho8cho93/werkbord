@@ -173,3 +173,32 @@ export function resolved(loc: Location, projectIds: readonly string[], lastUsed:
   if (!id) return { view: 'projects', projectId: '', taskId: '' };
   return { ...loc, projectId: id };
 }
+
+/** A page the phone's "More" sheet reaches: the ones the tab bar has no room for. */
+export interface MoreEntry {
+  id: 'overview' | 'projects' | 'defaults' | 'settings';
+  label: string;
+  href: string;
+}
+
+/**
+ * The phone's tab bar holds Needs you and the project's work sections. Everything else is behind its last tab,
+ * "More": the project's Overview and settings when a project is open, then Projects and the app's Settings.
+ */
+export function moreEntries(projectId: string): MoreEntry[] {
+  return [
+    ...(projectId
+      ? ([
+          { id: 'overview', label: 'Overview', href: projectHref(projectId, 'overview') },
+          { id: 'defaults', label: 'Project settings', href: projectHref(projectId, 'defaults') },
+        ] as MoreEntry[])
+      : []),
+    { id: 'projects', label: 'Projects', href: globalHref('projects') },
+    { id: 'settings', label: 'Settings', href: globalHref('settings') },
+  ];
+}
+
+/** Whether the page shown is one of those behind More, so the tab can say where you are. */
+export function inMore(view: View): boolean {
+  return view === 'overview' || view === 'defaults' || view === 'projects' || view === 'settings';
+}

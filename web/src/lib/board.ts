@@ -5,6 +5,7 @@ import type { Question, Run, SchedulingDecision, Task, TaskState } from './types
 import { schedulingLabels } from './scheduling';
 import { modeOf } from './labels';
 import type { Project } from './types';
+import { TASK_STATES } from './types';
 
 /** Whether an agent may be started on the task: not human work, and not in a project with no repository. */
 export function agentWorkable(task: Pick<Task, 'workMode'>, project: Pick<Project, 'kind'> | undefined): boolean {
@@ -97,4 +98,26 @@ export function sinceShort(iso: string, now: number): string {
 export function quickChoices(choices: readonly string[]): string[] {
   if (choices.length === 0 || choices.length > 3) return [];
   return choices.every((c) => c.length <= 24) ? [...choices] : [];
+}
+
+/**
+ * The first column, in board order, holding work that needs a person: an agent's question or a reply it waits
+ * for, a blocked run, or finished work waiting in Review. On a phone the board opens there, because the columns
+ * are wider than the screen. Empty when nothing needs anyone.
+ */
+export function firstNeedsYouColumn(
+  tasks: readonly Task[],
+  latestRun: Readonly<Record<string, Run | undefined>>,
+  hasQuestion: (run: Run) => boolean,
+): TaskState | '' {
+  const needs = (t: Task): boolean => {
+    const run = latestRun[t.id];
+    const s = run ? runStatus(run) : undefined;
+    if (run && s?.active) return hasQuestion(run) || run.state === 'blocked' || s.tone === 'idle' || s.tone === 'ask' || s.tone === 'block';
+    return t.state === 'review';
+  };
+  for (const state of TASK_STATES) {
+    if (tasks.some((t) => t.state === state && needs(t))) return state;
+  }
+  return '';
 }

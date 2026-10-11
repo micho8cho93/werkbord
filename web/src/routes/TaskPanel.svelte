@@ -1037,6 +1037,29 @@
       padding: 8px 16px 12px;
     }
 
+    /* Back, the column, Stop, Close task and Edit do not fit one row at 375px: the actions wrap rather than clip. */
+    .top {
+      flex-wrap: wrap;
+    }
+
+    .top .btn {
+      min-height: 44px;
+    }
+
+    /* Back and the column on the first row; the task's actions share the second, each as wide as it needs. */
+    .spacer {
+      flex-basis: 100%;
+      height: 0;
+    }
+
+    .top .btn:not(.icon) {
+      flex: 1 1 auto;
+    }
+
+    .state {
+      height: 44px;
+    }
+
     .back {
       display: inline-flex;
     }

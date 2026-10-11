@@ -62,8 +62,12 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
 - Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Timeline · Git ·
-  Runs; one equal column per tab, so a work project's shorter set fills the bar too), floating New task button,
-  horizontally scrolling Kanban columns, tables as two-line rows.
+  Runs · More; one equal column per tab, so a work project's shorter set fills the bar too), floating New task button,
+  horizontally scrolling Kanban columns, tables as two-line rows. The installed app starts on Needs you
+  (`start_url` `/#/control`). More is a sheet reaching what the bar has no room for: the project's Overview and
+  settings, Projects and Settings. The board opens on the first column holding something that needs you (a question,
+  a reply, blocked work, or work in Review). Buttons that answer from a card are at least 44px tall, and a task
+  panel's actions wrap onto their own row rather than clip.
 
 ### Team console (3.2)
 

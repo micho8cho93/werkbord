@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentWorkable, cardStatus, dropAction, quickChoices, sinceShort } from './board';
+import { agentWorkable, cardStatus, dropAction, firstNeedsYouColumn, quickChoices, sinceShort } from './board';
 import type { Question, Run, Task } from './types';
 
 const now = Date.parse('2026-10-05T10:30:00Z');
@@ -109,5 +109,29 @@ describe('sinceShort', () => {
     expect(sinceShort('2026-10-05T10:29:30Z', now)).toBe('30s');
     expect(sinceShort('2026-10-05T07:30:00Z', now)).toBe('3h');
     expect(sinceShort('2026-10-03T10:30:00Z', now)).toBe('2d');
+  });
+});
+
+describe('firstNeedsYouColumn', () => {
+  const none = () => false;
+
+  it('is empty when nothing needs a person', () => {
+    expect(firstNeedsYouColumn([task(), task({ id: 'tsk_2', state: 'done' })], {}, none)).toBe('');
+    expect(firstNeedsYouColumn([task({ state: 'doing' })], { tsk_1: run() }, none)).toBe('');
+  });
+
+  it('finds finished work waiting in Review', () => {
+    const tasks = [task(), task({ id: 'tsk_2', state: 'review' })];
+    expect(firstNeedsYouColumn(tasks, { tsk_2: run({ id: 'run_2', taskId: 'tsk_2', state: 'completed' }) }, none)).toBe('review');
+  });
+
+  it('prefers the earlier column: a waiting question in Doing comes before Review', () => {
+    const tasks = [task({ state: 'review' }), task({ id: 'tsk_2', state: 'doing' })];
+    const runs = { tsk_2: run({ id: 'run_2', taskId: 'tsk_2', state: 'waiting_for_user' }) };
+    expect(firstNeedsYouColumn(tasks, runs, (r) => r.id === 'run_2')).toBe('doing');
+  });
+
+  it('counts a blocked run', () => {
+    expect(firstNeedsYouColumn([task({ state: 'doing' })], { tsk_1: run({ state: 'blocked' }) }, none)).toBe('doing');
   });
 });

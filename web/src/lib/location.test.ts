@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import manifestSource from '../../public/manifest.webmanifest?raw';
 import {
   queryOf,
   GLOBAL_VIEWS,
   PROJECT_SECTIONS,
   globalHref,
   hrefOf,
+  inMore,
   inProject,
+  moreEntries,
   parse,
   projectHref,
   resolved,
@@ -167,5 +170,31 @@ describe('renamed sections', () => {
   it('reads a page query', () => {
     expect(queryOf('#/settings?runners')).toBe('runners');
     expect(queryOf('#/settings')).toBe('');
+  });
+});
+
+describe('the phone\'s More entry', () => {
+  it('reaches Overview and Settings, and the project\'s own settings, from a project', () => {
+    const e = moreEntries('prj_a');
+    expect(e.map((m) => m.id)).toEqual(['overview', 'defaults', 'projects', 'settings']);
+    expect(e.find((m) => m.id === 'overview')?.href).toBe('#/p/prj_a/overview');
+    expect(e.find((m) => m.id === 'settings')?.href).toBe('#/settings');
+    for (const m of e) expect(parse(m.href).view).toBe(m.id);
+  });
+
+  it('offers only the app\'s pages when no project is open', () => {
+    expect(moreEntries('').map((m) => m.id)).toEqual(['projects', 'settings']);
+  });
+
+  it('marks the tab current on those pages only', () => {
+    for (const v of ['overview', 'defaults', 'projects', 'settings'] as const) expect(inMore(v)).toBe(true);
+    for (const v of ['control', 'board', 'task', 'calendar', 'timeline', 'git', 'runs'] as const) expect(inMore(v)).toBe(false);
+  });
+});
+
+describe('the installed app', () => {
+  it('starts on Needs you', () => {
+    const manifest = JSON.parse(manifestSource);
+    expect(parse(new URL(manifest.start_url, 'https://x.test').hash).view).toBe('control');
   });
 });

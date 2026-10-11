@@ -317,6 +317,13 @@
     color: var(--danger-text);
   }
 
+  /* The answer is the point of the card: a thumb must not miss it. */
+  @media (max-width: 899px), (pointer: coarse) {
+    .acts :global(.btn) {
+      min-height: 44px;
+    }
+  }
+
   @media (pointer: coarse) {
     .task {
       padding: 14px;
