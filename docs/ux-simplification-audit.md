@@ -459,3 +459,60 @@ Evidence and regression coverage:
 No API dependency was needed. The fixture is stopped. No human comprehension study, VoiceOver session, or physical-device
 observation was performed; browser and emulated-pointer results do not establish those outcomes. This pass does not claim
 an updated heuristic score.
+
+### Workstream 2 — keyboard, touch and assistive technology (11 October 2026)
+
+Reproduced the remaining interaction defects against the freshly built and seeded browser fixture before editing:
+
+- The Labels palette exposed nine button radios with hex-only names, nine Tab stops, no arrow-key selection, and 22×22px
+  targets under coarse-pointer emulation.
+- Neither the Individual work region nor the desktop shell had a skip link. Task detail view buttons sat inside a
+  navigation landmark despite not being links. Jump to intercepted Ctrl/⌘K while an editable field had focus.
+- Opening a task focused its title, but closing it left focus on the document body. The cleanup could capture the
+  panel's own autofocused heading instead of its opener.
+- The existing Sheet trap covered simple forward/reverse Tab, but had no regression coverage for a nested top sheet,
+  controls in disabled fieldsets or collapsed details, live-added actions, or a disconnected opener.
+
+Changes in this pass:
+
+- Label palette choices are native radios in a named radiogroup. The fixed palette uses Red, Orange, Gold, Olive, Teal,
+  Blue, Violet, Pink and Gray; hex values supplement the names. Native arrow keys move selection, the selected swatch
+  has a check mark and outline, desktop dots remain 20px, and coarse-pointer hit areas measure 44×44px.
+- Both Individual and desktop shell have a visible-on-focus “Skip to main content” link, with a focusable main work
+  region. Task detail view controls are a labelled group, Settings and project navigation remain links, and Jump to/N
+  do not take keystrokes from a focused editor.
+- Task-panel teardown now restores focus to the original connected opener, or to the matching task link on the board
+  when mount-time autofocus displaced or disconnected that opener.
+- Browser regression coverage exercises the live Sheet trap with disabled-fieldset and collapsed controls, a
+  dynamically added final action, and a nested top-sheet layer. Escape closes only the top layer; focus restoration
+  skips a disconnected opener and returns to a connected board/task creation opener. The answer, Review and creation
+  browser journeys remain covered.
+
+Evidence and verification:
+
+- The post-build guarded fixture is `.impeccable/review/workstream-2/fixture/`. It contains `health.json`, the seeded
+  project IDs, the fixture log, legibility JSON and all 120 routed screenshots (28 pages × two themes × two sizes, plus
+  New task and Assistant captures). Legibility measured **5,570 text nodes, zero contrast failures and zero text below
+  11.5px**.
+- `.impeccable/review/workstream-2/individual/labels/` contains the populated Labels surface at 1440×900 and 375×812
+  in both themes, coarse-pointer phone captures, and the 720×450 200%-zoom viewport captures. The keyboard-focus
+  screenshots are alongside them. At 200% zoom, the fixed phone tab bar initially covers the lower part of the page;
+  the page's bottom padding lets the Add label action scroll fully above it, which the browser assertion measures.
+- Coarse-pointer emulation reported `(pointer: coarse) = true`; all nine radio hit areas measured 44×44px. Keyboard
+  checks reached the skip link with Tab, entered main content without changing the hash route, moved radio selection
+  with ArrowRight/ArrowLeft, and kept the label draft when Ctrl+K was pressed in its input. The selected radio focus
+  ring was inspected in both themes.
+- `make test-browser` passed after the final test changes: Individual answer/review/create and recovery flows, the
+  Individual/Team shell and integration fixtures, the responsive layouts, and the keyboard/Sheet regressions. The
+  unified desktop browser suite passed, including the shell skip link. Both `scripts/browser-assistant.cjs` and
+  `scripts/browser-shell-assistant.cjs` passed, including reduced motion. The Impeccable detector returned no findings.
+- The early browser runs caught test-harness mistakes (programmatic focus instead of Tab for `:focus-visible`, reading
+  visually hidden text with `innerText`, a locator tied to text replaced by the edit form, an incorrect assumption
+  about the Sheet's first focusable control, a route-cleanup race, and zoom geometry measured before scrolling). Those
+  assertions were corrected and the full affected browser suites rerun. The route test also exposed the task-panel
+  focus-return defect above, which was fixed and verified before the passing run.
+
+No out-of-scope API dependency was identified; existing API payloads and behavior are unchanged. No Go or Team source
+was changed. VoiceOver and a physical touch device were unavailable for this pass, so their behavior remains
+unverified; browser accessible-name checks and touch emulation are not presented as manual assistive-technology or
+device checks. No human comprehension study was run and no heuristic score change is claimed.

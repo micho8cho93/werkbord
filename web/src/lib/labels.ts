@@ -23,6 +23,19 @@ export function modeLabel(mode: WorkMode): string {
 /** Colours offered when making a label. Only colours: the names are the person's. */
 export const LABEL_COLORS: readonly string[] = ['#d14d41', '#da702c', '#d0a215', '#879a39', '#3aa99f', '#4385be', '#8b7ec8', '#ce5d97', '#6f6e69'];
 
+/** Human names for the fixed label palette; custom colours keep their own hex value. */
+export const LABEL_COLOR_NAMES: Readonly<Record<string, string>> = {
+  '#d14d41': 'Red',
+  '#da702c': 'Orange',
+  '#d0a215': 'Gold',
+  '#879a39': 'Olive',
+  '#3aa99f': 'Teal',
+  '#4385be': 'Blue',
+  '#8b7ec8': 'Violet',
+  '#ce5d97': 'Pink',
+  '#6f6e69': 'Gray',
+};
+
 /** A text colour that reads on `bg` (#rrggbb): the one with the better contrast. */
 export function inkFor(bg: string): '#ffffff' | '#14130f' {
   const m = /^#([0-9a-f]{6})$/i.exec(bg);

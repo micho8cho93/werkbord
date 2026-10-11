@@ -132,9 +132,15 @@ heading (the provider chooser, New, Close) and the box.
   schedules when the controller starts agent work. Explain this at both sets of date controls. Work projects keep
   their timeline planning fields and have no execution controls.
 - **Touch and keyboard.** Answer choices and card actions are at least 44px tall on phones and coarse pointers, with
-  spacing between choices. Coarse-pointer form fields use 16px text to prevent zoom. A task panel receives focus on
-  its heading and returns focus to its opener on close. These rules complement the 11.5px type floor and shared
-  disclosure chevron above; compact secondary controls still need a separate touch-target audit.
+  spacing between choices. Label colours are native radios: one tab stop, arrow-key selection, human colour names,
+  supplementary hex values and a visible check mark as well as an outline. Their colour dots stay compact; the hit area
+  grows on coarse pointers. Coarse-pointer form fields use 16px text to prevent zoom. A visible-on-focus skip link moves
+  to the main work region in both the Individual app and the desktop shell. A task panel receives focus on its heading
+  and returns focus to its opener on close. Task detail view controls are a labelled button group, not a navigation
+  landmark; links remain the navigation pattern. These rules complement the 11.5px type floor and shared disclosure
+  chevron above; compact secondary controls still need a separate touch-target audit.
+- **Shortcuts respect editing.** Jump to and New task are available from the page, but app shortcuts do not intercept
+  keystrokes while an input, select, textarea or editable region has focus.
 - **A confirmation keeps focus.** Only the topmost Sheet handles its keyboard events. Tab and Shift+Tab cycle through
   visible enabled controls, background focus returns to the Sheet, Escape closes it, and closing restores a connected
   opener. Collapsed content and disabled actions never enter that cycle.

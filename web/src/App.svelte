@@ -104,6 +104,9 @@
 
   // ⌘/Ctrl K: Jump to, from anywhere. N: a new task in the project you are in.
   function onKey(e: KeyboardEvent) {
+    const el = e.target as HTMLElement | null;
+    const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+    if (typing) return;
     if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
       if (assistant.mounted) return;
       e.preventDefault();
@@ -111,9 +114,7 @@
       return;
     }
     if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented || assistant.mounted) return;
-    const el = e.target as HTMLElement | null;
-    const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
-    if (typing || app.switcherOpen || app.newTaskOpen) return;
+    if (app.switcherOpen || app.newTaskOpen) return;
     if (e.key === 'n' && project) {
       e.preventDefault();
       app.newTaskOpen = true;
@@ -148,6 +149,7 @@
 {#if app.connection === 'unauthorized'}
   <TokenPrompt />
 {:else}
+  <a class="skip-main" href="#main-content" onclick={(e) => { e.preventDefault(); mainEl?.focus({ preventScroll: true }); mainEl?.scrollIntoView({ block: 'start' }); }}>Skip to main content</a>
   <!-- The workspace stays mounted while the assistant is over it; inert keeps focus and screen readers on the assistant. -->
   <div class="shell" class:framed inert={assistant.mounted}>
     {#if !framed}<div class="rail-area"><Rail /></div>{/if}
@@ -174,7 +176,7 @@
       <NeedsInputBanner />
       <UpdateBanner />
 
-      <main bind:this={mainEl}>
+      <main id="main-content" tabindex="-1" bind:this={mainEl}>
         {#if router.view === 'control'}
           <ControlCenter />
         {:else if router.view === 'projects'}
@@ -256,6 +258,32 @@
 {/if}
 
 <style>
+  .skip-main {
+    position: fixed;
+    z-index: 100;
+    top: 8px;
+    left: 8px;
+    transform: translateY(calc(-100% - 12px));
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--win-sh);
+    font-weight: 600;
+  }
+
+  .skip-main:focus-visible {
+    transform: translateY(0);
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  main:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
   /* Desktop: the window is the app. A rail, and a main column whose views fit the viewport. */
   .shell {
     height: 100dvh;

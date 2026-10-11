@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from './api';
   import LabelChip from './LabelChip.svelte';
-  import { LABEL_COLORS, sortedLabels } from './labels';
+  import { inkFor, LABEL_COLORS, LABEL_COLOR_NAMES, sortedLabels } from './labels';
   import { app } from './state.svelte';
   import type { LabelUse } from './types';
 
@@ -89,12 +89,20 @@
         <input class="input" maxlength="200" bind:value={description} />
       </label>
     </div>
-    <div class="swatches" role="radiogroup" aria-label="Colour">
+    <fieldset class="swatches" role="radiogroup" aria-label="Colour">
+      <legend>Colour</legend>
       {#each LABEL_COLORS as c (c)}
-        <button type="button" class="sw" role="radio" aria-checked={color === c} aria-label="Colour {c}" style:background={c} onclick={() => (color = c)}></button>
+        <label class="sw" title="{LABEL_COLOR_NAMES[c]} ({c})">
+          <input type="radio" name="new-label-colour" value={c} checked={color === c} onchange={() => (color = c)} />
+          <span class="dot" class:selected={color === c} style:background={c} style:--mark={inkFor(c)} aria-hidden="true"></span>
+          <span class="visually-hidden">{LABEL_COLOR_NAMES[c]} ({c})</span>
+        </label>
       {/each}
-      <input class="custom" type="color" aria-label="Pick another colour" bind:value={color} />
-    </div>
+      <label class="custom" title="Custom colour ({color})">
+        <span class="visually-hidden">Custom colour</span>
+        <input type="color" aria-label="Custom colour, {color}" bind:value={color} />
+      </label>
+    </fieldset>
     <div class="preview">
       {#if name.trim()}<LabelChip label={{ name: name.trim(), color }} />{/if}
       <button class="btn primary" type="submit" disabled={busy || !name.trim()}>Add label</button>
@@ -111,12 +119,20 @@
             <form class="edit" onsubmit={(e) => { e.preventDefault(); void save(l); }}>
               <input class="input" maxlength="40" bind:value={draft.name} aria-label="Name" required />
               <input class="input" maxlength="200" bind:value={draft.description} aria-label="What it is for" placeholder="What it is for" />
-              <div class="swatches" role="radiogroup" aria-label="Colour">
+              <fieldset class="swatches" role="radiogroup" aria-label="Colour">
+                <legend>Colour</legend>
                 {#each LABEL_COLORS as c (c)}
-                  <button type="button" class="sw" role="radio" aria-checked={draft.color === c} aria-label="Colour {c}" style:background={c} onclick={() => (draft.color = c)}></button>
+                  <label class="sw" title="{LABEL_COLOR_NAMES[c]} ({c})">
+                    <input type="radio" name="edit-label-colour-{l.id}" value={c} checked={draft.color === c} onchange={() => (draft.color = c)} />
+                    <span class="dot" class:selected={draft.color === c} style:background={c} style:--mark={inkFor(c)} aria-hidden="true"></span>
+                    <span class="visually-hidden">{LABEL_COLOR_NAMES[c]} ({c})</span>
+                  </label>
                 {/each}
-                <input class="custom" type="color" aria-label="Pick another colour" bind:value={draft.color} />
-              </div>
+                <label class="custom" title="Custom colour ({draft.color})">
+                  <span class="visually-hidden">Custom colour</span>
+                  <input type="color" aria-label="Custom colour, {draft.color}" bind:value={draft.color} />
+                </label>
+              </fieldset>
               <div class="acts">
                 <button class="btn small primary" type="submit" disabled={busy || !draft.name.trim()}>Save</button>
                 <button class="btn small" type="button" onclick={() => (editing = '')}>Cancel</button>
@@ -174,34 +190,114 @@
   }
 
   .swatches {
+    border: 0;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
+  }
+
+  .swatches legend {
+    float: left;
+    width: 100%;
+    padding: 0 0 3px;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .sw {
-    width: 22px;
-    height: 22px;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex: none;
     padding: 0;
-    border: 0;
-    border-radius: 50%;
+    border-radius: 4px;
     cursor: pointer;
+  }
+
+  .sw input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .dot {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
   }
 
-  .sw[aria-checked='true'] {
+  .sw input:checked + .dot {
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
 
+  .sw input:checked + .dot::after {
+    content: '';
+    width: 5px;
+    height: 9px;
+    margin-top: -2px;
+    border: solid var(--mark);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .sw:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   .custom {
+    display: grid;
+    place-items: center;
     width: 28px;
-    height: 24px;
+    height: 28px;
+    flex: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .custom input {
+    width: 22px;
+    height: 22px;
     padding: 0;
     border: 0;
     background: none;
     cursor: pointer;
+  }
+
+  .custom:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (pointer: coarse) {
+    .swatches {
+      gap: 4px;
+    }
+
+    .sw,
+    .custom {
+      width: 44px;
+      height: 44px;
+    }
+
+    .custom input {
+      width: 28px;
+      height: 28px;
+    }
   }
 
   .preview {

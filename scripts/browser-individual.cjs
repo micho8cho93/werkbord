@@ -49,6 +49,103 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     let p = projects.projects.find(p => p.repoPath === repo);
     if (!p)
         p = await api('POST', '/api/projects', { path: repo, name: 'Disposable individual' });
+    // The Labels editor uses one native radio tab stop, human names, and a visible selection marker.
+    await page.goto(base + '/#/settings?labels');
+    await page.reload();
+    await page.getByRole('heading', { name: 'Labels', exact: true }).waitFor();
+    const skipMain = page.getByRole('link', { name: 'Skip to main content', exact: true });
+    await page.keyboard.press('Tab');
+    assert.equal(await skipMain.evaluate(el => el === document.activeElement), true, 'skip link is first in the page focus order');
+    assert((await skipMain.boundingBox()).y >= 0, 'skip link is visible when focused');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('main').evaluate(el => el === document.activeElement), true, 'skip link moves focus to the main work region');
+    assert.match(page.url(), /#\/settings\?labels$/, 'skip link does not alter the app route');
+    assert.equal(await page.getByRole('navigation', { name: 'Settings sections', exact: true }).count(), 1, 'Settings sections remain a navigation landmark');
+    const colourGroup = page.getByRole('radiogroup', { name: 'Colour', exact: true }).first();
+    const colours = colourGroup.getByRole('radio');
+    assert.equal(await colours.count(), 9);
+    assert.deepEqual(await colours.evaluateAll(es => es.map(e => e.labels?.[0]?.textContent?.trim() ?? '')), [
+        'Red (#d14d41)', 'Orange (#da702c)', 'Gold (#d0a215)', 'Olive (#879a39)', 'Teal (#3aa99f)', 'Blue (#4385be)', 'Violet (#8b7ec8)', 'Pink (#ce5d97)', 'Gray (#6f6e69)'
+    ], 'palette names lead and hex values supplement them');
+    const blue = colourGroup.getByRole('radio', { name: 'Blue (#4385be)', exact: true });
+    await blue.focus();
+    await page.keyboard.press('ArrowRight');
+    const violet = colourGroup.getByRole('radio', { name: 'Violet (#8b7ec8)', exact: true });
+    assert.equal(await violet.isChecked(), true, 'ArrowRight selects the next native radio');
+    assert.equal(await violet.evaluate(el => el === document.activeElement), true, 'radio arrow movement keeps focus with the new selection');
+    await page.keyboard.press('ArrowLeft');
+    assert.equal(await blue.isChecked(), true, 'ArrowLeft returns to the prior colour');
+    await page.keyboard.press('Tab');
+    assert.equal(await page.locator('input[type="color"]').evaluate(el => el === document.activeElement), true, 'Tab leaves the palette after one radio stop');
+    const labelName = 'Keyboard color regression';
+    const labelNameInput = page.getByRole('textbox', { name: 'Name', exact: true });
+    await labelNameInput.fill(labelName);
+    await page.keyboard.press('Control+k');
+    assert.equal(await page.getByRole('dialog', { name: 'Jump to', exact: true }).count(), 0, 'Jump to does not interrupt text entry');
+    assert.equal(await labelNameInput.inputValue(), labelName, 'typing draft survives the shortcut');
+    await page.getByRole('button', { name: 'Add label', exact: true }).click();
+    const labelRow = page.locator('.list li').filter({ hasText: labelName });
+    await labelRow.getByRole('button', { name: `Edit label ${labelName}`, exact: true }).click();
+    const editRow = page.locator('.list li').filter({ has: page.locator('form.edit') });
+    const editColourGroup = editRow.getByRole('radiogroup', { name: 'Colour', exact: true });
+    const editColours = editColourGroup.getByRole('radio');
+    await editColourGroup.getByRole('radio', { name: 'Gold (#d0a215)', exact: true }).focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await editColourGroup.getByRole('radio', { name: 'Olive (#879a39)', exact: true }).isChecked(), true, 'edit palette has the same native arrow behavior');
+    await editRow.getByRole('button', { name: 'Save', exact: true }).click();
+    const labelArtifacts = path.join(artifacts, 'labels');
+    fs.mkdirSync(labelArtifacts, { recursive: true });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    for (const theme of ['light', 'dark']) {
+        await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+        for (const [size, width, height] of [['desktop', 1440, 900], ['phone', 375, 812], ['zoom200', 720, 450]]) {
+            await page.setViewportSize({ width, height });
+            if (size === 'zoom200') {
+                await page.getByRole('button', { name: 'Add label', exact: true }).scrollIntoViewIfNeeded();
+                await page.evaluate(() => window.scrollBy(0, document.querySelector('.tabbar').getBoundingClientRect().height));
+                await page.waitForTimeout(50);
+            }
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, `Labels has no horizontal overflow at ${size}/${theme}`);
+            const addBox = await page.getByRole('button', { name: 'Add label', exact: true }).boundingBox();
+            assert(addBox, `Add label remains visible at ${size}/${theme}`);
+            if (size === 'zoom200') {
+                const tabBox = await page.locator('.tabbar').boundingBox();
+                assert(addBox.y >= 0 && addBox.y + addBox.height <= tabBox.y, `Add label can be scrolled above phone navigation at 200%/${theme}: ${JSON.stringify({ addBox, tabBox })}`);
+            }
+            await page.screenshot({ path: path.join(labelArtifacts, `labels-${size}-${theme}.png`), fullPage: size !== 'zoom200' });
+        }
+    }
+    const touchContext = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, storageState: await ctx.storageState() });
+    const touchPage = await touchContext.newPage();
+    await touchPage.goto(base + '/#/settings?labels');
+    await touchPage.getByRole('heading', { name: 'Labels', exact: true }).waitFor();
+    assert.equal(await touchPage.evaluate(() => matchMedia('(pointer: coarse)').matches), true, 'coarse-pointer test uses touch emulation');
+    const touchPalette = touchPage.getByRole('radiogroup', { name: 'Colour', exact: true }).first().getByRole('radio');
+    const touchTargets = await touchPalette.evaluateAll(es => es.map(e => { const r = e.parentElement.getBoundingClientRect(); return { width: r.width, height: r.height }; }));
+    assert(touchTargets.every(r => r.width >= 44 && r.height >= 44), `coarse-pointer swatches meet 44px: ${JSON.stringify(touchTargets)}`);
+    await touchPage.screenshot({ path: path.join(labelArtifacts, 'labels-phone-touch-light.png'), fullPage: true });
+    await touchPage.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await touchPage.screenshot({ path: path.join(labelArtifacts, 'labels-phone-touch-dark.png'), fullPage: true });
+    await touchContext.close();
+    const focusTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Navigation focus fixture' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(base + `/#/p/${p.id}/board`);
+    const focusOpener = page.getByRole('link', { name: focusTask.title, exact: true });
+    await focusOpener.waitFor();
+    await focusOpener.focus();
+    await page.keyboard.press('Enter');
+    const taskPanel = page.locator('.panel');
+    await page.getByRole('heading', { name: focusTask.title, exact: true }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: focusTask.title, exact: true }).evaluate(el => el === document.activeElement), true, 'opening a task moves focus to its title');
+    assert.equal(await taskPanel.getByRole('navigation', { name: 'Task details sections' }).count(), 0, 'view controls do not claim to be link navigation');
+    assert.equal(await taskPanel.getByRole('group', { name: 'Task detail views', exact: true }).count(), 1);
+    await taskPanel.getByRole('link', { name: 'Close panel', exact: true }).click();
+    await page.waitForFunction(href => {
+        const opener = [...document.querySelectorAll('a[href]')].find(el => el.getAttribute('href') === href);
+        return location.hash.includes('/board') && opener === document.activeElement;
+    }, await focusOpener.getAttribute('href'));
+    assert.equal(await focusOpener.evaluate(el => el === document.activeElement), true, 'closing task details restores focus to the board card');
+    console.log('PASS label radio names/arrows, skip navigation, shortcut typing guard, touch targets, zoom/theme captures, and task focus order');
     const workProject = await api('POST', '/api/projects', { kind: 'work', name: 'Planning fixture' });
     await api('POST', `/api/projects/${workProject.id}/tasks`, { title: 'Plan the migration' });
     await page.goto(base + `/#/p/${workProject.id}/timeline`);
@@ -91,8 +188,53 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     assert.equal(await taskDialog.locator(':focus').count(), 1, 'Shift+Tab at the first control stays in the dialog');
     await page.getByRole('link', { name: 'Projects', exact: true }).focus();
     assert.equal(await taskDialog.locator(':focus').count(), 1, 'background focus is redirected into the dialog');
+    const sheetTestAction = taskDialog.locator('[data-sheet-test="dynamic-action"]');
+    await page.evaluate(() => {
+        const dialog = document.querySelector('.sheet[aria-modal="true"]');
+        const body = dialog.querySelector('.body');
+        const disabled = document.createElement('fieldset');
+        disabled.disabled = true;
+        disabled.innerHTML = '<button data-sheet-test="disabled-control">Disabled control</button>';
+        const collapsed = document.createElement('details');
+        collapsed.innerHTML = '<summary>Collapsed controls</summary><button data-sheet-test="collapsed-control">Collapsed control</button>';
+        body.append(disabled, collapsed);
+        const dynamic = document.createElement('button');
+        dynamic.dataset.sheetTest = 'dynamic-action';
+        dynamic.textContent = 'Dynamic action';
+        dialog.querySelector('footer').append(dynamic);
+    });
+    assert.equal(await taskDialog.locator('[data-sheet-test="disabled-control"]').evaluate(el => el.matches(':disabled')), true, 'disabled fieldset controls remain disabled');
+    assert.equal(await taskDialog.locator('[data-sheet-test="collapsed-control"]').evaluate(el => el.getClientRects().length), 0, 'collapsed details controls are hidden');
+    await taskDialog.locator('[data-sheet-test="disabled-control"]').evaluate(el => el.focus());
+    assert.equal(await taskDialog.locator('[data-sheet-test="disabled-control"]').evaluate(el => el === document.activeElement), false, 'disabled fieldset controls cannot receive focus');
+    await taskDialog.locator('[data-sheet-test="collapsed-control"]').evaluate(el => el.focus());
+    assert.equal(await taskDialog.locator('[data-sheet-test="collapsed-control"]').evaluate(el => el === document.activeElement), false, 'collapsed controls cannot receive focus');
+    await sheetTestAction.focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await taskDialog.getByRole('button', { name: 'Close', exact: true }).evaluate(el => el === document.activeElement), true, 'Tab sees a dynamically added final action and wraps to the first live control');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await sheetTestAction.evaluate(el => el === document.activeElement), true, 'Shift+Tab wraps from the first control to the dynamic final action');
+    const nestedResult = await page.evaluate(() => {
+        const nested = document.createElement('div');
+        nested.className = 'sheet';
+        nested.setAttribute('role', 'dialog');
+        nested.setAttribute('aria-modal', 'true');
+        nested.setAttribute('aria-label', 'Nested Sheet test');
+        nested.tabIndex = -1;
+        nested.innerHTML = '<button data-sheet-test="nested-close">Close nested sheet</button>';
+        document.body.append(nested);
+        nested.querySelector('button').focus();
+        return true;
+    });
+    assert.equal(nestedResult, true);
+    await page.keyboard.press('Escape');
+    assert.equal(await taskDialog.isVisible(), true, 'the lower Sheet ignores Escape while a nested Sheet is topmost');
+    await page.locator('[aria-label="Nested Sheet test"]').evaluate(el => el.remove());
+    await taskDialog.getByRole('button', { name: 'Cancel', exact: true }).focus();
     assert.equal((await api('GET', `/api/projects/${p.id}/runs`)).runs.length, 0, 'setup opens creation without starting an agent');
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await taskDialog.waitFor({ state: 'hidden' });
+    assert.equal(await page.evaluate(() => document.activeElement?.isConnected), true, 'Escape closes the Sheet without focusing a stale setup control');
     console.log('PASS verified local checklist, optional connections collapsed, planning alternative and first task in registered repository');
     const pair = await api('POST', '/api/runners/pair', { projects: [p.id], allowClone: false });
     const secret = pair.code.split('.')[2];
@@ -183,7 +325,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('link', { name: task.title, exact: true }).click();
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
         await page.setViewportSize({ width: 390, height: 844 });
-        const sections = page.getByRole('navigation', { name: 'Task details sections' });
+        const sections = page.getByRole('group', { name: 'Task detail views', exact: true });
         await sections.getByRole('button', { name: 'Details', exact: true }).click();
         await page.getByRole('heading', { name: 'Details', exact: true }).waitFor();
         await sections.getByRole('button', { name: 'Activity', exact: true }).click();
@@ -284,6 +426,20 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.keyboard.press('Escape');
         await page.getByRole('dialog', { name: 'New task in ' + p.name, exact: true }).waitFor({ state: 'hidden' });
         assert.equal(await page.getByRole('button', { name: 'New task', exact: true }).evaluate(el => el === document.activeElement), true, 'Escape restores the dialog opener');
+        await page.evaluate(() => {
+            const opener = document.createElement('button');
+            opener.id = 'disconnected-sheet-opener';
+            opener.textContent = 'Temporary opener';
+            document.body.append(opener);
+            opener.focus();
+        });
+        await page.keyboard.press('n');
+        const disconnectedDialog = page.getByRole('dialog', { name: 'New task in ' + p.name, exact: true });
+        await disconnectedDialog.waitFor();
+        await page.locator('#disconnected-sheet-opener').evaluate(el => el.remove());
+        await page.keyboard.press('Escape');
+        await disconnectedDialog.waitFor({ state: 'hidden' });
+        assert.equal(await page.evaluate(() => document.activeElement?.isConnected), true, 'closing a Sheet with a disconnected opener does not restore stale focus');
         await page.setViewportSize({ width:1440, height:1000 });
         console.log('PASS task creation disclosures, retained save, safe retries, lost launch response, light/dark desktop/mobile');
         // A real disposable local process produces a commit; review opens the actual branch.

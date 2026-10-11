@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { filterActive, inkFor, labelsOf, matches, modeOf, noFilter, pruneFilter, sortedLabels, toggleLabel } from './labels';
+import { filterActive, inkFor, LABEL_COLORS, LABEL_COLOR_NAMES, labelsOf, matches, modeOf, noFilter, pruneFilter, sortedLabels, toggleLabel } from './labels';
 import type { Label } from './types';
 
 const label = (id: string, name: string, color = '#336699'): Label => ({ id, name, color, version: 1 });
 
 describe('labels', () => {
+  it('gives every fixed label colour a human name', () => {
+    expect(Object.keys(LABEL_COLOR_NAMES).sort()).toEqual([...LABEL_COLORS].sort());
+    expect(Object.values(LABEL_COLOR_NAMES)).toEqual(['Red', 'Orange', 'Gold', 'Olive', 'Teal', 'Blue', 'Violet', 'Pink', 'Gray']);
+  });
+
   it('reads an absent mode as agent work, as every task was', () => {
     expect(modeOf({})).toBe('agent');
     expect(modeOf({ workMode: 'human' })).toBe('human');

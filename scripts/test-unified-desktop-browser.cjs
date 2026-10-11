@@ -52,6 +52,9 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
  const switchTo = async (id) => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
  await page.goto(origin + '/shell/shell/index.html'); await page.locator('iframe[data-workspace=personal]').waitFor();
+ const shellSkip = page.getByRole('link', { name: 'Skip to main content', exact: true }); await page.keyboard.press('Tab'); assert.equal(await shellSkip.evaluate(el => el === document.activeElement), true, 'shell skip link is first in the page focus order');
+ assert((await shellSkip.boundingBox()).y >= 0, 'shell skip link is visible when focused'); await page.keyboard.press('Enter');
+ assert.equal(await page.locator('#shell-main').evaluate(el => el === document.activeElement), true, 'shell skip link moves focus to its main work region');
  for (const section of ['Overview', 'Board', 'Git', 'Runs']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
  // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');

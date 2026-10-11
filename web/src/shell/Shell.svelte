@@ -16,6 +16,7 @@
   // The window: one sidebar (switching workspace, what spans every workspace, and the navigation of the workspace on show)
   // beside the workspace's own pages, which carry no navigation of their own here.
   const pages: Page[] = ['workspace', 'mywork', 'calendar', 'inbox', 'workspaces'];
+  let mainEl: HTMLElement | undefined;
   // The person's own Werkbord cannot be shown (too old, or not running): say so instead of a blank frame.
   const problem = $derived(model.current === 'personal' && model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
 
@@ -39,6 +40,7 @@
 </script>
 
 <svelte:window onkeydown={key} />
+<a class="skip-main" href="#shell-main" onclick={(e) => { e.preventDefault(); mainEl?.focus({ preventScroll: true }); }}>Skip to main content</a>
 <!-- While the assistant is over the window, what is under it is not reachable by keyboard or screen reader either. -->
 <div class="shell" inert={model.assistantShown}>
   <Sidebar />
@@ -50,7 +52,7 @@
       <div class="message" role="status">{model.notice}<button class="btn" type="button" onclick={() => (model.notice = '')}>Dismiss</button></div>
     {/if}
     {#if !model.loaded}<p class="loading" role="status">Opening your workspaces…</p>{/if}
-    <main>
+    <main id="shell-main" tabindex="-1" bind:this={mainEl}>
       <FrameHost shown={model.page === 'workspace' && !problem} />
       {#if model.page === 'workspace' && problem}
         <div class="page-area"><WorkspaceProblem /></div>
@@ -70,6 +72,32 @@
 <AssistantFrame />
 
 <style>
+  .skip-main {
+    position: fixed;
+    z-index: 100;
+    top: 8px;
+    left: 8px;
+    transform: translateY(calc(-100% - 12px));
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--win-sh);
+    font-weight: 600;
+  }
+
+  .skip-main:focus-visible {
+    transform: translateY(0);
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  main:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
   .shell {
     height: 100dvh;
     display: flex;

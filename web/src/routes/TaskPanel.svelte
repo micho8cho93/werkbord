@@ -14,7 +14,7 @@
   import RunBadge from '../lib/RunBadge.svelte';
   import RunHandoff from '../lib/RunHandoff.svelte';
   import RunUsage from '../lib/RunUsage.svelte';
-  import { globalHref, projectHref, router } from '../lib/router.svelte';
+import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte';
   import { schedulingLabels } from '../lib/scheduling';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
@@ -126,11 +126,17 @@
     titleEl?.focus({ preventScroll: true });
   });
   onMount(() => {
-    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
+    const active = document.activeElement;
+    const opener = active instanceof HTMLElement && active !== document.body && !active.closest('.panel') ? active : undefined;
+    const openerHref = taskHref(project.id, router.taskId);
     return () => {
       // Only when focus was left in the panel (or lost with it); someone who moved on elsewhere keeps their place.
-      const active = document.activeElement;
-      if (opener?.isConnected && (!active || active === document.body || active.closest('.panel'))) opener.focus({ preventScroll: true });
+      const focused = document.activeElement;
+      if (!focused || focused === document.body || focused.closest('.panel')) {
+        const boardOpener = opener?.isConnected ? opener : [...document.querySelectorAll<HTMLAnchorElement>('a[href]')]
+          .find((anchor) => anchor.getAttribute('href') === openerHref);
+        if (boardOpener?.isConnected && !boardOpener.closest('.panel')) boardOpener.focus({ preventScroll: true });
+      }
     };
   });
   /** Skip links are buttons: the address bar is the router, so an `href="#…"` would navigate away from the task. */
@@ -477,10 +483,10 @@
         {/if}
     {/snippet}
 
-    <nav class="facts-tabs" aria-label="Task details sections">
+    <div class="facts-tabs" role="group" aria-label="Task detail views">
       {#if narrow.current}<button class="btn small quiet" aria-pressed={!factsOpen} onclick={() => factsOpen = false}>Activity</button>{/if}
       {#each agentWork ? ['details', 'run', 'schedule', 'history'] : project.kind === 'work' ? ['details'] : ['details', 'history'] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Details' : 'Schedule'}</button>{/each}
-    </nav>
+    </div>
     <div class="body" class:facts-open={factsOpen}>
       <!-- The run: what needs you, what happened, and what to say next. -->
       <div class="main">
