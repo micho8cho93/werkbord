@@ -71,7 +71,7 @@
         : gh.state === 'disabled'
           ? 'Turned off in config.json'
           : skipped
-            ? 'Skipped'
+            ? 'Optional—skipped'
             : 'Optional',
   );
 </script>

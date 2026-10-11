@@ -20,12 +20,18 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     page.setDefaultTimeout(10000);
     await page.goto(base + '/#token=' + token);
     await page.getByRole('heading', { name: 'Welcome to Werkbord', exact: true }).waitFor();
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.screenshot({ path: path.join(artifacts, 'onboarding-desktop.png') });
-    await page.setViewportSize({ width: 390, height: 844 });
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, 'onboarding mobile document overflows');
-    await page.screenshot({ path: path.join(artifacts, 'onboarding-mobile.png') });
-    await page.getByRole('button', { name: 'Continue without a project', exact: true }).click();
+    await page.getByText('2 of 3 requirements verified', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Create your first task', exact: true }).count(), 0, 'a repository is required for local coding');
+    assert.equal(await page.locator('details.optional').getAttribute('open'), null, 'optional connections start collapsed');
+    for (const theme of ['light', 'dark']) {
+        await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+        for (const [size, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
+            await page.setViewportSize({ width, height });
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, 'onboarding document overflows');
+            await page.screenshot({ path: path.join(artifacts, `onboarding-${size}-${theme}.png`) });
+        }
+    }
+    await page.getByRole('button', { name: 'Continue with planning only', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     console.log('PASS first-run setup and continue into empty project workflow, desktop/mobile');
     await api('POST', '/api/onboarding/complete', {});
@@ -33,6 +39,23 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     let p = projects.projects.find(p => p.repoPath === repo);
     if (!p)
         p = await api('POST', '/api/projects', { path: repo, name: 'Disposable individual' });
+    await page.route('**/api/runners', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'unavailable', message: 'Runner readiness unavailable' } }) }));
+    await page.goto(base + '/#/onboarding');
+    await page.getByRole('alert').filter({ hasText: 'Runner readiness unavailable' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Create your first task', exact: true }).count(), 0, 'failed readiness check cannot reuse a cached success');
+    await page.unroute('**/api/runners');
+    await page.getByRole('button', { name: 'Check local runner', exact: true }).click();
+    await page.getByText('3 of 3 requirements verified · ready to create a task', { exact: true }).waitFor();
+    await page.route('**/api/onboarding/complete', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'unavailable', message: 'Could not complete setup' } }) }));
+    await page.getByRole('button', { name: 'Create your first task', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Could not complete setup' }).waitFor();
+    assert(await page.getByText('3 of 3 requirements verified · ready to create a task', { exact: true }).isVisible(), 'completion failure preserves verified requirements and permits retry');
+    await page.unroute('**/api/onboarding/complete');
+    await page.getByRole('button', { name: 'Create your first task', exact: true }).click();
+    await page.getByRole('heading', { name: 'New task in ' + p.name, exact: true }).waitFor();
+    assert.equal((await api('GET', `/api/projects/${p.id}/runs`)).runs.length, 0, 'setup opens creation without starting an agent');
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    console.log('PASS verified local checklist, optional connections collapsed, planning alternative and first task in registered repository');
     const pair = await api('POST', '/api/runners/pair', { projects: [p.id], allowClone: false });
     const secret = pair.code.split('.')[2];
     const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');

@@ -74,7 +74,7 @@ func scheduleExecution(state string) workspace.Execution {
 }
 
 func executionOf(p *domain.ProgressRecord) workspace.Execution {
-	if p == nil || p.Stale {
+	if p == nil {
 		return workspace.ExecNone
 	}
 	switch p.Execution.State {
@@ -82,8 +82,9 @@ func executionOf(p *domain.ProgressRecord) workspace.Execution {
 		return workspace.ExecQueued
 	case "running":
 		return workspace.ExecRunning
-	case "waiting_for_user":
-		return workspace.ExecNeedsInput
+	case "needs_input", "waiting_for_user":
+		// This report intentionally carries no question text or waiting kind.
+		return workspace.ExecWaiting
 	case "blocked":
 		return workspace.ExecBlocked
 	case "completed", "succeeded":
@@ -94,6 +95,22 @@ func executionOf(p *domain.ProgressRecord) workspace.Execution {
 		return workspace.ExecCanceled
 	}
 	return workspace.ExecNone
+}
+
+func executionReportOf(p *domain.ProgressRecord) *workspace.ExecutionReport {
+	if p == nil {
+		return nil
+	}
+	r := &workspace.ExecutionReport{Stale: p.Stale}
+	if !p.ReportedAt.IsZero() {
+		at := p.ReportedAt
+		r.RecordedAt = &at
+	}
+	switch p.Execution.State {
+	case "queued", "pending", "running", "needs_input", "waiting_for_user", "blocked":
+		r.Stale = r.Stale || !p.Execution.RunnerOnline
+	}
+	return r
 }
 
 func severityOf(s domain.Severity) workspace.Severity {
@@ -141,7 +158,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 				seen[k.ID] = true
 				titles[k.ID] = k.Key + " " + k.Title
 				out.Work = append(out.Work, workspace.Item{ID: k.ID, Title: k.Key + " " + k.Title, Project: w.Project.Name, Status: statusOf(k.Status),
-					Href: ticketHref(k.ProjectID, k.ID), Execution: executionOf(in.Progress[k.ID]), UpdatedAt: k.UpdatedAt})
+					Href: ticketHref(k.ProjectID, k.ID), Execution: executionOf(in.Progress[k.ID]), Report: executionReportOf(in.Progress[k.ID]), UpdatedAt: k.UpdatedAt})
 			}
 		}
 		add(in.MyWork.InProgress)

@@ -112,8 +112,11 @@ type Execution string
 const (
 	ExecNone       Execution = ""
 	ExecQueued     Execution = "queued"
+	ExecStarting   Execution = "starting"
 	ExecRunning    Execution = "running"
 	ExecNeedsInput Execution = "needs_input"
+	ExecIdle       Execution = "idle"
+	ExecWaiting    Execution = "waiting"
 	ExecBlocked    Execution = "blocked"
 	ExecCompleted  Execution = "completed"
 	ExecFailed     Execution = "failed"
@@ -123,7 +126,7 @@ const (
 // Valid reports whether e is one of the words.
 func (e Execution) Valid() bool {
 	switch e {
-	case ExecNone, ExecQueued, ExecRunning, ExecNeedsInput, ExecBlocked, ExecCompleted, ExecFailed, ExecCanceled:
+	case ExecNone, ExecQueued, ExecStarting, ExecRunning, ExecNeedsInput, ExecIdle, ExecWaiting, ExecBlocked, ExecCompleted, ExecFailed, ExecCanceled:
 		return true
 	}
 	return false
@@ -150,18 +153,51 @@ func (s Status) Valid() bool {
 
 // Item is a piece of the person's own work: a task of theirs, or a ticket they hold.
 type Item struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Project   string    `json:"project"`
-	Status    Status    `json:"status"`
-	Execution Execution `json:"execution,omitempty"`
-	Href      string    `json:"href"`
-	UpdatedAt time.Time `json:"updatedAt,omitempty"`
+	ID        string           `json:"id"`
+	Title     string           `json:"title"`
+	Project   string           `json:"project"`
+	Status    Status           `json:"status"`
+	Execution Execution        `json:"execution,omitempty"`
+	Href      string           `json:"href"`
+	UpdatedAt time.Time        `json:"updatedAt,omitempty"`
+	Report    *ExecutionReport `json:"report,omitempty"`
+}
+
+// ExecutionReport qualifies the last known state without changing it. RecordedAt is
+// the source's state/report timestamp, never a claim about a runner heartbeat.
+// Requests are awaiting acknowledgment; they do not imply the action succeeded.
+type ExecutionReport struct {
+	RecordedAt      *time.Time `json:"recordedAt,omitempty"`
+	Stale           bool       `json:"stale"`
+	PendingRequests []string   `json:"pendingRequests,omitempty"`
+}
+
+func (r *ExecutionReport) valid() bool {
+	if r == nil {
+		return true
+	}
+	if len(r.PendingRequests) > 4 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, request := range r.PendingRequests {
+		switch request {
+		case "send", "respond", "stop", "finish":
+		default:
+			return false
+		}
+		if seen[request] {
+			return false
+		}
+		seen[request] = true
+	}
+	return r.RecordedAt == nil || !r.RecordedAt.IsZero()
 }
 
 // Attention kinds.
 const (
 	AttentionNeedsInput       = "needs_input"
+	AttentionIdle             = "idle"
 	AttentionBlocked          = "blocked"
 	AttentionFailed           = "failed"
 	AttentionReview           = "review"
@@ -380,7 +416,7 @@ func (s Summary) Validate() error {
 		}
 	}
 	for _, it := range s.Work {
-		if !ValidID(it.ID) || !plain(it.Title, MaxText) || it.Title == "" || !plain(it.Project, MaxName) || !it.Status.Valid() || !it.Execution.Valid() || !ValidHref(it.Href) {
+		if !ValidID(it.ID) || !plain(it.Title, MaxText) || it.Title == "" || !plain(it.Project, MaxName) || !it.Status.Valid() || !it.Execution.Valid() || !it.Report.valid() || !ValidHref(it.Href) {
 			return fmt.Errorf("workspace: work item %q is not valid", it.ID)
 		}
 	}
@@ -450,7 +486,7 @@ func (s Summary) Clean() (Summary, int) {
 	out.Work = make([]Item, 0, len(s.Work))
 	for _, it := range s.Work {
 		it.Title, it.Project = clip(it.Title, MaxText), clip(it.Project, MaxName)
-		if ValidID(it.ID) && it.Title != "" && it.Status.Valid() && it.Execution.Valid() && ValidHref(it.Href) && len(out.Work) < MaxItems {
+		if ValidID(it.ID) && it.Title != "" && it.Status.Valid() && it.Execution.Valid() && it.Report.valid() && ValidHref(it.Href) && len(out.Work) < MaxItems {
 			out.Work = append(out.Work, it)
 		} else {
 			dropped++

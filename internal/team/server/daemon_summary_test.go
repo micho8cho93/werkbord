@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"devboard/internal/integration"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/service"
 	"devboard/internal/workspace"
@@ -103,6 +104,29 @@ func TestAMemberWhoCannotSeeTheInfrastructureStillLearnsTheWorkspaceIsReadOnly(t
 	raw, _ := json.Marshal(sum)
 	if _, _, err := workspace.Decode(strings.NewReader(string(raw)), workspace.TeamID("main")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestStaleTeamExecutionRemainsAQualifiedReportWithoutQuestionInference(t *testing.T) {
+	at := time.Now().UTC()
+	p := &domain.ProgressRecord{ReportedAt: at, Stale: true}
+	p.Execution = integration.Execution{State: "running", RunnerOnline: true}
+	input := summaryInputs{Slot: "main", Name: "Acme", State: workspace.StateReady, Now: at,
+		MyWork:   &service.MyWork{InProgress: []service.WorkItem{ticketItem("ttk_1", "tpj_1", "WB-1", "Fix login", domain.TicketInProgress)}},
+		Progress: map[string]*domain.ProgressRecord{"ttk_1": p}}
+	raw, _ := json.Marshal(buildSummary(input))
+	sum, dropped, err := workspace.Decode(strings.NewReader(string(raw)), workspace.TeamID("main"))
+	if err != nil || dropped != 0 || sum.Work[0].Execution != workspace.ExecRunning || !sum.Work[0].Report.Stale || !sum.Work[0].Report.RecordedAt.Equal(at) {
+		t.Fatalf("stale state lost: %v %+v", err, sum)
+	}
+	p.Stale = false
+	p.Execution.State = "needs_input"
+	if buildSummary(input).Work[0].Execution != workspace.ExecWaiting {
+		t.Fatal("inferred an unanswered question from a generic waiting report")
+	}
+	p.Execution.RunnerOnline = false
+	if !buildSummary(input).Work[0].Report.Stale {
+		t.Fatal("offline runner treated as current")
 	}
 }
 

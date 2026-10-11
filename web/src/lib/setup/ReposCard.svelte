@@ -89,8 +89,9 @@
     }
   }
 
-  const status = $derived(app.projects.length > 0 ? 'done' : 'todo');
-  const summary = $derived(app.projects.length > 0 ? `${app.projects.length} ${app.projects.length === 1 ? 'project' : 'projects'}` : 'None yet');
+  const repositories = $derived(app.projects.filter(p => p.kind !== 'work' && !!p.repoPath.trim()));
+  const status = $derived(repositories.length > 0 ? 'done' : 'todo');
+  const summary = $derived(repositories.length > 0 ? `${repositories.length} ${repositories.length === 1 ? 'repository' : 'repositories'} registered` : 'No Git repository registered');
 
   function rowNote(r: RepoChoice): string {
     if (r.project) return `Already a project: ${r.project.name}`;
@@ -146,7 +147,7 @@
       {/if}
     {/if}
   {:else}
-    <p class="muted">Connect GitHub above to choose from the repositories you can access.{#if showFolder} You can also choose a folder on this computer below.{/if}</p>
+    <p class="muted">{showFolder ? 'Choose a Git repository on this computer below. GitHub is optional; connect it to browse or clone repositories.' : 'Connect GitHub to choose from the repositories you can access.'}</p>
   {/if}
 
   {#if showFolder}

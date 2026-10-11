@@ -29,10 +29,13 @@ func taskHref(projectID, taskID string) string { return "#/p/" + projectID + "/t
 func execOf(r domain.Run) workspace.Execution {
 	switch r.State {
 	case domain.RunStarting:
-		return workspace.ExecQueued
+		return workspace.ExecStarting
 	case domain.RunRunning:
 		return workspace.ExecRunning
 	case domain.RunWaitingForUser:
+		if r.Waiting == domain.WaitIdle {
+			return workspace.ExecIdle
+		}
 		return workspace.ExecNeedsInput
 	case domain.RunBlocked:
 		return workspace.ExecBlocked
@@ -44,6 +47,24 @@ func execOf(r domain.Run) workspace.Execution {
 		return workspace.ExecCanceled
 	}
 	return workspace.ExecNone
+}
+
+func reportOf(r domain.Run, runners []domain.Runner) *workspace.ExecutionReport {
+	report := &workspace.ExecutionReport{PendingRequests: append([]string(nil), r.PendingRequests...)}
+	if !r.UpdatedAt.IsZero() {
+		at := r.UpdatedAt
+		report.RecordedAt = &at
+	}
+	if r.Remote && r.State.Active() {
+		report.Stale = true
+		for _, runner := range runners {
+			if runner.ID == r.RunnerID {
+				report.Stale = !runner.Online || runner.Disabled
+				break
+			}
+		}
+	}
+	return report
 }
 
 // SummaryOf translates the Control Center's snapshot. It is exported so it can be tested without a store.
@@ -71,17 +92,18 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 	// What an agent is doing right now, then what stopped, then what finished and waits for a person.
 	for _, r := range ov.Runs {
 		add(workspace.Item{ID: r.Run.TaskID, Title: r.TaskTitle, Project: r.ProjectName, Status: workspace.StatusDoing, Execution: execOf(r.Run),
-			Href: taskHref(r.Run.ProjectID, r.Run.TaskID), UpdatedAt: r.Run.UpdatedAt})
+			Href: taskHref(r.Run.ProjectID, r.Run.TaskID), UpdatedAt: r.Run.UpdatedAt, Report: reportOf(r.Run, ov.Runners)})
 	}
 	for _, r := range ov.Failed {
 		add(workspace.Item{ID: r.Run.TaskID, Title: r.TaskTitle, Project: r.ProjectName, Status: workspace.StatusDoing, Execution: workspace.ExecFailed,
-			Href: taskHref(r.Run.ProjectID, r.Run.TaskID), UpdatedAt: r.Run.UpdatedAt})
+			Href: taskHref(r.Run.ProjectID, r.Run.TaskID), UpdatedAt: r.Run.UpdatedAt, Report: reportOf(r.Run, ov.Runners)})
 	}
 	for _, r := range ov.Review {
 		it := workspace.Item{ID: r.Task.ID, Title: r.Task.Title, Project: r.ProjectName, Status: workspace.StatusReview,
 			Href: taskHref(r.Task.ProjectID, r.Task.ID), UpdatedAt: r.Task.UpdatedAt}
 		if r.LastRun != nil {
 			it.Execution = execOf(*r.LastRun)
+			it.Report = reportOf(*r.LastRun, ov.Runners)
 		}
 		add(it)
 	}
@@ -92,6 +114,11 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 			Href: taskHref(q.Question.ProjectID, q.Question.TaskID), At: q.Question.AskedAt})
 	}
 	for _, r := range ov.Runs {
+		if r.Run.State == domain.RunWaitingForUser && r.Run.Waiting == domain.WaitIdle {
+			out.Attention = append(out.Attention, workspace.Attention{ID: "idle-" + r.Run.ID, Kind: workspace.AttentionIdle, Severity: workspace.SeverityInfo,
+				Title: r.TaskTitle + " is waiting for your next message", Detail: "The agent finished its turn. Review the activity, continue the conversation, or finish the session.",
+				Project: r.ProjectName, Href: taskHref(r.Run.ProjectID, r.Run.TaskID), At: r.Run.UpdatedAt})
+		}
 		if r.Run.State != domain.RunBlocked {
 			continue
 		}

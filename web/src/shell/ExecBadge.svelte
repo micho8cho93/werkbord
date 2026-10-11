@@ -1,20 +1,20 @@
 <script lang="ts">
-  import type { Execution } from './types';
-  let { execution }: { execution?: Execution } = $props();
-  const words: Record<string, string> = {
-    queued: 'Queued',
-    running: 'Agent working',
-    needs_input: 'Needs you',
-    blocked: 'Blocked',
-    completed: 'Finished',
-    failed: 'Failed',
-    canceled: 'Stopped',
-  };
-  const tone = (e: string): string => ({ running: 'work', queued: 'work', needs_input: 'ask', blocked: 'block', failed: 'bad', completed: 'ok' })[e] ?? 'idle';
+  import { executionLabel, recordedTime } from './aggregate';
+  import type { Execution, ExecutionReport } from './types';
+  let { execution, report, unavailable = false }: { execution?: Execution; report?: ExecutionReport; unavailable?: boolean } = $props();
+  const stale = $derived(unavailable || report?.stale);
+  const tone = (e: string): string => ({ running: 'work', starting: 'work', needs_input: 'ask', blocked: 'block', failed: 'bad', completed: 'ok' })[e] ?? 'idle';
+  const recorded = $derived(recordedTime(report?.recordedAt));
+  const requests: Record<string, string> = { send: 'Message delivery pending', respond: 'Answer delivery pending', stop: 'Stop requested', finish: 'Finish requested' };
 </script>
 
 {#if execution}
-  <span class="badge" data-tone={tone(execution)}><span class="dot" aria-hidden="true"></span>{words[execution] ?? execution}</span>
+  <span class="report">
+    <span class="badge" data-tone={stale ? 'idle' : tone(execution)}><span class="dot" aria-hidden="true"></span>{stale ? 'Last reported: ' : 'Reported: '}{executionLabel(execution)}</span>
+    {#if stale}<span class="note">Availability unknown</span>{/if}
+    {#if recorded}<span class="note">State recorded {recorded}</span>{/if}
+    {#each report?.pendingRequests ?? [] as request (request)}<span class="note" role="status">{requests[request]} · awaiting acknowledgment</span>{/each}
+  </span>
 {/if}
 
 <style>
@@ -25,8 +25,10 @@
     font-family: var(--mono);
     font-size: 11px;
     color: var(--text-2);
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
+  .report { display: grid; gap: 3px; min-width: 0; }
+  .note { font-size: 11px; color: var(--text-2); overflow-wrap: anywhere; }
   .dot {
     width: 7px;
     height: 7px;

@@ -3,7 +3,7 @@
 
 export type Kind = 'personal' | 'team';
 export type State = 'ready' | 'connecting' | 'offline' | 'setup' | 'leaving' | 'unavailable';
-export type Execution = '' | 'queued' | 'running' | 'needs_input' | 'blocked' | 'completed' | 'failed' | 'canceled';
+export type Execution = '' | 'queued' | 'starting' | 'running' | 'needs_input' | 'idle' | 'waiting' | 'blocked' | 'completed' | 'failed' | 'canceled';
 export type Status = 'todo' | 'doing' | 'review' | 'done';
 export type Severity = 'info' | 'warning' | 'critical';
 
@@ -63,6 +63,13 @@ export interface WorkItem {
   execution?: Execution;
   href: string;
   updatedAt?: string;
+  report?: ExecutionReport;
+}
+
+export interface ExecutionReport {
+  recordedAt?: string;
+  stale: boolean;
+  pendingRequests?: ('send' | 'respond' | 'stop' | 'finish')[];
 }
 
 export interface Attention {

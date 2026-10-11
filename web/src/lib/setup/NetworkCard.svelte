@@ -66,7 +66,7 @@
     !net
       ? ''
       : ({
-          off: skipped ? 'Skipped: this computer only' : 'Off',
+          off: skipped ? 'Optional—skipped: this computer only' : 'Off',
           starting: 'Starting…',
           needs_login: 'Waiting for you to sign in',
           needs_approval: 'Waiting for approval',

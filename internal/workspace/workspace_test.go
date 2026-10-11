@@ -38,6 +38,29 @@ func TestAGoodSummaryRoundTrips(t *testing.T) {
 	}
 }
 
+func TestExecutionReportsAreBoundedAndCannotTurnRequestsIntoCommands(t *testing.T) {
+	at := time.Now().UTC()
+	s := good()
+	s.Work[0].Report = &ExecutionReport{RecordedAt: &at, Stale: true, PendingRequests: []string{"stop", "finish", "send", "respond"}}
+	got, dropped, err := Decode(strings.NewReader(encode(t, s)), IndividualID)
+	if err != nil || dropped != 0 || !got.Work[0].Report.Stale || len(got.Work[0].Report.PendingRequests) != 4 {
+		t.Fatalf("report lost: %v %+v", err, got)
+	}
+	for _, requests := range [][]string{{"execute"}, {"stop", "stop"}, {"stop", "finish", "send", "respond", "stop"}} {
+		s.Work[0].Report.PendingRequests = requests
+		if s.Validate() == nil {
+			t.Fatalf("accepted requests: %v", requests)
+		}
+		got, dropped, err = Decode(strings.NewReader(encode(t, s)), IndividualID)
+		if err != nil || dropped != 1 || len(got.Work) != 0 {
+			t.Fatalf("invalid report accepted: %v %+v", err, got)
+		}
+	}
+	if _, _, err := Decode(strings.NewReader(strings.Replace(encode(t, good()), `"execution":"running"`, `"execution":"running","report":{"stale":false,"command":"sh"}`, 1)), IndividualID); err == nil {
+		t.Fatal("unknown report field accepted")
+	}
+}
+
 func TestLinksPointOnlyInsideTheWorkspaceTheyCameFrom(t *testing.T) {
 	for _, ok := range []string{"#/p/prj_1/board", "#/control", "?tab=board&project=tpj_1&ticket=ttk_9", "#"} {
 		if !ValidHref(ok) {

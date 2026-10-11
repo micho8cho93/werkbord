@@ -2,7 +2,7 @@
 // these functions put them side by side. Nothing here asks a workspace anything, so a workspace that does not answer is a
 // row that says so, never a reason another workspace's work is missing.
 
-import type { Attention, Entry, Overview, OverviewEntry, Scheduled, Severity, WorkItem } from './types';
+import type { Attention, Entry, Execution, Overview, OverviewEntry, Scheduled, Severity, WorkItem } from './types';
 
 export interface Labeled<T> {
   workspace: Entry;
@@ -14,15 +14,53 @@ const rank: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
 const ok = (e: OverviewEntry): boolean => !!e.summary;
 
 /** The person's own work, grouped by workspace in the order the switcher lists them. Workspaces with none are left out. */
-export function myWork(o: Overview): { workspace: Entry; items: WorkItem[]; error?: string }[] {
+export function myWork(o: Overview): { workspace: Entry; items: WorkItem[]; error?: string; snapshotAt?: string }[] {
   return o.entries
-    .map((e) => ({ workspace: e.workspace, items: e.summary?.work ?? [], error: e.error }))
+    .map((e) => ({ workspace: e.workspace, items: e.summary?.work ?? [], error: e.error, snapshotAt: e.summary?.at }))
     .filter((g) => g.items.length > 0 || g.error);
 }
 
-/** Work that is being done by an agent right now, anywhere. */
+/** Only reports of running work; queued and starting work are separate. */
 export function running(o: Overview): number {
-  return o.entries.reduce((n, e) => n + (e.summary?.work.filter((w) => w.execution === 'running' || w.execution === 'queued').length ?? 0), 0);
+  return executionCounts(o).running;
+}
+
+export function executionCounts(o: Overview): { running: number; queued: number; starting: number; unknown: number } {
+  const counts = { running: 0, queued: 0, starting: 0, unknown: 0 };
+  for (const e of o.entries) {
+    for (const w of e.summary?.work ?? []) {
+      if (!['running', 'queued', 'starting'].includes(w.execution ?? '')) continue;
+      if (e.error || e.workspace.state !== 'ready' || w.report?.stale) counts.unknown++;
+      else counts[w.execution as 'running' | 'queued' | 'starting']++;
+    }
+  }
+  return counts;
+}
+
+const operational = (a: Attention): boolean => a.kind === 'host' || a.kind === 'runner';
+const actionKinds = new Set(['needs_input', 'idle', 'blocked', 'failed', 'review', 'changes_requested', 'conflict', 'repository']);
+export const actionable = (a: Attention): boolean => !operational(a) && (actionKinds.has(a.kind) || a.severity !== 'info');
+
+/** Critical problems stay first; routine host advice never displaces an answer or review. */
+export function attentionGroups(o: Overview): { id: string; label: string; rows: Labeled<Attention>[] }[] {
+  const rows = attention(o);
+  return [
+    { id: 'urgent', label: 'Urgent', rows: rows.filter(r => r.item.severity === 'critical') },
+    { id: 'actions', label: 'Action needed', rows: rows.filter(r => r.item.severity !== 'critical' && actionable(r.item)) },
+    { id: 'warnings', label: 'Operational warnings', rows: rows.filter(r => r.item.severity !== 'critical' && !actionable(r.item)) },
+  ].filter(g => g.rows.length > 0);
+}
+
+export function attentionAction(a: Attention): string {
+  return ({ needs_input: 'Answer', idle: 'Review turn', blocked: 'Resolve blocker', failed: 'Inspect failure', review: 'Review changes', changes_requested: 'Review feedback', conflict: 'Inspect conflict', repository: 'Review changes', host: 'Inspect warning', runner: 'Inspect runner' } as Record<string, string>)[a.kind] ?? 'Open details';
+}
+
+export function executionLabel(execution: Execution): string {
+  return ({ queued: 'Queued', starting: 'Starting', running: 'Running', needs_input: 'Needs answer', idle: 'Waiting for your next message', waiting: 'Waiting for owner', blocked: 'Blocked', completed: 'Session finished', failed: 'Failed', canceled: 'Stopped', '': '' })[execution];
+}
+
+export function recordedTime(at?: string): string {
+  return at && Number.isFinite(Date.parse(at)) ? new Date(at).toLocaleString() : '';
 }
 
 /** Everything that waits for the person, worst first, then newest. */
@@ -33,7 +71,7 @@ export function attention(o: Overview): Labeled<Attention>[] {
 }
 
 export interface Counts {
-  /** Things that wait for the person (warnings and worse). */
+  /** Actions waiting for the person, plus operational warnings. */
   needsYou: number;
   critical: number;
   /** Workspaces that did not answer. */
@@ -43,9 +81,9 @@ export interface Counts {
 export function counts(o: Overview): Counts {
   const rows = attention(o);
   return {
-    needsYou: rows.filter((r) => r.item.severity !== 'info').length,
+    needsYou: rows.filter((r) => actionable(r.item) || r.item.severity !== 'info').length,
     critical: rows.filter((r) => r.item.severity === 'critical').length,
-    unreachable: o.entries.filter((e) => e.error || (!ok(e) && (e.workspace.state === 'offline' || e.workspace.state === 'unavailable'))).length,
+    unreachable: o.entries.filter((e) => e.error || e.workspace.state === 'offline' || e.workspace.state === 'unavailable' || (!ok(e) && e.workspace.state === 'ready')).length,
   };
 }
 

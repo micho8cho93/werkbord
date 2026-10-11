@@ -115,8 +115,38 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'workspace switching leaves execution alive');
  const artifacts = process.env.BROWSER_ARTIFACT_DIR || path.join(root, '.impeccable/review'); fs.mkdirSync(artifacts, { recursive: true });
- await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: /Review the customer portal/ }).waitFor(); await page.screenshot({ path: path.join(artifacts, 'desktop.png'), fullPage: true });
- await page.setViewportSize({ width: 480, height: 844 }); await page.screenshot({ path: path.join(artifacts, 'mobile.png'), fullPage: true }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+ const importedTask = (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/tasks`)).tasks.find(t => t.id === active.taskId);
+ assert(importedTask, 'the execution belongs to an imported local task');
+ await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: /Review the customer portal/ }).waitFor();
+ const individualWork = page.getByTestId('work-item').filter({ hasText: importedTask.title });
+ await individualWork.getByText('Reported: Waiting for your next message', { exact: true }).waitFor();
+ await page.locator('[data-page=inbox]').click();
+ const idleAction = page.getByRole('button', { name: 'Review turn: ' + importedTask.title + ' is waiting for your next message', exact: true });
+ await idleAction.waitFor();
+ await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/input`, { text: 'ask' });
+ const answer = page.getByRole('button', { name: 'Answer: An agent is asking: Commit the fixture work?', exact: true });
+ await answer.waitFor();
+ assert.equal(await idleAction.count(), 0, 'an unanswered question replaces idle attention');
+ const capture = async name => {
+   for (const theme of ['light', 'dark']) {
+     if (await page.locator('html').getAttribute('data-theme') !== theme) await side.getByRole('button', { name: /(light|dark) theme/i }).click();
+     for (const [size, width, height] of [['desktop', 1440, 1000], ['mobile', 480, 844]]) {
+       await page.setViewportSize({ width, height });
+       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ' has no horizontal overflow');
+       await page.screenshot({ path: path.join(artifacts, `${name}-${size}-${theme}.png`), fullPage: true });
+     }
+   }
+ };
+ await capture('attention');
+ await answer.click();
+ await page.locator('iframe[data-workspace=personal]').waitFor({ state: 'visible' });
+ await page.frameLocator('iframe[data-workspace=personal]').getByText('Commit the fixture work?', { exact: true }).first().waitFor();
+ assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, 'waiting_for_user', 'Answer only opens the owning workspace; it does not respond');
+ await page.locator('[data-page=mywork]').click();
+ await individualWork.getByText('Reported: Needs answer', { exact: true }).waitFor();
+ assert(await individualWork.getByText(/^State recorded /).isVisible(), 'source state timestamp is visible');
+ await capture('mywork');
+ console.log('PASS idle vs unanswered execution, named navigation-only answer action, real report timestamps and responsive light/dark attention and My Work');
  assert(await page.getByTestId('work-item').filter({ hasText: ticket.key + ' ' + ticket.title }).locator('.state').isVisible(), 'Team status visible at native minimum');
  await page.locator('[data-page=calendar]').click(); await page.getByTestId('scheduled-item').waitFor();
  await page.screenshot({ path: path.join(artifacts, 'calendar-mobile.png'), fullPage: true }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

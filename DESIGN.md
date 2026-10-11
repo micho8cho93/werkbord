@@ -111,6 +111,17 @@ heading (the provider chooser, New, Close) and the box.
 
 ## Interaction rules
 
+- First-run setup leads with three local requirements: an enabled online runner with capacity configured, a usable coding
+  agent and a registered Git repository. A planning project does not count as a repository. One primary action advances
+  the missing requirement or opens task creation; planning remains available separately. Phone access and GitHub are
+  optional connections, collapsed initially, and skipped connections stay labelled as skipped.
+- The window's My Work view separates reported running, queued and starting states. Idle turns and unanswered questions
+  have different labels. Source timestamps say when the state was recorded; they do not claim agent activity. Offline
+  or stale reports retain their last state with availability unknown. Pending requests remain awaiting acknowledgment.
+- The window's Needs you view orders urgent problems, actions and operational warnings. Each row preserves its workspace,
+  project and detail, and names its next action. These buttons navigate to the owning workspace; execution and approvals
+  remain there. Only the first urgent or actionable item has primary emphasis.
+
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).
 - Inline actions on cards: Start, Approve/Deny, Reply, Merge…, Move to Review, Run again.
 - What needs a person is one list (`lib/attention.ts`): the Control Center shows it for every project in

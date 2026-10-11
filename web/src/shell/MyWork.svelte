@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { myWork, running, standing } from './aggregate';
+  import { executionCounts, myWork, recordedTime, standing } from './aggregate';
   import ExecBadge from './ExecBadge.svelte';
   import { model } from './model.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
@@ -10,24 +10,27 @@
   let { overview }: { overview: Overview | null } = $props();
 
   const groups = $derived(overview ? myWork(overview) : []);
+  const reports = $derived(overview ? executionCounts(overview) : null);
+  const incomplete = $derived(overview?.entries.some(e => e.error || e.workspace.state !== 'ready' || !e.summary));
   const status: Record<string, string> = { todo: 'To do', doing: 'In progress', review: 'In review', done: 'Done' };
 </script>
 
 <section class="page" aria-labelledby="mywork-h">
   <header>
     <h1 id="mywork-h">My Work</h1>
-    {#if overview}<p class="lede">{running(overview)} running now · across {overview.entries.length} workspace{overview.entries.length === 1 ? '' : 's'}</p>{/if}
+    {#if overview && reports}<p class="lede">{reports.running} reported running · {reports.queued} queued · {reports.starting} starting{reports.unknown ? ` · ${reports.unknown} availability unknown` : ''} · across {overview.entries.length} workspace{overview.entries.length === 1 ? '' : 's'}</p>{/if}
   </header>
 
   {#if !overview}
     <p class="empty">Looking…</p>
   {:else if groups.length === 0}
-    <p class="empty">Nothing of yours is in progress in any workspace.</p>
+    <p class="empty">{incomplete ? 'No work reported yet. Some workspace statuses are unavailable.' : 'Nothing of yours is in progress in any workspace.'}</p>
   {/if}
 
   {#each groups as g (g.workspace.id)}
     <section class="group" aria-label={g.workspace.name}>
       <h2><WorkspaceTag workspace={g.workspace} /> <span class="count">{g.items.length}</span></h2>
+      {#if recordedTime(g.snapshotAt)}<p class="note">Workspace snapshot {recordedTime(g.snapshotAt)} · execution states are reports from the owning workspace.</p>{/if}
       {#if g.error}<p class="note" role="status">{g.error}</p>{/if}
       <ul>
         {#each g.items as w (w.id)}
@@ -38,7 +41,7 @@
                 <span class="meta">{w.project}</span>
                 <span class="state">{status[w.status]}</span>
               </span>
-              <ExecBadge execution={w.execution} />
+              <ExecBadge execution={w.execution} report={w.report} unavailable={!!g.error || g.workspace.state !== 'ready'} />
             </button>
           </li>
         {/each}
@@ -94,7 +97,7 @@
   }
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 160px) 92px 130px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 130px) 80px minmax(160px, 220px);
     gap: 12px;
     align-items: center;
     width: 100%;
@@ -139,7 +142,7 @@
   }
   @media (max-width: 720px) {
     .row {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr);
     }
     .details {
       display: grid;

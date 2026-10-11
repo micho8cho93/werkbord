@@ -80,3 +80,36 @@ func TestAnAgentsQuestionOrATasksTitleCannotBreakTheSummary(t *testing.T) {
 		}
 	}
 }
+
+func TestSummaryPreservesIdleStartingAndUnacknowledgedRemoteState(t *testing.T) {
+	at := time.Now().UTC()
+	ov := &Overview{Runs: []AttentionRun{
+		{Run: domain.Run{ID: "run_idle", TaskID: "tsk_idle", ProjectID: "prj_1", State: domain.RunWaitingForUser, Waiting: domain.WaitIdle, UpdatedAt: at}, TaskTitle: "Idle task"},
+		{Run: domain.Run{ID: "run_ask", TaskID: "tsk_ask", ProjectID: "prj_1", State: domain.RunWaitingForUser, Waiting: domain.WaitQuestion}, TaskTitle: "Question task"},
+		{Run: domain.Run{ID: "run_start", TaskID: "tsk_start", ProjectID: "prj_1", State: domain.RunStarting}, TaskTitle: "Starting task"},
+		{Run: domain.Run{ID: "run_remote", TaskID: "tsk_remote", ProjectID: "prj_1", State: domain.RunRunning, Remote: true, RunnerID: "rnr_remote", UpdatedAt: at, PendingRequests: []string{"stop", "respond"}}, TaskTitle: "Remote task"},
+	}}
+	raw, _ := json.Marshal(SummaryOf(ov, at))
+	got, dropped, err := workspace.Decode(strings.NewReader(string(raw)), workspace.IndividualID)
+	if err != nil || dropped != 0 {
+		t.Fatalf("%v dropped %d", err, dropped)
+	}
+	if got.Work[0].Execution != workspace.ExecIdle || got.Work[1].Execution != workspace.ExecNeedsInput || got.Work[2].Execution != workspace.ExecStarting {
+		t.Fatalf("states lost: %+v", got.Work)
+	}
+	remote := got.Work[3]
+	if remote.Execution != workspace.ExecRunning || !remote.Report.Stale || len(remote.Report.PendingRequests) != 2 || !remote.Report.RecordedAt.Equal(at) {
+		t.Fatalf("remote report = %+v", remote)
+	}
+	if len(got.Attention) != 1 || got.Attention[0].Kind != workspace.AttentionIdle || got.Attention[0].Href != "#/p/prj_1/task/tsk_idle" {
+		t.Fatalf("idle attention = %+v", got.Attention)
+	}
+	ov.Runners = []domain.Runner{{ID: "rnr_remote", Online: true}}
+	if SummaryOf(ov, at).Work[3].Report.Stale {
+		t.Fatal("online runner marked stale")
+	}
+	ov.Runners[0].Disabled = true
+	if !SummaryOf(ov, at).Work[3].Report.Stale {
+		t.Fatal("disabled runner marked current")
+	}
+}
