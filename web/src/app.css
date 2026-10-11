@@ -884,6 +884,12 @@ html.asst-open body {
 }
 
 @media (max-width: 899px) {
+  html,
+  body {
+    height: auto;
+    min-height: 100dvh;
+  }
+
   .split {
     padding: 12px 16px 24px;
     gap: 16px;

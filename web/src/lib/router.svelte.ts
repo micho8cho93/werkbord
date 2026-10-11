@@ -10,6 +10,7 @@ class Router {
   /** The project the address names. Empty on a global page, and on an old link that names none. */
   projectId = $state<string>(parse(location.hash).projectId);
   taskId = $state<string>(parse(location.hash).taskId);
+  runId = $state<string>(parse(location.hash).runId ?? '');
   /** Git's drill-down, below `git/`; empty everywhere else. */
   sub = $state<string>(parse(location.hash).sub ?? '');
   /** What follows `?`: a page's own state (the Settings section shown). */
@@ -24,6 +25,7 @@ class Router {
     this.view = loc.view;
     this.projectId = loc.projectId;
     this.taskId = loc.taskId;
+    this.runId = loc.runId ?? '';
     this.sub = loc.sub ?? '';
     this.query = queryOf(location.hash);
   }
@@ -31,7 +33,7 @@ class Router {
   get location(): Location {
     return this.sub
       ? { view: this.view, projectId: this.projectId, taskId: this.taskId, sub: this.sub }
-      : { view: this.view, projectId: this.projectId, taskId: this.taskId };
+      : { view: this.view, projectId: this.projectId, taskId: this.taskId, ...(this.runId ? { runId: this.runId } : {}) };
   }
 
   /** Goes to a page. Adds a history entry, unless `replace` is set, which is for settling an address. */

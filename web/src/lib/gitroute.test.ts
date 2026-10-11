@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { branchHref, changeHref, changesHref, commitsHref, fileHref, overviewHref, parentOf, parseGit } from './gitroute';
+import { branchHref, changeHref, changesHref, commitsHref, fileHref, overviewHref, parentOf, parseGit, taskReviewBranchHref } from './gitroute';
 import { hrefOf, parse } from './location';
 
 const afterGit = (href: string) => parse(href).sub;
@@ -24,11 +24,20 @@ describe('git routes', () => {
     }
   });
 
+  it('carries only an explicit task/run origin through task review branch routes', () => {
+    const href = taskReviewBranchHref('prj_1', 'local', 'devboard/a/b', 'tsk_2', 'run_3');
+    expect(parseGit(afterGit(href))).toEqual({ screen: 'branch', scope: 'local', name: 'devboard/a/b', taskId: 'tsk_2', runId: 'run_3' });
+    expect(parseGit(afterGit(branchHref('prj_1', 'local', 'devboard/a/b')))).toEqual({ screen: 'branch', scope: 'local', name: 'devboard/a/b' });
+    expect(parseGit('branch/local/x?task=tsk_2')).toEqual({ screen: 'branch', scope: 'local', name: 'x' });
+  });
+
   it('round-trip a file, including a rename and a path that needs encoding', () => {
     const href = fileHref('prj_1', 'local', 'devboard/x-1', 'src/my file&more.ts', 'old/name.ts');
     expect(parseGit(afterGit(href))).toEqual({ screen: 'file', scope: 'local', name: 'devboard/x-1', path: 'src/my file&more.ts', oldPath: 'old/name.ts' });
     const plain = fileHref('prj_1', 'local', 'x', 'a.ts');
     expect(parseGit(afterGit(plain))).toMatchObject({ screen: 'file', path: 'a.ts', oldPath: '' });
+    const reviewFile = fileHref('prj_1', 'local', 'devboard/x', 'a.ts', '', { taskId: 'task-2', runId: 'run-3' });
+    expect(parseGit(afterGit(reviewFile))).toMatchObject({ screen: 'file', taskId: 'task-2', runId: 'run-3' });
   });
 
   it('a file link without a path is the branch', () => {

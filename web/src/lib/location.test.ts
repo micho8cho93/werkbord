@@ -40,6 +40,13 @@ describe('parse', () => {
     expect(parse('#/p/prj_a/task/')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
   });
 
+  it('selects a specific task run from an explicit deep link', () => {
+    expect(parse('#/p/prj_a/task/tsk_1?run=run_2')).toEqual({ view: 'task', projectId: 'prj_a', taskId: 'tsk_1', runId: 'run_2' });
+    expect(taskHref('prj/a b', 'tsk/1 2', 'run/3 4')).toBe('#/p/prj%2Fa%20b/task/tsk%2F1%202?run=run%2F3+4');
+    expect(parse(taskHref('prj/a b', 'tsk/1 2', 'run/3 4'))).toEqual({ view: 'task', projectId: 'prj/a b', taskId: 'tsk/1 2', runId: 'run/3 4' });
+    expect(hrefOf({ view: 'task', projectId: 'p', taskId: 't', runId: 'r' })).toBe('#/p/p/task/t?run=r');
+  });
+
   it('reads an older link that names no project as a page in the project last used', () => {
     expect(parse('#/board')).toEqual({ view: 'board', projectId: '', taskId: '' });
     expect(parse('#/git')).toEqual({ view: 'git', projectId: '', taskId: '' });

@@ -14,8 +14,8 @@ import type { BranchScope } from './types';
 
 export type GitScreen =
   | { screen: 'overview' }
-  | { screen: 'branch'; scope: BranchScope; name: string }
-  | { screen: 'file'; scope: BranchScope; name: string; path: string; oldPath: string }
+  | { screen: 'branch'; scope: BranchScope; name: string; taskId?: string; runId?: string }
+  | { screen: 'file'; scope: BranchScope; name: string; path: string; oldPath: string; taskId?: string; runId?: string }
   | { screen: 'changes'; worktree: string }
   | { screen: 'change'; worktree: string; kind: ChangeKind; path: string; oldPath: string }
   | { screen: 'commits'; scope: BranchScope; name: string };
@@ -48,11 +48,14 @@ export function parseGit(sub: string | undefined): GitScreen {
     case 'branch': {
       const name = dec(b);
       if (!isScope(a) || !name) return overview;
+      const taskId = q.get('task') ?? '';
+      const runId = q.get('run') ?? '';
+      const origin = taskId && runId ? { taskId, runId } : {};
       if (c === 'file') {
         const path = q.get('path') ?? '';
-        return path ? { screen: 'file', scope: a, name, path, oldPath: q.get('old') ?? '' } : { screen: 'branch', scope: a, name };
+        return path ? { screen: 'file', scope: a, name, path, oldPath: q.get('old') ?? '', ...origin } : { screen: 'branch', scope: a, name, ...origin };
       }
-      return { screen: 'branch', scope: a, name };
+      return { screen: 'branch', scope: a, name, ...origin };
     }
     case 'changes':
       return { screen: 'changes', worktree: dec(a) };
@@ -80,9 +83,16 @@ export function branchHref(projectId: string, scope: BranchScope, name: string):
   return `${base(projectId)}/branch/${scope}/${enc(name)}`;
 }
 
-export function fileHref(projectId: string, scope: BranchScope, name: string, path: string, oldPath = ''): string {
+/** A task's review action carries only the specific task/run pair that owns this branch. */
+export function taskReviewBranchHref(projectId: string, scope: BranchScope, name: string, taskId: string, runId: string): string {
+  const q = new URLSearchParams({ task: taskId, run: runId });
+  return `${branchHref(projectId, scope, name)}?${q}`;
+}
+
+export function fileHref(projectId: string, scope: BranchScope, name: string, path: string, oldPath = '', origin?: { taskId: string; runId: string }): string {
   const q = new URLSearchParams({ path });
   if (oldPath) q.set('old', oldPath);
+  if (origin?.taskId && origin.runId) { q.set('task', origin.taskId); q.set('run', origin.runId); }
   return `${branchHref(projectId, scope, name)}/file?${q}`;
 }
 

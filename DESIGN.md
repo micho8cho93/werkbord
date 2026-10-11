@@ -236,3 +236,16 @@ and the unconducted five-developer formative test guide for evidence limits.
 Git branch headlines that call work ready for review use `--warn-text` for readable status words; `--warn` remains
 appropriate for the accompanying border/dot. Final legibility checks include Git subsections and branch, commit and
 file drill-downs rather than treating the overview as evidence for text hidden elsewhere.
+
+### Review flow refinement (4.19.2-preview.1)
+
+- A task in Review keeps Accept work / Reject work with its branch/result summary. The nearby explanation says this
+  records an assessment and does not merge or move the task. Saving is announced while awaiting acknowledgment;
+  on phone, the status sits above equal-sized verdict choices. Repository actions remain separate and confirmed.
+- Review changes carries its task/run origin into the branch and changed-file views. Git repeats a compact result and
+  reported-test status only while current task, run and branch records agree; it labels tests as reported, not verified,
+  and links back to the task's full evidence. The return and Open run links select that exact run, including when it is
+  not the task's latest. Direct Git routes carry no task evidence.
+- A branch detail view leads with Review changes. Branch actions is a keyboard-operable native disclosure for merge,
+  push, cleanup and less frequent operations; task and run destinations appear once as working links. Repository
+  confirmations and cancellation remain available inside it.

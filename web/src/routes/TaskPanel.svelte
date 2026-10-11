@@ -55,10 +55,15 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   $effect(() => {
     const id = router.taskId;
+    const requestedRunId = router.runId;
     void latest?.id; // a new run makes a new entry in the history
-    picked = '';
+    picked = requestedRunId;
+    history = [];
     if (!id) return;
-    api.listTaskRuns(project.id, id).then((rs) => (history = rs), (err) => app.handleError(err));
+    api.listTaskRuns(project.id, id).then((rs) => {
+      history = rs;
+      if (requestedRunId && !rs.some((r) => r.id === requestedRunId)) picked = '';
+    }, (err) => app.handleError(err));
   });
 
   // ---- the activity stream of the shown run ----
@@ -465,7 +470,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
               <p class="fact"><code>{worktree.branch}</code></p>
               <button class="btn small" onclick={copyPath} title={worktree.path}><Icon name="copy" size={14} />{copied ? 'Copied' : 'Copy worktree path'}</button>
             {/if}
-            <RunUsage {run} />
+            <RunUsage {run} showAssessment={!reviewFirst} />
           </section>
         {/if}
 

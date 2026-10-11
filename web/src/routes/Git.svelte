@@ -41,9 +41,9 @@
 </script>
 
 {#if screen.screen === 'branch'}
-  <BranchView {project} {store} scope={screen.scope} name={screen.name} />
+  <BranchView {project} {store} scope={screen.scope} name={screen.name} taskId={screen.taskId ?? ''} runId={screen.runId ?? ''} />
 {:else if screen.screen === 'file'}
-  <FileView {project} scope={screen.scope} name={screen.name} path={screen.path} oldPath={screen.oldPath} />
+  <FileView {project} scope={screen.scope} name={screen.name} path={screen.path} oldPath={screen.oldPath} taskId={screen.taskId ?? ''} runId={screen.runId ?? ''} branches={store.overview?.branches ?? []} />
 {:else if screen.screen === 'changes'}
   <ChangesView {project} worktree={screen.worktree} />
 {:else if screen.screen === 'change'}

@@ -25,6 +25,7 @@
   import { taskHref } from '../router.svelte';
   import { app } from '../state.svelte';
   import type { BranchScope, GitComparison, GitDiffFile, Project } from '../types';
+  import GitReviewContext from './GitReviewContext.svelte';
   import Chips from './Chips.svelte';
   import { sheets } from './sheets.svelte';
   import type { GitStore } from './store.svelte';
@@ -33,7 +34,7 @@
   // then its changed files, each of which opens that file's diff. Files come a page at a
   // time, so a branch that changes thousands of them is as light as one that changes two.
 
-  let { project, store, scope, name }: { project: Project; store: GitStore; scope: BranchScope; name: string } = $props();
+  let { project, store, scope, name, taskId, runId }: { project: Project; store: GitStore; scope: BranchScope; name: string; taskId: string; runId: string } = $props();
 
   const o = $derived(store.overview);
   const branch = $derived(o?.branches.find((b) => b.scope === scope && b.name === name));
@@ -109,14 +110,14 @@
         }
         break;
       case 'review':
-        document.getElementById('files')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('files')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
         break;
     }
   }
 
-  const changing = $derived(actions.filter((a) => a.id !== 'review' && a.id !== 'task' && a.id !== 'run'));
   const hasTask = $derived(!!branch?.devboard.taskId);
   const prState = $derived(pr ? prStateLabel(pr) : null);
+  const maintenance = $derived(actions.filter((a) => a.id !== 'review' && a.id !== 'task' && a.id !== 'run'));
 </script>
 
 <div class="g-page">
@@ -129,6 +130,8 @@
       <h2 class="name g-wrap">{branch.name}</h2>
       <div class="g-row"><Chips chips={branchChips(branch, o?.local.target.name ?? '')} /></div>
     </header>
+
+    <GitReviewContext projectId={project.id} {scope} {name} {taskId} {runId} branches={o?.branches ?? []} />
 
     <section class="card g-card" aria-label="State">
       <dl class="g-kv">
@@ -176,14 +179,22 @@
       {#if branch.protected && branch.scope === 'local'}<p class="g-small muted">Protected: Werkbord never deletes this branch.</p>{/if}
     </section>
 
-    {#if changing.length || hasTask || branch.devboard.runId}
+    {#if actions.length || hasTask || branch.devboard.runId || branch.scope === 'local'}
       <section class="g-actions" aria-label="Actions">
-        {#each changing as a (a.id)}
-          <button class="btn" class:primary={a.primary && !a.danger} class:danger={a.danger} onclick={() => act(a)}>{a.label}</button>
-        {/each}
-        {#if branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId)}>Open task</a>{/if}
-        {#if branch.devboard.runId && branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId)}>Open run</a>{/if}
-        {#if branch.scope === 'local'}<a class="btn" href={commitsHref(project.id, 'local', branch.name)}>History</a>{/if}
+        {#if actions.some((a) => a.id === 'review')}<button class="btn primary" onclick={() => act({ id: 'review', label: 'Review changes', primary: true })}>Review changes</button>{/if}
+        {#if maintenance.length || hasTask || branch.devboard.runId || branch.scope === 'local'}
+          <details class="branch-actions">
+            <summary>Branch actions</summary>
+            <div class="branch-action-list">
+              {#each maintenance as a (a.id)}
+                <button class="btn" class:danger={a.danger} onclick={() => act(a)}>{a.label}</button>
+              {/each}
+              {#if branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId)}>Open task</a>{/if}
+              {#if branch.devboard.runId && branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId, branch.devboard.runId)}>Open run</a>{/if}
+              {#if branch.scope === 'local'}<a class="btn" href={commitsHref(project.id, 'local', branch.name)}>History</a>{/if}
+            </div>
+          </details>
+        {/if}
       </section>
     {/if}
 
@@ -238,7 +249,7 @@
           <div class="card list">
             {#each files as f (f.path)}
               {@const p = splitPath(f.path)}
-              <a class="g-file" href={fileHref(project.id, scope, name, f.path, f.oldPath ?? '')}>
+              <a class="g-file" href={fileHref(project.id, scope, name, f.path, f.oldPath ?? '', taskId && runId ? { taskId, runId } : undefined)}>
                 <span class="g-glyph" data-status={f.status} title={statusWord(f.status)}>{statusGlyph(f.status)}</span>
                 <span class="g-path"><span class="dir">{p.dir}</span>{p.name}{#if f.oldPath}<span class="muted g-small"> ← {f.oldPath}</span>{/if}</span>
                 <span class="g-nums">{#if f.binary}<span class="muted">binary</span>{:else}<span class="add">+{f.additions}</span> <span class="del">−{f.deletions}</span>{/if}</span>
@@ -286,5 +297,14 @@
   .del {
     color: var(--danger);
     font-family: var(--mono);
+  }
+
+  .branch-actions { min-width: min(100%, 14rem); }
+  .branch-actions > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--text-2); font-weight: 500; }
+  .branch-actions > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .branch-action-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+  @media (max-width: 899px), (pointer: coarse) {
+    .branch-actions { flex: 1 1 100%; }
+    .branch-action-list .btn { min-height: 44px; }
   }
 </style>

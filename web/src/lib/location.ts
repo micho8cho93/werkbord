@@ -70,6 +70,8 @@ export interface Location {
   projectId: string;
   /** Set on a task's page. */
   taskId: string;
+  /** A task page can select one of its earlier runs without changing the task address. */
+  runId?: string;
   /** Git's drill-down: whatever follows `git/` in the address, with its query. Absent on every other page. */
   sub?: string;
 }
@@ -107,7 +109,8 @@ export function parse(hash: string): Location {
     if (third === 'task') {
       const taskId = decode(fourth);
       // A task page without a task is the board.
-      return taskId ? { view: 'task', projectId, taskId } : { view: 'board', projectId, taskId: '' };
+      const runId = new URLSearchParams(queryOf(hash)).get('run') ?? '';
+      return taskId ? { view: 'task', projectId, taskId, ...(runId ? { runId } : {}) } : { view: 'board', projectId, taskId: '' };
     }
     if (third === 'git') {
       // Git has screens of its own below it. Everything after `git/`, and the query, is theirs to read.
@@ -139,13 +142,14 @@ export function projectHref(projectId: string, section: ProjectSection = 'board'
   return `#/p/${enc(projectId)}/${section}`;
 }
 
-export function taskHref(projectId: string, taskId: string): string {
-  return `#/p/${enc(projectId)}/task/${enc(taskId)}`;
+export function taskHref(projectId: string, taskId: string, runId = ''): string {
+  const path = `#/p/${enc(projectId)}/task/${enc(taskId)}`;
+  return runId ? `${path}?${new URLSearchParams({ run: runId })}` : path;
 }
 
 /** The address of a location. A project page whose project is not known yet has none to give. */
 export function hrefOf(loc: Location): string {
-  if (loc.view === 'task') return taskHref(loc.projectId, loc.taskId);
+  if (loc.view === 'task') return taskHref(loc.projectId, loc.taskId, loc.runId);
   if (isGlobal(loc.view)) return globalHref(loc.view);
   if (loc.view === 'git' && loc.sub) return `${projectHref(loc.projectId, 'git')}/${loc.sub}`;
   return projectHref(loc.projectId, loc.view);
