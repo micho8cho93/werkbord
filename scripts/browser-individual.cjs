@@ -53,6 +53,16 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.unroute('**/api/onboarding/complete');
     await page.getByRole('button', { name: 'Create your first task', exact: true }).click();
     await page.getByRole('heading', { name: 'New task in ' + p.name, exact: true }).waitFor();
+    // Sheet protects keyboard users even with disabled submit buttons and collapsed execution settings.
+    const taskDialog = page.getByRole('dialog', { name: 'New task in ' + p.name, exact: true });
+    await taskDialog.getByRole('button', { name: 'Cancel', exact: true }).focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await taskDialog.locator(':focus').count(), 1, 'Tab at the final enabled control stays in the dialog');
+    await taskDialog.getByRole('button', { name: 'Close', exact: true }).focus();
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await taskDialog.locator(':focus').count(), 1, 'Shift+Tab at the first control stays in the dialog');
+    await page.getByRole('link', { name: 'Projects', exact: true }).focus();
+    assert.equal(await taskDialog.locator(':focus').count(), 1, 'background focus is redirected into the dialog');
     assert.equal((await api('GET', `/api/projects/${p.id}/runs`)).runs.length, 0, 'setup opens creation without starting an agent');
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     console.log('PASS verified local checklist, optional connections collapsed, planning alternative and first task in registered repository');
@@ -233,10 +243,19 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
                 await page.setViewportSize({width,height});
                 await page.waitForTimeout(300);
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
+                const creationDialog = page.getByRole('dialog', { name: 'New task in ' + p.name, exact: true });
+                await creationDialog.getByRole('button', { name: 'Cancel', exact: true }).focus();
+                await page.keyboard.press('Tab');
+                assert.equal(await creationDialog.locator(':focus').count(), 1, `forward modal focus at ${size}/${theme}`);
+                await creationDialog.getByRole('button', { name: 'Close', exact: true }).focus();
+                await page.keyboard.press('Shift+Tab');
+                assert.equal(await creationDialog.locator(':focus').count(), 1, `reverse modal focus at ${size}/${theme}`);
                 await page.screenshot({path:path.join(artifacts, `creation-${size}-${theme}.png`)});
             }
         }
-        await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await page.keyboard.press('Escape');
+        await page.getByRole('dialog', { name: 'New task in ' + p.name, exact: true }).waitFor({ state: 'hidden' });
+        assert.equal(await page.getByRole('button', { name: 'New task', exact: true }).evaluate(el => el === document.activeElement), true, 'Escape restores the dialog opener');
         await page.setViewportSize({ width:1440, height:1000 });
         console.log('PASS task creation disclosures, retained save, safe retries, lost launch response, light/dark desktop/mobile');
         // A real disposable local process produces a commit; review opens the actual branch.

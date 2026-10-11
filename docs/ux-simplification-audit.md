@@ -289,3 +289,128 @@ In order of expected value. Each needs a product decision or a larger change tha
 * Go: `internal/team/console` and `internal/archtest` pass. Items 1 and 2 shipped earlier with their own tests; this pass touched only Team console copy and web code.
 * Test changes: `test-unified-desktop-browser.cjs` expects the renamed entries and covers the single-workspace sidebar; the final unroute no longer waits on in-flight handlers (it hung), and the Calendar width check sets its own 480px viewport. `browser-individual.cjs` opens the phone Filters control before using Archive and Clear Done.
 * **Not run:** the full `make check` and the Go suite for `internal/service` (no Go code changed in this pass). The F1 comprehension test and the check with Individual-only users for N3 were not run.
+
+## Critique of 4.14.1 — final pass (11 October 2026)
+
+The original critique scored **26/40** (`.impeccable/critique/2026-10-11T11-04-16Z__web-src.md`).
+This pass verifies the resulting Individual UI and shell, rather than changing execution or Team behavior.
+
+**Final score: 30/40 (+4), Good**, for `4.18.1-preview.1`. Method: two isolated assessments (`/root/critique_design`
+and `/root/critique_evidence`), with the design agent kept blind to the baseline and detector. The initial independent
+score was 29/40; a browser-verified shared-Sheet focus escape was fixed with a failing-before/passing-after regression
+test. The design agent's focused source reassessment raised User control from 2 to 3; the parent verified the final
+browser behavior. The agent could not reopen the native browser for that focused follow-up and did not claim it did.
+
+| Nielsen heuristic | Before | Final | Remaining limitation |
+| --- | ---: | ---: | --- |
+| Visibility of system status | 3 | 3 | Interruptions badge excludes Review; All includes it. |
+| Match system / real world | 3 | 3 | Calendar versus Timeline still requires learning. |
+| User control and freedom | 3 | 3 | Sheet containment is now tested; broader assistive-technology cases remain. |
+| Consistency and standards | 2 | 3 | Expanded shell question repeats its prompt; project summaries still say needs input. |
+| Error prevention | 3 | 3 | Guarded confirmations are strong; complete screen-reader behavior is untested. |
+| Recognition rather than recall | 3 | 3 | Phone Git/Settings have competing navigation levels. |
+| Flexibility and efficiency | 3 | 3 | Phone review requires reading repeated technical details. |
+| Aesthetic and minimalist design | 2 | 4 | Restrained, product-specific attention and work surfaces. |
+| Error recovery | 2 | 3 | Disabled fixture Git health lacks an enabling path. |
+| Help and documentation | 2 | 2 | Contextual explanations exist; no obvious general task-focused help. |
+| **Total** | **26/40** | **30/40** | All ten apply; this is a heuristic judgment, not a user-study result. |
+
+The detector returned two `broken-image` warnings, both false positives: Svelte's dynamic QR `src` and an intentionally
+malformed image string in a transcript test. The final focused Sheet scan returned zero findings. Native browser script
+injection failed because its evaluation scope is read-only; no live overlay or overlay server was created. Screenshots,
+computed styles, keyboard checks and the fixture browser suites supply the visual/interaction evidence instead.
+
+**Priority residuals (P2):** bring review actions ahead of ticket administration; clarify phone navigation levels;
+state the expanded shell question once; enlarge label-color hit areas and add normal radio arrow navigation with
+human-readable color names. None was treated as a product blocker or silently fixed in this final pass. Disabled
+fixture Git health is separately recorded as contextual evidence, not a claim about enabled production checks.
+
+**Cognitive load and journey:** answering is low-load and reassuring; mobile Git and review carry moderate load.
+The merge confirmation and delivery line make the end of work explicit. Keyboard users benefit from the Sheet fix,
+phone users still face dense navigation, and screen-reader users still face hex-only label-color names. The palette,
+attention hierarchy and planning-specific work vocabulary remain the strongest authored features.
+
+**Resolved since that critique:** the installed app starts on Needs you; the phone board opens on attention;
+More reaches Overview and Settings; answer/card actions have 44px targets; the task header wraps and receives focus;
+null execution capability arrays are guarded; route failures have a recoverable boundary; the question is stated once
+in its task panel and answerable from Runs; attention vocabulary is consistent; Archive task offers Undo;
+the run result offers the guarded Merge… path and explains verdicts; answering reports delivery; clocks use the locale
+helper; disclosures show chevrons; Calendar states when no execution is scheduled; work projects omit agent controls;
+optional connection failures are quiet and blocked alerts explain where to allow them.
+
+**Persists:** keyboard navigation still crosses substantial chrome before work; generic nested panels remain in
+Overview and Settings; historical `devboard/` branch names still appear under Werkbord branches (compatibility names
+must remain valid); the Phone access QR is shown by default; assistant suggestions still demonstrate read-only
+questions; Timeline's compact Plan… actions provide little context. Compact secondary controls are not covered by
+the answer-button target guarantee. Git health is unavailable in the fixture and must not be mistaken for a production
+regression. The deliberate 950ms assistant opening is preserved and reduced motion is tested separately.
+
+**Still hypotheses:** frequency of null capability payloads on real runners, whether answering confirmation feels
+sufficient, QR exposure during screen sharing, Inbox urgency ordering on real mixed-workspace data, real-device
+switcher/splash behavior, and comprehension of verdicts versus merging. Automated fixture tests cannot establish
+these; no user comprehension study was run.
+
+### Reproduce the isolated fixture and seeded state
+
+Run from the repository root. The binary below is the browser fixture, not `bin/werkbord`; no setup, login service,
+real controller, real repository, agent account or network connection is used. Choose an unused loopback port.
+
+```sh
+make web web-embed web-shell
+UX_FINAL_DIR=$(mktemp -d /tmp/werkbord-ux-final.XXXXXX)
+go build -o "$UX_FINAL_DIR/fixture" ./scripts/browser-fixture
+WERKBORD_BROWSER_ADDR=127.0.0.1:17499 \
+WERKBORD_BROWSER_EXECUTION=1 WERKBORD_BROWSER_ASSISTANT=1 \
+GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+"$UX_FINAL_DIR/fixture" > "$UX_FINAL_DIR/fixture.log" 2>&1 &
+UX_FINAL_PID=$!
+until curl -fs http://127.0.0.1:17499/api/health > "$UX_FINAL_DIR/health.json"; do
+  kill -0 "$UX_FINAL_PID" || break
+  sleep 1
+done
+PERSONAL_BROWSER_URL=http://127.0.0.1:17499 SEED_DIR="$UX_FINAL_DIR/seed" \
+node scripts/seed-browser-fixture.cjs > "$UX_FINAL_DIR/projects.json"
+PLAYWRIGHT_MODULE="$PWD/web/node_modules/playwright" \
+PERSONAL_BROWSER_URL=http://127.0.0.1:17499 \
+node scripts/measure-legibility.cjs --check --json "$UX_FINAL_DIR/legibility.json" \
+  --screenshots "$UX_FINAL_DIR/surfaces"
+kill -TERM "$UX_FINAL_PID"
+wait "$UX_FINAL_PID"
+```
+
+The seed creates two throwaway Git repositories: one Doing run waiting on "Commit the fixture work?", and one
+finished run with a commit and its task in Review. It also creates Venue search, a work project with three tasks.
+The seeder checks loopback and `version: browser-fixture` before any mutation; three Node tests verify refusal of
+ordinary controllers, missing version metadata and non-loopback destinations before writes or repository deletion.
+Run them with `node --test scripts/seed-browser-fixture.test.cjs`.
+
+The screenshot mode covers 28 routed surfaces plus New task and Assistant, at **1440×900 and 375×812 in both
+themes** (120 captures). It fails on JavaScript errors or document overflow. Routed text measurements: **5,418 text
+nodes, zero contrast failures, zero text below 11.5px**. New task and Assistant captures are visual evidence;
+their dialog text is not included in that routed-node count. The shell Inbox and expanded question are captured by
+`BROWSER_ARTIFACT_DIR="$UX_FINAL_DIR/shell" node scripts/test-unified-desktop-browser.cjs`, which starts its own
+disposable services. Assistant interaction/motion checks run with `scripts/browser-assistant.cjs` and
+`scripts/browser-shell-assistant.cjs`. No Go or Team source changed in this final pass.
+
+### Final validation
+
+- `make check`: passes, including Go/service/boundary tests, desktop logic, release/notarization/workflow checks,
+  web lint and Svelte checks (zero errors/warnings), 44 Vitest files / 533 tests, and production builds.
+- `make web web-embed web-shell` and `make test-browser`: pass. The complete disposable Individual/Team browser
+  and real-process integration suite ran; no fallback was needed.
+- `scripts/test-unified-desktop-browser.cjs`: passes after correcting its stale task-panel close selector from
+  "Close" to "Close panel". Inbox and expanded questions were inspected at the four requested size/theme variants;
+  stale disabling, reconnect, delivery, focus, persistent frames and workspace boundaries pass.
+- Both assistant browser suites pass, including reduced motion, focus restoration, confirmations and recovery.
+- `node --test scripts/seed-browser-fixture.test.cjs`: three tests pass; successful seeding was also repeated on a
+  second fresh fixture. These tests are now included in `make check`. Script syntax and `git diff --check` pass.
+- The new Sheet regression first failed with focus outside New task. After the fix, forward/reverse Tab containment,
+  background-focus redirection, disabled/collapsed controls, both themes/sizes and Escape opener restoration pass in
+  `scripts/browser-individual.cjs`. Sheet stops trapping before restoring focus on teardown; only the topmost sheet
+  handles keyboard events. All full checks and the browser suite were rerun after the fix.
+- Vite still reports its existing main-chunk size advisory (>500 kB); it does not fail the build. User studies and
+  real-device observations listed above remain unperformed.
+
+Local, ignored artifacts: `.impeccable/review/final-pass-4.18.1/` contains the final screenshot matrix, shell captures,
+legibility JSON and independent assessment reports. The critique snapshot is also kept in `.impeccable/critique/`.
+Fixtures are stopped after verification. The unified version is bumped and tagged locally; nothing is pushed.

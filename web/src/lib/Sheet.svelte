@@ -15,24 +15,61 @@
   }: { title: string; onclose: () => void; children: Snippet; footer?: Snippet; width?: string } = $props();
 
   let panel: HTMLDivElement | undefined = $state();
+  let trapping = false;
+  const FOCUSABLE = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex]';
+
+  function isTopSheet() {
+    const sheets = document.querySelectorAll('.sheet[aria-modal="true"]');
+    return trapping && panel && sheets[sheets.length - 1] === panel;
+  }
+
+  function focusable() {
+    return [...(panel?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((el) =>
+      el.tabIndex >= 0 && !el.matches(':disabled') && !el.closest('[inert]') &&
+      el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden');
+  }
 
   $effect(() => {
     const previous = document.activeElement as HTMLElement | null;
+    trapping = true;
     const first = panel?.querySelector<HTMLElement>('[data-autofocus]');
     (first ?? panel)?.focus();
-    return () => previous?.focus?.();
+    return () => {
+      trapping = false;
+      if (previous?.isConnected) previous.focus();
+    };
   });
 
   function onkey(e: KeyboardEvent) {
+    if (e.defaultPrevented || !isTopSheet()) return;
+    if (e.key === 'Tab') {
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (!first || !active || !panel?.contains(active) || active === panel ||
+          (e.shiftKey ? active === first : active === last)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first)?.focus();
+        if (!first) panel?.focus();
+      }
+      return;
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
       onclose();
     }
   }
+
+  function onfocus(e: FocusEvent) {
+    if (isTopSheet() && e.target instanceof Node && !panel?.contains(e.target)) {
+      (focusable()[0] ?? panel)?.focus();
+    }
+  }
 </script>
 
-<svelte:window onkeydown={onkey} />
+<svelte:window onkeydown={onkey} onfocusin={onfocus} />
 
 <div class="backdrop" role="presentation" onclick={onclose}></div>
 <div class="sheet" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel} style:--w={width}>

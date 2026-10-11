@@ -36,6 +36,10 @@ function repo(name) {
 }
 
 (async () => {
+    const url = new URL(base);
+    if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) throw Error('Seeding requires a loopback browser fixture');
+    const health = await api('GET', '/api/health');
+    if (health.version !== 'browser-fixture') throw Error('Refusing to seed anything except the disposable browser fixture');
     await api('POST', '/api/onboarding/complete', {});
     // Two runs at once, one in each repository.
     const local = (await api('GET', '/api/runners')).runners.find((r) => r.kind === 'local');

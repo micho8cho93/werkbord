@@ -111,7 +111,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const billing = await team('POST', '/projects', { name: 'Billing', repository: 'https://github.com/acme/billing' });
  const invoice = await team('POST', `/projects/${billing.id}/tickets`, { title: 'Retry failed invoices', status: 'available' }); await team('POST', `/projects/${billing.id}/tickets/${invoice.id}/claim`, {});
  await wait(async () => (await api(individualURL, 'disposable-browser-credential', 'GET', '/api/integration/waiting')).items.length === 1, 'ticket waiting for its repository');
- await page.frameLocator('iframe[data-workspace=personal]').getByRole('link', { name: 'Close', exact: true }).click();
+ await page.frameLocator('iframe[data-workspace=personal]').getByRole('link', { name: 'Close panel', exact: true }).click();
  await side.locator('[data-page=ws-home]').click();
  await page.frameLocator('iframe[data-workspace=personal]').getByTestId('waiting-repository').filter({ hasText: invoice.key }).waitFor();
  const billingRepo = path.join(temp, 'billing'); fs.mkdirSync(billingRepo); run('git', ['-C', billingRepo, 'init', '-b', 'main']); run('git', ['-C', billingRepo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture']); run('git', ['-C', billingRepo, 'remote', 'add', 'origin', 'git@github.com:acme/billing.git']);

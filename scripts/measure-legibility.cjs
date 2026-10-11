@@ -5,6 +5,7 @@
 //
 // --check exits 1 when any text is below 4.5:1 (3:1 for large text) or smaller than MIN_PX. Needs the fixture to be seeded
 // as for the browser tests (a repository project, a work project, a waiting question and a task in Review).
+// --screenshots DIR also captures the final-pass matrix at 1440x900 and 375x812, including New task and Assistant.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs');
 const base = process.env.PERSONAL_BROWSER_URL || 'http://127.0.0.1:17421';
@@ -13,6 +14,8 @@ const MIN_PX = 11.5;
 const args = process.argv.slice(2);
 const jsonOut = args.includes('--json') ? args[args.indexOf('--json') + 1] : '';
 const check = args.includes('--check');
+const screenshots = args.includes('--screenshots') ? args[args.indexOf('--screenshots') + 1] : '';
+if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
 
 async function api(path) {
     const res = await fetch(base + path, { headers: { Authorization: 'Bearer ' + token } });
@@ -108,6 +111,9 @@ function measure(minPx) {
 }
 
 (async () => {
+    const url = new URL(base);
+    if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) throw Error('Measurement requires a loopback browser fixture');
+    if ((await api('/api/health')).version !== 'browser-fixture') throw Error('Refusing to measure anything except the disposable browser fixture');
     const projects = (await api('/api/projects')).projects;
     const repo = projects.find((p) => p.kind !== 'work');
     const work = projects.find((p) => p.kind === 'work');
@@ -130,13 +136,15 @@ function measure(minPx) {
     const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) });
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(base + '/#token=' + token);
     await page.waitForTimeout(800);
     const all = [];
     const small = [];
     let nodes = 0;
     for (const theme of ['light', 'dark']) {
-        for (const [size, width, height] of [['desktop', 1440, 1000], ['phone', 390, 844]]) {
+        for (const [size, width, height] of (screenshots ? [['desktop', 1440, 900], ['phone', 375, 812]] : [['desktop', 1440, 1000], ['phone', 390, 844]])) {
             await page.setViewportSize({ width, height });
             await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
             await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
@@ -147,10 +155,26 @@ function measure(minPx) {
                 nodes += res.rows.length;
                 for (const r of res.rows) all.push({ ...r, theme, size, page: name });
                 for (const r of res.sizes) small.push({ ...r, theme, size, page: name });
+                if (screenshots) {
+                    if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2)) throw Error(`${name} overflows at ${size}/${theme}`);
+                    await page.screenshot({ path: require('node:path').join(screenshots, `${name}-${size}-${theme}.png`) });
+                }
+            }
+            if (screenshots && repo) {
+                await page.goto(base + `/#/p/${repo.id}/board`);
+                await page.getByRole('button', { name: 'New task', exact: true }).click();
+                await page.getByRole('heading', { name: 'New task in ' + repo.name, exact: true }).waitFor();
+                await page.screenshot({ path: require('node:path').join(screenshots, `new-task-${size}-${theme}.png`) });
+                await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+                await page.locator('[data-testid="assistant-button"]:visible').click();
+                await page.getByTestId('assistant').waitFor();
+                await page.screenshot({ path: require('node:path').join(screenshots, `assistant-${size}-${theme}.png`) });
+                await page.getByTestId('assistant-close').click();
             }
         }
     }
     await browser.close();
+    if (errors.length) throw Error('Browser errors: ' + errors.join('; '));
     const fail = all.filter((r) => r.ratio < r.need && !r.disabled);
     const group = (list, key) => {
         const m = new Map();

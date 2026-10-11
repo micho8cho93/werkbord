@@ -62,7 +62,7 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
   themselves (board columns, panel feed), not the page.
 - A task opens as a panel over its board (`#/p/<id>/task/<id>`); Esc closes it.
-- Project tabs: Overview · Board · Calendar · Git · Runs. Pages use `.split` (main + side column, each
+- Project tabs: Overview · Board · Calendar · Timeline · Git · Runs. Pages use `.split` (main + side column, each
   scrolling inside the window) and `.pn` panels with a `.ph` header; groups that want an action sit in an
   inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
@@ -120,6 +120,18 @@ heading (the provider chooser, New, Close) and the box.
 - **Counts on the button.** Amber `.num.pend` for changes waiting; a cobalt pulse while a reply is on its way.
 
 ## Interaction rules
+
+- **Vocabulary.** Needs you names attention; Questions is its question filter. Calendar schedules agent execution
+  ("Not scheduled to run"); Timeline plans work dates and milestones ("Not planned yet"). Review means work is ready
+  for a person's inspection, Done means the work was completed or merged, and Archive keeps a task out of the active
+  board. Accept work / Reject work record a verdict; Merge… changes the repository after confirmation.
+- **Touch and keyboard.** Answer choices and card actions are at least 44px tall on phones and coarse pointers, with
+  spacing between choices. Coarse-pointer form fields use 16px text to prevent zoom. A task panel receives focus on
+  its heading and returns focus to its opener on close. These rules complement the 11.5px type floor and shared
+  disclosure chevron above; compact secondary controls still need a separate touch-target audit.
+- **A confirmation keeps focus.** Only the topmost Sheet handles its keyboard events. Tab and Shift+Tab cycle through
+  visible enabled controls, background focus returns to the Sheet, Escape closes it, and closing restores a connected
+  opener. Collapsed content and disabled actions never enter that cycle.
 
 - **One clock.** Every time of day is written by `lib/clock.svelte.ts`: 12-hour or 24-hour as the device's locale writes it, unless
   the person picks one under Settings → Alerts and display (kept per device). The Calendar's hour column, its events, the run
