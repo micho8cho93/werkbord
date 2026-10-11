@@ -82,6 +82,26 @@ async function captureMatrix(page, name) {
     const touchStatus = await touchAssessment.getByRole('status').boundingBox();
     assert(touchStatus && touchVerdicts[0] && touchVerdicts[1] && touchVerdicts.every(box => box.width >= 44 && box.height >= 44), `coarse-pointer assessment controls meet 44px: ${JSON.stringify({ touchStatus, touchVerdicts })}`);
     assert(Math.abs(touchVerdicts[0].y - touchVerdicts[1].y) < 1 && touchStatus.y < touchVerdicts[0].y, 'phone status sits above the paired accept/reject choices');
+    const touchHeader = touchReview.locator('.panel .head');
+    const titleBox = await touchHeader.getByRole('heading', { name: task.title, exact: true }).boundingBox();
+    const reviewBox = await touchHeader.getByRole('link', { name: 'Review changes', exact: true }).boundingBox();
+    const archiveBox = await touchHeader.getByRole('button', { name: 'Archive task', exact: true }).boundingBox();
+    const editBox = await touchHeader.getByRole('button', { name: 'Edit task', exact: true }).boundingBox();
+    assert(titleBox && reviewBox && archiveBox && editBox && titleBox.y < reviewBox.y && reviewBox.y + reviewBox.height <= archiveBox.y && reviewBox.y + reviewBox.height <= editBox.y, 'phone task title and review decision precede Archive and Edit');
+    assert(archiveBox.height >= 44 && editBox.height >= 44, 'secondary task actions retain 44px touch targets');
+
+    const tabs = touchReview.locator('.panel .facts-tabs');
+    const tabButtons = tabs.getByRole('button');
+    const tabBoxes = await tabButtons.evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      return { y: rect.y, height: rect.height };
+    }));
+    assert.equal(tabBoxes.length, 5, 'the task view chooser retains all five labeled destinations');
+    assert(tabBoxes.every(box => box.height >= 44 && Math.abs(box.y - tabBoxes[0].y) < 1), `phone task destinations form one touch-sized row: ${JSON.stringify(tabBoxes)}`);
+    await tabButtons.last().focus();
+    const tabScroll = await tabs.evaluate(element => ({ left: element.scrollLeft, width: element.clientWidth, total: element.scrollWidth }));
+    assert.equal(await tabButtons.last().evaluate(element => element === document.activeElement), true, 'the final task destination remains keyboard focusable');
+    assert(tabScroll.total > tabScroll.width && tabScroll.left > 0, `keyboard focus reveals the later task destinations in the horizontal row: ${JSON.stringify(tabScroll)}`);
     for (const theme of ['light', 'dark']) {
       await touchReview.evaluate(value => document.documentElement.dataset.theme = value, theme);
       await touchReview.screenshot({ path: path.join(artifacts, `seeded-task-review-touch-375x812-${theme}.png`), fullPage: true });
@@ -155,19 +175,31 @@ async function captureMatrix(page, name) {
     await reviewContext.waitFor();
 
     const actions = page.locator('.branch-actions');
-    const summary = actions.locator('summary');
+    const summary = actions.locator(':scope > summary');
     assert.equal(await actions.getAttribute('open'), null, 'secondary branch actions start closed');
     await captureMatrix(page, 'seeded-branch-actions-closed');
     await summary.focus();
     assert.equal(await summary.evaluate(element => element === document.activeElement), true, 'branch actions can receive keyboard focus');
     await page.keyboard.press('Enter');
-    assert(await actions.getByRole('button', { name: 'Push', exact: true }).isVisible(), 'keyboard opens the named branch actions group');
+    const actionGroups = actions.locator(':scope > .branch-action-list > details.branch-action-group');
+    assert.equal(await actionGroups.count(), 2, 'repository mutations and task/history navigation are separate choices');
+    const repositoryActions = actionGroups.nth(0);
+    const taskHistory = actionGroups.nth(1);
+    assert.equal(await repositoryActions.locator('summary').innerText(), 'Repository actions');
+    assert.equal(await taskHistory.locator('summary').innerText(), 'Task and history');
+    assert.equal(await repositoryActions.getAttribute('open'), null, 'repository operations remain collapsed after opening the parent group');
+    assert.equal(await taskHistory.getAttribute('open'), null, 'task navigation remains collapsed after opening the parent group');
     assert.equal(await actions.getByRole('button', { name: 'Open task', exact: true }).count(), 0, 'task destination has no inert duplicate button');
+    await captureMatrix(page, 'seeded-branch-actions-open');
+    await repositoryActions.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    assert(await actions.getByRole('button', { name: 'Push', exact: true }).isVisible(), 'keyboard opens repository operations');
+    await taskHistory.locator('summary').focus();
+    await page.keyboard.press('Enter');
     assert.equal(await actions.getByRole('link', { name: 'Open task', exact: true }).count(), 1, 'the task destination appears once');
     assert.equal(await actions.getByRole('button', { name: 'Open run', exact: true }).count(), 0, 'run destination has no inert duplicate button');
     assert.equal(await actions.getByRole('link', { name: 'Open run', exact: true }).count(), 1, 'the run destination appears once');
     assert((await actions.getByRole('link', { name: 'Open run', exact: true }).getAttribute('href')).includes(`run=${run.id}`), 'Open run selects the branch-associated run');
-    await captureMatrix(page, 'seeded-branch-actions-open');
 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     assert.equal(await summary.evaluate(element => getComputedStyle(element, '::before').transitionDuration), '0s', 'the disclosure honors reduced motion');
@@ -192,7 +224,7 @@ async function captureMatrix(page, name) {
     const tabbar = await page.locator('.tabbar').boundingBox();
     assert(beforeJump && filesHeading && tabbar && filesHeading.y < beforeJump.y && filesHeading.y + filesHeading.height <= tabbar.y, `Review changes moves Changed files into view above phone navigation with reduced motion: ${JSON.stringify({ beforeJump, filesHeading, tabbar })}`);
 
-    await actions.getByRole('button', { name: 'Merge…', exact: true }).click();
+    await repositoryActions.getByRole('button', { name: 'Merge…', exact: true }).click();
     const merge = page.getByRole('dialog', { name: /Merge / });
     await merge.getByText(/Merge .* into main, on this computer only/).waitFor();
     assert(await merge.getByText(/Nothing is pushed/).isVisible(), 'merge preflight states its repository effect');
@@ -219,6 +251,7 @@ async function captureMatrix(page, name) {
     const touchBranch = await touchBranchContext.newPage();
     await touchBranch.goto(`${base}/#/p/${projectId}/git/branch/local/${encodeURIComponent(branch.name)}`);
     await touchBranch.locator('.branch-actions > summary').tap();
+    await touchBranch.locator('.branch-action-group').first().locator('summary').tap();
     assert.equal(await touchBranch.evaluate(() => matchMedia('(pointer: coarse)').matches), true, 'branch action check uses coarse-pointer emulation');
     const touchPush = await touchBranch.getByRole('button', { name: 'Push', exact: true }).boundingBox();
     assert(touchPush && touchPush.width >= 44 && touchPush.height >= 44, `coarse-pointer Push target meets 44px: ${JSON.stringify(touchPush)}`);

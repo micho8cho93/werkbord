@@ -186,12 +186,26 @@
           <details class="branch-actions">
             <summary>Branch actions</summary>
             <div class="branch-action-list">
-              {#each maintenance as a (a.id)}
-                <button class="btn" class:danger={a.danger} onclick={() => act(a)}>{a.label}</button>
-              {/each}
-              {#if branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId)}>Open task</a>{/if}
-              {#if branch.devboard.runId && branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId, branch.devboard.runId)}>Open run</a>{/if}
-              {#if branch.scope === 'local'}<a class="btn" href={commitsHref(project.id, 'local', branch.name)}>History</a>{/if}
+              {#if maintenance.length}
+                <details class="branch-action-group">
+                  <summary>Repository actions</summary>
+                  <div class="branch-action-options">
+                    {#each maintenance as a (a.id)}
+                      <button class="btn" class:danger={a.danger} onclick={() => act(a)}>{a.label}</button>
+                    {/each}
+                  </div>
+                </details>
+              {/if}
+              {#if hasTask || branch.scope === 'local'}
+                <details class="branch-action-group">
+                  <summary>Task and history</summary>
+                  <div class="branch-action-options">
+                    {#if branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId)}>Open task</a>{/if}
+                    {#if branch.devboard.runId && branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId, branch.devboard.runId)}>Open run</a>{/if}
+                    {#if branch.scope === 'local'}<a class="btn" href={commitsHref(project.id, 'local', branch.name)}>History</a>{/if}
+                  </div>
+                </details>
+              {/if}
             </div>
           </details>
         {/if}
@@ -299,12 +313,17 @@
     font-family: var(--mono);
   }
 
+  :global(.g-actions) { align-items: flex-start; }
+  :global(.g-actions > .btn) { align-self: flex-start; }
   .branch-actions { min-width: min(100%, 14rem); }
-  .branch-actions > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--text-2); font-weight: 500; }
-  .branch-actions > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  .branch-action-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+  .branch-actions > summary,
+  .branch-action-group > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--text-2); font-weight: 500; }
+  .branch-actions > summary:focus-visible,
+  .branch-action-group > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .branch-action-list { display: grid; gap: 4px; padding: 4px 0; }
+  .branch-action-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 4px 12px; }
   @media (max-width: 899px), (pointer: coarse) {
     .branch-actions { flex: 1 1 100%; }
-    .branch-action-list .btn { min-height: 44px; }
+    .branch-action-options .btn { min-height: 44px; }
   }
 </style>

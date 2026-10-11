@@ -396,14 +396,18 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           <span class="chip">Archived</span><button class="btn small" disabled={busy} onclick={() => archive(false)}>Restore task</button>
         {:else}
           {#if latest && runStatus(latest).active}<button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>{/if}
-          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
-          <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
         {/if}
         <a class="btn quiet small icon close" href={boardHref} aria-label="Close panel" title="Close (Esc)"><Icon name="close" /></a>
       </div>
       <h2 class="title" id="task-title" tabindex="-1" bind:this={titleEl}>{task.title}</h2>
       {#if reviewFirst && run}
         <RunReviewSummary {run} onmerged={() => void move('done')} />
+      {/if}
+      {#if !task.archivedAt}
+        <div class="task-actions" aria-label="Task actions">
+          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
+          <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
+        </div>
       {/if}
       {#if agentWork}
         <p class="runs-with">
@@ -493,7 +497,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         {/if}
     {/snippet}
 
-    <div class="facts-tabs" role="group" aria-label="Task detail views">
+    <div class="facts-tabs" role="group" aria-label="Task detail views" onfocusin={(event) => (event.target as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' })}>
       {#if narrow.current}<button class="btn small quiet" aria-pressed={!factsOpen} onclick={() => factsOpen = false}>Activity</button>{/if}
       {#each agentWork ? ['details', 'run', 'schedule', 'history'] : project.kind === 'work' ? ['details'] : ['details', 'history'] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Details' : 'Schedule'}</button>{/each}
     </div>
@@ -704,6 +708,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     align-items: center;
     gap: 8px;
   }
+
+  .task-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
   .back {
     display: none;
@@ -1171,7 +1177,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       padding: 8px 16px 12px;
     }
 
-    /* Back, the column, Stop, Archive task and Edit do not fit one row at 375px: the actions wrap rather than clip. */
+    /* Back, the column and Stop do not fit one row at 375px: the top controls wrap rather than clip. */
     .top {
       flex-wrap: wrap;
     }
@@ -1180,7 +1186,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       min-height: 44px;
     }
 
-    /* Back and the column on the first row; the task's actions share the second, each as wide as it needs. */
+    /* Back and the column lead; the optional Stop action stays with those top controls. */
     .spacer {
       flex-basis: 100%;
       height: 0;
@@ -1189,6 +1195,18 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     .top .btn:not(.icon) {
       flex: 1 1 auto;
     }
+
+    .task-actions { justify-content: flex-start; }
+    .task-actions .btn { flex: 1 1 0; min-height: 44px; }
+    .facts-tabs {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
+      padding-inline: 16px;
+      scroll-padding-inline: 16px;
+    }
+    .facts-tabs button { flex: 0 0 auto; min-height: 44px; white-space: nowrap; }
 
     .state {
       height: 44px;
