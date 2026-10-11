@@ -41,7 +41,7 @@ export function notifyEvent(ev: ControllerEvent, projectName: string, taskTitle:
   let message: { title: string; body: string } | undefined;
   switch (ev.type) {
     case 'agent.question':
-      message = { title: 'Needs input', body: `${projectName} · ${taskTitle}` };
+      message = { title: 'Needs you', body: `${projectName} · ${taskTitle}` };
       break;
     case 'agent.blocked':
       message = { title: 'Agent blocked', body: `${projectName} · ${taskTitle}` };

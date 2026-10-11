@@ -280,6 +280,8 @@
   }
 
   const pending = $derived(run ? scope.pendingFor(run.id) : []);
+  /** The questions the dock below the feed asks, with their answers. The feed and the status note do not say them again. */
+  const dockIds = $derived(new Set(run && viewingLatest ? pending.map((q) => q.id) : []));
   const isBlocked = $derived(viewingLatest && run?.state === 'blocked');
   const canMessage = $derived(
     viewingLatest && !!run && (run.state === 'running' || run.state === 'blocked' || (run.state === 'waiting_for_user' && run.waiting === 'idle')),
@@ -505,7 +507,7 @@
                   Raised {timeAgo(run.blocker.raisedAt, app.now)}.
                 </p>
               </div>
-            {:else if !status.active || status.tone !== 'work'}
+            {:else if (!status.active || status.tone !== 'work') && !dockIds.size}
               <p class="note">{status.hint}</p>
             {/if}
           {/if}
@@ -522,7 +524,7 @@
             {:else if feed.items.length === 0}
               <p class="center">Nothing has happened in this run yet.</p>
             {/if}
-            <FeedView items={feed.items} hasMore={feed.hasMore} loadingOlder={feed.loadingOlder} onOlder={() => feed?.loadOlder()} />
+            <FeedView answeredBelow={dockIds} items={feed.items} hasMore={feed.hasMore} loadingOlder={feed.loadingOlder} onOlder={() => feed?.loadOlder()} />
             {#if feed.error}<p class="error" role="alert">{feed.error}</p>{/if}
           {/if}
           <div class="feed-end" bind:this={feedEnd} aria-hidden="true"></div>

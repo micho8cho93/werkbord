@@ -56,7 +56,7 @@ export function attentionAction(a: Attention): string {
 }
 
 export function executionLabel(execution: Execution): string {
-  return ({ queued: 'Queued', starting: 'Starting', running: 'Running', needs_input: 'Needs answer', idle: 'Waiting for your next message', waiting: 'Waiting for owner', blocked: 'Blocked', completed: 'Session finished', failed: 'Failed', canceled: 'Stopped', '': '' })[execution];
+  return ({ queued: 'Queued', starting: 'Starting', running: 'Running', needs_input: 'Needs you', idle: 'Waiting for your next message', waiting: 'Waiting for owner', blocked: 'Blocked', completed: 'Session finished', failed: 'Failed', canceled: 'Stopped', '': '' })[execution];
 }
 
 export function recordedTime(at?: string): string {

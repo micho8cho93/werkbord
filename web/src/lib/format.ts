@@ -18,7 +18,7 @@ export interface RunStatus {
 
 /**
  * How a run is described: one place, so the card, the detail and the control center agree.
- * A task in Doing is, at a glance, one of: Running, Needs input, Blocked, Failed. These
+ * A task in Doing is, at a glance, one of: Running, Needs you, Blocked, Failed. These
  * are states of the run, not columns of the board.
  */
 export function runStatus(run: Run): RunStatus {
@@ -37,7 +37,7 @@ export function runStatus(run: Run): RunStatus {
       };
     case 'waiting_for_user':
       return run.waiting === 'question'
-        ? { label: 'Needs input', tone: 'ask', needsInput: true, active: true, hint: 'The agent is waiting for your answer.' }
+        ? { label: 'Needs you', tone: 'ask', needsInput: true, active: true, hint: 'The agent is waiting for your answer.' }
         : { label: 'Waiting for you', tone: 'idle', needsInput: true, active: true, hint: 'The agent finished its turn and is waiting for your next message.' };
     case 'completed':
       return { label: 'Completed', tone: 'ok', needsInput: false, active: false, hint: 'The session is finished.' };

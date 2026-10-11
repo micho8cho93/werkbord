@@ -155,7 +155,7 @@ The database enforces the pairing too: `waiting` is set exactly while the state 
 
 A **blocked run is execution state, never a Kanban column**: the task stays in *Doing* (or wherever the
 user put it) while its run is blocked, exactly as it does while the run fails. There is no fifth column;
-the board distinguishes *Running*, *Needs input*, *Blocked* and *Failed* on the card.
+the board distinguishes *Running*, *Needs you*, *Blocked* and *Failed* on the card.
 
 **Policy that connects the two** (explicit in `service`, not implicit in the enums): a task moves
 to *Doing* in the same transaction that marks its run *running* (and again when the user resumes
@@ -504,7 +504,7 @@ the HTTP API is treated as a remote-execution surface from day one.
   overview and the questions waiting anywhere. What belongs to a project is in that project's `ProjectScope`
   (`src/lib/scope.svelte.ts`), one per project visited. Both are filled over HTTP, kept current by the event
   stream, and refetched on every (re)connect.
-- **Cards** show, for a task with a run: the agent, a status — *Running*, *Needs input*, *Blocked*, *Failed*
+- **Cards** show, for a task with a run: the agent, a status — *Running*, *Needs you*, *Blocked*, *Failed*
   (and *Waiting for you* once an agent finished a turn) — elapsed time, a live one-line activity or, when it
   asks, the question, or, when blocked, the blocker; a coloured edge when the user is wanted; and the task's
   interaction mode when it is not the default. **The task page** shows the session as an activity feed, not a
@@ -514,7 +514,7 @@ the HTTP API is treated as a remote-execution surface from day one.
   pending questions with one-tap answers, is docked at the bottom within thumb reach. Actions: send a message,
   finish, stop (asks twice), edit the task (title, description, interaction), and start or re-run with an agent
   choice, an interaction for that run, extra instructions and optionally "continue the previous conversation".
-- **Needs you is for exceptions** (§19): Needs input, Blocked, Failed, Ready for review and Repository
+- **Needs you is for exceptions** (§19): Questions, Blocked, Failed, Ready for review and Repository
   risk, in that order, with an explicit *All clear* when there are none; successful background activity and the
   agent list are folded away. The badge counts questions, blocked and failed runs, runs waiting for a message and
   repositories at risk, not finished work or ordinary findings.
@@ -611,14 +611,14 @@ agent's protocol.
 
 ```
 agent asks ─▶ adapter emits Question ─▶ RecordQuestion: persist + run → waiting_for_user/question
-          + agent.question event ─▶ every client (SSE) and GET /api/projects/{pid}/questions show "Needs input"
+          + agent.question event ─▶ every client (SSE) and GET /api/projects/{pid}/questions show "Needs you"
 user answers ─▶ POST /api/projects/{pid}/questions/{id}/answer
    1. AcceptAnswer     the answer is persisted (state answered); nothing else moves yet
    2. Session.Respond  delivered to the SAME session that asked
    3. ConfirmDelivery  deliveredAt set; when nothing else holds the agent up → run running
 ```
 
-The task stays in **Doing**: there is no "Needs input" column. Only the run waits.
+The task stays in **Doing**: there is no "Needs you" column. Only the run waits.
 
 **Persisted fields**: id, run, task, project, kind, prompt, context, options, allowFreeText, state,
 answer, answeredBy (`user`, or `policy` when the run's execution policy replied for the user, §17), cancelReason, askedAt, answeredAt, deliveredAt, closedAt. The database rejects a question
@@ -841,7 +841,7 @@ web "Check now" / old report ─▶ api/githealth.go ─▶ GitHealth.Refresh �
 - **Quiet by design.** An agent with a live session is never flagged; finished, pushed work waiting for review is
   normal; housekeeping (`info`) is folded away and never counted; your own branches are yours. HEALTH.md §7 lists
   what is deliberately not reported, and a test pins each.
-- **In Needs you**, only a *risk* or *critical* finding is listed (*Repository risk*), alongside Needs input,
+- **In Needs you**, only a *risk* or *critical* finding is listed (*Repository risk*), alongside Questions,
   Blocked, Failed and Ready for review; attention-level findings are counted on the project's strip and live on
   its Git screen.
 - **Lifecycle of the process**: the controller starts the watcher after wiring the services and, on shutdown,

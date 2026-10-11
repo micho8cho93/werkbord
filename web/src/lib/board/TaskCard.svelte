@@ -127,7 +127,7 @@
   {#if question}
     <div class="acts">
       {#each choices as c (c)}
-        <button class="btn small" class:primary={isAllow(c)} class:danger={isDeny(c)} disabled={!!busy} onclick={() => answer(c)}>{busy === c ? 'Sending…' : c}</button>
+        <button class="btn small" class:primary={isAllow(c)} class:danger={isDeny(c, question?.kind)} disabled={!!busy} onclick={() => answer(c)}>{busy === c ? 'Sending…' : c}</button>
       {/each}
       <a class="btn small" class:primary={choices.length === 0} {href}><Icon name="reply" size={14} />{choices.length ? 'Reply' : 'Answer'}</a>
     </div>

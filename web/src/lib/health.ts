@@ -22,7 +22,7 @@ export function severityLabel(s: HealthSeverity): string {
     case 'risk':
       return 'Risk';
     case 'attention':
-      return 'Needs attention';
+      return 'Attention';
     default:
       return 'Housekeeping';
   }

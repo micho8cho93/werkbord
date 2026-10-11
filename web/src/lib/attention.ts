@@ -23,7 +23,7 @@ export interface AttentionItem {
 }
 
 export const KIND_LABEL: Record<AttentionKind, string> = {
-  question: 'Needs input',
+  question: 'Question',
   blocked: 'Blocked',
   schedule: 'Cannot start',
   failed: 'Failed',

@@ -29,7 +29,7 @@ describe('browser notifications', () => {
     notifyEvent(event('agent.question', 2), 'App', 'Fix login');
     notifyEvent(event('agent.question', 2), 'App', 'Fix login');
     expect(shown).toHaveLength(1);
-    expect(shown[0].title).toBe('Needs input');
+    expect(shown[0].title).toBe('Needs you');
     expect(shown[0].options.body).toBe('App · Fix login');
   });
 

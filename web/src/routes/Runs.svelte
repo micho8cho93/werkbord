@@ -2,6 +2,7 @@
   import { agentLabel, optionLabel } from '../lib/execution';
   import { runElapsed, runStatus } from '../lib/format';
   import HistoryStrip from '../lib/HistoryStrip.svelte';
+  import QuestionCard from '../lib/QuestionCard.svelte';
   import { interactionShort, isNotable } from '../lib/policy';
   import { taskHref } from '../lib/router.svelte';
   import { shortRunId, tokensShort } from '../lib/runs';
@@ -39,6 +40,10 @@
 
   const cost = (r: Run) =>
     r.usage?.costUsd === undefined ? '' : `${r.usage.costKind === 'actual_api' ? '' : '≈'}${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(r.usage.costUsd)}`;
+  /** The run whose question is open for answering here; the card is the same one the board and the task panel use. */
+  let answering = $state('');
+  const askedOf = (r: Run) => scope.pendingFor(r.id)[0];
+
   const started = (iso: string) =>
     new Date(iso).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 </script>
@@ -93,24 +98,41 @@
           <span role="columnheader" class="num-col">Time</span>
           <span role="columnheader" class="num-col">Tokens</span>
           <span role="columnheader" class="num-col">Cost</span>
+          <span role="columnheader" class="visually-hidden">Action</span>
         </div>
         {#each rows as r (r.id)}
           {@const s = runStatus(r)}
-          <a class="tr" role="row" href={taskHref(project.id, r.taskId)} title={r.reason || s.hint}>
-            <span class="mm" role="cell">{shortRunId(r.id)}{r.attempt && r.attempt > 1 ? ` · #${r.attempt}` : ''}</span>
-            <span class="task" role="cell">
-              {titleOf(r.taskId)}
-              {#if r.purpose && r.purpose !== 'implement'}<span class="chip">{r.purpose}</span>{/if}
-              {#if isNotable(r.policy)}<span class="chip">{interactionShort(r.policy)}</span>{/if}
-            </span>
-            <span role="cell">{agentLabel(app.agents, r.agentId)}{r.model ? ` · ${optionLabel(app.agentOptions.get(r.agentId)?.models, r.model)}` : ''}</span>
-            <span class="mm" role="cell">{runnerName(r.runnerId, r.remote)}</span>
-            <span class="st" role="cell"><span class="dot" data-tone={s.tone}></span>{s.label}</span>
-            <span class="mm" role="cell">{started(r.createdAt)}</span>
-            <span class="mm num-col" role="cell">{runElapsed(r, app.now)}</span>
-            <span class="mm num-col" role="cell">{tokensShort(r) || '—'}</span>
-            <span class="mm num-col" role="cell">{cost(r) || '—'}</span>
-          </a>
+          {@const ask = askedOf(r)}
+          <div class="run" role="rowgroup">
+            <div class="tr" role="row" class:asking={!!ask}>
+              <span class="mm" role="cell">{shortRunId(r.id)}{r.attempt && r.attempt > 1 ? ` · #${r.attempt}` : ''}</span>
+              <span class="task" role="cell">
+                <a class="open" href={taskHref(project.id, r.taskId)} title={r.reason || s.hint}>{titleOf(r.taskId)}</a>
+                {#if r.purpose && r.purpose !== 'implement'}<span class="chip">{r.purpose}</span>{/if}
+                {#if isNotable(r.policy)}<span class="chip">{interactionShort(r.policy)}</span>{/if}
+              </span>
+              <span role="cell">{agentLabel(app.agents, r.agentId)}{r.model ? ` · ${optionLabel(app.agentOptions.get(r.agentId)?.models, r.model)}` : ''}</span>
+              <span class="mm" role="cell">{runnerName(r.runnerId, r.remote)}</span>
+              <span class="st" role="cell"><span class="dot" data-tone={s.tone}></span>{s.label}</span>
+              <span class="mm" role="cell">{started(r.createdAt)}</span>
+              <span class="mm num-col" role="cell">{runElapsed(r, app.now)}</span>
+              <span class="mm num-col" role="cell">{tokensShort(r) || '—'}</span>
+              <span class="mm num-col" role="cell">{cost(r) || '—'}</span>
+              <span class="act" role="cell">
+                {#if ask}
+                  <button
+                    class="btn small primary"
+                    aria-expanded={answering === r.id}
+                    aria-controls="run-ask-{r.id}"
+                    onclick={() => (answering = answering === r.id ? '' : r.id)}
+                  >Answer</button>
+                {/if}
+              </span>
+            </div>
+            {#if ask && answering === r.id}
+              <div class="ask" id="run-ask-{r.id}" role="row"><div role="cell"><QuestionCard question={ask} onSettled={(q) => { app.resolveQuestion(q); answering = ''; }} /></div></div>
+            {/if}
+          </div>
         {/each}
       </div>
     {:else}
@@ -166,7 +188,7 @@
 
   .tr {
     display: grid;
-    grid-template-columns: 96px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.9fr) 130px 120px 70px 64px 72px;
+    grid-template-columns: 96px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.9fr) 130px 120px 70px 64px 72px 84px;
     gap: 12px;
     align-items: center;
     min-height: 40px;
@@ -175,9 +197,51 @@
     font-size: 13px;
     color: var(--text);
     text-decoration: none;
+    position: relative;
   }
 
-  a.tr:hover {
+  .th + .run > .tr {
+    border-top: 0;
+  }
+
+  .tr:not(.th):hover {
+    background: var(--bg);
+  }
+
+  /* The whole row opens the task, as it did when the row was one link; Answer sits above that. */
+  .open {
+    color: inherit;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .open::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  .open:focus-visible {
+    outline: none;
+  }
+
+  .open:focus-visible::after {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .act {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-end;
+    overflow: visible;
+  }
+
+  .ask {
+    padding: 4px 16px 14px;
+    border-top: 1px dashed var(--border);
     background: var(--bg);
   }
 
@@ -201,10 +265,6 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--text-2);
-  }
-
-  .th + .tr {
-    border-top: 0;
   }
 
   .task {
@@ -270,6 +330,24 @@
     .tr > :nth-child(3) {
       font-size: 12px;
       color: var(--text-2);
+    }
+
+    .act {
+      grid-column: 1 / -1;
+      justify-content: stretch;
+    }
+
+    .act:empty {
+      display: none;
+    }
+
+    .act .btn {
+      width: 100%;
+      min-height: 44px;
+    }
+
+    .ask {
+      padding: 4px 14px 14px;
     }
   }
 </style>

@@ -121,11 +121,14 @@ Principles: *Critique* (Nielsen heuristic named), *Distill*, *Quieter*, *Clarify
 
 ### Task panel and run review
 
-**T1. The question shows twice in the panel** · Low · *Distill* · **kept**
+**T1. The question shows twice in the panel** · Low · *Distill* · **implemented in `4.16.0`** (was kept)
 - *Observation:* the feed shows "Decision for you … Waiting for your answer" and the dock below shows the answerable
   card.
-- *Why kept:* the feed entry is the transcript (it later becomes "You answered …"). The duplication is brief and
-  truthful.
+- *Resolved:* it showed three times (status line, feed entry, dock). The dock is the one statement while the question is
+  open; the feed shows it once it is answered, so the transcript still reads in order. The banner also stays out of the
+  project's Overview, Board and Runs, which ask the question themselves, and Runs rows have an Answer button.
+- *Also in `4.16.0`:* "Needs you" is the one name (was Needs input / Needs answer), and only an approval's Deny or Reject
+  is red, not every "No".
 
 **T2. Run result** · resolved in `4.12.2` · *Clarify*
 - "Review changes" is now the one primary action, with handoff editing secondary. The earlier journey audit's

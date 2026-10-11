@@ -1,14 +1,12 @@
 <script lang="ts">
-  import { needsInputText } from './questions';
+  import { bannerQuestions, needsYouText } from './questions';
   import { oneLine } from './format';
   import { globalHref, router, taskHref } from './router.svelte';
   import { app } from './state.svelte';
 
   // Questions come from every project: what needs you is never hidden by the project you happen to be in, so the
   // banner names the project, and leads to the Control Center when there are several.
-  /** Questions the user is not already looking at: not the ones on the task page they have open, nor, on a project's
-   *  Overview, that project's own (its Needs you list shows them with their answers). */
-  const others = $derived(app.questions.filter((q) => q.taskId !== router.taskId && !(router.view === 'overview' && q.projectId === router.projectId)));
+  const others = $derived(bannerQuestions(app.questions, router));
   const onControlCenter = $derived(router.view === 'control');
   const first = $derived(others[0]);
   const info = $derived(first ? app.taskInfo(first.taskId, first.projectId) : undefined);
@@ -21,7 +19,7 @@
     <a class="banner" {href}>
       <span class="num pend" aria-hidden="true">{others.length}</span>
       <span class="text">
-        <strong>{needsInputText(others.length)}</strong>
+        <strong>{needsYouText(others.length)}</strong>
         <span class="what">{title}: {oneLine(first.prompt, 110)}</span>
       </span>
       <span class="go">{others.length === 1 ? 'Answer' : 'Review'} →</span>

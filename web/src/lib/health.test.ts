@@ -59,7 +59,7 @@ describe('severity', () => {
 
   it('calls housekeeping housekeeping, not a problem', () => {
     expect(severityLabel('info')).toBe('Housekeeping');
-    expect(severityLabel('attention')).toBe('Needs attention');
+    expect(severityLabel('attention')).toBe('Attention');
     expect(severityLabel('risk')).toBe('Risk');
     expect(severityLabel('critical')).toBe('Critical');
     expect(severityTone('info')).toBe('neutral');

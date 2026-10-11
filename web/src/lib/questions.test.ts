@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from './api';
 import {
   QuestionBook,
+  bannerQuestions,
   answerLine,
   choicesOf,
   closedText,
@@ -12,7 +13,7 @@ import {
   isAllow,
   isDeny,
   kindLabel,
-  needsInputText,
+  needsYouText,
   pageTitle,
   takesText,
 } from './questions';
@@ -55,10 +56,20 @@ describe('how questions are described', () => {
 
   it('tells grants from refusals', () => {
     for (const o of ['Allow', 'allow', 'Yes', 'Approve', 'Proceed with the plan']) expect(isAllow(o)).toBe(true);
-    for (const o of ['Deny', 'No', 'Decline', 'Cancel']) expect(isDeny(o)).toBe(true);
+    for (const o of ['Deny', 'deny', 'Reject']) expect(isDeny(o, 'approval')).toBe(true);
     expect(isAllow('Allow for this session')).toBe(true);
     expect(isAllow('Postgres')).toBe(false);
-    expect(isDeny('Notes')).toBe(false); // "No" at the start of a word is not a refusal
+    expect(isDeny('Notes', 'approval')).toBe(false);
+  });
+
+  it('does not paint a plain "No" red', () => {
+    // A refusal of a permission is drawn as one; a "No" to a question is just an answer.
+    for (const o of ['No', 'Decline', 'Cancel', 'Stop']) {
+      expect(isDeny(o, 'decision')).toBe(false);
+      expect(isDeny(o, 'approval')).toBe(false);
+    }
+    expect(isDeny('Deny', 'decision')).toBe(false);
+    expect(isDeny('Deny')).toBe(false);
   });
 
   it('folds long context away, so choices stay on screen', () => {
@@ -78,9 +89,9 @@ describe('how questions are described', () => {
 
   it('puts the count in the tab title and the banner', () => {
     expect(pageTitle(0)).toBe('Werkbord');
-    expect(pageTitle(3)).toBe('(3) Needs input · Werkbord');
-    expect(needsInputText(1)).toBe('1 question needs your input');
-    expect(needsInputText(2)).toBe('2 questions need your input');
+    expect(pageTitle(3)).toBe('(3) Needs you · Werkbord');
+    expect(needsYouText(1)).toBe('1 question needs you');
+    expect(needsYouText(2)).toBe('2 questions need you');
   });
 });
 
@@ -211,5 +222,24 @@ describe('answerLine', () => {
     const policy = answerLine(q({ answeredBy: 'policy', answer: 'Decide this yourself.' }));
     expect(policy).toMatch(/You were not asked/);
     expect(policy).not.toMatch(/Decide this yourself/); // the agent's instruction is not put in the user's mouth
+  });
+});
+
+describe('the banner states a question once', () => {
+  const here = q({ id: 'qst_a', taskId: 'tsk_a', projectId: 'prj_1' });
+  const open = q({ id: 'qst_b', taskId: 'tsk_b', projectId: 'prj_1' });
+  const other = q({ id: 'qst_c', taskId: 'tsk_c', projectId: 'prj_2' });
+  const all = [here, open, other];
+
+  it('keeps every question on screens that do not ask them', () => {
+    for (const view of ['calendar', 'timeline', 'git', 'projects', 'settings']) expect(bannerQuestions(all, { view, projectId: 'prj_1' })).toEqual(all);
+  });
+
+  it('leaves out the project\'s own on the screens that answer them: Overview, Board and Runs', () => {
+    for (const view of ['overview', 'board', 'runs']) expect(bannerQuestions(all, { view, projectId: 'prj_1' })).toEqual([other]);
+  });
+
+  it('leaves out the task whose panel is open, and nothing else', () => {
+    expect(bannerQuestions(all, { view: 'task', projectId: 'prj_1', taskId: 'tsk_a' })).toEqual([open, other]);
   });
 });

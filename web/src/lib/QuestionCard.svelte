@@ -10,6 +10,7 @@
     isAllow,
     isDeny,
     kindLabel,
+    kindNoun,
     takesText,
   } from './questions';
   import { app } from './state.svelte';
@@ -72,7 +73,7 @@
 <div class="ask" data-kind={question.kind} role="group" aria-label="{kindLabel(question.kind)}: {question.prompt}">
   {#if showMeta}
     <div class="meta">
-      <span class="kind">{kindLabel(question.kind)}</span>
+      <span class="kind">Needs you · {kindNoun(question.kind)}</span>
       <time datetime={question.askedAt}>asked {timeAgo(question.askedAt, app.now)}</time>
     </div>
   {/if}
@@ -94,7 +95,7 @@
         <button
           class="btn choice"
           class:primary={isAllow(o)}
-          class:danger={isDeny(o)}
+          class:danger={isDeny(o, question.kind)}
           disabled={busy || disabled}
           onclick={() => answer(o)}
         >

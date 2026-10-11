@@ -40,9 +40,11 @@ export function freeTextHint(q: Question): string {
   }
 }
 
-/** Whether a choice grants something (so it is drawn as the main action) or refuses it. */
+/** Whether a choice grants something, so it is drawn as the main action. */
 export const isAllow = (o: string) => /^(allow|yes|approve|accept|proceed|continue)\b/i.test(o);
-export const isDeny = (o: string) => /^(deny|no|decline|reject|cancel|stop)\b/i.test(o);
+/** Whether a choice refuses a permission. Only an approval's Deny or Reject is drawn as a refusal: a plain "No" to a
+ *  decision is an answer like any other, and painting it red reads as a warning about something that is safe. */
+export const isDeny = (o: string, kind?: QuestionKind) => kind === 'approval' && /^(deny|reject)\b/i.test(o);
 
 /** The choices to draw for a question: its options, or Allow/Deny for an approval without any. */
 export function choicesOf(q: Question): string[] {
@@ -119,12 +121,27 @@ export function describeAnswerFailure(err: unknown): AnswerFailure {
 
 /** The page title, which shows on a tab or a notification badge even when the app is in the background. */
 export function pageTitle(pending: number, base = 'Werkbord'): string {
-  return pending > 0 ? `(${pending}) Needs input · ${base}` : base;
+  return pending > 0 ? `(${pending}) Needs you · ${base}` : base;
+}
+
+/** Screens of a project that ask its questions themselves, each with its answer: the Overview's Needs you list, the
+ *  Board's cards and the Runs rows. */
+const ASKS_ITS_OWN = new Set(['overview', 'board', 'runs']);
+
+/**
+ * The questions the banner states: those the person is not already looking at. Not the task whose panel is open, and
+ * not, on a screen that asks them itself, that project's own. One question is stated once on any screen.
+ */
+export function bannerQuestions<Q extends Pick<Question, 'taskId' | 'projectId'>>(
+  questions: readonly Q[],
+  at: { view: string; projectId?: string; taskId?: string },
+): Q[] {
+  return questions.filter((q) => q.taskId !== at.taskId && !(ASKS_ITS_OWN.has(at.view) && q.projectId === at.projectId));
 }
 
 /** "1 question needs you", "3 questions need you". */
-export function needsInputText(n: number): string {
-  return n === 1 ? '1 question needs your input' : `${n} questions need your input`;
+export function needsYouText(n: number): string {
+  return n === 1 ? '1 question needs you' : `${n} questions need you`;
 }
 
 /**

@@ -127,7 +127,16 @@ heading (the provider chooser, New, Close) and the box.
   project and detail, and names its next action. Individual questions expand in place with context before choices; answering uses the owning controller and stays disabled for stale or offline reports. Team rows open the owning workspace. Saved answers remain awaiting acknowledgment until the runner confirms delivery. Only the first urgent or actionable item has primary emphasis.
 
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).
-- Inline actions on cards: Start, Approve/Deny, Reply, Merge…, Move to Review, Run again.
+- Inline actions on cards: Start, Approve/Deny, Reply, Merge…, Move to Review, Run again. A Runs row whose run waits on a
+  question has an Answer button that opens the same question card beneath the row.
+- **One name: "Needs you".** The rail and tab, the run status, the card's eyebrow ("Needs you · Decision"), the page title,
+  the banner ("1 question needs you") and the notification all say it; a row's kind in the list is its plain type
+  (Question, Blocked, Failed). Nothing says "Needs input", "Needs answer" or "Needs attention" for the same thing.
+- **A question is stated once per screen.** The banner stays out of the way where the question is already asked with its
+  answer: the task panel that has it open, and the project's Overview, Board and Runs. In the task panel the dock below
+  the feed is the one statement; the feed shows the question again once it is answered, and the status line does not.
+- **Only a refusal of a permission is red.** An approval's Deny or Reject is drawn as a refusal; a "No" to a decision is an
+  answer like Yes, in the neutral button.
 - What needs a person is one list (`lib/attention.ts`): Needs you shows it for every project in
   segments, a project's Overview for that project. Each item is answerable where it is shown.
 - Numbers are only what was measured: the run history strip colours half hours by real runs; usage says

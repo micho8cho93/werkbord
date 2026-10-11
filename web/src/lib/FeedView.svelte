@@ -9,7 +9,10 @@
     hasMore = false,
     loadingOlder = false,
     onOlder,
-  }: { items: FeedItem[]; hasMore?: boolean; loadingOlder?: boolean; onOlder?: () => void } = $props();
+    answeredBelow = new Set<string>(),
+  }: { items: FeedItem[]; hasMore?: boolean; loadingOlder?: boolean; onOlder?: () => void;
+    /** Questions the screen already asks, with their answers, elsewhere: the feed keeps them out until they are settled. */
+    answeredBelow?: ReadonlySet<string> } = $props();
 
   const when = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 </script>
@@ -68,7 +71,7 @@
         <time datetime={item.at}>{when(item.at)}</time>
         {#if item.detail}<span class="detail">{item.detail}</span>{/if}
       </li>
-    {:else if item.kind === 'question'}
+    {:else if item.kind === 'question' && !(item.question.state === 'pending' && answeredBelow.has(item.question.id))}
       {@const q = item.question}
       <li class="asked" data-state={q.state}>
         <span class="who">{q.kind === 'approval' ? 'Asked permission' : `${kindNoun(q.kind)} for you`}</span>
