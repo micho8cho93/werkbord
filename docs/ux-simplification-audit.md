@@ -267,9 +267,7 @@ Also corrected: DESIGN.md's phone tab list (it said five tabs).
 In order of expected value. Each needs a product decision or a larger change than this pass allowed.
 
 1. **B2 · Move finished work to Review automatically** (High) · **implemented**. `internal/service/runs.go` checks local branch divergence before completion; remote completion uses valid differing base/HEAD commits. Only Doing moves, with one normal versioned task event. Scheduled and remote paths use the same rule (`runner_events.go`). Tests cover no evidence, failure, stop, prior moves, scheduling, stale versions and replay. Team progress deliberately leaves ticket status alone; submission remains explicit (see INTEGRATION.md).
-2. **A2 · Answer from the desktop Inbox** (High). Carry the question's options and context in the workspace summary,
-   then answer inline for the person's own workspace. Approvals stay disabled until the context is visible, and Team
-   rows stay open-only.
+2. **A2 · Answer from the desktop Inbox** (High) · **implemented**. Optional question context in `internal/workspace` and `service/workspace.go` is Individual needs_input only; cleaning strips it elsewhere. `shell/Inbox.svelte` expands the reused `QuestionCard`, shows full context before choices, focuses no choice, and disables stale/offline reports (30 seconds without refresh), with last-report time. The existing native relay and Individual credential call the existing answer endpoint; controller conflicts and saved-but-unacknowledged replies are retained. Team rows say Open. Tests cover summary boundaries, response semantics and the real shell/controller answer/reconnect flow.
 3. **F1 · A one-line execution summary in New task** (Medium). Verify with a short comprehension test first, because
    the permissions sentence is deliberate.
 4. **C1 · Name the two lists apart.** "Not scheduled to run" (Calendar) and "Not planned yet" (Timeline), with each

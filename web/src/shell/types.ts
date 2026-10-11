@@ -72,6 +72,12 @@ export interface ExecutionReport {
   pendingRequests?: ('send' | 'respond' | 'stop' | 'finish')[];
 }
 
+export interface InboxQuestion {
+  id: string; runId: string; projectId: string; taskId: string;
+  kind: 'clarification' | 'decision' | 'approval' | 'selection' | 'instruction';
+  prompt: string; options?: string[]; allowFreeText: boolean; context?: string; askedAt: string;
+}
+
 export interface Attention {
   id: string;
   kind: string;
@@ -81,6 +87,7 @@ export interface Attention {
   href?: string;
   project?: string;
   at?: string;
+  question?: InboxQuestion;
 }
 
 export interface Scheduled {

@@ -201,3 +201,36 @@ func TestAListingPointsOnlyAtItsProvider(t *testing.T) {
 		t.Error("an unknown field was accepted")
 	}
 }
+
+func TestAnswerContextIsIndividualOnlyAndPreservesMultiline(t *testing.T) {
+	s := good()
+	q := &Question{ID: "q_1", RunID: "run_1", ProjectID: "prj_1", TaskID: "tsk_1", Kind: "approval", Prompt: "Allow command?", Context: "cd app\nrun check\t--all", Options: []string{"Allow", "Deny"}, AskedAt: s.At}
+	s.Attention[0].Question = q
+	got, _, err := Decode(strings.NewReader(encode(t, s)), IndividualID)
+	if err != nil || got.Attention[0].Question == nil || got.Attention[0].Question.Context != q.Context {
+		t.Fatalf("context lost: %+v %v", got, err)
+	}
+	s.Workspace = Entry{ID: "team:main", Kind: KindTeam, Name: "Team", State: StateReady}
+	cleaned, _ := s.Clean()
+	if cleaned.Attention[0].Question != nil {
+		t.Fatal("Team allowed an answer")
+	}
+	if s.Validate() == nil {
+		t.Fatal("Team question passed validation")
+	}
+	s = good()
+	s.Attention[0].Question = q
+	s.Attention[0].Kind = AttentionReview
+	cleaned, _ = s.Clean()
+	if cleaned.Attention[0].Question != nil {
+		t.Fatal("non-input allowed answer")
+	}
+	s.Attention[0].Kind = AttentionNeedsInput
+	bad := *q
+	bad.ID = "../outside"
+	s.Attention[0].Question = &bad
+	cleaned, _ = s.Clean()
+	if cleaned.Attention[0].Question != nil {
+		t.Fatal("unsafe identifier allowed answer")
+	}
+}

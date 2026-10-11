@@ -234,6 +234,54 @@ type Attention struct {
 	// Project names the project it is about, when it is about one.
 	Project string    `json:"project,omitempty"`
 	At      time.Time `json:"at,omitempty"`
+	// Question is answerable only in the person's own Individual workspace.
+	Question *Question `json:"question,omitempty"`
+}
+
+// Question carries the context needed to answer; it grants no execution authority.
+type Question struct {
+	ID            string    `json:"id"`
+	RunID         string    `json:"runId"`
+	ProjectID     string    `json:"projectId"`
+	TaskID        string    `json:"taskId"`
+	Kind          string    `json:"kind"`
+	Prompt        string    `json:"prompt"`
+	Options       []string  `json:"options,omitempty"`
+	AllowFreeText bool      `json:"allowFreeText"`
+	Context       string    `json:"context,omitempty"`
+	AskedAt       time.Time `json:"askedAt"`
+}
+
+func questionText(s string, max int) bool {
+	if len(s) > max || !utf8.ValidString(s) {
+		return false
+	}
+	for _, r := range s {
+		if (r < 0x20 && r != '\n' && r != '\r' && r != '\t') || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+func (q *Question) valid() bool {
+	if q == nil {
+		return true
+	}
+	if !ValidID(q.ID) || !ValidID(q.RunID) || !ValidID(q.ProjectID) || !ValidID(q.TaskID) || q.Prompt == "" || !questionText(q.Prompt, 8<<10) || !questionText(q.Context, 16<<10) || q.AskedAt.IsZero() || len(q.Options) > 10 {
+		return false
+	}
+	switch q.Kind {
+	case "clarification", "decision", "approval", "selection", "instruction":
+	default:
+		return false
+	}
+	for _, o := range q.Options {
+		if o == "" || !plain(o, 200) {
+			return false
+		}
+	}
+	return len(q.Options) > 0 || q.AllowFreeText
 }
 
 // Scheduled is work that is set to start at a time.
@@ -421,6 +469,9 @@ func (s Summary) Validate() error {
 		}
 	}
 	for _, a := range s.Attention {
+		if a.Question != nil && (s.Workspace.Kind != KindIndividual || a.Kind != AttentionNeedsInput || !a.Question.valid()) {
+			return fmt.Errorf("workspace: question %q is not valid for this attention item", a.ID)
+		}
 		if !ValidID(a.ID) || !ValidID(a.Kind) || !a.Severity.Valid() || !plain(a.Title, MaxText) || a.Title == "" || !plain(a.Detail, MaxText) || !plain(a.Project, MaxName) || (a.Href != "" && !ValidHref(a.Href)) {
 			return fmt.Errorf("workspace: attention %q is not valid", a.ID)
 		}
@@ -494,6 +545,9 @@ func (s Summary) Clean() (Summary, int) {
 	}
 	out.Attention = make([]Attention, 0, len(s.Attention))
 	for _, a := range s.Attention {
+		if a.Question != nil && (s.Workspace.Kind != KindIndividual || a.Kind != AttentionNeedsInput || !a.Question.valid()) {
+			a.Question = nil
+		}
 		a.Title, a.Detail, a.Project = clip(a.Title, MaxText), clip(a.Detail, MaxText), clip(a.Project, MaxName)
 		if ValidID(a.ID) && ValidID(a.Kind) && a.Severity.Valid() && a.Title != "" && (a.Href == "" || ValidHref(a.Href)) && len(out.Attention) < MaxAttention {
 			out.Attention = append(out.Attention, a)

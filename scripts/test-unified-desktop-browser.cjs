@@ -124,7 +124,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const idleAction = page.getByRole('button', { name: 'Review turn: ' + importedTask.title + ' is waiting for your next message', exact: true });
  await idleAction.waitFor();
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/input`, { text: 'ask' });
- const answer = page.getByRole('button', { name: 'Answer: An agent is asking: Commit the fixture work?', exact: true });
+ const answer = page.getByRole('button', { name: 'Answer', exact: true });
  await answer.waitFor();
  assert.equal(await idleAction.count(), 0, 'an unanswered question replaces idle attention');
  const capture = async name => {
@@ -139,14 +139,31 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  };
  await capture('attention');
  await answer.click();
- await page.locator('iframe[data-workspace=personal]').waitFor({ state: 'visible' });
- await page.frameLocator('iframe[data-workspace=personal]').getByText('Commit the fixture work?', { exact: true }).first().waitFor();
- assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, 'waiting_for_user', 'Answer only opens the owning workspace; it does not respond');
+ const inline = page.getByRole('region', { name: 'Answer: Commit the fixture work?', exact: true });
+ await inline.waitFor();
+ assert.equal(await inline.locator(':focus').count(), 0, 'no choice is focused on expansion');
+ await capture('attention-expanded');
+ const realOverview = await api(origin, '', 'POST', '/fixture/call', { Method: 'Overview', Args: [] });
+ await page.route('**/fixture/call', async route => {
+   const body = route.request().postDataJSON();
+   if (body.Method !== 'Overview') return route.continue();
+   const stale = structuredClone(realOverview);
+   const own = stale.entries.find(e => e.workspace.id === 'personal');
+   own.error = 'Fixture offline'; own.summary.at = '2026-01-01T00:00:00Z';
+   return route.fulfill({ json: stale });
+ });
+ await wait(async () => !(await inline.getByRole('button', {name:'Yes',exact:true}).isEnabled()), 'stale disables choices');
+ assert(await inline.getByText(/Last reported:/).isVisible(), 'stale answer names last report');
+ await page.unroute('**/fixture/call');
+ await wait(async () => await inline.getByRole('button', {name:'No',exact:true}).isEnabled(), 'reconnected answer enabled');
+ await inline.getByRole('button', { name: 'No', exact: true }).click();
+ await wait(async () => (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).waiting === 'idle', 'inline answer reaches the runner');
+ assert.equal(await inline.count(), 0, 'settled question closes its editor');
  await page.locator('[data-page=mywork]').click();
- await individualWork.getByText('Reported: Needs answer', { exact: true }).waitFor();
+ await individualWork.getByText('Reported: Waiting for your next message', { exact: true }).waitFor();
  assert(await individualWork.getByText(/^State recorded /).isVisible(), 'source state timestamp is visible');
  await capture('mywork');
- console.log('PASS idle vs unanswered execution, named navigation-only answer action, real report timestamps and responsive light/dark attention and My Work');
+ console.log('PASS inline Individual answer, no focused choice, stale disabling, reconnect, delivery and responsive attention/My Work');
  assert(await page.getByTestId('work-item').filter({ hasText: ticket.key + ' ' + ticket.title }).locator('.state').isVisible(), 'Team status visible at native minimum');
  await page.locator('[data-page=calendar]').click(); await page.getByTestId('scheduled-item').waitFor();
  await page.screenshot({ path: path.join(artifacts, 'calendar-mobile.png'), fullPage: true }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

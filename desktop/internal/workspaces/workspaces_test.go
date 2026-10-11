@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -463,5 +464,46 @@ func TestAGrantIsNarrowNamedAndReplacesTheOneItReconnects(t *testing.T) {
 	}
 	if _, _, err := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL}, nil }).MintExecutionGrant(bg, "x"); err == nil {
 		t.Fatal("a grant was made without the credential")
+	}
+}
+
+func TestIndividualAnswerKeepsControllerSemantics(t *testing.T) {
+	for _, code := range []int{200, 409} {
+		t.Run(fmt.Sprint(code), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "POST" || r.URL.Path != "/api/projects/prj_1/questions/q_1/answer" || r.Header.Get("Authorization") != "Bearer own-token" {
+					t.Errorf("request %s %s", r.Method, r.URL.Path)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(code)
+				if code == 409 {
+					fmt.Fprint(w, `{"error":{"code":"question_answered","message":"answered elsewhere"},"question":{"id":"q_1","state":"answered","answer":"Deny"}}`)
+				} else {
+					fmt.Fprint(w, `{"id":"q_1","state":"answered","answer":"Allow"}`)
+				}
+			}))
+			defer srv.Close()
+			own := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "own-token"}, nil })
+			raw, err := own.AnswerQuestion(context.Background(), "prj_1", "q_1", "Allow")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var result struct {
+				Status int
+				Body   json.RawMessage
+			}
+			if json.Unmarshal(raw, &result) != nil || result.Status != code {
+				t.Fatalf("%s", raw)
+			}
+			if code == 409 && !strings.Contains(string(result.Body), "question_answered") {
+				t.Fatal("lost answer conflict")
+			}
+			if strings.Contains(string(result.Body), "deliveredAt") {
+				t.Fatal("invented delivery")
+			}
+			if _, err = own.AnswerQuestion(context.Background(), "../escape", "q_1", "Allow"); err == nil {
+				t.Fatal("unsafe project accepted")
+			}
+		})
 	}
 }

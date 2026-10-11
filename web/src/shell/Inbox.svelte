@@ -1,8 +1,35 @@
 <script lang="ts">
-  import { attentionAction, attentionGroups, standing } from './aggregate';
+  import { attentionAction, attentionGroups, standing, recordedTime } from './aggregate';
   import { model } from './model.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
-  import type { Overview } from './types';
+  import type { Overview, OverviewEntry } from './types';
+  import QuestionCard from '../lib/QuestionCard.svelte';
+  import { ApiError } from '../lib/api';
+  import type { Question } from '../lib/types';
+  import { ask } from './native';
+
+  let expanded = $state<Record<string, boolean>>({});
+  let settled = $state<Record<string, boolean>>({});
+  let now = $state(Date.now());
+  $effect(() => { const timer = setInterval(() => now = Date.now(), 1000); return () => clearInterval(timer); });
+  const source = (id: string): OverviewEntry | undefined => overview?.entries.find(e => e.workspace.id === id);
+  function available(id: string): boolean {
+    const e = source(id);
+    return !!e?.summary && !e.error && e.workspace.state === 'ready' && now - Date.parse(e.summary.at) < 30000;
+  }
+  async function answerWith(q: Question, answer: string): Promise<Question> {
+    if (!available('personal')) throw new Error('Individual is offline or stale. Reconnect before answering.');
+    const result = await ask(a => a.Relay('personal', 'AnswerQuestion', [{ projectId: q.projectId, questionId: q.id, answer }])) as {
+      status: number; body: Question & { error?: {code: string; message: string}; question?: Question };
+    };
+    if (result.status >= 400) throw new ApiError(result.status, result.body.error?.code ?? 'unknown', result.body.error?.message ?? 'Could not save the answer.', result.body.question);
+    return result.body;
+  }
+  function onSettled(q: Question): void {
+    settled[q.id] = true;
+    void model.refreshOverview();
+  }
+
 
   // What waits for the person or that they should know about, from every workspace: an agent's question, work that is blocked
   // or failed, a review someone asked for, and warnings about the machines a Team depends on. Worst first.
@@ -42,8 +69,18 @@
             <span class="context"><WorkspaceTag workspace={r.workspace} />{#if r.item.project}<span>{r.item.project}</span>{/if}</span>
             {#if r.item.detail}<span class="detail">{r.item.detail}</span>{/if}
           </span>
-          <button class="btn action" class:primary={group.id !== 'warnings' && group.id === groups[0].id && i === 0} type="button" onclick={() => model.open(r.workspace.id, r.item.href)} aria-label="{attentionAction(r.item)}: {r.item.title}">{attentionAction(r.item)}</button>
+          {#if r.workspace.kind === 'personal' && r.item.kind === 'needs_input' && r.item.question && !settled[r.item.question.id]}
+          <button class="btn action" type="button" aria-expanded={!!expanded[r.item.id]} aria-controls="inbox-answer-{r.item.id}" onclick={() => expanded[r.item.id] = !expanded[r.item.id]}>{expanded[r.item.id] ? 'Close answer' : 'Answer'}</button>
+          {:else if !r.item.question || !settled[r.item.question.id]}
+          <button class="btn action" class:primary={group.id !== 'warnings' && group.id === groups[0].id && i === 0} type="button" onclick={() => model.open(r.workspace.id, r.item.href)} aria-label="{r.workspace.kind === 'team' ? 'Open' : attentionAction(r.item)}: {r.item.title}">{r.workspace.kind === 'team' ? 'Open' : attentionAction(r.item)}</button>
+          {/if}
         </div>
+        {#if expanded[r.item.id] && r.workspace.kind === 'personal' && r.item.kind === 'needs_input' && r.item.question && !settled[r.item.question.id]}
+          <section class="answer" id="inbox-answer-{r.item.id}" aria-label="Answer: {r.item.question.prompt}">
+            {#if !available(r.workspace.id)}<p role="status">Answering is unavailable. Last reported: {recordedTime(source(r.workspace.id)?.summary?.at) || 'unknown'}. Open the workspace to reconnect.</p>{/if}
+            <QuestionCard question={{ ...r.item.question, state: 'pending' }} revealContext disabled={!available(r.workspace.id)} {answerWith} {onSettled} notify={(message) => model.notice = message} />
+          </section>
+        {/if}
       </li>
     {/each}
     </ul>
@@ -52,6 +89,7 @@
 </section>
 
 <style>
+  .answer { padding: 0 14px 16px 36px; }
   .page {
     padding: 28px clamp(16px, 4vw, 48px);
     max-width: 960px;

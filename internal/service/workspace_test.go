@@ -18,7 +18,7 @@ func TestTheIndividualWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {
 			{Run: domain.Run{ID: "run_1", TaskID: "tsk_1", ProjectID: "prj_1", State: domain.RunRunning, UpdatedAt: at}, ProjectName: "App", TaskTitle: "Fix login"},
 			{Run: domain.Run{ID: "run_2", TaskID: "tsk_2", ProjectID: "prj_1", State: domain.RunBlocked, Blocker: &domain.Blocker{Summary: "Two schemas fit"}}, ProjectName: "App", TaskTitle: "Migrate"},
 		},
-		Questions: []AttentionQuestion{{Question: domain.Question{ID: "q_1", TaskID: "tsk_1", ProjectID: "prj_1", Prompt: "Which database?"}, ProjectName: "App", TaskTitle: "Fix login"}},
+		Questions: []AttentionQuestion{{Question: domain.Question{ID: "q_1", RunID: "run_1", TaskID: "tsk_1", ProjectID: "prj_1", Kind: domain.QuestionDecision, Prompt: "Which database?", Context: "Compare schemas\nBefore choosing", Options: []string{"SQLite", "Postgres"}, AskedAt: at}, ProjectName: "App", TaskTitle: "Fix login"}},
 		Failed:    []AttentionRun{{Run: domain.Run{ID: "run_3", TaskID: "tsk_3", ProjectID: "prj_1", State: domain.RunFailed, Reason: "tests failed"}, ProjectName: "App", TaskTitle: "Refactor"}},
 		Review:    []AttentionReview{{Task: domain.Task{ID: "tsk_4", ProjectID: "prj_1", Title: "Docs"}, ProjectName: "App"}},
 		Orchestration: []AttentionSchedule{{Task: domain.Task{ID: "tsk_5", ProjectID: "prj_1", Title: "Nightly", Orchestration: domain.Orchestration{ScheduledAt: &at, Timezone: "Europe/Paris"}},
@@ -44,6 +44,12 @@ func TestTheIndividualWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {
 	kinds := map[string]bool{}
 	for _, a := range got.Attention {
 		kinds[a.Kind] = true
+		if a.Kind == workspace.AttentionNeedsInput && (a.Question == nil || a.Question.ID != "q_1" || a.Question.RunID != "run_1" || a.Question.Context != "Compare schemas\nBefore choosing" || len(a.Question.Options) != 2 || !a.Question.AskedAt.Equal(at)) {
+			t.Fatalf("question context lost: %+v", a.Question)
+		}
+		if a.Kind != workspace.AttentionNeedsInput && a.Question != nil {
+			t.Fatal("question on non-input item")
+		}
 	}
 	for _, want := range []string{workspace.AttentionNeedsInput, workspace.AttentionBlocked, workspace.AttentionFailed, workspace.AttentionReview} {
 		if !kinds[want] {

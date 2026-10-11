@@ -296,7 +296,7 @@ func (s *Shell) PendingInvitation() string {
 // always could (to open a link in the browser, to choose a folder for a project, to update); a Team page may ask to connect
 // the person's runner to its own workspace and to start or stop the Team service. Neither may ask what the other may.
 var relayable = map[workspace.Kind]map[string]bool{
-	workspace.KindIndividual: {"Info": true, "OpenExternal": true, "ChooseDirectory": true, "ChooseFiles": true, "RequestUpdate": true, "UpdateStatus": true},
+	workspace.KindIndividual: {"AnswerQuestion": true, "Info": true, "OpenExternal": true, "ChooseDirectory": true, "ChooseFiles": true, "RequestUpdate": true, "UpdateStatus": true},
 	workspace.KindTeam:       {"Info": true, "OpenExternal": true, "ConnectRunner": true, "TeamService": true, "PendingInvitation": true},
 }
 
@@ -325,6 +325,37 @@ func (s *Shell) Relay(id, method string, args []json.RawMessage) (any, error) {
 		return nil
 	}
 	switch method {
+	case "AnswerQuestion":
+		var in struct {
+			ProjectID  string `json:"projectId"`
+			QuestionID string `json:"questionId"`
+			Answer     string `json:"answer"`
+		}
+		if err := one(&in); err != nil {
+			return nil, err
+		}
+		client, ok := s.o.Grants.(interface {
+			AnswerQuestion(context.Context, string, string, string) (json.RawMessage, error)
+		})
+		if !ok {
+			return nil, errors.New("Individual answering is unavailable")
+		}
+		ctx, cancel := s.timeout(15 * time.Second)
+		defer cancel()
+		// Recheck availability immediately before a mutation, not just when the Inbox loaded.
+		ov := s.o.Workspaces.Overview(ctx)
+		for _, e := range ov.Entries {
+			if e.Workspace.ID == id && e.Workspace.State == workspace.StateReady && e.Error == "" && e.Summary != nil && time.Since(e.Summary.At) < 30*time.Second {
+				for _, a := range e.Summary.Attention {
+					if a.Kind == workspace.AttentionNeedsInput && a.Question != nil && a.Question.ID == in.QuestionID && a.Question.ProjectID == in.ProjectID {
+						return client.AnswerQuestion(ctx, in.ProjectID, in.QuestionID, in.Answer)
+					}
+				}
+				// The endpoint, rather than a stale Inbox, decides whether another person answered first.
+				return client.AnswerQuestion(ctx, in.ProjectID, in.QuestionID, in.Answer)
+			}
+		}
+		return nil, errors.New("Individual is offline or stale. Reconnect before answering.")
 	case "Info":
 		return s.Info(), none()
 	case "OpenExternal":

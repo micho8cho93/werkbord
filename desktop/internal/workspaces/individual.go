@@ -212,3 +212,44 @@ func (p *Individual) send(ctx context.Context, base, key, method, path string, i
 	}
 	return nil
 }
+
+// AnswerQuestion uses the same controller endpoint as its page. The response
+// envelope preserves question_answered/question_closed and delivery timestamps.
+// No controller credential or arbitrary URL is exposed to the shell.
+func (p *Individual) AnswerQuestion(ctx context.Context, project, question, answer string) (json.RawMessage, error) {
+	if !workspace.ValidID(project) || !workspace.ValidID(question) || strings.TrimSpace(answer) == "" || len(answer) > 16<<10 {
+		return nil, errors.New("invalid question answer")
+	}
+	a, err := p.Access(ctx)
+	if err != nil {
+		return nil, err
+	}
+	base, err := CheckBase(a.Base)
+	if err != nil {
+		return nil, err
+	}
+	body, _ := json.Marshal(map[string]string{"answer": answer})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/projects/"+url.PathEscape(project)+"/questions/"+url.PathEscape(question)+"/answer", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+a.Token)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := p.hc.Do(req)
+	if err != nil {
+		return nil, errors.New("Cannot confirm whether your answer was saved. Reconnect before trying again.")
+	}
+	defer res.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(res.Body, 64<<10))
+	if err != nil {
+		return nil, err
+	}
+	if !json.Valid(raw) {
+		return nil, errors.New("The controller returned an unreadable answer result. Reconnect to check the question.")
+	}
+	// Include status so the shell can reuse the page's answer error semantics.
+	return json.Marshal(struct {
+		Status int             `json:"status"`
+		Body   json.RawMessage `json:"body"`
+	}{res.StatusCode, raw})
+}

@@ -15,7 +15,11 @@
   import { app } from './state.svelte';
   import type { Question } from './types';
 
-  let { question, showMeta = true }: { question: Question; showMeta?: boolean } = $props();
+  let { question, showMeta = true, disabled = false, revealContext = false,
+    answerWith = api.answerQuestion, onSettled = (q: Question) => app.resolveQuestion(q), notify = (message: string) => app.notify(message),
+  }: { question: Question; showMeta?: boolean; disabled?: boolean; revealContext?: boolean;
+    answerWith?: (q: Question, answer: string) => Promise<Question>; onSettled?: (q: Question) => void; notify?: (message: string) => void;
+  } = $props();
 
   let text = $state('');
   /** The choice being sent, so its button can say so. */
@@ -33,21 +37,21 @@
 
   async function answer(value: string) {
     value = value.trim();
-    if (!value || busy) return;
+    if (!value || busy || disabled) return;
     busy = true;
     sending = value;
     error = '';
     try {
-      const settled = await api.answerQuestion(question, value);
-      app.resolveQuestion(settled);
-      if(settled.state === "answered" && !settled.deliveredAt) app.notify("Answer saved. Waiting for the runner to acknowledge delivery.");
+      const settled = await answerWith(question, value);
+      onSettled(settled);
+      if(settled.state === "answered" && !settled.deliveredAt) notify("Answer saved. Waiting for the runner to acknowledge delivery.");
       text = '';
     } catch (err) {
       const failure = describeAnswerFailure(err);
       if (failure.settled) {
         // Someone else answered, or the agent moved on: say so, and stop offering it.
-        app.resolveQuestion(question);
-        app.notify(failure.message);
+        onSettled(question);
+        notify(failure.message);
       } else {
         error = failure.message; // the typed answer stays, so trying again is one tap
       }
@@ -75,7 +79,9 @@
 
   <p class="prompt">{question.prompt}</p>
 
-  {#if question.context}
+  {#if question.context && revealContext}
+    <pre class="full-context">{question.context}</pre>
+  {:else if question.context}
     <details class="context" open={!long}>
       <summary>{contextSummary(question.context)}</summary>
       <pre>{question.context}</pre>
@@ -89,7 +95,7 @@
           class="btn choice"
           class:primary={isAllow(o)}
           class:danger={isDeny(o)}
-          disabled={busy}
+          disabled={busy || disabled}
           onclick={() => answer(o)}
         >
           {sending === o ? 'Sending…' : o}
@@ -111,6 +117,7 @@
         <textarea
           id="answer-{question.id}"
           class="input"
+          disabled={busy || disabled}
           rows="2"
           placeholder={freeTextHint(question)}
           bind:value={text}
@@ -121,13 +128,14 @@
         <input
           id="answer-{question.id}"
           class="input"
+          disabled={busy || disabled}
           placeholder={freeTextHint(question)}
           autocomplete="off"
           bind:value={text}
           onkeydown={onKey}
         />
       {/if}
-      <button class="btn primary" type="submit" disabled={busy || !text.trim()}>
+      <button class="btn primary" type="submit" disabled={busy || disabled || !text.trim()}>
         {busy && sending === text.trim() ? 'Sending…' : 'Send'}
       </button>
     </form>
@@ -139,6 +147,7 @@
 </div>
 
 <style>
+  .full-context { margin: 0; padding: 10px; background: var(--surface-2); border-radius: var(--radius-sm); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 var(--mono); }
   .ask {
     display: grid;
     gap: 10px;
