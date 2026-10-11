@@ -67,7 +67,7 @@ is independent. Agent/model/interaction/priority retain the existing hierarchy.
 
 `GET /api/projects/{pid}/schedule` returns decisions with explicit reasons:
 `runnable`, `queued`, `waiting_dependency`, `waiting_schedule`, `waiting_capacity`,
-`potentially_conflicting`, or `blocked`. The Control Center keeps Needs Input,
+`potentially_conflicting`, or `blocked`. Needs you keeps Needs Input,
 Blocked, Failed and Review prominent, with Scheduled/Queued/Waiting on Dependency
 below. Board cards and Calendar show the same decisions.
 

@@ -156,10 +156,12 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         console.log('PASS Enter-to-send, Shift+Enter newline, readable handoff, header Stop, close/archive/history/restore');
 
         await page.goto(base + `/#/p/${p.id}/board`);
+        if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
         await page.getByRole('button', { name: 'Back to board', exact: true }).click();
         let finished = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Clear Done fixture', description: 'Details to recall' });
         finished = await api('PATCH', `/api/projects/${p.id}/tasks/${finished.id}`, { version: finished.version, state: 'done' });
         await page.goto(base + `/#/p/${p.id}/board`);
+        if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
         await page.getByRole('button', { name: 'Clear Done', exact: true }).click();
         await page.getByRole('button', { name: /^Archive/ }).click();
         await page.getByRole('link', { name: finished.title, exact: true }).waitFor();
@@ -183,7 +185,8 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).fill('Recover saved task fixture');
         assert.equal(await page.getByRole('region', { name: 'Execution summary', exact: true }).isVisible(), true);
         assert.equal(await page.locator('#new-task-form > details[open], #new-task-form .exec > details[open]').count(), 0);
-        assert.equal(await page.getByText('Ask me when needed · from the built-in default', { exact: true }).isVisible(), true);
+        assert.equal(await page.getByText('Permission requests still come to you.', { exact: true }).isVisible(), true);
+        assert.match(await page.locator('.exec > strong').innerText(), / on .* · Ask me when needed/);
         await page.waitForTimeout(300);
         await page.screenshot({ path: path.join(artifacts, 'creation-mobile-light.png') });
         let launches = 0;

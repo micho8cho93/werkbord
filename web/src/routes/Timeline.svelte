@@ -177,6 +177,7 @@
     {:else if dated.length === 0}
       <div class="empty">
         <p>{filtering ? 'No planned work matches the filters.' : 'Nothing is planned yet.'}</p>
+        <p class="muted">To choose when an agent runs, use Calendar.</p>
         <p class="muted">Give a task a start and end date (or make it a milestone) and it appears here. {undated.length ? 'Tasks without dates are listed below.' : ''}</p>
       </div>
     {:else}

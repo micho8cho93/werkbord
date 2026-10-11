@@ -1228,8 +1228,8 @@ function repositoryTab(d) {
           h('td', {}, b.stale ? h('span', { class: 'badge warn' }, 'stale') : b.active ? h('span', { class: 'badge' }, 'active') : '')))))
     : h('p', { class: 'muted' }, 'No branches reported yet.');
   return h('div', {},
-    sectionButtons('repoSection', [['attention', 'Needs attention', r.attention.length], ['prs', 'Pull requests', r.pullRequests.length], ['branches', 'Branches', r.branches.length]], 'Repository sections'),
-    state.repoSection === 'attention' ? h('div', { class: 'panel' }, h('h2', {}, 'Needs attention'), attention) : '',
+    sectionButtons('repoSection', [['attention', 'Needs you', r.attention.length], ['prs', 'Pull requests', r.pullRequests.length], ['branches', 'Branches', r.branches.length]], 'Repository sections'),
+    state.repoSection === 'attention' ? h('div', { class: 'panel' }, h('h2', {}, 'Needs you'), attention) : '',
     state.repoSection === 'prs' ? h('div', { class: 'panel' }, h('h2', {}, 'Pull requests'), prs) : '',
     state.repoSection === 'branches' ? h('div', { class: 'panel scroll' }, h('h2', {}, 'Branches'), branches,
       h('p', { class: 'muted small' }, 'A branch is stale after ' + r.staleAfterDays + ' days without activity.')) : '');

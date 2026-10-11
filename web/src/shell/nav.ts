@@ -20,7 +20,7 @@ export interface NavEntry {
 export function entries(kind: Kind): NavEntry[] {
   if (kind === 'personal') {
     return [
-      { key: 'home', title: 'Control Center', icon: 'overview', place: '#/control' },
+      { key: 'home', title: 'Needs you', icon: 'overview', place: '#/control' },
       { key: 'projects', title: 'Projects', icon: 'folder', place: '#/projects' },
     ];
   }

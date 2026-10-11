@@ -71,7 +71,7 @@
         <ul class="feed">
           {#each items.slice(0, 3) as item (item.key)}<AttentionCard {item} showProject={false} />{/each}
         </ul>
-        {#if items.length > 3}<a class="more" href={globalHref('control')}>{items.length - 3} more in the Control Center →</a>{/if}
+        {#if items.length > 3}<a class="more" href={globalHref('control')}>{items.length - 3} more in Needs you →</a>{/if}
       {:else}
         <p class="muted small">Nothing here needs you. Agents are working or waiting for work.</p>
       {/if}

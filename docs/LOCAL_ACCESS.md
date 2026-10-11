@@ -21,7 +21,7 @@ the change being read):
 
 | | |
 | --- | --- |
-| **See** | the projects, a project's tasks, runs and questions, the runners, the Control Center, and its own access |
+| **See** | the projects, a project's tasks, runs and questions, the runners, Needs you, and its own access |
 | **Hand over a task** | `POST /api/projects/{id}/tasks`, with a title, a description, where it came from and the branches. Not the task's execution settings or its schedule: those are yours |
 | **Start, stop, answer** | start a task's run **with the task's own configuration** (it cannot name an agent, a model, a policy, extra instructions or a runner), stop a run, answer an agent's question |
 

@@ -19,17 +19,13 @@
   // Everything that is set once and changed rarely, one section at a time: each has its own
   // address (#/settings?runners), so the rail and other pages link straight to it.
 
-  const SECTIONS = [
-    { id: 'defaults', label: 'Task defaults' },
-    { id: 'labels', label: 'Labels' },
-    { id: 'runners', label: 'Runners' },
-    { id: 'routing', label: 'Routing rules' },
-    { id: 'phone', label: 'Phone access' },
-    { id: 'github', label: 'GitHub' },
-    { id: 'agents', label: 'Agents' },
-    { id: 'alerts', label: 'Alerts and theme' },
-    { id: 'computer', label: 'This computer' },
+  const GROUPS = [
+    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'labels', label: 'Labels' }, { id: 'routing', label: 'Routing rules' }] },
+    { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
+    { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'github', label: 'GitHub' }] },
+    { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and theme' }] },
   ] as const;
+  const SECTIONS = GROUPS.flatMap(g => [...g.sections]);
   type SectionId = (typeof SECTIONS)[number]['id'];
   const section = $derived<SectionId>(SECTIONS.find((s) => s.id === router.query)?.id ?? 'defaults');
   const href = (id: SectionId) => (id === 'defaults' ? globalHref('settings') : `${globalHref('settings')}?${id}`);
@@ -108,8 +104,15 @@
 
 <div class="settings">
   <nav class="sections" aria-label="Settings sections">
-    {#each SECTIONS as s (s.id)}
-      <a href={href(s.id)} aria-current={section === s.id ? 'page' : undefined}>{s.label}</a>
+    {#each GROUPS as group (group.label)}
+      <div class="section-group" role="group" aria-label={group.label}>
+        <h2>{group.label}</h2>
+        <div class="section-links">
+          {#each group.sections as s (s.id)}
+            <a href={href(s.id)} aria-current={section === s.id ? 'page' : undefined}>{s.label}</a>
+          {/each}
+        </div>
+      </div>
     {/each}
   </nav>
 
@@ -225,6 +228,9 @@
 </div>
 
 <style>
+  .section-group + .section-group { margin-top: 20px; }
+  .section-group h2 { margin: 0 12px 6px; font-size: 12px; font-weight: 500; color: var(--text-2); }
+  .section-links { display: flex; flex-direction: column; gap: 2px; }
   .settings {
     height: 100%;
     min-height: 0;
@@ -339,6 +345,11 @@
       padding: 0 16px 8px;
       border-right: 0;
     }
+
+    .section-group { flex: none; }
+    .section-group + .section-group { margin-top: 0; margin-left: 16px; }
+    .section-group h2 { margin-left: 0; }
+    .section-links { flex-direction: row; gap: 6px; }
 
     .sections a {
       flex: none;

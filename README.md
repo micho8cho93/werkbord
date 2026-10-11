@@ -78,7 +78,7 @@ it. The selected runner owns the processes, so a closed browser does not interru
 
 **Projects are the scope.** Each repository is a project with its own board, Calendar, Git view, activity and
 runs, and inside one you see that project and nothing else. Switch with the project switcher (the
-project name at the top on a phone; Ctrl/⌘ K anywhere). The **Control Center** is the one view across
+project name at the top on a phone; Ctrl/⌘ K anywhere). The **Needs you** is the one view across
 all projects: what needs you, wherever it is.
 
 **Flexible work organization.** Put your own labels (names and colours you choose, shared by all projects) on any
@@ -106,7 +106,7 @@ starts a fresh run with another agent/model for implementation, review or fixes.
 **Multiple runners.** Pair your own machines from Settings → Runners with `werkbord join <code>`.
 Assign a task to a specific machine or use deterministic automatic routing based on repository access,
 agent availability, resources and capacity. Disconnected machines retain ownership until their work is
-reconciled. Control Center shows workloads and measured usage; unknown tokens and costs stay unknown.
+reconciled. Needs you shows workloads and measured usage; unknown tokens and costs stay unknown.
 See [docs/RUNNERS.md](docs/RUNNERS.md) for pairing, repositories, recovery, routing rules and economics.
 
 **Git Control Center.** Each project's Git section shows what the agents' branches look like and lets you act
@@ -120,7 +120,7 @@ refuses rather than guesses. Nothing is ever forced, and **an agent finishing a 
 **Repository health.** The Git screen leads with *Healthy*, or with what is wrong (`1 risk · 3 items need attention`):
 findings that say what, why, the evidence, the next step, and whether Werkbord can do it. A finding can open an editable Backlog task, or an editable investigation task where you choose the agent and interaction policy before starting it. They are worked out from
 Git metadata and Werkbord's own records, never by a model, are recalculated when something changes (not on a timer),
-and never act on their own. The Control Center is for exceptions: needs input, blocked, failed, ready for review, and
+and never act on their own. Needs you is for exceptions: needs input, blocked, failed, ready for review, and
 repository risk. See [docs/HEALTH.md](docs/HEALTH.md).
 
 **Setup and defaults.** First-run setup is a single page, not a wizard: this computer (already your runner),
@@ -192,7 +192,7 @@ In another terminal, register a repository (the CLI finds the token by itself):
 ```
 
 Then open the board, tap a task and press *Start agent*. A project's page is
-`#/p/<project id>/board`; `#/control` is the Control Center.
+`#/p/<project id>/board`; `#/control` is Needs you.
 
 Other commands: `werkbord project list`, `werkbord token`, `werkbord migrate`,
 `werkbord version`. Run
@@ -242,7 +242,7 @@ Then "Add to Home Screen". Details, the security model and troubleshooting: [doc
 The controller on this computer still listens on `127.0.0.1` only; the private network is a second door that
 only your devices can reach, and it demands the access token like any other. Nothing is exposed to the Internet.
 
-Browser notifications are optional and can be enabled in the Control Center. They are generated
+Browser notifications are optional and can be enabled in Needs you. They are generated
 by the connected browser for questions, blocked or failed runs, completed work and important
 repository risks. The controller does not run a push relay: if the browser or installed app is
 closed, backgrounded by the operating system, or disconnected long enough to suspend its event

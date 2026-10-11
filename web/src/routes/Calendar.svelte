@@ -286,7 +286,8 @@
 
     <aside class="side" aria-label="Planning">
       <section>
-        <h3>Unscheduled<span class="chip">{unscheduled.length}</span></h3>
+        <h3>Not scheduled to run<span class="chip">{unscheduled.length}</span></h3>
+        {#if !scope.activeTasks.some(t => t.orchestration?.enabled && t.orchestration.scheduledAt)}<p class="empty-s">To plan dates and milestones, use Timeline.</p>{/if}
         {#if unscheduled.length}
           <ul class="items">
             {#each unscheduled as t (t.id)}

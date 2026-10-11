@@ -11,7 +11,7 @@
 </script>
 
 <section class="card confirm" data-state={item.state} aria-label="{operationTitle(item.operation)}: {item.state === 'waiting' ? 'waiting for you' : item.state}">
-  <div class="lab">{operationTitle(item.operation)}</div>
+  <div class="lab">{operationTitle(item.operation)} <span class="status"><span class="status-dot" aria-hidden="true"></span>{item.state === 'waiting' ? 'Needs you' : item.state === 'working' ? 'Working' : item.state === 'confirmed' ? 'Done' : item.state === 'declined' ? 'Declined' : item.state === 'expired' ? 'Expired' : item.state === 'failed' ? 'Failed' : 'Closed'}</span></div>
   <p class="sum">{item.summary}</p>
 
   {#if item.state === 'waiting' || item.state === 'working'}
@@ -36,22 +36,27 @@
 </section>
 
 <style>
+  .lab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; color: var(--status-word, var(--text-2)); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-dot, var(--text-2)); }
   .confirm {
     display: flex;
     flex-direction: column;
     gap: 8px;
     padding: 14px 16px;
-    border-left: 3px solid var(--border);
   }
   .confirm[data-state='waiting'],
   .confirm[data-state='working'] {
-    border-left-color: var(--amber);
+    --status-dot: var(--amber);
+    --status-word: var(--warn-text);
   }
   .confirm[data-state='confirmed'] {
-    border-left-color: var(--ok);
+    --status-dot: var(--ok);
+    --status-word: var(--ok-text);
   }
   .confirm[data-state='failed'] {
-    border-left-color: var(--danger);
+    --status-dot: var(--danger);
+    --status-word: var(--danger-text);
   }
   .sum {
     font-size: 14px;

@@ -51,7 +51,7 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 
 ## Layout
 
-- Desktop (≥900px): a 220px rail (Control Center, projects with live counts, runners, Settings, theme)
+- Desktop (≥900px): a 220px rail (Needs you, projects with live counts, runners, Settings, theme)
   and a main column. Inside the Werkbord desktop app the window's one sidebar replaces this rail
   ([ARCHITECTURE.md §22](docs/ARCHITECTURE.md#the-window-and-its-workspaces)). Inside a project: header (path · branch, name, Jump to ⌘K, project
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
@@ -102,7 +102,7 @@ heading (the provider chooser, New, Close) and the box.
   is simply there or gone: the movement is a Web Animation, so the page checks the setting itself and the global CSS rule that
   switches off transitions is not what it relies on.
 - **Reading.** A reply is plain text on paper, 15px/1.55, no bubble; what you said is a tray (`--surface-2`) at the right. Progress is
-  one quiet line, never operation names. A change is a raised card with an amber left rule ("needs you"), turning green when done.
+  one quiet line, never operation names. A change is a raised card with a status dot and word on its label: amber for "Needs you", green for "Done", and red for "Failed".
 - **The box** is raised, 14px corners, with attach, dictate and send/stop at its edge; 16px on a phone so the page does not zoom, 44px
   targets. The send arrow is cobalt only when there is something to send.
 - **Dictation** shows the words in the box while listening. X cancels and preserves the earlier typed draft; the tick finishes into
@@ -120,12 +120,11 @@ heading (the provider chooser, New, Close) and the box.
   have different labels. Source timestamps say when the state was recorded; they do not claim agent activity. Offline
   or stale reports retain their last state with availability unknown. Pending requests remain awaiting acknowledgment.
 - The window's Needs you view orders urgent problems, actions and operational warnings. Each row preserves its workspace,
-  project and detail, and names its next action. These buttons navigate to the owning workspace; execution and approvals
-  remain there. Only the first urgent or actionable item has primary emphasis.
+  project and detail, and names its next action. Individual questions expand in place with context before choices; answering uses the owning controller and stays disabled for stale or offline reports. Team rows open the owning workspace. Saved answers remain awaiting acknowledgment until the runner confirms delivery. Only the first urgent or actionable item has primary emphasis.
 
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).
 - Inline actions on cards: Start, Approve/Deny, Reply, Merge…, Move to Review, Run again.
-- What needs a person is one list (`lib/attention.ts`): the Control Center shows it for every project in
+- What needs a person is one list (`lib/attention.ts`): Needs you shows it for every project in
   segments, a project's Overview for that project. Each item is answerable where it is shown.
 - Numbers are only what was measured: the run history strip colours half hours by real runs; usage says
   which runs reported tokens or cost.

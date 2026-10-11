@@ -32,14 +32,14 @@
 
   {#each failedSteps as step (step)}
     <div class="fail" role="alert">
-      <strong>Could not complete a board action</strong>
+      <strong><span class="status"><span class="status-dot" aria-hidden="true"></span>Failed</span>Could not complete a board action</strong>
       <p>{step.detail || 'The action failed. Ask the assistant to try again.'}</p>
     </div>
   {/each}
 
   {#if fail}
     <div class="fail" role="alert">
-      <strong>{fail.title}</strong>
+      <strong><span class="status"><span class="status-dot" aria-hidden="true"></span>Failed</span>{fail.title}</strong>
       <p>{fail.detail}</p>
       <div class="acts">
         {#if fail.action === 'retry'}<button class="btn small" type="button" onclick={() => assistant.retry()}>Try again</button>{/if}
@@ -57,6 +57,9 @@
 </article>
 
 <style>
+  .fail strong { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
   .reply {
     display: flex;
     flex-direction: column;
@@ -109,7 +112,7 @@
     gap: 6px;
     padding: 12px 14px;
     border: 1px solid var(--border);
-    border-left: 3px solid var(--danger);
+
     border-radius: var(--radius);
     background: var(--surface);
     font-size: 13px;

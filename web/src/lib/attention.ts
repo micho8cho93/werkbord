@@ -45,7 +45,7 @@ export const KIND_TONE: Record<AttentionKind, Tone> = {
 /** The Control Center's segments: each a few kinds that are dealt with the same way. */
 export const SEGMENTS: readonly { id: string; label: string; kinds: readonly AttentionKind[] }[] = [
   { id: 'all', label: 'All', kinds: ['question', 'blocked', 'schedule', 'failed', 'idle', 'risk', 'review'] },
-  { id: 'input', label: 'Needs input', kinds: ['question', 'idle'] },
+  { id: 'input', label: 'Questions', kinds: ['question', 'idle'] },
   { id: 'blocked', label: 'Blocked', kinds: ['blocked', 'schedule'] },
   { id: 'failed', label: 'Failed', kinds: ['failed'] },
   { id: 'review', label: 'Review', kinds: ['review'] },

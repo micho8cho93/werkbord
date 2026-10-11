@@ -25,10 +25,13 @@
   $effect(() => git.watch());
 
   // ---- filters ----
+  let filtersOpen = $state(false);
+  let viewingArchive = $state(false);
   let agentFilter = $state('');
   let runnerFilter = $state('');
   let priorityFilter = $state<Priority | ''>('');
   const labelFilter = $derived(filterFor(project.id));
+  const activeFilters = $derived(Number(!!agentFilter) + Number(!!runnerFilter) + Number(!!priorityFilter) + labelFilter.labels.length + Number(!!labelFilter.mode) + Number(viewingArchive));
   const filtering = $derived(!!(agentFilter || runnerFilter || priorityFilter) || filterActive(labelFilter));
 
   const effectiveOf = (t: Task): Resolved => resolveFor(t.execution, project.execution, app.globalExecution);
@@ -94,7 +97,6 @@
     return !!b && !b.merged && b.vsTarget.ahead > 0;
   }
 
-  let viewingArchive = $state(false);
   let clearingDone = $state(false);
   let pendingTasks = $state<Record<string, boolean>>({});
   async function clearDone() {
@@ -232,7 +234,8 @@
 
 <div class="view">
   <div class="bar">
-    <div class="filters" role="group" aria-label="Filter the board">
+    <button class="btn phone-filters" type="button" aria-expanded={filtersOpen} aria-controls="board-filters" onclick={() => filtersOpen = !filtersOpen}>Filters <span class="chip">{activeFilters}</span></button>
+    <div class="filters" id="board-filters" class:expanded={filtersOpen} role="group" aria-label="Filter the board">
       {#if app.agents.length > 1}
         <label class="pick" class:on={agentFilter}>
           <span>Agent</span>
@@ -371,6 +374,7 @@
 <GitSheets projectId={project.id} store={git} />
 
 <style>
+  .phone-filters { display: none; }
   .view {
     display: flex;
     flex-direction: column;
@@ -545,9 +549,12 @@
       gap: 6px 14px;
     }
 
-    .legend .zero {
-      display: none;
-    }
+    .phone-filters { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+    .filters { display: none; width: 100%; min-width: 0; }
+    .filters.expanded { display: flex; }
+    .filters :global(select) { max-width: 100%; }
+    .bar { align-items: flex-start; }
+    .legend { width: 100%; }
 
     .view {
       height: auto;

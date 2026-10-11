@@ -10,6 +10,7 @@
   // workspace (My Work, Calendar, Needs you), the open workspace's own places (its home, projects and so on), and last the
   // things about this computer (Workspaces and devices, Settings of the workspace open, the theme). The workspaces' own
   // pages carry no navigation of their own in this window.
+  const everywhereShown = $derived((model.view?.items.length ?? 0) >= 2);
   const active = $derived(model.view?.items.find((i) => i.id === model.current));
   const kind = $derived(active?.kind ?? 'personal');
   const name = $derived(active?.name ?? 'Individual');
@@ -92,6 +93,7 @@
     </button>
   </div>
 
+  {#if everywhereShown}
   <div class="group">
     <div class="lbl">Everywhere</div>
     {#each everywhere as p (p.id)}
@@ -99,11 +101,13 @@
     {/each}
   </div>
 
+  {/if}
+
   <div class="group" aria-label={name}>
     <div class="lbl" title={name}>{name}</div>
     {#if usable}
       {#each entries(kind) as e (e.key)}
-        {@render item(e.title, e.icon, here === e.key, () => model.visit(e.place), 'ws-' + e.key, e.key === 'reviews' ? reviews : 0)}
+        {@render item(e.title, e.icon, here === e.key, () => model.visit(e.place), 'ws-' + e.key, e.key === 'reviews' ? reviews : !everywhereShown && e.key === 'home' ? needs : 0)}
         {#if e.key === 'projects'}
           {#each projects as p (p.id)}
             <button class="nav proj" type="button" aria-current={here === `project:${p.id}` ? 'page' : undefined} onclick={() => model.visit(p.href)} title={p.name} data-project={p.id}>
@@ -117,6 +121,8 @@
           {/if}
         {/if}
       {/each}
+    {:else if !everywhereShown}
+      {@render item('Needs you', 'control', model.page === 'inbox', () => model.go('inbox'), 'inbox', needs)}
     {/if}
   </div>
 

@@ -268,17 +268,21 @@ In order of expected value. Each needs a product decision or a larger change tha
 
 1. **B2 · Move finished work to Review automatically** (High) · **implemented**. `internal/service/runs.go` checks local branch divergence before completion; remote completion uses valid differing base/HEAD commits. Only Doing moves, with one normal versioned task event. Scheduled and remote paths use the same rule (`runner_events.go`). Tests cover no evidence, failure, stop, prior moves, scheduling, stale versions and replay. Team progress deliberately leaves ticket status alone; submission remains explicit (see INTEGRATION.md).
 2. **A2 · Answer from the desktop Inbox** (High) · **implemented**. Optional question context in `internal/workspace` and `service/workspace.go` is Individual needs_input only; cleaning strips it elsewhere. `shell/Inbox.svelte` expands the reused `QuestionCard`, shows full context before choices, focuses no choice, and disables stale/offline reports (30 seconds without refresh), with last-report time. The existing native relay and Individual credential call the existing answer endpoint; controller conflicts and saved-but-unacknowledged replies are retained. Team rows say Open. Tests cover summary boundaries, response semantics and the real shell/controller answer/reconnect flow.
-3. **F1 · A one-line execution summary in New task** (Medium). Verify with a short comprehension test first, because
-   the permissions sentence is deliberate.
-4. **C1 · Name the two lists apart.** "Not scheduled to run" (Calendar) and "Not planned yet" (Timeline), with each
-   empty state pointing to the other. Possibly rename the tabs to Schedule and Plan.
-5. **R2 · Group the nine Settings sections** under Work, Machines, Connections and Preferences. Addresses stay the same.
-6. **N2 · One name for the attention list.** Decide whether Control Center becomes "Needs you" everywhere, or keeps
-   its name with "Needs you" as its first section. The Team console's "Needs attention" should follow.
-7. **N3 · Hide "Everywhere" with a single workspace** in the desktop sidebar (hypothesis: check with people who use
-   only Individual).
-8. **Phone board filters** take three rows above the columns at 375px. Fold Agent, Priority, Who and Archive into one
-   Filters control on phones (hypothesis).
-9. **A3 · Assistant cards:** replace the 3px coloured side stripes with a status dot and word on the card label, after
-   rendering the assistant.
-10. **U1 · Runs page brand fill:** use the space for run details, or leave it empty.
+3. **F1 · A one-line execution summary in New task** (Medium) · **implemented**. `NewTaskDialog.svelte` shows "{agent} on {runner} · {interaction}" and one line, "Permission requests still come to you." The longer interaction explanation, the permissions note and the source of the setting moved inside "Change execution settings". The busy and unavailable lines stay visible because they are actionable. The comprehension test was not run; the permissions sentence was kept rather than removed.
+4. **C1 · Name the two lists apart** (Medium) · **implemented**. Tab names unchanged. Calendar's side list is "Not scheduled to run"; Timeline keeps "Not planned yet". The empty states each name the other view (`Calendar.svelte`, `Timeline.svelte`).
+5. **R2 · Group the nine Settings sections** (Medium) · **implemented**. `Settings.svelte` groups them under Work, Machines, Connections and Preferences. Section ids and addresses (`#/settings?runners` and the rest) are unchanged. On a phone the groups sit in one scrolling row, each with its heading.
+6. **N2 · One name for the attention list** (Medium) · **implemented**. The Individual rail, the page, the desktop shell's workspace entry (`shell/nav.ts`), the New-task and overview links, the docs and the Team console's repository section (`console.js`, copy only) say "Needs you". The "Needs input" filter segment is "Questions". Route ids and addresses are unchanged. Run-status labels such as "Needs input" on a run describe the run, and stay.
+7. **N3 · Hide "Everywhere" with a single workspace** (Low) · **implemented**. `shell/Sidebar.svelte` shows the group only with two or more workspaces. With one, the count moves to the workspace's own "Needs you" entry, and when that workspace is unusable a "Needs you" entry opens the Inbox. My Work, Calendar and Inbox stay routable through `shell:go` and the native menu (covered by `test-unified-desktop-browser`).
+8. **Phone board filters** (Low) · **implemented**. Below 900px, `Board.svelte` folds Agent, Runner, Priority, labels, Archive and Clear Done into one "Filters" button with an active-filter count. The status legend, now including zero counts, stays visible. Desktop is unchanged.
+9. **A3 · Assistant cards** (Low) · **implemented**. `ConfirmCard.svelte` and `ReplyView.svelte` lose the 3px side stripes. The label carries a status dot and word (Needs you, Working, Done, Declined, Expired, Failed) in the existing tone tokens.
+10. **U1 · Runs page brand fill** (Low) · **implemented**. The mark, wordmark and tagline under the run table are removed; the space stays empty.
+
+## Validation of the second pass
+
+* `cd web && npm run check && npm run lint && npx vitest run`: no errors or warnings, 465 tests pass.
+* `make web web-embed web-shell`, then `make test-browser` (fresh disposable Individual and Team, desktop and phone, light and dark): passes, including the new Filters control, the one-line summary and the Settings groups.
+* `make test-unified-desktop-browser`: covers the single-workspace sidebar (no Everywhere, count kept, My Work, Calendar and Inbox reachable through `shell:go`) and its return when a second workspace joins.
+* Screenshots at 1440×900 and 375×812, light and dark, from a fresh `scripts/browser-fixture` with `WERKBORD_BROWSER_EXECUTION=1` and `WERKBORD_BROWSER_ASSISTANT=1`: Board (with the phone Filters control open), Settings, Needs you, Runs, Calendar, Timeline, New task, and the assistant's confirmation and failure cards. Taken with headless Chromium, because the app's browser pane was hidden.
+* Go: `internal/team/console` and `internal/archtest` pass. Items 1 and 2 shipped earlier with their own tests; this pass touched only Team console copy and web code.
+* Test changes: `test-unified-desktop-browser.cjs` expects the renamed entries and covers the single-workspace sidebar; the final unroute no longer waits on in-flight handlers (it hung), and the Calendar width check sets its own 480px viewport. `browser-individual.cjs` opens the phone Filters control before using Archive and Clear Done.
+* **Not run:** the full `make check` and the Go suite for `internal/service` (no Go code changed in this pass). The F1 comprehension test and the check with Individual-only users for N3 were not run.

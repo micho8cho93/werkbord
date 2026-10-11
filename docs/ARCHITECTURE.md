@@ -487,20 +487,20 @@ the HTTP API is treated as a remote-execution surface from day one.
 
 - Svelte 5 (runes) + TypeScript + Vite, built to static files and embedded into the Go
   binary with `go:embed`. ~41 KB gzipped JS.
-- **Project is the scope** (§16). Two kinds of page, hash-routed: global (`#/control` the Control Center,
+- **Project is the scope** (§16). Two kinds of page, hash-routed: global (`#/control` Needs you,
   `#/projects` the list of repositories and registering one) and in a project (`#/p/<id>/board`, `git`,
   `activity`, and `#/p/<id>/task/<id>`, which belongs to the board). The list of a project's sections lives in
   one place (`PROJECT_SECTIONS` in `src/lib/location.ts`); the side rail, the tab bar and the switcher are
   built from it, so Calendar (V1) is one more entry, not a navigation rewrite.
 - **Phone first.** Under 900 px: sticky top bar with the project's name as its heading (tap to switch), bottom
-  tab bar within thumb reach (Control Center, then the project's sections, with safe-area insets), and the board
+  tab bar within thumb reach (Needs you, then the project's sections, with safe-area insets), and the board
   shows one column at a time behind a four-way segmented control. From 900 px: a side rail replaces the tab
   bar, with the project switcher at its head, the global pages, and the current project's sections under its
   name, and all four columns sit side by side. Inputs use 16 px text on touch devices to stop iOS zooming.
 - **PWA**: web manifest, PNG + SVG icons, and a service worker that caches the shell
   (network-first for navigation, cache-first for content-hashed assets) and never caches
   `/api/*`. State always comes from the controller.
-- `src/lib/state.svelte.ts` is the global cache: the connection, the projects, the agents, the Control Center's
+- `src/lib/state.svelte.ts` is the global cache: the connection, the projects, the agents, Needs you's
   overview and the questions waiting anywhere. What belongs to a project is in that project's `ProjectScope`
   (`src/lib/scope.svelte.ts`), one per project visited. Both are filled over HTTP, kept current by the event
   stream, and refetched on every (re)connect.
@@ -514,7 +514,7 @@ the HTTP API is treated as a remote-execution surface from day one.
   pending questions with one-tap answers, is docked at the bottom within thumb reach. Actions: send a message,
   finish, stop (asks twice), edit the task (title, description, interaction), and start or re-run with an agent
   choice, an interaction for that run, extra instructions and optionally "continue the previous conversation".
-- **The Control Center is for exceptions** (§19): Needs input, Blocked, Failed, Ready for review and Repository
+- **Needs you is for exceptions** (§19): Needs input, Blocked, Failed, Ready for review and Repository
   risk, in that order, with an explicit *All clear* when there are none; successful background activity and the
   agent list are folded away. The badge counts questions, blocked and failed runs, runs waiting for a message and
   repositories at risk, not finished work or ordinary findings.
@@ -652,7 +652,7 @@ or `question.cancelled`; payload `{question}`; envelope carries project, task an
 notifier needs nothing else.
 
 **UI**: a banner under the top bar on every page, a count in the tab title and (for an installed
-app) the icon badge, Control Center leading with pending questions, the question on its Board card,
+app) the icon badge, Needs you leading with pending questions, the question on its Board card,
 and on the task page a docked alert with the prompt, folded context, big choices and a text box only
 where free text is allowed. Failures are explained, not shown as 409s.
 
@@ -667,7 +667,7 @@ nothing else. There is no global board with filters: each project has its own bo
 domain, not left to the frontend.
 
 ```
-Global                      Control Center (aggregates actionable state across every project)
+Global                      Needs you (aggregates actionable state across every project)
                             Projects (every repository; registering one)
 Project A                   Board · Timeline · Calendar · Git · Runs
 Project B (work project)    Board · Timeline             (no repository: no Calendar, Git or Runs)
@@ -699,7 +699,7 @@ attention and risk), every pending question and every active run, the **exceptio
 still waiting on them, tasks in Review with nothing running, and open repository-health findings that are a risk
 or worse), each naming its project and task so a client needs nothing else to show it. It reads stored findings,
 so drawing it runs no Git. Answering from the
-Control Center goes through the question's own project.
+Needs you goes through the question's own project.
 
 **Frontend.** A project's data lives in its own `ProjectScope`, filled only from the scoped endpoints, and the
 scope refuses events and entities that name another project. Switching is therefore looking at another scope:
@@ -709,7 +709,7 @@ Ctrl/⌘ K, on a computer) lists projects with what each asks of the user and fi
 section you are in (Board, Git or Activity), leaves a task page for the new project's board, and from a global
 page enters the new project at its board. The active project is unmistakable: its name is the page heading, the
 top of the page is its colour (derived from its ID), and its section links hang off a bar in that colour. What
-needs the user in *other* projects is never hidden: the banner, the tab title and badge, and the Control Center
+needs the user in *other* projects is never hidden: the banner, the tab title and badge, and Needs you
 all count every project, and a badge on the switcher says how much waits elsewhere.
 
 
@@ -749,7 +749,7 @@ waits for the user, as it always has.
 
 **Blocked.** A blocked run has a session and no question. `Run.Blocker` (`summary`, `detail`, `options`,
 `source` = `question` or `report`, the question's `kind`, `raisedAt`) is persisted on the run, announced by
-`agent.blocked` and shown on the card, the task page and the Control Center. The user settles it by sending a
+`agent.blocked` and shown on the card, the task page and Needs you. The user settles it by sending a
 message (the same session continues and the blocker is cleared; the log keeps it), or finishes or stops the
 run. It survives a controller restart like an idle run (its question, if any, was answered by the policy
 before the process went), and a message resumes the session under the same policy. A blocked run is *active*:
@@ -841,7 +841,7 @@ web "Check now" / old report ─▶ api/githealth.go ─▶ GitHealth.Refresh �
 - **Quiet by design.** An agent with a live session is never flagged; finished, pushed work waiting for review is
   normal; housekeeping (`info`) is folded away and never counted; your own branches are yours. HEALTH.md §7 lists
   what is deliberately not reported, and a test pins each.
-- **In the Control Center**, only a *risk* or *critical* finding is listed (*Repository risk*), alongside Needs input,
+- **In Needs you**, only a *risk* or *critical* finding is listed (*Repository risk*), alongside Needs input,
   Blocked, Failed and Ready for review; attention-level findings are counted on the project's strip and live on
   its Git screen.
 - **Lifecycle of the process**: the controller starts the watcher after wiring the services and, on shutdown,
@@ -980,7 +980,7 @@ Team backend imports. Team continues serving its existing console, including
 The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name with the open
 workspace under it (**werkbord / Individual ▾**, **werkbord / <workspace> ▾**), which opens the switcher (Individual,
 each enrolled Team workspace, and Add a Team; ⌘⇧K opens the same menu); **Everywhere**, what spans every workspace
-(My Work, Calendar and Needs you); the open workspace's own places, listed under its name (Individual: Control Center,
+(My Work, Calendar and Needs you); the open workspace's own places, listed under its name (Individual: Needs you,
 Projects and each project, Add project; Team: Workspace, Projects and each project, Reviews, Members); and last Workspaces
 and devices, the Settings of the workspace that is open, and the theme. Choosing a place asks the workspace to show it
 (`werkbord.navigate`, a place inside the page); the workspace says where it is (`werkbord.frame`/`place`) and the sidebar
@@ -1032,7 +1032,7 @@ provenance, never starting a run. Projects can be turned off under Team Settings
 through the console wakes the synchronization at once. The ticket then shows **Open in Individual**, which switches the
 window to Individual at that task (a frame may only ask the shell to show Individual at a `#/…` place), ready for the
 person to start it with Individual's own approvals. When no local project has the ticket's repository, Individual's
-Control Center lists it under "Team tickets waiting for a repository" with **Choose folder…** (refused unless the folder
+Needs you lists it under "Team tickets waiting for a repository" with **Choose folder…** (refused unless the folder
 is a clone of that repository) and, for GitHub repositories, **Clone from GitHub**; the ticket is imported as soon as
 the repository is added.
 

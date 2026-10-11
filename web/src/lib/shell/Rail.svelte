@@ -20,7 +20,7 @@
 </script>
 
 <aside class="rail" aria-label="Werkbord">
-  <a class="brand" href={globalHref('control')} aria-label="Werkbord, Control Center">
+  <a class="brand" href={globalHref('control')} aria-label="Werkbord, Needs you">
     <Mark height={20} />
     <span class="wm">werkbord</span>
   </a>
@@ -30,7 +30,7 @@
   <nav class="group" aria-label="Everywhere">
     <a class="nav" href={globalHref('control')} aria-current={router.view === 'control' ? 'page' : undefined}>
       <Icon name="control" />
-      Control Center
+      Needs you
       {#if app.needsYou > 0}<span class="num" aria-label="{app.needsYou} waiting for you">{app.needsYou}</span>{/if}
     </a>
   </nav>

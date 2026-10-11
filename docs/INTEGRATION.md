@@ -51,7 +51,7 @@ No connector setup is needed. Connecting your Individual runner to a Team worksp
 project you are on, except those turned off under Team Settings → Tickets in Individual. That grant can import text and
 read projected status; it cannot start a run. Held tickets whose repository is not a project in Individual are reported
 with `PUT /api/integration/v1/waiting` (one replaceable set per workspace source, text only, at most 64) and shown in
-Individual's Control Center until the person chooses a matching folder (`POST /api/integration/waiting/link`, which
+Individual's Needs you until the person chooses a matching folder (`POST /api/integration/waiting/link`, which
 refuses a folder that is not a clone of the repository) or clones it with their GitHub sign-in.
 
 ## Project selection

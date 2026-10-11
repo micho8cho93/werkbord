@@ -44,7 +44,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const scheduled = await team('POST', `/projects/${project.id}/tickets`, { title: 'Review the customer portal navigation', status: 'available' }); await team('POST', `/projects/${project.id}/tickets/${scheduled.id}/claim`, {});
  await team('PUT', `/projects/${project.id}/tickets/${scheduled.id}/schedule`, { at: new Date(Date.now() + 3600000).toISOString(), timezone: 'Europe/Madrid', missedPolicy: 'run_late', graceSeconds: 60, priority: 1 });
  browser = await chromium.launch({ headless: true }); const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
- await context.addInitScript(() => { if (window.parent !== window) return; window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => { const r = await fetch('/fixture/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Method: method, Args: args }) }); const d = await r.json(); if (!r.ok) throw Error(d.error); return d; } }) } }; });
+ await context.addInitScript(() => { if (window.parent !== window) return; window.runtime = { EventsOn: (event, cb) => { if (event === 'shell:go') window.__shellGo = cb; return () => {}; } }; window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => { const r = await fetch('/fixture/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Method: method, Args: args }) }); const d = await r.json(); if (!r.ok) throw Error(d.error); return d; } }) } }; });
  const page = await context.newPage(); testPage = page; page.setDefaultTimeout(90000); const errors = []; page.on('pageerror', e => errors.push(e.message));
  // Switching is the workspace name at the top of the window's one sidebar, which is also where every workspace is navigated.
  let current = 'personal';
@@ -56,10 +56,32 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');
  await side.locator('[data-project][aria-current=page]').waitFor(); // the sidebar marks the project Individual is showing
- for (const entry of ['Control Center', 'Projects', 'Customer portal', 'Settings', 'My Work', 'Calendar', 'Needs you', 'Workspaces and devices']) await side.getByRole('button', { name: entry }).first().waitFor();
+ for (const entry of ['Needs you', 'Projects', 'Customer portal', 'Settings', 'My Work', 'Calendar', 'Needs you', 'Workspaces and devices']) await side.getByRole('button', { name: entry }).first().waitFor();
  assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').getByText('Live', { exact: true }).count(), 0, 'no live status indicator in Individual');
  console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
+ // A single workspace hides Everywhere, keeps attention count, and native destinations remain routable.
+ const many = await api(origin, '', 'POST', '/fixture/call', { Method: 'Workspaces', Args: [] });
+ await page.route('**/fixture/call', async route => { try {
+   const body = route.request().postDataJSON();
+   if (body.Method === 'Workspaces') return await route.fulfill({ json: { ...many, items: many.items.filter(w => w.id === 'personal') } });
+   if (body.Method === 'Overview') {
+     const overview = await api(origin, '', 'POST', '/fixture/call', body);
+     overview.entries = overview.entries.filter(e => e.workspace.id === 'personal');
+     overview.entries[0].summary.attention.push({ id: 'one-question', kind: 'needs_input', severity: 'warning', title: 'A question', href: '#/control' });
+     return await route.fulfill({ json: overview });
+   }
+   return await route.continue();
+ } catch (e) { if (!/already handled|closed/i.test(String(e))) throw e; } });
+ await wait(async () => await side.getByText('Everywhere', { exact: true }).count() === 0, 'single workspace hides Everywhere');
+ await wait(async () => (await side.locator('[data-page=ws-home]').innerText()).includes('1'), 'Needs you retains count');
+ for (const destination of ['mywork', 'calendar', 'inbox']) {
+   await page.evaluate(destination => window.__shellGo(destination), destination);
+   await page.getByRole('heading', { name: destination === 'mywork' ? 'My Work' : destination === 'calendar' ? 'Calendar' : 'Needs you', exact: true }).waitFor();
+ }
+ await page.unrouteAll({ behavior: 'ignoreErrors' });
+ await wait(async () => await side.getByText('Everywhere', { exact: true }).count() === 1, 'second workspace restores Everywhere');
+ await side.locator('[data-page=ws-home]').click();
  // The theme is chosen in the sidebar and reaches the workspace that is open.
  const themeOf = id => page.frameLocator('iframe[data-workspace="' + id + '"]').locator('html').getAttribute('data-theme');
  await side.getByRole('button', { name: /(light|dark) theme/i }).click(); const chosen = await page.locator('html').getAttribute('data-theme'); assert(chosen === 'light' || chosen === 'dark');
@@ -130,7 +152,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const capture = async name => {
    for (const theme of ['light', 'dark']) {
      if (await page.locator('html').getAttribute('data-theme') !== theme) await side.getByRole('button', { name: /(light|dark) theme/i }).click();
-     for (const [size, width, height] of [['desktop', 1440, 1000], ['mobile', 480, 844]]) {
+     for (const [size, width, height] of [['desktop', 1440, 900], ['mobile', 375, 812]]) {
        await page.setViewportSize({ width, height });
        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ' has no horizontal overflow');
        await page.screenshot({ path: path.join(artifacts, `${name}-${size}-${theme}.png`), fullPage: true });
@@ -154,7 +176,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  });
  await wait(async () => !(await inline.getByRole('button', {name:'Yes',exact:true}).isEnabled()), 'stale disables choices');
  assert(await inline.getByText(/Last reported:/).isVisible(), 'stale answer names last report');
- await page.unroute('**/fixture/call');
+ await page.unrouteAll({ behavior: 'ignoreErrors' });
  await wait(async () => await inline.getByRole('button', {name:'No',exact:true}).isEnabled(), 'reconnected answer enabled');
  await inline.getByRole('button', { name: 'No', exact: true }).click();
  await wait(async () => (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).waiting === 'idle', 'inline answer reaches the runner');
@@ -165,6 +187,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await capture('mywork');
  console.log('PASS inline Individual answer, no focused choice, stale disabling, reconnect, delivery and responsive attention/My Work');
  assert(await page.getByTestId('work-item').filter({ hasText: ticket.key + ' ' + ticket.title }).locator('.state').isVisible(), 'Team status visible at native minimum');
+ await page.setViewportSize({ width: 480, height: 844 });
  await page.locator('[data-page=calendar]').click(); await page.getByTestId('scheduled-item').waitFor();
  await page.screenshot({ path: path.join(artifacts, 'calendar-mobile.png'), fullPage: true }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
  const titleWidth = await page.getByTestId('scheduled-item').locator('.title').evaluate(e => e.getBoundingClientRect().width); assert(titleWidth > 200, 'Calendar retains title width');
