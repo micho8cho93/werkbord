@@ -48,7 +48,7 @@
   // The agent whose models and reasoning levels are offered: this level's own, else the one it would inherit.
   const agentForOptions = $derived(value.agent || inherited?.agent || '');
   const environment = $derived(eligibleRunners(app.runners, router.projectId, value.runner || inherited?.runner, true));
-  const options = $derived(environment.find(r => r.capabilities?.agents.some(a => a.id === agentForOptions && a.available))?.capabilities?.options.find(o => o.agentId === agentForOptions) ?? (agentForOptions ? app.agentOptions.get(agentForOptions) : undefined));
+  const options = $derived(environment.find(r => r.capabilities?.agents?.some(a => a.id === agentForOptions && a.available))?.capabilities?.options?.find(o => o.agentId === agentForOptions) ?? (agentForOptions ? app.agentOptions.get(agentForOptions) : undefined));
   const models = $derived(modelChoices(options));
   const effectiveModel = $derived(value.model && value.model !== AGENT_DEFAULT ? value.model : (inherited?.model ?? ''));
   const reasoningList = $derived(reasoningChoices(options, effectiveModel));

@@ -7,7 +7,7 @@
   let { project = '', runner = '', agent = '' }: { project?: string; runner?: string; agent?: string } = $props();
   const machines = $derived(
     (app.overview?.runners ?? []).filter(
-      (r) => (!runner || r.id === runner) && (!project || r.kind === 'local' || r.projects.includes(project)) && (!agent || r.capabilities.agents.some((a) => a.id === agent)),
+      (r) => (!runner || r.id === runner) && (!project || r.kind === 'local' || (r.projects ?? []).includes(project)) && (!agent || (r.capabilities?.agents ?? []).some((a) => a.id === agent)),
     ),
   );
   const usage = $derived((app.overview?.usage ?? []).filter((u) => (!project || u.projectId === project) && (!runner || u.runnerId === runner) && (!agent || u.agentId === agent)));

@@ -42,6 +42,7 @@ import type {
   WaitingItem,
   WorkingChanges,
 } from './types';
+import { normalizeRunner, normalizeRunners } from './runners';
 import { startRefusal } from './scheduling';
 
 const TOKEN_KEY = 'devboard.token';
@@ -214,14 +215,14 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   setProjectExecution: (projectId: string, execution: ExecutionConfig) =>
     request<Project>('PUT', `${inProject(projectId)}/execution`, execution),
   pairRunner: (projects: string[], allowClone: boolean) => request<import('./types').Pairing>('POST', '/api/runners/pair', {projects, allowClone}),
-  saveRunner: (runner: Runner) => request<Runner>('PUT', `/api/runners/${enc(runner.id)}`, {name: runner.name, capacity: runner.capacity, automatic: runner.automatic, disabled: runner.disabled, projects: runner.projects, allowClone: runner.allowClone}),
+  saveRunner: (runner: Runner) => request<Runner>('PUT', `/api/runners/${enc(runner.id)}`, {name: runner.name, capacity: runner.capacity, automatic: runner.automatic, disabled: runner.disabled, projects: runner.projects, allowClone: runner.allowClone}).then(normalizeRunner),
   revokeRunner: (id: string) => request('POST', `/api/runners/${enc(id)}/revoke`),
-  removeRunner: (id: string) => request<Runner>('DELETE', `/api/runners/${enc(id)}`),
+  removeRunner: (id: string) => request<Runner>('DELETE', `/api/runners/${enc(id)}`).then(normalizeRunner),
   routingRules: () => request<{rules: import('./types').RoutingRule[]}>('GET', '/api/routing-rules').then(r=>r.rules),
   saveRoutingRules: (rules: import('./types').RoutingRule[]) => request<{rules: import('./types').RoutingRule[]}>('PUT', '/api/routing-rules', {rules}),
   assessRun: (run: Run, acceptance: 'accepted'|'rejected') => request<Run>('PATCH', `${inProject(run.projectId)}/runs/${enc(run.id)}/assessment`, {acceptance}),
   setUsage: (run: Run, usage: import('./types').Usage) => request<Run>('PUT', `${inProject(run.projectId)}/runs/${enc(run.id)}/usage`, usage),
-  listRunners: () => request<{ runners: Runner[] }>('GET', '/api/runners').then((r) => r.runners),
+  listRunners: () => request<{ runners: Runner[] }>('GET', '/api/runners').then((r) => normalizeRunners(r.runners)),
   onboarding: () => request<Onboarding>('GET', '/api/onboarding'),
   completeOnboarding: (skipped: string[] = []) => request<Onboarding>('POST', '/api/onboarding/complete', { skipped }),
   resetOnboarding: () => request<Onboarding>('POST', '/api/onboarding/reset', {}),
@@ -245,7 +246,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   registerProject: (path: string, name: string) => request<Project>('POST', '/api/projects', { path, name }),
   /** A board and timeline with no Git repository behind it. */
   createWorkProject: (name: string) => request<Project>('POST', '/api/projects', { kind: 'work', name }),
-  controlCenter: () => request<Overview>('GET', '/api/control-center'),
+  controlCenter: () => request<Overview>('GET', '/api/control-center').then((o) => (o.runners ? { ...o, runners: normalizeRunners(o.runners) } : o)),
   waiting: () => request<{ items: WaitingItem[] }>('GET', '/api/integration/waiting'),
   /** Registers the folder chosen for a waiting ticket; refused unless it is a clone of that repository. */
   linkWaiting: (path: string, repository: string) => request<Project>('POST', '/api/integration/waiting/link', { path, repository }),

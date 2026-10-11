@@ -31,7 +31,7 @@
   import Runs from './routes/Runs.svelte';
   import Timeline from './routes/Timeline.svelte';
   import Settings from './routes/Settings.svelte';
-  import TaskPanel from './routes/TaskPanel.svelte';
+  import TaskPanelHost from './routes/TaskPanelHost.svelte';
 
   // Inside the desktop app the window's own sidebar is the navigation: this page shows only the work.
   const framed = embedded();
@@ -210,7 +210,7 @@
               <div class="page"><ProjectSettings {project} /></div>
             {:else}
               <Board {scope} {project} />
-              {#if router.view === 'task'}<TaskPanel {scope} {project} />{/if}
+              {#if router.view === 'task'}<TaskPanelHost {scope} {project} />{/if}
             {/if}
           {/key}
         {/if}

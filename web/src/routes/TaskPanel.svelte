@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
   import { ApiError, api } from '../lib/api';
   import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
@@ -114,6 +114,30 @@
     viewedStatus = key;
     if (id && active === false) void tick().then(() => scroller?.scrollTo({ top: 0, behavior: 'auto' }));
   });
+
+  // ---- focus: into the panel when it opens or shows another task, and back to where it came from when it closes ----
+  let titleEl = $state<HTMLElement>();
+  let detailsEl = $state<HTMLElement>();
+  let focusedFor = '';
+  $effect(() => {
+    const id = titleEl ? task?.id : undefined;
+    if (!id || id === focusedFor) return;
+    focusedFor = id;
+    titleEl?.focus({ preventScroll: true });
+  });
+  onMount(() => {
+    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
+    return () => {
+      // Only when focus was left in the panel (or lost with it); someone who moved on elsewhere keeps their place.
+      const active = document.activeElement;
+      if (opener?.isConnected && (!active || active === document.body || active.closest('.panel'))) opener.focus({ preventScroll: true });
+    };
+  });
+  /** Skip links are buttons: the address bar is the router, so an `href="#…"` would navigate away from the task. */
+  function skipTo(el: HTMLElement | undefined) {
+    el?.focus();
+    el?.scrollIntoView({ block: 'nearest' });
+  }
 
   // ---- actions ----
   let actionError = $state('');
@@ -309,19 +333,23 @@
 
 <svelte:window onkeydown={onWindowKey} />
 
-<a class="scrim" href={boardHref} aria-label="Close the task" tabindex="-1"></a>
-<section class="panel" aria-label={task?.title ?? 'Task'}>
+<a class="scrim" href={boardHref} aria-hidden="true" tabindex="-1"></a>
+<section class="panel" aria-labelledby={task ? 'task-title' : undefined} aria-label={task ? undefined : 'Task'}>
   {#if !task}
     <header class="head">
-      <a class="btn quiet small icon" href={boardHref} aria-label="Back to the board"><Icon name="close" /></a>
+      <a class="btn quiet small icon" href={boardHref} aria-label="Close panel"><Icon name="close" /></a>
     </header>
     <p class="empty">{scope.loaded ? 'This task was not found in this project.' : 'Loading…'}</p>
   {:else}
     <header class="head">
+      <div class="skips">
+        <button class="skip" onclick={() => skipTo(scroller)}>Skip to activity</button>
+        <button class="skip" onclick={() => skipTo(detailsEl)}>Skip to task details</button>
+      </div>
       <div class="top">
         <a class="btn quiet small icon back" href={boardHref} aria-label="Back to the board"><Icon name="left" /></a>
         <label class="state">
-          <span class="visually-hidden">Column</span>
+          <span class="visually-hidden">Task column</span>
           <span class="dot" data-tone={task.state === 'doing' ? 'work' : task.state === 'review' ? 'ok' : task.state === 'done' ? 'ok' : 'neutral'}></span>
           <select value={task.state} disabled={busy || !!task.archivedAt} onchange={(e) => move(e.currentTarget.value as TaskState)}>
             {#each TASK_STATES as s (s)}<option value={s}>{TASK_STATE_LABELS[s]}</option>{/each}
@@ -333,11 +361,11 @@
         {:else}
           {#if latest && runStatus(latest).active}<button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>{/if}
           <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Close this task and keep its history in the archive">Close task</button>
-          <button class="btn small" onclick={() => (editing = true)}>Edit</button>
+          <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
         {/if}
-        <a class="btn quiet small icon close" href={boardHref} aria-label="Close" title="Close (Esc)"><Icon name="close" /></a>
+        <a class="btn quiet small icon close" href={boardHref} aria-label="Close panel" title="Close (Esc)"><Icon name="close" /></a>
       </div>
-      <h1 class="title">{task.title}</h1>
+      <h2 class="title" id="task-title" tabindex="-1" bind:this={titleEl}>{task.title}</h2>
       {#if agentWork}
         <p class="runs-with">
           Runs with <strong>{runWith}</strong>
@@ -354,11 +382,11 @@
     {#snippet facts()}
         {#if factsSection === 'details'}
           <section>
-            <h2>Details</h2>
+            <h3>Details</h3>
             <p class="desc">{task.description || 'No description added.'}</p>
           </section>
           <section>
-            <div class="sh"><h2>Plan</h2><button class="btn quiet small" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
+            <div class="sh"><h3>Plan</h3><button class="btn quiet small" aria-label="Change plan" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
             <dl class="kv">
               <dt>Who</dt><dd>{modeLabel(modeOf(task))}</dd>
               <dt>When</dt><dd>{planSpan ? `${planSpan.milestone ? 'Milestone · ' : ''}${spanTitle(planSpan, new Date().getFullYear())}` : 'Not planned'}</dd>
@@ -369,7 +397,7 @@
 
         {#if factsSection === 'run'}
         <section>
-          <div class="sh"><h2>How it runs</h2><button class="btn quiet small" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
+          <div class="sh"><h3>How it runs</h3><button class="btn quiet small" aria-label="Change how it runs" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
           <dl class="kv">
             <dt>Agent</dt><dd>{effective.agent ? agentLabel(app.agents, effective.agent) : 'First that works'}</dd>
             {#if effective.model}<dt>Model</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.models, effective.model)}</dd>{/if}
@@ -383,7 +411,7 @@
         {/if}
         {#if factsSection === 'schedule'}
         <section>
-          <div class="sh"><h2>Schedule</h2><button class="btn quiet small" disabled={!!task.archivedAt} onclick={() => (scheduling = true)}>{task.orchestration?.enabled ? 'Change' : 'Schedule'}</button></div>
+          <div class="sh"><h3>Schedule</h3><button class="btn quiet small" aria-label={task.orchestration?.enabled ? 'Change schedule' : 'Schedule this task'} disabled={!!task.archivedAt} onclick={() => (scheduling = true)}>{task.orchestration?.enabled ? 'Change' : 'Schedule'}</button></div>
           {#if decision && task.orchestration?.enabled}
             <p class="fact"><strong>{schedulingLabels[decision.state]}</strong> · {decision.reason}</p>
           {:else}
@@ -398,7 +426,7 @@
         {/if}
         {#if factsSection === 'run' && run}
           <section>
-            <h2>Where</h2>
+            <h3>Where</h3>
             {#if worktree}
               <p class="fact"><code>{worktree.branch}</code></p>
               <button class="btn small" onclick={copyPath} title={worktree.path}><Icon name="copy" size={14} />{copied ? 'Copied' : 'Copy worktree path'}</button>
@@ -409,7 +437,7 @@
 
         {#if factsSection === 'history'}
           <section>
-            <h2>Runs</h2>
+            <h3>Runs</h3>
             <ul class="runs">
               {#each [...history].reverse() as r, i (r.id)}
                 {@const s = runStatus(r)}
@@ -434,7 +462,8 @@
       <!-- The run: what needs you, what happened, and what to say next. -->
       <div class="main">
         <ConnectionBanner />
-        <div class="scroll" bind:this={scroller} onscroll={trackScroll}>
+        <div class="scroll" bind:this={scroller} onscroll={trackScroll} tabindex="-1">
+          <h3 class="visually-hidden">Activity</h3>
           {#if run && status}
             <div class="runbar" data-tone={status.tone}>
               <RunBadge {run} />
@@ -500,7 +529,7 @@
 
 
           {#if canStart && !isDone}
-            <details class="start" aria-label="Run an agent" open={!latest}>
+            <details class="start" open={!latest}>
               <summary>{latest ? 'Run it again' : 'Run an agent on this task'}</summary>
               {#if available.length === 0 && !startBusy}
                 <p class="error">No coding agent is ready. {app.agents.map((a) => `${a.name}: ${a.detail ?? 'unavailable'}`).join(' · ')}</p>
@@ -540,7 +569,7 @@
         </div>
 
         {#if !nearBottom && feed && feed.items.length > 0}
-          <button class="btn small jump" onclick={() => toBottom()}><Icon name="down" size={14} />Latest</button>
+          <button class="btn small jump" aria-label="Jump to latest activity" onclick={() => toBottom()}><Icon name="down" size={14} />Latest</button>
         {/if}
 
         {#if run && viewingLatest && pending.length > 0}
@@ -574,7 +603,7 @@
       </div>
 
       <!-- The facts about the task. -->
-      <aside class="side" aria-label="About this task">
+      <aside class="side" aria-label="About this task" tabindex="-1" bind:this={detailsEl}>
         {@render facts()}
       </aside>
     </div>
@@ -636,6 +665,48 @@
     display: none;
   }
 
+  .title:focus,
+  .scroll:focus,
+  .side:focus {
+    outline: none;
+  }
+
+  /* Out of sight until it takes focus, then the first thing in the panel. */
+  .skips {
+    display: contents;
+  }
+  .skip {
+    position: absolute;
+    left: 24px;
+    top: 8px;
+    z-index: 2;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--accent);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transform: translateY(-200%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .skip:focus {
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .side :global(h3) {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-2);
+  }
+
   .spacer {
     flex: 1;
   }
@@ -679,6 +750,9 @@
   }
 
   .title {
+    font-family: inherit;
+    text-transform: none;
+    color: var(--text);
     font-size: 20px;
     font-weight: 600;
     letter-spacing: -0.015em;

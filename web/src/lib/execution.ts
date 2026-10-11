@@ -188,8 +188,8 @@ export function validModelName(s: string): boolean {
 export function eligibleRunners(runners: readonly Runner[], projectId: string, runner = '', includeBusy = false): Runner[] {
   return runners.filter(r => r.online && !r.disabled && (includeBusy || r.currentRuns < r.capacity) &&
     (runner && runner !== 'automatic' ? r.id === runner : r.automatic) &&
-    (r.kind === 'local' || (!projectId || r.projects.includes(projectId)) &&
-      (!projectId && (r.capabilities?.repositories.length ?? 0) > 0 || r.capabilities?.repositories.includes(projectId) || r.allowClone && r.capabilities?.cloneEnabled)));
+    (r.kind === 'local' || (!projectId || (r.projects ?? []).includes(projectId)) &&
+      (!projectId && (r.capabilities?.repositories?.length ?? 0) > 0 || r.capabilities?.repositories?.includes(projectId) || r.allowClone && r.capabilities?.cloneEnabled)));
 }
 export function executionAgents(agents: readonly Agent[], runners: readonly Runner[], projectId: string, runner = '', includeBusy = false): Agent[] {
   if (runners.length === 0) return agents.filter(a => a.available);
