@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ApiError, api } from './api';
-  import { agentLabel, compact, executionAgents, resolveFor, sourceLabel } from './execution';
+  import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, resolveFor, sourceLabel } from './execution';
   import { agentWorkable } from './board';
   import { INTERACTION_OPTIONS, PERMISSIONS_NOTE } from './policy';
   import { globalHref } from './router.svelte';
@@ -35,6 +35,7 @@
   const effective = $derived(resolveFor(execution, project.execution, app.globalExecution));
   const agents = $derived(executionAgents(app.agents, app.runners, project.id, effective.runner));
   const agentReady = $derived(canAgent && app.connection === 'live' && (effective.agent ? agents.some(a => a.id === effective.agent) : agents.length > 0));
+  const busyOnly = $derived(!agentReady && app.connection === 'live' && onlyBusy(app.agents, app.runners, project.id, effective.runner, effective.agent ?? ''));
   const interaction = $derived(INTERACTION_OPTIONS.find(o => o.value === effective.interaction)!);
   const runnerName = $derived(app.runners.find(r => r.id === effective.runner)?.name ?? (effective.runner && effective.runner !== 'automatic' ? 'Unavailable runner' : 'Automatic runner'));
 
@@ -110,7 +111,8 @@
         <strong>{effective.agent ? agentLabel(app.agents, effective.agent) : 'Automatic agent'} · {runnerName}</strong>
         <p>{interaction.label} · from {sourceLabel(effective.sources.interaction)}</p>
         <p class="hint">{interaction.description} {PERMISSIONS_NOTE}</p>
-        {#if !agentReady}<p class="hint">{app.connection !== 'live' ? 'Reconnect to confirm availability before starting.' : 'The selected agent or runner is unavailable or at capacity.'} You can save this task in Backlog. <a href={globalHref('settings')}>Check Settings</a>.</p>{/if}
+        {#if busyOnly}<p class="hint" role="status">{BUSY_RUNNERS} Add it to Backlog now and start it from its card.</p>
+        {:else if !agentReady}<p class="hint">{app.connection !== 'live' ? 'Reconnect to confirm availability before starting.' : 'The selected agent or runner is unavailable.'} You can save this task in Backlog. <a href={globalHref('settings')}>Check Settings</a>.</p>{/if}
         <details><summary>Change execution settings</summary><ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" disabled={!!saved || uncertainSave} columns /></details>
       </section>
     {/if}
@@ -124,7 +126,7 @@
     <button class="btn" type="button" onclick={close}>{saved || uncertainSave ? 'Close' : 'Cancel'}</button>
     <button class="btn" class:primary={!canAgent} type="submit" form="new-task-form" disabled={busy || !title.trim() || uncertainSave}>{saved ? 'Keep saved task' : 'Add to Backlog'}</button>
     {#if canAgent}
-      <button class="btn primary" type="button" disabled={busy || !title.trim() || (!saved && !agentReady) || uncertainSave} onclick={() => add(true)} title={agentReady ? '' : 'No agent is available on an online runner'}>
+      <button class="btn primary" type="button" disabled={busy || !title.trim() || (!saved && !agentReady) || uncertainSave} onclick={() => add(true)} title={agentReady ? '' : busyOnly ? 'Every runner that can take this task is busy' : 'No agent is available on an online runner'}>
         {busy ? phase : saved ? 'Retry start' : 'Add and start agent'}
       </button>
     {/if}

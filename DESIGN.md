@@ -61,8 +61,9 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   scrolling inside the window) and `.pn` panels with a `.ph` header; groups that want an action sit in an
   inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
-- Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git ·
-  Runs), floating New task button, horizontally scrolling Kanban columns, tables as two-line rows.
+- Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Timeline · Git ·
+  Runs; one equal column per tab, so a work project's shorter set fills the bar too), floating New task button,
+  horizontally scrolling Kanban columns, tables as two-line rows.
 
 ### Team console (3.2)
 

@@ -3,7 +3,8 @@
   import { ApiError, api } from '../api';
   import { branchHref } from '../gitroute';
   import { shortSha } from '../gitui';
-  import type { GitActionResult, GitMergePlan } from '../types';
+  import { app } from '../state.svelte';
+  import type { GitActionResult, GitMergePlan, Task, TaskState } from '../types';
   import ResultCard from './ResultCard.svelte';
   import Sheet from '../Sheet.svelte';
   import { sheets } from './sheets.svelte';
@@ -23,6 +24,42 @@
     targetSha: store.overview?.local.target.sha ?? '',
     target: store.overview?.local.target.name ?? '',
   }));
+
+  // The task the branch was made for, if Werkbord made it. Merging is that task's end, whichever page the merge was asked
+  // from: the board's card says so itself (onmerged); anywhere else this sheet moves the task and offers to undo it.
+  const ownerId = untrack(() => store.overview?.branches.find((b) => b.scope === 'local' && b.name === branchName)?.devboard.taskId ?? '');
+  let closed = $state<{ task: Task; was: TaskState } | null>(null);
+  let reopened = $state('');
+  let closing = $state(false);
+  const column = (s: TaskState) => ({ backlog: 'Backlog', doing: 'Doing', review: 'Review', done: 'Done' })[s];
+
+  async function closeTask(): Promise<void> {
+    const scope = app.scope(projectId);
+    if (scope && !scope.tasks.some((t) => t.id === ownerId)) await scope.load().catch(() => {});
+    const task = scope?.tasks.find((t) => t.id === ownerId);
+    if (!scope || !task || task.state === 'done' || task.archivedAt) return;
+    try {
+      closed = { task: await api.moveTask(task, 'done'), was: task.state };
+      scope.upsertTask(closed.task);
+    } catch (err) {
+      error = `Merged. The task could not be moved to Done: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  async function reopen(): Promise<void> {
+    if (!closed || closing) return;
+    closing = true;
+    try {
+      const task = await api.moveTask(closed.task, closed.was);
+      app.scope(projectId)?.upsertTask(task);
+      reopened = `“${task.title}” is back in ${column(task.state)}.`;
+      closed = null;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      closing = false;
+    }
+  }
 
   let strategy = $state<'merge' | 'ff-only'>('merge');
   let plan = $state<GitMergePlan | null>(null);
@@ -56,7 +93,10 @@
     try {
       result = await api.git.merge(projectId, request);
       store.lastResult = result;
-      if (result.ok) onmerged?.();
+      if (result.ok) {
+        if (onmerged) onmerged();
+        else if (ownerId) await closeTask();
+      }
       await store.reloadAll();
     } catch (err) {
       error = err instanceof ApiError ? err.message : String(err);
@@ -85,6 +125,14 @@
 <Sheet title="Merge {branchName}" onclose={() => sheets.close()}>
   {#if result}
     <ResultCard {result} />
+    {#if closed}
+      <p class="closed g-small" role="status">
+        “{closed.task.title}” moved to Done.
+        <button class="btn small quiet" type="button" disabled={closing} onclick={reopen}>Move it back to {column(closed.was)}</button>
+      </p>
+    {:else if reopened}
+      <p class="closed g-small" role="status">{reopened}</p>
+    {/if}
   {:else if planning && !plan}
     <p class="muted">Checking the repository now…</p>
   {:else if plan}
@@ -152,6 +200,14 @@
 </Sheet>
 
 <style>
+  .closed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
   .add {
     color: var(--ok);
     font-family: var(--mono);

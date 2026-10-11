@@ -197,3 +197,12 @@ export function executionAgents(agents: readonly Agent[], runners: readonly Runn
   for (const r of eligibleRunners(runners, projectId, runner, includeBusy)) for (const a of r.capabilities?.agents ?? []) if (a.available) found.set(a.id, a);
   return [...found.values()];
 }
+
+/** Whether the agent (or, with none named, any agent) is only waiting for a free slot: every runner that could take it is
+ *  online and has it, but is full. That is "wait or stop a run", not "set something up". */
+export function onlyBusy(agents: readonly Agent[], runners: readonly Runner[], projectId: string, runner = '', agentId = ''): boolean {
+  const has = (list: Agent[]) => (agentId ? list.some((a) => a.id === agentId) : list.length > 0);
+  return !has(executionAgents(agents, runners, projectId, runner)) && has(executionAgents(agents, runners, projectId, runner, true));
+}
+
+export const BUSY_RUNNERS = 'Every runner that can take this task is busy. It can start when a run finishes, or after you stop one.';

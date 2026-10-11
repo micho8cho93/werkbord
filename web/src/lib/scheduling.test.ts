@@ -4,7 +4,19 @@ import {
   wallTime,
   editableOrchestration,
   emptyOrchestration,
+  startRefusal,
 } from "./scheduling";
+describe("refused starts", () => {
+  it("says a scheduler refusal in plain words and leaves other messages alone", () => {
+    expect(startRefusal("conflict: waiting_capacity: Project concurrency limit (1) is occupied by run run_x on runner rnr_y")).toBe(
+      "No run slot is free for this project yet. It can start when a current run finishes, or after you stop one.",
+    );
+    expect(startRefusal("conflict: blocked: Repository health: detached HEAD")).toBe("Repository health: detached HEAD");
+    expect(startRefusal("conflict: version mismatch")).toBe("conflict: version mismatch");
+    expect(startRefusal("conflict: stale: the task changed")).toBe("conflict: stale: the task changed");
+    expect(startRefusal("Cannot reach the controller.")).toBe("Cannot reach the controller.");
+  });
+});
 describe("IANA wall times", () => {
   it("keeps explicit offsets safe across zones", () => {
     expect(instantFromWall("2026-10-04T01:00", "Europe/Madrid")).toBe(

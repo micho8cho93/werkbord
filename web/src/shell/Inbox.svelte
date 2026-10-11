@@ -15,7 +15,7 @@
 
 <section class="page" aria-labelledby="inbox-h">
   <header>
-    <h1 id="inbox-h">Needs attention</h1>
+    <h1 id="inbox-h">Needs you</h1>
     <p class="lede">Questions, blockers, reviews and warnings from all your workspaces</p>
   </header>
 

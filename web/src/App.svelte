@@ -360,7 +360,9 @@
       inset: auto 0 0 0;
       z-index: 10;
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      /* One equal column per tab: a work project has fewer sections than a repository, and none may wrap out of sight. */
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
       height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
       padding-bottom: env(safe-area-inset-bottom);
       background: color-mix(in srgb, var(--bg) 94%, transparent);
@@ -378,6 +380,21 @@
       font-weight: 500;
       color: var(--text-2);
       text-decoration: none;
+      min-width: 0;
+    }
+
+    .tab > span:last-child {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Six tabs on the narrowest phones: a size smaller rather than a clipped word. */
+    @media (max-width: 340px) {
+      .tab {
+        font-size: 10px;
+      }
     }
 
     .tab[aria-current='page'] {

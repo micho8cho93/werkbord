@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from './api';
+  import { runnerSlots, runnerState } from './format';
   import { app } from './state.svelte';
   import type { Pairing, Runner } from './types';
 
@@ -84,7 +85,7 @@
   {#if loading}<p class="muted" role="status">Loading runners…</p>{/if}
   {#each runners as r (r.id)}
     <div class="runner">
-      <div class="heading"><strong>{r.name}</strong><span class="state" data-online={r.online && !r.disabled}>{r.disabled ? 'Disabled' : !r.online ? 'Offline' : r.currentRuns ? 'Online' : 'Idle'} · {r.currentRuns}/{r.capacity}</span></div>
+      <div class="heading"><strong>{r.name}</strong><span class="state" data-online={r.online && !r.disabled} title={runnerSlots(r)}>{runnerState(r)} · {r.currentRuns}/{r.capacity}<span class="visually-hidden">, {runnerSlots(r)}</span></span></div>
       <p class="muted">{r.os}/{r.arch} · {(r.capabilities?.agents ?? []).filter(a=>a.available).map(a=>a.name).join(', ') || 'No available agents'}{r.kind === 'local' ? ' · Controller machine' : ''}</p>
       <details ontoggle={e=>{expanded=e.currentTarget.open?[...expanded.filter(id=>id!==r.id),r.id]:expanded.filter(id=>id!==r.id)}}>
         <summary>Manage and inspect {r.name}</summary>

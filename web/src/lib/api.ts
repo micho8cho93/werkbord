@@ -42,6 +42,7 @@ import type {
   WaitingItem,
   WorkingChanges,
 } from './types';
+import { startRefusal } from './scheduling';
 
 const TOKEN_KEY = 'devboard.token';
 let memoryToken: string | null = null;
@@ -280,6 +281,9 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
       instructions,
       resume,
       ...(choice.interaction ? { policy: { interaction: choice.interaction } } : {}),
+    }).catch((err: unknown) => {
+      // A start the scheduler refused is said in plain words everywhere a run is started; the code stays "conflict".
+      throw err instanceof ApiError && err.code === 'conflict' ? new ApiError(err.status, err.code, startRefusal(err.message), err.question) : err;
     }),
   listTaskRuns: (projectId: string, taskId: string) =>
     request<{ runs: Run[] }>('GET', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`).then((r) => r.runs),

@@ -73,7 +73,7 @@
   const question = $derived(questions[0]);
   const choices = $derived(question ? quickChoices(choicesOf(question)) : []);
   const blockerChoices = $derived(run?.state === 'blocked' ? quickChoices(run.blocker?.options ?? []) : []);
-  const agent = $derived(run ? agentLabel(app.agents, run.agentId) : effective.agent ? agentLabel(app.agents, effective.agent) : 'Any agent');
+  const agent = $derived(run ? agentLabel(app.agents, run.agentId) : effective.agent ? agentLabel(app.agents, effective.agent) : '');
   const labels = $derived(labelsOf(task, app.labels));
   const mode = $derived(modeOf(task));
   const canStart = $derived(agentWork && task.state !== 'done' && (!run || ['completed', 'failed', 'stopped'].includes(run.state)) && task.state !== 'review');
@@ -163,11 +163,14 @@
     </ul>
   {/if}
 
-  <div class="mt">
-    {#if agentWork}<span class="chip">{agent}</span>{/if}
-    {#if mode !== 'agent'}<span class="chip mode" title={mode === 'human' ? 'A person does this: no agent is started on it' : 'An agent may start on it and a person finishes it'}>{modeLabel(mode)}</span>{/if}
-    {#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}
-  </div>
+  <!-- The agent chip says something only when an agent was chosen or has run: "any agent" is every card's default. -->
+  {#if (agentWork && (run || effective.agent)) || mode !== 'agent' || effective.priority !== 'normal'}
+    <div class="mt">
+      {#if agentWork && (run || effective.agent)}<span class="chip">{agent}</span>{/if}
+      {#if mode !== 'agent'}<span class="chip mode" title={mode === 'human' ? 'A person does this: no agent is started on it' : 'An agent may start on it and a person finishes it'}>{modeLabel(mode)}</span>{/if}
+      {#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}
+    </div>
+  {/if}
 </li>
 
 <style>

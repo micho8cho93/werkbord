@@ -48,6 +48,17 @@ export function runStatus(run: Run): RunStatus {
   }
 }
 
+/** Whether a runner can take work now, in a word: Idle and Working have a free slot, Busy has none. */
+export function runnerState(r: Pick<Runner, 'online' | 'disabled' | 'currentRuns' | 'capacity'>): 'Disabled' | 'Offline' | 'Idle' | 'Working' | 'Busy' {
+  if (r.disabled) return 'Disabled';
+  if (!r.online) return 'Offline';
+  if (r.currentRuns <= 0) return 'Idle';
+  return r.currentRuns >= r.capacity ? 'Busy' : 'Working';
+}
+
+/** "1 of 2 run slots in use": the count behind runnerState, for a label or a tooltip. */
+export const runnerSlots = (r: Pick<Runner, 'currentRuns' | 'capacity'>): string => `${r.currentRuns} of ${r.capacity} run ${r.capacity === 1 ? 'slot' : 'slots'} in use`;
+
 /** Availability qualifies a report; it never changes the run's execution state. */
 export function runReportStale(run: Run, live: boolean, runners: readonly Runner[]): boolean {
   if (!live) return true;

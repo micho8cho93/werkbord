@@ -1,10 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { agentName, cardActivity, formatDuration, oneLine, runElapsed, runStatus, timeAgo } from './format';
+import { agentName, cardActivity, formatDuration, oneLine, runElapsed, runStatus, runnerSlots, runnerState, timeAgo } from './format';
 import type { Run } from './types';
 
 const run = (over: Partial<Run> = {}): Run => ({
   id: 'run_1', taskId: 'tsk_1', projectId: 'prj_1', agentId: 'claude-code', state: 'running', version: 1,
   policy: { interaction: 'interactive' }, createdAt: '2026-10-04T10:00:00Z', updatedAt: '2026-10-04T10:00:00Z', ...over,
+});
+
+describe('runner state', () => {
+  const r = { online: true, disabled: false, currentRuns: 0, capacity: 2 };
+  it('says whether a runner can take work now', () => {
+    expect(runnerState(r)).toBe('Idle');
+    expect(runnerState({ ...r, currentRuns: 1 })).toBe('Working');
+    expect(runnerState({ ...r, currentRuns: 2 })).toBe('Busy');
+    expect(runnerState({ ...r, currentRuns: 2, online: false })).toBe('Offline');
+    expect(runnerState({ ...r, disabled: true })).toBe('Disabled');
+    expect(runnerSlots({ currentRuns: 1, capacity: 1 })).toBe('1 of 1 run slot in use');
+    expect(runnerSlots({ currentRuns: 1, capacity: 2 })).toBe('1 of 2 run slots in use');
+  });
 });
 
 describe('runStatus', () => {

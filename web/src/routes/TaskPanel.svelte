@@ -2,7 +2,7 @@
   import { tick, untrack } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
   import { ApiError, api } from '../lib/api';
-  import { agentLabel, compact, executionAgents, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
+  import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
   import { RunFeed } from '../lib/feed.svelte';
   import FeedView from '../lib/FeedView.svelte';
@@ -167,9 +167,12 @@
       });
     }
   });
-  /** The agent the run will use: chosen here, else the task's effective one, else the first that works. */
-  const startAgent = $derived(runChoice.agent || effective.agent || available[0]?.id || '');
+  /** The agent the run will use: chosen here, else the task's effective one, else the first that works (or, while every
+   *  runner is full, the first that will once a slot frees). */
+  const startAgent = $derived(runChoice.agent || effective.agent || available[0]?.id || executionAgents(app.agents, app.runners, project.id, runChoice.runner || effective.runner, true)[0]?.id || '');
   const startingAgentReady = $derived(available.some((a) => a.id === startAgent));
+  /** Nothing is wrong with the agent: every runner that has it is full. Say so rather than send the person to Settings. */
+  const startBusy = $derived(!startingAgentReady && onlyBusy(app.agents, app.runners, project.id, runChoice.runner || effective.runner, runChoice.agent || effective.agent || ''));
   const canResume = $derived(!!latest && !!latest.sessionRef && latest.agentId === startAgent);
   $effect(() => {
     if (!canResume) resume = false;
@@ -499,7 +502,7 @@
           {#if canStart && !isDone}
             <details class="start" aria-label="Run an agent" open={!latest}>
               <summary>{latest ? 'Run it again' : 'Run an agent on this task'}</summary>
-              {#if available.length === 0}
+              {#if available.length === 0 && !startBusy}
                 <p class="error">No coding agent is ready. {app.agents.map((a) => `${a.name}: ${a.detail ?? 'unavailable'}`).join(' · ')}</p>
                 {#each app.agents.filter((a) => a.guidance) as a (a.id)}<p class="note">{a.name}: {a.guidance}</p>{/each}
                 <p class="note"><a href={globalHref('settings')}>Open Settings</a> to set up an agent.</p>
@@ -520,7 +523,9 @@
                   {/if}
                   <button class="btn primary" disabled={busy || !startingAgentReady} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : 'Start agent'}</button>
                 </div>
-                {#if !startingAgentReady && startAgent}
+                {#if startBusy}
+                  <p class="note" role="status">{BUSY_RUNNERS} <a href="{globalHref('settings')}?runners">See runners</a></p>
+                {:else if !startingAgentReady && startAgent}
                   <p class="error">
                     {agentLabel(app.agents, startAgent)} cannot be used right now: {app.agents.find((a) => a.id === startAgent)?.detail ?? 'unavailable'}. Choose another
                     agent above, or fix it under Settings.

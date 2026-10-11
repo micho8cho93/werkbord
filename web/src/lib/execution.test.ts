@@ -3,6 +3,7 @@ import {
   AGENT_DEFAULT,
  executionAgents,
  eligibleRunners,
+ onlyBusy,
   compact,
   hasOverrides,
   modelChoices,
@@ -156,5 +157,13 @@ describe('execution environment eligibility', () => {
  });
  it('offers remote capabilities when editing global defaults without a project scope', () => {
   expect(executionAgents([], [remote], '', 'remote')).toHaveLength(1);
+ });
+ it('tells a runner that is only full apart from an agent that is not set up', () => {
+  const full = { ...remote, currentRuns: 2 };
+  expect(onlyBusy([], [full], 'project')).toBe(true);
+  expect(onlyBusy([], [full], 'project', '', 'remote-agent')).toBe(true);
+  expect(onlyBusy([], [full], 'project', '', 'codex')).toBe(false); // not installed anywhere: busy is not the reason
+  expect(onlyBusy([], [remote], 'project')).toBe(false); // a slot is free
+  expect(onlyBusy([], [{ ...full, online: false }], 'project')).toBe(false); // offline is not busy
  });
 });

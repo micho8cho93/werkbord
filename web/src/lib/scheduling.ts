@@ -9,6 +9,22 @@ export const schedulingLabels: Record<SchedulingDecision["state"], string> = {
   potentially_conflicting: "Potential Conflict",
   blocked: "Blocked",
 };
+/** What a refused start means for the person, by the scheduler's reason. The controller's own reason names runs and
+ *  runners by ID; that stays on the task's scheduling details. */
+const refusals: Partial<Record<SchedulingDecision["state"], string>> = {
+  queued: "Earlier tasks are ahead of it. It starts when their turn has passed.",
+  waiting_dependency: "It waits for the tasks it depends on to finish.",
+  waiting_schedule: "It is scheduled for later and starts at its scheduled time.",
+  waiting_capacity: "No run slot is free for this project yet. It can start when a current run finishes, or after you stop one.",
+  potentially_conflicting: "A running task may change the same files. Start this one when that run finishes.",
+};
+
+/** The words for a start the scheduler refused (the controller says "conflict: <state>: <reason>"), or the message as it came. */
+export function startRefusal(message: string): string {
+  const m = /^conflict: ([a-z_]+): ([\s\S]*)$/.exec(message);
+  if (!m || !(m[1] in schedulingLabels)) return message;
+  return refusals[m[1] as SchedulingDecision["state"]] ?? m[2];
+}
 export function emptyOrchestration(): Orchestration {
   return {
     enabled: false,
