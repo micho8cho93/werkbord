@@ -516,3 +516,51 @@ No out-of-scope API dependency was identified; existing API payloads and behavio
 was changed. VoiceOver and a physical touch device were unavailable for this pass, so their behavior remains
 unverified; browser accessible-name checks and touch emulation are not presented as manual assistive-technology or
 device checks. No human comprehension study was run and no heuristic score change is claimed.
+
+### Workstream 3 — Review before ticket administration (11 October 2026)
+
+Reproduced on the fresh seeded fixture before editing: at 375×812 the Review task title was at y=120, while Review
+changes and Merge… were inside the run result lower in the activity feed. They required scrolling past the task
+header and activity. The seeded local branch was one commit ahead and unmerged, so the controller's existing Git
+evidence allowed both actions. The pre-change capture is
+`.impeccable/review/workstream-3/baseline-review-phone.png`.
+
+The Review task panel now places the task title first, followed immediately by Review changes and Merge… when the
+run's local branch is authoritatively ahead and unmerged. Archive and Edit stay available in the header with
+secondary button styling. Branch or PR provenance and reported test-note count appear once in the summary; the
+test line explicitly says “not verified.” Full run and Git evidence, including the full test notes and handoff,
+stays inside “Full run and Git evidence.” Failed Git/PR lookup is identified as unknown and offers no invented
+review or merge action. The existing merge sheet still checks current Git state, refuses stale branch evidence,
+requires confirmation, and moves a merged task to Done. The existing Accept work / Reject work explanation was
+verified: it records a verdict and does not merge or move the task. Doing continuation and reply rendering remain
+on their original RunHandoff path.
+
+Behavior evidence:
+
+- `scripts/browser-individual.cjs` now exercises local branch review, a controlled open-PR response, no-change
+  evidence, failed Git and PR lookup responses, unverified test notes, stale merge refusal, merge confirmation,
+  the Done transition, and Archive Undo. It asserts the review action appears in the task header only, the title
+  leads at 375×812, the full evidence disclosure starts closed, the verdict stays separate from merge, and Undo
+  returns the task to Done. The controlled PR and failure responses are browser mocks; no API or fixture source
+  was changed.
+- On the final fixture, the action row measured y=153 below the title and both Review changes and Merge… measured
+  44px high. At coarse-pointer emulation, Review changes measured 152×44px; the title received focus when the panel
+  opened, Tab reached Review changes, and `prefers-reduced-motion: reduce` removed the panel animation.
+- The four Review-task screenshots at 1440×900 and 375×812 in light and dark themes, plus coarse-pointer phone
+  captures, are in `.impeccable/review/workstream-3/individual/`. The complete guarded-fixture matrix, health
+  identity, seeded project IDs, log and legibility JSON are in `.impeccable/review/workstream-3/fixture/`.
+  Legibility measured **5,554 text nodes**, **zero contrast failures**, and **zero text below 11.5px** across 28
+  routes × two themes × two sizes.
+- The Impeccable detector returned no findings. `npm run check` found zero Svelte errors and warnings; `npm run lint`
+  passed; Vitest passed **44 files / 534 tests**. Production web/embed/shell builds completed.
+- `make test-browser` completed the Individual flows (including the Review regression) and Team browser flows, but
+  did **not** complete: its separate `scripts/browser-bridge.cjs` integration repeatedly timed out while waiting
+  for a disposable run to reach `waiting_for_user` within its 10-second polling window. The failure occurred after
+  the Review and Team browser flows had passed. It remains a reported suite failure; no Team or Go source was
+  changed, and the wait was not relaxed.
+- No developer comprehension session was observed. Whether people can explain review, verdict and merge remains
+  unverified; scripted browser assertions do not establish human comprehension. No heuristic score increase is
+  claimed.
+
+No out-of-scope API dependency was identified. Review and merge continue to use the existing controller evidence
+and confirmation APIs.

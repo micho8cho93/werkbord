@@ -13,6 +13,7 @@
   import ConnectionBanner from '../lib/ConnectionBanner.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
   import RunHandoff from '../lib/RunHandoff.svelte';
+  import RunReviewSummary from '../lib/RunReviewSummary.svelte';
   import RunUsage from '../lib/RunUsage.svelte';
 import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte';
   import { schedulingLabels } from '../lib/scheduling';
@@ -50,6 +51,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const run = $derived(viewId === latest?.id ? latest : history.find((r) => r.id === viewId));
   const status = $derived(run ? runStatus(run) : undefined);
   const viewingLatest = $derived(!!run && run.id === latest?.id);
+  const reviewFirst = $derived(task?.state === 'review' && !!run && !!status && !status.active && viewingLatest);
 
   $effect(() => {
     const id = router.taskId;
@@ -395,6 +397,9 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         <a class="btn quiet small icon close" href={boardHref} aria-label="Close panel" title="Close (Esc)"><Icon name="close" /></a>
       </div>
       <h2 class="title" id="task-title" tabindex="-1" bind:this={titleEl}>{task.title}</h2>
+      {#if reviewFirst && run}
+        <RunReviewSummary {run} onmerged={() => void move('done')} />
+      {/if}
       {#if agentWork}
         <p class="runs-with">
           Runs with <strong>{runWith}</strong>
@@ -541,8 +546,13 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
           {#if actionError}<p class="error banner" role="alert">{actionError}</p>{/if}
 
-          {#if run && status && !status.active}
+          {#if run && status && !status.active && !reviewFirst}
             <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} />
+          {:else if reviewFirst && run}
+            <details class="review-evidence">
+              <summary>Full run and Git evidence</summary>
+              <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} hideReviewActions />
+            </details>
           {/if}
 
           {#if feed}
@@ -805,6 +815,22 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   .runs-with strong {
     font-weight: 500;
   }
+
+  .review-evidence > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-size: 12.5px;
+  }
+
+  .review-evidence[open] {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .review-evidence[open] > :not(summary) { margin-top: 10px; }
 
   .body {
     flex: 1;

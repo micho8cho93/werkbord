@@ -181,10 +181,12 @@ heading (the provider chooser, New, Close) and the box.
   the feed is the one statement; the feed shows the question again once it is answered, and the status line does not.
 - **Archive, then undo.** A task panel's "Archive task" moves the task to the board's Archive and says so in a toast with
   Undo (12 seconds), which puts it back in the column it left. Nothing is called "closing a task".
-- **Review ends where it starts.** A finished run's result card offers Review changes and, for the run's own local branch
-  while it is ahead and unmerged, Merge…, the same confirmation Sheet as the board's; merging moves the task to Done.
-  Accept work / Reject work say what they do: they record your verdict (counted as Kept in the usage by runner and agent)
-  and never merge, move or archive.
+- **Review starts at the task title.** A task in Review leads with its title and Review changes in the task-panel header.
+  Merge… sits beside it only when current local Git evidence says the run's own branch is ahead and unmerged; it opens
+  the same confirmation Sheet as the board, and a successful merge moves the task to Done. The header summarizes branch
+  or pull-request provenance and whether tests were reported, never as verified success. Full run and Git evidence stays
+  in a clear disclosure. Accept work / Reject work record a verdict (counted as Kept in usage by runner and agent); they
+  never merge, move or archive the task.
 - **An answer is confirmed.** Answering a question, on a card, in the task panel, on Runs or in the window's Inbox, shows
   one line saying what was sent and whether the agent has it yet ("Answered “Yes”. The agent has it and is carrying on.").
 - **Only a refusal of a permission is red.** An approval's Deny or Reject is drawn as a refusal; a "No" to a decision is an

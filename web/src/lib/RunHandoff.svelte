@@ -17,11 +17,14 @@
     inherited,
     canContinue,
     onmerged,
+    hideReviewActions = false,
   }: {
     run: Run;
     scope: ProjectScope;
     inherited: Resolved;
     canContinue: boolean;
+    /** The Review task panel shows these actions beside the task title. */
+    hideReviewActions?: boolean;
     /** Runs once the work is merged: the task panel moves the task to Done. */
     onmerged?: () => void;
   } = $props();
@@ -35,6 +38,7 @@
   const canMerge = $derived(!!branch && !branch.merged && branch.vsTarget.ahead > 0);
   const pr = $derived(git.github?.pullRequests.find(p => p.runId === current.id));
   const prURL = $derived(pr ? safeURL(pr.url) : '#');
+  const reviewLookupFailed = $derived(!!git.error || (git.github?.reason === 'error' && !git.github.available));
   $effect(() => { const store = git; return untrack(() => { const stop = store.watch(); void store.loadGitHub(); return stop; }); });
   let editing = $state(false);
   let editVersion = $state(0);
@@ -143,10 +147,10 @@
   <p class="text"><strong>{current.state === 'completed' ? 'Session finished — ready for your review.' : current.state === 'failed' ? 'The run failed. Your task and recorded activity are retained.' : 'The run stopped. Your task and recorded activity are retained.'}</strong></p>
   {#if current.reason}<p class="text">{current.reason}</p>{/if}
   <p class="text">Branch: <code>{branch?.name || current.branch || 'No branch recorded'}</code></p>
-  {#if branch}<div class="review-acts"><a class="btn primary" href={branchHref(current.projectId, branch.scope, branch.name)}>Review changes</a>{#if canMerge}<button class="btn" onclick={() => sheets.open({ kind: 'merge', branch: branch.name, onmerged })}><Icon name="merge" size={14} />Merge…</button>{/if}</div>
+  {#if branch}{#if !hideReviewActions}<div class="review-acts"><a class="btn primary" href={branchHref(current.projectId, branch.scope, branch.name)}>Review changes</a>{#if canMerge}<button class="btn" onclick={() => sheets.open({ kind: 'merge', branch: branch.name, onmerged })}><Icon name="merge" size={14} />Merge…</button>{/if}</div>{/if}
   {#if canMerge}<p class="muted small">Merge… shows what will change and asks you to confirm before anything is merged into the target branch. A finished agent never merges by itself.</p>{:else if branch.merged}<p class="muted small">This branch is already merged.</p>{/if}
-  {:else if pr && prURL !== '#'}<a class="btn primary" href={prURL} target="_blank" rel="noopener noreferrer">Review pull request #{pr.number}</a>
-  {:else}<p class="muted">{git.loading || git.githubLoading ? 'Checking available review evidence…' : current.remote ? 'Changes remain on the runner. No pull request is available here.' : 'No local diff or pull request is available here.'}</p>{/if}
+  {:else if pr && prURL !== '#'}{#if !hideReviewActions}<a class="btn primary" href={prURL} target="_blank" rel="noopener noreferrer">Review pull request #{pr.number}</a>{/if}
+  {:else}<p class="muted">{reviewLookupFailed ? 'Could not check for a local diff or pull request.' : git.loading || git.githubLoading ? 'Checking available review evidence…' : current.remote ? 'Changes remain on the runner. No pull request is available here.' : 'No local diff or pull request is available here.'}</p>{/if}
   {#if git.error}<p class="error" role="alert">Could not load Git evidence: {git.error}</p>{/if}
   {#if git.github && !git.github.available}<p class="muted small">Pull request lookup unavailable: {git.github.message || 'Check GitHub access in Settings.'}</p>{/if}
   <p class="text"><strong>Recorded test notes — not independently verified:</strong> {current.handoff?.tests.join("\n") || 'No test evidence recorded.'}</p>
