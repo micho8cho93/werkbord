@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { gitStore } from './git/store.svelte';
+  import { branchHref } from './gitroute';
+  import { safeURL } from './gitui';
   import { api } from "./api";
   import ExecutionFields from "./ExecutionFields.svelte";
   import { compact, executionAgents, type Resolved } from "./execution";
@@ -20,6 +24,11 @@
     scope.history.find((r) => r.id === run.id && r.version >= run.version) ??
       run,
   );
+  const git = $derived(gitStore(run.projectId));
+  const branch = $derived(!current.remote ? git.overview?.branches.find(b => b.scope === 'local' && (b.devboard.runId === current.id || (!!current.branch && b.name === current.branch))) : undefined);
+  const pr = $derived(git.github?.pullRequests.find(p => p.runId === current.id));
+  const prURL = $derived(pr ? safeURL(pr.url) : '#');
+  $effect(() => { const store = git; return untrack(() => { const stop = store.watch(); void store.loadGitHub(); return stop; }); });
   let editing = $state(false);
   let editVersion = $state(0);
   let draft = $state<Handoff | null>(null);
@@ -115,7 +124,7 @@
 
 <section class="handoff card" aria-label="Run handoff">
   <div class="heading">
-    <h2>Handoff</h2>
+    <h2>Run result</h2>
     <button class="btn small" disabled={busy} onclick={generate}
       >{current.handoff ? "Refresh Git evidence" : "Capture handoff"}</button
     >{#if current.handoff}<button
@@ -124,6 +133,17 @@
         onclick={edit}>Edit handoff</button
       >{/if}
   </div>
+  <p class="text"><strong>{current.state === 'completed' ? 'Session finished — ready for your review.' : current.state === 'failed' ? 'The run failed. Your task and recorded activity are retained.' : 'The run stopped. Your task and recorded activity are retained.'}</strong></p>
+  {#if current.reason}<p class="text">{current.reason}</p>{/if}
+  <p class="text">Branch: <code>{branch?.name || current.branch || 'No branch recorded'}</code></p>
+  {#if branch}<a class="btn primary" href={branchHref(current.projectId, branch.scope, branch.name)}>Review changes</a>
+  {:else if pr && prURL !== '#'}<a class="btn primary" href={prURL} target="_blank" rel="noopener noreferrer">Review pull request #{pr.number}</a>
+  {:else}<p class="muted">{git.loading || git.githubLoading ? 'Checking available review evidence…' : current.remote ? 'Changes remain on the runner. No pull request is available here.' : 'No local diff or pull request is available here.'}</p>{/if}
+  {#if git.error}<p class="error" role="alert">Could not load Git evidence: {git.error}</p>{/if}
+  {#if git.github && !git.github.available}<p class="muted small">Pull request lookup unavailable: {git.github.message || 'Check GitHub access in Settings.'}</p>{/if}
+  <p class="text"><strong>Recorded test notes — not independently verified:</strong> {current.handoff?.tests.join("\n") || 'No test evidence recorded.'}</p>
+  <p class="text"><strong>Unresolved items:</strong> {[...(current.handoff?.knownIssues ?? []), ...(current.handoff?.blockers ?? []), ...(current.handoff?.questions ?? [])].join("\n") || 'None reported; review is still required.'}</p>
+  <p class="muted small">A finished session does not confirm tests passed, approval, or merge.</p>
   {#if current.parentRunId}<p class="muted small">
       {current.purpose} from {scope.history.find(
         (r) => r.id === current.parentRunId,
@@ -154,7 +174,7 @@
           bind:value={decisions}></textarea></label
       >
       <label
-        >Tests performed (one per line)<textarea
+        >Recorded test notes (one per line)<textarea
           class="input"
           rows="2"
           bind:value={tests}></textarea></label
@@ -212,7 +232,7 @@
     <details>
       <summary>Decisions, tests, and results</summary>
       <p class="text">Decisions: {h.decisions.join("\n") || "Not reported"}</p>
-      <p class="text">Tests: {h.tests.join("\n") || "Not reported"}</p>
+      <p class="text">Recorded test notes (unverified): {h.tests.join("\n") || "Not reported"}</p>
       <p class="text">{h.results}</p>
     </details>
     <details>

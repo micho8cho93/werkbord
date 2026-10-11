@@ -100,6 +100,9 @@ func (k WaitingKind) Valid() bool { return k == WaitNone || k == WaitQuestion ||
 // for the next message (RunWaitingForUser, WaitIdle), and the session only
 // ends when the process exits, the user finishes it, or the user stops it.
 type Run struct {
+	// PendingRequests is derived from the owned runner journal; it is not stored as run state.
+	PendingRequests []string `json:"pendingRequests,omitempty"`
+
 	RunnerID    string   `json:"runnerId,omitempty"`
 	Remote      bool     `json:"remote"`
 	Branch      string   `json:"branch,omitempty"`

@@ -10,6 +10,7 @@
   import Icon from '../lib/Icon.svelte';
   import { blockerLine, interactionLabel, isNotable } from '../lib/policy';
   import QuestionCard from '../lib/QuestionCard.svelte';
+  import ConnectionBanner from '../lib/ConnectionBanner.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
   import RunHandoff from '../lib/RunHandoff.svelte';
   import RunUsage from '../lib/RunUsage.svelte';
@@ -100,7 +101,18 @@
   }
   $effect(() => {
     void feed?.items;
+    if (status && !status.active) return;
     if (untrack(() => nearBottom)) void tick().then(() => toBottom(false));
+  });
+
+  let viewedStatus = '';
+  $effect(() => {
+    const id = run?.id;
+    const active = status?.active;
+    const key = `${id}:${active}`;
+    if (key === viewedStatus) return;
+    viewedStatus = key;
+    if (id && active === false) void tick().then(() => scroller?.scrollTo({ top: 0, behavior: 'auto' }));
   });
 
   // ---- actions ----
@@ -418,6 +430,7 @@
     <div class="body" class:facts-open={factsOpen}>
       <!-- The run: what needs you, what happened, and what to say next. -->
       <div class="main">
+        <ConnectionBanner />
         <div class="scroll" bind:this={scroller} onscroll={trackScroll}>
           {#if run && status}
             <div class="runbar" data-tone={status.tone}>
@@ -436,6 +449,13 @@
                 </span>
               {/if}
             </div>
+            {#if status.active}
+              {@const runner = app.runners.find(r => r.id === run.runnerId)}
+              <p class="note">{run.remote ? runner?.name ?? 'Remote runner' : 'This computer'} · {app.connection !== 'live' ? 'availability unknown' : runner ? runner.disabled ? 'disabled' : runner.online ? 'online' : 'offline' : 'availability unknown'}{runner?.lastSeenAt ? ` · last seen ${timeAgo(runner.lastSeenAt, app.now)}` : ''}{run.activityAt ? ` · last activity ${timeAgo(run.activityAt, app.now)}` : ' · no activity reported yet'}</p>
+              {#if run.pendingRequests?.length}
+                <p class="note" role="status" data-testid="pending-requests">Waiting for runner acknowledgment: {run.pendingRequests.map(k => ({ send: 'message delivery', respond: 'answer delivery', stop: 'stop requested', finish: 'finish requested' })[k]).join(' · ')}. The last reported run state still applies.</p>
+              {/if}
+            {/if}
             {#if isNotable(run.policy) || run.policy.interaction !== effective.interaction}
               <p class="note">This run: {interactionLabel(run.policy)}</p>
             {/if}
@@ -460,6 +480,10 @@
 
           {#if actionError}<p class="error banner" role="alert">{actionError}</p>{/if}
 
+          {#if run && status && !status.active}
+            <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} />
+          {/if}
+
           {#if feed}
             {#if feed.loading}
               <p class="center">Loading activity…</p>
@@ -471,13 +495,10 @@
           {/if}
           <div class="feed-end" bind:this={feedEnd} aria-hidden="true"></div>
 
-          {#if run && status && !status.active}
-            <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} />
-          {/if}
 
           {#if canStart && !isDone}
-            <section class="start" aria-label="Run an agent">
-              <h2>{latest ? 'Run it again' : 'Run an agent on this task'}</h2>
+            <details class="start" aria-label="Run an agent" open={!latest}>
+              <summary>{latest ? 'Run it again' : 'Run an agent on this task'}</summary>
               {#if available.length === 0}
                 <p class="error">No coding agent is ready. {app.agents.map((a) => `${a.name}: ${a.detail ?? 'unavailable'}`).join(' · ')}</p>
                 {#each app.agents.filter((a) => a.guidance) as a (a.id)}<p class="note">{a.name}: {a.guidance}</p>{/each}
@@ -506,7 +527,7 @@
                   </p>
                 {/if}
               {/if}
-            </section>
+            </details>
           {:else if canStart && isDone}
             <p class="center">This task is in Done. Move it back to run an agent on it.</p>
           {/if}
@@ -799,14 +820,15 @@
   }
 
   .start {
-    display: grid;
-    gap: 12px;
     padding: 14px;
     border-radius: var(--radius);
     background: var(--surface);
     border: 1px solid var(--border);
     box-shadow: var(--card-sh);
   }
+
+  .start > :global(*) { margin-top: 12px; }
+  .start > summary { margin-top: 0; cursor: pointer; min-height: 44px; font-weight: 600; }
 
   .field {
     display: grid;

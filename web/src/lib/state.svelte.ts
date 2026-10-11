@@ -16,7 +16,7 @@ import { notifyEvent } from './notifications';
 import { ProjectScope } from './scope.svelte';
 import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, LabelUse, Onboarding, Overview, Project, Question, Runner, UpdateStatus, WaitingItem } from './types';
 
-export type Connection = 'connecting' | 'live' | 'offline' | 'unauthorized';
+export type Connection = 'connecting' | 'syncing' | 'live' | 'offline' | 'unauthorized';
 
 const LAST_PROJECT_KEY = 'devboard.project';
 
@@ -100,6 +100,7 @@ function readDismissedUpdate(): string {
 
 class AppState {
   connection = $state<Connection>('connecting');
+  lastSyncedAt = $state('');
   projects = $state<Project[]>([]);
   /** The reusable labels, with how many open tasks carry each. Shared by every project. */
   labels = $state<LabelUse[]>([]);
@@ -165,6 +166,8 @@ class AppState {
   private reconnectHandlers: (() => void)[] = [];
 
   start(): void {
+    // Load a read-only snapshot even when live updates cannot connect.
+    void this.refresh();
     this.connect();
     setInterval(() => {
       if (document.visibilityState === 'visible') this.now = Date.now();
@@ -228,7 +231,7 @@ class AppState {
 
   // ---- refreshing ----
 
-  async refresh(): Promise<void> {
+  async refresh(): Promise<boolean> {
     try {
       const sync = this.book.beginSync();
       const [projects, agents, overview, execution, onboarding, labels] = await Promise.all([
@@ -250,9 +253,12 @@ class AppState {
       this.error = '';
       void this.checkUpdate();
       // Projects already open catch up on what they missed.
-      await Promise.all([...this.scopes.values()].map((s) => s.load().catch((err) => this.handleError(err))));
+      await Promise.all([...this.scopes.values()].map((s) => s.load()));
+      this.lastSyncedAt = new Date().toISOString();
+      return true;
     } catch (err) {
       this.handleError(err);
+      return false;
     }
   }
 
@@ -421,10 +427,10 @@ class AppState {
     // browser resumes with Last-Event-ID, but refetching keeps this simple
     // and correct even if the stream was replaced.
     es.onopen = () => {
-      this.connection = 'live';
-      void this.refresh().then(() => this.reconnectHandlers.forEach((fn) => fn()));
+      void this.resync(es);
     };
     es.onerror = () => {
+      if (this.source !== es) return;
       this.connection = 'offline';
       // While CONNECTING the browser retries by itself. CLOSED means it gave
       // up after an HTTP error, which is usually a missing token.
@@ -432,7 +438,16 @@ class AppState {
     };
     const onEvent = (msg: MessageEvent<string>) => this.apply(JSON.parse(msg.data) as ControllerEvent);
     for (const type of EVENT_TYPES) es.addEventListener(type, onEvent);
-    es.addEventListener('resync_required', () => { void this.refresh().then(() => this.reconnectHandlers.forEach(fn => fn())); });
+    es.addEventListener('resync_required', () => { void this.resync(es); });
+  }
+
+  private async resync(es: EventSource): Promise<void> {
+    if (this.source !== es) return;
+    this.connection = 'syncing';
+    const refreshed = await this.refresh();
+    if (this.source !== es || es.readyState !== EventSource.OPEN || (this.connection as Connection) === 'unauthorized') return;
+    this.connection = refreshed ? 'live' : 'offline';
+    if (refreshed) this.reconnectHandlers.forEach((fn) => fn());
   }
 
   private async diagnose(): Promise<void> {

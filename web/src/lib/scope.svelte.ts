@@ -138,7 +138,7 @@ export class ProjectScope {
         {
           const data = ev.payload as { run: Run; compact?: boolean };
           const prior = this.history.find(r => r.id === data.run.id) ?? this.latestRun[data.run.taskId];
-          this.upsertRun(data.compact ? { ...prior, ...data.run, prompt: prior?.prompt ?? '', handoff: data.run.handoff ?? prior?.handoff } : data.run);
+          this.upsertRun(data.compact ? { ...prior, ...data.run, pendingRequests: data.run.pendingRequests ?? [], prompt: prior?.prompt ?? '', handoff: data.run.handoff ?? prior?.handoff } : data.run);
         }
         return true;
       case 'agent.output': {

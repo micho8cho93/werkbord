@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -430,5 +431,98 @@ func TestRoutingRulesRespectTaskOverridesAndResources(t *testing.T) {
 	}
 	if _, _, e := rt.svc.Route(ctx, task, domain.Resolved{Agent: "codex"}); !errors.Is(e, domain.ErrConflict) {
 		t.Fatalf("unknown RAM admitted: %v", e)
+	}
+}
+
+// Pending delivery is journal-derived: it survives reload, belongs to one project,
+// and acknowledgment never pretends a stop has already completed.
+func TestPendingRunnerRequestsSurviveReloadAndWaitForActualAcknowledgment(t *testing.T) {
+	rt := newRunnerTest(t)
+	ctx := context.Background()
+	run := rt.start(t, rt.task(t))
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run)}}})
+	if _, err := rt.svc.Command(ctx, run.ID, "send", "Keep investigating"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.svc.Command(ctx, run.ID, "stop", ""); err != nil {
+		t.Fatal(err)
+	}
+	assertPending := func(want int) {
+		t.Helper()
+		current, err := rt.f.runs.GetIn(ctx, run.ProjectID, run.ID)
+		if err != nil || len(current.PendingRequests) != want || current.State != domain.RunRunning {
+			t.Fatalf("run=%+v err=%v", current, err)
+		}
+		rows, err := rt.f.runs.ListByTask(ctx, run.TaskID)
+		if err != nil || len(rows) != 1 || len(rows[0].PendingRequests) != want {
+			t.Fatalf("history=%+v err=%v", rows, err)
+		}
+	}
+	assertPending(2)
+	if _, err := rt.f.runs.GetIn(ctx, "another-project", run.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("scope bypass: %v", err)
+	}
+	jobs := rt.syncMust(t, nil).Jobs
+	if len(jobs) != 1 || len(jobs[0].Commands) != 2 {
+		t.Fatalf("jobs=%+v", jobs)
+	}
+	// Activity arriving while requests are queued must retain pending feedback.
+	output := agent.Event{Kind: agent.KindOutput, Stream: domain.StreamAssistant, Text: "Still working"}
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{{Seq: 2, Kind: "event", Event: &output}}}})
+	assertPending(2)
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{{Seq: 3, Kind: "command", CommandID: jobs[0].Commands[0].ID}}}})
+	assertPending(1)
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{{Seq: 4, Kind: "command", CommandID: jobs[0].Commands[1].ID}}}})
+	assertPending(0)
+	events, err := rt.f.runs.Events(ctx, run.ID, 0, 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, ev := range events {
+		if strings.Contains(string(ev.Payload), "Runner acknowledged the stop request. Waiting for its final result.") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("missing durable acknowledgment")
+	}
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{{Seq: 5, Kind: "ended", Result: &agent.Result{State: domain.RunStopped}}}}})
+	current, err := rt.f.runs.Get(ctx, run.ID)
+	if err != nil || current.State != domain.RunStopped || len(current.PendingRequests) != 0 {
+		t.Fatalf("terminal run=%+v %v", current, err)
+	}
+}
+
+func TestFailedRunnerDeliveryDoesNotPublishSuccess(t *testing.T) {
+	rt := newRunnerTest(t)
+	ctx := context.Background()
+	run := rt.start(t, rt.task(t))
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run)}}})
+	if _, err := rt.svc.Command(ctx, run.ID, "send", "Investigate"); err != nil {
+		t.Fatal(err)
+	}
+	command := rt.syncMust(t, nil).Jobs[0].Commands[0]
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{{Seq: 2, Kind: "command", CommandID: command.ID, Error: "Cannot deliver"}}}})
+	current, err := rt.f.runs.Get(ctx, run.ID)
+	if err != nil || current.State != domain.RunRunning || len(current.PendingRequests) != 1 || current.PendingRequests[0] != "stop" {
+		t.Fatalf("run=%+v err=%v", current, err)
+	}
+	events, err := rt.f.runs.Events(ctx, run.ID, 0, 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := false
+	for _, ev := range events {
+		payload := string(ev.Payload)
+		if strings.Contains(payload, "Runner acknowledged message delivery") {
+			t.Fatal("failed delivery presented as success")
+		}
+		if strings.Contains(payload, "Runner command failed: Cannot deliver") {
+			failure = true
+		}
+	}
+	if !failure {
+		t.Fatal("missing durable failure feedback")
 	}
 }

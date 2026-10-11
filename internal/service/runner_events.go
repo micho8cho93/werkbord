@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,9 +27,11 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 		}
 		return emitRun(em, r, r.State)
 	}
+	setPending(r, j)
 	from := r.State
 	now := s.now()
 	persist := func() error {
+		setPending(r, j)
 		r.UpdatedAt = now
 		if e := tx.Runs().Update(ctx, r); e != nil {
 			return e
@@ -157,6 +160,17 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 			// A response delivery failure cannot leave an invisible stuck process.
 			enqueue(j, "stop", "", "", "")
 			return nil
+		}
+		notice := map[string]string{
+			"send":    "Runner acknowledged message delivery.",
+			"respond": "Runner acknowledged answer delivery.",
+			"stop":    "Runner acknowledged the stop request. Waiting for its final result.",
+			"finish":  "Runner acknowledged the finish request. Waiting for its final result.",
+		}[cmd.Kind]
+		if notice != "" {
+			if e := emitOutput(em, r, domain.AgentOutput{Stream: domain.StreamSystem, Text: notice}); e != nil {
+				return e
+			}
 		}
 		if cmd.QuestionID != "" {
 			q, e := tx.Questions().Get(ctx, cmd.QuestionID)
@@ -371,6 +385,9 @@ func (s *Runners) Command(ctx context.Context, id, kind, text string) (*domain.R
 		if e := saveJob(ctx, tx, j, s.now()); e != nil {
 			return e
 		}
+		if e := publishPending(ctx, tx, em, r, j); e != nil {
+			return e
+		}
 		out = r
 		return nil
 	})
@@ -424,6 +441,9 @@ func (s *Runners) Answer(ctx context.Context, id, answer string) (*domain.Questi
 		if e := saveJob(ctx, tx, j, s.now()); e != nil {
 			return e
 		}
+		if e := publishPending(ctx, tx, em, r, j); e != nil {
+			return e
+		}
 		out = q
 		return nil
 	})
@@ -440,4 +460,40 @@ func validCommit(commit string) bool {
 		}
 	}
 	return true
+}
+
+// hydratePending exposes delivery state without exposing command payloads.
+func hydratePending(ctx context.Context, tx store.Tx, r *domain.Run) error {
+	r.PendingRequests = nil
+	if !r.Remote || !r.State.Active() {
+		return nil
+	}
+	j, err := loadJob(ctx, tx, r.ID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	setPending(r, j)
+	return nil
+}
+func setPending(r *domain.Run, j *runnerwire.Job) {
+	r.PendingRequests = nil
+	if !r.State.Active() {
+		return
+	}
+	for _, c := range j.Commands {
+		switch c.Kind {
+		case "send", "respond", "stop", "finish":
+			r.PendingRequests = append(r.PendingRequests, c.Kind)
+		}
+	}
+}
+func publishPending(ctx context.Context, tx store.Tx, em *emitter, r *domain.Run, j *runnerwire.Job) error {
+	setPending(r, j)
+	if err := tx.Runs().Update(ctx, r); err != nil {
+		return err
+	}
+	return emitRun(em, r, r.State)
 }

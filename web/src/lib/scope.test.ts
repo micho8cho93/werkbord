@@ -39,6 +39,7 @@ vi.mock('./api', () => {
 
 import { ProjectScope, newer } from './scope.svelte';
 import { app } from './state.svelte';
+import { api } from './api';
 
 const T0 = '2026-10-04T10:00:00Z';
 const policy = { interaction: 'interactive' as const };
@@ -330,4 +331,52 @@ describe('labels', () => {
     await settle();
     expect(app.labels[0].name).toBe('Design systems');
   });
+});
+
+
+describe('live status requires a successful catch-up', () => {
+  it('keeps syncing visible until project snapshots load and notifies subscribers only on success', async () => {
+    vi.stubGlobal('EventSource', { OPEN: 1 });
+    const es = { readyState: 1 } as EventSource;
+    app['source'] = es;
+    app.enter('prj_a');
+    await settle();
+    let complete!: (value: Task[]) => void;
+    const pending = new Promise<Task[]>(resolve => { complete = resolve; });
+    const load = vi.spyOn(api, 'listTasks').mockReturnValueOnce(pending);
+    const notify = vi.fn();
+    const unsubscribe = app.onReconnect(notify);
+    try {
+      const catchingUp = app['resync'](es);
+      await settle();
+      expect(app.connection).toBe('syncing');
+      expect(notify).not.toHaveBeenCalled();
+      complete(db.tasks.prj_a as Task[]);
+      await catchingUp;
+      expect(app.connection).toBe('live');
+      expect(app.lastSyncedAt).not.toBe('');
+      expect(notify).toHaveBeenCalledOnce();
+      load.mockRejectedValueOnce(new Error('Snapshot unavailable'));
+      const previousSync = app.lastSyncedAt;
+      await app['resync'](es);
+      expect(app.connection).toBe('offline');
+      expect(app.lastSyncedAt).toBe(previousSync);
+      expect(notify).toHaveBeenCalledOnce();
+      expect(app.scope('prj_a')?.tasks.length).toBe(2);
+    } finally {
+      load.mockRestore(); unsubscribe(); app['source'] = null; vi.unstubAllGlobals();
+    }
+  });
+});
+
+
+it('clears queued requests on compact acknowledgment and terminal reports while preserving the prompt', async () => {
+  const scope = new ProjectScope('prj_a');
+  await scope.load();
+  scope.upsertRun(run('run_a1', 'tsk_a1', 'prj_a', { version: 2, prompt: 'Preserved context', pendingRequests: ['send', 'stop'] }));
+  scope.apply(event('run.state_changed', 'prj_a', { compact: true, run: run('run_a1', 'tsk_a1', 'prj_a', { version: 3 }) }));
+  expect(scope.latestRun.tsk_a1.pendingRequests).toEqual([]);
+  expect(scope.latestRun.tsk_a1.prompt).toBe('Preserved context');
+  scope.apply(event('run.state_changed', 'prj_a', { compact: true, run: run('run_a1', 'tsk_a1', 'prj_a', { version: 4, state: 'stopped' }) }));
+  expect(scope.latestRun.tsk_a1.pendingRequests).toEqual([]);
 });

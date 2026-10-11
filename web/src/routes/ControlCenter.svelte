@@ -4,7 +4,8 @@
   import { matchesScheduledExecution } from '../lib/control';
   import ControlInfrastructure from '../lib/ControlInfrastructure.svelte';
   import WaitingRepository from '../lib/WaitingRepository.svelte';
-  import { agentName, cardActivity, oneLine, runElapsed } from '../lib/format';
+  import { agentName, cardActivity, oneLine, runElapsed, runReportStale } from '../lib/format';
+  import RunBadge from '../lib/RunBadge.svelte';
   import Icon from '../lib/Icon.svelte';
   import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
   import { activitySummary, attentionCount } from '../lib/projects';
@@ -50,12 +51,14 @@
   const agentIds = $derived([...new Set([...(app.overview?.usage ?? []).map((u) => u.agentId), ...app.agents.map((a) => a.id)])].sort());
 
   /** One line on how things stand, as the phone heading says it. */
+  const staleWork = $derived(app.connection !== 'live' || working.some(r => runReportStale(r.run, true, app.runners)));
   const summary = $derived.by(() => {
     const needs = segmentCount(items, ['question', 'idle', 'blocked', 'schedule']);
     const failed = segmentCount(items, ['failed']);
     const review = segmentCount(items, ['review']);
     const parts = [needs ? `${needs} need${needs === 1 ? 's' : ''} you` : '', failed ? `${failed} failed` : '', review ? `${review} to review` : '', working.length ? `${working.length} running` : ''];
-    return parts.filter(Boolean).join(' · ') || 'All clear';
+    const known = parts.filter(Boolean).join(' · ');
+    return app.connection === 'live' ? known || 'All clear' : `Status may be outdated${known ? ` · ${known}` : ''}`;
   });
 
   let permission = $state(notificationPermission());
@@ -138,11 +141,11 @@
         <p class="empty">Loading…</p>
       {:else if shown.length === 0 && !(app.waiting.length && segment === 'all')}
         <div class="clear">
-          <span class="dot" data-tone="ok"></span>
+          <span class="dot" data-tone={staleWork ? 'neutral' : 'ok'}></span>
           <div>
-            <p class="clear-title">{segment === 'all' ? 'Nothing needs you.' : 'Nothing here.'}</p>
+            <p class="clear-title">{app.connection !== 'live' ? 'Waiting for current status.' : segment === 'all' ? 'Nothing needs you.' : 'Nothing here.'}</p>
             <p class="muted">
-              {working.length
+              {staleWork ? 'These are the last reported states. Reconnect or wait for the runner to report before relying on execution status.' : working.length
                 ? `${working.length} ${working.length === 1 ? 'agent is' : 'agents are'} working. Questions, blocked runs and finished work appear here the moment they happen.`
                 : 'Questions, blocked runs, failures and finished work appear here the moment they happen.'}
             </p>
@@ -176,19 +179,20 @@
       {/if}
 
       <section class="pn">
-        <div class="ph">Running now<span class="chip">{working.length}</span></div>
+        <div class="ph">{staleWork ? 'Last reported work' : 'Running now'}<span class="chip">{working.length}</span></div>
         {#if working.length}
           <ul class="rows">
             {#each working as r (r.run.id)}
-              <li class="run">
+              <li class="run" class:live={!runReportStale(r.run, app.connection === 'live', app.runners)}>
                 <a href={taskHref(r.run.projectId, r.run.taskId)}><span class="dot" data-tone="work"></span>{r.taskTitle}</a>
+                <RunBadge run={r.run} />
                 <p class="mm">{r.projectName} · {agentName(app.agents, r.run.agentId)} · {runElapsed(r.run, app.now)}</p>
                 {#if cardActivity(r.run)}<p class="mm act">› {oneLine(cardActivity(r.run), 90)}</p>{/if}
               </li>
             {/each}
           </ul>
         {:else}
-          <p class="muted small">No agent is working right now.</p>
+          <p class="muted small">{app.connection === 'live' ? 'No active runs reported.' : 'No active runs in the last snapshot.'}</p>
         {/if}
       </section>
 
@@ -356,7 +360,7 @@
     text-decoration: none;
   }
 
-  .run a .dot {
+  .run.live a .dot {
     animation: pulse 2.4s ease-in-out infinite;
   }
 

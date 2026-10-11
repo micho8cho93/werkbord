@@ -139,6 +139,9 @@ func (s *ControlCenter) Overview(ctx context.Context) (*Overview, error) {
 		}
 		agentOf := make(map[string]string, len(runs))
 		for _, r := range runs {
+			if err := hydratePending(ctx, tx, &r); err != nil {
+				return err
+			}
 			agentOf[r.ID] = r.AgentID
 			t, err := title(r.TaskID)
 			if err != nil {

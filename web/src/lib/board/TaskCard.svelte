@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { runReportStale } from '../format';
   import { api } from '../api';
   import { cardStatus, quickChoices, type CardStatus } from '../board';
   import { agentLabel, priorityLabel, type Resolved } from '../execution';
@@ -6,6 +7,7 @@
   import { labelsOf, modeLabel, modeOf } from '../labels';
   import Icon from '../Icon.svelte';
   import { choicesOf, describeAnswerFailure, isAllow, isDeny } from '../questions';
+  import { branchHref } from '../gitroute';
   import { taskHref } from '../router.svelte';
   import type { ProjectScope } from '../scope.svelte';
   import { app } from '../state.svelte';
@@ -67,6 +69,7 @@
       branch: branch ? `${branch.name}${branch.vsTarget.ahead ? ` · ${branch.vsTarget.ahead} ${branch.vsTarget.ahead === 1 ? 'commit' : 'commits'} ahead` : ''}` : undefined,
     }),
   );
+  const stale = $derived(!!run && runReportStale(run, app.connection === 'live', app.runners));
   const question = $derived(questions[0]);
   const choices = $derived(question ? quickChoices(choicesOf(question)) : []);
   const blockerChoices = $derived(run?.state === 'blocked' ? quickChoices(run.blocker?.options ?? []) : []);
@@ -109,7 +112,7 @@
 <li
   class="card task"
   data-tone={status.tone}
-  class:live={status.live}
+  class:live={status.live && !stale}
   class:settled={task.state === 'done'}
   class:selected
   draggable={!pending}
@@ -118,7 +121,7 @@
   {ondragend}
 >
   <a class="title" {href} draggable="false">{task.title}</a>
-  <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : status.text}</p>
+  <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : `${stale ? 'Last reported: ' : ''}${status.text}${run?.pendingRequests?.includes('stop') ? ' · stop requested' : run?.pendingRequests?.includes('finish') ? ' · finish requested' : ''}`}</p>
   {#if status.detail}<p class="well detail">{status.detail}</p>{/if}
 
   {#if question}
@@ -137,10 +140,10 @@
     </div>
   {:else if status.tone === 'idle'}
     <div class="acts"><a class="btn small primary" {href}><Icon name="reply" size={14} />Reply</a></div>
-  {:else if task.state === 'review' && mergeable}
+  {:else if task.state === 'review'}
     <div class="acts">
-      <button class="btn small primary" onclick={() => onmerge(task)}><Icon name="merge" size={14} />Merge…</button>
-      <a class="btn small" {href}>Review</a>
+      <a class="btn small primary" href={branch && !run?.remote ? branchHref(task.projectId, branch.scope, branch.name) : href}>{branch && !run?.remote ? 'Review changes' : 'Review result'}</a>
+      {#if mergeable}<button class="btn small" onclick={() => onmerge(task)}><Icon name="merge" size={14} />Merge…</button>{/if}
     </div>
   {:else if task.state === 'doing' && run?.state === 'completed'}
     <div class="acts">

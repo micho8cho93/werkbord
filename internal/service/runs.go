@@ -900,6 +900,9 @@ func (s *Runs) Get(ctx context.Context, id string) (*domain.Run, error) {
 	err := s.Store.View(ctx, func(tx store.Tx) error {
 		var err error
 		r, err = tx.Runs().Get(ctx, id)
+		if err == nil {
+			err = hydratePending(ctx, tx, r)
+		}
 		return err
 	})
 	return r, err
@@ -931,6 +934,13 @@ func (s *Runs) History(ctx context.Context, projectID string, limit int) ([]doma
 		}
 		var err error
 		out, err = tx.Runs().ListByProject(ctx, projectID, limit)
+		if err == nil {
+			for i := range out {
+				if err = hydratePending(ctx, tx, &out[i]); err != nil {
+					return err
+				}
+			}
+		}
 		return err
 	})
 	return out, err
@@ -945,6 +955,13 @@ func (s *Runs) ListByTask(ctx context.Context, taskID string) ([]domain.Run, err
 		}
 		var err error
 		out, err = tx.Runs().ListByTask(ctx, taskID)
+		if err == nil {
+			for i := range out {
+				if err = hydratePending(ctx, tx, &out[i]); err != nil {
+					return err
+				}
+			}
+		}
 		return err
 	})
 	return out, err
@@ -960,6 +977,13 @@ func (s *Runs) ListLatestByProject(ctx context.Context, projectID string) ([]dom
 		}
 		var err error
 		out, err = tx.Runs().ListLatestByProject(ctx, projectID)
+		if err == nil {
+			for i := range out {
+				if err = hydratePending(ctx, tx, &out[i]); err != nil {
+					return err
+				}
+			}
+		}
 		return err
 	})
 	return out, err
@@ -971,6 +995,13 @@ func (s *Runs) ListActive(ctx context.Context) ([]domain.Run, error) {
 	err := s.Store.View(ctx, func(tx store.Tx) error {
 		var err error
 		out, err = tx.Runs().ListActive(ctx)
+		if err == nil {
+			for i := range out {
+				if err = hydratePending(ctx, tx, &out[i]); err != nil {
+					return err
+				}
+			}
+		}
 		return err
 	})
 	return out, err
@@ -1051,6 +1082,9 @@ func (s *Runs) ListPendingQuestions(ctx context.Context) ([]domain.Question, err
 func emitRun(em *emitter, r *domain.Run, from domain.RunState) error {
 	snapshot := *r
 	snapshot.Prompt = ""
+	if r.State.Terminal() {
+		snapshot.PendingRequests = nil
+	}
 	if !r.State.Terminal() || from == r.State {
 		snapshot.Handoff = nil
 	}

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -617,6 +618,7 @@ func (s *Runners) applyReport(ctx context.Context, tx store.Tx, em *emitter, run
 	if err != nil {
 		return err
 	}
+	commandsBefore := append([]runnerwire.Command(nil), job.Commands...)
 	for _, ob := range report.Observations {
 		if ob.Seq <= job.Ack {
 			continue
@@ -632,6 +634,16 @@ func (s *Runners) applyReport(ctx context.Context, tx store.Tx, em *emitter, run
 			return err
 		}
 		job.Ack = ob.Seq
+	}
+	// Resume transitions may reload the run; publish delivery against its latest state.
+	run, err = tx.Runs().Get(ctx, report.RunID)
+	if err != nil {
+		return err
+	}
+	if !slices.Equal(commandsBefore, job.Commands) {
+		if err := publishPending(ctx, tx, em, run, job); err != nil {
+			return err
+		}
 	}
 	job.Run = *run
 	if err := saveJob(ctx, tx, job, s.now()); err != nil {

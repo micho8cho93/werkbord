@@ -2,7 +2,7 @@
   import type { ReadableHandoff } from './handoff';
   let { handoff: h }: { handoff: ReadableHandoff } = $props();
   const groups = $derived([
-    { label: 'Tests', lines: h.tests },
+    { label: 'Agent-reported tests (not independently verified)', lines: h.tests },
     { label: 'Known issues', lines: h.knownIssues },
     { label: 'Blockers', lines: h.blockers },
     { label: 'Questions', lines: h.questions },

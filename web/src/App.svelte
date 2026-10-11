@@ -6,6 +6,7 @@
   import { assistant } from './lib/assistant/store.svelte';
   import { embedded } from './lib/embed';
   import NeedsInputBanner from './lib/NeedsInputBanner.svelte';
+  import ConnectionBanner from './lib/ConnectionBanner.svelte';
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
   import ProjectSwitcher from './lib/ProjectSwitcher.svelte';
   import { pageTitle } from './lib/questions';
@@ -160,6 +161,7 @@
         </header>
       {/if}
 
+      {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}
       <NeedsInputBanner />
       <UpdateBanner />
 

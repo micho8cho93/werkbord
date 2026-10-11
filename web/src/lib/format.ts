@@ -1,7 +1,7 @@
 // Pure helpers that turn run data into what the interface says. No framework
 // code here, so it can be tested on its own.
 
-import type { Agent, Run } from './types';
+import type { Agent, Run, Runner } from './types';
 
 export type Tone = 'work' | 'ask' | 'block' | 'idle' | 'ok' | 'bad' | 'neutral';
 
@@ -46,6 +46,14 @@ export function runStatus(run: Run): RunStatus {
     case 'stopped':
       return { label: 'Stopped', tone: 'neutral', needsInput: false, active: false, hint: run.reason || 'The run was stopped.' };
   }
+}
+
+/** Availability qualifies a report; it never changes the run's execution state. */
+export function runReportStale(run: Run, live: boolean, runners: readonly Runner[]): boolean {
+  if (!live) return true;
+  if (!run.remote || !runStatus(run).active) return false;
+  const runner = runners.find(r => r.id === run.runnerId);
+  return !runner?.online || runner.disabled;
 }
 
 /** "3m 12s", "1h 04m", "45s". */
