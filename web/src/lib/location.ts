@@ -3,8 +3,9 @@
 //
 // Project is the scope of the application. There are two kinds of page:
 //
-//   global          #/control          the Control Center: what needs you, in every project
+//   global          #/control          what needs you, in every project
 //                   #/projects         every registered repository, and registering one
+//                   #/help             bundled task guidance and keyboard shortcuts
 //   in a project    #/p/<id>/board     (also: overview, calendar, git, runs, defaults)
 //                   #/p/<id>/git/...   Git drills down: branch, file, changes (see gitroute.ts)
 //                   #/p/<id>/task/<id> a task, which belongs to the board
@@ -13,7 +14,7 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects' | 'settings' | 'onboarding';
+export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding';
 export type ProjectSection = 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
@@ -21,6 +22,7 @@ export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding'>; lab
   { id: 'control', label: 'Needs you', short: 'Needs you' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'settings', label: 'Settings', short: 'Settings' },
+  { id: 'help', label: 'Help', short: 'Help' },
 ];
 
 /** A page that is not in the navigation: first-time setup, which opens by itself and is left by finishing it. */
@@ -176,14 +178,14 @@ export function resolved(loc: Location, projectIds: readonly string[], lastUsed:
 
 /** A page the phone's "More" sheet reaches: the ones the tab bar has no room for. */
 export interface MoreEntry {
-  id: 'overview' | 'projects' | 'defaults' | 'settings';
+  id: 'overview' | 'projects' | 'defaults' | 'settings' | 'help';
   label: string;
   href: string;
 }
 
 /**
  * The phone's tab bar holds Needs you and the project's work sections. Everything else is behind its last tab,
- * "More": the project's Overview and settings when a project is open, then Projects and the app's Settings.
+ * "More": the project's Overview and settings when a project is open, then Projects, Settings and Help.
  */
 export function moreEntries(projectId: string): MoreEntry[] {
   return [
@@ -195,10 +197,11 @@ export function moreEntries(projectId: string): MoreEntry[] {
       : []),
     { id: 'projects', label: 'Projects', href: globalHref('projects') },
     { id: 'settings', label: 'Settings', href: globalHref('settings') },
+    { id: 'help', label: 'Help', href: globalHref('help') },
   ];
 }
 
 /** Whether the page shown is one of those behind More, so the tab can say where you are. */
 export function inMore(view: View): boolean {
-  return view === 'overview' || view === 'defaults' || view === 'projects' || view === 'settings';
+  return view === 'overview' || view === 'defaults' || view === 'projects' || view === 'settings' || view === 'help';
 }

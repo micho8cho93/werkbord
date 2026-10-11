@@ -23,6 +23,7 @@ describe('parse', () => {
   it('knows the two global pages', () => {
     expect(parse('#/control')).toEqual({ view: 'control', projectId: '', taskId: '' });
     expect(parse('#/projects')).toEqual({ view: 'projects', projectId: '', taskId: '' });
+    expect(parse('#/help')).toEqual({ view: 'help', projectId: '', taskId: '' });
   });
 
   it('knows a project and each of its sections, and defaults to its board', () => {
@@ -85,7 +86,7 @@ describe('links', () => {
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
     expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'defaults']);
-    expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'settings']);
+    expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'settings', 'help']);
   });
 
   it('keeps any listed section when switching projects', () => {
@@ -174,20 +175,21 @@ describe('renamed sections', () => {
 });
 
 describe('the phone\'s More entry', () => {
-  it('reaches Overview and Settings, and the project\'s own settings, from a project', () => {
+  it('reaches Overview, project settings, app Settings and Help from a project', () => {
     const e = moreEntries('prj_a');
-    expect(e.map((m) => m.id)).toEqual(['overview', 'defaults', 'projects', 'settings']);
+    expect(e.map((m) => m.id)).toEqual(['overview', 'defaults', 'projects', 'settings', 'help']);
     expect(e.find((m) => m.id === 'overview')?.href).toBe('#/p/prj_a/overview');
     expect(e.find((m) => m.id === 'settings')?.href).toBe('#/settings');
+    expect(e.find((m) => m.id === 'help')?.href).toBe('#/help');
     for (const m of e) expect(parse(m.href).view).toBe(m.id);
   });
 
   it('offers only the app\'s pages when no project is open', () => {
-    expect(moreEntries('').map((m) => m.id)).toEqual(['projects', 'settings']);
+    expect(moreEntries('').map((m) => m.id)).toEqual(['projects', 'settings', 'help']);
   });
 
   it('marks the tab current on those pages only', () => {
-    for (const v of ['overview', 'defaults', 'projects', 'settings'] as const) expect(inMore(v)).toBe(true);
+    for (const v of ['overview', 'defaults', 'projects', 'settings', 'help'] as const) expect(inMore(v)).toBe(true);
     for (const v of ['control', 'board', 'task', 'calendar', 'timeline', 'git', 'runs'] as const) expect(inMore(v)).toBe(false);
   });
 });

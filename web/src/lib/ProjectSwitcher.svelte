@@ -62,7 +62,7 @@
       }
     }
     for (const g of GLOBAL_VIEWS) {
-      if (matchesText(q, g.label, 'go to')) out.push({ id: `g-${g.id}`, group: 'Go to', label: g.label, icon: g.id, run: go(globalHref(g.id)) });
+      if (matchesText(q, g.label, 'go to', g.id === 'help' ? 'shortcuts' : undefined)) out.push({ id: `g-${g.id}`, group: 'Go to', label: g.label, icon: g.id, run: go(globalHref(g.id)) });
     }
 
     if (current && scope && q) {

@@ -23,6 +23,7 @@
   import Calendar from './routes/Calendar.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
+  import Help from './routes/Help.svelte';
   import Onboarding from './routes/Onboarding.svelte';
   import ProjectSettings from './routes/ProjectSettings.svelte';
   import ProjectOverview from './routes/ProjectOverview.svelte';
@@ -185,6 +186,8 @@
           <div class="page"><Projects /></div>
         {:else if router.view === 'settings'}
           <Settings />
+        {:else if router.view === 'help'}
+          <div class="page"><Help /></div>
         {:else if router.view === 'onboarding'}
           <div class="page"><Onboarding /></div>
         {:else if !router.projectId}

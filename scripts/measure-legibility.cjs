@@ -118,7 +118,7 @@ function measure(minPx) {
     const projects = (await api('/api/projects')).projects;
     const repo = projects.find((p) => p.kind !== 'work');
     const work = projects.find((p) => p.kind === 'work');
-    const pages = [['needs-you', '#/control'], ['projects', '#/projects']];
+    const pages = [['needs-you', '#/control'], ['projects', '#/projects'], ['help', '#/help']];
     for (const s of ['defaults', 'labels', 'routing', 'runners', 'agents', 'computer', 'phone', 'github', 'alerts']) pages.push(['settings-' + s, '#/settings' + (s === 'defaults' ? '' : '?' + s)]);
     for (const [label, p] of [['repo', repo], ['work', work]]) {
         if (!p) continue;

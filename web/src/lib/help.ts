@@ -1,0 +1,161 @@
+import { globalHref, projectHref, type GlobalView, type ProjectSection } from './location';
+
+export type HelpDestination =
+  | { kind: 'global'; view: GlobalView }
+  | { kind: 'settings'; section?: string }
+  | { kind: 'project'; repository: ProjectSection; work: ProjectSection };
+
+export interface HelpArticle {
+  id: string;
+  title: string;
+  summary: string;
+  example: string;
+  steps: readonly string[];
+  recovery: string;
+  searchTerms: readonly string[];
+  destination: HelpDestination;
+  linkLabel: string;
+}
+
+export const HELP_ARTICLES: readonly HelpArticle[] = [
+  {
+    id: 'answer',
+    title: 'Answer an agent',
+    summary: 'Needs you collects questions and other interruptions. Open the task to see its project and the exact request before choosing.',
+    example: 'An agent asks, “Commit the fixture work?” Open the question, review its context and options, then choose the answer that matches your intent.',
+    steps: [
+      'Open Needs you or the question on its task card. The task title and project stay with the question.',
+      'Read the prompt and available choices. Answers are sent to the controller that owns the project.',
+      'After saving, look for delivery acknowledgment. “Awaiting acknowledgment” means the answer is saved but the runner has not confirmed receipt yet.',
+    ],
+    recovery: 'If the owning controller is offline or its report is stale, refresh or reconnect before answering. The app disables answers when it cannot trust the current report.',
+    searchTerms: ['question', 'reply', 'needs you', 'awaiting acknowledgment', 'stale', 'offline'],
+    destination: { kind: 'global', view: 'control' },
+    linkLabel: 'Open Needs you',
+  },
+  {
+    id: 'review',
+    title: 'Inspect and merge work',
+    summary: 'Review means the work is ready for your inspection. Accept work and Reject work record your verdict; Merge… changes the repository after confirmation.',
+    example: 'A task reaches Review with a branch and reported test notes. Inspect the changes, treat those notes as reported rather than verified, then use Merge… only if you want to merge locally.',
+    steps: [
+      'Open the task in Review and choose Review changes to inspect its branch or pull request evidence.',
+      'Accept work or Reject work records your assessment. It does not merge the branch or move the task.',
+      'Merge… shows the controller’s repository check. Confirm only when the displayed evidence is current and the proposed merge is what you want.',
+    ],
+    recovery: 'If evidence changes or the controller refuses a merge, return to the task and inspect the latest Git state. A successful local merge moves the task to Done and offers Undo for the task move.',
+    searchTerms: ['review', 'merge', 'verdict', 'accept', 'reject', 'reported tests', 'verified tests', 'branch', 'pull request'],
+    destination: { kind: 'project', repository: 'runs', work: 'board' },
+    linkLabel: 'Open project work',
+  },
+  {
+    id: 'continue',
+    title: 'Continue a run',
+    summary: 'A task keeps its run history and its current state. Open a Doing task to see the latest run and use the available reply, answer or run-again action.',
+    example: 'If a run finished without changes and the task remains in Doing, open the task and start another run when the task is ready.',
+    steps: [
+      'Open the task from the Board or Runs and read the latest reported state.',
+      'If it is waiting for a decision, answer the question in place. If it is still running, use the task message field to send a follow-up.',
+      'When a finished task offers Run again, review its current execution choices before starting another run.',
+    ],
+    recovery: 'A lost start response can leave the outcome uncertain. Check the task and Runs before trying again; do not replay a start when the app says it cannot tell whether it succeeded.',
+    searchTerms: ['continue', 'run again', 'doing', 'message', 'follow-up', 'lost response', 'uncertain'],
+    destination: { kind: 'project', repository: 'runs', work: 'board' },
+    linkLabel: 'Open project work',
+  },
+  {
+    id: 'plan-schedule',
+    title: 'Plan dates or schedule a run',
+    summary: 'Timeline dates plan when work should happen. Calendar schedules when the controller starts agent work. They answer different questions.',
+    example: 'Put “Book the venue” on next week’s Timeline to plan the work. Add an execution schedule in Calendar only if an agent should start it at a chosen time.',
+    steps: [
+      'Use Timeline for planned task dates, milestones and dependencies. Setting a date there does not start an agent.',
+      'Use Calendar for agent execution schedules. A scheduled task starts only under the configured runner and execution rules.',
+      'Work projects have Timeline planning, but no Calendar or agent execution controls.',
+    ],
+    recovery: 'If you meant to plan work rather than launch an agent, edit the task on Timeline. If you meant to schedule execution, check the task’s Calendar entry and runner availability.',
+    searchTerms: ['plan', 'planning', 'timeline', 'schedule', 'calendar', 'date', 'milestone', 'work project'],
+    destination: { kind: 'project', repository: 'calendar', work: 'timeline' },
+    linkLabel: 'Open planning or schedule',
+  },
+  {
+    id: 'runner',
+    title: 'Choose a runner',
+    summary: 'A runner is the computer where an agent works. Project defaults and routing rules can choose it for new runs; task execution settings can override the defaults.',
+    example: 'If the only eligible runner is Busy, wait for a slot or stop a run. An installed agent on a full runner is busy, not missing.',
+    steps: [
+      'Open Settings → Runners to check whether a runner is Idle, Working, Busy, Offline or Disabled.',
+      'Use project Task defaults or Routing rules for the usual choice. Change execution settings on a task when that run needs a different agent or runner.',
+      'Before starting, confirm the selected runner is online and has capacity.',
+    ],
+    recovery: 'If no runner can take the task, wait for capacity or stop a run you no longer need. If it is Offline or Disabled, use the runner’s existing Settings controls to investigate its connection or configuration.',
+    searchTerms: ['runner', 'machine', 'busy', 'capacity', 'routing', 'agent', 'offline', 'disabled'],
+    destination: { kind: 'settings', section: 'runners' },
+    linkLabel: 'Open Settings → Runners',
+  },
+  {
+    id: 'disconnect',
+    title: 'Recover after disconnection',
+    summary: 'The controller may keep working while a browser is disconnected. A last reported state is not proof of what is happening now.',
+    example: 'If a task save reports an uncertain outcome, reconnect and check the Board or use View saved task before creating it again.',
+    steps: [
+      'Restore the connection to the project’s controller and wait for a fresh report.',
+      'Use the task or run list to check what was saved or started before taking the action again.',
+      'For a saved answer that has not been acknowledged, retry the same answer when offered; do not create a different answer to force delivery.',
+    ],
+    recovery: 'When the app says delivery or save is uncertain, check first instead of repeating the mutation. A stale or offline report keeps actions disabled until current evidence returns.',
+    searchTerms: ['disconnect', 'offline', 'reconnect', 'last reported', 'draft', 'uncertain', 'saved task'],
+    destination: { kind: 'global', view: 'control' },
+    linkLabel: 'Open Needs you',
+  },
+  {
+    id: 'counts',
+    title: 'Understand Needs you counts',
+    summary: 'Interruption badges count questions, blocked work and failures. They exclude tasks ready for Review; the Needs you page’s All list includes Review work.',
+    example: 'A project can show one interruption while also having two tasks in Review. Open Needs you → All to see both kinds of work.',
+    steps: [
+      'Use the badge to spot work that needs a response or intervention.',
+      'Use Needs you → All when you want the full list, including work ready for review.',
+      'Open a task to see its project and source run before acting.',
+    ],
+    recovery: 'If a badge does not match the rows you expected, refresh the report and compare its scope: badges exclude Review, while All includes it.',
+    searchTerms: ['count', 'badge', 'all', 'review', 'interruption', 'questions', 'blocked', 'failures'],
+    destination: { kind: 'global', view: 'control' },
+    linkLabel: 'Open Needs you',
+  },
+  {
+    id: 'keyboard',
+    title: 'Navigate with the keyboard',
+    summary: 'Jump to is available from the page and from ⌘K on Mac or Ctrl+K elsewhere. It searches bundled destinations and tasks in the current project.',
+    example: 'Press Ctrl+K, type “Runs”, then press Enter. Press N from a project page to open New task.',
+    steps: [
+      'Press ⌘K or Ctrl+K to open Jump to, type a project, section or task, then use the arrow keys and Enter.',
+      'Press N on a project page to open New task. Press Escape to close a task panel or sheet.',
+      'Tab through links and controls; shortcuts pause while you type in a field. Use the visible Skip to main content link to move past navigation.',
+    ],
+    recovery: 'If a shortcut does not open, first finish or leave the focused field or menu. Jump to is also a visible button in the page heading.',
+    searchTerms: ['keyboard', 'shortcut', 'shortcuts', 'jump to', 'command k', 'control k', 'ctrl k', 'escape', 'skip'],
+    destination: { kind: 'project', repository: 'board', work: 'board' },
+    linkLabel: 'Open the current Board',
+  },
+];
+
+export function searchHelp(query: string): HelpArticle[] {
+  const terms = query.trim().toLocaleLowerCase();
+  if (!terms) return [...HELP_ARTICLES];
+  return HELP_ARTICLES.filter((article) => [
+    article.title,
+    article.summary,
+    article.example,
+    ...article.steps,
+    article.recovery,
+    ...article.searchTerms,
+  ].some((text) => text.toLocaleLowerCase().includes(terms)));
+}
+
+export function helpHref(destination: HelpDestination, projectId: string, projectKind: string | undefined): string {
+  if (destination.kind === 'global') return globalHref(destination.view);
+  if (destination.kind === 'settings') return `${globalHref('settings')}${destination.section ? `?${destination.section}` : ''}`;
+  if (!projectId) return globalHref('projects');
+  return projectHref(projectId, projectKind === 'work' ? destination.work : destination.repository);
+}

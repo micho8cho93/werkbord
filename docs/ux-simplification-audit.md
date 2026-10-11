@@ -700,3 +700,36 @@ production health is disabled or failing. No human comprehension study, physical
 conducted, and no new heuristic score is claimed. Fixtures were rebuilt/reseeded after UI changes, and only owned fixture
 children are stopped after verification. The release is PATCH `4.18.5-preview.1`, committed and tagged locally; nothing
 is pushed.
+
+## Prompt 6 — useful bundled Help (11 October 2026)
+
+Help is a local route (`#/help`) in the existing Individual frontend router. It is reachable from phone More, the Settings
+page, the desktop rail, and Jump to. Its eight task guides cover answering an agent, inspecting and merging work,
+continuing a run, planning versus scheduling, choosing a runner, disconnection recovery, Needs you count scope, and
+keyboard navigation. Each guide has a worked example, steps, a recovery note, and a link to an existing view. A work
+project's planning link goes to Timeline rather than repository-only Calendar; repository links stay in the current
+repository. Search matches only bundled guide text and shortcut terms. It does not call an API or inspect assistant
+conversation history. No Go, Team, or API source changed, and no out-of-scope API dependency was needed.
+
+**Regression and rendered evidence.** `web/src/lib/help.test.ts` covers bundled search, shortcuts, verdict/merge and
+reported/verified distinctions, and valid repository/work destinations. `scripts/browser-help.cjs` confirms route
+discovery from the desktop rail, Jump to, phone More and Settings; static-only search; repository and work-project
+navigation; visible keyboard focus; coarse-pointer target sizes; and the reduced-motion preference. The rebuilt and
+reseeded isolated fixture measured 5,920 text nodes across 29 pages × both themes × both viewport sizes, with zero
+contrast failures and zero text below 11.5px. The first render caught a low-contrast link token; the final measurement
+passed. Four inspected captures are retained in `.impeccable/review/help-2026-10-11/` at 1440×900 and 375×812 in light
+and dark. The same folder contains the legibility JSON, fixture identity and IDs, detector output, and a neutral
+comprehension exercise prepared for future participants.
+
+**Checks and limitations.** `make check` passed, including all Go and Team tests, 541 web tests, lint, type checks,
+desktop tests, and release workflow checks. `make test-unified-desktop-browser` passed. The focused Help browser flows
+passed. `make test-browser` passed Individual and Team browser flows, but its separate Team bridge stage failed with
+“Integration state did not settle” for a fixture run; the failure excerpt and artifact path are retained in
+`.impeccable/review/help-2026-10-11/checks.txt`. `make test-assistant-browser` stopped
+before the conversation checks because its existing browser script could not find the “Work project” button after it
+had landed on the seeded repository Board (`scripts/browser-assistant.cjs:133`). The standalone desktop shell assistant
+suite passed. Neither failure was hidden or used to relax a check. Vite's existing main-chunk-size advisory remains.
+
+The comprehension exercise was prepared but not conducted; no human discovery or understanding is claimed. No fresh
+heuristic assessment was run, so this pass claims no score change. The version is MINOR `4.19.0-preview.1`; commit and
+local tag are recorded in the release history. Nothing is pushed.

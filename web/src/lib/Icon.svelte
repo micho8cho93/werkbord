@@ -13,6 +13,7 @@
     | 'folder'
     | 'runner'
     | 'settings'
+    | 'help'
     | 'defaults'
     | 'search'
     | 'plus'
@@ -87,6 +88,8 @@
     <rect x="2" y="2.5" width="12" height="8.5" rx="1" /><path d="M5.5 13.5h5M8 11v2.5" />
   {:else if name === 'settings' || name === 'defaults'}
     <path d="M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7" /><circle cx="10.5" cy="4.5" r="1.5" /><circle cx="5.5" cy="11.5" r="1.5" />
+  {:else if name === 'help'}
+    <circle cx="8" cy="8" r="6" /><path d="M6.4 6.1a1.7 1.7 0 1 1 2.8 1.3c-.8.6-1.2.9-1.2 1.8M8 11.7v.1" />
   {:else if name === 'search'}
     <circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" />
   {:else if name === 'plus'}

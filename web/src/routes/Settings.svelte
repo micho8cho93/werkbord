@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
+  import Icon from '../lib/Icon.svelte';
   import { clock, formatTime } from '../lib/clock.svelte';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
@@ -124,6 +125,7 @@
   </nav>
 
   <div class="content">
+    <p class="help-link"><Icon name="help" size={15} /><a href={globalHref('help')}>Help and keyboard shortcuts</a></p>
     {#if section === 'defaults'}
       <section class="pn">
         <div class="head">

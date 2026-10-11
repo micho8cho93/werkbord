@@ -145,7 +145,9 @@ heading (the provider chooser, New, Close) and the box.
   landmark; links remain the navigation pattern. These rules complement the 11.5px type floor and shared disclosure
   chevron above; compact secondary controls still need a separate touch-target audit.
 - **Navigation levels stay named.** The phone's primary destinations remain visible in the bottom bar; More retains
-  Overview, Project settings, Projects and Settings, with Overview and Project settings titled on the page. Git and
+  Overview, Project settings, Projects, Settings and Help, with Overview and Project settings titled on the page. Help
+  is also linked from Settings and the desktop rail, and is a global destination in Jump to. Its search covers only
+  bundled Help articles and shortcut guidance, never assistant conversation history. Git and
   Settings show a visible level label beside the selected
   section chooser on phones. In the desktop shell, the narrow rail's expand/collapse control has a matching accessible
   name and tooltip so icon-only navigation can reveal its labels and project names.
