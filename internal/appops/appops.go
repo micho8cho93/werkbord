@@ -52,6 +52,7 @@ type Permission string
 const (
 	PermProjectsRead    Permission = "projects:read"
 	PermTicketsRead     Permission = "tickets:read"
+	PermAnalyticsRead   Permission = "analytics:read"
 	PermTicketsCreate   Permission = "tickets:create"
 	PermTicketsUpdate   Permission = "tickets:update"
 	PermScheduleRead    Permission = "schedule:read"
@@ -64,7 +65,7 @@ const (
 
 // AllPermissions is every permission there is.
 var AllPermissions = []Permission{
-	PermProjectsRead, PermTicketsRead, PermTicketsCreate, PermTicketsUpdate, PermScheduleRead,
+	PermProjectsRead, PermTicketsRead, PermAnalyticsRead, PermTicketsCreate, PermTicketsUpdate, PermScheduleRead,
 	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse, PermTaskPlan,
 }
 

@@ -64,6 +64,37 @@ func TestConnectedProjectsAndTicketsKeepConfirmationScopeAndIsolation(t *testing
 	}
 }
 
+func TestConnectedWorkspaceAnalyticsFailsClosedWithoutAnApprovedRead(t *testing.T) {
+	f := newFx(t)
+	p := f.session("ast_workspace_analytics")
+	w := Workspace{ID: "board_1", Name: "Team"}
+	pid := workspaceProjectID(w.ID, "p1")
+	var methods []string
+	f.svc.BindWorkspaces(p.SessionID, []Workspace{w}, func(_ context.Context, _ Workspace, method string, _ any) (json.RawMessage, error) {
+		methods = append(methods, method)
+		switch method {
+		case "get_project":
+			return json.RawMessage(`{"id":"p1","name":"Portfolio"}`), nil
+		case "list_tickets":
+			return json.RawMessage(`[{"id":"t1","projectId":"p1","title":"Ship dashboard","state":"doing"}]`), nil
+		default:
+			t.Fatalf("unexpected workspace operation: %s", method)
+			return nil, nil
+		}
+	})
+
+	got := f.mustCall(p, "get_project_metrics", map[string]any{"projectId": pid}).Data.(ProjectMetrics)
+	if got.Doing != 1 || got.Total != 1 || got.ObservedAt.IsZero() {
+		t.Fatalf("connected workspace snapshot = %+v", got)
+	}
+	if _, err := f.call(p, "get_analytics", map[string]any{"projectId": pid, "days": 7}); CodeOf(err) != CodeUnavailable {
+		t.Fatalf("connected workspace analytics should be unavailable: %v", err)
+	}
+	if strings.Contains(strings.Join(methods, ","), "analytics") {
+		t.Fatalf("unapproved analytics operation reached workspace: %v", methods)
+	}
+}
+
 func TestAConnectedMutationStillFailsClosedWhenItsAuditCannotBeWritten(t *testing.T) {
 	f := newFx(t)
 	p := f.session("ast_audit")

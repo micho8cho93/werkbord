@@ -1,9 +1,11 @@
 <script lang="ts">
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
+  import SnapshotStamp from './SnapshotStamp.svelte';
 
-  let { props }: ComponentRenderProps<{ caption?: string; columns?: string[]; rows?: string[][] }> = $props();
+  let { props }: ComponentRenderProps<{ caption?: string; columns?: string[]; rows?: string[][]; asOf?: string }> = $props();
 </script>
 
+<SnapshotStamp asOf={props.asOf} />
 <!-- The scrollable table needs to be keyboard reachable when it overflows on a phone. -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div class="table-wrap" role="region" aria-label={props.caption ?? 'Generated table'} tabindex="0">

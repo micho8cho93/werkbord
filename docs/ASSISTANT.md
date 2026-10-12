@@ -38,6 +38,8 @@ setting, archive or delete anything, or give an agent permission to run a comman
 | --- | --- | --- | --- |
 | `get_overview` | counts per project of what is running, waiting, blocked, failed, in review | `projects:read` | no |
 | `list_projects` | the projects (no paths on your disk) | `projects:read` | no |
+| `get_project_metrics` | current counts in Backlog, Doing, Review and Done; a board snapshot, not a historical completion rate | `tickets:read` | no |
+| `get_analytics` | 7, 30 or 90 days of recorded task state changes and run outcomes, with history coverage; provider results describe runs and do not assign task completions to a provider | `analytics:read` | no |
 | `list_labels` | the reusable labels | `tickets:read` | no |
 | `list_tickets` | a project's tickets, filtered | `tickets:read` | no |
 | `get_ticket` | one ticket in full, with its latest runs | `tickets:read` | no |
@@ -129,6 +131,8 @@ The assistant belongs to the Individual controller, on your computer, and runs *
 - In the desktop app, the assistant's dedicated surface connects the available workspace identities to its conversation. A generic
   metadata transport (`appops.WorkspaceCall`) appends their projects to `list_projects`, with the workspace name and namespaced IDs
   (`workspace:<workspace>/<project>`). It supports overview counts, project lookup, listing tickets and creating a ticket in Backlog.
+  Current metrics and planned-date timelines are calculated from those approved ticket reads. Historical analytics is unavailable for connected
+  workspaces because that transport does not expose an analytics read; the assistant must identify that gap instead of querying its local store.
   It exposes no run, repository, settings, deletion, or arbitrary HTTP operation. Project creation and editing connected tickets
   remain actions in the workspace itself. Browser/PWA sessions see their own Individual board.
 - The engine emits a `workspace_request`; only the dedicated desktop assistant frame forwards it to the native shell. The shell
@@ -237,8 +241,10 @@ resumes the conversation and checks that an existing task list produces no dupli
 ### OpenUI Lang responses
 
 The assistant can also answer a request to create an interface with OpenUI Lang. The Svelte 5 registry in
-`web/src/lib/assistant/openui/library.ts` defines `Text`, `Heading`, `Card`, `Metric`, `List`, `Table`, `Disclosure`,
-`Grid` and `Stack` with Zod 4 schemas. `library.prompt()` generates the component signatures and inline-response rules from
+`web/src/lib/assistant/openui/library.ts` defines Werkbord components for metrics, progress, status summaries, bar, line,
+pie and comparison charts, sortable/filterable task and project tables, planned timelines, and task workflows with dependencies
+and blockers, alongside `Text`, `Heading`, `Card`, `List`, `Table`, `Disclosure`, `Grid` and `Stack`. Zod 4 schemas bound
+each component's data and arguments. `library.prompt()` generates the component signatures and inline-response rules from
 those same definitions; the browser sends that bounded formatting prompt with the message. The controller adds it to the
 provider's normal system prompt, without changing the session, provider sign-in, operation catalog or confirmation policy.
 The implementation uses the installed `@openuidev/svelte-lang` 0.4.1 API (`defineComponent`, `createLibrary`, `Renderer`,
@@ -249,9 +255,11 @@ the fenced response with the installed parser. Run it with `WERKBORD_LIVE_ASSIST
 -run TestLiveOpenUIResponsesUseRegisteredComponents -v`.
 
 The assistant may mix ordinary prose with a fenced `openui-lang` block. OpenUI code streams in the existing `delta` events,
-and `ReplyView.svelte` splits it from prose and passes each block to the registered Svelte renderer. A local disclosure is the
-only interactive component in this first set. It changes no board state and makes no request. Generated UI cannot run HTML,
-JavaScript, CSS, OpenUI queries or mutations, or unregistered components. The operation filter and repair pass treat the UI
+and `ReplyView.svelte` splits it from prose and passes each block to the registered Svelte renderer. Tables sort and filter
+their already-returned rows locally; disclosures reveal local detail. These controls change no board state and make no request.
+Each data visualization includes the exact operation snapshot timestamp and is not live. The assistant uses prose for simple
+questions and retrieves data through its existing permission-scoped operations before generating an interface. OpenUI cannot
+add operations or call an API. Generated UI cannot run HTML, JavaScript, CSS, OpenUI queries or mutations, or unregistered components. The operation filter and repair pass treat the UI
 fence as opaque; `werkbord-call` blocks remain a separate protocol outside it. Retries still discard the failed attempt, while
 SSE replay and transcript recovery carry the same streamed reply text.
 
@@ -529,8 +537,9 @@ answers `503` if `assistant.disabled` is set.
 }
 ```
 
-`readOnly` removes the permissions to propose changes (the assistant is not even told those operations exist). `projects`
-limits what it can see. The commands, models and reasoning levels it offers are the ones set for the agents under `"agents"`
+`readOnly` removes the permissions to propose changes (the assistant is not even told those operations exist). It grants the
+read-only `analytics:read` permission so the assistant can answer historical project questions from recorded task transitions
+and run outcomes. This permission exposes neither model usage/cost analytics nor any write operation. `projects` limits what it can see. The commands, models and reasoning levels it offers are the ones set for the agents under `"agents"`
 (`agents.claude-code.command`, `.model`, `.models`, `.reasoning`; likewise for `codex`, `gemini-cli` and `opencode` where
 supported); `model` is what a conversation that chose none gets. Gemini CLI does not expose a reasoning selector through
 this adapter.
@@ -548,7 +557,7 @@ this adapter.
 | The store: compare-and-swap, one claim per action, append-only audit | `internal/store/sqlite` |
 | The boundaries | `internal/archtest/assistant_test.go` |
 | Attachments: authorization, once-only, limits, expiry, isolation, escaping, fail-closed | `internal/assistant/attachments_test.go`, `internal/api` |
-| The screen's logic: the transcript from events (retries, rounds, replays, gaps), the stream (cut anywhere, reconnects, restarts), dictation, the animation's plan, the safe reader, OpenUI schema/prompt/reply parsing, choices, words | `web/src/lib/assistant/*.test.ts` |
+| The screen's logic: the transcript from events (retries, rounds, replays, gaps), the stream (cut anywhere, reconnects, restarts), dictation, the animation's plan, the safe reader, OpenUI schema/prompt/reply parsing, visualization data, empty states and mobile breakpoints, choices, words | `web/src/lib/assistant/*.test.ts` |
 | The screen against a stand-in controller: opening/closing, sending, confirming, choosing, files, reload, restart, no conversation, no provider | `web/src/lib/assistant/store.test.ts` |
 | The screen in a real browser, with the real engine and API and a scripted provider: the animation frame by frame (light, dark, reduced motion), the workspace left untouched, streaming, generated OpenUI and malformed-output recovery, tool progress, confirmations that survive closing/reload/restart, files, dictation, keyboard and screen-reader behaviour, a phone | `make test-assistant-browser` (`scripts/browser-assistant.cjs`) |
 | The same from the desktop window's sidebar, in a real frame | `make test-assistant-browser` (`scripts/browser-shell-assistant.cjs`) |

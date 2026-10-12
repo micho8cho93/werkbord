@@ -179,6 +179,13 @@ func (b *workspaceBackend) Tickets(ctx context.Context, id string) ([]domain.Tas
 	return tickets, nil
 }
 
+func (b *workspaceBackend) Analytics(ctx context.Context, filter service.AnalyticsFilter) (service.AnalyticsReport, error) {
+	if _, _, ok := b.locate(filter.ProjectID); ok {
+		return service.AnalyticsReport{}, errorf(CodeUnavailable, "historical analytics is not available for connected workspaces")
+	}
+	return b.Backend.Analytics(ctx, filter)
+}
+
 func (b *workspaceBackend) Ticket(ctx context.Context, pid, tid string) (*domain.Task, error) {
 	if _, _, ok := b.locate(pid); ok {
 		return nil, errorf(CodeRefused, "connected tickets can be listed and created; open their workspace to edit them")

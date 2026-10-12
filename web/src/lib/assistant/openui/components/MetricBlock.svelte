@@ -1,13 +1,15 @@
 <script lang="ts">
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
+  import SnapshotStamp from './SnapshotStamp.svelte';
 
-  let { props }: ComponentRenderProps<{ label?: string; value?: string; detail?: string }> = $props();
+  let { props }: ComponentRenderProps<{ label?: string; value?: string; detail?: string; asOf?: string }> = $props();
 </script>
 
 <section class="metric" aria-label={`${props.label ?? 'Metric'}: ${props.value ?? ''}`}>
   <p class="label">{props.label ?? ''}</p>
   <p class="value">{props.value ?? ''}</p>
   {#if props.detail}<p class="detail">{props.detail}</p>{/if}
+  <SnapshotStamp asOf={props.asOf} />
 </section>
 
 <style>

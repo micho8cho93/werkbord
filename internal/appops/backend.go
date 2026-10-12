@@ -24,6 +24,7 @@ type Backend interface {
 	TicketRuns(ctx context.Context, ticketID string) ([]domain.Run, error)
 	Run(ctx context.Context, projectID, runID string) (*domain.Run, error)
 	Overview(ctx context.Context) (*service.Overview, error)
+	Analytics(ctx context.Context, filter service.AnalyticsFilter) (service.AnalyticsReport, error)
 	PendingQuestions(ctx context.Context, projectID string) ([]domain.Question, error)
 	Question(ctx context.Context, projectID, questionID string) (*domain.Question, error)
 	// AnswerQuestion records the answer and hands it to the agent through the runner the run is on, the same way
@@ -40,11 +41,12 @@ type TaskPlanBackend interface {
 
 // Services is the set of domain services a Backend is made of.
 type Services struct {
-	Projects *service.Projects
-	Tasks    *service.Tasks
-	Labels   *service.Labels
-	Runs     *service.Runs
-	Control  *service.ControlCenter
+	Projects  *service.Projects
+	Tasks     *service.Tasks
+	Labels    *service.Labels
+	Runs      *service.Runs
+	Control   *service.ControlCenter
+	Analytics *service.Analytics
 	// Answer delivers an answer to the agent that asked: the runner manager's Answer, which is also what the app calls.
 	Answer func(ctx context.Context, questionID, answer string) (*domain.Question, error)
 }
@@ -96,6 +98,13 @@ func (b servicesBackend) Run(ctx context.Context, projectID, runID string) (*dom
 
 func (b servicesBackend) Overview(ctx context.Context) (*service.Overview, error) {
 	return b.s.Control.Overview(ctx)
+}
+
+func (b servicesBackend) Analytics(ctx context.Context, filter service.AnalyticsFilter) (service.AnalyticsReport, error) {
+	if b.s.Analytics == nil {
+		return service.AnalyticsReport{}, errorf(CodeUnavailable, "analytics is unavailable")
+	}
+	return b.s.Analytics.Report(ctx, filter)
 }
 
 func (b servicesBackend) PendingQuestions(ctx context.Context, projectID string) ([]domain.Question, error) {

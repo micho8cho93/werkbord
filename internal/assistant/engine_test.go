@@ -66,7 +66,8 @@ func newEfx(t *testing.T, tweak ...func(*Config)) *efx {
 	deps := service.Deps{Store: db, Bus: events.NewBroker(), Now: f.now}
 	f.projects, f.tasks, f.runs = &service.Projects{Deps: deps}, &service.Tasks{Deps: deps}, &service.Runs{Deps: deps}
 	backend := appops.NewBackend(appops.Services{Projects: f.projects, Tasks: f.tasks, Labels: &service.Labels{Deps: deps}, Runs: f.runs,
-		Control: &service.ControlCenter{Deps: deps},
+		Analytics: &service.Analytics{Deps: deps},
+		Control:   &service.ControlCenter{Deps: deps},
 		Answer: func(ctx context.Context, id, answer string) (*domain.Question, error) {
 			q, err := f.runs.AcceptAnswer(ctx, id, answer)
 			if err != nil {
@@ -355,6 +356,60 @@ func TestOpenUIInstructionsReachTheProviderAndTheFencedReplyStreamsUnchanged(t *
 	}
 	if has(events, EventToolCall) != nil || end(events).Type != EventCompleted {
 		t.Fatalf("UI output affected the operation loop: %v", types(events))
+	}
+}
+
+func TestAssistantReadsScopedMetricsBeforeGeneratingOpenUISnapshot(t *testing.T) {
+	f := newEfx(t)
+	alpha, beta := f.project("Alpha"), f.project("Private Beta")
+	if _, err := f.tasks.Create(bg, alpha.ID, "Implement filters", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.tasks.Create(bg, alpha.ID, "Review the release", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.tasks.Create(bg, beta.ID, "Secret roadmap task", ""); err != nil {
+		t.Fatal(err)
+	}
+	f.eng.cfg.Projects = []string{alpha.ID}
+	s := f.session()
+	const visualPrompt = `Registered components: Stack(children), Heading(text), StatusSummary(backlog, doing, review, done, asOf). Interface components are display-only.`
+	const output = "Here is Alpha's current board.\n```openui-lang\nroot = Stack([title, summary])\ntitle = Heading(\"Alpha snapshot\")\nsummary = StatusSummary(2, 0, 0, 0, \"2026-03-09T09:00:00Z\")\n```\n"
+	f.prov.Queue(
+		fake.Reply(callBlock("c1", "get_project_metrics", map[string]any{"projectId": alpha.ID}), callBlock("c2", "get_project_metrics", map[string]any{"projectId": beta.ID})),
+		fake.Reply(output),
+	)
+	view, err := f.eng.Session(bg, s.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(bg, 30*time.Second)
+	defer cancel()
+	ch, err := f.eng.Subscribe(ctx, s.ID, view.LastEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.eng.SendMessageWithOpenUIPrompt(bg, s.ID, "Show my project progress", nil, visualPrompt); err != nil {
+		t.Fatal(err)
+	}
+	events := readUntilEnd(t, ch)
+	if end(events).Type != EventCompleted {
+		t.Fatalf("events = %v", types(events))
+	}
+	turns := f.prov.Turns()
+	if len(turns) != 2 || !strings.Contains(turns[0].System, "get_project_metrics") || !strings.Contains(turns[0].System, "display-only") {
+		t.Fatalf("assistant did not receive the operation and display-only contracts: %+v", turns)
+	}
+	for _, want := range []string{`"name":"Alpha"`, `"total":2`, `"backlog":2`, `"doing":0`, `"observedAt":`, `name="get_project_metrics" status="error"`, "not_found"} {
+		if !strings.Contains(turns[1].Prompt, want) {
+			t.Errorf("scoped operation result lacks %q:\n%s", want, turns[1].Prompt)
+		}
+	}
+	if strings.Contains(turns[1].Prompt, "Private Beta") || strings.Contains(turns[1].Prompt, "Secret roadmap task") {
+		t.Fatalf("an unauthorized project's data reached the model:\n%s", turns[1].Prompt)
+	}
+	if !strings.Contains(shown(events), "StatusSummary(2, 0, 0, 0") || !strings.Contains(shown(events), "```openui-lang") {
+		t.Fatalf("the provider's visual response did not pass through: %s", shown(events))
 	}
 }
 

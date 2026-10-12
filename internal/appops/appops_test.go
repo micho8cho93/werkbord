@@ -72,6 +72,7 @@ func newFx(t *testing.T) *fx {
 	f.labels = &service.Labels{Deps: deps}
 	f.control = &service.ControlCenter{Deps: deps}
 	backend := NewBackend(Services{Projects: f.projects, Tasks: f.tasks, Labels: f.labels, Runs: f.runs, Control: f.control,
+		Analytics: &service.Analytics{Deps: service.Deps{Store: db, Now: f.now}},
 		Answer: func(ctx context.Context, id, answer string) (*domain.Question, error) {
 			q, err := f.runs.AcceptAnswer(ctx, id, answer)
 			if err != nil {
@@ -209,7 +210,7 @@ func (f *fx) question(projectID string, in service.NewQuestion) *domain.Question
 func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 	f := newFx(t)
 	full := f.session("ast_full")
-	readOnly := f.session("ast_ro", PermTicketsRead, PermProjectsRead)
+	readOnly := f.session("ast_ro", PermTicketsRead, PermProjectsRead, PermAnalyticsRead)
 	none := f.session("ast_none", PermScheduleRead)
 
 	names := func(p Principal) []string {
@@ -220,7 +221,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 		return out
 	}
 	all := names(full)
-	if len(all) != 13 {
+	if len(all) != 15 {
 		t.Fatalf("the full catalog has %d operations: %v", len(all), all)
 	}
 	for _, s := range f.svc.Catalog(full) {
@@ -234,7 +235,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 			t.Errorf("%s does not marshal as a tool description: %v", s.Name, err)
 		}
 	}
-	if got := strings.Join(names(readOnly), ","); got != "get_overview,get_ticket,list_labels,list_projects,list_tickets" {
+	if got := strings.Join(names(readOnly), ","); got != "get_analytics,get_overview,get_project_metrics,get_ticket,list_labels,list_projects,list_tickets" {
 		t.Errorf("read-only catalog = %s", got)
 	}
 	if got := strings.Join(names(none), ","); got != "get_schedule" {
@@ -242,7 +243,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 	}
 	// The set is exactly this. Adding an operation, above all one that starts or stops a run, touches Git, a setting or
 	// a repository, or deletes, has to change this list, where a reviewer will see it.
-	want := "answer_question,create_ticket,get_overview,get_run_status,get_schedule,get_ticket,list_agent_questions,list_blockers,list_labels,list_projects,list_runs,list_tickets,update_ticket"
+	want := "answer_question,create_ticket,get_analytics,get_overview,get_project_metrics,get_run_status,get_schedule,get_ticket,list_agent_questions,list_blockers,list_labels,list_projects,list_runs,list_tickets,update_ticket"
 	if got := strings.Join(all, ","); got != want {
 		t.Errorf("the operations are\n%s\nwant\n%s", got, want)
 	}
@@ -388,6 +389,67 @@ func TestReadsAnswerFromTheRealServicesAndLeakNothingExtra(t *testing.T) {
 	res = f.mustCall(p, "list_labels", map[string]any{})
 	if res.Data.(map[string]any)["labels"] == nil {
 		t.Error("labels list must not be null")
+	}
+}
+
+func TestVisualReadOperationsReturnDeterministicSnapshotsAndScopedAnalytics(t *testing.T) {
+	f := newFx(t)
+	f.clock.Store(time.Now().UTC().Add(time.Second).Truncate(time.Millisecond).UnixMilli())
+	project := f.project("Visual project")
+	other := f.project("Private project")
+	f.ticket(project.ID, "Backlog task")
+	doing := f.ticket(project.ID, "Doing task")
+	done := f.ticket(project.ID, "Done task")
+	archived := f.ticket(project.ID, "Archived task")
+	f.ticket(other.ID, "Private task")
+	doingState, doneState := domain.TaskDoing, domain.TaskDone
+	if _, err := f.tasks.Update(bg, doing.ID, service.TaskPatch{Version: doing.Version, State: &doingState}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.tasks.Update(bg, done.ID, service.TaskPatch{Version: done.Version, State: &doneState}); err != nil {
+		t.Fatal(err)
+	}
+	yes := true
+	if _, err := f.tasks.Update(bg, archived.ID, service.TaskPatch{Version: archived.Version, Archived: &yes}); err != nil {
+		t.Fatal(err)
+	}
+
+	principal := f.session("visual_scope", PermTicketsRead, PermAnalyticsRead)
+	principal.Projects = []string{project.ID}
+	got := f.mustCall(principal, "get_project_metrics", map[string]any{"projectId": project.ID}).Data.(ProjectMetrics)
+	if got.Name != "Visual project" || got.Total != 3 || got.Backlog != 1 || got.Doing != 1 || got.Review != 0 || got.Done != 1 || got.ObservedAt.IsZero() {
+		t.Fatalf("project snapshot = %+v", got)
+	}
+	if _, err := f.call(principal, "get_project_metrics", map[string]any{"projectId": other.ID}); err == nil {
+		t.Fatal("project metrics returned a project outside the principal's scope")
+	} else {
+		wantCode(t, err, CodeNotFound)
+	}
+
+	claude, err := f.runs.Create(bg, service.NewRun{TaskID: done.ID, AgentID: "claude-code", Prompt: "private prompt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.runs.MarkStarted(bg, claude.ID, service.Started{PID: 1, ProcessID: "private", SessionRef: "private"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.runs.End(bg, claude.ID, service.Ended{State: domain.RunCompleted}); err != nil {
+		t.Fatal(err)
+	}
+	analytics := f.mustCall(principal, "get_analytics", map[string]any{"projectId": project.ID, "days": 7}).Data.(ProjectAnalytics)
+	if analytics.ProjectID != project.ID || analytics.Created != 4 || analytics.Completed != 1 || len(analytics.Providers) != 1 || analytics.Providers[0].Provider != "claude-code" || analytics.Providers[0].Outcomes[domain.RunCompleted] != 1 {
+		t.Fatalf("historical analytics = %+v", analytics)
+	}
+	encoded, _ := json.Marshal(analytics)
+	if strings.Contains(string(encoded), "private prompt") || strings.Contains(string(encoded), "Private project") || strings.Contains(string(encoded), "Private task") {
+		t.Fatalf("analytics leaked private content or an out-of-scope project: %s", encoded)
+	}
+
+	withoutAnalytics := f.session("visual_no_analytics", PermTicketsRead)
+	if _, err := f.call(withoutAnalytics, "get_analytics", map[string]any{"projectId": project.ID, "days": 7}); err == nil {
+		t.Fatal("analytics ran without analytics permission")
+	} else {
+		wantCode(t, err, CodePermissionDenied)
 	}
 }
 

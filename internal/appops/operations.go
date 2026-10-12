@@ -68,6 +68,21 @@ func operations() []*operation {
 			run: opListTickets,
 		},
 		{
+			Spec: Spec{Name: "get_project_metrics", Title: "Project progress", Kind: KindRead, Permission: PermTicketsRead,
+				Description: "A current snapshot of a project's unarchived task counts in Backlog, Doing, Review and Done. This is board state as observed now, not a historical completion rate.",
+				Input:       Object(map[string]*Schema{"projectId": projectID}, "projectId")},
+			run: opProjectMetrics,
+		},
+		{
+			Spec: Spec{Name: "get_analytics", Title: "Project analytics", Kind: KindRead, Permission: PermAnalyticsRead,
+				Description: "A read-only historical report for one local project over 7, 30 or 90 days. It reports task state transitions, coverage limits and agent run outcomes. Connected workspace snapshots do not expose historical analytics through the approved read adapter. Provider outcomes describe runs; a task may have runs from multiple providers, so task completions cannot be attributed to one provider.",
+				Input: Object(map[string]*Schema{
+					"projectId": projectID,
+					"days":      Int("Lookback period: 7, 30 or 90 days.", 7, 90),
+				}, "projectId")},
+			run: opAnalytics,
+		},
+		{
 			Spec: Spec{Name: "get_ticket", Title: "Get a task", Kind: KindRead, Permission: PermTicketsRead,
 				Description: "One task in full, with its most recent runs.",
 				Input:       Object(map[string]*Schema{"projectId": projectID, "ticketId": ticketID}, "projectId", "ticketId")},
@@ -181,6 +196,7 @@ func opOverview(ctx context.Context, e *env, _ map[string]any) (any, error) {
 		return nil, err
 	}
 	type out struct {
+		ObservedAt        time.Time                 `json:"observedAt"`
 		Projects          []service.ProjectActivity `json:"projects"`
 		Unavailable       []WorkspaceProblem        `json:"unavailableWorkspaces,omitempty"`
 		QuestionsWaiting  int                       `json:"questionsWaiting"`
@@ -189,7 +205,7 @@ func opOverview(ctx context.Context, e *env, _ map[string]any) (any, error) {
 		TicketsInReview   int                       `json:"ticketsInReview"`
 		WaitingDependency int                       `json:"ticketsWaitingOnDependencies"`
 	}
-	res := out{Projects: []service.ProjectActivity{}, Unavailable: unavailableOf(e.b)}
+	res := out{ObservedAt: e.now, Projects: []service.ProjectActivity{}, Unavailable: unavailableOf(e.b)}
 	for _, p := range ov.Projects {
 		if !e.p.CanSee(p.ProjectID) {
 			continue
@@ -215,7 +231,7 @@ func opListProjects(ctx context.Context, e *env, _ map[string]any) (any, error) 
 			out = append(out, projectView(p))
 		}
 	}
-	res := map[string]any{"projects": out}
+	res := map[string]any{"projects": out, "observedAt": e.now}
 	if down := unavailableOf(e.b); len(down) > 0 {
 		res["unavailableWorkspaces"] = down
 		res["note"] = "Some connected workspaces could not be read just now, so their projects are not in this list. Say so; do not say they have no projects."
@@ -276,7 +292,112 @@ func opListTickets(ctx context.Context, e *env, a map[string]any) (any, error) {
 			out = append(out, ticketView(t, listDescriptionChars))
 		}
 	}
-	return map[string]any{"tickets": out, "matching": total, "truncated": total > len(out)}, nil
+	return map[string]any{"tickets": out, "matching": total, "truncated": total > len(out), "observedAt": e.now}, nil
+}
+
+type ProjectMetrics struct {
+	ProjectID  string    `json:"projectId"`
+	Name       string    `json:"name"`
+	ObservedAt time.Time `json:"observedAt"`
+	Total      int       `json:"total"`
+	Backlog    int       `json:"backlog"`
+	Doing      int       `json:"doing"`
+	Review     int       `json:"review"`
+	Done       int       `json:"done"`
+}
+
+func opProjectMetrics(ctx context.Context, e *env, a map[string]any) (any, error) {
+	pid := str(a, "projectId")
+	p, err := e.b.Project(ctx, pid)
+	if err != nil {
+		return nil, err
+	}
+	tasks, err := e.b.Tickets(ctx, pid)
+	if err != nil {
+		return nil, err
+	}
+	result := ProjectMetrics{ProjectID: pid, Name: p.Name, ObservedAt: e.now}
+	for _, task := range tasks {
+		if task.ArchivedAt != nil {
+			continue
+		}
+		switch task.State {
+		case domain.TaskBacklog:
+			result.Backlog++
+		case domain.TaskDoing:
+			result.Doing++
+		case domain.TaskReview:
+			result.Review++
+		case domain.TaskDone:
+			result.Done++
+		default:
+			continue
+		}
+		result.Total++
+	}
+	return result, nil
+}
+
+type ProviderRunMetrics struct {
+	Provider string                  `json:"provider"`
+	Attempts int                     `json:"attempts"`
+	Retries  int                     `json:"retries"`
+	Outcomes map[domain.RunState]int `json:"outcomes"`
+}
+
+type ProjectAnalytics struct {
+	ProjectID          string                  `json:"projectId"`
+	Start              time.Time               `json:"start"`
+	End                time.Time               `json:"end"`
+	Days               []service.AnalyticsDay  `json:"days"`
+	Created            int                     `json:"created"`
+	Completed          int                     `json:"completed"`
+	MissingTaskHistory int                     `json:"missingTaskHistory"`
+	Attempts           int                     `json:"attempts"`
+	Retries            int                     `json:"retries"`
+	RunOutcomes        map[domain.RunState]int `json:"runOutcomes"`
+	Providers          []ProviderRunMetrics    `json:"providers"`
+	Truncated          bool                    `json:"truncated"`
+	RetentionRemoved   bool                    `json:"retentionRemoved"`
+}
+
+func opAnalytics(ctx context.Context, e *env, a map[string]any) (any, error) {
+	pid := str(a, "projectId")
+	if _, err := e.b.Project(ctx, pid); err != nil {
+		return nil, err
+	}
+	days := intArg(a, "days", 30)
+	if days != 7 && days != 30 && days != 90 {
+		return nil, fmt.Errorf("%w: analytics range must be 7, 30 or 90 days", domain.ErrInvalid)
+	}
+	report, err := e.b.Analytics(ctx, service.AnalyticsFilter{ProjectID: pid, Days: days})
+	if err != nil {
+		return nil, err
+	}
+	providers := map[string]*ProviderRunMetrics{}
+	for _, execution := range report.Executions {
+		row := providers[execution.Provider]
+		if row == nil {
+			row = &ProviderRunMetrics{Provider: execution.Provider, Outcomes: map[domain.RunState]int{}}
+			providers[execution.Provider] = row
+		}
+		row.Attempts += execution.Attempts
+		row.Retries += execution.Retries
+		for state, count := range execution.Outcomes {
+			row.Outcomes[state] += count
+		}
+	}
+	providerRows := make([]ProviderRunMetrics, 0, len(providers))
+	for _, row := range providers {
+		providerRows = append(providerRows, *row)
+	}
+	sort.Slice(providerRows, func(i, j int) bool { return providerRows[i].Provider < providerRows[j].Provider })
+	return ProjectAnalytics{
+		ProjectID: pid, Start: report.Start, End: report.End, Days: report.Days,
+		Created: report.Created, Completed: report.Completed, MissingTaskHistory: report.MissingTaskHistory,
+		Attempts: report.Attempts, Retries: report.Retries, RunOutcomes: report.Outcomes, Providers: providerRows,
+		Truncated: report.Truncated, RetentionRemoved: report.RetentionRemoved,
+	}, nil
 }
 
 func opGetTicket(ctx context.Context, e *env, a map[string]any) (any, error) {
@@ -359,7 +480,7 @@ func opGetSchedule(ctx context.Context, e *env, a map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"projectId": pid, "tickets": items, "warnings": warnings, "waiting": waiting(ov, pid)}, nil
+	return map[string]any{"projectId": pid, "tickets": items, "warnings": warnings, "waiting": waiting(ov, pid), "observedAt": e.now}, nil
 }
 
 // waiting lists the tickets the scheduler holds back for a reason that is not simply "not yet due".
@@ -420,7 +541,7 @@ func opListBlockers(ctx context.Context, e *env, a map[string]any) (any, error) 
 			questions++
 		}
 	}
-	return map[string]any{"blockedRuns": blocked, "failedRuns": failed, "waitingOnDependencies": held, "questionsWaiting": questions}, nil
+	return map[string]any{"blockedRuns": blocked, "failedRuns": failed, "waitingOnDependencies": held, "questionsWaiting": questions, "observedAt": e.now}, nil
 }
 
 func opListQuestions(ctx context.Context, e *env, a map[string]any) (any, error) {
@@ -473,7 +594,7 @@ func opListRuns(ctx context.Context, e *env, a map[string]any) (any, error) {
 		}
 		out = append(out, runView(r))
 	}
-	return map[string]any{"runs": out}, nil
+	return map[string]any{"runs": out, "observedAt": e.now}, nil
 }
 
 func opGetRun(ctx context.Context, e *env, a map[string]any) (any, error) {

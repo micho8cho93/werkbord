@@ -72,7 +72,7 @@ func TestAReadOnlyAssistantIsNotGrantedAnythingThatChangesThings(t *testing.T) {
 			t.Errorf("a read-only assistant holds %s", g)
 		}
 	}
-	if len(ro) != 5 {
+	if len(ro) != 6 {
 		t.Errorf("read-only grants = %v", ro)
 	}
 	if p := assistantProjects(config.AssistantConfig{}); p != nil {

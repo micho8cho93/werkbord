@@ -1,14 +1,23 @@
 import { createLibrary, createParser, defineComponent, type ParseResult } from '@openuidev/svelte-lang';
 import { z } from 'zod/v4';
 import CardBlock from './components/CardBlock.svelte';
+import BarChartBlock from './components/BarChartBlock.svelte';
+import ComparisonChartBlock from './components/ComparisonChartBlock.svelte';
 import ContainerBlock from './components/ContainerBlock.svelte';
+import DataTableBlock from './components/DataTableBlock.svelte';
 import DisclosureBlock from './components/DisclosureBlock.svelte';
 import GridBlock from './components/GridBlock.svelte';
 import HeadingBlock from './components/HeadingBlock.svelte';
+import LineChartBlock from './components/LineChartBlock.svelte';
 import ListBlock from './components/ListBlock.svelte';
 import MetricBlock from './components/MetricBlock.svelte';
+import PieChartBlock from './components/PieChartBlock.svelte';
+import ProgressBlock from './components/ProgressBlock.svelte';
+import StatusSummaryBlock from './components/StatusSummaryBlock.svelte';
 import TableBlock from './components/TableBlock.svelte';
 import TextBlock from './components/TextBlock.svelte';
+import TimelineBlock from './components/TimelineBlock.svelte';
+import WorkflowBlock from './components/WorkflowBlock.svelte';
 
 // These schemas are the contract for both the prompt and the Svelte renderer. Keep all model-visible components here;
 // generated output can only name entries in this registry.
@@ -22,6 +31,10 @@ const Text = defineComponent({
   component: TextBlock,
 });
 
+const snapshotTime = z.string().max(40).describe('The exact observedAt or End timestamp returned by the Werkbord read operation. Label this as a snapshot; it is not live data.');
+const countValue = z.number().int().min(0).max(1000000);
+const taskState = z.enum(['backlog', 'doing', 'review', 'done']);
+
 const Heading = defineComponent({
   name: 'Heading',
   description: 'A section heading inside the generated interface.',
@@ -34,13 +47,149 @@ const Heading = defineComponent({
 
 const Metric = defineComponent({
   name: 'Metric',
-  description: 'A compact labelled measurement with an optional explanation.',
+  description: 'A compact labelled measurement with an optional explanation. Include the exact observedAt or End timestamp for this snapshot.',
   props: z.object({
     label: z.string().max(120).describe('What the measurement counts.'),
     value: z.string().max(120).describe('The measured value, formatted as text.'),
     detail: z.string().max(240).optional().describe('A short qualifier or comparison.'),
+    asOf: snapshotTime,
   }),
   component: MetricBlock,
+});
+
+const Progress = defineComponent({
+  name: 'Progress',
+  description: 'A measured count against a known total. It computes the visual proportion from the supplied counts and shows no percentage when the total is zero.',
+  props: z.object({
+    label: z.string().max(120),
+    value: countValue,
+    total: countValue,
+    detail: z.string().max(240).optional(),
+    asOf: snapshotTime,
+  }),
+  component: ProgressBlock,
+});
+
+const StatusSummary = defineComponent({
+  name: 'StatusSummary',
+  description: 'Current task counts by Werkbord board column: Backlog, Doing, Review and Done. Use the exact counts from get_project_metrics and its observedAt timestamp.',
+  props: z.object({
+    backlog: countValue,
+    doing: countValue,
+    review: countValue,
+    done: countValue,
+    asOf: snapshotTime,
+  }),
+  component: StatusSummaryBlock,
+});
+
+const BarChart = defineComponent({
+  name: 'BarChart',
+  description: 'A horizontal bar chart for one measured value per category. Categories and values must come from a Werkbord read result; pass its exact snapshot timestamp.',
+  props: z.object({
+    title: z.string().max(160),
+    categories: z.array(z.string().max(120)).max(20),
+    values: z.array(countValue).max(20),
+    unit: z.string().max(20).optional(),
+    note: z.string().max(240).optional(),
+    asOf: snapshotTime,
+  }),
+  component: BarChartBlock,
+});
+
+const LineChart = defineComponent({
+  name: 'LineChart',
+  description: 'A dated trend line from recorded values, such as Analytics days.created or days.completed. Keep labels and values aligned and pass the exact report End timestamp.',
+  props: z.object({
+    title: z.string().max(160),
+    labels: z.array(z.string().max(40)).max(91),
+    values: z.array(countValue).max(91),
+    unit: z.string().max(20).optional(),
+    note: z.string().max(240).optional(),
+    asOf: snapshotTime,
+  }),
+  component: LineChartBlock,
+});
+
+const PieChart = defineComponent({
+  name: 'PieChart',
+  description: 'A share-of-total chart for a small set of non-negative counts, such as task states or run outcomes. Zero-valued categories are omitted from the slices but values are not changed.',
+  props: z.object({
+    title: z.string().max(160),
+    categories: z.array(z.string().max(120)).max(12),
+    values: z.array(countValue).max(12),
+    asOf: snapshotTime,
+  }),
+  component: PieChartBlock,
+});
+
+const ComparisonChart = defineComponent({
+  name: 'ComparisonChart',
+  description: 'Side-by-side comparison of two measured series across categories, such as provider run attempts and retries. It compares the values supplied and does not infer quality or attribute task completion to an agent.',
+  props: z.object({
+    title: z.string().max(160),
+    categories: z.array(z.string().max(120)).max(16),
+    firstLabel: z.string().max(80),
+    firstValues: z.array(countValue).max(16),
+    secondLabel: z.string().max(80),
+    secondValues: z.array(countValue).max(16),
+    unit: z.string().max(20).optional(),
+    note: z.string().max(240).optional(),
+    asOf: snapshotTime,
+  }),
+  component: ComparisonChartBlock,
+});
+
+const DataTable = defineComponent({
+  name: 'DataTable',
+  description: 'A local sortable and filterable table for task lists, project lists or agent run performance. Sorting and filtering affect only the displayed rows; they do not call Werkbord or change records.',
+  props: z.object({
+    caption: z.string().max(160),
+    columns: z.array(z.string().max(120)).min(1).max(8),
+    rows: z.array(z.array(z.string().max(500)).max(8)).max(50),
+    asOf: snapshotTime,
+    filterable: z.boolean().optional(),
+  }),
+  component: DataTableBlock,
+});
+
+const Timeline = defineComponent({
+  name: 'Timeline',
+  description: 'A read-only Gantt-style view using recorded planned start and end dates. Include milestone and dependency IDs only when they appear in get_schedule; tasks with incomplete dates remain listed without an invented range.',
+  props: z.object({
+    title: z.string().max(160),
+    items: z.array(z.object({
+      id: z.string().max(80).optional(),
+      title: z.string().max(200),
+      start: z.string().max(40).optional(),
+      end: z.string().max(40).optional(),
+      state: taskState.optional(),
+      milestone: z.boolean().optional(),
+      dependsOn: z.array(z.string().max(80)).max(20).optional(),
+    })).max(50),
+    asOf: snapshotTime,
+    note: z.string().max(240).optional(),
+  }),
+  component: TimelineBlock,
+});
+
+const Workflow = defineComponent({
+  name: 'Workflow',
+  description: 'A read-only task relationship view. It resolves dependency IDs against the supplied task list, marks tasks by task state, and keeps latest run state and recorded blocker reason distinct.',
+  props: z.object({
+    title: z.string().max(160),
+    items: z.array(z.object({
+      id: z.string().max(80).optional(),
+      title: z.string().max(200),
+      state: taskState.optional(),
+      runState: z.enum(['starting', 'running', 'waiting_for_user', 'blocked', 'completed', 'failed', 'stopped']).optional(),
+      dependsOn: z.array(z.string().max(80)).max(20).optional(),
+      blocker: z.string().max(300).optional(),
+    })).max(50),
+    asOf: snapshotTime,
+    note: z.string().max(240).optional(),
+  }),
+  component: WorkflowBlock,
 });
 
 const List = defineComponent({
@@ -55,16 +204,17 @@ const List = defineComponent({
 
 const Table = defineComponent({
   name: 'Table',
-  description: 'A compact table for comparing structured text values.',
+  description: 'A compact snapshot table for comparing structured text values. Include the exact observedAt or End timestamp.',
   props: z.object({
     columns: z.array(z.string().max(120)).min(1).max(6).describe('One to six column headings.'),
     rows: z.array(z.array(z.string().max(500)).max(6)).max(24).describe('Up to 24 rows of cell text in the same order as columns.'),
     caption: z.string().optional().describe('Optional table caption.'),
+    asOf: snapshotTime,
   }),
   component: TableBlock,
 });
 
-const Leaf = z.union([Text.ref, Heading.ref, Metric.ref, List.ref, Table.ref]);
+const Leaf = z.union([Text.ref, Heading.ref, Metric.ref, Progress.ref, StatusSummary.ref, List.ref, Table.ref, BarChart.ref, LineChart.ref, PieChart.ref, ComparisonChart.ref, DataTable.ref, Timeline.ref, Workflow.ref]);
 
 const Card = defineComponent({
   name: 'Card',
@@ -90,14 +240,14 @@ const Grid = defineComponent({
   name: 'Grid',
   description: 'A responsive grid for a small set of metrics or focused cards.',
   props: z.object({
-    children: z.array(z.union([Metric.ref, Card.ref])).max(8).describe('Up to 8 metrics or cards in the grid.'),
+    children: z.array(z.union([Metric.ref, Progress.ref, Card.ref])).max(8).describe('Up to 8 metrics, progress indicators or focused cards in the grid.'),
     columns: z.union([z.literal(2), z.literal(3)]).optional().describe('The number of columns on a wide screen; collapses to one on a phone.'),
     gap: z.enum(['small', 'medium', 'large']).optional().describe('Spacing between children.'),
   }),
   component: GridBlock,
 });
 
-const Content = z.union([Text.ref, Heading.ref, Metric.ref, List.ref, Table.ref, Card.ref, Disclosure.ref, Grid.ref]);
+const Content = z.union([Text.ref, Heading.ref, Metric.ref, Progress.ref, StatusSummary.ref, List.ref, Table.ref, BarChart.ref, LineChart.ref, PieChart.ref, ComparisonChart.ref, DataTable.ref, Timeline.ref, Workflow.ref, Card.ref, Disclosure.ref, Grid.ref]);
 
 const Stack = defineComponent({
   name: 'Stack',
@@ -112,7 +262,7 @@ const Stack = defineComponent({
 });
 
 export const openUILibrary = createLibrary({
-  components: [Text, Heading, Metric, List, Table, Card, Disclosure, Grid, Stack],
+  components: [Text, Heading, Metric, Progress, StatusSummary, BarChart, LineChart, PieChart, ComparisonChart, DataTable, Timeline, Workflow, List, Table, Card, Disclosure, Grid, Stack],
   root: 'Stack',
 });
 
@@ -131,7 +281,10 @@ export const openUISystemPrompt = openUILibrary.prompt({
     'Each message is rendered on its own. When you generate an interface, output the complete interface with its root statement first; do not rely on a previous interface or emit only a patch.',
     'Use only the registered components and their declared arguments. Never output HTML, JavaScript, CSS, event handlers, Action, Query, Mutation, @Run, state bindings, or external URLs as executable UI.',
     'Generated components cannot call Werkbord APIs or perform board operations. Ask for board information through the separate Werkbord operation protocol, outside the openui-lang fence.',
-    'Use only facts from the person or Werkbord results. Do not invent counts, dates, status, or other measurements; label estimates and examples clearly.',
+    'Retrieve board facts only with the available Werkbord read operations before visualising them. Use exactly their returned counts and records; do not make up missing values, estimates, completion rates, or history.',
+    'For current board status use get_project_metrics and its exact Backlog, Doing, Review, Done counts. For history use get_analytics and preserve its range, End snapshot, missingTaskHistory, truncated, and retentionRemoved coverage signals.',
+    'get_analytics provider rows describe agent run attempts and outcomes. They do not attribute task completions: one task can have runs from multiple providers. Never chart a provider as having completed a task from those rows.',
+    'Visualisations are static snapshots from the operation results, not live data. Include the exact observedAt or End timestamp in asOf on every metric, chart, table, timeline, and workflow.',
     'When a concise text answer is enough, answer in ordinary prose without generating an interface.',
   ],
 });
