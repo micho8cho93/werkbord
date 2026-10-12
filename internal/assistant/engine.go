@@ -260,7 +260,13 @@ func (e *Engine) CreateSession(ctx context.Context, req CreateRequest) (*Session
 		if err != nil {
 			return err
 		}
-		if len(all) >= e.cfg.MaxSessions {
+		sessionCount := 0
+		for _, existing := range all {
+			if existing.Provider != domain.AssistantMCPProvider {
+				sessionCount++
+			}
+		}
+		if sessionCount >= e.cfg.MaxSessions {
 			tooMany = true
 			return nil
 		}
@@ -293,6 +299,9 @@ func unavailable(info provider.Info) error {
 func (e *Engine) loadSession(ctx context.Context, id string) (*domain.AssistantSession, error) {
 	var s *domain.AssistantSession
 	err := e.st.View(ctx, func(tx store.Tx) (err error) { s, err = tx.Assistant().GetSession(ctx, id); return })
+	if err == nil && s.Provider == domain.AssistantMCPProvider {
+		return nil, fmt.Errorf("assistant session %s: %w", id, domain.ErrNotFound)
+	}
 	return s, err
 }
 
@@ -331,6 +340,9 @@ func (e *Engine) Sessions(ctx context.Context) ([]SessionView, error) {
 	}
 	out := make([]SessionView, 0, len(all))
 	for i := range all {
+		if all[i].Provider == domain.AssistantMCPProvider {
+			continue
+		}
 		v, err := e.view(ctx, &all[i])
 		if err != nil {
 			return nil, err
@@ -764,6 +776,9 @@ func (e *Engine) Recover(ctx context.Context) error {
 	fixed := 0
 	for i := range all {
 		s := &all[i]
+		if s.Provider == domain.AssistantMCPProvider {
+			continue
+		}
 		pending, err := e.ops.Pending(ctx, s.ID, e.principal(s))
 		if err != nil {
 			return err

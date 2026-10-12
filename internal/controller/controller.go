@@ -31,6 +31,8 @@ import (
 	"devboard/internal/gitrepo"
 	"devboard/internal/localaccess"
 	"devboard/internal/machine"
+	"devboard/internal/mcpaccess"
+	"devboard/internal/mcpgrant"
 	"devboard/internal/netprivate"
 	"devboard/internal/runner"
 	"devboard/internal/runnerwire"
@@ -54,6 +56,7 @@ type Controller struct {
 	broker      *events.Broker
 	runner      *runner.Manager
 	assistant   *assistant.Engine
+	appOps      *appops.Service
 	connections *connections.Service
 	health      *service.GitHealth
 	stopHealth  context.CancelFunc
@@ -211,32 +214,41 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("api token: %w", err)
 	}
+	assistantSvc := assistantServices{projects: projects, tasks: tasks, labels: labels, runs: runs,
+		control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner, connections: c.connections}
+	c.appOps = newApplicationOperations(c.db, c.log, assistantSvc)
+	mcpGrants, err := mcpgrant.Open(filepath.Join(c.cfg.DataDir, "mcp-clients.json"))
+	if err != nil {
+		return fmt.Errorf("MCP client grants: %w", err)
+	}
 	apiOpts := api.Options{
 		EmbedOrigins: c.cfg.EmbedOrigins,
 		Distributed:  distributed,
 		Scheduler:    scheduler, Handoffs: handoffs,
-		Projects:     projects,
-		Tasks:        tasks,
-		Labels:       labels,
-		Runs:         runs,
-		Runner:       c.runner,
-		Worktrees:    worktrees,
-		Git:          gitControl,
-		Health:       c.health,
-		Agents:       agents,
-		Settings:     settings,
-		GitHub:       setup,
-		Store:        c.db,
-		Events:       c.broker,
-		Log:          c.log,
-		Version:      c.version,
-		Connections:  c.connections,
-		Web:          webui.Handler(),
-		AuthRequired: c.cfg.AuthRequired(),
-		Token:        token,
-		TokenSource:  func() string { value, _ := c.cfg.ResolveToken(false); return value },
-		AllowedHosts: c.cfg.AllowedHosts,
-		PrivateToken: token,
+		Projects:      projects,
+		Tasks:         tasks,
+		Labels:        labels,
+		Runs:          runs,
+		Runner:        c.runner,
+		Worktrees:     worktrees,
+		Git:           gitControl,
+		Health:        c.health,
+		Agents:        agents,
+		Settings:      settings,
+		GitHub:        setup,
+		Store:         c.db,
+		Events:        c.broker,
+		Log:           c.log,
+		Version:       c.version,
+		Connections:   c.connections,
+		MCP:           mcpaccess.New(mcpGrants, c.appOps, projects),
+		MCPManagement: true,
+		Web:           webui.Handler(),
+		AuthRequired:  c.cfg.AuthRequired(),
+		Token:         token,
+		TokenSource:   func() string { value, _ := c.cfg.ResolveToken(false); return value },
+		AllowedHosts:  c.cfg.AllowedHosts,
+		PrivateToken:  token,
 	}
 	if !c.cfg.AuthRequired() {
 		apiOpts.Token = ""
@@ -245,13 +257,14 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
 	privateOpts.AuthRequired, privateOpts.Token = true, token
-	privateOpts.Assistant = nil   // the assistant is not served on the private network
-	privateOpts.Connections = nil // upstream credentials and broker controls stay on this computer
+	privateOpts.Assistant = nil       // the assistant is not served on the private network
+	privateOpts.Connections = nil     // upstream credentials and broker controls stay on this computer
+	privateOpts.MCPManagement = false // the private network gets scoped MCP clients, never grant administration
 	// The assistant borrows the sign-in of the coding agents already on this computer and reaches the board only through the
 	// domain services, by way of application operations (internal/appops). It is served on the loopback listener only.
 	if !c.cfg.Assistant.Disabled {
-		if c.assistant, err = newAssistant(c.cfg, c.db, c.log, assistantServices{projects: projects, tasks: tasks, labels: labels, runs: runs,
-			control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner, connections: c.connections}); err != nil {
+		assistantSvc.ops = c.appOps
+		if c.assistant, err = newAssistant(c.cfg, c.db, c.log, assistantSvc); err != nil {
 			return fmt.Errorf("assistant: %w", err)
 		}
 		if err := c.assistant.Recover(ctx); err != nil {

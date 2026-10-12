@@ -36,13 +36,10 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 			return nil, err
 		}
 	}
-	services := appops.Services{Projects: svc.projects, Tasks: svc.tasks, Labels: svc.labels, Runs: svc.runs, Control: svc.control}
-	if svc.runner != nil {
-		// Answering a question reaches the agent through the runner it is on, as it does from the app.
-		services.Answer = svc.runner.Answer
+	ops := svc.ops
+	if ops == nil {
+		ops = newApplicationOperations(db, log, svc)
 	}
-	ops := appops.New(appops.Config{Backend: appops.NewBackend(services), Store: db, Log: log,
-		Injected: connectionOperations(svc.connections)})
 
 	a := cfg.Assistant
 	eng := assistant.New(assistant.Config{
@@ -59,6 +56,16 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 		AttachmentsDisabled: a.AttachmentsDisabled,
 	})
 	return eng, nil
+}
+
+func newApplicationOperations(db store.Store, log *slog.Logger, svc assistantServices) *appops.Service {
+	services := appops.Services{Projects: svc.projects, Tasks: svc.tasks, Labels: svc.labels, Runs: svc.runs, Control: svc.control}
+	if svc.runner != nil {
+		// Answering a question reaches the agent through the runner it is on, as it does from the app.
+		services.Answer = svc.runner.Answer
+	}
+	return appops.New(appops.Config{Backend: appops.NewBackend(services), Store: db, Log: log,
+		Injected: connectionOperations(svc.connections)})
 }
 
 // assistantGrants is what the assistant may do: everything the operations offer, or, when the person asked for a read-only
@@ -87,6 +94,7 @@ type assistantServices struct {
 	control     *service.ControlCenter
 	runner      *runner.Manager
 	connections *connections.Service
+	ops         *appops.Service
 }
 
 func providerModels(in []config.ModelChoice) []provider.Model {

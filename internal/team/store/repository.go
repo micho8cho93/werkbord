@@ -55,6 +55,7 @@ type Tx interface {
 	ActivityQueries
 	InviteQueries
 	DeviceQueries
+	MCPGrantQueries
 	NetworkQueries
 	MessageQueries
 }
@@ -253,6 +254,15 @@ type NetworkQueries interface {
 	// MarkEnrollmentDelivered records that the device collected what it was issued, once;
 	// false when it already had.
 	MarkEnrollmentDelivered(ctx context.Context, workspaceID, id string, at time.Time) (bool, error)
+}
+
+// MCPGrantQueries are the revocable, hash-only credentials for grant-scoped external board clients.
+type MCPGrantQueries interface {
+	InsertMCPGrant(ctx context.Context, grant domain.MCPGrant) error
+	MCPGrantByTokenHash(ctx context.Context, tokenHash string) (domain.MCPGrant, error)
+	MCPGrant(ctx context.Context, workspaceID, memberID, id string) (domain.MCPGrant, error)
+	MCPGrants(ctx context.Context, workspaceID, memberID string) ([]domain.MCPGrant, error)
+	RevokeMCPGrant(ctx context.Context, workspaceID, memberID, id string, at time.Time) (bool, error)
 }
 
 // MessageQueries are the mailbox of signed requests between a person's own devices. The workspace stores and

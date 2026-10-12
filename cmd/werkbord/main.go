@@ -11,6 +11,7 @@
 //	werkbord project add <path>    register an existing local Git repository
 //	werkbord project list          list registered projects
 //	werkbord token [--url] [--rotate] print the API token (or a link that signs a browser in)
+//	werkbord mcp                   bridge an MCP host's stdio connection to Werkbord
 //	werkbord version               print the version
 //
 // The service commands manage the controller as a background service (launchd,
@@ -32,6 +33,7 @@ import (
 	"devboard/internal/config"
 	"devboard/internal/controller"
 	"devboard/internal/logging"
+	"devboard/internal/mcpbridge"
 	"devboard/internal/store/sqlite"
 )
 
@@ -58,6 +60,7 @@ commands:
   project list          list registered projects
   token                 print the API token (--url: sign-in link; --rotate: replace file-managed token)
   access                which programs on this computer have a narrow way into Werkbord: list, revoke
+  mcp                   connect an MCP host over stdio (set WERKBORD_MCP_TOKEN to its scoped credential)
   db restore            restore a compatible database backup with the controller stopped
   version               print the version
 
@@ -124,6 +127,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return cmdToken(cfg, args[1:], stdout, stderr)
 	case "access":
 		return cmdAccess(cfg, args[1:], stdout, stderr)
+	case "mcp":
+		return cmdMCP(ctx, cfg, args[1:], stderr)
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, version)
 		return nil
@@ -134,6 +139,22 @@ func run(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stderr, usage)
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+func cmdMCP(ctx context.Context, cfg config.Config, args []string, stderr io.Writer) error {
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	endpoint := fs.String("url", "http://"+cfg.Addr+"/mcp", "authenticated Werkbord Streamable HTTP endpoint")
+	token := fs.String("token", os.Getenv("WERKBORD_MCP_TOKEN"), "scoped MCP credential (prefer WERKBORD_MCP_TOKEN)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return errors.New("usage: werkbord mcp [--url http://127.0.0.1:7420/mcp] [--token TOKEN]")
+	}
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return mcpbridge.RunStdio(ctx, *endpoint, *token)
 }
 
 // commonFlags registers flags shared by every command that reads config.

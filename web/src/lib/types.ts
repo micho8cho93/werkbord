@@ -1065,3 +1065,30 @@ export interface MCPConnection {
   testedAt?: string;
   lastError?: string;
 }
+
+export interface MCPBoardOperation {
+  name: string;
+  title: string;
+  description: string;
+  kind: 'read' | 'mutation';
+  inputSchema: unknown;
+}
+export interface MCPClientGrant {
+  id: string;
+  name: string;
+  projects: string[];
+  operations: string[];
+  createdAt: string;
+  revoked: boolean;
+}
+export interface MCPProposal {
+  grantId: string;
+  client: string;
+  proposal: {
+    actionId: string;
+    operation: string;
+    summary: string;
+    state: string;
+    expiresAt: string;
+  };
+}

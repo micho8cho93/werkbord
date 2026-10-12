@@ -8,6 +8,7 @@
 //	werkbord-team host …             add a Workspace Host (its keys and a copy of the data), remove one
 //	werkbord-team storage …          where the workspace's data is: status, backups, moving it into a cluster
 //	werkbord-team migrate            apply database migrations and exit
+//	werkbord-team mcp                bridge an MCP host's stdio connection to the Team metadata endpoint
 //	werkbord-team version            print the version
 //
 // Team is a separate product from the individual Werkbord (cmd/werkbord): its own
@@ -31,6 +32,7 @@ import (
 	"time"
 
 	"devboard/internal/logging"
+	"devboard/internal/mcpbridge"
 	"devboard/internal/team/config"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/infra/pki"
@@ -53,6 +55,7 @@ commands:
   storage            where the workspace's data is kept: status, backup, restore, move it into a cluster
   migrate            apply database migrations and exit
   license import     replace the workspace's signed offline license (owner only)
+  mcp                connect an MCP host over stdio (set WERKBORD_TEAM_MCP_TOKEN to its scoped credential)
   version            print the version
 
 Run "werkbord-team <command> -h" for command flags.
@@ -95,6 +98,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return cmdStorage(ctx, cfg, args[1:], stdout, stderr)
 	case "license":
 		return cmdLicense(ctx, cfg, args[1:], stdout, stderr)
+	case "mcp":
+		return cmdMCP(ctx, cfg, args[1:], stderr)
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, version)
 		return nil
@@ -105,6 +110,20 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stderr, usage)
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+func cmdMCP(ctx context.Context, cfg config.Config, args []string, stderr io.Writer) error {
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	endpoint := fs.String("url", "http://"+cfg.Addr+"/mcp", "authenticated Team Streamable HTTP endpoint")
+	token := fs.String("token", os.Getenv("WERKBORD_TEAM_MCP_TOKEN"), "scoped Team MCP credential (prefer WERKBORD_TEAM_MCP_TOKEN)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return errors.New("usage: werkbord-team mcp [--url http://127.0.0.1:7430/mcp] [--token TOKEN]")
+	}
+	return mcpbridge.RunStdio(ctx, *endpoint, *token)
 }
 
 func commonFlags(fs *flag.FlagSet, cfg *config.Config) {

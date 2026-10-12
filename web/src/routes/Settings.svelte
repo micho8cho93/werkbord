@@ -6,6 +6,7 @@
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
   import ConnectionsPanel from '../lib/ConnectionsPanel.svelte';
+  import MCPClientsPanel from '../lib/MCPClientsPanel.svelte';
   import LabelManager from '../lib/LabelManager.svelte';
   import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
   import { globalHref, router } from '../lib/router.svelte';
@@ -167,6 +168,7 @@
       <GitHubCard />
     {:else if section === 'mcp'}
       <ConnectionsPanel />
+      <MCPClientsPanel />
     {:else if section === 'agents'}
       <AgentsCard />
     {:else if section === 'alerts'}

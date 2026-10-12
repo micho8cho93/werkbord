@@ -14,6 +14,7 @@ import (
 	"devboard/internal/team/api"
 	"devboard/internal/team/config"
 	"devboard/internal/team/console"
+	teammcp "devboard/internal/team/mcp"
 	"devboard/internal/team/service"
 	"devboard/internal/team/store"
 )
@@ -43,7 +44,7 @@ func Handler(db store.Store, svc *service.Service, log *slog.Logger, version str
 }
 
 func handler(db store.Store, svc *service.Service, log *slog.Logger, version string, nodeStatus func() any) http.Handler {
-	return api.New(api.Options{Service: svc, Ping: db.Ping, Log: log, Version: version, Console: console.Handler(), NodeStatus: nodeStatus, RequireDeviceProof: true}).Handler()
+	return api.New(api.Options{Service: svc, Ping: db.Ping, Log: log, Version: version, Console: console.Handler(), NodeStatus: nodeStatus, RequireDeviceProof: true, MCP: teammcp.New(svc)}).Handler()
 }
 
 // Run serves Team on cfg.Addr until ctx is cancelled, then shuts down gracefully.

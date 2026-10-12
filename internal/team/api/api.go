@@ -29,6 +29,7 @@ import (
 	"devboard/internal/httpkit"
 	"devboard/internal/team/authproof"
 	"devboard/internal/team/domain"
+	"devboard/internal/team/mcp"
 	"devboard/internal/team/service"
 )
 
@@ -48,6 +49,8 @@ type Options struct {
 	NodeStatus func() any
 	// RequireDeviceProof is mandatory in production wiring. Member bearer credentials are local administration only.
 	RequireDeviceProof bool
+	// MCP serves metadata tools with separate project- and operation-scoped grants.
+	MCP *mcp.Server
 }
 
 // Server holds the HTTP handlers.
@@ -72,6 +75,13 @@ type ctxKey struct{}
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/team/v1/health", s.handleHealth)
+	if s.opt.MCP != nil {
+		mux.Handle("/mcp", s.opt.MCP.Handler())
+	} else {
+		mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+			httpkit.WriteError(w, http.StatusServiceUnavailable, "unavailable", "Team MCP is disabled")
+		})
+	}
 
 	api := http.NewServeMux()
 	api.HandleFunc("PUT /api/team/v1/license", s.handleInstallLicense)
@@ -93,6 +103,10 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("DELETE /api/team/v1/projects/{id}/members/{memberId}", s.handleRemoveProjectMember)
 	// the views that span projects, and the sync that keeps them current
 	api.HandleFunc("GET /api/team/v1/overview", s.handleOverview)
+	api.HandleFunc("GET /api/team/v1/mcp/operations", s.handleMCPOperations)
+	api.HandleFunc("GET /api/team/v1/mcp/grants", s.handleMCPGrants)
+	api.HandleFunc("POST /api/team/v1/mcp/grants", s.handleMCPGrantCreate)
+	api.HandleFunc("DELETE /api/team/v1/mcp/grants/{id}", s.handleMCPGrantRevoke)
 	api.HandleFunc("GET /api/team/v1/my-work", s.handleMyWork)
 	api.HandleFunc("GET /api/team/v1/reviews", s.handleReviews)
 	api.HandleFunc("GET /api/team/v1/search", s.handleSearch)

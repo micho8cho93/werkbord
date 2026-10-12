@@ -18,6 +18,9 @@ import (
 const (
 	PrefixAssistantSession = "ast"
 	PrefixAssistantAction  = "act"
+	// AssistantMCPProvider marks grant-owned action sessions. They share the
+	// proposal and audit store but are not conversational assistant sessions.
+	AssistantMCPProvider = "mcp"
 )
 
 // AssistantSessionState says what an assistant session is doing.

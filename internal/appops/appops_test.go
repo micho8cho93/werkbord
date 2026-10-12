@@ -247,6 +247,25 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 	}
 }
 
+func TestProposalStatusIsLimitedToTheCreatingPrincipal(t *testing.T) {
+	f := newFx(t)
+	project := f.project("Warehouse")
+	p := f.session("mcp_grant_a", PermTicketsCreate)
+	proposed := f.mustCall(p, "create_ticket", map[string]any{"projectId": project.ID, "title": "Audit inventory"})
+	if proposed.Pending == nil {
+		t.Fatal("task change was not held for the person")
+	}
+	statuses, err := f.svc.ActionStatuses(bg, p)
+	if err != nil || len(statuses) != 1 || statuses[0].ActionID != proposed.Pending.ActionID || statuses[0].State != domain.ActionPending {
+		t.Fatalf("proposal status = %+v, err=%v", statuses, err)
+	}
+	other := p
+	other.ID = "mcp:another-grant"
+	if _, err := f.svc.ActionStatus(bg, other, proposed.Pending.ActionID); CodeOf(err) != CodeNotFound {
+		t.Fatalf("another principal read the proposal: %v", err)
+	}
+}
+
 // ---- reads ----
 
 func TestReadsAnswerFromTheRealServicesAndLeakNothingExtra(t *testing.T) {

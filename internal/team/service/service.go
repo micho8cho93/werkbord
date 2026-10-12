@@ -68,6 +68,7 @@ func (s *Service) stamp() time.Time { return s.now().UTC().Truncate(time.Millise
 // Actor is the signed-in member and the workspace they are in.
 type Actor struct {
 	credentialHash string
+	MCPGrantID     string
 	Member         domain.Member
 	Workspace      domain.Workspace
 	// Device is the device the request came from, when the caller signed in with a

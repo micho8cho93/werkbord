@@ -42,6 +42,9 @@ import type {
   WaitingItem,
   WorkingChanges,
   MCPConnection,
+  MCPBoardOperation,
+  MCPClientGrant,
+  MCPProposal,
 } from './types';
 import { normalizeRunner, normalizeRunners } from './runners';
 import { startRefusal } from './scheduling';
@@ -204,6 +207,14 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
  continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, {runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})}),
  health: () => request<Health>('GET', '/api/health'),
   mcpConnections: () => request<{connections:MCPConnection[]}>('GET', '/api/connections').then(r=>r.connections),
+  mcpOperations: () => request<{operations:MCPBoardOperation[]}>('GET', '/api/mcp/operations').then(r=>r.operations),
+  mcpClientGrants: () => request<{grants:MCPClientGrant[]}>('GET', '/api/mcp/grants').then(r=>r.grants),
+  createMCPClientGrant: (grant:{name:string; projects:string[]; operations:string[]}) =>
+    request<{grant:MCPClientGrant; token:string}>('POST', '/api/mcp/grants', grant),
+  revokeMCPClientGrant: (id:string) => requestNoContent('DELETE', `/api/mcp/grants/${enc(id)}`),
+  mcpProposals: () => request<{proposals:MCPProposal[]}>('GET', '/api/mcp/proposals').then(r=>r.proposals),
+  resolveMCPProposal: (grantId:string, actionId:string, approve:boolean) =>
+    request('POST', `/api/mcp/proposals/${enc(grantId)}/${enc(actionId)}`, {approve}),
   saveMCPConnection: (connection: Partial<MCPConnection> & {name:string; transport:MCPConnection['transport']; bearerToken?:string}) =>
     request<{connection:MCPConnection}>(connection.id ? 'PUT' : 'POST', connection.id ? `/api/connections/${enc(connection.id)}` : '/api/connections', connection).then(r=>r.connection),
   deleteMCPConnection: (id:string) => requestNoContent('DELETE', `/api/connections/${enc(id)}`),

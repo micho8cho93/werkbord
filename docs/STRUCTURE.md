@@ -61,6 +61,8 @@ cmd/werkbord-team/       APP    the Team service and command line
 
 internal/sqlitekit/      SHARED opening, migrating and backing up a SQLite database
 internal/httpkit/        SHARED JSON responses, error envelope, strict body decoding, request logging, security headers
+internal/mcpcontract/    SHARED MCP framing and validated project/operation scope contracts; products supply their own tools and authorization
+internal/mcpbridge/      SHARED stdio MCP client bridge to a configured Streamable HTTP endpoint
 internal/integration/    SHARED versioned task/status DTOs and canonical repository identity
 internal/planning/       SHARED label names and colours, work modes, planned dates and the analysis of dependencies
 internal/logging/        SHARED the structured logger
@@ -81,6 +83,8 @@ A package is **shared** when both products use it and it holds no behaviour of e
 | `internal/planning` | What a label may be called and coloured, the three work modes (human, agent, hybrid), planned date ranges, and the analysis that finds invalid and conflicting dependencies. Pure functions: no storage, workspace, role or process. See [PLANNING.md](PLANNING.md). | `internal/domain`, `internal/service` (individual); `internal/team/domain`, `internal/team/service` (Team) |
 | `internal/sqlitekit` | Opens a SQLite file (one writer, a pool of readers, WAL), runs versioned migrations, copies the database before an upgrade, inspects it read-only. Knows no schema. | `internal/store/sqlite` (individual), `internal/team/store` (Team) |
 | `internal/httpkit` | `WriteJSON`/`WriteError` and the error envelope, strict `DecodeJSON`, and the `LogRequests`, `RecoverPanics` and `SecurityHeaders` middleware. Holds no route. | `internal/api` (individual), `internal/team/api` (Team) |
+| `internal/mcpcontract` | MCP Streamable HTTP framing, bounded tool request/response handling, and validated project/operation scopes. Holds no credentials, board operations or product permissions. Uses the official MCP Go SDK. | Individual MCP server, Team MCP server, `internal/mcpbridge` |
+| `internal/mcpbridge` | Stdio MCP client forwarding tools, resources and prompts to the configured Streamable HTTP endpoint. Holds no product identity or board behavior. | `cmd/werkbord`, `cmd/werkbord-team` |
 | `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |
 | `internal/logging` | `slog` logger construction | both |
 | `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (individual, Tailscale); `internal/team/infra/overlaynet` (Team's own private network) |
@@ -124,6 +128,7 @@ All of it goes under `internal/team/`, and the program under `cmd/werkbord-team/
 | `internal/team/store` | Team's SQLite schema (`migrations/`) and queries, on `internal/sqlitekit`. |
 | `internal/team/service` | The use cases. Every one takes the signed-in member and asks their role what is allowed. |
 | `internal/team/api` | The HTTP API (`/api/team/v1`), on `internal/httpkit`. |
+| `internal/team/mcp` | The Team-owned MCP tools, authenticated as a current member and routed through Team services. No execution or model credentials. |
 | `internal/team/console` | Team's web console (static files, no build step). |
 | `internal/team/config`, `internal/team/server` | Settings, and wiring and lifecycle (including the private network's runtime and the adapter between the workspace's terms and the infrastructure's). |
 | `internal/team/infra/…` | Team's own **infrastructure**, imported only by `server` and `cmd/werkbord-team`: `pki` (the workspace's keys and the network's certificates, sealed), `overlay` (the node description, the default-deny policy, rendering), `nebula` (the supervisor of the one pinned network program, and its pin), `rqlite` (the supervisor of the one pinned database program, its pin and its admin client), `overlaynet` (the network as a `transport.Transport`). Never handles a request. See [TEAM_NETWORK.md](TEAM_NETWORK.md) and [TEAM_STORAGE.md](TEAM_STORAGE.md). |

@@ -366,6 +366,80 @@ type Proposal struct {
 	ExpiresAt time.Time       `json:"expiresAt"`
 }
 
+// ActionStatus is the safe, argument-free view a caller may use to track its
+// own proposal while the person decides it in Werkbord.
+type ActionStatus struct {
+	ActionID  string                      `json:"actionId"`
+	Operation string                      `json:"operation"`
+	Summary   string                      `json:"summary"`
+	State     domain.AssistantActionState `json:"state"`
+	Outcome   string                      `json:"outcome,omitempty"`
+	ExpiresAt time.Time                   `json:"expiresAt"`
+}
+
+// ActionStatuses returns proposals owned by this exact principal and session.
+func (s *Service) ActionStatuses(ctx context.Context, p Principal) ([]ActionStatus, error) {
+	var actions []domain.AssistantAction
+	if err := s.st.View(ctx, func(tx store.Tx) (err error) {
+		actions, err = tx.Assistant().ListActions(ctx, p.SessionID)
+		return err
+	}); err != nil {
+		return nil, classify(s.log, "proposal_status", err)
+	}
+	out := make([]ActionStatus, 0, len(actions))
+	for _, action := range actions {
+		if action.Principal != p.ID {
+			continue
+		}
+		out = append(out, ActionStatus{ActionID: action.ID, Operation: action.Operation, Summary: action.Summary,
+			State: action.State, Outcome: action.Outcome, ExpiresAt: action.ExpiresAt})
+	}
+	return out, nil
+}
+
+// EnsureMCPPrincipal creates the action-session row required by the proposal
+// store for a grant-owned MCP principal. The assistant engine hides these rows
+// because they are not conversational sessions.
+func (s *Service) EnsureMCPPrincipal(ctx context.Context, p Principal) error {
+	if p.Via != "mcp" || p.ID == "" || p.SessionID == "" {
+		return errorf(CodeInvalidArguments, "an MCP principal needs an id and session")
+	}
+	return s.st.Update(ctx, func(tx store.Tx) error {
+		existing, err := tx.Assistant().GetSession(ctx, p.SessionID)
+		if err == nil {
+			if existing.Provider != domain.AssistantMCPProvider {
+				return errorf(CodeConflict, "MCP grant session collides with an assistant conversation")
+			}
+			return nil
+		}
+		if !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		now := s.time()
+		return tx.Assistant().CreateSession(ctx, &domain.AssistantSession{ID: p.SessionID, Provider: domain.AssistantMCPProvider,
+			State: domain.AssistantIdle, CreatedAt: now, UpdatedAt: now, ReportedAt: now})
+	})
+}
+
+// ActionStatus returns one proposal owned by this exact principal and session.
+func (s *Service) ActionStatus(ctx context.Context, p Principal, actionID string) (*ActionStatus, error) {
+	var action *domain.AssistantAction
+	if err := s.st.View(ctx, func(tx store.Tx) (err error) {
+		action, err = tx.Assistant().GetAction(ctx, actionID)
+		return err
+	}); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, errorf(CodeNotFound, "there is no such proposal")
+		}
+		return nil, classify(s.log, "proposal_status", err)
+	}
+	if action.SessionID != p.SessionID || action.Principal != p.ID {
+		return nil, errorf(CodeNotFound, "there is no such proposal")
+	}
+	return &ActionStatus{ActionID: action.ID, Operation: action.Operation, Summary: action.Summary,
+		State: action.State, Outcome: action.Outcome, ExpiresAt: action.ExpiresAt}, nil
+}
+
 // Call performs an operation for a principal. A read returns its answer. A mutation returns a Proposal and changes
 // nothing: only Resolve carries it out.
 func (s *Service) Call(ctx context.Context, p Principal, name string, raw json.RawMessage) (*Result, error) {

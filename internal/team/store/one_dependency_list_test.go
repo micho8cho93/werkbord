@@ -35,9 +35,6 @@ func TestOneDependencyListUpgradeCopiesOnlyWhatRequestsHad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "team.db")
 	ms, _ := Migrations()
 	last := migrationNamed(t, ms, "one_dependency_list")
-	if last != len(ms)-1 {
-		t.Fatalf("this test expects the migration to be the newest, it is %d of %d", last+1, len(ms))
-	}
 	p, err := sqlitekit.Open(ctx, path, sqlitekit.Options{Migrations: ms[:last], Product: productName, BackupPrefix: backupPrefix})
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +160,7 @@ func TestOneDependencyListUpgradeMayMakeACircleWhichIsReported(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "team.db")
 	ms, _ := Migrations()
-	last := len(ms) - 1
+	last := migrationNamed(t, ms, "one_dependency_list")
 	p, err := sqlitekit.Open(ctx, path, sqlitekit.Options{Migrations: ms[:last], Product: productName, BackupPrefix: backupPrefix})
 	if err != nil {
 		t.Fatal(err)

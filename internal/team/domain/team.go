@@ -21,6 +21,7 @@ const (
 	PrefixLabel     = "tlb"
 	// PrefixEnrollment marks a request to join the workspace.
 	PrefixEnrollment = "tenr"
+	PrefixMCPGrant   = "tmc"
 )
 
 var idEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)

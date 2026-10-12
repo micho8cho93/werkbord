@@ -25,7 +25,12 @@ func checkSession(ctx context.Context, tx store.Tx) error {
 	if err != nil || m.Role != a.Member.Role {
 		return domain.ErrUnauthenticated
 	}
-	if a.Device != nil {
+	if a.MCPGrantID != "" {
+		grant, err := tx.MCPGrant(ctx, a.Workspace.ID, a.Member.ID, a.MCPGrantID)
+		if err != nil || grant.RevokedAt != nil || grant.TokenHash != a.credentialHash {
+			return domain.ErrUnauthenticated
+		}
+	} else if a.Device != nil {
 		d, err := tx.DeviceByCredentialHash(ctx, a.credentialHash)
 		if err != nil || d.Revoked() || d.ID != a.Device.ID || d.WorkspaceID != a.Workspace.ID || d.MemberID != m.ID || d.PublicKey != a.Device.PublicKey {
 			return domain.ErrUnauthenticated

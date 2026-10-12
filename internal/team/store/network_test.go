@@ -35,7 +35,7 @@ func TestTheNetworkTablesHaveNoColumnForASecret(t *testing.T) {
 	ctx := context.Background()
 	db := openDB(t)
 	cols := map[string][]string{}
-	tables := []string{"network_settings", "device_network", "network_certificates", "device_credentials", "enrollment_invitations", "enrollments"}
+	tables := []string{"network_settings", "device_network", "network_certificates", "device_credentials", "enrollment_invitations", "enrollments", "mcp_grants"}
 	err := db.pool.View(ctx, func(tx *sql.Tx) error {
 		for _, table := range tables {
 			rows, err := tx.Query(`SELECT name FROM pragma_table_info(?)`, table)
@@ -61,6 +61,7 @@ func TestTheNetworkTablesHaveNoColumnForASecret(t *testing.T) {
 		"device_credentials":     "device_id workspace_id token_hash created_at",
 		"enrollment_invitations": "id workspace_id credential_hash created_by label for_member_id role capabilities require_approval state created_at expires_at used_at",
 		"enrollments":            "id workspace_id invitation_id member_id member_name device_id device_name device_key network_public_key sealing_key capabilities state delivered_at decided_by decided_at remote_addr created_at",
+		"mcp_grants":             "id workspace_id member_id name projects_json operations_json token_hash created_at revoked_at",
 	}
 	for table, w := range want {
 		if got := strings.Join(cols[table], " "); got != w {
@@ -72,7 +73,7 @@ func TestTheNetworkTablesHaveNoColumnForASecret(t *testing.T) {
 	isNotASecret := map[string]string{
 		"workspace_key": "the workspace's PUBLIC key", "network_public_key": "a device's PUBLIC network key", "device_key": "a device's PUBLIC application key",
 		"sealing_key": "a device's PUBLIC sealing key", "ca_certificate": "the authority's certificate: public",
-		"credential_hash": "a hash", "token_hash": "a hash", "provision_sealed": "ciphertext, openable only by the device it is sealed to",
+		"credential_hash": "a hash", "token_hash": "a hash of a high-entropy member, device or MCP credential", "provision_sealed": "ciphertext, openable only by the device it is sealed to",
 	}
 	for table, cs := range cols {
 		for _, c := range cs {

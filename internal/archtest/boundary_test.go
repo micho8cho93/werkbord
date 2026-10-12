@@ -40,6 +40,8 @@ var teamAllowed = []string{
 	teamCmd,
 	teamTree, // and below
 	module + "/internal/httpkit",
+	module + "/internal/mcpcontract",  // product-neutral MCP protocol framing and project/operation scope contract
+	module + "/internal/mcpbridge",    // product-neutral stdio client bridge; credentials and operations stay with each product
 	module + "/internal/integration",  // product-neutral versioned task/status DTOs and repository identity validation
 	module + "/internal/planning",     // label names and colours, work modes, planned dates and dependency analysis: pure functions, no storage, no workspace, no role
 	module + "/internal/nativebridge", // neutral web-to-native messaging; native methods stay in each product

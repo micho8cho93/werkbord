@@ -16,6 +16,7 @@ import (
 	"devboard/internal/events"
 	"devboard/internal/httpkit"
 	"devboard/internal/localaccess"
+	"devboard/internal/mcpaccess"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
@@ -63,6 +64,9 @@ type Options struct {
 	Assistant *assistant.Engine
 	// Connections owns upstream MCP transports and credentials. It is available on the loopback controller only.
 	Connections *connections.Service
+	// MCP exposes only grant-scoped application operations, never the controller token.
+	MCP           *mcpaccess.Server
+	MCPManagement bool // whether this listener may issue/revoke grants and resolve human proposals
 
 	// AuthRequired makes every /api request except /api/health present Token.
 	AuthRequired bool
@@ -138,6 +142,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/local-access", s.handleLocalAccessCreate)
 	mux.HandleFunc("DELETE /api/local-access/{id}", s.handleLocalAccessRevoke)
 	mux.HandleFunc("GET /api/local-access/self", s.handleLocalAccessSelfRefused)
+	if s.opt.MCPManagement {
+		mux.HandleFunc("GET /api/mcp/operations", s.handleMCPOperations)
+		mux.HandleFunc("GET /api/mcp/grants", s.handleMCPGrants)
+		mux.HandleFunc("POST /api/mcp/grants", s.handleMCPGrantCreate)
+		mux.HandleFunc("DELETE /api/mcp/grants/{id}", s.handleMCPGrantRevoke)
+		mux.HandleFunc("GET /api/mcp/proposals", s.handleMCPProposals)
+		mux.HandleFunc("POST /api/mcp/proposals/{grant}/{action}", s.handleMCPProposalResolve)
+	}
 	mux.HandleFunc("GET /api/update", s.handleUpdateStatus)
 	mux.HandleFunc("GET /api/github", s.handleGitHubStatus)
 	mux.HandleFunc("POST /api/github/login", s.handleGitHubLogin)
@@ -255,6 +267,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such endpoint")
 	})
+	if s.opt.MCP != nil {
+		mux.Handle("/mcp", s.opt.MCP.Handler())
+	} else {
+		mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+			writeError(w, http.StatusServiceUnavailable, "unavailable", "MCP is disabled")
+		})
+	}
 	if s.opt.Web != nil {
 		mux.Handle("/", s.opt.Web)
 	}

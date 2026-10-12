@@ -59,6 +59,8 @@ var workspaceRoutes = []string{
 	// The workspace's shared labels: names and colours. Every member lists them; only labels.manage changes them.
 	"GET /labels", "POST /labels", "PATCH /labels/{id}", "DELETE /labels/{id}",
 	"GET /overview", "GET /my-work", "GET /reviews", "GET /sync",
+	// A Team MCP credential is separate from the member token and can only narrow its holder's own metadata access.
+	"GET /mcp/operations", "GET /mcp/grants", "POST /mcp/grants", "DELETE /mcp/grants/{id}",
 	"GET /search", // bounded, read-only lookup of visible projects and stored tickets; cannot execute or reach a computer
 	"POST /invites/join",
 	// The private network and the devices on it: addresses, roles, reachability, invitations
