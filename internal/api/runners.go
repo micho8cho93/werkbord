@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"devboard/internal/domain"
 	"devboard/internal/netprivate"
@@ -28,7 +29,8 @@ func (s *Server) handlePairRunner(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, e)
 		return
 	}
-	p, e := s.opt.Distributed.Pair(r.Context(), status.URL, req.Projects, req.AllowClone)
+	controllerURL := strings.TrimSuffix(status.URL, "/")
+	p, e := s.opt.Distributed.Pair(r.Context(), controllerURL, req.Projects, req.AllowClone)
 	if e != nil {
 		s.fail(w, r, e)
 		return

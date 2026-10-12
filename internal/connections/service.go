@@ -455,31 +455,40 @@ func (s *Service) Test(ctx context.Context, id string) (Connection, error) {
 		_, _ = s.mutate(context.Background(), id, func(stored *Connection) { stored.LastError, stored.TestedAt = c.LastError, c.TestedAt })
 		return c, err
 	}
-	old := map[string]Tool{}
-	for _, tool := range c.Tools {
-		old[tool.Name] = tool
-	}
-	for i := range tools {
-		if prior, ok := old[tools[i].Name]; ok {
-			tools[i].Assistant, tools[i].Coding = prior.Assistant, prior.Coding
-			if prior.Fingerprint != tools[i].Fingerprint {
-				if tools[i].Assistant == toolPolicyAllow {
-					tools[i].Assistant = toolPolicyAsk
-				}
-				if tools[i].Coding == toolPolicyAllow {
-					tools[i].Coding = toolPolicyAsk
-				}
-			}
-		}
-	}
 	c.Tools, c.Resources, c.LastError, c.TestedAt = tools, resources, "", time.Now().UTC()
 	if c.AuthMode == "oauth" {
 		c.SecretStored = s.hasOAuthCredential(id)
 	}
 	c, err = s.mutate(ctx, id, func(stored *Connection) {
-		stored.Tools, stored.Resources, stored.LastError, stored.TestedAt, stored.SecretStored = c.Tools, c.Resources, "", c.TestedAt, c.SecretStored
+		stored.Tools = preserveToolPolicies(c.Tools, stored.Tools)
+		stored.Resources, stored.LastError, stored.TestedAt, stored.SecretStored = c.Resources, "", c.TestedAt, c.SecretStored
 	})
 	return c, err
+}
+
+// preserveToolPolicies applies the latest saved policies to discovery results. Test performs
+// network discovery outside the service lock, so the stored policies may have changed while it ran.
+func preserveToolPolicies(discovered, current []Tool) []Tool {
+	priorByName := make(map[string]Tool, len(current))
+	for _, tool := range current {
+		priorByName[tool.Name] = tool
+	}
+	for i := range discovered {
+		prior, ok := priorByName[discovered[i].Name]
+		if !ok {
+			continue
+		}
+		discovered[i].Assistant, discovered[i].Coding = prior.Assistant, prior.Coding
+		if prior.Fingerprint != discovered[i].Fingerprint {
+			if discovered[i].Assistant == toolPolicyAllow {
+				discovered[i].Assistant = toolPolicyAsk
+			}
+			if discovered[i].Coding == toolPolicyAllow {
+				discovered[i].Coding = toolPolicyAsk
+			}
+		}
+	}
+	return discovered
 }
 
 // Reauthorize clears saved OAuth credentials and immediately starts a fresh sign-in and discovery.

@@ -30,8 +30,13 @@ type Admin struct {
 // NewAdmin returns an Admin for the node at addr, as the admin user. An address that is not loopback or
 // private is not spoken to: every call returns an error.
 func NewAdmin(addr netip.AddrPort, c Credentials) *Admin {
+	transport := &http.Transport{}
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = defaultTransport.Clone()
+	}
+	transport.Proxy = nil
 	return &Admin{base: "http://" + addr.String(), user: UserAdmin, pass: c.Admin, bad: checkReach(addr),
-		hc: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+		hc: &http.Client{Transport: transport, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
 // checkReach is the rule for every address this package connects to.
