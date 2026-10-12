@@ -94,11 +94,17 @@ func TestTheOneDependencyListMigrationCarriesDataAcrossOnTheCluster(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	last := len(all) - 1
-	if !strings.Contains(all[last].Name, "one_dependency_list") {
-		t.Fatalf("this test expects the migration to be the newest, it is %q", all[last].Name)
+	target := -1
+	for i, migration := range all {
+		if migration.Name == "one_dependency_list" {
+			target = i
+			break
+		}
 	}
-	before := all[:last]
+	if target < 0 {
+		t.Fatal("one_dependency_list migration is missing")
+	}
+	before := all[:target]
 	old := open(t, c, 0, func(o *Options) { o.Migrations = before })
 	k := seed(t, old)
 	second, gone := domain.NewID(domain.PrefixTicket), domain.NewID(domain.PrefixTicket)
