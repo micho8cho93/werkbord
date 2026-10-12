@@ -256,12 +256,25 @@ the fenced response with the installed parser. Run it with `WERKBORD_LIVE_ASSIST
 
 The assistant may mix ordinary prose with a fenced `openui-lang` block. OpenUI code streams in the existing `delta` events,
 and `ReplyView.svelte` splits it from prose and passes each block to the registered Svelte renderer. Tables sort and filter
-their already-returned rows locally; disclosures reveal local detail. These controls change no board state and make no request.
-Each data visualization includes the exact operation snapshot timestamp and is not live. The assistant uses prose for simple
-questions and retrieves data through its existing permission-scoped operations before generating an interface. OpenUI cannot
-add operations or call an API. Generated UI cannot run HTML, JavaScript, CSS, OpenUI queries or mutations, or unregistered components. The operation filter and repair pass treat the UI
-fence as opaque; `werkbord-call` blocks remain a separate protocol outside it. Retries still discard the failed attempt, while
-SSE replay and transcript recovery carry the same streamed reply text.
+their already-returned rows locally; chart category selection, comparison filters, series toggles, date ranges and disclosures
+also update locally. These controls change no board state and make no request. Each data visualization includes the exact
+operation snapshot timestamp and is not live.
+
+The registry also supports native Svelte forms with text, select, date and checkbox fields, and a visible conversation action.
+OpenUI's Svelte form state and validation APIs keep edits scoped to that form. Validated field values are kept beside the reply
+in the existing tab-only transcript cache, so a reload in the same tab restores the draft. A form has no operation or API
+callback: pressing its action forwards only that user-selected label and field values as a message to the current conversation.
+The callback accepts only the registered continue-conversation action, rejects unexpected parameters and malformed values,
+and cannot approve a proposal. The assistant must still request an existing operation; `internal/appops` checks its grants,
+project scope, input schema and optimistic version, then records the proposal in the audit. Werkbord's ordinary confirmation
+endpoint remains the only way to apply a proposed change. Read-only sessions cannot create a proposal, expired proposals
+cannot be applied, and repeated button presses cannot submit twice.
+
+The assistant uses prose for simple questions and retrieves data through its existing permission-scoped operations before
+generating an interface. OpenUI cannot add operations or call an API. Generated UI cannot run HTML, JavaScript, CSS, OpenUI
+queries or mutations, or unregistered components. The operation filter and repair pass treat the UI fence as opaque;
+`werkbord-call` blocks remain a separate protocol outside it. Retries still discard the failed attempt, while SSE replay and
+transcript recovery carry the same streamed reply text.
 
 An invalid block keeps any valid rendered portions and shows a plain fallback with an expandable, text-only source preview.
 An unfinished block is labelled incomplete after the turn ends. OpenUI runs locally in the web app: Werkbord does not use
@@ -559,7 +572,7 @@ this adapter.
 | Attachments: authorization, once-only, limits, expiry, isolation, escaping, fail-closed | `internal/assistant/attachments_test.go`, `internal/api` |
 | The screen's logic: the transcript from events (retries, rounds, replays, gaps), the stream (cut anywhere, reconnects, restarts), dictation, the animation's plan, the safe reader, OpenUI schema/prompt/reply parsing, visualization data, empty states and mobile breakpoints, choices, words | `web/src/lib/assistant/*.test.ts` |
 | The screen against a stand-in controller: opening/closing, sending, confirming, choosing, files, reload, restart, no conversation, no provider | `web/src/lib/assistant/store.test.ts` |
-| The screen in a real browser, with the real engine and API and a scripted provider: the animation frame by frame (light, dark, reduced motion), the workspace left untouched, streaming, generated OpenUI and malformed-output recovery, tool progress, confirmations that survive closing/reload/restart, files, dictation, keyboard and screen-reader behaviour, a phone | `make test-assistant-browser` (`scripts/browser-assistant.cjs`) |
+| The screen in a real browser, with the real engine and API and a scripted provider: the animation frame by frame (light, dark, reduced motion), the workspace left untouched, streaming, generated OpenUI local controls and forms, invalid form values, duplicate submissions, task proposal approval/rejection/expiry, denied writes, malformed-output recovery, tool progress, confirmations that survive closing/reload/restart, files, dictation, keyboard and screen-reader behaviour, a phone | `make test-assistant-browser` (`scripts/browser-assistant.cjs`) |
 | The same from the desktop window's sidebar, in a real frame | `make test-assistant-browser` (`scripts/browser-shell-assistant.cjs`) |
 
 ## Not in this stage

@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,15 +33,24 @@ func newFixtureAssistant(mode string, dir string, db store.Store, deps service.D
 	if mode == "" || mode == "off" {
 		return nil
 	}
+	ready := mode == "1" || mode == "readonly" || mode == "short-ttl"
 	reg := provider.NewRegistry()
-	for _, p := range []*scripted{newScripted("claude-code", "Claude Code", mode == "1"), newScripted("codex", "Codex", mode == "1")} {
+	for _, p := range []*scripted{newScripted("claude-code", "Claude Code", ready), newScripted("codex", "Codex", ready)} {
 		if err := reg.Register(p); err != nil {
 			panic(err)
 		}
 	}
 	backend := appops.NewBackend(appops.Services{Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Control: &service.ControlCenter{Deps: deps}, Answer: mgr.Answer})
-	ops := appops.New(appops.Config{Backend: backend, Store: db})
-	eng := assistant.New(assistant.Config{Providers: reg, Ops: ops, Store: db, WorkDir: filepath.Join(dir, "assistant"), AttachmentRetention: 30 * time.Minute})
+	confirmTTL := time.Duration(0)
+	if millis, err := strconv.Atoi(os.Getenv("WERKBORD_BROWSER_ASSISTANT_TTL_MS")); err == nil && millis > 0 {
+		confirmTTL = time.Duration(millis) * time.Millisecond
+	}
+	ops := appops.New(appops.Config{Backend: backend, Store: db, ConfirmTTL: confirmTTL})
+	var grants []appops.Permission
+	if mode == "readonly" {
+		grants = []appops.Permission{appops.PermProjectsRead, appops.PermTicketsRead, appops.PermAnalyticsRead, appops.PermScheduleRead, appops.PermRunsRead, appops.PermQuestionsRead}
+	}
+	eng := assistant.New(assistant.Config{Providers: reg, Ops: ops, Store: db, WorkDir: filepath.Join(dir, "assistant"), AttachmentRetention: 30 * time.Minute, Grants: grants})
 	if err := eng.Recover(context.Background()); err != nil {
 		panic(err)
 	}
@@ -126,14 +138,30 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 		return say(calls.String())
 	case strings.Contains(low, "fail model") && t.Model == "":
 		return provider.Result{}, provider.Errorf(provider.KindModelUnavailable, false, "The default model is not available to your account.")
+	case strings.Contains(low, "openui form demo"):
+		projectID := firstProject(p)
+		if projectID == "" {
+			return say("I need a project identifier from the board before I can show that form.")
+		}
+		return say("Review this draft, then choose what to ask me to do.\n```openui-lang\nroot = Stack([plan])\n",
+			"plan = Form(\"sprint-plan\", \"Draft sprint tasks\", \"Review the task, project and date before requesting proposals.\", [project, title, start, includeDocs, reference, create])\n",
+			fmt.Sprintf("project = SelectField(\"projectId\", \"Project\", [{value: %q, label: \"Assistant project\"}], %q, true)\n", projectID, projectID),
+			"title = TextField(\"title\", \"Task title\", \"From the plan\", \"A short title\", true, 120)\n",
+			"start = DateField(\"plannedStart\", \"First planned day\", \"2026-10-19\", false)\n",
+			"includeDocs = CheckboxField(\"includeDocs\", \"Include documentation tasks\", false)\n",
+			"reference = TextField(\"referenceUrl\", \"Reference URL\", \"\", \"Optional external reference\", false, 500)\n",
+			"create = ConversationAction(\"Create tasks from this plan\")\n```\n")
 	case strings.Contains(low, "openui dashboard"):
 		return say(
 			"Here is the sprint view.\n",
-			"```openui-lang\nroot = Stack([title, metrics, tasks, details])\n",
+			"```openui-lang\nroot = Stack([title, metrics, tasks, details, bars, comparison, trend])\n",
 			"title = Heading(\"Sprint snapshot\", 1)\nmetrics = Grid([open, done], 2, \"small\")\n",
-			"open = Metric(\"Open tasks\", \"4\", \"Across active projects\")\ndone = Metric(\"Done this week\", \"8\")\n",
-			"tasks = Table([\"Task\", \"State\", \"Owner\", \"Next step\"], [[\"Review API\", \"Review\", \"Mara\", \"Check limits\"], [\"Update docs\", \"Doing\", \"Ivo\", \"Add examples\"]], \"Next tasks\")\n",
+			"open = Metric(\"Open tasks\", \"4\", \"Across active projects\", \"2026-10-12T09:00:00Z\")\ndone = Metric(\"Done this week\", \"8\", \"Recorded completions\", \"2026-10-12T09:00:00Z\")\n",
+			"tasks = DataTable(\"Next tasks\", [\"Task\", \"State\", \"Owner\", \"Next step\"], [[\"Review API\", \"Review\", \"Mara\", \"Check limits\"], [\"Update docs\", \"Doing\", \"Ivo\", \"Add examples\"]], \"2026-10-12T09:00:00Z\", true, [{column: \"State\", label: \"Filter by state\", options: [\"Review\", \"Doing\"]}])\n",
 			"details = Disclosure(\"How these counts work\", [explanation, untrusted])\n",
+			"bars = BarChart(\"Tasks by state\", [\"Review\", \"Doing\"], [1, 3], \"tasks\", \"Current board counts\", \"2026-10-12T09:00:00Z\")\n",
+			"comparison = ComparisonChart(\"Agent run attempts\", [\"Attempts\", \"Retries\"], \"Claude Code\", [5, 1], \"Codex\", [3, 2], \"runs\", \"Run outcomes, not task completion attribution\", \"2026-10-12T09:00:00Z\")\n",
+			"trend = LineChart(\"Daily completions\", [\"2026-10-10\", \"2026-10-11\", \"2026-10-12\"], [1, 3, 2], \"tasks\", \"Historical task state changes\", \"2026-10-12T09:00:00Z\")\n",
 			"explanation = Text(\"Counts are from the current board.\")\nuntrusted = Text(\"<img src=x onerror=window.__pwned=1>\")\n```\n",
 			"The values are from the current board.",
 		)
@@ -163,6 +191,20 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 			emit(provider.Event{Kind: provider.EventText, Text: chunks[i]})
 		}
 		return provider.Result{Text: strings.Join(chunks, ""), Ref: ref}, nil
+	case strings.Contains(low, "create tasks from this plan") && !afterResults:
+		values := formValues(p)
+		projectID, _ := values["projectId"].(string)
+		title, _ := values["title"].(string)
+		plannedStart, _ := values["plannedStart"].(string)
+		if title == "" {
+			title = "From the plan"
+		}
+		args := map[string]any{"projectId": projectID, "title": title}
+		if plannedStart != "" {
+			args["plannedStart"] = plannedStart
+		}
+		encoded, _ := json.Marshal(args)
+		return say("Preparing the task.\n```werkbord-call\n" + fmt.Sprintf(`{"id":"plan-1","name":"create_ticket","arguments":%s}`, encoded) + "\n```\n")
 	case strings.Contains(low, "ticket") && !afterResults:
 		projectID := firstProject(p)
 		return say("Preparing that.\n", "```werkbord-call\n"+fmt.Sprintf(`{"id":"c1","name":"create_ticket","arguments":{"projectId":%q,"title":"From the assistant"}}`, projectID)+"\n```\n")
@@ -208,4 +250,16 @@ func firstProject(prompt string) string {
 		return prompt[i:j]
 	}
 	return ""
+}
+
+func formValues(prompt string) map[string]any {
+	match := regexp.MustCompile(`(?m)^Form values: ([^\r\n]+)$`).FindStringSubmatch(prompt)
+	if len(match) != 2 {
+		return nil
+	}
+	values := map[string]any{}
+	if err := json.Unmarshal([]byte(match[1]), &values); err != nil {
+		return nil
+	}
+	return values
 }

@@ -10,6 +10,7 @@ import { ApiError } from '../api';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { assistantApi } from './api';
 import { openUISystemPrompt } from './openui/library';
+import { persistedOpenUIState } from './openui/state';
 import { connectWorkspaces, answerWorkspace } from './workspaces';
 import { modelName, pickChoice, reasoningLevels, summary, type Choice } from './choice';
 import { Connection, type Link } from './stream';
@@ -370,6 +371,14 @@ export class AssistantStore {
       if (e instanceof ApiError && e.status === 400) void this.prepare(true);
       return false;
     }
+  }
+
+  /** Keeps a generated form's validated values beside its reply in the tab-only transcript cache. */
+  updateOpenUIState(replyId: string, raw: unknown): void {
+    const reply = this.transcript.items.find((item): item is ReplyItem => item.kind === 'reply' && item.id === replyId);
+    if (!reply) return;
+    reply.uiState = persistedOpenUIState(raw);
+    this.save();
   }
 
   /** Sends what is in the box (and the files that are ready) as the next message. */

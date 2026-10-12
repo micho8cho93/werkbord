@@ -12,6 +12,8 @@ describe('Werkbord OpenUI registry', () => {
     expect(openUISystemPrompt).toContain('## Inline Mode');
     expect(openUISystemPrompt).toContain('Never output HTML, JavaScript, CSS');
     expect(openUISystemPrompt).toContain('root statement first');
+    expect(openUISystemPrompt).toContain('ConversationAction');
+    expect(openUISystemPrompt).toContain('Every proposed change remains uncommitted until the person confirms it');
   });
 
   it('parses a nested, structured response with the installed Svelte Lang API', () => {
@@ -34,6 +36,23 @@ tasks = List(["Review API", "Update docs"], "Tasks")`);
       expect(names).toContain(name);
       expect(openUISystemPrompt).toContain(name);
     }
+    for (const name of ['Form', 'TextField', 'SelectField', 'CheckboxField', 'DateField', 'ConversationAction']) {
+      expect(names).toContain(name);
+      expect(openUISystemPrompt).toContain(name);
+    }
+  });
+
+  it('parses an editable plan form whose visible action only continues the conversation', () => {
+    const result = parseOpenUI(`root = Stack([plan])
+plan = Form("sprint-plan", "Draft sprint tasks", "Review the values before asking me to prepare changes.", [title, project, start, docs, create])
+title = TextField("title", "Task title", "Review the API", "A short title", true, 120)
+project = SelectField("projectId", "Project", [{value: "prj_abc123", label: "Werkbord"}], "prj_abc123", true)
+start = DateField("plannedStart", "First planned day", "2026-10-19", false)
+docs = CheckboxField("includeDocs", "Include documentation tasks", false)
+create = ConversationAction("Create tasks from this plan")`);
+    expect(result.root?.typeName).toBe('Stack');
+    expect(result.meta.errors).toEqual([]);
+    expect(result.meta.unresolved).toEqual([]);
   });
 
   it('parses real-shaped snapshot data without native Query or mutation components', () => {

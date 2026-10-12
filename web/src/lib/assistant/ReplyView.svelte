@@ -1,14 +1,19 @@
 <script lang="ts">
-  import { Renderer, type ParseResult } from '@openuidev/svelte-lang';
+  import { Renderer, type ActionEvent, type ParseResult } from '@openuidev/svelte-lang';
   import { assistant } from './store.svelte';
   import Markdown from './Markdown.svelte';
   import { openUILibrary } from './openui/library';
   import { replyParts } from './openui/reply';
   import { lookedAt, progressLine, type ReplyItem } from './transcript';
   import { failure, operationFailureTitle } from './words';
+  import { conversationMessage } from './openui/state';
 
   let { reply }: { reply: ReplyItem } = $props();
+  // The OpenUI renderer takes its form-state snapshot once; later edits are retained internally and saved separately.
+  // svelte-ignore state_referenced_locally
+  const initialUIState = reply.uiState ?? {};
   let openUIResults = $state<Record<number, { ready: boolean; hasRoot: boolean; invalid: boolean }>>({});
+  let actionProblem = $state('');
   const line = $derived(reply.status === 'working' ? progressLine(reply) : '');
   const looked = $derived(reply.status === 'done' ? lookedAt(reply) : []);
   const parts = $derived(replyParts(reply.text, reply.status === 'working'));
@@ -22,6 +27,20 @@
       invalid: !!result && (result.meta.incomplete || result.meta.errors.length > 0 || result.meta.unresolved.length > 0),
     };
   }
+
+  function openUIAction(event: ActionEvent): void {
+    const result = conversationMessage(event);
+    if (!result.ok) {
+      actionProblem = result.error;
+      return;
+    }
+    if (assistant.running) {
+      actionProblem = 'The assistant is still replying. Wait for it to finish before sending this follow-up.';
+      return;
+    }
+    actionProblem = '';
+    void assistant.send(result.message);
+  }
 </script>
 
 <article class="reply" aria-busy={reply.status === 'working'} data-status={reply.status}>
@@ -34,8 +53,12 @@
           response={part.text}
           library={openUILibrary}
           isStreaming={reply.status === 'working'}
+          initialState={initialUIState}
+          onStateUpdate={(state) => assistant.updateOpenUIState(reply.id, state)}
+          onAction={openUIAction}
           onParseResult={(result) => openUIParsed(i, result)}
         />
+        {#if actionProblem}<p class="openui-action-error" role="alert" data-testid="openui-action-error">{actionProblem}</p>{/if}
         {#if (reply.status !== 'working' && !part.closed) || (part.closed && openUIResults[i]?.ready && (!openUIResults[i].hasRoot || openUIResults[i].invalid))}
           <div class="openui-fallback" role="status">
             <p>{part.closed ? "I couldn't render all of this interface." : 'This interface did not finish, so some content may be missing.'}</p>
@@ -116,6 +139,15 @@
     color: var(--text-2);
     font-size: 12.5px;
     overflow-wrap: anywhere;
+  }
+  .openui-action-error {
+    margin: 0;
+    padding: 9px 11px;
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    color: var(--danger-text);
+    background: var(--surface);
+    font-size: 12.5px;
   }
   .openui-fallback p { margin: 0 0 6px; }
   .openui-fallback summary { width: fit-content; cursor: pointer; }

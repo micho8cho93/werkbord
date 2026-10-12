@@ -3,9 +3,13 @@ import { z } from 'zod/v4';
 import CardBlock from './components/CardBlock.svelte';
 import BarChartBlock from './components/BarChartBlock.svelte';
 import ComparisonChartBlock from './components/ComparisonChartBlock.svelte';
+import CheckboxFieldBlock from './components/CheckboxFieldBlock.svelte';
 import ContainerBlock from './components/ContainerBlock.svelte';
+import ConversationActionBlock from './components/ConversationActionBlock.svelte';
 import DataTableBlock from './components/DataTableBlock.svelte';
+import DateFieldBlock from './components/DateFieldBlock.svelte';
 import DisclosureBlock from './components/DisclosureBlock.svelte';
+import FormBlock from './components/FormBlock.svelte';
 import GridBlock from './components/GridBlock.svelte';
 import HeadingBlock from './components/HeadingBlock.svelte';
 import LineChartBlock from './components/LineChartBlock.svelte';
@@ -16,6 +20,8 @@ import ProgressBlock from './components/ProgressBlock.svelte';
 import StatusSummaryBlock from './components/StatusSummaryBlock.svelte';
 import TableBlock from './components/TableBlock.svelte';
 import TextBlock from './components/TextBlock.svelte';
+import TextFieldBlock from './components/TextFieldBlock.svelte';
+import SelectFieldBlock from './components/SelectFieldBlock.svelte';
 import TimelineBlock from './components/TimelineBlock.svelte';
 import WorkflowBlock from './components/WorkflowBlock.svelte';
 
@@ -34,6 +40,79 @@ const Text = defineComponent({
 const snapshotTime = z.string().max(40).describe('The exact observedAt or End timestamp returned by the Werkbord read operation. Label this as a snapshot; it is not live data.');
 const countValue = z.number().int().min(0).max(1000000);
 const taskState = z.enum(['backlog', 'doing', 'review', 'done']);
+const formName = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,39}$/).describe('A stable, unique name for this form in the reply.');
+const fieldName = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,47}$/).describe('A stable field name in camelCase, such as plannedStart or projectId.');
+
+const TextField = defineComponent({
+  name: 'TextField',
+  description: 'A labelled text field inside a Form. Use for a task title, description or other value the person should review or edit before asking the assistant to continue.',
+  props: z.object({
+    name: fieldName,
+    label: z.string().max(100),
+    value: z.string().max(500).optional(),
+    placeholder: z.string().max(120).optional(),
+    required: z.boolean().optional(),
+    maxLength: z.number().int().min(1).max(500).optional(),
+  }),
+  component: TextFieldBlock,
+});
+
+const SelectField = defineComponent({
+  name: 'SelectField',
+  description: 'A native dropdown inside a Form for choosing from explicit, supplied values such as a project or task state. Never invent an identifier or option.',
+  props: z.object({
+    name: fieldName,
+    label: z.string().max(100),
+    options: z.array(z.object({ value: z.string().min(1).max(120), label: z.string().max(100) })).min(1).max(16),
+    value: z.string().max(120).optional(),
+    required: z.boolean().optional(),
+  }),
+  component: SelectFieldBlock,
+});
+
+const DateField = defineComponent({
+  name: 'DateField',
+  description: 'A native date selector inside a Form. Use ISO dates (YYYY-MM-DD), and leave the value blank when no date was observed or chosen.',
+  props: z.object({
+    name: fieldName,
+    label: z.string().max(100),
+    value: z.string().max(10).optional(),
+    required: z.boolean().optional(),
+  }),
+  component: DateFieldBlock,
+});
+
+const CheckboxField = defineComponent({
+  name: 'CheckboxField',
+  description: 'A native checkbox inside a Form for a clear true or false choice.',
+  props: z.object({
+    name: fieldName,
+    label: z.string().max(120),
+    checked: z.boolean().optional(),
+  }),
+  component: CheckboxFieldBlock,
+});
+
+const ConversationAction = defineComponent({
+  name: 'ConversationAction',
+  description: 'A visible button inside a Form. Clicking it explicitly sends its label and that form’s selected values as the user’s next message to the assistant. It cannot call a Werkbord operation or approve a proposal.',
+  props: z.object({ label: z.string().trim().min(1).max(160) }),
+  component: ConversationActionBlock,
+});
+
+const FormContent = z.union([TextField.ref, SelectField.ref, DateField.ref, CheckboxField.ref, ConversationAction.ref]);
+
+const Form = defineComponent({
+  name: 'Form',
+  description: 'An editable, accessible form shown directly in the conversation. Its fields stay local until a visible ConversationAction is clicked. The click only asks the assistant to continue; any board change still uses Werkbord’s existing proposal and confirmation flow.',
+  props: z.object({
+    name: formName,
+    title: z.string().max(120),
+    description: z.string().max(280).optional(),
+    children: z.array(FormContent).max(16),
+  }),
+  component: FormBlock,
+});
 
 const Heading = defineComponent({
   name: 'Heading',
@@ -149,6 +228,11 @@ const DataTable = defineComponent({
     rows: z.array(z.array(z.string().max(500)).max(8)).max(50),
     asOf: snapshotTime,
     filterable: z.boolean().optional(),
+    filters: z.array(z.object({
+      column: z.string().max(120),
+      label: z.string().max(80),
+      options: z.array(z.string().max(100)).max(12),
+    })).max(4).optional().describe('Optional local dropdown filters. Each column must exactly match one table column and options must come from its rows.'),
   }),
   component: DataTableBlock,
 });
@@ -247,7 +331,7 @@ const Grid = defineComponent({
   component: GridBlock,
 });
 
-const Content = z.union([Text.ref, Heading.ref, Metric.ref, Progress.ref, StatusSummary.ref, List.ref, Table.ref, BarChart.ref, LineChart.ref, PieChart.ref, ComparisonChart.ref, DataTable.ref, Timeline.ref, Workflow.ref, Card.ref, Disclosure.ref, Grid.ref]);
+const Content = z.union([Text.ref, Heading.ref, Metric.ref, Progress.ref, StatusSummary.ref, List.ref, Table.ref, BarChart.ref, LineChart.ref, PieChart.ref, ComparisonChart.ref, DataTable.ref, Timeline.ref, Workflow.ref, Card.ref, Disclosure.ref, Grid.ref, Form.ref]);
 
 const Stack = defineComponent({
   name: 'Stack',
@@ -262,7 +346,7 @@ const Stack = defineComponent({
 });
 
 export const openUILibrary = createLibrary({
-  components: [Text, Heading, Metric, Progress, StatusSummary, BarChart, LineChart, PieChart, ComparisonChart, DataTable, Timeline, Workflow, List, Table, Card, Disclosure, Grid, Stack],
+  components: [Text, Heading, Metric, Progress, StatusSummary, BarChart, LineChart, PieChart, ComparisonChart, DataTable, Timeline, Workflow, List, Table, Card, Disclosure, Grid, Stack, Form, TextField, SelectField, DateField, CheckboxField, ConversationAction],
   root: 'Stack',
 });
 
@@ -279,8 +363,12 @@ export const openUISystemPrompt = openUILibrary.prompt({
   bindings: false,
   additionalRules: [
     'Each message is rendered on its own. When you generate an interface, output the complete interface with its root statement first; do not rely on a previous interface or emit only a patch.',
-    'Use only the registered components and their declared arguments. Never output HTML, JavaScript, CSS, event handlers, Action, Query, Mutation, @Run, state bindings, or external URLs as executable UI.',
+    'Use only the registered components and their declared arguments. Never output HTML, JavaScript, CSS, event handlers, OpenUI Action() expressions, Query, Mutation, @Run, state bindings, or executable URLs.',
+    'Use Form with named TextField, SelectField, CheckboxField and DateField controls when the person should edit a plan or criteria. Keep field names stable and use only observed project or task identifiers and values.',
+    'Use ConversationAction only inside a Form. Its visible label is exactly the follow-up the person chooses to send. It only forwards that user-initiated message and the values of that form; it cannot call operations, write board data, confirm changes or use a hidden prompt.',
     'Generated components cannot call Werkbord APIs or perform board operations. Ask for board information through the separate Werkbord operation protocol, outside the openui-lang fence.',
+    'Creating or changing tasks, dates or schedules must use the existing Werkbord operation protocol. Every proposed change remains uncommitted until the person confirms it in the normal Werkbord confirmation card.',
+    'DataTable filters, chart selections and calculations are local presentation state only. Do not claim that they changed board data or fetched a new snapshot.',
     'Retrieve board facts only with the available Werkbord read operations before visualising them. Use exactly their returned counts and records; do not make up missing values, estimates, completion rates, or history.',
     'For current board status use get_project_metrics and its exact Backlog, Doing, Review, Done counts. For history use get_analytics and preserve its range, End snapshot, missingTaskHistory, truncated, and retentionRemoved coverage signals.',
     'get_analytics provider rows describe agent run attempts and outcomes. They do not attribute task completions: one task can have runs from multiple providers. Never chart a provider as having completed a task from those rows.',

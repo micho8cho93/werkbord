@@ -3,6 +3,7 @@
 // person sees and nothing more; it is rebuilt from the event stream after a reconnect, and kept for the life of the tab.
 
 import type { AssistantEvent, ErrorInfo, PendingAction } from './types';
+import { persistedOpenUIState, type OpenUIState } from './openui/state';
 
 export interface Step {
   id: string;
@@ -32,6 +33,8 @@ export interface ReplyItem {
   notices: string[];
   status: 'working' | 'done' | 'failed' | 'cancelled';
   error?: ErrorInfo;
+  /** Validated field state for generated forms, kept only in this tab with the visible transcript. */
+  uiState?: OpenUIState;
 }
 
 export type ConfirmState = 'waiting' | 'working' | 'confirmed' | 'declined' | 'expired' | 'failed' | 'gone';
@@ -312,6 +315,7 @@ export function restore(raw: string | null | undefined): Saved | null {
         const r = x as unknown as ReplyItem;
         items.push({ kind: 'reply', id: r.id, turnId: r.turnId, text: r.text, attempt: Number(r.attempt) || 0, attemptStart: Number(r.attemptStart) || 0,
           steps: Array.isArray(r.steps) ? r.steps.filter((st) => st && typeof st.name === 'string').slice(0, 30) : [], notices: Array.isArray(r.notices) ? r.notices.filter((n) => typeof n === 'string') : [],
+          uiState: persistedOpenUIState(x.uiState),
           status: ['working', 'done', 'failed', 'cancelled'].includes(r.status) ? r.status : 'done', error: r.error });
       } else if (x.kind === 'confirm' && typeof x.summary === 'string') {
         const c = x as unknown as ConfirmItem;

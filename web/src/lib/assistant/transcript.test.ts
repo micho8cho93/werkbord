@@ -223,6 +223,20 @@ describe('keeping the conversation for the life of the tab', () => {
     expect(JSON.stringify(back)).not.toContain('content');
   });
 
+  it('keeps validated OpenUI form state with its reply and drops tampered cached values', () => {
+    const t = fresh();
+    apply(t, ev('turn_started'));
+    apply(t, ev('delta', { text: '```openui-lang\nroot = Stack([])\n```', attempt: 1 }));
+    apply(t, ev('turn_completed'));
+    const reply = t.items.find((item): item is ReplyItem => item.kind === 'reply')!;
+    reply.uiState = { plan: { plannedStart: { value: '2026-10-19', componentType: 'DateField' } } };
+    const back = restore(serialize('ast_abc', t))!;
+    expect((back.items.find((item): item is ReplyItem => item.kind === 'reply'))?.uiState).toEqual(reply.uiState);
+
+    const raw = serialize('ast_abc', t).replace('2026-10-19', '2026-02-30');
+    expect((restore(raw)!.items.find((item): item is ReplyItem => item.kind === 'reply'))?.uiState).toBeUndefined();
+  });
+
   it('is bounded: a long conversation keeps its end, and stays small', () => {
     const t = fresh();
     for (let i = 0; i < 200; i++) t.items.push({ kind: 'user', id: 'u' + i, text: 'x'.repeat(2000), files: [] });

@@ -45,6 +45,7 @@ describe('Werkbord visualization components', () => {
     expect(bars).toContain('Doing: 1');
     expect(bars).toContain('width:100%');
     expect(html(BarChartBlock, { title: 'Empty', categories: [], values: [], asOf })).toContain('No chart values');
+    expect(bars).toContain('aria-pressed="false"');
 
     const line = html(LineChartBlock, { title: 'Completed tasks', labels: ['2026-03-08', '2026-03-09'], values: [1, 2], asOf });
     expect(line).toContain('2026-03-08: 1');
@@ -62,12 +63,16 @@ describe('Werkbord visualization components', () => {
     expect(comparison).toContain('Claude');
     expect(comparison).toContain('Codex');
     expect(comparison).toContain('width:100%');
+    expect(comparison).toContain('Compare category');
+    expect(comparison).toContain('Totals:');
     expect(html(ComparisonChartBlock, { title: 'No comparison', categories: [], firstValues: [], secondValues: [], asOf })).toContain('No paired values');
   });
 
   it('keeps tables interactive and timelines honest about missing planned dates', () => {
-    const table = html(DataTableBlock, { caption: 'Agent runs', columns: ['Provider', 'Attempts'], rows: [['Claude', '5'], ['Codex', '3']], asOf });
+    const table = html(DataTableBlock, { caption: 'Agent runs', columns: ['Provider', 'State'], rows: [['Claude', 'blocked'], ['Codex', 'ready']], filters: [{ column: 'State', label: 'Filter by state', options: ['blocked', 'ready', 'missing'] }], asOf });
     expect(table).toContain('Filter rows');
+    expect(table).toContain('aria-label="Filter by state"');
+    expect(table).not.toContain('missing</option>');
     expect(table).toContain('Sort by Provider');
     expect(table).toContain('Claude');
     expect(table).toContain('Codex');
@@ -82,6 +87,9 @@ describe('Werkbord visualization components', () => {
     expect(timeline).toContain('Dates incomplete');
     expect(timeline).toContain('No planned range recorded');
     expect(html(TimelineBlock, { title: 'Empty schedule', items: [], asOf })).toContain('No scheduled tasks');
+    const dated = html(LineChartBlock, { title: 'Dated values', labels: ['2026-03-08', '2026-03-09'], values: [1, 2], asOf });
+    expect(dated).toContain('Filter from date');
+    expect(dated).toContain('Filter to date');
   });
 
   it('shows task dependencies and blockers without joining unknown IDs to invented records', () => {
@@ -102,5 +110,6 @@ describe('Werkbord visualization components', () => {
     }
     expect(DataTableSource).toContain('overflow: auto');
     expect(TimelineSource).toContain('grid-template-columns: minmax(0, 1fr)');
+    expect(DataTableSource).toContain('min-height: 44px');
   });
 });

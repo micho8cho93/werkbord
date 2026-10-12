@@ -312,15 +312,32 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal((await generated.locator('h2').textContent()).trim(), 'Sprint snapshot');
             assert.deepEqual(await generated.locator('.metric .label').allInnerTexts(), ['Open tasks', 'Done this week']);
             assert.equal(await generated.locator('table tbody tr').count(), 2);
+            const messagePosts = requests.filter(r => r.endsWith('/messages')).length;
+            const filter = generated.getByRole('combobox', { name: 'Filter by state' });
+            await filter.selectOption('Review');
+            assert.equal(await generated.locator('table tbody tr').count(), 1, 'a table filter updates only its local rows');
+            assert.match(await generated.locator('table tbody tr').innerText(), /Review API/);
+            await generated.locator('.bars button').filter({ hasText: 'Review' }).click();
+            assert.match(await generated.getByRole('status').filter({ hasText: 'Selected: Review' }).innerText(), /Selected: Review · 1 tasks/);
+            await generated.getByRole('combobox', { name: 'Compare category' }).selectOption('Retries');
+            assert.equal(await generated.locator('.group').count(), 1, 'a comparison category is filtered locally');
+            const totals = generated.getByRole('status').filter({ hasText: 'Totals for Retries' });
+            assert.match(await totals.innerText(), /Totals for Retries: Claude Code 1 runs.*Codex 2 runs/);
+            await generated.getByRole('checkbox', { name: 'Claude Code' }).uncheck();
+            assert.doesNotMatch(await totals.innerText(), /Claude Code/);
+            await generated.getByLabel('Filter from date').fill('2026-10-11');
+            await generated.getByLabel('Filter to date').fill('2026-10-12');
+            assert.match(await generated.getByRole('status').filter({ hasText: 'Showing 2 of 3' }).innerText(), /Showing 2 of 3 recorded values/);
+            assert.equal(requests.filter(r => r.endsWith('/messages')).length, messagePosts, 'table, chart and date filters made no assistant request');
             assert.match((await lastReply(page).locator('.md').allInnerTexts()).join('\n'), /Here is the sprint view\.|The values are from the current board\./);
             assert.equal(await generated.locator('img, script, a').count(), 0, 'component text stays escaped and non-clickable');
-            const disclosure = generated.locator('details');
+            const disclosure = generated.locator('details').first();
             await disclosure.locator('summary').click();
             assert.notEqual(await disclosure.getAttribute('open'), null, 'the local disclosure is interactive');
             assert.match(await generated.innerText(), /<img src=x onerror=window.__pwned=1>/);
             assert.equal(requests.filter(r => /\/actions\//.test(r)).length, 0, 'generated UI did not call an operation');
             assert.equal(await page.evaluate(() => window.__pwned), undefined, 'generated text did not execute');
-            ok('OpenUI renders progressively with prose, structured data and a local disclosure; text is escaped and no operation runs');
+            ok('OpenUI renders safe data; table, chart, series and date controls update locally without an assistant request');
 
             await sendText(page, 'malformed openui');
             await lastReply(page).getByRole('status').filter({ hasText: "couldn't render all of this interface" }).waitFor();
@@ -399,6 +416,75 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.locator('section.confirm[data-state="declined"]').waitFor();
             assert.equal((await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, before + 1);
             ok('declining leaves the board alone');
+
+            // A generated plan stays editable in the conversation, survives reload, and only sends a follow-up when its visible button is pressed.
+            await sendText(page, `openui form demo for ${project.id}`);
+            await page.locator('article.reply').last().getByTestId('openui-form').waitFor();
+            await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            let plan = page.locator('article.reply').last().getByTestId('openui-form');
+            await plan.getByLabel('Task title').fill('Launch board task');
+            await plan.getByLabel('Project').selectOption(project.id);
+            await plan.getByLabel('First planned day').fill('2026-10-26');
+            await plan.getByLabel('Include documentation tasks').check();
+            await sleep(500); // the tab-only transcript cache debounces writes
+            const cachedPlanState = await page.evaluate(() => JSON.parse(sessionStorage.getItem('werkbord.assistant.v1') || 'null')?.items.filter(item => item.kind === 'reply').at(-1)?.uiState);
+            assert.equal(cachedPlanState?.['sprint-plan']?.title?.value, 'Launch board task', 'the tab cache keeps edited text');
+            assert.equal(cachedPlanState?.['sprint-plan']?.includeDocs?.value, true, 'the tab cache keeps the selected checkbox');
+            await page.reload();
+            await openAssistant(page);
+            const restoredPlanState = await page.evaluate(() => JSON.parse(sessionStorage.getItem('werkbord.assistant.v1') || 'null')?.items.filter(item => item.kind === 'reply').at(-1)?.uiState);
+            assert.equal(restoredPlanState?.['sprint-plan']?.title?.value, 'Launch board task', 'the edited form state is restored from the tab cache');
+            plan = page.locator('article.reply').last().getByTestId('openui-form');
+            assert.equal(await plan.getByLabel('Task title').inputValue(), 'Launch board task');
+            assert.equal(await plan.getByLabel('Project').inputValue(), project.id);
+            assert.equal(await plan.getByLabel('First planned day').inputValue(), '2026-10-26');
+            assert.equal(await plan.getByLabel('Include documentation tasks').isChecked(), true);
+            ok('form edits survive a page reload in the tab transcript');
+
+            const messagesBeforeInvalidForm = requests.filter(r => r.endsWith('/messages')).length;
+            await plan.getByLabel('Reference URL').fill('http://localhost:9999/private');
+            await plan.getByRole('button', { name: 'Create tasks from this plan' }).click();
+            await page.locator('[data-testid="openui-action-error"]').waitFor();
+            assert.match(await page.locator('[data-testid="openui-action-error"]').innerText(), /complete external HTTPS address/);
+            assert.equal(requests.filter(r => r.endsWith('/messages')).length, messagesBeforeInvalidForm, 'invalid form values never leave the browser');
+            assert.equal(await page.locator('section.confirm[data-state="waiting"]').count(), 0, 'invalid form values create no proposal');
+            await plan.getByLabel('Reference URL').fill('');
+            ok('invalid external URLs are rejected before a conversation follow-up is sent');
+
+            const messagesBeforeAction = requests.filter(r => r.endsWith('/messages')).length;
+            const replyCount = await page.locator('article.reply').count();
+            await plan.getByRole('button', { name: 'Create tasks from this plan' }).evaluate(button => { button.click(); button.click(); });
+            await page.waitForFunction(n => document.querySelectorAll('article.reply').length > n, replyCount);
+            await page.locator('section.confirm[data-state="waiting"]').last().waitFor();
+            await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            assert.equal(requests.filter(r => r.endsWith('/messages')).length, messagesBeforeAction + 1, 'two rapid clicks send one user follow-up');
+            assert.match(await page.locator('.user .bubble').last().innerText(), /Create tasks from this plan\nForm values: .*Launch board task/);
+            const planCard = page.locator('section.confirm[data-state="waiting"]').last();
+            assert.match(await planCard.innerText(), /Launch board task.*planned from 2026-10-26/);
+            const beforePlanConfirm = (await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length;
+            assert.equal(beforePlanConfirm, before + 1, 'the form action prepared a proposal but did not create a task');
+            const actionPosts = requests.filter(r => /\/actions\//.test(r)).length;
+            await planCard.getByRole('button', { name: 'Confirm', exact: true }).evaluate(button => { button.click(); button.click(); });
+            await page.locator('section.confirm[data-state="confirmed"]').last().waitFor();
+            assert.equal(requests.filter(r => /\/actions\//.test(r)).length, actionPosts + 1, 'rapid confirm clicks resolve once');
+            const afterPlanConfirm = (await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks;
+            assert.equal(afterPlanConfirm.length, beforePlanConfirm + 1);
+            assert.equal(afterPlanConfirm.some(t => t.title === 'Launch board task'), true);
+            ok('a form follow-up creates a standard proposal, and duplicate clicks confirm it once');
+
+            await sendText(page, `openui form demo for ${project.id}`);
+            await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            plan = page.locator('article.reply').last().getByTestId('openui-form');
+            await plan.waitFor();
+            await plan.getByLabel('Task title').fill('Declined plan task');
+            await plan.getByLabel('First planned day').fill('2026-10-28');
+            await plan.getByRole('button', { name: 'Create tasks from this plan' }).click();
+            const declinePlanCard = page.locator('section.confirm[data-state="waiting"]').last();
+            await declinePlanCard.waitFor();
+            await declinePlanCard.getByRole('button', { name: 'Not now', exact: true }).click();
+            await page.locator('section.confirm[data-state="declined"]').last().waitFor();
+            assert.equal((await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, afterPlanConfirm.length, 'rejecting the plan proposal leaves the board unchanged');
+            ok('a user can reject a generated plan proposal without changing the board');
             await ctx.close();
         }
 
@@ -731,13 +817,13 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const gb = await generated.boundingBox();
             assert.ok(gb.x >= 0 && gb.x + gb.width <= 390, 'the generated interface fits the phone');
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'generated content does not widen the phone');
-            const tableWrap = generated.locator('.table-wrap');
+            const tableWrap = generated.locator('.data-table .table-scroll');
             const tb = await tableWrap.boundingBox();
             assert.ok(tb.x >= 0 && tb.x + tb.width <= 390, 'the table viewport fits the phone');
             assert.equal(await tableWrap.evaluate(el => el.scrollWidth > el.clientWidth), true, 'wide rows scroll inside the table viewport');
             const gridColumns = await generated.locator('.grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
             assert.equal(gridColumns, 1, 'the metrics collapse to one column on a phone');
-            const summary = generated.locator('details summary');
+            const summary = generated.locator('details summary').first();
             const summaryBounds = await summary.boundingBox();
             assert.ok(summaryBounds.height >= 44, 'the local disclosure is a thumb-sized target');
             await page.screenshot({ path: path.join(artifacts, 'assistant-openui-mobile.png') });
@@ -804,6 +890,61 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await ctx.close();
             await stop(s2);
             ok(`the "${mode}" state explains itself`);
+        }
+
+        // ======== generated actions still need permission and an unexpired proposal ========
+        {
+            const readonlyData = path.join(temp, 'readonly-data'); fs.mkdirSync(readonlyData);
+            const readonlyPort = await freePort();
+            const readonlyBase = 'http://127.0.0.1:' + readonlyPort;
+            const readonlyServer = start(fixture, { ...env, WERKBORD_BROWSER_ADDR: '127.0.0.1:' + readonlyPort, WERKBORD_BROWSER_ASSISTANT: 'readonly', WERKBORD_BROWSER_DIR: readonlyData });
+            await ready(readonlyBase, readonlyServer);
+            await api(readonlyBase, 'POST', '/api/onboarding/complete', {});
+            const readonlyProject = await api(readonlyBase, 'POST', '/api/projects', { path: repo, name: 'Read only project' });
+            const { ctx, page } = await newPage();
+            await page.goto(readonlyBase + '/#token=' + token);
+            await page.goto(readonlyBase + '/#/projects');
+            await openAssistant(page);
+            await sendText(page, `openui form demo for ${readonlyProject.id}`);
+            const readOnlyPlan = page.locator('article.reply').last().getByTestId('openui-form');
+            await readOnlyPlan.waitFor();
+            await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            await readOnlyPlan.getByRole('button', { name: 'Create tasks from this plan' }).click();
+            await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            assert.equal(await page.locator('section.confirm[data-state="waiting"]').count(), 0, 'a generated button does not grant write permission');
+            assert.equal((await api(readonlyBase, 'GET', `/api/projects/${readonlyProject.id}/tasks`)).tasks.length, 0);
+            const readonlySession = (await api(readonlyBase, 'GET', '/api/assistant/sessions')).sessions.at(-1).id;
+            const readonlyAudit = await api(readonlyBase, 'GET', `/api/assistant/audit?session=${encodeURIComponent(readonlySession)}`);
+            assert.ok(readonlyAudit.entries.some(entry => entry.operation === 'create_ticket' && entry.outcome === 'denied'), 'the operation layer records the denied write');
+            await ctx.close();
+            await stop(readonlyServer);
+            ok('a read-only assistant denies a generated form action and records the denied operation');
+        }
+        {
+            const expiryData = path.join(temp, 'expiry-data'); fs.mkdirSync(expiryData);
+            const expiryPort = await freePort();
+            const expiryBase = 'http://127.0.0.1:' + expiryPort;
+            const expiryServer = start(fixture, { ...env, WERKBORD_BROWSER_ADDR: '127.0.0.1:' + expiryPort, WERKBORD_BROWSER_ASSISTANT: 'short-ttl', WERKBORD_BROWSER_ASSISTANT_TTL_MS: '1500', WERKBORD_BROWSER_DIR: expiryData });
+            await ready(expiryBase, expiryServer);
+            await api(expiryBase, 'POST', '/api/onboarding/complete', {});
+            const expiryProject = await api(expiryBase, 'POST', '/api/projects', { path: repo, name: 'Expiry project' });
+            const { ctx, page } = await newPage();
+            await page.goto(expiryBase + '/#token=' + token);
+            await page.goto(expiryBase + '/#/projects');
+            await openAssistant(page);
+            await sendText(page, `add a ticket to ${expiryProject.id}`);
+            const expiringCard = page.locator('section.confirm[data-state="waiting"]');
+            await expiringCard.waitFor();
+            await sleep(1800);
+            await expiringCard.getByRole('button', { name: 'Confirm', exact: true }).click();
+            await page.locator('section.confirm[data-state="expired"]').waitFor();
+            assert.equal((await api(expiryBase, 'GET', `/api/projects/${expiryProject.id}/tasks`)).tasks.length, 0, 'an expired proposal cannot change the board');
+            const expirySession = (await api(expiryBase, 'GET', '/api/assistant/sessions')).sessions.at(-1).id;
+            const expiryAudit = await api(expiryBase, 'GET', `/api/assistant/audit?session=${encodeURIComponent(expirySession)}`);
+            assert.ok(expiryAudit.entries.some(entry => entry.operation === 'create_ticket' && entry.outcome === 'expired'));
+            await ctx.close();
+            await stop(expiryServer);
+            ok('an expired proposal stays unapplied and is recorded as expired');
         }
 
         assert.deepEqual(errors, [], 'no page errors: ' + errors.join('\n'));
