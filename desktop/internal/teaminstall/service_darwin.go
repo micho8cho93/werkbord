@@ -57,6 +57,14 @@ func PrivilegedService(action, uid string) (resultErr error) {
 	if os.Geteuid() != 0 {
 		return errors.New("macOS administrator authorization is required")
 	}
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	appRoot := releaseRoot(exe)
+	if err := RequireRelease(appRoot); err != nil {
+		return err
+	}
 	n, err := strconv.Atoi(uid)
 	if err != nil || n < 501 {
 		return errors.New("a normal macOS account is required")
@@ -149,13 +157,8 @@ func PrivilegedService(action, uid string) (resultErr error) {
 			return err
 		}
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
 	helpers := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", "Helpers"))
 	// A release signs the service and the window. Verification happens before replacing any installed executable.
-	appRoot := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
 	if err := exec.Command("/usr/bin/codesign", "--verify", "--strict", "--deep", appRoot).Run(); err != nil {
 		return errors.New("the Team app's signature could not be verified")
 	}

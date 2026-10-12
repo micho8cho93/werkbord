@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	textunicode "golang.org/x/text/encoding/unicode"
 )
 
 var bg = context.Background()
@@ -490,8 +492,59 @@ func TestDescribeReadsWhatSetupInstalled(t *testing.T) {
 		t.Fatal(err)
 	}
 	def, ok := Describe(bg, Options{Home: home, UID: 501, GOOS: "darwin", Exec: (&recorder{}).exec})
-	if !ok || def.Binary != sp.Binary || def.DataDir != sp.DataDir {
+	if !ok || def.Manager != "launchd" || def.Binary != sp.Binary || def.DataDir != sp.DataDir {
 		t.Fatalf("Describe = %+v, %v; want %q and %q", def, ok, sp.Binary, sp.DataDir)
+	}
+}
+
+func TestDescribeReadsLinuxSystemdUnit(t *testing.T) {
+	home := t.TempDir()
+	s := &Systemd{Options: Options{Home: home}}
+	sp := Spec{
+		Binary:  filepath.Join(home, "My Tools", "werkbord"),
+		Args:    []string{"serve"},
+		DataDir: filepath.Join(home, "Data $folder", "team%name"),
+	}
+	body, err := s.Unit(sp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(s.unitPath()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.unitPath(), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := &recorder{answer: func(string) (string, error) { return "", nil }}
+	def, ok := Describe(bg, Options{Home: home, GOOS: "linux", Exec: r.exec})
+	if !ok || def.Manager != "systemd" || def.Binary != sp.Binary || def.DataDir != sp.DataDir {
+		t.Fatalf("Describe = %+v, %v; want systemd %q and %q", def, ok, sp.Binary, sp.DataDir)
+	}
+}
+
+func TestDescribeReadsWindowsScheduledTask(t *testing.T) {
+	home := t.TempDir()
+	const xml = `<?xml version="1.0" encoding="UTF-16"?><Task><Actions><Exec><Command>cmd.exe</Command><Arguments>/c "set "WERKBORD_DATA_DIR=C:\Users\me\Data" &amp;&amp; set "DEVBOARD_DATA_DIR=C:\Users\me\Data" &amp;&amp; "C:\Users\me\My Tools\werkbord.exe" serve"</Arguments></Exec></Actions></Task>`
+	r := &recorder{answer: func(call string) (string, error) {
+		if strings.HasSuffix(call, "/XML") {
+			return xml, nil
+		}
+		return "TaskName: \\Werkbord\nStatus: Ready", nil
+	}}
+	def, ok := Describe(bg, Options{Home: home, GOOS: "windows", Exec: r.exec})
+	if !ok || def.Manager != "task scheduler" || def.Binary != `C:\Users\me\My Tools\werkbord.exe` || def.DataDir != `C:\Users\me\Data` {
+		t.Fatalf("Describe = %+v, %v; want Task Scheduler, executable and data directory", def, ok)
+	}
+	encoded, err := textunicode.UTF16(textunicode.LittleEndian, textunicode.UseBOM).NewEncoder().Bytes([]byte(xml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def, ok := parseScheduledTask(string(encoded)); !ok || def.Binary != `C:\Users\me\My Tools\werkbord.exe` || def.DataDir != `C:\Users\me\Data` {
+		t.Fatalf("UTF-16 Task Scheduler definition = %+v, %v", def, ok)
+	}
+	const legacyXML = `<Task><Actions><Exec><Command>cmd.exe</Command><Arguments>/c "set "DEVBOARD_DATA_DIR=C:\Users\me\devboard" &amp;&amp; "C:\Users\me\devboard.exe" serve"</Arguments></Exec></Actions></Task>`
+	if def, ok := parseScheduledTask(legacyXML); !ok || def.Binary != `C:\Users\me\devboard.exe` || def.DataDir != `C:\Users\me\devboard` {
+		t.Fatalf("legacy DEVBOARD Task Scheduler definition = %+v, %v", def, ok)
 	}
 }
 

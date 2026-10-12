@@ -12,8 +12,8 @@ import (
 )
 
 // Team's installer is part of the desktop app (desktop/internal/teaminstall): the app's own executable, run with a fixed argument,
-// and, for its one privileged step, run as root by macOS after an administrator's authorization. It is local, native and
-// fixed. It must not become a way to run anything else, or a way for Team's code into the app.
+// and, for its one privileged step, run by the operating system after administrator authorization. Its native operations are
+// local and fixed. It must not become a way to run anything else, or a way for Team's code into the app.
 func TestTeamInstallerIsFixedLocalOperations(t *testing.T) {
 	desktop := filepath.Join(moduleRoot(t), "desktop")
 	installer := filepath.Join(desktop, "internal", "teaminstall")
@@ -65,31 +65,103 @@ func TestTeamInstallerIsFixedLocalOperations(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The installer's commands are fixed absolute paths, never a shell built from input.
-	for _, name := range []string{"service_darwin.go", "maintenance.go"} {
+	for _, name := range []string{"service_darwin.go", "service_linux.go", "service_windows.go", "maintenance.go"} {
 		path := filepath.Join(installer, name)
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ast.Inspect(f, func(n ast.Node) bool {
+		if name != "service_windows.go" {
+			ast.Inspect(f, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				if id, ok := sel.X.(*ast.Ident); ok && id.Name == "exec" && (sel.Sel.Name == "Command" || sel.Sel.Name == "CommandContext") {
+					arg := call.Args[0]
+					if sel.Sel.Name == "CommandContext" {
+						arg = call.Args[1]
+					}
+					if lit, ok := arg.(*ast.BasicLit); !ok || !strings.HasPrefix(lit.Value, `"/`) {
+						t.Errorf("%s starts a program that is not a fixed absolute path", name)
+					}
+				}
+				return true
+			})
+			continue
+		}
+		checkWindowsCommandPaths(t, f)
+	}
+}
+
+func checkWindowsCommandPaths(t *testing.T, f *ast.File) {
+	t.Helper()
+	allowed := map[string]bool{"sc.exe": true, "icacls.exe": true, "powershell.exe": true}
+	commands := map[string]bool{}
+	commandCalls, systemDirectoryCalls, systemPathCalls := 0, 0, 0
+	for _, d := range f.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Body == nil {
+			continue
+		}
+		ast.Inspect(fd.Body, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
 			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "exec" && (sel.Sel.Name == "Command" || sel.Sel.Name == "CommandContext") {
-				arg := call.Args[0]
-				if sel.Sel.Name == "CommandContext" {
-					arg = call.Args[1]
+			switch fn := call.Fun.(type) {
+			case *ast.SelectorExpr:
+				if id, ok := fn.X.(*ast.Ident); ok && id.Name == "exec" && (fn.Sel.Name == "Command" || fn.Sel.Name == "CommandContext") {
+					commandCalls++
+					if fd.Name.Name != "windowsCommand" || len(call.Args) < 2 {
+						t.Errorf("service_windows.go starts a program outside its fixed system-path helper")
+					} else if id, ok := call.Args[1].(*ast.Ident); !ok || id.Name != "path" {
+						t.Errorf("service_windows.go does not start the path resolved from the Windows system directory")
+					}
 				}
-				if lit, ok := arg.(*ast.BasicLit); !ok || !strings.HasPrefix(lit.Value, `"/`) {
-					t.Errorf("%s starts a program that is not a fixed absolute path", name)
+				if id, ok := fn.X.(*ast.Ident); ok && id.Name == "windows" && fn.Sel.Name == "GetSystemDirectory" {
+					systemDirectoryCalls++
+					if fd.Name.Name != "windowsSystemPath" {
+						t.Errorf("service_windows.go reads the system directory outside its fixed path resolver")
+					}
+				}
+				if id, ok := fn.X.(*ast.Ident); ok && id.Name == "filepath" && fn.Sel.Name == "Join" && fd.Name.Name == "windowsSystemPath" {
+					systemPathCalls++
+				}
+			case *ast.Ident:
+				if fn.Name == "windowsCommand" && fd.Name.Name != "windowsCommand" {
+					if len(call.Args) < 2 {
+						t.Errorf("service_windows.go calls its command helper without a fixed program name")
+						break
+					}
+					lit, ok := call.Args[1].(*ast.BasicLit)
+					if !ok {
+						t.Errorf("service_windows.go builds the system program name dynamically")
+						break
+					}
+					name, _ := strconv.Unquote(lit.Value)
+					if !allowed[name] {
+						t.Errorf("service_windows.go requests unreviewed system program %q", name)
+					}
+					commands[name] = true
+				}
+				if fn.Name == "windowsSystemPath" && fd.Name.Name != "windowsSystemPath" {
+					systemPathCalls++
 				}
 			}
 			return true
 		})
+	}
+	if commandCalls != 1 || systemDirectoryCalls != 1 || systemPathCalls == 0 {
+		t.Errorf("service_windows.go must launch once through a path resolved from GetSystemDirectory (commands=%d, resolver=%d, joins=%d)", commandCalls, systemDirectoryCalls, systemPathCalls)
+	}
+	for name := range allowed {
+		if !commands[name] {
+			t.Errorf("service_windows.go no longer uses its reviewed %s operation", name)
+		}
 	}
 }

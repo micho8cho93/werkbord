@@ -4,14 +4,43 @@ package nebula
 
 import (
 	"errors"
+	"fmt"
 	"os"
+
+	"devboard/internal/fssecure"
+	"golang.org/x/sys/windows"
 )
 
-// checkOwnedPrivate does nothing on Windows, where ownership is an ACL and not a mode:
-// Team's installer does not support Windows yet, and no pinned release exists for it.
+// checkOwnedPrivate treats a Windows DACL as the privacy boundary. A file or
+// directory is accepted only when its owner and every allow ACE belong to the
+// current account, LocalSystem, or Administrators. In particular, inherited
+// access for Users, Everyone, or Authenticated Users is refused.
 func checkOwnedPrivate(path string, dir bool) error {
-	_, err := os.Lstat(path)
-	return err
+	attrs, err := windows.GetFileAttributes(windows.StringToUTF16Ptr(path))
+	if err != nil {
+		return err
+	}
+	if attrs&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+		return fmt.Errorf("nebula: %s is a reparse point", path)
+	}
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if dir && !fi.IsDir() {
+		return fmt.Errorf("nebula: %s is not a directory", path)
+	}
+	if !dir && !fi.Mode().IsRegular() {
+		return fmt.Errorf("nebula: %s is not a regular file", path)
+	}
+	return verifyWindowsPrivateACL(path)
+}
+
+func verifyWindowsPrivateACL(path string) error {
+	if err := fssecure.VerifyWindowsPrivateACL(path, true); err != nil {
+		return fmt.Errorf("nebula: %s: %w", path, err)
+	}
+	return nil
 }
 
 // signalReload is not supported on Windows: the supervisor restarts the node instead.

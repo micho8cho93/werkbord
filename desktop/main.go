@@ -17,7 +17,9 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
 	"devboard/desktop/internal/shell"
 	"devboard/desktop/internal/teaminstall"
@@ -98,14 +100,16 @@ func main() {
 		MinHeight:        560,
 		BackgroundColour: &options.RGBA{R: 245, G: 245, B: 242, A: 255}, // the web app's paper
 		AssetServer:      &assetserver.Options{Assets: assets},
+		Linux:            &linux.Options{Icon: icon, ProgramName: "werkbord"},
 		Bind:             []any{&App{sh}},
 		// Only the bundled shell origin may call App. Wails also rejects subframe calls.
 		BindingsAllowedOrigins: bindingsFrom,
 		Menu:                   buildMenu(sh, ui, page != ""),
 		// Closing the window hides the app, as on any Mac: it is still in the Dock, and clicking it brings the window
 		// back. Cmd-Q quits the app. Neither touches the controller, which is not this app's child.
-		HideWindowOnClose:        true,
+		HideWindowOnClose:        goruntime.GOOS == "darwin",
 		EnableDefaultContextMenu: true,
+		Windows:                  &windows.Options{},
 		OnStartup:                func(c context.Context) { ui.startup(c); startNative(nu, sh) },
 		OnShutdown:               func(context.Context) { cancel(); log.Info("quit") },
 		SingleInstanceLock: &options.SingleInstanceLock{

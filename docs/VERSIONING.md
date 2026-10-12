@@ -65,11 +65,11 @@ this when a tag is pushed.
 
 `make build` and `make build-team` stamp it. A plain `go build` reports `dev`.
 
-The Mac app (`desktop/`) has no version of its own: `make desktop` stamps the window and the `werkbord` program inside it
-with the same version (the bundle's `CFBundleShortVersionString` is its numbers), so a change to `desktop/`,
-`internal/launcher` or any `scripts/*desktop*` script bumps `cmd/werkbord/VERSION`. Its disk image is
-`Werkbord_<version>_darwin_universal.dmg` (one image for Apple Silicon and Intel), and the release workflow attaches it to
-the release (see [Releases](#releases) and [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
+The desktop app (`desktop/`) has no version of its own: the window and the `werkbord` program inside it are stamped with
+the same version, so a change to `desktop/`, `internal/launcher` or any `scripts/*desktop*` script bumps
+`cmd/werkbord/VERSION`. Its stable release includes a universal macOS disk image, Linux amd64/arm64 `.deb` and `.tar.gz`
+packages, and a signed Windows amd64 installer and `.zip` archive (see [Releases](#releases) and
+[DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
 `internal/archtest` fails the tests if `VERSION` is malformed, or if a second `VERSION` file for Team comes back.
 
 Werkbord Team's service and the installer in the app are stamped with this same version; see
@@ -84,8 +84,8 @@ GitHub display titles use the separate presentation sequence recorded in
 versions described above. Apply the reserved title and original build version note to
 new releases without changing their assets or latest selection:
 
-- `werkbord-vX.Y.Z` → `werkbord_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) and `checksums.txt`, marked **latest**.
-  A stable one (no `-` after the version) also gets, from the macOS jobs of the same workflow, the Mac app:
+- `werkbord-vX.Y.Z` → the controller's platform archives and `checksums.txt`. Stable releases are marked **latest** only
+  after all desktop builds and public download checks pass. They also include the unified desktop app:
 
   | Asset | What it is |
   | --- | --- |
@@ -93,19 +93,17 @@ new releases without changing their assets or latest selection:
   | `Werkbord.dmg` | **the same file, byte for byte, with no version in its name**, so that `https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg` is always the newest app (the website's button, and a one-line `curl`) |
   | `Werkbord_<version>_darwin_universal.zip` and `….zip.sha256` | the archive the installed app updates itself from (the same app, zipped), signed with the update key |
   | `appcast.xml` | the feed the installed app reads: one item (this release), signed with the update key. Published **last**, after the disk image has been checked on a fresh Mac; `…/releases/latest/download/appcast.xml` is the address apps use, and only individual releases are marked latest |
+  | `Werkbord_<version>_linux_<arch>.deb` and `.tar.gz` plus `.sha256` | native Linux app and local Team service for amd64 and arm64 |
+  | `Werkbord_<version>_windows_amd64_setup.exe` and `.zip` plus `.sha256` | machine-wide Windows app and local Team service; the installer and Werkbord executables are Authenticode-signed |
 
-  They are **part of the individual release but not of its CLI release job**: they are added to the release that job
-  made, only if it succeeded, and a failure in them turns the workflow red without touching the archives or
-  `checksums.txt`, which the installers and `werkbord update` read. None of them is in `checksums.txt` (that file is the CLI
-  archives' and keeps its format); each has its own `.sha256` where it is a download.
-- **Team's command-line archives** → `werkbord-team_<version>_<os>_<arch>.tar.gz`, `checksums-team.txt` and
-  `checksums-team.txt.sig`, attached to the same release. CI does not make these: they are built and signed on the offline
-  release workstation (`make dist PRODUCT=werkbord-team` with the release signing key; see [TEAM_INSTALL.md](TEAM_INSTALL.md)),
-  because the key must never be in CI. The signature names the release tag, so it cannot be replayed on another release.
-  The Mac app needs none of this: its Team installer is built, signed and notarized in the same job as the app.
+  The desktop and controller assets are gathered into one draft only after every platform build succeeds. The workflow publishes
+  it with `latest` unset, checks the public downloads on fresh native runners, verifies the signed macOS appcast, and marks it
+  latest last. Controller assets remain in `checksums.txt`; desktop assets are verified using their own `.sha256` sidecars.
+  No standalone Team Host CLI archive is attached to this release.
 
 This matters because `…/releases/latest` is how the installer and `werkbord update` find the newest release: only stable
-releases are marked "latest". `scripts/install-team.sh` finds the latest stable release in the releases feed.
+releases are marked "latest". Standalone Team Host archives are not attached to unified desktop releases; use the bundled
+desktop installer to set up a local Team service. The offline Team archive tools remain for controlled operator builds.
 
 A tag with a `-` after the version (`werkbord-v4.1.0-rc1`) is a pre-release. Its VERSION file includes the same prerelease suffix. Prereleases are never marked latest. An explicitly requested ad-hoc Mac preview may be attached as `Werkbord-preview.dmg` to a prerelease; it is never the stable `Werkbord.dmg` or an appcast update (see [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md#test-the-app-while-approval-is-pending)).
 

@@ -48,6 +48,7 @@ var teamAllowed = []string{
 	module + "/internal/nativebridge", // neutral web-to-native messaging; native methods stay in each product
 	module + "/internal/workspace",    // the neutral summary a workspace gives the desktop shell; strict, bounded, no behaviour
 	module + "/internal/sqlitekit",
+	module + "/internal/fssecure", // product-neutral OS permission checks; no product paths or policy
 	module + "/internal/logging",
 	// What a Team server needs to know a device is who it says: public keys and the
 	// signed-message format and its checks. Not deviceid/localidentity, the one place

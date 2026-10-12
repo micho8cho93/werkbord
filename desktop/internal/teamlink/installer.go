@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -24,7 +25,11 @@ type Installer struct {
 // payload is the Team service the installer puts in place; it sits beside the app's other helpers. A build without it (a
 // development build run from source) cannot install Team.
 func payload(program string) string {
-	return filepath.Join(filepath.Dir(program), "..", "Helpers", "werkbord-team")
+	name := "werkbord-team"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(filepath.Dir(program), "..", "Helpers", name)
 }
 
 // Find returns the installer program, or an error saying why this build cannot install Team.

@@ -13,7 +13,7 @@
 # replacing both executable and record cannot authorize execution.
 #
 #   scripts/fetch-rqlite.sh                 prints .cache/rqlite/<version>/<os>_<arch> for this computer
-#   scripts/fetch-rqlite.sh linux arm64     the same for another platform (a release build; only where it is published)
+#   scripts/fetch-rqlite.sh windows amd64   the Windows release binary for the unified desktop package
 #
 # RQLITE_DIR=…   names a directory that already holds `rqlited` (offline builds, tests); it is still checked
 #                against the upstream binary pin, and used as it is. Not supported for source-only platforms.
@@ -44,13 +44,15 @@ field() { printf '%s' "$line" | sed -n "s/.*$1: \"\\([^\"]*\\)\".*/\\1/p"; }
 archive=$(field Archive); archive_sha=$(field ArchiveSHA256); binary_sha=$(field BinarySHA256)
 source_build=no; case "$line" in *"Source: true"*) source_build=yes ;; esac
 
+binary=rqlited
+if [ "$os" = windows ]; then binary=rqlited.exe; fi
 check_binary() {
-  [ -f "$1/rqlited" ] || return 1
+  [ -f "$1/$binary" ] || return 1
   if [ "$source_build" = yes ]; then
     # A record beside a cached executable can be forged with it. Only a fresh source build is trusted.
     [ "${fresh_source:-no}" = yes ]
   else
-    [ "$(sha256 "$1/rqlited")" = "$binary_sha" ]
+    [ "$(sha256 "$1/$binary")" = "$binary_sha" ]
   fi
 }
 
@@ -94,17 +96,26 @@ if [ "$source_build" = yes ]; then
     got=$("$tmp/x/rqlited" -version 2>&1 | grep -m1 "^rqlited")
     case "$got" in "rqlited $tag "*) ;; *) die "the program built reports '$got', not $tag" ;; esac
   fi
-  printf '{"version":"%s","commit":"%s","sha256":"%s"}\n' "$tag" "$commit" "$(sha256 "$tmp/x/rqlited")" > "$tmp/x/rqlited.build"
+  printf '{"version":"%s","commit":"%s","sha256":"%s"}\n' "$tag" "$commit" "$(sha256 "$tmp/x/$binary")" > "$tmp/x/rqlited.build"
 else
   command -v curl >/dev/null 2>&1 || die "curl is needed to fetch rqlite"
   echo "fetch-rqlite: downloading rqlite $version for $os/$arch" >&2
   curl -fsSL --retry 3 --retry-delay 5 -o "$tmp/$archive" "${release}$archive" || die "could not download $archive"
   [ "$(sha256 "$tmp/$archive")" = "$archive_sha" ] || die "the download's SHA-256 is $(sha256 "$tmp/$archive"), but the pin is $archive_sha: not using it"
-  top="${archive%.tar.gz}"
-  tar -xzf "$tmp/$archive" -C "$tmp/x" "$top/rqlited" || die "$archive does not hold rqlited"
-  mv "$tmp/x/$top/rqlited" "$tmp/x/rqlited"
-  rmdir "$tmp/x/$top"
-  chmod 0755 "$tmp/x/rqlited"
+  case "$archive" in
+    *.zip)
+      command -v unzip >/dev/null 2>&1 || die "unzip is needed"
+      unzip -q "$tmp/$archive" "$binary" -d "$tmp/x" || die "$archive does not hold $binary"
+      ;;
+    *.tar.gz)
+      top="${archive%.tar.gz}"
+      tar -xzf "$tmp/$archive" -C "$tmp/x" "$top/$binary" || die "$archive does not hold $binary"
+      mv "$tmp/x/$top/$binary" "$tmp/x/$binary"
+      rmdir "$tmp/x/$top"
+      ;;
+    *) die "unknown archive type $archive" ;;
+  esac
+  chmod 0755 "$tmp/x/$binary"
   check_binary "$tmp/x" || die "the program in $archive is not the pinned one"
 fi
 

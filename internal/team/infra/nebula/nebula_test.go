@@ -38,7 +38,7 @@ func TestThePinIsWellFormedAndMatchesWhatUpstreamPublished(t *testing.T) {
 			have[f[1]+" "+f[0]] = true
 		}
 	}
-	if len(Platforms()) != 4 {
+	if len(Platforms()) != 5 {
 		t.Errorf("platforms = %v", Platforms())
 	}
 	for _, p := range Platforms() {
@@ -53,12 +53,19 @@ func TestThePinIsWellFormedAndMatchesWhatUpstreamPublished(t *testing.T) {
 		if !have[a.Archive+" "+a.ArchiveSHA256] {
 			t.Errorf("%s: the archive %s with SHA-256 %s is not in what upstream published", p, a.Archive, a.ArchiveSHA256)
 		}
-		if !have[a.Archive+"/nebula "+a.BinarySHA256] {
+		binary := "nebula"
+		if goos == "windows" {
+			binary += ".exe"
+		}
+		if !have[a.Archive+"/"+binary+" "+a.BinarySHA256] {
 			t.Errorf("%s: the program in %s with SHA-256 %s is not in what upstream published", p, a.Archive, a.BinarySHA256)
 		}
+		if goos == "windows" && (!hex64.MatchString(a.WintunSHA256) || !have[a.Archive+"/"+a.WintunArchiveMember+" "+a.WintunSHA256] || a.WintunLicenseMember == "") {
+			t.Errorf("%s: Wintun DLL or license is not pinned to an upstream archive member", p)
+		}
 	}
-	if _, err := ArtifactFor("windows", "amd64"); !errors.As(err, new(ErrUnsupportedPlatform)) {
-		t.Errorf("windows: %v", err)
+	if _, err := ArtifactFor("windows", "arm64"); !errors.As(err, new(ErrUnsupportedPlatform)) {
+		t.Errorf("windows arm64: %v", err)
 	}
 	if !strings.HasPrefix(ReleaseURL, "https://github.com/slackhq/nebula/releases/download/v") || !strings.HasSuffix(ReleaseURL, Version+"/") {
 		t.Errorf("ReleaseURL = %s", ReleaseURL)

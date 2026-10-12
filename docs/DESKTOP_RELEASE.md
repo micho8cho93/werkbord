@@ -79,7 +79,7 @@ Notarization uses an API key, not your Apple ID password.
 
 ## 5. Make the GitHub environment and add the Apple secrets
 
-Secrets live in an **environment**, which only the macOS signing job uses and which can require your approval:
+Secrets live in an **environment**, which only the three platform build jobs use and which requires your approval:
 
 1. <https://github.com/micho8cho93/werkbord/settings/environments> → **New environment** → name it exactly **`desktop-release`**.
 2. In it: **Required reviewers** → add yourself (a release then waits for your click before it can use a secret).
@@ -95,6 +95,8 @@ Secrets live in an **environment**, which only the macOS signing job uses and wh
 | `APPLE_NOTARY_KEY_ID` | the Key ID (step 4) |
 | `APPLE_NOTARY_ISSUER` | the Issuer ID (step 4) |
 | `TEAM_LICENSE_ISSUER_PUBLIC_KEY` | the vendor's 32-byte Ed25519 **public** key for Team licenses, raw URL base64 (43 characters, no padding). The app carries Team's installer, which checks every license with it. The private half stays with the offline license issuer and is never uploaded |
+| `WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64` | one-line base64 encoding of the Authenticode code-signing PFX for the Windows installer and Werkbord executables |
+| `WINDOWS_SIGNING_CERTIFICATE_PASSWORD` | the PFX export password |
 
    Werkbord is one release, so this one environment signs everything in the app, Team's installer included. (There used to
    be a second environment, `team-desktop-release`, for a separate Team release: delete it.)
@@ -102,8 +104,14 @@ Secrets live in an **environment**, which only the macOS signing job uses and wh
    (`APPLE_SIGNING_IDENTITY` is optional: only if the `.p12` holds more than one "Developer ID Application" identity, the
    full name, "Developer ID Application: Your Name (TEAMID)".)
 
-Check them without building anything: the dry run (step 7) starts with `scripts/check-release-secrets.sh`, which names what is
-missing and what looks like the wrong thing (a `.p12` that was not base64-encoded, a key that is not the `.p8`'s text).
+To create the Windows PFX, use a code-signing certificate trusted by current Windows installations and export its private key
+in PKCS#12 format. On a Mac, encode it without line breaks with `base64 -i werkbord.pfx | tr -d '\n'`; store that output and
+the PFX password as the two Windows environment secrets. Never commit the PFX or paste it into chat. The release job writes it
+to a temporary file, signs and verifies the artifacts, then removes the file and imported certificate.
+
+The Linux and Windows jobs also need `TEAM_LICENSE_ISSUER_PUBLIC_KEY`. Windows arm64 is not included because the pinned Team
+network and database payloads do not support that target. Check inputs without building anything: the dry run (step 7) starts
+with `scripts/check-release-secrets.sh`, which reports missing or malformed values without printing them.
 
 ## 6. Make the update-signing key
 
@@ -136,9 +144,9 @@ Merge to `main` first (a manual run uses the workflow file on the default branch
 <https://github.com/micho8cho93/werkbord/actions/workflows/release.yml> → **Run workflow** → branch `main` → **Run workflow**.
 Or: `gh workflow run release.yml --ref main`. Approve it when it asks for the `desktop-release` environment.
 
-It checks the secrets, builds the universal app, signs it, has Apple notarize it (this takes five to fifteen minutes the first
-time), staples it, checks it the way a stranger's Mac would, makes the update archive and the signed feed, and **publishes
-nothing**: the files are in the run's *Artifacts* (`desktop-release`, `desktop-appcast`) for 14 days. A dry run builds the version
+It checks all platform credentials, builds the universal Mac app and native Linux amd64/arm64 and Windows amd64 packages,
+signs and notarizes the Mac app, signs the Windows installer, verifies each package and makes the signed Mac update feed. It
+**publishes nothing**: files are in the run's *Artifacts* for 14 days. A dry run builds the version
 `cmd/werkbord/VERSION` says; it does not need a tag. A signed build accepts only a stable version, so when the file says a
 pre-release (`4.5.1-preview.1`) the dry run builds it as its stable core (`4.5.1`), in the runner's copy only: nothing is
 committed. A real tag is never changed this way.
@@ -159,9 +167,11 @@ git push origin main
 git push origin werkbord-v1.2.1          # the tag of the version in cmd/werkbord/VERSION; this starts the release
 ```
 
-CI publishes the command-line archives first (as it always did), and then, only for an individual stable tag, builds and
-publishes the disk image, checks it on a fresh Mac runner, and last of all publishes the feed (`appcast.xml`) that tells installed
-apps about it. Approve the environment when asked.
+For a stable tag, CI builds the controller archives and all desktop packages first. It refuses to assemble the release unless
+`docs/TEAM_SECURITY_GATE.md` explicitly approves that build version. The release is created as a draft only after all builds
+pass, then made public with `latest` unset. Fresh macOS, Linux and Windows runners download the public files and verify them;
+the workflow checks the signed appcast against its archive and marks the release latest only after those checks pass. Approve
+the `desktop-release` environment jobs when asked. No standalone Team Host CLI archive is attached.
 
 Then check it once yourself, by hand, which is the only check no CI run can replace:
 

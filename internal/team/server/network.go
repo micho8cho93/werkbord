@@ -84,7 +84,7 @@ func SealerFor(cfg config.Config) (pki.Sealer, error) {
 		if err != nil {
 			return nil, err
 		}
-		if !fi.Mode().IsRegular() || fi.Mode().Perm()&0o077 != 0 || fi.Size() > 4096 {
+		if !fi.Mode().IsRegular() || fi.Size() > 4096 || securePassphraseFile(cfg.PassphraseFile, fi) != nil {
 			return nil, errors.New("the passphrase must be a private regular file of at most 4096 bytes")
 		}
 		b, err := os.ReadFile(cfg.PassphraseFile)

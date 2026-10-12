@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -28,7 +27,7 @@ func Handles(args []string) bool {
 //
 //	--activate            install the Team service, with no path to the person's own Werkbord, or bring it up to date
 //	--service start|stop|uninstall
-//	--verify-release      succeed only in a build signed by the release's Apple Developer team (for the release checks)
+//	--verify-release      succeed only when this app passes the platform's release trust check
 //	--team-service ACTION UID   the privileged step, which macOS runs as root after the administrator's authorization; it
 //	                            accepts a real user and three fixed operations (see PrivilegedService)
 func Run(version string, args []string, out, errOut io.Writer) int {
@@ -54,13 +53,20 @@ func Run(version string, args []string, out, errOut io.Writer) int {
 	case len(args) == 1 && args[0] == "--verify-release":
 		exe, err := os.Executable()
 		if err == nil {
-			err = RequireRelease(filepath.Clean(filepath.Join(filepath.Dir(exe), "..", "..")))
+			err = RequireRelease(releaseRoot(exe))
 		}
 		if err != nil {
 			return say(false, err.Error())
 		}
 		return say(true, "signed by the Werkbord release team")
 	case len(args) == 1 && args[0] == "--activate":
+		exe, err := os.Executable()
+		if err == nil {
+			err = RequireRelease(releaseRoot(exe))
+		}
+		if err != nil {
+			return say(false, err.Error())
+		}
 		key, err := AccessKey()
 		if err != nil {
 			return say(false, err.Error())
@@ -93,6 +99,13 @@ func Run(version string, args []string, out, errOut io.Writer) int {
 		}
 		return say(true, "the Team service is running")
 	case len(args) == 2 && args[0] == "--service" && (args[1] == ActionStart || args[1] == ActionStop || args[1] == ActionUninstall):
+		exe, err := os.Executable()
+		if err == nil {
+			err = RequireRelease(releaseRoot(exe))
+		}
+		if err != nil {
+			return say(false, err.Error())
+		}
 		if err := AuthorizeService(ctx, args[1]); err != nil {
 			return say(false, err.Error())
 		}

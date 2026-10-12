@@ -146,7 +146,7 @@ func TestTheProgramMustReportThePinnedVersion(t *testing.T) {
 }
 
 func TestThePlatformsAreTheOnesTeamShips(t *testing.T) {
-	want := []string{"darwin/amd64", "darwin/arm64", "linux/amd64", "linux/arm64"}
+	want := []string{"darwin/amd64", "darwin/arm64", "linux/amd64", "linux/arm64", "windows/amd64"}
 	if got := Platforms(); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("platforms %v", got)
 	}
@@ -163,8 +163,8 @@ func TestThePlatformsAreTheOnesTeamShips(t *testing.T) {
 			t.Errorf("%s: an incomplete pin %+v", p, a)
 		}
 	}
-	if _, err := ArtifactFor("windows", "amd64"); err == nil {
-		t.Error("Windows has a pin")
+	if _, err := ArtifactFor("windows", "arm64"); err == nil {
+		t.Error("unsupported Windows ARM64 has a pin")
 	}
 	if len(SourceCommit) != 40 || Tag != "v"+Version {
 		t.Error("the version or commit is malformed")

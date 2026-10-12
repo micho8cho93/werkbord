@@ -1,4 +1,4 @@
-# The desktop app
+# The unified desktop app
 
 Werkbord for the Mac, as an app: download it, drag it to Applications, open it. No Terminal.
 
@@ -20,7 +20,7 @@ controller.
 Nothing about the controller, its database, its token, its address or phone access changed to make this, and none of
 them depends on the app: `werkbord` in a terminal and the curl installer keep working exactly as before.
 
-## For everyone: install and open
+## For Mac users: install and open
 
 1. Download [`Werkbord.dmg`](https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg) (one file for Apple
    Silicon and Intel; it is the same file as `Werkbord_<version>_darwin_universal.dmg` on the [releases page](https://github.com/micho8cho93/werkbord/releases)).
@@ -52,6 +52,24 @@ your normal browser.
 The menu bar has **Werkbord → Check for Updates…** (under *About Werkbord*), **View → Open in Browser** (the same controller,
 signed in, in a tab), and **Help → Show Diagnostics…** and **Show Controller Log**. Keep the app in **Applications**: it updates
 itself there ([Updates](#updates)).
+
+## Linux and Windows packages
+
+The unified release is being prepared to include the same Individual and Team app on Linux and Windows. Linux packages target
+Debian/Ubuntu amd64 and arm64: use the `.deb` package or the `.tar.gz` archive's root installer. The app needs GTK 3 and
+WebKit2GTK 4.1; the `.deb` declares these dependencies. Windows targets amd64 and uses the signed machine-wide
+`Werkbord_<version>_windows_amd64_setup.exe` installer. The app embeds Microsoft's small WebView2 bootstrapper and offers to
+install the Evergreen runtime if Windows does not already have it. Windows arm64 is not
+included because the pinned local Team networking/database payloads have no arm64 builds.
+
+Local Team creation and hosting use the native service manager on each OS: launchd on macOS, systemd on Linux and the Windows
+Service Control Manager on Windows. Team setup requests administrator authorization. Linux must be installed into its
+root-owned package path, and Windows must use the machine-wide installer, so the Team service can verify the app before it
+changes system files. There are no standalone Team Host archives in this release.
+
+Only the macOS app uses Sparkle for the window itself. Linux and Windows users update the desktop app by installing the newer
+package from the [release page](https://github.com/micho8cho93/werkbord/releases/latest); the bundled controller keeps its
+existing update and recovery flow.
 
 ## For developers and advanced users: one installation, two ways in
 
@@ -372,10 +390,10 @@ Apple's notary service and Gatekeeper are fakes that behave as Apple does in eac
 
 ## Limits
 
-- macOS only for now. The shell and launcher are written to not assume it, but the login-service discovery
-  (`daemon.Describe`) reads launchd's definition only, and the bundle script is macOS-specific. Windows needs a WebView2
-  build, an installer (the `.ps1` installer's service code has not been run on Windows either), and `Describe` for the
-  scheduled task.
+- The currently published stable app is macOS-only. The next unified release adds Linux and Windows packages, and the
+  launcher now reads the matching systemd or Task Scheduler definition so it can join an existing controller. Native
+  Linux and Windows app/service installation still needs to pass the release workflow on those operating systems; the
+  Windows app offers to install Microsoft Edge WebView2 Runtime if it is missing.
 - The Intel half of the app was run only under Rosetta on an Apple Silicon Mac (the signing test runs the signed app both ways); it has not been
   run on an Intel Mac.
 - The first connection does not turn on phone access (Tailscale sign-in needs your attention in a browser): turn it on

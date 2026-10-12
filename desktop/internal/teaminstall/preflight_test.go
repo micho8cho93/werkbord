@@ -96,7 +96,7 @@ func TestTheInstallersRefusalIsGivenToThePersonAsItsOwnWordsAndAnythingElseKeeps
 		t.Fatalf("a rollback failure was hidden behind the refusal: %v", err)
 	}
 	err = installerRefusal(ActionUninstall, "0:12: execution error: Team service is still running; installation and data have been preserved (1)")
-	if err == nil || err.Error() != "macOS could not remove the Team service: Team service is still running; installation and data have been preserved" {
+	if err == nil || err.Error() != "the system could not remove the Team service: Team service is still running; installation and data have been preserved" {
 		t.Fatalf("%v", err)
 	}
 	if got := installerDetail("plain text"); got != "plain text" {

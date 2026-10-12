@@ -302,8 +302,8 @@ Werkbord ships **Nebula v1.11.2** (released 2026-09-22; MIT licence), pinned, an
 | Pin | version, archive hashes and the hash of the program itself, per platform, in `internal/team/infra/nebula/manifest.go` |
 | Where the hashes come from | the release's own `SHASUM256.txt`, kept in `third_party/nebula/SHASUM256-v1.11.2.txt`; a test checks every pin against it |
 | Upstream provenance | the project publishes no signed attestations for its releases, so the pin rests on checksums taken from the release; re-verify them (below) when you review a change |
-| Platforms | macOS (a universal binary) and Linux, amd64 and arm64. **Windows is not supported**: Nebula needs the third-party Wintun driver there, and its licence has terms this project has not taken on |
-| Licences | `third_party/nebula/LICENSE` (MIT), `THIRD_PARTY_LICENSES.txt` (the 33 modules in the program, generated), `third_party/go/LICENSE`; they ship in the release archive and are installed in `share/doc/werkbord-team/licenses` |
+| Platforms | macOS (a universal binary), Linux amd64 and arm64, and Windows amd64. Windows uses the upstream Wintun DLL next to the pinned Nebula executable; Windows ARM64 is not supported because the pinned rqlite release has no ARM64 build |
+| Licences | `third_party/nebula/LICENSE` (MIT), `THIRD_PARTY_LICENSES.txt` (the 33 modules in the program, generated), `third_party/go/LICENSE`, and the upstream Wintun prebuilt-binaries license; they ship with the app's notices |
 | Where it is found | beside the executable (`libexec/werkbord-team/nebula`), in `<prefix>/libexec/werkbord-team`, or a directory named in `WERKBORD_TEAM_NEBULA_DIR`. **Never the PATH.** |
 | Before every start | the file found is hashed against the pin and copied to a private directory; the copy is hashed again immediately before it is started |
 

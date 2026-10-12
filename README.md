@@ -4,10 +4,10 @@ A local-first remote control for coding agents. The controller runs on your comp
 owns the board, calendar and database. Your machines execute agents with their own repositories and credentials. Your phone, tablet or
 browser connects to it. There is no hosted backend and no Werkbord account.
 
-Werkbord is one product with one version and one release. It has two parts: **individual Werkbord** (the `werkbord`
+Werkbord is one product with one version and one release. It has two parts: **Individual Werkbord** (the `werkbord`
 program), and **Werkbord Team**, a workspace that coordinates a team's members and projects without ever running anything
-on anyone's computer. They are released together, and the Mac app shows both in one window and installs Team's service when you add a Team: see
-[docs/STRUCTURE.md](docs/STRUCTURE.md), [docs/TEAM.md](docs/TEAM.md) and, for how the window, the Team service and the installer fit together, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped). Individual is free and requires no Team license or network. Team installation is explicit, and each workspace enforces its own offline license. The command-line programs (`werkbord`, and `werkbord-team` for a Workspace Host) are installed from the same release.
+on anyone's computer. The desktop app shows both in one window and installs Team's local service when you add a Team: see
+[docs/STRUCTURE.md](docs/STRUCTURE.md), [docs/TEAM.md](docs/TEAM.md) and, for how the window, Team service and installer fit together, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped). Individual is free and requires no Team license or network. Team installation is explicit, and each workspace enforces its own offline license. The controller CLI is included in the unified release; Team Host setup is provided by the desktop app, not a standalone Host archive.
 
 Team uses customer-owned Nebula networking by default and needs no Tailscale account or vendor runtime service. Customers run their Workspace Hosts, Connectivity Hosts, backups and local runners. Team requires a verified offline license and authenticated release artifacts; see [Team installation](docs/TEAM_INSTALL.md), [threat model](docs/TEAM_SECURITY.md), and the [production gate report](docs/TEAM_SECURITY_GATE.md). Individual Werkbord's tsnet support remains separate.
 
@@ -20,7 +20,9 @@ open the DMG, drag **Werkbord** to **Applications**, then open it. If macOS bloc
 This universal preview is ad-hoc signed, not notarized, and has no Sparkle app updater. It is for testing;
 replace it with the signed app when available. See [Apple’s instructions](https://support.apple.com/en-us/102445).
 
-The signed and notarized Mac release below is pending the owner’s Apple Developer approval ([release setup](docs/DESKTOP_RELEASE.md)).
+The current stable release includes the signed and notarized macOS app. Linux and Windows desktop packages are being prepared
+for the next unified release; publication is gated on Windows Authenticode signing and the reviewed Team production gate
+([release setup](docs/DESKTOP_RELEASE.md), [production gate](docs/TEAM_SECURITY_GATE.md)).
 
 1. Download **[`Werkbord.dmg`](https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg)** (the same
    file as `Werkbord_<version>_darwin_universal.dmg` on the [latest release](https://github.com/micho8cho93/werkbord/releases/latest)).

@@ -3,6 +3,8 @@
 # what they should, without ever printing one.
 #
 #   scripts/check-release-secrets.sh desktop   the signing, notarization, update-signing and license issuer secrets
+#   scripts/check-release-secrets.sh windows   the Authenticode certificate and license issuer secrets
+#   scripts/check-release-secrets.sh linux     the license issuer secret
 #
 # They come from the environment, which is where the workflow puts the repository's secrets. A missing one is named,
 # on one line, with the product's release setup guide, and the exit is non-zero: a release must not
@@ -24,7 +26,9 @@ set -eu
 kind=${1:-}
 case "$kind" in
   desktop) guide=docs/DESKTOP_RELEASE.md ;;
-  *) echo "usage: check-release-secrets.sh desktop" >&2; exit 2 ;;
+  windows) guide=docs/DESKTOP_RELEASE.md ;;
+  linux) guide=docs/DESKTOP_RELEASE.md ;;
+  *) echo "usage: check-release-secrets.sh desktop|linux|windows" >&2; exit 2 ;;
 esac
 
 missing=""
@@ -40,7 +44,19 @@ need() { # <env name> <secret name shown> <step>
   return 0
 }
 bad() { wrong="${wrong:+$wrong; }$1"; }
+check_license() {
+  if need LICENSE_ISSUER_PUBLIC_KEY TEAM_LICENSE_ISSUER_PUBLIC_KEY license; then
+    if [ ${#LICENSE_ISSUER_PUBLIC_KEY} -ne 43 ]; then
+      bad "TEAM_LICENSE_ISSUER_PUBLIC_KEY must be a 32-byte Ed25519 public key encoded as raw URL base64 (43 characters, no padding)"
+    else
+      case "$LICENSE_ISSUER_PUBLIC_KEY" in
+        *[!A-Za-z0-9_-]*) bad "TEAM_LICENSE_ISSUER_PUBLIC_KEY must use raw URL base64 (letters, digits, - and _)" ;;
+      esac
+    fi
+  fi
+}
 
+if [ "$kind" = desktop ]; then
 if need APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_P12 5; then
   printf '%s' "$APPLE_CERTIFICATE_P12" | base64 --decode > /dev/null 2>&1 || bad "APPLE_CERTIFICATE_P12 is not base64 (encode the .p12 with: base64 -i cert.p12)"
 fi
@@ -63,14 +79,15 @@ fi
 if need SPARKLE_ED_PRIVATE_KEY SPARKLE_ED_PRIVATE_KEY 6; then
   printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | grep -Eq '^[A-Za-z0-9+/=]{40,}$' || bad "SPARKLE_ED_PRIVATE_KEY should be one line of base64 (what generate_keys -x wrote)"
 fi
-if need LICENSE_ISSUER_PUBLIC_KEY TEAM_LICENSE_ISSUER_PUBLIC_KEY license; then
-  if [ ${#LICENSE_ISSUER_PUBLIC_KEY} -ne 43 ]; then
-    bad "TEAM_LICENSE_ISSUER_PUBLIC_KEY must be a 32-byte Ed25519 public key encoded as raw URL base64 (43 characters, no padding)"
-  else
-    case "$LICENSE_ISSUER_PUBLIC_KEY" in
-      *[!A-Za-z0-9_-]*) bad "TEAM_LICENSE_ISSUER_PUBLIC_KEY must use raw URL base64 (letters, digits, - and _)" ;;
-    esac
-  fi
+check_license
+elif [ "$kind" = windows ]; then
+if need WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64 WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64 windows; then
+  printf '%s' "$WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64" | base64 --decode > /dev/null 2>&1 || bad "WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64 is not base64-encoded PFX data"
+fi
+need WINDOWS_SIGNING_CERTIFICATE_PASSWORD WINDOWS_SIGNING_CERTIFICATE_PASSWORD windows || true
+check_license
+else
+check_license
 fi
 
 if [ -n "$missing" ] || [ -n "$wrong" ]; then

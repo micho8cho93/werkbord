@@ -1,4 +1,4 @@
-// Package teaminstall is Werkbord's own installer for the Team service on a Mac: native, locally initiated, and never linked
+// Package teaminstall is Werkbord's native installer for the Team service: locally initiated, and never linked
 // into a Workspace Host. The app's executable is the installer. Run with --activate or --service it does one fixed thing and
 // prints one line of JSON; macOS asks for an administrator's authorization, and the privileged step runs this same executable
 // as root with --team-service (it does so before any window exists). It takes no argument that names a path or a program.
@@ -24,8 +24,9 @@ var nativeVersion = "dev"
 
 const ServiceLabel = "dev.werkbord.team"
 const BaseURL = "http://127.0.0.1:7431"
-const SystemDir = "/Library/Application Support/Werkbord Team"
-const ServicePlist = "/Library/LaunchDaemons/dev.werkbord.team.plist"
+
+var SystemDir = systemDir()
+var ServicePlist = serviceDefinition()
 
 // AccessKey is the window's own credential, shared with the native service at installation.
 func AccessKey() (string, error) {
@@ -33,7 +34,7 @@ func AccessKey() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(home, "Library", "Application Support", "werkbord-team-desktop", "access.key")
+	path := accessKeyPath(home)
 	if b, err := os.ReadFile(path); err == nil {
 		key := string(b)
 		if _, err := hex.DecodeString(key); err != nil || len(key) != 64 {
@@ -63,11 +64,13 @@ func AccessKey() (string, error) {
 	return key, cerr
 }
 
+// AccessKeyPath returns the per-user app credential location shared by the app and the privileged installer.
+func AccessKeyPath(home string) string { return accessKeyPath(home) }
+
 // ServiceIsolated reports whether the installed service was installed without a path to the person's own Werkbord, which is
 // what keeps it from ever reading that credential. A service from before this existed carries one in its definition.
-// The definition is world-readable by design; an absent one means no service is installed.
 func ServiceIsolated() (installed, isolated bool, err error) {
-	b, err := os.ReadFile(ServicePlist)
+	b, err := serviceDefinitionBytes()
 	if errors.Is(err, os.ErrNotExist) {
 		return false, false, nil
 	}

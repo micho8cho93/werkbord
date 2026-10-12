@@ -67,6 +67,11 @@ func (s *Schtasks) query(ctx context.Context) (string, bool) {
 	return out, err == nil
 }
 
+func (s *Schtasks) queryXML(ctx context.Context) (string, bool) {
+	out, err := s.Exec(ctx, "schtasks", "/Query", "/TN", s.taskName(), "/XML")
+	return out, err == nil
+}
+
 func (s *Schtasks) Start(ctx context.Context) error {
 	s.fill()
 	if _, ok := s.query(ctx); !ok {

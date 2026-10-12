@@ -62,6 +62,13 @@ Run "werkbord-team <command> -h" for command flags.
 `
 
 func main() {
+	if isWindowsService() {
+		if err := runWindowsService(); err != nil {
+			fmt.Fprintln(os.Stderr, "werkbord-team service:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {

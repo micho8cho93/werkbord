@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -30,15 +31,20 @@ import (
 const (
 	DefaultBase = "http://127.0.0.1:7431"
 	ListPath    = "/api/device/v1/listing"
-	// ServiceDefinition is where macOS keeps the definition of Team's background service when it is installed.
-	ServiceDefinition = "/Library/LaunchDaemons/dev.werkbord.team.plist"
 )
 
 var slotPattern = regexp.MustCompile(`^[a-z0-9_]{1,24}$`)
 
 // KeyFile is where Team's installer put this person's credential for the service.
 func KeyFile(home string) string {
-	return filepath.Join(home, "Library", "Application Support", "werkbord-team-desktop", "access.key")
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "werkbord-team-desktop", "access.key")
+	case "windows":
+		return filepath.Join(home, "AppData", "Roaming", "werkbord-team-desktop", "access.key")
+	default:
+		return filepath.Join(home, ".config", "werkbord-team-desktop", "access.key")
+	}
 }
 
 // ReadKey reads the credential. It never creates one: no file means the person never set Team up on this computer.
@@ -80,7 +86,7 @@ func New(base, keyPath string, installed func() bool) (*Link, error) {
 		return nil, err
 	}
 	if installed == nil {
-		installed = func() bool { _, err := os.Stat(ServiceDefinition); return err == nil }
+		installed = serviceInstalled
 	}
 	return &Link{Source: src, base: src.Base(), key: key, Installed: installed, hc: &http.Client{Timeout: 20 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }

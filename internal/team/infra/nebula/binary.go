@@ -51,7 +51,9 @@ type verified struct {
 	// SHA256 is the program's hash, equal to the manifest's.
 	SHA256 string
 	// Version is the pinned release's version.
-	Version string
+	Version      string
+	WintunPath   string
+	WintunSHA256 string
 }
 
 // locate finds the program in dirs (searched in order; never PATH), verifies it
@@ -85,6 +87,20 @@ func locate(dirs []string, binDir string, art Artifact) (verified, error) {
 	if !sameHash(sum, art.BinarySHA256) {
 		return verified{}, fmt.Errorf("%w: %s has SHA-256 %s", ErrBinaryMismatch, found, sum)
 	}
+	var wintunPath string
+	if art.WintunSHA256 != "" {
+		wintunSource := filepath.Join(filepath.Dir(found), "wintun.dll")
+		wintunSum, err := sha256File(wintunSource)
+		if err != nil || !sameHash(wintunSum, art.WintunSHA256) {
+			return verified{}, fmt.Errorf("%w: the Windows network DLL is missing or does not match its pin", ErrBinaryMismatch)
+		}
+		wintunPath = filepath.Join(binDir, "wintun.dll")
+		if have, err := sha256File(wintunPath); err != nil || !sameHash(have, art.WintunSHA256) {
+			if err := copyFile(wintunSource, wintunPath, 0o500); err != nil {
+				return verified{}, err
+			}
+		}
+	}
 	// Run a private copy, not the file where it was found: the shipping location may
 	// be writable by someone else, and what is hashed here is what must be what runs.
 	if err := os.MkdirAll(binDir, 0o700); err != nil {
@@ -102,7 +118,7 @@ func locate(dirs []string, binDir string, art Artifact) (verified, error) {
 			return verified{}, err
 		}
 	}
-	return verified{Path: dst, SHA256: sum, Version: Version}, nil
+	return verified{Path: dst, SHA256: sum, Version: Version, WintunPath: wintunPath, WintunSHA256: art.WintunSHA256}, nil
 }
 
 // reverify checks the private copy again, immediately before it is started.
@@ -113,6 +129,15 @@ func (v verified) reverify(art Artifact) error {
 	}
 	if !sameHash(sum, art.BinarySHA256) || !sameHash(sum, v.SHA256) {
 		return fmt.Errorf("%w: %s changed after it was verified", ErrBinaryMismatch, v.Path)
+	}
+	if v.WintunSHA256 != "" {
+		wintun, err := sha256File(v.WintunPath)
+		if err != nil || !sameHash(wintun, v.WintunSHA256) {
+			return fmt.Errorf("%w: the Windows network DLL changed after it was verified", ErrBinaryMismatch)
+		}
+		if err := checkOwnedPrivate(v.WintunPath, false); err != nil {
+			return err
+		}
 	}
 	return checkOwnedPrivate(v.Path, false)
 }

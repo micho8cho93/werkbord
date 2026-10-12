@@ -14,7 +14,7 @@ import (
 
 // ErrReplacementDeferred is what the person is told when Team's service holds a workspace and so is neither replaced nor
 // removed by an installer. It is written for the person: the installer prints it as is, and every caller shows it as is.
-var ErrReplacementDeferred = errors.New("Team's service on this Mac belongs to a Team workspace, so it will not be replaced or removed automatically. Nothing was changed and it keeps running. Updating it takes coordinated administrator maintenance with a verified backup; removing it takes leaving the workspace first")
+var ErrReplacementDeferred = errors.New("Team's service on this computer belongs to a Team workspace, so it will not be replaced or removed automatically. Nothing was changed and it keeps running. Updating it takes coordinated administrator maintenance with a verified backup; removing it takes leaving the workspace first")
 
 // CheckReplacement is deliberately conservative. Until a coordinated cluster maintenance
 // protocol is available, native replacement never stops an enrolled/pending Team service.

@@ -24,6 +24,7 @@ func cmdDaemon(ctx context.Context, cfg config.Config, args []string, stderr io.
 	local := fs.String("local-addr", "127.0.0.1:7431", "device service address, loopback only")
 	keyPath := fs.String("local-key-file", "", "native installation's GUI credential")
 	runner := fs.String("runner-config", "", "this user's individual Werkbord settings path")
+	fs.StringVar(&cfg.PassphraseFile, "passphrase-file", cfg.PassphraseFile, "protected file used to seal Team keys instead of OS secure storage")
 	fs.StringVar(&cfg.BackupDir, "backup-dir", cfg.BackupDir, "this host's backup folder")
 	if err := fs.Parse(args); err != nil {
 		return err

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Werkbord",
+  "outputfilename": "Werkbord",
+  "build:dir": "build",
+  "frontend:dir": "frontend",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "Werkbord",
+    "email": ""
+  },
+  "info": {
+    "companyName": "Werkbord",
+    "productName": "Werkbord",
+    "productVersion": "0.0.0",
+    "copyright": "Copyright © 2026 Werkbord",
+    "comments": "The unified Individual and Team workspace app."
+  }
+}

@@ -33,9 +33,17 @@ line=$(grep -E "^[[:space:]]*\"$os/$arch\":" "$MANIFEST" || true)
 [ -n "$line" ] || die "no pinned Nebula release for $os/$arch (see $MANIFEST)"
 field() { printf '%s' "$line" | sed -n "s/.*$1: \"\\([^\"]*\\)\".*/\\1/p"; }
 archive=$(field Archive); archive_sha=$(field ArchiveSHA256); binary_sha=$(field BinarySHA256)
+wintun_sha=$(field WintunSHA256); wintun_path=$(field WintunArchiveMember); wintun_license=$(field WintunLicenseMember)
 [ -n "$archive" ] && [ -n "$archive_sha" ] && [ -n "$binary_sha" ] || die "the pin for $os/$arch is incomplete"
 
-check_binary() { [ -f "$1/nebula" ] && [ "$(sha256 "$1/nebula")" = "$binary_sha" ]; }
+binary=nebula
+if [ "$os" = windows ]; then binary=nebula.exe; fi
+check_binary() {
+  [ -f "$1/$binary" ] && [ "$(sha256 "$1/$binary")" = "$binary_sha" ] || return 1
+  if [ -n "$wintun_sha" ]; then
+    [ -f "$1/wintun.dll" ] && [ "$(sha256 "$1/wintun.dll")" = "$wintun_sha" ] && [ -f "$1/licenses/WINTUN-LICENSE.txt" ] || return 1
+  fi
+}
 
 if [ -n "${NEBULA_DIR:-}" ]; then
   check_binary "$NEBULA_DIR" || die "$NEBULA_DIR/nebula is not the pinned Nebula $version for $os/$arch"
@@ -53,12 +61,20 @@ curl -fsSL --retry 3 --retry-delay 5 -o "$tmp/$archive" "${release}${version}/$a
 [ "$(sha256 "$tmp/$archive")" = "$archive_sha" ] || die "the download's SHA-256 is $(sha256 "$tmp/$archive"), but the pin is $archive_sha: not using it"
 mkdir -p "$tmp/x"
 case "$archive" in
-  *.zip) command -v unzip >/dev/null 2>&1 || die "unzip is needed"; unzip -q -o "$tmp/$archive" nebula -d "$tmp/x" ;;
+  *.zip)
+    command -v unzip >/dev/null 2>&1 || die "unzip is needed"
+    if [ -n "$wintun_sha" ]; then
+      unzip -q "$tmp/$archive" "$binary" "$wintun_path" "$wintun_license" -d "$tmp/x"
+      mv "$tmp/x/$wintun_path" "$tmp/x/wintun.dll"
+      mkdir -p "$tmp/x/licenses"
+      mv "$tmp/x/$wintun_license" "$tmp/x/licenses/WINTUN-LICENSE.txt"
+    else unzip -q "$tmp/$archive" "$binary" -d "$tmp/x"; fi
+    ;;
   *.tar.gz) tar -xzf "$tmp/$archive" -C "$tmp/x" nebula ;;
   *) die "unknown archive type $archive" ;;
 esac
-check_binary "$tmp/x" || die "the program in $archive is not the pinned one"
-chmod 0755 "$tmp/x/nebula"
+check_binary "$tmp/x" || die "the program or sidecar in $archive is not the pinned one"
+chmod 0755 "$tmp/x/$binary"
 mkdir -p "$(dirname "$dir")"
 rm -rf "$dir.partial"
 mv "$tmp/x" "$dir.partial"

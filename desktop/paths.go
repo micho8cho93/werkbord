@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 
 	"devboard/internal/launcher"
 )
@@ -25,7 +26,11 @@ func launcherOptions() launcher.Options {
 		return o
 	}
 	if exe, err := os.Executable(); err == nil {
-		helper := filepath.Join(filepath.Dir(exe), "..", "Helpers", "werkbord")
+		name := "werkbord"
+		if goruntime.GOOS == "windows" {
+			name += ".exe"
+		}
+		helper := filepath.Join(filepath.Dir(exe), "..", "Helpers", name)
 		if fi, err := os.Stat(helper); err == nil && !fi.IsDir() {
 			o.Bundled = filepath.Clean(helper)
 		}
@@ -40,7 +45,23 @@ func openLog() (log *slog.Logger, path string, closeLog func()) {
 	if err != nil {
 		return slog.New(slog.DiscardHandler), "", func() {}
 	}
-	dir := filepath.Join(home, "Library", "Logs", "Werkbord")
+	var dir string
+	switch goruntime.GOOS {
+	case "darwin":
+		dir = filepath.Join(home, "Library", "Logs", "Werkbord")
+	case "windows":
+		cache, err := os.UserCacheDir()
+		if err != nil {
+			return slog.New(slog.DiscardHandler), "", func() {}
+		}
+		dir = filepath.Join(cache, "Werkbord", "Logs")
+	default:
+		state := os.Getenv("XDG_STATE_HOME")
+		if state == "" {
+			state = filepath.Join(home, ".local", "state")
+		}
+		dir = filepath.Join(state, "werkbord")
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return slog.New(slog.DiscardHandler), "", func() {}
 	}

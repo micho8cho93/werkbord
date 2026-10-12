@@ -41,6 +41,35 @@ func LaunchDaemon(root, runnerConfig string) ([]byte, error) {
 </dict></plist>`, ServiceLabel, argv.String(), esc(root), esc(filepath.Join(root, "service.log")), esc(filepath.Join(root, "service.log")))), nil
 }
 
+// LinuxUnit renders a systemd service for Team's fixed daemon. The service receives only the Team data directory, its local
+// app credential and a protected passphrase file; it is not given the Individual controller's configuration.
+func LinuxUnit(root string) ([]byte, error) {
+	if !filepath.IsAbs(root) {
+		return nil, errors.New("service paths must be absolute")
+	}
+	escape := func(s string) string {
+		s = strings.ReplaceAll(s, "\\", "\\\\")
+		s = strings.ReplaceAll(s, " ", "\\s")
+		s = strings.ReplaceAll(s, "\t", "\\t")
+		s = strings.ReplaceAll(s, "\n", "")
+		s = strings.ReplaceAll(s, "%", "%%")
+		return s
+	}
+	bin := filepath.Join(root, "Helpers", "werkbord-team")
+	if strings.EqualFold(filepath.Ext(bin), ".exe") {
+		return nil, errors.New("systemd cannot run a Windows service executable")
+	}
+	args := []string{bin, "daemon", "--data-dir", filepath.Join(root, "data"), "--local-key-file", filepath.Join(root, "access.key"), "--passphrase-file", filepath.Join(root, "secrets", "pki.passphrase")}
+	var line strings.Builder
+	for i, arg := range args {
+		if i > 0 {
+			line.WriteByte(' ')
+		}
+		line.WriteString(escape(arg))
+	}
+	return []byte(fmt.Sprintf("[Unit]\nDescription=Werkbord Team workspace service\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nUser=root\nGroup=root\nUMask=0077\nExecStart=%s\nWorkingDirectory=%s\nRestart=on-failure\nRestartSec=5s\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=read-only\nReadWritePaths=%s\n\n[Install]\nWantedBy=multi-user.target\n", line.String(), escape(root), escape(root))), nil
+}
+
 // Actions the native installer performs with administrator rights, and only these.
 const (
 	ActionInstall = "install"
@@ -101,5 +130,5 @@ func installerRefusal(action, out string) error {
 	if what == "" {
 		what = action
 	}
-	return fmt.Errorf("macOS could not %s the Team service: %s", what, detail)
+	return fmt.Errorf("the system could not %s the Team service: %s", what, detail)
 }

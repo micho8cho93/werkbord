@@ -1,5 +1,7 @@
 # Team production security and reliability gate
 
+Production admission: BLOCKED
+
 Review date: 2026-10-08. Product versions: Team **3.0.0**, individual Werkbord **1.4.0-preview.3**. This is an implementation and evidence report. **Production admission remains blocked** by the deployment, key-custody and dependency decisions below. Passing local tests is not a claim of complete security.
 
 ## 1. Architecture implemented
@@ -75,7 +77,7 @@ Offline licenses cannot be instantly revoked by the vendor without adding a vend
 
 ## 5. Unsupported failures
 
-No supported Byzantine-consensus/majority-corruption guarantee, automatic quorum shrink, automatic merge of independently writable histories, in-place compromised-root/CA/database-credential rotation, recovery without authority unlock material, Windows Team networking, Linux Secret Service integration, portable Keychain export or automatic vault rewrapping is provided.
+No supported Byzantine-consensus/majority-corruption guarantee, automatic quorum shrink, automatic merge of independently writable histories, in-place compromised-root/CA/database-credential rotation, recovery without authority unlock material, Linux Secret Service integration, portable Keychain export or automatic vault rewrapping is provided. Windows amd64 Team networking is implemented with the pinned Wintun payload, but native clean-device tunnel, service boot, update and removal acceptance has not been completed for this release.
 
 A reverse proxy exposing/stripping provenance from the local member API is unsupported. Unknown protocol fields/versions and newer schemas fail closed rather than being silently interpreted. Losing every useful relay prevents relay-dependent peers from connecting; established direct paths need not depend on a lighthouse, but no universal NAT traversal guarantee is claimed.
 

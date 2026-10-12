@@ -207,7 +207,7 @@ for a in $ARCHS; do
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a \
     CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" \
     CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0 -framework UniformTypeIdentifiers" \
-      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w -X main.version=$VERSION -X devboard/desktop/internal/teaminstall.signingTeam=$SIGNING_TEAM" \
+      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w -X main.version=$VERSION -X devboard/desktop/internal/teaminstall.signingTeam=$SIGNING_TEAM -X devboard/desktop/internal/teaminstall.releaseBuild=$VERSION" \
       -o "$STAGE/window-$a" .
   )
   HELPERS="$HELPERS $STAGE/helper-$a"; WINDOWS="$WINDOWS $STAGE/window-$a"

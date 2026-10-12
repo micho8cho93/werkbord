@@ -249,10 +249,14 @@ func Installed(ctx context.Context, o Options) (Manager, bool) {
 	// one's: `stop`, `restart` and `start` for a sandbox data directory must not
 	// reach the controller you actually use.
 	if o.DataDir != "" {
-		if body, ok := definition(ctx, m); ok {
-			if d, ok := parsePlist(body); ok && d.DataDir != "" && !sameDir(d.DataDir, o.DataDir) {
+		if d, ok := describeDefinition(ctx, m); ok {
+			if d.DataDir != "" && !sameDir(d.DataDir, o.DataDir) {
 				return m, false
 			}
+		} else if _, exists := definition(ctx, m); exists {
+			// A service with an unreadable/unrecognized definition must not be
+			// treated as belonging to a different data directory by guesswork.
+			return m, false
 		}
 	}
 	return m, true

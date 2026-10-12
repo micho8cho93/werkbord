@@ -65,13 +65,14 @@ type Artifact struct {
 	Source bool
 }
 
-// artifacts are the platforms Team's installer supports. Windows is not here: Team's
-// installer does not support it.
+// artifacts are the platforms Team's installer supports. rqlite publishes only
+// Windows x64, so the unified Windows desktop package runs an x64 Team service.
 var artifacts = map[string]Artifact{
-	"linux/amd64":  {Archive: "rqlite-v10.5.2-linux-amd64.tar.gz", ArchiveSHA256: "1a04a7c2c542e8e1c1347bd31af0fa9ef7043febb3c4d1806d36bc1702c6fa0f", BinarySHA256: "7c52a50e1ae99debcf5ce59fe0410c2e939aa5ec30b1ebb8e736ea6d9273d426"},
-	"linux/arm64":  {Archive: "rqlite-v10.5.2-linux-arm64.tar.gz", ArchiveSHA256: "44b4bd7ca39720dee3b916f9ef59da117c07ddc008704ac25e56385e56951b8a", BinarySHA256: "84b089fcfd5c1f38564d816cd9c619f0538d9bd60cb03ee47009531827895573"},
-	"darwin/amd64": {Source: true},
-	"darwin/arm64": {Source: true},
+	"linux/amd64":   {Archive: "rqlite-v10.5.2-linux-amd64.tar.gz", ArchiveSHA256: "1a04a7c2c542e8e1c1347bd31af0fa9ef7043febb3c4d1806d36bc1702c6fa0f", BinarySHA256: "7c52a50e1ae99debcf5ce59fe0410c2e939aa5ec30b1ebb8e736ea6d9273d426"},
+	"linux/arm64":   {Archive: "rqlite-v10.5.2-linux-arm64.tar.gz", ArchiveSHA256: "44b4bd7ca39720dee3b916f9ef59da117c07ddc008704ac25e56385e56951b8a", BinarySHA256: "84b089fcfd5c1f38564d816cd9c619f0538d9bd60cb03ee47009531827895573"},
+	"windows/amd64": {Archive: "rqlite-v10.5.2-win64.zip", ArchiveSHA256: "90f4bf34d5e4b4259e55c70c53d85527269b2d636b73676163580046ca222126", BinarySHA256: "06bff286685358374e0af310ce5f51b40bf50afc654b5cfb301a5dbe62781f41"},
+	"darwin/amd64":  {Source: true},
+	"darwin/arm64":  {Source: true},
 }
 
 // ErrUnsupportedPlatform is returned where no pinned rqlite exists for the platform.

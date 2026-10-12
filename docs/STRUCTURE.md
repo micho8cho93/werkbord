@@ -3,21 +3,21 @@
 Werkbord is **one product with one version and one release** (`cmd/werkbord/VERSION`, tag `werkbord-vX.Y.Z`; see
 [VERSIONING.md](VERSIONING.md)). It is built from one repository as three things that are shipped together:
 
-| | **The controller** | **The Team service** | **The Mac app** |
+| | **The controller** | **The Team service** | **The desktop app** |
 | --- | --- | --- | --- |
 | What it is | A local-first control plane for your own coding agents: board, runs, Git, runners (Individual) | A workspace that coordinates a team: members, projects, who is on what | A native window around both, and the installer for the Team service |
 | Executable | `werkbord` (and `devboard`, its name before the rename) | `werkbord-team` | `Werkbord.app` (module `desktop/`) |
 | Main package | `cmd/werkbord` | `cmd/werkbord-team` | `desktop/` |
 | Code lives in | the shared `internal/` packages and `web/` | `internal/team/…` only | `desktop/` and `web/src/shell/` |
-| Release archives | `werkbord_<version>_<os>_<arch>` (also published as `devboard_…` for older updaters) | `werkbord-team_<version>_<os>_<arch>` | `Werkbord_<version>_darwin_universal.dmg` |
-| Installer | `scripts/install.sh`, `scripts/install.ps1`; the Mac app | `scripts/install-team.sh` for a command-line host; on a Mac, the Mac app | Drag to Applications |
+| Release assets | controller archives for existing terminal workflows | bundled in the unified desktop app; no standalone Host archive | macOS DMG, Linux packages, Windows installer |
+| Installer | `scripts/install.sh`, `scripts/install.ps1`; the desktop app | the app's native service installer | platform package or app installer |
 | Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory (root-owned for the Mac service) | `werkbord-desktop` (window state only) |
 | Settings | `WERKBORD_*` (and the older `DEVBOARD_*`) | `WERKBORD_TEAM_*` | — |
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` (device API `7431`) | — |
 | Build | `make build` | `make build-team` | `make desktop` |
 
-Everything in the Mac app has the one version, Team's service included. The controller and the Team service are separate
-executables and separate processes on purpose, not for packaging: the Team service runs as a root-owned system service on a Mac
+Everything in the desktop app has the one version, Team's service included. The controller and the Team service are separate
+executables and separate processes on purpose, not for packaging: the Team service runs as a privileged system service
 (it creates the private network interface), while the controller runs agents as the person, so the two never share a process or
 a credential. Individual is free; each Team workspace carries an offline license. Adding a Team is an explicit action. Individual
 works without a license, a Team service or a vendor login. How the window, the Team service and the installer fit together:
@@ -202,14 +202,15 @@ make test-team             # Team's tests
 make test-install test-install-team   # each installer against a local release server
 ```
 
-The Mac app (needs the Xcode command line tools): `make desktop`, `make desktop-package` (adds a
+The desktop app (needs the native toolkit for its target OS): `make desktop`, `make desktop-package` (adds a
 `.dmg`), `make desktop-dev` (and `make desktop-dev-stop`), `make desktop-check`. See [DESKTOP.md](DESKTOP.md).
 
-There is no separate Team Mac app: `make desktop-package` builds the one app, Team's service and installer included
+There is no separate Team desktop app: `make desktop-package` builds the one app, Team's service and installer included
 ([TEAM_DESKTOP.md](TEAM_DESKTOP.md)).
 
-Releases: `make dist PRODUCT=werkbord` or `PRODUCT=werkbord-team` writes that executable's archives and checksums to `dist/`.
-CI does this when a release tag is pushed. See [VERSIONING.md](VERSIONING.md).
+Releases: `make dist PRODUCT=werkbord` writes the controller archives for the unified release. `make dist
+PRODUCT=werkbord-team` remains an offline source build for controlled operator deployments; those archives are not attached to
+public desktop releases. See [VERSIONING.md](VERSIONING.md).
 
 ## Enforcement
 

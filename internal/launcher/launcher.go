@@ -763,7 +763,7 @@ func (l *Launcher) Diagnose(ctx context.Context) Diagnostics {
 	d.DataDir, d.Address, d.LogPath = cfg.DataDir, cfg.Addr, cfg.LogPath()
 	if def, ok := l.opt.Describe(ctx); ok {
 		d.ServiceInstalled, d.ServiceBinary = true, def.Binary
-		d.ServiceManager = "launchd" // the only definition Describe reads
+		d.ServiceManager = def.Manager
 	}
 	if v, ok := l.Health(ctx, cfg.ControllerURL()); ok {
 		d.Healthy, d.ControllerVer = true, v

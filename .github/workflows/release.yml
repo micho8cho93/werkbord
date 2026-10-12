@@ -1,44 +1,8 @@
 name: release
 
-# Publishes THE release when a version tag is pushed. Werkbord is one product with one version and one release
-# (docs/VERSIONING.md, docs/UNIFICATION.md): the tag is werkbord-vX.Y.Z, it is what cmd/werkbord/VERSION says, and it carries
-#
-#   werkbord_<version>_<os>_<arch> archives, which is what scripts/install.sh and `werkbord update` read, and the same
-#                          archives as devboard_<version>_<os>_<arch>, which is what releases from before the rename
-#                          read to update themselves, with checksums.txt
-#   the Mac app            Werkbord_<version>_darwin_universal.dmg, which carries Werkbord Team too (below)
-#   werkbord-team_<version>_<os>_<arch> archives and checksums-team.txt(.sig), for a computer that hosts a workspace from the
-#                          command line. These are signed OFFLINE: the release key for them is never in CI, so a person who
-#                          holds it builds them (`make dist PRODUCT=werkbord-team` with WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE,
-#                          docs/TEAM_INSTALL.md) and attaches them to the release this workflow made. CI never publishes
-#                          unauthenticated Team packages.
-#
-# Only stable releases are marked "latest": /releases/latest is how the installer and `werkbord update` find their program.
-#
-# The Mac app (docs/DESKTOP_RELEASE.md) is added to a stable release by four more jobs:
-#
-#   desktop-build    macOS. The ONLY job that holds the signing, notarization and update-signing secrets. It builds the
-#                    universal app, signs it with the Developer ID, has Apple notarize it, signs the update archive and
-#                    the feed with the update key, and checks the result. It has no permission to change a release: it
-#                    hands the files to the next jobs as workflow artifacts.
-#   desktop-publish  no secrets. Uploads the disk image and the update archive, with their .sha256, to the release that
-#                    already exists.
-#   desktop-verify   a fresh macOS runner, no secrets. Downloads what was published as a person would, and checks it
-#                    (scripts/verify-desktop-release.sh).
-#   desktop-appcast  no secrets. Only when the image has verified: checks the feed against the published update archive,
-#                    and publishes it as appcast.xml. That file is what tells installed apps an update exists, so it
-#                    comes last, and is withdrawn again if what is served does not check out.
-#
-# None of them creates, edits or un-marks the release the first job made, or touches its archives and checksums.txt, and
-# the only thing any of them ever deletes is the feed it published itself, so a failure in any of them turns the run red and
-# leaves what installers and `werkbord update` depend on exactly as it was.
-#
-# A manual run (Actions → release → Run workflow) is a dry run: it builds, signs and notarizes the app from the branch it
-# is run on, checks it, and uploads the disk image as a workflow artifact only. Nothing is published. That is how
-# the secrets are tried before a real tag is pushed.
-#
-# Nothing from a pull request or a fork reaches a secret: this workflow is not triggered by either (ci.yml is), and
-# the secrets are in the `desktop-release` environment, used by desktop-build alone.
+# One tag produces one unified release. Stable releases are assembled only after the signed Mac app,
+# native Linux packages and signed Windows installer have all built successfully. Only the desktop app
+# carries the Team installer/service; this workflow never publishes standalone Team Host archives.
 on:
   push:
     tags:
@@ -46,109 +10,42 @@ on:
       - 'werkbord-v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
 
-# Nothing is writable unless a job says so.
 permissions:
   contents: read
 
 jobs:
-  # Does this tag get a disk image? A stable release does; a pre-release does not.
   plan:
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
       desktop: ${{ steps.plan.outputs.desktop }}
+      stable: ${{ steps.plan.outputs.stable }}
     steps:
-      - name: The Mac app
+      - name: Decide which release jobs apply
         id: plan
         env:
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           desktop=false
+          stable=false
           if [ "$EVENT" = workflow_dispatch ]; then
             desktop=true
-          else
+          elif [ "${REF_NAME#werkbord-v}" != "$REF_NAME" ]; then
             case "$REF_NAME" in
-              werkbord-v[0-9]*.[0-9]*.[0-9]*-*) ;;
-              werkbord-v[0-9]*.[0-9]*.[0-9]*) desktop=true ;;
+              *-*) ;;
+              *) desktop=true; stable=true ;;
             esac
           fi
           echo "desktop=$desktop" >> "$GITHUB_OUTPUT"
+          echo "stable=$stable" >> "$GITHUB_OUTPUT"
 
-  release:
-    # Team's command-line archives are signed on the offline release workstation. This job
-    # has no vendor release key and must never publish unauthenticated Team packages.
+  release-build:
     if: github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Is this the release's tag, and does it agree with the VERSION file
-        id: product
-        run: |
-          # checkout fetches the tag as a bare ref; fetch the real tag objects so "annotated" can be checked
-          git fetch --force --tags origin
-          product=$(scripts/product.sh from-tag "$GITHUB_REF_NAME")
-          scripts/verify-tag.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
-          version=$(scripts/product.sh "$product" version)
-          echo "product=$product" >> "$GITHUB_OUTPUT"
-          echo "version=v$version" >> "$GITHUB_OUTPUT"
-      - name: Check
-        run: make check
-      - name: Team's tests that start real database clusters (the pinned program, fetched and checked against the pin)
-        env:
-          WERKBORD_REQUIRE_RQLITE: "1"
-        run: make test-rqlite
-      - name: Build the release archives
-        run: make dist PRODUCT=${{ steps.product.outputs.product }}
-      - name: Publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          flags=""
-          case "${{ steps.product.outputs.version }}" in
-            *-*) flags="--prerelease --latest=false" ;;
-            *) flags="--latest" ;;
-          esac
-          # A manually tested Mac preview may already have its DMG on this prerelease.
-          # Add only the CLI archives; preserve its preview notes, status and installer.
-          if [ "$flags" = "--prerelease --latest=false" ] &&
-             [ "$(gh release view "$GITHUB_REF_NAME" --json isPrerelease --jq .isPrerelease 2>/dev/null)" = true ]; then
-            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes $flags
-          fi
-
-  desktop-build:
-    # After the release exists (a tag), or on its own (a dry run).
-    needs: [plan, release]
-    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.release.result == 'success') }}
-    runs-on: macos-15
     timeout-minutes: 90
-    # The secrets live here, in this environment, and are given to no other job. Protect it (docs/DESKTOP_RELEASE.md,
-    # step 7): required reviewers, and only main and the werkbord-v* tags may deploy to it.
-    environment: desktop-release
     permissions:
       contents: read
-    env:
-      APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-      APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
-      NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
-      NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
-      SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
-      # Public: the key that checks every Team license. The app carries Team's installer, built here with this key in it.
-      LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -161,64 +58,133 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: The version, and that the tag agrees with it
+      - name: Verify the unified product tag and version
+        env:
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          git fetch --force --tags origin
+          test "$(scripts/product.sh from-tag "$TAG")" = werkbord
+          scripts/verify-tag.sh "$TAG" "$SHA"
+      - name: Require reviewed Team production approval for stable releases
+        if: ${{ github.event_name == 'push' && !contains(github.ref_name, '-') }}
+        run: scripts/check-team-production-gate.sh "${GITHUB_REF_NAME#werkbord-v}"
+      - name: Run the repository checks
+        run: make check
+      - name: Run Team's pinned native network tests
+        run: make test-nebula
+      - name: Run Team's real database cluster tests
+        env:
+          WERKBORD_REQUIRE_RQLITE: "1"
+        run: make test-rqlite
+      - name: Build the controller archives for the unified release
+        run: make dist PRODUCT=werkbord
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: controller-release
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  preview-publish:
+    needs: release-build
+    if: github.event_name == 'push' && contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: controller-release
+          path: dist
+      - name: Publish only the controller archives for a preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(gh release view "$GITHUB_REF_NAME" --json isPrerelease --jq .isPrerelease 2>/dev/null)" = true ]; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes --prerelease --latest=false --verify-tag
+          fi
+
+  desktop-build:
+    needs: [plan, release-build]
+    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.release-build.result == 'success') }}
+    runs-on: macos-15
+    timeout-minutes: 90
+    environment: desktop-release
+    permissions:
+      contents: read
+    env:
+      APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
+      NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+      NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+      SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+      LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Resolve the build version
         id: version
         env:
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          # A signed build accepts only a stable version (scripts/build-desktop.sh --release). A dry run of a pre-release
-          # (4.5.1-preview.1) is built as its stable core (4.5.1), in this runner's copy only: nothing is committed or published.
-          if [ "$EVENT" = workflow_dispatch ]; then
-            current=$(scripts/product.sh werkbord version)
-            case "$current" in
-              *-*)
-                echo "::notice::dry run: building $current as ${current%%-*}, which a signed build requires; this copy of the VERSION file is not committed"
-                printf '%s\n' "${current%%-*}" > cmd/werkbord/VERSION
-                ;;
-            esac
-          fi
-          version="v$(scripts/product.sh werkbord version)"
-          if [ "$EVENT" = push ] && [ "$REF_NAME" != "werkbord-$version" ]; then
-            echo "::error::the tag $REF_NAME is not werkbord-$version, which cmd/werkbord/VERSION says"
+          version=$(scripts/product.sh werkbord version)
+          if [ "$EVENT" = workflow_dispatch ]; then version=${version%%-*}; fi
+          if [ "$EVENT" = push ] && [ "$REF_NAME" != "werkbord-v$version" ]; then
+            echo "::error::tag $REF_NAME does not match cmd/werkbord/VERSION ($version)"
             exit 1
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=werkbord-$version" >> "$GITHUB_OUTPUT"
-      - name: The signing and notarization secrets are all there
+          echo "version=v$version" >> "$GITHUB_OUTPUT"
+          echo "tag=werkbord-v$version" >> "$GITHUB_OUTPUT"
+      - name: Check release credentials before building
         run: scripts/check-release-secrets.sh desktop
       - name: Build the web app
         run: make web web-embed web-shell
       - name: Put the Developer ID certificate in a temporary keychain
         run: scripts/ci-keychain.sh create --require
-      - name: Put the notarization key where only this job can read it
+      - name: Put the notarization key in a temporary file
         run: |
           umask 077
           mkdir -p "$RUNNER_TEMP/notary"
           printf '%s\n' "$APPLE_NOTARY_KEY" > "$RUNNER_TEMP/notary/AuthKey.p8"
           echo "NOTARY_KEY_FILE=$RUNNER_TEMP/notary/AuthKey.p8" >> "$GITHUB_ENV"
-      - name: Build, sign, notarize and staple the universal app (Team's installer in it) and disk image
+      - name: Build, sign and notarize the universal app and disk image
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: scripts/build-desktop.sh --package --release dist/desktop
-      - name: Sign the update archive and make the feed (the private update key is only ever in this step's environment)
+      - name: Sign the Sparkle update archive and feed
         run: |
           mkdir -p dist/feed
           scripts/make-appcast.sh --require dist/desktop/Werkbord_*_darwin_universal.zip dist/feed
-      - name: Check what was built, as a person who downloads it would (nothing is published yet)
+      - name: Verify the disk image and feed before uploading workflow artifacts
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           mkdir -p "$RUNNER_TEMP/page/$TAG"
           cp dist/desktop/Werkbord_*_darwin_universal.* "$RUNNER_TEMP/page/$TAG/"
-          # the page a release will have: the same files the publishing job uploads, including the copy with no version in its name
           cp dist/desktop/Werkbord_*_darwin_universal.dmg "$RUNNER_TEMP/page/$TAG/Werkbord.dmg"
           cp dist/feed/appcast.xml "$RUNNER_TEMP/page/$TAG/"
           export WERKBORD_RELEASE_BASE="file://$RUNNER_TEMP/page"
           scripts/verify-desktop-release.sh "$TAG"
           WERKBORD_FEED_URL=none scripts/verify-appcast.sh "$TAG"
-      - name: Hand the disk image and the update archive to the next job
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: desktop-release
           path: |
@@ -228,49 +194,256 @@ jobs:
             dist/desktop/Werkbord_*_darwin_universal.zip.sha256
           if-no-files-found: error
           retention-days: 14
-      - name: Hand the feed to the last job (it is not published until the disk image has been checked)
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: desktop-appcast
           path: dist/feed/appcast.xml
           if-no-files-found: error
           retention-days: 14
-      - name: Remove the certificate and the notarization key
+      - name: Remove the signing keychain and notarization key
         if: always()
         run: |
           scripts/ci-keychain.sh delete || true
           rm -rf "$RUNNER_TEMP/notary"
 
-  desktop-publish:
-    needs: desktop-build
-    if: ${{ github.event_name == 'push' }}
+  linux-desktop-build:
+    needs: [plan, release-build]
+    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.release-build.result == 'success') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    environment: desktop-release
+    permissions:
+      contents: read
+    env:
+      LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install Wails and Debian packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libwebkit2gtk-4.1-0 policykit-1 systemd
+      - name: Check release credentials before building
+        run: scripts/check-release-secrets.sh linux
+      - name: Resolve the build version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version=$(scripts/product.sh werkbord version)
+          if [ "$EVENT" = workflow_dispatch ]; then version=${version%%-*}; fi
+          if [ "$EVENT" = push ] && [ "$REF_NAME" != "werkbord-v$version" ]; then
+            echo "::error::tag $REF_NAME does not match cmd/werkbord/VERSION ($version)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=werkbord-v$version" >> "$GITHUB_OUTPUT"
+      - name: Build the unified app and Linux packages
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/build-desktop-linux.sh "${{ matrix.arch }}" "$VERSION" dist/desktop
+      - name: Verify hashes, package metadata and the installed release trust check
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          stem="Werkbord_${VERSION}_linux_${ARCH}"
+          (cd dist/desktop && sha256sum -c "$stem.deb.sha256" "$stem.tar.gz.sha256")
+          test "$(dpkg-deb -f "dist/desktop/$stem.deb" Architecture)" = "$ARCH"
+          tar -tzf "dist/desktop/$stem.tar.gz" | grep -F "$stem/app/bin/Werkbord" >/dev/null
+          sudo dpkg -i "dist/desktop/$stem.deb"
+          sudo /opt/werkbord/bin/Werkbord --verify-release | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x["ok"], x'
+          test "$(/opt/werkbord/Helpers/werkbord version)" = "v$VERSION"
+          test "$(/opt/werkbord/Helpers/werkbord-team version)" = "v$VERSION"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-desktop-${{ matrix.arch }}
+          path: dist/desktop/Werkbord_${{ steps.version.outputs.version }}_linux_${{ matrix.arch }}.*
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-desktop-build:
+    needs: [plan, release-build]
+    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.release-build.result == 'success') }}
+    runs-on: windows-2025
+    timeout-minutes: 90
+    environment: desktop-release
+    permissions:
+      contents: read
+    env:
+      LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
+      WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64 }}
+      WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install NSIS and unzip for the signed app packages
+        run: choco install nsis unzip -y --no-progress
+      - name: Check signing and license inputs
+        run: bash scripts/check-release-secrets.sh windows
+      - name: Build the web app and embedded desktop shell
+        run: |
+          npm ci --prefix web
+          npm --prefix web run build
+          npm --prefix web run build:shell
+          node -e "const fs=require('node:fs'); fs.rmSync('internal/webui/dist',{recursive:true,force:true}); fs.mkdirSync('internal/webui/dist',{recursive:true}); fs.cpSync('web/dist','internal/webui/dist',{recursive:true});"
+      - name: Resolve the build version
+        id: version
+        shell: pwsh
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $version = (Get-Content cmd/werkbord/VERSION -Raw).Trim()
+          if ($env:EVENT -eq 'workflow_dispatch' -and $version.Contains('-')) { $version = $version.Split('-')[0] }
+          if ($env:EVENT -eq 'push' -and $env:REF_NAME -ne "werkbord-v$version") { throw "tag $env:REF_NAME does not match cmd/werkbord/VERSION ($version)" }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version" -Encoding utf8
+      - name: Write the PFX to a temporary file, build, then remove it
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'werkbord-release.pfx'
+          try {
+            [System.IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64))
+            $env:WINDOWS_SIGNING_CERTIFICATE_PFX = $pfx
+            & scripts/build-desktop-windows.ps1 -Version $env:VERSION -OutputDirectory dist/desktop
+          } finally {
+            Remove-Item -LiteralPath $pfx -Force -ErrorAction SilentlyContinue
+            Remove-Item Env:WINDOWS_SIGNING_CERTIFICATE_PFX -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-desktop
+          path: dist/desktop/Werkbord_${{ steps.version.outputs.version }}_windows_amd64.*
+          if-no-files-found: error
+          retention-days: 14
+
+  stable-draft:
+    needs: [plan, release-build, desktop-build, linux-desktop-build, windows-desktop-build]
+    if: github.event_name == 'push' && needs.plan.outputs.stable == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: controller-release
+          path: assets/controller
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: desktop-release
-          path: desktop
-      - name: Add the disk image and the update archive to the release
+          path: assets/macos
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: desktop-appcast
+          path: assets/feed
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: linux-desktop-amd64
+          path: assets/linux-amd64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: linux-desktop-arm64
+          path: assets/linux-arm64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-desktop
+          path: assets/windows
+      - name: Assemble one release and reserve its display sequence
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          # Werkbord.dmg is the same file under a name with no version in it, so that
-          # https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg is a link that is always the newest
-          # app (the website's button, and a one-line curl). It is a copy, byte for byte: scripts/verify-desktop-release.sh checks that.
-          cp desktop/Werkbord_*_darwin_universal.dmg desktop/Werkbord.dmg
-          ls -l desktop
-          # Only these five files, which no other job makes. --clobber is for re-running this job after a half-finished upload.
-          gh release upload "$GITHUB_REF_NAME" \
-            desktop/Werkbord_*_darwin_universal.dmg desktop/Werkbord_*_darwin_universal.dmg.sha256 desktop/Werkbord.dmg \
-            desktop/Werkbord_*_darwin_universal.zip desktop/Werkbord_*_darwin_universal.zip.sha256 --clobber
+          set -euo pipefail
+          version=${GITHUB_REF_NAME#werkbord-v}
+          scripts/check-team-production-gate.sh "$version"
+          mkdir release-assets
+          for dir in assets/controller assets/macos assets/feed assets/linux-amd64 assets/linux-arm64 assets/windows; do
+            cp "$dir"/* release-assets/
+          done
+          cp release-assets/Werkbord_"$version"_darwin_universal.dmg release-assets/Werkbord.dmg
+          if find release-assets -maxdepth 1 -type f \( -name 'werkbord-team_*' -o -name 'checksums-team.txt*' \) | grep -q .; then
+            echo 'Standalone Team Host archives must not be published with the desktop app.' >&2
+            exit 1
+          fi
+          for file in \
+            "Werkbord_${version}_darwin_universal.dmg" "Werkbord_${version}_darwin_universal.zip" \
+            "Werkbord_${version}_linux_amd64.deb" "Werkbord_${version}_linux_arm64.deb" \
+            "Werkbord_${version}_windows_amd64_setup.exe" appcast.xml; do
+            test -s "release-assets/$file" || { echo "required release asset is missing: $file" >&2; exit 1; }
+          done
+          cat > release-notes.md <<EOF
+          **Release sequence:** 0.9.0 · **Original build version:** $version
 
-  desktop-verify:
-    needs: desktop-publish
-    if: ${{ github.event_name == 'push' }}
-    # A runner that built nothing and holds nothing: the check is what a stranger's Mac would find.
+          The release sequence is a display label for this product’s published history. Downloads and installed apps use the original build version; the Git tag is `$GITHUB_REF_NAME`.
+
+          ---
+
+          Werkbord $version is the unified Individual and Team desktop app. It includes the Individual controller and the local Team workspace service and setup flow.
+
+          ### Desktop downloads
+
+          - **macOS:** universal Apple Silicon and Intel disk image, signed and notarized.
+          - **Linux:** Debian packages and portable archives for amd64 and arm64. Install with GTK 3 and WebKit2GTK 4.1 available; the package declares its runtime dependencies.
+          - **Windows:** machine-wide amd64 installer, signed with Authenticode. The Team service setup requests Windows administrator approval.
+
+          Controller command-line archives and their checksum manifest are included for existing terminal and service workflows. This release has no standalone Team Host archive.
+          EOF
+          gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord Individual — Release 0.9.0" --notes-file release-notes.md --draft --latest=false --verify-tag
+
+  stable-publish:
+    needs: stable-draft
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the complete release without changing latest yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --verify-tag
+
+  macos-public-verify:
+    needs: stable-publish
+    if: github.event_name == 'push'
     runs-on: macos-15
     permissions:
       contents: read
@@ -281,19 +454,55 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
-      - name: Download the published disk image and check it
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - name: Download the public release and verify Gatekeeper, notarization and Sparkle contents
         run: scripts/verify-desktop-release.sh "$GITHUB_REF_NAME"
-      - name: If the published disk image is not good
-        if: failure()
-        run: |
-          echo "::error::The disk image published for $GITHUB_REF_NAME failed its check. The release, its archives and checksums.txt are untouched. To withdraw the disk image: gh release delete-asset $GITHUB_REF_NAME <its file name> (docs/DESKTOP_RELEASE.md, 'If something goes wrong')."
 
-  desktop-appcast:
-    needs: desktop-verify
-    if: ${{ github.event_name == 'push' }}
+  linux-public-verify:
+    needs: stable-publish
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Download this architecture's public Linux packages and check their published hashes
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: scripts/verify-linux-desktop-release.sh "$GITHUB_REF_NAME" "$ARCH"
+
+  windows-public-verify:
+    needs: stable-publish
+    if: github.event_name == 'push'
+    runs-on: windows-2025
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Download public packages, verify signatures and install the app
+        shell: pwsh
+        run: scripts/verify-windows-desktop-release.ps1 -Tag $env:GITHUB_REF_NAME
+
+  desktop-feed-public-verify:
+    needs: stable-publish
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -301,26 +510,21 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: desktop-appcast
-          path: feed
-      - name: The feed, against the update archive that was published
+      - name: Verify the public Sparkle feed against the release archive and embedded key
         env:
-          WERKBORD_FEED_URL: none # the address apps use does not serve it yet
-        run: scripts/verify-appcast.sh "$GITHUB_REF_NAME" feed/appcast.xml
-      - name: Publish the feed
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh release upload "$GITHUB_REF_NAME" feed/appcast.xml --clobber
-      - name: The address installed apps use serves exactly it
+          WERKBORD_FEED_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/appcast.xml
         run: scripts/verify-appcast.sh "$GITHUB_REF_NAME"
-      - name: If the published feed is not good, withdraw it (it, and nothing else)
-        if: failure()
+
+  stable-latest:
+    needs: [macos-public-verify, linux-public-verify, windows-public-verify, desktop-feed-public-verify]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Mark this fully verified stable release as latest
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
         run: |
-          gh release delete-asset "$GITHUB_REF_NAME" appcast.xml -y || true
-          echo "::error::The feed for $GITHUB_REF_NAME did not check out and was withdrawn: installed apps are not offered this release. The release, its archives and the disk image are untouched (docs/DESKTOP_RELEASE.md, 'If something goes wrong')."
+          gh release edit "$GITHUB_REF_NAME" --latest --verify-tag
+          test "$(gh release view "$GITHUB_REF_NAME" --json isLatest --jq .isLatest)" = true

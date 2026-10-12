@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 type installTransaction struct {
@@ -153,6 +154,9 @@ func atomicFile(path string, b []byte, mode os.FileMode) error {
 	}
 	if err = os.Rename(f.Name(), path); err != nil {
 		return err
+	}
+	if runtime.GOOS == "windows" {
+		return nil
 	}
 	dir, err := os.Open(filepath.Dir(path))
 	if err != nil {

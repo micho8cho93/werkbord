@@ -1146,9 +1146,9 @@ Sparkle signatures and Apple release checks remain intact. There is no second re
 downloaded Team payload to authenticate: the older offline manifest (`werkbord-team/desktop-release/v1`, `TEAM_RELEASE_PUBLIC_KEY`,
 `TEAM_OFFLINE_MANIFEST`) existed only because Team was released separately and fetched, and is gone.
 
-Team's command-line archives (for a Workspace Host without the Mac app) are still signed OFFLINE with a release key that is not
-in CI, now against the one release tag: `make dist PRODUCT=werkbord-team` on the release workstation writes
-`checksums-team.txt` and `checksums-team.txt.sig`, which are attached to the release ([TEAM_INSTALL.md](TEAM_INSTALL.md)).
+No standalone Team Host archives are attached to the public unified desktop release. The offline
+`make dist PRODUCT=werkbord-team` tooling remains for source builds and controlled operator deployments
+([TEAM_INSTALL.md](TEAM_INSTALL.md)).
 
 #### Updates and removal
 
