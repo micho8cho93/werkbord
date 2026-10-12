@@ -1091,4 +1091,26 @@ export interface MCPProposal {
     state: string;
     expiresAt: string;
   };
+  plan?: MCPTaskPlan;
+  warnings?: TimelineWarning[];
+  validationError?: string;
+}
+
+/** Editable batch proposed by an external MCP client. */
+export interface MCPTaskPlan {
+  projectId: string;
+  idempotencyKey: string;
+  tasks: MCPTaskPlanChange[];
+}
+
+export interface MCPTaskPlanChange {
+  tempId?: string;
+  taskId?: string;
+  version?: number;
+  title?: string;
+  description?: string;
+  requirements?: string;
+  plan?: Plan;
+  dependencies?: string[];
+  sourceRef?: string;
 }

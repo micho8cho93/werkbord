@@ -149,6 +149,7 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("DELETE /api/mcp/grants/{id}", s.handleMCPGrantRevoke)
 		mux.HandleFunc("GET /api/mcp/proposals", s.handleMCPProposals)
 		mux.HandleFunc("POST /api/mcp/proposals/{grant}/{action}", s.handleMCPProposalResolve)
+		mux.HandleFunc("PUT /api/mcp/proposals/{grant}/{action}", s.handleMCPProposalEdit)
 	}
 	mux.HandleFunc("GET /api/update", s.handleUpdateStatus)
 	mux.HandleFunc("GET /api/github", s.handleGitHubStatus)

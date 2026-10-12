@@ -147,6 +147,7 @@ async function administrationView(tab) {
     case 'backups': return backupsView();
     case 'license': return licenseView();
     case 'settings': return settingsView();
+    case 'mcp': return mcpClientsView();
     case 'labels': return labelsView();
   }
 }

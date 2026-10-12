@@ -5,7 +5,9 @@ import (
 	"net/http"
 
 	"devboard/internal/appops"
+	"devboard/internal/domain"
 	"devboard/internal/mcpcontract"
+	"devboard/internal/mcpplan"
 )
 
 func (s *Server) mcpReady(w http.ResponseWriter) bool {
@@ -100,4 +102,38 @@ func (s *Server) handleMCPProposalResolve(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleMCPProposalEdit(w http.ResponseWriter, r *http.Request) {
+	if !s.mcpReady(w) {
+		return
+	}
+	var plan mcpplan.Plan
+	if err := decode(w, r, &plan); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	proposal, err := s.opt.MCP.ReplaceTaskPlan(r.Context(), r.PathValue("grant"), r.PathValue("action"), plan)
+	if err != nil {
+		var operationErr *appops.Error
+		if errors.As(err, &operationErr) {
+			status := http.StatusConflict
+			if operationErr.Code == appops.CodeNotFound {
+				status = http.StatusNotFound
+			} else if operationErr.Code == appops.CodeInvalidArguments {
+				status = http.StatusBadRequest
+			}
+			writeError(w, status, operationErr.Code, operationErr.Message)
+			return
+		}
+		status := http.StatusConflict
+		if errors.Is(err, domain.ErrNotFound) {
+			status = http.StatusNotFound
+		} else if errors.Is(err, domain.ErrInvalid) {
+			status = http.StatusBadRequest
+		}
+		writeError(w, status, "proposal_edit_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, proposal)
 }

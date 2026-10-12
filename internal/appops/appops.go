@@ -59,12 +59,13 @@ const (
 	PermQuestionsRead   Permission = "questions:read"
 	PermQuestionsAnswer Permission = "questions:answer"
 	PermConnectionsUse  Permission = "connections:use"
+	PermTaskPlan        Permission = "tasks:propose_plan"
 )
 
 // AllPermissions is every permission there is.
 var AllPermissions = []Permission{
 	PermProjectsRead, PermTicketsRead, PermTicketsCreate, PermTicketsUpdate, PermScheduleRead,
-	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse,
+	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse, PermTaskPlan,
 }
 
 // Principal is who is calling: one assistant session, or later one MCP client.
@@ -130,6 +131,7 @@ type plan struct {
 
 type operation struct {
 	Spec
+	MCPOnly     bool
 	validate    func(map[string]any) error
 	auditDetail func(map[string]any) string
 	// preauthorized permits an injected mutation to run immediately only when its owner explicitly granted allow.
@@ -307,6 +309,9 @@ func (s *Service) Catalog(p Principal) []Spec {
 func (s *Service) operationsFor(p Principal) map[string]*operation {
 	out := make(map[string]*operation, len(s.ops))
 	for name, op := range s.ops {
+		if op.MCPOnly && p.Via != "mcp" {
+			continue
+		}
 		out[name] = op
 	}
 	if !p.MCPConnections || s.injected == nil {
@@ -377,6 +382,13 @@ type ActionStatus struct {
 	ExpiresAt time.Time                   `json:"expiresAt"`
 }
 
+// ActionProposal is the editable preview delivered only to the human-facing
+// MCP management UI. MCP clients receive ActionStatus without argument payloads.
+type ActionProposal struct {
+	ActionStatus
+	Args json.RawMessage `json:"args"`
+}
+
 // ActionStatuses returns proposals owned by this exact principal and session.
 func (s *Service) ActionStatuses(ctx context.Context, p Principal) ([]ActionStatus, error) {
 	var actions []domain.AssistantAction
@@ -438,6 +450,67 @@ func (s *Service) ActionStatus(ctx context.Context, p Principal, actionID string
 	}
 	return &ActionStatus{ActionID: action.ID, Operation: action.Operation, Summary: action.Summary,
 		State: action.State, Outcome: action.Outcome, ExpiresAt: action.ExpiresAt}, nil
+}
+
+// ActionProposal returns the full pending arguments for the exact principal.
+func (s *Service) ActionProposal(ctx context.Context, p Principal, actionID string) (*ActionProposal, error) {
+	var action *domain.AssistantAction
+	err := s.st.View(ctx, func(tx store.Tx) (err error) {
+		action, err = tx.Assistant().GetAction(ctx, actionID)
+		return err
+	})
+	if err != nil || action.SessionID != p.SessionID || action.Principal != p.ID || action.State != domain.ActionPending {
+		return nil, errorf(CodeNotFound, "there is no pending proposal with that id")
+	}
+	return &ActionProposal{ActionStatus: ActionStatus{ActionID: action.ID, Operation: action.Operation, Summary: action.Summary,
+		State: action.State, Outcome: action.Outcome, ExpiresAt: action.ExpiresAt}, Args: append(json.RawMessage(nil), action.Args...)}, nil
+}
+
+// ReplaceProposal edits a still-pending proposal after running its normal
+// planner again. The action ID and expiry stay stable; approval remains one
+// compare-and-swap decision.
+func (s *Service) ReplaceProposal(ctx context.Context, p Principal, actionID string, raw json.RawMessage) (*ActionProposal, error) {
+	current, err := s.ActionProposal(ctx, p, actionID)
+	if err != nil {
+		return nil, err
+	}
+	op := s.operationsFor(p)[current.Operation]
+	if op == nil || op.Spec.Kind != KindMutation || op.plan == nil || !p.Can(op.Permission) {
+		return nil, errorf(CodeNotFound, "there is no editable proposal with that id")
+	}
+	args, _, err := decodeArgs(raw)
+	if err != nil {
+		return nil, newError(CodeInvalidArguments, err)
+	}
+	if err := validateOperation(op, args); err != nil {
+		return nil, newError(CodeInvalidArguments, err)
+	}
+	if projectID, ok := args["projectId"].(string); ok && !p.CanSee(projectID) {
+		return nil, errorf(CodeNotFound, "there is no such project")
+	}
+	planned, err := op.plan(ctx, &env{b: s.backend(p), p: p, now: s.time()}, args)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(planned.Args)
+	if err != nil || len(encoded) > maxArgsBytes {
+		return nil, errorf(CodeTooLarge, "the edited proposal is too large")
+	}
+	argsHash := domain.ArgsDigest(encoded)
+	var updated *ActionProposal
+	err = s.st.Update(ctx, func(tx store.Tx) error {
+		if err := tx.Assistant().ReplacePendingAction(ctx, actionID, p.SessionID, p.ID, domain.ArgsDigest(current.Args), encoded, argsHash, clip(planned.Summary, 1000)); err != nil {
+			return err
+		}
+		return tx.Assistant().AppendAudit(ctx, &domain.AssistantAuditEntry{SessionID: p.SessionID, ActionID: actionID, Actor: p.Actor,
+			Operation: current.Operation, Kind: domain.AuditMutation, Outcome: domain.AuditOutcomeProposed,
+			ArgsHash: argsHash, Detail: "edited pending task plan"})
+	})
+	if err != nil {
+		return nil, errorf(CodeAuditUnavailable, "the edited proposal could not be recorded")
+	}
+	updated, err = s.ActionProposal(ctx, p, actionID)
+	return updated, err
 }
 
 // Call performs an operation for a principal. A read returns its answer. A mutation returns a Proposal and changes

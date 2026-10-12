@@ -41,6 +41,7 @@ var teamAllowed = []string{
 	teamTree, // and below
 	module + "/internal/httpkit",
 	module + "/internal/mcpcontract",  // product-neutral MCP protocol framing and project/operation scope contract
+	module + "/internal/mcpplan",      // product-neutral batch plan requests and temporary task identifiers
 	module + "/internal/mcpbridge",    // product-neutral stdio client bridge; credentials and operations stay with each product
 	module + "/internal/integration",  // product-neutral versioned task/status DTOs and repository identity validation
 	module + "/internal/planning",     // label names and colours, work modes, planned dates and dependency analysis: pure functions, no storage, no workspace, no role

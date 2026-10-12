@@ -154,6 +154,7 @@ type Ticket struct {
 	Title        string       `json:"title"`
 	Description  string       `json:"description"`
 	Requirements string       `json:"requirements"`
+	SourceRef    string       `json:"sourceRef,omitempty"`
 	Status       TicketStatus `json:"status"`
 	AssigneeID   string       `json:"assigneeId,omitempty"` // the active owner, while the ticket is held
 	CreatorID    string       `json:"creatorId"`

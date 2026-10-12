@@ -19,6 +19,7 @@ const MCPTokenPrefix = "wbtm_"
 // separately revocable MCP client. Every call still passes through this service.
 var MCPOperations = []string{
 	"list_projects", "list_tickets", "get_ticket", "get_schedule", "create_ticket", "update_ticket",
+	"propose_task_plan", "list_pending_proposals", "get_proposal_status",
 }
 
 type CreatedMCPGrant struct {

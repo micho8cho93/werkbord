@@ -36,21 +36,27 @@ new requests immediately and keeps its pending proposal available for the person
 
 ## Team
 
-Team grants are separate from member and device credentials. A member can issue one through the authenticated Team API,
-selecting only projects they can see and the Team metadata operations they want to delegate:
+In the Team console, open **Settings → MCP clients** to issue or revoke a client credential. Select only projects you can
+see and the operations the agent needs. The authenticated Team API exposes the same grant controls:
 
 ```http
 POST /api/team/v1/mcp/grants
 Authorization: Bearer <member token>
 Content-Type: application/json
 
-{"name":"planning agent","projects":["<project id>"],"operations":["list_projects","list_tickets","get_ticket","get_schedule","create_ticket","update_ticket"]}
+{"name":"planning agent","projects":["<project id>"],"operations":["list_projects","list_tickets","get_ticket","get_schedule","propose_task_plan","list_pending_proposals","get_proposal_status"]}
 ```
 
 The response contains the new `wbtm_…` credential once. The member can list their grants with `GET /api/team/v1/mcp/grants`
 and revoke one with `DELETE /api/team/v1/mcp/grants/<grant id>`. A grant cannot add to the member's role or project
-membership: Team rechecks both on every request. The Team MCP service only reads and updates stored project and task
-metadata; Team still coordinates and never executes the work.
+membership: Team rechecks both on every request. A grant that includes `create_ticket` or `update_ticket` can make those
+single-task changes directly. `propose_task_plan` submits one project's new or version-checked task batch for review; it
+does not apply the plan. Open **Plans** in the Team console to edit the task list, inspect timeline warnings, and approve
+or decline it. Approval rechecks current permissions, task versions, source references, and dependencies, then applies
+the batch in one transaction. Temporary IDs (`tmp_…`) let new tasks depend on each other. Reuse an idempotency key only
+when retrying the same request. The client can list and check only its own proposals; a person makes the decision.
+
+Team stores board metadata and never executes the work.
 
 The Team endpoint is the workspace host address followed by `/mcp`. A stdio host can use the Team bridge:
 

@@ -56,6 +56,7 @@ type Tx interface {
 	InviteQueries
 	DeviceQueries
 	MCPGrantQueries
+	MCPTaskPlanQueries
 	NetworkQueries
 	MessageQueries
 }
@@ -263,6 +264,15 @@ type MCPGrantQueries interface {
 	MCPGrant(ctx context.Context, workspaceID, memberID, id string) (domain.MCPGrant, error)
 	MCPGrants(ctx context.Context, workspaceID, memberID string) ([]domain.MCPGrant, error)
 	RevokeMCPGrant(ctx context.Context, workspaceID, memberID, id string, at time.Time) (bool, error)
+}
+
+// MCPTaskPlanQueries stores editable proposals and their idempotent decisions.
+type MCPTaskPlanQueries interface {
+	InsertMCPTaskPlan(ctx context.Context, proposal domain.MCPTaskPlanProposal) error
+	MCPTaskPlan(ctx context.Context, workspaceID, id string) (domain.MCPTaskPlanProposal, error)
+	MCPTaskPlanByKey(ctx context.Context, workspaceID, grantID, projectID, idempotencyKey string) (domain.MCPTaskPlanProposal, error)
+	MCPTaskPlans(ctx context.Context, workspaceID, grantID string, pendingOnly bool) ([]domain.MCPTaskPlanProposal, error)
+	SaveMCPTaskPlan(ctx context.Context, proposal domain.MCPTaskPlanProposal, pendingOnly bool) error
 }
 
 // MessageQueries are the mailbox of signed requests between a person's own devices. The workspace stores and

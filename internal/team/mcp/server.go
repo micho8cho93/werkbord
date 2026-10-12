@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"devboard/internal/mcpcontract"
+	"devboard/internal/mcpplan"
 	"devboard/internal/planning"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/service"
@@ -45,12 +46,15 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) operationsFor(principal mcpcontract.Principal) []mcpcontract.Operation {
 	definitions := map[string]mcpcontract.Operation{
-		"list_projects": {Name: "list_projects", Title: "List projects", Description: "List the projects this client can see.", Kind: "read", InputSchema: raw(`{"type":"object","additionalProperties":false}`)},
-		"list_tickets":  {Name: "list_tickets", Title: "List tasks", Description: "List active tasks on one project board.", Kind: "read", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128}},"required":["projectId"],"additionalProperties":false}`)},
-		"get_ticket":    {Name: "get_ticket", Title: "Get a task", Description: "Read one task, including its plan and dependencies.", Kind: "read", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128},"ticketId":{"type":"string","maxLength":128}},"required":["projectId","ticketId"],"additionalProperties":false}`)},
-		"get_schedule":  {Name: "get_schedule", Title: "Read the timeline", Description: "Read planned tasks and conflicts in a project's timeline.", Kind: "read", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128}},"required":["projectId"],"additionalProperties":false}`)},
-		"create_ticket": {Name: "create_ticket", Title: "Create a task", Description: "Create a task on this project. This does not start work on it.", Kind: "mutation", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":20000},"requirements":{"type":"string","maxLength":20000},"workMode":{"type":"string","enum":["human","agent","hybrid"]},"labelIds":{"type":"array","items":{"type":"string"},"maxItems":20},"plan":{"type":"object","properties":{"start":{"type":"string","format":"date"},"end":{"type":"string","format":"date"},"milestone":{"type":"boolean"}},"additionalProperties":false},"dependencies":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["projectId","title"],"additionalProperties":false}`)},
-		"update_ticket": {Name: "update_ticket", Title: "Update a task", Description: "Edit task details, planned dates or dependencies using the version last read. This does not start work.", Kind: "mutation", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128},"ticketId":{"type":"string","maxLength":128},"version":{"type":"integer","minimum":1},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":20000},"requirements":{"type":"string","maxLength":20000},"workMode":{"type":"string","enum":["human","agent","hybrid"]},"labelIds":{"type":"array","items":{"type":"string"},"maxItems":20},"plan":{"type":"object","properties":{"start":{"type":"string","format":"date"},"end":{"type":"string","format":"date"},"milestone":{"type":"boolean"}},"additionalProperties":false},"dependencies":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["projectId","ticketId","version"],"additionalProperties":false}`)},
+		"list_projects":          {Name: "list_projects", Title: "List projects", Description: "List the projects this client can see.", Kind: "read", InputSchema: raw(`{"type":"object","additionalProperties":false}`)},
+		"list_tickets":           {Name: "list_tickets", Title: "List tasks", Description: "List active tasks on one project board.", Kind: "read", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128}},"required":["projectId"],"additionalProperties":false}`)},
+		"get_ticket":             {Name: "get_ticket", Title: "Get a task", Description: "Read one task, including its plan and dependencies.", Kind: "read", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128},"ticketId":{"type":"string","maxLength":128}},"required":["projectId","ticketId"],"additionalProperties":false}`)},
+		"get_schedule":           {Name: "get_schedule", Title: "Read the timeline", Description: "Read planned tasks and conflicts in a project's timeline.", Kind: "read", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128}},"required":["projectId"],"additionalProperties":false}`)},
+		"create_ticket":          {Name: "create_ticket", Title: "Create a task", Description: "Create a task on this project. This does not start work on it.", Kind: "mutation", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":20000},"requirements":{"type":"string","maxLength":20000},"workMode":{"type":"string","enum":["human","agent","hybrid"]},"labelIds":{"type":"array","items":{"type":"string"},"maxItems":20},"plan":{"type":"object","properties":{"start":{"type":"string","format":"date"},"end":{"type":"string","format":"date"},"milestone":{"type":"boolean"}},"additionalProperties":false},"dependencies":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["projectId","title"],"additionalProperties":false}`)},
+		"update_ticket":          {Name: "update_ticket", Title: "Update a task", Description: "Edit task details, planned dates or dependencies using the version last read. This does not start work.", Kind: "mutation", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128},"ticketId":{"type":"string","maxLength":128},"version":{"type":"integer","minimum":1},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":20000},"requirements":{"type":"string","maxLength":20000},"workMode":{"type":"string","enum":["human","agent","hybrid"]},"labelIds":{"type":"array","items":{"type":"string"},"maxItems":20},"plan":{"type":"object","properties":{"start":{"type":"string","format":"date"},"end":{"type":"string","format":"date"},"milestone":{"type":"boolean"}},"additionalProperties":false},"dependencies":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["projectId","ticketId","version"],"additionalProperties":false}`)},
+		"propose_task_plan":      {Name: "propose_task_plan", Title: "Propose a task plan", Description: "Submit one project's task batch for an editable human review in Werkbord. This never applies the tasks or approves its own proposal.", Kind: "mutation", InputSchema: raw(`{"type":"object","properties":{"projectId":{"type":"string","maxLength":128},"idempotencyKey":{"type":"string","maxLength":128},"tasks":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","properties":{"tempId":{"type":"string","maxLength":128},"taskId":{"type":"string","maxLength":128},"version":{"type":"integer","minimum":1},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":20000},"requirements":{"type":"string","maxLength":20000},"plan":{"type":"object","properties":{"start":{"type":"string","format":"date"},"end":{"type":"string","format":"date"},"milestone":{"type":"boolean"}},"additionalProperties":false},"dependencies":{"type":"array","items":{"type":"string","maxLength":128},"maxItems":100},"sourceRef":{"type":"string","maxLength":2000}},"additionalProperties":false}}},"required":["projectId","idempotencyKey","tasks"],"additionalProperties":false}`)},
+		"list_pending_proposals": {Name: "list_pending_proposals", Title: "List pending proposals", Description: "List this MCP client's task plans waiting for a human decision.", Kind: "read", InputSchema: raw(`{"type":"object","additionalProperties":false}`)},
+		"get_proposal_status":    {Name: "get_proposal_status", Title: "Get proposal status", Description: "Check the status and result of a task plan submitted by this MCP client.", Kind: "read", InputSchema: raw(`{"type":"object","properties":{"proposalId":{"type":"string","maxLength":128}},"required":["proposalId"],"additionalProperties":false}`)},
 	}
 	out := make([]mcpcontract.Operation, 0, len(service.MCPOperations))
 	for _, name := range service.MCPOperations {
@@ -114,6 +118,30 @@ func (s *Server) call(ctx context.Context, principal mcpcontract.Principal, name
 			return nil, fmt.Errorf("%w: project was not found in this client's grant", domain.ErrNotFound)
 		}
 		return s.service.GetTicket(ctx, actor, args.ProjectID, args.TicketID)
+	case "propose_task_plan":
+		var plan mcpplan.Plan
+		if err := decode(raw, &plan); err != nil || !principal.CanSee(plan.ProjectID) {
+			return nil, fmt.Errorf("%w: project was not found in this client's grant", domain.ErrNotFound)
+		}
+		return s.service.ProposeMCPTaskPlan(ctx, actor, plan)
+	case "list_pending_proposals":
+		var args struct{}
+		if err := decode(raw, &args); err != nil {
+			return nil, err
+		}
+		proposals, err := s.service.ListMCPTaskPlans(ctx, actor)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"proposals": proposals}, nil
+	case "get_proposal_status":
+		var args struct {
+			ProposalID string `json:"proposalId"`
+		}
+		if err := decode(raw, &args); err != nil || args.ProposalID == "" {
+			return nil, fmt.Errorf("%w: proposalId is required", domain.ErrInvalid)
+		}
+		return s.service.MCPTaskPlanStatus(ctx, actor, args.ProposalID)
 	case "create_ticket":
 		var args struct {
 			ProjectID    string                 `json:"projectId"`

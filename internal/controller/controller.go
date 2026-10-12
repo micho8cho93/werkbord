@@ -241,7 +241,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Log:           c.log,
 		Version:       c.version,
 		Connections:   c.connections,
-		MCP:           mcpaccess.New(mcpGrants, c.appOps, projects),
+		MCP:           mcpaccess.New(mcpGrants, c.appOps, projects, tasks),
 		MCPManagement: true,
 		Web:           webui.Handler(),
 		AuthRequired:  c.cfg.AuthRequired(),

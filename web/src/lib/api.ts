@@ -45,6 +45,7 @@ import type {
   MCPBoardOperation,
   MCPClientGrant,
   MCPProposal,
+  MCPTaskPlan,
 } from './types';
 import { normalizeRunner, normalizeRunners } from './runners';
 import { startRefusal } from './scheduling';
@@ -213,6 +214,8 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
     request<{grant:MCPClientGrant; token:string}>('POST', '/api/mcp/grants', grant),
   revokeMCPClientGrant: (id:string) => requestNoContent('DELETE', `/api/mcp/grants/${enc(id)}`),
   mcpProposals: () => request<{proposals:MCPProposal[]}>('GET', '/api/mcp/proposals').then(r=>r.proposals),
+  replaceMCPTaskPlan: (grantId:string, actionId:string, plan:MCPTaskPlan) =>
+    request<MCPProposal>('PUT', `/api/mcp/proposals/${enc(grantId)}/${enc(actionId)}`, plan),
   resolveMCPProposal: (grantId:string, actionId:string, approve:boolean) =>
     request('POST', `/api/mcp/proposals/${enc(grantId)}/${enc(actionId)}`, {approve}),
   saveMCPConnection: (connection: Partial<MCPConnection> & {name:string; transport:MCPConnection['transport']; bearerToken?:string}) =>

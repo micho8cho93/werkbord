@@ -72,7 +72,13 @@ func newApplicationOperations(db store.Store, log *slog.Logger, svc assistantSer
 // assistant, only the looking.
 func assistantGrants(a config.AssistantConfig) []appops.Permission {
 	if !a.ReadOnly {
-		return appops.AllPermissions
+		grants := make([]appops.Permission, 0, len(appops.AllPermissions)-1)
+		for _, permission := range appops.AllPermissions {
+			if permission != appops.PermTaskPlan {
+				grants = append(grants, permission)
+			}
+		}
+		return grants
 	}
 	return []appops.Permission{appops.PermProjectsRead, appops.PermTicketsRead, appops.PermScheduleRead, appops.PermRunsRead, appops.PermQuestionsRead}
 }

@@ -16,6 +16,8 @@ import (
 	"devboard/internal/domain"
 	"devboard/internal/mcpcontract"
 	"devboard/internal/mcpgrant"
+	"devboard/internal/mcpplan"
+	"devboard/internal/planning"
 	"devboard/internal/service"
 )
 
@@ -23,10 +25,15 @@ type Server struct {
 	grants   *mcpgrant.Store
 	ops      *appops.Service
 	projects *service.Projects
+	tasks    *service.Tasks
 }
 
-func New(grants *mcpgrant.Store, ops *appops.Service, projects *service.Projects) *Server {
-	return &Server{grants: grants, ops: ops, projects: projects}
+func New(grants *mcpgrant.Store, ops *appops.Service, projects *service.Projects, tasks ...*service.Tasks) *Server {
+	s := &Server{grants: grants, ops: ops, projects: projects}
+	if len(tasks) > 0 {
+		s.tasks = tasks[0]
+	}
+	return s
 }
 
 func (s *Server) Handler() http.Handler {
@@ -81,9 +88,12 @@ func (s *Server) Resolve(ctx context.Context, grantID, actionID string, approve 
 }
 
 type PendingProposal struct {
-	GrantID  string              `json:"grantId"`
-	Client   string              `json:"client"`
-	Proposal appops.ActionStatus `json:"proposal"`
+	GrantID         string              `json:"grantId"`
+	Client          string              `json:"client"`
+	Proposal        appops.ActionStatus `json:"proposal"`
+	Plan            *mcpplan.Plan       `json:"plan,omitempty"`
+	Warnings        []planning.Warning  `json:"warnings,omitempty"`
+	ValidationError string              `json:"validationError,omitempty"`
 }
 
 func (s *Server) Pending(ctx context.Context) ([]PendingProposal, error) {
@@ -95,11 +105,74 @@ func (s *Server) Pending(ctx context.Context) ([]PendingProposal, error) {
 		}
 		for _, status := range statuses {
 			if status.State == domain.ActionPending {
-				out = append(out, PendingProposal{GrantID: grant.ID, Client: grant.Name, Proposal: status})
+				item := PendingProposal{GrantID: grant.ID, Client: grant.Name, Proposal: status}
+				if status.Operation == "propose_task_plan" {
+					detail, err := s.ops.ActionProposal(ctx, s.appPrincipal(grant.Principal), status.ActionID)
+					if err != nil {
+						return nil, err
+					}
+					var plan mcpplan.Plan
+					if err := json.Unmarshal(detail.Args, &plan); err != nil {
+						item.ValidationError = "The saved task plan could not be read. Decline it and ask the client to send it again."
+					} else {
+						item.Plan = &plan
+						if s.tasks != nil {
+							preview, err := s.tasks.PreviewMCPTaskPlan(ctx, plan)
+							if err != nil {
+								item.ValidationError = err.Error()
+							} else {
+								item.Warnings = preview.Warnings
+							}
+						}
+					}
+				}
+				out = append(out, item)
 			}
 		}
 	}
 	return out, nil
+}
+
+// ReplaceTaskPlan edits a pending MCP batch while keeping its proposal ID and
+// original idempotency key. The plan remains scoped to its original project.
+func (s *Server) ReplaceTaskPlan(ctx context.Context, grantID, actionID string, input mcpplan.Plan) (PendingProposal, error) {
+	grant, ok := s.grant(grantID)
+	if !ok {
+		return PendingProposal{}, domain.ErrNotFound
+	}
+	p := s.appPrincipal(grant.Principal)
+	current, err := s.ops.ActionProposal(ctx, p, actionID)
+	if err != nil || current.Operation != "propose_task_plan" {
+		return PendingProposal{}, domain.ErrNotFound
+	}
+	var original mcpplan.Plan
+	if err := json.Unmarshal(current.Args, &original); err != nil {
+		return PendingProposal{}, err
+	}
+	input, err = mcpplan.Clean(input)
+	if err != nil {
+		return PendingProposal{}, err
+	}
+	if input.ProjectID != original.ProjectID || input.IdempotencyKey != original.IdempotencyKey {
+		return PendingProposal{}, fmt.Errorf("%w: the project and idempotency key cannot change while editing a proposal", domain.ErrInvalid)
+	}
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		return PendingProposal{}, err
+	}
+	if _, err := s.ops.ReplaceProposal(ctx, p, actionID, encoded); err != nil {
+		return PendingProposal{}, err
+	}
+	items, err := s.Pending(ctx)
+	if err != nil {
+		return PendingProposal{}, err
+	}
+	for _, item := range items {
+		if item.GrantID == grantID && item.Proposal.ActionID == actionID {
+			return item, nil
+		}
+	}
+	return PendingProposal{}, domain.ErrNotFound
 }
 
 func (s *Server) grant(id string) (mcpgrant.Grant, bool) {
@@ -204,6 +277,9 @@ func (s *Server) appPrincipal(grant mcpcontract.Principal) appops.Principal {
 		if grant.Allows(spec.Name) {
 			permissions[spec.Permission] = true
 		}
+	}
+	if grant.Allows("propose_task_plan") {
+		permissions[appops.PermTaskPlan] = true
 	}
 	grants := make([]appops.Permission, 0, len(permissions))
 	for permission := range permissions {

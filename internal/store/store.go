@@ -232,6 +232,9 @@ type AssistantRepo interface {
 
 	CreateAction(ctx context.Context, a *domain.AssistantAction) error
 	GetAction(ctx context.Context, id string) (*domain.AssistantAction, error)
+	// ReplacePendingAction edits the preview of one still-pending proposal for the exact principal.
+	// The expected digest is compare-and-swap, so concurrent edits cannot silently replace one another.
+	ReplacePendingAction(ctx context.Context, id, sessionID, principal, expectedHash string, args []byte, argsHash, summary string) error
 	// TransitionAction moves an action from one state to another and records the outcome, only if it is still in
 	// from. Otherwise it returns domain.ErrConflict, which is what stops two confirmations of one action from both
 	// carrying it out. The caller says which moves are allowed (appops); the repository only guarantees the swap.

@@ -50,7 +50,7 @@ func TestTeamLinksNeitherTheAssistantNorItsOperations(t *testing.T) {
 func TestTheOperationsReachTheBoardOnlyThroughTheServices(t *testing.T) {
 	allowed := map[string][]string{
 		// The operations: the domain services and the vocabulary they speak; the store only for the assistant's own records.
-		appopsPkg: {module + "/internal/domain", module + "/internal/planning", module + "/internal/service", module + "/internal/store"},
+		appopsPkg: {module + "/internal/domain", module + "/internal/mcpplan", module + "/internal/planning", module + "/internal/service", module + "/internal/store"},
 		// The engine: the operations, the providers, the vocabulary and the assistant's own records. Never a service, a runner,
 		// Git, an agent adapter or the HTTP layer.
 		assistantPkg: {appopsPkg, providerTree, module + "/internal/domain", module + "/internal/store"},
@@ -169,7 +169,7 @@ func TestTheAssistantOffersNoRouteToRunsGitOrSettings(t *testing.T) {
 		}
 	}
 	sort.Strings(perms)
-	want := "connections:use,projects:read,questions:answer,questions:read,runs:read,schedule:read,tickets:create,tickets:read,tickets:update"
+	want := "connections:use,projects:read,questions:answer,questions:read,runs:read,schedule:read,tasks:propose_plan,tickets:create,tickets:read,tickets:update"
 	if got := strings.Join(perms, ","); got != want {
 		t.Fatalf("the assistant's permissions are %s, reviewed as %s. Adding one is a decision about what a model may do; update this test and docs/ASSISTANT.md in the same change, and say why.", got, want)
 	}

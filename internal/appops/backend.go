@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"devboard/internal/domain"
+	"devboard/internal/mcpplan"
 	"devboard/internal/service"
 )
 
@@ -28,6 +29,13 @@ type Backend interface {
 	// AnswerQuestion records the answer and hands it to the agent through the runner the run is on, the same way
 	// answering in the app does.
 	AnswerQuestion(ctx context.Context, questionID, answer string) (*domain.Question, error)
+}
+
+// TaskPlanBackend is the Individual batch-plan service boundary, available
+// only to the MCP-only appops operation.
+type TaskPlanBackend interface {
+	PreviewMCPTaskPlan(context.Context, mcpplan.Plan) (mcpplan.Preview, error)
+	ApplyMCPTaskPlan(context.Context, string, mcpplan.Plan) (mcpplan.Applied, error)
 }
 
 // Services is the set of domain services a Backend is made of.
@@ -106,4 +114,18 @@ func (b servicesBackend) AnswerQuestion(ctx context.Context, questionID, answer 
 		return nil, errorf(CodeUnavailable, "agent execution is not enabled, so a question cannot be answered")
 	}
 	return b.s.Answer(ctx, questionID, answer)
+}
+
+func (b servicesBackend) PreviewMCPTaskPlan(ctx context.Context, plan mcpplan.Plan) (mcpplan.Preview, error) {
+	if b.s.Tasks == nil {
+		return mcpplan.Preview{}, errorf(CodeUnavailable, "task planning is not available")
+	}
+	return b.s.Tasks.PreviewMCPTaskPlan(ctx, plan)
+}
+
+func (b servicesBackend) ApplyMCPTaskPlan(ctx context.Context, principal string, plan mcpplan.Plan) (mcpplan.Applied, error) {
+	if b.s.Tasks == nil {
+		return mcpplan.Applied{}, errorf(CodeUnavailable, "task planning is not available")
+	}
+	return b.s.Tasks.ApplyMCPTaskPlan(ctx, principal, plan)
 }

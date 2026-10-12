@@ -16,6 +16,7 @@ import (
 
 	"devboard/internal/domain"
 	"devboard/internal/events"
+	"devboard/internal/mcpplan"
 	"devboard/internal/service"
 	"devboard/internal/store"
 	"devboard/internal/store/sqlite"
@@ -264,6 +265,58 @@ func TestProposalStatusIsLimitedToTheCreatingPrincipal(t *testing.T) {
 	if _, err := f.svc.ActionStatus(bg, other, proposed.Pending.ActionID); CodeOf(err) != CodeNotFound {
 		t.Fatalf("another principal read the proposal: %v", err)
 	}
+}
+
+func TestMCPTaskPlanIsMCPOnlyEditableAndHumanApproved(t *testing.T) {
+	f := newFx(t)
+	project := f.project("Plan review")
+	p := Principal{ID: "mcp:grant-plan", Actor: "mcp:planner", Via: "mcp", SessionID: "mcp_session_plan", Grants: []Permission{PermTaskPlan}, Projects: []string{project.ID}}
+	if err := f.svc.EnsureMCPPrincipal(bg, p); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.svc.operationsFor(Principal{Grants: []Permission{PermTaskPlan}, Via: "assistant"})["propose_task_plan"]; ok {
+		t.Fatal("the conversational assistant received the inbound MCP-only operation")
+	}
+	args := mcpplan.Plan{ProjectID: project.ID, IdempotencyKey: "plan-request", Tasks: []mcpplan.Change{{TempID: "tmp_launch", Title: ptr("Prepare launch")}}}
+	raw, _ := json.Marshal(args)
+	result, err := f.svc.Call(bg, p, "propose_task_plan", raw)
+	if err != nil || result.Pending == nil {
+		t.Fatalf("MCP plan was not proposed: result=%+v err=%v", result, err)
+	}
+	if tasks := f.tasksList(project.ID); len(tasks) != 0 {
+		t.Fatalf("proposal changed the board before approval: %+v", tasks)
+	}
+	detail, err := f.svc.ActionProposal(bg, p, result.Pending.ActionID)
+	if err != nil || detail.Operation != "propose_task_plan" {
+		t.Fatalf("editable proposal = %+v, %v", detail, err)
+	}
+	var edited mcpplan.Plan
+	if err := json.Unmarshal(detail.Args, &edited); err != nil {
+		t.Fatal(err)
+	}
+	newTitle := "Prepare the product launch"
+	edited.Tasks[0].Title = &newTitle
+	updatedRaw, _ := json.Marshal(edited)
+	updated, err := f.svc.ReplaceProposal(bg, p, result.Pending.ActionID, updatedRaw)
+	if err != nil || updated.Summary == "" {
+		t.Fatalf("edit did not replace pending preview: proposal=%+v err=%v", updated, err)
+	}
+	if _, err := f.svc.Resolve(bg, Decision{SessionID: p.SessionID, ActionID: result.Pending.ActionID, Approve: true, By: "owner", Executor: p}); err != nil {
+		t.Fatal(err)
+	}
+	tasks := f.tasksList(project.ID)
+	if len(tasks) != 1 || tasks[0].Title != newTitle {
+		t.Fatalf("approved edited plan = %+v", tasks)
+	}
+}
+
+func (f *fx) tasksList(projectID string) []domain.Task {
+	f.t.Helper()
+	tasks, err := f.tasks.List(bg, projectID)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return tasks
 }
 
 // ---- reads ----

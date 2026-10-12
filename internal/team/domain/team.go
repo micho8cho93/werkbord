@@ -22,6 +22,7 @@ const (
 	// PrefixEnrollment marks a request to join the workspace.
 	PrefixEnrollment = "tenr"
 	PrefixMCPGrant   = "tmc"
+	PrefixMCPPlan    = "tpp"
 )
 
 var idEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)

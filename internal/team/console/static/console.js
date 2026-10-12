@@ -31,8 +31,8 @@ const KEY = (name) => 'werkbord-team-' + name + (BASE ? ':' + SLOT : '');
 // person's own Werkbord ("Open in Individual") is ever sent back to the shell.
 const FRAMED = window.parent !== window;
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['timeline', 'Timeline'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['members', 'Members']];
-const ADMIN_TABS = [['settings', 'This computer'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['members', 'Members']];
+const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
 const PROJECT_TABS = new Set(['board', 'timeline', 'repository', 'activity', 'people']);
 
 const state = {
@@ -60,7 +60,7 @@ try {
   state.token = sessionStorage.getItem(KEY('token'));
   state.projectId = sessionStorage.getItem(KEY('project'));
   const t = sessionStorage.getItem(KEY('tab'));
-  if (t && (TABS.some((x) => x[0] === t) || t === 'people')) state.tab = t;
+  if (t && (TABS.some((x) => x[0] === t) || ADMIN_TABS.some((x) => x[0] === t) || t === 'people')) state.tab = t;
 } catch (_) { /* storage can be unavailable; the sign-in form still works for the session */ }
 
 function remember() {
@@ -100,6 +100,7 @@ function icon(name) {
     projects: 'M1.5 4V2.5h5l1.5 2h6.5v9H1.5z',
     board: 'M2 2h12v12H2z M6 2v12 M10 2v12',
     timeline: 'M2 3h6v2.5H2z M5 6.8h9v2.5H5z M3 10.6h6v2.5H3z',
+    plans: 'M3 3h10 M3 8h10 M3 13h10 M1 3h.01 M1 8h.01 M1 13h.01',
     mywork: 'M5 3H2v11h12V3h-3 M5 2h6v3H5z M5 9l2 2 4-4',
     reviews: 'M3 2h10v12H3z M5 8l2 2 4-4',
     repository: 'M5 2v7a3 3 0 0 0 6 0V7 M3 2a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M9 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M3 13a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M5 9v2',
@@ -412,7 +413,8 @@ async function renderNow() {
       case 'mywork': body = await myWorkView(); break;
       case 'reviews': body = await reviewsView(); break;
       case 'members': body = await membersView(); break;
-      case 'devices': case 'hosts': case 'connectivity': case 'backups': case 'license': case 'settings': case 'labels': body = await administrationView(state.tab); break;
+      case 'plans': body = await mcpPlansView(); break;
+      case 'devices': case 'hosts': case 'connectivity': case 'backups': case 'license': case 'settings': case 'mcp': case 'labels': body = await administrationView(state.tab); break;
       default: body = await projectScopedView();
     }
   } catch (e) {
@@ -428,6 +430,7 @@ async function renderNow() {
   const ov = state.ov;
   const counts = {
     board: sum(ov.projects, (p) => p.counts.available || 0),
+    plans: 0,
     mywork: sum(ov.projects, (p) => p.mine),
     reviews: sum(ov.projects, (p) => p.toReview),
     repository: sum(ov.projects, (p) => p.problems),
@@ -836,6 +839,109 @@ function workItem(it, extra) {
             h('button', { class: 'plain small', onclick: () => openTicket(it.project.id, k.id) }, 'Open ticket'));
         })()
       : '');
+}
+
+// ---- MCP batch proposals and client grants ----
+
+const teamMCPPlanDrafts = new Map();
+let teamMCPIssuedToken = '';
+let teamMCPPlanCounter = 0;
+
+function discardMCPPlanDraft(id) {
+  teamMCPPlanDrafts.delete(id);
+  for (const keep of drafts.values()) for (const name of Object.keys(keep.fields)) if (name.includes(id)) delete keep.fields[name];
+  for (const el of app.querySelectorAll('[name]')) if (el.name.includes(id)) delete el.dataset.dirty;
+}
+
+function addTeamMCPPlanTask(id) {
+  const plan = teamMCPPlanDrafts.get(id);
+  if (!plan || plan.tasks.length >= 50) return;
+  plan.tasks.push({ tempId: 'tmp_review_' + Date.now() + '_' + teamMCPPlanCounter++, title: 'New task', description: '', dependencies: [] });
+  render();
+}
+
+function removeTeamMCPPlanTask(id, taskKey) {
+  const plan = teamMCPPlanDrafts.get(id);
+  if (!plan) return;
+  plan.tasks = plan.tasks.filter(task => (task.tempId || task.taskId) !== taskKey);
+  render();
+}
+
+async function mcpPlansView() {
+  const { proposals = [] } = await api('GET', '/mcp/proposals');
+  return h('div', {},
+    h('section', { class: 'panel' }, h('h2', {}, 'External task plans'),
+      h('p', { class: 'muted' }, 'Review one project batch at a time. Saving replaces the pending proposal; approval checks current permissions, task versions and dependencies before applying all changes together.'),
+      h('button', { class: 'plain small', onclick: () => render() }, 'Refresh'),
+      proposals.length ? proposals.map(mcpPlanProposalView) : h('p', { class: 'muted' }, 'No external task plans are waiting for a decision.')));
+}
+
+function mcpPlanProposalView(proposal) {
+  const draft = teamMCPPlanDrafts.get(proposal.id) || structuredClone(proposal.plan);
+  teamMCPPlanDrafts.set(proposal.id, draft);
+  const title = state.ov.projects.find(p => p.project.id === proposal.projectId)?.project.name || proposal.projectId;
+  const unsaved = JSON.stringify(draft) !== JSON.stringify(proposal.plan);
+  const items = draft.tasks.map((task, index) => {
+    const taskKey = task.tempId || task.taskId;
+    const edit = patch => { draft.tasks[index] = { ...draft.tasks[index], ...patch }; };
+    const changeDate = (fieldName, value) => { edit({ plan: { ...(task.plan || {}), [fieldName]: value } }); };
+    const dependencies = h('input', { name: 'mcp-deps-' + proposal.id + '-' + taskKey, value: (task.dependencies || []).join(', '), oninput: e => edit({ dependencies: [...new Set(e.currentTarget.value.split(/[\s,]+/).map(x => x.trim()).filter(Boolean))] }) });
+    return h('fieldset', { class: 'mcp-plan-task' },
+      h('legend', {}, task.tempId ? 'New task · ' + task.tempId : 'Update task · ' + task.taskId + ' · v' + task.version),
+      field('Title', h('input', { name: 'mcp-title-' + proposal.id + '-' + taskKey, value: task.title || '', maxlength: 200, oninput: e => edit({ title: e.currentTarget.value }) })),
+      field('Description', h('textarea', { name: 'mcp-description-' + proposal.id + '-' + taskKey, rows: 3, maxlength: 20000, oninput: e => edit({ description: e.currentTarget.value }) }, task.description || '')),
+      h('div', { class: 'inline mcp-plan-dates' },
+        field('Start', h('input', { type: 'date', name: 'mcp-start-' + proposal.id + '-' + taskKey, value: task.plan?.start || '', oninput: e => changeDate('start', e.currentTarget.value) })),
+        field('End', h('input', { type: 'date', name: 'mcp-end-' + proposal.id + '-' + taskKey, value: task.plan?.end || '', oninput: e => changeDate('end', e.currentTarget.value) })),
+        field('Milestone', h('input', { type: 'checkbox', name: 'mcp-milestone-' + proposal.id + '-' + taskKey, checked: !!task.plan?.milestone, onchange: e => changeDate('milestone', e.currentTarget.checked) }))),
+      field('Dependencies · task IDs or temporary IDs, separated by commas', dependencies),
+      field('Source reference', h('input', { name: 'mcp-source-' + proposal.id + '-' + taskKey, value: task.sourceRef || '', maxlength: 2000, oninput: e => edit({ sourceRef: e.currentTarget.value }) })),
+      field('Requirements', h('textarea', { name: 'mcp-requirements-' + proposal.id + '-' + taskKey, rows: 2, maxlength: 20000, oninput: e => edit({ requirements: e.currentTarget.value }) }, task.requirements || '')),
+      h('button', { type: 'button', class: 'plain small', onclick: () => removeTeamMCPPlanTask(proposal.id, taskKey) }, 'Remove task'));
+  });
+  const warnings = proposal.warnings?.length ? h('ul', { class: 'mcp-plan-warnings' }, proposal.warnings.map(w => h('li', { class: 'severity-' + w.severity }, h('strong', {}, w.severity), ' · ', w.message))) : '';
+  return h('article', { class: 'panel mcp-plan-proposal' },
+    h('div', { class: 'row' }, h('div', { class: 'grow' }, h('h3', {}, proposal.client || 'External client'), h('p', { class: 'muted' }, title + ' · ' + draft.tasks.length + ' proposed changes · ' + proposal.id)), h('span', { class: 'badge warn' }, 'Pending')),
+    proposal.validationError ? h('p', { class: 'advice', role: 'alert' }, proposal.validationError) : '', warnings,
+    h('div', { class: 'mcp-plan-task-list' }, items),
+    h('button', { class: 'plain small', disabled: draft.tasks.length >= 50, onclick: () => addTeamMCPPlanTask(proposal.id) }, 'Add task'),
+    unsaved ? h('p', { class: 'muted small' }, 'Save your edits before approving.') : '',
+    h('div', { class: 'actions' },
+      h('button', { class: 'plain', onclick: () => act(async () => { await api('PUT', '/mcp/proposals/' + proposal.id, draft); discardMCPPlanDraft(proposal.id); state.info = 'Plan saved and checked again.'; }) }, 'Save edited plan'),
+      h('button', { class: 'primary', disabled: !!proposal.validationError || unsaved || !draft.tasks.length, onclick: () => act(async () => { const result = await api('POST', '/mcp/proposals/' + proposal.id + '/approve'); discardMCPPlanDraft(proposal.id); state.info = plural(result.result?.created?.length || 0, 'task') + ' created and ' + plural(result.result?.updated?.length || 0, 'task') + ' updated.'; }) }, 'Approve plan'),
+      h('button', { class: 'danger', onclick: () => confirm('Decline this task plan? No tasks will be changed.') && act(async () => { await api('POST', '/mcp/proposals/' + proposal.id + '/decline'); discardMCPPlanDraft(proposal.id); state.info = 'Plan declined. No tasks were changed.'; }) }, 'Decline')));
+}
+
+async function mcpClientsView() {
+  const [operations, grants] = await Promise.all([api('GET', '/mcp/operations'), api('GET', '/mcp/grants')]);
+  const projects = state.ov.projects.filter(p => !p.project.archived);
+  const selectedProjects = new Set();
+  const selectedOperations = new Set();
+  const name = h('input', { name: 'mcp-client-name', maxlength: 80, required: true, placeholder: 'For example, meeting-notes agent' });
+  const endpoint = location.origin + BASE + '/mcp';
+  const projectChoices = projects.map(p => h('label', { class: 'check-row' }, h('input', { type: 'checkbox', onchange: e => e.currentTarget.checked ? selectedProjects.add(p.project.id) : selectedProjects.delete(p.project.id) }), p.project.name));
+  const operationChoices = operations.map(op => {
+    const label = ({ propose_task_plan: 'Propose task plans', list_pending_proposals: 'List pending proposals', get_proposal_status: 'Check proposal status' })[op] || op.replaceAll('_', ' ');
+    return h('label', { class: 'check-row' }, h('input', { type: 'checkbox', onchange: e => e.currentTarget.checked ? selectedOperations.add(op) : selectedOperations.delete(op) }), label);
+  });
+  const form = h('form', { class: 'stack', onsubmit: e => { e.preventDefault(); if (!selectedProjects.size || !selectedOperations.size) { state.error = 'Choose at least one project and one operation for this client.'; render(); return; } act(async () => {
+    const created = await api('POST', '/mcp/grants', { name: name.value.trim(), projects: [...selectedProjects], operations: [...selectedOperations] });
+    teamMCPIssuedToken = created.token;
+    state.info = 'Client created. Copy the credential now; it will only be shown once.';
+  }); } },
+    field('Client name', name),
+    h('fieldset', { class: 'mcp-scope' }, h('legend', {}, 'Projects'), projects.length ? projectChoices : h('p', { class: 'muted' }, 'Create a project before making a scoped client.')),
+    h('fieldset', { class: 'mcp-scope' }, h('legend', {}, 'Operations'), operationChoices),
+    h('button', { class: 'primary', disabled: !projects.length }, 'Create scoped client'));
+  return h('div', {},
+    h('section', { class: 'panel' }, h('h2', {}, 'MCP clients'),
+      h('p', { class: 'muted' }, 'Create a separate revocable credential scoped to chosen projects and operations. Team stores only its hash. External clients can propose task batches, but only a member can edit or approve them.'),
+      h('p', { class: 'muted' }, 'Streamable HTTP endpoint: ', h('code', {}, endpoint)),
+      teamMCPIssuedToken ? h('div', { class: 'invite-result' }, h('strong', {}, 'Copy this credential now'), h('p', { class: 'muted' }, 'It is shown once. Keep it in the MCP client’s secret environment as WERKBORD_TEAM_MCP_TOKEN.'), h('code', {}, teamMCPIssuedToken), copy(teamMCPIssuedToken, 'Copy credential')) : '',
+      form),
+    h('section', { class: 'panel' }, h('h2', {}, 'Issued credentials'), grants.length ? grants.map(g => h('div', { class: 'row mcp-grant-row' },
+      h('div', { class: 'grow' }, h('strong', {}, g.name), h('p', { class: 'muted' }, (g.projects || []).length + ' projects · ' + (g.operations || []).join(', '), g.revokedAt ? ' · revoked' : '')),
+      !g.revokedAt ? h('button', { class: 'danger', onclick: () => confirm('Revoke ' + g.name + '? Its client will no longer be able to connect.') && act(async () => { await api('DELETE', '/mcp/grants/' + g.id); state.info = g.name + ' can no longer connect.'; }) }, 'Revoke') : h('span', { class: 'badge' }, 'Revoked'))) : h('p', { class: 'muted' }, 'No MCP clients have been created.')));
 }
 
 // ---- Reviews ----

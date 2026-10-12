@@ -57,8 +57,13 @@ func TestTheAssistantCanBeTurnedOff(t *testing.T) {
 
 func TestAReadOnlyAssistantIsNotGrantedAnythingThatChangesThings(t *testing.T) {
 	all := assistantGrants(config.AssistantConfig{})
-	if len(all) != len(appops.AllPermissions) {
+	if len(all) != len(appops.AllPermissions)-1 {
 		t.Fatalf("by default it has every permission there is: %v", all)
+	}
+	for _, permission := range all {
+		if permission == appops.PermTaskPlan {
+			t.Fatal("the conversational assistant must not receive the inbound MCP-only plan permission")
+		}
 	}
 	ro := assistantGrants(config.AssistantConfig{ReadOnly: true})
 	for _, g := range ro {

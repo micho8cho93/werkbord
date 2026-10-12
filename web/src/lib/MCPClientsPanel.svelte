@@ -2,11 +2,12 @@
   import { onMount } from 'svelte';
   import { api } from './api';
   import { app } from './state.svelte';
-  import type { MCPBoardOperation, MCPClientGrant, MCPProposal } from './types';
+  import type { MCPBoardOperation, MCPClientGrant, MCPProposal, MCPTaskPlan, MCPTaskPlanChange } from './types';
 
   let grants = $state<MCPClientGrant[]>([]);
   let operations = $state<MCPBoardOperation[]>([]);
   let proposals = $state<MCPProposal[]>([]);
+  let planDrafts = $state<Record<string, MCPTaskPlan>>({});
   let name = $state('');
   let selectedProjects = $state<string[]>([]);
   let selectedOperations = $state<string[]>([]);
@@ -15,6 +16,7 @@
   let loading = $state(true);
   let error = $state('');
   let notice = $state('');
+  let newTaskSerial = 0;
 
   onMount(() => { void reload(); });
 
@@ -28,6 +30,7 @@
       grants = nextGrants;
       operations = nextOperations;
       proposals = nextProposals;
+      planDrafts = Object.fromEntries(nextProposals.filter((item) => item.plan).map((item) => [proposalKey(item), structuredClone(item.plan!)]));
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally { loading = false; }
@@ -71,6 +74,55 @@
       await reload();
     } catch (err) { error = err instanceof Error ? err.message : String(err); }
     finally { busy = false; }
+  }
+
+  function proposalKey(item: MCPProposal) { return `${item.grantId}:${item.proposal.actionId}`; }
+
+  function planFor(item: MCPProposal) { return planDrafts[proposalKey(item)] ?? item.plan; }
+
+  function editTask(item: MCPProposal, index: number, patch: Partial<MCPTaskPlanChange>) {
+    const plan = planFor(item);
+    if (!plan) return;
+    const tasks = plan.tasks.map((task, taskIndex) => taskIndex === index ? { ...task, ...patch } : task);
+    planDrafts[proposalKey(item)] = { ...plan, tasks };
+  }
+
+  function addPlanTask(item: MCPProposal) {
+    const plan = planFor(item);
+    if (!plan || plan.tasks.length >= 50) return;
+    planDrafts[proposalKey(item)] = { ...plan, tasks: [...plan.tasks, { tempId: `tmp_review_${Date.now()}_${newTaskSerial++}`, title: 'New task', description: '', dependencies: [] }] };
+  }
+
+  function removePlanTask(item: MCPProposal, index: number) {
+    const plan = planFor(item);
+    if (!plan) return;
+    planDrafts[proposalKey(item)] = { ...plan, tasks: plan.tasks.filter((_, taskIndex) => taskIndex !== index) };
+  }
+
+  function editDate(item: MCPProposal, index: number, field: 'start' | 'end' | 'milestone', value: string | boolean) {
+    const task = planFor(item)?.tasks[index];
+    if (!task) return;
+    const plan = { ...(task.plan ?? {}), [field]: value };
+    editTask(item, index, { plan });
+  }
+
+  async function savePlan(item: MCPProposal) {
+    const plan = planFor(item);
+    if (!plan || busy) return;
+    busy = true; error = ''; notice = '';
+    try {
+      const updated = await api.replaceMCPTaskPlan(item.grantId, item.proposal.actionId, plan);
+      proposals = proposals.map((proposal) => proposalKey(proposal) === proposalKey(item) ? updated : proposal);
+      if (updated.plan) planDrafts[proposalKey(updated)] = structuredClone(updated.plan);
+      notice = 'Plan saved. Werkbord checked it again; approve it when the preview looks right.';
+    } catch (err) { error = err instanceof Error ? err.message : String(err); }
+    finally { busy = false; }
+  }
+
+  function dependenciesText(task: MCPTaskPlanChange) { return (task.dependencies ?? []).join(', '); }
+
+  function parseDependencies(value: string) {
+    return [...new Set(value.split(/[\s,]+/).map((id) => id.trim()).filter(Boolean))];
   }
 
   async function copyToken() {
@@ -134,10 +186,47 @@
   {:else if proposals.length === 0}<p class="empty">No external changes are waiting for approval.</p>
   {:else}
     <ul class="items proposals">
-      {#each proposals as item (`${item.grantId}:${item.proposal.actionId}`)}
+      {#each proposals as item (proposalKey(item))}
         <li>
-          <div><strong>{item.client}</strong><span class="muted"> · {item.proposal.operation}</span><p>{item.proposal.summary}</p><small>Expires {new Date(item.proposal.expiresAt).toLocaleString()}</small></div>
-          <div class="row"><button class="btn primary small" disabled={busy} onclick={() => decide(item, true)}>Approve</button><button class="btn small" disabled={busy} onclick={() => decide(item, false)}>Decline</button></div>
+          <div class="proposal-body">
+            <strong>{item.client}</strong><span class="muted"> · {item.proposal.operation}</span><p>{item.proposal.summary}</p>
+            {#if item.plan}
+              {@const plan = planFor(item)}
+              {@const hasUnsavedEdits = JSON.stringify(plan) !== JSON.stringify(item.plan)}
+              <div class="plan-preview">
+                <h5>Review task plan <small>Project {item.plan.projectId} · {plan?.tasks.length ?? 0} {(plan?.tasks.length ?? 0) === 1 ? 'task' : 'tasks'}</small></h5>
+                {#if item.validationError}<p class="error" role="alert">{item.validationError}</p>{/if}
+                {#if item.warnings?.length}
+                  <ul class="warnings" aria-label="Timeline warnings">
+                    {#each item.warnings as warning, warningIndex (`${warning.code}:${warning.itemId}:${warning.otherId}:${warningIndex}`)}
+                      <li class:warning-error={warning.severity === 'error'}><strong>{warning.severity}</strong> · {warning.message}</li>
+                    {/each}
+                  </ul>
+                {/if}
+                <div class="plan-tasks">
+                  {#each plan?.tasks ?? item.plan.tasks as task, index (`${task.tempId ?? task.taskId}:${index}`)}
+                    <fieldset class="plan-task">
+                      <legend>{task.tempId ? `New task · ${task.tempId}` : `Update task · ${task.taskId} · v${task.version}`}</legend>
+                      <label><span>Title</span><input class="input" value={task.title ?? ''} maxlength="200" oninput={(event) => editTask(item, index, { title: event.currentTarget.value })} /></label>
+                      <label><span>Description</span><textarea class="input" rows="3" maxlength="20000" oninput={(event) => editTask(item, index, { description: event.currentTarget.value })}>{task.description ?? ''}</textarea></label>
+                      <div class="date-fields">
+                        <label><span>Start</span><input class="input" type="date" value={task.plan?.start ?? ''} oninput={(event) => editDate(item, index, 'start', event.currentTarget.value)} /></label>
+                        <label><span>End</span><input class="input" type="date" value={task.plan?.end ?? ''} oninput={(event) => editDate(item, index, 'end', event.currentTarget.value)} /></label>
+                        <label class="check"><input type="checkbox" checked={task.plan?.milestone ?? false} onchange={(event) => editDate(item, index, 'milestone', event.currentTarget.checked)} /><span>Milestone</span></label>
+                      </div>
+                      <label><span>Dependencies <small>Task IDs or temporary IDs, separated by commas</small></span><input class="input mono" value={dependenciesText(task)} oninput={(event) => editTask(item, index, { dependencies: parseDependencies(event.currentTarget.value) })} /></label>
+                      <label><span>Source reference</span><input class="input" value={task.sourceRef ?? ''} maxlength="2000" oninput={(event) => editTask(item, index, { sourceRef: event.currentTarget.value })} /></label>
+                      <button class="btn small" disabled={busy} onclick={() => removePlanTask(item, index)}>Remove task</button>
+                    </fieldset>
+                  {/each}
+                </div>
+                <div class="row plan-actions"><button class="btn small" disabled={busy || !plan?.tasks.length} onclick={() => savePlan(item)}>Save edited plan</button><button class="btn small" disabled={busy || (plan?.tasks.length ?? 0) >= 50} onclick={() => addPlanTask(item)}>Add task</button><small>Saving replaces the pending proposal and reruns validation.</small></div>
+                {#if hasUnsavedEdits}<small class="note">Save your edits before approving.</small>{/if}
+              </div>
+            {/if}
+            <small>Expires {new Date(item.proposal.expiresAt).toLocaleString()}</small>
+            <div class="row decision-actions"><button class="btn primary small" disabled={busy || !!item.validationError || (item.plan && JSON.stringify(planFor(item)) !== JSON.stringify(item.plan))} onclick={() => decide(item, true)}>Approve plan</button><button class="btn small" disabled={busy} onclick={() => decide(item, false)}>Decline</button></div>
+          </div>
         </li>
       {/each}
     </ul>
@@ -175,6 +264,23 @@
   .items li { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:12px 0; border-top:1px solid var(--border); }
   .items p { margin:5px 0; font-size:13px; }
   .proposals p { color:var(--text-1); }
+  .proposal-body { display:grid; gap:8px; width:100%; min-width:0; }
+  .plan-preview { display:grid; gap:10px; padding:12px; margin:8px 0; border:1px solid var(--border); border-radius:8px; background:var(--surface-1); }
+  .plan-preview h5 { margin:0; font-size:13px; }
+  .plan-preview h5 small { display:block; margin-top:4px; font-weight:400; color:var(--text-2); }
+  .plan-tasks { display:grid; gap:10px; }
+  .plan-task { display:grid; gap:9px; }
+  .plan-task label { display:grid; gap:4px; font-size:12px; color:var(--text-2); }
+  .plan-task label small { display:block; }
+  .plan-task .input { width:100%; }
+  .date-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; align-items:end; }
+  .date-fields .check { display:flex; align-items:center; gap:7px; min-height:32px; }
+  .date-fields input[type=checkbox] { accent-color:var(--accent); }
+  .warnings { display:grid; gap:5px; margin:0; padding:9px 10px 9px 28px; border-radius:6px; background:var(--surface-2); font-size:12px; }
+  .warnings li { color:var(--text-2); }
+  .warnings .warning-error { color:var(--danger); }
+  .plan-actions small { color:var(--text-2); }
+  .decision-actions { margin-top:2px; }
   .revoked { display:inline-block; margin-left:8px; font-size:12px; color:var(--text-2); }
   code { overflow-wrap:anywhere; }
   @media(max-width:560px) { .items li { flex-direction:column; } }

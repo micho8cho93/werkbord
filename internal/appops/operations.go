@@ -2,12 +2,14 @@ package appops
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"devboard/internal/domain"
+	"devboard/internal/mcpplan"
 	"devboard/internal/planning"
 	"devboard/internal/service"
 )
@@ -141,6 +143,12 @@ func operations() []*operation {
 					"milestone":       Bool("Whether it is a single-day milestone."),
 				}, "projectId", "ticketId")},
 			plan: planUpdateTicket, run: runUpdateTicket,
+		},
+		{
+			Spec: Spec{Name: "propose_task_plan", Title: "Propose a task plan", Kind: KindMutation, Permission: PermTaskPlan, RequiresConfirmation: true,
+				Description: "Propose one editable batch of new or updated tasks, dates, dependencies and source references on a single project. The person reviews and approves the whole plan in Werkbord. Use temporary IDs such as tmp_design for dependencies between new tasks, and a unique idempotencyKey for the request.",
+				Input:       taskPlanInput()},
+			MCPOnly: true, plan: planTaskPlan, run: runTaskPlan,
 		},
 		{
 			Spec: Spec{Name: "answer_question", Title: "Answer an agent's question", Kind: KindMutation, Permission: PermQuestionsAnswer, RequiresConfirmation: true,
@@ -815,3 +823,87 @@ func rangeText(r planning.Range) string {
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+func taskPlanInput() *Schema {
+	change := Object(map[string]*Schema{
+		"tempId":      Str("Temporary identifier for a new task, starting with tmp_.", 128),
+		"taskId":      Str("Existing task to update.", idMax),
+		"version":     Int("Current task version read from list_tickets.", 1, 1<<30),
+		"title":       Str("Task title.", titleMax),
+		"description": Str("Task description.", descMax),
+		"sourceRef":   Str("Source reference for the task.", 2000),
+		"plan": Object(map[string]*Schema{
+			"start": Day("First planned day."), "end": Day("Last planned day."), "milestone": Bool("Whether this is a single-day milestone."),
+		}),
+		"dependencies": List("Existing task IDs or tempIds from this plan.", Str("Task or temporary task ID.", 128), 100),
+	})
+	return Object(map[string]*Schema{
+		"projectId":      projectID,
+		"idempotencyKey": Str("Unique key for this plan request; reuse it only for a retry of the same plan.", 128),
+		"tasks":          List("New tasks or version-checked updates, all on this project.", change, mcpplan.MaxChanges),
+	}, "projectId", "idempotencyKey", "tasks")
+}
+
+func decodeTaskPlan(args map[string]any) (mcpplan.Plan, error) {
+	data, err := json.Marshal(args)
+	if err != nil {
+		return mcpplan.Plan{}, fmt.Errorf("invalid task plan: %w", err)
+	}
+	var plan mcpplan.Plan
+	if err := json.Unmarshal(data, &plan); err != nil {
+		return mcpplan.Plan{}, fmt.Errorf("invalid task plan: %w", err)
+	}
+	plan, err = mcpplan.Clean(plan)
+	if err != nil {
+		return mcpplan.Plan{}, fmt.Errorf("%w: %v", domain.ErrInvalid, err)
+	}
+	return plan, nil
+}
+
+func planTaskPlan(ctx context.Context, e *env, args map[string]any) (*plan, error) {
+	request, err := decodeTaskPlan(args)
+	if err != nil {
+		return nil, err
+	}
+	for _, change := range request.Tasks {
+		if change.Requirements != nil {
+			return nil, fmt.Errorf("%w: task requirements are not supported on Individual boards", domain.ErrInvalid)
+		}
+	}
+	backend, ok := e.b.(TaskPlanBackend)
+	if !ok {
+		return nil, errorf(CodeUnavailable, "task planning is not available")
+	}
+	if _, err := backend.PreviewMCPTaskPlan(ctx, request); err != nil {
+		return nil, err
+	}
+	normalized, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	var normalizedArgs map[string]any
+	if err := json.Unmarshal(normalized, &normalizedArgs); err != nil {
+		return nil, err
+	}
+	created, updated := 0, 0
+	for _, change := range request.Tasks {
+		if change.TempID != "" {
+			created++
+		} else {
+			updated++
+		}
+	}
+	return &plan{Args: normalizedArgs, Summary: fmt.Sprintf("Propose %d new and %d updated tasks on project %s", created, updated, request.ProjectID)}, nil
+}
+
+func runTaskPlan(ctx context.Context, e *env, args map[string]any) (any, error) {
+	request, err := decodeTaskPlan(args)
+	if err != nil {
+		return nil, err
+	}
+	backend, ok := e.b.(TaskPlanBackend)
+	if !ok {
+		return nil, errorf(CodeUnavailable, "task planning is not available")
+	}
+	return backend.ApplyMCPTaskPlan(ctx, e.p.ID, request)
+}

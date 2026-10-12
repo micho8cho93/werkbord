@@ -5,6 +5,7 @@ import (
 
 	"devboard/internal/httpkit"
 	"devboard/internal/mcpcontract"
+	"devboard/internal/mcpplan"
 	"devboard/internal/team/service"
 )
 
@@ -37,4 +38,33 @@ func (s *Server) handleMCPGrantRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleMCPTaskPlans(w http.ResponseWriter, r *http.Request) {
+	plans, err := s.opt.Service.ListMCPTaskPlans(r.Context(), actorOf(r))
+	s.respond(w, r, http.StatusOK, map[string]any{"proposals": plans}, err)
+}
+
+func (s *Server) handleMCPTaskPlanStatus(w http.ResponseWriter, r *http.Request) {
+	proposal, err := s.opt.Service.MCPTaskPlanStatus(r.Context(), actorOf(r), r.PathValue("id"))
+	s.respond(w, r, http.StatusOK, proposal, err)
+}
+
+func (s *Server) handleMCPTaskPlanEdit(w http.ResponseWriter, r *http.Request) {
+	var plan mcpplan.Plan
+	if !s.decode(w, r, &plan) {
+		return
+	}
+	proposal, err := s.opt.Service.ReplaceMCPTaskPlan(r.Context(), actorOf(r), r.PathValue("id"), plan)
+	s.respond(w, r, http.StatusOK, proposal, err)
+}
+
+func (s *Server) handleMCPTaskPlanApprove(w http.ResponseWriter, r *http.Request) {
+	proposal, err := s.opt.Service.ResolveMCPTaskPlan(r.Context(), actorOf(r), r.PathValue("id"), true)
+	s.respond(w, r, http.StatusOK, proposal, err)
+}
+
+func (s *Server) handleMCPTaskPlanDecline(w http.ResponseWriter, r *http.Request) {
+	proposal, err := s.opt.Service.ResolveMCPTaskPlan(r.Context(), actorOf(r), r.PathValue("id"), false)
+	s.respond(w, r, http.StatusOK, proposal, err)
 }

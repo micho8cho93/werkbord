@@ -53,8 +53,13 @@ setting, archive or delete anything, or give an agent permission to run a comman
 "Ticket" is the board's card, which the rest of Werkbord calls a task. In the desktop app, project lookup and confirmed ticket
 creation also reach connected workspaces through a narrow desktop bridge (see [Team](#team-and-the-coordination-only-boundary)).
 
-These are the same operations an MCP server will offer: one catalog (`appops.Service.Catalog`), one input schema each
-(JSON Schema, enforced exactly as advertised), one permission each, one audit.
+The conversational assistant's catalog is `appops.Service.Catalog`. Inbound MCP clients have a separate, MCP-only
+`tasks:propose_plan` permission and `propose_task_plan` operation: the assistant does not receive this permission, and
+the operation is not listed to conversational sessions. It creates one editable batch proposal that still requires a
+person's approval (see [MCP.md](MCP.md)).
+
+The assistant operations share one catalog, one input schema each (JSON Schema, enforced exactly as advertised), one
+permission each, and one audit.
 
 MCP tools are injected into this catalog only for a writable Individual assistant session and only when the person enabled
 that connection for the assistant. A tool's schema and fingerprint are rechecked before it runs. Unknown tools start at

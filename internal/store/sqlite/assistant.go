@@ -131,6 +131,30 @@ func (r assistantRepo) GetAction(ctx context.Context, id string) (*domain.Assist
 	return a, err
 }
 
+func (r assistantRepo) ReplacePendingAction(ctx context.Context, id, sessionID, principal, expectedHash string, args []byte, argsHash, summary string) error {
+	res, err := r.q.ExecContext(ctx, `UPDATE assistant_actions SET args = ?, args_hash = ?, summary = ?
+		WHERE id = ? AND session_id = ? AND principal = ? AND state = ? AND args_hash = ?`,
+		string(args), argsHash, summary, id, sessionID, principal, string(domain.ActionPending), expectedHash)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 0 {
+		return nil
+	}
+	a, err := r.GetAction(ctx, id)
+	if err != nil {
+		return err
+	}
+	if a.SessionID != sessionID || a.Principal != principal {
+		return domain.ErrNotFound
+	}
+	return fmt.Errorf("assistant action %s is no longer the same pending proposal: %w", id, domain.ErrConflict)
+}
+
 func (r assistantRepo) TransitionAction(ctx context.Context, id string, from, to domain.AssistantActionState, outcome string, at time.Time) error {
 	if !from.Open() || !to.Valid() || to == domain.ActionPending || from == to {
 		return fmt.Errorf("%w: an action cannot move from %q to %q", domain.ErrInvalid, from, to)

@@ -61,6 +61,7 @@ var workspaceRoutes = []string{
 	"GET /overview", "GET /my-work", "GET /reviews", "GET /sync",
 	// A Team MCP credential is separate from the member token and can only narrow its holder's own metadata access.
 	"GET /mcp/operations", "GET /mcp/grants", "POST /mcp/grants", "DELETE /mcp/grants/{id}",
+	"GET /mcp/proposals", "GET /mcp/proposals/{id}", "PUT /mcp/proposals/{id}", "POST /mcp/proposals/{id}/approve", "POST /mcp/proposals/{id}/decline",
 	"GET /search", // bounded, read-only lookup of visible projects and stored tickets; cannot execute or reach a computer
 	"POST /invites/join",
 	// The private network and the devices on it: addresses, roles, reachability, invitations
