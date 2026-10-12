@@ -21,10 +21,6 @@ type Options struct {
 	// token on every API request: reaching the tailnet is not authentication.
 	Handler http.Handler
 	Log     *slog.Logger
-	// OnShutdown, if set, is called as the listeners begin to shut down. Long-lived
-	// requests (an event stream) only end when something tells them to, and this is
-	// how the owner does.
-	OnShutdown func()
 
 	// PollFast and PollSlow are how often the node is asked its state while it is
 	// coming up and once it is connected. Defaults: 1 s and 15 s.
@@ -98,9 +94,9 @@ func (m *Manager) Start() {
 	go m.run(ctx, m.done)
 }
 
-// Stop takes the network down: the listeners close and the node stops. A device
-// that was signed in stays registered with the user's tailnet; it can be
-// started again without signing in.
+// Stop takes the network down: the listeners close, active requests are canceled,
+// and then the node stops. A device that was signed in stays registered with the
+// user's tailnet; it can be started again without signing in.
 func (m *Manager) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	if !m.running {
@@ -274,17 +270,36 @@ func (m *Manager) serve(ctx context.Context, st BackendStatus) error {
 }
 
 func (m *Manager) newServer(h http.Handler) *http.Server {
+	if h == nil {
+		h = http.DefaultServeMux
+	}
+	requestsCtx, cancelRequests := context.WithCancel(context.Background())
+	privateHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), privateRequestKey{}, true)
+		h.ServeHTTP(w, r.WithContext(ctx))
+	})
 	s := &http.Server{
-		Handler:           h,
+		Handler:           privateHandler,
+		BaseContext:       func(net.Listener) context.Context { return requestsCtx },
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		ErrorLog:          slog.NewLogLogger(m.log.Handler(), slog.LevelWarn),
 		// No WriteTimeout: /api/events is a long-lived stream.
 	}
-	if m.opt.OnShutdown != nil {
-		s.RegisterOnShutdown(m.opt.OnShutdown)
-	}
+	// Stop only the requests on this private listener. The controller's event
+	// broker is shared with loopback clients and must stay open while networking
+	// is disabled.
+	s.RegisterOnShutdown(cancelRequests)
 	return s
+}
+
+type privateRequestKey struct{}
+
+// IsPrivateRequest reports whether ctx belongs to a request served by this
+// manager's private-network listener.
+func IsPrivateRequest(ctx context.Context) bool {
+	isPrivate, _ := ctx.Value(privateRequestKey{}).(bool)
+	return isPrivate
 }
 
 func hostOnly(hostport string) string {

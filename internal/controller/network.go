@@ -18,6 +18,7 @@ import (
 type networkControl struct {
 	mgr      *netprivate.Manager
 	settings *service.Settings
+	log      *slog.Logger
 	// pinned is config.json's (or the environment's) decision, which overrides the
 	// app's. nil means the app decides.
 	pinned *bool
@@ -25,7 +26,7 @@ type networkControl struct {
 
 // newNetworkControl builds the private network for a controller whose handler
 // to serve on it is h. Nothing is started.
-func newNetworkControl(cfg config.Config, settings *service.Settings, h http.Handler, onShutdown func(), backend netprivate.Backend, log *slog.Logger) *networkControl {
+func newNetworkControl(cfg config.Config, settings *service.Settings, h http.Handler, backend netprivate.Backend, log *slog.Logger) *networkControl {
 	host := cfg.Network.Hostname
 	if host == "" {
 		machine, _ := os.Hostname()
@@ -43,9 +44,10 @@ func newNetworkControl(cfg config.Config, settings *service.Settings, h http.Han
 		})
 	}
 	return &networkControl{
-		mgr:      netprivate.New(netprivate.Options{Backend: backend, Handler: h, Log: log, OnShutdown: onShutdown}),
+		mgr:      netprivate.New(netprivate.Options{Backend: backend, Handler: h, Log: log}),
 		settings: settings,
 		pinned:   cfg.Network.Enabled,
+		log:      log,
 	}
 }
 
@@ -89,6 +91,17 @@ func (n *networkControl) Disable(ctx context.Context) error {
 	}
 	if err := n.settings.SetNetwork(ctx, false); err != nil {
 		return err
+	}
+	if netprivate.IsPrivateRequest(ctx) {
+		// Stopping a private listener from one of its handlers would wait for that
+		// handler to return. Let its response finish before closing the listener.
+		go func() {
+			<-ctx.Done()
+			if err := n.mgr.Stop(context.Background()); err != nil && n.log != nil {
+				n.log.Warn("could not stop the private network", "err", err)
+			}
+		}()
+		return nil
 	}
 	return n.mgr.Stop(ctx)
 }

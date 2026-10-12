@@ -281,7 +281,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	apiOpts.LocalAccess = access
 	privateHandler := &lateHandler{}
-	c.network = newNetworkControl(c.cfg, settings, privateHandler, c.broker.Close, c.networkBackend, c.log)
+	c.network = newNetworkControl(c.cfg, settings, privateHandler, c.networkBackend, c.log)
 	apiOpts.Network, privateOpts.Network = c.network, c.network
 	nw := c.network // not c.network: that is cleared when the controller shuts down
 	env := doctor.Env{

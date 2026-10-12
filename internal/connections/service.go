@@ -313,8 +313,13 @@ func (s *Service) Save(ctx context.Context, in SaveInput) (Connection, error) {
 	}
 	if idx >= 0 && old.SecretStored && (old.AuthMode != c.AuthMode || !sameTarget(old, in)) {
 		oldKey := "connection/" + id + "/" + old.AuthMode
-		if err := s.secrets.Delete(oldKey); err != nil && !errors.Is(err, keyring.ErrNotFound) {
-			s.log.Warn("could not remove old MCP credential from OS storage", "connection", id, "err", err)
+		// Saving a replacement bearer token above writes the same key used by the
+		// previous bearer credential. Keep that new value when the endpoint changes.
+		replacementBearerSaved := c.AuthMode == "bearer" && in.BearerToken != "" && oldKey == secretKey
+		if !replacementBearerSaved {
+			if err := s.secrets.Delete(oldKey); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+				s.log.Warn("could not remove old MCP credential from OS storage", "connection", id, "err", err)
+			}
 		}
 	}
 	return c, nil
@@ -847,7 +852,8 @@ func (s *Service) oauthHandler(ctx context.Context, c Connection) (auth.OAuthHan
 		}
 		config.PreregisteredClient = client
 		prior := &oauth2.Config{ClientID: saved.ClientID, ClientSecret: saved.ClientSecret, RedirectURL: redirect, Scopes: append([]string(nil), saved.Scopes...), Endpoint: oauth2.Endpoint{AuthURL: saved.AuthURL, TokenURL: saved.TokenURL, AuthStyle: saved.AuthStyle}}
-		config.InitialTokenSource = tokenPersistSource{source: prior.TokenSource(context.WithoutCancel(ctx), &saved.Token), save: func(updated *oauth2.Token) {
+		refreshCtx := context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: connectTimeout})
+		config.InitialTokenSource = tokenPersistSource{source: prior.TokenSource(refreshCtx, &saved.Token), save: func(updated *oauth2.Token) {
 			if updated == nil {
 				return
 			}
