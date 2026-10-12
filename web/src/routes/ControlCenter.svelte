@@ -5,6 +5,7 @@
   import ControlInfrastructure from '../lib/ControlInfrastructure.svelte';
   import WaitingRepository from '../lib/WaitingRepository.svelte';
   import { agentName, cardActivity, oneLine, runElapsed, runReportStale } from '../lib/format';
+  import { formatDateTime } from '../lib/clock.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
   import Icon from '../lib/Icon.svelte';
   import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
@@ -12,6 +13,17 @@
   import { projectHref, taskHref } from '../lib/router.svelte';
   import { schedulingLabels } from '../lib/scheduling';
   import { app } from '../lib/state.svelte';
+  import type { SchedulingDecision } from '../lib/types';
+
+  const scheduleOrder: Record<SchedulingDecision['state'], number> = {
+    runnable: 0,
+    queued: 1,
+    waiting_capacity: 2,
+    waiting_dependency: 3,
+    waiting_schedule: 4,
+    potentially_conflicting: 5,
+    blocked: 6,
+  };
 
   // The one place that looks across every project. On the left, what needs a person, most pressing
   // first, each answerable where it is shown; on the right, what is going on, kept quiet.
@@ -45,7 +57,14 @@
         x.decision.state !== 'blocked' &&
         x.decision.state !== 'potentially_conflicting' &&
         matchesScheduledExecution(x.task, app.project(x.task.projectId)?.execution ?? {}, app.globalExecution, runnerFilter, agentFilter),
-    ),
+    ).sort((a, b) => {
+      const byReadiness = scheduleOrder[a.decision.state] - scheduleOrder[b.decision.state];
+      if (byReadiness) return byReadiness;
+      const aAt = Date.parse(a.task.orchestration?.scheduledAt ?? '');
+      const bAt = Date.parse(b.task.orchestration?.scheduledAt ?? '');
+      if (Number.isFinite(aAt) && Number.isFinite(bAt) && aAt !== bAt) return aAt - bAt;
+      return a.task.createdAt.localeCompare(b.task.createdAt);
+    }),
   );
   const projects = $derived((app.overview?.projects ?? []).filter((p) => !projectFilter || p.projectId === projectFilter));
   const agentIds = $derived([...new Set([...(app.overview?.usage ?? []).map((u) => u.agentId), ...app.agents.map((a) => a.id)])].sort());
@@ -161,6 +180,43 @@
     </div>
 
     <aside class="pane side" aria-label="What is going on">
+      {#if working.length}
+        <section class="pn">
+          <div class="ph">{staleWork ? 'Last reported work' : 'Running now'}<span class="chip">{working.length}</span></div>
+          <ul class="rows">
+            {#each working as r (r.run.id)}
+              {@const activity = cardActivity(r.run)}
+              <li class="run" class:live={!runReportStale(r.run, app.connection === 'live', app.runners)}>
+                <a href={taskHref(r.run.projectId, r.run.taskId)}><span class="dot" data-tone="work"></span>{r.taskTitle}</a>
+                <RunBadge run={r.run} />
+                <p class="mm">{r.projectName} · {agentName(app.agents, r.run.agentId)} · {runElapsed(r.run, app.now)}</p>
+                {#if activity.length > 90}
+                  <details class="run-activity">
+                    <summary class="mm act">Activity: {oneLine(activity, 90)}</summary>
+                    <p class="mm">{activity}</p>
+                  </details>
+                {:else if activity}<p class="mm act">› {activity}</p>{/if}
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      {#if scheduled.length}
+        <section class="pn">
+          <div class="ph">Next executions<span class="chip">{scheduled.length}</span></div>
+          <ul class="rows">
+            {#each scheduled as s (s.task.id)}
+              {@const when = s.decision.state === 'waiting_schedule' ? s.task.orchestration?.scheduledAt : undefined}
+              <li class="run">
+                <a href={taskHref(s.task.projectId, s.task.id)}><Icon name="calendar" size={14} />{s.task.title}</a>
+                <p class="mm">{s.projectName} · {schedulingLabels[s.decision.state]}{when ? ` · ${formatDateTime(when)}` : ''}</p>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
       {#if projects.length}
         <section class="pn">
           <div class="ph">Projects<span class="chip">{projects.length}</span></div>
@@ -174,38 +230,6 @@
                   <span class="mm psub">{activitySummary(p) || 'quiet'}</span>
                   {#if n}<span class="num pend">{n}</span>{/if}
                 </a>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
-      <section class="pn">
-        <div class="ph">{staleWork ? 'Last reported work' : 'Running now'}<span class="chip">{working.length}</span></div>
-        {#if working.length}
-          <ul class="rows">
-            {#each working as r (r.run.id)}
-              <li class="run" class:live={!runReportStale(r.run, app.connection === 'live', app.runners)}>
-                <a href={taskHref(r.run.projectId, r.run.taskId)}><span class="dot" data-tone="work"></span>{r.taskTitle}</a>
-                <RunBadge run={r.run} />
-                <p class="mm">{r.projectName} · {agentName(app.agents, r.run.agentId)} · {runElapsed(r.run, app.now)}</p>
-                {#if cardActivity(r.run)}<p class="mm act">› {oneLine(cardActivity(r.run), 90)}</p>{/if}
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <p class="muted small">{app.connection === 'live' ? 'No active runs reported.' : 'No active runs in the last snapshot.'}</p>
-        {/if}
-      </section>
-
-      {#if scheduled.length}
-        <section class="pn">
-          <div class="ph">Scheduled and queued<span class="chip">{scheduled.length}</span></div>
-          <ul class="rows">
-            {#each scheduled as s (s.task.id)}
-              <li class="run">
-                <a href={taskHref(s.task.projectId, s.task.id)}><Icon name="calendar" size={14} />{s.task.title}</a>
-                <p class="mm">{s.projectName} · {schedulingLabels[s.decision.state]}</p>
               </li>
             {/each}
           </ul>
@@ -310,7 +334,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 32px;
+    min-height: 36px;
     padding: 0 6px;
     border-radius: var(--radius-sm);
     color: var(--text);
@@ -408,12 +432,32 @@
     }
 
     .segs button {
-      height: 36px;
       font-size: 14px;
     }
 
     .filters {
       margin-left: 0;
+    }
+  }
+
+  @media (max-width: 899px), (pointer: coarse) {
+    .prow {
+      min-height: 44px;
+    }
+
+    .filters .btn.small {
+      min-height: 44px;
+    }
+
+    .segs button {
+      min-height: 44px;
+      height: auto;
+    }
+
+    .run-activity > summary {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
     }
   }
   .waiting-list {
