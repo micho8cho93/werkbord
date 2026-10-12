@@ -71,7 +71,8 @@ runner ownership recovery. Agents and Git helpers do not inherit controller conf
 they still run as your user and can read files your user can read.
 
 **Status.** You can register local Git repositories, keep a four-column board
-(Backlog, Doing, Review, Done) per project, and run **Claude Code** or **Codex** on a task. Each
+(Backlog, Doing, Review, Done) per project, and run **Claude Code**, **Codex**, **Gemini CLI** or
+**OpenCode** on a task. Each
 run is an interactive session in its own Git worktree: watch what the agent does, answer its
 questions and approve its actions from your phone, send follow-up messages, and finish or stop
 it. The selected runner owns the processes, so a closed browser does not interrupt anything.
@@ -88,7 +89,7 @@ dependencies and never reschedules anything. A *work project* has a board and a 
 for work that is not code. Team has the same, with labels shared by the workspace and managed by its owner and
 admins. See [docs/PLANNING.md](docs/PLANNING.md).
 
-**Assistant.** A conversation with your own Claude Code or Codex, signed in as you already are, about your board: press
+**Assistant.** A conversation with your own Claude Code, Codex, Gemini CLI or OpenCode, signed in as you already are, about your board: press
 *Assistant* in the sidebar (or the icon at the top on a phone) and a full-window conversation opens out of the button. It can
 look up tickets, schedules, blockers and what agents are waiting on, and *propose* a new ticket, a change to one, or an answer to
 an agent's question. Nothing happens until you confirm it on the screen, every operation is audited, and it has no operation that
@@ -157,8 +158,8 @@ release notes and the remaining limits before V3.
 
 ## Requirements
 
-To run it, only what the installer checks for: `git` on `PATH`, and, to run agents, the `claude` and/or `codex`
-CLI, installed and signed in (Werkbord shows what it found, says how to install what is missing, and never
+To run it, only what the installer checks for: `git` on `PATH`, and, to run agents, any of the `claude`,
+`codex`, `gemini` or `opencode` CLIs installed and configured (Werkbord shows what it found, says how to install what is missing, and never
 installs an agent without you or asks for an API key). The [GitHub CLI](https://cli.github.com) (`gh`) is
 optional: it is how Werkbord uses your own GitHub identity, and everything local works without it.
 
@@ -280,14 +281,17 @@ started. Tune them in `config.json`:
 {
   "agents": {
     "claude-code": { "command": "claude", "permissionMode": "acceptEdits" },
-    "codex":       { "command": "codex",  "model": "gpt-5.5", "approvalPolicy": "on-request", "sandbox": "workspace-write" }
+    "codex":       { "command": "codex",  "model": "gpt-5.5", "approvalPolicy": "on-request", "sandbox": "workspace-write" },
+    "gemini-cli":  { "command": "gemini", "model": "gemini-2.5-pro" },
+    "opencode":    { "command": "opencode", "model": "openrouter/anthropic/claude-sonnet-4" }
   }
 }
 ```
 
 Everything is optional. `model` here is what "Agent default" means for that agent on this computer. `models` (a
-list of `{"id", "name", "description"}`) and `reasoning` (a list of level names) replace the choices the app offers
-when you do not want what the agent reports; a model that is not listed can still be typed in. Whatever an agent
+list of `{"id", "name", "description"}`) and, where supported, `reasoning` (a list of level names) replace the choices the app offers
+when you do not want what the agent reports; OpenCode model IDs keep their provider prefix and a model that is not listed can still be typed in. Gemini CLI and OpenCode use ACP; their
+file and terminal access is confined to the run worktree and tool requests go through Werkbord approvals. Whatever an agent
 asks permission for reaches you as a question, so the
 defaults let it edit files in its worktree and ask about the rest. `permissionMode`
 (`acceptEdits`, `manual`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), `approvalPolicy`

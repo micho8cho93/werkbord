@@ -27,7 +27,12 @@ interface Stream {
 }
 
 export class FakeServer {
-  providers: ProviderInfo[] = [provider('claude-code', 'Claude Code'), provider('codex', 'Codex')];
+  providers: ProviderInfo[] = [
+    provider('claude-code', 'Claude Code'),
+    provider('codex', 'Codex'),
+    provider('gemini-cli', 'Gemini CLI', { capabilities: { streaming: 'tokens', resume: true, cancel: true, modelChoice: true, reasoningChoice: false, voice: 'none' }, models: { providerId: 'gemini-cli', custom: true, models: [{ id: 'auto', name: 'Gemini Auto', default: true }] } }),
+    provider('opencode', 'OpenCode', { capabilities: { streaming: 'tokens', resume: true, cancel: true, modelChoice: true, reasoningChoice: true, voice: 'none' }, models: { providerId: 'opencode', custom: true, models: [{ id: 'openai/gpt-a', name: 'GPT A', reasoning: ['low', 'high'] }] } }),
+  ];
   policy = { enabled: true, maxBytes: 262144, maxFiles: 4, maxBytesTotal: 524288, retentionSeconds: 1800 };
   sessions = new Map<string, SessionView>();
   calls: Call[] = [];

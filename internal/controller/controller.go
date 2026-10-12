@@ -17,6 +17,8 @@ import (
 	"devboard/internal/agent"
 	"devboard/internal/agent/claude"
 	"devboard/internal/agent/codex"
+	"devboard/internal/agent/gemini"
+	"devboard/internal/agent/opencode"
 	"devboard/internal/api"
 	"devboard/internal/assistant"
 	"devboard/internal/config"
@@ -438,9 +440,12 @@ func prepareWorktreeRoot(dir string) (string, error) {
 func NewAgents(cfg config.Config) (*agent.Registry, error) {
 	r := agent.NewRegistry()
 	cl, cx := cfg.Agents[config.AgentClaudeCode], cfg.Agents[config.AgentCodex]
+	gm, oc := cfg.Agents[config.AgentGeminiCLI], cfg.Agents[config.AgentOpenCode]
 	for _, a := range []agent.Adapter{
 		claude.New(claude.Config{Command: cl.Command, Model: cl.Model, PermissionMode: cl.PermissionMode, Models: choices(cl.Models), Reasoning: cl.Reasoning}),
 		codex.New(codex.Config{Command: cx.Command, Model: cx.Model, ApprovalPolicy: cx.ApprovalPolicy, Sandbox: cx.Sandbox, Models: choices(cx.Models), Reasoning: cx.Reasoning}),
+		gemini.New(gemini.Config{Command: gm.Command, Model: gm.Model, Models: choices(gm.Models), Reasoning: gm.Reasoning}),
+		opencode.New(opencode.Config{Command: oc.Command, Model: oc.Model, Models: choices(oc.Models), Reasoning: oc.Reasoning}),
 	} {
 		if err := r.Register(a); err != nil {
 			return nil, err

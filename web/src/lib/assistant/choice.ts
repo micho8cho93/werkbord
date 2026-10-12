@@ -1,5 +1,5 @@
 // Which provider, model and reasoning level a conversation uses, and what can be chosen. The assistant borrows the person's own
-// signed-in Claude Code or Codex; nothing here asks for a key or an account.
+// signed-in Claude Code, Codex, Gemini CLI or OpenCode; nothing here asks for a key or an account.
 
 import type { ProviderInfo, ProviderModel } from './types';
 
@@ -22,7 +22,7 @@ export function reasoningLevels(p: ProviderInfo | undefined, modelId: string): s
 
 /**
  * The choice to start with: what the person chose last time if it still works, otherwise the first provider that is ready.
- * Null when none is ready, which is the "set up Claude Code or Codex" state.
+ * Null when none is ready, which is the "set up a supported CLI" state.
  */
 export function pickChoice(providers: ProviderInfo[], saved: Partial<Choice> | null): Choice | null {
   const ready = providers.filter((p) => p.available);

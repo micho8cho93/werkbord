@@ -109,12 +109,12 @@ func TestDoctorNeverPrintsASecret(t *testing.T) {
 }
 
 func TestDoctorWithNoAgentAtAllFails(t *testing.T) {
-	e := newTestEnv(t) // both agents point at commands that do not exist
+	e := newTestEnv(t) // all agent CLIs point at commands that do not exist
 	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	r := e.doctorReport()
-	for _, id := range []string{"codex", "claude-code"} {
+	for _, id := range []string{"codex", "claude-code", "gemini-cli", "opencode"} {
 		c := status(t, r, id)
 		if c.Status != doctor.Warn || !strings.Contains(c.Summary, "not installed") || c.Fix == "" {
 			t.Errorf("%s = %+v: a missing agent is a warning that says how to install it", id, c)

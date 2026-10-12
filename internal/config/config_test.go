@@ -193,6 +193,7 @@ func TestInvalidAgentSettingsAreRejected(t *testing.T) {
 		"claude setting on codex": {Agents: map[string]AgentConfig{AgentCodex: {PermissionMode: "plan"}}},
 		"bad codex approval":      {Agents: map[string]AgentConfig{AgentCodex: {ApprovalPolicy: "sometimes"}}},
 		"bad codex sandbox":       {Agents: map[string]AgentConfig{AgentCodex: {Sandbox: "open"}}},
+		"Gemini reasoning":        {Agents: map[string]AgentConfig{AgentGeminiCLI: {Reasoning: []string{"low"}}}},
 	}
 	for name, extra := range cases {
 		t.Run(name, func(t *testing.T) {

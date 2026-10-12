@@ -67,7 +67,7 @@ It runs as you, not as root, because agents run as you, in your repositories, wi
 | Windows | a scheduled task, `Werkbord`, at log-on | as above |
 | anything else | a detached process, recorded in the data directory | does not restart at login |
 
-A service does not inherit your shell's `PATH`, and the agents (`claude`, `codex`) are found through it, so setup
+A service does not inherit your shell's `PATH`, and the agents (`claude`, `codex`, `gemini`, `opencode`) are found through it, so setup
 **captures the `PATH` it was run with** into the service. If you install an agent somewhere new, run
 `werkbord setup` again from a terminal where it works; `werkbord doctor` notices when your shell finds an agent
 that the controller does not.

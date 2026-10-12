@@ -4,7 +4,7 @@ Every task is carried out with five settings:
 
 | Setting | Values | Default |
 | --- | --- | --- |
-| **Agent** | an installed coding agent (`claude-code`, `codex`) | the first one that works |
+| **Agent** | an installed coding agent (`claude-code`, `codex`, `gemini-cli`, `opencode`) | the first one that works |
 | **Model** | a model of that agent, or **Agent default** | Agent default |
 | **Reasoning** | one of that agent's reasoning/effort levels, or **Agent default** | Agent default |
 | **Interaction** | *Ask me when needed*, *Work autonomously*, *Work autonomously — stop if blocked* | Ask me when needed |
@@ -45,11 +45,12 @@ Werkbord does not carry a list of model names:
 
 - **Codex** reports its own models, with the reasoning levels each supports, through its app-server
   (`model/list`), so the list is whatever your installed Codex says it is, and follows its updates.
+- **OpenCode** lists its configured models; IDs keep their `provider/model` prefix. **Gemini CLI** uses its `--model` choices; Werkbord can offer configured choices when the CLI does not list them.
 - **Claude Code** cannot list models; Werkbord offers its aliases (`sonnet`, `opus`, `haiku`, which always mean
   the latest of that family) and reads the `--effort` levels from the CLI's own help.
 - Either way, **a name that is not listed can be typed in** ("Other…"); the agent has the last word. A name must
   look like a model (letters, digits and `._:/[]+@-`, not starting with `-`), because it is passed on a command line.
-- You can replace the lists in `config.json` (`agents.<id>.models`, `agents.<id>.reasoning`), and `agents.<id>.model`
+- You can replace the lists in `config.json` (`agents.<id>.models`, and where supported `agents.<id>.reasoning`), and `agents.<id>.model`
   is what "Agent default" means on this computer. If an agent cannot say, the lists are just "Agent default".
 - A reasoning level the agent does not have is refused when you save it and when a run starts, with the ones it
   does have, rather than starting an agent that would fail on it.

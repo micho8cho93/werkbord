@@ -180,8 +180,8 @@ func (e *testEnv) opened() []string {
 }
 
 // newTestEnv isolates the CLI in a temporary data directory on a free port, with
-// a fake service manager, a fake browser and a fake private network. Both agents
-// are pointed at commands that do not exist unless a test installs one.
+// a fake service manager, a fake browser and a fake private network. Every
+// agent CLI is pointed at a command that does not exist unless a test installs one.
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 	dir := t.TempDir()
@@ -202,7 +202,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	oldVersion := version
 	version = "test-controller"
 	t.Cleanup(func() { version = oldVersion })
-	missing := `{"agents":{"claude-code":{"command":"no-such-claude"},"codex":{"command":"no-such-codex"}},"github":{"command":"no-such-gh"}}`
+	missing := `{"agents":{"claude-code":{"command":"no-such-claude"},"codex":{"command":"no-such-codex"},"gemini-cli":{"command":"no-such-gemini"},"opencode":{"command":"no-such-opencode"}},"github":{"command":"no-such-gh"}}`
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(missing), 0o600); err != nil {
 		t.Fatal(err)
 	}

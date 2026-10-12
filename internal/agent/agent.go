@@ -153,6 +153,23 @@ type Event struct {
 	SessionRef string              // KindSessionRef
 }
 
+// EventStream is the bounded event queue shared by adapters that use a
+// protocol library instead of Base. It preserves control events while
+// dropping excess output when a consumer falls behind.
+type EventStream struct{ q *eventQueue }
+
+// NewEventStream creates an event stream with the standard adapter limits.
+func NewEventStream() *EventStream { return &EventStream{q: newEventQueue(defaultQueueLimit)} }
+
+// Events returns the normalized events until Close.
+func (s *EventStream) Events() <-chan Event { return s.q.events() }
+
+// Emit queues one normalized event without blocking the provider callback.
+func (s *EventStream) Emit(ev Event) { s.q.push(ev) }
+
+// Close delivers queued events and then closes Events.
+func (s *EventStream) Close() { s.q.close() }
+
 // Question is something the agent needs answered before it can continue, in
 // the one form every adapter reports it. Adapters translate their protocol's
 // permission requests and questions into it; the controller never sees the

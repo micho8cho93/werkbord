@@ -61,7 +61,7 @@ type Config struct {
 	// WorktreesDir is where the Git worktrees agents work in are created.
 	// Default: <data dir>/worktrees.
 	WorktreesDir string `json:"worktreesDir,omitempty"`
-	// Agents tunes the coding agents, by adapter ID ("claude-code", "codex").
+	// Agents tunes the coding agents, by adapter ID ("claude-code", "codex", "gemini-cli", "opencode").
 	// Agents not mentioned use their defaults.
 	Agents map[string]AgentConfig `json:"agents,omitempty"`
 	// Network tunes the private network (see internal/netprivate).
@@ -73,9 +73,9 @@ type Config struct {
 	Assistant AssistantConfig `json:"assistant,omitempty"`
 }
 
-// AssistantConfig is the user's choices for the assistant. The assistant borrows the sign-in of Claude Code or Codex
-// that is already on this computer: it has no account, key or model of its own, and the commands, models and reasoning
-// levels it offers are the ones set for those agents under "agents".
+// AssistantConfig is the user's choices for the assistant. The assistant borrows the sign-in of an installed CLI provider
+// (Claude Code, Codex, Gemini CLI or OpenCode): it has no account or model of its own, and the commands, models and
+// supported reasoning levels it offers are the ones set for those agents under "agents".
 type AssistantConfig struct {
 	// Disabled turns the assistant off: its API answers that it is unavailable, and nothing is ever started for it.
 	Disabled bool `json:"disabled,omitempty"`
@@ -158,6 +158,8 @@ type ModelChoice struct {
 const (
 	AgentClaudeCode = "claude-code"
 	AgentCodex      = "codex"
+	AgentGeminiCLI  = "gemini-cli"
+	AgentOpenCode   = "opencode"
 )
 
 var (
@@ -214,8 +216,19 @@ func (c Config) validateAgents() error {
 			if !oneOf(a.Sandbox, codexSandboxes) {
 				return fmt.Errorf("agents.%s.sandbox %q: want one of %s", id, a.Sandbox, strings.Join(codexSandboxes, ", "))
 			}
+		case AgentGeminiCLI:
+			if a.PermissionMode != "" || a.ApprovalPolicy != "" || a.Sandbox != "" {
+				return fmt.Errorf("agents.%s: permissionMode, approvalPolicy and sandbox are not supported settings for this ACP agent", id)
+			}
+			if len(a.Reasoning) > 0 {
+				return fmt.Errorf("agents.%s: custom reasoning choices are not supported by Gemini CLI", id)
+			}
+		case AgentOpenCode:
+			if a.PermissionMode != "" || a.ApprovalPolicy != "" || a.Sandbox != "" {
+				return fmt.Errorf("agents.%s: permissionMode, approvalPolicy and sandbox are not supported settings for this ACP agent", id)
+			}
 		default:
-			return fmt.Errorf("agents.%s: unknown agent (known: %s, %s)", id, AgentClaudeCode, AgentCodex)
+			return fmt.Errorf("agents.%s: unknown agent (known: %s, %s, %s, %s)", id, AgentClaudeCode, AgentCodex, AgentGeminiCLI, AgentOpenCode)
 		}
 	}
 	return nil

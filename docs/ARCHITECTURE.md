@@ -32,7 +32,7 @@ questions (§15), projects as the scope of the application (§16), per-task exec
 │      │               │   └──▶ events.Publisher ──▶ events.Broker ──┐                  │
 │      └───────────────┼──────────────────────────────────────────────┘ (live signal)   │
 │                      ├──▶ gitrepo.Inspector ──▶ git CLI ──▶ your existing checkouts   │
-│                      └──▶ runner.Manager ──▶ agent.Adapter ──▶ claude / codex process │
+│                      └──▶ runner.Manager ──▶ agent.Adapter ──▶ CLI agent process       │
 │                                                                                       │
 │  domain: Project · Task · Run · Agent · Question · Worktree · GitRepository · Event  │
 └───────────────────────────────────────────────────────────────────────────────────────┘
@@ -302,7 +302,7 @@ Events are **durable first, live second**.
 
 ## 8. Agent adapter boundary
 
-Claude Code and Codex expose different protocols. Each has an `agent.Adapter` that translates
+Claude Code and Codex use their own protocols. Gemini CLI and OpenCode use ACP over stdio. Each has an `agent.Adapter` that translates
 its protocol into one vocabulary (`internal/agent/agent.go` has the full contract):
 
 - `Detect` — installed, version, signed in? Cached for 30 s so `GET /api/agents` is cheap.
@@ -334,15 +334,27 @@ Defaults `approvalPolicy=on-request`, `sandbox=workspace-write`, passed explicit
 override the user's own `~/.codex/config.toml`. Policy instructions go in `developerInstructions` of
 `thread/start` and `thread/resume`.
 
-Both were checked against the installed CLIs (Claude Code 2.1, Codex 0.155): Codex's generated
-protocol schema, and `internal/agent/live`, an opt-in test (`WERKBORD_LIVE_AGENTS=1`) that runs
-the real agents through round trips, approvals and resume. The default tests use scripted fakes
-that speak the same protocols.
+**Gemini CLI and OpenCode** (`internal/agent/gemini`, `internal/agent/opencode`): ACP sessions over
+stdio through `internal/agent/acp`. Gemini starts with `gemini --acp` and receives its selected model
+with `--model`. OpenCode starts with `opencode --pure acp`; its advertised session options select the
+provider-qualified model and effort. Session notifications stream text and tool activity. ACP permission
+requests become the same Werkbord questions; filesystem and terminal requests are served by the
+controller only after path checks and, for writes or commands, explicit approval. Both can load a
+provider-owned session handle after a runner restart. The ACP SDK owns shutdown of the CLI subprocess;
+it does not expose a process identifier, so Werkbord does not signal an unverified PID after a controller
+crash.
 
-**Process handling** (`internal/agent/process*.go`, `base.go`): each agent runs in its own
+The ACP adapters use the protocol SDK and boundary tests use the same JSON-RPC protocol as the real
+agents. Claude Code and Codex were checked against installed CLIs (Claude Code 2.1, Codex 0.155):
+Codex's generated protocol schema, and `internal/agent/live`, an opt-in test (`WERKBORD_LIVE_AGENTS=1`)
+that runs the real agents through round trips, approvals and resume. The default tests use scripted
+fakes that speak the same protocols.
+
+**Process handling** (`internal/agent/process*.go`, `base.go`): Claude and Codex run in their own
 process group; stdout and stderr are read by goroutines with line-length limits; stdin writes have
 a deadline; when the agent exits, anything it started in its group is killed; a grandchild holding a
-pipe open cannot delay the end. `Stop` is SIGTERM, then SIGKILL after a grace period.
+pipe open cannot delay the end. `Stop` is SIGTERM, then SIGKILL after a grace period. The ACP SDK
+applies subprocess-tree shutdown to Gemini and OpenCode.
 
 ## 9. Concurrency approach
 
@@ -597,7 +609,7 @@ task, for the board), `GET …/activity`, `GET …/runs/{id}`, `GET …/runs/{id
 `POST …/runs/{id}/input|finish|stop`, `POST …/questions/{id}/answer`,
 `GET /api/worktrees/{id}`.
 
-**Configuration** (`config.json`): `worktreesDir`, and per agent (`claude-code`, `codex`):
+**Configuration** (`config.json`): `worktreesDir`, and per agent (`claude-code`, `codex`, `gemini-cli`, `opencode`):
 `command`, `model`, plus `permissionMode` (Claude Code) or `approvalPolicy` and `sandbox` (Codex).
 Unknown agents, settings on the wrong agent and invalid values are errors at start-up.
 

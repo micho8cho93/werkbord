@@ -10,21 +10,26 @@ import (
 	"devboard/internal/assistant/provider"
 	claudeprov "devboard/internal/assistant/provider/claude"
 	codexprov "devboard/internal/assistant/provider/codex"
+	"devboard/internal/assistant/provider/gemini"
+	"devboard/internal/assistant/provider/opencode"
 	"devboard/internal/config"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
 )
 
-// newAssistant builds the conversational assistant on the controller's own services. It uses the Claude Code and Codex
-// that are already on this computer, with the sign-in the person gave them: no account, key or model of its own. What
+// newAssistant builds the conversational assistant on the controller's own services. It uses the installed CLI providers
+// already on this computer, with their existing sign-in: no account or model of its own. What
 // it can do to the board is only what appops offers, through the same domain services the app uses.
 func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assistantServices) (*assistant.Engine, error) {
 	cl, cx := cfg.Agents[config.AgentClaudeCode], cfg.Agents[config.AgentCodex]
+	gm, oc := cfg.Agents[config.AgentGeminiCLI], cfg.Agents[config.AgentOpenCode]
 	reg := provider.NewRegistry()
 	for _, p := range []provider.Provider{
 		claudeprov.New(claudeprov.Config{Command: cl.Command, Model: cl.Model, Models: providerModels(cl.Models), Reasoning: cl.Reasoning}),
 		codexprov.New(codexprov.Config{Command: cx.Command, Model: cx.Model, Models: providerModels(cx.Models)}),
+		gemini.New(gemini.Config{Command: gm.Command, Models: providerModels(gm.Models), Reasoning: gm.Reasoning}),
+		opencode.New(opencode.Config{Command: oc.Command, Models: providerModels(oc.Models), Reasoning: oc.Reasoning}),
 	} {
 		if err := reg.Register(p); err != nil {
 			return nil, err

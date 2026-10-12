@@ -156,6 +156,8 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 	cfg.Agents = map[string]config.AgentConfig{
 		config.AgentClaudeCode: {Command: script, PermissionMode: "acceptEdits"},
 		config.AgentCodex:      {Command: "/nonexistent/codex"},
+		config.AgentGeminiCLI:  {Command: "/nonexistent/gemini"},
+		config.AgentOpenCode:   {Command: "/nonexistent/opencode"},
 	}
 	ctx := context.Background()
 	logs := &syncBuffer{}
@@ -168,11 +170,17 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 	// Both agents are listed, with what is wrong with the one that is missing.
 	var agents struct{ Agents []domain.Agent }
 	api.do("GET", "/api/agents", "", &agents)
-	if len(agents.Agents) != 2 || agents.Agents[0].ID != "claude-code" || !agents.Agents[0].Available || agents.Agents[0].Version != "9.9.9" {
+	byID := make(map[string]domain.Agent, len(agents.Agents))
+	for _, found := range agents.Agents {
+		byID[found.ID] = found
+	}
+	if len(byID) != 4 || !byID["claude-code"].Available || byID["claude-code"].Version != "9.9.9" {
 		t.Fatalf("agents = %+v", agents.Agents)
 	}
-	if cx := agents.Agents[1]; cx.ID != "codex" || cx.Available || !strings.Contains(cx.Detail, "not found") {
-		t.Fatalf("codex = %+v", cx)
+	for _, id := range []string{"codex", "gemini-cli", "opencode"} {
+		if found := byID[id]; found.ID != id || found.Available || !strings.Contains(found.Detail, "not found") {
+			t.Fatalf("%s = %+v", id, found)
+		}
 	}
 
 	repo := commit(t)

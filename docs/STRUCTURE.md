@@ -66,7 +66,7 @@ internal/planning/       SHARED label names and colours, work modes, planned dat
 internal/logging/        SHARED the structured logger
 internal/team/           TEAM-ONLY everything specific to Team (below)
 internal/appops/         INDIVIDUAL the application operations a model (the assistant, later MCP) may use: permission, proposal, confirmation, audit
-internal/assistant/      INDIVIDUAL the conversational assistant's engine, and its providers (Claude Code, Codex) under provider/
+internal/assistant/      INDIVIDUAL the conversational assistant's engine, and its providers (Claude Code, Codex, Gemini CLI, OpenCode) under provider/
 internal/<everything else>/       Individual's code (domain, store, service, api, runner, agent, gitrepo, …)
 web/                     Individual's web app (Svelte PWA)
 ```

@@ -355,7 +355,7 @@ export class AssistantStore {
   private async ensureSession(): Promise<boolean> {
     if (this.session) return true;
     if (!this.choice) {
-      this.problem = 'Claude Code or Codex needs to be set up and signed in first.';
+      this.problem = 'Set up and sign in to a supported assistant CLI first.';
       return false;
     }
     try {

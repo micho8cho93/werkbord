@@ -135,8 +135,8 @@
       <h2 class="t">The assistant is turned off</h2>
       <p>It is switched off in this Werkbord’s settings file (<code>assistant.disabled</code>).</p>
     {:else if assistant.status === 'no-provider'}
-      <h2 class="t">Sign in to Claude Code or Codex first</h2>
-      <p>The assistant uses the one you already have on this computer, signed in the way you signed it in. Werkbord has no account or key of its own and never asks for one.</p>
+      <h2 class="t">Set up a supported CLI first</h2>
+      <p>The assistant uses Claude Code, Codex, Gemini CLI or OpenCode already on this computer, signed in the way you signed it in. Werkbord has no account or key of its own and never asks for one.</p>
       <ul class="provs">
         {#each kinds as p (p.id)}
           <li>

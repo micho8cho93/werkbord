@@ -1,6 +1,6 @@
 # The assistant: a conversation with your own coding agent, about your board
 
-The assistant lets you talk to Claude Code or Codex, signed in the way you already signed them in, about your board:
+The assistant lets you talk to Claude Code, Codex, Gemini CLI or OpenCode, signed in the way you already signed them in, about your board:
 what is blocked, what an agent is asking, what is planned for next week. It can **look** at the board and **propose**
 changes; you confirm each change before anything happens.
 
@@ -11,7 +11,7 @@ Everything the screen does is the HTTP API on this computer ([the API](#the-api)
  you ──▶ API (loopback, your token only)
             │
             ▼
-        Engine ──────────────▶ Provider ──▶ claude / codex   (board tools only, private directory, your sign-in)
+        Engine ──────────────▶ Provider ──▶ your assistant CLI   (board tools only, private directory, your sign-in)
    (conversation, streaming,        ▲                 │
     retries, recovery)              │   text          │ text (the reply, with any calls in it)
             │                       └─────────────────┘
@@ -136,9 +136,10 @@ The assistant belongs to the Individual controller, on your computer, and runs *
 ## Providers
 
 The assistant borrows what is already on this computer. It has no account, key or model of its own, and asks for none.
-Each provider says whether it is installed and signed in, how, and what to do if not (`GET /api/assistant/providers`).
-If a key in *your* environment makes the provider bill an API key instead of your plan, `usesApiKey` says so; Werkbord
-neither adds nor removes it.
+Each provider says whether it is installed and available, how to sign in, and what to do if not (`GET /api/assistant/providers`).
+Where the CLI can identify that an environment key is in use, `usesApiKey` reports it; Werkbord neither adds nor removes keys.
+
+#### Claude Code and Codex
 
 What was found by trying the real command lines (Claude Code 2.1.285, Codex 0.155.1, macOS), and what is **not** supported:
 
@@ -160,9 +161,23 @@ What was found by trying the real command lines (Claude Code 2.1.285, Codex 0.15
 | Deleting the provider's copy of a conversation | **Not possible** (no command); Werkbord forgets its handle | Possible in the protocol (`thread/delete`); **not used** |
 | Where the conversation lives | Claude Code's own storage, under the assistant's private directory | Codex's own storage (`~/.codex/sessions`) |
 
-**Two transports, one operation boundary.** Claude uses text calls. Codex registers the catalog as application functions
+#### Gemini CLI and OpenCode
+
+Both use ACP over stdio, the structured Agent Client Protocol. Gemini CLI starts with `gemini --acp`; OpenCode starts with
+`opencode --pure acp`. ACP notifications stream reply text, session handles support continuation, and cancelling the
+turn stops its CLI process tree. OpenCode lists configured models with `opencode models`, keeping provider-qualified
+IDs such as `openrouter/anthropic/model`. Gemini accepts `--model`; its model list can be supplied in Werkbord config,
+and `auto` leaves selection to Gemini CLI. OpenCode session options carry its model and effort selection.
+
+Assistant isolation is enforced by each CLI's configuration: Gemini gets a highest-priority system settings file that
+disables built-in tools, MCP servers, extensions and skills; OpenCode gets inline settings that deny tools and clear
+MCP configuration, and runs with external plugins disabled. The assistant advertises no ACP filesystem or terminal
+services. If an ACP agent still requests a permission or tool, Werkbord refuses the request. These adapters use only
+the text operation protocol, so the same operation checks, proposal confirmation and audit remain in force.
+
+**Four transports, one operation boundary.** Claude uses text calls. Codex registers the catalog as application functions
 so the model can request real tools instead of interpreting disabled runtime tools as unavailable board access. The
-provider has no board imports or credentials: its callback belongs to the engine and calls the same operation service.
+providers have no board imports or credentials: the callback belongs to the engine and calls the same operation service.
 Calls are bounded to 36 per attempt; audit failures stop the turn with their original reason. A tool request must belong
 to the active thread and turn and name a registered operation. Command and approval requests still end the turn.
 
@@ -258,7 +273,7 @@ keeps none ([What is kept](#what-is-kept-and-what-is-not)).
 | State | Shown | Offered |
 | --- | --- | --- |
 | Getting ready | *Getting ready…* | |
-| No provider ready | *Sign in to Claude Code or Codex first*, with each one's own reason and command | *Check again* |
+| No provider ready | *Set up a supported CLI first*, with each one's own reason and command | *Check again* |
 | Controller not answering | *Cannot reach Werkbord* | *Try again*; the screen keeps trying by itself |
 | Connection dropped mid-reply | *Reconnecting… your reply keeps going meanwhile* | none needed |
 | Turned off in settings | *The assistant is turned off* (`assistant.disabled`) | |
@@ -475,8 +490,9 @@ answers `503` if `assistant.disabled` is set.
 
 `readOnly` removes the permissions to propose changes (the assistant is not even told those operations exist). `projects`
 limits what it can see. The commands, models and reasoning levels it offers are the ones set for the agents under `"agents"`
-(`agents.claude-code.command`, `.model`, `.models`, `.reasoning`; the same for `codex`); `model` is what a conversation that
-chose none gets.
+(`agents.claude-code.command`, `.model`, `.models`, `.reasoning`; likewise for `codex`, `gemini-cli` and `opencode` where
+supported); `model` is what a conversation that chose none gets. Gemini CLI does not expose a reasoning selector through
+this adapter.
 
 ## Testing
 

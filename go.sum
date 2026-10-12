@@ -68,6 +68,8 @@ github.com/bradfitz/reco v0.0.0-20260929154613-b883fbd17e3f h1:jdXGSp5Ge5/kzikux
 github.com/bradfitz/reco v0.0.0-20260929154613-b883fbd17e3f/go.mod h1:oiCPXxBoDKSkb/RGEZwAZk8y/fwDlQ1vYlBbNRxPysw=
 github.com/bramvdbogaerde/go-scp v1.6.1 h1:HE63uMkmMEB62JwqdRrVqRTBi7H/L/rkTp8TPC7uffY=
 github.com/bramvdbogaerde/go-scp v1.6.1/go.mod h1:Lqx75BOgAvQoeBbPuPN/MfU3jf5tlfZVmUqpPbSZkZc=
+github.com/caelis-labs/acp-go-sdk v1.5.0 h1:0L9epgg0eYFvwz8PXrQ18++FEvS0BGU8ObyC02J+Mz0=
+github.com/caelis-labs/acp-go-sdk v1.5.0/go.mod h1:e7QRdJfJFrPtixgiJBRwqQMLCrwV7X6e2X2ZDF06ohg=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
