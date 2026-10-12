@@ -444,9 +444,9 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           <dl class="kv">
             <dt>Agent</dt><dd>{effective.agent ? agentLabel(app.agents, effective.agent) : 'First that works'}</dd>
             {#if effective.model}<dt>Model</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.models, effective.model)}</dd>{/if}
-            {#if effective.reasoning}<dt>Reasoning</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.reasoning, effective.reasoning)}</dd>{/if}
+            {#if effective.reasoning}<dt>Reasoning level</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.reasoning, effective.reasoning)}</dd>{/if}
             <dt>Runner</dt><dd>{effective.runner && effective.runner !== 'automatic' ? (app.runners.find((r) => r.id === effective.runner)?.name ?? effective.runner) : 'Automatic'}</dd>
-            <dt>Asks you</dt><dd>{interactionLabel({ interaction: effective.interaction })}</dd>
+            <dt>Agent decisions</dt><dd>{interactionLabel({ interaction: effective.interaction })}</dd>
             <dt>Priority</dt><dd>{priorityLabel(effective.priority)}</dd>
           </dl>
         </section>

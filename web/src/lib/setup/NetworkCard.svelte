@@ -91,7 +91,7 @@
     <p class="url"><code class="mono">{net.url}</code></p>
     <div class="row">
       <button class="btn small" onclick={copy}>{copied ? 'Copied' : 'Copy address'}</button>
-      <button class="btn small quiet" disabled={busy} onclick={() => change(false)}>Turn off</button>
+      <button class="btn small quiet" disabled={busy} onclick={() => change(false)}>Turn off phone access</button>
     </div>
     {#if phone}
       <div class="qr">

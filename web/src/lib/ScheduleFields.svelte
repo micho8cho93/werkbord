@@ -76,14 +76,14 @@
 >
   <label class="check"
     ><input type="checkbox" bind:checked={value.enabled} /><span
-      >Run automatically from the controller</span
+      >Run automatically from Werkbord</span
     ></label
   >
   <p class="muted small">
-    One attempt per schedule. Saving edits keeps the same attempt. Use Rearm to request another execution. Your browser can
-    be closed.
+    One attempt per schedule. Saving edits does not request another attempt. Allow one more run to rearm the schedule; the
+    controller starts it only when its schedule, dependencies and capacity allow. Your browser can be closed.
   </p>
-  <p class="muted small">This schedules when the controller starts agent work. To plan work dates or milestones, use Timeline.</p>
+  <p class="muted small">This schedules when Werkbord starts agent work. To plan work dates or milestones, use Timeline.</p>
   <div class="fields">
     <label
       >Timezone<input
@@ -115,7 +115,7 @@
       /></label
     >
     <label
-      >Execution order<input
+      >Run order<input
         class="input"
         type="number"
         min="0"
@@ -124,13 +124,13 @@
         placeholder="Unordered"
       /></label
     >
-    <label
-      >Repeated clock-change hour<select class="select" bind:value={occurrence}
-        ><option value="earlier">First occurrence</option><option value="later"
-          >Second occurrence</option
-        ></select
-      ></label
-    >
+    <label>When this time occurs twice
+      <select class="select" bind:value={occurrence}>
+        <option value="earlier">Earlier occurrence</option>
+        <option value="later">Later occurrence</option>
+      </select>
+    </label>
+    <p class="muted small">The selected timezone can repeat a local time when clocks move back. Choose which occurrence to use.</p>
     <label
       >If the scheduled time is missed<select
         class="select"
@@ -140,20 +140,22 @@
         ><option value="skip">Mark missed after grace period</option></select
       ></label
     >
-    {#if value.missedPolicy === "skip"}<label
-        >Grace period (minutes)<input
+    {#if value.missedPolicy === "skip"}
+      <label
+        >Wait before marking missed (minutes)<input
           class="input"
           type="number"
           min="0"
           max="43200"
           bind:value={grace}
           required
-        /></label
-      >{/if}
+        /></label>
+      <p class="muted small">The wait starts at the scheduled time, including while dependencies or runner capacity are unavailable. After it ends, this attempt is marked missed and needs to be allowed again.</p>
+    {/if}
   </div>
   <p class="muted small">
-    Order controls launch precedence; dependencies require completion. Priority
-    is set in the task’s execution options.
+    The scheduler uses Run order after scheduled time and before priority. Use dependencies when one task must finish before
+    another starts; Run order alone never makes a task wait. This order applies within the project.
   </p>
   <fieldset>
     <legend>Wait for tasks</legend>
@@ -192,7 +194,7 @@
   <button class="btn primary" disabled={busy}
     >{busy ? "Saving…" : "Save schedule and dependencies"}</button
   >
-<button type="button" class="btn" disabled={busy} onclick={() => { if (confirm("Rearm this schedule for one additional execution?")) void save(true); }}>Rearm for another execution</button>
+<button type="button" class="btn" disabled={busy} onclick={() => { if (confirm("Allow one more scheduled run? This rearms the schedule; it does not start an agent now.")) void save(true); }}>Allow one more run</button>
 </form>
 
 <style>

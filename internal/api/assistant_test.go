@@ -210,7 +210,7 @@ func TestTheAssistantEndToEndOverHTTP(t *testing.T) {
 
 	// The person says yes.
 	code, b = a.req(t, "POST", "/api/assistant/sessions/"+sid+"/actions/"+actionID, `{"decision":"approve"}`)
-	if code != 200 || !strings.Contains(string(b), "Created ticket") {
+	if code != 200 || !strings.Contains(string(b), "Created task") {
 		t.Fatalf("approve: %d %s", code, b)
 	}
 	tasks = a.board(t)

@@ -256,7 +256,7 @@ export function progressLine(r: ReplyItem): string {
   if (r.status !== 'working') return '';
   const running = [...r.steps].reverse().find((s) => s.status === 'running');
   if (running) return stepLabel(running.name) + '…';
-  if (r.text.trim() === '') return 'Thinking…';
+  if (r.text.trim() === '') return 'Working…';
   return 'Working…';
 }
 

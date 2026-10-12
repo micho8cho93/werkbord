@@ -48,7 +48,7 @@
     model.switcherButton = switchButton;
   });
 
-  // Individual's assistant: the button it opens out of, and whether it can be reached at all.
+  // Individual's assistant: the button it opens out of, and whether Werkbord can be reached.
   let assistantButton: HTMLButtonElement | undefined = $state();
   $effect(() => {
     model.assistantButton = assistantButton;
@@ -56,7 +56,7 @@
   const assistantReachable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state !== 'unavailable');
   const assistantLabel = $derived(
     !assistantReachable
-      ? 'Assistant, unavailable: Individual is not running'
+      ? 'Assistant, unavailable: Cannot reach Werkbord'
       : model.assistant.waiting > 0
         ? `Assistant, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'change is' : 'changes are'} waiting for you`
         : model.assistant.running
@@ -87,7 +87,7 @@
   </button>
 
   <div class="group ask">
-    <button bind:this={assistantButton} class="nav assistant" type="button" aria-haspopup="dialog" aria-expanded={model.assistant.open} aria-label={assistantLabel} title={assistantReachable ? 'Assistant' : 'Individual is not running'} disabled={!assistantReachable} onclick={askAssistant} data-page="assistant">
+    <button bind:this={assistantButton} class="nav assistant" type="button" aria-haspopup="dialog" aria-expanded={model.assistant.open} aria-label={assistantLabel} title={assistantReachable ? 'Assistant' : 'Cannot reach Werkbord'} disabled={!assistantReachable} onclick={askAssistant} data-page="assistant">
       <span class="aico"><Icon name="assistant" /></span><span class="label">Assistant</span>
       {#if model.assistant.waiting > 0}
         <span class="num" aria-hidden="true">{model.assistant.waiting}</span>

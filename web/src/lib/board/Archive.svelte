@@ -22,7 +22,7 @@
   <ul class="tasks">
     {#each tasks as task (task.id)}
       <li><div><a href={taskHref(task.projectId, task.id)}>{task.title}</a><p class="muted">{TASK_STATE_LABELS[task.state]} · Archived {timeAgo(task.archivedAt!, app.now)}</p></div><button class="btn small" disabled={!!busy} onclick={() => restore(task)}>{busy === task.id ? 'Restoring…' : 'Restore'}</button></li>
-    {:else}<li class="muted">{search ? 'No archived tasks match.' : 'No archived work yet. Clear Done or archive a task to keep it here.'}</li>{/each}
+    {:else}<li class="muted">{search ? 'No archived tasks match.' : 'No archived work yet. Archive Done tasks or archive a task to keep it here.'}</li>{/each}
   </ul>
 </section>
 <style>

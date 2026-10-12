@@ -154,8 +154,8 @@
   </div>
 
   {#if warnings.length}
-    <section class="warns" aria-label="Needs a look">
-      <h2><Icon name="activity" size={14} />Needs a look <span class="chip">{warnings.length}</span></h2>
+    <section class="warns" aria-label="Planning issues">
+      <h2><Icon name="activity" size={14} />Planning issues <span class="chip">{warnings.length}</span></h2>
       <ul>
         {#each warnings as w, i (i)}
           {@const t = taskOf(w.itemId)}

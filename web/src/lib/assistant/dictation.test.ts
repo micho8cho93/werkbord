@@ -107,7 +107,7 @@ describe('words for what goes wrong', () => {
     for (const code of ['aborted', 'no-speech', 'unknown']) {
       expect(errorMessage(code, true, 'Siri and Dictation are disabled')).toMatch(/turned off.*System Settings → Keyboard → Dictation/);
     }
-    expect(errorMessage('unknown', true)).toMatch(/Dictation is on in System Settings → Keyboard/);
+    expect(errorMessage('unknown', true)).toMatch(/Check System Settings → Keyboard → Dictation/);
   });
 });
 

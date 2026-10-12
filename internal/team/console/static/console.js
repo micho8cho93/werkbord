@@ -203,7 +203,7 @@ async function api(method, path, body, opts) {
   if (res.status === 401 && state.desktop) throw new Error('This device no longer has workspace access. Ask your administrator to approve a new invitation.');
   if (res.status === 401 && state.token && state.token === credential) { signOut(); throw new Error('Your token is not valid any more. Sign in again.'); }
   if (!res.ok) {
-    const err = new Error(data.error ? data.error.message : 'Request failed (' + res.status + ')');
+    const err = new Error(data.error ? data.error.message : 'Werkbord Team could not complete this request. Check the current state before repeating an action.');
     err.status = res.status;
     throw err;
   }
@@ -934,7 +934,7 @@ function boardTab(d) {
   const b = d.board;
   const toolbar = h('div', { class: 'actions board-tools' }, filterBar(d),
     h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
-    pcan('tickets.reopen') ? h('button', { class: 'plain', disabled: !b.tickets.some(k => k.status === 'done'), onclick: () => act(async () => { const result = await api('POST', '/projects/' + d.id + '/tickets/archive-done'); state.info = plural(result.archived, 'ticket') + ' moved to the archive.'; }) }, 'Clear Done') : '',
+    pcan('tickets.reopen') ? h('button', { class: 'plain', disabled: !b.tickets.some(k => k.status === 'done'), onclick: () => act(async () => { const result = await api('POST', '/projects/' + d.id + '/tickets/archive-done'); state.info = plural(result.archived, 'ticket') + ' moved to the archive.'; }) }, 'Archive Done tickets') : '',
     pcan('tickets.create') && !b.project.archived ? h('button', { class: 'primary', title: state.newTicketOpen ? 'Cancel new ticket' : 'New ticket (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '');
   const cols = b.statuses.map((s) => {
     const items = b.tickets.filter((k) => k.status === s.status && matchesFilter(k));
@@ -959,7 +959,7 @@ function archiveTab(d) {
   const rows = (d.board.archived || []).slice().reverse().map(k => h('div', { class: 'row', 'data-search': (k.title + ' ' + k.description + ' ' + k.key).toLowerCase() },
     h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openTicket(d.id, k.id) }, k.key + ' · ' + k.title), h('p', { class: 'muted' }, statusName(k.status) + ' · Archived ' + ago(k.archivedAt))),
     canArchiveTicket(k) ? h('button', { class: 'plain small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: false })) }, 'Restore') : ''));
-  const list = h('div', { class: 'archive-list' }, rows.length ? rows : h('p', { class: 'muted' }, 'No archived work yet. Clear Done or close a ticket to keep it here.'));
+  const list = h('div', { class: 'archive-list' }, rows.length ? rows : h('p', { class: 'muted' }, 'No archived work yet. Archive Done tickets or archive a ticket to keep it here.'));
   const search = h('input', { name: 'archive-search', type: 'search', placeholder: 'Search title, ticket key or details', oninput: e => { for (const row of list.querySelectorAll('[data-search]')) row.hidden = !row.dataset.search.includes(e.target.value.toLowerCase()); } });
   return h('section', { class: 'panel archive-panel' }, h('h2', {}, 'Archived work'), field('Search archive', search), list);
 }
@@ -1082,8 +1082,8 @@ function ticketPanel(d, k) {
   }
 
   }
-  if (canArchiveTicket(k)) actions.push(h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/archive', { version: k.version, archived: !k.archivedAt })) }, k.archivedAt ? 'Restore ticket' : 'Close ticket'));
-  if (!k.archivedAt && ['in_progress', 'review'].includes(k.status)) actions.push(h('p', { class: 'muted small' }, 'Closing archives the ticket in Team. Stop any running agent in your own Werkbord.'));
+  if (canArchiveTicket(k)) actions.push(h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/archive', { version: k.version, archived: !k.archivedAt })) }, k.archivedAt ? 'Restore ticket' : 'Archive ticket'));
+  if (!k.archivedAt) actions.push(h('p', { class: 'muted small' }, 'Archiving moves this ticket out of the active board; it does not delete it.' + (['in_progress', 'review'].includes(k.status) ? ' It does not stop an agent running in your Werkbord; stop that run there if needed.' : '')));
 
   const facts = h('dl', { class: 'facts' },
     h('dt', {}, 'Status'), h('dd', {}, (k.archivedAt ? 'Archived · ' : '') + statusLabel(b, k.status)),
@@ -1122,7 +1122,7 @@ function ticketPanel(d, k) {
 }
 
 function executionProgress(records) {
-  const labels = { queued: 'Queued', running: 'Running', needs_input: 'Needs input', blocked: 'Blocked', completed: 'Completed', failed: 'Failed', canceled: 'Canceled' };
+  const labels = { queued: 'Queued', running: 'Running', needs_input: 'Waiting for an answer', blocked: 'Blocked', completed: 'Completed', failed: 'Failed', canceled: 'Cancelled' };
   const rows = records.map(p => {
     const e = p.execution;
     return h('div', { class: 'execution-progress' },
@@ -1135,7 +1135,7 @@ function executionProgress(records) {
         h('dt', {}, p.stale ? 'Last handoff report' : 'Handoff'), h('dd', {}, e.handoffAvailable ? (p.stale ? 'Was available in the owner’s Werkbord' : 'Available in the owner’s Werkbord') : (p.stale ? 'Was not available' : 'Not available'))),
       p.gitUnavailable ? h('p', { class: 'muted small' }, 'Git metadata is unavailable; previously reported Git facts are retained.') : '');
   });
-  return h('section', { 'aria-label': 'Individual execution' }, h('h3', {}, 'Individual execution'),
+  return h('section', { 'aria-label': 'Werkbord execution' }, h('h3', {}, 'Werkbord execution'),
     rows.length ? rows : h('p', { class: 'muted' }, 'No execution reported. The owner can enable their connector to synchronize this ticket.'),
     rows.length ? h('p', { class: 'muted small' }, 'Execution completion leaves ticket review and approval to the team.') : '');
 }
@@ -1191,8 +1191,8 @@ function handoffBox(hf) {
   if (state.desktop) return runnerHandoff(hf);
   const json = JSON.stringify(hf, null, 2);
   return h('div', { class: 'handoff' },
-    h('strong', {}, 'Open ' + hf.ticket.key + ' in your own Werkbord'),
-    h('p', { class: 'muted' }, 'This gives you the ticket\'s context to take into your Werkbord, on your computer. It does not connect to anyone\'s runner, and nobody else can use it to run anything on yours. It holds no credentials and no paths.'),
+    h('strong', {}, 'Open Team ticket ' + hf.ticket.key + ' as a task in your Werkbord'),
+    h('p', { class: 'muted' }, 'This opens a local task with the ticket\'s context in your Werkbord. It does not connect to anyone\'s runner, and nobody else can use it to run anything on yours. It holds no credentials and no paths.'),
     h('ol', {},
       h('li', {}, 'In your Werkbord, add a task to your checkout of ', h('code', {}, hf.git.repository || 'this project\'s repository'), ' and paste the task text below as its description.'),
       h('li', {}, 'Run it on the branch ', h('code', {}, hf.git.branch), '. Commit and push there, then open a pull request. Do not merge it: the reviewer does that.'),
@@ -1387,7 +1387,7 @@ function teamSchedulePanel(k, b) {
       await api('PUT', projectPath(k) + '/schedule', { version: current?.version || 0, at: new Date(at.value).toISOString(), timezone: timezone.value, missedPolicy: missed.value, graceSeconds: Number(grace.value), order: Number(order.value), priority: Number(priority.value) });
       scheduleDrafts.delete(key);
       if (state.desktop) executionViews.delete(k.projectId + ':' + k.id);
-    }); } }, field('Start time with UTC offset', at), field('Display timezone', timezone), field('Missed execution', missed), field('Grace window (seconds)', grace), field('Execution order', order), field('Priority', priority), h('button', { class: 'plain' }, current ? 'Reschedule request' : 'Propose schedule')));
+    }); } }, field('Start time with UTC offset', at), field('Display timezone', timezone), field('Missed execution', missed), field('Wait before marking missed (seconds)', grace), field('Run order', order), field('Priority', priority), h('p', { class: 'muted small' }, 'The wait starts at the scheduled time, including while the task waits for dependencies or runner capacity.'), h('button', { class: 'plain' }, current ? 'Reschedule request' : 'Propose schedule')));
     if (current && !['completed', 'canceled'].includes(current.state)) box.append(h('button', { class: 'danger', onclick: () => act(() => api('POST', projectPath(k) + '/schedule/cancel', { version: current.version })) }, 'Cancel request'));
   }).catch(err => box.append(h('p', { class: 'advice', role: 'alert' }, err.message)));
   return box;
@@ -1439,7 +1439,7 @@ function timelineTab(d) {
     h('button', { type: 'button', class: 'plain small', onclick: () => { const s = app.querySelector('.tl-scroller'); if (s) s.scrollLeft = Math.max(0, todayX - s.clientWidth / 2 + 120); } }, 'Today'),
     filterBar(d));
 
-  const warnPanel = warnings.length ? h('section', { class: 'tl-warns', 'aria-label': 'Needs a look' }, h('h3', {}, 'Needs a look ', h('span', { class: 'badge' }, String(warnings.length))),
+  const warnPanel = warnings.length ? h('section', { class: 'tl-warns', 'aria-label': 'Planning issues' }, h('h3', {}, 'Planning issues ', h('span', { class: 'badge' }, String(warnings.length))),
     h('ul', {}, warnings.map((w) => { const k = ticketOf(w.itemId); return h('li', { 'data-sev': w.severity },
       h('span', { class: 'sev' }, w.severity === 'error' ? 'Problem' : w.severity === 'warning' ? 'Conflict' : 'Note'), h('span', { class: 'msg' }, w.message),
       k ? h('button', { type: 'button', class: 'plain small', onclick: open(k) }, 'Open ' + k.key) : ''); })),

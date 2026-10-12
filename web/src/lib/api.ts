@@ -116,11 +116,11 @@ export async function request<T>(method: string, path: string, body?: unknown): 
   try {
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
-    throw new ApiError(0, 'offline', 'Cannot reach the controller.');
+    throw new ApiError(0, 'offline', 'Cannot reach Werkbord.');
   }
   if (!res.ok) {
     let code = 'http_error';
-    let message = `${res.status} ${res.statusText}`;
+    let message = 'Werkbord returned an unexpected response. Check the current state before repeating an action.';
     let question: Question | undefined;
     try {
       const data = (await res.json()) as { error?: { code: string; message: string }; question?: Question };
@@ -143,11 +143,11 @@ export async function requestNoContent(method: string, path: string): Promise<vo
   try {
     res = await fetch(path, { method, headers });
   } catch {
-    throw new ApiError(0, 'offline', 'Cannot reach the controller.');
+    throw new ApiError(0, 'offline', 'Cannot reach Werkbord.');
   }
   if (res.ok) return;
   let code = 'http_error';
-  let message = `${res.status} ${res.statusText}`;
+  let message = 'Werkbord returned an unexpected response. Check the current state before repeating an action.';
   try {
     const data = (await res.json()) as { error?: { code: string; message: string } };
     if (data.error) ({ code, message } = data.error);

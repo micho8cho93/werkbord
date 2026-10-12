@@ -318,7 +318,7 @@
       class="tool"
       class:on={listening}
       type="button"
-      aria-label={listening ? 'Done dictating: keep the text so I can edit it' : 'Dictate'}
+      aria-label={listening ? 'Finish dictation and keep the text to edit' : 'Dictate a message'}
       title={listening ? 'Done: keep the text to edit' : 'Dictate'}
       onclick={mic}
       disabled={phase === 'finishing'}

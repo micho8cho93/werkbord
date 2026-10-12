@@ -2,7 +2,7 @@
   import { assistant } from './store.svelte';
   import Markdown from './Markdown.svelte';
   import { lookedAt, progressLine, type ReplyItem } from './transcript';
-  import { failure } from './words';
+  import { failure, operationFailureTitle } from './words';
 
   let { reply }: { reply: ReplyItem } = $props();
   const line = $derived(reply.status === 'working' ? progressLine(reply) : '');
@@ -32,8 +32,8 @@
 
   {#each failedSteps as step (step)}
     <div class="fail" role="alert">
-      <strong><span class="status"><span class="status-dot" aria-hidden="true"></span>Failed</span>Could not complete a board action</strong>
-      <p>{step.detail || 'The action failed. Ask the assistant to try again.'}</p>
+      <strong><span class="status"><span class="status-dot" aria-hidden="true"></span>Failed</span>{operationFailureTitle(step.name)}</strong>
+      <p>{step.detail || 'Check the latest state before repeating this step.'}</p>
     </div>
   {/each}
 

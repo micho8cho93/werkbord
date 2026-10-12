@@ -317,7 +317,7 @@ export class Model {
   }
 
   async teamService(action: 'start' | 'stop' | 'uninstall'): Promise<void> {
-    this.busy = 'Working…';
+    this.busy = action === 'start' ? 'Starting Team service…' : action === 'stop' ? 'Stopping Team service…' : 'Removing Team service…';
     this.error = '';
     try {
       await ask((a) => a.TeamService(action));

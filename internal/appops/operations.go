@@ -12,8 +12,8 @@ import (
 	"devboard/internal/service"
 )
 
-// The words the operations use for the things on the board are the ones the person uses: a ticket is a task on a
-// project's board.
+// Assistant-visible operation names use the Individual product term "task". The stable tool and JSON names remain
+// ticket-shaped for compatibility.
 
 const (
 	idMax    = 80
@@ -26,7 +26,7 @@ const (
 
 var (
 	projectID = Str("The project's id (from list_projects).", idMax)
-	ticketID  = Str("The ticket's id (from list_tickets).", idMax)
+	ticketID  = Str("The task's id (from list_tickets).", idMax)
 	states    = []string{string(domain.TaskBacklog), string(domain.TaskDoing), string(domain.TaskReview), string(domain.TaskDone)}
 	modes     = []string{string(planning.ModeHuman), string(planning.ModeAgent), string(planning.ModeHybrid)}
 )
@@ -47,42 +47,42 @@ func operations() []*operation {
 		},
 		{
 			Spec: Spec{Name: "list_labels", Title: "List labels", Kind: KindRead, Permission: PermTicketsRead,
-				Description: "The reusable labels a ticket can carry (needed to set labelIds).",
+				Description: "The reusable labels a task can carry (needed to set labelIds).",
 				Input:       Object(map[string]*Schema{})},
 			run: opListLabels,
 		},
 		{
-			Spec: Spec{Name: "list_tickets", Title: "List tickets", Kind: KindRead, Permission: PermTicketsRead,
-				Description: "A project's tickets, with state, work mode, labels and planned dates. Descriptions are shortened; use get_ticket for one in full.",
+			Spec: Spec{Name: "list_tickets", Title: "List tasks", Kind: KindRead, Permission: PermTicketsRead,
+				Description: "A project's tasks, with state, work mode, labels and planned dates. Descriptions are shortened; use get_ticket for one in full.",
 				Input: Object(map[string]*Schema{
 					"projectId":       projectID,
-					"state":           Enum("Only tickets in this column.", states...),
-					"workMode":        Enum("Only tickets of this work mode.", modes...),
-					"labelId":         Str("Only tickets carrying this label.", idMax),
-					"query":           Str("Only tickets whose title contains this text.", 100),
-					"includeArchived": Bool("Include archived tickets. Default false."),
+					"state":           Enum("Only tasks in this column.", states...),
+					"workMode":        Enum("Only tasks of this work mode.", modes...),
+					"labelId":         Str("Only tasks carrying this label.", idMax),
+					"query":           Str("Only tasks whose title contains this text.", 100),
+					"includeArchived": Bool("Include archived tasks. Default false."),
 					"limit":           Int("How many to return, 1 to 100. Default 50.", 1, 100),
 				}, "projectId")},
 			run: opListTickets,
 		},
 		{
-			Spec: Spec{Name: "get_ticket", Title: "Get a ticket", Kind: KindRead, Permission: PermTicketsRead,
-				Description: "One ticket in full, with its most recent runs.",
+			Spec: Spec{Name: "get_ticket", Title: "Get a task", Kind: KindRead, Permission: PermTicketsRead,
+				Description: "One task in full, with its most recent runs.",
 				Input:       Object(map[string]*Schema{"projectId": projectID, "ticketId": ticketID}, "projectId", "ticketId")},
 			run: opGetTicket,
 		},
 		{
 			Spec: Spec{Name: "get_schedule", Title: "Schedule and timeline", Kind: KindRead, Permission: PermScheduleRead,
-				Description: "A project's planned dates, scheduled starts, deadlines and dependencies, with the problems found in them (a dependency planned to end after its dependent starts, a cycle, a missing ticket) and the tickets waiting on others.",
+				Description: "A project's planned dates, scheduled starts, deadlines and dependencies, with the problems found in them (a dependency planned to end after its dependent starts, a cycle, a missing task) and the tasks waiting on others.",
 				Input: Object(map[string]*Schema{
 					"projectId":   projectID,
-					"includeDone": Bool("Include tickets that are done. Default false."),
+					"includeDone": Bool("Include tasks that are done. Default false."),
 				}, "projectId")},
 			run: opGetSchedule,
 		},
 		{
 			Spec: Spec{Name: "list_blockers", Title: "What is blocked", Kind: KindRead, Permission: PermRunsRead,
-				Description: "Runs that stopped rather than guess (with what is in the way), runs that failed on a ticket still waiting on them, and tickets waiting on a dependency. Optionally for one project.",
+				Description: "Runs that stopped rather than guess (with what is in the way), runs that failed on a task still waiting on them, and tasks waiting on a dependency. Optionally for one project.",
 				Input:       Object(map[string]*Schema{"projectId": projectID})},
 			run: opListBlockers,
 		},
@@ -94,7 +94,7 @@ func operations() []*operation {
 		},
 		{
 			Spec: Spec{Name: "list_runs", Title: "List runs", Kind: KindRead, Permission: PermRunsRead,
-				Description: "A project's recent runs, newest first, optionally for one ticket or only those still going.",
+				Description: "A project's recent runs, newest first, optionally for one task or only those still going.",
 				Input: Object(map[string]*Schema{
 					"projectId":  projectID,
 					"ticketId":   ticketID,
@@ -110,8 +110,8 @@ func operations() []*operation {
 			run: opGetRun,
 		},
 		{
-			Spec: Spec{Name: "create_ticket", Title: "Create a ticket", Kind: KindMutation, Permission: PermTicketsCreate, RequiresConfirmation: true,
-				Description: "Add a ticket to the bottom of a project's Backlog. The person must confirm before it is created. It does not start any work.",
+			Spec: Spec{Name: "create_ticket", Title: "Create a task", Kind: KindMutation, Permission: PermTicketsCreate, RequiresConfirmation: true,
+				Description: "Add a task to the bottom of a project's Backlog. The person must confirm before it is created. It does not start any work.",
 				Input: Object(map[string]*Schema{
 					"projectId":    projectID,
 					"title":        Str("A short title.", titleMax),
@@ -125,8 +125,8 @@ func operations() []*operation {
 			plan: planCreateTicket, run: runCreateTicket,
 		},
 		{
-			Spec: Spec{Name: "update_ticket", Title: "Change a ticket", Kind: KindMutation, Permission: PermTicketsUpdate, RequiresConfirmation: true,
-				Description: "Change a ticket's title, description, column, work mode, labels or planned dates. The person must confirm before it is changed. Moving a ticket never starts or stops a run. Give only what changes; an empty planned date clears it.",
+			Spec: Spec{Name: "update_ticket", Title: "Change a task", Kind: KindMutation, Permission: PermTicketsUpdate, RequiresConfirmation: true,
+				Description: "Change a task's title, description, column, work mode, labels or planned dates. The person must confirm before it is changed. Moving a task never starts or stops a run. Give only what changes; an empty planned date clears it.",
 				Input: Object(map[string]*Schema{
 					"projectId":       projectID,
 					"ticketId":        ticketID,
@@ -144,7 +144,7 @@ func operations() []*operation {
 		},
 		{
 			Spec: Spec{Name: "answer_question", Title: "Answer an agent's question", Kind: KindMutation, Permission: PermQuestionsAnswer, RequiresConfirmation: true,
-				Description: "Give an agent the answer to a question it is waiting on, through the runner it is on. The person must confirm first. A request for permission to run something cannot be answered this way.",
+				Description: "Save an answer to a question an agent is waiting on. The runner delivers it to the agent; a saved answer is not confirmed as received until delivery is recorded. The person must confirm first. A request for permission to run something cannot be answered this way.",
 				Input: Object(map[string]*Schema{
 					"projectId":  projectID,
 					"questionId": Str("The question's id (from list_agent_questions).", idMax),
@@ -526,7 +526,7 @@ func planCreateTicket(ctx context.Context, e *env, a map[string]any) (*plan, err
 		norm["milestone"] = true
 	}
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Create the ticket %q in project %q", title, project.Name)
+	fmt.Fprintf(&sb, "Create the task %q in project %q", title, project.Name)
 	if mode != "" {
 		fmt.Fprintf(&sb, " as %s work", mode)
 	}
@@ -552,7 +552,7 @@ func runCreateTicket(ctx context.Context, e *env, a map[string]any) (any, error)
 		return nil, err
 	}
 	v := ticketView(*t, listDescriptionChars)
-	return &Changed{Message: fmt.Sprintf("Created ticket %s (%q) in the %s column", t.ID, clip(t.Title, 80), t.State), Ticket: &v}, nil
+	return &Changed{Message: fmt.Sprintf("Created task %s (%q) in the %s column", t.ID, clip(t.Title, 80), t.State), Ticket: &v}, nil
 }
 
 func planUpdateTicket(ctx context.Context, e *env, a map[string]any) (*plan, error) {
@@ -562,10 +562,10 @@ func planUpdateTicket(ctx context.Context, e *env, a map[string]any) (*plan, err
 		return nil, err
 	}
 	if t.ArchivedAt != nil {
-		return nil, fmt.Errorf("%w: this ticket is archived; it has to be restored in Werkbord before it can be changed", domain.ErrConflict)
+		return nil, fmt.Errorf("%w: this task is archived; it has to be restored in Werkbord before it can be changed", domain.ErrConflict)
 	}
 	if v, ok := a["expectedVersion"]; ok && int64(v.(float64)) != t.Version {
-		return nil, fmt.Errorf("%w: ticket %s is at version %d, not %d: read it again first", domain.ErrConflict, t.ID, t.Version, int64(v.(float64)))
+		return nil, fmt.Errorf("%w: task %s is at version %d, not %d: read it again first", domain.ErrConflict, t.ID, t.Version, int64(v.(float64)))
 	}
 	norm := map[string]any{"projectId": pid, "ticketId": tid, "expectedVersion": t.Version}
 	var changes []string
@@ -632,9 +632,9 @@ func planUpdateTicket(ctx context.Context, e *env, a map[string]any) (*plan, err
 		}
 	}
 	if len(changes) == 0 {
-		return nil, fmt.Errorf("%w: nothing would change: the ticket already is as asked", domain.ErrInvalid)
+		return nil, fmt.Errorf("%w: nothing would change: the task already is as asked", domain.ErrInvalid)
 	}
-	return &plan{Args: norm, Summary: fmt.Sprintf("Change ticket %q (%s): %s", clip(t.Title, 80), t.ID, strings.Join(changes, "; "))}, nil
+	return &plan{Args: norm, Summary: fmt.Sprintf("Change task %q (%s): %s", clip(t.Title, 80), t.ID, strings.Join(changes, "; "))}, nil
 }
 
 func runUpdateTicket(ctx context.Context, e *env, a map[string]any) (any, error) {
@@ -670,7 +670,7 @@ func runUpdateTicket(ctx context.Context, e *env, a map[string]any) (any, error)
 		return nil, err
 	}
 	v := ticketView(*t, listDescriptionChars)
-	return &Changed{Message: fmt.Sprintf("Changed ticket %s (%q); it is now in the %s column", t.ID, clip(t.Title, 80), t.State), Ticket: &v}, nil
+	return &Changed{Message: fmt.Sprintf("Changed task %s (%q); it is now in the %s column", t.ID, clip(t.Title, 80), t.State), Ticket: &v}, nil
 }
 
 func planAnswer(ctx context.Context, e *env, a map[string]any) (*plan, error) {
@@ -695,7 +695,7 @@ func planAnswer(ctx context.Context, e *env, a map[string]any) (*plan, error) {
 	}
 	return &plan{
 		Args:    map[string]any{"projectId": pid, "questionId": qid, "answer": answer},
-		Summary: fmt.Sprintf("Answer the agent's question %q (ticket %q) with %q", clip(oneLine(q.Prompt), 160), clip(title, 80), clip(oneLine(answer), 300)),
+		Summary: fmt.Sprintf("Answer the agent's question %q (task %q) with %q", clip(oneLine(q.Prompt), 160), clip(title, 80), clip(oneLine(answer), 300)),
 	}, nil
 }
 
@@ -714,7 +714,14 @@ func runAnswer(ctx context.Context, e *env, a map[string]any) (any, error) {
 		return nil, err
 	}
 	v := questionView(*done, "", "")
-	return &Changed{Message: fmt.Sprintf("Answered question %s; the agent was given %q", done.ID, clip(oneLine(done.Answer), 120)), Question: &v}, nil
+	return &Changed{Message: answerOutcome(*done), Question: &v}, nil
+}
+
+func answerOutcome(q domain.Question) string {
+	if q.DeliveredAt == nil {
+		return fmt.Sprintf("Answer saved for question %s: %q. Waiting for the agent to receive it.", q.ID, clip(oneLine(q.Answer), 120))
+	}
+	return fmt.Sprintf("Answer delivered to the agent for question %s: %q.", q.ID, clip(oneLine(q.Answer), 120))
 }
 
 // ---- argument helpers ----

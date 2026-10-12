@@ -248,12 +248,12 @@ describe('the person’s answer to a proposed change', () => {
     expect(confirmOf(a).state).toBe(state);
   });
 
-  it('puts the change back as waiting if the controller could not be reached, so it can be pressed again', async () => {
+  it('puts the change back as waiting if Werkbord cannot be reached, so it can be pressed again', async () => {
     const { a } = await waitingChange();
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')));
     await a.resolve(confirmOf(a), 'approve');
     expect(confirmOf(a).state).toBe('waiting');
-    expect(a.problem).toMatch(/cannot be reached/);
+    expect(a.problem).toMatch(/Cannot reach Werkbord/);
   });
 });
 

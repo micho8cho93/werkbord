@@ -55,7 +55,7 @@
         {/if}
       </a>
     {:else}
-      <a class="nav" href={globalHref('projects')}><Icon name="plus" />Add a repository</a>
+      <a class="nav" href={globalHref('projects')}><Icon name="plus" />Add project</a>
     {/each}
   </nav>
 

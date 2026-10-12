@@ -41,9 +41,9 @@
       {#if teamState?.state === 'not_installed' || teamState?.state === 'outdated'}
         <button class="btn primary" type="button" onclick={() => model.activateTeam()} disabled={!!model.busy}>{teamState.state === 'outdated' ? 'Update Team' : 'Set up Team'}</button>
       {:else if teamState?.state === 'stopped'}
-        <button class="btn" type="button" onclick={() => model.teamService('start')} disabled={!!model.busy}>Start Team</button>
+        <button class="btn" type="button" onclick={() => model.teamService('start')} disabled={!!model.busy}>{model.busy === 'Starting Team service…' ? model.busy : 'Start Team service'}</button>
       {:else if teamState?.state === 'ready'}
-        <button class="btn" type="button" onclick={() => model.teamService('stop')} disabled={!!model.busy}>Stop Team</button>
+        <button class="btn" type="button" onclick={() => model.teamService('stop')} disabled={!!model.busy}>{model.busy === 'Stopping Team service…' ? model.busy : 'Stop Team service'}</button>
       {/if}
     </div>
   </section>

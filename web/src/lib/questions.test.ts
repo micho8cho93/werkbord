@@ -114,7 +114,7 @@ describe('what the user is told when an answer does not go through', () => {
     expect(f.settled).toBe(false);
     expect(f.notice).toBe(false);
     expect(f.message).toMatch(/Could not confirm/);
-    expect(f.message).toMatch(/retry the same answer/);
+    expect(f.message).toMatch(/check the question before taking action/);
   });
 
   it('shows a refused answer inline, and does not drop the question', () => {
@@ -248,11 +248,11 @@ describe('the banner states a question once', () => {
 
 describe('the line shown after answering', () => {
   it('says the agent has the answer once delivery is confirmed', () => {
-    expect(answeredNotice(q({ state: 'answered', deliveredAt: '2026-10-04T10:01:00.000Z' }), 'Yes')).toBe('Answered “Yes”. The agent has it and is carrying on.');
+    expect(answeredNotice(q({ state: 'answered', deliveredAt: '2026-10-04T10:01:00.000Z' }), 'Yes')).toBe('Answered “Yes”. Delivered to the agent.');
   });
 
   it('says it is only saved while the runner has not confirmed delivery', () => {
-    expect(answeredNotice(q({ state: 'answered' }), 'Yes')).toBe('Answered “Yes”. Saved: waiting for the runner to confirm the agent has it.');
+    expect(answeredNotice(q({ state: 'answered' }), 'Yes')).toBe('Answer saved: “Yes”. Waiting for the agent to receive it.');
   });
 
   it('shortens a long typed answer', () => {

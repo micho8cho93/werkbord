@@ -179,9 +179,10 @@
     {#if dismissed}
       <button class="btn small quiet" disabled={busy} onclick={() => run(() => store.reopenFinding(finding.id))}>Show again</button>
     {:else}
-      <button class="btn small quiet" disabled={busy} title="Hide this until it gets worse, or goes away and comes back. Changes nothing in the repository." onclick={() => run(() => store.dismissFinding(finding.id))}>I know</button>
+      <button class="btn small quiet" disabled={busy} onclick={() => run(() => store.dismissFinding(finding.id))}>Hide finding</button>
     {/if}
   </div>
+  {#if !dismissed}<p class="footnote g-small muted">Hiding changes nothing in the repository. This finding returns if it worsens, or disappears and comes back.</p>{/if}
   {#if error}<p class="error g-small" role="alert">{error}</p>{/if}
 </li>
 

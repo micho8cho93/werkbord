@@ -80,8 +80,8 @@ function onboardingScreen() {
 }
 
 function desktopConnecting(serviceRunning = true) {
-  return setupShell(h('h1', {}, serviceRunning ? 'Reconnecting to your workspace' : 'Connect to your Team service'),
-    h('p', { class: 'muted', role: 'status' }, serviceRunning ? 'Your Team service is running. Keep a Workspace Host online so your workspace stays available.' : 'The Team service is not answering on this computer. Start it again to reconnect.'),
+  return setupShell(h('h1', {}, serviceRunning ? 'Reconnecting to your workspace' : 'Cannot reach the Team service'),
+    h('p', { class: 'muted', role: 'status' }, serviceRunning ? 'Your Team service is running. Keep a Workspace Host online so your workspace stays available.' : 'Check the connection. If the Team service is stopped, start it to reconnect.'),
     state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
     h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => render() }, 'Try again'), !serviceRunning && nativeApp() ? h('button', { class: 'plain', onclick: () => act(() => nativeApp().Service('start')) }, 'Start Team service') : ''), alwaysOnHelp());
 }
@@ -260,7 +260,7 @@ function nativeApp() {
 function runnerSetup() {
   return h('section', { class: 'panel' }, h('h2', {}, 'Your runner on this computer'), h('p', { class: 'muted' }, state.device.runner.connected ? 'Connected to your own Werkbord. It keeps its normal execution policies and approvals.' : 'The free Werkbord app runs your agents with your credentials. Team communicates with it only on this computer.'),
     h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => act(async () => { if (window.parent !== window) await nativeApp().SetupRunner(); else await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is connected.'; }) }, state.device.runner.connected ? 'Reconnect runner' : 'Connect existing runner'),
-      nativeApp() ? h('button', { class: 'plain', onclick: () => act(async () => { await nativeApp().SetupRunner(); if (window.parent === window) await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is ready.'; }) }, window.parent === window ? 'Install / set up free runner' : 'Connect my Individual runner') : extLink('https://github.com/micho8cho93/werkbord/releases', 'Download free Werkbord')));
+      nativeApp() ? h('button', { class: 'plain', onclick: () => act(async () => { await nativeApp().SetupRunner(); if (window.parent === window) await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is ready.'; }) }, window.parent === window ? 'Install / set up free runner' : 'Connect my Werkbord runner') : extLink('https://github.com/micho8cho93/werkbord/releases', 'Download free Werkbord')));
 }
 
 // Where a held ticket stands in the person's own Werkbord, once their runner is connected: the Team service on this
@@ -274,18 +274,18 @@ function individualActions(projectId, ticketId, small) {
   if (!t) {
     if ((state.device.settings.syncOff || []).includes(projectId)) return '';
     scheduleDesktopRefresh();
-    return h('p', { class: 'muted', role: 'status' }, 'Adding this ticket to Individual…');
+    return h('p', { class: 'muted', role: 'status' }, 'Adding this ticket as a task in Werkbord…');
   }
   if (t.taskId) {
-    const open = FRAMED ? h('button', { class: 'primary' + size, 'data-testid': 'open-in-individual', onclick: () => openInIndividual('#/p/' + encodeURIComponent(t.localProjectId) + '/task/' + encodeURIComponent(t.taskId)) }, 'Open in Individual')
-      : h('p', { class: 'muted' }, 'In your Individual Werkbord as a task, ready to start.');
-    return h('span', { class: 'inline individual' }, open, t.conflict ? h('p', { class: 'muted' }, 'The task was changed in Individual, so this ticket’s newer text was not applied there.') : '');
+    const open = FRAMED ? h('button', { class: 'primary' + size, 'data-testid': 'open-in-individual', onclick: () => openInIndividual('#/p/' + encodeURIComponent(t.localProjectId) + '/task/' + encodeURIComponent(t.taskId)) }, 'Open in Werkbord')
+      : h('p', { class: 'muted' }, 'In your Werkbord as a task, ready to start.');
+    return h('span', { class: 'inline individual' }, open, t.conflict ? h('p', { class: 'muted' }, 'The task was changed in Werkbord, so this ticket’s newer text was not applied there.') : '');
   }
-  if (t.waiting) return h('span', { class: 'inline individual' }, h('p', { class: 'muted', 'data-testid': 'waiting-for-repository' }, 'Individual has no project for this repository yet.'),
-    FRAMED ? h('button', { class: 'plain' + size, onclick: () => openInIndividual('#/control') }, 'Choose it in Individual') : '');
-  if (t.problem) return h('p', { class: 'muted' }, 'Not in Individual yet: ' + t.problem);
+  if (t.waiting) return h('span', { class: 'inline individual' }, h('p', { class: 'muted', 'data-testid': 'waiting-for-repository' }, 'Werkbord has no project for this repository yet.'),
+    FRAMED ? h('button', { class: 'plain' + size, onclick: () => openInIndividual('#/control') }, 'Choose a project in Werkbord') : '');
+  if (t.problem) return h('p', { class: 'muted' }, 'Not in Werkbord yet: ' + t.problem);
   scheduleDesktopRefresh();
-  return h('p', { class: 'muted', role: 'status' }, 'Adding this ticket to Individual…');
+  return h('p', { class: 'muted', role: 'status' }, 'Adding this ticket as a task in Werkbord…');
 }
 
 // Which projects' held tickets are copied into the person's own Werkbord. All of them, unless turned off here.
@@ -300,8 +300,8 @@ function syncPanel() {
     await deviceApi('PUT', '/settings', { ...s, syncOff: [...next] });
   });
   const problem = state.device.sync?.problem;
-  return h('section', { class: 'panel', 'aria-labelledby': 'sync-h' }, h('h2', { id: 'sync-h' }, 'Tickets in Individual'),
-    h('p', { class: 'muted' }, 'A ticket you claim or are assigned in these projects appears as a task in your own Werkbord, ready for you to start. Claiming never starts an agent.'),
+  return h('section', { class: 'panel', 'aria-labelledby': 'sync-h' }, h('h2', { id: 'sync-h' }, 'Team handoffs to Werkbord'),
+    h('p', { class: 'muted' }, 'A Team ticket you claim or are assigned in these projects appears as a local task in your own Werkbord, ready for you to start. Claiming never starts an agent.'),
     projects.length ? projects.map(p => h('label', { class: 'check-row' }, h('input', { type: 'checkbox', name: 'sync-' + p.project.id, checked: !off.has(p.project.id), onchange: e => save(p.project.id, e.target.checked) }), p.project.name))
       : h('p', { class: 'muted' }, 'You are not on any project yet.'),
     problem ? h('p', { class: 'advice' }, problem) : '');

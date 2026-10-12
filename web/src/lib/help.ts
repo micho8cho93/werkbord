@@ -25,11 +25,11 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     example: 'An agent asks, “Commit the fixture work?” Open the question, review its context and options, then choose the answer that matches your intent.',
     steps: [
       'Open Needs you or the question on its task card. The task title and project stay with the question.',
-      'Read the prompt and available choices. Answers are sent to the controller that owns the project.',
-      'After saving, look for delivery acknowledgment. “Awaiting acknowledgment” means the answer is saved but the runner has not confirmed receipt yet.',
+      'Read the prompt and available choices. Werkbord saves the answer, then the runner delivers it to the agent.',
+      '“Answer saved. Waiting for the agent to receive it” means delivery is not confirmed yet. “Answer delivered” means the runner confirmed receipt.',
     ],
-    recovery: 'If the owning controller is offline or its report is stale, refresh or reconnect before answering. The app disables answers when it cannot trust the current report.',
-    searchTerms: ['question', 'reply', 'needs you', 'awaiting acknowledgment', 'stale', 'offline'],
+    recovery: 'If the answer status is uncertain, reconnect and check the question first. If Werkbord offers a retry, use the same answer; each question accepts one answer. The app disables answers when its report is stale or offline.',
+    searchTerms: ['question', 'reply', 'needs you', 'awaiting acknowledgment', 'awaiting acknowledgement', 'waiting for the agent to receive it', 'stale', 'offline'],
     destination: { kind: 'global', view: 'control' },
     linkLabel: 'Open Needs you',
   },
@@ -41,9 +41,9 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     steps: [
       'Open the task in Review and choose Review changes to inspect its branch or pull request evidence.',
       'Accept work or Reject work records your assessment. It does not merge the branch or move the task.',
-      'Merge… shows the controller’s repository check. Confirm only when the displayed evidence is current and the proposed merge is what you want.',
+      'Merge… shows Werkbord’s repository check. Confirm only when the displayed evidence is current and the proposed merge is what you want.',
     ],
-    recovery: 'If evidence changes or the controller refuses a merge, return to the task and inspect the latest Git state. A successful local merge moves the task to Done and offers Undo for the task move.',
+    recovery: 'If evidence changes or Werkbord refuses the merge, return to the task and inspect the latest Git state. A successful local merge moves the task to Done and offers Undo for the task move.',
     searchTerms: ['review', 'merge', 'verdict', 'accept', 'reject', 'reported tests', 'verified tests', 'branch', 'pull request'],
     destination: { kind: 'project', repository: 'runs', work: 'board' },
     linkLabel: 'Open project work',
@@ -66,7 +66,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
   {
     id: 'plan-schedule',
     title: 'Plan dates or schedule a run',
-    summary: 'Timeline dates plan when work should happen. Calendar schedules when the controller starts agent work. They answer different questions.',
+    summary: 'Timeline dates plan when work should happen. Calendar schedules when Werkbord starts agent work. They answer different questions.',
     example: 'Put “Book the venue” on next week’s Timeline to plan the work. Add an execution schedule in Calendar only if an agent should start it at a chosen time.',
     steps: [
       'Use Timeline for planned task dates, milestones and dependencies. Setting a date there does not start an agent.',
@@ -81,11 +81,11 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
   {
     id: 'runner',
     title: 'Choose a runner',
-    summary: 'A runner is the computer where an agent works. Project defaults and routing rules can choose it for new runs; task execution settings can override the defaults.',
+    summary: 'A runner is the computer where an agent works. Project defaults and routing rules can choose it for new runs; task run settings can override the defaults. Opening a Team ticket in your Werkbord creates a local task for the handoff.',
     example: 'If the only eligible runner is Busy, wait for a slot or stop a run. An installed agent on a full runner is busy, not missing.',
     steps: [
       'Open Settings → Runners to check whether a runner is Idle, Working, Busy, Offline or Disabled.',
-      'Use project Task defaults or Routing rules for the usual choice. Change execution settings on a task when that run needs a different agent or runner.',
+      'Use project Task defaults or Routing rules for the usual choice. Change run settings on a task when that run needs a different agent or runner.',
       'Before starting, confirm the selected runner is online and has capacity.',
     ],
     recovery: 'If no runner can take the task, wait for capacity or stop a run you no longer need. If it is Offline or Disabled, use the runner’s existing Settings controls to investigate its connection or configuration.',
@@ -96,12 +96,12 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
   {
     id: 'disconnect',
     title: 'Recover after disconnection',
-    summary: 'The controller may keep working while a browser is disconnected. A last reported state is not proof of what is happening now.',
+    summary: 'Werkbord may keep working while a browser is disconnected. A last reported state is not proof of what is happening now.',
     example: 'If a task save reports an uncertain outcome, reconnect and check the Board or use View saved task before creating it again.',
     steps: [
-      'Restore the connection to the project’s controller and wait for a fresh report.',
-      'Use the task or run list to check what was saved or started before taking the action again.',
-      'For a saved answer that has not been acknowledged, retry the same answer when offered; do not create a different answer to force delivery.',
+      'Reconnect to the Werkbord that owns the project and wait for a fresh report.',
+      'Check the task or Runs to see what was saved or started before taking the action again.',
+      'If answer delivery is still unconfirmed and Werkbord offers a retry, retry the same answer. Do not submit a different answer.',
     ],
     recovery: 'When the app says delivery or save is uncertain, check first instead of repeating the mutation. A stale or offline report keeps actions disabled until current evidence returns.',
     searchTerms: ['disconnect', 'offline', 'reconnect', 'last reported', 'draft', 'uncertain', 'saved task'],

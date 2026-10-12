@@ -7,13 +7,13 @@ import type { ErrorInfo } from './types';
 /** What the person is told when a request to the assistant fails. */
 export function explain(e: unknown): string {
   if (e instanceof ApiError) {
-    if (e.status === 0) return 'Werkbord on this computer cannot be reached. It will keep trying.';
-    if (e.status === 401) return 'Werkbord does not recognise this device. Open it again from the Werkbord link.';
-    if (e.status === 503) return 'The assistant is turned off in this setup.';
+    if (e.status === 0) return 'Cannot reach Werkbord on this computer. Check the connection before sending the request again.';
+    if (e.status === 401) return 'Werkbord could not authorise this request. Open it again from the Werkbord link.';
+    if (e.status === 503) return 'Werkbord could not handle this assistant request. Check the conversation before repeating it.';
     if (e.status === 413) return e.message;
-    return e.message || 'That did not work.';
+    return e.message || 'Werkbord could not complete this request.';
   }
-  return e instanceof Error ? e.message : 'That did not work.';
+  return e instanceof Error ? e.message : 'Werkbord could not complete this request.';
 }
 
 export type FailureAction = 'retry' | 'model' | 'recheck' | 'none';
@@ -32,20 +32,21 @@ export function failure(err: ErrorInfo): Failure {
       return { title: 'That model is not available to your account', detail, action: 'model' };
     case 'not_signed_in':
     case 'not_installed':
-      return { title: err.code === 'not_installed' ? 'The assistant’s program is not installed' : 'You are signed out', detail, action: 'recheck' };
+      return { title: err.code === 'not_installed' ? 'The assistant’s program is not installed' : 'You are signed out of the assistant', detail, action: 'recheck' };
     case 'rate_limited':
-      return { title: 'Your plan has no allowance left for now', detail, action: 'none' };
+      return { title: 'The assistant’s service is limiting requests', detail, action: 'none' };
     case 'timeout':
-      return { title: 'That took too long', detail, action: 'retry' };
+      return { title: 'The assistant took too long to finish this reply', detail, action: 'retry' };
     case 'too_many_steps':
       return { title: 'The assistant went round in circles', detail, action: 'none' };
     case 'policy':
-    case 'protocol':
       return { title: 'The assistant stopped for safety', detail, action: 'none' };
+    case 'protocol':
+      return { title: 'Werkbord could not read the assistant’s response', detail, action: 'none' };
     case 'audit_unavailable':
       return { title: 'Werkbord could not write its records', detail, action: err.retryable ? 'retry' : 'none' };
     default:
-      return { title: err.retryable ? 'That did not work this time' : 'That did not work', detail, action: err.retryable ? 'retry' : 'none' };
+      return { title: 'The assistant could not finish this reply', detail, action: err.retryable ? 'retry' : 'none' };
   }
 }
 
@@ -82,9 +83,27 @@ export function operationTitle(op: string): string {
     case 'update_ticket':
       return 'Change a task';
     case 'answer_question':
-      return 'Answer an agent';
+      return 'Answer an agent’s question';
     default:
       return 'Change';
+  }
+}
+
+/** Names the failed assistant operation without exposing its compatibility tool identifier. */
+export function operationFailureTitle(op: string): string {
+  switch (op) {
+    case 'list_projects': return 'Could not load projects';
+    case 'list_tickets': return 'Could not load tasks';
+    case 'get_ticket': return 'Could not load this task';
+    case 'get_schedule': return 'Could not load the schedule';
+    case 'list_blockers': return 'Could not load blockers';
+    case 'list_agent_questions': return 'Could not load agent questions';
+    case 'list_runs': return 'Could not load runs';
+    case 'get_run_status': return 'Could not load run status';
+    case 'create_ticket': return 'Could not create the task';
+    case 'update_ticket': return 'Could not update the task';
+    case 'answer_question': return 'Could not save the answer';
+    default: return 'Could not complete this assistant step';
   }
 }
 

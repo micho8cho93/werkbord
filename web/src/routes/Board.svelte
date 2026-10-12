@@ -295,9 +295,9 @@
       </label>
       <TaskFilterBar projectId={project.id} />
       <button class="btn small" aria-pressed={viewingArchive} onclick={() => viewingArchive = !viewingArchive}>{viewingArchive ? 'Back to board' : `Archive (${scope.archivedTasks.length})`}</button>
-      <button class="btn small" disabled={clearingDone || !scope.activeTasks.some(t => t.state === 'done')} onclick={clearDone} title="Move all Done tasks into the archive and keep their details">{clearingDone ? 'Clearing…' : 'Clear Done'}</button>
+      <button class="btn small" disabled={clearingDone || !scope.activeTasks.some(t => t.state === 'done')} onclick={clearDone} title="Move all Done tasks into the archive and keep their details">{clearingDone ? 'Archiving…' : 'Archive Done tasks'}</button>
       {#if filtering}
-        <button class="btn quiet small" onclick={() => ((agentFilter = ''), (runnerFilter = ''), (priorityFilter = ''), setFilter(project.id, noFilter()))}>Clear all</button>
+        <button class="btn quiet small" onclick={() => ((agentFilter = ''), (runnerFilter = ''), (priorityFilter = ''), setFilter(project.id, noFilter()))}>Reset filters</button>
       {/if}
     </div>
     <!-- What agents are doing: a work project has none. -->

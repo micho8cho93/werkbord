@@ -126,12 +126,12 @@
       <textarea class="input" disabled={!!saved || uncertainSave} rows="2" placeholder={isWork ? 'Context, links, who to ask…' : 'Context, constraints, where to look…'} bind:value={description}></textarea>
     </label>
     {#if canAgent}
-      <section class="exec" aria-label="Execution summary">
+      <section class="exec" aria-label="Run settings">
         <strong>{effective.agent ? agentLabel(app.agents, effective.agent) : 'Automatic agent'} on {runnerName} · {interaction.label}</strong>
         <p class="hint">Permission requests still come to you.</p>
         {#if busyOnly}<p class="hint" role="status">{BUSY_RUNNERS} Add it to Backlog now and start it from its card.</p>
         {:else if !agentReady}<p class="hint">{app.connection !== 'live' ? 'Reconnect to confirm availability before starting.' : 'The selected agent or runner is unavailable.'} You can save this task in Backlog. <a href={globalHref('settings')}>Check Settings</a>.</p>{/if}
-        <details><summary>Change execution settings</summary><p class="hint">{interaction.description} {PERMISSIONS_NOTE} From {sourceLabel(effective.sources.interaction)}.</p><ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" disabled={!!saved || uncertainSave} columns /></details>
+        <details><summary>Change run settings</summary><p class="hint">{interaction.description} {PERMISSIONS_NOTE} From {sourceLabel(effective.sources.interaction)}.</p><ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" disabled={!!saved || uncertainSave} columns /></details>
       </section>
     {/if}
     <details><summary>Labels, ownership and planning</summary><fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:labelIds bind:workMode bind:plan repository={!isWork} idPrefix="new-task" /></fieldset></details>

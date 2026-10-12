@@ -87,7 +87,7 @@
       {#if item.run.reason}<p class="well">{oneLine(item.run.reason, 240)}</p>{/if}
       <div class="acts">
         <button class="btn small" disabled={!!busy} onclick={runAgain}><Icon name="play" size={12} />{busy === 'again' ? 'Starting…' : 'Run again'}</button>
-        <a class="btn small" {href}>Look at it</a>
+        <a class="btn small" {href}>Open task</a>
       </div>
     {:else if item.kind === 'schedule' && item.schedule}
       <p class="well"><strong>{schedulingLabels[item.schedule.decision.state]}</strong> · {item.schedule.decision.reason}</p>

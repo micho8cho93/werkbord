@@ -170,7 +170,7 @@
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if uncertain && !busy}
-    <p role="status">Delivery is unconfirmed. Reconnect before retrying “{uncertain}”. The controller accepts each question’s answer once.</p>
+    <p role="status">Answer status is unconfirmed. Reconnect and check the question first. If it is still waiting, retry “{uncertain}”; each question accepts one answer.</p>
     <button class="btn recovery" disabled={disabled || busy} onclick={() => answer(uncertain)}>Retry same answer</button>
   {/if}
   {#if !draftStored}<p role="status">This browser cannot keep your answer through reload. Copy it before reloading.</p>{/if}

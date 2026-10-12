@@ -102,7 +102,7 @@ describe('what the assistant looked up', () => {
     apply(t, ev('tool_call', { tool: { callId: 'c1', name: 'list_blockers' } }));
     expect(progressLine(reply(t))).toBe('Looking for what is blocked…');
     apply(t, ev('tool_result', { tool: { callId: 'c1', name: 'list_blockers', status: 'ok' } }));
-    expect(progressLine(reply(t))).toBe('Thinking…');
+    expect(progressLine(reply(t))).toBe('Working…');
     apply(t, ev('delta', { text: 'None.', attempt: 2 }));
     expect(progressLine(reply(t))).toBe('Working…');
     apply(t, ev('turn_completed'));

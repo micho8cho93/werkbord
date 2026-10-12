@@ -43,7 +43,7 @@
     finally { busy = ''; }
   }
   async function revoke(r: Runner) {
-    if (!confirm(`Revoke ${r.name}? Its credential is fenced immediately. Active capacity releases after 120 seconds. Inspect any work on that machine before running the task again.`)) return;
+    if (!confirm(`Revoke ${r.name}? Its credentials stop working immediately. Active capacity is released after 120 seconds. Inspect any work on that machine before running the task again.`)) return;
     busy = r.id;
     try { await api.revokeRunner(r.id); await refresh(); }
     catch (e) { error = e instanceof Error ? e.message : String(e); }
@@ -87,7 +87,7 @@
   {#each runners as r (r.id)}
     <div class="runner">
       <div class="heading"><strong>{r.name}</strong><span class="state" data-online={r.online && !r.disabled} title={runnerSlots(r)}>{runnerState(r)} · {r.currentRuns}/{r.capacity}<span class="visually-hidden">, {runnerSlots(r)}</span></span></div>
-      <p class="muted">{r.os}/{r.arch} · {(r.capabilities?.agents ?? []).filter(a=>a.available).map(a=>a.name).join(', ') || 'No available agents'}{r.kind === 'local' ? ' · Controller machine' : ''}</p>
+      <p class="muted">{r.os}/{r.arch} · {(r.capabilities?.agents ?? []).filter(a=>a.available).map(a=>a.name).join(', ') || 'No available agents'}{r.kind === 'local' ? ' · Werkbord computer' : ''}</p>
       <details ontoggle={e=>{expanded=e.currentTarget.open?[...expanded.filter(id=>id!==r.id),r.id]:expanded.filter(id=>id!==r.id)}}>
         <summary>Manage and inspect {r.name}</summary>
         <div class="controls">
@@ -100,10 +100,10 @@
             <label class="check"><input type="checkbox" bind:checked={r.allowClone} />Allow cloning (runner must also opt in)</label>
           {/if}
           <div class="heading"><button class="btn primary" disabled={!!busy} onclick={() => save(r)}>{busy === r.id ? 'Saving…' : 'Save runner'}</button>{#if r.kind === 'remote'}<button class="btn" disabled={!!busy || r.currentRuns > 0} onclick={() => remove(r)}>Remove runner</button><button class="btn" disabled={!!busy} onclick={() => revoke(r)}>Revoke lost runner</button>{/if}</div>
-          <dl><dt>CPU</dt><dd>{r.capabilities?.cpu || 'Unknown'} logical cores</dd><dt>RAM / available</dt><dd>{size(r.capabilities?.ramBytes)} / {size(r.capabilities?.availableRamBytes)}</dd><dt>Free storage</dt><dd>{size(r.capabilities?.storageBytes)}</dd><dt>Last seen</dt><dd>{r.kind === 'local' ? 'This controller is online' : r.lastSeenAt.startsWith('0001') ? 'Waiting for first heartbeat' : formatDateTime(r.lastSeenAt)}</dd></dl>
+          <dl><dt>CPU</dt><dd>{r.capabilities?.cpu || 'Unknown'} logical cores</dd><dt>RAM / available</dt><dd>{size(r.capabilities?.ramBytes)} / {size(r.capabilities?.availableRamBytes)}</dd><dt>Free storage</dt><dd>{size(r.capabilities?.storageBytes)}</dd><dt>Last seen</dt><dd>{r.kind === 'local' ? 'Werkbord is online' : r.lastSeenAt.startsWith('0001') ? 'Waiting for first heartbeat' : formatDateTime(r.lastSeenAt)}</dd></dl>
           {#if r.capabilities?.diagnostics}<p class="error">{r.capabilities.diagnostics}</p>{/if}
           {#each r.capabilities?.agents ?? [] as a (a.id)}<p class="muted">{a.name} {a.version ?? ''} · {a.available ? 'Available' : a.detail || 'Unavailable'}</p>{/each}
-          {#if r.kind === 'remote'}<p class="muted">An offline runner keeps ownership of its runs. Reconnect it to stop work; removal is available after every run ends. For a permanently lost machine, revoke its identity and wait for the fence window.</p>{/if}
+          {#if r.kind === 'remote'}<p class="muted">An offline runner keeps ownership of its runs. Reconnect it to stop work; removal is available after every run ends. For a permanently lost machine, revoke its identity. This blocks its credentials immediately; active capacity is released after 120 seconds. Inspect that machine’s work before running the task again.</p>{/if}
         </div>
       </details>
     </div>

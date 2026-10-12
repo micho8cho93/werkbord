@@ -9,6 +9,20 @@ identity sheet "Werkbord · Identity — Quiet technical · v1" made into code. 
 Quiet technical. Paper and ink, one action colour, one attention colour. The tool disappears into the work:
 density over decoration, every state readable at a glance, nothing hidden that you need weekly.
 
+## Voice and language
+
+Write calmly, directly and in active voice. Name the action and its object, then explain the consequence or next step where
+it matters. Keep useful technical terms when the nearby copy explains them. A message must describe only what the observed
+state proves; saved is not delivered, unreachable is not stopped, and a failed or timed-out mutation may have an unknown
+outcome. Tell people to check uncertain outcomes before repeating an action.
+
+Use British English in new Werkbord prose: *colour*, *organise*, *authorised*, *synchronise*, *cancelled* and
+*acknowledgement*. Preserve brand and provider names, commands, API and domain identifiers, provider output, and text
+entered by people. Individual calls its board item a **task**; Team calls its coordination record a **ticket**. Explain that
+opening a Team ticket in a person's Werkbord creates a local task for the handoff. Keep **plan** for Timeline dates,
+**schedule** for agent starts, **Review** for inspection, **Done** for completed work, and **Archive** for work removed
+from the active board.
+
 ## Tokens (`web/src/app.css`)
 
 | Role | Light | Dark |
@@ -134,7 +148,7 @@ heading (the provider chooser, New, Close) and the box.
   page's All list includes it. Keep that scope visible beside the counts and in their accessible names. Project summaries
   call pending questions "Needs you".
 - **Planning dates and execution schedules.** Date fields on Timeline plan work; they do not start an agent. Calendar
-  schedules when the controller starts agent work. Explain this at both sets of date controls. Work projects keep
+  schedules when Werkbord starts agent work. Explain this at both sets of date controls. Work projects keep
   their timeline planning fields and have no execution controls.
 - **Touch and keyboard.** Answer choices and card actions are at least 44px tall on phones and coarse pointers, with
   spacing between choices. Label colours are native radios: one tab stop, arrow-key selection, human colour names,
@@ -175,7 +189,7 @@ heading (the provider chooser, New, Close) and the box.
   server and malformed-response failures keep it through reload. Check Board or View saved task is the next step,
   without replaying the mutation. Opening a known saved task clears its creation draft. A controller refusal permits
   correction/retry. An unconfirmed answer offers only Retry same answer, using the controller's one-answer guarantee;
-  stale/offline shell guards and runner acknowledgment still govern delivery.
+  stale/offline shell guards and runner acknowledgement still govern delivery.
 - **First run is quiet.** Failing to look up an optional connection (GitHub, phone access) is a muted line with *Try again*;
   red is for something the person asked for that failed.
 - **A blocked permission is an explanation, not a button.** Alerts blocked by the browser say where to allow them.
@@ -186,19 +200,17 @@ heading (the provider chooser, New, Close) and the box.
   optional connections, collapsed initially, and skipped connections stay labelled as skipped.
 - The window's My Work view separates reported running, queued and starting states. Idle turns and unanswered questions
   have different labels. Source timestamps say when the state was recorded; they do not claim agent activity. Offline
-  or stale reports retain their last state with availability unknown. Pending requests remain awaiting acknowledgment.
+  or stale reports retain their last state with availability unknown. Pending requests remain awaiting acknowledgement.
 - The window's Needs you view orders urgent problems, actions and operational warnings. Each row preserves its workspace,
-  project and detail, and names its next action. Individual questions expand in place with context before choices; answering uses the owning controller and stays disabled for stale or offline reports. Team rows open the owning workspace. Saved answers remain awaiting acknowledgment until the runner confirms delivery. Only the first urgent or actionable item has primary emphasis.
+  project and detail, and names its next action. Individual questions expand in place with context before choices; answering uses the owning Werkbord and stays disabled for stale or offline reports. Team rows open the owning workspace. Saved answers remain unconfirmed until the runner confirms delivery. Only the first urgent or actionable item has primary emphasis.
 - In the window's Needs you view, a collapsed question row says what the agent asked. When expanded, its row changes to
   "Answering this question" while workspace, project and task provenance stay visible; the answer card states the
-  question once. Stale/offline refusal and pending acknowledgment remain unchanged.
+  question once. Stale/offline refusal and pending acknowledgement remain unchanged.
 
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).
 - Inline actions on cards: Start, Approve/Deny, Reply, Merge…, Move to Review, Run again. A Runs row whose run waits on a
   question has an Answer button that opens the same question card beneath the row.
-- **One name: "Needs you".** The rail and tab, the run status, the card's eyebrow ("Needs you · Decision"), the page title,
-  the banner ("1 question needs you") and the notification all say it; a row's kind in the list is its plain type
-  (Question, Blocked, Failed). Nothing says "Needs input", "Needs answer" or "Needs attention" for the same thing.
+- **One name: "Needs you".** Individual actionable attention uses it in the rail and tab, the card's eyebrow ("Needs you · Decision"), the page title, the banner ("1 question needs you") and the notification. A row's kind in the list is its plain type (Question, Blocked, Failed). A shared execution report may say "Waiting for an answer" when it does not establish that the current viewer can answer it.
 - **A question is stated once per screen.** The banner stays out of the way where the question is already asked with its
   answer: the task panel that has it open, and the project's Overview, Board and Runs. In the task panel the dock below
   the feed is the one statement; the feed shows the question again once it is answered, and the status line does not.
@@ -210,8 +222,9 @@ heading (the provider chooser, New, Close) and the box.
   or pull-request provenance and whether tests were reported, never as verified success. Full run and Git evidence stays
   in a clear disclosure. Accept work / Reject work record a verdict (counted as Kept in usage by runner and agent); they
   never merge, move or archive the task.
-- **An answer is confirmed.** Answering a question, on a card, in the task panel, on Runs or in the window's Inbox, shows
-  one line saying what was sent and whether the agent has it yet ("Answered “Yes”. The agent has it and is carrying on.").
+- **An answer's delivery is confirmed separately.** Answering a question, on a card, in the task panel, on Runs or in the
+  window's Inbox, shows whether it was saved or the agent's receipt was confirmed. Receipt does not claim the agent has
+  resumed work.
 - **Only a refusal of a permission is red.** An approval's Deny or Reject is drawn as a refusal; a "No" to a decision is an
   answer like Yes, in the neutral button.
 - What needs a person is one list (`lib/attention.ts`): Needs you shows it for every project in
@@ -230,7 +243,7 @@ Needs you's All, Questions and Review choices are native filter buttons in a lab
 Tab and Space/Enter activate them; they do not announce a tab widget or imply arrow-key tab navigation.
 Count scope is unchanged. The attention-card Review action follows the same 44px phone/coarse-pointer height
 floor as its answer actions. In the desktop shell, reported execution text wraps within the My Work status cell;
-the dot remains compact and supplementary. Reported state, timestamps, stale availability and acknowledgment
+the dot remains compact and supplementary. Reported state, timestamps, stale availability and acknowledgement
 remain visible. These refinements do not establish physical-device or screen-reader usability; see the final audit
 and the unconducted five-developer formative test guide for evidence limits.
 Git branch headlines that call work ready for review use `--warn-text` for readable status words; `--warn` remains
@@ -240,7 +253,7 @@ file drill-downs rather than treating the overview as evidence for text hidden e
 ### Review flow refinement (4.19.2-preview.1)
 
 - A task in Review keeps Accept work / Reject work with its branch/result summary. The nearby explanation says this
-  records an assessment and does not merge or move the task. Saving is announced while awaiting acknowledgment;
+  records an assessment and does not merge or move the task. Saving is announced while awaiting acknowledgement;
   on phone, the status sits above equal-sized verdict choices. Repository actions remain separate and confirmed.
 - Review changes carries its task/run origin into the branch and changed-file views. Git repeats a compact result and
   reported-test status only while current task, run and branch records agree; it labels tests as reported, not verified,

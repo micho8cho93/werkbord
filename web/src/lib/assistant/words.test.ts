@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../api';
-import { clock, duration, explain, failure, looksLikeText, operationTitle, retentionNote, size } from './words';
+import { clock, duration, explain, failure, looksLikeText, operationFailureTitle, operationTitle, retentionNote, size } from './words';
 
 describe('what a person is told', () => {
   it('explains a request that failed', () => {
-    expect(explain(new ApiError(0, 'offline', 'x'))).toMatch(/cannot be reached/);
-    expect(explain(new ApiError(401, 'unauthorized', 'x'))).toMatch(/does not recognise this device/);
-    expect(explain(new ApiError(503, 'unavailable', 'x'))).toMatch(/turned off/);
+    expect(explain(new ApiError(0, 'offline', 'x'))).toMatch(/Cannot reach Werkbord/);
+    expect(explain(new ApiError(401, 'unauthorized', 'x'))).toMatch(/could not authorise this request/);
+    expect(explain(new ApiError(503, 'unavailable', 'x'))).toMatch(/Check the conversation/);
     expect(explain(new ApiError(409, 'conflict', 'the assistant is still replying to the last message'))).toBe('the assistant is still replying to the last message');
     expect(explain(new Error('boom'))).toBe('boom');
-    expect(explain('odd')).toBe('That did not work.');
+    expect(explain('odd')).toBe('Werkbord could not complete this request.');
   });
 
   it('offers the one thing most worth doing about each failure', () => {
@@ -22,6 +22,9 @@ describe('what a person is told', () => {
     expect(f('transient', false).action).toBe('none');
     expect(f('rate_limited').action).toBe('none');
     expect(f('policy').action).toBe('none');
+    expect(f('policy').title).toBe('The assistant stopped for safety');
+    expect(f('protocol').title).toBe('Werkbord could not read the assistant’s response');
+    expect(f('rate_limited').title).toBe('The assistant’s service is limiting requests');
     expect(f('model_unavailable').detail).toBe('m');
   });
 
@@ -32,6 +35,9 @@ describe('what a person is told', () => {
     expect(clock(new Date(2026, 2, 9, 7, 5).getTime())).toBe('07:05');
     expect(operationTitle('create_ticket')).toBe('New task');
     expect(operationTitle('whatever')).toBe('Change');
+    expect(operationFailureTitle('update_ticket')).toBe('Could not update the task');
+    expect(operationFailureTitle('get_ticket')).toBe('Could not load this task');
+    expect(operationFailureTitle('unknown')).toBe('Could not complete this assistant step');
   });
 
   it('spots a file that is not text before sending it anywhere', () => {

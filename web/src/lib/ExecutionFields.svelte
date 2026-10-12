@@ -229,7 +229,7 @@
       </div>
 
       <div class="field">
-        <label for="{idPrefix}-reasoning">Reasoning</label>
+        <label for="{idPrefix}-reasoning">Reasoning level</label>
         <select id="{idPrefix}-reasoning" class="select" {disabled} value={value.reasoning ?? ''} onchange={chooseReasoning}>
           {#if hasBelow}
             <option value="">{sameAs(inherited?.reasoning ? optionLabel(options?.reasoning, inherited.reasoning) : 'Agent default', inherited?.sources.reasoning ?? 'default')}</option>

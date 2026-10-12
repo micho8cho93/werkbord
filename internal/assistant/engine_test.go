@@ -426,7 +426,7 @@ func TestAChangeIsOnlyProposedUntilThePersonConfirmsAndTheAssistantIsToldWhatHap
 		t.Fatalf("tickets = %+v", got)
 	}
 	ev := <-sub
-	if ev.Type != EventConfirmationResolved || ev.ActionID != req.ActionID || ev.Text != "confirmed" || !strings.Contains(ev.Outcome, "Created ticket") {
+	if ev.Type != EventConfirmationResolved || ev.ActionID != req.ActionID || ev.Text != "confirmed" || !strings.Contains(ev.Outcome, "Created task") {
 		t.Fatalf("event = %+v", ev)
 	}
 	if v, _ := f.eng.Session(bg, s.ID); v.State != domain.AssistantIdle || len(v.Pending) != 0 {
@@ -435,7 +435,7 @@ func TestAChangeIsOnlyProposedUntilThePersonConfirmsAndTheAssistantIsToldWhatHap
 
 	// The next message tells the assistant what happened, once.
 	f.send(s.ID, "thanks")
-	if p := f.lastPrompt(); !strings.Contains(p, "<werkbord-notice>") || !strings.Contains(p, "confirmed this change and it was carried out") || !strings.Contains(p, "Created ticket") || !strings.HasSuffix(p, "thanks") {
+	if p := f.lastPrompt(); !strings.Contains(p, "<werkbord-notice>") || !strings.Contains(p, "confirmed this change and it was carried out") || !strings.Contains(p, "Created task") || !strings.HasSuffix(p, "thanks") {
 		t.Fatalf("the assistant must be told the outcome:\n%s", p)
 	}
 	f.send(s.ID, "anything else?")

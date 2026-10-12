@@ -49,11 +49,11 @@
         <a class="btn quiet small icon" href={boardHref} aria-label="Close panel" title="Close (Esc)"><Icon name="close" /></a>
       </header>
       <div class="body">
-        <p>Something went wrong while drawing it. Your task and its runs are not affected, and the board still works.</p>
+        <p>The task panel could not load. Your task and runs are unaffected. Refresh the task or return to the board.</p>
         <p class="well">{reason(error)}</p>
         {#if retryError}<p class="error" role="alert">{retryError}</p>{/if}
         <div class="row">
-          <button class="btn primary" disabled={retrying} onclick={() => retry(reset)}>{retrying ? 'Refreshing…' : 'Try again'}</button>
+          <button class="btn primary" disabled={retrying} onclick={() => retry(reset)}>{retrying ? 'Refreshing task…' : 'Refresh task'}</button>
           <a class="btn" href={boardHref}>Back to the board</a>
         </div>
       </div>

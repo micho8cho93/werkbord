@@ -582,7 +582,7 @@ func TestAMutationIsOnlyProposedUntilThePersonConfirms(t *testing.T) {
 
 	var act *domain.AssistantAction
 	_ = f.db.View(bg, func(tx store.Tx) (err error) { act, err = tx.Assistant().GetAction(bg, pr.ActionID); return })
-	if act.State != domain.ActionExecuted || act.ResolvedAt == nil || !strings.Contains(act.Outcome, "Created ticket") {
+	if act.State != domain.ActionExecuted || act.ResolvedAt == nil || !strings.Contains(act.Outcome, "Created task") {
 		t.Fatalf("action = %+v", act)
 	}
 	var outcomes []string
@@ -920,9 +920,24 @@ func TestAnsweringAQuestionGoesThroughTheRunnerPathAfterConfirmation(t *testing.
 	if ch := out.Data.(*Changed); ch.Question == nil || ch.Question.State != "answered" {
 		t.Fatalf("changed = %+v", ch)
 	}
+	if got := out.Data.(*Changed).Message; !strings.Contains(got, "Answer delivered to the agent") || strings.Contains(got, "Waiting for the agent") {
+		t.Fatalf("confirmed delivery message = %q", got)
+	}
 	// A question that is no longer open cannot be proposed an answer.
 	_, err = f.call(p, "answer_question", map[string]any{"projectId": a.ID, "questionId": q.ID, "answer": "Postgres"})
 	wantCode(t, err, CodeConflict)
+}
+
+func TestAnswerOutcomeSeparatesSavedFromDelivered(t *testing.T) {
+	q := domain.Question{ID: "qst_1", Answer: "SQLite"}
+	if got := answerOutcome(q); got != `Answer saved for question qst_1: "SQLite". Waiting for the agent to receive it.` {
+		t.Fatalf("queued answer = %q", got)
+	}
+	delivered := time.Date(2026, 3, 1, 9, 1, 0, 0, time.UTC)
+	q.DeliveredAt = &delivered
+	if got := answerOutcome(q); got != `Answer delivered to the agent for question qst_1: "SQLite".` {
+		t.Fatalf("delivered answer = %q", got)
+	}
 }
 
 func TestTheAssistantCannotGrantPermissionToAnAgent(t *testing.T) {

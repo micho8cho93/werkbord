@@ -105,18 +105,18 @@ export function errorMessage(code: string, inApp = false, detail = ''): string |
     case 'not-allowed':
     case 'service-not-allowed':
       return inApp
-        ? 'Werkbord is not allowed to listen. Turn on Microphone and Speech Recognition for Werkbord in System Settings → Privacy & Security, then try again. Dictation (Edit → Start Dictation, or pressing fn twice) works meanwhile.'
-        : 'The microphone is blocked. Allow it for this page in your browser’s settings, then try again.';
+        ? 'Werkbord cannot use dictation yet. In System Settings → Privacy & Security, allow Microphone and Speech Recognition for Werkbord. You can type your message meanwhile.'
+        : 'The microphone is blocked. Allow it for this page in your browser’s settings, or type your message.';
     case 'audio-capture':
-      return 'No microphone was found.';
+      return 'No microphone was found. Connect a microphone or type your message.';
     case 'network':
       return 'The speech service could not be reached. Check your connection, or type instead.';
     case 'language-not-supported':
       return 'That language is not supported for dictation here.';
     default:
       return inApp
-        ? 'The Mac speech service stopped. Check that Dictation is on in System Settings → Keyboard, and allow Werkbord under Privacy & Security → Microphone and Speech Recognition, then try again.'
-        : 'Dictation stopped unexpectedly.';
+        ? 'Dictation stopped unexpectedly. Check System Settings → Keyboard → Dictation, and allow Microphone and Speech Recognition for Werkbord under Privacy & Security. You can type your message meanwhile.'
+        : 'Dictation stopped unexpectedly. Type your message instead.';
   }
 }
 
@@ -162,7 +162,7 @@ const MAX_QUICK_ENDS = 3;
 const QUICK_END_MS = 700;
 /** After the person finishes it, the engine is given this long to hand over the last words before they are taken as they are. */
 const FINISH_WAIT_MS = 2500;
-const MAC_START_ERROR = 'The Mac speech service stopped before it could hear you. Check that Dictation is on in System Settings → Keyboard, and allow Werkbord under Privacy & Security → Microphone and Speech Recognition, then try again.';
+const MAC_START_ERROR = 'Dictation stopped unexpectedly. Check System Settings → Keyboard → Dictation, and allow Microphone and Speech Recognition for Werkbord under Privacy & Security. You can type your message meanwhile.';
 
 /**
  * One dictation: start it, and it speaks through the handlers until the person finishes it (the last words are kept) or cancels
@@ -275,7 +275,7 @@ export class Dictation {
       rec.start();
     } catch {
       this.rec = null;
-      this.h.onError('Dictation could not start.');
+      this.h.onError('Dictation could not start. Type your message instead.');
       return false;
     }
     return true;

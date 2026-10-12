@@ -26,7 +26,7 @@
     <p>{team?.detail || 'Team is not set up on this computer.'}</p>
     <p class="fine">Setting it up installs a background service with your administrator password. Your agents never run inside it.</p>
     <div class="actions">
-      <button class="btn primary" type="button" onclick={() => team?.state === 'stopped' ? model.teamService('start') : model.activateTeam()} disabled={!!model.busy}>{team?.state === 'stopped' ? 'Start Team…' : 'Set up Team…'}</button>
+      <button class="btn primary" type="button" onclick={() => team?.state === 'stopped' ? model.teamService('start') : model.activateTeam()} disabled={!!model.busy}>{team?.state === 'stopped' ? 'Start Team service…' : 'Set up Team…'}</button>
       <button class="btn" type="button" onclick={() => (model.addOpen = false)}>Not now</button>
     </div>
   {:else}

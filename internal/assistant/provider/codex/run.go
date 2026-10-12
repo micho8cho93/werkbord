@@ -504,7 +504,7 @@ func classify(raw string) *provider.Error {
 	case status == 401 || containsAny(low, "unauthorized", "not logged in", "log in again", "sign in", "token expired", "refresh token"):
 		return provider.Errorf(provider.KindNotSignedIn, false, "Codex is not signed in, or its sign-in has expired. Run `codex login` in a terminal. (%s)", msg)
 	case status == 429 || containsAny(low, "usage limit", "rate limit", "too many requests", "quota"):
-		return provider.Errorf(provider.KindRateLimited, false, "Your Codex plan has no allowance left for now: %s", msg)
+		return provider.Errorf(provider.KindRateLimited, false, "Codex reports a request or usage limit: %s", msg)
 	case status >= 500 || containsAny(low, "overloaded", "stream disconnected", "connection", "timed out", "timeout", "temporarily", "unavailable"):
 		return provider.Errorf(provider.KindTransient, true, "Codex had a temporary problem: %s", msg)
 	}

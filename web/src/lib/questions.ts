@@ -75,12 +75,12 @@ export function answerLine(q: Question): string {
     : `You answered: ${q.answer ?? ''}`;
 }
 
-/** What the person is told right after answering: what was sent, and whether the agent has it yet. */
+/** What the person is told right after answering: what was saved, and whether receipt was confirmed. */
 export function answeredNotice(q: Question, answer: string): string {
   const said = answer.length > 80 ? `${answer.slice(0, 79).trimEnd()}…` : answer;
   return q.deliveredAt
-    ? `Answered “${said}”. The agent has it and is carrying on.`
-    : `Answered “${said}”. Saved: waiting for the runner to confirm the agent has it.`;
+    ? `Answered “${said}”. Delivered to the agent.`
+    : `Answer saved: “${said}”. Waiting for the agent to receive it.`;
 }
 
 /** Says in a sentence why a question was closed. */
@@ -117,7 +117,7 @@ export function describeAnswerFailure(err: unknown): AnswerFailure {
       return { message: closedText(q), settled: true, notice: true };
     }
     if (err.code === 'offline') {
-      return { message: 'Cannot reach the controller. Could not confirm whether your answer was saved. Reconnect, then retry the same answer.', settled: false, notice: false };
+      return { message: 'Cannot reach Werkbord. Could not confirm whether your answer was saved. Reconnect and check the question before taking action.', settled: false, notice: false };
     }
     if (err.code === 'not_found') {
       return { message: 'This question no longer exists.', settled: true, notice: true };

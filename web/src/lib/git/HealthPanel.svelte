@@ -41,7 +41,7 @@
   </header>
 
   {#if store.healthDisabled}
-    <p class="g-small muted">This controller has repository health checks disabled. There is no switch to enable them in this app. Other Git views remain available.</p>
+    <p class="g-small muted">Werkbord has repository health checks disabled. There is no switch to enable them in this app. Other Git views remain available.</p>
   {:else if store.healthError}
     <div role="alert"><p class="error">{store.healthError}</p><p class="g-small">Reconnect if needed, then use Check now. This only reads Git metadata.{h ? ' Findings below are from the last successful check.' : ''}</p></div>
   {/if}

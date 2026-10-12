@@ -205,7 +205,7 @@ func classify(result string, status *int, evidence string, exitCode int, noResul
 	case code == 404 || containsAny(low, "issue with the selected model", "unrecognized_model", "model_not_found"):
 		return provider.Errorf(provider.KindModelUnavailable, false, "That model is not available to your Claude account: %s", msg)
 	case code == 429 || containsAny(low, "rate limit", "usage limit", "limit reached", "too many requests", "quota", "credit balance is too low"):
-		return provider.Errorf(provider.KindRateLimited, false, "Your Claude plan has no allowance left for now: %s", msg)
+		return provider.Errorf(provider.KindRateLimited, false, "Claude reports a request or usage limit: %s", msg)
 	case code >= 500 || containsAny(low, "overloaded", "econnreset", "etimedout", "enotfound", "socket hang up", "network error", "fetch failed", "service unavailable", "connection error"):
 		return provider.Errorf(provider.KindTransient, true, "Claude had a temporary problem: %s", msg)
 	case noResult && msg != "":

@@ -180,7 +180,7 @@ const (
 	KindNotInstalled Kind = "not_installed"
 	// KindNotSignedIn: the provider is installed but the person has not signed in (or the sign-in expired).
 	KindNotSignedIn Kind = "not_signed_in"
-	// KindRateLimited: the person's plan has run out of allowance for now.
+	// KindRateLimited: the provider is limiting requests; that does not always mean the plan's allowance is exhausted.
 	KindRateLimited Kind = "rate_limited"
 	// KindModelUnavailable: the chosen model is not available to this account.
 	KindModelUnavailable Kind = "model_unavailable"

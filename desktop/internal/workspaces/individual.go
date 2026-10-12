@@ -51,11 +51,11 @@ func (p *Individual) entry(state workspace.State, detail string) workspace.Liste
 func (p *Individual) List(ctx context.Context) ([]workspace.Listed, error) {
 	a, err := p.Access(ctx)
 	if err != nil {
-		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord is not running on this computer.")}, nil
+		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Cannot find or reach Werkbord on this computer.")}, nil
 	}
 	b, err := get2(ctx, p.hc, a.Base, "/api/health", "")
 	if err != nil {
-		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord is not answering.")}, nil
+		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord is not answering. It may still be running; check the connection and refresh.")}, nil
 	}
 	var health struct {
 		Version string `json:"version"`
@@ -245,7 +245,7 @@ func (p *Individual) AnswerQuestion(ctx context.Context, project, question, answ
 		return nil, err
 	}
 	if !json.Valid(raw) {
-		return nil, errors.New("The controller returned an unreadable answer result. Reconnect to check the question.")
+		return nil, errors.New("Werkbord returned an unreadable answer result. Reconnect and check the question.")
 	}
 	// Include status so the shell can reuse the page's answer error semantics.
 	return json.Marshal(struct {

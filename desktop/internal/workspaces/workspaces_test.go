@@ -412,7 +412,7 @@ func TestIndividualIsReadWithTheControllersCredentialAndOpenedSignedIn(t *testin
 	}
 	srv.Close()
 	l, err = p.List(bg)
-	if err != nil || l[0].Entry.State != workspace.StateUnavailable || l[0].Entry.ID != workspace.IndividualID {
+	if err != nil || l[0].Entry.State != workspace.StateUnavailable || l[0].Entry.ID != workspace.IndividualID || !strings.Contains(l[0].Entry.Detail, "may still be running") {
 		t.Fatalf("a controller that stopped made Individual disappear: %+v %v", l, err)
 	}
 	down := NewIndividual(func(context.Context) (Access, error) { return Access{}, errors.New("no installation") })

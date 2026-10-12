@@ -25,10 +25,10 @@
         <label>Rule name<input class="input" bind:value={rule.name} maxlength="120" /></label>
         <label>Contains text<input class="input" bind:value={rule.contains} placeholder="documentation, review, security…" /></label>
         <label class="check"><input type="checkbox" bind:checked={rule.retry} />Only after an earlier attempt</label>
-        <label>Agent<select class="select" bind:value={rule.agent} onchange={e=>{if(!e.currentTarget.value){rule.model="";rule.reasoning=""}}}><option value="">Keep resolved agent</option>{#each app.agents as a (a.id)}<option value={a.id}>{a.name}</option>{/each}</select></label>
+        <label>Agent<select class="select" bind:value={rule.agent} onchange={e=>{if(!e.currentTarget.value){rule.model="";rule.reasoning=""}}}><option value="">Use the selected agent</option>{#each app.agents as a (a.id)}<option value={a.id}>{a.name}</option>{/each}</select><span class="hint">This rule leaves the agent choice unchanged.</span></label>
         <label>Model<input class="input" disabled={!rule.agent} bind:value={rule.model} placeholder="Agent default unless set" /></label>
-        <label>Reasoning<input class="input" disabled={!rule.agent} bind:value={rule.reasoning} placeholder="Keep defaults unless set" /></label>
-        <label>Minimum logical CPUs<input class="input" type="number" min="0" max="1024" bind:value={rule.minCpu} /></label>
+        <label>Reasoning level<input class="input" disabled={!rule.agent} bind:value={rule.reasoning} placeholder="Keep defaults unless set" /></label>
+        <label>Minimum logical CPU cores<input class="input" type="number" min="0" max="1024" bind:value={rule.minCpu} /><span class="hint">Only use runners reporting at least this many logical cores.</span></label>
         <label>Minimum available RAM (GB)<input class="input" type="number" min="0" step="0.5" value={(rule.minRamBytes ?? 0)/1024**3} oninput={e=>rule.minRamBytes=Math.round(Number(e.currentTarget.value)*1024**3)} /></label>
         <button class="btn small" onclick={()=>rules=rules.filter((_,n)=>n!==i)}>Remove rule</button>
       </div>

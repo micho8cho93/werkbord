@@ -1,15 +1,15 @@
 <script lang="ts">
   import { model } from './model.svelte';
 
-  // What shows where the person's own Werkbord would be when it cannot be shown: not running. Never a blank page.
+  // What shows where the person's own Werkbord would be when the shell cannot reach it. Availability may be unknown.
   const item = $derived(model.view?.items.find((i) => i.id === 'personal'));
 </script>
 
 <section class="problem" aria-labelledby="problem-h" data-testid="personal-problem">
-  <h1 id="problem-h">Werkbord is not running on this computer</h1>
-  <p>{item?.detail || 'The window could not reach it.'}</p>
+  <h1 id="problem-h">Cannot reach Werkbord on this computer</h1>
+  <p>{item?.detail || 'Check the connection, then refresh this workspace.'}</p>
   <div class="actions">
-    <button class="btn primary" type="button" onclick={async () => { await model.refresh(); await model.open('personal'); }}>Try again</button>
+    <button class="btn primary" type="button" onclick={async () => { await model.refresh(); await model.open('personal'); }}>Check connection</button>
     <button class="btn" type="button" onclick={() => model.go('workspaces')}>Workspaces and devices</button>
   </div>
 </section>

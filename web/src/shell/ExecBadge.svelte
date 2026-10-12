@@ -13,7 +13,7 @@
     <span class="badge" data-tone={stale ? 'idle' : tone(execution)}><span class="dot" aria-hidden="true"></span><span class="label">{stale ? 'Last reported: ' : 'Reported: '}{executionLabel(execution)}</span></span>
     {#if stale}<span class="note">Availability unknown</span>{/if}
     {#if recorded}<span class="note">State recorded {recorded}</span>{/if}
-    {#each report?.pendingRequests ?? [] as request (request)}<span class="note" role="status">{requests[request]} · awaiting acknowledgment</span>{/each}
+    {#each report?.pendingRequests ?? [] as request (request)}<span class="note" role="status">{requests[request]} · waiting for confirmation</span>{/each}
   </span>
 {/if}
 

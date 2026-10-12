@@ -15,12 +15,12 @@
 <div class="wrap">
   <form class="card" onsubmit={submit}>
     <div class="brand"><Mark height={22} /><span class="wm">werkbord</span></div>
-    <h1>Connect to your controller</h1>
+    <h1>Connect to Werkbord</h1>
     <p class="muted">
-      This controller requires an access token. On the computer running it, run <code>werkbord token</code> to print
-      it, or <code>werkbord token --url</code> for a link that signs this browser in.
+      On the computer running Werkbord, run <code>werkbord token</code> and paste the token here. Or run
+      <code>werkbord token --url</code> to create a sign-in link for this browser.
     </p>
-    <label for="token" class="visually-hidden">Access token</label>
+    <label for="token">Access token</label>
     <input
       id="token"
       class="input mono"
@@ -29,7 +29,7 @@
       placeholder="Access token"
       bind:value={token}
     />
-    <button class="btn primary" type="submit" disabled={!token.trim()}>Connect</button>
+    <button class="btn primary" type="submit" disabled={!token.trim()}>Sign in</button>
   </form>
 </div>
 

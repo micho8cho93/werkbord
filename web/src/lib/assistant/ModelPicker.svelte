@@ -46,11 +46,11 @@
       <span class="model">{modelName(current, choice.model)}</span>
       {#if choice.reasoning}<span class="sep" aria-hidden="true">·</span><span class="model">{choice.reasoning}</span>{/if}
       <Icon name="down" size={12} />
-      <span class="visually-hidden">Change provider, model or thinking level</span>
+      <span class="visually-hidden">Change provider, model or reasoning level</span>
     </button>
 
     {#if assistant.pickerOpen}
-      <div bind:this={panel} class="card panel" role="dialog" aria-label="Provider, model and thinking" data-testid="assistant-picker-panel">
+      <div bind:this={panel} class="card panel" role="dialog" aria-label="Provider, model and reasoning level" data-testid="assistant-picker-panel">
         <div class="field">
           <span class="lab" id="asst-prov">Provider</span>
           <div class="seg" role="group" aria-labelledby="asst-prov">
@@ -97,8 +97,8 @@
 
         {#if levels.length > 0}
           <label class="field">
-            <span class="lab">Thinking</span>
-            <select class="select" aria-label="Thinking level" disabled={busy} value={choice.reasoning} onchange={(e) => assistant.configure({ reasoning: e.currentTarget.value })}>
+            <span class="lab">Reasoning level</span>
+            <select class="select" aria-label="Reasoning level" disabled={busy} value={choice.reasoning} onchange={(e) => assistant.configure({ reasoning: e.currentTarget.value })}>
               <option value="">Default</option>
               {#each levels as l (l)}<option value={l}>{l}</option>{/each}
             </select>

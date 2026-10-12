@@ -36,11 +36,11 @@ export const assistantApi = {
     try {
       res = await fetch(`${base}/sessions/${enc(id)}/attachments`, { method: 'POST', headers, body: file });
     } catch {
-      throw new ApiError(0, 'offline', 'Cannot reach the controller.');
+      throw new ApiError(0, 'offline', 'Cannot reach Werkbord.');
     }
     if (!res.ok) {
       let code = 'http_error';
-      let message = `${res.status} ${res.statusText}`;
+      let message = 'Werkbord could not attach this file. Check the conversation before trying again.';
       try {
         const data = (await res.json()) as { error?: { code: string; message: string } };
         if (data.error) ({ code, message } = data.error);
