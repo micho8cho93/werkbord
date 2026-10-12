@@ -42,8 +42,9 @@ type Config struct {
 	// WorkDir is an empty directory private to the assistant, where the providers are run.
 	WorkDir string
 	// Grants and Projects are what every session's principal may do and see. Default: every permission, every project.
-	Grants   []appops.Permission
-	Projects []string
+	Grants         []appops.Permission
+	Projects       []string
+	MCPConnections bool
 
 	// TurnTimeout bounds one message from start to finish, including every provider call and operation. Default 5m.
 	TurnTimeout time.Duration
@@ -157,7 +158,7 @@ func (e *Engine) now() time.Time { return e.cfg.Now().UTC().Truncate(time.Millis
 func (e *Engine) principal(s *domain.AssistantSession) appops.Principal {
 	return appops.Principal{
 		ID: "assistant:" + s.ID, Actor: "assistant:" + s.Provider, Via: "assistant", SessionID: s.ID,
-		Grants: e.cfg.Grants, Projects: e.cfg.Projects,
+		Grants: e.cfg.Grants, Projects: e.cfg.Projects, MCPConnections: e.cfg.MCPConnections,
 	}
 }
 

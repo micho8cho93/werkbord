@@ -11,6 +11,7 @@ import (
 
 	"devboard/internal/agent"
 	"devboard/internal/assistant"
+	"devboard/internal/connections"
 	"devboard/internal/doctor"
 	"devboard/internal/events"
 	"devboard/internal/httpkit"
@@ -60,6 +61,8 @@ type Options struct {
 	// Assistant is the conversational assistant (internal/assistant); nil disables its endpoints. It is set on the loopback
 	// listener only: the private network does not serve it.
 	Assistant *assistant.Engine
+	// Connections owns upstream MCP transports and credentials. It is available on the loopback controller only.
+	Connections *connections.Service
 
 	// AuthRequired makes every /api request except /api/health present Token.
 	AuthRequired bool
@@ -151,6 +154,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/control-center", s.handleControlCenter)
 	mux.HandleFunc("GET /api/workspace/v1/summary", s.handleWorkspaceSummary)
 	mux.HandleFunc("GET /api/events", s.handleEvents) // ?project=<id> narrows it to one project
+
+	// The assistant: only the person's own token reaches these (see assistant.go).
+	mux.HandleFunc("GET /api/connections", s.handleConnectionsList)
+	mux.HandleFunc("GET /api/connections/oauth/callback", s.handleConnectionsOAuthCallback)
+	mux.HandleFunc("POST /api/connections", s.handleConnectionsSave)
+	mux.HandleFunc("PUT /api/connections/{id}", s.handleConnectionsSave)
+	mux.HandleFunc("DELETE /api/connections/{id}", s.handleConnectionsDelete)
+	mux.HandleFunc("POST /api/connections/{id}/test", s.handleConnectionsTest)
+	mux.HandleFunc("POST /api/connections/{id}/reauthorize", s.handleConnectionsReauthorize)
+	mux.HandleFunc("POST /api/connections/{id}/enabled", s.handleConnectionsEnabled)
+	mux.HandleFunc("POST /api/connections/{id}/contexts/{kind}", s.handleConnectionsContext)
+	mux.HandleFunc("PUT /api/connections/{id}/tools/{tool}/policy", s.handleConnectionsPolicy)
+	mux.HandleFunc("POST /api/connections/{id}/tools/{tool}/call", s.handleConnectionsCall)
+	mux.HandleFunc("POST /api/connections/{id}/resources/read", s.handleConnectionsReadResource)
 
 	// The assistant: only the person's own token reaches these (see assistant.go).
 	mux.HandleFunc("GET /api/assistant/providers", s.handleAssistantProviders)

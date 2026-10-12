@@ -41,6 +41,7 @@ import type {
   Worktree,
   WaitingItem,
   WorkingChanges,
+  MCPConnection,
 } from './types';
 import { normalizeRunner, normalizeRunners } from './runners';
 import { startRefusal } from './scheduling';
@@ -202,6 +203,16 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
  saveHandoff: (run: Run, handoff: Handoff) => request<Run>('PUT', `${inProject(run.projectId)}/runs/${enc(run.id)}/handoff`, {version: run.version, handoff}),
  continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, {runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})}),
  health: () => request<Health>('GET', '/api/health'),
+  mcpConnections: () => request<{connections:MCPConnection[]}>('GET', '/api/connections').then(r=>r.connections),
+  saveMCPConnection: (connection: Partial<MCPConnection> & {name:string; transport:MCPConnection['transport']; bearerToken?:string}) =>
+    request<{connection:MCPConnection}>(connection.id ? 'PUT' : 'POST', connection.id ? `/api/connections/${enc(connection.id)}` : '/api/connections', connection).then(r=>r.connection),
+  deleteMCPConnection: (id:string) => requestNoContent('DELETE', `/api/connections/${enc(id)}`),
+  testMCPConnection: (id:string) => request<{connection:MCPConnection}>('POST', `/api/connections/${enc(id)}/test`, {}).then(r=>r.connection),
+  reauthorizeMCPConnection: (id:string) => request<{connection:MCPConnection}>('POST', `/api/connections/${enc(id)}/reauthorize`, {}).then(r=>r.connection),
+  setMCPConnectionEnabled: (id:string, enabled:boolean) => request<{connection:MCPConnection}>('POST', `/api/connections/${enc(id)}/enabled`, {enabled}).then(r=>r.connection),
+  setMCPContext: (id:string, context:'assistant'|'coding', enabled:boolean) => request<{connection:MCPConnection}>('POST', `/api/connections/${enc(id)}/contexts/${context}`, {enabled}).then(r=>r.connection),
+  setMCPToolPolicy: (id:string, tool:string, context:'assistant'|'coding', policy:'deny'|'confirm'|'allow') => request<{connection:MCPConnection}>('PUT', `/api/connections/${enc(id)}/tools/${enc(tool)}/policy`, {context,policy}).then(r=>r.connection),
+  readMCPResource: (id:string, context:'assistant'|'coding', uri:string) => request<{result:unknown}>('POST', `/api/connections/${enc(id)}/resources/read`, {context,uri}).then(r=>r.result),
   /** Whether a newer release exists. It only reports: installing is done on the computer that runs Werkbord. */
   updateStatus: (refresh = false) => request<UpdateStatus>('GET', refresh ? '/api/update?refresh=1' : '/api/update'),
   listAgents: () => request<{ agents: Agent[] }>('GET', '/api/agents').then((r) => r.agents),

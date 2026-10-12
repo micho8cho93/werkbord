@@ -13,6 +13,7 @@ import (
 	"devboard/internal/assistant/provider/gemini"
 	"devboard/internal/assistant/provider/opencode"
 	"devboard/internal/config"
+	"devboard/internal/connections"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
@@ -40,7 +41,8 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 		// Answering a question reaches the agent through the runner it is on, as it does from the app.
 		services.Answer = svc.runner.Answer
 	}
-	ops := appops.New(appops.Config{Backend: appops.NewBackend(services), Store: db, Log: log})
+	ops := appops.New(appops.Config{Backend: appops.NewBackend(services), Store: db, Log: log,
+		Injected: connectionOperations(svc.connections)})
 
 	a := cfg.Assistant
 	eng := assistant.New(assistant.Config{
@@ -48,6 +50,7 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 		WorkDir:        filepath.Join(cfg.DataDir, "assistant"),
 		Grants:         assistantGrants(a),
 		Projects:       assistantProjects(a),
+		MCPConnections: !a.ReadOnly,
 		TurnTimeout:    time.Duration(a.TurnTimeoutSeconds) * time.Second,
 		IdleTimeout:    time.Duration(a.IdleTimeoutSeconds) * time.Second,
 		AuditRetention: auditRetention(a),
@@ -77,12 +80,13 @@ func assistantProjects(a config.AssistantConfig) []string {
 
 // assistantServices are the controller's domain services the assistant's operations are made of.
 type assistantServices struct {
-	projects *service.Projects
-	tasks    *service.Tasks
-	labels   *service.Labels
-	runs     *service.Runs
-	control  *service.ControlCenter
-	runner   *runner.Manager
+	projects    *service.Projects
+	tasks       *service.Tasks
+	labels      *service.Labels
+	runs        *service.Runs
+	control     *service.ControlCenter
+	runner      *runner.Manager
+	connections *connections.Service
 }
 
 func providerModels(in []config.ModelChoice) []provider.Model {

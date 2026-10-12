@@ -48,12 +48,20 @@ setting, archive or delete anything, or give an agent permission to run a comman
 | `create_ticket` | adds a ticket to a project's Backlog | `tickets:create` | **proposes** |
 | `update_ticket` | changes a ticket | `tickets:update` | **proposes** |
 | `answer_question` | gives an agent the answer it asked for | `questions:answer` | **proposes** |
+| Connected MCP tools | calls a reviewed tool on a user-configured connection | `connections:use` plus the connection's assistant grant | **proposes by default**; explicit `allow` can run without another approval |
 
 "Ticket" is the board's card, which the rest of Werkbord calls a task. In the desktop app, project lookup and confirmed ticket
 creation also reach connected workspaces through a narrow desktop bridge (see [Team](#team-and-the-coordination-only-boundary)).
 
 These are the same operations an MCP server will offer: one catalog (`appops.Service.Catalog`), one input schema each
 (JSON Schema, enforced exactly as advertised), one permission each, one audit.
+
+MCP tools are injected into this catalog only for a writable Individual assistant session and only when the person enabled
+that connection for the assistant. A tool's schema and fingerprint are rechecked before it runs. Unknown tools start at
+`confirm`; schema changes invalidate `allow`. Tool annotations are advisory, so every external tool is classified as a
+possible mutation. Each call is brokered by the controller, and upstream credentials are never passed to the model.
+`allow` is an explicit preauthorization and can run a tool immediately; its call is still mutation-audited. Read-only
+assistant sessions and Team principals do not receive upstream connection tools.
 
 ## How a change happens
 
@@ -85,8 +93,9 @@ guarantees are elsewhere:
 
 - Runtime command, file, browser and agent tools are disabled and guarded. Codex can call only registered board
   functions through an engine-owned callback. Claude asks for the same operations through text calls.
-- Its only effects are the operations above, and those only propose. The worst a fully manipulated model can do is put a
-  harmless-looking proposal in front of you, which you read before confirming, in words Werkbord wrote.
+- Board changes through built-in operations only propose. External MCP tools follow their own per-tool policy: `confirm`
+  puts a call in front of you, and `allow` can perform a change without another prompt because you explicitly preauthorized it.
+  Every connection starts disabled, tool descriptions/results are untrusted, and upstream credentials remain in the controller.
 - Tool results are given back to it with `<`, `>`, `&` and backticks escaped, so data cannot close the wrapper or open a
   call block (`TestResultsCannotBreakOutOfTheirWrapperOrOpenACall`).
 - A call block in its reply is parsed strictly, at the start of a line, one JSON object, at most six per message; anything
@@ -498,7 +507,7 @@ this adapter.
 
 | What | Where |
 | --- | --- |
-| Operations: permissions, scope, validation, proposals, confirmation, expiry, double confirmation, tampering, audit chain, fail-closed, recovery | `internal/appops` |
+| Operations: permissions, scope, validation, proposals, confirmation, expiry, double confirmation, tampering, audit chain, fail-closed, recovery, injected MCP tools | `internal/appops`, `internal/connections`, `internal/controller/connection_operations_test.go` |
 | Engine: streaming, tool loop, injection, retries, stalls, timeouts, cancel, lost conversation, reconnection, isolation, recovery | `internal/assistant` |
 | The tool-call protocol, cut at every possible point | `internal/assistant/protocol_test.go` |
 | Providers against faithful fake command lines (flags, environment, stdin, classification, process-group kill) | `internal/assistant/provider/claude`, `…/codex` |

@@ -53,6 +53,19 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/connections/oauth/callback" && fromThisComputer(r) {
+			// A local browser returns without the controller token. A scoped program token must not turn this
+			// one-shot browser route into another local-access API endpoint.
+			if got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "); got != "" {
+				want := []byte(s.currentToken())
+				if len(want) == 0 || subtle.ConstantTimeCompare([]byte(got), want) != 1 {
+					writeError(w, http.StatusForbidden, "forbidden", "program credentials cannot use the OAuth browser callback")
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
 		if !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/health" {
 			next.ServeHTTP(w, r) // the PWA shell itself is public; its data is not
 			return

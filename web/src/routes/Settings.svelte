@@ -5,6 +5,7 @@
   import { clock, formatTime } from '../lib/clock.svelte';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
+  import ConnectionsPanel from '../lib/ConnectionsPanel.svelte';
   import LabelManager from '../lib/LabelManager.svelte';
   import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
   import { globalHref, router } from '../lib/router.svelte';
@@ -24,7 +25,7 @@
   const GROUPS = [
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'labels', label: 'Labels' }, { id: 'routing', label: 'Routing rules' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
-    { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'github', label: 'GitHub' }] },
+    { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
   const SECTIONS = GROUPS.flatMap(g => [...g.sections]);
@@ -164,6 +165,8 @@
       <NetworkCard />
     {:else if section === 'github'}
       <GitHubCard />
+    {:else if section === 'mcp'}
+      <ConnectionsPanel />
     {:else if section === 'agents'}
       <AgentsCard />
     {:else if section === 'alerts'}

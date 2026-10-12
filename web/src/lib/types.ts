@@ -1026,3 +1026,42 @@ export interface RepositoryHealth {
   resolved: HealthFinding[];
   check?: { projectId: string; checkedAt: string; durationMs: number; error?: string };
 }
+
+export type MCPContextPolicy = 'deny' | 'confirm' | 'allow';
+export interface MCPTool {
+  name: string;
+  title?: string;
+  description?: string;
+  inputSchema?: unknown;
+  fingerprint: string;
+  assistantPolicy: MCPContextPolicy;
+  codingPolicy: MCPContextPolicy;
+  /** An upstream hint only; Werkbord never treats it as proof that a tool is safe. */
+  readOnlyHint?: boolean;
+}
+export interface MCPResource {
+  uri: string;
+  name: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+}
+export interface MCPConnection {
+  id: string;
+  name: string;
+  transport: 'stdio' | 'streamable_http';
+  command?: string;
+  args?: string[];
+  url?: string;
+  environment?: Record<string, string>;
+  authMode?: 'none' | 'bearer' | 'environment' | 'oauth';
+  authEnv?: string;
+  secretStored?: boolean;
+  enabled: boolean;
+  assistantEnabled: boolean;
+  codingEnabled: boolean;
+  tools?: MCPTool[];
+  resources?: MCPResource[];
+  testedAt?: string;
+  lastError?: string;
+}

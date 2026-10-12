@@ -20,8 +20,10 @@ import (
 	"devboard/internal/agent/gemini"
 	"devboard/internal/agent/opencode"
 	"devboard/internal/api"
+	"devboard/internal/appops"
 	"devboard/internal/assistant"
 	"devboard/internal/config"
+	"devboard/internal/connections"
 	"devboard/internal/doctor"
 	"devboard/internal/domain"
 	"devboard/internal/events"
@@ -47,15 +49,16 @@ type Controller struct {
 	log           *slog.Logger
 	version       string
 
-	release    func()
-	db         *sqlite.DB
-	broker     *events.Broker
-	runner     *runner.Manager
-	assistant  *assistant.Engine
-	health     *service.GitHealth
-	stopHealth context.CancelFunc
-	server     *http.Server
-	network    *networkControl
+	release     func()
+	db          *sqlite.DB
+	broker      *events.Broker
+	runner      *runner.Manager
+	assistant   *assistant.Engine
+	connections *connections.Service
+	health      *service.GitHealth
+	stopHealth  context.CancelFunc
+	server      *http.Server
+	network     *networkControl
 	// networkBackend replaces the embedded Tailscale node; tests use it so that no
 	// real network is joined.
 	networkBackend netprivate.Backend
@@ -96,6 +99,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		return err
 	}
 	c.broker = events.NewBroker()
+	c.connections = connections.New(c.db, nil, appops.New(appops.Config{Store: c.db, Log: c.log}), c.log)
 
 	worktreeRoot, err := prepareWorktreeRoot(c.cfg.WorktreesPath())
 	if err != nil {
@@ -226,6 +230,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Events:       c.broker,
 		Log:          c.log,
 		Version:      c.version,
+		Connections:  c.connections,
 		Web:          webui.Handler(),
 		AuthRequired: c.cfg.AuthRequired(),
 		Token:        token,
@@ -240,12 +245,13 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
 	privateOpts.AuthRequired, privateOpts.Token = true, token
-	privateOpts.Assistant = nil // the assistant is not served on the private network
+	privateOpts.Assistant = nil   // the assistant is not served on the private network
+	privateOpts.Connections = nil // upstream credentials and broker controls stay on this computer
 	// The assistant borrows the sign-in of the coding agents already on this computer and reaches the board only through the
 	// domain services, by way of application operations (internal/appops). It is served on the loopback listener only.
 	if !c.cfg.Assistant.Disabled {
 		if c.assistant, err = newAssistant(c.cfg, c.db, c.log, assistantServices{projects: projects, tasks: tasks, labels: labels, runs: runs,
-			control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner}); err != nil {
+			control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner, connections: c.connections}); err != nil {
 			return fmt.Errorf("assistant: %w", err)
 		}
 		if err := c.assistant.Recover(ctx); err != nil {
@@ -292,6 +298,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 
 	if c.listener, err = net.Listen("tcp", c.cfg.Addr); err != nil {
 		return fmt.Errorf("listen on %s: %w", c.cfg.Addr, err)
+	}
+	if tcp, ok := c.listener.Addr().(*net.TCPAddr); ok {
+		c.connections.SetOAuthRedirectURL(fmt.Sprintf("http://127.0.0.1:%d/api/connections/oauth/callback", tcp.Port))
 	}
 	c.serveErr = make(chan error, 1)
 	go func() { c.serveErr <- c.server.Serve(c.listener) }()

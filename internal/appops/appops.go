@@ -58,12 +58,13 @@ const (
 	PermRunsRead        Permission = "runs:read"
 	PermQuestionsRead   Permission = "questions:read"
 	PermQuestionsAnswer Permission = "questions:answer"
+	PermConnectionsUse  Permission = "connections:use"
 )
 
 // AllPermissions is every permission there is.
 var AllPermissions = []Permission{
 	PermProjectsRead, PermTicketsRead, PermTicketsCreate, PermTicketsUpdate, PermScheduleRead,
-	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer,
+	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse,
 }
 
 // Principal is who is calling: one assistant session, or later one MCP client.
@@ -79,6 +80,8 @@ type Principal struct {
 	Grants    []Permission
 	// Projects limits what the principal can see. nil means every project; an empty, non-nil list means none.
 	Projects []string
+	// MCPConnections is set only for an owner assistant session with configured upstream connections.
+	MCPConnections bool
 }
 
 // Can reports whether the principal holds the permission.
@@ -127,6 +130,10 @@ type plan struct {
 
 type operation struct {
 	Spec
+	validate    func(map[string]any) error
+	auditDetail func(map[string]any) string
+	// preauthorized permits an injected mutation to run immediately only when its owner explicitly granted allow.
+	preauthorized bool
 	// plan is set for mutations; run for every operation. run is only reached for a mutation through Resolve.
 	plan func(context.Context, *env, map[string]any) (*plan, error)
 	run  func(context.Context, *env, map[string]any) (any, error)
@@ -214,6 +221,9 @@ type Config struct {
 	Store   store.Store
 	Log     *slog.Logger
 	Now     func() time.Time
+	// Injected supplies application-owned tools provided by another domain service. It is evaluated for each
+	// catalog, call, and proposal resolution so revocation and schema changes take effect immediately.
+	Injected func(Principal) []InjectedOperation
 	// ConfirmTTL is how long a proposal waits for the person. Default 15 minutes.
 	ConfirmTTL time.Duration
 }
@@ -226,7 +236,26 @@ type Service struct {
 	now        func() time.Time
 	ttl        time.Duration
 	ops        map[string]*operation
+	injected   func(Principal) []InjectedOperation
 	workspaces workspaceBindings
+}
+
+// InjectedOperation is a tool supplied at the application boundary, such as a governed MCP connection.
+// Mutations must return a plan and only run through Resolve after a person confirms it.
+type InjectedOperation struct {
+	Spec        Spec
+	Validate    func(map[string]any) error
+	AuditDetail func(map[string]any) string
+	// Preauthorized is reserved for injected tools whose person-owned policy is explicitly allow.
+	Preauthorized bool
+	Plan          func(context.Context, Principal, map[string]any) (InjectedPlan, error)
+	Run           func(context.Context, Principal, map[string]any) (any, error)
+}
+
+// InjectedPlan is the normalized input and human-readable summary stored with a pending proposal.
+type InjectedPlan struct {
+	Args    map[string]any
+	Summary string
 }
 
 const (
@@ -241,7 +270,7 @@ const (
 
 // New builds a Service with every operation.
 func New(cfg Config) *Service {
-	s := &Service{b: cfg.Backend, st: cfg.Store, log: cfg.Log, now: cfg.Now, ttl: cfg.ConfirmTTL, ops: map[string]*operation{}}
+	s := &Service{b: cfg.Backend, st: cfg.Store, log: cfg.Log, now: cfg.Now, ttl: cfg.ConfirmTTL, ops: map[string]*operation{}, injected: cfg.Injected}
 	if s.log == nil {
 		s.log = slog.New(slog.DiscardHandler)
 	}
@@ -266,13 +295,57 @@ func (s *Service) time() time.Time { return s.now().UTC().Truncate(time.Millisec
 // listed, so a model is never offered what would be refused.
 func (s *Service) Catalog(p Principal) []Spec {
 	var out []Spec
-	for _, op := range s.ops {
+	for _, op := range s.operationsFor(p) {
 		if p.Can(op.Permission) {
 			out = append(out, op.Spec)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+func (s *Service) operationsFor(p Principal) map[string]*operation {
+	out := make(map[string]*operation, len(s.ops))
+	for name, op := range s.ops {
+		out[name] = op
+	}
+	if !p.MCPConnections || s.injected == nil {
+		return out
+	}
+	for _, injected := range s.injected(p) {
+		if injected.Spec.Name == "" || injected.Spec.Input == nil || injected.Run == nil || (injected.Spec.Kind == KindMutation && !injected.Preauthorized && injected.Plan == nil) {
+			continue
+		}
+		if _, exists := out[injected.Spec.Name]; exists {
+			s.log.Warn("injected application operation name collides with an existing operation", "operation", injected.Spec.Name)
+			continue
+		}
+		entry := injected
+		op := &operation{
+			Spec: entry.Spec, validate: entry.Validate, auditDetail: entry.AuditDetail, preauthorized: entry.Preauthorized,
+			run: func(ctx context.Context, e *env, args map[string]any) (any, error) {
+				return entry.Run(ctx, e.p, args)
+			},
+		}
+		if entry.Spec.Kind == KindMutation {
+			op.plan = func(ctx context.Context, e *env, args map[string]any) (*plan, error) {
+				planned, err := entry.Plan(ctx, e.p, args)
+				if err != nil {
+					return nil, err
+				}
+				return &plan{Args: planned.Args, Summary: planned.Summary}, nil
+			}
+		}
+		out[op.Name] = op
+	}
+	return out
+}
+
+func validateOperation(op *operation, args map[string]any) error {
+	if op.validate != nil {
+		return op.validate(args)
+	}
+	return op.Input.Validate(args)
 }
 
 // Result is what a call returns.
@@ -296,7 +369,7 @@ type Proposal struct {
 // Call performs an operation for a principal. A read returns its answer. A mutation returns a Proposal and changes
 // nothing: only Resolve carries it out.
 func (s *Service) Call(ctx context.Context, p Principal, name string, raw json.RawMessage) (*Result, error) {
-	op := s.ops[name]
+	op := s.operationsFor(p)[name]
 	if op == nil {
 		return nil, s.refuse(ctx, p, name, domain.AuditRead, "", domain.AuditOutcomeInvalid, errorf(CodeUnknownOperation, "there is no operation called %q", clip(name, 60)))
 	}
@@ -310,7 +383,7 @@ func (s *Service) Call(ctx context.Context, p Principal, name string, raw json.R
 		return nil, s.refuse(ctx, p, name, kind, "", domain.AuditOutcomeInvalid, newError(CodeInvalidArguments, err))
 	}
 	hash := domain.ArgsDigest(canonical)
-	if err := op.Input.Validate(args); err != nil {
+	if err := validateOperation(op, args); err != nil {
 		return nil, s.refuse(ctx, p, name, kind, hash, domain.AuditOutcomeInvalid, newError(CodeInvalidArguments, err))
 	}
 	if pid, ok := args["projectId"].(string); ok && !p.CanSee(pid) {
@@ -320,7 +393,7 @@ func (s *Service) Call(ctx context.Context, p Principal, name string, raw json.R
 	}
 	e := &env{b: s.backend(p), p: p, now: s.time()}
 
-	if op.Kind == KindRead {
+	if op.Kind == KindRead || op.preauthorized {
 		data, err := op.run(ctx, e, args)
 		if err != nil {
 			ce := classify(s.log, name, err)
@@ -332,8 +405,12 @@ func (s *Service) Call(ctx context.Context, p Principal, name string, raw json.R
 			return nil, s.refuse(ctx, p, name, kind, hash, domain.AuditOutcomeInvalid,
 				errorf(CodeTooLarge, "the answer is too large to return (%d KB): ask for less, with a filter or a smaller limit", size>>10))
 		}
+		detail := describeArgs(args)
+		if op.auditDetail != nil {
+			detail = op.auditDetail(args)
+		}
 		if err := s.record(ctx, nil, domain.AssistantAuditEntry{SessionID: p.SessionID, Actor: p.Actor, Operation: name, Kind: kind,
-			Outcome: domain.AuditOutcomeOK, ArgsHash: hash, Detail: describeArgs(args)}); err != nil {
+			Outcome: domain.AuditOutcomeOK, ArgsHash: hash, Detail: clip(detail, 300)}); err != nil {
 			return nil, err
 		}
 		return &Result{Operation: name, Data: data}, nil
@@ -387,8 +464,12 @@ func (s *Service) propose(ctx context.Context, p Principal, op *operation, args 
 		if err := tx.Assistant().CreateAction(ctx, act); err != nil {
 			return err
 		}
+		detail := summary
+		if op.auditDetail != nil {
+			detail = op.auditDetail(nil)
+		}
 		return tx.Assistant().AppendAudit(ctx, &domain.AssistantAuditEntry{At: now, SessionID: p.SessionID, ActionID: act.ID, Actor: p.Actor,
-			Operation: op.Name, Kind: domain.AuditMutation, Outcome: domain.AuditOutcomeProposed, ArgsHash: hash, Detail: summary})
+			Operation: op.Name, Kind: domain.AuditMutation, Outcome: domain.AuditOutcomeProposed, ArgsHash: hash, Detail: clip(detail, 300)})
 	})
 	switch {
 	case tooMany:
@@ -428,7 +509,7 @@ func (s *Service) Resolve(ctx context.Context, d Decision) (*Result, error) {
 	if act.SessionID != d.SessionID || act.Principal != d.Executor.ID || d.Executor.SessionID != act.SessionID {
 		return nil, errorf(CodeNotFound, "there is no such change waiting")
 	}
-	op := s.ops[act.Operation]
+	op := s.operationsFor(d.Executor)[act.Operation]
 	now := s.time()
 	by := d.By
 	if by == "" {
@@ -485,6 +566,9 @@ func (s *Service) Resolve(ctx context.Context, d Decision) (*Result, error) {
 	var args map[string]any
 	if err := json.Unmarshal(act.Args, &args); err != nil {
 		return fail("unreadable arguments", errorf(CodeFailed, "the stored change could not be read, so it was not carried out"))
+	}
+	if err := validateOperation(op, args); err != nil {
+		return fail("arguments no longer satisfy the operation schema", errorf(CodeConflict, "the operation changed while it was waiting; ask for it again"))
 	}
 	if pid, ok := args["projectId"].(string); ok && !d.Executor.CanSee(pid) {
 		return fail("outside the assistant's projects", errorf(CodeNotFound, "project %s was not found", pid))
@@ -602,6 +686,18 @@ func (s *Service) Recover(ctx context.Context) (expired, interrupted int, err er
 func (s *Service) Note(ctx context.Context, p Principal, what, detail string) error {
 	return s.record(ctx, nil, domain.AssistantAuditEntry{SessionID: p.SessionID, Actor: p.Actor, Operation: what, Kind: domain.AuditSystem,
 		Outcome: domain.AuditOutcomeOK, Detail: clip(detail, 400)})
+}
+
+// RecordMCPCall adds an external MCP broker outcome to the same append-only audit used by assistant operations.
+// It accepts only a digest of arguments; tool arguments and provider credentials are never retained.
+func (s *Service) RecordMCPCall(ctx context.Context, actor, operation string, kind domain.AuditKind, outcome, argsHash, detail string) error {
+	if actor == "" || operation == "" || outcome == "" || (kind != domain.AuditRead && kind != domain.AuditMutation) {
+		return errorf(CodeInvalidArguments, "an MCP audit entry needs an actor, operation and outcome")
+	}
+	return s.record(ctx, nil, domain.AssistantAuditEntry{
+		Actor: clip(actor, 100), Operation: clip("mcp:"+operation, 80), Kind: kind,
+		Outcome: clip(outcome, 40), ArgsHash: clip(argsHash, 64), Detail: clip(detail, 400),
+	})
 }
 
 // Audit returns the trail, newest first.

@@ -1096,6 +1096,94 @@ func TestWhenTheAuditCannotBeWrittenNothingHappens(t *testing.T) {
 	}
 }
 
+func TestInjectedToolsAreScopedValidatedAndUseTheApprovalPath(t *testing.T) {
+	f := newFx(t)
+	available := true
+	var executed atomic.Int32
+	injected := func(Principal) []InjectedOperation {
+		if !available {
+			return nil
+		}
+		schema := &Schema{Raw: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","maxLength":40}},"required":["query"],"additionalProperties":false}`)}
+		return []InjectedOperation{{
+			Spec:     Spec{Name: "external_search", Description: "Search a connected service.", Kind: KindMutation, Permission: PermConnectionsUse, RequiresConfirmation: true, Input: schema},
+			Validate: func(args map[string]any) error { return schema.Validate(args) },
+			Plan: func(_ context.Context, _ Principal, args map[string]any) (InjectedPlan, error) {
+				return InjectedPlan{Args: args, Summary: "Search the connected service after approval."}, nil
+			},
+			Run: func(_ context.Context, _ Principal, args map[string]any) (any, error) {
+				executed.Add(1)
+				return args, nil
+			},
+		}}
+	}
+	f.svc = New(Config{Backend: f.svc.b, Store: f.st, Now: f.now, Injected: injected})
+	p := f.session("ast_external", AllPermissions...)
+	if containsSpec(f.svc.Catalog(p), "external_search") {
+		t.Fatal("an assistant without MCP connections was shown an external tool")
+	}
+	p.MCPConnections = true
+	if !containsSpec(f.svc.Catalog(p), "external_search") {
+		t.Fatal("a permitted assistant was not shown the connected tool")
+	}
+	if _, err := f.call(p, "external_search", map[string]any{"query": "x", "unexpected": true}); CodeOf(err) != CodeInvalidArguments {
+		t.Fatalf("an argument outside the advertised schema was accepted: %v", err)
+	}
+	proposal := f.mustCall(p, "external_search", map[string]any{"query": "meeting actions"})
+	if proposal.Pending == nil || executed.Load() != 0 {
+		t.Fatal("the connected mutation ran before approval")
+	}
+	if strings.Contains(f.lastAudit().Detail, "meeting actions") {
+		t.Fatalf("MCP arguments were written into the append-only audit: %+v", f.lastAudit())
+	}
+	available = false // a revoked tool cannot remain usable just because an earlier proposal is waiting.
+	if _, err := f.confirm(p, proposal.Pending.ActionID, true); CodeOf(err) != CodePermissionDenied {
+		t.Fatalf("revoked operation was resolved: %v", err)
+	}
+	if executed.Load() != 0 {
+		t.Fatal("a revoked tool ran during approval")
+	}
+}
+
+func TestExplicitlyPreauthorizedInjectedMutationRunsAndIsStillAuditedAsAMutation(t *testing.T) {
+	f := newFx(t)
+	var executed atomic.Int32
+	f.svc = New(Config{Backend: f.svc.b, Store: f.st, Now: f.now, Injected: func(Principal) []InjectedOperation {
+		return []InjectedOperation{{
+			Spec:          Spec{Name: "external_write", Kind: KindMutation, Permission: PermConnectionsUse, Input: Object(map[string]*Schema{})},
+			Preauthorized: true,
+			Run: func(context.Context, Principal, map[string]any) (any, error) {
+				executed.Add(1)
+				return map[string]bool{"written": true}, nil
+			},
+		}}
+	}})
+	p := f.session("ast_allowed", AllPermissions...)
+	p.MCPConnections = true
+	specs := f.svc.Catalog(p)
+	if !containsSpec(specs, "external_write") {
+		t.Fatal("preauthorized operation was omitted")
+	}
+	for _, spec := range specs {
+		if spec.Name == "external_write" && spec.RequiresConfirmation {
+			t.Fatal("an explicitly preauthorized operation still requires confirmation")
+		}
+	}
+	result := f.mustCall(p, "external_write", map[string]any{})
+	if result.Pending != nil || executed.Load() != 1 || f.lastAudit().Kind != domain.AuditMutation {
+		t.Fatalf("preauthorized write was not executed and audited as a mutation: result=%+v executed=%d audit=%+v", result, executed.Load(), f.lastAudit())
+	}
+}
+
+func containsSpec(specs []Spec, name string) bool {
+	for _, spec := range specs {
+		if spec.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // ---- recovery ----
 
 func TestRecoverSettlesWhatARestartLeftInDoubt(t *testing.T) {
