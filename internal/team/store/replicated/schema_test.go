@@ -137,14 +137,32 @@ func TestTheOneDependencyListMigrationCarriesDataAcrossOnTheCluster(t *testing.T
 	seq := position(t, old).Seq
 	_ = old.Close()
 
-	upgraded := open(t, c, 1)
+	upgraded := open(t, c, 1, func(o *Options) { o.Migrations = all[:target+1] })
 	settle(t, upgraded)
-	if v, _ := upgraded.SchemaVersion(bg); v != len(all) {
-		t.Fatalf("schema %d, want %d", v, len(all))
+	if v, _ := upgraded.SchemaVersion(bg); v != target+1 {
+		t.Fatalf("schema %d, want %d", v, target+1)
+	}
+	var migrated string
+	eventually(t, 10*time.Second, "the migrated dependency", func() bool {
+		return upgraded.update(bg, func(q store.Queryer) error {
+			return q.QueryRowContext(bg, `SELECT depends_on_id FROM ticket_dependencies WHERE workspace_id = ? AND ticket_id = ?`, k.ws, k.ticket).Scan(&migrated)
+		}) == nil && migrated == second
+	})
+	// Applied once, as one write.
+	if got := position(t, upgraded).Seq; got != seq+1 {
+		t.Errorf("the cluster is at position %d, want %d: the migration was not one write", got, seq+1)
+	}
+	_ = upgraded.Close()
+
+	// Later schema migrations are independent writes. Open the current schema only after checking the target migration's position.
+	current := open(t, c, 2)
+	settle(t, current)
+	if v, _ := current.SchemaVersion(bg); v != len(all) {
+		t.Fatalf("current schema %d, want %d", v, len(all))
 	}
 	var got, other []string
-	eventually(t, 10*time.Second, "the migrated dependencies", func() bool {
-		return upgraded.View(bg, func(tx store.Tx) error {
+	eventually(t, 10*time.Second, "the migrated dependencies in the current schema", func() bool {
+		return current.View(bg, func(tx store.Tx) error {
 			a, err := tx.Ticket(bg, k.ws, k.project, k.ticket)
 			if err != nil {
 				return err
@@ -156,10 +174,6 @@ func TestTheOneDependencyListMigrationCarriesDataAcrossOnTheCluster(t *testing.T
 	})
 	if got[0] != second || len(other) != 0 {
 		t.Fatalf("dependencies after the upgrade: %v and %v", got, other)
-	}
-	// Applied once, as one write.
-	if got := position(t, upgraded).Seq; got != seq+1 {
-		t.Errorf("the cluster is at position %d, want %d: the migration was not one write", got, seq+1)
 	}
 }
 
