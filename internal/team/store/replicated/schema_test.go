@@ -1,6 +1,7 @@
 package replicated
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"sync"
@@ -106,15 +107,15 @@ func TestTheOneDependencyListMigrationCarriesDataAcrossOnTheCluster(t *testing.T
 	}
 	before := all[:target]
 	old := open(t, c, 0, func(o *Options) { o.Migrations = before })
-	k := seed(t, old)
+	k := seedBeforeSourceRef(t, old)
 	second, gone := domain.NewID(domain.PrefixTicket), domain.NewID(domain.PrefixTicket)
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	if err := old.Update(bg, func(tx store.Tx) error {
-		n, err := tx.NextTicketNumber(bg, k.ws)
+	if err := old.update(bg, func(q store.Queryer) error {
+		n, err := store.NewTx(q).NextTicketNumber(bg, k.ws)
 		if err != nil {
 			return err
 		}
-		return tx.InsertTicket(bg, k.ws, domain.Ticket{ID: second, ProjectID: k.project, Number: n, Title: "Second", Status: domain.TicketAvailable, CreatorID: k.owner, CreatedAt: now, UpdatedAt: now})
+		return insertTicketBeforeSourceRef(bg, q, k.ws, domain.Ticket{ID: second, ProjectID: k.project, Number: n, Title: "Second", Status: domain.TicketAvailable, CreatorID: k.owner, CreatedAt: now, UpdatedAt: now})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -160,4 +161,43 @@ func TestTheOneDependencyListMigrationCarriesDataAcrossOnTheCluster(t *testing.T
 	if got := position(t, upgraded).Seq; got != seq+1 {
 		t.Errorf("the cluster is at position %d, want %d: the migration was not one write", got, seq+1)
 	}
+}
+
+// This test starts before migration 0015. Use only columns present at that schema version;
+// the current InsertTicket query includes source_ref from a later migration.
+func seedBeforeSourceRef(t testing.TB, s *Store) seeded {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	k := seeded{ws: domain.NewID(domain.PrefixWorkspace), owner: domain.NewID(domain.PrefixMember), project: domain.NewID(domain.PrefixProject), ticket: domain.NewID(domain.PrefixTicket)}
+	err := s.update(bg, func(q store.Queryer) error {
+		tx := store.NewTx(q)
+		if err := tx.InsertWorkspace(bg, domain.Workspace{ID: k.ws, Name: "Acme", CreatedAt: now}); err != nil {
+			return err
+		}
+		if err := tx.InsertMember(bg, domain.Member{ID: k.owner, WorkspaceID: k.ws, Name: "Ada", Role: domain.RoleOwner, CreatedAt: now}, "hash-"+k.owner); err != nil {
+			return err
+		}
+		if err := tx.InsertProject(bg, domain.Project{ID: k.project, WorkspaceID: k.ws, Name: "App", CreatedAt: now, UpdatedAt: now}); err != nil {
+			return err
+		}
+		if err := tx.AddProjectMember(bg, k.ws, domain.ProjectMember{ProjectID: k.project, MemberID: k.owner, AddedBy: k.owner, AddedAt: now, Role: domain.ProjectOwner}); err != nil {
+			return err
+		}
+		n, err := tx.NextTicketNumber(bg, k.ws)
+		if err != nil {
+			return err
+		}
+		return insertTicketBeforeSourceRef(bg, q, k.ws, domain.Ticket{ID: k.ticket, ProjectID: k.project, Number: n, Title: "First", Status: domain.TicketAvailable, CreatorID: k.owner, CreatedAt: now, UpdatedAt: now})
+	})
+	if err != nil {
+		t.Fatalf("seeding pre-source_ref schema: %v", err)
+	}
+	return k
+}
+
+func insertTicketBeforeSourceRef(ctx context.Context, q store.Queryer, workspaceID string, ticket domain.Ticket) error {
+	_, err := q.ExecContext(ctx, `INSERT INTO tickets (id, workspace_id, project_id, number, title, status, creator_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, ticket.ID, workspaceID, ticket.ProjectID, ticket.Number, ticket.Title, string(ticket.Status), ticket.CreatorID,
+		ticket.CreatedAt.UTC().UnixMilli(), ticket.UpdatedAt.UTC().UnixMilli())
+	return err
 }
