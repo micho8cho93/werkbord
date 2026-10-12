@@ -197,12 +197,12 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Apple's service can end immediately when system Dictation is off. No restart loop and no lost typed draft.
         const message = assistantFrame.getByRole('textbox', { name: 'Message to the assistant' });
         await message.fill('keep this draft');
-        await assistantFrame.getByRole('button', { name: 'Dictate', exact: true }).click();
+        await assistantFrame.getByRole('button', { name: 'Dictate a message', exact: true }).click();
         await assistantFrame.getByTestId('assistant-dictation-notice').getByRole('button', { name: 'Use dictation', exact: true }).click();
         await assistantFrame.getByTestId('assistant-dictation-note').filter({ hasText: 'System Settings → Keyboard' }).waitFor();
         assert.equal(await message.inputValue(), 'keep this draft');
         assert.equal(await indFrame.evaluate(() => window.__speechStarts), 1, 'a failed Mac startup is not retried');
-        assert.equal(await assistantFrame.getByRole('button', { name: 'Dictate', exact: true }).count(), 1, 'the microphone can be tried again');
+        assert.equal(await assistantFrame.getByRole('button', { name: 'Dictate a message', exact: true }).count(), 1, 'the microphone can be tried again');
         await message.fill('');
         ok('a failed Mac dictation startup points to Keyboard settings, stops once, and preserves the draft');
 

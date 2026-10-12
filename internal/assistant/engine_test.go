@@ -332,6 +332,32 @@ func TestAReplyThatEndsOnTheClosingFenceStillRunsItsCall(t *testing.T) {
 	}
 }
 
+func TestOpenUIInstructionsReachTheProviderAndTheFencedReplyStreamsUnchanged(t *testing.T) {
+	f := newEfx(t)
+	s := f.session()
+	const openUIPrompt = "generated schema: Stack(children), Heading(text)"
+	const output = "Here is the view.\n```openui-lang\nroot = Stack([heading])\nheading = Heading(\"Plan\")\n```\n"
+	f.prov.Queue(fake.Reply(output[:24], output[24:]))
+	ch, err := f.eng.Subscribe(bg, s.ID, s.LastEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.eng.SendMessageWithOpenUIPrompt(bg, s.ID, "make an interface", nil, openUIPrompt); err != nil {
+		t.Fatal(err)
+	}
+	events := readUntilEnd(t, ch)
+	if got := shown(events); got != output {
+		t.Fatalf("streamed output = %q, want %q", got, output)
+	}
+	turns := f.prov.Turns()
+	if len(turns) != 1 || !strings.Contains(turns[0].System, "generated schema: Stack(children), Heading(text)") || !strings.Contains(turns[0].System, "Keep every werkbord-call block outside the OpenUI fence") {
+		t.Fatalf("provider system prompt did not include the registry or keep the operation boundary: %+v", turns)
+	}
+	if has(events, EventToolCall) != nil || end(events).Type != EventCompleted {
+		t.Fatalf("UI output affected the operation loop: %v", types(events))
+	}
+}
+
 // A call written without its opening fence (a real Claude Sonnet reply: the JSON, then a stray closing fence) is not run and must
 // not be left on the person's screen as raw JSON with the turn ending as if it were an answer. It is taken out of the reply, the
 // assistant is told it was not run and how to write it, and its second try is run.

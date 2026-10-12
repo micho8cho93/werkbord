@@ -234,6 +234,33 @@ conversation-recovery notice. New handles carry a `werkbord-tools:` prefix; the 
 Codex. The live check uses the spoken numbered portfolio request with the current date, confirms four cards, then
 resumes the conversation and checks that an existing task list produces no duplicate proposals.
 
+### OpenUI Lang responses
+
+The assistant can also answer a request to create an interface with OpenUI Lang. The Svelte 5 registry in
+`web/src/lib/assistant/openui/library.ts` defines `Text`, `Heading`, `Card`, `Metric`, `List`, `Table`, `Disclosure`,
+`Grid` and `Stack` with Zod 4 schemas. `library.prompt()` generates the component signatures and inline-response rules from
+those same definitions; the browser sends that bounded formatting prompt with the message. The controller adds it to the
+provider's normal system prompt, without changing the session, provider sign-in, operation catalog or confirmation policy.
+The implementation uses the installed `@openuidev/svelte-lang` 0.4.1 API (`defineComponent`, `createLibrary`, `Renderer`,
+`library.prompt({ inlineMode: true })`) and Zod 4. See the [Svelte Lang API](https://www.openui.com/docs/api-reference/svelte-lang)
+and [Svelte integration guide](https://www.openui.com/integrations/svelte) when updating the dependency. The live
+`TestLiveOpenUIResponsesUseRegisteredComponents` uses the generated registry prompt with each available CLI, then validates
+the fenced response with the installed parser. Run it with `WERKBORD_LIVE_ASSISTANT=1 go test ./internal/assistant
+-run TestLiveOpenUIResponsesUseRegisteredComponents -v`.
+
+The assistant may mix ordinary prose with a fenced `openui-lang` block. OpenUI code streams in the existing `delta` events,
+and `ReplyView.svelte` splits it from prose and passes each block to the registered Svelte renderer. A local disclosure is the
+only interactive component in this first set. It changes no board state and makes no request. Generated UI cannot run HTML,
+JavaScript, CSS, OpenUI queries or mutations, or unregistered components. The operation filter and repair pass treat the UI
+fence as opaque; `werkbord-call` blocks remain a separate protocol outside it. Retries still discard the failed attempt, while
+SSE replay and transcript recovery carry the same streamed reply text.
+
+An invalid block keeps any valid rendered portions and shows a plain fallback with an expandable, text-only source preview.
+An unfinished block is labelled incomplete after the turn ends. OpenUI runs locally in the web app: Werkbord does not use
+OpenUI Gateway, ask for an OpenUI key or send prompts to an OpenUI service. The upstream core package has optional
+pseudonymous install-time telemetry; `make` disables it with `OPENUI_TELEMETRY_DISABLED=1`. Use the same environment variable
+for a direct `npm ci` or `npm install`.
+
 The conversation keeps a working indicator until the turn ends and marks completed replies explicitly. Operation errors
 show their reason in the conversation. After a reconnect, partial text alone never implies success: an unrecovered final
 result is shown as stopped or failed, with a note to check the board before retrying changes.
@@ -475,7 +502,7 @@ answers `503` if `assistant.disabled` is set.
 | `GET /api/assistant/sessions`, `GET …/{id}` | conversations, with the changes waiting, the files waiting (never their content) and the last event number |
 | `PATCH …/{id}` `{provider?, model?, reasoning?}` | change provider, model or reasoning level for the next turn (see below) |
 | `DELETE …/{id}` | stop it, drop what it left waiting, forget it (the audit stays) |
-| `POST …/{id}/messages` `{text, attachments?: [id]}` → `202 {turnId}` | send a message (words, files, or both); read the reply from the events |
+| `POST …/{id}/messages` `{text, attachments?: [id], openuiPrompt?: string}` → `202 {turnId}` | send a message (words, files, or both); `openuiPrompt` is bounded to 24,000 characters and supplies the registered component instructions for inline UI; read the reply from the events |
 | `POST …/{id}/attachments` (body: the file; `X-Attachment-Name`, percent-encoded; `X-Attachment-Authorized: true`) → `201 {id, name, bytes, expiresAt}` | hold a text file for the next message ([Attachments](#attachments)); `413` over the limit, `400` without the yes or if not text |
 | `DELETE …/{id}/attachments/{attachment}` | drop a file that has not been sent |
 | `GET …/{id}/events` (SSE) | `turn_started`, `delta`, `tool_call`, `tool_result`, `confirmation_required`, `confirmation_resolved`, `notice`, `retry`, `turn_completed`, `turn_failed`, `turn_cancelled`, `gap` |
@@ -521,9 +548,9 @@ this adapter.
 | The store: compare-and-swap, one claim per action, append-only audit | `internal/store/sqlite` |
 | The boundaries | `internal/archtest/assistant_test.go` |
 | Attachments: authorization, once-only, limits, expiry, isolation, escaping, fail-closed | `internal/assistant/attachments_test.go`, `internal/api` |
-| The screen's logic: the transcript from events (retries, rounds, replays, gaps), the stream (cut anywhere, reconnects, restarts), dictation, the animation's plan, the safe reader, choices, words | `web/src/lib/assistant/*.test.ts` |
+| The screen's logic: the transcript from events (retries, rounds, replays, gaps), the stream (cut anywhere, reconnects, restarts), dictation, the animation's plan, the safe reader, OpenUI schema/prompt/reply parsing, choices, words | `web/src/lib/assistant/*.test.ts` |
 | The screen against a stand-in controller: opening/closing, sending, confirming, choosing, files, reload, restart, no conversation, no provider | `web/src/lib/assistant/store.test.ts` |
-| The screen in a real browser, with the real engine and API and a scripted provider: the animation frame by frame (light, dark, reduced motion), the workspace left untouched, streaming, tool progress, confirmations that survive closing/reload/restart, files, dictation, keyboard and screen-reader behaviour, a phone | `make test-assistant-browser` (`scripts/browser-assistant.cjs`) |
+| The screen in a real browser, with the real engine and API and a scripted provider: the animation frame by frame (light, dark, reduced motion), the workspace left untouched, streaming, generated OpenUI and malformed-output recovery, tool progress, confirmations that survive closing/reload/restart, files, dictation, keyboard and screen-reader behaviour, a phone | `make test-assistant-browser` (`scripts/browser-assistant.cjs`) |
 | The same from the desktop window's sidebar, in a real frame | `make test-assistant-browser` (`scripts/browser-shell-assistant.cjs`) |
 
 ## Not in this stage

@@ -521,12 +521,22 @@ func (e *Engine) Send(ctx context.Context, sessionID, text string) (string, erro
 // SendMessage starts a turn: the person's message, and the files they attached to it, go to the provider and the reply
 // streams as events. It returns as soon as the turn has begun. A conversation has one turn at a time.
 func (e *Engine) SendMessage(ctx context.Context, sessionID, text string, attachmentIDs []string) (string, error) {
+	return e.SendMessageWithOpenUIPrompt(ctx, sessionID, text, attachmentIDs, "")
+}
+
+// SendMessageWithOpenUIPrompt starts a normal assistant turn and optionally adds the web registry's generated OpenUI
+// component prompt. The prompt controls formatting only; tool availability remains the server's appops catalog.
+func (e *Engine) SendMessageWithOpenUIPrompt(ctx context.Context, sessionID, text string, attachmentIDs []string, openUIPrompt string) (string, error) {
 	text = strings.TrimSpace(text)
+	openUIPrompt = strings.TrimSpace(openUIPrompt)
 	if text == "" && len(attachmentIDs) == 0 {
 		return "", fmt.Errorf("%w: there is nothing to send", domain.ErrInvalid)
 	}
 	if len([]rune(text)) > maxMessageChars {
 		return "", fmt.Errorf("%w: a message is at most %d characters", domain.ErrInvalid, maxMessageChars)
+	}
+	if len([]rune(openUIPrompt)) > maxOpenUIPromptChars {
+		return "", fmt.Errorf("%w: OpenUI instructions are at most %d characters", domain.ErrInvalid, maxOpenUIPromptChars)
 	}
 	s, err := e.loadSession(ctx, sessionID)
 	if err != nil {
@@ -580,7 +590,7 @@ func (e *Engine) SendMessage(ctx context.Context, sessionID, text string, attach
 		return "", err
 	}
 	e.wg.Add(1)
-	go e.runTurn(tctx, prov, s, run, text)
+	go e.runTurn(tctx, prov, s, run, text, openUIPrompt)
 	return turnID, nil
 }
 

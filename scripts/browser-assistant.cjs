@@ -122,6 +122,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const { ctx, page } = await newPage({ colorScheme: 'light' });
             await page.goto(base + '/#token=' + token);
             await page.goto(base + '/#/projects');
+            await page.locator('aside.rail a.sec-link[href="#/projects"]').click();
+            await page.getByRole('heading', { name: 'Projects', exact: true }).waitFor();
             const button = page.getByTestId('assistant-button').first();
             await button.waitFor();
             assert.equal(await button.getAttribute('aria-label'), 'Assistant');
@@ -197,6 +199,17 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(last.bg, 'rgb(11, 11, 12)', 'dark paper');
             assert.match(first.bg, /rgb\(2[0-9], 2[0-9], 2[0-9]\)|rgb\(1[0-9], 1[0-9], 1[0-9]\)/, 'starts as the dark sidebar colour: ' + first.bg);
             await page.screenshot({ path: path.join(artifacts, 'assistant-empty-dark.png') });
+            await sendText(page, 'openui dashboard');
+            const generated = lastReply(page).locator('.openui');
+            await generated.locator('h2').filter({ hasText: 'Sprint snapshot' }).waitFor();
+            await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            const metricColors = await generated.locator('.metric').first().evaluate(el => ({
+                background: getComputedStyle(el).backgroundColor,
+                label: getComputedStyle(el.querySelector('.label')).color,
+                value: getComputedStyle(el.querySelector('.value')).color,
+            }));
+            assert.deepEqual(metricColors, { background: 'rgb(29, 29, 31)', label: 'rgb(163, 163, 157)', value: 'rgb(240, 240, 236)' });
+            await page.screenshot({ path: path.join(artifacts, 'assistant-openui-dark.png') });
             ok('works in the dark theme: same movement, dark colours');
             await ctx.close();
         }
@@ -259,7 +272,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await sendText(page, 'what is blocked?');
             await page.waitForFunction(n => document.querySelectorAll('article.reply').length > n, before2);
             await lastReply(page).locator('.progress').waitFor();
-            assert.match(await lastReply(page).locator('.progress').innerText(), /Thinking…|Looking for what is blocked/);
+            assert.match(await lastReply(page).locator('.progress').innerText(), /Working…|Looking for what is blocked/);
             await page.waitForFunction(() => document.querySelector('article.reply:last-of-type')?.dataset.status === 'done' || [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
             assert.match(await lastReply(page).innerText(), /Nothing is blocked right now\./);
             const looked = lastReply(page).locator('details.looked');
@@ -288,6 +301,38 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.match(await lastReply(page).innerText(), /<img src=x onerror=/, 'it is shown as the text it is');
             ok('replies are formatted from a tree, never as HTML: markup and links stay text');
 
+            // OpenUI Lang streams inside the existing reply, while prose remains an ordinary safe Markdown segment.
+            await sendText(page, 'openui dashboard');
+            const generated = lastReply(page).locator('.openui');
+            await page.waitForFunction(() => {
+                const r = [...document.querySelectorAll('article.reply')].at(-1);
+                return r?.dataset.status === 'working' && r.querySelector('.openui h2')?.textContent === 'Sprint snapshot';
+            }, null, { timeout: 10000 });
+            await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            assert.equal((await generated.locator('h2').textContent()).trim(), 'Sprint snapshot');
+            assert.deepEqual(await generated.locator('.metric .label').allInnerTexts(), ['Open tasks', 'Done this week']);
+            assert.equal(await generated.locator('table tbody tr').count(), 2);
+            assert.match((await lastReply(page).locator('.md').allInnerTexts()).join('\n'), /Here is the sprint view\.|The values are from the current board\./);
+            assert.equal(await generated.locator('img, script, a').count(), 0, 'component text stays escaped and non-clickable');
+            const disclosure = generated.locator('details');
+            await disclosure.locator('summary').click();
+            assert.notEqual(await disclosure.getAttribute('open'), null, 'the local disclosure is interactive');
+            assert.match(await generated.innerText(), /<img src=x onerror=window.__pwned=1>/);
+            assert.equal(requests.filter(r => /\/actions\//.test(r)).length, 0, 'generated UI did not call an operation');
+            assert.equal(await page.evaluate(() => window.__pwned), undefined, 'generated text did not execute');
+            ok('OpenUI renders progressively with prose, structured data and a local disclosure; text is escaped and no operation runs');
+
+            await sendText(page, 'malformed openui');
+            await lastReply(page).getByRole('status').filter({ hasText: "couldn't render all of this interface" }).waitFor();
+            await lastReply(page).locator('.openui-fallback summary').click();
+            assert.match(await lastReply(page).locator('.openui-fallback pre').innerText(), /root = Heading\(\)/);
+            ok('a malformed component produces a readable fallback with inspectable source');
+
+            await sendText(page, 'incomplete openui');
+            await lastReply(page).getByRole('status').filter({ hasText: 'did not finish' }).waitFor();
+            assert.equal(await lastReply(page).locator('.openui-fallback').count(), 1);
+            ok('an incomplete fence leaves the conversation intact and explains that content may be missing');
+
             // Stopping a reply.
             await sendText(page, 'hang on');
             await page.getByRole('button', { name: 'Stop the reply' }).click();
@@ -312,7 +357,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await sendText(page, `add a ticket to ${project.id}`);
             const card = page.locator('section.confirm');
             await card.waitFor();
-            assert.match(await card.innerText(), /Create the ticket "From the assistant" in project "Assistant project"/);
+            assert.match(await card.innerText(), /Create the task "From the assistant" in project "Assistant project"/);
             assert.match(await card.innerText(), /Nothing changes until you confirm/);
             assert.equal((await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, before, 'proposing changed nothing');
             await page.screenshot({ path: path.join(artifacts, 'assistant-confirmation.png') });
@@ -404,7 +449,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const panel = page.getByTestId('assistant-picker-panel');
             await panel.waitFor();
             await panel.getByLabel('Model', { exact: true }).selectOption('sonnet');
-            await panel.getByLabel('Thinking level').selectOption('high');
+            await panel.getByLabel('Reasoning level').selectOption('high');
             await page.waitForFunction(() => /Sonnet/.test(document.querySelector('[data-testid="assistant-picker"]').innerText));
             await page.keyboard.press('Escape');
             assert.equal(await surface(page).count(), 1, 'Escape closes the chooser first, not the whole screen');
@@ -508,13 +553,11 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await listening.waitFor();
             assert.match(await listening.innerText(), /Listening|Starting the microphone/);
             assert.equal(await page.getByTestId('assistant-dictation-cancel').count(), 1, 'a cross to cancel');
-            assert.match(await mic.getAttribute('aria-label'), /^Done dictating/);
+            assert.equal(await mic.getAttribute('aria-label'), 'Finish dictation and keep the text to edit');
             const box = page.getByRole('textbox', { name: 'Message to the assistant' });
             assert.equal(await box.getAttribute('readonly'), '', 'the box is not typed into while it listens');
-            await page.evaluate(() => window.__rec.onspeechstart?.());
-            await page.waitForFunction(() => document.querySelector('[data-testid="assistant-listening"]')?.dataset.phase === 'hearing');
             await page.evaluate(() => window.__rec.say([['what is bl', false]]));
-            await page.waitForFunction(() => document.querySelector('textarea').value === 'what is bl');
+            await page.waitForFunction(() => document.querySelector('[data-testid="assistant-listening"]')?.dataset.phase === 'hearing' && document.querySelector('textarea').value === 'what is bl');
             await page.screenshot({ path: path.join(artifacts, 'assistant-dictation-listening.png') });
             await page.evaluate(() => window.__rec.say([['what is blocked', true]]));
             await page.waitForFunction(() => document.querySelector('textarea').value === 'what is blocked');
@@ -680,6 +723,26 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.ok(pb.x >= 0 && pb.x + pb.width <= 390, 'the chooser fits the phone');
             await page.screenshot({ path: path.join(artifacts, 'assistant-picker-mobile.png') });
             await page.keyboard.press('Escape');
+
+            await sendText(page, 'openui dashboard');
+            const generated = lastReply(page).locator('.openui');
+            await generated.locator('h2').filter({ hasText: 'Sprint snapshot' }).waitFor();
+            await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            const gb = await generated.boundingBox();
+            assert.ok(gb.x >= 0 && gb.x + gb.width <= 390, 'the generated interface fits the phone');
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'generated content does not widen the phone');
+            const tableWrap = generated.locator('.table-wrap');
+            const tb = await tableWrap.boundingBox();
+            assert.ok(tb.x >= 0 && tb.x + tb.width <= 390, 'the table viewport fits the phone');
+            assert.equal(await tableWrap.evaluate(el => el.scrollWidth > el.clientWidth), true, 'wide rows scroll inside the table viewport');
+            const gridColumns = await generated.locator('.grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
+            assert.equal(gridColumns, 1, 'the metrics collapse to one column on a phone');
+            const summary = generated.locator('details summary');
+            const summaryBounds = await summary.boundingBox();
+            assert.ok(summaryBounds.height >= 44, 'the local disclosure is a thumb-sized target');
+            await page.screenshot({ path: path.join(artifacts, 'assistant-openui-mobile.png') });
+            ok('generated UI uses a single-column metric grid and contained table scrolling on a phone');
+
             await page.getByTestId('assistant-close').tap();
             await surface(page).waitFor({ state: 'detached' });
             ok('on a phone: thumb-sized controls, fills the screen, nothing overflows, the chooser and confirmations fit');
@@ -721,7 +784,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             ok('a controller restart is shown as "reconnecting", then the same conversation carries on, with its events counted afresh');
             await ctx.close();
         }
-        for (const [mode, want, extra] of [['none', 'Sign in to Claude Code or Codex first', /claude auth login|codex login/], ['off', 'The assistant is turned off', /assistant\.disabled/]]) {
+        for (const [mode, want, extra] of [['none', 'Set up a supported CLI first', /claude auth login|codex login/], ['off', 'The assistant is turned off', /assistant\.disabled/]]) {
             const p2 = await freePort();
             const b2 = 'http://127.0.0.1:' + p2;
             const s2 = start(fixture, { ...env, WERKBORD_BROWSER_ADDR: '127.0.0.1:' + p2, WERKBORD_BROWSER_ASSISTANT: mode, WERKBORD_BROWSER_DIR: '' });

@@ -9,6 +9,7 @@
 import { ApiError } from '../api';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { assistantApi } from './api';
+import { openUISystemPrompt } from './openui/library';
 import { connectWorkspaces, answerWorkspace } from './workspaces';
 import { modelName, pickChoice, reasoningLevels, summary, type Choice } from './choice';
 import { Connection, type Link } from './stream';
@@ -387,7 +388,7 @@ export class AssistantStore {
       const before = this.draft;
       if (!opts.again) this.draft = '';
       try {
-        const { turnId } = await assistantApi.send(id, text, files.map((f) => f.id!).filter(Boolean));
+        const { turnId } = await assistantApi.send(id, text, files.map((f) => f.id!).filter(Boolean), openUISystemPrompt);
         if (!this.transcript.items.some((i) => i.kind === 'reply' && i.turnId === turnId)) {
           this.transcript.items.push({ kind: 'reply', id: turnId, turnId, text: '', attempt: 0, attemptStart: 0, steps: [], notices: [], status: 'working' });
         }

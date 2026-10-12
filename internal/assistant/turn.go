@@ -88,7 +88,7 @@ func (e *Engine) workDir() string {
 }
 
 // runTurn is a turn from start to end. It runs on its own goroutine, owned by the engine.
-func (e *Engine) runTurn(ctx context.Context, prov provider.Provider, s *domain.AssistantSession, run *activeTurn, text string) {
+func (e *Engine) runTurn(ctx context.Context, prov provider.Provider, s *domain.AssistantSession, run *activeTurn, text, openUIPrompt string) {
 	defer e.wg.Done()
 	t := &turnRun{e: e, h: e.hub(s.ID), prov: prov, turnID: run.id, p: e.principal(s), sess: *s}
 	t.publish(Event{Type: EventTurnStarted})
@@ -103,7 +103,7 @@ func (e *Engine) runTurn(ctx context.Context, prov provider.Provider, s *domain.
 				err = failure("internal", "The assistant hit an internal error. Nothing was changed.", true)
 			}
 		}()
-		usage, err = t.conversation(tctx, text)
+		usage, err = t.conversation(tctx, text, openUIPrompt)
 	}()
 	cause := context.Cause(tctx)
 	stop()
@@ -176,7 +176,7 @@ func (t *turnRun) reportedAt(now time.Time) time.Time {
 }
 
 // conversation is a message, and as many trips to the provider as it takes to get an answer in words.
-func (t *turnRun) conversation(ctx context.Context, text string) (Usage, error) {
+func (t *turnRun) conversation(ctx context.Context, text, openUIPrompt string) (Usage, error) {
 	e := t.e
 	// Anything that expired while nobody looked is settled first, so that what the provider is told is true.
 	if _, err := e.ops.Pending(ctx, t.sess.ID, t.p); err != nil {
@@ -197,7 +197,7 @@ func (t *turnRun) conversation(ctx context.Context, text string) (Usage, error) 
 		t.preamble = "<werkbord-notice>\nThis is a fresh conversation with you: you remember nothing from before. If you need something from earlier, ask the person.\n</werkbord-notice>\n\n"
 		t.mu.Unlock()
 	}
-	system := SystemPrompt(e.ops.Catalog(t.p), e.cfg.Now())
+	system := withOpenUIPrompt(SystemPrompt(e.ops.Catalog(t.p), e.cfg.Now()), openUIPrompt)
 
 	var total Usage
 	for step := 1; ; step++ {

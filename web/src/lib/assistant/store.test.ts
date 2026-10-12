@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeServer, provider } from './fakeserver';
+import { replyParts } from './openui/reply';
 import type { AssistantStore } from './store.svelte';
 import type { ConfirmItem, ReplyItem, UserItem } from './transcript';
 
@@ -149,7 +150,10 @@ describe('sending', () => {
     await talk(a, 'hello');
     const created = srv.called('POST', '/sessions').find((c) => !c.path.includes('/messages'))!;
     expect(created.body).toEqual({ provider: 'claude-code' });
-    expect(srv.called('POST', '/messages')[0].body).toEqual({ text: 'hello', attempts: undefined, attachments: [] });
+    const sent = srv.called('POST', '/messages')[0].body as { text: string; attachments: string[]; openuiPrompt?: string };
+    expect(sent).toMatchObject({ text: 'hello', attachments: [] });
+    expect(sent.openuiPrompt).toContain('## Inline Mode');
+    expect(sent.openuiPrompt).toContain('Stack(children:');
     const [u] = a.transcript.items as UserItem[];
     expect(u).toMatchObject({ kind: 'user', text: 'hello' });
     expect(a.draft).toBe('');
@@ -198,6 +202,7 @@ describe('sending', () => {
     const sent = srv.called('POST', '/messages');
     expect(sent).toHaveLength(2);
     expect((sent[1].body as { text: string }).text).toBe('plan next week');
+    expect((sent[1].body as { openuiPrompt?: string }).openuiPrompt).toBe((sent[0].body as { openuiPrompt?: string }).openuiPrompt);
     expect(a.transcript.items.filter((i) => i.kind === 'user')).toHaveLength(1);
     expect(a.transcript.items.filter((i) => i.kind === 'reply')).toHaveLength(1);
     expect(replyOf(a).status).toBe('working');
@@ -538,6 +543,33 @@ describe('coming back after a reload', () => {
     await srv.until(() => replyOf(b).status === 'done');
     expect(replyOf(b).text).toBe('Two tasks are blocked.');
     expect(srv.called('GET', '/events').at(-1)!.headers.get('Last-Event-ID')).toBe(String(replyOf(b).text ? 2 : 0));
+  });
+
+  it('keeps a partial OpenUI fence through a reload and resumes parsing when its stream continues', async () => {
+    const a = await page();
+    const s = await talk(a, 'make a sprint card');
+    srv.emit(s.id, { type: 'turn_started' });
+    srv.emit(s.id, { type: 'delta', text: 'Intro.\n\n```openui-lang\nroot = Stack([heading])\nheading = Heading("Sprint', attempt: 1 });
+    await srv.until(() => replyOf(a)?.text.endsWith('Heading("Sprint'));
+    (a as unknown as { saveNow(): void }).saveNow();
+    (a as unknown as { conn: { stop(): void } }).conn.stop();
+    srv.dropStreams();
+
+    const b = await page();
+    b.init();
+    await srv.until(() => srv.streamCount === 1, 'the resumed stream');
+    expect(replyParts(replyOf(b).text, true)).toEqual([
+      { kind: 'text', text: 'Intro.\n\n' },
+      { kind: 'openui', text: 'root = Stack([heading])\nheading = Heading("Sprint', closed: false },
+    ]);
+
+    srv.emit(s.id, { type: 'delta', text: ' snapshot")\n```', attempt: 1 });
+    srv.emit(s.id, { type: 'turn_completed', state: 'idle' });
+    await srv.until(() => replyOf(b)?.status === 'done');
+    expect(replyParts(replyOf(b).text)).toEqual([
+      { kind: 'text', text: 'Intro.\n\n' },
+      { kind: 'openui', text: 'root = Stack([heading])\nheading = Heading("Sprint snapshot")\n', closed: true },
+    ]);
   });
 
   it('shows a change that is still waiting, even if the transcript did not know of it', async () => {

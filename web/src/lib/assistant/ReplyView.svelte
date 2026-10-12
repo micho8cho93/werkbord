@@ -1,18 +1,53 @@
 <script lang="ts">
+  import { Renderer, type ParseResult } from '@openuidev/svelte-lang';
   import { assistant } from './store.svelte';
   import Markdown from './Markdown.svelte';
+  import { openUILibrary } from './openui/library';
+  import { replyParts } from './openui/reply';
   import { lookedAt, progressLine, type ReplyItem } from './transcript';
   import { failure, operationFailureTitle } from './words';
 
   let { reply }: { reply: ReplyItem } = $props();
+  let openUIResults = $state<Record<number, { ready: boolean; hasRoot: boolean; invalid: boolean }>>({});
   const line = $derived(reply.status === 'working' ? progressLine(reply) : '');
   const looked = $derived(reply.status === 'done' ? lookedAt(reply) : []);
+  const parts = $derived(replyParts(reply.text, reply.status === 'working'));
   const fail = $derived(reply.error ? failure(reply.error) : null);
   const failedSteps = $derived(reply.steps.filter((s) => s.status === 'error'));
+
+  function openUIParsed(index: number, result: ParseResult | null): void {
+    openUIResults[index] = {
+      ready: true,
+      hasRoot: result?.root !== null && result?.root !== undefined,
+      invalid: !!result && (result.meta.incomplete || result.meta.errors.length > 0 || result.meta.unresolved.length > 0),
+    };
+  }
 </script>
 
 <article class="reply" aria-busy={reply.status === 'working'} data-status={reply.status}>
-  {#if reply.text.trim() !== ''}<Markdown text={reply.text} />{/if}
+  {#each parts as part, i (i)}
+    {#if part.kind === 'text'}
+      {#if part.text.trim() !== ''}<Markdown text={part.text} />{/if}
+    {:else}
+      <section class="openui" aria-label="Generated interface">
+        <Renderer
+          response={part.text}
+          library={openUILibrary}
+          isStreaming={reply.status === 'working'}
+          onParseResult={(result) => openUIParsed(i, result)}
+        />
+        {#if (reply.status !== 'working' && !part.closed) || (part.closed && openUIResults[i]?.ready && (!openUIResults[i].hasRoot || openUIResults[i].invalid))}
+          <div class="openui-fallback" role="status">
+            <p>{part.closed ? "I couldn't render all of this interface." : 'This interface did not finish, so some content may be missing.'}</p>
+            <details>
+              <summary>Show the generated interface text</summary>
+              <pre>{part.text.slice(0, 4000)}{part.text.length > 4000 ? '\n… preview limited to 4,000 characters' : ''}</pre>
+            </details>
+          </div>
+        {/if}
+      </section>
+    {/if}
+  {/each}
 
   {#if line}
     <p class="progress"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>{line}</span></p>
@@ -65,6 +100,34 @@
     flex-direction: column;
     gap: 10px;
     max-width: 100%;
+  }
+  .openui {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .openui-fallback {
+    min-width: 0;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+  .openui-fallback p { margin: 0 0 6px; }
+  .openui-fallback summary { width: fit-content; cursor: pointer; }
+  .openui-fallback pre {
+    max-width: 100%;
+    max-height: 220px;
+    margin: 8px 0 0;
+    overflow: auto;
+    color: var(--text);
+    font: 11.5px/1.5 var(--mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .progress {
     display: flex;

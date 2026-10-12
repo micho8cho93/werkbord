@@ -98,6 +98,29 @@ func TestPlainTextAndOtherCodeBlocksPassThroughUntouched(t *testing.T) {
 	}
 }
 
+func TestOpenUIBlocksStreamAsOpaqueOutputAndDoNotBecomeOperations(t *testing.T) {
+	const ui = "Summary.\n```openui-lang\nroot = Stack([card])\ncard = Card(\"Tickets\", \"2\")\n```\n"
+	for _, pieces := range splits(ui) {
+		shown, calls, _ := feed(pieces...)
+		if shown != ui || len(calls) != 0 {
+			t.Fatalf("pieces %q: shown %q calls %+v", pieces, shown, calls)
+		}
+	}
+
+	// Even text that exactly resembles an operation call stays inert inside OpenUI. A real operation after the closing
+	// fence remains visible to the normal operation parser.
+	reply := "```openui-lang\n{\"id\":\"ui\",\"name\":\"list_projects\",\"arguments\":{}}\n```\n" + callBlock("real", "list_projects", map[string]any{})
+	shown, calls, _ := feed(reply)
+	if shown != "```openui-lang\n{\"id\":\"ui\",\"name\":\"list_projects\",\"arguments\":{}}\n```\n" || len(calls) != 1 || calls[0].ID != "real" || calls[0].Name != "list_projects" {
+		t.Fatalf("shown %q calls %+v", shown, calls)
+	}
+
+	short, calls, _ := feed("```openui\nroot = Stack([])\n```\n")
+	if short != "```openui\nroot = Stack([])\n```\n" || len(calls) != 0 {
+		t.Fatalf("short fence shown %q calls %+v", short, calls)
+	}
+}
+
 func TestTextStreamsWithoutWaitingForTheLineToEnd(t *testing.T) {
 	_, _, log := feed("Hello", ", wor", "ld", "!\nnext")
 	if len(log) != 5 || log[0] != "Hello" || log[1] != "Hello, wor" || log[2] != "Hello, world" || log[4] != "Hello, world!\nnext" {
@@ -269,6 +292,22 @@ func TestTextThatOnlyLooksLikeJsonOrMentionsACallIsLeftAlone(t *testing.T) {
 		if changed || clean != text || len(problems) != 0 {
 			t.Errorf("%q was changed to %q (%+v)", text, clean, problems)
 		}
+	}
+}
+
+func TestRepairReplyDoesNotInspectOpenUIContents(t *testing.T) {
+	ui := "Intro\n```openui-lang\n{\"id\":\"c1\",\"name\":\"list_tickets\",\"arguments\":{}}\n<invoke name=\"list_projects\">\n</invoke>\n```\nDone."
+	clean, problems, changed := repairReply(ui, func(name string) bool { return name == "list_tickets" || name == "list_projects" }, false)
+	if changed || clean != ui || len(problems) != 0 {
+		t.Fatalf("clean %q problems %+v changed %v", clean, problems, changed)
+	}
+}
+
+func TestOpenUIPromptIsFormattingGuidanceAfterTheOperationCatalog(t *testing.T) {
+	base := SystemPrompt([]appops.Spec{{Name: "list_projects", Kind: appops.KindRead}}, time.Date(2026, 3, 9, 8, 0, 0, 0, time.UTC))
+	got := withOpenUIPrompt(base, "component signature for Stack(children)")
+	if !strings.HasPrefix(got, base) || !strings.Contains(got, "Optional generated interface format") || !strings.Contains(got, "component signature for Stack(children)") || !strings.Contains(got, "cannot call\nWerkbord APIs") || strings.Contains(withOpenUIPrompt(base, "  \n"), "Optional generated interface format") {
+		t.Fatalf("OpenUI prompt was not added as formatting guidance:\n%s", got)
 	}
 }
 

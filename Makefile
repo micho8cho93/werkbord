@@ -36,7 +36,7 @@ web-shell: web/node_modules
 	cd web && $(NPM) run build:shell
 
 web/node_modules: web/package-lock.json
-	cd web && $(NPM) ci
+	cd web && OPENUI_TELEMETRY_DISABLED=1 $(NPM) ci
 	@touch $@
 
 # Copy the built PWA where go:embed can see it. .gitkeep keeps the directory

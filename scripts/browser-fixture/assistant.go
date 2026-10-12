@@ -126,6 +126,21 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 		return say(calls.String())
 	case strings.Contains(low, "fail model") && t.Model == "":
 		return provider.Result{}, provider.Errorf(provider.KindModelUnavailable, false, "The default model is not available to your account.")
+	case strings.Contains(low, "openui dashboard"):
+		return say(
+			"Here is the sprint view.\n",
+			"```openui-lang\nroot = Stack([title, metrics, tasks, details])\n",
+			"title = Heading(\"Sprint snapshot\", 1)\nmetrics = Grid([open, done], 2, \"small\")\n",
+			"open = Metric(\"Open tasks\", \"4\", \"Across active projects\")\ndone = Metric(\"Done this week\", \"8\")\n",
+			"tasks = Table([\"Task\", \"State\", \"Owner\", \"Next step\"], [[\"Review API\", \"Review\", \"Mara\", \"Check limits\"], [\"Update docs\", \"Doing\", \"Ivo\", \"Add examples\"]], \"Next tasks\")\n",
+			"details = Disclosure(\"How these counts work\", [explanation, untrusted])\n",
+			"explanation = Text(\"Counts are from the current board.\")\nuntrusted = Text(\"<img src=x onerror=window.__pwned=1>\")\n```\n",
+			"The values are from the current board.",
+		)
+	case strings.Contains(low, "malformed openui"):
+		return say("```openui-lang\nroot = Heading()\n```")
+	case strings.Contains(low, "incomplete openui"):
+		return say("```openui-lang\nroot = Stack([heading])\nheading = Heading(\"Partial interface\")")
 	case strings.HasPrefix(low, "hang on"):
 		emit(provider.Event{Kind: provider.EventText, Text: "Working on it"})
 		<-ctx.Done()
