@@ -15,7 +15,7 @@
 #   - the tag follows the release's naming (werkbord-vX.Y.Z).
 set -eu
 
-here=$(dirname "$0")
+here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 fail() { echo "verify-tag: $*" >&2; exit 1; }
 
 product=werkbord
@@ -43,10 +43,10 @@ fi
 have=$(git show "$commit:$versionfile" 2>/dev/null | tr -d '[:space:]') || fail "$versionfile does not exist at $(git rev-parse --short "$commit")"
 [ "$have" = "$want" ] || fail "$tag points at a commit whose $versionfile says $have, not $want"
 
-# strictly newer than the other release tags
-newest=$(git tag --list "${prefix}[0-9]*" | grep -v "^$tag\$" | sed "s/^$prefix//" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
-if [ -n "$newest" ]; then
-  top=$(printf '%s\n%s\n' "$newest" "$want" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
-  [ "$top" = "$want" ] || fail "$want is not higher than the existing $prefix$newest"
-fi
+# strictly newer than every other release tag, including prerelease precedence
+for existing in $(git tag --list "${prefix}[0-9]*"); do
+  [ "$existing" = "$tag" ] && continue
+  other=${existing#"$prefix"}
+  "$here/semver-gt.sh" "$want" "$other" || fail "$want is not higher than the existing $existing"
+done
 echo "ok: $tag -> $(git rev-parse --short "$commit"), $versionfile is $have"

@@ -15,6 +15,30 @@
 #  - the existing release job still creates the release with --latest for the individual product only.
 set -eu
 cd "$(dirname "$0")/.."
+
+version_gt() {
+  if scripts/semver-gt.sh "$1" "$2"; then :; else
+    echo "test-workflows: expected $1 to be newer than $2" >&2
+    exit 1
+  fi
+}
+version_not_gt() {
+  if scripts/semver-gt.sh "$1" "$2"; then
+    echo "test-workflows: expected $1 not to be newer than $2" >&2
+    exit 1
+  else
+    result=$?
+    [ "$result" -eq 1 ] || { echo "test-workflows: invalid version in $1 or $2" >&2; exit 1; }
+  fi
+}
+version_gt 4.24.2 4.24.2-preview.1
+version_gt 4.24.2-preview.10 4.24.2-preview.9
+version_gt 4.24.2-rc.1 4.24.2-preview.2
+version_gt 4.24.3-preview.1 4.24.2
+version_not_gt 4.24.2-preview.1 4.24.2
+version_not_gt 4.24.2 4.24.2
+version_not_gt 4.24.1 4.24.2-preview.1
+
 command -v ruby >/dev/null 2>&1 || { echo "test-workflows: ruby is needed"; exit 1; }
 ruby -ryaml -rjson - <<'RUBY'
 $failures = []
