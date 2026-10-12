@@ -63,8 +63,10 @@ var outboundCalls = map[string]map[string]bool{
 // in each package proves it), and only Team's wiring may import them. The test harness for real clusters
 // (infra/rqlite/rqlitetest) opens connections on loopback.
 var outboundAllowed = map[string]map[string]bool{
-	"infra/overlaynet":        {"Dialer": true},
-	"infra/rqlite":            {"Client": true, "NewRequestWithContext": true},
+	"infra/overlaynet": {"Dialer": true},
+	// Admin disables the environment proxy, refuses addresses outside loopback/private ranges, and follows no redirect.
+	// TestTheDatabaseClientsTalkOnlyToPrivateAddresses and TestAdminTransportDoesNotUseProxyOrFollowRedirects enforce this.
+	"infra/rqlite":            {"Client": true, "NewRequestWithContext": true, "DefaultTransport": true, "Transport": true},
 	"infra/rqlite/rqlitetest": {"DialTimeout": true},
 	"store/replicated":        {"Client": true, "NewRequestWithContext": true, "Transport": true, "Dialer": true},
 	// The bridge to the person's own Werkbord on this computer. Its transport dials only a literal loopback address

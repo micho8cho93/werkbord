@@ -1,6 +1,7 @@
 package rqlite
 
 import (
+	"net/http"
 	"net/netip"
 	"strings"
 	"testing"
@@ -139,5 +140,19 @@ func TestTheDatabaseClientsTalkOnlyToPrivateAddresses(t *testing.T) {
 	}
 	if err := NewAdmin(netip.AddrPort{}, creds).Alive(t.Context()); err == nil {
 		t.Error("no address was accepted")
+	}
+}
+
+func TestAdminTransportDoesNotUseProxyOrFollowRedirects(t *testing.T) {
+	a := NewAdmin(netip.MustParseAddrPort("127.0.0.1:4001"), Credentials{})
+	transport, ok := a.hc.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("admin transport has type %T, want *http.Transport", a.hc.Transport)
+	}
+	if transport.Proxy != nil {
+		t.Error("admin requests must not use an environment proxy")
+	}
+	if a.hc.CheckRedirect == nil || a.hc.CheckRedirect(&http.Request{}, nil) != http.ErrUseLastResponse {
+		t.Error("admin requests must not follow redirects")
 	}
 }
