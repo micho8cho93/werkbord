@@ -30,6 +30,7 @@
   import WorkOverview from './routes/WorkOverview.svelte';
   import Projects from './routes/Projects.svelte';
   import Runs from './routes/Runs.svelte';
+  import Analytics from './routes/Analytics.svelte';
   import Timeline from './routes/Timeline.svelte';
   import Settings from './routes/Settings.svelte';
   import TaskPanelHost from './routes/TaskPanelHost.svelte';
@@ -44,7 +45,7 @@
   const scope = $derived(router.projectId ? app.scopes.get(router.projectId) : undefined);
 
   const globalTitle = $derived(router.view === 'onboarding' ? 'Set up Werkbord' : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? ''));
-  const phoneMoreLocation = $derived(router.view === 'overview' ? 'Overview' : router.view === 'defaults' ? 'Project settings' : '');
+  const phoneMoreLocation = $derived(router.view === 'analytics' ? 'Analytics' : router.view === 'overview' ? 'Overview' : router.view === 'defaults' ? 'Project settings' : '');
 
   // An address that names no project (an old link, or none) is settled to the project last used. Until the
   // projects are known there is nothing to settle it against.
@@ -211,6 +212,8 @@
               <Timeline {scope} {project} />
             {:else if router.view === 'git'}
               {#if router.sub}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
+            {:else if router.view === 'analytics'}
+              <Analytics {project} />
             {:else if router.view === 'runs'}
               <Runs {scope} {project} />
             {:else if router.view === 'defaults'}

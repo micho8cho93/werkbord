@@ -15,7 +15,7 @@
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
 export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding';
-export type ProjectSection = 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'defaults';
+export type ProjectSection = 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'analytics' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding'>; label: string; short: string }[] = [
@@ -35,6 +35,7 @@ export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] 
   { id: 'timeline', label: 'Timeline' },
   { id: 'git', label: 'Git' },
   { id: 'runs', label: 'Runs' },
+  { id: 'analytics', label: 'Analytics' },
   // The project's defaults (agent, model, reasoning, interaction, priority). Its address says "defaults" so
   // that it cannot be mistaken for the app's own Settings page, which is global.
   { id: 'defaults', label: 'Project settings' },
@@ -182,7 +183,7 @@ export function resolved(loc: Location, projectIds: readonly string[], lastUsed:
 
 /** A page the phone's "More" sheet reaches: the ones the tab bar has no room for. */
 export interface MoreEntry {
-  id: 'overview' | 'projects' | 'defaults' | 'settings' | 'help';
+  id: 'analytics' | 'overview' | 'projects' | 'defaults' | 'settings' | 'help';
   label: string;
   href: string;
 }
@@ -196,6 +197,7 @@ export function moreEntries(projectId: string): MoreEntry[] {
     ...(projectId
       ? ([
           { id: 'overview', label: 'Overview', href: projectHref(projectId, 'overview') },
+          { id: 'analytics', label: 'Analytics', href: projectHref(projectId, 'analytics') },
           { id: 'defaults', label: 'Project settings', href: projectHref(projectId, 'defaults') },
         ] as MoreEntry[])
       : []),
@@ -207,5 +209,5 @@ export function moreEntries(projectId: string): MoreEntry[] {
 
 /** Whether the page shown is one of those behind More, so the tab can say where you are. */
 export function inMore(view: View): boolean {
-  return view === 'overview' || view === 'defaults' || view === 'projects' || view === 'settings' || view === 'help';
+  return view === 'analytics' || view === 'overview' || view === 'defaults' || view === 'projects' || view === 'settings' || view === 'help';
 }

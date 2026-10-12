@@ -200,6 +200,7 @@ export interface RunChoice {
 }
 
 export const api = {
+  analytics: (project: string, days: number, provider: string) => request<import('./analytics').AnalyticsReport>('GET', `/api/analytics?${new URLSearchParams({ project, days: String(days), provider })}`),
 schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET', `${inProject(projectId)}/schedule`).then(r => r.decisions),
  orchestrationSettings: (projectId: string) => request<{concurrencyLimit: number}>('GET', `${inProject(projectId)}/orchestration`),
  setOrchestrationSettings: (projectId: string, concurrencyLimit: number) => request<{concurrencyLimit: number}>('PUT', `${inProject(projectId)}/orchestration`, {concurrencyLimit}),

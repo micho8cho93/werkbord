@@ -92,7 +92,7 @@ describe('links', () => {
 // entry to it is all the shell, the switcher and the tab bar need.
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
-    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'defaults']);
+    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'analytics', 'defaults']);
     expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'settings', 'help']);
   });
 
@@ -105,8 +105,8 @@ describe('navigation is data, so it can grow', () => {
 
 describe('a work project has no repository to show', () => {
   it('lacks the calendar, Git and runs, and keeps the rest', () => {
-    expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'timeline', 'defaults']);
-    expect(tabsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'timeline']);
+    expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'timeline', 'analytics', 'defaults']);
+    expect(tabsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'timeline', 'analytics']);
   });
 
   it('shows a repository project, or one of an older controller, everything', () => {
@@ -184,7 +184,7 @@ describe('renamed sections', () => {
 describe('the phone\'s More entry', () => {
   it('reaches Overview, project settings, app Settings and Help from a project', () => {
     const e = moreEntries('prj_a');
-    expect(e.map((m) => m.id)).toEqual(['overview', 'defaults', 'projects', 'settings', 'help']);
+    expect(e.map((m) => m.id)).toEqual(['overview', 'analytics', 'defaults', 'projects', 'settings', 'help']);
     expect(e.find((m) => m.id === 'overview')?.href).toBe('#/p/prj_a/overview');
     expect(e.find((m) => m.id === 'settings')?.href).toBe('#/settings');
     expect(e.find((m) => m.id === 'help')?.href).toBe('#/help');
@@ -196,7 +196,7 @@ describe('the phone\'s More entry', () => {
   });
 
   it('marks the tab current on those pages only', () => {
-    for (const v of ['overview', 'defaults', 'projects', 'settings', 'help'] as const) expect(inMore(v)).toBe(true);
+    for (const v of ['overview', 'analytics', 'defaults', 'projects', 'settings', 'help'] as const) expect(inMore(v)).toBe(true);
     for (const v of ['control', 'board', 'task', 'calendar', 'timeline', 'git', 'runs'] as const) expect(inMore(v)).toBe(false);
   });
 });

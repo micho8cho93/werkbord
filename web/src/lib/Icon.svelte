@@ -9,6 +9,7 @@
     | 'git'
     | 'activity'
     | 'runs'
+    | 'analytics'
     | 'projects'
     | 'folder'
     | 'runner'
@@ -78,6 +79,8 @@
     <circle cx="4.5" cy="3.5" r="1.5" /><circle cx="4.5" cy="12.5" r="1.5" /><circle cx="11.5" cy="5.5" r="1.5" /><path d="M4.5 5v6M11.5 7c0 2.5-3 2.8-7 4" />
   {:else if name === 'activity'}
     <path d="M1.8 8h2.6l2-5 3.2 10 2-5h2.6" />
+  {:else if name === 'analytics'}
+    <path d="M2 2v12h12M5 11V8M8 11V5M11 11V3" />
   {:else if name === 'runs'}
     <path d="M2.5 4h11M2.5 8h11M2.5 12h7" /><circle cx="12.5" cy="12" r="1.2" />
   {:else if name === 'projects'}

@@ -44,6 +44,19 @@ type Tx interface {
 	Runners() RunnerRepo
 	Events() EventRepo
 	Assistant() AssistantRepo
+	Analytics() AnalyticsRepo
+}
+
+// AnalyticsData is a bounded projection of existing records, without prompts or transcripts.
+type AnalyticsData struct {
+	Tasks     []domain.Task
+	Runs      []domain.Run
+	Events    []domain.Event
+	Truncated bool
+}
+
+type AnalyticsRepo interface {
+	Read(context.Context, string, time.Time, time.Time, int) (AnalyticsData, error)
 }
 
 // ProjectRepo persists projects. GetByPath returns domain.ErrNotFound when no

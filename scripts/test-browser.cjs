@@ -77,9 +77,19 @@ async function cleanup() {
     const team = serve(teamBinary, ['serve'], teamEnv);
     await ready(team, teamURL + '/api/team/v1/health');
     const testEnv = { PERSONAL_BROWSER_URL: individualURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
+    if (process.env.BROWSER_ANALYTICS_ONLY === '1') {
+      run(process.execPath, ['scripts/browser-analytics.cjs'], testEnv);
+      return;
+    }
     run(process.execPath, ['scripts/browser-individual.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-team.cjs'], testEnv);
     testEnv.TEAM_BROWSER_TOKEN_FILE = path.join(artifacts, 'active-token.txt');
+    // Analytics uses a separate disposable repository so earlier flows keep their own scope.
+    const analyticsRepo = path.join(temp, 'analytics-repo'); fs.mkdirSync(analyticsRepo);
+    run('git', ['-C', analyticsRepo, 'init', '-b', 'main'], {}, true);
+    run('git', ['-C', analyticsRepo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '--allow-empty', '-m', 'Analytics fixture'], {}, true);
+    testEnv.WERKBORD_BROWSER_REPO = analyticsRepo;
+    run(process.execPath, ['scripts/browser-analytics.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-bridge.cjs'], testEnv);
     console.log('PASS disposable Individual + Team browser/integration suite');
 })().catch(e => { console.error(e.message); process.exitCode = 1; }).finally(cleanup);

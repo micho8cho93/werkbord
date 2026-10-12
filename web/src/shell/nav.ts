@@ -6,7 +6,7 @@
 import type { IconName } from '../lib/Icon.svelte';
 import type { Kind, Project } from './types';
 
-export type NavKey = '' | 'home' | 'projects' | 'reviews' | 'members' | 'settings' | `project:${string}`;
+export type NavKey = '' | 'home' | 'projects' | 'reviews' | 'members' | 'analytics' | 'settings' | `project:${string}`;
 
 export interface NavEntry {
   key: NavKey;
@@ -29,6 +29,7 @@ export function entries(kind: Kind): NavEntry[] {
     { key: 'projects', title: 'Projects', icon: 'folder', place: '?tab=projects' },
     { key: 'reviews', title: 'Reviews', icon: 'merge', place: '?tab=reviews' },
     { key: 'members', title: 'Members', icon: 'people', place: '?tab=members' },
+    { key: 'analytics', title: 'Analytics', icon: 'analytics', place: '?tab=analytics' },
   ];
 }
 
@@ -69,7 +70,7 @@ export function activeKey(kind: Kind, place: string | undefined): NavKey {
   const tab = q.get('tab') ?? 'workspace';
   if (tab === 'workspace') return 'home';
   if (tab === 'projects') return 'projects';
-  if (tab === 'reviews' || tab === 'members') return tab;
+  if (tab === 'reviews' || tab === 'members' || tab === 'analytics') return tab;
   if (TEAM_SETTINGS.has(tab)) return 'settings';
   const project = q.get('project');
   return TEAM_PROJECT_TABS.has(tab) && project ? `project:${project}` : '';

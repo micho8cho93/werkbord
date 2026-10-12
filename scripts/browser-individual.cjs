@@ -160,7 +160,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.getByRole('button', { name: 'Schedule', exact: true }).click();
     await page.getByRole('button', { name: 'Schedule this task', exact: true }).click();
     const scheduleSheet = page.getByRole('dialog', { name: 'Schedule and dependencies', exact: true });
-    await scheduleSheet.getByText('This schedules when the controller starts agent work. To plan work dates or milestones, use Timeline.', { exact: true }).waitFor();
+    await scheduleSheet.getByText('This schedules when Werkbord starts agent work. To plan work dates or milestones, use Timeline.', { exact: true }).waitFor();
     await captureDecisionSurface('execution-schedule');
     await scheduleSheet.getByRole('button', { name: 'Close', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -320,7 +320,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('button', { name: 'Archive task', exact: true }).click();
         assert.equal((await closeResponse).status(), 200);
         await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
-        await page.getByRole('button', { name: /^Archive/ }).click();
+        await page.getByRole('button', { name: /^Archive \(\d+\)$/ }).click();
         await page.getByRole('link', { name: task.title, exact: true }).waitFor();
         await page.getByRole('link', { name: task.title, exact: true }).click();
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
@@ -346,7 +346,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         finished = await api('PATCH', `/api/projects/${p.id}/tasks/${finished.id}`, { version: finished.version, state: 'done' });
         await page.goto(base + `/#/p/${p.id}/board`);
         if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
-        await page.getByRole('button', { name: 'Clear Done', exact: true }).click();
+        await page.getByRole('button', { name: 'Archive Done tasks', exact: true }).click();
         await page.getByRole('button', { name: /^Archive/ }).click();
         await page.getByRole('link', { name: finished.title, exact: true }).waitFor();
         await page.getByRole('button', { name: 'Restore', exact: true }).click();
@@ -362,12 +362,12 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal((await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(t => t.id === dragTask.id).state, 'doing');
         const dragRun = (await api('GET', `/api/projects/${p.id}/runs`)).runs.find(r => r.taskId === dragTask.id);
         await sync([{ runId: dragRun.id, observations: [{ seq: 1, kind: 'ended', result: { state: 'stopped' } }] }]);
-        console.log('PASS Clear Done preserves details, restore to Done, backlog drop persists Doing while remote start is queued');
+        console.log('PASS Archive Done preserves details, restore to Done, backlog drop persists Doing while remote start is queued');
         // Save succeeds, two launch attempts fail, then a lost launch response is recovered.
         await page.getByRole('button', { name: 'New task', exact: true }).click();
         await page.setViewportSize({ width: 390, height: 844 });
         await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).fill('Recover saved task fixture');
-        assert.equal(await page.getByRole('region', { name: 'Execution summary', exact: true }).isVisible(), true);
+        assert.equal(await page.getByRole('region', { name: 'Run settings', exact: true }).isVisible(), true);
         assert.equal(await page.locator('#new-task-form > details[open], #new-task-form .exec > details[open]').count(), 0);
         assert.equal(await page.getByText('Permission requests still come to you.', { exact: true }).isVisible(), true);
         assert.match(await page.locator('.exec > strong').innerText(), / on .* · Ask me when needed/);
@@ -586,12 +586,15 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('link',{name:`← ${ownedBranch.name}`,exact:true}).click();
         await reviewContext.waitFor();
         const actionsDisclosure = page.locator('.branch-actions');
-        const actionsSummary = actionsDisclosure.locator('summary');
+        const actionsSummary = actionsDisclosure.locator(':scope > summary');
         assert.equal(await actionsDisclosure.getAttribute('open'),null,'maintenance actions start behind the secondary disclosure');
         await captureDecisionSurface('branch-actions-closed');
         await actionsSummary.press('Enter');
-        assert(await actionsDisclosure.getByRole('button',{name:'Push',exact:true}).isVisible(),'keyboard opens the named branch actions disclosure');
+        assert.notEqual(await actionsDisclosure.getAttribute('open'),null,'keyboard opens the named branch actions disclosure');
+        await actionsDisclosure.getByText('Repository actions',{exact:true}).press('Enter');
+        assert(await actionsDisclosure.getByRole('button',{name:'Push',exact:true}).isVisible(),'keyboard opens repository actions');
         assert.equal(await actionsDisclosure.getByRole('button',{name:'Open task',exact:true}).count(),0,'task destination has no inert duplicate button');
+        await actionsDisclosure.getByText('Task and history',{exact:true}).press('Enter');
         assert.equal(await actionsDisclosure.getByRole('link',{name:'Open task',exact:true}).count(),1,'task destination appears once as a link');
         assert.equal(await actionsDisclosure.getByRole('button',{name:'Open run',exact:true}).count(),0,'run destination has no inert duplicate button');
         assert.equal(await actionsDisclosure.getByRole('link',{name:'Open run',exact:true}).count(),1,'run destination appears once as a link');
@@ -628,6 +631,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await branchTouchPage.locator('.branch-actions > summary').waitFor();
         assert.equal(await branchTouchPage.evaluate(() => matchMedia('(pointer: coarse)').matches),true,'branch action check uses coarse-pointer emulation');
         await branchTouchPage.locator('.branch-actions > summary').tap();
+        await branchTouchPage.getByText('Repository actions',{exact:true}).tap();
         const touchPushBox = await branchTouchPage.getByRole('button',{name:'Push',exact:true}).boundingBox();
         assert(touchPushBox && touchPushBox.width >= 44 && touchPushBox.height >= 44,`coarse-pointer branch actions meet 44px: ${JSON.stringify(touchPushBox)}`);
         await branchTouchContext.close();

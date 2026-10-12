@@ -31,6 +31,7 @@ var publicRoutes = map[string]bool{
 // projectRoutes are scoped to one project: a person who is not on it must not be
 // able to tell it exists. Path parameters: {id} project, {tid} ticket.
 var projectRoutes = []string{
+	"GET /projects/{id}/analytics",                                                           // compact ticket and completion aggregates; requires both ticket and activity access
 	"PUT /projects/{id}/tickets/{tid}/progress", "GET /projects/{id}/tickets/{tid}/progress", // metadata observations only; no execution effects
 	"GET /projects/{id}", "PATCH /projects/{id}",
 	"GET /projects/{id}/members", "PUT /projects/{id}/members/{memberId}", "DELETE /projects/{id}/members/{memberId}",
@@ -52,7 +53,8 @@ var projectRoutes = []string{
 
 // workspaceRoutes act on the signed-in member's own workspace, whichever project.
 var workspaceRoutes = []string{
-	"PUT /license", // installs only an owner-approved, vendor-signed offline entitlement
+	"GET /analytics", // read-only aggregate limited to projects with ticket and activity access
+	"PUT /license",   // installs only an owner-approved, vendor-signed offline entitlement
 	"GET /me", "GET /roles", "GET /workspace", "PATCH /workspace",
 	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token", "PUT /members/{id}/role",
 	"GET /projects", "POST /projects",

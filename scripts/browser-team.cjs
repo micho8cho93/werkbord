@@ -187,7 +187,7 @@ async function api(method, path, data, credential = token) {
     dragged = await api('GET', `/projects/${p.id}/tickets/${dragged.id}`);
     assert.equal(dragged.status, 'in_progress');
     await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
-    await page.getByRole('button', { name: 'Close ticket', exact: true }).click();
+    await page.getByRole('button', { name: 'Archive ticket', exact: true }).click();
     await page.getByRole('button', { name: 'Restore ticket', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: /^Archive \(/ }).click();
@@ -196,15 +196,15 @@ async function api(method, path, data, credential = token) {
     await page.getByRole('button', { name: 'Back to board', exact: true }).click();
     await api('POST', `/projects/${p.id}/tickets/${dragged.id}/submit`, {});
     await api('POST', `/projects/${p.id}/tickets/${dragged.id}/complete`, {});
-    await page.getByRole('button', { name: 'Clear Done', exact: true }).click();
+    await page.getByRole('button', { name: 'Archive Done tickets', exact: true }).click();
     await page.getByRole('button', { name: /^Archive \(/ }).click();
     await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
     await page.getByText('Keep this context', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Restore ticket', exact: true }).click();
-    await page.getByRole('button', { name: 'Close ticket', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Archive ticket', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Back to board', exact: true }).click();
-    console.log('PASS Team drag-to-start, close, archive, restore, Clear Done and retained details');
+    console.log('PASS Team drag-to-start, archive, restore, Archive Done and retained details');
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, 'desktop.png') });

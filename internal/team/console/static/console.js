@@ -31,7 +31,7 @@ const KEY = (name) => 'werkbord-team-' + name + (BASE ? ':' + SLOT : '');
 // person's own Werkbord ("Open in Individual") is ever sent back to the shell.
 const FRAMED = window.parent !== window;
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['members', 'Members']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['board', 'Board'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Activity'], ['analytics', 'Analytics'], ['members', 'Members']];
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
 const PROJECT_TABS = new Set(['board', 'timeline', 'repository', 'activity', 'people']);
 
@@ -105,6 +105,7 @@ function icon(name) {
     reviews: 'M3 2h10v12H3z M5 8l2 2 4-4',
     repository: 'M5 2v7a3 3 0 0 0 6 0V7 M3 2a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M9 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M3 13a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M5 9v2',
     activity: 'M1 8h3l2-5 4 10 2-5h3',
+    analytics: 'M2 2v12h12 M5 11V8 M8 11V5 M11 11V3',
     members: 'M6 7a2.5 2.5 0 1 0 0-5a2.5 2.5 0 1 0 0 5 M1 14v-1a5 5 0 0 1 10 0v1 M11 2a2.5 2.5 0 0 1 0 5 M12 9a4 4 0 0 1 3 4v1',
     search: 'M7 2a5 5 0 1 0 0 10a5 5 0 1 0 0-10 M11 11l4 4',
     sun: 'M8 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7 M8 0v2 M8 14v2 M0 8h2 M14 8h2 M2.3 2.3l1.4 1.4 M12.3 12.3l1.4 1.4 M2.3 13.7l1.4-1.4 M12.3 3.7l1.4-1.4',
@@ -413,6 +414,7 @@ async function renderNow() {
       case 'mywork': body = await myWorkView(); break;
       case 'reviews': body = await reviewsView(); break;
       case 'members': body = await membersView(); break;
+      case 'analytics': body = await analyticsView(); break;
       case 'plans': body = await mcpPlansView(); break;
       case 'devices': case 'hosts': case 'connectivity': case 'backups': case 'license': case 'settings': case 'mcp': case 'labels': body = await administrationView(state.tab); break;
       default: body = await projectScopedView();
@@ -1602,4 +1604,50 @@ function timelineTab(d) {
 
   const gating = links.some(gates) ? h('p', { class: 'muted small tl-legend' }, 'Heavier arrows gate an agent start: the ticket has a shared request, and it waits for the work the arrow comes from.') : '';
   return h('div', { class: 'timeline-view' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline' }, chart), gating, unplanned);
+}
+
+// Read-only snapshots: live board updates do not repeat aggregation queries.
+const analyticsState = { project: '', days: 30, appliedProject: '', appliedDays: 30, report: null, key: '', visibility: '' };
+async function analyticsView() {
+  // Membership changes invalidate the snapshot so removed projects never remain visible.
+  const visibility = state.me.member.role + '/' + state.ov.projects.map(x => x.project.id + ':' + x.role + ':' + x.member).join(',');
+  if (analyticsState.visibility && analyticsState.visibility !== visibility) {
+    analyticsState.project = '';
+    analyticsState.appliedProject = '';
+    analyticsState.report = null;
+  }
+  analyticsState.visibility = visibility;
+  const key = analyticsState.appliedProject + '/' + analyticsState.appliedDays;
+  const scopedKey = key + '/' + visibility;
+  if (!analyticsState.report || analyticsState.key !== scopedKey) {
+    analyticsState.report = await api('GET', '/analytics?' + new URLSearchParams({ project: analyticsState.appliedProject, days: String(analyticsState.appliedDays) }));
+    analyticsState.key = scopedKey;
+  }
+  const r = analyticsState.report;
+  const project = h('select', { 'aria-label': 'Analytics project', onchange: e => { analyticsState.project = e.target.value; } },
+    h('option', { value: '' }, 'All projects you can read'), (analyticsState.report?.projects || []).map(x => h('option', { value: x.id, selected: analyticsState.project === x.id }, x.name)));
+  const range = h('select', { 'aria-label': 'Analytics time range', onchange: e => { analyticsState.days = Number(e.target.value); } },
+    [7, 30, 90].map(n => h('option', { value: String(n), selected: analyticsState.days === n }, 'Last ' + n + ' days')));
+  const duration = seconds => seconds == null ? 'No samples' : seconds < 60 ? Math.round(seconds) + 's' : seconds < 3600 ? (seconds / 60).toFixed(1) + 'm' : seconds < 86400 ? (seconds / 3600).toFixed(1) + 'h' : (seconds / 86400).toFixed(1) + 'd';
+  const max = Math.max(1, ...r.days.flatMap(d => [d.created, d.completed]));
+  const chart = h('div', { class: 'analytics-chart', role: 'img', 'aria-label': 'Daily ticket counts; exact values are in Daily values below.' },
+    r.days.map(d => {
+      const created = h('span', { class: 'analytics-created' }); created.style.height = d.created / max * 100 + '%';
+      const done = h('span', { class: 'analytics-done' }); done.style.height = d.completed / max * 100 + '%';
+      return h('div', { class: 'analytics-day', title: d.date + ': ' + d.created + ' created, ' + d.completed + ' completed' }, h('div', { class: 'analytics-bars' }, created, done), h('span', {}, d.date.slice(5)));
+    }));
+  const table = (head, rows) => h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, head.map(label => h('th', {}, label)))), h('tbody', {}, rows.map(row => h('tr', {}, row.map(cell => h('td', {}, String(cell))))))));
+  return h('div', { class: 'coordination-analytics' },
+    h('div', { class: 'analytics-filters' }, h('label', {}, 'Project ', project), h('label', {}, 'Time range ', range), h('button', { type: 'button', class: 'plain', onclick: () => { analyticsState.appliedProject = analyticsState.project; analyticsState.appliedDays = analyticsState.days; analyticsState.report = null; render(); } }, 'Apply / refresh')),
+    h('p', { class: 'muted' }, 'Ticket coordination for projects you can read. Recorded through ' + new Date(r.end).toLocaleString() + '.'),
+    r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Partial history: the bounded read omitted records or projects. Counts may be lower than the full history.') : '',
+    h('dl', { class: 'analytics-statistics' }, [['Tickets created', r.created], ['Completed tickets', r.completed], ['Average duration', duration(r.averageTicketSeconds)], ['Median duration', duration(r.medianTicketSeconds)]].map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value))))),
+    h('p', { class: 'muted small' }, 'Elapsed time from ticket creation to its first human completion decision in this period, including waiting · ' + r.durationSamples + ' samples.'),
+    h('section', {}, h('h2', {}, 'Created and completed over time'), h('p', { class: 'muted small' }, 'Blue: created · Green: completed · UTC days'), h('div', { class: 'scroll' }, chart),
+      h('details', {}, h('summary', {}, 'Daily values'), table(['UTC date', 'Created', 'Completed'], r.days.map(d => [d.date, d.created, d.completed])))),
+    h('section', {}, h('h2', {}, 'Completion evidence'),
+      h('p', {}, r.humanCompletionDecisions + ' human completion decisions. Reopened and completed tickets count once in throughput; each decision remains recorded.'),
+      h('p', { class: 'muted' }, 'Team does not verify task correctness or execute agents. Agent completion, blocked/stopped execution, runner/model/provider, retries, tokens, costs and usage limits are unavailable here. Inspect those metrics in your own Werkbord Analytics view.')),
+    h('section', {}, h('h2', {}, 'Work categories'), r.categories.length ? table(['Current label', 'Created', 'Completed'], r.categories.map(c => [c.name, c.created, c.completed])) : h('p', { class: 'muted' }, 'No ticket activity matches this view.'),
+      h('p', { class: 'muted small' }, 'Existing labels as they are now. Tickets with several labels appear in each category.')));
 }

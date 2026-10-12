@@ -165,6 +165,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/onboarding/complete", s.handleCompleteOnboarding)
 	mux.HandleFunc("POST /api/onboarding/reset", s.handleResetOnboarding)
 	mux.HandleFunc("GET /api/control-center", s.handleControlCenter)
+	mux.HandleFunc("GET /api/analytics", s.handleAnalytics)
+	mux.HandleFunc("GET /api/projects/{pid}/analytics", s.handleAnalytics)
 	mux.HandleFunc("GET /api/workspace/v1/summary", s.handleWorkspaceSummary)
 	mux.HandleFunc("GET /api/events", s.handleEvents) // ?project=<id> narrows it to one project
 

@@ -103,6 +103,8 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("DELETE /api/team/v1/projects/{id}/members/{memberId}", s.handleRemoveProjectMember)
 	// the views that span projects, and the sync that keeps them current
 	api.HandleFunc("GET /api/team/v1/overview", s.handleOverview)
+	api.HandleFunc("GET /api/team/v1/analytics", s.handleAnalytics)
+	api.HandleFunc("GET /api/team/v1/projects/{id}/analytics", s.handleAnalytics)
 	api.HandleFunc("GET /api/team/v1/mcp/operations", s.handleMCPOperations)
 	api.HandleFunc("GET /api/team/v1/mcp/grants", s.handleMCPGrants)
 	api.HandleFunc("POST /api/team/v1/mcp/grants", s.handleMCPGrantCreate)

@@ -577,3 +577,24 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
 .tl-link.clash { stroke: var(--danger); color: var(--danger); }
 .tl-undated h3 { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 @media (max-width: 899px) { .tl-chart { --names-w: 150px; } .tl-name .when { display: none; } }
+
+/* Operational analytics inherits the console's existing visual system. */
+.coordination-analytics section { margin-top: 28px; }
+.analytics-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.analytics-filters label { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px; flex: 1 1 280px; min-width: 0; }
+.analytics-statistics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 16px 0; border-block: 1px solid var(--line); }
+.analytics-statistics dt { color: var(--muted); font-size: 12px; }
+.analytics-statistics dd { margin: 6px 0 0; font: 20px var(--mono); }
+.analytics-chart { display: flex; gap: 8px; min-width: max-content; border-bottom: 1px solid var(--line); padding-top: 12px; }
+.analytics-day { flex: 1; width: 32px; color: var(--muted); font: 11.5px var(--mono); text-align: center; }
+.analytics-bars { display: flex; align-items: flex-end; gap: 2px; height: 112px; padding: 0 3px; }
+.analytics-bars span { flex: 1; }
+.analytics-created { background: var(--accent); }
+.analytics-done { background: var(--ok); }
+.analytics-day > span { display: block; padding: 6px 0; }
+@media (max-width: 899px) { .analytics-statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .analytics-filters label { flex: 1 1 100%; justify-content: space-between; }
+  .analytics-filters select { flex: 1; min-width: 0; }
+  .analytics-filters > button { width: 100%; min-height: 44px; }
+}
