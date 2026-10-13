@@ -18,7 +18,7 @@
     return !!e?.summary && !e.error && e.workspace.state === 'ready' && now - Date.parse(e.summary.at) < 30000;
   }
   async function answerWith(q: Question, answer: string): Promise<Question> {
-    if (!available('personal')) throw new Error('Individual is offline or stale. Reconnect before answering.');
+    if (!available('personal')) throw new Error('Universal is offline or stale. Reconnect before answering.');
     const result = await ask(a => a.Relay('personal', 'AnswerQuestion', [{ projectId: q.projectId, questionId: q.id, answer }])) as {
       status: number; body: Question & { error?: {code: string; message: string}; question?: Question };
     };

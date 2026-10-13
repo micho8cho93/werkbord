@@ -5,7 +5,7 @@ const native = vi.hoisted(() => ({ app: {} as App }));
 vi.mock('./native', () => ({ ask: (f: (app: App) => unknown) => f(native.app) }));
 import { Model } from './model.svelte';
 
-const individual = { id: 'personal', kind: 'personal' as const, name: 'Individual', state: 'ready' as const, source: 'Werkbord' };
+const individual = { id: 'personal', kind: 'personal' as const, name: 'Universal', state: 'ready' as const, source: 'Werkbord' };
 const team = { id: 'team:main', kind: 'team' as const, name: 'Team', state: 'ready' as const, source: 'Team' };
 const view = (items: WorkspaceView['items']): WorkspaceView => ({ items, selected: 'personal', problems: [], team: { state: 'ready' }, teamInstaller: true, invitation: false });
 

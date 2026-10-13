@@ -13,7 +13,7 @@
   const everywhereShown = $derived((model.view?.items.length ?? 0) >= 2);
   const active = $derived(model.view?.items.find((i) => i.id === model.current));
   const kind = $derived(active?.kind ?? 'personal');
-  const name = $derived(active?.name ?? 'Individual');
+  const name = $derived(active?.name ?? 'Universal');
   // A workspace that cannot be shown (not running, too old) has nowhere to go to: the page says why instead.
   const usable = $derived(!!model.frames[model.current] || active?.state === 'ready');
   const summary = $derived(model.overview?.entries.find((e) => e.workspace.id === model.current)?.summary);

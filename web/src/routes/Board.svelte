@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { readDraft, writeDraft, uncertainMutation } from '../lib/recovery';
   import { ApiError, api } from '../lib/api';
-  import { agentWorkable, dropAction, firstNeedsYouColumn } from '../lib/board';
+  import { agentWorkable, dropAction } from '../lib/board';
   import Archive from '../lib/board/Archive.svelte';
   import TaskCard from '../lib/board/TaskCard.svelte';
   import { agentLabel, resolveFor, type Resolved } from '../lib/execution';
@@ -60,19 +60,6 @@
       return { state, tasks: limited, total: sorted.length };
     }),
   );
-
-  // On a phone the columns are wider than the screen, so the board opens on the first one that needs you (a question,
-  // a reply, finished work to review). Once, when the board has loaded; after that the person's own panning rules.
-  let cols = $state<HTMLElement>();
-  let opened = false;
-  $effect(() => {
-    if (opened || !scope.loaded || !cols || !window.matchMedia('(max-width: 899px)').matches) return;
-    opened = true;
-    if (router.taskId) return;
-    const state = firstNeedsYouColumn(scope.activeTasks, scope.latestRun, (r) => scope.pendingFor(r.id).length > 0);
-    const col = state && cols.querySelector<HTMLElement>(`#col-${state}`);
-    if (col) cols.scrollTo({ left: col.getBoundingClientRect().left - cols.getBoundingClientRect().left + cols.scrollLeft - 16 });
-  });
 
   // ---- the legend: what the agents are doing, at a glance ----
   const legend = $derived.by(() => {
@@ -265,6 +252,7 @@
 <div class="view">
   <div class="bar">
     <button class="btn phone-filters" type="button" aria-expanded={filtersOpen} aria-controls="board-filters" onclick={() => filtersOpen = !filtersOpen}>Filters <span class="chip">{activeFilters}</span></button>
+    <button class="btn primary phone-new" type="button" onclick={() => (app.newTaskOpen = true)}><Icon name="plus" size={16} />New task</button>
     <div class="filters" id="board-filters" class:expanded={filtersOpen} role="group" aria-label="Filter the board">
       {#if app.agents.length > 1 && project.kind !== 'work'}
         <label class="pick" class:on={agentFilter}>
@@ -314,7 +302,7 @@
     <Archive {scope} />
   {:else}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scrollable board needs keyboard focus for horizontal panning.) -->
-  <div class="cols" role="region" aria-label="Kanban board" tabindex="0" bind:this={cols}>
+  <div class="cols" role="region" aria-label="Board" tabindex="0">
     {#each columns as col (col.state)}
       {@const hint = dropHint(col.state)}
       <section
@@ -405,14 +393,16 @@
   </div>
 
   {/if}
-  <button class="fab" type="button" onclick={() => (app.newTaskOpen = true)} aria-label="New task"><Icon name="plus" size={22} /></button>
 </div>
 
 <GitSheets projectId={project.id} store={git} />
 
 <style>
   .phone-filters { display: none; }
+  .phone-new { display: none; }
   .view {
+    container-name: board-layout;
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -428,6 +418,9 @@
     gap: 10px 16px;
     min-height: 56px;
     padding: 10px 24px;
+    width: 100%;
+    max-width: 1376px;
+    margin-inline: auto;
   }
 
   .filters {
@@ -467,6 +460,9 @@
     grid-template-columns: repeat(4, minmax(240px, 1fr));
     gap: 16px;
     padding: 0 24px 24px;
+    width: 100%;
+    max-width: 1376px;
+    margin-inline: auto;
     overflow-x: auto;
     scroll-padding-inline: 24px;
     overscroll-behavior-x: contain;
@@ -571,11 +567,29 @@
     justify-content: center;
   }
 
-  .fab {
-    display: none;
+  /* Switch to grouped rows when the available board width cannot hold four readable lanes. */
+  @container board-layout (max-width: 1055px) {
+    .cols {
+      flex: none;
+      height: auto;
+      grid-template-columns: minmax(0, 1fr);
+      padding: 0 24px 24px;
+      margin-bottom: 24px;
+      scroll-padding-inline: 24px;
+      overflow-x: visible;
+      scroll-snap-type: none;
+    }
+
+    .col { min-height: auto; }
+
+    .list {
+      flex: none;
+      min-height: auto;
+      overflow: visible;
+    }
   }
 
-  /* Keep the workflow side by side; narrow screens pan across the same board. */
+  /* Wider screens use side-by-side lanes; phones use a vertically grouped task list. */
   @media (max-width: 899px) {
     .bar {
       padding: 4px 16px 8px;
@@ -588,6 +602,7 @@
     }
 
     .phone-filters { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+    .phone-new { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-left: auto; }
     .filters { display: none; width: 100%; min-width: 0; }
     .filters.expanded { display: flex; }
     .filters :global(select) { max-width: 100%; }
@@ -599,31 +614,9 @@
     }
 
     .cols {
-      flex: none;
-      height: max(360px, calc(100dvh - 280px));
-      grid-template-columns: repeat(4, minmax(min(80vw, 320px), 1fr));
       padding: 0 16px 16px;
-      margin-bottom: 80px;
+      margin-bottom: 16px;
       scroll-padding-inline: 16px;
-      scroll-snap-type: x proximity;
-    }
-
-    .col { scroll-snap-align: start; }
-
-    .fab {
-      position: fixed;
-      right: 16px;
-      bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
-      z-index: 6;
-      display: grid;
-      place-items: center;
-      width: 56px;
-      height: 56px;
-      border-radius: 10px;
-      border: 1px solid var(--pri-bd);
-      background: var(--pri-bg);
-      box-shadow: var(--pri-sh);
-      color: var(--accent-text);
     }
   }
 </style>

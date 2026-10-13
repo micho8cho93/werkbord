@@ -333,7 +333,7 @@ export class Model {
     this.error = '';
     try {
       await ask((a) => a.Relay(id, 'ConnectRunner', []));
-      this.notice = 'Your Individual runner is connected to this workspace.';
+      this.notice = 'Your Universal runner is connected to this workspace.';
     } catch (e) {
       this.error = (e as Error).message;
     }

@@ -167,6 +167,7 @@
             <h1>{globalTitle}</h1>
           </div>
           <div class="gacts">
+            {#if !framed}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
             {#if !framed}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
             <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
               <Icon name="search" /><span class="wide">Jump to</span>
@@ -357,6 +358,10 @@
     display: none;
   }
 
+  .assistant-wide {
+    display: inline-flex;
+  }
+
   .phone-more-location { display: none; }
 
   .tabbar {
@@ -437,6 +442,10 @@
 
     .phone-only {
       display: inline-flex;
+    }
+
+    .assistant-wide {
+      display: none;
     }
 
     .phone-more-location {

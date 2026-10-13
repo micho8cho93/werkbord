@@ -3,7 +3,7 @@ import { agenda, attention, attentionAction, attentionGroups, counts, executionC
 import type { Overview, Summary } from './types';
 
 it('keeps workspace identity, permissions and failures in cross-workspace views', () => {
-  const individual = { id: 'personal', kind: 'personal' as const, name: 'Individual', state: 'ready' as const };
+  const individual = { id: 'personal', kind: 'personal' as const, name: 'Universal', state: 'ready' as const };
   const team = { id: 'team:main', kind: 'team' as const, name: 'Team', state: 'ready' as const };
   const sum = (workspace: typeof individual | typeof team): Summary => ({ schema: 'workspace-v1', workspace, at: '', projects: [], work: [{ id: 'same-id', title: workspace.name, project: 'Project', status: 'doing', href: '#/task' }], attention: [{ id: 'notice', kind: 'blocked', severity: 'warning', title: workspace.name }], schedule: [{ id: 'schedule', title: workspace.name, project: 'Project', at: '2026-10-10T10:00:00Z', state: 'waiting', href: '#/calendar' }] });
   const o: Overview = { at: '', entries: [{ workspace: individual, summary: sum(individual) }, { workspace: team, summary: sum(team) }, { workspace: { ...team, id: 'team:offline', state: 'offline' }, error: 'Offline' }] };
@@ -14,7 +14,7 @@ it('keeps workspace identity, permissions and failures in cross-workspace views'
 });
 
 it('counts execution states separately and never calls a stale report running now', () => {
-  const workspace = { id: 'personal', kind: 'personal' as const, name: 'Individual', state: 'ready' as const };
+  const workspace = { id: 'personal', kind: 'personal' as const, name: 'Universal', state: 'ready' as const };
   const summary: Summary = { schema: 'workspace-v1', workspace, at: '2026-10-11T10:00:00Z', projects: [], attention: [], schedule: [], work: [
     { id: 'run', title: 'Running', project: 'App', status: 'doing', execution: 'running', href: '#/task' },
     { id: 'queue1', title: 'Queued', project: 'App', status: 'todo', execution: 'queued', href: '#/task' },
@@ -32,7 +32,7 @@ it('counts execution states separately and never calls a stale report running no
 });
 
 it('puts critical outages first, keeps idle turns and reviews actionable, and separates host advice', () => {
-  const workspace = { id: 'personal', kind: 'personal' as const, name: 'Individual', state: 'ready' as const };
+  const workspace = { id: 'personal', kind: 'personal' as const, name: 'Universal', state: 'ready' as const };
   const summary: Summary = { schema: 'workspace-v1', workspace, at: '', projects: [], work: [], schedule: [], attention: [
     { id: 'host', kind: 'host', severity: 'warning', title: 'Add another host' },
     { id: 'review', kind: 'review', severity: 'info', title: 'Review changes', href: '#/review' },

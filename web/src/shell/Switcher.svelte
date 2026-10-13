@@ -71,7 +71,7 @@
 {/snippet}
 
 <div class="scrim" onclick={() => model.closeSwitcher()} role="presentation"></div>
-<div class="menu" role="menu" aria-label="Switch between Individual and Team" tabindex="-1" bind:this={menu} onkeydown={onkey} style:left="{pos.left}px" style:top="{pos.top}px" data-testid="switcher-menu">
+<div class="menu" role="menu" aria-label="Switch between Universal and Team" tabindex="-1" bind:this={menu} onkeydown={onkey} style:left="{pos.left}px" style:top="{pos.top}px" data-testid="switcher-menu">
   {#each individual as i (i.id)}{@render row(i)}{/each}
   {#if teams.length || teamProblem}
     <div class="rule" role="separator"></div>

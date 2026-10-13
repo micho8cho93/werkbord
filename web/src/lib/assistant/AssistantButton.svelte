@@ -3,10 +3,9 @@
   import { assistant } from './store.svelte';
   import { originOf } from './transition';
 
-  // The way in. On a wide screen it sits in the rail ("rail"); on a phone it is an icon in the heading ("icon"). Either way the
-  // assistant opens out of it and closes back into it, and it says, without opening anything, if the assistant is working or
-  // has a change waiting for the person.
-  let { variant = 'rail' }: { variant?: 'rail' | 'icon' } = $props();
+  // The assistant opens and closes from this button, which can sit in a rail, a page toolbar, or a phone heading. Its badge says
+  // whether it is working or has a change waiting for the person.
+  let { variant = 'rail' }: { variant?: 'rail' | 'toolbar' | 'icon' } = $props();
   let el: HTMLButtonElement | undefined = $state();
 
   const waiting = $derived(assistant.waiting);
@@ -19,7 +18,7 @@
 
 <button bind:this={el} class="ab {variant}" type="button" aria-haspopup="dialog" aria-expanded={assistant.isOpen} aria-label={label} title="Assistant" onclick={press} data-testid="assistant-button">
   <span class="ico"><Icon name="assistant" /></span>
-  {#if variant === 'rail'}<span class="text">Assistant</span>{/if}
+  {#if variant !== 'icon'}<span class="text">Assistant</span>{/if}
   {#if waiting > 0}
     <span class="num pend" aria-hidden="true">{waiting}</span>
   {:else if assistant.running}
@@ -56,6 +55,13 @@
     border-radius: var(--radius-sm);
     font-size: 13px;
     box-shadow: var(--card-sh);
+  }
+  .toolbar {
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    box-shadow: var(--btn-sh);
   }
   .rail .text {
     flex: 1;

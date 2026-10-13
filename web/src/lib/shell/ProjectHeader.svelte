@@ -40,6 +40,7 @@
     {/if}
   </div>
   <div class="acts">
+    {#if !framed}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
     {#if !framed}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
     <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
       <Icon name="search" /><span class="wide">Jump to</span><kbd class="key wide">{isMac ? '⌘' : 'Ctrl'} K</kbd>
@@ -146,6 +147,10 @@
     display: none;
   }
 
+  .assistant-wide {
+    display: inline-flex;
+  }
+
   .gear[aria-current='page'] {
     box-shadow: var(--press-sh);
     background: var(--surface-2);
@@ -213,6 +218,10 @@
 
     .phone-only {
       display: inline-flex;
+    }
+
+    .assistant-wide {
+      display: none;
     }
 
     .wide,
