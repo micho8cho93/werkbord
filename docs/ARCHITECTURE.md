@@ -1041,7 +1041,7 @@ Once the person connects their Individual runner to a Team workspace (an explici
 service on their computer copies every ticket they hold in that workspace's projects into Individual as a backlog task,
 using the synchronization described in [INTEGRATION.md](INTEGRATION.md): text only, idempotent by
 provenance, never starting a run. Projects can be turned off under Team Settings → Tickets in Individual. A claim made
-through the console wakes the synchronization at once. The ticket then shows **Open in Individual**, which switches the
+through the console wakes the synchronization at once. The ticket then shows **Open in Werkbord**, which switches the
 window to Individual at that task (a frame may only ask the shell to show Individual at a `#/…` place), ready for the
 person to start it with Individual's own approvals. When no local project has the ticket's repository, Individual's
 Needs you lists it under "Team tickets waiting for a repository" with **Choose folder…** (refused unless the folder

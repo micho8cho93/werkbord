@@ -29,7 +29,8 @@ func (s *Server) handleAssistantWorkspacePending(w http.ResponseWriter, r *http.
 	if !s.assistantReady(w) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"pending": s.opt.Assistant.WorkspaceRequestPending(r.PathValue("id"), r.PathValue("request"))})
+	request, pending := s.opt.Assistant.WorkspaceRequestStatus(r.PathValue("id"), r.PathValue("request"))
+	writeJSON(w, http.StatusOK, map[string]any{"pending": pending, "request": request})
 }
 
 func (s *Server) handleAssistantWorkspaceAnswer(w http.ResponseWriter, r *http.Request) {
@@ -39,12 +40,13 @@ func (s *Server) handleAssistantWorkspaceAnswer(w http.ResponseWriter, r *http.R
 	var in struct {
 		Data  json.RawMessage `json:"data"`
 		Error string          `json:"error"`
+		Code  string          `json:"code"`
 	}
 	if err := decode(w, r, &in); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	if err := s.opt.Assistant.AnswerWorkspace(r.PathValue("id"), r.PathValue("request"), in.Data, in.Error); err != nil {
+	if err := s.opt.Assistant.AnswerWorkspace(r.PathValue("id"), r.PathValue("request"), in.Data, in.Error, in.Code); err != nil {
 		s.assistantFail(w, r, err)
 		return
 	}

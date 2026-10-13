@@ -60,6 +60,48 @@ type Warning struct {
 	Message  string   `json:"message"`
 }
 
+// Issue is a blocking change validation result. Field is the editable field a client can focus.
+type Issue struct {
+	Code     Code     `json:"code"`
+	Severity Severity `json:"severity"`
+	ItemID   string   `json:"itemId"`
+	OtherID  string   `json:"otherId,omitempty"`
+	Field    string   `json:"field"`
+	Message  string   `json:"message"`
+}
+
+// ChangeError carries all newly introduced or worsened conflicts from one draft.
+type ChangeError struct{ Issues []Issue }
+
+func (e *ChangeError) Error() string {
+	if len(e.Issues) == 0 {
+		return "the plan is invalid"
+	}
+	if len(e.Issues) == 1 {
+		return e.Issues[0].Message
+	}
+	return fmt.Sprintf("%d planning issues: %s", len(e.Issues), e.Issues[0].Message)
+}
+
+// InvalidRange returns one field-addressable issue for a malformed date draft.
+func InvalidRange(itemID, title string, r Range, err error) *ChangeError {
+	code, field := CodeInvalidRange, "plan.end"
+	if r.Start != "" {
+		if _, parseErr := ParseDay(r.Start); parseErr != nil {
+			code, field = CodeInvalidDate, "plan.start"
+		}
+	}
+	if field != "plan.start" && r.End != "" {
+		if _, parseErr := ParseDay(r.End); parseErr != nil {
+			code, field = CodeInvalidDate, "plan.end"
+		}
+	}
+	if r.Milestone && r.Start == "" {
+		field = "plan.start"
+	}
+	return &ChangeError{Issues: []Issue{{Code: code, Severity: SeverityError, ItemID: itemID, Field: field, Message: title + ": " + err.Error()}}}
+}
+
 // Analyze looks for invalid and conflicting dependencies and dates among items, and returns what it
 // finds in a stable order (errors first, then by item). The same items always give the same warnings.
 //
@@ -157,6 +199,99 @@ func AnalyzeOpen(items []Item) []Warning {
 		}
 	}
 	return out
+}
+
+// ValidateChange refuses a newly introduced plan conflict while allowing older conflicts to be corrected incrementally.
+// Informational warnings, such as an undated prerequisite, remain advisory.
+func ValidateChange(existing []Item, updated Item) error {
+	before := make(map[string]int)
+	for _, warning := range AnalyzeOpen(existing) {
+		key := warningKey(warning)
+		if impact := warningImpact(warning, existing); impact > before[key] {
+			before[key] = impact
+		}
+	}
+	after := make([]Item, 0, len(existing)+1)
+	found := false
+	for _, item := range existing {
+		if item.ID == updated.ID {
+			if !found {
+				after = append(after, updated)
+				found = true
+			}
+			continue
+		}
+		after = append(after, item)
+	}
+	if !found {
+		after = append(after, updated)
+	}
+	var issues []Issue
+	for _, warning := range AnalyzeOpen(after) {
+		if warning.Severity == SeverityInfo {
+			continue
+		}
+		if oldImpact, ok := before[warningKey(warning)]; ok && warningImpact(warning, after) <= oldImpact {
+			continue
+		}
+		issues = append(issues, Issue{Code: warning.Code, Severity: warning.Severity, ItemID: warning.ItemID, OtherID: warning.OtherID,
+			Field: issueField(warning, updated), Message: warning.Message})
+	}
+	if len(issues) > 0 {
+		return &ChangeError{Issues: issues}
+	}
+	return nil
+}
+
+func warningImpact(w Warning, items []Item) int {
+	if w.Code != CodeStartsBeforeDependent {
+		return 1
+	}
+	byID := make(map[string]Item, len(items))
+	for _, item := range items {
+		byID[item.ID] = item
+	}
+	item, itemOK := byID[w.ItemID]
+	dep, depOK := byID[w.OtherID]
+	if !itemOK || !depOK {
+		return 1
+	}
+	first, _, itemOK := item.Range.Span()
+	_, last, depOK := dep.Range.Span()
+	if !itemOK || !depOK {
+		return 1
+	}
+	return int(last.Sub(first).Hours() / 24)
+}
+
+func issueField(w Warning, updated Item) string {
+	switch w.Code {
+	case CodeInvalidDate:
+		if _, err := ParseDay(updated.Range.Start); updated.Range.Start != "" && err != nil {
+			return "plan.start"
+		}
+		return "plan.end"
+	case CodeInvalidRange:
+		return "plan.end"
+	case CodeMilestoneWithoutDate:
+		return "plan.start"
+	case CodeStartsBeforeDependent:
+		if w.ItemID == updated.ID {
+			return "plan.start"
+		}
+		if updated.Range.Milestone {
+			return "plan.start"
+		}
+		return "plan.end"
+	case CodeSelfDependency, CodeDuplicateDependency, CodeMissingDependency, CodeDependencyCycle, CodeArchivedDependency, CodeDoneBeforeDependency:
+		return "dependencies"
+	default:
+		return "plan"
+	}
+}
+
+func warningKey(w Warning) string {
+	return string(w.Code) + "\x00" + w.ItemID + "\x00" + w.OtherID + "\x00" + strings.Join(w.Cycle, "\x00")
 }
 
 func invalidDay(s string) bool { _, err := ParseDay(s); return err != nil }

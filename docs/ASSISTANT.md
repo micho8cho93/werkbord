@@ -78,11 +78,12 @@ assistant sessions and Team principals do not receive upstream connection tools.
    by Werkbord from the arguments, not by the model.
 2. It is stored as a *proposal*, bound to the conversation that made it, with a fifteen-minute life, and the person is told
    (`confirmation_required`). **Nothing has changed.**
-3. You confirm or decline: `POST /api/assistant/sessions/{id}/actions/{action}` with `{"decision":"approve"}`. Only this
-   carries the change out, once, with the arguments that were shown (their digest is checked), as the assistant's own
-   principal with its permissions as they are *now*, through the same domain service the app calls. A ticket changed by
+3. One press of **Confirm** sends `POST /api/assistant/sessions/{id}/actions/{action}` with `{"decision":"approve"}`.
+   The stored proposal is the approval surface; no second dialog follows. The controller checks its digest and current
+   permissions, then carries the change out once through the same domain service the app calls. A ticket changed by
    someone else in between is a conflict, not an overwrite.
-4. The assistant is told what became of it with your next message (confirmed and done, failed and why, declined, expired).
+4. The card reports the acknowledged result immediately. A created task says **Added to Backlog** and links to that task;
+   a failure stays beside its proposal with the reason.
 
 A model cannot approve its own proposal: there is no call that approves, the only way to approve is the API with your
 token, and a proposal is found only by the conversation and principal that made it. A conversation that is deleted or
@@ -142,10 +143,13 @@ The assistant belongs to the Individual controller, on your computer, and runs *
 - A connected workspace that cannot be read just now (its service stopped, the window slow to answer: a read waits 25 seconds) does not
   take the person's own board away: `list_projects` and `get_overview` still answer for everything else and add
   `unavailableWorkspaces`, so that the assistant says the workspace could not be read rather than that it has no projects.
-- Creation goes through the usual audited proposal and confirmation first, followed by a native confirmation the page cannot
-  press, which names the workspace and the project as the person knows them, not by identifiers. The native shell caches mutation request IDs so a reloaded frame cannot create a ticket twice. Requests are session-bound,
-  expire when cancelled or timed out, and replays of completed requests are ignored. An unavailable desktop fails with a message
-  to check the destination board before retrying. After a controller restart the frame reconnects before sending or confirming.
+- Creation is shown in the stored proposal with its task title, Backlog destination, project and proposed details. After one
+  **Confirm**, the desktop checks a controller-issued authorisation bound to the session, proposal, workspace and exact
+  arguments before calling Team. An arbitrary page bridge call cannot create a ticket. Request IDs are cached so a frame
+  reconnect or replay cannot create it twice. The card acknowledges success and opens the exact ticket in Team; unavailable
+  or failed requests keep their reason beside the proposal. **Confirm all N** takes the proposals waiting when pressed,
+  continues after individual failures, and reports the added and failed counts. After a controller restart the frame reconnects
+  before sending or confirming.
 - Imported Team tasks still use the Individual integration as before. Creating a connected ticket changes only its own workspace;
   it does not create a local task or start an agent.
 - Execution stays with your runner. The assistant never starts a run. Answering a question goes through the runner the
@@ -319,10 +323,10 @@ keeps none ([What is kept](#what-is-kept-and-what-is-not)).
   blocks) that builds elements, never HTML: markup in a reply, or in anything it read, is shown as text, and links are not made
   clickable. While it works there is one quiet line (*Looking for what is blocked…*, *Thinking…*); afterwards, a collapsed *What I
   looked at*. Operation names never appear.
-- **A change** is a card: what Werkbord (not the model) says will happen, *Confirm* and *Not now*, and *Nothing changes until you
-  confirm*. It then says what became of it (done, not done, expired, no longer waiting). It cannot be pressed twice. When several
-  are waiting (four tasks asked for in one message, say) a bar under them offers *Confirm all 4* and *Not now*: it answers them one after
-  another, each with its own request and its own record, and stops at the first that cannot be answered, leaving the rest waiting.
+- **A change** is a card: what Werkbord says will happen, *Confirm* and *Not now*, and *Nothing changes until you confirm*.
+  One press carries it out. A created task shows a green check, **Added to Backlog** and an *Open task* link. When several are
+  waiting, *Confirm all N* answers the proposals that were waiting when pressed. Each has its own audit record; individual
+  failures do not stop the rest, and one short result reports the counts.
 - **Choosing the assistant.** The heading's *Claude Code · Sonnet* opens the provider, model and thinking-level chooser, which can be
   used at any time. A model your plan cannot use ends the turn with *That model is not available to your account* and offers *Choose
   another model* and *Try again*. Moving to the other provider starts a fresh conversation with it, and the screen says so. Files you
@@ -445,6 +449,11 @@ capabilities. `POST /sessions` takes `{provider, model, reasoning}`; `PATCH /ses
 
 - **Streaming.** A turn's reply is published as `delta` events as it is generated. Events have a per-conversation sequence
   number that only grows.
+- **Presentation timing.** Provider delta arrival, controller publication, browser receipt and visible update are measured
+  separately. The browser combines text changes at animation-frame boundaries, while approval, error and completion events
+  are handled immediately. Completed Markdown and OpenUI sections are reused as later text arrives. Controlled short, long
+  and mixed-output fixtures report provider delay separately from browser receipt-to-visible latency; the target for the latter
+  is below 100 ms at p95.
 - **Reconnecting.** A turn belongs to the engine, not to the request that started it: closing the page does not stop it.
   `GET …/events` with `Last-Event-ID` (or `?after=`) replays what a returning client missed from the last 1024 events, then
   goes live; if more than that was missed it says `gap` and the client reloads the session. A client that cannot keep up is

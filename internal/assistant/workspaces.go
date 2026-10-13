@@ -16,6 +16,7 @@ import (
 // is held by the controller. Mutations reach this transport only after appops has claimed the person's confirmation.
 type WorkspaceRequest struct {
 	ID          string `json:"id"`
+	ProposalID  string `json:"proposalId,omitempty"`
 	WorkspaceID string `json:"workspaceId"`
 	Method      string `json:"method"`
 	Args        any    `json:"args"`
@@ -24,9 +25,11 @@ type WorkspaceRequest struct {
 type workspaceReply struct {
 	data    json.RawMessage
 	problem string
+	code    string
 }
 type workspaceWait struct {
 	session string
+	request WorkspaceRequest
 	reply   chan workspaceReply
 }
 type workspaceRequests struct {
@@ -51,14 +54,15 @@ func (e *Engine) ConnectWorkspaces(ctx context.Context, session string, ws []app
 		seen[w.ID] = true
 	}
 	e.ops.BindWorkspaces(session, ws, func(ctx context.Context, w appops.Workspace, method string, args any) (json.RawMessage, error) {
-		return e.requestWorkspace(ctx, session, w.ID, method, args)
+		return e.requestWorkspace(ctx, session, appops.ApprovedActionID(ctx), w.ID, method, args)
 	})
 	return nil
 }
 
-func (e *Engine) requestWorkspace(ctx context.Context, session, workspace, method string, args any) (json.RawMessage, error) {
+func (e *Engine) requestWorkspace(ctx context.Context, session, proposal, workspace, method string, args any) (json.RawMessage, error) {
 	id := domain.NewID("wreq")
-	wait := workspaceWait{session: session, reply: make(chan workspaceReply, 1)}
+	request := WorkspaceRequest{ID: id, ProposalID: proposal, WorkspaceID: workspace, Method: method, Args: args}
+	wait := workspaceWait{session: session, request: request, reply: make(chan workspaceReply, 1)}
 	e.wrequests.Lock()
 	if e.wrequests.pending == nil {
 		e.wrequests.pending = map[string]workspaceWait{}
@@ -66,8 +70,8 @@ func (e *Engine) requestWorkspace(ctx context.Context, session, workspace, metho
 	e.wrequests.pending[id] = wait
 	e.wrequests.Unlock()
 	defer func() { e.wrequests.Lock(); delete(e.wrequests.pending, id); e.wrequests.Unlock() }()
-	e.hub(session).publish(Event{SessionID: session, Type: EventWorkspaceRequest, Workspace: &WorkspaceRequest{ID: id, WorkspaceID: workspace, Method: method, Args: args}})
-	// A read is answered at once or not at all; a creation waits for the person to answer a dialog in the window.
+	e.hub(session).publish(Event{SessionID: session, Type: EventWorkspaceRequest, Workspace: &request})
+	// Reads are answered at once. A creation stays live only while the desktop verifies and carries out the approved request.
 	limit := 25 * time.Second
 	if method == "create_ticket" {
 		limit = 120 * time.Second
@@ -77,7 +81,8 @@ func (e *Engine) requestWorkspace(ctx context.Context, session, workspace, metho
 	select {
 	case reply := <-wait.reply:
 		if reply.problem != "" {
-			return nil, &appops.Error{Code: appops.CodeUnavailable, Message: clipText(reply.problem, 500)}
+			code := workspaceProblemCode(reply.code)
+			return nil, &appops.Error{Code: code, Message: clipText(reply.problem, 500)}
 		}
 		return reply.data, nil
 	case <-ctx.Done():
@@ -96,8 +101,26 @@ func (e *Engine) WorkspaceRequestPending(session, id string) bool {
 	return ok && w.session == session
 }
 
-func (e *Engine) AnswerWorkspace(session, id string, data json.RawMessage, problem string) error {
-	if len(data) > 48<<10 || len(problem) > 1000 || (problem == "" && !json.Valid(data)) {
+// WorkspaceRequestStatus is the controller-issued request the desktop verifies before carrying it out.
+// It exists only while an approved assistant operation is waiting for the desktop to answer.
+func (e *Engine) WorkspaceRequestStatus(session, id string) (WorkspaceRequest, bool) {
+	e.wrequests.Lock()
+	defer e.wrequests.Unlock()
+	w, ok := e.wrequests.pending[id]
+	return w.request, ok && w.session == session
+}
+
+func workspaceProblemCode(code string) string {
+	switch code {
+	case appops.CodePermissionDenied, appops.CodeInvalidArguments, appops.CodeConflict:
+		return code
+	default:
+		return appops.CodeUnavailable
+	}
+}
+
+func (e *Engine) AnswerWorkspace(session, id string, data json.RawMessage, problem, code string) error {
+	if len(data) > 48<<10 || len(problem) > 1000 || (problem == "" && (!json.Valid(data) || code != "")) || (code != "" && code != appops.CodePermissionDenied && code != appops.CodeInvalidArguments && code != appops.CodeConflict) {
 		return fmt.Errorf("%w: invalid workspace response", domain.ErrInvalid)
 	}
 	e.wrequests.Lock()
@@ -107,6 +130,6 @@ func (e *Engine) AnswerWorkspace(session, id string, data json.RawMessage, probl
 		return domain.ErrNotFound
 	}
 	delete(e.wrequests.pending, id)
-	w.reply <- workspaceReply{data: data, problem: problem}
+	w.reply <- workspaceReply{data: data, problem: problem, code: code}
 	return nil
 }

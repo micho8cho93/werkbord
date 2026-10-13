@@ -163,6 +163,13 @@ func (s *Service) CreateTicket(ctx context.Context, a Actor, projectID string, i
 		if err := s.applyPlanning(ctx, tx, a, x, &k, ticketPlanning{mode: &mode, plan: &in.Plan, labelIDs: &in.LabelIDs, dependencies: &in.Dependencies}); err != nil {
 			return err
 		}
+		all, err := tx.Tickets(ctx, a.Workspace.ID, projectID)
+		if err != nil {
+			return err
+		}
+		if err := planning.ValidateChange(ticketPlanningItems(all), ticketPlanningItem(k)); err != nil {
+			return fmt.Errorf("%w: %w", domain.ErrInvalid, err)
+		}
 		if err := tx.InsertTicket(ctx, a.Workspace.ID, k); err != nil {
 			return err
 		}
@@ -234,11 +241,33 @@ func (s *Service) UpdateTicket(ctx context.Context, a Actor, projectID, ticketID
 		if err := s.applyPlanning(ctx, tx, a, x, &k, ticketPlanning{mode: patch.WorkMode, plan: patch.Plan, labelIDs: patch.LabelIDs, dependencies: patch.Dependencies}); err != nil {
 			return err
 		}
+		if patch.Plan != nil || patch.Dependencies != nil {
+			all, err := tx.Tickets(ctx, a.Workspace.ID, projectID)
+			if err != nil {
+				return err
+			}
+			if err := planning.ValidateChange(ticketPlanningItems(all), ticketPlanningItem(k)); err != nil {
+				return fmt.Errorf("%w: %w", domain.ErrInvalid, err)
+			}
+		}
 		k.UpdatedAt = s.stamp()
 		k, err = s.save(ctx, tx, a, k)
 		return err
 	})
 	return k, err
+}
+
+func ticketPlanningItem(k domain.Ticket) planning.Item {
+	return planning.Item{ID: k.ID, Title: k.Title, Range: planning.Range{Start: k.Plan.Start, End: k.Plan.End, Milestone: k.Plan.Milestone},
+		Done: k.Status == domain.TicketDone, Archived: k.ArchivedAt != nil, Dependencies: append([]string(nil), k.Dependencies...)}
+}
+
+func ticketPlanningItems(tickets []domain.Ticket) []planning.Item {
+	items := make([]planning.Item, 0, len(tickets))
+	for _, ticket := range tickets {
+		items = append(items, ticketPlanningItem(ticket))
+	}
+	return items
 }
 
 // loadTicket reads a ticket of the project the actor may see.

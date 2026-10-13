@@ -25,7 +25,7 @@ export interface Deps {
   ready(id: string): void;
   reply(frame: FrameRef, message: Record<string, unknown>): void;
   /** A frame asks to show the person's own Werkbord at a place inside it. */
-  open(id: string, target: 'personal', place: string): void;
+  open(id: string, target: string, place: string): void;
   /** Individual's assistant says whether it is open and whether something there needs the person. */
   assistant(id: string, state: { open: boolean; waiting: number; running: boolean }): void;
 }
@@ -56,7 +56,8 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
   if (!frame || !m || typeof m !== 'object') return;
   if (m.type === 'werkbord.native.request') {
     const { id, method, args } = m as { id?: unknown; method?: unknown; args?: unknown };
-    if (typeof id !== 'string' || !REQUEST_ID.test(id) || typeof method !== 'string' || !METHOD.test(method) || !Array.isArray(args) || args.length > 4) return;
+    const maxArgs = frame.surface && method === 'AssistantWorkspaceCall' ? 6 : 4;
+    if (typeof id !== 'string' || !REQUEST_ID.test(id) || typeof method !== 'string' || !METHOD.test(method) || !Array.isArray(args) || args.length > maxArgs) return;
     let size: number;
     try {
       size = JSON.stringify(args).length;
@@ -75,10 +76,11 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
   }
   if (m.type === 'werkbord.frame') {
     // The assistant's frame is not a workspace's page: it has no place to remember and no workspace to open.
-    if (frame.surface && m.event !== 'assistant') return;
+    if (frame.surface && m.event !== 'assistant' && m.event !== 'open') return;
     if (m.event === 'ready') d.ready(frame.id);
     else if (m.event === 'place' && isPlace(m.place)) await d.remember(frame.id, m.place).catch(() => {});
-    else if (m.event === 'open' && m.target === 'personal' && isPlace(m.place) && String(m.place).startsWith('#')) d.open(frame.id, 'personal', m.place as string);
+    else if (m.event === 'open' && isPlace(m.place) && typeof m.target === 'string' && m.target.startsWith('team:') && frame.surface && frame.id === 'personal' && String(m.place).startsWith('?')) d.open(frame.id, m.target, m.place as string);
+    else if (m.event === 'open' && m.target === 'personal' && isPlace(m.place) && String(m.place).startsWith('#') && !frame.surface) d.open(frame.id, 'personal', m.place as string);
     // Only the assistant's own frame, which is the person's own Werkbord, says how the assistant stands. A count and two flags are
     // all that cross: never a word of the conversation.
     else if (m.event === 'assistant' && frame.surface && frame.id === 'personal' && typeof m.open === 'boolean' && typeof m.running === 'boolean' && Number.isInteger(m.waiting) && (m.waiting as number) >= 0 && (m.waiting as number) <= 99) {

@@ -39,6 +39,8 @@ import (
 // Launcher is what the shell needs of the launcher (internal/launcher), which does the work.
 type Launcher interface {
 	Connect(ctx context.Context, report func(launcher.Step)) (launcher.Connection, error)
+	// AssistantWorkspaceRequest checks a pending, controller-issued task approval for the desktop bridge.
+	AssistantWorkspaceRequest(ctx context.Context, session, request string) ([]byte, error)
 	Config(ctx context.Context) (config.Config, error)
 	UpdateStatus(ctx context.Context, force bool) update.Status
 	ApplyUpdate(ctx context.Context) (string, error)

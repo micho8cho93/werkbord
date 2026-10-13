@@ -122,3 +122,51 @@ export function blocks(src: string): Block[] {
   endPara();
   return out;
 }
+
+/** Cache completed Markdown blocks while a reply is growing; only the unfinished paragraph is parsed per frame. */
+export interface MarkdownBlockCache {
+  source: string;
+  stableSource: string;
+  stableBlocks: Block[];
+}
+
+export function emptyMarkdownBlockCache(): MarkdownBlockCache {
+  return { source: '', stableSource: '', stableBlocks: [] };
+}
+
+function stableMarkdownEnd(source: string): number {
+  const lines = source.split('\n');
+  let offset = 0;
+  let stable = 0;
+  let fence: { char: string; length: number } | undefined;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const token = FENCE.exec(line);
+    if (fence) {
+      if (token && token[1][0] === fence.char && token[1].length >= fence.length) fence = undefined;
+    } else if (token) {
+      fence = { char: token[1][0], length: token[1].length };
+    } else if (line.trim() === '') {
+      stable = offset + (i < lines.length - 1 ? 1 : 0);
+    }
+    offset += line.length + (i < lines.length - 1 ? 1 : 0);
+  }
+  return stable;
+}
+
+export function growingBlocks(source: string, cache: MarkdownBlockCache): Block[] {
+  const normalized = source.replace(/\r\n?/g, '\n');
+  if (!normalized.startsWith(cache.source)) {
+    cache.source = '';
+    cache.stableSource = '';
+    cache.stableBlocks = [];
+  }
+  const end = stableMarkdownEnd(normalized);
+  if (end > cache.stableSource.length) {
+    const nextStable = normalized.slice(cache.stableSource.length, end);
+    cache.stableBlocks.push(...blocks(nextStable));
+    cache.stableSource = normalized.slice(0, end);
+  }
+  cache.source = normalized;
+  return [...cache.stableBlocks, ...blocks(normalized.slice(cache.stableSource.length))];
+}

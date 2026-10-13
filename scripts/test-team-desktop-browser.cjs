@@ -35,13 +35,32 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  assert.equal(await page.locator('.resilience').count(),0,'host configuration does not displace everyday work');
  console.log('PASS signed license import, create, real host/database bootstrap and focused workspace');
  await shot(page,'desktop');await shot(page,'mobile',390,844);await page.setViewportSize({width:1440,height:1000});
- for(const label of ['Projects','Board','My Work','Reviews','Activity','Members','Devices','Workspace Hosts','Connectivity','Backups','License','Settings']){
-  if(['Devices','Workspace Hosts','Connectivity','Backups','License'].includes(label))await page.getByRole('navigation',{name:'Settings',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();
-  await page.locator('nav').getByRole('button',{name:label,exact:true}).click();await page.locator('nav button[aria-current=page]').filter({hasText:new RegExp('^'+label)}).waitFor();
+ const adminLabels=['This computer','MCP clients','Labels','Devices','Workspace Hosts','Connectivity','Backups','License'];
+ for(const label of ['Needs you','Projects','Reviews','Members','Analytics',...adminLabels]){
+  const tabFor={ 'Needs you':'workspace', 'This computer':'settings', 'MCP clients':'mcp', 'Workspace Hosts':'hosts' }[label] || label.toLowerCase().replaceAll(' ','');
+  const nav=adminLabels.includes(label)?page.getByRole('navigation',{name:'Team administration',exact:true}):page.getByRole('navigation',{name:'Werkbord Team',exact:true});
+  if(adminLabels.includes(label))await page.getByRole('navigation',{name:'Settings',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();
+  const destination=nav.getByRole('button',{name:label,exact:true});await destination.click();await page.waitForFunction(expected=>state.tab===expected,tabFor);
+  await page.waitForFunction(expected=>{const current=document.querySelector('nav[aria-label="'+(expected.startsWith('settings:')?'Team administration':'Werkbord Team')+'"] button[aria-current="page"]');return current&&current.textContent.trim().startsWith(expected.slice(expected.indexOf(':')+1));},adminLabels.includes(label)?'settings:'+label:label);
   await wait(async()=>!(await page.locator('.error').count()),label+' no error');
   if(['Devices','Workspace Hosts'].includes(label))assert(await page.getByRole('button',{name:'Remove host',exact:true}).isDisabled(),'final Host removal must be disabled');
   if(label==='Workspace Hosts')await page.getByText(/^Your workspace currently has one host\. Add two more hosts for fault tolerance\./).waitFor();
-  if(['Devices','Workspace Hosts','Connectivity','Settings'].includes(label))await shot(page,label.toLowerCase().replaceAll(' ','-'));
+  if(['Devices','Workspace Hosts','Connectivity'].includes(label))await shot(page,label.toLowerCase().replaceAll(' ','-'));
+  if(label==='Analytics'){
+   await page.getByText('No ticket activity in this period.',{exact:true}).waitFor();
+   await shot(page,'analytics');await shot(page,'analytics-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
+   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await shot(page,'analytics-dark');
+   await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
+  }
+  if(label==='This computer'){
+   await shot(page,'this-computer');await shot(page,'this-computer-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
+   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
+   await page.waitForFunction(()=>{const el=document.querySelector('.settings-sections button[aria-current="page"]');if(!el)return false;const style=getComputedStyle(el);return document.documentElement.dataset.theme==='dark'&&style.backgroundColor==='rgb(37, 38, 43)'&&style.color==='rgb(240, 240, 236)';});
+   const darkSelection=await page.getByRole('navigation',{name:'Team administration',exact:true}).getByRole('button',{name:'This computer',exact:true}).evaluate(el=>({theme:document.documentElement.dataset.theme,background:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
+   assert.equal(darkSelection.theme,'dark');assert.equal(darkSelection.background,'rgb(37, 38, 43)');assert.equal(darkSelection.color,'rgb(240, 240, 236)');
+   await shot(page,'this-computer-dark');
+   await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
+  }
  }
  const plan=await dev('first','GET','/removal');assert.equal(plan.canRemoveData,false);
  let ds;await wait(async()=>{ds=await team('GET','/devices');return ds[0]?.capabilities.includes('runner');},'automatic local runner registration');assert.equal(ds.length,1);assert(ds[0].capabilities.includes('runner'));assert(ds[0].capabilities.includes('workspace_host'));
@@ -125,7 +144,8 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.unroute('**/api/team/v1/messages/ui-progress-fixture');console.log('PASS request progress continues after delivery and stops at its final result');
  // A project invite is a code. The page's own address is this computer's, so a link would be useless to anyone else.
  await page.locator('nav').getByRole('button',{name:'Projects',exact:true}).click();await page.getByRole('heading',{name:'Join a project with a code',exact:true}).waitFor();
- await page.getByRole('button',{name:'People & invites',exact:true}).click();await page.getByRole('button',{name:'Create invite code',exact:true}).click();
+ await page.getByRole('button',{name:'Open project Customer portal',exact:true}).click();
+ await page.getByText('Project settings',{exact:true}).click();await page.getByRole('button',{name:'People & invitations',exact:true}).click();await page.getByRole('button',{name:'Create invite code',exact:true}).click();
  const secret=page.locator('.secret');await secret.waitFor();const secretText=await secret.innerText();
  assert(/wbi_[0-9a-f]{20,}/.test(secretText),'the invite code is shown');assert(!secretText.includes('http')&&!secretText.includes('127.0.0.1'),'no loopback link is offered');assert.equal(await secret.getByRole('button',{name:'Copy link',exact:true}).count(),0);
  console.log('PASS project invite is a code, never a link to this computer');

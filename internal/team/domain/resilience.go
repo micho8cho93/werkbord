@@ -398,7 +398,7 @@ func adviceFor(in ResilienceInput, r Resilience, runnersTotal, runnersOnline int
 			Detail: "Nothing is keeping the workspace available.", Action: &AdviceAction{Kind: "add_hosts", Label: "Add a Workspace Host"}})
 	case in.Storage.Topology.Voters == 1 || (in.Storage.State != StorageSingleFile && in.Storage.Topology.Voters == 0 && r.WorkspaceHosts.Configured == 1):
 		add(Advice{Code: AdviceCodeOneHost, Severity: SeverityWarning, Title: "Only one Workspace Host is configured.",
-			Detail: "If it is off, nobody can use the workspace, and if its disk is lost the data is gone except for backups. Add two more hosts (three in all) so the loss of one does not stop the workspace.",
+			Detail: "Add two more hosts for availability; backups are still required to recover lost data.",
 			Action: &AdviceAction{Kind: "add_hosts", Label: "Add two more hosts"}})
 	case in.Storage.Topology.Voters == 2:
 		add(Advice{Code: AdviceCodeTwoHosts, Severity: SeverityWarning, Title: "Only two Workspace Hosts are configured.",
@@ -433,13 +433,13 @@ func adviceFor(in ResilienceInput, r Resilience, runnersTotal, runnersOnline int
 			Detail: "Devices can use it only from the network it is on."})
 	case r.ConnectivityHosts == 0:
 		add(Advice{Code: AdviceCodeNoConnectivity, Severity: SeverityWarning,
-			Title:  "No Connectivity Host is reachable from outside your network. Local use works, but remote access cannot be guaranteed.",
-			Detail: "A Connectivity Host is a machine of yours that stays on and can be reached from the Internet. It lets devices in different places find and reach each other. Two are better, so one can be down.",
+			Title:  "No Connectivity Host is reachable.",
+			Detail: "Local access works. Add a reachable host to connect from outside your network.",
 			Action: &AdviceAction{Kind: "add_connectivity_host", Label: "Make a host a Connectivity Host"}})
 	case in.Network.RemoteAccess != RemoteAccessAvailable:
 		add(Advice{Code: AdviceCodeConnectivityDown, Severity: SeverityWarning,
-			Title:  "No Connectivity Host is reachable from outside your network. Local use works, but remote access cannot be guaranteed.",
-			Detail: "A host behind a home router, a company firewall or carrier-grade NAT may not be reachable from elsewhere even with a public-looking address. Check that its address is public and its port is open.",
+			Title:  "No Connectivity Host is reachable.",
+			Detail: "Check its public address and open port to restore remote access.",
 			Action: &AdviceAction{Kind: "add_connectivity_host", Label: "Check your Connectivity Hosts"}})
 	case r.ConnectivityHosts == 1:
 		add(Advice{Code: AdviceCodeOneConnectivity, Severity: SeverityInfo, Title: "Only one Connectivity Host.",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { replyParts } from './reply';
+import { emptyReplyPartsCache, growingReplyParts, replyParts } from './reply';
 
 describe('OpenUI sections in assistant replies', () => {
   it('separates prose and a complete OpenUI Lang fence', () => {
@@ -31,5 +31,16 @@ describe('OpenUI sections in assistant replies', () => {
   it('leaves ordinary fenced code blocks as prose for the safe Markdown reader', () => {
     const text = 'Example:\n```html\n<strong>safe text</strong>\n```';
     expect(replyParts(text)).toEqual([{ kind: 'text', text }]);
+  });
+
+  it('keeps a completed OpenUI section stable as later prose arrives', () => {
+    const cache = emptyReplyPartsCache();
+    const first = growingReplyParts('Summary.\n```openui\nroot = Stack([])\n```\nMore', true, cache);
+    const prose = first[0];
+    const ui = first[1];
+    const next = growingReplyParts('Summary.\n```openui\nroot = Stack([])\n```\nMore words arrive.', true, cache);
+    expect(next[0]).toBe(prose);
+    expect(next[1]).toBe(ui);
+    expect(next[2]).toMatchObject({ kind: 'text', text: '\nMore words arrive.' });
   });
 });

@@ -782,7 +782,7 @@ func assess(hosts []domain.HostNetworkStatus) (string, []string) {
 	case discovery == 0:
 		warn = append(warn, "No host helps devices find each other: a device cannot learn where the workspace's machines are. Say where a host can be reached (WERKBORD_TEAM_ENDPOINTS) and enable discovery on it.")
 	case discovery == 1:
-		warn = append(warn, "Only one host helps devices find each other. Devices can use more than one; add another so that none is a single point of failure.")
+		warn = append(warn, "Only one host helps devices find each other. Add another to avoid a single point of failure.")
 	}
 	if conn > 0 && relays == 0 {
 		warn = append(warn, "No Connectivity Host relays traffic: devices that cannot reach each other directly (both behind strict NAT) will not connect. Enable relaying on a reachable host.")

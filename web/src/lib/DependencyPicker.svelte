@@ -4,7 +4,7 @@
   // What a task waits for. These are the same dependencies the scheduler honours (an agent is not
   // started before they finish), shown here as the timeline's arrows. Choosing them never moves a date.
 
-  let { tasks, taskId, selected = $bindable() }: { tasks: readonly Task[]; taskId: string; selected: string[] } = $props();
+  let { tasks, taskId, selected = $bindable(), error = '' }: { tasks: readonly Task[]; taskId: string; selected: string[]; error?: string } = $props();
 
   let search = $state('');
   const q = $derived(search.trim().toLowerCase());
@@ -17,14 +17,14 @@
   }
 </script>
 
-<fieldset class="group">
+<fieldset class="group" class:invalid={!!error} id="dependencies-{taskId}" tabindex="-1" aria-describedby={error ? `dependencies-error-${taskId}` : undefined}>
   <legend>Depends on <span class="opt">must finish first</span></legend>
   {#if tasks.length > 6}<input class="input" placeholder="Find a task" bind:value={search} aria-label="Find a task" />{/if}
   <ul class="opts">
     {#each options as t (t.id)}
       <li>
         <label class="opt-row">
-          <input type="checkbox" checked={selected.includes(t.id)} onchange={(e) => toggle(t.id, e.currentTarget.checked)} />
+          <input type="checkbox" aria-invalid={!!error} checked={selected.includes(t.id)} onchange={(e) => toggle(t.id, e.currentTarget.checked)} />
           <span class="t">{t.title}</span>
           {#if t.archivedAt}<span class="tag">closed</span>{:else if t.state === 'done'}<span class="tag">done</span>{/if}
         </label>
@@ -33,6 +33,7 @@
       <li class="none">{tasks.length > 1 ? 'No task by that name.' : 'No other tasks in this project yet.'}</li>
     {/each}
   </ul>
+  {#if error}<p class="field-error" id="dependencies-error-{taskId}" role="alert">{error}</p>{/if}
 </fieldset>
 
 <style>
@@ -95,4 +96,7 @@
     font-size: 12px;
     color: var(--text-2);
   }
+
+  .group.invalid { border-left: 2px solid var(--danger); padding-left: 8px; }
+  .field-error { margin: 0; color: var(--danger-text); font-size: 11.5px; }
 </style>

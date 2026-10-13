@@ -20,12 +20,17 @@ export function answerWorkspace(e: AssistantEvent): void {
     if (!(await assistantApi.workspacePending(e.sessionId, w.id)).pending) return;
     let data: unknown = null;
     let problem = '';
+    let problemCode = '';
     try {
-      data = await callDesktop('AssistantWorkspaceCall', [w.id, w.workspaceId, w.method, w.args], 0);
+      const result = await callDesktop<unknown>('AssistantWorkspaceCall', [e.sessionId, w.id, w.proposalId ?? '', w.workspaceId, w.method, w.args], 0);
+      if (result && typeof result === 'object' && 'kind' in result && result.kind === 'werkbord_workspace_failure' && 'code' in result && typeof result.code === 'string' && 'message' in result && typeof result.message === 'string') {
+        problem = result.message;
+        problemCode = result.code;
+      } else data = result;
     } catch (err) {
       problem = err instanceof Error ? err.message : String(err);
     }
-    await assistantApi.workspaceAnswer(e.sessionId, w.id, data, problem);
+    await assistantApi.workspaceAnswer(e.sessionId, w.id, data, problem, problemCode);
   };
   answering.set(w.id, answer().catch(() => {}).finally(() => answering.delete(w.id)));
 }

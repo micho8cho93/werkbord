@@ -75,9 +75,14 @@ func TestTicketsCarryLabelsModeDatesAndDependenciesOverHTTP(t *testing.T) {
 	if str(a, "workMode") != "human" || fmt.Sprint(a["labelIds"]) != "["+press+"]" {
 		t.Fatalf("a = %v", a)
 	}
-	b := owner.want(201, "POST", base, fmt.Sprintf(`{"title":"Launch","plan":{"start":"2026-10-07","milestone":true},"dependencies":[%q]}`, str(a, "id")))
+	b := owner.want(201, "POST", base, fmt.Sprintf(`{"title":"Launch","plan":{"start":"2026-10-09","milestone":true},"dependencies":[%q]}`, str(a, "id")))
 	if str(b, "workMode") != "agent" {
 		t.Fatalf("an unset mode is agent work, as before: %v", b)
+	}
+	code, conflict, _ := owner.do("POST", base, fmt.Sprintf(`{"title":"Too early","plan":{"start":"2026-10-08"},"dependencies":[%q]}`, str(a, "id")))
+	issues, _ := conflict["issues"].([]any)
+	if code != 400 || len(issues) != 1 || issues[0].(map[string]any)["field"] != "plan.start" {
+		t.Fatalf("conflicting plan did not return a field issue: %d %v", code, conflict)
 	}
 	for body, want := range map[string]int{
 		`{"title":"x","workMode":"robot"}`:                               400,
@@ -90,14 +95,11 @@ func TestTicketsCarryLabelsModeDatesAndDependenciesOverHTTP(t *testing.T) {
 		}
 	}
 
-	// The timeline says what is wrong, and changes nothing.
+	// The same-day plan has no conflict, and reading the timeline changes nothing.
 	tl := owner.want(200, "GET", v1+"/projects/"+pid+"/timeline", nil)
 	ws, _ := tl["warnings"].([]any)
-	if len(ws) != 1 {
+	if len(ws) != 0 {
 		t.Fatalf("timeline = %v", tl)
-	}
-	if w := ws[0].(map[string]any); str(w, "code") != "starts_before_dependency_ends" || str(w, "itemId") != str(b, "id") {
-		t.Fatalf("warning = %v", w)
 	}
 	again := owner.want(200, "GET", base+"/"+str(b, "id"), nil)
 	if fmt.Sprint(again["version"]) != fmt.Sprint(b["version"]) {

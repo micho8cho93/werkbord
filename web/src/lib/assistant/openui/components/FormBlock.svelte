@@ -32,7 +32,7 @@
 </form>
 
 <style>
-  .generated-form { display: grid; min-width: 0; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); }
+  .generated-form { display: grid; min-width: 0; gap: 10px; padding: 0; border: 0; background: transparent; }
   fieldset { display: grid; min-width: 0; gap: 8px; margin: 0; padding: 0; border: 0; }
   legend { width: 100%; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; }
   .description { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.45; }

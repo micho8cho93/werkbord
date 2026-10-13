@@ -27,6 +27,7 @@ import (
 
 	"devboard/internal/deviceid"
 	"devboard/internal/httpkit"
+	"devboard/internal/planning"
 	"devboard/internal/team/authproof"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/mcp"
@@ -331,6 +332,16 @@ func checkOrigin(next http.Handler) http.Handler {
 // fail maps service errors to HTTP responses. Unexpected errors are logged and
 // reported generically so internals do not leak to clients.
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	var planErr *planning.ChangeError
+	if errors.As(err, &planErr) {
+		var body httpkit.ErrorBody
+		body.Error.Code, body.Error.Message = "invalid", err.Error()
+		httpkit.WriteJSON(w, http.StatusBadRequest, struct {
+			httpkit.ErrorBody
+			Issues []planning.Issue `json:"issues"`
+		}{body, planErr.Issues})
+		return
+	}
 	switch {
 	case errors.Is(err, domain.ErrUnauthenticated):
 		w.Header().Set("WWW-Authenticate", `Bearer realm="werkbord-team"`)

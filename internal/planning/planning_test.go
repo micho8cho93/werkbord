@@ -272,6 +272,54 @@ func TestAnalyzeReportsDatesItCannotUse(t *testing.T) {
 	}
 }
 
+func TestValidateChangeBlocksNewIssuesAndAllowsHistoricalOnes(t *testing.T) {
+	t.Run("same day boundary and undated prerequisite are allowed", func(t *testing.T) {
+		items := []Item{item("pre", "2026-10-05", "2026-10-09"), item("later", "2026-10-09", "2026-10-12", "pre"), item("unknown", "", "")}
+		if err := ValidateChange(items, item("new", "2026-10-13", "2026-10-13", "unknown")); err != nil {
+			t.Fatalf("valid boundary and advisory prerequisite rejected: %v", err)
+		}
+	})
+	t.Run("unrelated historical conflict does not block a new task", func(t *testing.T) {
+		items := []Item{item("pre", "2026-10-05", "2026-10-09"), item("dependent", "2026-10-08", "2026-10-12", "pre")}
+		if err := ValidateChange(items, item("new", "2026-10-13", "2026-10-14")); err != nil {
+			t.Fatalf("unrelated historical issue blocked the write: %v", err)
+		}
+	})
+	t.Run("worsening a dependent conflict points to the dependent start", func(t *testing.T) {
+		items := []Item{item("pre", "2026-10-05", "2026-10-09"), item("dependent", "2026-10-08", "2026-10-12", "pre")}
+		updated := item("dependent", "2026-10-07", "2026-10-12", "pre")
+		err := ValidateChange(items, updated)
+		var change *ChangeError
+		if !errors.As(err, &change) || len(change.Issues) != 1 || change.Issues[0].Field != "plan.start" {
+			t.Fatalf("worsened conflict did not return a field issue: %#v (%v)", change, err)
+		}
+	})
+	t.Run("editing a prerequisite checks direct dependants", func(t *testing.T) {
+		items := []Item{item("pre", "2026-10-05", "2026-10-09"), item("dependent", "2026-10-08", "2026-10-12", "pre")}
+		updated := item("pre", "2026-10-05", "2026-10-10")
+		err := ValidateChange(items, updated)
+		var change *ChangeError
+		if !errors.As(err, &change) || len(change.Issues) != 1 || change.Issues[0].ItemID != "dependent" || change.Issues[0].Field != "plan.end" {
+			t.Fatalf("prerequisite edit did not flag its dependant: %#v (%v)", change, err)
+		}
+	})
+	t.Run("new dependency cycle is blocked", func(t *testing.T) {
+		err := ValidateChange([]Item{item("a", "", "", "b"), item("b", "", "")}, item("b", "", "", "a"))
+		var change *ChangeError
+		if !errors.As(err, &change) || len(change.Issues) != 1 || change.Issues[0].Code != CodeDependencyCycle || change.Issues[0].Field != "dependencies" {
+			t.Fatalf("new cycle was not field-addressable: %#v (%v)", change, err)
+		}
+	})
+}
+
+func TestInvalidRangeIssueIdentifiesTheDateField(t *testing.T) {
+	_, err := CleanRange(Range{Start: "2026-10-12", End: "2026-10-10"})
+	issue := InvalidRange("task", "Review", Range{Start: "2026-10-12", End: "2026-10-10"}, err)
+	if len(issue.Issues) != 1 || issue.Issues[0].Field != "plan.end" || issue.Issues[0].Code != CodeInvalidRange {
+		t.Fatalf("got %+v", issue)
+	}
+}
+
 func TestAnalyzeOpenReportsOnlyOnOpenWork(t *testing.T) {
 	gone := item("gone", "", "", "nowhere")
 	gone.Archived = true

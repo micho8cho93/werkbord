@@ -27,15 +27,18 @@
       // What the assistant may ask of the app is what Individual's page may (the app decides by the kind of workspace, never by the page).
       relay: (id, method, args) => {
         if (method === 'AssistantWorkspaces' && args.length === 0) return ask(a => a.AssistantWorkspaces());
-        if (method === 'AssistantWorkspaceCall' && args.length === 4 && args.slice(0, 3).every(v => typeof v === 'string')) {
-          return ask(a => a.AssistantWorkspaceCall(args[0] as string, args[1] as string, args[2] as string, args[3]));
+        if (method === 'AssistantWorkspaceCall' && args.length === 6 && args.slice(0, 5).every(v => typeof v === 'string')) {
+          return ask(a => a.AssistantWorkspaceCall(args[0] as string, args[1] as string, args[2] as string, args[3] as string, args[4] as string, args[5]));
         }
         return ask((a) => a.Relay(id, method, args));
       },
       reply: (_frame, message) => send(message),
       remember: async () => {},
       ready: () => {},
-      open: () => {},
+      open: (_id, target, place) => {
+        const connectedTeam = model.view?.items.some((item) => item.id === target && item.kind === 'team' && item.state === 'ready');
+        if (connectedTeam) void model.open(target, place);
+      },
       assistant: (_id, state) => model.setAssistant(state),
     });
   }

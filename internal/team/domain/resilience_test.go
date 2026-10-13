@@ -123,7 +123,7 @@ func TestEachWarningSaysWhatIsWrongAndWhatToDo(t *testing.T) {
 		{"one host offline", ResilienceInput{Devices: threeHosts, Storage: cluster(3, 2, goodBackup()), Network: net(RemoteAccessAvailable)},
 			AdviceCodeHostsOffline, "One Workspace Host is offline.", "bring_hosts_back", SeverityWarning},
 		{"no Connectivity Host", ResilienceInput{Devices: oneHost, Storage: cluster(1, 1, goodBackup()), Network: net(RemoteAccessNotGuaranteed)},
-			AdviceCodeNoConnectivity, "No Connectivity Host is reachable from outside your network. Local use works, but remote access cannot be guaranteed.", "add_connectivity_host", SeverityWarning},
+			AdviceCodeNoConnectivity, "No Connectivity Host is reachable.", "add_connectivity_host", SeverityWarning},
 		{"no backups", ResilienceInput{Devices: oneHost, Storage: cluster(1, 1, nil), Network: net(RemoteAccessAvailable)},
 			AdviceCodeNoBackups, "Backups are not set up.", "set_up_backups", SeverityWarning},
 		{"a failed backup", ResilienceInput{Devices: oneHost, Storage: cluster(1, 1, &BackupStatus{Configured: true, LastAt: t0.UnixMilli(), LastOK: false, LastError: "disk full"}), Network: net(RemoteAccessAvailable)},

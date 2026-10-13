@@ -872,3 +872,21 @@ The initial direct run of `browser-individual.cjs` against an already-onboarded 
 No Go or Team source changed. The only non-UI product metadata change is the required unified version increment. PATCH `4.19.2-preview.1` is the versioned review-flow implementation; the implementation commit and verified local tag are recorded in the release note appended after tagging. Nothing was pushed, the fixture is stopped, and this pass does not start the next numbered pass.
 
 **Verified local release reference.** Implementation commit `02d6ded3cbfe303410fc56c4f9d2279701c1848f` is tagged `werkbord-v4.19.2-preview.1`. Both `make tag` and `make verify-tag` resolved that tag to the implementation commit and confirmed the VERSION metadata. The audit update itself is documentation-only and follows the tagged implementation.
+
+## Assistant and surface simplification (4.27.0)
+
+- Assistant task proposals now show their saved title, destination and details. One approval adds a task to Backlog;
+  batch approval uses the visible waiting snapshot, continues after item failures and reports added, completed and
+  failed actions. The desktop bridge checks controller-issued authorisation against the session, proposal, workspace
+  and exact request before creating a task.
+- Streaming coalesces visible text at animation-frame boundaries, keeps completed Markdown/OpenUI sections stable,
+  and measures provider, server, browser and render timing separately. Generated controls have one clear outer surface
+  and local form feedback.
+- Planning edits are checked in the form and again by the owning service. Rejected drafts stay editable; Timeline issues
+  appear as compact counts and row markers. Same-day prerequisite boundaries and advisory undated prerequisites remain
+  valid.
+- Analytics leads with task progress and throughput, with execution, usage, evidence and breakdown behind named
+  disclosures. Project management remains under one Project settings entry. Task details and computer settings use
+  shorter summaries with secondary information available on demand.
+- Existing product boundaries and capabilities remain in place. Automated browser and accessibility checks cover the
+  new approval and validation feedback; physical-device and assistive-technology usability still needs direct review.

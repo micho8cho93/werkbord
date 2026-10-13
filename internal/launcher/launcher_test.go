@@ -1011,9 +1011,10 @@ func TestUpdateStatusAsksNobodyWhenLookingForUpdatesIsTurnedOff(t *testing.T) {
 // cannot grow by accident. The web app calls the shell through desktop/internal/shell, which has its own list.
 func TestTheLauncherAsksTheControllerForOnlyTheseThings(t *testing.T) {
 	allowed := map[string]bool{
-		"/api/health":         true, // public; says it is a controller and what version
-		"/api/control-center": true, // read-only desktop update preflight; backend replacement rechecks independently
-		"/api/projects":       true, // needs the token: does this controller accept this computer's?
+		"/api/health":              true, // public; says it is a controller and what version
+		"/api/control-center":      true, // read-only desktop update preflight; backend replacement rechecks independently
+		"/api/projects":            true, // needs the token: does this controller accept this computer's?
+		"/api/assistant/sessions/": true, // verifies a pending task approval before the desktop bridge may create it
 	}
 	src, err := os.ReadFile("launcher.go")
 	if err != nil {
@@ -1024,6 +1025,11 @@ func TestTheLauncherAsksTheControllerForOnlyTheseThings(t *testing.T) {
 		t.Fatal(err)
 	}
 	src = append(src, safety...)
+	assistant, err := os.ReadFile("assistant.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src = append(src, assistant...)
 	for _, m := range regexp.MustCompile(`"(/api/[a-zA-Z0-9/_-]*)`).FindAllStringSubmatch(string(src), -1) {
 		if !allowed[m[1]] {
 			t.Errorf("launcher.go asks the controller for %s: a call the app and an older controller share is a decision, "+

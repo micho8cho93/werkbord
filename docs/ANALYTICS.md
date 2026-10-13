@@ -10,6 +10,11 @@ A selected period ends at that snapshot; the start is included. Stored timestamp
 stamped in the same millisecond as the snapshot are included and the next stored millisecond is excluded. Charts use UTC
 calendar days. The first and last displayed day can be partial days.
 
+Both views open with created/completed counts, average and median duration, and the trend chart. Execution, usage,
+completion evidence and breakdown are disclosures in Individual; coordination details and work categories are disclosures
+in Team. Qualifiers stay with the figures: partial history, unknown values, reported versus estimated costs, and recorded
+versus verified outcomes.
+
 ## Individual metric definitions
 
 | Metric | Definition / evidence |

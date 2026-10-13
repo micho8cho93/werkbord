@@ -167,8 +167,8 @@
   </div>
 
   {#if warnings.length}
-    <section class="warns" aria-label="Planning issues">
-      <h2><Icon name="activity" size={14} />Planning issues <span class="chip">{warnings.length}</span></h2>
+    <details class="warns">
+      <summary><Icon name="activity" size={14} />Planning issues <span class="chip">{warnings.length}</span></summary>
       <ul>
         {#each warnings as w, i (i)}
           {@const t = taskOf(w.itemId)}
@@ -179,8 +179,7 @@
           </li>
         {/each}
       </ul>
-      <p class="muted note">Nothing has been moved. Change a date or a dependency on the task when you decide how to resolve it.</p>
-    </section>
+    </details>
   {:else if warnError}
     <p class="error pad" role="alert">{warnError}</p>
   {/if}
@@ -379,13 +378,15 @@
     background: color-mix(in srgb, var(--warn) 7%, var(--surface));
   }
 
-  .warns h2 {
+  .warns > summary {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 6px;
     font-size: 13px;
+    cursor: pointer;
   }
+
+  .warns[open] > summary { margin-bottom: 8px; }
 
   .warns ul {
     list-style: none;
@@ -423,11 +424,6 @@
   .msg {
     flex: 1;
     min-width: 0;
-  }
-
-  .note {
-    margin: 6px 0 0;
-    font-size: 12px;
   }
 
   .pad {

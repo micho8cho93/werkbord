@@ -183,6 +183,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   // ---- start ----
   let instructions = $state('');
   let resume = $state(false);
+  let startSection = $state<HTMLDetailsElement>();
+  let startButton = $state<HTMLButtonElement>();
   /** What differs for this run only; empty means it gets what the task gets. */
   let runChoice = $state<ExecutionConfig>({});
   let runChoiceFor = '';
@@ -301,6 +303,23 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const agentWork = $derived(!!task && agentWorkable(task, project));
   const canStart = $derived(agentWork && !task?.archivedAt && (!latest || !runStatus(latest).active));
   const isDone = $derived(task?.state === 'done');
+  const nextAction = $derived(
+    task?.archivedAt ? 'Restore this task to make changes.' :
+      pending.length ? 'Answer the agent’s questions below.' :
+        reviewFirst ? 'Review the agent’s changes below.' :
+          canMessage ? 'Reply to the agent below.' :
+            run && status?.active ? 'Follow the current run below.' :
+              canStart && !isDone ? 'Set up the next run.' :
+                isDone ? 'Complete.' : 'Update the status as the work progresses.',
+  );
+
+  async function openStartOptions() {
+    if (!startSection) return;
+    startSection.open = true;
+    await tick();
+    startButton?.focus({ preventScroll: true });
+    startButton?.scrollIntoView({ block: 'center' });
+  }
 
   let copied = $state(false);
   async function copyPath() {
@@ -361,7 +380,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const planSpan = $derived(task ? spanOf(task) : null);
   let factsOpen = $state(false);
   const narrow = new MediaQuery('(max-width: 1280px)');
-  const runWith = $derived(summaryLine(effective, app.agents, app.agentOptions) || 'the first agent that works');
 </script>
 
 <svelte:window onkeydown={onWindowKey} />
@@ -397,6 +415,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         <a class="btn quiet small icon close" href={boardHref} aria-label="Close panel" title="Close (Esc)"><Icon name="close" /></a>
       </div>
       <h2 class="title" id="task-title" tabindex="-1" bind:this={titleEl}>{task.title}</h2>
+      {#if task.description}
+        <p class="brief">{task.description.length > 240 ? `${task.description.slice(0, 237).trimEnd()}…` : task.description}</p>
+        {#if task.description.length > 240}<details class="full-brief"><summary>Read full brief</summary><p>{task.description}</p></details>{/if}
+      {/if}
       {#if reviewFirst && run}
         <RunReviewSummary {run} onmerged={() => void move('done')} />
       {/if}
@@ -406,25 +428,14 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
         </div>
       {/if}
-      {#if agentWork}
-        <p class="runs-with">
-          Runs with <strong>{runWith}</strong>
-          <span class="muted">· {interactionLabel({ interaction: effective.interaction })}{effective.priority !== 'normal' ? ` · ${priorityLabel(effective.priority)} priority` : ''}</span>
-        </p>
-      {:else}
-        <p class="runs-with">Move this task across the board as the work progresses.</p>
-      {/if}
+      <p class="next-action"><span>Next</span>{nextAction}{#if canStart && !isDone}<button class="link" type="button" onclick={openStartOptions}>Run settings</button>{/if}</p>
 
     </header>
 
     {#snippet facts()}
         {#if factsSection === 'details'}
           <section>
-            <h3>Details</h3>
-            <p class="desc">{task.description || 'No description added.'}</p>
-          </section>
-          <section>
-            <div class="sh"><h3>Plan</h3><button class="btn quiet small" aria-label="Change plan" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
+            <div class="sh"><h3>Planning</h3><button class="btn quiet small" aria-label="Change plan" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
             <dl class="kv">
 
               <dt>When</dt><dd>{planSpan ? `${planSpan.milestone ? 'Milestone · ' : ''}${spanTitle(planSpan, new Date().getFullYear())}` : 'Not planned'}</dd>
@@ -572,8 +583,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
 
           {#if canStart && !isDone}
-            <details class="start" open={!latest}>
-              <summary>{latest ? 'Run it again' : 'Run an agent on this task'}</summary>
+            <details class="start" bind:this={startSection}>
+              <summary>{latest ? 'Set up another run' : 'Set up a run'}</summary>
               {#if available.length === 0 && !startBusy}
                 <p class="error">No coding agent is ready. {app.agents.map((a) => `${a.name}: ${a.detail ?? 'unavailable'}`).join(' · ')}</p>
                 {#each app.agents.filter((a) => a.guidance) as a (a.id)}<p class="note">{a.name}: {a.guidance}</p>{/each}
@@ -593,7 +604,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                   {#if canResume}
                     <label class="check"><input type="checkbox" bind:checked={resume} /><span>Continue the previous conversation</span></label>
                   {/if}
-                  <button class="btn primary" disabled={busy || !startingAgentReady} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : 'Start agent'}</button>
+                  <button class="btn primary" bind:this={startButton} disabled={busy || !startingAgentReady} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : 'Start agent'}</button>
                 </div>
                 {#if startBusy}
                   <p class="note" role="status">{BUSY_RUNNERS} <a href="{globalHref('settings')}?runners">See runners</a></p>
@@ -801,13 +812,12 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     overflow-wrap: anywhere;
   }
 
-  .runs-with {
-    font-size: 12.5px;
-  }
-
-  .runs-with strong {
-    font-weight: 500;
-  }
+  .brief { color: var(--text-2); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .full-brief, .next-action { font-size: 12px; }
+  .full-brief > summary { min-height: 32px; display: flex; align-items: center; width: fit-content; color: var(--accent); cursor: pointer; }
+  .full-brief > p { max-height: min(45vh, 24rem); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); font-size: 12.5px; }
+  .next-action { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; color: var(--text-2); }
+  .next-action > span { color: var(--text); font-weight: 600; }
 
   .review-evidence > summary {
     min-height: 44px;
@@ -1041,12 +1051,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     align-items: center;
     justify-content: space-between;
     min-height: 24px;
-  }
-
-  .desc {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: 13px;
   }
 
   .kv {

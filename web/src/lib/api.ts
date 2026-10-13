@@ -22,6 +22,7 @@ import type {
   Label,
   LabelUse,
   Plan,
+  PlanIssue,
   TimelineWarning,
   WorkMode,
   NetworkStatus,
@@ -61,6 +62,8 @@ export class ApiError extends Error {
     message: string,
     /** For a refused answer: the question as it now stands (answered elsewhere, or closed). */
     readonly question?: Question,
+    /** Fields the user can correct when a plan or dependency draft is rejected. */
+    readonly issues?: PlanIssue[],
   ) {
     super(message);
   }
@@ -127,14 +130,16 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     let code = 'http_error';
     let message = 'Werkbord returned an unexpected response. Check the current state before repeating an action.';
     let question: Question | undefined;
+    let issues: PlanIssue[] | undefined;
     try {
-      const data = (await res.json()) as { error?: { code: string; message: string }; question?: Question };
+      const data = (await res.json()) as { error?: { code: string; message: string }; question?: Question; issues?: PlanIssue[] };
       if (data.error) ({ code, message } = data.error);
       question = data.question;
+      issues = data.issues;
     } catch {
       // Non-JSON error body.
     }
-    throw new ApiError(res.status, code, message, question);
+    throw new ApiError(res.status, code, message, question, issues);
   }
   return (await res.json()) as T;
 }

@@ -6,6 +6,7 @@
 // server keeps no transcript by design (docs/ASSISTANT.md). After a reload the screen comes back as it was, the reply that was
 // streaming goes on streaming, and what was waiting for the person is still waiting.
 
+import { tick } from 'svelte';
 import { ApiError } from '../api';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { assistantApi } from './api';
@@ -34,6 +35,21 @@ import { explain, looksLikeText, size } from './words';
 
 const SESSION_KEY = 'werkbord.assistant.v1';
 const CHOICE_KEY = 'werkbord.assistant.choice';
+const timingCounts: Record<string, number> = {};
+
+function recordAssistantTiming(name: string, duration: number): void {
+  if (!Number.isFinite(duration) || duration < 0 || typeof performance === 'undefined') return;
+  try {
+    performance.measure(name, { start: 0, duration });
+    timingCounts[name] = (timingCounts[name] ?? 0) + 1;
+    if (timingCounts[name] >= 512) {
+      performance.clearMeasures(name);
+      timingCounts[name] = 0;
+    }
+  } catch {
+    // Timing is diagnostic only; unsupported browser measurement APIs never affect streaming.
+  }
+}
 
 /** What the screen can be showing, instead of a conversation. */
 export type Status = 'idle' | 'loading' | 'ready' | 'no-provider' | 'disabled' | 'offline' | 'unauthorized';
@@ -98,12 +114,16 @@ export class AssistantStore {
   staged = $state<Staged[]>([]);
   /** An "all of them" answer that is under way. */
   batch = $state<{ done: number; total: number; decision: 'approve' | 'decline' } | null>(null);
+  batchResult = $state<{ added: number; completed: number; failed: number } | null>(null);
   sending = $state(false);
   /** The clock the screen reads, so a file's time running out shows without anyone touching anything. */
   now = $state(Date.now());
 
   private conn: Connection | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
+  private pendingDeltas: AssistantEvent[] = [];
+  private deltaFrame: number | ReturnType<typeof setTimeout> | undefined;
+  private deltaFrameIsTimeout = false;
   private started = false;
 
   // ---- derived ----
@@ -320,21 +340,80 @@ export class AssistantStore {
 
   private onEvent(e: AssistantEvent): void {
     if (e.type === 'workspace_request') answerWorkspace(e);
+    if (e.type === 'delta') {
+      e.clientReceivedAt = performance.now();
+      const serverAt = Date.parse(e.at);
+      const providerAt = e.providerAt ? Date.parse(e.providerAt) : Number.NaN;
+      if (Number.isFinite(providerAt) && Number.isFinite(serverAt)) recordAssistantTiming('werkbord.assistant.provider-to-server', serverAt - providerAt);
+      if (Number.isFinite(serverAt)) recordAssistantTiming('werkbord.assistant.server-to-browser', Date.now() - serverAt);
+      this.pendingDeltas.push(e);
+      this.scheduleDeltaFlush();
+      return;
+    }
+    // Keep state changes and approvals prompt, and preserve their order relative to streamed text.
+    this.flushDeltas();
+    this.applyEvent(e);
+  }
+
+  private scheduleDeltaFlush(): void {
+    if (this.deltaFrame !== undefined) return;
+    if (typeof requestAnimationFrame === 'function') {
+      this.deltaFrameIsTimeout = false;
+      this.deltaFrame = requestAnimationFrame(() => {
+        this.deltaFrame = undefined;
+        this.flushDeltas();
+      });
+    } else {
+      this.deltaFrameIsTimeout = true;
+      this.deltaFrame = setTimeout(() => {
+        this.deltaFrame = undefined;
+        this.flushDeltas();
+      }, 16);
+    }
+  }
+
+  private flushDeltas(): void {
+    if (this.deltaFrame !== undefined) {
+      if (this.deltaFrameIsTimeout) clearTimeout(this.deltaFrame as ReturnType<typeof setTimeout>);
+      else if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.deltaFrame as number);
+      this.deltaFrame = undefined;
+    }
+    const events = this.pendingDeltas.splice(0);
+    let changed = false;
+    const displayed: AssistantEvent[] = [];
+    for (const event of events) {
+      const applied = this.applyEvent(event, false);
+      changed = applied || changed;
+      if (applied) displayed.push(event);
+    }
+    if (changed) {
+      this.save();
+      void tick().then(() => {
+        const visibleAt = performance.now();
+        for (const event of displayed) if (event.clientReceivedAt !== undefined) {
+          recordAssistantTiming('werkbord.assistant.browser-to-visible', visibleAt - event.clientReceivedAt);
+        }
+      });
+    }
+  }
+
+  private applyEvent(e: AssistantEvent, persist = true): boolean {
     const r = apply(this.transcript, e);
     if (r === 'gap') {
       const reply = activeReply(this.transcript);
       if (reply) reply.notices.push('Part of this reply was missed while the connection was down.');
       void assistantApi.get(e.sessionId).then((v) => this.adopt(v), () => {});
-      return;
+      return false;
     }
-    if (r === 'ignored') return;
+    if (r === 'ignored') return false;
     if (this.session && e.type === 'turn_started') this.session.running = true;
     if (this.session && (e.type === 'turn_completed' || e.type === 'turn_failed' || e.type === 'turn_cancelled')) {
       this.session.running = false;
       this.session.lastError = e.type === 'turn_failed' ? e.error?.code : '';
       if (e.state) this.session.state = e.state;
     }
-    this.save();
+    if (persist) this.save();
+    return true;
   }
 
   /** The conversation is gone from the server. What is on screen stays; nothing there can be acted on any more. */
@@ -444,13 +523,15 @@ export class AssistantStore {
   }
 
   /** The person's answer to a proposed change. Only this carries it out. */
-  async resolve(item: ConfirmItem, decision: 'approve' | 'decline'): Promise<void> {
-    if (!this.session || item.state !== 'waiting') return;
+  async resolve(item: ConfirmItem, decision: 'approve' | 'decline', fromBatch = false): Promise<void> {
+    if (!this.session || item.state !== 'waiting' || (this.batch && !fromBatch)) return;
     item.state = 'working';
     this.problem = '';
     try {
       if (decision === 'approve') await connectWorkspaces(this.session.id);
-      await assistantApi.resolve(this.session.id, item.id, decision);
+      const result = await assistantApi.resolve(this.session.id, item.id, decision);
+      if (result.data?.ticket) item.ticket = result.data.ticket;
+      if (result.data?.message) item.outcome = result.data.message;
       // The event that follows carries the details; this settles the card even if the stream is down.
       if (item.state === 'working') item.state = decision === 'approve' ? 'confirmed' : 'declined';
     } catch (e) {
@@ -465,8 +546,9 @@ export class AssistantStore {
         item.state = 'failed';
         item.outcome = e.message;
       } else {
-        item.state = 'waiting';
-        this.problem = explain(e);
+        item.state = 'uncertain';
+        item.outcome = 'The result is uncertain. Check the board before trying again.';
+        this.problem = '';
       }
     }
     this.save();
@@ -477,22 +559,25 @@ export class AssistantStore {
     return this.transcript.items.filter((i): i is ConfirmItem => i.kind === 'confirm' && i.state === 'waiting');
   }
 
-  /**
-   * Answers every change that is waiting, one after another, each with its own request: the person pressed one button, and each
-   * change is still confirmed (or declined) on its own, in order. It stops at the first one that could not be answered, which then
-   * says why, so that nothing is pressed on behalf of a person who is no longer connected.
-   */
+  /** Answers the snapshot that was waiting at click time, continuing after individual failures. */
   async resolveAll(decision: 'approve' | 'decline'): Promise<void> {
     if (this.batch) return;
     const items = this.waitingItems;
+    this.batchResult = null;
     this.batch = { done: 0, total: items.length, decision };
     try {
       for (const item of items) {
-        await this.resolve(item, decision);
-        if (item.state === 'waiting') break;
+        await this.resolve(item, decision, true);
         this.batch = { ...this.batch, done: this.batch.done + 1 };
       }
     } finally {
+      if (decision === 'approve') {
+        this.batchResult = {
+          added: items.filter((item) => item.state === 'confirmed' && item.operation === 'create_ticket').length,
+          completed: items.filter((item) => item.state === 'confirmed' && item.operation !== 'create_ticket').length,
+          failed: items.filter((item) => item.state === 'failed' || item.state === 'expired' || item.state === 'gone' || item.state === 'uncertain').length,
+        };
+      }
       this.batch = null;
     }
   }
@@ -627,6 +712,12 @@ export class AssistantStore {
   /** Ends the conversation: a reply in progress is stopped and changes it left waiting are dropped. */
   async startOver(): Promise<void> {
     const s = this.session;
+    this.pendingDeltas = [];
+    if (this.deltaFrame !== undefined) {
+      if (this.deltaFrameIsTimeout) clearTimeout(this.deltaFrame as ReturnType<typeof setTimeout>);
+      else if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.deltaFrame as number);
+      this.deltaFrame = undefined;
+    }
     this.conn?.stop();
     this.conn = null;
     if (s) {

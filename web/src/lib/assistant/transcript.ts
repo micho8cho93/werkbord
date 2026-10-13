@@ -37,7 +37,7 @@ export interface ReplyItem {
   uiState?: OpenUIState;
 }
 
-export type ConfirmState = 'waiting' | 'working' | 'confirmed' | 'declined' | 'expired' | 'failed' | 'gone';
+export type ConfirmState = 'waiting' | 'working' | 'confirmed' | 'declined' | 'expired' | 'failed' | 'uncertain' | 'gone';
 
 export interface ConfirmItem {
   kind: 'confirm';
@@ -45,9 +45,12 @@ export interface ConfirmItem {
   id: string;
   operation: string;
   summary: string;
+  /** Exact arguments shown by the controller's stored proposal, used only to render its preview. */
+  args?: Record<string, unknown>;
   expiresAt: string;
   state: ConfirmState;
   outcome?: string;
+  ticket?: { id: string; projectId: string; title: string; state: string };
 }
 
 export interface NoticeItem {
@@ -154,7 +157,7 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
     case 'confirmation_required': {
       const p = e.proposal;
       if (!p || t.items.some((i) => i.kind === 'confirm' && i.id === p.actionId)) break;
-      t.items.push({ kind: 'confirm', id: p.actionId, operation: p.operation, summary: p.summary, expiresAt: p.expiresAt, state: 'waiting' });
+      t.items.push({ kind: 'confirm', id: p.actionId, operation: p.operation, summary: p.summary, args: p.args, expiresAt: p.expiresAt, state: 'waiting' });
       break;
     }
     case 'confirmation_resolved': {
@@ -163,6 +166,7 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
       const word = e.text;
       c.state = word === 'confirmed' ? 'confirmed' : word === 'declined' ? 'declined' : word === 'expired' ? 'expired' : 'failed';
       if (e.outcome) c.outcome = e.outcome;
+      if (e.ticket) c.ticket = e.ticket;
       break;
     }
     case 'notice': {
@@ -199,13 +203,14 @@ function trim(t: Transcript): void {
 export function adoptPending(t: Transcript, pending: PendingAction[]): void {
   const ids = new Set(pending.map((p) => p.id));
   for (const it of t.items) {
-    if (it.kind === 'confirm' && (it.state === 'waiting' || it.state === 'working') && !ids.has(it.id)) it.state = 'gone';
+    if (it.kind === 'confirm' && (it.state === 'waiting' || it.state === 'working' || it.state === 'uncertain') && !ids.has(it.id)) it.state = 'gone';
   }
   for (const p of pending) {
     const have = t.items.find((i): i is ConfirmItem => i.kind === 'confirm' && i.id === p.id);
     if (have) {
-      if (have.state === 'gone' || have.state === 'working') have.state = 'waiting';
-    } else t.items.push({ kind: 'confirm', id: p.id, operation: p.operation, summary: p.summary, expiresAt: p.expiresAt, state: 'waiting' });
+      have.args = p.args ?? have.args;
+      if (have.state === 'gone' || have.state === 'working' || have.state === 'uncertain') have.state = 'waiting';
+    } else t.items.push({ kind: 'confirm', id: p.id, operation: p.operation, summary: p.summary, args: p.args, expiresAt: p.expiresAt, state: 'waiting' });
   }
 }
 

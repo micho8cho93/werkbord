@@ -174,6 +174,17 @@ describe('a change waiting for the person', () => {
     adoptPending(t, []);
     expect(confirm(t).state).toBe('declined');
   });
+
+  it('reopens an uncertain approval only when the controller still reports it pending', () => {
+    const t = fresh();
+    apply(t, ev('confirmation_required', { proposal, actionId: 'act_1' }));
+    confirm(t).state = 'uncertain';
+    adoptPending(t, [{ id: 'act_1', operation: 'create_ticket', summary: 'Create task', expiresAt: '' }]);
+    expect(confirm(t).state).toBe('waiting');
+    confirm(t).state = 'uncertain';
+    adoptPending(t, []);
+    expect(confirm(t).state).toBe('gone');
+  });
 });
 
 describe('failures', () => {

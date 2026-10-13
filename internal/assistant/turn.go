@@ -334,7 +334,7 @@ func (t *turnRun) attempt(ctx context.Context, system, prompt string) (r roundRe
 	var visible strings.Builder
 	f := newFilter(func(s string) {
 		visible.WriteString(s)
-		t.publish(Event{Type: EventDelta, Text: s, Attempt: n})
+		t.publish(Event{Type: EventDelta, Text: s, Attempt: n, ProviderAt: time.Now().UTC()})
 	})
 	turn := provider.Turn{Ref: t.ref(), System: system, Prompt: prompt, Model: t.sess.Model, Reasoning: t.sess.Reasoning, WorkDir: e.workDir()}
 	var operationErr error

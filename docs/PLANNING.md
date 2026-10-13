@@ -59,7 +59,7 @@ be put on a ticket (the database refuses it too: the link is keyed by workspace)
 ## Plans, milestones and the timeline
 
 A plan is `{start, end, milestone}`: both dates optional and inclusive. Only a start is a one-day item; only an end is something due that
-day; a milestone is a single date (kept in `start`). An end before its start is refused. Plans are **not** an `Orchestration` (Individual)
+day; a milestone is a single date (kept in `start`) and needs a date. An end before its start is refused. Plans are **not** an `Orchestration` (Individual)
 or a schedule (Team): changing one never schedules, delays or moves a run.
 
 The timeline shows a project's planned work as bars (milestones as diamonds) on a day scale (week, month or quarter zoom), with a
@@ -122,10 +122,14 @@ shared request for agent work, typed as raw ticket IDs. Only the second made any
 | `duplicate_dependency`, `milestone_without_date` | conflict | Listed twice; a milestone with no date cannot be placed. |
 | `unscheduled_dependency` | note | Has dates, but the work it depends on has none, so the order cannot be checked. |
 
-The writes refuse what can never work (a self-dependency, a dependency outside the project, a circle, a bad date), so the analysis
-mostly tells you about **conflicts**, and about whatever reached the data another way (a restore, an older build). **Nothing is ever
-rescheduled.** The warnings are shown (a panel above the chart, a mark on the bar and the row) and what to do about one, move a date or drop
-a dependency, is yours to decide on the task. Reading the timeline changes nothing: its endpoints are reads, and a test asserts it.
+The form checks the draft and the owning service validates it again in the same transaction as the write. A write is refused for a
+malformed or reversed date, an undated milestone, a missing or self dependency, a dependency cycle, or a newly added unfinished archived
+prerequisite. A newly introduced or worsened conflict with a prerequisite is also refused; starting on the day the prerequisite ends is
+allowed. An undated prerequisite remains advisory. An unrelated historical conflict does not block a change, so existing plans can be
+corrected incrementally. Rejections return field-addressed issues and leave stored data unchanged. **Nothing is ever rescheduled.**
+
+Existing conflicts are shown in Timeline as a compact issue count and markers on affected rows and bars. Open the count for details and
+the action to open each affected task. Reading the timeline changes nothing: its endpoints are reads, and a test asserts it.
 
 | Product | Timeline |
 | --- | --- |

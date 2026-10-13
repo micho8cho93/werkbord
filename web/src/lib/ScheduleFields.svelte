@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import type { Orchestration, Task } from "./types";
   import { instantFromWall, wallTime } from "./scheduling";
   let {
@@ -24,6 +25,48 @@
   let grace = $state(5);
   let occurrence = $state<"earlier" | "later">("earlier");
   let error = $state("");
+  const draftIssues = $derived.by(() => {
+    const out: { field: string; message: string }[] = [];
+    let zoneOK = !!zone.trim();
+    if (!zoneOK) out.push({ field: 'timezone', message: 'Enter a timezone.' });
+    else {
+      try { new Intl.DateTimeFormat('en', { timeZone: zone }).format(0); }
+      catch { zoneOK = false; out.push({ field: 'timezone', message: 'Choose a valid IANA timezone.' }); }
+    }
+    const instants: Record<string, string | undefined> = {};
+    if (zoneOK) for (const [field, value] of [['scheduled', scheduled], ['notBefore', notBefore], ['deadline', deadline]] as const) {
+      try { instants[field] = instantFromWall(value, zone, occurrence); }
+      catch (e) { out.push({ field, message: e instanceof Error ? e.message : 'Enter a valid date and time.' }); }
+    }
+    const deadlineAt = instants.deadline ? Date.parse(instants.deadline) : undefined;
+    if (deadlineAt !== undefined && ['scheduled', 'notBefore'].some((key) => instants[key] && Date.parse(instants[key]!) > deadlineAt)) {
+      out.push({ field: 'deadline', message: 'Deadline must be at or after the scheduled and not-before times.' });
+    }
+    const seen = new SvelteSet<string>();
+    for (const id of value.dependencies) {
+      if (seen.has(id)) out.push({ field: 'dependencies', message: 'Choose each prerequisite once.' });
+      seen.add(id);
+      const prerequisite = tasks.find((t) => t.id === id);
+      if (id === taskId) out.push({ field: 'dependencies', message: 'A task cannot depend on itself.' });
+      else if (!prerequisite) out.push({ field: 'dependencies', message: 'A selected prerequisite is no longer available.' });
+      else if (reachesTask(id, taskId, new SvelteSet<string>())) out.push({ field: 'dependencies', message: 'These prerequisites create a dependency cycle.' });
+    }
+    if (value.missedPolicy === 'skip' && (!Number.isFinite(grace) || grace < 0 || grace > 43200)) out.push({ field: 'grace', message: 'Enter a wait from 0 to 43,200 minutes.' });
+    return out;
+  });
+  function reachesTask(id: string, target: string, seen: Set<string>): boolean {
+    if (id === target) return true;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    const task = tasks.find((t) => t.id === id);
+    return (task?.orchestration?.dependencies ?? []).some((dep) => reachesTask(dep, target, seen));
+  }
+  const issue = (field: string) => draftIssues.find((i) => i.field === field)?.message ?? '';
+  async function focusIssue(field: string) {
+    await tick();
+    const id = field === 'dependencies' ? 'schedule-dependencies' : field === 'grace' ? 'schedule-grace' : `schedule-${field}`;
+    document.getElementById(id)?.focus({ preventScroll: false });
+  }
   $effect(() => {
     void taskId;
     const v = untrack(() => value);
@@ -36,6 +79,7 @@
     grace = (v.graceSeconds ?? 300) / 60;
   });
   function dependency(id: string, checked: boolean) {
+    error = '';
     value = {
       ...value,
       dependencies: checked
@@ -44,8 +88,13 @@
     };
   }
   async function save(rearm = false) {
+    error = '';
+    if (draftIssues.length) {
+      error = 'Fix the highlighted fields before saving.';
+      await focusIssue(draftIssues[0].field);
+      return;
+    }
     try {
-      error = "";
       const o: Orchestration = {
         ...value,
         rearm,
@@ -79,40 +128,56 @@
       >Run automatically from Werkbord</span
     ></label
   >
-  <p class="muted small">
-    One attempt per schedule. Saving edits does not request another attempt. Allow one more run to rearm the schedule; the
-    controller starts it only when its schedule, dependencies and capacity allow. Your browser can be closed.
-  </p>
-  <p class="muted small">This schedules when Werkbord starts agent work. To plan work dates or milestones, use Timeline.</p>
+  <p class="muted small">Runs once when the schedule, dependencies and capacity allow. Use Timeline for planned work dates.</p>
   <div class="fields">
     <label
       >Timezone<input
         class="input"
+        class:invalid={!!issue('timezone')}
+        id="schedule-timezone"
         bind:value={zone}
+        oninput={() => (error = '')}
         placeholder="Europe/Madrid"
         required
-      /></label
+        aria-invalid={!!issue('timezone')}
+        aria-describedby={issue('timezone') ? 'schedule-timezone-error' : undefined}
+      />{#if issue('timezone')}<small class="field-error" id="schedule-timezone-error">{issue('timezone')}</small>{/if}</label
     >
     <label
       >Scheduled time<input
         class="input"
         type="datetime-local"
+        class:invalid={!!issue('scheduled')}
+        id="schedule-scheduled"
         bind:value={scheduled}
-      /></label
+        oninput={() => (error = '')}
+        aria-invalid={!!issue('scheduled')}
+        aria-describedby={issue('scheduled') ? 'schedule-scheduled-error' : undefined}
+      />{#if issue('scheduled')}<small class="field-error" id="schedule-scheduled-error">{issue('scheduled')}</small>{/if}</label
     >
     <label
       >Not before<input
         class="input"
         type="datetime-local"
+        class:invalid={!!issue('notBefore')}
+        id="schedule-notBefore"
         bind:value={notBefore}
-      /></label
+        oninput={() => (error = '')}
+        aria-invalid={!!issue('notBefore')}
+        aria-describedby={issue('notBefore') ? 'schedule-notBefore-error' : undefined}
+      />{#if issue('notBefore')}<small class="field-error" id="schedule-notBefore-error">{issue('notBefore')}</small>{/if}</label
     >
     <label
       >Deadline<input
         class="input"
         type="datetime-local"
+        class:invalid={!!issue('deadline')}
+        id="schedule-deadline"
         bind:value={deadline}
-      /></label
+        oninput={() => (error = '')}
+        aria-invalid={!!issue('deadline')}
+        aria-describedby={issue('deadline') ? 'schedule-deadline-error' : undefined}
+      />{#if issue('deadline')}<small class="field-error" id="schedule-deadline-error">{issue('deadline')}</small>{/if}</label
     >
     <label
       >Run order<input
@@ -130,7 +195,6 @@
         <option value="later">Later occurrence</option>
       </select>
     </label>
-    <p class="muted small">The selected timezone can repeat a local time when clocks move back. Choose which occurrence to use.</p>
     <label
       >If the scheduled time is missed<select
         class="select"
@@ -148,27 +212,29 @@
           min="0"
           max="43200"
           bind:value={grace}
+          oninput={() => (error = '')}
           required
+          class:invalid={!!issue('grace')}
+          id="schedule-grace"
+          aria-invalid={!!issue('grace')}
+          aria-describedby={issue('grace') ? 'schedule-grace-error' : undefined}
         /></label>
-      <p class="muted small">The wait starts at the scheduled time, including while dependencies or runner capacity are unavailable. After it ends, this attempt is marked missed and needs to be allowed again.</p>
+      {#if issue('grace')}<small class="field-error" id="schedule-grace-error">{issue('grace')}</small>{/if}
     {/if}
   </div>
-  <p class="muted small">
-    The scheduler uses Run order after scheduled time and before priority. Use dependencies when one task must finish before
-    another starts; Run order alone never makes a task wait. This order applies within the project.
-  </p>
-  <fieldset>
+  <p class="muted small">Run order affects priority; dependencies make a task wait.</p>
+  <fieldset id="schedule-dependencies" tabindex="-1" class:invalid={!!issue('dependencies')} aria-describedby={issue('dependencies') ? 'schedule-dependencies-error' : undefined}>
     <legend>Wait for tasks</legend>
     {#each tasks.filter((t) => t.id !== taskId) as t (t.id)}<label class="check"
         ><input
           type="checkbox"
+          aria-invalid={!!issue('dependencies')}
           checked={value.dependencies.includes(t.id)}
           onchange={(e) => dependency(t.id, e.currentTarget.checked)}
         /><span>{t.title}</span></label
       >{/each}
-    {#if tasks.length <= 1}<p class="muted">
-        Add another task to define dependencies.
-      </p>{/if}
+    {#if issue('dependencies')}<p class="field-error" id="schedule-dependencies-error">{issue('dependencies')}</p>{/if}
+    {#if tasks.length <= 1}<p class="muted">Add another task to define a prerequisite.</p>{/if}
   </fieldset>
   <label
     >Expected files or directories <span class="muted"
@@ -186,10 +252,7 @@
       placeholder="Full commit ID from Git"
     /></label
   >
-  <p class="muted small">
-    Unknown or overlapping file scope runs sequentially. Expected scope is a
-    hint, checked against observed Git changes.
-  </p>
+  <p class="muted small">Unknown or overlapping file scope runs sequentially.</p>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   <button class="btn primary" disabled={busy}
     >{busy ? "Saving…" : "Save schedule and dependencies"}</button
@@ -230,6 +293,7 @@
     max-height: 260px;
     overflow: auto;
   }
+  fieldset.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
   legend {
     font-weight: 600;
   }

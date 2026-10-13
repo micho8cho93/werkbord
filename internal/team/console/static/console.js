@@ -28,7 +28,7 @@ const KEY = (name) => 'werkbord-team-' + name + (BASE ? ':' + SLOT : '');
 
 // Inside the desktop app this page is one workspace beside the person's other workspaces, and the window's own sidebar is the
 // navigation (the shell asks this page to go to a place with a query such as ?tab=board&project=…). Only a place in the
-// person's own Werkbord ("Open in Individual") is ever sent back to the shell.
+// person's own Werkbord ("Open in Werkbord") is ever sent back to the shell.
 const FRAMED = window.parent !== window;
 
 const TABS = [['workspace', 'Needs you'], ['projects', 'Projects'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'Members']];
@@ -47,7 +47,7 @@ const state = {
   tlZoom: 'week', tlGroup: 'none', tlCollapsed: {},
   online: true,   // whether the live connection to the server is up
   desktop: null, device: null, joinLink: null,
-  memberQuery: '',
+  memberQuery: '', validationIssues: [], focusId: '',
 };
 
 try {
@@ -173,7 +173,10 @@ function sectionButtons(key, choices, label) {
 }
 function revealActiveNavigation() {
   const active = app.querySelector('.rail-primary [aria-current="page"]');
-  if (active && matchMedia('(max-width: 899px)').matches) active.parentElement.scrollLeft = Math.max(0, active.offsetLeft - 16);
+  if (matchMedia('(max-width: 899px)').matches) {
+    const navigation = app.querySelector('.rail-primary');
+    if (navigation) navigation.scrollLeft = active ? Math.max(0, active.offsetLeft - 16) : 0;
+  }
 }
 matchMedia('(max-width: 899px)').addEventListener('change', revealActiveNavigation);
 let navigationResize = 0;
@@ -208,6 +211,7 @@ async function api(method, path, body, opts) {
   if (!res.ok) {
     const err = new Error(data.error ? data.error.message : 'Werkbord Team could not complete this request. Check the current state before repeating an action.');
     err.status = res.status;
+    err.issues = data.issues || [];
     throw err;
   }
   return data;
@@ -229,13 +233,18 @@ let actionBusy = false;
 async function act(fn) {
   if (actionBusy) return;
   actionBusy = true;
-  state.error = ''; state.info = '';
+  state.error = ''; state.info = ''; state.validationIssues = []; state.focusId = '';
   const controls = [...app.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
   controls.forEach(el => { el.disabled = true; });
   app.setAttribute('aria-busy', 'true');
-  try { await fn(); } catch (e) { state.error = e.message; }
+  try { await fn(); } catch (e) {
+    state.validationIssues = e.issues || [];
+    state.error = state.validationIssues.length ? 'Fix the highlighted planning issues.' : e.message;
+  }
   finally { actionBusy = false; controls.forEach(el => { el.disabled = false; }); app.removeAttribute('aria-busy'); }
   await render();
+  if (state.validationIssues.length) app.querySelector('.plan-fields [aria-invalid="true"]')?.focus();
+  else if (state.focusId) { document.getElementById(state.focusId)?.focus(); state.focusId = ''; }
 }
 
 // ---- small helpers ----
@@ -260,7 +269,7 @@ function copy(text, label) {
   } }, label);
 }
 
-function field(label, control) { return h('label', {}, label, control); }
+function field(label, control, ...extra) { return h('label', {}, label, control, ...extra); }
 function isHTTPS(u) { return typeof u === 'string' && /^https:\/\//i.test(u); }
 // A link to somewhere outside Team (a pull request, a branch on the Git host) is only ever followed if it is https.
 function safeHref(u) { return isHTTPS(u) ? u : null; }
@@ -363,9 +372,9 @@ function toast(message) {
 
 function navTab() { return state.tab === 'people' ? 'projects' : state.tab; }
 let focusMain = false;
-function go(tab) { focusMain = true; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.info = ''; remember(); return render(); }
-function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; remember(); return render(); }
-function openTicket(projectId, ticketId) { state.projectId = projectId; state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; remember(); return render(); }
+function go(tab) { focusMain = true; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.validationIssues = []; state.info = ''; remember(); return render(); }
+function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; state.validationIssues = []; remember(); return render(); }
+function openTicket(projectId, ticketId) { state.projectId = projectId; state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
 function openInRunner(it) { return act(async () => { state.handoff = await api('POST', itemPath(it) + '/handoff'); }); }
 function itemPath(it) { return '/projects/' + it.project.id + '/tickets/' + it.ticket.id; }
 
@@ -701,9 +710,7 @@ async function projectsView() {
       p.project.description ? h('div', { class: 'muted' }, p.project.description) : '',
       p.project.repository ? h('div', { class: 'muted' }, p.project.repository) : ''),
     p.project.archived ? h('span', { class: 'badge' }, 'archived') : '',
-    h('span', { class: 'badge' }, p.member ? p.role : 'not on it'),
-    h('span', { class: 'muted' }, plural(p.people, 'person', 'people')),
-    h('button', { class: 'plain', onclick: () => openProject(p.project.id, 'people') }, 'People & invites')));
+    h('span', { class: 'badge' }, p.member ? p.role : 'not on it')));
   const panels = [h('div', { class: 'panel' }, h('h2', {}, 'Projects (' + projects.length + ')'),
     rows.length ? rows : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet.' : 'You are not on any project yet. Ask for an invite code.'))];
   const code = h('input', { name: 'join-code', required: true, maxlength: 200, autocomplete: 'off', placeholder: 'wbi_…' });
@@ -768,12 +775,13 @@ async function projectScopedView() {
     state.tab === 'people' ? h('p', {}, h('button', { class: 'link', onclick: () => go('projects') }, '← Projects')) : '',
     h('div', { class: 'project-head' },
       h('div', { class: 'project-bar' }, FRAMED ? '' : h('label', { class: 'inline' }, 'Project ', switcher),
-        state.tab === 'board' ? h('button', { class: 'plain small', onclick: () => openProject(p.id, 'people') }, 'People & invites') : '',
-        h('details', { class: 'project-details' }, h('summary', {}, 'Project details'),
+        h('details', { class: 'project-details' }, h('summary', {}, 'Project settings'),
           h('div', { class: 'project-detail-content' },
+            h('h3', {}, 'Details'),
             p.description ? h('p', {}, p.description) : '',
             p.repository ? h('p', {}, isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
             h('span', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'),
+            h('button', { class: 'plain small', onclick: () => openProject(p.id, 'people') }, 'People & invitations'),
             can('projects.manage') ? h('button', { class: 'danger small', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project') : '')))),
     tabs,
     content);
@@ -941,7 +949,9 @@ function mcpPlanProposalView(proposal) {
 }
 
 async function mcpClientsView() {
-  const [operations, grants] = await Promise.all([api('GET', '/mcp/operations'), api('GET', '/mcp/grants')]);
+  const [operationData, grantData] = await Promise.all([api('GET', '/mcp/operations'), api('GET', '/mcp/grants')]);
+  const operations = operationData.operations || [];
+  const grants = grantData.grants || [];
   const projects = state.ov.projects.filter(p => !p.project.archived);
   const selectedProjects = new Set();
   const selectedOperations = new Set();
@@ -1150,22 +1160,106 @@ function planFields(d, k) {
   const milestone = h('input', { type: 'checkbox', name: 'p-milestone-' + sfx, checked: !!plan.milestone });
   const others = [...b.tickets, ...(b.archived || [])].filter((t) => !k || t.id !== k.id).filter((t) => !t.archivedAt || deps.has(t.id));
   const depBoxes = others.map((t) => ({ t, box: h('input', { type: 'checkbox', name: 'p-dep_' + t.id + '-' + sfx, checked: deps.has(t.id) }) }));
-  const node = h('div', { class: 'stack plan-fields' },
-    h('fieldset', {}, h('legend', {}, 'Labels'),
-      labelBoxes.length ? h('div', { class: 'label-menu' }, labelBoxes.map(({ l, box }) => h('label', { class: 'check' }, box, ' ', labelChip(l))))
-        : h('p', { class: 'muted small' }, can('labels.manage') ? 'No labels yet. Make some under Settings → Labels.' : 'No labels yet. A workspace owner or admin makes them.')),
-    field('Who does it', mode),
-    h('fieldset', {}, h('legend', {}, 'Planned for ', h('span', { class: 'muted small' }, 'optional · for the timeline only')),
-      h('div', { class: 'inline dates' }, field('Start or date', start), field('End', end), h('label', { class: 'check' }, milestone, ' Milestone'))),
-    depBoxes.length ? h('fieldset', {}, h('legend', {}, 'Depends on ', h('span', { class: 'muted small' }, 'must finish first')),
-      h('div', { class: 'dep-list' }, depBoxes.map(({ t, box }) => h('label', { class: 'check' }, box, ' ', t.key + ' · ' + t.title)))) : '');
+  const startError = h('small', { class: 'field-error' });
+  const endError = h('small', { class: 'field-error' });
+  const dependencyError = h('p', { class: 'field-error', role: 'alert' });
+  const summaryError = h('p', { class: 'field-error plan-summary-error', role: 'alert' });
+  const savedIssues = state.validationIssues.filter((issue) => !k || issue.itemId === k.id || issue.otherId === k.id);
+  const applyIssues = (issues) => {
+    const startIssue = issues.find((issue) => issue.field === 'plan.start');
+    const endIssue = issues.find((issue) => issue.field === 'plan.end');
+    const dependencyIssue = issues.find((issue) => issue.field === 'dependencies');
+    start.classList.toggle('invalid', !!startIssue); start.setAttribute('aria-invalid', String(!!startIssue)); startError.textContent = startIssue?.message || '';
+    end.classList.toggle('invalid', !!endIssue); end.setAttribute('aria-invalid', String(!!endIssue)); endError.textContent = endIssue?.message || '';
+    dependencyError.textContent = dependencyIssue?.message || '';
+    for (const { box } of depBoxes) { box.classList.toggle('invalid', !!dependencyIssue); box.setAttribute('aria-invalid', String(!!dependencyIssue)); }
+    summaryError.textContent = issues.length ? 'Fix the highlighted planning issues.' : '';
+  };
+  applyIssues(savedIssues);
+  const clearIssues = () => { state.validationIssues = []; state.error = ''; applyIssues([]); };
+  for (const control of [start, end, milestone, ...depBoxes.map((x) => x.box)]) control.addEventListener('input', clearIssues);
   const read = () => ({
     workMode: mode.value,
     labelIds: labelBoxes.filter((x) => x.box.checked).map((x) => x.l.id),
     plan: milestone.checked ? { start: start.value || end.value, milestone: true } : { start: start.value, end: end.value },
     dependencies: depBoxes.filter((x) => x.box.checked).map((x) => x.t.id),
   });
-  return { node, read };
+  const day = (value) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const date = Date.parse(value + 'T00:00:00Z');
+    return Number.isFinite(date) && new Date(date).toISOString().slice(0, 10) === value ? date / 86400000 : null;
+  };
+  const conflictScores = (tickets) => {
+    const byId = new Map(tickets.map((t) => [t.id, t]));
+    const out = new Map();
+    for (const t of tickets) {
+      if (t.archivedAt) continue;
+      const startDay = day(t.plan?.start || t.plan?.end || '');
+      if (startDay == null) continue;
+      for (const id of t.dependencies || []) {
+        const dep = byId.get(id);
+        if (!dep || dep.status === 'done') continue;
+        const depStart = dep.plan?.start || dep.plan?.end || '';
+        const depEnd = dep.plan?.milestone ? depStart : dep.plan?.end || depStart;
+        const endDay = day(depEnd);
+        if (endDay != null && startDay < endDay) out.set(t.id + '\0' + dep.id, endDay - startDay);
+      }
+    }
+    return out;
+  };
+  const validate = () => {
+    const draft = read(), issues = [];
+    const startDay = draft.plan.start ? day(draft.plan.start) : null;
+    const endDay = draft.plan.end ? day(draft.plan.end) : null;
+    if (milestone.checked && !draft.plan.start) issues.push({ field: 'plan.start', message: 'Choose a date for this milestone.' });
+    if (draft.plan.start && startDay == null) issues.push({ field: 'plan.start', message: 'Enter a valid date.' });
+    if (!milestone.checked && draft.plan.end && endDay == null) issues.push({ field: 'plan.end', message: 'Enter a valid date.' });
+    if (!milestone.checked && startDay != null && endDay != null && endDay < startDay) issues.push({ field: 'plan.end', message: 'The end is before the start.' });
+    const oldDependencies = new Set(k?.dependencies || []);
+    for (const id of draft.dependencies) {
+      const dep = others.find((x) => x.id === id);
+      if (dep?.archivedAt && dep.status !== 'done' && (!k || !oldDependencies.has(id))) issues.push({ field: 'dependencies', message: 'Remove the unfinished archived prerequisite.' });
+      const startDate = startDay;
+      const depStart = dep?.plan?.start || dep?.plan?.end || '';
+      const depEnd = dep?.plan?.milestone ? depStart : dep?.plan?.end || depStart;
+      const endDate = day(depEnd);
+      if (startDate != null && endDate != null && dep?.status !== 'done' && startDate < endDate) {
+        issues.push({ field: 'plan.start', message: `Start is before ${dep.key || 'the prerequisite'} ends.` });
+      }
+    }
+    if (k) {
+      const all = [...b.tickets, ...(b.archived || [])];
+      const updated = { ...k, plan: draft.plan, dependencies: draft.dependencies };
+      const before = conflictScores(all), after = conflictScores(all.map((t) => t.id === k.id ? updated : t));
+      for (const [key, amount] of after) if (amount > (before.get(key) || 0)) issues.push({ field: key.startsWith(k.id + '\0') ? 'plan.start' : draft.plan.milestone ? 'plan.start' : 'plan.end', message: 'This date conflicts with a task that depends on this work.' });
+      const reaches = (from, target, seen = new Set()) => {
+        if (from === target) return true;
+        if (seen.has(from)) return false;
+        seen.add(from);
+        const task = all.find((x) => x.id === from);
+        return (task?.dependencies || []).some((id) => reaches(id, target, seen));
+      };
+      const beforeCycle = (k.dependencies || []).some((id) => reaches(id, k.id));
+      const afterCycle = draft.dependencies.some((id) => reaches(id, k.id));
+      if (afterCycle && !beforeCycle) issues.push({ field: 'dependencies', message: 'These dependencies create a cycle.' });
+    }
+    applyIssues(issues);
+    if (issues.length) {
+      const first = issues[0].field;
+      (first === 'plan.start' ? start : first === 'plan.end' ? end : depBoxes.find(({ box }) => box.checked)?.box)?.focus();
+    }
+    return issues.length === 0;
+  };
+  const node = h('div', { class: 'stack plan-fields' },
+    h('fieldset', {}, h('legend', {}, 'Labels'),
+      labelBoxes.length ? h('div', { class: 'label-menu' }, labelBoxes.map(({ l, box }) => h('label', { class: 'check' }, box, ' ', labelChip(l))))
+        : h('p', { class: 'muted small' }, can('labels.manage') ? 'No labels yet. Make some under Settings → Labels.' : 'No labels yet. A workspace owner or admin makes them.')),
+    field('Who does it', mode),
+    h('fieldset', {}, h('legend', {}, 'Planned for ', h('span', { class: 'muted small' }, 'optional')),
+      h('div', { class: 'inline dates' }, field('Start or date', start, startError), field('End', end, endError), h('label', { class: 'check' }, milestone, ' Milestone'))),
+    depBoxes.length ? h('fieldset', {}, h('legend', {}, 'Depends on ', h('span', { class: 'muted small' }, 'must finish first')),
+      h('div', { class: 'dep-list' }, depBoxes.map(({ t, box }) => h('label', { class: 'check' }, box, ' ', t.key + ' · ' + t.title)), dependencyError)) : '', summaryError);
+  return { node, read, validate };
 }
 
 function newTicketForm(d) {
@@ -1175,7 +1269,7 @@ function newTicketForm(d) {
   const ready = h('input', { name: 't-ready', type: 'checkbox' });
   const plan = planFields(d, null);
   return h('div', { class: 'panel' }, h('h2', {}, 'New ticket'),
-    h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); act(async () => {
+    h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); if (!plan.validate()) return; act(async () => {
         await api('POST', '/projects/' + state.projectId + '/tickets', { title: title.value, description: desc.value, requirements: reqs.value, status: ready.checked ? 'available' : 'backlog', ...plan.read() }); state.newTicketOpen = false;
         title.value = ''; desc.value = ''; reqs.value = ''; ready.checked = false; }); } },
       field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node,
@@ -1251,8 +1345,8 @@ function ticketPanel(d, k) {
     h('div', { class: 'ticket-head' },
       h('h2', {}, k.key + ' · ' + k.title),
       h('button', { class: 'plain', onclick: () => { state.ticketId = null; state.handoff = null; remember(); render(); } }, 'Close')),
-    h('div', { class: 'actions' }, actions.filter(a => a.classList.contains('primary') || ['Make available', 'Open in Individual', 'Restore ticket', 'Reopen'].includes(a.textContent))),
-    actions.some(a => !a.classList.contains('primary') && !['Make available', 'Open in Individual', 'Restore ticket', 'Reopen'].includes(a.textContent)) ? h('details', { class: 'ticket-more' }, h('summary', {}, 'More actions'), h('div', { class: 'actions' }, actions.filter(a => !a.classList.contains('primary') && !['Make available', 'Open in Individual', 'Restore ticket', 'Reopen'].includes(a.textContent)))) : '',
+    h('div', { class: 'actions' }, actions.filter(a => a.classList.contains('primary') || ['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent))),
+    actions.some(a => !a.classList.contains('primary') && !['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent)) ? h('details', { class: 'ticket-more' }, h('summary', {}, 'More actions'), h('div', { class: 'actions' }, actions.filter(a => !a.classList.contains('primary') && !['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent)))) : '',
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
     mine && state.desktop && !k.archivedAt && ['in_progress', 'review'].includes(k.status) ? ownExecutionPanel(k) : '',
     !k.archivedAt ? teamSchedulePanel(k, b) : '',
@@ -1302,9 +1396,9 @@ function editTicket(d, k, path) {
   const title = h('input', { name: 'e-title-' + k.id, value: k.title, maxlength: 200 });
   const desc = h('textarea', { name: 'e-desc-' + k.id, rows: 3 }); desc.value = k.description;
   const reqs = h('textarea', { name: 'e-reqs-' + k.id, rows: 3 }); reqs.value = k.requirements;
-  return h('details', {}, h('summary', {}, 'Edit this ticket'),
+  return h('details', { open: state.validationIssues.some((issue) => issue.itemId === k.id || issue.otherId === k.id) }, h('summary', {}, 'Edit this ticket'),
     ticketVersion(k) !== k.version ? h('div', { role: 'alert' }, h('p', { class: 'error' }, 'Someone changed this ticket while you were editing. Your draft is kept. Copy your text before loading their version and combining the changes.'), h('button', { class: 'plain', type: 'button', onclick: () => { discardTicketDraft(k.id); render(); } }, 'Load latest version')) : '',
-    h('form', { class: 'stack', 'data-ticket-id': k.id, 'data-ticket-version': k.version, onsubmit: (e) => { e.preventDefault(); act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, ...plan.read(), version: ticketVersion(k) }).then(() => discardTicketDraft(k.id)));  } },
+    h('form', { class: 'stack', 'data-ticket-id': k.id, 'data-ticket-version': k.version, onsubmit: (e) => { e.preventDefault(); if (!plan.validate()) return; act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, ...plan.read(), version: ticketVersion(k) }).then(() => discardTicketDraft(k.id)));  } },
       field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node, h('button', { class: 'plain' }, 'Save')));
 }
 
@@ -1515,22 +1609,49 @@ function teamSchedulePanel(k, b) {
     const key = k.projectId + ':' + k.id;
     let draft = scheduleDrafts.get(key);
     if (!draft || draft.version !== (current?.version || 0)) {
-      draft = { version: current?.version || 0, at: current?.at || '', timezone: current?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, missed: current?.missedPolicy || 'run_late', grace: current?.graceSeconds ?? 300, order: current?.order ?? 0, priority: current?.priority ?? 1 };
+      draft = { version: current?.version || 0, at: current?.at || '', timezone: current?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, missed: current?.missedPolicy || 'run_late', grace: current?.graceSeconds ?? 300, order: current?.order ?? 0, priority: current?.priority ?? 1, errors: {} };
       scheduleDrafts.set(key, draft);
     }
-    const edit = field => e => { draft[field] = e.target.value; };
-    const at = h('input', { name: 'schedule-at-' + k.id, value: draft.at, oninput: edit('at'), placeholder: '2026-10-10T09:00:00+02:00', required: true });
-    const timezone = h('input', { name: 'schedule-zone-' + k.id, value: draft.timezone, oninput: edit('timezone'), required: true });
+    draft.errors ||= {};
+    const edit = field => e => {
+      draft[field] = e.target.value;
+      delete draft.errors[field]; delete draft.errors.form;
+      e.target.classList.remove('invalid'); e.target.removeAttribute('aria-invalid'); e.target.removeAttribute('aria-describedby');
+      e.target.parentElement?.querySelector('.field-error')?.remove();
+    };
+    const issue = (name, control) => {
+      if (!draft.errors[name]) return '';
+      control.classList.add('invalid'); control.setAttribute('aria-invalid', 'true'); control.setAttribute('aria-describedby', control.id + '-error');
+      return h('small', { class: 'field-error', id: control.id + '-error', role: 'alert' }, draft.errors[name]);
+    };
+    const at = h('input', { id: 'team-schedule-at-' + k.id, name: 'schedule-at-' + k.id, value: draft.at, oninput: edit('at'), placeholder: '2026-10-10T09:00:00+02:00', required: true });
+    const timezone = h('input', { id: 'team-schedule-zone-' + k.id, name: 'schedule-zone-' + k.id, value: draft.timezone, oninput: edit('timezone'), required: true });
     const missed = h('select', { name: 'schedule-missed-' + k.id, onchange: edit('missed') }, [['run_late', 'Wait and run when eligible'], ['skip', 'Skip after grace window']].map(([value, label]) => h('option', { value, selected: value === draft.missed }, label)));
-    const grace = h('input', { name: 'schedule-grace-' + k.id, type: 'number', min: 0, max: 86400, value: draft.grace, oninput: edit('grace') });
-    const order = h('input', { name: 'schedule-order-' + k.id, type: 'number', min: 0, value: draft.order, oninput: edit('order') });
-    const priority = h('select', { name: 'schedule-priority-' + k.id, onchange: edit('priority') }, [['0', 'Low'], ['1', 'Normal'], ['2', 'High']].map(([value, label]) => h('option', { value, selected: Number(value) === Number(draft.priority) }, label)));
+    const grace = h('input', { id: 'team-schedule-grace-' + k.id, name: 'schedule-grace-' + k.id, type: 'number', min: 0, max: 86400, value: draft.grace, oninput: edit('grace') });
+    const order = h('input', { id: 'team-schedule-order-' + k.id, name: 'schedule-order-' + k.id, type: 'number', min: 0, value: draft.order, oninput: edit('order') });
+    const priority = h('select', { id: 'team-schedule-priority-' + k.id, name: 'schedule-priority-' + k.id, onchange: edit('priority') }, [['0', 'Low'], ['1', 'Normal'], ['2', 'High']].map(([value, label]) => h('option', { value, selected: Number(value) === Number(draft.priority) }, label)));
     box.append(h('form', { onsubmit: e => { e.preventDefault(); act(async () => {
-      if (!/(Z|[+-]\d\d:\d\d)$/.test(at.value) || !Number.isFinite(Date.parse(at.value))) throw new Error('Use an ISO timestamp with an explicit UTC offset or Z.');
-      await api('PUT', projectPath(k) + '/schedule', { version: current?.version || 0, at: new Date(at.value).toISOString(), timezone: timezone.value, missedPolicy: missed.value, graceSeconds: Number(grace.value), order: Number(order.value), priority: Number(priority.value) });
-      scheduleDrafts.delete(key);
-      if (state.desktop) executionViews.delete(k.projectId + ':' + k.id);
-    }); } }, field('Start time with UTC offset', at), field('Display timezone', timezone), field('Missed execution', missed), field('Wait before marking missed (seconds)', grace), field('Run order', order), field('Priority', priority), h('p', { class: 'muted small' }, 'The wait starts at the scheduled time, including while the task waits for dependencies or runner capacity.'), h('button', { class: 'plain' }, current ? 'Reschedule request' : 'Propose schedule')));
+      draft.errors = {};
+      try { new Intl.DateTimeFormat('en', { timeZone: timezone.value }).format(0); }
+      catch (_) { draft.errors.timezone = 'Choose a valid IANA timezone.'; }
+      const atYear = Number(at.value.slice(0, 4));
+      if (!/(Z|[+-]\d\d:\d\d)$/.test(at.value) || !Number.isFinite(Date.parse(at.value)) || atYear < 2020 || atYear > 9999) draft.errors.at = 'Enter a valid ISO time with an explicit UTC offset.';
+      if (!Number.isInteger(Number(grace.value)) || Number(grace.value) < 0 || Number(grace.value) > 86400) draft.errors.grace = 'Enter a wait from 0 to 86,400 seconds.';
+      if (!Number.isInteger(Number(order.value)) || Number(order.value) < 0) draft.errors.order = 'Enter a non-negative run order.';
+      if (![0, 1, 2].includes(Number(priority.value))) draft.errors.priority = 'Choose a valid priority.';
+      if (Object.keys(draft.errors).length) {
+        const firstField = ['at', 'timezone', 'grace', 'order', 'priority'].find(name => draft.errors[name]);
+        if (firstField) state.focusId = ({ at: at.id, timezone: timezone.id, grace: grace.id, order: order.id, priority: priority.id })[firstField];
+        return;
+      }
+      try {
+        await api('PUT', projectPath(k) + '/schedule', { version: current?.version || 0, at: new Date(at.value).toISOString(), timezone: timezone.value, missedPolicy: missed.value, graceSeconds: Number(grace.value), order: Number(order.value), priority: Number(priority.value) });
+        scheduleDrafts.delete(key);
+        if (state.desktop) executionViews.delete(k.projectId + ':' + k.id);
+      } catch (err) {
+        draft.errors.form = err instanceof Error ? err.message : String(err);
+      }
+    }); } }, field('Start time with UTC offset', at, issue('at', at)), field('Display timezone', timezone, issue('timezone', timezone)), field('Missed execution', missed), field('Wait before marking missed (seconds)', grace, issue('grace', grace)), field('Run order', order, issue('order', order)), field('Priority', priority, issue('priority', priority)), draft.errors.form ? h('p', { class: 'field-error', role: 'alert' }, draft.errors.form) : '', h('p', { class: 'muted small' }, 'Dependencies can keep execution waiting until they finish.'), h('button', { class: 'plain' }, current ? 'Reschedule request' : 'Propose schedule')));
     if (current && !['completed', 'canceled'].includes(current.state)) box.append(h('button', { class: 'danger', onclick: () => act(() => api('POST', projectPath(k) + '/schedule/cancel', { version: current.version })) }, 'Cancel request'));
   }).catch(err => box.append(h('p', { class: 'advice', role: 'alert' }, err.message)));
   return box;
@@ -1582,11 +1703,10 @@ function timelineTab(d) {
     h('button', { type: 'button', class: 'plain small', onclick: () => { centerTimeline(); } }, 'Today'),
     filterBar(d));
 
-  const warnPanel = warnings.length ? h('section', { class: 'tl-warns', 'aria-label': 'Planning issues' }, h('h3', {}, 'Planning issues ', h('span', { class: 'badge' }, String(warnings.length))),
+  const warnPanel = warnings.length ? h('details', { class: 'tl-warns' }, h('summary', {}, 'Planning issues ', h('span', { class: 'badge' }, String(warnings.length))),
     h('ul', {}, warnings.map((w) => { const k = ticketOf(w.itemId); return h('li', { 'data-sev': w.severity },
       h('span', { class: 'sev' }, w.severity === 'error' ? 'Problem' : w.severity === 'warning' ? 'Conflict' : 'Note'), h('span', { class: 'msg' }, w.message),
-      k ? h('button', { type: 'button', class: 'plain small', onclick: open(k) }, 'Open ' + k.key) : ''); })),
-    h('p', { class: 'muted small' }, 'Nothing has been moved. Change a date or a dependency on the ticket when you decide how to resolve it.')) : '';
+      k ? h('button', { type: 'button', class: 'plain small', onclick: open(k) }, 'Open ' + k.key) : ''); }))) : '';
 
   let chart;
   if (!dated.length) {
@@ -1659,6 +1779,7 @@ async function analyticsView() {
     analyticsState.key = scopedKey;
   }
   const r = analyticsState.report;
+  const hasThroughput = r.days.some(d => d.created || d.completed);
   const project = h('select', { 'aria-label': 'Analytics project', onchange: e => { analyticsState.project = e.target.value; } },
     h('option', { value: '' }, 'All projects you can read'), (analyticsState.report?.projects || []).map(x => h('option', { value: x.id, selected: analyticsState.project === x.id }, x.name)));
   const range = h('select', { 'aria-label': 'Analytics time range', onchange: e => { analyticsState.days = Number(e.target.value); } },
@@ -1674,17 +1795,18 @@ async function analyticsView() {
   const table = (head, rows) => h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, head.map(label => h('th', {}, label)))), h('tbody', {}, rows.map(row => h('tr', {}, row.map(cell => h('td', {}, String(cell))))))));
   return h('div', { class: 'coordination-analytics' },
     h('div', { class: 'analytics-filters' }, h('label', {}, 'Project ', project), h('label', {}, 'Time range ', range), h('button', { type: 'button', class: 'plain', onclick: () => { analyticsState.appliedProject = analyticsState.project; analyticsState.appliedDays = analyticsState.days; analyticsState.report = null; render(); } }, 'Apply / refresh')),
-    h('p', { class: 'muted' }, 'Ticket coordination for projects you can read. Recorded through ' + new Date(r.end).toLocaleString() + '.'),
+    h('p', { class: 'muted' }, 'As of ' + new Date(r.end).toLocaleString() + '.'),
     r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Partial history: the bounded read omitted records or projects. Counts may be lower than the full history.') : '',
     h('dl', { class: 'analytics-statistics' }, [['Tickets created', r.created], ['Completed tickets', r.completed], ['Average duration', duration(r.averageTicketSeconds)], ['Median duration', duration(r.medianTicketSeconds)]].map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value))))),
-    h('p', { class: 'muted small' }, 'Elapsed time from ticket creation to its first human completion decision in this period, including waiting · ' + r.durationSamples + ' samples.'),
-    h('section', {}, h('h2', {}, 'Created and completed over time'), h('p', { class: 'muted small' }, 'Blue: created · Green: completed · UTC days'), h('div', { class: 'scroll' }, chart),
-      h('details', {}, h('summary', {}, 'Daily values'), table(['UTC date', 'Created', 'Completed'], r.days.map(d => [d.date, d.created, d.completed])))),
-    h('section', {}, h('h2', {}, 'Completion evidence'),
-      h('p', {}, r.humanCompletionDecisions + ' human completion decisions. Reopened and completed tickets count once in throughput; each decision remains recorded.'),
-      h('p', { class: 'muted' }, 'Team does not verify task correctness or execute agents. Agent completion, blocked/stopped execution, runner/model/provider, retries, tokens, costs and usage limits are unavailable here. Inspect those metrics in your own Werkbord Analytics view.')),
-    h('section', {}, h('h2', {}, 'Work categories'), r.categories.length ? table(['Current label', 'Created', 'Completed'], r.categories.map(c => [c.name, c.created, c.completed])) : h('p', { class: 'muted' }, 'No ticket activity matches this view.'),
-      h('p', { class: 'muted small' }, 'Existing labels as they are now. Tickets with several labels appear in each category.')));
+    h('p', { class: 'muted small' }, 'Duration includes waiting · ' + r.durationSamples + ' samples.'),
+    h('section', {}, h('h2', {}, 'Created and completed over time'), hasThroughput
+      ? [h('p', { class: 'muted small' }, 'UTC days'), h('div', { class: 'scroll' }, chart),
+        h('details', {}, h('summary', {}, 'Daily values'), table(['UTC date', 'Created', 'Completed'], r.days.map(d => [d.date, d.created, d.completed])))]
+      : h('p', { class: 'muted' }, 'No ticket activity in this period.')),
+    h('details', { class: 'analytics-disclosure' }, h('summary', {}, 'Coordination details'),
+      h('p', {}, r.humanCompletionDecisions + ' human completion decisions; reopened tickets count once. Team records coordination only and does not run agents or verify correctness.')),
+    h('details', { class: 'analytics-disclosure' }, h('summary', {}, 'Work categories'), r.categories.length ? table(['Current label', 'Created', 'Completed'], r.categories.map(c => [c.name, c.created, c.completed])) : h('p', { class: 'muted' }, 'No ticket activity matches this view.'),
+      h('p', { class: 'muted small' }, 'Tickets with multiple labels appear in each category.')));
 }
 
 const timelineTooltip = h('div', { class: 'timeline-tooltip', role: 'tooltip', hidden: true });

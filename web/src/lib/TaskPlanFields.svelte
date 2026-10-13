@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { validatePlanRange } from './planning';
+  import type { PlanIssue } from './types';
   import type { Plan } from './types';
 
   // The planning side of a task: its labels, who is expected to do it, and when it is planned for.
@@ -8,15 +10,19 @@
     plan = $bindable(),
     repository = true,
     idPrefix,
+    issues = [],
   }: {
     plan: Plan;
     /** False in a work project, where no agent can work and so “agent” is only a description. */
     repository?: boolean;
     idPrefix: string;
+    issues?: PlanIssue[];
   } = $props();
 
   const milestone = $derived(!!plan.milestone);
-  const rangeError = $derived(!milestone && plan.start && plan.end && plan.end < plan.start ? 'The end is before the start.' : '');
+  const draftIssues = $derived(validatePlanRange(plan, 'This task'));
+  const startError = $derived(issues.find((i) => i.field === 'plan.start')?.message ?? draftIssues.find((i) => i.field === 'plan.start')?.message ?? '');
+  const endError = $derived(issues.find((i) => i.field === 'plan.end')?.message ?? draftIssues.find((i) => i.field === 'plan.end')?.message ?? '');
 
   function setMilestone(on: boolean) {
     // A milestone is one date: keep the start, or the end if that is all there is.
@@ -30,18 +36,19 @@
   <div class="dates">
     <label>
       <span>{milestone ? 'Date' : 'Start'}</span>
-      <input class="input" type="date" id="{idPrefix}-start" bind:value={plan.start} />
+      <input class="input" class:invalid={!!startError} type="date" id="{idPrefix}-start" bind:value={plan.start} aria-invalid={!!startError} aria-describedby={startError ? `${idPrefix}-start-error` : undefined} />
+      {#if startError}<small class="field-error" id="{idPrefix}-start-error" role="alert">{startError}</small>{/if}
     </label>
     {#if !milestone}
       <label>
         <span>End</span>
-        <input class="input" type="date" id="{idPrefix}-end" bind:value={plan.end} min={plan.start || undefined} />
+        <input class="input" class:invalid={!!endError} type="date" id="{idPrefix}-end" bind:value={plan.end} min={plan.start || undefined} aria-invalid={!!endError} aria-describedby={endError ? `${idPrefix}-end-error` : undefined} />
+        {#if endError}<small class="field-error" id="{idPrefix}-end-error" role="alert">{endError}</small>{/if}
       </label>
     {/if}
     <label class="check"><input type="checkbox" checked={milestone} onchange={(e) => setMilestone(e.currentTarget.checked)} /><span>Milestone</span></label>
     {#if plan.start || plan.end}<button type="button" class="btn quiet small" onclick={() => (plan = {})}>Clear dates</button>{/if}
   </div>
-  {#if rangeError}<p class="error" role="alert">{rangeError}</p>{/if}
 </fieldset>
 
 <style>
@@ -97,4 +104,7 @@
   .dates .input {
     width: 10.5rem;
   }
+
+  .dates .input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+  .field-error { color: var(--danger-text); font-size: 11.5px; line-height: 1.35; }
 </style>

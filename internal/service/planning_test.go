@@ -376,7 +376,7 @@ func TestPlansAreValidatedAndNeverReschedule(t *testing.T) {
 	}
 }
 
-func TestTimelineWarnsAboutBadDependenciesAndChangesNothing(t *testing.T) {
+func TestPlanningRejectsNewConflictsAndPreservesHistoricalAnalysis(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	p, _ := f.projects.Register(ctx, "/repos/web", "Web")
@@ -388,14 +388,23 @@ func TestTimelineWarnsAboutBadDependenciesAndChangesNothing(t *testing.T) {
 		return task
 	}
 	design := mk("Design", "2026-10-05", "2026-10-09")
-	build := mk("Build", "2026-10-07", "2026-10-14", design.ID) // starts before Design ends
-	ship := mk("Ship", "2026-10-15", "2026-10-15", build.ID)    // fine
+	_, err := f.tasks.CreateTask(ctx, NewTask{ProjectID: p.ID, Title: "Build", Plan: domain.Plan{Start: "2026-10-07", End: "2026-10-14"}, Orchestration: domain.Orchestration{Dependencies: []string{design.ID}}})
+	var planErr *planning.ChangeError
+	if !errors.As(err, &planErr) || len(planErr.Issues) != 1 || planErr.Issues[0].Field != "plan.start" {
+		t.Fatalf("a conflicting dependent task was not rejected with its field: %v", err)
+	}
+	stored, err := f.tasks.List(ctx, p.ID)
+	if err != nil || len(stored) != 1 || stored[0].ID != design.ID {
+		t.Fatalf("rejected plan changed stored tasks: %+v, %v", stored, err)
+	}
+	build := mk("Build", "2026-10-09", "2026-10-14", design.ID) // same-day boundary is allowed
+	ship := mk("Ship", "2026-10-15", "2026-10-15", build.ID)
 
 	tl, err := f.tasks.Timeline(ctx, p.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tl.Warnings) != 1 || tl.Warnings[0].Code != planning.CodeStartsBeforeDependent || tl.Warnings[0].ItemID != build.ID || tl.Warnings[0].OtherID != design.ID {
+	if len(tl.Warnings) != 0 {
 		t.Fatalf("warnings = %+v", tl.Warnings)
 	}
 

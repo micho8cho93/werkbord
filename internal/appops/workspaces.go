@@ -22,6 +22,13 @@ type Workspace struct {
 // use it. The desktop enforces its own allow-list and the destination's service enforces current membership.
 type WorkspaceCall func(context.Context, Workspace, string, any) (json.RawMessage, error)
 
+// ApprovedActionID is non-empty only while appops executes a mutation after the person's approval. A workspace bridge
+// uses it to bind a remote write to the exact stored proposal.
+func ApprovedActionID(ctx context.Context) string {
+	id, _ := ctx.Value(approvedActionContextKey{}).(string)
+	return id
+}
+
 type workspaceBinding struct {
 	workspaces []Workspace
 	call       WorkspaceCall

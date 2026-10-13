@@ -93,7 +93,7 @@ func TestIndividualHasOneDependencyListForTheSchedulerAndTheTimeline(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	build, err := e.tasks.CreateTask(ctx, service.NewTask{ProjectID: e.project.ID, Title: "Build", Description: "Do it.", Plan: domain.Plan{Start: "2026-10-07", End: "2026-10-14"}})
+	build, err := e.tasks.CreateTask(ctx, service.NewTask{ProjectID: e.project.ID, Title: "Build", Description: "Do it.", Plan: domain.Plan{Start: "2026-10-09", End: "2026-10-14"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,12 +106,13 @@ func TestIndividualHasOneDependencyListForTheSchedulerAndTheTimeline(t *testing.
 	if len(e.adapter.Sessions()) != 0 {
 		t.Fatal("the scheduler started a task before its dependency finished")
 	}
-	// …and the timeline reads that same list: it is the only place a dependency is set.
+	// …and the timeline reads that same list: it is the only place a dependency is set. Starting on the day
+	// the prerequisite ends is valid, even though the unfinished dependency still keeps execution waiting.
 	tl, err := e.tasks.Timeline(ctx, e.project.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tl.Warnings) != 1 || tl.Warnings[0].Code != planning.CodeStartsBeforeDependent || tl.Warnings[0].ItemID != build.ID || tl.Warnings[0].OtherID != design.ID {
-		t.Fatalf("the timeline did not read the orchestration's dependencies: %+v", tl.Warnings)
+	if len(tl.Warnings) != 0 {
+		t.Fatalf("the timeline rejected work starting on the day its prerequisite ends: %+v", tl.Warnings)
 	}
 }

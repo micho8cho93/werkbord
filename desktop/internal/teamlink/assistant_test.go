@@ -2,6 +2,7 @@ package teamlink
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,5 +63,22 @@ func TestAssistantBoardUsesFixedWorkspaceRoutesAndStripsCredentialsAndExecution(
 		if _, err := DecodeBoardArgs("get_project", json.RawMessage(raw)); err == nil {
 			t.Errorf("invalid arguments accepted: %s", raw)
 		}
+	}
+}
+
+func TestAssistantBoardPreservesDefinitiveTeamResponseStatus(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error":{"code":"forbidden","message":"You cannot create tickets in this project."}}`))
+	}))
+	defer ts.Close()
+	l, err := New(ts.URL, writeKey(t, 0o600, key), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = l.AssistantBoard(bg, "team:main", "create_ticket", BoardArgs{ProjectID: "p1", Title: "Restricted"})
+	var response *ResponseError
+	if !errors.As(err, &response) || response.StatusCode != http.StatusForbidden || response.Message != "You cannot create tickets in this project." {
+		t.Fatalf("response error: %#v", err)
 	}
 }

@@ -124,7 +124,7 @@ export function reportFrame(place, w = globalThis.window) {
 }
 
 /**
- * Asks the shell to show another workspace, at a place inside it: a Team ticket's "Open in Individual" opens the person's
+ * Asks the shell to show another workspace, at a place inside it: a Team ticket's "Open in Werkbord" opens the person's
  * own task. Only 'personal' is a target, and only a place (see isWorkspaceHref); the shell checks both again.
  */
 export function openWorkspace(target, place, w = globalThis.window) {

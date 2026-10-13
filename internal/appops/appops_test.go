@@ -682,10 +682,14 @@ func TestAMutationIsOnlyProposedUntilThePersonConfirms(t *testing.T) {
 		t.Fatalf("a mutation returns a proposal and nothing else: %+v", res)
 	}
 	pr := res.Pending
-	for _, want := range []string{`"Rotate the keys"`, `"Alpha"`, "human work", "Ops", "2026-03-10 to 2026-03-12", "quarterly"} {
+	for _, want := range []string{"Backlog · Alpha", "human work", "Labels: Ops", "Planned 2026-03-10 to 2026-03-12"} {
 		if !strings.Contains(pr.Summary, want) {
 			t.Errorf("the summary shown to the person lacks %s: %s", want, pr.Summary)
 		}
+	}
+	var proposed map[string]any
+	if err := json.Unmarshal(pr.Args, &proposed); err != nil || proposed["title"] != "Rotate the keys" || proposed["description"] != "quarterly" {
+		t.Errorf("the stored proposal does not carry its visible task details: %+v (%v)", proposed, err)
 	}
 	if got := len(f.tickets(a.ID)); got != 0 {
 		t.Fatalf("the call itself created %d tickets", got)

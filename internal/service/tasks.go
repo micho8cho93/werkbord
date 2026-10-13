@@ -96,7 +96,7 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 	}
 	plan, err := planning.CleanRange(in.Plan)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrInvalid, planning.InvalidRange("", in.Title, in.Plan, err))
 	}
 	labelIDs, err := planning.CleanLabelIDs(in.LabelIDs)
 	if err != nil {
@@ -162,6 +162,14 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 		t.Position = max + 1
 		if err := configureOrchestration(ctx, tx, t, in.Orchestration); err != nil {
 			return err
+		}
+		all, err := tx.Tasks().ListByProject(ctx, projectID)
+		if err != nil {
+			return err
+		}
+		items := timelineItems(all)
+		if err := planning.ValidateChange(items, timelineItem(*t)); err != nil {
+			return fmt.Errorf("%w: %w", domain.ErrInvalid, err)
 		}
 		if err := tx.Tasks().Create(ctx, t); err != nil {
 			return err
@@ -261,7 +269,7 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 		if patch.Plan != nil {
 			plan, err := planning.CleanRange(*patch.Plan)
 			if err != nil {
-				return fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+				return fmt.Errorf("%w: %w", domain.ErrInvalid, planning.InvalidRange(t.ID, t.Title, *patch.Plan, err))
 			}
 			t.Plan = plan
 		}
@@ -272,6 +280,15 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 		}
 		if t.ArchivedAt != nil {
 			t.Orchestration.Enabled = false
+		}
+		if patch.Plan != nil || patch.Orchestration != nil {
+			all, err := tx.Tasks().ListByProject(ctx, t.ProjectID)
+			if err != nil {
+				return err
+			}
+			if err := planning.ValidateChange(timelineItems(all), timelineItem(*t)); err != nil {
+				return fmt.Errorf("%w: %w", domain.ErrInvalid, err)
+			}
 		}
 		t.UpdatedAt = s.now()
 		if err := tx.Tasks().Update(ctx, t); err != nil {
@@ -285,6 +302,19 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 		return nil, err
 	}
 	return t, nil
+}
+
+func timelineItem(t domain.Task) planning.Item {
+	return planning.Item{ID: t.ID, Title: t.Title, Range: planning.Range{Start: t.Plan.Start, End: t.Plan.End, Milestone: t.Plan.Milestone},
+		Done: t.State == domain.TaskDone, Archived: t.ArchivedAt != nil, Dependencies: append([]string(nil), t.Orchestration.Dependencies...)}
+}
+
+func timelineItems(tasks []domain.Task) []planning.Item {
+	items := make([]planning.Item, 0, len(tasks))
+	for _, task := range tasks {
+		items = append(items, timelineItem(task))
+	}
+	return items
 }
 
 // archiveTask preserves the task and every run. Active sessions must be stopped

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { readDraft, writeDraft, uncertainMutation } from './recovery';
-  import { api } from './api';
+  import { ApiError, api } from './api';
   import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, resolveFor, sourceLabel } from './execution';
   import { agentWorkable } from './board';
   import { INTERACTION_OPTIONS, PERMISSIONS_NOTE } from './policy';
@@ -11,7 +11,8 @@
   import Sheet from './Sheet.svelte';
   import TaskPlanFields from './TaskPlanFields.svelte';
   import { app } from './state.svelte';
-  import type { ExecutionConfig, Plan, Project, Task, WorkMode } from './types';
+  import { validatePlanRange } from './planning';
+  import type { ExecutionConfig, Plan, PlanIssue, Project, Task, WorkMode } from './types';
 
   // Essentials first; saved work survives a failed launch.
 
@@ -28,6 +29,7 @@
   let plan = $state<Plan>(restored?.plan ?? {});
   let busy = $state(false);
   let error = $state('');
+  let planIssues = $state<PlanIssue[]>([]);
   let saved = $state<Task | null>(restored?.saved ?? null);
   let phase = $state('');
   let uncertainSave = $state(restored?.uncertainSave ?? false);
@@ -36,6 +38,7 @@
   let cleared = false;
   function persist() { if (cleared) return; draftStored = writeDraft(draftKey, { title, description, execution, labelIds, workMode, plan, saved, uncertainSave, uncertainStart }); }
   $effect(() => { void title; void description; JSON.stringify(execution); JSON.stringify(labelIds); void workMode; JSON.stringify(plan); void saved; void uncertainSave; void uncertainStart; untrack(persist); });
+  $effect(() => { void [plan.start, plan.end, plan.milestone]; planIssues = []; });
 
   const inherited = $derived(resolveFor({}, project.execution, app.globalExecution));
   const isWork = $derived(project.kind === 'work');
@@ -54,6 +57,14 @@
   async function add(start: boolean) {
     const t = title.trim();
     if (!t || busy || uncertainSave || uncertainStart || (start && !saved && !agentReady)) return;
+    const invalidPlan = validatePlanRange(plan, t);
+    if (invalidPlan.length) {
+      planIssues = invalidPlan;
+      error = 'Fix the highlighted planning issues.';
+      await tick();
+      document.getElementById(invalidPlan[0].field === 'plan.end' ? 'new-task-end' : 'new-task-start')?.focus();
+      return;
+    }
     busy = true;
     error = '';
     try {
@@ -88,10 +99,15 @@
       writeDraft(draftKey, null);
       close();
     } catch (err) {
+      planIssues = err instanceof ApiError ? (err.issues ?? []).filter((issue) => issue.field.startsWith('plan.')) : [];
       uncertainSave = !saved && uncertainMutation(err);
       uncertainStart = !!saved && uncertainStart && uncertainMutation(err);
       persist();
-      error = uncertainStart ? 'Task saved. Could not confirm whether the agent started. Open the saved task and check Runs before starting again.' : uncertainSave ? 'Could not confirm whether the task was saved. Check the Board before adding it again.' : `${saved ? 'Task saved. Agent could not start: ' : ''}${err instanceof Error ? err.message : String(err)}`;
+      error = planIssues.length ? 'Fix the highlighted planning issues.' : uncertainStart ? 'Task saved. Could not confirm whether the agent started. Open the saved task and check Runs before starting again.' : uncertainSave ? 'Could not confirm whether the task was saved. Check the Board before adding it again.' : `${saved ? 'Task saved. Agent could not start: ' : ''}${err instanceof Error ? err.message : String(err)}`;
+      if (planIssues.length) {
+        await tick();
+        document.getElementById(planIssues[0].field === 'plan.end' ? 'new-task-end' : 'new-task-start')?.focus();
+      }
     } finally {
       busy = false;
     }
@@ -134,7 +150,7 @@
         <details><summary>Change run settings</summary><p class="hint">{interaction.description} {PERMISSIONS_NOTE} From {sourceLabel(effective.sources.interaction)}.</p><ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" disabled={!!saved || uncertainSave} columns /></details>
       </section>
     {/if}
-    <fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:plan repository={!isWork} idPrefix="new-task" /></fieldset>
+    <fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:plan repository={!isWork} idPrefix="new-task" issues={planIssues} /></fieldset>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     {#if uncertainSave}<p role="status">Save status is unknown. Your brief is kept in this tab; check the Board before creating another task.</p><a class="btn" href={`#/p/${project.id}/board`} onclick={close}>Check Board</a>{/if}
     {#if uncertainStart && !error}<p role="status">Start status is unknown. Open the saved task to check Runs before starting again.</p>{/if}

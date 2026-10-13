@@ -217,7 +217,7 @@ func (s *Service) applyPlanning(ctx context.Context, tx store.Tx, a Actor, x acc
 	if in.plan != nil {
 		plan, err := planning.CleanRange(*in.plan)
 		if err != nil {
-			return domain.FromPlanning(err)
+			return fmt.Errorf("%w: %w", domain.ErrInvalid, planning.InvalidRange(k.ID, k.Title, *in.plan, err))
 		}
 		k.Plan = plan
 	}

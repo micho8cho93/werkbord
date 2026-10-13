@@ -60,6 +60,7 @@ export interface PendingAction {
   operation: string;
   summary: string;
   expiresAt: string;
+  args?: Record<string, unknown>;
 }
 
 export interface SessionView {
@@ -107,18 +108,22 @@ export type EventType =
   | 'gap';
 
 export interface AssistantEvent {
-  workspace?: { id: string; workspaceId: string; method: string; args: unknown };
+  workspace?: { id: string; proposalId?: string; workspaceId: string; method: string; args: unknown };
   seq: number;
   sessionId: string;
   turnId?: string;
   type: EventType;
   at: string;
+  providerAt?: string;
+  /** Monotonic browser receipt time, added locally before the frame-coalesced update. */
+  clientReceivedAt?: number;
   attempt?: number;
   text?: string;
   tool?: ToolEvent;
-  proposal?: { actionId: string; operation: string; summary: string; expiresAt: string };
+  proposal?: { actionId: string; operation: string; summary: string; args?: Record<string, unknown>; expiresAt: string };
   actionId?: string;
   outcome?: string;
+  ticket?: { id: string; projectId: string; title: string; state: string };
   error?: ErrorInfo;
   usage?: { inputTokens?: number; outputTokens?: number };
   state?: SessionView['state'];

@@ -405,8 +405,12 @@ func TestAnArchivedDependencyMakesTheRequestWaitAndSaysSo(t *testing.T) {
 	if !errors.Is(err, domain.ErrConflict) || !strings.Contains(err.Error(), "archived") {
 		t.Fatalf("dispatch = %v", err)
 	}
-	// Depending on archived work is still allowed to be set on a ticket.
-	tm.waitsFor(tm.claimed(tm.bo, "later"), dep.ID)
+	// A new dependency on unfinished archived work is refused.
+	later := tm.claimed(tm.bo, "later")
+	archivedDependency := []string{dep.ID}
+	if _, err := tm.svc.UpdateTicket(bg, tm.owner, tm.pid(), later.ID, TicketPatch{Dependencies: &archivedDependency}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("new archived prerequisite was accepted: %v", err)
+	}
 
 	// The way out is on the ticket, and the request is then proposed again.
 	tm.waitsFor(k)

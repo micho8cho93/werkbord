@@ -63,10 +63,11 @@ type scripted struct {
 	ready    bool
 	mu       sync.Mutex
 	n        int
+	intent   map[string]string
 }
 
 func newScripted(id, name string, ready bool) *scripted {
-	return &scripted{id: id, name: name, ready: ready}
+	return &scripted{id: id, name: name, ready: ready, intent: map[string]string{}}
 }
 
 func (s *scripted) ID() string { return s.id }
@@ -119,17 +120,50 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 		}
 		return provider.Result{Text: all.String(), Ref: ref, Usage: provider.Usage{InputTokens: 10, OutputTokens: 5}}, nil
 	}
+	streamFixture := func(text string) (provider.Result, error) {
+		all := text
+		for len(text) > 0 {
+			n := 18
+			if len(text) < n {
+				n = len(text)
+			}
+			select {
+			case <-time.After(2 * time.Millisecond):
+			case <-ctx.Done():
+				return provider.Result{}, ctx.Err()
+			}
+			emit(provider.Event{Kind: provider.EventText, Text: text[:n]})
+			text = text[n:]
+		}
+		return provider.Result{Text: all, Ref: ref, Usage: provider.Usage{InputTokens: 10, OutputTokens: 5}}, nil
+	}
 	p := t.Prompt
 	low := strings.ToLower(p)
 	afterResults := strings.Contains(p, "<werkbord-results>")
+	s.mu.Lock()
+	if !afterResults {
+		switch {
+		case strings.Contains(low, "single portfolio ticket"):
+			s.intent[ref] = "single"
+		case strings.Contains(low, "portfolio tickets"):
+			s.intent[ref] = "batch"
+		}
+	}
+	intent := s.intent[ref]
+	s.mu.Unlock()
 	switch {
 	case strings.Contains(low, "failed board action") && !afterResults:
 		return say("I'll read that board.\n```werkbord-call\n{\"id\":\"c1\",\"name\":\"list_tickets\",\"arguments\":{\"projectId\":\"prj_missing\"}}\n```")
 	case afterResults && strings.Contains(p, `status="error"`):
 		return say("I could not read that board.")
+	case strings.Contains(low, "single portfolio ticket") && !afterResults:
+		return say("Looking up the portfolio project.\n```werkbord-call\n{\"id\":\"p1\",\"name\":\"list_projects\",\"arguments\":{}}\n```")
+	case afterResults && intent == "single" && strings.Contains(p, "workspace:") && strings.Contains(p, `name="list_projects"`):
+		pid := regexp.MustCompile(`workspace:[A-Za-z0-9:_-]+/[A-Za-z0-9_-]+`).FindString(p)
+		return say("```werkbord-call\n" + fmt.Sprintf(`{"id":"single","name":"create_ticket","arguments":{"projectId":%q,"title":"A single approved ticket"}}`, pid) + "\n```")
 	case strings.Contains(low, "portfolio tickets") && !afterResults:
 		return say("Looking up the portfolio project.\n```werkbord-call\n{\"id\":\"p1\",\"name\":\"list_projects\",\"arguments\":{}}\n```")
-	case afterResults && strings.Contains(p, "workspace:") && strings.Contains(p, `name="list_projects"`):
+	case afterResults && (intent == "batch" || intent == "") && strings.Contains(p, "workspace:") && strings.Contains(p, `name="list_projects"`):
 		pid := regexp.MustCompile(`workspace:[A-Za-z0-9:_-]+/[A-Za-z0-9_-]+`).FindString(p)
 		var calls strings.Builder
 		for i, title := range []string{"Extract LinkedIn and CV information", "Extract coding projects from GitHub", "Create a website design system"} {
@@ -165,6 +199,13 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 			"explanation = Text(\"Counts are from the current board.\")\nuntrusted = Text(\"<img src=x onerror=window.__pwned=1>\")\n```\n",
 			"The values are from the current board.",
 		)
+	case strings.Contains(low, "stream benchmark short"):
+		return streamFixture("A short controlled stream checks that each update reaches the browser and appears in the conversation promptly.")
+	case strings.Contains(low, "stream benchmark long"):
+		return streamFixture(strings.Repeat("A long controlled reply keeps earlier text stable while the next words arrive. ", 42))
+	case strings.Contains(low, "stream benchmark mixed"):
+		detail := strings.TrimSpace(strings.Repeat("Generated details remain readable as this interface streams. ", 12))
+		return streamFixture("The prose and generated interface arrive together.\n\n```openui-lang\nroot = Stack([title, detail])\ntitle = Heading(\"Streaming result\")\ndetail = Text(\"" + detail + "\")\n```\n")
 	case strings.Contains(low, "malformed openui"):
 		return say("```openui-lang\nroot = Heading()\n```")
 	case strings.Contains(low, "incomplete openui"):

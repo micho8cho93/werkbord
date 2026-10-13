@@ -642,6 +642,8 @@ type Decision struct {
 	Executor Principal
 }
 
+type approvedActionContextKey struct{}
+
 // Resolve carries out, or declines, a proposal on behalf of the person. It is not reachable from a model: only the
 // controller's own API calls it, with the controller's credential.
 func (s *Service) Resolve(ctx context.Context, d Decision) (*Result, error) {
@@ -721,7 +723,10 @@ func (s *Service) Resolve(ctx context.Context, d Decision) (*Result, error) {
 	if pid, ok := args["projectId"].(string); ok && !d.Executor.CanSee(pid) {
 		return fail("outside the assistant's projects", errorf(CodeNotFound, "project %s was not found", pid))
 	}
-	data, err := op.run(ctx, &env{b: s.backend(d.Executor), p: d.Executor, now: now}, args)
+	// Carry the exact stored proposal id through semantic workspace calls. The desktop and destination service use it
+	// to bind authorization and make a replay of this same approval idempotent.
+	approvedCtx := context.WithValue(ctx, approvedActionContextKey{}, act.ID)
+	data, err := op.run(approvedCtx, &env{b: s.backend(d.Executor), p: d.Executor, now: now}, args)
 	if err != nil {
 		ce := classify(s.log, act.Operation, err)
 		return fail(ce.Message, ce)

@@ -253,12 +253,16 @@ describe('the person’s answer to a proposed change', () => {
     expect(confirmOf(a).state).toBe(state);
   });
 
-  it('puts the change back as waiting if Werkbord cannot be reached, so it can be pressed again', async () => {
+  it('keeps a lost approval response uncertain and does not offer a duplicate retry', async () => {
     const { a } = await waitingChange();
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')));
-    await a.resolve(confirmOf(a), 'approve');
-    expect(confirmOf(a).state).toBe('waiting');
-    expect(a.problem).toMatch(/Cannot reach Werkbord/);
+    const item = confirmOf(a);
+    await a.resolve(item, 'approve');
+    expect(item.state).toBe('uncertain');
+    expect(item.outcome).toMatch(/Check the board/);
+    const approvalCount = srv.called('POST', '/api/assistant/sessions/ast_1/actions/act_1').length;
+    await a.resolve(item, 'approve');
+    expect(srv.called('POST', '/api/assistant/sessions/ast_1/actions/act_1')).toHaveLength(approvalCount);
   });
 });
 
@@ -302,14 +306,14 @@ describe('answering several waiting changes at once', () => {
     expect(srv.called('POST', '/actions/act_2')[0].body).toEqual({ decision: 'decline' });
   });
 
-  it('stops at the first that could not be answered, and leaves the rest waiting to be pressed again', async () => {
+  it('continues after an uncertain outcome and reports the batch result once', async () => {
     const a = await several(3);
-    srv.fail.set('POST /api/assistant/sessions/ast_1/actions/act_2', 500);
     vi.stubGlobal('fetch', ((orig) => (input: RequestInfo | URL, init?: RequestInit) => (String(input).includes('act_2') ? Promise.reject(new TypeError('Failed to fetch')) : orig(input, init)))(globalThis.fetch));
     await a.resolveAll('approve');
     const states = a.transcript.items.filter((i) => i.kind === 'confirm').map((i) => (i.kind === 'confirm' ? i.state : ''));
-    expect(states).toEqual(['confirmed', 'waiting', 'waiting']);
-    expect(srv.called('POST', '/actions/act_3')).toHaveLength(0);
+    expect(states).toEqual(['confirmed', 'uncertain', 'confirmed']);
+    expect(srv.called('POST', '/actions/act_3')).toHaveLength(1);
+    expect(a.batchResult).toEqual({ added: 2, completed: 0, failed: 1 });
     expect(a.batch).toBeNull();
   });
 

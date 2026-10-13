@@ -287,10 +287,15 @@ func TestPlansAreValidated(t *testing.T) {
 	}
 }
 
-func TestDependenciesAreCheckedAndTheTimelineOnlyWarns(t *testing.T) {
+func TestDependenciesAndPlansAreValidatedBeforeWriting(t *testing.T) {
 	tm := newTeam(t)
 	design := tm.planned(tm.owner, "Design", TicketInput{Plan: planning.Range{Start: "2026-10-05", End: "2026-10-09"}})
-	build := tm.planned(tm.owner, "Build", TicketInput{Plan: planning.Range{Start: "2026-10-07", End: "2026-10-14"}, Dependencies: []string{design.ID}})
+	_, err := tm.svc.CreateTicket(bg, tm.owner, tm.pid(), TicketInput{Title: "Build", Plan: planning.Range{Start: "2026-10-07", End: "2026-10-14"}, Dependencies: []string{design.ID}})
+	var planErr *planning.ChangeError
+	if !errors.As(err, &planErr) || len(planErr.Issues) != 1 || planErr.Issues[0].Field != "plan.start" {
+		t.Fatalf("conflicting ticket was not rejected with its field: %v", err)
+	}
+	build := tm.planned(tm.owner, "Build", TicketInput{Plan: planning.Range{Start: "2026-10-09", End: "2026-10-14"}, Dependencies: []string{design.ID}})
 	ship := tm.planned(tm.owner, "Ship", TicketInput{Plan: planning.Range{Start: "2026-10-15"}, Dependencies: []string{build.ID, design.ID}})
 	if len(ship.Dependencies) != 2 {
 		t.Fatalf("ship = %+v", ship.Dependencies)
@@ -300,7 +305,7 @@ func TestDependenciesAreCheckedAndTheTimelineOnlyWarns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tl.Warnings) != 1 || tl.Warnings[0].Code != planning.CodeStartsBeforeDependent || tl.Warnings[0].ItemID != build.ID || tl.Warnings[0].OtherID != design.ID {
+	if len(tl.Warnings) != 0 {
 		t.Fatalf("warnings = %+v", tl.Warnings)
 	}
 	// Finding out changed nothing.
@@ -309,6 +314,14 @@ func TestDependenciesAreCheckedAndTheTimelineOnlyWarns(t *testing.T) {
 		if got.Plan != want.Plan || got.Version != want.Version || got.Status != want.Status {
 			t.Errorf("%s changed: %+v", want.Title, got)
 		}
+	}
+	conflict := planning.Range{Start: "2026-10-07", End: "2026-10-14"}
+	if _, err := tm.svc.UpdateTicket(bg, tm.owner, tm.pid(), build.ID, TicketPatch{Plan: &conflict}); !errors.As(err, &planErr) {
+		t.Fatalf("conflicting edit was accepted: %v", err)
+	}
+	unchanged, _ := tm.svc.GetTicket(bg, tm.owner, tm.pid(), build.ID)
+	if unchanged.Plan.Start != "2026-10-09" {
+		t.Fatalf("rejected edit changed the stored ticket: %+v", unchanged.Plan)
 	}
 
 	// What cannot be written is refused: itself, another project's ticket, an unknown one, a circle, a repeat.
@@ -331,7 +344,7 @@ func TestDependenciesAreCheckedAndTheTimelineOnlyWarns(t *testing.T) {
 	if _, err := tm.svc.UpdateTicket(bg, tm.cy, tm.pid(), ship.ID, TicketPatch{Dependencies: &[]string{}}); !errorIs(err, domain.ErrForbidden) {
 		t.Errorf("another contributor: %v", err)
 	}
-	// Clearing them is allowed, and the warning goes.
+	// Clearing a dependency is allowed.
 	none := []string{}
 	if _, err := tm.svc.UpdateTicket(bg, tm.owner, tm.pid(), build.ID, TicketPatch{Dependencies: &none}); err != nil {
 		t.Fatal(err)

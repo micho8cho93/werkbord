@@ -92,11 +92,9 @@ function licenseImport() {
 }
 
 function alwaysOnHelp() {
-  return h('details', { class: 'always-on' }, h('summary', {}, 'What needs to stay online?'),
-    h('p', {}, 'Runners perform the work. Scheduled or remote work requires at least one of your runners to stay online.'),
-    h('p', {}, 'Workspace Hosts keep Team available. Three Workspace Hosts are recommended so Team can keep working when one goes offline.'),
-    h('p', {}, 'Connectivity Hosts make remote access possible. Team checks whether a host is reachable and tells you when remote access cannot be guaranteed.'),
-    h('p', {}, 'Desktop computers, Mac minis, office servers and server-class NAS systems are better Host and Runner choices than laptops that sleep or travel. Closing an app window keeps its service running; sleeping the computer pauses its work.'));
+  return h('details', { class: 'always-on' }, h('summary', {}, 'Hosting details'),
+    h('p', {}, 'Runners perform work; Workspace Hosts keep Team available; Connectivity Hosts enable remote access.'),
+    h('p', {}, 'Three Workspace Hosts tolerate one going offline. Sleeping computers pause hosting and runner work.'));
 }
 
 function availabilityText(r) {
@@ -302,35 +300,41 @@ function syncPanel() {
   });
   const problem = state.device.sync?.problem;
   return h('section', { class: 'panel', 'aria-labelledby': 'sync-h' }, h('h2', { id: 'sync-h' }, 'Team handoffs to Werkbord'),
-    h('p', { class: 'muted' }, 'A Team ticket you claim or are assigned in these projects appears as a local task in your own Werkbord, ready for you to start. Claiming never starts an agent.'),
+    h('p', { class: 'muted' }, 'Claimed and assigned tickets become local tasks; claiming never starts an agent.'),
     projects.length ? projects.map(p => h('label', { class: 'check-row' }, h('input', { type: 'checkbox', name: 'sync-' + p.project.id, checked: !off.has(p.project.id), onchange: e => save(p.project.id, e.target.checked) }), p.project.name))
       : h('p', { class: 'muted' }, 'You are not on any project yet.'),
     problem ? h('p', { class: 'advice' }, problem) : '');
 }
 
 async function settingsView() {
-  if (!state.desktop) return h('section', { class: 'panel' }, h('h2', {}, 'Device settings'), h('p', { class: 'muted' }, 'Manage this computer’s service and runner approvals in the Team desktop app.'),
+  if (!state.desktop) return h('section', { class: 'panel' }, h('h2', {}, 'Device settings'), h('p', { class: 'muted' }, 'Manage this computer in the Team desktop app.'),
     h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: signOut }, 'Sign out of workspace')));
   const s = state.device.settings;
   const form = h('select', { name: 'computer-kind' }, [['', 'Choose…'], ['desktop', 'Desktop / Mac mini'], ['laptop', 'Laptop'], ['server', 'Server / NAS']].map(([value, label]) => h('option', { value, selected: s.form === value || (!s.form && !value) }, label)));
-  const policy = h('select', { name: 'remote-policy' }, [['ask', 'Approve each task on this computer'], ['off', 'Do not allow remote starts'], ['auto', 'Allow starts for tickets from my trusted devices']].map(([value, label]) => h('option', { value, selected: s.remoteStart === value }, label)));
+  const policy = h('select', { name: 'remote-policy' }, [['ask', 'Ask each time'], ['off', 'Off'], ['auto', 'Allow from trusted devices']].map(([value, label]) => h('option', { value, selected: s.remoteStart === value }, label)));
   const open = h('input', { name: 'remote-open', type: 'checkbox', checked: s.remoteOpen });
   const sleeps = h('input', { name: 'computer-sleeps', type: 'checkbox', checked: s.sleeps || s.form === 'laptop' });
   const hostOffer = h('input', { name: 'offer-workspace-host', type: 'checkbox', checked: s.offerWorkspaceHost });
   const connectivityOffer = h('input', { name: 'offer-connectivity-host', type: 'checkbox', checked: s.offerConnectivityHost });
   const plan = await deviceApi('GET', '/removal');
-  return h('div', {}, runnerSetup(), syncPanel(), h('section', { class: 'panel' }, h('h2', {}, 'This computer'), h('form', { onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } }, field('Kind of computer', form), field('This computer sleeps automatically', sleeps), field('Volunteer this computer as a Workspace Host', hostOffer), field('Volunteer this computer as a Connectivity Host', connectivityOffer), field('Starting work from my other devices', policy), field('Allow my trusted devices to open tickets here', open), h('button', { class: 'primary' }, 'Save settings')),
-    h('p', { class: 'muted' }, 'Hosting offers are sent to your administrator for authorization. A role starts only after authorization and infrastructure checks. Sleeping or traveling devices are unsuitable for reliable hosting. Changes here belong to this computer; Workspace Hosts cannot change your execution approvals.')),
-    h('section', { class: 'panel' }, h('h2', {}, 'Trust your other devices'), h('p', { class: 'muted' }, 'Approve a device here before it can ask your runner to act. Compare its identity with the value shown in Settings on that device.'),
-      h('p', { class: 'muted' }, 'This computer’s identity: ', h('code', {}, state.device.identity)),
+  return h('div', {}, runnerSetup(), syncPanel(), h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } },
+    h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Computer'), field('Type', form), field('Sleeps automatically', sleeps)),
+    h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Hosting'), field('Workspace Host', hostOffer), field('Connectivity Host', connectivityOffer),
+      h('p', { class: 'muted' }, 'Hosting starts after administrator approval; sleep pauses this computer’s work.'),
+      h('details', {}, h('summary', {}, 'Details'), h('p', { class: 'muted' }, 'Workspace Hosts keep Team available. Connectivity Hosts enable remote access. Three Workspace Hosts allow Team to keep working if one goes offline.'))),
+    h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Trusted devices'), field('Remote starts', policy), field('Allow trusted devices to open tickets here', open),
+      h('p', { class: 'muted' }, 'Compare device identities before granting trust.'),
+      h('details', {}, h('summary', {}, 'Details'), h('p', { class: 'muted' }, 'A trusted device can ask this computer to open tickets on its runner. Starting work still follows this computer’s local approvals.')),
+      h('p', { class: 'identity' }, 'This computer · ', h('code', {}, state.device.identity)),
       (state.device.senders || []).map(d => h('div', { class: 'row' }, h('div', { class: 'grow' }, d.name, h('code', {}, d.identity)), h('button', { class: 'plain', onclick: () => act(() => deviceApi('POST', '/senders/' + d.deviceId + (d.approved ? '/revoke' : '/trust'), d.approved ? {} : { publicKey: d.publicKey })) }, d.approved ? 'Stop trusting' : 'Trust this device')))),
-    h('section', { class: 'panel' }, h('h2', {}, 'Execution approvals'), h('p', { class: 'muted' }, 'Open a held ticket’s Agent controls to select its runner, agent, model and policy. Review the effective runtime permissions before approving a single execution.')),
-    h('section', { class: 'panel' }, h('h2', {}, 'Service and uninstall'), h('p', { class: 'muted' }, 'Removing the GUI leaves the Team service, your runner and your workspace running. You can keep or stop the Team service separately. Leaving the workspace can keep a local archive or remove its local secrets and data.'),
+    h('button', { class: 'primary' }, 'Save settings'))),
+    h('section', { class: 'panel' }, h('h2', {}, 'Execution approvals'), h('p', { class: 'muted' }, 'Choose a runner and review its permissions in the ticket’s Agent controls.')),
+    h('section', { class: 'panel' }, h('h2', {}, 'Service and data'), h('p', { class: 'muted' }, 'Removing the GUI keeps the Team service and workspace running. Leaving can keep an archive or erase local data.'),
       plan.reason ? h('p', { class: 'advice' }, plan.reason) : '',
       h('div', { class: 'actions' }, nativeApp() ? h('button', { class: 'plain', onclick: () => act(() => nativeApp().Service('stop')) }, 'Stop Team service, keep data') : '',
         h('button', { class: 'danger', disabled: !plan.canLeave, onclick: () => confirm('Leave this workspace? A local archive is kept. Your free runner is unaffected.') && act(() => deviceApi('POST', '/leave', { confirm: 'leave workspace', removeData: false })) }, 'Leave workspace, keep archive'),
         h('button', { class: 'danger', disabled: !plan.canRemoveData, onclick: () => confirm('Leave and permanently remove this workspace’s local secrets and data? Team requires another safe workspace copy first.') && act(() => deviceApi('POST', '/leave', { confirm: 'leave workspace', removeData: true })) }, 'Leave and remove local data')),
-      h('p', { class: 'muted' }, 'To remove only the GUI, move Werkbord Team.app to the Trash. Keep the service to continue hosting. Stopping it preserves data and can be reversed by opening the app.')), alwaysOnHelp());
+      h('p', { class: 'muted' }, 'Move Werkbord Team.app to the Trash to remove only the GUI. Stopping the service preserves data; reopen the app to start it.')));
 }
 
 function runnerHandoff(hf) {

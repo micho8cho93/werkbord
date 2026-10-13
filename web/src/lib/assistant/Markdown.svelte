@@ -1,9 +1,10 @@
 <script lang="ts">
   // Draws a reply as elements, never as HTML (see markdown.ts for why).
-  import { blocks, type Inline } from './markdown';
+  import { blocks, emptyMarkdownBlockCache, growingBlocks, type Inline } from './markdown';
 
-  let { text }: { text: string } = $props();
-  const tree = $derived(blocks(text));
+  let { text, streaming = false }: { text: string; streaming?: boolean } = $props();
+  const cache = emptyMarkdownBlockCache();
+  const tree = $derived(streaming ? growingBlocks(text, cache) : blocks(text));
 </script>
 
 {#snippet spans(list: Inline[])}

@@ -3,33 +3,61 @@
   import { assistant } from './store.svelte';
   import type { ConfirmItem } from './transcript';
   import { clock, operationTitle } from './words';
+  import { taskHref } from '../router.svelte';
 
   // A change the assistant prepared. Nothing has happened: the words below were written by Werkbord from the exact arguments
   // that will be used, not by the model, and only the button here carries the change out.
   let { item }: { item: ConfirmItem } = $props();
   const until = $derived(Date.parse(item.expiresAt));
+  const taskArgs = $derived(item.operation === 'create_ticket' ? item.args : undefined);
+  const taskTitle = $derived(typeof taskArgs?.title === 'string' ? taskArgs.title : 'New task');
+  const taskDescription = $derived(typeof taskArgs?.description === 'string' ? taskArgs.description : '');
+  function connectedDestination() {
+    if (!item.ticket) return null;
+    const project = /^workspace:([^/]{1,40})\/([^/]{1,120})$/.exec(item.ticket.projectId);
+    const ticket = /^workspace:([^/]{1,40})\/([^/]{1,120})$/.exec(item.ticket.id);
+    if (!project || !ticket || project[1] !== ticket[1] || !project[1].startsWith('team:')) return null;
+    return { workspace: project[1], place: `?tab=board&project=${encodeURIComponent(project[2])}&ticket=${encodeURIComponent(ticket[2])}` };
+  }
+  const connected = $derived(connectedDestination());
+  function openConnectedTask() {
+    if (!connected) return;
+    window.parent.postMessage({ type: 'werkbord.frame', event: 'open', target: connected.workspace, place: connected.place }, '*');
+  }
 </script>
 
 <section class="card confirm" data-state={item.state} aria-label="{operationTitle(item.operation)}: {item.state === 'waiting' ? 'waiting for you' : item.state}">
   <div class="lab">{operationTitle(item.operation)} <span class="status"><span class="status-dot" aria-hidden="true"></span>{item.state === 'waiting' ? 'Needs you' : item.state === 'working' ? 'Working' : item.state === 'confirmed' ? 'Done' : item.state === 'declined' ? 'Declined' : item.state === 'expired' ? 'Expired' : item.state === 'failed' ? 'Failed' : 'Closed'}</span></div>
-  <p class="sum">{item.summary}</p>
+  {#if taskArgs}
+    <h3 class="task-title">{taskTitle}</h3>
+    <p class="destination">{item.summary}</p>
+    {#if taskDescription}<div class="preview-detail"><span>Details</span><p>{taskDescription}</p></div>{/if}
+  {:else}
+    <p class="sum">{item.summary}</p>
+  {/if}
 
   {#if item.state === 'waiting' || item.state === 'working'}
     <div class="acts">
-      <button class="btn primary" type="button" disabled={item.state === 'working'} onclick={() => assistant.resolve(item, 'approve')}>
-        {item.state === 'working' ? 'Working…' : 'Confirm'}
+      <button class="btn primary" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'approve')}>
+        {item.state === 'working' ? (item.operation === 'create_ticket' ? 'Adding…' : 'Saving…') : 'Confirm'}
       </button>
-      <button class="btn" type="button" disabled={item.state === 'working'} onclick={() => assistant.resolve(item, 'decline')}>Not now</button>
+      <button class="btn" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'decline')}>Not now</button>
     </div>
-    <p class="fine">Nothing changes until you confirm.{Number.isFinite(until) ? ` Open until ${clock(until)}.` : ''}</p>
+    {#if item.state === 'waiting'}<p class="fine">Nothing changes until you confirm.{Number.isFinite(until) ? ` Open until ${clock(until)}.` : ''}</p>{:else}<p class="fine">{item.operation === 'create_ticket' ? 'Adding the approved task to Backlog…' : 'Saving the approved change…'}</p>{/if}
   {:else if item.state === 'confirmed'}
-    <p class="result ok"><Icon name="check" size={14} /> Done.{item.outcome ? ` ${item.outcome}` : ''}</p>
+    <p class="result ok"><Icon name="check" size={14} /> {item.operation === 'create_ticket' ? 'Added to Backlog.' : 'Done.'}{item.ticket ? ` ${item.ticket.title}` : item.outcome ? ` ${item.outcome}` : ''}</p>
+    {#if item.ticket}
+      {#if connected}<button class="task-link" type="button" onclick={openConnectedTask}>Open task</button>
+      {:else}<a class="task-link" href={taskHref(item.ticket.projectId, item.ticket.id)}>Open task</a>{/if}
+    {/if}
   {:else if item.state === 'declined'}
     <p class="result">Not done. You said no.</p>
   {:else if item.state === 'expired'}
     <p class="result">Not confirmed in time, so nothing changed. Ask again if you still want it.</p>
   {:else if item.state === 'failed'}
     <p class="result bad" role="alert">This could not be done.{item.outcome ? ` ${item.outcome}` : ''} Nothing was changed by the attempt unless it says otherwise.</p>
+  {:else if item.state === 'uncertain'}
+    <p class="result bad" role="alert">{item.outcome ?? 'The result is uncertain. Check the board before trying again.'}</p>
   {:else}
     <p class="result">No longer waiting. It was answered, or it timed out, while you were away.</p>
   {/if}
@@ -62,6 +90,11 @@
     font-size: 14px;
     overflow-wrap: anywhere;
   }
+  .task-title { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+  .destination { color: var(--text-2); font-size: 12.5px; }
+  .preview-detail { display: grid; gap: 3px; }
+  .preview-detail > span { color: var(--text-2); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+  .preview-detail > p { font-size: 13px; overflow-wrap: anywhere; white-space: pre-wrap; }
   .acts {
     display: flex;
     gap: 8px;
@@ -85,4 +118,6 @@
     color: var(--danger-text);
     align-items: flex-start;
   }
+  .task-link { width: fit-content; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .task-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 </style>

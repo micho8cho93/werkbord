@@ -18,15 +18,16 @@ import (
 
 // fakeLauncher is the launcher, answering from a script and recording what it is asked.
 type fakeLauncher struct {
-	mu      sync.Mutex
-	cfg     config.Config
-	conn    launcher.Connection
-	connErr error
-	status  update.Status
-	applyOK bool
-	applyEr error
-	applied int
-	steps   []launcher.Step
+	mu                        sync.Mutex
+	cfg                       config.Config
+	conn                      launcher.Connection
+	connErr                   error
+	status                    update.Status
+	applyOK                   bool
+	applyEr                   error
+	applied                   int
+	steps                     []launcher.Step
+	assistantWorkspaceRequest func(context.Context, string, string) ([]byte, error)
 	// the program the app carries, against the one installed
 	pending            bool
 	installed, bundled string
@@ -40,7 +41,13 @@ func (f *fakeLauncher) Connect(_ context.Context, report func(launcher.Step)) (l
 	}
 	return f.conn, f.connErr
 }
-func (f *fakeLauncher) Config(context.Context) (config.Config, error)    { return f.cfg, nil }
+func (f *fakeLauncher) Config(context.Context) (config.Config, error) { return f.cfg, nil }
+func (f *fakeLauncher) AssistantWorkspaceRequest(ctx context.Context, session, request string) ([]byte, error) {
+	if f.assistantWorkspaceRequest == nil {
+		return nil, errors.New("no approved workspace request")
+	}
+	return f.assistantWorkspaceRequest(ctx, session, request)
+}
 func (f *fakeLauncher) UpdateStatus(context.Context, bool) update.Status { return f.status }
 func (f *fakeLauncher) ApplyUpdate(context.Context) (string, error) {
 	f.mu.Lock()

@@ -70,6 +70,19 @@ describe('the assistant report', () => {
     expect(d.remember).not.toHaveBeenCalled();
     expect(d.open).not.toHaveBeenCalled();
   });
+  it('can open a validated ticket route in a Team workspace', async () => {
+    const d = deps();
+    await handle([surface], { source: assistantWindow, origin: surface.origin, data: { type: 'werkbord.frame', event: 'open', target: 'team:main', place: '?tab=board&project=p_1&ticket=t_1' } }, d);
+    expect(d.open).toHaveBeenCalledExactlyOnceWith('personal', 'team:main', '?tab=board&project=p_1&ticket=t_1');
+    await handle([surface], { source: assistantWindow, origin: surface.origin, data: { type: 'werkbord.frame', event: 'open', target: 'team:main', place: 'https://evil.example' } }, d);
+    expect(d.open).toHaveBeenCalledExactlyOnceWith('personal', 'team:main', '?tab=board&project=p_1&ticket=t_1');
+  });
+  it('relays the six bound arguments required for an approved Team task', async () => {
+    const d = deps();
+    const args = ['ast_1', 'wreq_1', 'act_1', 'team:main', 'create_ticket', { projectId: 'p_1', title: 'Prepare launch' }];
+    await handle([surface], { source: assistantWindow, origin: surface.origin, data: { ...data, method: 'AssistantWorkspaceCall', args } }, d);
+    expect(d.relay).toHaveBeenCalledExactlyOnceWith('personal', 'AssistantWorkspaceCall', args);
+  });
 });
 
 describe('where the assistant’s frame loads from', () => {

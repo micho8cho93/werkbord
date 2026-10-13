@@ -654,21 +654,18 @@ func planCreateTicket(ctx context.Context, e *env, a map[string]any) (*plan, err
 	if rng.Milestone {
 		norm["milestone"] = true
 	}
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Create the task %q in project %q", title, project.Name)
+	var summary []string
+	summary = append(summary, "Backlog · "+project.Name)
 	if mode != "" {
-		fmt.Fprintf(&sb, " as %s work", mode)
+		summary = append(summary, mode+" work")
 	}
 	if len(labels) > 0 {
-		fmt.Fprintf(&sb, ", labelled %s", strings.Join(labels, ", "))
+		summary = append(summary, "Labels: "+strings.Join(labels, ", "))
 	}
 	if rng.Start != "" || rng.End != "" {
-		fmt.Fprintf(&sb, ", planned %s", rangeText(rng))
+		summary = append(summary, "Planned "+rangeText(rng))
 	}
-	if desc != "" {
-		fmt.Fprintf(&sb, ". Description: %q", clip(oneLine(desc), 200))
-	}
-	return &plan{Args: norm, Summary: sb.String()}, nil
+	return &plan{Args: norm, Summary: strings.Join(summary, " · ")}, nil
 }
 
 func runCreateTicket(ctx context.Context, e *env, a map[string]any) (any, error) {

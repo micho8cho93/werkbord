@@ -45,15 +45,19 @@ type Event struct {
 	TurnID    string    `json:"turnId,omitempty"`
 	Type      EventType `json:"type"`
 	At        time.Time `json:"at"`
+	// ProviderAt is when a provider's visible text delta reached the engine. Comparing it with At separates provider
+	// latency from controller delivery and browser rendering without changing model/provider selection.
+	ProviderAt time.Time `json:"providerAt,omitempty"`
 	// Attempt numbers the provider attempts within a turn, from 1, on Delta events.
 	Attempt int    `json:"attempt,omitempty"`
 	Text    string `json:"text,omitempty"`
 	// Tool is set on tool events.
 	Tool *ToolEvent `json:"tool,omitempty"`
 	// Proposal is set on EventConfirmationRequired; Action on EventConfirmationResolved.
-	Proposal *appops.Proposal `json:"proposal,omitempty"`
-	ActionID string           `json:"actionId,omitempty"`
-	Outcome  string           `json:"outcome,omitempty"`
+	Proposal *appops.Proposal   `json:"proposal,omitempty"`
+	ActionID string             `json:"actionId,omitempty"`
+	Outcome  string             `json:"outcome,omitempty"`
+	Ticket   *appops.TicketView `json:"ticket,omitempty"`
 	// Error is set on EventFailed.
 	Error *ErrorInfo `json:"error,omitempty"`
 	// Usage is set on EventCompleted when the provider said.

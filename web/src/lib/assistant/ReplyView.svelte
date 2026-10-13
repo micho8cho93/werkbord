@@ -3,7 +3,7 @@
   import { assistant } from './store.svelte';
   import Markdown from './Markdown.svelte';
   import { openUILibrary } from './openui/library';
-  import { replyParts } from './openui/reply';
+  import { emptyReplyPartsCache, growingReplyParts } from './openui/reply';
   import { lookedAt, progressLine, type ReplyItem } from './transcript';
   import { failure, operationFailureTitle } from './words';
   import { conversationMessage } from './openui/state';
@@ -12,11 +12,12 @@
   // The OpenUI renderer takes its form-state snapshot once; later edits are retained internally and saved separately.
   // svelte-ignore state_referenced_locally
   const initialUIState = reply.uiState ?? {};
+  const partsCache = emptyReplyPartsCache();
   let openUIResults = $state<Record<number, { ready: boolean; hasRoot: boolean; invalid: boolean }>>({});
   let actionProblem = $state('');
   const line = $derived(reply.status === 'working' ? progressLine(reply) : '');
   const looked = $derived(reply.status === 'done' ? lookedAt(reply) : []);
-  const parts = $derived(replyParts(reply.text, reply.status === 'working'));
+  const parts = $derived(growingReplyParts(reply.text, reply.status === 'working', partsCache));
   const fail = $derived(reply.error ? failure(reply.error) : null);
   const failedSteps = $derived(reply.steps.filter((s) => s.status === 'error'));
 
@@ -46,7 +47,7 @@
 <article class="reply" aria-busy={reply.status === 'working'} data-status={reply.status}>
   {#each parts as part, i (i)}
     {#if part.kind === 'text'}
-      {#if part.text.trim() !== ''}<Markdown text={part.text} />{/if}
+      {#if part.text.trim() !== ''}<Markdown text={part.text} streaming={reply.status === 'working'} />{/if}
     {:else}
       <section class="openui" aria-label="Generated interface">
         <Renderer
@@ -129,6 +130,10 @@
     gap: 8px;
     min-width: 0;
     max-width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
   }
   .openui-fallback {
     min-width: 0;

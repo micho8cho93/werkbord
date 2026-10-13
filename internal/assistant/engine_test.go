@@ -474,7 +474,11 @@ func TestAChangeIsOnlyProposedUntilThePersonConfirmsAndTheAssistantIsToldWhatHap
 	)
 	evs := f.send(s.ID, "add a ticket to rotate the keys")
 	req := has(evs, EventConfirmationRequired)
-	if req == nil || req.Proposal == nil || !strings.Contains(req.Proposal.Summary, `"Rotate keys"`) {
+	var proposed map[string]any
+	if req != nil && req.Proposal != nil {
+		_ = json.Unmarshal(req.Proposal.Args, &proposed)
+	}
+	if req == nil || req.Proposal == nil || proposed["title"] != "Rotate keys" || !strings.Contains(req.Proposal.Summary, "Backlog · Alpha") {
 		t.Fatalf("events %v", types(evs))
 	}
 	if tr := has(evs, EventToolResult); tr.Tool.Status != "pending_confirmation" {

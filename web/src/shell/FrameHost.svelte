@@ -42,7 +42,7 @@
         if (place) navigate(id, place);
       },
       reply: (frame, message) => send(frame.id, message),
-      // "Open in Individual" on a Team ticket: show the person's own Werkbord at that task.
+      // "Open in Werkbord" on a Team ticket: show the person's own Werkbord at that task.
       open: (_id, _target, place) => void model.open('personal', place),
       // The assistant has a frame of its own (AssistantFrame); a workspace's page has nothing to say about it.
       assistant: () => {},

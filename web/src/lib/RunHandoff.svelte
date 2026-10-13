@@ -39,6 +39,7 @@
   const pr = $derived(git.github?.pullRequests.find(p => p.runId === current.id));
   const prURL = $derived(pr ? safeURL(pr.url) : '#');
   const reviewLookupFailed = $derived(!!git.error || (git.github?.reason === 'error' && !git.github.available));
+  const unresolved = $derived([...(current.handoff?.knownIssues ?? []), ...(current.handoff?.blockers ?? []), ...(current.handoff?.questions ?? [])]);
   $effect(() => { const store = git; return untrack(() => { const stop = store.watch(); void store.loadGitHub(); return stop; }); });
   let editing = $state(false);
   let editVersion = $state(0);
@@ -153,14 +154,8 @@
   {:else}<p class="muted">{reviewLookupFailed ? 'Could not check for a local diff or pull request.' : git.loading || git.githubLoading ? 'Checking available review evidence…' : current.remote ? 'Changes remain on the runner. No pull request is available here.' : 'No local diff or pull request is available here.'}</p>{/if}
   {#if git.error}<p class="error" role="alert">Could not load Git evidence: {git.error}</p>{/if}
   {#if git.github && !git.github.available}<p class="muted small">Pull request lookup unavailable: {git.github.message || 'Check GitHub access in Settings.'}</p>{/if}
-  <p class="text"><strong>Recorded test notes — not independently verified:</strong> {current.handoff?.tests.join("\n") || 'No test evidence recorded.'}</p>
-  <p class="text"><strong>Unresolved items:</strong> {[...(current.handoff?.knownIssues ?? []), ...(current.handoff?.blockers ?? []), ...(current.handoff?.questions ?? [])].join("\n") || 'None reported; review is still required.'}</p>
-  <p class="muted small">A finished session does not confirm tests passed, approval, or merge.</p>
-  {#if current.parentRunId}<p class="muted small">
-      {current.purpose} from {scope.history.find(
-        (r) => r.id === current.parentRunId,
-      )?.agentId ?? "earlier run"} · {current.parentRunId}
-    </p>{/if}
+  {#if unresolved.length}<p class="error" role="alert"><strong>Open items:</strong> {unresolved.join('\n')}</p>{/if}
+  {#if current.handoff?.nextAction}<p class="next-action"><strong>Next:</strong> {current.handoff.nextAction}</p>{/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if editing && draft}
     <form
@@ -229,7 +224,7 @@
     </form>
   {:else if current.handoff}
     {@const h = current.handoff}
-    <details open>
+    <details>
       <summary>Objective and implementation</summary>
       <p class="text">{h.objective}</p>
       <p class="text">{h.summary}</p>
@@ -255,10 +250,7 @@
       <p class="text">Blockers: {h.blockers.join("\n") || "None reported"}</p>
       <p class="text">Questions: {h.questions.join("\n") || "None reported"}</p>
     </details>
-    <p class="text"><strong>Next:</strong> {h.nextAction}</p>
-  {:else}<p class="muted">
-      Capture the work and evidence so the next agent can continue.
-    </p>{/if}
+  {:else}<p class="muted">Capture a handoff when another agent needs to continue.</p>{/if}
   {#if canContinue}
     <details class="continuation">
       <summary>Continue with another agent or model</summary>
@@ -342,6 +334,8 @@
     font-size: 0.88rem;
     margin-top: 8px;
   }
+
+  .next-action { font-size: 13px; }
   .small {
     font-size: 0.82rem;
   }

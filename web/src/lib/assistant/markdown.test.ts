@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blocks, inline } from './markdown';
+import { blocks, emptyMarkdownBlockCache, growingBlocks, inline } from './markdown';
 
 describe('inline', () => {
   it('reads bold, italic and code', () => {
@@ -53,6 +53,15 @@ describe('blocks', () => {
     expect(blocks('a\r\n\r\nb')).toHaveLength(2);
     expect(blocks('')).toEqual([]);
     expect(blocks('x'.repeat(100000))).toHaveLength(1);
+  });
+  it('keeps completed paragraphs cached while parsing only the growing tail', () => {
+    const cache = emptyMarkdownBlockCache();
+    const first = growingBlocks('First paragraph.\n\nStill arriving', cache);
+    const stable = cache.stableBlocks[0];
+    const next = growingBlocks('First paragraph.\n\nStill arriving, with more words.\n\nLast line', cache);
+    expect(next.map((b) => b.t)).toEqual(['p', 'p', 'p']);
+    expect(cache.stableBlocks[0]).toBe(stable);
+    expect(first[0]).toBe(stable);
   });
   it('never nests so deep that a hostile reply could cost anything', () => {
     const deep = '*'.repeat(200) + 'x' + '*'.repeat(200);

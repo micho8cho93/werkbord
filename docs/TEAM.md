@@ -450,7 +450,7 @@ Workspace resilience
 
 Every weakness comes with what to do about it, and a button the screen can offer. The words are fixed so every screen says the
 same thing: *"Only one Workspace Host is configured."* · *"Two hosts are offline. Workspace is read-only until quorum returns."* ·
-*"No Connectivity Host is reachable from outside your network. Local use works, but remote access cannot be guaranteed."* ·
+ *"No Connectivity Host is reachable."* ·
 *"This device sleeps automatically. It is not ideal as a Workspace Host."* The judgement is one pure function
 (`domain.AssessResilience`), tested on its own.
 
@@ -653,4 +653,4 @@ The full review (every surface, the evidence for each, and the risks that remain
 
 ## Automatic Individual synchronization
 
-In the desktop app, connecting your Individual runner synchronizes every project you are on (turn projects off in Settings → Tickets in Individual) and each held ticket offers **Open in Individual**. Without it, members can opt projects into a persistent user connector: claiming/accepting a ticket imports it into their own Individual workspace, and local lifecycle/Git metadata is reported automatically. The ticket panel shows Individual execution separately from Team review/completion. Manual handoff/report/watch remain supported. Setup and conflict recovery: [INTEGRATION.md](INTEGRATION.md).
+In the desktop app, connecting your Individual runner synchronizes every project you are on (turn projects off in Settings → Tickets in Individual) and each held ticket offers **Open in Werkbord**. Without it, members can opt projects into a persistent user connector: claiming/accepting a ticket imports it into their own Individual workspace, and local lifecycle/Git metadata is reported automatically. The ticket panel shows Individual execution separately from Team review/completion. Manual handoff/report/watch remain supported. Setup and conflict recovery: [INTEGRATION.md](INTEGRATION.md).

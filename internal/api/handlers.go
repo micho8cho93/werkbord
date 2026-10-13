@@ -28,6 +28,16 @@ func writeError(w http.ResponseWriter, status int, code, msg string) {
 // fail maps domain errors to HTTP responses. Unexpected errors are logged and
 // reported generically so internals do not leak to clients.
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	var planErr *planning.ChangeError
+	if errors.As(err, &planErr) {
+		var body errorBody
+		body.Error.Code, body.Error.Message = "invalid", err.Error()
+		writeJSON(w, http.StatusBadRequest, struct {
+			errorBody
+			Issues []planning.Issue `json:"issues"`
+		}{body, planErr.Issues})
+		return
+	}
 	var closed *domain.QuestionClosedError
 	switch {
 	case errors.As(err, &closed):

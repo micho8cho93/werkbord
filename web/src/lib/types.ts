@@ -148,6 +148,15 @@ export interface TimelineWarning {
   message: string;
 }
 
+export interface PlanIssue {
+  code: string;
+  severity?: 'error' | 'warning' | 'info';
+  itemId: string;
+  otherId?: string;
+  field: string;
+  message: string;
+}
+
 export interface Task {
   archivedAt?: string;
   /** Who is expected to do it. Absent on an older controller: agent work. */

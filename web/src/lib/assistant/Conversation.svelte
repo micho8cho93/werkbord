@@ -114,6 +114,14 @@
           {/if}
         </div>
       {/if}
+      {#if assistant.batchResult}
+        {@const result = assistant.batchResult}
+        <p class="batch-result" role="status">{[
+          result.added ? `${result.added} added` : '',
+          result.completed ? `${result.completed} completed` : '',
+          result.failed ? `${result.failed} failed` : '',
+        ].filter(Boolean).join(' · ')}</p>
+      {/if}
     </div>
   </div>
   {#if behind}
@@ -167,6 +175,7 @@
     margin-right: auto;
     color: var(--text-2);
   }
+  .batch-result { width: fit-content; margin: 0 0 0 auto; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); font-size: 12px; }
   .scroll {
     flex: 1;
     min-height: 0;

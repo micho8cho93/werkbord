@@ -238,8 +238,10 @@ Apple team at once), and the app is notarized, so a copy stripped of its signatu
 another key, a feed signed by another key, an unsigned feed, a lower version, and an old archive offered under a newer version
 number are each refused, and the app and the controller stay as they were (`scripts/test-desktop-update.sh`).
 
-**What the shell and the controller share.** `GET /api/health` (public: is it a controller, which version), `GET /api/control-center` (authenticated read-only update safety), `GET /api/projects`
-(needs the token: does it accept this computer's?), the files `token` and `config.json` in the data directory, and the commands
+**What the shell and the controller share.** `GET /api/health` (public: is it a controller, which version), `GET /api/control-center`
+(authenticated, read-only update safety), `GET /api/projects` (does it accept this computer's token), and
+`GET /api/assistant/sessions/{id}/workspace-requests/{request}` (authenticated; checks that a Team task's stored proposal is still
+live before the desktop bridge creates it). The shell also shares the files `token` and `config.json` in the data directory, and the commands
 `version`, `start`, `setup`, `update` and `install-release` of the installed program. Nothing else: the launcher's source is
 checked against that list by a test (`TestTheLauncherAsksTheControllerForOnlyTheseThings`), and the shell may not touch the
 network or the controller except through the launcher. What a page may ask of the shell is the other short list

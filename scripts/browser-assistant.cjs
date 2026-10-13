@@ -115,6 +115,11 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
         await page.waitForFunction(n => document.querySelectorAll('article.reply').length > n, before);
     };
     const lastReply = page => page.locator('article.reply').last();
+    const timingNames = ['werkbord.assistant.provider-to-server', 'werkbord.assistant.server-to-browser', 'werkbord.assistant.browser-to-visible'];
+    const percentile95 = values => {
+        const sorted = [...values].sort((a, b) => a - b);
+        return sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * .95) - 1)] : null;
+    };
 
     try {
         // ======== light, desktop: the way in, the opening, the closing ========
@@ -339,6 +344,22 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(await page.evaluate(() => window.__pwned), undefined, 'generated text did not execute');
             ok('OpenUI renders safe data; table, chart, series and date controls update locally without an assistant request');
 
+            // Controlled streaming fixture: keep provider arrival, browser receipt and rendered update as separate samples.
+            for (const scenario of ['short', 'long', 'mixed']) {
+                await page.evaluate(names => names.forEach(name => performance.clearMeasures(name)), timingNames);
+                await sendText(page, `stream benchmark ${scenario}`);
+                await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+                if (scenario === 'mixed') await lastReply(page).locator('.openui').getByText('Streaming result', { exact: true }).waitFor();
+                const samples = await page.evaluate(names => Object.fromEntries(names.map(name => [name, performance.getEntriesByName(name).map(entry => entry.duration)])), timingNames);
+                const providerP95 = percentile95(samples[timingNames[0]]);
+                const transportP95 = percentile95(samples[timingNames[1]]);
+                const visibleP95 = percentile95(samples[timingNames[2]]);
+                assert.notEqual(visibleP95, null, `${scenario} stream produced browser receipt-to-visible samples`);
+                assert.ok(visibleP95 < 100, `${scenario} browser receipt-to-visible p95 was ${visibleP95}ms`);
+                console.log(`TIMING ${scenario}: provider→server p95 ${providerP95?.toFixed(1) ?? 'n/a'}ms; server→browser p95 ${transportP95?.toFixed(1) ?? 'n/a'}ms; browser→visible p95 ${visibleP95.toFixed(1)}ms`);
+            }
+            ok('short, long and mixed OpenUI replies stay below 100 ms browser receipt-to-visible p95 in the controlled fixture');
+
             await sendText(page, 'malformed openui');
             await lastReply(page).getByRole('status').filter({ hasText: "couldn't render all of this interface" }).waitFor();
             await lastReply(page).locator('.openui-fallback summary').click();
@@ -374,7 +395,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await sendText(page, `add a ticket to ${project.id}`);
             const card = page.locator('section.confirm');
             await card.waitFor();
-            assert.match(await card.innerText(), /Create the task "From the assistant" in project "Assistant project"/);
+            assert.match(await card.innerText(), /From the assistant/);
+            assert.match(await card.innerText(), /Backlog · Assistant project/);
             assert.match(await card.innerText(), /Nothing changes until you confirm/);
             assert.equal((await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, before, 'proposing changed nothing');
             await page.screenshot({ path: path.join(artifacts, 'assistant-confirmation.png') });
@@ -460,7 +482,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(requests.filter(r => r.endsWith('/messages')).length, messagesBeforeAction + 1, 'two rapid clicks send one user follow-up');
             assert.match(await page.locator('.user .bubble').last().innerText(), /Create tasks from this plan\nForm values: .*Launch board task/);
             const planCard = page.locator('section.confirm[data-state="waiting"]').last();
-            assert.match(await planCard.innerText(), /Launch board task.*planned from 2026-10-26/);
+            assert.equal(await planCard.locator('.task-title').innerText(), 'Launch board task');
+            assert.match(await planCard.locator('.destination').innerText(), /Backlog.*Planned from 2026-10-26/);
             const beforePlanConfirm = (await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length;
             assert.equal(beforePlanConfirm, before + 1, 'the form action prepared a proposal but did not create a task');
             const actionPosts = requests.filter(r => /\/actions\//.test(r)).length;
@@ -909,7 +932,9 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const readOnlyPlan = page.locator('article.reply').last().getByTestId('openui-form');
             await readOnlyPlan.waitFor();
             await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
+            const repliesBeforeReadOnlyAction = await page.locator('article.reply').count();
             await readOnlyPlan.getByRole('button', { name: 'Create tasks from this plan' }).click();
+            await page.waitForFunction(n => document.querySelectorAll('article.reply').length > n, repliesBeforeReadOnlyAction);
             await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
             assert.equal(await page.locator('section.confirm[data-state="waiting"]').count(), 0, 'a generated button does not grant write permission');
             assert.equal((await api(readonlyBase, 'GET', `/api/projects/${readonlyProject.id}/tasks`)).tasks.length, 0);

@@ -58,7 +58,8 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         Overview: () => ({ entries: items.map(i => ({ workspace: entry(i.id, i.kind, i.name), summary: summary(entry(i.id, i.kind, i.name)) })), at: new Date().toISOString() }),
         LoadWorkspace: id => id === 'personal' ? { id, kind: 'personal', url: ind + '/#token=' + token, origin: ind, place: '' } : null,
         AssistantWorkspaces: () => [{ id: 'team:main', name: 'Northstar' }],
-        AssistantWorkspaceCall: (request, id, method, args) => {
+        AssistantWorkspaceCall: (session, request, proposal, id, method, args) => {
+            assert.ok(session.startsWith('ast_'), 'the bridge is tied to an assistant session');
             assert.equal(id, 'team:main');
             const p = { id: 'p_portfolio', name: 'Personal Portfolio Website' };
             if (method === 'list_projects') return [p];
@@ -66,8 +67,10 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
             if (method === 'list_tickets') return teamTickets;
             if (method === 'get_overview') return [{ projectId: p.id, name: p.name, review: 0 }];
             assert.equal(method, 'create_ticket');
+            assert.ok(proposal.startsWith('act_'), 'the bridge carries the approved proposal');
             assert.equal(args.projectId, p.id);
             if (workspaceRequests.has(request)) return workspaceRequests.get(request);
+            if (args.title === 'Extract coding projects from GitHub') return { kind: 'werkbord_workspace_failure', code: 'permission_denied', message: 'The Team member no longer has permission to create tickets.' };
             const ticket = { id: 't_' + (teamTickets.length + 1), projectId: p.id, title: args.title, state: 'backlog', version: 1 };
             teamTickets.push(ticket); workspaceRequests.set(request, ticket); return ticket;
         },
@@ -83,13 +86,14 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
                 const f = calls[Method];
                 res.setHeader('Content-Type', 'application/json');
                 if (!f) { res.statusCode = 404; return res.end(JSON.stringify({ error: 'no ' + Method })); }
-                res.end(JSON.stringify(f(...(Args || [])) ?? null));
+                try { res.end(JSON.stringify(f(...(Args || [])) ?? null)); }
+                catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) })); }
             });
             return;
         }
         if (url.pathname === '/team-stub.html') {
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            return res.end('<!doctype html><meta charset=utf-8><title>Team</title><body style="font:14px system-ui;padding:24px"><h1>Northstar (a stand-in for Team)</h1><label>Draft <input id="draft" placeholder="a half-written note"></label><script>parent.postMessage({type:"werkbord.frame",event:"ready"},"*")</script>');
+            return res.end('<!doctype html><meta charset=utf-8><title>Team</title><body style="font:14px system-ui;padding:24px"><h1>Northstar (a stand-in for Team)</h1><label>Draft <input id="draft" placeholder="a half-written note"></label><script>window.__lastPlace="";addEventListener("message",e=>{if(e.data?.type==="werkbord.navigate")window.__lastPlace=e.data.href});parent.postMessage({type:"werkbord.frame",event:"ready"},"*")</script>');
         }
         let file = path.join(dist, decodeURIComponent(url.pathname));
         if (!file.startsWith(dist)) { res.statusCode = 403; return res.end(); }
@@ -219,6 +223,8 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await button.getAttribute('aria-expanded'), 'false');
         assert.equal(await page.locator('.shell').getAttribute('inert'), null);
         // And the window under it can be used again.
+        await page.getByTestId('workspace-switcher').click();
+        await page.getByTestId('switcher-menu').locator('[data-workspace="universal"]').click();
         await side.getByRole('button', { name: 'My Work' }).click();
         await page.locator('[data-page=mywork][aria-current=page]').waitFor();
         await page.getByTestId('workspace-switcher').click();
@@ -229,7 +235,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Something waits for the person: the button says so, and no word of the conversation crossed.
         await button.click();
         await assistantFrame.getByTestId('assistant').waitFor();
-        await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill(`add a ticket to ${project.id}`);
+        await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill('Create a single portfolio ticket for the Northstar workspace');
         await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
         await assistantFrame.locator('section.confirm').waitFor();
         await assistantFrame.getByTestId('assistant-close').click(); // closed from inside the page, with its own button
@@ -247,11 +253,30 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await assistantFrame.locator('section.confirm[data-state="waiting"]').waitFor();
         ok('and is still waiting when it is opened again, from the same frame');
         await assistantFrame.locator('section.confirm[data-state="waiting"]').getByRole('button', { name: 'Not now', exact: true }).click();
+        await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill('Create a single portfolio ticket for the Northstar workspace');
+        await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
+        const single = assistantFrame.locator('section.confirm[data-state="waiting"]');
+        await single.waitFor();
+        assert.equal(teamTickets.length, 0, 'the Team task is only proposed before approval');
+        await single.getByRole('button', { name: 'Confirm', exact: true }).click();
+        const added = assistantFrame.locator('section.confirm[data-state="confirmed"]');
+        await added.waitFor();
+        await added.getByText('Added to Backlog.').waitFor();
+        assert.equal(teamTickets.length, 1, 'one confirmation creates the Team task');
+        assert.equal(await assistantFrame.getByRole('dialog').filter({ has: assistantFrame.getByRole('heading', { name: 'Assistant' }) }).count(), 1, 'the assistant remains the only dialog; no second task confirmation opens');
+        await added.getByRole('button', { name: 'Open task', exact: true }).click();
+        await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
+        await page.waitForFunction(() => document.querySelector('iframe[data-workspace="team:main"]')?.contentWindow?.__lastPlace === '?tab=board&project=p_portfolio&ticket=t_1');
+        ok('one confirmation adds a Team task to Backlog and its success link opens that exact ticket');
+        await assistantFrame.getByTestId('assistant-close').click();
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
+        await button.click();
+        await assistantFrame.getByTestId('assistant').waitFor();
         await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill('Add portfolio tickets to the Northstar workspace');
         await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
         const proposals = assistantFrame.locator('section.confirm[data-state="waiting"]');
         await proposals.nth(2).waitFor();
-        assert.equal(teamTickets.length, 0, 'all Team tickets are only proposed before approval');
+        assert.equal(teamTickets.length, 1, 'batch proposals change nothing before approval');
         assert.match(await proposals.first().innerText(), /Northstar/);
         // Three changes waiting: one press answers them all, each with its own request, in order.
         const all = assistantFrame.getByTestId('assistant-confirm-all');
@@ -262,13 +287,14 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-confirm-all.png') });
         await all.getByRole('button', { name: 'Confirm all 3' }).click();
         for (let j = 0; j < 200 && teamTickets.length !== 3; j++) await sleep(30);
-        assert.equal(teamTickets.length, 3);
-        await assistantFrame.locator('section.confirm[data-state="confirmed"]').nth(2).waitFor();
+        assert.equal(teamTickets.length, 3, 'the batch continues after one permission failure');
+        await assistantFrame.getByText('2 added · 1 failed').waitFor();
+        await assistantFrame.locator('section.confirm[data-state="failed"]').filter({ hasText: 'coding projects from GitHub' }).getByRole('alert').waitFor();
         assert.equal(await all.count(), 0, 'nothing is left to answer, so the bar is gone');
-        assert.deepEqual(teamTickets.map(t => t.title), ['Extract LinkedIn and CV information', 'Extract coding projects from GitHub', 'Create a website design system']);
+        assert.deepEqual(teamTickets.map(t => t.title), ['A single approved ticket', 'Extract LinkedIn and CV information', 'Create a website design system']);
         assert.equal((await api(ind, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, 0, 'Team approval never writes the Individual board');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-team-tickets.png') });
-        ok('looks up a Team project and creates all three portfolio tickets only after approval, without changing the Individual board');
+        ok('Confirm all continues after a permission failure and reports two added, one failed, without changing the Individual board');
         await assistantFrame.getByTestId('assistant-close').click();
         await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
 

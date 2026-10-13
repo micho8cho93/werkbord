@@ -78,6 +78,15 @@ type Link struct {
 	Installed func() bool
 }
 
+// ResponseError keeps the Team API status attached to its user-facing message so the assistant can distinguish a
+// definite permission or validation refusal from an unknown transport outcome.
+type ResponseError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *ResponseError) Error() string { return e.Message }
+
 // New makes the link. base is the service's loopback address (DefaultBase), keyPath the credential file.
 func New(base, keyPath string, installed func() bool) (*Link, error) {
 	key := func() (string, error) { return ReadKey(keyPath) }
@@ -151,9 +160,9 @@ func (l *Link) call(ctx context.Context, method, path string, in, out any) error
 			} `json:"error"`
 		}
 		if json.Unmarshal(raw, &e) == nil && e.Error.Message != "" {
-			return errors.New(e.Error.Message)
+			return &ResponseError{StatusCode: res.StatusCode, Message: e.Error.Message}
 		}
-		return fmt.Errorf("Team's service answered %d", res.StatusCode)
+		return &ResponseError{StatusCode: res.StatusCode, Message: fmt.Sprintf("Team's service answered %d", res.StatusCode)}
 	}
 	if out != nil && len(raw) > 0 {
 		return json.Unmarshal(raw, out)
