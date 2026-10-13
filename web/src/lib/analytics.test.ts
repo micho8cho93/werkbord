@@ -11,9 +11,9 @@ it('preserves unknown measurements separately from reported zero', () => {
   expect(analyticsDuration(null)).toBe('No samples');
   expect(analyticsDuration(0)).toBe('0s');
 });
-it('reaches analytics from project tabs and the phone More sheet, including work projects', () => {
+it('reaches workspace analytics from More and preserves old project links', () => {
   expect(parse('#/p/one/analytics')).toEqual({ view: 'analytics', projectId: 'one', taskId: '' });
-  expect(tabsFor('work').some(t => t.id === 'analytics')).toBe(true);
-  expect(moreEntries('one').find(t => t.id === 'analytics')?.href).toBe('#/p/one/analytics');
+  expect(tabsFor('work').some(t => t.id === 'analytics')).toBe(false);
+  expect(moreEntries('one').find(t => t.id === 'analytics')?.href).toBe('#/analytics');
   expect(inMore('analytics')).toBe(true);
 });

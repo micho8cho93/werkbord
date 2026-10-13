@@ -36,6 +36,7 @@ type summaryInputs struct {
 	ReadOnly   bool
 	// Schedules are the shared schedule requests, by project.
 	Schedules map[string][]domain.Schedule
+	Planned   []workspace.Planned
 	Progress  map[string]*domain.ProgressRecord
 }
 
@@ -131,7 +132,8 @@ func buildSummary(in summaryInputs) workspace.Summary {
 		Workspace: workspace.Entry{ID: workspace.TeamID(in.Slot), Kind: workspace.KindTeam, Name: in.Name, Role: in.Role,
 			State: in.State, Detail: in.Detail, DeviceRoles: in.DeviceRoles},
 		Projects: []workspace.Project{}, Work: []workspace.Item{}, Attention: []workspace.Attention{}, Schedule: []workspace.Scheduled{},
-		At: in.Now.UTC(),
+		At:      in.Now.UTC(),
+		Planned: in.Planned,
 	}
 	if out.Workspace.Name == "" {
 		out.Workspace.Name = "Team"
@@ -214,6 +216,9 @@ func buildSummary(in summaryInputs) workspace.Summary {
 					Title: title + " could not start on schedule", Detail: s.Reason, Project: projectNames[pid], Href: ticketHref(pid, s.TicketID)})
 			}
 		}
+	}
+	if in.Overview != nil && in.Overview.Schedule != nil {
+		out.Schedule = in.Overview.Schedule
 	}
 	sort.SliceStable(out.Schedule, func(i, j int) bool { return out.Schedule[i].At.Before(out.Schedule[j].At) })
 
@@ -366,6 +371,7 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 	var ov service.Overview
 	if err := host.Do(ctx, http.MethodGet, "/overview", nil, &ov); err == nil {
 		in.Overview = &ov
+		in.Planned = ov.Planned
 	}
 	var rq service.ReviewQueue
 	if err := host.Do(ctx, http.MethodGet, "/reviews", nil, &rq); err == nil {

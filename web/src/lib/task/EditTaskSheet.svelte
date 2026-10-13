@@ -87,7 +87,7 @@
       <span>Details</span>
       <textarea class="input" rows="4" bind:value={description}></textarea>
     </label>
-    <TaskPlanFields bind:labelIds bind:workMode bind:plan repository={project?.kind !== 'work'} idPrefix="edit-task" />
+    <TaskPlanFields bind:plan repository={project?.kind !== 'work'} idPrefix="edit-task" />
     <DependencyPicker tasks={scope.tasks} taskId={task.id} bind:selected={dependencies} />
     {#if canAgent}
       <div class="exec">

@@ -11,8 +11,12 @@
     busy = true;
     error = '';
     try {
-      run = await api.assessRun(run, acceptance);
-      app.refreshOverview();
+      const updated = await api.assessRun(run, acceptance);
+      app.scopes.get(updated.projectId)?.upsertRun(updated);
+      run = updated;
+      app.analyticsRevision++;
+      app.notify(acceptance === 'accepted' ? 'Work accepted.' : 'Work rejected.');
+      void app.refreshOverview();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {

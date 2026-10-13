@@ -14,13 +14,14 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding';
+export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics';
 export type ProjectSection = 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'analytics' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding'>; label: string; short: string }[] = [
   { id: 'control', label: 'Needs you', short: 'Needs you' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
+  { id: 'analytics', label: 'Analytics', short: 'Analytics' },
   { id: 'settings', label: 'Settings', short: 'Settings' },
   { id: 'help', label: 'Help', short: 'Help' },
 ];
@@ -42,13 +43,13 @@ export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] 
 ];
 
 /** The sections shown as the project's tabs. Its settings are reached from the gear in the project header. */
-export const PROJECT_TABS = PROJECT_SECTIONS.filter((s) => s.id !== 'defaults');
+export const PROJECT_TABS = PROJECT_SECTIONS.filter((s) => !['defaults', 'timeline', 'analytics'].includes(s.id));
 
 /**
  * Sections that exist only for a project with a Git repository: the calendar schedules agents, Git is
  * the repository, and runs are agents' sessions. A work project has none of them.
  */
-const REPOSITORY_ONLY: readonly ProjectSection[] = ['calendar', 'git', 'runs'];
+const REPOSITORY_ONLY: readonly ProjectSection[] = [];
 
 /** Whether a section is there for a project of this kind. */
 export function sectionApplies(section: ProjectSection, kind: string | undefined): boolean {
@@ -164,7 +165,7 @@ export function hrefOf(loc: Location): string {
  * its board.
  */
 export function switchedTo(from: Location, projectId: string): Location {
-  const section: ProjectSection = isSection(from.view) ? from.view : 'board';
+  const section: ProjectSection = !isGlobal(from.view) && isSection(from.view) ? from.view : 'board';
   return { view: section, projectId, taskId: '' };
 }
 
@@ -197,11 +198,12 @@ export function moreEntries(projectId: string): MoreEntry[] {
     ...(projectId
       ? ([
           { id: 'overview', label: 'Overview', href: projectHref(projectId, 'overview') },
-          { id: 'analytics', label: 'Analytics', href: projectHref(projectId, 'analytics') },
+
           { id: 'defaults', label: 'Project settings', href: projectHref(projectId, 'defaults') },
         ] as MoreEntry[])
       : []),
     { id: 'projects', label: 'Projects', href: globalHref('projects') },
+    { id: 'analytics', label: 'Analytics', href: globalHref('analytics') },
     { id: 'settings', label: 'Settings', href: globalHref('settings') },
     { id: 'help', label: 'Help', href: globalHref('help') },
   ];

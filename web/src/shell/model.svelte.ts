@@ -41,6 +41,7 @@ export class Model {
   view = $state<WorkspaceView | null>(null);
   overview = $state<Overview | null>(null);
   page = $state<Page>('workspace');
+  universal = $state(false);
   /** The workspace the Workspace page shows. */
   current = $state('personal');
   frames = $state<Record<string, OpenFrame>>({});
@@ -157,6 +158,7 @@ export class Model {
 
   /** Shows a place inside the workspace on show (a project, Settings…): the sidebar's way of navigating a workspace. */
   async visit(place: string): Promise<void> {
+    this.universal = false;
     this.leaveAssistant();
     const frame = this.frames[this.current];
     if (!frame) return this.open(this.current, place);
@@ -233,6 +235,7 @@ export class Model {
 
   /** Opens a workspace on the Workspace page, and optionally somewhere inside it. */
   async open(id: string, place?: string): Promise<void> {
+    this.universal = false;
     if (id !== this.current) this.leaveAssistant();
     this.error = '';
     const item = this.view?.items.find((i) => i.id === id);
@@ -274,6 +277,7 @@ export class Model {
 
   /** Shows a page of the shell's own. */
   go(p: Page): void {
+    if (['mywork', 'calendar', 'inbox'].includes(p)) this.universal = true;
     this.leaveAssistant();
     this.page = p;
     this.closeSwitcher();
@@ -333,7 +337,7 @@ export class Model {
     this.error = '';
     try {
       await ask((a) => a.Relay(id, 'ConnectRunner', []));
-      this.notice = 'Your Universal runner is connected to this workspace.';
+      this.notice = 'Your Individual runner is connected to this workspace.';
     } catch (e) {
       this.error = (e as Error).message;
     }

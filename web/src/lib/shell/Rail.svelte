@@ -77,6 +77,7 @@
   {/if}
 
   <div class="foot">
+    <a class="nav" href={globalHref('analytics')} aria-current={router.view === 'analytics' ? 'page' : undefined}><Icon name="analytics" />Analytics</a>
     <a class="nav" href={globalHref('help')} aria-current={router.view === 'help' ? 'page' : undefined}>
       <Icon name="help" />Help
     </a>

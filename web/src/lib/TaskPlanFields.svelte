@@ -1,20 +1,14 @@
 <script lang="ts">
-  import LabelPicker from './LabelPicker.svelte';
-  import { WORK_MODES } from './labels';
-  import type { Plan, WorkMode } from './types';
+  import type { Plan } from './types';
 
   // The planning side of a task: its labels, who is expected to do it, and when it is planned for.
   // None of this changes when or whether an agent runs; the schedule is set separately.
 
   let {
-    labelIds = $bindable(),
-    workMode = $bindable(),
     plan = $bindable(),
     repository = true,
     idPrefix,
   }: {
-    labelIds: string[];
-    workMode: WorkMode;
     plan: Plan;
     /** False in a work project, where no agent can work and so “agent” is only a description. */
     repository?: boolean;
@@ -31,25 +25,7 @@
 </script>
 
 <fieldset class="group">
-  <legend>Labels</legend>
-  <LabelPicker bind:selected={labelIds} />
-</fieldset>
-
-<fieldset class="group">
-  <legend>Who does it</legend>
-  <div class="seg" role="group" aria-label="Who does it">
-    {#each WORK_MODES as m (m.id)}
-      <button type="button" aria-pressed={workMode === m.id} onclick={() => (workMode = m.id)} title={m.hint}>{m.label}</button>
-    {/each}
-  </div>
-  <p class="hint muted">
-    {WORK_MODES.find((m) => m.id === workMode)?.hint}
-    {#if !repository && workMode !== 'human'}No Git repository here, so Werkbord cannot run an agent on it.{/if}
-  </p>
-</fieldset>
-
-<fieldset class="group">
-  <legend>Planned for <span class="opt">optional · for the timeline only</span></legend>
+  <legend>Planning <span class="opt">optional</span></legend>
   <p class="hint muted">{repository ? 'These dates plan the work on Timeline; they do not schedule an agent. Use Calendar to choose when an agent runs.' : 'These dates plan the work on Timeline. This project does not run agents.'}</p>
   <div class="dates">
     <label>

@@ -37,6 +37,7 @@ const (
 // into a shared package that holds no individual-product behaviour (as sqlitekit
 // and httpkit were) and add it here, in the same change.
 var teamAllowed = []string{
+	module + "/internal/uipresentation", // neutral static board presentation; no product behavior or credentials
 	teamCmd,
 	teamTree, // and below
 	module + "/internal/httpkit",

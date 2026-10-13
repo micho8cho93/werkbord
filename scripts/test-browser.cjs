@@ -77,6 +77,7 @@ async function cleanup() {
     const team = serve(teamBinary, ['serve'], teamEnv);
     await ready(team, teamURL + '/api/team/v1/health');
     const testEnv = { PERSONAL_BROWSER_URL: individualURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
+    if (process.env.BROWSER_UX_ONLY === '1') { run(process.execPath, ['scripts/browser-workspace-ux.cjs'], testEnv); return; }
     if (process.env.BROWSER_ANALYTICS_ONLY === '1') {
       run(process.execPath, ['scripts/browser-analytics.cjs'], testEnv);
       return;

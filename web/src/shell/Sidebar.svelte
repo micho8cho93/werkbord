@@ -10,10 +10,10 @@
   // workspace (My Work, Calendar, Needs you), the open workspace's own places (its home, projects and so on), and last the
   // things about this computer (Workspaces and devices, Settings of the workspace open, the theme). The workspaces' own
   // pages carry no navigation of their own in this window.
-  const everywhereShown = $derived((model.view?.items.length ?? 0) >= 2);
+  const everywhereShown = $derived(model.universal);
   const active = $derived(model.view?.items.find((i) => i.id === model.current));
   const kind = $derived(active?.kind ?? 'personal');
-  const name = $derived(active?.name ?? 'Universal');
+  const name = $derived(model.universal ? 'Universal' : kind === 'personal' ? 'Individual' : active?.name ?? 'Individual');
   // A workspace that cannot be shown (not running, too old) has nowhere to go to: the page says why instead.
   const usable = $derived(!!model.frames[model.current] || active?.state === 'ready');
   const summary = $derived(model.overview?.entries.find((e) => e.workspace.id === model.current)?.summary);
@@ -99,7 +99,7 @@
 
   {#if everywhereShown}
   <div class="group">
-    <div class="lbl">Everywhere</div>
+
     {#each everywhere as p (p.id)}
       {@render item(p.title, p.icon, model.page === p.id, () => model.go(p.id), p.id, p.id === 'inbox' ? needs : 0)}
     {/each}
@@ -107,6 +107,7 @@
 
   {/if}
 
+  {#if !model.universal}
   <div class="group" aria-label={name}>
     <div class="lbl" title={name}>{name}</div>
     {#if usable}
@@ -130,10 +131,14 @@
     {/if}
   </div>
 
+  {/if}
   <div class="group bottom">
+    {#if !model.universal && kind === 'personal' && usable}
+      {@render item('Analytics', 'analytics', here === 'analytics', () => model.visit('#/analytics'), 'ws-analytics')}
+    {/if}
     <div class="lbl" aria-hidden="true"></div>
     {@render item('Workspaces and devices', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
-    {#if usable}
+    {#if usable && !model.universal}
       {@render item('Settings', 'settings', here === 'settings', () => model.visit(settingsPlace(kind)), 'settings')}
     {/if}
     <button class="nav" type="button" onclick={() => theme.toggle()} title={theme.dark ? 'Use light theme' : 'Use dark theme'} aria-label={theme.dark ? 'Use light theme' : 'Use dark theme'}>
@@ -321,8 +326,10 @@
     outline-offset: -2px;
   }
   .proj {
+    padding-block: 6px;
     padding-left: 12px;
   }
+  .proj .label { white-space: normal; overflow-wrap: anywhere; }
   .sq {
     width: 7px;
     height: 7px;

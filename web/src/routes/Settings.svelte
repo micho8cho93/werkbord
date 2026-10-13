@@ -7,7 +7,6 @@
   import ExecutionFields from '../lib/ExecutionFields.svelte';
   import ConnectionsPanel from '../lib/ConnectionsPanel.svelte';
   import MCPClientsPanel from '../lib/MCPClientsPanel.svelte';
-  import LabelManager from '../lib/LabelManager.svelte';
   import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
   import { globalHref, router } from '../lib/router.svelte';
   import RoutingRules from '../lib/RoutingRules.svelte';
@@ -24,7 +23,7 @@
   // address (#/settings?runners), so the rail and other pages link straight to it.
 
   const GROUPS = [
-    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'labels', label: 'Labels' }, { id: 'routing', label: 'Routing rules' }] },
+    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
     { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
@@ -94,6 +93,7 @@
 
   // ---- alerts ----
   let permission = $state(notificationPermission());
+  function syncAlerts() { permission = notificationPermission(); optedIn = notificationsEnabled() && permission === 'granted'; }
   let optedIn = $state(notificationsEnabled());
   async function toggleNotifications() {
     if (optedIn) {
@@ -101,10 +101,14 @@
       optedIn = false;
       return;
     }
+    permission = notificationPermission();
+    if (permission === 'denied') { app.notify('Allow alerts in your browser or macOS notification settings, then return here.'); return; }
     permission = await enableNotifications();
     optedIn = permission === 'granted';
   }
 </script>
+<svelte:window onfocus={syncAlerts} />
+
 
 <div class="settings">
   <label class="mobile-section">
@@ -146,17 +150,6 @@
           {#if dirty}<button class="btn quiet" onclick={() => (draft = { ...app.globalExecution })}>Discard</button>{/if}
           {#if saved && !dirty}<span class="ok" role="status">Saved</span>{/if}
         </div>
-      </section>
-    {:else if section === 'labels'}
-      <section class="pn">
-        <div class="head">
-          <h3>Labels</h3>
-          <p class="muted">
-            Names and colours of your own choosing, put on any task in any project and used to filter the board and the timeline. A label never changes how a
-            task runs; who does the work (a person, an agent or both) is a separate setting on the task.
-          </p>
-        </div>
-        <LabelManager />
       </section>
     {:else if section === 'runners'}
       <RunnersPanel />

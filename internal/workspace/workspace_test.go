@@ -234,3 +234,27 @@ func TestAnswerContextIsIndividualOnlyAndPreservesMultiline(t *testing.T) {
 		t.Fatal("unsafe identifier allowed answer")
 	}
 }
+
+func TestPlannedRangesKeepOwnerLinksAndRejectInvalidDates(t *testing.T) {
+	s := good()
+	s.Planned = []Planned{{ID: "planned_1", Title: "Plan the migration", Project: "App", Start: "2026-10-12", End: "2026-10-16", Href: "#/p/prj_1/task/task_1"}}
+	if err := s.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range []func(*Planned){
+		func(p *Planned) { p.Start = "2026-02-30" },
+		func(p *Planned) { p.End = "2026-10-01" },
+		func(p *Planned) { p.Href = "https://other-machine.example" },
+	} {
+		invalid := s
+		invalid.Planned = append([]Planned{}, s.Planned...)
+		change(&invalid.Planned[0])
+		if invalid.Validate() == nil {
+			t.Fatal("invalid planned range accepted")
+		}
+		clean, dropped := invalid.Clean()
+		if dropped != 1 || len(clean.Planned) != 0 {
+			t.Fatalf("bad range retained: %+v", clean.Planned)
+		}
+	}
+}

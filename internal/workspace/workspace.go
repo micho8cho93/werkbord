@@ -297,6 +297,22 @@ type Scheduled struct {
 	Href  string `json:"href"`
 }
 
+// Planned is a date range reported by its owning workspace. It grants no execution authority.
+type Planned struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Project string `json:"project"`
+	Start   string `json:"start"`
+	End     string `json:"end"`
+	Href    string `json:"href"`
+}
+
+func (p Planned) valid() bool {
+	_, a := time.Parse("2006-01-02", p.Start)
+	_, b := time.Parse("2006-01-02", p.End)
+	return ValidID(p.ID) && plain(p.Title, MaxText) && p.Title != "" && plain(p.Project, MaxName) && a == nil && b == nil && p.End >= p.Start && ValidHref(p.Href)
+}
+
 // Check is one line of a health report.
 type Check struct {
 	Label string `json:"label"`
@@ -394,6 +410,7 @@ type Summary struct {
 	Work      []Item      `json:"work"`
 	Attention []Attention `json:"attention"`
 	Schedule  []Scheduled `json:"schedule"`
+	Planned   []Planned   `json:"planned,omitempty"`
 	Infra     *Infra      `json:"infra,omitempty"`
 	At        time.Time   `json:"at"`
 }
@@ -455,7 +472,7 @@ func (s Summary) Validate() error {
 	if err := s.Workspace.validate(); err != nil {
 		return err
 	}
-	if len(s.Projects) > MaxProjects || len(s.Work) > MaxItems || len(s.Attention) > MaxAttention || len(s.Schedule) > MaxSchedule {
+	if len(s.Projects) > MaxProjects || len(s.Work) > MaxItems || len(s.Attention) > MaxAttention || len(s.Schedule) > MaxSchedule || len(s.Planned) > MaxItems {
 		return errors.New("workspace: too many entries")
 	}
 	for _, p := range s.Projects {
@@ -474,6 +491,11 @@ func (s Summary) Validate() error {
 		}
 		if !ValidID(a.ID) || !ValidID(a.Kind) || !a.Severity.Valid() || !plain(a.Title, MaxText) || a.Title == "" || !plain(a.Detail, MaxText) || !plain(a.Project, MaxName) || (a.Href != "" && !ValidHref(a.Href)) {
 			return fmt.Errorf("workspace: attention %q is not valid", a.ID)
+		}
+	}
+	for _, p := range s.Planned {
+		if !p.valid() {
+			return fmt.Errorf("workspace: planned item %q is not valid", p.ID)
 		}
 	}
 	for _, c := range s.Schedule {
@@ -551,6 +573,15 @@ func (s Summary) Clean() (Summary, int) {
 		a.Title, a.Detail, a.Project = clip(a.Title, MaxText), clip(a.Detail, MaxText), clip(a.Project, MaxName)
 		if ValidID(a.ID) && ValidID(a.Kind) && a.Severity.Valid() && a.Title != "" && (a.Href == "" || ValidHref(a.Href)) && len(out.Attention) < MaxAttention {
 			out.Attention = append(out.Attention, a)
+		} else {
+			dropped++
+		}
+	}
+	out.Planned = make([]Planned, 0, len(s.Planned))
+	for _, p := range s.Planned {
+		p.Title, p.Project = clip(p.Title, MaxText), clip(p.Project, MaxName)
+		if p.valid() && len(out.Planned) < MaxItems {
+			out.Planned = append(out.Planned, p)
 		} else {
 			dropped++
 		}

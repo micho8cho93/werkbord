@@ -25,7 +25,7 @@ export function entries(kind: Kind): NavEntry[] {
     ];
   }
   return [
-    { key: 'home', title: 'Workspace', icon: 'overview', place: '?tab=workspace' },
+    { key: 'home', title: 'Needs you', icon: 'overview', place: '?tab=workspace' },
     { key: 'projects', title: 'Projects', icon: 'folder', place: '?tab=projects' },
     { key: 'reviews', title: 'Reviews', icon: 'merge', place: '?tab=reviews' },
     { key: 'members', title: 'Members', icon: 'people', place: '?tab=members' },
@@ -43,7 +43,7 @@ export function runnersPlace(kind: Kind): string | undefined {
   return kind === 'personal' ? '#/settings?runners' : undefined;
 }
 
-const TEAM_PROJECT_TABS = new Set(['board', 'timeline', 'repository', 'activity', 'people']);
+const TEAM_PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'people']);
 const TEAM_SETTINGS = new Set(['settings', 'labels', 'devices', 'hosts', 'connectivity', 'backups', 'license']);
 
 function decode(s: string): string {
@@ -61,6 +61,7 @@ export function activeKey(kind: Kind, place: string | undefined): NavKey {
     const [first = '', second = ''] = place.replace(/^#\/?/, '').split(/[?&]/)[0].split('/');
     if (first === 'control') return 'home';
     if (first === 'projects') return 'projects';
+    if (first === 'analytics') return 'analytics';
     if (first === 'settings') return 'settings';
     if (first === 'p' && decode(second)) return `project:${decode(second)}`;
     return '';

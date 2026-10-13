@@ -87,6 +87,7 @@ A package is **shared** when both products use it and it holds no behaviour of e
 | `internal/mcpcontract` | MCP Streamable HTTP framing, bounded tool request/response handling, and validated project/operation scopes. Holds no credentials, board operations or product permissions. Uses the official MCP Go SDK. | Individual MCP server, Team MCP server, `internal/mcpbridge` |
 | `internal/mcpplan` | The neutral batch-plan wire shape, temporary task IDs, and validation of single-project requests. Holds no board data or authorization. | Individual appops, Team MCP service |
 | `internal/mcpbridge` | Stdio MCP client forwarding tools, resources and prompts to the configured Streamable HTTP endpoint. Holds no product identity or board behavior. | `cmd/werkbord`, `cmd/werkbord-team` |
+| `internal/uipresentation` | Product-neutral static board card grammar; products supply tokens, data, permissions and actions. | Both web frontends |
 | `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |
 | `internal/logging` | `slog` logger construction | both |
 | `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (individual, Tailscale); `internal/team/infra/overlaynet` (Team's own private network) |

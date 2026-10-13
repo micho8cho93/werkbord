@@ -59,11 +59,11 @@
 </script>
 
 {#snippet row(i: Item)}
-  {@const chosen = i.id === model.current && model.page === 'workspace'}
+  {@const chosen = !model.universal && i.id === model.current && model.page === 'workspace'}
   <button class="item" type="button" role="menuitem" aria-current={chosen} onclick={() => model.open(i.id)} data-workspace={i.id}>
     <span class="check" aria-hidden="true">{#if chosen}<Icon name="check" size={14} />{/if}</span>
     <span class="text">
-      <span class="name">{i.name}</span>
+      <span class="name">{i.kind === 'personal' ? 'Individual' : i.name}</span>
       <span class="sub">{sub(i)}</span>
     </span>
     <span class="dot" data-tone={tone(i)} aria-hidden="true"></span>
@@ -71,7 +71,11 @@
 {/snippet}
 
 <div class="scrim" onclick={() => model.closeSwitcher()} role="presentation"></div>
-<div class="menu" role="menu" aria-label="Switch between Universal and Team" tabindex="-1" bind:this={menu} onkeydown={onkey} style:left="{pos.left}px" style:top="{pos.top}px" data-testid="switcher-menu">
+<div class="menu" role="menu" aria-label="Switch workspace" tabindex="-1" bind:this={menu} onkeydown={onkey} style:left="{pos.left}px" style:top="{pos.top}px" data-testid="switcher-menu">
+  <button class="item" type="button" role="menuitem" aria-current={model.universal} onclick={() => model.go('mywork')} data-workspace="universal">
+    <span class="check" aria-hidden="true">{#if model.universal}<Icon name="check" size={14} />{/if}</span>
+    <span class="text"><span class="name">Universal</span><span class="sub">All your workspaces</span></span>
+  </button>
   {#each individual as i (i.id)}{@render row(i)}{/each}
   {#if teams.length || teamProblem}
     <div class="rule" role="separator"></div>

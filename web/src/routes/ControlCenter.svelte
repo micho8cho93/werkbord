@@ -81,6 +81,7 @@
   });
 
   let permission = $state(notificationPermission());
+  function syncAlerts() { permission = notificationPermission(); optedIn = notificationsEnabled() && permission === 'granted'; }
   let optedIn = $state(notificationsEnabled());
   async function toggleNotifications() {
     if (optedIn) {
@@ -88,10 +89,14 @@
       optedIn = false;
       return;
     }
+    permission = notificationPermission();
+    if (permission === 'denied') { app.notify('Allow alerts in your browser or macOS notification settings, then return here.'); return; }
     permission = await enableNotifications();
     optedIn = permission === 'granted';
   }
 </script>
+<svelte:window onfocus={syncAlerts} />
+
 
 <div class="cc">
   <div class="bar">
@@ -135,6 +140,7 @@
         </label>
       {/if}
       {#if filtering}<button class="btn quiet small" onclick={() => ((projectFilter = ''), (runnerFilter = ''), (agentFilter = ''))}>Clear</button>{/if}
+      {#if permission === 'denied'}<span class="muted small">Alerts are blocked in browser settings.</span>{/if}
       {#if permission !== 'unsupported'}
         <button
           class="btn small alerts"
@@ -142,7 +148,7 @@
           onclick={toggleNotifications}
           title="Browser alerts for questions, blocked or failed runs, review and repository risk, while this page stays open in a browser. Werkbord has no push service."
         >
-          <span class="dot" data-tone={optedIn ? 'ok' : 'neutral'}></span>{optedIn ? 'Alerts on' : permission === 'denied' ? 'Alerts blocked' : 'Alerts off'}
+          <span class="dot" data-tone={optedIn ? 'ok' : 'neutral'}></span>{optedIn ? 'Alerts on' : 'Alerts off'}
         </button>
       {/if}
     </div>

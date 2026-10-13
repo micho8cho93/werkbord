@@ -19,7 +19,7 @@ outcome. Tell people to check uncertain outcomes before repeating an action.
 Use British English in new Werkbord prose: *colour*, *organise*, *authorised*, *synchronise*, *cancelled* and
 *acknowledgement*. Preserve brand and provider names, commands, API and domain identifiers, provider output, and text
 entered by people. Individual calls its board item a **task**; Team calls its coordination record a **ticket**. Explain that
-opening a Team ticket in a person's Werkbord creates a local task for the handoff. Keep **plan** for Timeline dates,
+opening a Team ticket in a person's Werkbord creates a local task for the handoff. Keep **plan** for work dates shown in Calendar or Timeline,
 **schedule** for agent starts, **Review** for inspection, **Done** for completed work, and **Archive** for work removed
 from the active board.
 
@@ -70,18 +70,21 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 
 ## Layout
 
-- Desktop (≥900px): a 220px rail (Needs you, projects with live counts, runners, Settings, theme)
+- Standalone browser desktop (≥900px): a 220px rail (Needs you, projects with live counts, runners, Analytics, Settings, theme)
   and a main column. Inside the Werkbord desktop app the window's one sidebar replaces this rail
   ([ARCHITECTURE.md §22](docs/ARCHITECTURE.md#the-window-and-its-workspaces)). Inside a project: header (path · branch, name, Jump to ⌘K, project
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
   themselves (board columns, panel feed), not the page.
 - A task opens as a panel over its board (`#/p/<id>/task/<id>`); Esc closes it.
-- Project tabs: Overview · Board · Calendar · Timeline · Git · Runs. Pages use `.split` (main + side column, each
+- Project tabs in both Individual and Team: Overview · Board · Calendar · Git · Runs. Timeline is a presentation
+  within Calendar, selected beside the Calendar presentation; it is not a sixth project tab. Calendar opens on a week.
+  Individual work projects keep the same five tabs: Git explains that there is no repository, and Runs explains that
+  there is no execution history. Their Calendar shows planned work. Pages use `.split` (main + side column, each
   scrolling inside the window) and `.pn` panels with a `.ph` header; groups that want an action sit in an
   inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
-- Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Timeline · Git ·
-  Runs · More; one equal column per tab, so a work project's shorter set fills the bar too), floating New task button,
+- Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git · Runs · More;
+  one equal column per tab, including for work projects), floating New task button,
   horizontally scrolling Kanban columns and tables as two-line rows. Git and Settings use a compact, labeled native
   section chooser. Its selected option states the current subsection;
   choosing one keeps the existing hash address, direct links and browser Back behavior. The desktop section navigation
@@ -91,18 +94,31 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   (`start_url` `/#/control`). More is a sheet reaching what the bar has no room for: the project's Overview and
   settings, Projects and Settings. The board opens on the first column holding something that needs you (a question,
   a reply, blocked work, or work in Review). Buttons that answer from a card are at least 44px tall, and a task
-  panel's actions wrap onto their own row rather than clip.
+  panel's actions wrap onto their own row rather than clip. A loaded task detail has one visible close control,
+  with a 44px target on phones.
 
-### Team console (3.2)
+### The window's workspace selector
+
+Universal is a peer choice beside Individual and each Team workspace. Its sidebar destinations are My Work,
+Calendar and Needs you, spanning all workspaces. Individual's workspace destinations are Needs you and Projects,
+with Analytics at the foot. Each Team workspace lists Needs you, Projects, Reviews, Members and Analytics.
+The shell keeps Assistant, Workspaces and devices, relevant workspace Settings and theme controls separate from
+these destinations. Universal has no workspace-specific Settings or project list. Project sections belong above
+the project's content, not in the workspace sidebar. The window uses its own 208px sidebar, collapsing to 48px;
+the intermediate-width label control reveals the names without changing the route.
+
+### Team console
 
 Team uses the same paper, ink, Geist, icon strokes and action colours, with its own coordination sections:
-Workspace · Projects · Board · My Work · Reviews · Git · Activity · Members. Desktop has a 232px rail (248px above
+Needs you · Projects · Reviews · Members · Analytics. Desktop has a 232px rail (248px above
 1800px), project shortcuts and Settings at the foot. Changing projects keeps the current project section. Inside the
-desktop app the window's sidebar replaces the rail and a project's Board, Git, Activity and People are tabs above it.
-Settings contains This computer, Devices, Workspace Hosts, Connectivity, Backups and License;
+desktop app the window's sidebar replaces the rail. A project's Overview, Board, Calendar, Git and Runs are tabs above
+its content; People & invites is an action from Board. Calendar shows planned dates and shared schedule requests;
+Timeline is its alternate presentation. Settings contains This computer, MCP clients, Labels, Devices, Workspace Hosts,
+Connectivity, Backups and License, subject to the person's permissions;
 the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.
 
-The default Workspace shows Working now beside Needs you and Projects. Lists use spacing and dividers;
+The workspace's Needs you view shows Working now beside Needs you and Projects. Lists use spacing and dividers;
 cards are reserved for movable board tickets and focused ticket details. Team page titles are 24px,
 ticket titles 15px. The board fills the available width and height, with each column scrolling internally.
 The five Kanban columns stay side by side at every width, scrolling horizontally when they no longer fit. Below 900px, primary navigation
@@ -114,6 +130,11 @@ focus through live updates; arrows select and Enter opens. Escape restores the o
 Members is an organization directory: initials, names, email and roles, with filtering and management in row menus.
 Light/dark sits beside Settings (an icon on phones), with Team's own per-device preference, independent of the
 individual app. `theme.js` resolves it before styles load and keeps the mark and browser chrome in step.
+
+Team Runs shows the latest member-supplied execution report per ticket/device for at most 32 assigned tickets per project read. These are
+reported states and timestamps, including stale/unknown runner availability, rather than a complete run-history
+browser. Raw output and full history stay with the owning member's Werkbord. Team Git presents reported repository
+metadata; it does not inspect or change a member's repository, execute agents or verify their work.
 
 ## The assistant surface (4.11)
 
@@ -140,20 +161,21 @@ heading (the provider chooser, New, Close) and the box.
 
 ## Interaction rules
 
-- **Vocabulary.** Needs you names attention; Questions is its question filter. Calendar schedules agent execution
-  ("Not scheduled to run"); Timeline plans work dates and milestones ("Not planned yet"). Review means work is ready
+- **Vocabulary.** Needs you names attention; Questions is its question filter. Calendar contains Calendar and Timeline
+  presentations. A repository project's Calendar schedules agent execution ("Not scheduled to run"); work projects
+  show planned work. Timeline plans work dates and milestones ("Not planned yet"). Team Calendar combines planned
+  dates with shared schedule requests that wait for the owner's runner and approval. Review means work is ready
   for a person's inspection, Done means the work was completed or merged, and Archive keeps a task out of the active
   board. Accept work / Reject work record a verdict; Merge… changes the repository after confirmation.
 - **Attention counts.** The Needs you and project interruption badges exclude work ready for review; the Needs you
   page's All list includes it. Keep that scope visible beside the counts and in their accessible names. Project summaries
   call pending questions "Needs you".
-- **Planning dates and execution schedules.** Date fields on Timeline plan work; they do not start an agent. Calendar
-  schedules when Werkbord starts agent work. Explain this at both sets of date controls. Work projects keep
-  their timeline planning fields and have no execution controls.
+- **Planning dates and execution schedules.** Date fields plan work; they do not start an agent. Repository Calendar
+  schedules when the owning Werkbord starts agent work. Explain this at both sets of date controls. Work projects keep
+  planning fields and have no execution controls. Individual's New task shows planning fields at the bottom of the
+  form, outside the collapsed run-settings disclosure.
 - **Touch and keyboard.** Answer choices and card actions are at least 44px tall on phones and coarse pointers, with
-  spacing between choices. Label colours are native radios: one tab stop, arrow-key selection, human colour names,
-  supplementary hex values and a visible check mark as well as an outline. Their colour dots stay compact; the hit area
-  grows on coarse pointers. Coarse-pointer form fields use 16px text to prevent zoom. A visible-on-focus skip link moves
+  spacing between choices. Coarse-pointer form fields use 16px text to prevent zoom. A visible-on-focus skip link moves
   to the main work region in both the Individual app and the desktop shell. A task panel receives focus on its heading
   and returns focus to its opener on close. Task detail view controls are a labelled button group, not a navigation
   landmark; links remain the navigation pattern. These rules complement the 11.5px type floor and shared disclosure
@@ -177,8 +199,10 @@ heading (the provider chooser, New, Close) and the box.
 - **One disclosure.** Every `<details>` shows the same chevron, which turns down when it opens (`app.css`); the browser's own
   triangle is not used, because it disappears on a flex summary.
 - **An empty view says so.** A Calendar week with nothing scheduled says "Nothing is scheduled to run this week" above the grid.
-- **A work project speaks of work, not agents.** Its board has no Agent or Runner filter and no agents legend, its cards do not
-  say "Human", its task panel has no Runs tab and its Timeline does not send you to a Calendar it does not have.
+- **Individual speaks of the work.** Its surfaces omit label controls and Human/Agent/Hybrid work-mode vocabulary;
+  existing label and work-mode metadata is preserved. Repository execution controls still name agents and runners
+  where they are relevant. A work project's board has no Agent or Runner filter or agents legend, and its task panel
+  has no Runs tab. Its project-level Git and Runs tabs remain visible with truthful empty states.
 - **Recovery keeps uncertainty visible.** Git health recognizes disabling only from the controller's explicit
   disabled response. Failed reads say current health is unknown; retained findings and scores are last known evidence,
   never a new healthy result. Check now reads Git metadata and leaves repository confirmations under controller checks.
@@ -193,6 +217,8 @@ heading (the provider chooser, New, Close) and the box.
 - **First run is quiet.** Failing to look up an optional connection (GitHub, phone access) is a muted line with *Try again*;
   red is for something the person asked for that failed.
 - **A blocked permission is an explanation, not a button.** Alerts blocked by the browser say where to allow them.
+  The browser-permission state and local opt-in are rechecked when the window regains focus, so Off does not imply
+  that pressing a button can override denied browser permission. Alerts require this browser page to stay open.
 
 - First-run setup leads with three local requirements: an enabled online runner with capacity configured, a usable coding
   agent and a registered Git repository. A planning project does not count as a repository. One primary action advances
@@ -222,6 +248,9 @@ heading (the provider chooser, New, Close) and the box.
   or pull-request provenance and whether tests were reported, never as verified success. Full run and Git evidence stays
   in a clear disclosure. Accept work / Reject work record a verdict (counted as Kept in usage by runner and agent); they
   never merge, move or archive the task.
+- **Assessment stays visible.** Accept work / Reject work update the owning project scope's run cache and the displayed
+  run together. Accepted, Rejected or Not recorded appears beside the choices; a saved assessment can be changed later.
+  An assessment remains separate from confirmed repository actions and board movement.
 - **An answer's delivery is confirmed separately.** Answering a question, on a card, in the task panel, on Runs or in the
   window's Inbox, shows whether it was saved or the agent's receipt was confirmed. Receipt does not claim the agent has
   resumed work.
@@ -231,8 +260,17 @@ heading (the provider chooser, New, Close) and the box.
   segments, a project's Overview for that project. Each item is answerable where it is shown.
 - Numbers are only what was measured: the run history strip colours half hours by real runs; usage says
   which runs reported tokens or cost.
-- Board drops follow the work: Backlog → Doing starts an agent; Review → Done opens the merge confirmation
-  and moves the card once merged; other drops move the card.
+- **One board presentation, separate owners.** Both boards use the product-neutral static card styles and pointer/keyboard
+  transport in `internal/uipresentation`. Each product supplies its own data, permissions and transition handlers;
+  shared presentation imports no product behaviour. Individual cards show the brief (clipped to 180 characters) and
+  planned dates when present. Native drag, pointer-handle drag and Left/Right arrows on the move handle reach the same
+  owning board's transition checks. Coarse-pointer handles have a 44px target.
+- Individual board drops follow the work: Backlog → Doing starts an agent where execution is available; Review → Done
+  opens the merge confirmation when Git merge is applicable and moves the card once merged; other permitted drops
+  move the card. Team drops follow Team's role and ticket-action permissions, never local execution or Git operations.
+- **Timeline keeps names quiet.** The name column shows task or ticket titles without repeating dates. A custom tooltip
+  reveals the title and planned span immediately on hover or focus. Week is the default scale; Today recentres in the
+  available chart width after resize, accounting for the fixed name column.
 - Anything that changes the repository is confirmed in a `Sheet` with the controller's own checks.
 - Keyboard: ⌘/Ctrl K Jump to (projects, sections, tasks, actions), N new task, Esc closes.
 - Motion is state, not decoration: 150–250ms, `cubic-bezier(.16, 1, .3, 1)`, and none under reduced motion.

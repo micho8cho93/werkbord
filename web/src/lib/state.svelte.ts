@@ -135,6 +135,7 @@ class AppState {
 
   /** The time, updated every second while the page is visible, for elapsed times. */
   now = $state(Date.now());
+  analyticsRevision = $state(0);
 
   /** One scope per project visited. */
   readonly scopes = new SvelteMap<string, ProjectScope>();
@@ -467,6 +468,7 @@ class AppState {
   }
 
   private apply(ev: ControllerEvent): void {
+    if (ev.type !== 'agent.output') this.analyticsRevision++;
     if (ev.runId) this.listeners.get(ev.runId)?.forEach((fn) => fn(ev));
 
     const info = ev.taskId && ev.projectId ? this.taskInfo(ev.taskId, ev.projectId) : undefined;

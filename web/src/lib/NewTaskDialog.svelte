@@ -134,7 +134,7 @@
         <details><summary>Change run settings</summary><p class="hint">{interaction.description} {PERMISSIONS_NOTE} From {sourceLabel(effective.sources.interaction)}.</p><ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" disabled={!!saved || uncertainSave} columns /></details>
       </section>
     {/if}
-    <details><summary>Labels, ownership and planning</summary><fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:labelIds bind:workMode bind:plan repository={!isWork} idPrefix="new-task" /></fieldset></details>
+    <fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:plan repository={!isWork} idPrefix="new-task" /></fieldset>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     {#if uncertainSave}<p role="status">Save status is unknown. Your brief is kept in this tab; check the Board before creating another task.</p><a class="btn" href={`#/p/${project.id}/board`} onclick={close}>Check Board</a>{/if}
     {#if uncertainStart && !error}<p role="status">Start status is unknown. Open the saved task to check Runs before starting again.</p>{/if}

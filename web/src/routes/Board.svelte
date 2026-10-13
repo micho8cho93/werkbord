@@ -6,9 +6,8 @@
   import Archive from '../lib/board/Archive.svelte';
   import TaskCard from '../lib/board/TaskCard.svelte';
   import { agentLabel, resolveFor, type Resolved } from '../lib/execution';
-  import { filterFor, setFilter } from '../lib/filters.svelte';
+  import { setFilter } from '../lib/filters.svelte';
   import { filterActive, matches, noFilter } from '../lib/labels';
-  import TaskFilterBar from '../lib/TaskFilterBar.svelte';
   import { runStatus } from '../lib/format';
   import GitSheets from '../lib/git/GitSheets.svelte';
   import { sheets } from '../lib/git/sheets.svelte';
@@ -31,7 +30,7 @@
   let agentFilter = $state('');
   let runnerFilter = $state('');
   let priorityFilter = $state<Priority | ''>('');
-  const labelFilter = $derived(filterFor(project.id));
+  const labelFilter = noFilter();
   const activeFilters = $derived(Number(!!agentFilter) + Number(!!runnerFilter) + Number(!!priorityFilter) + labelFilter.labels.length + Number(!!labelFilter.mode) + Number(viewingArchive));
   const filtering = $derived(!!(agentFilter || runnerFilter || priorityFilter) || filterActive(labelFilter));
 
@@ -178,24 +177,34 @@
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   }
 
+  function performDrop(task: Task, state: TaskState) {
+    if (pendingTasks[task.id]) return;
+    onDragEnd();
+    const run = scope.latestRun[task.id];
+    switch (dropAction(task, run, state, mergeable(task), agentWorkable(task, project))) {
+      case 'start': void start(task); break;
+      case 'merge': void merge(task); break;
+      case 'move': void move(task, state); break;
+    }
+  }
+
+  $effect(() => {
+    const ondrop = (e: Event) => {
+      const { id, state } = (e as CustomEvent<{ id: string; state: TaskState }>).detail;
+      const task = scope.activeTasks.find(t => t.id === id);
+      if (task) performDrop(task, state);
+    };
+    document.addEventListener('werkbord-board-drop', ondrop);
+    return () => document.removeEventListener('werkbord-board-drop', ondrop);
+  });
+
   function onDrop(e: DragEvent, state: TaskState) {
     e.preventDefault();
     const id = e.dataTransfer?.getData('text/plain');
     const task = dragging ?? scope.activeTasks.find(t => t.id === id);
     onDragEnd();
     if (!task) return;
-    const run = scope.latestRun[task.id];
-    switch (dropAction(task, run, state, mergeable(task), agentWorkable(task, project))) {
-      case 'start':
-        void start(task);
-        break;
-      case 'merge':
-        void merge(task);
-        break;
-      case 'move':
-        void move(task, state);
-        break;
-    }
+    performDrop(task, state);
   }
 
   /** What a drop on a column would do, said on the column while dragging. */
@@ -281,7 +290,7 @@
           <option value="low">low</option>
         </select>
       </label>
-      <TaskFilterBar projectId={project.id} />
+
       <button class="btn small" aria-pressed={viewingArchive} onclick={() => viewingArchive = !viewingArchive}>{viewingArchive ? 'Back to board' : `Archive (${scope.archivedTasks.length})`}</button>
       <button class="btn small" disabled={clearingDone || !scope.activeTasks.some(t => t.state === 'done')} onclick={clearDone} title="Move all Done tasks into the archive and keep their details">{clearingDone ? 'Archiving…' : 'Archive Done tasks'}</button>
       {#if filtering}
@@ -302,7 +311,7 @@
     <Archive {scope} />
   {:else}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scrollable board needs keyboard focus for horizontal panning.) -->
-  <div class="cols" role="region" aria-label="Board" tabindex="0">
+  <div class="cols" role="region" aria-label="Kanban board" data-board tabindex="0">
     {#each columns as col (col.state)}
       {@const hint = dropHint(col.state)}
       <section
@@ -311,6 +320,7 @@
         class:over={over === col.state && !!hint}
         class:target={!!hint}
         aria-label={TASK_STATE_LABELS[col.state]}
+        data-board-column={col.state}
         ondragover={(e) => onDragOver(e, col.state)}
         ondragleave={(e) => { if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) over = over === col.state ? '' : over; }}
         ondrop={(e) => onDrop(e, col.state)}
@@ -366,7 +376,6 @@
               selected={router.taskId === task.id}
               mergeable={mergeable(task)}
               agentWork={agentWorkable(task, project)}
-              work={project.kind === 'work'}
               branch={branchOf(task)}
               onstart={start}
               onmerge={merge}

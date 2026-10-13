@@ -2,16 +2,12 @@
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { resolveFor } from '../lib/execution';
-  import { filterFor } from '../lib/filters.svelte';
   import Icon from '../lib/Icon.svelte';
-  import LabelChip from '../lib/LabelChip.svelte';
-  import { modeChipShown } from '../lib/board';
-  import { filterActive, labelsOf, matches, modeLabel, modeOf } from '../lib/labels';
+  import { filterActive } from '../lib/labels';
   import { taskHref } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
-  import TaskFilterBar from '../lib/TaskFilterBar.svelte';
   import {
     PX_PER_DAY,
     ROW_HEIGHT,
@@ -39,16 +35,23 @@
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
 
-  let zoom = $state<Zoom>('month');
+  let zoom = $state<Zoom>('week');
   let groupBy = $state<GroupBy>('none');
   let collapsed = $state<Record<string, boolean>>({});
   let editing = $state<Task | null>(null);
   let scroller = $state<HTMLElement>();
+  let hover = $state<{ text: string; x: number; y: number } | null>(null);
+  function showHover(e: MouseEvent | FocusEvent) {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tooltip]');
+    if (!el) { hover = null; return; }
+    const r = el.getBoundingClientRect();
+    hover = { text: el.dataset.tooltip ?? '', x: Math.max(12, Math.min(r.left, innerWidth - 332)), y: Math.min(r.bottom + 6, innerHeight - 80) };
+  }
 
   const today = $derived(localToday(app.now));
-  const filter = $derived(filterFor(project.id));
+  const filter = { labels: [], mode: '' as const, match: 'any' as const };
   const filtering = $derived(filterActive(filter));
-  const visible = $derived(scope.activeTasks.filter((t) => matches(t, filter)));
+  const visible = $derived(scope.activeTasks);
   const dated = $derived(visible.filter((t) => !!spanOf(t)));
   const undated = $derived(visible.filter((t) => !spanOf(t)).sort((a, b) => a.position - b.position));
   const groups = $derived(groupTasks(dated, app.labels, groupBy));
@@ -113,8 +116,18 @@
   }
 
   function scrollToToday() {
-    if (scroller) scroller.scrollLeft = Math.max(0, todayX - scroller.clientWidth / 2 + 120);
+    if (scroller) {
+      const namesWidth = Number.parseFloat(getComputedStyle(scroller.closest('.view')!).getPropertyValue('--names-w')) || 240;
+      scroller.scrollLeft = Math.max(0, todayX - Math.max(0, scroller.clientWidth - namesWidth) / 2);
+    }
   }
+
+  $effect(() => {
+    if (!scroller) return;
+    const observer = new ResizeObserver(() => scrollToToday());
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  });
 
   // Open at today, once the chart is there; and again when the zoom changes its scale.
   $effect(() => {
@@ -125,10 +138,10 @@
 
   // What the task would inherit: the levels below it, as the task's own page shows them.
   const below = $derived(resolveFor({}, project.execution, app.globalExecution));
-  const names: Record<GroupBy, string> = { none: 'Nothing', label: 'Label', status: 'Status', mode: 'Who does it' };
+  const names: Partial<Record<GroupBy, string>> = { none: 'Nothing', status: 'Status' } as Partial<Record<GroupBy, string>>;
 </script>
 
-<div class="view">
+<div class="view" role="region" aria-label="Project timeline" onmouseover={showHover} onmouseout={() => hover = null} onfocusin={showHover} onfocusout={() => hover = null}>
   <div class="bar">
     <div class="tools" role="group" aria-label="Timeline view">
       <div class="seg" role="group" aria-label="Zoom">
@@ -143,7 +156,7 @@
         </select>
       </label>
       <button class="btn small" onclick={scrollToToday}>Today</button>
-      <TaskFilterBar projectId={project.id} />
+
     </div>
     <ul class="legend" aria-label="Key">
       <li><span class="swatch range"></span>Planned range</li>
@@ -204,11 +217,9 @@
                 </button>
               {:else}
                 {@const w = byTask.get(r.task.id)}
-                {@const span = spanOf(r.task)}
                 <a class="nrow" style:height="{ROW_HEIGHT}px" href={taskHref(project.id, r.task.id)} data-state={toneOf(r.task)} title={r.task.title}>
                   {#if worst(w)}<span class="warn" data-sev={worst(w)} title={w?.map((x) => x.message).join('\n')} aria-label="Has {w?.length} {w?.length === 1 ? 'warning' : 'warnings'}">!</span>{/if}
                   <span class="nt">{r.task.title}</span>
-                  {#if span}<span class="when">{spanTitle(span, Number(today.slice(0, 4)))}</span>{/if}
                 </a>
               {/if}
             {/each}
@@ -232,7 +243,7 @@
                       style:left="{b.x + b.width / 2 - 8}px"
                       style:top="{i * ROW_HEIGHT + ROW_HEIGHT / 2 - 8}px"
                       aria-label="Milestone: {r.task.title}, {spanTitle(b.span, Number(today.slice(0, 4)))}"
-                      title="{r.task.title} · {spanTitle(b.span, Number(today.slice(0, 4)))}"
+                      data-tooltip="{r.task.title} · {spanTitle(b.span, Number(today.slice(0, 4)))}"
                     ><span></span></a>
                     <span class="mt" style:left="{b.x + b.width / 2 + 14}px" style:top="{i * ROW_HEIGHT + 9}px">{r.task.title}</span>
                   {:else}
@@ -245,7 +256,7 @@
                       style:width="{Math.max(b.width - 2, 6)}px"
                       style:top="{i * ROW_HEIGHT + 6}px"
                       style:height="{ROW_HEIGHT - 12}px"
-                      title="{r.task.title} · {spanTitle(b.span, Number(today.slice(0, 4)))}"
+                      data-tooltip="{r.task.title} · {spanTitle(b.span, Number(today.slice(0, 4)))}"
                     ><span class="bt">{r.task.title}</span></a>
                   {/if}
                 {/if}
@@ -269,11 +280,10 @@
         <h2>Not planned yet <span class="chip">{undated.length}</span></h2>
         <ul>
           {#each undated as t (t.id)}
-            {@const ls = labelsOf(t, app.labels)}
             <li>
               <a href={taskHref(project.id, t.id)} class="ut">{t.title}</a>
-              {#each ls as l (l.id)}<LabelChip label={l} small />{/each}
-              {#if modeChipShown(modeOf(t), project.kind === 'work')}<span class="chip">{modeLabel(modeOf(t))}</span>{/if}
+
+
               <button class="btn small" onclick={() => (editing = t)}>Plan…</button>
             </li>
           {/each}
@@ -285,7 +295,10 @@
 
 {#if editing}<EditTaskSheet task={editing} {scope} inherited={below} onclose={() => (editing = null)} />{/if}
 
+{#if hover}<div class="timeline-tooltip" role="tooltip" style:left="{hover.x}px" style:top="{hover.y}px">{hover.text}</div>{/if}
 <style>
+  .timeline-tooltip { position: fixed; z-index: 80; max-width: 320px; padding: 8px 12px; color: var(--text); background: var(--surface); box-shadow: var(--card-sh); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow-wrap: anywhere; pointer-events: none; font-size: 12px; }
+
   .view {
     --names-w: 240px;
     display: flex;
@@ -535,20 +548,10 @@
     text-decoration-color: color-mix(in srgb, var(--text-2) 50%, transparent);
   }
 
-  .nt {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  .nt { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; white-space: normal; line-height: 1.25; }
 
-  .when {
-    flex: none;
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--text-2);
-  }
+
+
 
   .grow {
     background: var(--bg);
@@ -785,7 +788,7 @@
 
   @media (max-width: 899px) {
     .view {
-      --names-w: 150px;
+      --names-w: 220px;
     }
 
     .bar,
@@ -798,12 +801,5 @@
       margin: 0 16px 8px;
     }
 
-    .when {
-      display: none;
-    }
-
-    .legend {
-      display: none;
-    }
   }
 </style>

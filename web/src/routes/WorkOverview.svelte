@@ -1,7 +1,5 @@
 <script lang="ts">
   import { api } from '../lib/api';
-  import LabelChip from '../lib/LabelChip.svelte';
-  import { labelsOf } from '../lib/labels';
   import { projectHref, taskHref } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
@@ -55,7 +53,7 @@
         {#each upcoming as { t, s } (t.id)}
           <li>
             <a href={taskHref(project.id, t.id)}>{t.title}</a>
-            {#each labelsOf(t, app.labels) as l (l.id)}<LabelChip label={l} small />{/each}
+
             <span class="mm end">{s.milestone ? 'Milestone · ' : ''}{spanTitle(s, Number(today.slice(0, 4)))}</span>
           </li>
         {/each}

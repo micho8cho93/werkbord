@@ -55,7 +55,7 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
       <h3>{project.name}</h3>
       <p class="muted">
         A work project is a board and a timeline for anything that is not code. It has no repository, so there are no agents, runs or task
-        defaults to set. Labels are shared with your other projects (Settings → Labels).
+        defaults to set. Planning dates are set on each task.
       </p>
       <dl class="kv"><dt>Project ID</dt><dd class="mono">{project.id}</dd></dl>
     </section>

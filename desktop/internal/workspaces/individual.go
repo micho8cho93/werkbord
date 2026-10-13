@@ -41,7 +41,7 @@ func (p *Individual) Name() string { return "Werkbord" }
 
 func (p *Individual) entry(state workspace.State, detail string) workspace.Listed {
 	return workspace.Listed{
-		Entry: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Universal", State: state, Detail: detail, DeviceRoles: []string{"runner"}},
+		Entry: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Individual", State: state, Detail: detail, DeviceRoles: []string{"runner"}},
 		Root:  "/", SummaryPath: "/api/workspace/v1/summary",
 	}
 }

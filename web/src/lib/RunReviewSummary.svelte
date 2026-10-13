@@ -35,7 +35,7 @@
   <p class="summary">
     {#if branch}<span>Local branch <code>{branch.name}</code> · {branch.vsTarget.ahead} commit{branch.vsTarget.ahead === 1 ? '' : 's'} ahead</span>
     {:else if pr}<span>Pull request #{pr.number} · {pr.title}</span>
-    {:else}<span>{lookupFailed ? 'Git evidence could not be checked' : git.loading || git.githubLoading ? 'Checking available review evidence…' : run.remote ? 'Branch retained on its runner' : 'No branch or pull request available'}</span>{/if}
+    {/if}
     <span>Tests reported: {run.handoff?.tests.length ? `${run.handoff.tests.length} note${run.handoff.tests.length === 1 ? '' : 's'}` : 'none'} · not verified</span>
   </p>
   {#if run.endedAt}<RunAssessment {run} />{/if}

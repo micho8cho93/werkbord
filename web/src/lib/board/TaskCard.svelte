@@ -1,11 +1,12 @@
 <script lang="ts">
+  import '../../../../internal/uipresentation/static/board.css';
+  import '../../../../internal/uipresentation/static/board-drag.js';
   import { runReportStale } from '../format';
   import { api } from '../api';
-  import { cardStatus, modeChipShown, quickChoices, type CardStatus } from '../board';
+  import { cardStatus, quickChoices, type CardStatus } from '../board';
   import { agentLabel, priorityLabel, type Resolved } from '../execution';
-  import LabelChip from '../LabelChip.svelte';
-  import { labelsOf, modeLabel, modeOf } from '../labels';
   import Icon from '../Icon.svelte';
+  import { spanOf, spanTitle } from '../timeline';
   import { answeredNotice, choicesOf, describeAnswerFailure, isAllow, isDeny } from '../questions';
   import { branchHref } from '../gitroute';
   import { taskHref } from '../router.svelte';
@@ -25,7 +26,6 @@
     pending = false,
     mergeable = false,
     agentWork = true,
-    work = false,
     branch,
     onstart,
     onmerge,
@@ -42,8 +42,6 @@
     mergeable?: boolean;
     /** An agent may be started on it: not human work, and not in a project with no repository. */
     agentWork?: boolean;
-    /** The project is a work project: every task is a person's, so "Human" says nothing there. */
-    work?: boolean;
     /** The task's branch, when Git knows it: what review means, and what a merge takes. */
     branch?: GitBranch;
     onstart: (task: Task) => void;
@@ -77,10 +75,8 @@
   const choices = $derived(question ? quickChoices(choicesOf(question)) : []);
   const blockerChoices = $derived(run?.state === 'blocked' ? quickChoices(run.blocker?.options ?? []) : []);
   const agent = $derived(run ? agentLabel(app.agents, run.agentId) : effective.agent ? agentLabel(app.agents, effective.agent) : '');
-  const labels = $derived(labelsOf(task, app.labels));
-  const mode = $derived(modeOf(task));
-  const showMode = $derived(modeChipShown(mode, work));
   const canStart = $derived(agentWork && task.state !== 'done' && (!run || ['completed', 'failed', 'stopped'].includes(run.state)) && task.state !== 'review');
+  const plan = $derived(spanOf(task));
   const href = $derived(taskHref(task.projectId, task.id));
 
   let busy = $state('');
@@ -115,8 +111,9 @@
 </script>
 
 <li
-  class="card task"
+  class="card task work-card"
   data-tone={status.tone}
+  data-board-item={task.id}
   class:live={status.live && !stale}
   class:settled={task.state === 'done'}
   class:selected
@@ -125,8 +122,11 @@
   ondragstart={(e) => ondragstart(e, task)}
   {ondragend}
 >
-  <a class="title" {href} draggable="false">{task.title}</a>
+  <button type="button" data-drag-handle draggable="false" disabled={pending} aria-label="Move task: {task.title}" title="Drag to a column, or use Left and Right arrows"><svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="3" r="1"/><circle cx="8" cy="3" r="1"/><circle cx="4" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="4" cy="13" r="1"/><circle cx="8" cy="13" r="1"/></svg></button>
+  <a class="title" {href} draggable={!pending}>{task.title}</a>
   <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : `${stale ? 'Last reported: ' : ''}${status.text}${run?.pendingRequests?.includes('stop') ? ' · stop requested' : run?.pendingRequests?.includes('finish') ? ' · finish requested' : ''}`}</p>
+  {#if task.description}<p class="work-detail">{task.description.length > 180 ? task.description.slice(0, 177) + '…' : task.description}</p>{/if}
+  {#if plan}<p class="work-detail">Planned {spanTitle(plan, new Date(app.now).getFullYear())}</p>{/if}
   {#if status.detail}<p class="well detail">{status.detail}</p>{/if}
 
   {#if question}
@@ -162,17 +162,13 @@
     <div class="acts"><button class="btn small" disabled={pending} onclick={() => onstart(task)} aria-label="Run an agent again on “{task.title}”"><Icon name="play" size={12} />Run again</button></div>
   {/if}
 
-  {#if labels.length}
-    <ul class="labels" aria-label="Labels">
-      {#each labels as l (l.id)}<li><LabelChip label={l} small /></li>{/each}
-    </ul>
-  {/if}
+
 
   <!-- The agent chip says something only when an agent was chosen or has run: "any agent" is every card's default. -->
-  {#if (agentWork && (run || effective.agent)) || showMode || effective.priority !== 'normal'}
+  {#if (agentWork && (run || effective.agent)) || effective.priority !== 'normal'}
     <div class="mt">
       {#if agentWork && (run || effective.agent)}<span class="chip">{agent}</span>{/if}
-      {#if showMode}<span class="chip mode" title={mode === 'human' ? 'A person does this: no agent is started on it' : 'An agent may start on it and a person finishes it'}>{modeLabel(mode)}</span>{/if}
+
       {#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}
     </div>
   {/if}
@@ -180,6 +176,9 @@
 
 <style>
   .task {
+    --work-border: var(--border);
+    --work-surface: var(--surface);
+    --work-muted: var(--text-2);
     position: relative;
     flex-shrink: 0;
     display: flex;
@@ -299,19 +298,6 @@
     gap: 8px;
   }
 
-  .labels {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .mode {
-    margin-right: auto;
-  }
-
   .prio {
     font-family: var(--mono);
     font-size: 11.5px;
@@ -331,6 +317,9 @@
 
   @media (pointer: coarse) {
     .task {
+    --work-border: var(--border);
+    --work-surface: var(--surface);
+    --work-muted: var(--text-2);
       padding: 14px;
       cursor: default;
     }

@@ -21,8 +21,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   import { app } from '../lib/state.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
   import { agentWorkable } from '../lib/board';
-  import LabelChip from '../lib/LabelChip.svelte';
-  import { labelsOf, modeLabel, modeOf } from '../lib/labels';
   import { spanOf, spanTitle } from '../lib/timeline';
   import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
   import { TASK_STATES, TASK_STATE_LABELS, type ExecutionConfig, type Project, type Run, type Task, type TaskState, type Worktree } from '../lib/types';
@@ -360,7 +358,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     // A work project has no runs: its task has only its details.
     if (project.kind === 'work' && factsSection === 'history') factsSection = 'details';
   });
-  const taskLabels = $derived(task ? labelsOf(task, app.labels) : []);
   const planSpan = $derived(task ? spanOf(task) : null);
   let factsOpen = $state(false);
   const narrow = new MediaQuery('(max-width: 1280px)');
@@ -383,7 +380,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         <button class="skip" onclick={() => skipTo(detailsEl)}>Skip to task details</button>
       </div>
       <div class="top">
-        <a class="btn quiet small icon back" href={boardHref} aria-label="Back to the board"><Icon name="left" /></a>
+
         <label class="state">
           <span class="visually-hidden">Task column</span>
           <span class="dot" data-tone={task.state === 'doing' ? 'work' : task.state === 'review' ? 'ok' : task.state === 'done' ? 'ok' : 'neutral'}></span>
@@ -415,11 +412,9 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           <span class="muted">· {interactionLabel({ interaction: effective.interaction })}{effective.priority !== 'normal' ? ` · ${priorityLabel(effective.priority)} priority` : ''}</span>
         </p>
       {:else}
-        <p class="runs-with">{project.kind === 'work' ? 'Done by a person. Move it across the board as the work goes.' : 'Done by a person: no agent is started on it.'}</p>
+        <p class="runs-with">Move this task across the board as the work progresses.</p>
       {/if}
-      {#if taskLabels.length}
-        <ul class="task-labels" aria-label="Labels">{#each taskLabels as l (l.id)}<li><LabelChip label={l} /></li>{/each}</ul>
-      {/if}
+
     </header>
 
     {#snippet facts()}
@@ -431,7 +426,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           <section>
             <div class="sh"><h3>Plan</h3><button class="btn quiet small" aria-label="Change plan" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
             <dl class="kv">
-              <dt>Who</dt><dd>{modeLabel(modeOf(task))}</dd>
+
               <dt>When</dt><dd>{planSpan ? `${planSpan.milestone ? 'Milestone · ' : ''}${spanTitle(planSpan, new Date().getFullYear())}` : 'Not planned'}</dd>
               {#if dependencies.length}<dt>After</dt><dd>{dependencies.map((d) => d?.title ?? 'a removed task').join(', ')}</dd>{/if}
             </dl>
@@ -711,10 +706,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   .task-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
-  .back {
-    display: none;
-  }
-
   .title:focus,
   .scroll:focus,
   .side:focus {
@@ -808,15 +799,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     letter-spacing: -0.015em;
     line-height: 1.25;
     overflow-wrap: anywhere;
-  }
-
-  .task-labels {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 6px 0 0;
-    padding: 0;
-    list-style: none;
   }
 
   .runs-with {
@@ -1212,12 +1194,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       height: 44px;
     }
 
-    .back {
-      display: inline-flex;
-    }
-
     .close {
-      display: none;
+      display: inline-flex;
+      width: 44px;
+      height: 44px;
     }
 
     .scroll {

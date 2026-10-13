@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"devboard/internal/domain"
+	"devboard/internal/store"
 	"devboard/internal/workspace"
 )
 
@@ -21,7 +22,33 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 	if err != nil {
 		return workspace.Summary{}, err
 	}
-	return SummaryOf(ov, s.now()), nil
+	out := SummaryOf(ov, s.now())
+	err = s.Store.View(ctx, func(tx store.Tx) error {
+		for _, p := range ov.Projects {
+			tasks, err := tx.Tasks().ListByProject(ctx, p.ProjectID)
+			if err != nil {
+				return err
+			}
+			for _, t := range tasks {
+				if t.ArchivedAt != nil || (t.Plan.Start == "" && t.Plan.End == "") {
+					continue
+				}
+				start, end := t.Plan.Start, t.Plan.End
+				if start == "" {
+					start = end
+				}
+				if end == "" || t.Plan.Milestone {
+					end = start
+				}
+				out.Planned = append(out.Planned, workspace.Planned{ID: t.ID, Title: t.Title, Project: p.Name, Start: start, End: end, Href: taskHref(t.ProjectID, t.ID)})
+				if len(out.Planned) >= workspace.MaxItems {
+					return nil
+				}
+			}
+		}
+		return nil
+	})
+	return out, err
 }
 
 func taskHref(projectID, taskID string) string { return "#/p/" + projectID + "/task/" + taskID }

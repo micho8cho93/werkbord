@@ -20,7 +20,7 @@
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import Board from './routes/Board.svelte';
-  import Calendar from './routes/Calendar.svelte';
+  import Scheduling from './routes/Scheduling.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
   import Help from './routes/Help.svelte';
@@ -31,7 +31,6 @@
   import Projects from './routes/Projects.svelte';
   import Runs from './routes/Runs.svelte';
   import Analytics from './routes/Analytics.svelte';
-  import Timeline from './routes/Timeline.svelte';
   import Settings from './routes/Settings.svelte';
   import TaskPanelHost from './routes/TaskPanelHost.svelte';
 
@@ -135,14 +134,14 @@
 
   const phoneTabs = $derived<{ id: string; label: string; icon: IconName; href: string; current: boolean; count?: number }[]>([
     { id: 'control', label: 'Needs you', icon: 'control', href: globalHref('control'), current: router.view === 'control', count: app.needsYou },
-    ...(['board', 'calendar', 'timeline', 'git', 'runs'] as const)
+    ...(['board', 'calendar', 'git', 'runs'] as const)
       .filter((s) => sectionApplies(s, project?.kind))
       .map((s) => ({
       id: s,
       label: { board: 'Board', calendar: 'Calendar', timeline: 'Timeline', git: 'Git', runs: 'Runs' }[s],
       icon: s,
       href: project ? projectHref(project.id, s) : globalHref('projects'),
-      current: inside && (router.view === s || (s === 'board' && router.view === 'task')),
+      current: inside && (router.view === s || (s === 'board' && router.view === 'task') || (s === 'calendar' && router.view === 'timeline')),
     })),
   ]);
 </script>
@@ -184,6 +183,8 @@
         {#if phoneMoreLocation && !framed}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
         {#if router.view === 'control'}
           <ControlCenter />
+        {:else if router.view === 'analytics'}
+          <Analytics />
         {:else if router.view === 'projects'}
           <div class="page"><Projects /></div>
         {:else if router.view === 'settings'}
@@ -207,14 +208,14 @@
             <ScheduleWatch {scope} />
             {#if router.view === 'overview'}
               {#if project.kind === 'work'}<WorkOverview {scope} {project} />{:else}<ProjectOverview {scope} {project} />{/if}
-            {:else if router.view === 'calendar'}
-              <Calendar {scope} {project} />
-            {:else if router.view === 'timeline'}
-              <Timeline {scope} {project} />
+            {:else if router.view === 'calendar' || router.view === 'timeline'}
+              <Scheduling {scope} {project} />
+            {:else if router.view === 'git' && project.kind === 'work'}
+              <p class="empty">This project has no Git repository. Add a repository project to inspect Git changes.</p>
+            {:else if router.view === 'runs' && project.kind === 'work'}
+              <p class="empty">This project has no execution history. Work is tracked on its Board and Calendar.</p>
             {:else if router.view === 'git'}
               {#if router.sub}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
-            {:else if router.view === 'analytics'}
-              <Analytics {project} />
             {:else if router.view === 'runs'}
               <Runs {scope} {project} />
             {:else if router.view === 'defaults'}

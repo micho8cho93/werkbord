@@ -16,7 +16,7 @@
   let { project }: { project: Project } = $props();
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-  const active = $derived(router.view === 'task' ? 'board' : router.view);
+  const active = $derived(router.view === 'task' ? 'board' : router.view === 'timeline' ? 'calendar' : router.view);
   const activity = $derived(app.overview?.projects.find((p) => p.projectId === project.id));
   /** Repository findings that want attention: what the Git tab's amber count says. */
   const gitItems = $derived(activity?.repoAttention ?? 0);
@@ -110,7 +110,8 @@
     margin-top: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .chev {

@@ -1,12 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
   import { analyticsDuration, measuredCost, measuredNumber, type AnalyticsReport } from '../lib/analytics';
   import { agentLabel } from '../lib/execution';
   import { app } from '../lib/state.svelte';
-  import type { Project, RunState } from '../lib/types';
+  import type { RunState } from '../lib/types';
 
-  let { project }: { project: Project } = $props();
   let projectFilter = $state('');
   let days = $state(30);
   let provider = $state('');
@@ -15,11 +14,19 @@
   let error = $state('');
   let requestId = 0;
   let mounted = true;
-  onMount(() => { projectFilter = project.id; void load(); return () => { mounted = false; }; });
+  onMount(() => {
+    const timer = setInterval(() => { if (!document.hidden) void load(); }, 15000);
+    return () => { mounted = false; clearInterval(timer); };
+  });
+  $effect(() => {
+    void [projectFilter, days, provider, app.analyticsRevision];
+    const timer = setTimeout(() => untrack(() => void load()), 120);
+    return () => clearTimeout(timer);
+  });
 
   async function load() {
     const id = ++requestId;
-    loading = true; error = ''; report = null;
+    loading = true; error = '';
     try {
       const next = await api.analytics(projectFilter, days, provider);
       if (mounted && id === requestId) report = next;
@@ -38,15 +45,15 @@
 </script>
 
 <div class="analytics">
-  <form class="filters" onsubmit={(e) => { e.preventDefault(); void load(); }}>
+  <div class="filters" aria-busy={loading}>
     <label class="pick"><span>Project</span><select bind:value={projectFilter} aria-label="Analytics project"><option value="">All projects</option>{#each app.projects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}</select></label>
     <label class="pick"><span>Time range</span><select bind:value={days} aria-label="Analytics time range"><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option></select></label>
     <label class="pick"><span>Provider</span><select bind:value={provider} aria-label="Analytics agent provider"><option value="">All agent providers</option>{#each availableProviders as p (p)}<option value={p}>{agentLabel(app.agents, p)}</option>{/each}</select></label>
-    <button class="btn" type="submit" disabled={loading}>{loading ? 'Loading…' : 'Apply / refresh'}</button>
-  </form>
+    {#if loading}<span class="muted" role="status">Updating…</span>{/if}
+  </div>
   <p class="muted intro">Task throughput and agent execution. Provider means the agent runtime; its billing provider may be unknown.</p>
-  {#if error}<p role="alert" class="error">{error} Apply the filters again to retry.</p>
-  {:else if loading}<p class="empty" role="status">Loading analytics…</p>
+  {#if error}<p role="alert" class="error">{error} <button class="btn small" onclick={() => void load()}>Try again</button></p>
+  {:else if loading && !report}<p class="empty" role="status">Loading analytics…</p>
   {:else if report}
     <p class="muted stamp">Recorded through {new Date(report.end).toLocaleString()}. Current blocked and stopped counts cover all ages; other counts use the selected period.</p>
     {#if report.truncated || report.retentionRemoved || report.missingTaskHistory}
@@ -82,7 +89,7 @@
           <div><dt>Agent-reported task completion</dt><dd>{report.agentReportedCompletion ?? 'Not recorded'}</dd></div>
           <div><dt>Normal session ends</dt><dd>{report.normalSessionCompletions}</dd></div>
           <div><dt>Independently verified task completion</dt><dd>{report.verifiedCompletion ?? 'Not recorded'}</dd></div>
-          <div><dt>Human accepted / rejected</dt><dd>{report.accepted} / {report.rejected}</dd></div>
+          <div><dt>Accepted / rejected</dt><dd>{report.accepted} / {report.rejected}</dd></div>
           <div><dt>Controller-verified merges</dt><dd>{report.verifiedMerges}</dd></div>
         </dl>
         <p class="muted">The controller records a normal session end; this is not an agent claim that its task is complete. Done is a board decision. Acceptance is an explicit run assessment. A verified merge confirms Git containment, with correctness and tests unverified.</p>
@@ -113,10 +120,6 @@
           <td class="mm">{row.attempts} / {row.retries}</td><td class="mm">{measuredNumber(row.inputTokens)} / {measuredNumber(row.outputTokens)}<small>{row.inputRuns} input, {row.outputRuns} output reports</small></td>
           <td class="mm">{measuredCost(row.actualCostUsd)} / {measuredCost(row.estimatedCostUsd)}<small>{row.actualCostRuns} actual, {row.estimatedCostRuns} estimated reports</small></td><td class="mm">{row.limitEvents}</td>
         </tr>{/each}</tbody></table></div>{:else}<p class="empty">No execution evidence matches this view.</p>{/if}
-    </section>
-    <section aria-labelledby="categories-title"><h2 id="categories-title">Work categories</h2>
-      {#if report.categories.length}<table><thead><tr><th>Current label</th><th>Created</th><th>Moved to Done</th></tr></thead><tbody>{#each report.categories as category (category.labelId)}<tr><td>{category.name}</td><td class="mm">{category.created}</td><td class="mm">{category.completed}</td></tr>{/each}</tbody></table>{:else}<p class="empty">No task activity matches this view.</p>{/if}
-      <p class="muted">Uses your existing labels as they are now. Tasks with several labels appear in each category. A provider filter includes tasks with a recorded run from that agent runtime.</p>
     </section>
   {/if}
 </div>
@@ -157,5 +160,5 @@
   td, th { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
   td small { display: block; white-space: nowrap; }
   @media (max-width: 1100px) { .statistics { grid-template-columns: repeat(3, minmax(0, 1fr)); } .breakdowns { grid-template-columns: 1fr; gap: 0; } }
-  @media (max-width: 899px) { .analytics { height: auto; overflow: visible; padding: 16px; } .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .facts div { flex-wrap: wrap; } .filters .btn { min-height: 44px; } }
+  @media (max-width: 899px) { .analytics { height: auto; overflow: visible; padding: 16px; } .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .facts div { flex-wrap: wrap; } }
 </style>

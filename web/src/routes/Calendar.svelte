@@ -5,6 +5,7 @@
   import { formatWall, hourLabel } from '../lib/clock.svelte';
   import { agentWorkable } from '../lib/board';
   import { agentLabel, resolveFor } from '../lib/execution';
+  import { spanOf } from '../lib/timeline';
   import { runStatus } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
   import { taskHref } from '../lib/router.svelte';
@@ -37,7 +38,7 @@
   const today = $derived(wallTime(new Date(app.now).toISOString(), zone).slice(0, 10));
   const nowMinute = $derived(minuteOf(wallTime(new Date(app.now).toISOString(), zone)));
 
-  let view = $state<'day' | 'week'>(typeof window !== 'undefined' && window.innerWidth < 900 ? 'day' : 'week');
+  let view = $state<'day' | 'week'>('week');
   let anchor = $state(untrack(() => wallTime(new Date().toISOString(), localZone).slice(0, 10)));
   const days = $derived(visibleDays(anchor, view));
   const step = $derived(view === 'day' ? 1 : 7);
@@ -224,6 +225,9 @@
           <div class="dh" class:today={d === today}><span>{h.dow}</span><i>{h.n}</i></div>
         {/each}
       </div>
+      {#if scope.activeTasks.some(t => spanOf(t))}
+        <div class="planned" style:--days={days.length}><span class="planned-label">Planned</span>{#each days as d (d)}<div>{#each scope.activeTasks.filter(t => { const p = spanOf(t); return p && p.start <= d && p.end >= d; }) as t (t.id)}<a href={taskHref(project.id, t.id)}>{t.title}</a>{/each}</div>{/each}</div>
+      {/if}
       {#if emptyView}
         <p class="empty-view" role="status">
           Nothing is scheduled to run {view === 'day' ? 'on this day' : 'this week'}.
@@ -363,6 +367,10 @@
 </div>
 
 <style>
+  .planned { display: grid; grid-template-columns: 52px repeat(var(--days), minmax(0, 1fr)); border-bottom: 1px solid var(--border); font-size: 12px; }
+  .planned > div { padding: 6px; border-left: 1px solid var(--border); }
+  .planned-label { color: var(--text-2); padding: 6px 2px; font-size: 11.5px; }
+  .planned a { display: block; overflow-wrap: anywhere; text-decoration: none; color: var(--text); border-radius: var(--radius-sm); background: var(--surface-2); padding: 6px; margin-bottom: 4px; }
   .cal {
     height: 100%;
     min-height: 0;
