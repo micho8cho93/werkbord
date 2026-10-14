@@ -38,6 +38,7 @@
 }
 
 :root {
+  --text-2: var(--muted); --surface: var(--panel); --surface-2: var(--s2); --border: var(--line);
   --bg: #f5f5f2; --panel: #ffffff; --s2: #ededE8; --line: #dad9d3; --text: #0a0a0a; --muted: #55554f;
   --accent: #2447ff; --accent-text: #ffffff; --amber: #f2a93b; --amber-ring: rgba(242, 169, 59, .3);
   --ok: #2f8f55; --warn: #b7791f; --danger: #c2413b; --ok-text: #1f6e3e; --warn-text: #86580e; --danger-text: #a8322c;
@@ -633,3 +634,39 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
 .timeline-tooltip { position: fixed; z-index: 80; max-width: 320px; padding: 8px 12px; color: var(--text); background: var(--panel); box-shadow: var(--card-sh); border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; pointer-events: none; font-size: 12px; }
 .timeline-tooltip[hidden] { display: none; }
 @media (max-width: 899px) { .tl-chart { --names-w: 220px; } }
+
+/* Project identity and actions share Individual's header rhythm. */
+.project-head { margin-bottom: 0; padding: 0 0 16px; }
+.project-meta { font-family: var(--mono); font-size: 12px; color: var(--text-2); margin-bottom: 8px; overflow-wrap: anywhere; }
+.project-title-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.project-title-row h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+.project-title-row .actions { margin: 0; }
+.project-people { display: flex; flex-wrap: wrap; gap: 8px 14px; padding-top: 12px; }
+.project-person { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+.person-initials { display: inline-grid; place-items: center; width: 24px; height: 24px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 50%; font-size: 11.5px; color: var(--text); }
+.project-chooser { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 12px; }
+.project-chooser select { width: auto; max-width: 100%; }
+.project-details { position: relative; }
+.project-details summary { list-style: none; cursor: pointer; color: var(--text); font-size: 13px; }
+.project-detail-content { position: absolute; z-index: 9; top: 100%; right: 0; width: min(340px, 80vw); display: grid; padding: 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: 0 6px 16px #0002; }
+.project-tabs { flex: none; margin-bottom: 16px; }
+.calendar-with-ticket { min-height: 0; flex: 1; }
+.calendar-with-ticket .ticket { position: fixed; z-index: 20; right: 0; top: 0; bottom: 0; width: min(600px, 100vw); max-height: 100dvh; border-radius: 0; box-shadow: 0 10px 30px #0003; }
+.calendar-event { --tone: var(--text-2); border: 1px solid color-mix(in srgb, var(--tone) 60%, var(--border)); background: color-mix(in srgb, var(--tone) 16%, var(--surface)); border-radius: 6px; }
+.calendar-event[data-status='in_progress'], .calendar-event.scheduled { --tone: var(--accent); }
+.calendar-event[data-status='review'] { --tone: var(--warn); }
+.calendar-event[data-status='done'] { --tone: var(--ok); }
+.calendar-event:hover { border-color: var(--tone); }
+.calendar-event small { color: var(--text); }
+.tl-bar { padding: 0 12px; border: 1px solid var(--text-2); background: var(--surface-2); color: var(--text); }
+.tl-bar[data-status='in_progress'] { border-color: var(--accent); }
+.tl-bar[data-status='review'] { border-color: var(--warn); }
+.tl-bar[data-status='done'] { color: #fff; opacity: 1; }
+.timeline-view { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.tl-scroller { flex: 1; min-height: 280px; }
+@media (max-width: 899px) { .project-title-row .actions { width: 100%; } .project-title-row h1 { font-size: 20px; } .timeline-view { min-height: 480px; } }
+.project-details summary { display: inline-flex; align-items: center; min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--btn-bg); box-shadow: var(--btn-sh); font-weight: 500; }
+.project-details summary:hover { border-color: var(--muted); }
+.project-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rail nav button { border: 1px solid var(--line); background: var(--panel); }
+@media (max-width: 899px) { .rail .rail-primary button { border: 0; border-bottom: 2px solid transparent; } }

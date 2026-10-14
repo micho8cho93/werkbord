@@ -8,7 +8,8 @@
   import { spanOf } from '../lib/timeline';
   import { runStatus } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
-  import { taskHref } from '../lib/router.svelte';
+  import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
+  import { listenDates, movePlan } from '../lib/planningGestures';
   import { editableOrchestration, emptyOrchestration, instantFromWall, schedulingLabels, wallTime } from '../lib/scheduling';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
@@ -20,6 +21,16 @@
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
 
+  let surface = $state<HTMLElement>();
+  let editing = $state<Task | null>(null);
+  $effect(() => surface && listenDates(surface, drop => {
+    const task = scope.activeTasks.find(t => t.id === drop.id.replace(/\/schedule$/, ''));
+    if (!task) return;
+    if (drop.id.endsWith('/schedule')) {
+      const time = drop.minute === undefined ? scheduledIn(task).slice(11,16) || '09:00' : clockAt(drop.minute);
+      return schedule(task, drop.start, time);
+    } else return movePlan(scope, drop);
+  }));
   const HOUR = 48; // px per hour
   const EVENT_MIN = 45; // how long an event looks: a schedule is a start time, not a duration
   const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -182,7 +193,7 @@
   }
 </script>
 
-<div class="cal">
+<div class="cal" bind:this={surface} data-plan-surface>
   <div class="bar">
     <div class="nav">
       <button class="btn" onclick={() => (anchor = today)}>Today</button>
@@ -226,7 +237,7 @@
         {/each}
       </div>
       {#if scope.activeTasks.some(t => spanOf(t))}
-        <div class="planned" style:--days={days.length}><span class="planned-label">Planned</span>{#each days as d (d)}<div>{#each scope.activeTasks.filter(t => { const p = spanOf(t); return p && p.start <= d && p.end >= d; }) as t (t.id)}<a href={taskHref(project.id, t.id)}>{t.title}</a>{/each}</div>{/each}</div>
+        <div class="planned" style:--days={days.length}><span class="planned-label">Planned</span>{#each days as d (d)}<div data-plan-day={d}>{#each scope.activeTasks.filter(t => { const p = spanOf(t); return p && p.start <= d && p.end >= d; }) as t (t.id)}<button class="planned-task" data-plan-item={t.id} data-plan-start={spanOf(t)?.start} data-plan-end={spanOf(t)?.end} onclick={() => editing = t}>{t.title}</button>{/each}</div>{/each}</div>
       {/if}
       {#if emptyView}
         <p class="empty-view" role="status">
@@ -248,6 +259,7 @@
               class:pickable={!!picked}
               role="group"
               aria-label={rangeTitle([d])}
+              data-plan-day={d} data-plan-minute-scale={HOUR / 60}
               ondragover={(e) => onDragOver(e, d)}
               ondragleave={() => (ghost = null)}
               ondrop={(e) => onDrop(e, d)}
@@ -265,7 +277,8 @@
                   class:run={s?.tone === 'work'}
                   class:needs={s?.needsInput}
                   class:past={!!t.orchestration?.runId || !t.orchestration?.enabled}
-                  href={taskHref(project.id, t.id)}
+                  href={'#/p/' + project.id + '/calendar'} onclick={(e) => { e.preventDefault(); editing = t; }}
+                  data-plan-item={t.id + '/schedule'} data-plan-start={d} data-plan-end={d} data-plan-scheduled
                   draggable="true"
                   ondragstart={(ev) => onDragStart(ev, t)}
                   ondragend={() => ((dragId = ''), (ghost = null))}
@@ -304,7 +317,7 @@
         {#if unscheduled.length}
           <ul class="items">
             {#each unscheduled as t (t.id)}
-              <li class="item" class:on={picked?.id === t.id} draggable="true" ondragstart={(e) => onDragStart(e, t)} ondragend={() => ((dragId = ''), (ghost = null))}>
+              <li class="item" class:on={picked?.id === t.id} data-plan-item={t.id + '/schedule'} data-plan-start={today} data-plan-end={today} data-plan-scheduled draggable="true" ondragstart={(e) => onDragStart(e, t)} ondragend={() => ((dragId = ''), (ghost = null))}>
                 <span class="grip" aria-hidden="true"><Icon name="grip" /></span>
                 <button class="pbtn" aria-pressed={picked?.id === t.id} onclick={() => (picked = picked?.id === t.id ? null : t)}>
                   <span class="t">{t.title}</span>
@@ -326,7 +339,7 @@
             {#each upcoming as t (t.id)}
               {@const decision = scope.decisions.find((d) => d.taskId === t.id)}
               <li>
-                <a href={taskHref(project.id, t.id)}>{t.orchestration?.executionOrder != null ? `${t.orchestration.executionOrder}. ` : ''}{t.title}</a>
+                <a href={'#/p/' + project.id + '/calendar'} onclick={(e) => { e.preventDefault(); editing = t; }}>{t.orchestration?.executionOrder != null ? `${t.orchestration.executionOrder}. ` : ''}{t.title}</a>
                 <p class="mm">
                   {t.orchestration?.scheduledAt ? wallTime(t.orchestration.scheduledAt, zone).replace('T', ' ') : 'when ready'}{decision ? ` · ${schedulingLabels[decision.state]}` : ''}
                 </p>
@@ -343,7 +356,7 @@
           <ul class="queue">
             {#each waiting as t (t.id)}
               <li>
-                <a href={taskHref(project.id, t.id)}>{t.title}</a>
+                <a href={'#/p/' + project.id + '/calendar'} onclick={(e) => { e.preventDefault(); editing = t; }}>{t.title}</a>
                 <p class="mm">
                   after {(t.orchestration?.dependencies ?? []).map((id) => scope.tasks.find((d) => d.id === id)?.title ?? 'a removed task').join(', ')}
                 </p>
@@ -366,11 +379,13 @@
   </div>
 </div>
 
+{#if editing}<EditTaskSheet side task={editing} {scope} inherited={resolveFor({}, project.execution, app.globalExecution)} onclose={() => editing = null} />{/if}
+
 <style>
   .planned { display: grid; grid-template-columns: 52px repeat(var(--days), minmax(0, 1fr)); border-bottom: 1px solid var(--border); font-size: 12px; }
   .planned > div { padding: 6px; border-left: 1px solid var(--border); }
   .planned-label { color: var(--text-2); padding: 6px 2px; font-size: 11.5px; }
-  .planned a { display: block; overflow-wrap: anywhere; text-decoration: none; color: var(--text); border-radius: var(--radius-sm); background: var(--surface-2); padding: 6px; margin-bottom: 4px; }
+  .planned .planned-task { display: block; overflow-wrap: anywhere; text-decoration: none; color: var(--text); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); padding: 6px; font: inherit; font-size: 12px; text-align: left; margin-bottom: 4px; }
   .cal {
     height: 100%;
     min-height: 0;

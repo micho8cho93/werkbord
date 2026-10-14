@@ -37,7 +37,7 @@ async function api(method, path, data) {
     const input = page.getByRole('combobox', {name: 'Search projects, tickets and sections'});
     const dialog = page.getByRole('dialog', {name: 'Search Werkbord Team'});
     const finished = query => page.waitForFunction(q => searchSession?.query === q && !searchSession.loading, query);
-    await page.getByRole('button', {name: 'Search', exact: true}).focus();
+    await page.getByRole('button', {name: /^(Search|Jump to)$/, exact: true}).focus();
     await page.keyboard.press('Meta+k'); await input.waitFor(); assert(await input.evaluate(el => el === document.activeElement));
     await input.press('ArrowDown'); await input.press('Enter');
     await page.getByRole('heading', {name: 'Projects', exact: true}).waitFor();
@@ -48,7 +48,7 @@ async function api(method, path, data) {
     await page.keyboard.press('Meta+k'); await input.press('Escape');
     assert.equal(await page.evaluate(() => state.ticketId), remote.id, 'Escape from search keeps background ticket open');
     await page.keyboard.press('Escape'); await page.waitForFunction(() => !state.ticketId);
-    await page.getByRole('button', {name: 'Search', exact: true}).click(); await input.fill(archived.key); await finished(archived.key);
+    await page.getByRole('button', {name: /^(Search|Jump to)$/, exact: true}).click(); await input.fill(archived.key); await finished(archived.key);
     await dialog.getByRole('option').filter({hasText: archived.title}).click();
     await page.waitForFunction(id => state.ticketId === id && !!document.querySelector('.ticket'), archived.id);
     assert.equal(await page.evaluate(() => state.showArchived), true);
@@ -100,7 +100,7 @@ async function api(method, path, data) {
     assert(await memberPage.locator('.member-row').count() >= 2, 'plain member sees the company directory');
     assert.equal(await memberPage.getByRole('button', {name: 'Remove', exact: true}).count(), 0);
     assert.equal(await memberPage.getByRole('button', {name: 'Add', exact: true}).count(), 0);
-    await memberPage.getByRole('button', {name: 'Search', exact: true}).click();
+    await memberPage.getByRole('button', {name: /^(Search|Jump to)$/, exact: true}).click();
     const memberInput = memberPage.getByRole('combobox'); await memberInput.fill('navigation');
     await memberPage.waitForFunction(() => searchSession && !searchSession.loading && searchSession.query === 'navigation');
     assert.equal(await memberPage.getByRole('option').count(), 0, 'no private project results in browser');
@@ -109,7 +109,7 @@ async function api(method, path, data) {
     assert.equal(await memberPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'mobile does not overflow');
     await memberPage.setViewportSize({width: 320, height: 780});
     await memberPage.waitForFunction(() => { const button = document.querySelector('.rail-primary [aria-current="page"]'); const r = button.getBoundingClientRect(); return r.left >= 8 && r.right <= innerWidth; });
-    await memberPage.getByRole('button', {name: 'Search', exact: true}).click();
+    await memberPage.getByRole('button', {name: /^(Search|Jump to)$/, exact: true}).click();
     await api('DELETE', '/members/' + member.member.id);
     await memberInput.fill('revoked session');
     await memberPage.getByRole('heading', {name: 'Sign in', exact: true}).waitFor();

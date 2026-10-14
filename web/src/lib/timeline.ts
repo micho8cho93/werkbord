@@ -42,10 +42,10 @@ export function spanOf(task: Pick<Task, 'plan'>): Span | null {
   return { start: first, end: last, milestone: false };
 }
 
-export type Zoom = 'week' | 'month' | 'quarter';
+export type Zoom = 'day' | 'week' | 'month' | 'quarter';
 
 /** Pixels per day at each zoom: a day is wide enough to click at week zoom, and a quarter fits a screen. */
-export const PX_PER_DAY: Record<Zoom, number> = { week: 40, month: 16, quarter: 6 };
+export const PX_PER_DAY: Record<Zoom, number> = { day: 160, week: 56, month: 22, quarter: 8 };
 
 export interface Range {
   start: string;
@@ -86,9 +86,9 @@ export function ticks(range: Range, zoom: Zoom): Tick[] {
     const day = addDays(range.start, i);
     const dom = Number(day.slice(8));
     const monday = new Date(at(day)).getUTCDay() === 1;
-    if (zoom === 'week') out.push({ day, x: i * px, label: dom === 1 ? `${MONTH.format(new Date(at(day)))} 1` : String(dom), major: dom === 1 || monday });
-    else if (zoom === 'month' && monday) out.push({ day, x: i * px, label: dom === 1 ? MONTH.format(new Date(at(day))) : String(dom), major: dom <= 7 });
-    else if (zoom === 'quarter' && dom === 1) out.push({ day, x: i * px, label: MONTH.format(new Date(at(day))), major: true });
+    if (zoom === 'week' || zoom === 'day') out.push({ day, x: i * px, label: dom === 1 || i === 0 ? `${MONTH.format(new Date(at(day)))} ${dom}` : String(dom), major: dom === 1 || monday });
+    else if (zoom === 'month' && (monday || i === 0)) out.push({ day, x: i * px, label: dom === 1 ? MONTH.format(new Date(at(day))) : String(dom), major: dom <= 7 });
+    else if (zoom === 'quarter' && (dom === 1 || i === 0)) out.push({ day, x: i * px, label: MONTH.format(new Date(at(day))), major: true });
   }
   return out;
 }

@@ -110,7 +110,7 @@ async function api(method, path, data, credential = token) {
     console.log('PASS concurrent editors, stale-version rejection, intentional empty text, disclosure, keyboard focus, conflict recovery');
     // Independent drafts survive navigation without carrying into another project.
     await page.goto(base + `/?tab=board&project=${p.id}`);
-    await page.getByRole('button', { name: 'New ticket', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'New task', exact: true }).waitFor();
     await page.locator('body').press('n');
     await page.waitForFunction(() => document.activeElement?.name === 't-title');
     await page.locator('[name="t-title"]').fill('Alpha draft');

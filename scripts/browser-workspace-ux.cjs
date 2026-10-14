@@ -121,7 +121,7 @@ let browser, shellServer;
  await wait(async()=> (await coord('GET',`/projects/${tp.id}/tickets/${tk.id}`)).status==='review','Team keyboard submit');
  await capture('team-board');
  await teamTabs.getByRole('button',{name:'Calendar',exact:true}).click();
- await page.getByText('Planned work',{exact:true}).first().waitFor();
+ await page.getByText(/Planned work/).first().waitFor();
  await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
  await page.locator('.tl-name .nt').waitFor(); assert.equal(await page.locator('.tl-name .when').count(),0);
  await capture('team-timeline');

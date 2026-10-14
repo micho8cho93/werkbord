@@ -12,7 +12,8 @@
     children,
     footer,
     width = '34rem',
-  }: { title: string; onclose: () => void; children: Snippet; footer?: Snippet; width?: string } = $props();
+    side = false,
+  }: { title: string; onclose: () => void; children: Snippet; footer?: Snippet; width?: string; side?: boolean } = $props();
 
   let panel: HTMLDivElement | undefined = $state();
   let trapping = false;
@@ -71,8 +72,8 @@
 
 <svelte:window onkeydown={onkey} onfocusin={onfocus} />
 
-<div class="backdrop" role="presentation" onclick={onclose}></div>
-<div class="sheet" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel} style:--w={width}>
+<div class="backdrop" class:side role="presentation" onclick={onclose}></div>
+<div class="sheet" class:side role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel} style:--w={width}>
   <header>
     <h2>{title}</h2>
     <button class="btn quiet small icon" onclick={onclose} aria-label="Close"><Icon name="close" /></button>
@@ -82,6 +83,8 @@
 </div>
 
 <style>
+  .backdrop.side { background: color-mix(in srgb, var(--bg) 12%, transparent); backdrop-filter: none; }
+  .sheet.side { top: 0; bottom: 0; left: auto; right: 0; width: min(var(--w), 100vw); max-height: 100dvh; border-radius: 0; border: 0; border-left: 1px solid var(--border); transform: none; animation: none; }
   .backdrop {
     position: fixed;
     inset: 0;

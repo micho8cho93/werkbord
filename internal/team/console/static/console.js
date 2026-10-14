@@ -374,7 +374,7 @@ function navTab() { return state.tab === 'people' ? 'projects' : state.tab; }
 let focusMain = false;
 function go(tab) { focusMain = true; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.validationIssues = []; state.info = ''; remember(); return render(); }
 function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; state.validationIssues = []; remember(); return render(); }
-function openTicket(projectId, ticketId) { state.projectId = projectId; state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
+function openTicket(projectId, ticketId) { const keepCalendar = state.projectId === projectId && ['calendar', 'timeline'].includes(state.tab); state.projectId = projectId; if (!keepCalendar) state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
 function openInRunner(it) { return act(async () => { state.handoff = await api('POST', itemPath(it) + '/handoff'); }); }
 function itemPath(it) { return '/projects/' + it.project.id + '/tickets/' + it.ticket.id; }
 
@@ -396,7 +396,7 @@ let rendering = Promise.resolve();
 function render() { rendering = rendering.then(renderNow, renderNow); return rendering; }
 
 async function renderNow() {
-  if (draggedTicket || document.querySelector('.pointer-dragging')) return;
+  if (draggedTicket || document.querySelector('.pointer-dragging, .planning-dragging')) return;
   const requestedScope = screenScope();
   if (typeof desktopGate === 'function' && await desktopGate()) { closeSearch(false); app.classList.remove('signed-in'); return; }
   if (!state.token) { closeSearch(false); stopSync(); app.classList.remove('signed-in'); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
@@ -448,13 +448,14 @@ async function renderNow() {
     reviews: sum(ov.projects, (p) => p.toReview),
     repository: sum(ov.projects, (p) => p.problems),
   };
-  const title = settingsTab() ? 'Settings' : TABS.find(([id]) => id === navTab())?.[1] || 'Projects';
-  if (draggedTicket || document.querySelector('.pointer-dragging')) return;
+  const projectScreen = PROJECT_TABS.has(state.tab) && !!state.data?.board;
+  const title = projectScreen ? state.data.board.project.name : settingsTab() ? 'Settings' : TABS.find(([id]) => id === navTab())?.[1] || 'Projects';
+  if (draggedTicket || document.querySelector('.pointer-dragging, .planning-dragging')) return;
   app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' || state.tab === 'timeline' ? ' is-board' : '') + (FRAMED ? ' framed' : '') },
     h('button', { class: 'skip-link', onclick: () => app.querySelector('#main-title').focus() }, 'Skip to content'),
     navigation(counts),
     h('main', { class: 'main-pane' },
-      h('header', { class: 'top page-head' }, h('h1', { id: 'main-title', tabindex: '-1' }, title),
+      projectScreen ? '' : h('header', { class: 'top page-head' }, h('h1', { id: 'main-title', tabindex: '-1' }, title),
         state.tab === 'workspace' ? h('span', { class: 'workspace-context' }, state.me.workspace.name) : '', searchButton()),
       h('div', { class: 'main-content', 'data-scroll-key': 'main' },
         state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
@@ -462,7 +463,7 @@ async function renderNow() {
         secretBox(), settingsTab() ? settingsLayout(body) : body))));
   restore(app, keep, previousScope === screenScope());
   revealActiveNavigation();
-  if (focusMain) { app.querySelector('#main-title').focus({ preventScroll: true }); focusMain = false; }
+  if (focusMain) { app.querySelector('#main-title')?.focus({ preventScroll: true }); focusMain = false; }
   renderedScope = screenScope();
   refreshSearch();
 }
@@ -771,20 +772,29 @@ async function projectScopedView() {
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
   const tabs = projectTabs(p.id, [['overview', 'Overview', 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
   const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
+  const settings = h('details', { class: 'project-details' }, h('summary', { class: 'plain small' }, 'Project settings'),
+    h('div', { class: 'project-detail-content' }, h('h3', {}, 'Details'),
+      p.description ? h('p', {}, p.description) : '',
+      p.repository ? h('p', {}, isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
+      h('p', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'),
+      h('button', { class: 'plain small', onclick: () => openProject(p.id, 'people') }, 'Manage project members and invitations'),
+      can('projects.manage') ? h('button', { class: 'danger small', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project') : ''));
+  const newTask = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New task (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new task' : 'New task') : '';
+  const branches = [...new Set(d.board.tickets.filter(k => k.assigneeId === state.me.member.id && k.branch).map(k => k.branch))];
+  const memberList = h('div', { class: 'project-people', 'aria-label': 'Project members' }, d.board.people.map(person => h('span', { class: 'project-person', title: person.projectRole || person.role }, h('span', { class: 'person-initials', 'aria-hidden': 'true' }, person.name.split(/\s+/).map(x => x[0]).slice(0,2).join('')), person.name)));
+  let view = content;
+  if (['calendar', 'timeline'].includes(state.tab) && state.ticketId) {
+    const k = d.ticket || d.board.tickets.find(k => k.id === state.ticketId);
+    if (k) view = h('div', { class: 'calendar-with-ticket' }, content, ticketPanel(d, k));
+  }
   return h('div', { class: 'project-view' },
-    state.tab === 'people' ? h('p', {}, h('button', { class: 'link', onclick: () => go('projects') }, '← Projects')) : '',
     h('div', { class: 'project-head' },
-      h('div', { class: 'project-bar' }, FRAMED ? '' : h('label', { class: 'inline' }, 'Project ', switcher),
-        h('details', { class: 'project-details' }, h('summary', {}, 'Project settings'),
-          h('div', { class: 'project-detail-content' },
-            h('h3', {}, 'Details'),
-            p.description ? h('p', {}, p.description) : '',
-            p.repository ? h('p', {}, isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
-            h('span', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'),
-            h('button', { class: 'plain small', onclick: () => openProject(p.id, 'people') }, 'People & invitations'),
-            can('projects.manage') ? h('button', { class: 'danger small', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project') : '')))),
-    tabs,
-    content);
+      h('div', { class: 'project-meta' }, p.repository || 'Work project', branches.length ? ' · ' + branches.join(' · ') : ''),
+      h('div', { class: 'project-title-row' }, h('h1', { id: 'main-title', tabindex: '-1' }, p.name), h('div', { class: 'actions' }, searchButton(), settings, newTask)),
+      memberList,
+      FRAMED ? '' : h('label', { class: 'project-chooser' }, 'Project ', switcher)),
+    tabs, state.newTicketOpen ? newTicketForm(d) : '', view);
+
 }
 
 // A project's own sections, where the window's sidebar (which lists the project) does not: Board, Git, Activity, People.
@@ -809,10 +819,10 @@ function calendarTab(d) {
   const dates = Array.from({ length: 7 }, (_, i) => { const t = new Date(day); t.setDate(t.getDate() + i); return TL.localToday(t.getTime()); });
   const change = n => { const t = new Date(anchor + 'T12:00:00'); t.setDate(t.getDate()+n); state.calendarAnchor = TL.localToday(t.getTime()); render(); };
   const requests = (d.schedules || []).filter(s => !['canceled', 'completed'].includes(s.state));
-  const week = h('div', { class: 'calendar-week' }, dates.map(date => h('section', { class: 'calendar-day' }, h('h3', {}, new Date(date + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })),
-    d.board.tickets.filter(k => { const span = TL.spanOf(k); return span && span.start <= date && span.end >= date; }).map(k => h('button', { class: 'calendar-event', onclick: () => openTicket(d.id, k.id) }, k.title, h('small', {}, 'Planned work'))),
-    requests.filter(s => TL.localToday(new Date(s.at).getTime()) === date).map(s => { const k = d.board.tickets.find(k => k.id === s.ticketId); return h('button', { class: 'calendar-event', onclick: () => k && openTicket(d.id, k.id) }, k?.title || 'Scheduled work', h('small', {}, new Date(s.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' · ' + s.state)); }))));
-  return h('div', { class: 'team-calendar' }, toggle, h('div', { class: 'actions' }, h('button', { class: 'plain small', onclick: () => change(-7) }, 'Previous week'), h('button', { class: 'plain small', onclick: () => { state.calendarAnchor = null; render(); } }, 'Today'), h('button', { class: 'plain small', onclick: () => change(7) }, 'Next week')), h('p', { class: 'muted small' }, 'Planned dates and shared schedule requests. Requests wait for the owner’s own runner and approval.'), h('div', { class: 'scroll' }, week));
+  const week = h('div', { class: 'calendar-week' }, dates.map(date => h('section', { class: 'calendar-day', 'data-plan-day': date }, h('h3', {}, new Date(date + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })),
+    d.board.tickets.filter(k => { const span = TL.spanOf(k); return span && span.start <= date && span.end >= date; }).map(k => h('button', { class: 'calendar-event', 'data-status': k.status, ...planAttrs(k), onclick: () => openTicket(d.id, k.id) }, k.title, h('small', {}, statusName(k.status) + ' · Planned work'))),
+    requests.filter(s => TL.localToday(new Date(s.at).getTime()) === date).map(s => { const k = d.board.tickets.find(k => k.id === s.ticketId); return h('button', { class: 'calendar-event scheduled', ...(k ? planAttrs(k, s) : {}), onclick: () => k && openTicket(d.id, k.id) }, k?.title || 'Scheduled work', h('small', {}, new Date(s.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' · ' + s.state)); }))));
+  return h('div', { class: 'team-calendar', 'data-plan-surface': '' }, toggle, h('div', { class: 'actions' }, h('button', { class: 'plain small', onclick: () => change(-7) }, 'Previous week'), h('button', { class: 'plain small', onclick: () => { state.calendarAnchor = null; render(); } }, 'Today'), h('button', { class: 'plain small', onclick: () => change(7) }, 'Next week')), h('p', { class: 'muted small' }, 'Planned dates and shared schedule requests. Requests wait for the owner’s own runner and approval.'), h('div', { class: 'scroll' }, week));
 }
 
 // ---- My Work ----
@@ -1031,6 +1041,7 @@ function dropAction(d, k, to) {
   if (to === 'in_progress' && k.status === 'available' && d.board.member && pcan('tickets.claim')) return ['claim'];
   if (to === 'in_progress' && k.status === 'backlog' && d.board.member && pcan('tickets.assign')) return ['assign', { memberId: state.me.member.id }];
   if (k.status === 'in_progress' && to === 'available' && holder) return ['release'];
+  if (k.status === 'review' && to === 'in_progress' && pcan('tickets.review') && k.assigneeId) return ['request-changes', { note: '' }];
   if (k.status === 'in_progress' && to === 'review' && holder) return ['submit', {}];
   if (k.status === 'review' && to === 'done' && pcan('tickets.review') && !d.board.completion[k.id]) return ['complete'];
   if (k.status === 'done' && to === 'available' && pcan('tickets.reopen')) return ['move', { status: to }];
@@ -1079,13 +1090,13 @@ function boardTab(d) {
   const toolbar = h('div', { class: 'actions board-tools' }, filterBar(d),
     h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
     pcan('tickets.reopen') ? h('button', { class: 'plain', disabled: !b.tickets.some(k => k.status === 'done'), onclick: () => act(async () => { const result = await api('POST', '/projects/' + d.id + '/tickets/archive-done'); state.info = plural(result.archived, 'ticket') + ' moved to the archive.'; }) }, 'Archive Done tickets') : '',
-    pcan('tickets.create') && !b.project.archived ? h('button', { class: 'primary', title: state.newTicketOpen ? 'Cancel new ticket' : 'New ticket (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '');
+    '');
   const cols = b.statuses.map((s) => {
     const items = b.tickets.filter((k) => k.status === s.status && matchesFilter(k));
     return h('section', { class: 'col', 'aria-label': s.label, 'data-board-column': s.status,
-      ondragover: e => { const k = b.tickets.find(t => t.id === draggedTicket); if (!k || !dropAction(d, k, s.status)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drop-over'); },
+      ondragover: e => { const k = b.tickets.find(t => t.id === draggedTicket); if (!k) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drop-over'); },
       ondragleave: e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drop-over'); },
-      ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('drop-over'); const k = b.tickets.find(t => t.id === draggedTicket); if (!k) return; const action = dropAction(d, k, s.status); draggedTicket = null; if (!action) return; pendingTickets.add(k.id); toast('Updating ' + k.key + '…'); act(async () => { try { await api('POST', projectPath(k) + '/' + action[0], action[1]); } finally { pendingTickets.delete(k.id); } }); }
+      ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('drop-over'); const k = b.tickets.find(t => t.id === draggedTicket || t.id === e.dataTransfer?.getData('text/plain')); draggedTicket = null; if (k) performBoardDrop(d, k, s.status); }
     },
       h('h3', {}, s.label, ' ', h('span', { class: 'badge' }, String(items.length))),
       h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.length ? items.map((k) => card(d, k)) : h('p', { class: 'muted small' }, 'No tickets' + (state.filter.labels.length || state.filter.mode ? ' match the filters.' : ' here yet.'))));
@@ -1096,7 +1107,6 @@ function boardTab(d) {
     if (k) open = ticketPanel(d, d.ticket || k); else state.ticketId = null;
   }
   return h('div', { class: 'board-view' }, toolbar,
-    state.newTicketOpen ? newTicketForm(d) : '',
     h('div', { class: 'tboard' + (open ? ' with-ticket' : '') }, state.showArchived ? archiveTab(d) : h('div', { class: 'board', role: 'region', 'aria-label': 'Kanban board', 'data-board': '', tabindex: '0', 'data-scroll-key': 'kanban-board' }, cols), open || ''));
 }
 function archiveTab(d) {
@@ -1396,10 +1406,10 @@ function editTicket(d, k, path) {
   const title = h('input', { name: 'e-title-' + k.id, value: k.title, maxlength: 200 });
   const desc = h('textarea', { name: 'e-desc-' + k.id, rows: 3 }); desc.value = k.description;
   const reqs = h('textarea', { name: 'e-reqs-' + k.id, rows: 3 }); reqs.value = k.requirements;
-  return h('details', { open: state.validationIssues.some((issue) => issue.itemId === k.id || issue.otherId === k.id) }, h('summary', {}, 'Edit this ticket'),
+  return h('details', { open: ['calendar', 'timeline'].includes(state.tab) || state.validationIssues.some((issue) => issue.itemId === k.id || issue.otherId === k.id) }, h('summary', {}, 'Edit this ticket'),
     ticketVersion(k) !== k.version ? h('div', { role: 'alert' }, h('p', { class: 'error' }, 'Someone changed this ticket while you were editing. Your draft is kept. Copy your text before loading their version and combining the changes.'), h('button', { class: 'plain', type: 'button', onclick: () => { discardTicketDraft(k.id); render(); } }, 'Load latest version')) : '',
     h('form', { class: 'stack', 'data-ticket-id': k.id, 'data-ticket-version': k.version, onsubmit: (e) => { e.preventDefault(); if (!plan.validate()) return; act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, ...plan.read(), version: ticketVersion(k) }).then(() => discardTicketDraft(k.id)));  } },
-      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node, h('button', { class: 'plain' }, 'Save')));
+      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node, h('button', { class: 'plain' }, ['calendar', 'timeline'].includes(state.tab) ? 'Save changes' : 'Save')));
 }
 
 // What the member's own Werkbord reports, entered by hand: useful until it reports for them.
@@ -1697,7 +1707,7 @@ function timelineTab(d) {
   const open = (k) => () => openTicket(d.id, k.id);
 
   const tools = h('div', { class: 'actions board-tools tl-tools' },
-    h('div', { class: 'inline', role: 'group', 'aria-label': 'Zoom' }, ['week', 'month', 'quarter'].map((z) => h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.tlZoom === z, onclick: () => { state.tlZoom = z; render(); } }, z[0].toUpperCase() + z.slice(1)))),
+    h('div', { class: 'inline', role: 'group', 'aria-label': 'Zoom' }, ['day', 'week', 'month', 'quarter'].map((z) => h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.tlZoom === z, onclick: () => { state.tlZoom = z; render(); } }, z[0].toUpperCase() + z.slice(1)))),
     h('label', { class: 'inline' }, 'Group ', h('select', { name: 'tl-group', 'aria-label': 'Group work by', onchange: (e) => { state.tlGroup = e.target.value; render(); } },
       [['none', 'Nothing'], ['label', 'Label'], ['status', 'Status'], ['mode', 'Who does it']].map(([id, name]) => h('option', { value: id, selected: state.tlGroup === id }, name)))),
     h('button', { type: 'button', class: 'plain small', onclick: () => { centerTimeline(); } }, 'Today'),
@@ -1735,12 +1745,12 @@ function timelineTab(d) {
       if (!bar) return;
       const worst = TL.worst(byTicket.get(r.k.id)), label = r.k.key + ' · ' + r.k.title + ' · ' + TL.spanTitle(bar.span, year);
       if (bar.milestone) {
-        const m = h('button', { type: 'button', class: 'tl-ms', 'data-status': r.k.status, 'data-sev': worst, 'aria-label': 'Milestone: ' + label, 'data-tooltip': label, onclick: open(r.k) }, h('span', {}));
+        const m = h('button', { type: 'button', class: 'tl-ms', 'data-status': r.k.status, 'data-sev': worst, 'aria-label': 'Milestone: ' + label, 'data-tooltip': label, ...planAttrs(r.k), onclick: open(r.k) }, h('span', {}));
         m.style.left = bar.x + bar.width / 2 - 8 + 'px'; m.style.top = i * TL.ROW_HEIGHT + TL.ROW_HEIGHT / 2 - 8 + 'px';
         const t = h('span', { class: 'tl-mt' }, r.k.title); t.style.left = bar.x + bar.width / 2 + 14 + 'px'; t.style.top = i * TL.ROW_HEIGHT + 9 + 'px';
         plot.append(m, t);
       } else {
-        const rb = h('button', { type: 'button', class: 'tl-bar', 'data-status': r.k.status, 'data-sev': worst, 'data-tooltip': label, onclick: open(r.k) }, h('span', { class: 'bt' }, r.k.title));
+        const rb = h('button', { type: 'button', class: 'tl-bar', 'data-status': r.k.status, 'data-sev': worst, 'data-tooltip': label, ...planAttrs(r.k), onclick: open(r.k) }, h('span', { 'data-plan-edge': 'start', 'aria-hidden': 'true' }), h('span', { class: 'bt' }, r.k.title), h('span', { 'data-plan-edge': 'end', 'aria-hidden': 'true' }));
         rb.style.left = bar.x + 'px'; rb.style.width = Math.max(bar.width - 2, 6) + 'px'; rb.style.top = i * TL.ROW_HEIGHT + 6 + 'px'; rb.style.height = TL.ROW_HEIGHT - 12 + 'px';
         plot.append(rb);
       }
@@ -1758,7 +1768,7 @@ function timelineTab(d) {
       h('span', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip)), (k.workMode || 'agent') !== 'agent' ? h('span', { class: 'badge' }, modeName(k.workMode)) : ''))) : '';
 
   const gating = links.some(gates) ? h('p', { class: 'muted small tl-legend' }, 'Heavier arrows gate an agent start: the ticket has a shared request, and it waits for the work the arrow comes from.') : '';
-  return h('div', { class: 'timeline-view' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline', 'data-today-x': todayX }, chart), gating, unplanned);
+  return h('div', { class: 'timeline-view', 'data-plan-surface': '' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline', 'data-today-x': todayX, 'data-plan-grid': '', 'data-plan-px': px, onwheel: e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); const scales = ['day', 'week', 'month', 'quarter']; state.tlZoom = scales[Math.max(0, Math.min(3, scales.indexOf(state.tlZoom) + (e.deltaY > 0 ? 1 : -1)))]; render(); } }, chart), gating, unplanned);
 }
 
 // Read-only snapshots: live board updates do not repeat aggregation queries.
@@ -1825,14 +1835,29 @@ document.addEventListener('focusin', showTimelineTooltip);
 document.addEventListener('pointerout', () => timelineTooltip.hidden = true);
 document.addEventListener('focusout', () => timelineTooltip.hidden = true);
 
+function dropRefusal(d, k, to) {
+  if (d.board.project.archived) return 'Unarchive this project before moving tickets.';
+  if (to === 'done' && k.status === 'review') return d.board.completion[k.id] || 'You need review permission to complete this ticket.';
+  if (to === 'review') return k.status !== 'in_progress' ? 'Claim this ticket and move it into Doing before submitting it for review.' : 'Only its owner or a project owner can submit this ticket for review.';
+  if (to === 'in_progress') return !d.board.member ? 'Join this project before claiming a ticket.' : 'Make this ticket available, or request changes from Review, before starting work.';
+  if (to === 'backlog' && ['in_progress', 'review'].includes(k.status)) return 'Release the ticket into Available before moving it to Backlog.';
+  return 'This move needs the ticket’s normal workflow action or your project owner’s permission. Open the ticket to see the available actions.';
+}
+function performBoardDrop(d, k, to) {
+  if (actionBusy || pendingTickets.has(k.id) || k.status === to) return;
+  const action = dropAction(d, k, to);
+  if (!action) { toast('Kept in ' + statusName(k.status) + '. ' + dropRefusal(d, k, to)); return; }
+  pendingTickets.add(k.id);
+  act(async () => {
+    try { await api('POST', projectPath(k) + '/' + action[0], action[1]); }
+    catch (error) { toast('Move could not be completed. ' + error.message); throw error; }
+    finally { pendingTickets.delete(k.id); }
+  });
+}
 document.addEventListener('werkbord-board-drop', event => {
- const { id, state: to } = event.detail;
- const d = state.data;
- const k = d?.board?.tickets.find(k => k.id === id);
- const action = k && dropAction(d, k, to);
- if (!action) { toast('This move is unavailable. Open the ticket to see its next actions.'); return; }
- pendingTickets.add(k.id);
- act(async () => { try { await api('POST', projectPath(k) + '/' + action[0], action[1]); } finally { pendingTickets.delete(k.id); } });
+  const { id, state: to } = event.detail, d = state.data;
+  const k = d?.board?.tickets.find(k => k.id === id);
+  if (k) performBoardDrop(d, k, to);
 });
 
 function centerTimeline() {
@@ -1841,3 +1866,65 @@ function centerTimeline() {
  const namesWidth = scroller.querySelector('.tl-names')?.clientWidth || 280;
  scroller.scrollLeft = Math.max(0, Number(scroller.dataset.todayX) - Math.max(0, scroller.clientWidth - namesWidth) / 2);
 }
+
+// Calendar gestures use the same versioned plan and schedule operations as the editor.
+function planAttrs(k, schedule) {
+  const span = schedule ? { start: TL.localToday(new Date(schedule.at).getTime()), end: TL.localToday(new Date(schedule.at).getTime()) } : TL.spanOf(k);
+  return span ? { 'data-plan-item': k.id + (schedule ? '/schedule' : ''), 'data-plan-start': span.start, 'data-plan-end': span.end, 'data-plan-scheduled': schedule ? '' : null, 'aria-busy': pendingTickets.has(k.id) } : {};
+}
+function shiftedStart(at, day) {
+  const date = new Date(at), [year, month, dom] = day.split('-').map(Number);
+  date.setFullYear(year, month - 1, dom);
+  return date.toISOString();
+}
+document.addEventListener('werkbord-plan-drop', event => {
+  const drop = event.detail, d = state.data;
+  const k = d?.board?.tickets.find(k => k.id === drop.id.replace(/\/schedule$/, ''));
+  if (!k || actionBusy || pendingTickets.has(k.id)) return;
+  pendingTickets.add(k.id);
+  act(async () => {
+    try {
+      if (drop.id.endsWith('/schedule')) {
+        const schedule = (d.schedules || []).find(s => s.ticketId === k.id && !['completed', 'canceled'].includes(s.state));
+        if (!schedule) throw new Error('This schedule is no longer available. Refresh the calendar.');
+        await api('PUT', projectPath(k) + '/schedule', { version: schedule.version, at: shiftedStart(schedule.at, drop.start), timezone: schedule.timezone,
+          missedPolicy: schedule.missedPolicy, graceSeconds: schedule.graceSeconds, order: schedule.order, priority: schedule.priority });
+      } else await api('PATCH', projectPath(k), { version: k.version, plan: { ...k.plan, start: drop.start, end: drop.end } });
+      toast('Dates saved for ' + k.key + '.');
+    } catch (error) { toast('Dates could not be changed. ' + error.message); throw error; }
+    finally { pendingTickets.delete(k.id); }
+  });
+});
+
+// Universal stays on its own calendar and asks this authenticated workspace to read/save a specific ticket.
+window.addEventListener('message', async event => {
+  const m = event.data;
+  if (!FRAMED || event.source !== window.parent || !m || m.type !== 'werkbord.planning.request' || !/^[a-z0-9_-]{1,64}$/.test(m.id || '') ||
+    !['read', 'save', 'move', 'reschedule'].includes(m.operation) || typeof m.href !== 'string' || !/^\?[A-Za-z0-9_=&%-]+$/.test(m.href) || JSON.stringify(m).length > 8192) return;
+  try {
+    const query = new URLSearchParams(m.href.slice(1)), project = query.get('project'), id = query.get('ticket');
+    if (!/^[A-Za-z0-9_-]+$/.test(project || '') || !/^[A-Za-z0-9_-]+$/.test(id || '')) throw new Error('This ticket address is invalid.');
+    const base = '/projects/' + project, path = base + '/tickets/' + id;
+    const [board, ticket, requests] = await Promise.all([api('GET', base + '/board'), api('GET', path), api('GET', base + '/schedules')]);
+    const actor = state.me || await api('GET', '/me');
+    const schedule = requests.find(s => s.ticketId === id && !['completed', 'canceled'].includes(s.state));
+    let current = ticket, currentSchedule = schedule;
+    const payload = m.payload || {};
+    if (m.operation !== 'read') {
+      if (payload.version !== ticket.version) throw new Error('This ticket changed elsewhere. Reopen it before saving.');
+      if (m.operation === 'reschedule') {
+        if (!schedule || payload.scheduleVersion !== schedule.version) throw new Error('This schedule changed elsewhere. Refresh before rescheduling.');
+        currentSchedule = await api('PUT', path + '/schedule', { version: schedule.version, at: payload.at || shiftedStart(schedule.at, payload.start), timezone: schedule.timezone,
+          missedPolicy: schedule.missedPolicy, graceSeconds: schedule.graceSeconds, order: schedule.order, priority: schedule.priority });
+      } else {
+        const plan = { ...ticket.plan, start: payload.start, end: payload.end, milestone: payload.milestone ?? ticket.plan?.milestone ?? false };
+        current = await api('PATCH', path, { version: ticket.version, plan, ...(m.operation === 'save' ? { title: payload.title, description: payload.description } : {}) });
+      }
+    }
+    const span = TL.spanOf(current);
+    event.source.postMessage({ type: 'werkbord.planning.result', id: m.id, ok: true, item: { title: current.title, description: current.description, version: current.version,
+      start: span?.start || '', end: span?.end || '', milestone: !!span?.milestone, scheduledAt: currentSchedule?.at || '', scheduleVersion: currentSchedule?.version,
+      editable: !current.archivedAt && current.status !== 'done' && (current.creatorId === actor.member.id || board.can.includes('tickets.edit')),
+      canReschedule: !current.archivedAt && ['in_progress', 'review'].includes(current.status) && (current.assigneeId === actor.member.id || board.can.includes('tickets.assign')) } }, event.origin);
+  } catch (error) { event.source.postMessage({ type: 'werkbord.planning.result', id: m.id, ok: false, error: error.message }, event.origin); }
+});

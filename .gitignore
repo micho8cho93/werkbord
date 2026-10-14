@@ -12,3 +12,5 @@
 
 /desktop/frontend/dist/shell/
 /.impeccable/
+
+/output/playwright/

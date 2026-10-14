@@ -4,7 +4,7 @@
   import { resolveFor } from '../lib/execution';
   import Icon from '../lib/Icon.svelte';
   import { filterActive } from '../lib/labels';
-  import { taskHref } from '../lib/router.svelte';
+  import { listenDates, movePlan } from '../lib/planningGestures';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
@@ -30,11 +30,26 @@
   import type { Project, Task, TimelineWarning } from '../lib/types';
 
   // The project's work placed in time: planned date ranges, milestones, grouped however suits, and the
-  // dependencies between them as arrows. It shows; it never moves anything. A conflict is marked, and
-  // what to do about it (move a date, drop a dependency) is yours to decide on the task.
+  // dependencies between them as arrows. Dragging changes the plan, never an execution schedule.
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
 
+  $effect(() => {
+    if (!scroller) return;
+    const el = scroller;
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const levels: Zoom[] = ['day', 'week', 'month', 'quarter'];
+      const centre = (el.scrollLeft + Math.max(0, el.clientWidth - 240) / 2) / px;
+      zoom = levels[Math.max(0, Math.min(3, levels.indexOf(zoom) + (e.deltaY > 0 ? 1 : -1)))];
+      requestAnimationFrame(() => { el.scrollLeft = Math.max(0, centre * px - Math.max(0, el.clientWidth - 240) / 2); });
+    };
+    el.addEventListener('wheel', wheel, { passive: false });
+    return () => el.removeEventListener('wheel', wheel);
+  });
+  let surface = $state<HTMLElement>();
+  $effect(() => surface && listenDates(surface, drop => movePlan(scope, drop)));
   let zoom = $state<Zoom>('week');
   let groupBy = $state<GroupBy>('none');
   let collapsed = $state<Record<string, boolean>>({});
@@ -141,11 +156,11 @@
   const names: Partial<Record<GroupBy, string>> = { none: 'Nothing', status: 'Status' } as Partial<Record<GroupBy, string>>;
 </script>
 
-<div class="view" role="region" aria-label="Project timeline" onmouseover={showHover} onmouseout={() => hover = null} onfocusin={showHover} onfocusout={() => hover = null}>
+<div class="view" bind:this={surface} data-plan-surface role="region" aria-label="Project timeline" onmouseover={showHover} onmouseout={() => hover = null} onfocusin={showHover} onfocusout={() => hover = null}>
   <div class="bar">
     <div class="tools" role="group" aria-label="Timeline view">
       <div class="seg" role="group" aria-label="Zoom">
-        {#each ['week', 'month', 'quarter'] as z (z)}
+        {#each ['day', 'week', 'month', 'quarter'] as z (z)}
           <button aria-pressed={zoom === z} onclick={() => (zoom = z as Zoom)}>{z[0].toUpperCase() + z.slice(1)}</button>
         {/each}
       </div>
@@ -184,7 +199,7 @@
     <p class="error pad" role="alert">{warnError}</p>
   {/if}
 
-  <div class="scroller" bind:this={scroller}>
+  <div class="scroller" bind:this={scroller} data-plan-grid data-plan-px={px}>
     {#if !scope.loaded}
       <p class="empty">Loading…</p>
     {:else if dated.length === 0}
@@ -216,10 +231,10 @@
                 </button>
               {:else}
                 {@const w = byTask.get(r.task.id)}
-                <a class="nrow" style:height="{ROW_HEIGHT}px" href={taskHref(project.id, r.task.id)} data-state={toneOf(r.task)} title={r.task.title}>
+                <button type="button" class="nrow" style:height="{ROW_HEIGHT}px" onclick={() => editing = r.task} data-state={toneOf(r.task)} title={r.task.title}>
                   {#if worst(w)}<span class="warn" data-sev={worst(w)} title={w?.map((x) => x.message).join('\n')} aria-label="Has {w?.length} {w?.length === 1 ? 'warning' : 'warnings'}">!</span>{/if}
                   <span class="nt">{r.task.title}</span>
-                </a>
+                </button>
               {/if}
             {/each}
           </div>
@@ -234,21 +249,23 @@
                 {@const w = byTask.get(r.task.id)}
                 {#if b}
                   {#if b.milestone}
-                    <a
+                    <button type="button"
                       class="ms"
-                      href={taskHref(project.id, r.task.id)}
+                      onclick={() => editing = r.task}
+                      data-plan-item={r.task.id} data-plan-start={b.span.start} data-plan-end={b.span.end}
                       data-state={toneOf(r.task)}
                       data-sev={worst(w)}
                       style:left="{b.x + b.width / 2 - 8}px"
                       style:top="{i * ROW_HEIGHT + ROW_HEIGHT / 2 - 8}px"
                       aria-label="Milestone: {r.task.title}, {spanTitle(b.span, Number(today.slice(0, 4)))}"
                       data-tooltip="{r.task.title} · {spanTitle(b.span, Number(today.slice(0, 4)))}"
-                    ><span></span></a>
+                    ><span></span></button>
                     <span class="mt" style:left="{b.x + b.width / 2 + 14}px" style:top="{i * ROW_HEIGHT + 9}px">{r.task.title}</span>
                   {:else}
-                    <a
+                    <button type="button"
                       class="rb"
-                      href={taskHref(project.id, r.task.id)}
+                      onclick={() => editing = r.task}
+                      data-plan-item={r.task.id} data-plan-start={b.span.start} data-plan-end={b.span.end}
                       data-state={toneOf(r.task)}
                       data-sev={worst(w)}
                       style:left="{b.x}px"
@@ -256,7 +273,7 @@
                       style:top="{i * ROW_HEIGHT + 6}px"
                       style:height="{ROW_HEIGHT - 12}px"
                       data-tooltip="{r.task.title} · {spanTitle(b.span, Number(today.slice(0, 4)))}"
-                    ><span class="bt">{r.task.title}</span></a>
+                    ><span data-plan-edge="start" aria-hidden="true"></span><span class="bt">{r.task.title}</span><span data-plan-edge="end" aria-hidden="true"></span></button>
                   {/if}
                 {/if}
               {/if}
@@ -280,7 +297,7 @@
         <ul>
           {#each undated as t (t.id)}
             <li>
-              <a href={taskHref(project.id, t.id)} class="ut">{t.title}</a>
+              <button type="button" class="ut" onclick={() => editing = t}>{t.title}</button>
 
 
               <button class="btn small" onclick={() => (editing = t)}>Plan…</button>
@@ -292,7 +309,7 @@
   </div>
 </div>
 
-{#if editing}<EditTaskSheet task={editing} {scope} inherited={below} onclose={() => (editing = null)} />{/if}
+{#if editing}<EditTaskSheet side task={editing} {scope} inherited={below} onclose={() => (editing = null)} />{/if}
 
 {#if hover}<div class="timeline-tooltip" role="tooltip" style:left="{hover.x}px" style:top="{hover.y}px">{hover.text}</div>{/if}
 <style>
@@ -640,10 +657,11 @@
     z-index: 2;
     display: flex;
     align-items: center;
-    padding: 0 8px;
+    padding: 0 12px;
+    border: 1px solid var(--text-2);
     border-radius: 5px;
-    background: color-mix(in srgb, var(--text-2) 55%, var(--surface));
-    color: #fff;
+    background: var(--surface-2);
+    color: var(--text);
     font-size: 12px;
     text-decoration: none;
     overflow: hidden;

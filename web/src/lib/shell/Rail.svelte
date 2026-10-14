@@ -54,9 +54,9 @@
           <span class="n" aria-label="{a.running} running">{a.running}</span>
         {/if}
       </a>
-    {:else}
-      <a class="nav" href={globalHref('projects')}><Icon name="plus" />Add project</a>
     {/each}
+    <a class="nav" href={globalHref('projects')}><Icon name="plus" />Add project</a>
+    <a class="nav" href={globalHref('analytics')} aria-current={router.view === 'analytics' ? 'page' : undefined}><Icon name="analytics" />Analytics</a>
   </nav>
 
   {#if app.runners.length}
@@ -77,7 +77,6 @@
   {/if}
 
   <div class="foot">
-    <a class="nav" href={globalHref('analytics')} aria-current={router.view === 'analytics' ? 'page' : undefined}><Icon name="analytics" />Analytics</a>
     <a class="nav" href={globalHref('help')} aria-current={router.view === 'help' ? 'page' : undefined}>
       <Icon name="help" />Help
     </a>
@@ -137,7 +136,9 @@
     gap: 10px;
     min-height: 34px;
     padding: 0 10px;
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+    background: var(--surface);
     color: var(--text-2);
     text-decoration: none;
     font-weight: 500;

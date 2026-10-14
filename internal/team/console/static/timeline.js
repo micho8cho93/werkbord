@@ -26,7 +26,7 @@
     return { start: first, end: last, milestone: false };
   }
 
-  const PX_PER_DAY = { week: 40, month: 16, quarter: 6 };
+  const PX_PER_DAY = { day: 160, week: 56, month: 22, quarter: 8 };
   const ROW_HEIGHT = 36;
 
   function viewRange(spans, today, pad = 7, min = 28) {
@@ -52,9 +52,9 @@
       const day = addDays(range.start, i);
       const dom = Number(day.slice(8));
       const monday = new Date(at(day)).getUTCDay() === 1;
-      if (zoom === 'week') out.push({ day, x: i * px, label: dom === 1 ? MONTH(day) + ' 1' : String(dom), major: dom === 1 || monday });
-      else if (zoom === 'month' && monday) out.push({ day, x: i * px, label: dom === 1 ? MONTH(day) : String(dom), major: dom <= 7 });
-      else if (zoom === 'quarter' && dom === 1) out.push({ day, x: i * px, label: MONTH(day), major: true });
+      if (zoom === 'week' || zoom === 'day') out.push({ day, x: i * px, label: dom === 1 || i === 0 ? MONTH(day) + ' ' + dom : String(dom), major: dom === 1 || monday });
+      else if (zoom === 'month' && (monday || i === 0)) out.push({ day, x: i * px, label: dom === 1 ? MONTH(day) : String(dom), major: dom <= 7 });
+      else if (zoom === 'quarter' && (dom === 1 || i === 0)) out.push({ day, x: i * px, label: MONTH(day), major: true });
     }
     return out;
   }

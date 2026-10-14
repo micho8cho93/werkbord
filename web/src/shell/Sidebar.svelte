@@ -123,6 +123,7 @@
             <button class="nav proj add" type="button" onclick={() => model.visit('#/projects')} title="Add a project" data-page="add-project">
               <Icon name="plus" size={14} /><span class="label">Add project</span>
             </button>
+            {@render item('Analytics', 'analytics', here === 'analytics', () => model.visit('#/analytics'), 'ws-analytics')}
           {/if}
         {/if}
       {/each}
@@ -133,9 +134,6 @@
 
   {/if}
   <div class="group bottom">
-    {#if !model.universal && kind === 'personal' && usable}
-      {@render item('Analytics', 'analytics', here === 'analytics', () => model.visit('#/analytics'), 'ws-analytics')}
-    {/if}
     <div class="lbl" aria-hidden="true"></div>
     {@render item('Workspaces and devices', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
     {#if usable && !model.universal}
@@ -243,9 +241,9 @@
   .ask {
     padding: 6px 0 0;
   }
-  .assistant {
+  .nav.assistant {
     position: relative;
-    border: 1px solid var(--border);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
     background: var(--bg);
     color: var(--text);
     font-weight: 500;
@@ -297,9 +295,9 @@
     width: 100%;
     min-height: 32px;
     padding: 0 8px;
-    border: 0;
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: none;
+    background: var(--bg);
     color: var(--text-2);
     font: inherit;
     font-size: 13px;

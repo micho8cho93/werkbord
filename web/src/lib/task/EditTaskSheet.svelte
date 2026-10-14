@@ -4,7 +4,7 @@
   import { agentWorkable } from '../board';
   import DependencyPicker from '../DependencyPicker.svelte';
   import { compact, type Resolved } from '../execution';
-  import { editableOrchestration, emptyOrchestration } from '../scheduling';
+  import { editableOrchestration, emptyOrchestration, instantFromWall, wallTime } from '../scheduling';
   import TaskPlanFields from '../TaskPlanFields.svelte';
   import { modeOf } from '../labels';
   import ExecutionFields from '../ExecutionFields.svelte';
@@ -17,7 +17,7 @@
   // The task's words and how its runs are carried out. A change applies to runs started after
   // it; a run already working keeps what it started with.
 
-  let { task, scope, inherited, onclose }: { task: Task; scope: ProjectScope; inherited: Resolved; onclose: () => void } = $props();
+  let { task, scope, inherited, onclose, side = false }: { task: Task; scope: ProjectScope; inherited: Resolved; onclose: () => void; side?: boolean } = $props();
 
   // Edits start from the task as it was when the sheet opened: a change elsewhere does not overwrite typing.
   const start = untrack(() => ({
@@ -29,6 +29,8 @@
     workMode: modeOf(task),
     plan: { ...(task.plan ?? {}) },
     dependencies: [...(task.orchestration?.dependencies ?? [])],
+    scheduledAt: task.orchestration?.scheduledAt,
+    zone: task.orchestration?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
   }));
   let title = $state(start.title);
   let description = $state(start.description);
@@ -37,6 +39,7 @@
   let workMode = $state<WorkMode>(start.workMode);
   let plan = $state<Plan>(start.plan);
   let dependencies = $state<string[]>(start.dependencies);
+  let scheduled = $state(start.scheduledAt ? wallTime(start.scheduledAt, start.zone) : '');
   const project = $derived(app.project(task.projectId));
   const canAgent = $derived(agentWorkable({ workMode }, project));
   let busy = $state(false);
@@ -83,6 +86,10 @@
       if (JSON.stringify([...dependencies].sort()) !== JSON.stringify([...start.dependencies].sort())) {
         edit.orchestration = { ...editableOrchestration(task.orchestration ?? emptyOrchestration()), dependencies };
       }
+      if (side && start.scheduledAt && scheduled !== wallTime(start.scheduledAt, start.zone)) {
+        edit.orchestration = { ...editableOrchestration(task.orchestration ?? emptyOrchestration()), ...edit.orchestration,
+          scheduledAt: instantFromWall(scheduled, start.zone), timezone: start.zone };
+      }
       const t = await api.editTask({ ...task, version: start.version }, edit);
       scope.upsertTask(t);
       onclose();
@@ -97,7 +104,7 @@
   }
 </script>
 
-<Sheet title="Edit task" {onclose} width="38rem">
+<Sheet title="Edit task" {onclose} {side} width="38rem">
   <form
     id="edit-task-form"
     class="form"
@@ -115,6 +122,10 @@
       <textarea class="input" rows="4" bind:value={description}></textarea>
     </label>
     <TaskPlanFields bind:plan repository={project?.kind !== 'work'} idPrefix="edit-task" issues={planIssues} />
+    {#if side && canAgent && start.scheduledAt}
+      <label class="field"><span>Agent start time ({start.zone})</span><input class="input" type="datetime-local" bind:value={scheduled} disabled={!!task.orchestration?.runId} required /></label>
+      <p class="muted note">{task.orchestration?.runId ? 'This schedule has already been dispatched. Plan a new run from the task’s schedule controls.' : 'Changing this time reschedules the agent start. Planned dates stay separate.'}</p>
+    {/if}
     <DependencyPicker tasks={scope.tasks} taskId={task.id} bind:selected={dependencies} error={dependencyIssue} />
     {#if canAgent}
       <div class="exec">
@@ -126,7 +137,7 @@
   </form>
   {#snippet footer()}
     <button class="btn" type="button" onclick={onclose}>Cancel</button>
-    <button class="btn primary" type="submit" form="edit-task-form" disabled={busy || !title.trim()}>{busy ? 'Saving…' : 'Save'}</button>
+    <button class="btn primary" type="submit" form="edit-task-form" disabled={busy || !title.trim()}>{busy ? 'Saving…' : side ? 'Save changes' : 'Save'}</button>
   {/snippet}
 </Sheet>
 

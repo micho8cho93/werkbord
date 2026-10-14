@@ -62,7 +62,7 @@ describe('bars and ticks', () => {
     expect(week).toHaveLength(14);
     expect(week[0].label).toBe('Oct 1');
     const month = ticks({ start: '2026-10-01', end: '2026-10-31' }, 'month');
-    expect(month.map((t) => t.day)).toEqual(['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26']);
+    expect(month.map((t) => t.day)).toEqual(['2026-10-01', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26']);
     const quarter = ticks(range, 'quarter');
     expect(quarter.map((t) => t.label)).toEqual(['Oct', 'Nov', 'Dec']);
   });

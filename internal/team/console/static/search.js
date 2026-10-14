@@ -6,8 +6,8 @@ let searchSession = null;
 const searchShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K';
 
 function searchButton() {
-  return h('button', { class: 'search-trigger', type: 'button', name: 'open-search', 'aria-label': 'Search', 'aria-keyshortcuts': 'Meta+K Control+K', onclick: openSearch },
-    icon('search'), h('span', {}, 'Search'), h('kbd', { 'aria-hidden': 'true' }, searchShortcut));
+  return h('button', { class: 'search-trigger', type: 'button', name: 'open-search', 'aria-label': PROJECT_TABS.has(state.tab) ? 'Jump to' : 'Search', 'aria-keyshortcuts': 'Meta+K Control+K', onclick: openSearch },
+    icon('search'), h('span', {}, PROJECT_TABS.has(state.tab) ? 'Jump to' : 'Search'), h('kbd', { 'aria-hidden': 'true' }, searchShortcut));
 }
 
 function openSearch() {

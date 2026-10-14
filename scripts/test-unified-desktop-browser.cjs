@@ -246,7 +246,35 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.screenshot({ path: path.join(artifacts, 'calendar-mobile.png'), fullPage: true }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
  const eventWidth = await calendarEvent.evaluate(e => e.getBoundingClientRect().width); assert(eventWidth > 100, 'Calendar keeps a readable event target');
  await page.setViewportSize({ width: 1440, height: 1000 }); await page.screenshot({ path: path.join(artifacts, 'calendar-desktop.png'), fullPage: true });
- await page.setViewportSize({ width: 1440, height: 1000 }); await switchTo('team:main');
+ await page.setViewportSize({ width: 1440, height: 1000 });
+ // Universal dates and the contextual editor save through actual device-service frames, not the native relay.
+ const day = new Date().toISOString().slice(0,10);
+ const addDay = (d,n) => new Date(Date.parse(d+'T12:00Z')+n*86400000).toISOString().slice(0,10);
+ const planProject = await api(individualURL, full, 'POST', '/api/projects', { name: 'Universal date gestures', kind: 'work' });
+ const planTask = await api(individualURL, full, 'POST', `/api/projects/${planProject.id}/tasks`, { title: 'Plan release dates', plan: {start:day,end:addDay(day,2)} });
+ const teamPlan = await team('POST', `/projects/${project.id}/tickets`, { title: 'Plan team release dates', status:'available', plan:{start:day,end:addDay(day,2)} });
+ await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
+ await page.getByRole('button',{name:'Week',exact:true}).click();
+ for (const [workspace, id, read] of [['personal',planTask.id,async()=> (await api(individualURL,full,'GET',`/api/projects/${planProject.id}/tasks`)).tasks.find(t=>t.id===planTask.id)],['team:main',teamPlan.id,()=>team('GET',`/projects/${project.id}/tickets/${teamPlan.id}`)]]) {
+   const bar = page.locator(`[data-plan-item="${workspace}/${id}/plan"]`);
+   await bar.waitFor();
+   const gesture = async (item, dx) => { await wait(async()=>await bar.getAttribute('aria-busy')!=='true','saved date gesture'); await item.scrollIntoViewIfNeeded(); await item.evaluate(el=>{const grid=el.closest('[data-plan-grid]');if(!grid)return;const r=el.getBoundingClientRect(),g=grid.getBoundingClientRect();if(r.right>g.right-100 || r.left<g.left+300)grid.scrollLeft+=(r.left+r.right)/2-(g.left+g.right+260)/2;}); const r=await item.boundingBox(); await page.mouse.move(r.x+r.width/2,r.y+r.height/2); await page.mouse.down(); await page.mouse.move(r.x+r.width/2+dx,r.y+r.height/2,{steps:12}); await page.mouse.up(); };
+   let before=await read(); await gesture(bar,56); await wait(async()=> (await read()).plan.start===addDay(before.plan.start,1),'Universal '+workspace+' timeline move');
+   before=await read(); await gesture(bar.locator('[data-plan-edge=end]'),56); await wait(async()=> (await read()).plan.end===addDay(before.plan.end,1),'Universal '+workspace+' resize');
+   await wait(async()=>await bar.getAttribute('aria-busy')!=='true','calendar refresh');
+   await bar.click(); const editor=page.getByRole('dialog',{name:'Edit task'}); await editor.locator('input[maxlength="200"]').waitFor();
+   await editor.locator('input[maxlength="200"]').fill('Edited in Universal '+workspace); await editor.getByRole('button',{name:'Save changes',exact:true}).click();
+   await wait(async()=> (await read()).title==='Edited in Universal '+workspace,'Universal '+workspace+' editor saves');
+   assert(await side.getByRole('button',{name:'Calendar',exact:true}).isVisible()); assert.equal(await editor.count(),0,'editor closes after acknowledged save');
+ }
+ // Scheduled events retain their time of day and still carry a shared request, distinct from planned dates.
+ const beforeSchedule=(await team('GET',`/projects/${project.id}/schedules`)).find(s=>s.ticketId===scheduled.id);
+ const scheduledBar=page.locator(`[data-plan-item="team:main/${beforeSchedule.id}/schedule"]`); await scheduledBar.waitFor();
+ const bounds=await scheduledBar.boundingBox(); await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2); await page.mouse.down(); await page.mouse.move(bounds.x+bounds.width/2+56,bounds.y+bounds.height/2,{steps:12}); await page.mouse.up();
+ await wait(async()=> { const s=(await team('GET',`/projects/${project.id}/schedules`)).find(s=>s.ticketId===scheduled.id); return new Date(s.at).getDate() !== new Date(beforeSchedule.at).getDate(); },'Universal Team schedule reschedules');
+ console.log('PASS Universal Individual and Team timeline moves, range resizing, contextual editor persistence and shared schedule rescheduling through real workspace services');
+ await page.screenshot({path:path.join(artifacts,'universal-planning-desktop.png')});
+ await switchTo('team:main');
  await page.locator('[data-page=workspaces]').click();
  await page.screenshot({ path: path.join(artifacts, 'workspaces-desktop.png'), fullPage: true });
  await page.setViewportSize({ width: 480, height: 844 });

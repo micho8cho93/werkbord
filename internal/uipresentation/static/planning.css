@@ -1,0 +1,10 @@
+[data-plan-item] { cursor: grab; touch-action: none; }
+[data-plan-item]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-plan-item][aria-busy="true"] { cursor: wait; opacity: .6; }
+.planning-dragging { cursor: grabbing; opacity: .6; }
+.planning-over { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); outline: 2px solid var(--accent); outline-offset: -2px; }
+.planning-preview { position: fixed; z-index: 100; pointer-events: none; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 6px; background: var(--surface); color: var(--text); box-shadow: 0 4px 12px #0003; font-size: 13px; }
+[data-plan-edge] { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; background: color-mix(in srgb, currentColor 16%, transparent); }
+[data-plan-edge="start"] { left: 0; border-right: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
+[data-plan-edge="end"] { right: 0; border-left: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
+@media (pointer: coarse) { [data-plan-edge] { width: 16px; } }

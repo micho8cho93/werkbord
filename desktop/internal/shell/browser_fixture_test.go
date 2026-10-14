@@ -78,6 +78,8 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 			out = sh.Overview()
 		case "OpenWorkspace":
 			out, err = sh.OpenWorkspace(id)
+		case "LoadWorkspace":
+			out, err = sh.LoadWorkspace(id)
 		case "AddTeam":
 			out, err = sh.AddTeam()
 		case "ForgetWorkspace":

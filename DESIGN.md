@@ -101,7 +101,7 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 
 Universal is a peer choice beside Individual and each Team workspace. Its sidebar destinations are My Work,
 Calendar and Needs you, spanning all workspaces. Individual's workspace destinations are Needs you and Projects,
-with Analytics at the foot. Each Team workspace lists Needs you, Projects, Reviews, Members and Analytics.
+with Analytics immediately below Add project. Each Team workspace lists Needs you, Projects, Reviews, Members and Analytics.
 The shell keeps Assistant, Workspaces and devices, relevant workspace Settings and theme controls separate from
 these destinations. Universal has no workspace-specific Settings or project list. Project sections belong above
 the project's content, not in the workspace sidebar. The window uses its own 208px sidebar, collapsing to 48px;
@@ -113,7 +113,7 @@ Team uses the same paper, ink, Geist, icon strokes and action colours, with its 
 Needs you · Projects · Reviews · Members · Analytics. Desktop has a 232px rail (248px above
 1800px), project shortcuts and Settings at the foot. Changing projects keeps the current project section. Inside the
 desktop app the window's sidebar replaces the rail. A project's Overview, Board, Calendar, Git and Runs are tabs above
-its content; People & invites is an action from Board. Calendar shows planned dates and shared schedule requests;
+its content; Project members appear in the project header; membership and invitation management live under Project settings. Calendar shows planned dates and shared schedule requests;
 Timeline is its alternate presentation. Settings contains This computer, MCP clients, Labels, Devices, Workspace Hosts,
 Connectivity, Backups and License, subject to the person's permissions;
 the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.
@@ -263,11 +263,13 @@ heading (the provider chooser, New, Close) and the box.
 - **One board presentation, separate owners.** Both boards use the product-neutral static card styles and pointer/keyboard
   transport in `internal/uipresentation`. Each product supplies its own data, permissions and transition handlers;
   shared presentation imports no product behaviour. Individual cards show the brief (clipped to 180 characters) and
-  planned dates when present. Native drag, pointer-handle drag and Left/Right arrows on the move handle reach the same
+  planned dates when present. Card-body drag, pointer-handle drag and Left/Right arrows on the move handle reach the same
   owning board's transition checks. Coarse-pointer handles have a 44px target.
 - Individual board drops follow the work: Backlog → Doing starts an agent where execution is available; Review → Done
   opens the merge confirmation when Git merge is applicable and moves the card once merged; other permitted drops
   move the card. Team drops follow Team's role and ticket-action permissions, never local execution or Git operations.
+- **Dates move where they are shown.** Individual, Team and Universal calendars and timelines use the shared pointer/keyboard date transport in `internal/uipresentation`. Dragging a planned card moves its inclusive date range; timeline edges resize it. Scheduled events reschedule agent starts and preserve time of day. Alt + Left/Right moves a day; Alt + Shift + Left/Right resizes. Controller and Team validation remain authoritative, and a refused drop preserves the original position with actionable feedback. Clicking opens an editor beside the current calendar or timeline, with Save changes. Universal sends bounded requests to each authenticated workspace frame, without changing the visible workspace or gaining execution authority.
+- **Timeline zoom.** Day, Week, Month and Quarter provide progressively broader scales. Ctrl/⌘ + wheel zooms; ordinary scrolling pans the chart.
 - **Timeline keeps names quiet.** The name column shows task or ticket titles without repeating dates. A custom tooltip
   reveals the title and planned span immediately on hover or focus. Week is the default scale; Today recentres in the
   available chart width after resize, accounting for the fixed name column.

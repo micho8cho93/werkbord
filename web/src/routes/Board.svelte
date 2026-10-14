@@ -117,7 +117,7 @@
       if (err instanceof ApiError && err.code === 'conflict') {
         app.notify('This task changed on another device. The board has been refreshed.');
         await scope.load().catch((e) => app.handleError(e));
-      } else app.notify(err instanceof Error ? err.message : String(err));
+      } else { app.notify(err instanceof Error ? err.message : String(err)); await scope.load().catch(e => app.handleError(e)); }
     } finally { pendingTasks[task.id] = false; }
   }
 

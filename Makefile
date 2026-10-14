@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-planning-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser
 
 all: check build build-team
 
@@ -238,6 +238,11 @@ test-assistant-browser: build web-shell
 # Install Chromium once with: cd web && npx playwright install chromium
 test-browser: build build-team
 	node scripts/test-browser.cjs
+
+## test-planning-browser: real drag, resize and contextual editing in Chromium and WebKit, with disposable APIs
+# Install both browsers once with: cd web && npx playwright install chromium webkit
+test-planning-browser: web web-embed web-shell
+	BROWSER_PLANNING_ONLY=1 node scripts/test-browser.cjs
 
 clean:
 	rm -rf bin web/dist dist

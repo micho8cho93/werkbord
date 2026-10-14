@@ -53,8 +53,9 @@ async function cleanup() {
     run('git', ['-C', repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture commit'], {}, true);
     const fixture = path.join(temp, 'fixture');
     run('go', ['build', '-o', fixture, './scripts/browser-fixture'], {}, true);
+    const shellURL = 'http://127.0.0.1:' + await port();
     const individualURL = 'http://127.0.0.1:' + await port();
-    const individual = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(individualURL).host, WERKBORD_BROWSER_EXECUTION: '1' });
+    const individual = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(individualURL).host, WERKBORD_BROWSER_EXECUTION: '1', WERKBORD_BROWSER_SHELL_ORIGIN: shellURL });
     await ready(individual, individualURL + '/api/health');
     const teamURL = 'http://127.0.0.1:' + await port();
     // A workspace needs a signed license (Team always checks one), so the suite makes its own issuer, signs a license with it, and
@@ -70,13 +71,14 @@ async function cleanup() {
     run('go', ['build', '-trimpath', '-ldflags', '-X main.licenseIssuer=' + issuer, '-o', teamBinary, './cmd/werkbord-team'], {}, true);
     // This test is about the pages and the handoff, not where the workspace's data lives: one file needs no database program
     // (Team's own cluster tests cover the replicated storage).
-    const teamEnv = { WERKBORD_TEAM_DATA_DIR: path.join(temp, 'team-data'), WERKBORD_TEAM_ADDR: new URL(teamURL).host, WERKBORD_TEAM_STORAGE: 'single-file', WERKBORD_TEAM_LICENSE_FILE: licenseFile, WERKBORD_TEAM_NETWORK_NODE: 'off' };
+    const teamEnv = { WERKBORD_TEAM_EMBED_ORIGINS: shellURL, WERKBORD_TEAM_DATA_DIR: path.join(temp, 'team-data'), WERKBORD_TEAM_ADDR: new URL(teamURL).host, WERKBORD_TEAM_STORAGE: 'single-file', WERKBORD_TEAM_LICENSE_FILE: licenseFile, WERKBORD_TEAM_NETWORK_NODE: 'off' };
     const created = run(teamBinary, ['workspace', 'create', '--network=false', '--name', 'Disposable E2E', '--owner', 'Fixture owner'], teamEnv, true);
     const tokenFile = path.join(temp, 'owner-token.txt');
     fs.writeFileSync(tokenFile, created.match(/wbt_[a-zA-Z0-9]+/)[0], { mode: 0o600 });
     const team = serve(teamBinary, ['serve'], teamEnv);
     await ready(team, teamURL + '/api/team/v1/health');
-    const testEnv = { PERSONAL_BROWSER_URL: individualURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
+    const testEnv = { PLANNING_SHELL_URL: shellURL, PERSONAL_BROWSER_URL: individualURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
+    if (process.env.BROWSER_PLANNING_ONLY === '1') { run(process.execPath, ['scripts/browser-planning.cjs'], testEnv); return; }
     if (process.env.BROWSER_UX_ONLY === '1') { run(process.execPath, ['scripts/browser-workspace-ux.cjs'], testEnv); return; }
     if (process.env.BROWSER_ANALYTICS_ONLY === '1') {
       run(process.execPath, ['scripts/browser-analytics.cjs'], testEnv);

@@ -36,7 +36,7 @@ describe('the console’s timeline arithmetic agrees with the app’s', () => {
     const spans = [{ start: '2026-10-05', end: '2026-10-09', milestone: false }, { start: '2026-11-20', end: '2026-11-25', milestone: false }];
     expect(js.viewRange(spans, '2026-10-10')).toEqual(ts.viewRange(spans, '2026-10-10'));
     expect(js.viewRange([], '2026-10-10')).toEqual(ts.viewRange([], '2026-10-10'));
-    for (const zoom of ['week', 'month', 'quarter'] as const) {
+    for (const zoom of ['day', 'week', 'month', 'quarter'] as const) {
       const range = { start: '2026-10-01', end: '2026-12-31' };
       expect(js.ticks(range, zoom)).toEqual(ts.ticks(range, zoom));
     }
@@ -49,7 +49,7 @@ describe('the console’s timeline arithmetic agrees with the app’s', () => {
       task('b', { start: '2026-10-07', end: '2026-10-12' }, { orchestration: { enabled: false, dependencies: ['a'], expectedPaths: [] } }),
       task('c', { start: '2026-10-20', milestone: true }),
     ];
-    for (const zoom of ['week', 'month', 'quarter'] as const) {
+    for (const zoom of ['day', 'week', 'month', 'quarter'] as const) {
       const tb = ts.barsFor(tasks, range, zoom);
       const jb = js.barsFor(tasks, range, zoom);
       expect([...jb.entries()]).toEqual([...tb.entries()]);

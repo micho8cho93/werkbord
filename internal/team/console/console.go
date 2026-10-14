@@ -30,7 +30,7 @@ func Handler() http.Handler {
 			return
 		}
 		w.Header().Set("Cache-Control", "no-cache")
-		if r.URL.Path == "/board.css" || r.URL.Path == "/board-drag.js" {
+		if r.URL.Path == "/board.css" || r.URL.Path == "/board-drag.js" || r.URL.Path == "/planning.css" || r.URL.Path == "/planning-drag.js" {
 			http.StripPrefix("/", uipresentation.Handler()).ServeHTTP(w, r)
 			return
 		}
