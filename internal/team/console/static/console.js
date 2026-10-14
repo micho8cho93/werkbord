@@ -1799,7 +1799,7 @@ async function analyticsView() {
     },
   }, view)));
   const project = h('select', { 'aria-label': 'Analytics project', onchange: e => { scope.project = e.target.value; } },
-    h('option', { value: '', selected: !scope.project }, 'All projects you can read'), r.projects.map(x => h('option', { value: x.id, selected: scope.project === x.id }, x.name)));
+    h('option', { value: '', selected: !scope.project }, 'All projects you can read'), (r.projects || []).map(x => h('option', { value: x.id, selected: scope.project === x.id }, x.name)));
   const range = h('select', { 'aria-label': 'Analytics time range', onchange: e => { scope.days = Number(e.target.value); } },
     [7, 30, 90].map(n => h('option', { value: String(n), selected: scope.days === n }, 'Last ' + n + ' days')));
   const select = (label, value, choices, change) => h('label', {}, label + ' ', h('select', { 'aria-label': label, onchange: e => { change(e.target.value); render(); } }, choices.map(([id, name]) => h('option', { value: id, selected: id === value }, name))));
@@ -1829,9 +1829,10 @@ async function analyticsView() {
           h('details', {}, h('summary', {}, 'Daily values'), table(['UTC date', 'Created', 'Completed'], r.days.map(d => [d.date, d.created, d.completed])))]
         : h('p', { class: 'muted' }, 'No ticket activity in this period. Try a longer time range or another project.'))];
   } else if (analyticsState.view === 'Categories') {
+    const categoryId = analyticsState.category === '__unlabelled' ? '' : analyticsState.category;
     extras = [select('Category measure', analyticsState.metric, [['completed', 'Completed'], ['created', 'Created']], value => analyticsState.metric = value),
-      select('Work category', analyticsState.category, [['', 'All categories'], ...r.categories.map(c => [c.labelId, c.name]), ...(analyticsState.category && !r.categories.some(c => c.labelId === analyticsState.category) ? [[analyticsState.category, 'Selected category (not in this snapshot)']] : [])], value => analyticsState.category = value)];
-    const categories = r.categories.filter(c => !analyticsState.category || c.labelId === analyticsState.category).sort((a, b) => b[analyticsState.metric] - a[analyticsState.metric]);
+      select('Work category', analyticsState.category, [['', 'All categories'], ...r.categories.map(c => [c.labelId || '__unlabelled', c.name]), ...(analyticsState.category && !r.categories.some(c => c.labelId === categoryId) ? [[analyticsState.category, 'Selected category (not in this snapshot)']] : [])], value => analyticsState.category = value)];
+    const categories = r.categories.filter(c => !analyticsState.category || c.labelId === categoryId).sort((a, b) => b[analyticsState.metric] - a[analyticsState.metric]);
     body = [h('section', {}, h('h2', {}, 'Work by category'), h('p', { class: 'muted small' }, 'Current ticket labels. Tickets with multiple labels appear in each category; category totals are not unique ticket counts.'),
       categories.length ? comparison(categories.map(c => [c.name, c[analyticsState.metric], c.created + ' created · ' + c.completed + ' completed', analyticsState.metric === 'completed' ? 'var(--ok)' : 'var(--accent)']))
         : h('p', { class: 'muted' }, 'No ticket activity matches this category. Try another category, project or time range.')),
@@ -1845,7 +1846,7 @@ async function analyticsView() {
   return h('div', { class: 'coordination-analytics' }, tabs,
     h('div', { id: 'analytics-panel', role: 'tabpanel', 'aria-labelledby': 'analytics-tab-' + analyticsState.view, tabindex: '0' },
       h('div', { class: 'analytics-filters' }, h('label', {}, 'Project ', project), h('label', {}, 'Time range ', range), extras, h('button', { type: 'button', class: 'plain', onclick: () => { scope.appliedProject = scope.project; scope.appliedDays = scope.days; analyticsState.report = null; render(); } }, 'Apply / refresh')),
-      h('p', { class: 'muted small' }, 'As of ' + new Date(r.end).toLocaleString() + ' · ' + (r.projects.find(p => p.id === scope.appliedProject)?.name || 'All projects you can read') + ' · ' + scope.appliedDays + ' days. Project and time range take effect with Apply / refresh.'),
+      h('p', { class: 'muted small' }, 'As of ' + new Date(r.end).toLocaleString() + ' · ' + ((r.projects || []).find(p => p.id === scope.appliedProject)?.name || 'All projects you can read') + ' · ' + scope.appliedDays + ' days. Project and time range take effect with Apply / refresh.'),
       r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Partial history: the bounded read omitted records or projects. Counts may be lower than the full history.') : '', body));
 }
 

@@ -80,4 +80,5 @@ is not proof that a release is installable.
 | Individual | `werkbord-v4.28.5-preview.4` | — | Unpublished; timing-sensitive Git evidence assertion; superseded by preview.5 |
 | Individual | `werkbord-v4.28.5-preview.5` | — | Unpublished; public verifier did not retry an Apple ticket-service network error; superseded by preview.6 |
 | Individual | `werkbord-v4.28.5-preview.6` | `0.9.0-preview.1` | Published public signed macOS preview; Team production admission remains blocked (previous status: Reserved public signed preview) |
-| Individual | `werkbord-v4.29.0-preview.1` | `0.10.0-preview.1` | Reserved public signed macOS preview; focused analytics views and Universal startup; Team production admission remains blocked |
+| Individual | `werkbord-v4.29.0-preview.1` | — | Unpublished; empty Team workspace analytics encountered a null project list; superseded by preview.2 |
+| Individual | `werkbord-v4.29.0-preview.2` | `0.10.0-preview.1` | Reserved public signed macOS preview; focused analytics views and Universal startup; Team production admission remains blocked |

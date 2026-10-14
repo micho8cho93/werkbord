@@ -142,6 +142,8 @@ let browser;
   await tpPage.getByRole('tab', { name: 'Categories', exact: true }).click();
   await tpPage.getByLabel('Category measure').selectOption('created');
   await tpPage.getByRole('heading', { name: 'Work by category' }).waitFor();
+  await tpPage.getByLabel('Work category').selectOption('__unlabelled');
+  await tpPage.locator('.analytics-caption').getByText('Unlabelled', { exact: true }).waitFor();
   await tpPage.getByRole('tab', { name: 'Completion', exact: true }).click();
   await tpPage.getByRole('heading', { name: 'Recorded completion signals' }).waitFor();
   await tpPage.getByRole('tab', { name: 'Activity', exact: true }).click();
