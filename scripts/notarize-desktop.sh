@@ -109,8 +109,24 @@ fi
 say "accepted by Apple (submission $id)"
 
 # 2. Staple, and check that the ticket is really in the file.
-"$XCRUN" stapler staple "$target" > "$WORK/staple.out" 2>&1 || { scrub < "$WORK/staple.out" >&2; die "could not staple the ticket to $(basename "$target")"; }
-"$XCRUN" stapler validate "$target" > "$WORK/validate.out" 2>&1 || { scrub < "$WORK/validate.out" >&2; die "the ticket stapled to $(basename "$target") does not validate"; }
+stapler() {
+  action=$1
+  attempt=0
+  while :; do
+    attempt=$((attempt + 1))
+    if "$XCRUN" stapler "$action" "$target" > "$WORK/$action.out" 2>&1; then return 0; fi
+    scrub < "$WORK/$action.out" >&2
+    # Apple's ticket service can lose its connection even after notarization was accepted.
+    # Retry only network errors; a missing or invalid ticket still fails immediately.
+    if [ "$attempt" -ge 3 ] || ! grep -qiE 'NSURLErrorDomain|network connection|connection.*(lost|offline)|Internet connection|timed out' "$WORK/$action.out"; then
+      return 1
+    fi
+    say "ticket $action hit a network error; trying again ($attempt/3)"
+    sleep "$SLEEP"
+  done
+}
+stapler staple || die "could not staple the ticket to $(basename "$target")"
+stapler validate || die "the ticket stapled to $(basename "$target") does not validate"
 say "stapled and validated"
 
 # 3. What a user's Mac says.

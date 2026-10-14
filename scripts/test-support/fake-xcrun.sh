@@ -10,7 +10,7 @@ notarytool)
   submit)
     n=$(cat "$FAKE_COUNT" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > "$FAKE_COUNT"
     case "$FAKE_MODE" in
-    accepted|staple-fails|validate-fails|gatekeeper-rejects) printf '{\n  "id" : "aaaaaaaa-1111-2222-3333-444444444444",\n  "message" : "Successfully received submission info",\n  "status" : "Accepted"\n}\n' ;;
+    accepted|staple-fails|validate-fails|validate-flaky|validate-down|gatekeeper-rejects) printf '{\n  "id" : "aaaaaaaa-1111-2222-3333-444444444444",\n  "message" : "Successfully received submission info",\n  "status" : "Accepted"\n}\n' ;;
     invalid) printf '{"id":"bbbbbbbb-1111-2222-3333-444444444444","message":"Processing complete","status":"Invalid"}\n' ;;
     invalid-exit1) printf '{"id":"bbbbbbbb-1111-2222-3333-444444444444","status":"Invalid"}\n'; exit 1 ;;
     flaky) # the network fails twice, then Apple answers
@@ -24,6 +24,13 @@ notarytool)
 stapler)
   case "$sub:$FAKE_MODE" in
   staple:staple-fails) echo "Could not staple: the ticket is not available (Error 65)" >&2; exit 65 ;;
+  validate:validate-flaky|validate:validate-down)
+    n=$(grep -c 'xcrun stapler validate' "$FAKE_LOG")
+    if [ "$FAKE_MODE" = validate-down ] || [ "$n" -lt 3 ]; then
+      echo 'error is Error Domain=NSURLErrorDomain Code=-1005 "The network connection was lost."' >&2
+      exit 68
+    fi
+    echo "The validate action worked!" ;;
   validate:validate-fails) echo "The validate action failed! Error 65." >&2; exit 65 ;;
   *) echo "The $sub action worked!" ;;
   esac ;;

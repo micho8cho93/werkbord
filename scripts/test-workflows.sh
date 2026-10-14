@@ -160,7 +160,7 @@ if release
 end
 
 sequence_doc = File.read("docs/RELEASE_SEQUENCE.md")
-check(sequence_doc.include?("werkbord-v4.28.2") && sequence_doc.include?("0.9.0") && sequence_doc.include?("Reserved stable"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
+check(sequence_doc.include?("werkbord-v4.28.3") && sequence_doc.include?("0.9.0") && sequence_doc.include?("Reserved stable"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
 
 check(!workflows.key?("#{DIR}/release-team-desktop.yml"), "there is no separate Team release workflow")
 if $failures.empty?

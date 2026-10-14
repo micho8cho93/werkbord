@@ -120,6 +120,16 @@ run gatekeeper-rejects app "$APP"
 [ $RC -ne 0 ] && contains "$OUT" "Gatekeeper rejects" || bad "Gatekeeper refusing fails" "$OUT"
 ok "a ticket that will not staple or validate, or a Gatekeeper that refuses, each fail"
 
+# Ticket validation must succeed after a transient network failure, and still fail closed during an outage.
+run validate-flaky dmg "$DMG"
+[ $RC = 0 ] || bad "ticket service recovery: exit $RC" "$OUT"
+[ "$(calls | grep -c 'stapler validate')" = 3 ] || bad "ticket validation should retry twice" "$(calls)"
+run validate-down dmg "$DMG"
+[ $RC -ne 0 ] && contains "$OUT" "does not validate" || bad "ticket service outage must fail" "$OUT"
+[ "$(calls | grep -c 'stapler validate')" = 3 ] || bad "ticket validation must stop after three attempts" "$(calls)"
+if contains "$(calls)" "spctl"; then bad "Gatekeeper must not run after unsuccessful validation" "$(calls)"; fi
+ok "ticket validation retries network errors and still fails closed after three attempts"
+
 # ---- credentials
 for var in NOTARY_KEY_FILE NOTARY_KEY_ID NOTARY_ISSUER; do
   : > "$FAKE_LOG"
