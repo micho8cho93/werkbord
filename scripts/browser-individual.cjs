@@ -500,7 +500,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await reviewContext.getByText(taskReviewRun.handoff.results,{exact:true}).waitFor();
         await reviewContext.getByText('Tests reported · none · not verified',{exact:true}).waitFor();
         assert((await reviewContext.getByRole('link',{name:new RegExp('Back to '+localTask.title)}).getAttribute('href')).includes(`/task/${localTask.id}`), 'the context gives a direct return to its task');
-        assert.equal(await reviewContext.getByRole('link',{name:'Full run and Git evidence',exact:true}).count(),1,'the task remains the route to full evidence');
+        const fullRunEvidenceLink = reviewContext.getByRole('link',{name:'Full run and Git evidence',exact:true});
+        await fullRunEvidenceLink.waitFor();
+        assert((await fullRunEvidenceLink.getAttribute('href')).includes(`/task/${localTask.id}`),'the task remains the route to full evidence');
         let contextTask = (await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(task=>task.id===localTask.id);
         await api('PATCH', `/api/projects/${p.id}/tasks/${localTask.id}`, {version:contextTask.version,state:'done'});
         await page.waitForFunction(() => !document.querySelector('[aria-label="Review from task"]'));
