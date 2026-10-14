@@ -314,6 +314,8 @@ ln -s "$PWD/internal/webui/dist" "$RELTREE/internal/webui/dist"
 [ ! -d desktop ] || ln -s "$PWD/desktop" "$RELTREE/desktop"
 in_reltree() { (cd "$RELTREE" && "$@"); }
 expect_fail "a release must be able to notarize" "NOTARY_KEY_FILE, NOTARY_KEY_ID and NOTARY_ISSUER" in_reltree rel VERSION=v1.2.3 CODESIGN_IDENTITY="$ID" scripts/build-desktop.sh --release
+echo 1.2.3-preview.1 > "$RELTREE/cmd/werkbord/VERSION"
+expect_fail "a signed preview must also notarize" "NOTARY_KEY_FILE, NOTARY_KEY_ID and NOTARY_ISSUER" in_reltree rel VERSION=v1.2.3-preview.1 CODESIGN_IDENTITY="$ID" scripts/build-desktop.sh --release
 expect_fail "--notarize needs a real identity" "Developer ID identity" scripts/build-desktop.sh --notarize
 expect_fail "a release cannot use other notarization programs" "tests only" rel VERSION=$cur CODESIGN_IDENTITY="$ID" XCRUN=/bin/true NOTARY_KEY_FILE=x NOTARY_KEY_ID=x NOTARY_ISSUER=x scripts/build-desktop.sh --release
 expect_fail "a timestamp setting must be 'none'" "can only be" env CODESIGN_TIMESTAMP=whenever scripts/build-desktop.sh

@@ -192,6 +192,16 @@ if [ "$(uname -s)" != Darwin ]; then
   echo "ok: $pass checks"
   exit 0
 fi
+# The fixture apps are ad-hoc signed and Apple never saw them. Record quarantine
+# commands alongside the fake policy tools; real downloaded quarantine is checked
+# separately by the signed release jobs on macOS.
+mkdir -p "$WORK/quarantine-fake"
+cat > "$WORK/quarantine-fake/xattr" <<'EOF'
+#!/bin/sh
+printf 'xattr %s\n' "$*" >> "$FAKE_LOG"
+EOF
+chmod +x "$WORK/quarantine-fake/xattr"
+export PATH="$WORK/quarantine-fake:$PATH"
 echo "verify-desktop-release.sh"
 SHIM_DIR="$WORK/shim"; mkdir -p "$SHIM_DIR/records"; export SHIM_DIR
 SHIM="$ROOT/scripts/test-support/fake-codesign.sh"
@@ -257,6 +267,7 @@ verify "$WORK/good"
 for want in "sha256 matches" "signed by the Developer ID" "Gatekeeper accepts the disk image" "stapled" "Notarized Developer ID" "both 1.2.3" "update archive holds the same notarized app" "Werkbord.dmg, the link with no version in it, is this disk image" "is a good release"; do
   contains "$OUT" "$want" || bad "the report does not say \"$want\"" "$OUT"
 done
+[ "$(calls | grep -c 'xattr -w com.apple.quarantine')" = 2 ] || bad "the verifier must mark both DMG and copied app as downloaded" "$(calls)"
 ok "a good release passes every check, and the report says what was checked"
 contains "$(calls)" "stapler validate" && contains "$(calls)" "spctl --assess --type execute" || bad "the staple and Gatekeeper were asked about"
 

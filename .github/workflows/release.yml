@@ -32,6 +32,7 @@ jobs:
           if [ "$EVENT" = workflow_dispatch ]; then
             desktop=true
           elif [ "${REF_NAME#werkbord-v}" != "$REF_NAME" ]; then
+            desktop=true
             case "${REF_NAME#werkbord-v}" in
               *-*) ;;
               *) desktop=true; stable=true ;;
@@ -78,6 +79,13 @@ jobs:
         env:
           WERKBORD_REQUIRE_RQLITE: "1"
         run: make test-rqlite
+      - name: Verify the public app's browser flows before assembling downloads
+        run: |
+          cd web && npx playwright install --with-deps chromium && cd ..
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/team-desktop" make test-team-desktop-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/unified" make test-unified-desktop-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/assistant" make test-assistant-browser
       - name: Build the controller archives for the unified release
         run: make dist PRODUCT=werkbord PLATFORMS="darwin/arm64 darwin/amd64"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -86,27 +94,6 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 14
-
-  preview-publish:
-    needs: [plan, release-build]
-    if: github.event_name == 'push' && needs.plan.outputs.stable == 'false'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: controller-release
-          path: dist
-      - name: Publish only the controller archives for a preview
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ "$(gh release view "$GITHUB_REF_NAME" --json isPrerelease --jq .isPrerelease 2>/dev/null)" = true ]; then
-            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes --prerelease --latest=false --verify-tag
-          fi
 
   desktop-build:
     needs: [plan, release-build]
@@ -147,7 +134,6 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
         run: |
           version=$(scripts/product.sh werkbord version)
-          if [ "$EVENT" = workflow_dispatch ]; then version=${version%%-*}; fi
           if [ "$EVENT" = push ] && [ "$REF_NAME" != "werkbord-v$version" ]; then
             echo "::error::tag $REF_NAME does not match cmd/werkbord/VERSION ($version)"
             exit 1
@@ -207,9 +193,9 @@ jobs:
           scripts/ci-keychain.sh delete || true
           rm -rf "$RUNNER_TEMP/notary"
 
-  stable-draft:
+  desktop-draft:
     needs: [plan, release-build, desktop-build]
-    if: github.event_name == 'push' && needs.plan.outputs.stable == 'true'
+    if: github.event_name == 'push' && needs.plan.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -236,7 +222,13 @@ jobs:
         run: |
           set -euo pipefail
           version=${GITHUB_REF_NAME#werkbord-v}
-          scripts/check-team-production-gate.sh "$version"
+          prerelease=false
+          sequence=0.9.0
+          qualifier=""
+          case "$version" in
+            *-preview.*) prerelease=true; sequence="0.9.0-preview.${version##*-preview.}"; qualifier=" (macOS preview)" ;;
+            *) scripts/check-team-production-gate.sh "$version" ;;
+          esac
           mkdir release-assets
           for dir in assets/controller assets/macos assets/feed; do
             cp "$dir"/* release-assets/
@@ -252,7 +244,7 @@ jobs:
             test -s "release-assets/$file" || { echo "required release asset is missing: $file" >&2; exit 1; }
           done
           cat > release-notes.md <<EOF
-          **Release sequence:** 0.9.0 · **Original build version:** $version
+          **Release sequence:** $sequence · **Original build version:** $version
 
           The release sequence is a display label for this product’s published history. Downloads and installed apps use the original build version; the Git tag is \`$GITHUB_REF_NAME\`.
 
@@ -269,10 +261,20 @@ jobs:
 
           macOS controller command-line archives and their checksum manifest are included for existing terminal and service workflows. This release has no standalone Team Host archive.
           EOF
-          gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord Individual — Release 0.9.0" --notes-file release-notes.md --draft --latest=false --verify-tag
+          if [ "$prerelease" = true ]; then
+            cat >> release-notes.md <<'EOF'
 
-  stable-publish:
-    needs: stable-draft
+          ### Public preview scope
+
+          This is an evaluation preview. Team production admission remains blocked. Evaluate Team using disposable workspaces and backups; clean-Mac privileged service and Keychain lifecycle, dependency findings, independent-host networking/failover and replacement-host recovery still need production acceptance. See docs/TEAM_SECURITY_GATE.md at this tag for the complete review.
+
+          The preview is not marked latest and is not distributed through the stable update feed. Linux and Windows downloads are deferred.
+          EOF
+          fi
+          gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord Individual — Release $sequence$qualifier" --notes-file release-notes.md --draft --prerelease="$prerelease" --latest=false --verify-tag
+
+  desktop-publish:
+    needs: desktop-draft
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -284,7 +286,7 @@ jobs:
         run: gh release edit "$GITHUB_REF_NAME" --draft=false --verify-tag
 
   macos-public-verify:
-    needs: stable-publish
+    needs: desktop-publish
     if: github.event_name == 'push'
     runs-on: macos-15
     permissions:
@@ -303,7 +305,7 @@ jobs:
         run: scripts/verify-desktop-release.sh "$GITHUB_REF_NAME"
 
   desktop-feed-public-verify:
-    needs: stable-publish
+    needs: desktop-publish
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -321,8 +323,8 @@ jobs:
         run: scripts/verify-appcast.sh "$GITHUB_REF_NAME"
 
   stable-latest:
-    needs: [macos-public-verify, desktop-feed-public-verify]
-    if: github.event_name == 'push'
+    needs: [plan, macos-public-verify, desktop-feed-public-verify]
+    if: github.event_name == 'push' && needs.plan.outputs.stable == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -211,3 +211,18 @@ func TestOnlyTheLoopbackFlagAllowsAPlainHTTPFeedAndOnlyOnThisComputer(t *testing
 		t.Fatal("the loopback flag let a feed on another computer be plain http")
 	}
 }
+
+func TestSignedPreviewUsesAppleBetaVersion(t *testing.T) {
+	version := "1.2.0-preview.2"
+	url := "https://github.com/micho8cho93/werkbord/releases/download/werkbord-v" + version + "/Werkbord_" + version + "_darwin_universal.zip"
+	a, z, pub := feed(t, version, url, func(text *string, _ *[]byte, _ *string) {
+		*text = strings.ReplaceAll(*text, "<sparkle:version>"+version+"</sparkle:version>", "<sparkle:version>1.2.0b2</sparkle:version>")
+		*text = strings.ReplaceAll(*text, "<sparkle:shortVersionString>"+version+"</sparkle:shortVersionString>", "<sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>")
+	})
+	if err := runCheck("-tag", "werkbord-v"+version, "-pubkey", pub, "-archive", z, "-bundle-version", "1.2.0b2", a); err != nil {
+		t.Fatal(err)
+	}
+	if err := runCheck("-tag", "werkbord-v1.2.0-preview.3", "-pubkey", pub, "-archive", z, "-bundle-version", "1.2.0b2", a); err == nil {
+		t.Fatal("a different preview was accepted")
+	}
+}

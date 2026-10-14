@@ -15,7 +15,8 @@ function dispatch(card, column) {
 }
 document.addEventListener('pointerdown', event => {
   const card = event.target.closest('[data-board-item]');
-  const handle = event.target.closest('[data-drag-handle]') || card;
+  // Preserve the title as the click target when a pointer gesture does not drag.
+  const handle = event.target.closest('[data-drag-handle], .title') || card;
   if (!card || card.closest('[aria-busy="true"]') || event.button !== 0) return;
   if (!event.target.closest('[data-drag-handle], .title') && event.target.closest('button, input, select, textarea, .acts, .actions')) return;
   event.preventDefault();

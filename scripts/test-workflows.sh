@@ -84,14 +84,14 @@ if release
   check(perms({}, release) == { "contents" => "read" }, "release.yml defaults to contents: read")
 
   jobs = release["jobs"]
-  required = %w[plan release-build preview-publish desktop-build stable-draft stable-publish macos-public-verify desktop-feed-public-verify stable-latest]
+  required = %w[plan release-build desktop-build desktop-draft desktop-publish macos-public-verify desktop-feed-public-verify stable-latest]
   required.each { |name| check(jobs.key?(name), "release.yml has no job #{name}") }
 
   %w[linux-desktop-build windows-desktop-build linux-public-verify windows-public-verify].each { |name| check(!jobs.key?(name), "macOS-only release must not include #{name}") }
 
   plan_script = jobs.dig("plan", "steps", 0, "run")
   [["push", "werkbord-v4.28.4", "true", "true"],
-   ["push", "werkbord-v4.28.4-preview.1", "false", "false"],
+   ["push", "werkbord-v4.28.5-preview.1", "true", "false"],
    ["workflow_dispatch", "main", "true", "false"]].each do |event, ref, desktop, stable|
     Tempfile.create("werkbord-plan") do |output|
       _, err, status = Open3.capture3({"EVENT" => event, "REF_NAME" => ref, "GITHUB_OUTPUT" => output.path}, "bash", "-c", plan_script)
@@ -101,7 +101,6 @@ if release
     end
   end
   check(needs(jobs["release-build"]).include?("plan"), "release-build reads the stable decision from plan")
-  check(jobs.dig("preview-publish", "if").include?("needs.plan.outputs.stable == 'false'"), "only prerelease tags enter the preview publisher")
 
   secret_jobs = jobs.select { |_, job| mentions_secret?(job) }.keys.sort
   check(secret_jobs == %w[desktop-build], "release credentials are exposed to #{secret_jobs.inspect}")
@@ -115,7 +114,7 @@ if release
   end
 
   writers = jobs.select { |_, job| (perms(job, release).is_a?(Hash) && perms(job, release).values.include?("write")) }.keys.sort
-  check(writers == %w[preview-publish stable-draft stable-latest stable-publish], "only the release publisher jobs can write: #{writers.inspect}")
+  check(writers == %w[desktop-draft stable-latest desktop-publish].sort, "only the release publisher jobs can write: #{writers.inspect}")
   writers.each { |name| check(!mentions_secret?(jobs[name]) && !jobs[name].key?("environment"), "writable job #{name} must not hold release credentials") }
 
   release_build = jobs["release-build"]
@@ -127,39 +126,39 @@ if release
     check(gate_index && checks_index && gate_index < checks_index, "stable Team approval is checked before release builds and repository tests")
     gate_condition = release_build["steps"].dig(gate_index || 0, "if").to_s
     check(gate_condition.include?("github.event_name == 'push'") && gate_condition.include?("needs.plan.outputs.stable == 'true'"), "the Team production gate applies only to stable tag pushes")
-    check(steps.include?("make check") && steps.include?("make test-nebula") && steps.include?("make test-rqlite"), "release-build runs repository, native network and real-cluster checks")
+    check(steps.include?("make check") && steps.include?("make test-nebula") && steps.include?("make test-rqlite") && steps.include?("make test-browser") && steps.include?("make test-unified-desktop-browser") && steps.include?("make test-assistant-browser"), "release-build runs repository, native network and real-cluster checks")
     check(steps.include?('make dist PRODUCT=werkbord PLATFORMS=\"darwin/arm64 darwin/amd64\"'), "controller publication includes only macOS architectures")
     check(!steps.include?("gh release"), "release-build does not create a public release before platform builds finish")
     check(!JSON.generate(release).include?("make dist PRODUCT=werkbord-team"), "standalone Team Host archives are never built for publication")
   end
 
-  stable_draft = jobs["stable-draft"]
+  stable_draft = jobs["desktop-draft"]
   if stable_draft
     check(needs(stable_draft).sort == %w[desktop-build plan release-build].sort, "stable draft waits for the Mac desktop build and controller checks")
-    check(stable_draft["if"].to_s.include?("stable"), "only a stable tag can create the public release draft")
-    check(perms(stable_draft, release) == { "contents" => "write" }, "stable-draft is the release asset publisher")
+    check(stable_draft["if"].to_s.include?("desktop"), "a desktop tag can create the public release draft")
+    check(perms(stable_draft, release) == { "contents" => "write" }, "desktop-draft is the release asset publisher")
     steps = JSON.generate(stable_draft["steps"])
-    check(steps.include?("Release sequence:") && steps.include?("0.9.0") && steps.include?("Original build version:") && steps.include?("$version"), "stable release notes use the reserved display sequence and tag-derived build version")
-    check(steps.include?("--draft --latest=false"), "stable release is drafted without becoming latest")
+    check(steps.include?("Release sequence:") && steps.include?("0.9.0") && steps.include?("Original build version:") && steps.include?("$version") && steps.include?("$sequence") && steps.include?("--prerelease"), "release notes use the reserved display sequence and tag-derived build version")
+    check(steps.include?("--draft") && steps.include?("--latest=false"), "stable release is drafted without becoming latest")
     check(!steps.include?("assets/linux") && !steps.include?("assets/windows"), "the release gathers only macOS assets")
     check(steps.include?("Standalone Team Host archives must not be published"), "the release rejects standalone Team Host archives")
     check(steps.include?("check-team-production-gate.sh"), "a stable release requires a version-specific Team production approval")
   end
 
-  stable_publish = jobs["stable-publish"]
-  check(needs(stable_publish).include?("stable-draft"), "stable-publish follows the assembled draft")
-  check(JSON.generate(stable_publish["steps"]).include?("--draft=false") && !JSON.generate(stable_publish["steps"]).include?("--latest"), "stable-publish makes the complete release public but does not promote it yet")
+  stable_publish = jobs["desktop-publish"]
+  check(needs(stable_publish).include?("desktop-draft"), "desktop-publish follows the assembled draft")
+  check(JSON.generate(stable_publish["steps"]).include?("--draft=false") && !JSON.generate(stable_publish["steps"]).include?("--latest"), "desktop-publish makes the complete release public but does not promote it yet")
 
   %w[macos-public-verify desktop-feed-public-verify].each do |name|
     job = jobs[name] or next
-    check(needs(job).include?("stable-publish"), "#{name} verifies publicly after the release is visible")
+    check(needs(job).include?("desktop-publish"), "#{name} verifies publicly after the release is visible")
     check(job["if"].to_s.include?("push"), "#{name} never runs during a manual dry run")
   end
   check(JSON.generate(jobs["macos-public-verify"]).include?("verify-desktop-release.sh"), "Mac public verification checks the signed and notarized app")
   latest = jobs["stable-latest"]
-  check(needs(latest).sort == %w[desktop-feed-public-verify macos-public-verify].sort, "latest promotion waits for all public checks")
+  check(needs(latest).sort == %w[plan desktop-feed-public-verify macos-public-verify].sort, "latest promotion waits for all public checks")
   check(JSON.generate(latest["steps"]).include?("--latest --verify-tag"), "only the final job promotes the verified stable release")
-  check(latest["if"].to_s.include?("push"), "manual dry runs never promote a release")
+  check(latest["if"].to_s.include?("push") && latest["if"].to_s.include?("needs.plan.outputs.stable == 'true'"), "previews and manual dry runs never promote a release")
 
   # Every action is pinned to a full commit SHA, including artifact transport.
   jobs.each do |name, job|
@@ -174,7 +173,7 @@ if release
 end
 
 sequence_doc = File.read("docs/RELEASE_SEQUENCE.md")
-check(sequence_doc.include?("werkbord-v4.28.4") && sequence_doc.include?("0.9.0") && sequence_doc.include?("Reserved stable"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
+check(sequence_doc.include?("werkbord-v4.28.5-preview.1") && sequence_doc.include?("0.9.0-preview.1") && sequence_doc.include?("Reserved public signed"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
 
 check(!workflows.key?("#{DIR}/release-team-desktop.yml"), "there is no separate Team release workflow")
 if $failures.empty?

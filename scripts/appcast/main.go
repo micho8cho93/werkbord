@@ -33,6 +33,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -192,7 +193,18 @@ func check(args []string) error {
 	}
 	it := a.Channel.Items[0]
 	want := strings.TrimPrefix(*tag, "werkbord-v")
-	if it.Version != want && it.ShortString != want {
+	expectedVersion, expectedShort := want, want
+	if match := regexp.MustCompile(`^([0-9]+\.[0-9]+\.[0-9]+)-preview\.([1-9][0-9]*)$`).FindStringSubmatch(want); match != nil {
+		preview, err := strconv.Atoi(match[2])
+		if err != nil || preview > 255 {
+			return fmt.Errorf("invalid Apple preview build number")
+		}
+		expectedShort, expectedVersion = match[1], match[1]+"b"+match[2]
+		if it.Version != expectedVersion || it.ShortString != expectedShort {
+			return fmt.Errorf("the appcast does not identify preview %s", want)
+		}
+	}
+	if it.Version != expectedVersion && it.ShortString != expectedShort {
 		return fmt.Errorf("the appcast offers version %q (short %q), the release is %s", it.Version, it.ShortString, want)
 	}
 	if *bundleVersion != "" && it.Version != *bundleVersion {

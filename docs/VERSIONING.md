@@ -106,7 +106,10 @@ This matters because `…/releases/latest` is how the installer and `werkbord up
 releases are marked "latest". Standalone Team Host archives are not attached to unified desktop releases; use the bundled
 desktop installer to set up a local Team service. The offline Team archive tools remain for controlled operator builds.
 
-A tag with a `-` after the version (`werkbord-v4.1.0-rc1`) is a pre-release. Its VERSION file includes the same prerelease suffix. Prereleases are never marked latest. An explicitly requested ad-hoc Mac preview may be attached as `Werkbord-preview.dmg` to a prerelease; it is never the stable `Werkbord.dmg` or an appcast update (see [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md#test-the-app-while-approval-is-pending)).
+A tag with a `-` after the version (`werkbord-v4.1.0-rc1`) is a pre-release. Its VERSION file includes the same prerelease suffix. Prereleases are never marked latest. Signed macOS previews use the same Apple trust checks
+as stable builds and publish a public evaluation app without admitting Team to production.
+Their Apple bundle metadata uses beta build notation derived from the unified VERSION;
+both executables and WerkbordBuildVersion preserve the complete preview version. An explicitly requested ad-hoc Mac preview may be attached as `Werkbord-preview.dmg` to a prerelease; it is never the stable `Werkbord.dmg` or an appcast update (see [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md#test-the-app-while-approval-is-pending)).
 
 ## History
 

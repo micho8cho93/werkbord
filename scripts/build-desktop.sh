@@ -106,6 +106,16 @@ case "$VERSION" in v[0-9]*.[0-9]*.[0-9]*|dev) ;; *) die "VERSION \"$VERSION\" is
 # The bundle's own version is numbers only (the part before any "-" that says it is a build from source).
 PLIST_VERSION=$(printf '%s' "${VERSION#v}" | sed 's/-.*//')
 [ "$VERSION" != dev ] || PLIST_VERSION=0.0.0
+BUNDLE_VERSION=$PLIST_VERSION
+case "$VERSION" in
+  *-preview.*)
+    preview_number=${VERSION##*-preview.}
+    preview_number=${preview_number%%-*}
+    case "$preview_number" in *[!0-9]*|'') die "invalid preview number" ;; esac
+    [ "$preview_number" -ge 1 ] && [ "$preview_number" -le 255 ] || die "Apple's preview build number must be between 1 and 255"
+    BUNDLE_VERSION="${PLIST_VERSION}b${preview_number}"
+    ;;
+esac
 IDENTITY=${CODESIGN_IDENTITY:--}
 TIMESTAMP=${CODESIGN_TIMESTAMP:-}
 # Where the app looks for updates: the appcast every individual release uploads. /releases/latest/download/<file> follows the
@@ -134,7 +144,7 @@ if [ -n "$RELEASE" ]; then
   [ "${SPARKLE:-}" != 0 ] || die "a release carries Sparkle: the app must be able to update itself"
   [ -z "${XCRUN:-}${SPCTL:-}${DITTO:-}" ] || die "XCRUN, SPCTL and DITTO are for tests only: a release is notarized with Apple's own tools"
   [ "$ARCH" = universal ] || die "a release is one universal disk image (ARCH=universal), so that nobody has to know their chip; not \"$ARCH\""
-  printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' ||
+  printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-preview\.[1-9][0-9]*)?$' ||
     die "a release is built from a version that is exactly a release (v1.2.3), not \"$VERSION\""
   [ "$VERSION" = "v$(scripts/product.sh werkbord version)" ] ||
     die "VERSION $VERSION is not what cmd/werkbord/VERSION says (v$(scripts/product.sh werkbord version))"
@@ -284,6 +294,8 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/icon.icns"
 
 # 4. The bundle's description.
 sed "s/@VERSION@/$PLIST_VERSION/g" desktop/build/darwin/Info.plist > "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUNDLE_VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :WerkbordBuildVersion string ${VERSION#v}" "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 

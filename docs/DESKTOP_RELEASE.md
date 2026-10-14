@@ -20,6 +20,21 @@ but not published.
 | 8 | Release for real, and check it | the first published app |
 | 9 | If something goes wrong | the way back |
 
+## Public signed macOS previews
+
+Unified preview tags (`werkbord-vX.Y.Z-preview.N`) now build the same Developer ID
+signed, hardened, notarized and stapled universal Mac app as stable tags. They
+publish a public GitHub prerelease only after repository and packaging checks.
+The preview has a versioned DMG, `Werkbord.dmg`, the signed update archive/feed
+and macOS controller archives. It never becomes latest or replaces the stable feed.
+Users open the DMG and drag Werkbord to Applications with macOS security enabled.
+
+Preview build metadata is derived from the unified VERSION: for `4.28.5-preview.1`,
+CFBundleShortVersionString is `4.28.5`, CFBundleVersion is `4.28.5b1` (Apple's beta
+build notation), and WerkbordBuildVersion and both executables retain the complete
+`4.28.5-preview.1`. The preview counter is 1–255. The Team production gate remains
+blocked; release notes link its outstanding production acceptance requirements.
+
 ## Test the app while approval is pending
 
 `make desktop-preview` builds a universal DMG from the current individual VERSION with an ad-hoc signature and no notarization or Sparkle updater.

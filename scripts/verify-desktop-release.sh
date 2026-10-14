@@ -91,29 +91,8 @@ APP="$WORK/Applications/Werkbord.app"
 $HDIUTIL detach "$MNT" -quiet >/dev/null 2>&1 || $HDIUTIL detach "$MNT" -quiet -force >/dev/null 2>&1 || true
 MNT=""
 
-# What the app and the program say about themselves is read first, on a copy that is not marked as downloaded: files from a
-# mounted image carry the mark, macOS will not run marked code that Gatekeeper has not accepted, and whether it accepts is the
-# next check's business, which has a clearer message than "killed".
-xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
-reported=$("$APP/Contents/Helpers/werkbord" version) || die "the program inside the app does not run"
-[ "$reported" = "v$version" ] || die "the program inside the app says $reported, the release is v$version"
-plist=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
-[ "$plist" = "$version" ] || die "the app says it is version $plist, the release is $version"
-step "ok  the app and the program it carries are both $version"
+# Apply browser quarantine and verify trust before executing any bundled code.
 xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");Safari;" "$APP"
-
-# Unified releases carry the Team service and its installer in the app itself, signed by the same team.
-case "$version" in
-  [0-3].*) ;;
-  *)
-    [ -f "$APP/Contents/Helpers/werkbord-team" ] || die "the app carries no Team service"
-    "$root/scripts/check-team-payload.sh" --distribution "$APP" || die "Team's service in the app is not what a release must carry"
-    [ "$("$APP/Contents/Helpers/werkbord-team" version)" = "v$version" ] || die "the Team service in the app is not this release (v$version)"
-    "$APP/Contents/MacOS/Werkbord" --verify-release || die "the app is not signed by the release team, which its Team installer requires"
-    step "ok  the Team service is this release, and the app is signed by the team its installer requires"
-    ;;
-esac
-
 # 4. The app, on its own.
 "$CODESIGN" --verify --strict --deep --verbose=2 "$APP" 2>"$WORK/err" || { cat "$WORK/err" >&2; die "the app's signature does not verify (codesign --verify --deep --strict)"; }
 CODESIGN="$CODESIGN" "$root/scripts/check-desktop-signature.sh" --distribution "$APP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app is not signed the way a release must be"; }
@@ -126,6 +105,32 @@ case $(cat "$WORK/out") in
   *) cat "$WORK/out" >&2; die "Gatekeeper accepts the app but not as a Notarized Developer ID" ;;
 esac
 step "ok  Gatekeeper accepts the app: Notarized Developer ID"
+
+reported=$("$APP/Contents/Helpers/werkbord" version) || die "the program inside the app does not run"
+[ "$reported" = "v$version" ] || die "the program inside the app says $reported, the release is v$version"
+plist=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+[ "$plist" = "${version%%-*}" ] || die "the app says it is version $plist, the release is $version"
+case "$version" in
+  *-preview.*)
+    build=$(/usr/libexec/PlistBuddy -c 'Print :WerkbordBuildVersion' "$APP/Contents/Info.plist")
+    [ "$build" = "$version" ] || die "the app build metadata does not identify $version"
+    bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")
+    [ "$bundle" = "${version%%-*}b${version##*-preview.}" ] || die "the app has the wrong Apple preview build number ($bundle)"
+    ;;
+esac
+step "ok  the app and the program it carries are both $version"
+
+# Unified releases carry the Team service and its installer in the app itself, signed by the same team.
+case "$version" in
+  [0-3].*) ;;
+  *)
+    [ -f "$APP/Contents/Helpers/werkbord-team" ] || die "the app carries no Team service"
+    "$root/scripts/check-team-payload.sh" --distribution "$APP" || die "Team's service in the app is not what a release must carry"
+    [ "$("$APP/Contents/Helpers/werkbord-team" version)" = "v$version" ] || die "the Team service in the app is not this release (v$version)"
+    "$APP/Contents/MacOS/Werkbord" --verify-release || die "the app is not signed by the release team, which its Team installer requires"
+    step "ok  the Team service is this release, and the app is signed by the team its installer requires"
+    ;;
+esac
 
 # 5. The archive the app updates itself from: the very same app, and nothing else. (Releases before 1.2.0 had none.)
 case "$version" in

@@ -4,6 +4,24 @@ Production admission: BLOCKED
 
 Review date: 2026-10-08. Product versions: Team **3.0.0**, individual Werkbord **1.4.0-preview.3**. This is an implementation and evidence report. **Production admission remains blocked** by the deployment, key-custody and dependency decisions below. Passing local tests is not a claim of complete security.
 
+## macOS public preview scope (2026-10-14)
+
+Build `4.28.5-preview.1` is a public evaluation preview, not production admission.
+The Mac packaging path now requires Developer ID signing, hardened runtime, Apple
+notarization, tickets stapled to both app and DMG, Gatekeeper acceptance and a
+signed update archive/feed. Build 4.28.4 passed these checks on GitHub's macOS
+runner and on the development Mac. The new preview must pass them for its own artifacts.
+The Apple signing job uses a reviewed GitHub environment and temporary signing
+keychain; this is packaging evidence, not completion of production key-custody review.
+
+Linux and Windows downloads are deferred. The production acceptance gaps in
+section 8 remain open, including clean-Mac privileged-service/Keychain lifecycle,
+Nebula advisory disposition, independent-host and relay-only network acceptance,
+and replacement-host backup recovery. Local and CI cluster tests are not
+independent-machine acceptance. Preview users should evaluate Team with disposable
+workspaces and backups rather than rely on it for production coordination.
+The preview remains a GitHub prerelease, never latest, and is not offered by the stable update feed.
+
 ## 1. Architecture implemented
 
 Customers operate Workspace Hosts, Connectivity Hosts, backups and local runners. Team has no vendor runtime registry, CA, relay, licensing endpoint or customer-data service. Individual Werkbord's existing tsnet support remains separate and passes the build/test isolation check with Team removed.

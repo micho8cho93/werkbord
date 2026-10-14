@@ -22,8 +22,14 @@ async function port() {
     const n = server.address().port; await new Promise(resolve => server.close(resolve)); return n;
 }
 function serve(binary, args, extra) {
-    const child = cp.spawn(binary, args, { cwd: root, env: { ...env, ...extra }, stdio: ['ignore', 'ignore', 'pipe'] });
-    child.diagnostics = ''; child.stderr.on('data', d => child.diagnostics += d);
+    // run() blocks this parent while a browser suite is active. A stderr pipe
+    // can fill and stall the server's request logging; a file keeps it draining.
+    const diagnostics = path.join(artifacts, `server-${children.length}.log`);
+    const logFD = fs.openSync(diagnostics, 'w', 0o600);
+    let child;
+    try { child = cp.spawn(binary, args, { cwd: root, env: { ...env, ...extra }, stdio: ['ignore', 'ignore', logFD] }); }
+    finally { fs.closeSync(logFD); }
+    Object.defineProperty(child, 'diagnostics', { get: () => fs.readFileSync(diagnostics, 'utf8') });
     children.push(child); return child;
 }
 async function ready(child, url) {

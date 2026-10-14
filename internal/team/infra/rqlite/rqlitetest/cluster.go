@@ -97,14 +97,28 @@ type Node struct {
 // FreePort is a TCP port on loopback that nothing is listening on.
 func FreePort(tb TB) int { return freePort(tb) }
 
-func freePort(tb TB) int {
+func freePort(tb TB) int { return freePorts(tb, 1)[0] }
+
+// Hold every reservation until all addresses have been chosen. Closing each
+// listener immediately can let the OS return the same port for HTTP and Raft.
+func freePorts(tb TB, count int) []int {
 	tb.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		tb.Fatal(err)
+	var listeners []net.Listener
+	defer func() {
+		for _, listener := range listeners {
+			_ = listener.Close()
+		}
+	}()
+	ports := make([]int, 0, count)
+	for range count {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			tb.Fatal(err)
+		}
+		listeners = append(listeners, listener)
+		ports = append(ports, listener.Addr().(*net.TCPAddr).Port)
 	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
+	return ports
 }
 
 // New starts a cluster of n voters and waits for it to have a leader and every member.
@@ -140,9 +154,10 @@ func (c *Cluster) Add(nonVoter bool) *Node {
 	idx := len(c.nodes)
 	n := &Node{c: c, Index: idx, ID: fmt.Sprintf("host-%d", idx+1), NonVoter: nonVoter}
 	ip := netip.MustParseAddr("127.0.0.1")
-	n.HTTP = netip.AddrPortFrom(ip, uint16(freePort(c.tb)))
-	n.RaftBind = netip.AddrPortFrom(ip, uint16(freePort(c.tb)))
-	n.RaftAdv = netip.AddrPortFrom(ip, uint16(freePort(c.tb)))
+	ports := freePorts(c.tb, 3)
+	n.HTTP = netip.AddrPortFrom(ip, uint16(ports[0]))
+	n.RaftBind = netip.AddrPortFrom(ip, uint16(ports[1]))
+	n.RaftAdv = netip.AddrPortFrom(ip, uint16(ports[2]))
 	var join []netip.AddrPort
 	for _, o := range c.nodes {
 		join = append(join, o.RaftAdv)

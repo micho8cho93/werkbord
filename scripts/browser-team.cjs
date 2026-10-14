@@ -56,7 +56,7 @@ async function api(method, path, data, credential = token) {
     console.log('PASS Settings disclosure, primary Members deep-link reload, self rotation and credential persistence');
     // Missing URL parameters reset older state, including on Back and Forward.
     await page.goto(base + '/');
-    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Workspace' }).waitFor();
+    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Needs you' }).waitFor();
     await page.getByRole('button', { name: 'Projects', exact: true }).click();
     await page.getByRole('button', { name: q.name, exact: true }).click();
     await page.waitForFunction(id => document.querySelector('[name="project-switch"]')?.value === id, q.id);
@@ -64,7 +64,7 @@ async function api(method, path, data, credential = token) {
     await page.locator('nav [aria-current="page"]').filter({ hasText: 'Projects' }).waitFor();
     assert.deepEqual(await page.evaluate(() => [state.tab, state.projectId, state.ticketId]), ['projects', null, null]);
     await page.goBack();
-    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Workspace' }).waitFor();
+    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Needs you' }).waitFor();
     assert.deepEqual(await page.evaluate(() => [state.tab, state.projectId, state.ticketId]), ['workspace', null, null]);
     await page.goForward();
     await page.locator('nav [aria-current="page"]').filter({ hasText: 'Projects' }).waitFor();
@@ -72,7 +72,7 @@ async function api(method, path, data, credential = token) {
     await page.goForward();
     await page.waitForFunction(id => document.querySelector('[name="project-switch"]')?.value === id, q.id);
     await page.goto(base + `/?tab=invalid&project=&ticket=`);
-    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Workspace' }).waitFor();
+    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Needs you' }).waitFor();
     assert.deepEqual(await page.evaluate(() => [state.tab, state.projectId, state.ticketId]), ['workspace', null, null]);
     await page.goto(base + `/?tab=people&project=${p.id}`);
     await page.getByRole('heading', { name: /^People on this project/ }).waitFor();
@@ -120,10 +120,11 @@ async function api(method, path, data, credential = token) {
     await page.locator('[name="t-title"]').fill('Beta draft');
     await page.locator('[name="project-switch"]').selectOption(p.id);
     await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
-    await page.getByRole('button', { name: 'Activity', exact: true }).click();
+    await page.getByRole('button', { name: 'Runs', exact: true }).click();
     await page.getByRole('button', { name: 'Board', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
     console.log('PASS project-scoped drafts and round-trip navigation');
+    assert(await page.locator('.board').evaluate(e => e.clientHeight >= 300), 'New task form keeps the board reachable');
     // Actual reported commits are visible from Board details.
     await api('PUT', `/projects/${p.id}/tickets/${k.id}/git`, { commits: [{ sha: 'a'.repeat(40), subject: 'Verified browser commit', author: 'Ada', committedAt: new Date().toISOString() }], pullRequest: { number: 7, url: 'https://github.com/acme/shop/pull/7', state: 'open', draft: true, mergeable: 'conflicting', baseBranch: 'main', ahead: 8, behind: 3 } });
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
@@ -156,6 +157,7 @@ async function api(method, path, data, credential = token) {
     await page.getByText(/pull request is still open/).first().waitFor();
     assert.equal(await page.getByRole('button', { name: 'Mark done', exact: true }).first().isDisabled(), true);
     console.log('PASS consistent open-PR completion restriction in Board and Reviews');
+    await page.getByRole('button', { name: 'Open project ' + p.name, exact: true }).click();
     await page.getByRole('button', { name: 'Board', exact: true }).click();
     await page.locator('[name="t-title"]').waitFor();
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
@@ -163,44 +165,46 @@ async function api(method, path, data, credential = token) {
     await page.locator('.ticket').getByRole('button', { name: 'Close', exact: true }).focus();
     await page.keyboard.press('Escape');
     await page.locator('.ticket').waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: 'Cancel new ticket', exact: true }).click();
+    await page.getByRole('button', { name: 'Cancel new task', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     const boardBounds = await page.locator('.board').boundingBox();
     assert.ok(boardBounds.width > 1000 && boardBounds.y + boardBounds.height > 940, 'the board fills available desktop width and height');
-    await primary.getByRole('button', { name: 'Git', exact: true }).click();
-    await page.getByRole('heading', { name: 'Git', exact: true }).waitFor();
+    await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: /^Git(?: \d+)?$/ }).click();
+    await page.locator('[name="project-tab-repository"][aria-current="page"]').waitFor();
     await page.getByRole('button', { name: 'Open project ' + q.name, exact: true }).click();
     await page.waitForFunction(id => state.tab === 'repository' && state.projectId === id && state.data?.id === id, q.id);
     await page.getByRole('button', { name: 'Open project ' + p.name, exact: true }).click();
     await page.waitForFunction(id => state.tab === 'repository' && state.projectId === id && state.data?.id === id, p.id);
-    await primary.getByRole('button', { name: 'Board', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Board', exact: true }).click();
     console.log('PASS N / Escape shortcuts, viewport-sized board and project switching that keeps the Git section');
-    for (let i = 0; i < 10; i++) await api('POST', `/projects/${p.id}/tickets`, { title: `Kanban scroll fixture ${i}`, status: 'backlog' });
-    await page.getByRole('region', { name: 'Backlog', exact: true }).getByRole('button', { name: 'Kanban scroll fixture 9', exact: true }).waitFor();
+    for (let i = 0; i < 30; i++) await api('POST', `/projects/${p.id}/tickets`, { title: `Kanban scroll fixture ${i}`, status: 'backlog' });
+    await page.getByRole('region', { name: 'Backlog', exact: true }).getByRole('button', { name: 'Kanban scroll fixture 29', exact: true }).waitFor();
     await require('./browser-kanban.cjs')(page, 5, artifacts, 'team');
     let dragged = await api('POST', `/projects/${p.id}/tickets`, { title: 'Team drag fixture', description: 'Keep this context', status: 'backlog' });
-    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
+    await page.getByRole('button', { name: dragged.title, exact: true }).waitFor();
     const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/assign'));
-    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).locator('..').dragTo(page.getByRole('region', { name: 'In Progress', exact: true }));
+    await page.getByRole('button', { name: dragged.title, exact: true }).locator('..').dragTo(page.getByRole('region', { name: 'In Progress', exact: true }));
     assert.equal((await assignResponse).status(), 200);
-    await page.getByRole('region', { name: 'In Progress', exact: true }).getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
+    await page.getByRole('region', { name: 'In Progress', exact: true }).getByRole('button', { name: dragged.title, exact: true }).waitFor();
     dragged = await api('GET', `/projects/${p.id}/tickets/${dragged.id}`);
     assert.equal(dragged.status, 'in_progress');
-    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
+    await page.getByRole('button', { name: dragged.title, exact: true }).click();
+    await page.locator('.ticket').getByText('More actions', { exact: true }).click();
     await page.getByRole('button', { name: 'Archive ticket', exact: true }).click();
     await page.getByRole('button', { name: 'Restore ticket', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: /^Archive \(/ }).click();
-    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
+    await page.locator('.archive-list').getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
     await page.getByRole('button', { name: 'Back to board', exact: true }).click();
     await api('POST', `/projects/${p.id}/tickets/${dragged.id}/submit`, {});
     await api('POST', `/projects/${p.id}/tickets/${dragged.id}/complete`, {});
     await page.getByRole('button', { name: 'Archive Done tickets', exact: true }).click();
     await page.getByRole('button', { name: /^Archive \(/ }).click();
-    await page.getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
+    await page.locator('.archive-list').getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
     await page.getByText('Keep this context', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Restore ticket', exact: true }).click();
+    await page.locator('.ticket').getByText('More actions', { exact: true }).click();
     await page.getByRole('button', { name: 'Archive ticket', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Back to board', exact: true }).click();
@@ -220,7 +224,7 @@ async function api(method, path, data, credential = token) {
     await page.getByRole('region', { name: 'Review', exact: true }).waitFor({ state: 'visible' });
     for (const tab of ['workspace', 'projects', 'repository']) {
         await page.goto(base + `/?tab=${tab}&project=${p.id}`);
-        await page.locator('header.top').waitFor();
+        await page.getByRole('heading', {level:1}).waitFor();
         if (tab === 'workspace') await page.getByRole('region', { name: 'Working now', exact: true }).waitFor();
         if (tab === 'repository') {
             const sections = page.getByRole('navigation', { name: 'Repository sections' });
@@ -241,4 +245,4 @@ async function api(method, path, data, credential = token) {
     console.log('PASS desktop/mobile layout, no JavaScript errors');
     await browser.close();
     console.log('Artifacts: ' + artifacts);
-})().catch(e => { console.error(e.message); process.exit(1); });
+})().catch(e => { console.error(e.stack || e.message); process.exit(1); });
