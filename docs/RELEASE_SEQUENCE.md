@@ -31,8 +31,8 @@ The release sequence is a display label for this product’s published history. 
 ```
 
 Preserve the existing release notes below that introduction. The publishing workflow
-currently creates titles from tags, so the publishing agent must apply the reserved
-title and introduction when preparing a draft or after automation creates a release.
+reads the reserved display sequence from this table when assembling the draft.
+The original build version remains derived from the tag.
 Editing presentation must preserve tags, publication dates, prerelease status, assets
 and latest selection. Only stable unified Werkbord releases may become latest.
 
@@ -74,5 +74,6 @@ is not proof that a release is installable.
 | Individual | `werkbord-v4.24.6` | `0.8.0` | Published stable; signed Mac app and macOS/Linux/Windows CLI archives |
 | Individual | `werkbord-v4.25.0` | — | Unpublished; superseded by 4.28.4 |
 | Individual | `werkbord-v4.28.4` | `0.9.0` | Unpublished; superseded by 4.28.5-preview.1; stable display number remains reserved |
-| Individual | `werkbord-v4.28.5-preview.1` | `0.9.0-preview.1` | Unpublished; CI browser fixture lacked a Git committer identity; superseded by preview.2 |
-| Individual | `werkbord-v4.28.5-preview.2` | `0.9.0-preview.2` | Reserved public signed macOS preview; Team production admission remains blocked |
+| Individual | `werkbord-v4.28.5-preview.1` | — | Unpublished; CI browser fixture lacked a Git committer identity; superseded by preview.2 |
+| Individual | `werkbord-v4.28.5-preview.2` | — | Unpublished; desktop browser fixture used an obsolete invitation label; superseded by preview.3 |
+| Individual | `werkbord-v4.28.5-preview.3` | `0.9.0-preview.1` | Reserved public signed macOS preview; Team production admission remains blocked |

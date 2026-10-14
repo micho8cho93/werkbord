@@ -138,7 +138,7 @@ if release
     check(stable_draft["if"].to_s.include?("desktop"), "a desktop tag can create the public release draft")
     check(perms(stable_draft, release) == { "contents" => "write" }, "desktop-draft is the release asset publisher")
     steps = JSON.generate(stable_draft["steps"])
-    check(steps.include?("Release sequence:") && steps.include?("0.9.0") && steps.include?("Original build version:") && steps.include?("$version") && steps.include?("$sequence") && steps.include?("--prerelease"), "release notes use the reserved display sequence and tag-derived build version")
+    check(steps.include?("Release sequence:") && steps.include?("docs/RELEASE_SEQUENCE.md") && steps.include?("Original build version:") && steps.include?("$version") && steps.include?("$sequence") && steps.include?("--prerelease"), "release notes use the reserved display sequence and tag-derived build version")
     check(steps.include?("--draft") && steps.include?("--latest=false"), "stable release is drafted without becoming latest")
     check(!steps.include?("assets/linux") && !steps.include?("assets/windows"), "the release gathers only macOS assets")
     check(steps.include?("Standalone Team Host archives must not be published"), "the release rejects standalone Team Host archives")
@@ -173,7 +173,7 @@ if release
 end
 
 sequence_doc = File.read("docs/RELEASE_SEQUENCE.md")
-check(sequence_doc.include?("werkbord-v4.28.5-preview.1") && sequence_doc.include?("0.9.0-preview.1") && sequence_doc.include?("Reserved public signed"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
+check(sequence_doc.include?("werkbord-v4.28.5-preview.3") && sequence_doc.include?("0.9.0-preview.1") && sequence_doc.include?("Reserved public signed"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
 
 check(!workflows.key?("#{DIR}/release-team-desktop.yml"), "there is no separate Team release workflow")
 if $failures.empty?

@@ -223,10 +223,11 @@ jobs:
           set -euo pipefail
           version=${GITHUB_REF_NAME#werkbord-v}
           prerelease=false
-          sequence=0.9.0
+          sequence=$(awk -F '|' -v tag="$GITHUB_REF_NAME" '{ build=$3; gsub(/[[:space:]`]/,"",build); if (build==tag) { display=$4; gsub(/[[:space:]`]/,"",display); print display } }' docs/RELEASE_SEQUENCE.md)
+          printf '%s\n' "$sequence" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-preview\.[1-9][0-9]*)?$' || { echo 'Missing or invalid reserved release display sequence' >&2; exit 1; }
           qualifier=""
           case "$version" in
-            *-preview.*) prerelease=true; sequence="0.9.0-preview.${version##*-preview.}"; qualifier=" (macOS preview)" ;;
+            *-preview.*) prerelease=true; qualifier=" (macOS preview)" ;;
             *) scripts/check-team-production-gate.sh "$version" ;;
           esac
           mkdir release-assets
