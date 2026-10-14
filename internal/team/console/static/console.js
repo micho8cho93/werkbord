@@ -1772,51 +1772,81 @@ function timelineTab(d) {
 }
 
 // Read-only snapshots: live board updates do not repeat aggregation queries.
-const analyticsState = { project: '', days: 30, appliedProject: '', appliedDays: 30, report: null, key: '', visibility: '' };
+const analyticsState = { view: 'Activity', scopes: Object.fromEntries(['Activity', 'Categories', 'Completion'].map(view => [view, { project: '', days: 30, appliedProject: '', appliedDays: 30 }])), report: null, key: '', visibility: '', series: 'both', metric: 'completed', category: '' };
 async function analyticsView() {
-  // Membership changes invalidate the snapshot so removed projects never remain visible.
   const visibility = state.me.member.role + '/' + state.ov.projects.map(x => x.project.id + ':' + x.role + ':' + x.member).join(',');
   if (analyticsState.visibility && analyticsState.visibility !== visibility) {
-    analyticsState.project = '';
-    analyticsState.appliedProject = '';
+    for (const scope of Object.values(analyticsState.scopes)) { scope.project = ''; scope.appliedProject = ''; }
     analyticsState.report = null;
+    analyticsState.category = '';
   }
   analyticsState.visibility = visibility;
-  const key = analyticsState.appliedProject + '/' + analyticsState.appliedDays;
-  const scopedKey = key + '/' + visibility;
+  const scope = analyticsState.scopes[analyticsState.view];
+  const scopedKey = scope.appliedProject + '/' + scope.appliedDays + '/' + visibility;
   if (!analyticsState.report || analyticsState.key !== scopedKey) {
-    analyticsState.report = await api('GET', '/analytics?' + new URLSearchParams({ project: analyticsState.appliedProject, days: String(analyticsState.appliedDays) }));
+    analyticsState.report = await api('GET', '/analytics?' + new URLSearchParams({ project: scope.appliedProject, days: String(scope.appliedDays) }));
     analyticsState.key = scopedKey;
   }
   const r = analyticsState.report;
-  const hasThroughput = r.days.some(d => d.created || d.completed);
-  const project = h('select', { 'aria-label': 'Analytics project', onchange: e => { analyticsState.project = e.target.value; } },
-    h('option', { value: '' }, 'All projects you can read'), (analyticsState.report?.projects || []).map(x => h('option', { value: x.id, selected: analyticsState.project === x.id }, x.name)));
-  const range = h('select', { 'aria-label': 'Analytics time range', onchange: e => { analyticsState.days = Number(e.target.value); } },
-    [7, 30, 90].map(n => h('option', { value: String(n), selected: analyticsState.days === n }, 'Last ' + n + ' days')));
+  const chooseView = view => { analyticsState.view = view; return render(); };
+  const tabs = h('div', { class: 'analytics-tabs', role: 'tablist', 'aria-label': 'Analytics views' }, ['Activity', 'Categories', 'Completion'].map((view, i, views) => h('button', {
+    id: 'analytics-tab-' + view, type: 'button', role: 'tab', 'aria-selected': String(analyticsState.view === view), 'aria-controls': 'analytics-panel', tabindex: analyticsState.view === view ? '0' : '-1',
+    onclick: () => chooseView(view), onkeydown: e => {
+      if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
+      e.preventDefault();
+      const next = views[e.key === 'Home' ? 0 : e.key === 'End' ? views.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + views.length) % views.length];
+      chooseView(next).then(() => document.getElementById('analytics-tab-' + next)?.focus());
+    },
+  }, view)));
+  const project = h('select', { 'aria-label': 'Analytics project', onchange: e => { scope.project = e.target.value; } },
+    h('option', { value: '', selected: !scope.project }, 'All projects you can read'), r.projects.map(x => h('option', { value: x.id, selected: scope.project === x.id }, x.name)));
+  const range = h('select', { 'aria-label': 'Analytics time range', onchange: e => { scope.days = Number(e.target.value); } },
+    [7, 30, 90].map(n => h('option', { value: String(n), selected: scope.days === n }, 'Last ' + n + ' days')));
+  const select = (label, value, choices, change) => h('label', {}, label + ' ', h('select', { 'aria-label': label, onchange: e => { change(e.target.value); render(); } }, choices.map(([id, name]) => h('option', { value: id, selected: id === value }, name))));
   const duration = seconds => seconds == null ? 'No samples' : seconds < 60 ? Math.round(seconds) + 's' : seconds < 3600 ? (seconds / 60).toFixed(1) + 'm' : seconds < 86400 ? (seconds / 3600).toFixed(1) + 'h' : (seconds / 86400).toFixed(1) + 'd';
-  const max = Math.max(1, ...r.days.flatMap(d => [d.created, d.completed]));
-  const chart = h('div', { class: 'analytics-chart', role: 'img', 'aria-label': 'Daily ticket counts; exact values are in Daily values below.' },
-    r.days.map(d => {
-      const created = h('span', { class: 'analytics-created' }); created.style.height = d.created / max * 100 + '%';
-      const done = h('span', { class: 'analytics-done' }); done.style.height = d.completed / max * 100 + '%';
-      return h('div', { class: 'analytics-day', title: d.date + ': ' + d.created + ' created, ' + d.completed + ' completed' }, h('div', { class: 'analytics-bars' }, created, done), h('span', {}, d.date.slice(5)));
+  const stats = rows => h('dl', { class: 'analytics-statistics' }, rows.map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value)))));
+  const table = (head, rows) => h('div', { class: 'scroll', role: 'region', 'aria-label': head.join(', '), tabindex: '0' }, h('table', {}, h('thead', {}, h('tr', {}, head.map(label => h('th', {}, label)))), h('tbody', {}, rows.map(row => h('tr', {}, row.map(cell => h('td', {}, String(cell))))))));
+  const comparison = rows => {
+    const max = Math.max(1, ...rows.map(row => row[1]));
+    return h('div', { class: 'analytics-comparison' }, rows.map(([label, value, detail, tone]) => {
+      const fill = h('span', {}); fill.style.width = value / max * 100 + '%'; fill.style.background = tone || 'var(--accent)';
+      return h('div', {}, h('div', { class: 'analytics-caption' }, h('span', {}, label), h('strong', {}, String(value))), h('div', { class: 'analytics-track', 'aria-hidden': 'true' }, fill), detail ? h('p', { class: 'muted small' }, detail) : '');
     }));
-  const table = (head, rows) => h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, head.map(label => h('th', {}, label)))), h('tbody', {}, rows.map(row => h('tr', {}, row.map(cell => h('td', {}, String(cell))))))));
-  return h('div', { class: 'coordination-analytics' },
-    h('div', { class: 'analytics-filters' }, h('label', {}, 'Project ', project), h('label', {}, 'Time range ', range), h('button', { type: 'button', class: 'plain', onclick: () => { analyticsState.appliedProject = analyticsState.project; analyticsState.appliedDays = analyticsState.days; analyticsState.report = null; render(); } }, 'Apply / refresh')),
-    h('p', { class: 'muted' }, 'As of ' + new Date(r.end).toLocaleString() + '.'),
-    r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Partial history: the bounded read omitted records or projects. Counts may be lower than the full history.') : '',
-    h('dl', { class: 'analytics-statistics' }, [['Tickets created', r.created], ['Completed tickets', r.completed], ['Average duration', duration(r.averageTicketSeconds)], ['Median duration', duration(r.medianTicketSeconds)]].map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value))))),
-    h('p', { class: 'muted small' }, 'Duration includes waiting · ' + r.durationSamples + ' samples.'),
-    h('section', {}, h('h2', {}, 'Created and completed over time'), hasThroughput
-      ? [h('p', { class: 'muted small' }, 'UTC days'), h('div', { class: 'scroll' }, chart),
-        h('details', {}, h('summary', {}, 'Daily values'), table(['UTC date', 'Created', 'Completed'], r.days.map(d => [d.date, d.created, d.completed])))]
-      : h('p', { class: 'muted' }, 'No ticket activity in this period.')),
-    h('details', { class: 'analytics-disclosure' }, h('summary', {}, 'Coordination details'),
-      h('p', {}, r.humanCompletionDecisions + ' human completion decisions; reopened tickets count once. Team records coordination only and does not run agents or verify correctness.')),
-    h('details', { class: 'analytics-disclosure' }, h('summary', {}, 'Work categories'), r.categories.length ? table(['Current label', 'Created', 'Completed'], r.categories.map(c => [c.name, c.created, c.completed])) : h('p', { class: 'muted' }, 'No ticket activity matches this view.'),
-      h('p', { class: 'muted small' }, 'Tickets with multiple labels appear in each category.')));
+  };
+  let body, extras = '';
+  if (analyticsState.view === 'Activity') {
+    extras = select('Activity chart series', analyticsState.series, [['both', 'Created and completed'], ['created', 'Created'], ['completed', 'Completed']], value => analyticsState.series = value);
+    const max = Math.max(1, ...r.days.flatMap(d => analyticsState.series === 'both' ? [d.created, d.completed] : [d[analyticsState.series]]));
+    const chart = h('div', { class: 'analytics-chart', role: 'img', 'aria-label': 'Daily ticket counts; exact values are in Daily values below.' }, r.days.map((d, i) => {
+      const created = h('span', { class: 'analytics-created', hidden: analyticsState.series === 'completed' }); created.style.height = d.created / max * 100 + '%';
+      const done = h('span', { class: 'analytics-done', hidden: analyticsState.series === 'created' }); done.style.height = d.completed / max * 100 + '%';
+      return h('div', { class: 'analytics-day', title: d.date + ': ' + d.created + ' created, ' + d.completed + ' completed' }, h('div', { class: 'analytics-bars' }, created, done), h('span', {}, i % Math.ceil(r.days.length / 6) === 0 || i === r.days.length - 1 ? d.date.slice(5) : ''));
+    }));
+    body = [stats([['Tickets created', r.created], ['Completed tickets', r.completed], ['Median duration', duration(r.medianTicketSeconds)], ['Duration samples', r.durationSamples]]),
+      h('p', { class: 'muted small' }, 'Duration includes waiting, from creation to first completion. Average: ' + duration(r.averageTicketSeconds) + '.'),
+      h('section', {}, h('h2', {}, 'Created and completed over time'), r.days.some(d => d.created || d.completed)
+        ? [h('p', { class: 'analytics-legend muted small' }, h('span', {}, h('span', { class: 'analytics-key analytics-created' }), ' Created'), h('span', {}, h('span', { class: 'analytics-key analytics-done' }), ' Completed'), h('span', {}, 'UTC days · peak ' + max + ' tickets')), chart,
+          h('details', {}, h('summary', {}, 'Daily values'), table(['UTC date', 'Created', 'Completed'], r.days.map(d => [d.date, d.created, d.completed])))]
+        : h('p', { class: 'muted' }, 'No ticket activity in this period. Try a longer time range or another project.'))];
+  } else if (analyticsState.view === 'Categories') {
+    extras = [select('Category measure', analyticsState.metric, [['completed', 'Completed'], ['created', 'Created']], value => analyticsState.metric = value),
+      select('Work category', analyticsState.category, [['', 'All categories'], ...r.categories.map(c => [c.labelId, c.name]), ...(analyticsState.category && !r.categories.some(c => c.labelId === analyticsState.category) ? [[analyticsState.category, 'Selected category (not in this snapshot)']] : [])], value => analyticsState.category = value)];
+    const categories = r.categories.filter(c => !analyticsState.category || c.labelId === analyticsState.category).sort((a, b) => b[analyticsState.metric] - a[analyticsState.metric]);
+    body = [h('section', {}, h('h2', {}, 'Work by category'), h('p', { class: 'muted small' }, 'Current ticket labels. Tickets with multiple labels appear in each category; category totals are not unique ticket counts.'),
+      categories.length ? comparison(categories.map(c => [c.name, c[analyticsState.metric], c.created + ' created · ' + c.completed + ' completed', analyticsState.metric === 'completed' ? 'var(--ok)' : 'var(--accent)']))
+        : h('p', { class: 'muted' }, 'No ticket activity matches this category. Try another category, project or time range.')),
+      h('details', {}, h('summary', {}, 'Category values'), table(['Current label', 'Created', 'Completed'], categories.map(c => [c.name, c.created, c.completed])))];
+  } else {
+    body = [stats([['Completed tickets', r.completed], ['Human completion decisions', r.humanCompletionDecisions], ['Median duration', duration(r.medianTicketSeconds)], ['Duration samples', r.durationSamples]]),
+      h('section', {}, h('h2', {}, 'Recorded completion signals'), comparison([['Completed tickets', r.completed, 'First recorded completion in the selected period', 'var(--ok)'], ['Human completion decisions', r.humanCompletionDecisions, 'Reopened tickets count once', 'var(--accent)']]),
+        h('p', { class: 'muted small' }, 'These are separate coordination signals, not steps of a funnel or verification of correctness.')),
+      h('details', { class: 'analytics-disclosure' }, h('summary', {}, 'Coordination details'), h('p', {}, 'Team records coordination only. Execution history, agent usage and verified local merges live in Individual analytics.'))];
+  }
+  return h('div', { class: 'coordination-analytics' }, tabs,
+    h('div', { id: 'analytics-panel', role: 'tabpanel', 'aria-labelledby': 'analytics-tab-' + analyticsState.view, tabindex: '0' },
+      h('div', { class: 'analytics-filters' }, h('label', {}, 'Project ', project), h('label', {}, 'Time range ', range), extras, h('button', { type: 'button', class: 'plain', onclick: () => { scope.appliedProject = scope.project; scope.appliedDays = scope.days; analyticsState.report = null; render(); } }, 'Apply / refresh')),
+      h('p', { class: 'muted small' }, 'As of ' + new Date(r.end).toLocaleString() + ' · ' + (r.projects.find(p => p.id === scope.appliedProject)?.name || 'All projects you can read') + ' · ' + scope.appliedDays + ' days. Project and time range take effect with Apply / refresh.'),
+      r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Partial history: the bounded read omitted records or projects. Counts may be lower than the full history.') : '', body));
 }
 
 const timelineTooltip = h('div', { class: 'timeline-tooltip', role: 'tooltip', hidden: true });

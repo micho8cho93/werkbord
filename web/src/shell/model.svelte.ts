@@ -40,8 +40,8 @@ const OVERVIEW_EVERY = 10000;
 export class Model {
   view = $state<WorkspaceView | null>(null);
   overview = $state<Overview | null>(null);
-  page = $state<Page>('workspace');
-  universal = $state(false);
+  page = $state<Page>('mywork');
+  universal = $state(true);
   /** The workspace the Workspace page shows. */
   current = $state('personal');
   frames = $state<Record<string, OpenFrame>>({});
@@ -177,11 +177,11 @@ export class Model {
     }
   }
 
-  /** Starts the shell: opens the workspace the person left open, if they can still get into it, otherwise Individual. */
+  /** Starts every window on Universal → My Work; workspace places remain available when explicitly opened. */
   async start(): Promise<void> {
     await this.refresh();
-    const first = this.view?.selected ?? 'personal';
-    await this.open(first).catch((e: Error) => (this.error = e.message));
+    this.page = 'mywork';
+    this.universal = true;
     this.loaded = true;
     void this.refreshOverview();
     this.timers.push(
@@ -213,7 +213,7 @@ export class Model {
       }
       // Removed/revoked workspace content must disappear, including old aggregate rows.
       if (this.overview) this.overview.entries = this.accessibleEntries(this.overview);
-      if (this.loaded && !this.frames[this.current] && this.current !== 'personal') await this.open('personal');
+      if (this.loaded && this.page === 'workspace' && !this.frames[this.current] && this.current !== 'personal') await this.open('personal');
     } catch (e) {
       this.error = (e as Error).message;
     }
@@ -294,6 +294,7 @@ export class Model {
       this.places[target.id] = target.place || '';
       await this.refresh();
       this.current = target.id;
+      this.universal = false;
       this.page = 'workspace';
       this.closeSwitcher();
       this.addOpen = false;

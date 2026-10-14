@@ -54,10 +54,12 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const switchUniversal = async () => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="universal"]').click(); };
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
  const switchTo = async (id) => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
- await page.goto(origin + '/shell/shell/index.html'); await page.locator('iframe[data-workspace=personal]').waitFor();
+ await page.goto(origin + '/shell/shell/index.html'); await page.getByRole('heading', { name: 'My Work', exact: true }).waitFor();
+ assert.equal(await page.locator('iframe[data-workspace]').count(), 0, 'startup opens Universal without restoring a workspace frame');
  const shellSkip = page.getByRole('link', { name: 'Skip to main content', exact: true }); await page.keyboard.press('Tab'); assert.equal(await shellSkip.evaluate(el => el === document.activeElement), true, 'shell skip link is first in the page focus order');
  assert((await shellSkip.boundingBox()).y >= 0, 'shell skip link is visible when focused'); await page.keyboard.press('Enter');
  assert.equal(await page.locator('#shell-main').evaluate(el => el === document.activeElement), true, 'shell skip link moves focus to its main work region');
+ await switchTo('personal');
  for (const section of ['Overview', 'Board', 'Git', 'Runs']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
  // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');
@@ -283,9 +285,11 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.setViewportSize({ width: 1440, height: 1000 });
  console.log('PASS workspaces and devices page in desktop/mobile shell');
  console.log('PASS persistent frames, member restrictions, hosting offer and background run through switching');
- await page.reload(); await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' }); await firstFrame.getByRole('button', { name: 'Agent controls', exact: true }).click(); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
+ await page.reload(); await page.getByRole('heading', { name: 'My Work', exact: true }).waitFor(); await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Agent controls', exact: true }).click(); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  await page.close(); assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'closing frontend leaves runner alive');
- const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
+ const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'My Work', exact: true }).waitFor();
+ assert.equal(await reopened.locator('iframe[data-workspace]').count(), 0, 'reopening also starts on Universal after Team was selected');
+ await reopened.getByTestId('workspace-switcher').click(); await reopened.getByTestId('switcher-menu').locator('[data-workspace="team:main"]').click(); await reopened.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/stop`, {});
  // Leaving the second team removes only that membership and keeps Individual + first team.
  const state = await secondDev('GET', '/state'); const caps = await otherTeam('GET', '/devices'); const device = caps.find(d => d.id === state.deviceId); assert(!device.capabilities.includes('workspace_host'));

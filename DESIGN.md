@@ -302,3 +302,21 @@ file drill-downs rather than treating the overview as evidence for text hidden e
 - A branch detail view leads with Review changes. Branch actions is a keyboard-operable native disclosure for merge,
   push, cleanup and less frequent operations; task and run destinations appear once as working links. Repository
   confirmations and cancellation remain available inside it.
+
+### Analytics views
+
+Individual analytics uses Activity, Execution, Usage and Completion tabs. Activity compares created tasks and moves to
+Done over UTC days; Execution compares run outcomes; Usage compares measured tokens or API costs with reporting coverage;
+Completion keeps recorded assessments and separate completion signals visible. Each tab retains its own project and
+period filters. Provider filters belong to execution, usage and completion; runner filters apply to execution and usage.
+Activity's series choice and Usage's measure choice change the chart, rather than the underlying report scope. Exact daily
+values, execution breakdowns and complementary evidence remain in disclosures. Unknown measurements remain distinct
+from reported zero, and cost estimates are separate from reported costs.
+
+Team analytics uses Activity, Categories and Completion tabs, each with its own project and period. Category comparisons
+use current labels and explain that tickets may appear in multiple categories. Team exposes coordination evidence only.
+Project and period filters keep the console's explicit Apply / refresh snapshot behaviour. Both tab bars support arrows,
+Home and End, show selected state and retain visible labels at narrow widths.
+
+Every desktop window opens on Universal → My Work. Stored workspace locations remain available when a person explicitly
+opens that workspace; they do not choose the startup surface.

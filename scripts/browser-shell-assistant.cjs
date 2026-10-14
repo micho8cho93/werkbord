@@ -126,6 +126,9 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         page.setDefaultTimeout(15000);
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');
+        await page.getByRole('heading', { name: 'My Work', exact: true }).waitFor();
+        await page.getByTestId('workspace-switcher').click();
+        await page.getByTestId('switcher-menu').locator('[data-workspace=personal]').click();
         await page.locator('iframe[data-workspace=personal]').waitFor();
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();
         return { ctx, page };

@@ -77,7 +77,7 @@ describe('the assistant’s frame', () => {
     expect(model.assistantAsk).toEqual({ action: 'open', rect: button });
     // It is not one of the workspaces’ frames, and nothing the person was looking at is changed.
     expect(model.frames).toEqual({});
-    expect(model.page).toBe('workspace');
+    expect(model.page).toBe('mywork');
     expect(model.current).toBe('personal');
   });
 
@@ -156,5 +156,25 @@ describe('the assistant’s frame', () => {
     model.assistantAsk = null;
     model.go('mywork');
     expect(model.assistantAsk).toMatchObject({ action: 'close' });
+  });
+});
+
+
+describe('startup', () => {
+  it('opens Universal My Work even when the saved workspace is Team, without selecting a workspace', async () => {
+    const model = new Model();
+    const open = vi.fn();
+    native.app.OpenWorkspace = open;
+    native.app.Workspaces = async () => ({ ...view([individual, team]), selected: team.id });
+    native.app.Overview = async () => ({ entries: [], at: '' });
+    try {
+      await model.start();
+      expect(model.page).toBe('mywork');
+      expect(model.universal).toBe(true);
+      expect(open).not.toHaveBeenCalled();
+      expect(model.frames).toEqual({});
+      await model.refresh();
+      expect(model.page).toBe('mywork');
+    } finally { model.stop(); }
   });
 });
