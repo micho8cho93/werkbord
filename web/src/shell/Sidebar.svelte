@@ -295,9 +295,9 @@
     width: 100%;
     min-height: 32px;
     padding: 0 8px;
-    border: 1px solid var(--border);
+    border: 0;
     border-radius: var(--radius-sm);
-    background: var(--bg);
+    background: transparent;
     color: var(--text-2);
     font: inherit;
     font-size: 13px;
