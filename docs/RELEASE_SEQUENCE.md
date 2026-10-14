@@ -78,4 +78,5 @@ is not proof that a release is installable.
 | Individual | `werkbord-v4.28.5-preview.2` | — | Unpublished; desktop browser fixture used an obsolete invitation label; superseded by preview.3 |
 | Individual | `werkbord-v4.28.5-preview.3` | — | Unpublished signed draft; publish job lacked repository context; superseded by preview.4 |
 | Individual | `werkbord-v4.28.5-preview.4` | — | Unpublished; timing-sensitive Git evidence assertion; superseded by preview.5 |
-| Individual | `werkbord-v4.28.5-preview.5` | `0.9.0-preview.1` | Reserved public signed macOS preview; Team production admission remains blocked |
+| Individual | `werkbord-v4.28.5-preview.5` | — | Unpublished; public verifier did not retry an Apple ticket-service network error; superseded by preview.6 |
+| Individual | `werkbord-v4.28.5-preview.6` | `0.9.0-preview.1` | Reserved public signed macOS preview; Team production admission remains blocked |

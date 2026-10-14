@@ -256,9 +256,10 @@ release() {
     (cd "$rel" && shasum -a 256 Werkbord_1.2.3_darwin_universal.zip > Werkbord_1.2.3_darwin_universal.zip.sha256)
   fi
 }
-verify() { # <dir> [tag]: runs the check against the release page in <dir>, with Apple's tools as fakes that accept
-  d=$1; tag=${2:-werkbord-v1.2.3}
-  RC=0; OUT=$(FAKE_MODE=accepted CODESIGN="$SHIM" WERKBORD_RELEASE_BASE="file://$d" scripts/verify-desktop-release.sh "$tag" 2>&1) || RC=$?
+verify() { # <dir> [tag] [mode]: runs the check against the release page in <dir>, with Apple's tools as fakes
+  d=$1; tag=${2:-werkbord-v1.2.3}; mode=${3:-accepted}
+  : > "$FAKE_LOG"
+  RC=0; OUT=$(FAKE_MODE=$mode STAPLER_RETRY_SLEEP=0 CODESIGN="$SHIM" WERKBORD_RELEASE_BASE="file://$d" scripts/verify-desktop-release.sh "$tag" 2>&1) || RC=$?
 }
 
 release "$WORK/good" 1.2.3 1.2.3
@@ -270,6 +271,18 @@ done
 [ "$(calls | grep -c 'xattr -w com.apple.quarantine')" = 2 ] || bad "the verifier must mark both DMG and copied app as downloaded" "$(calls)"
 ok "a good release passes every check, and the report says what was checked"
 contains "$(calls)" "stapler validate" && contains "$(calls)" "spctl --assess --type execute" || bad "the staple and Gatekeeper were asked about"
+
+verify "$WORK/good" werkbord-v1.2.3 validate-flaky
+[ $RC = 0 ] || bad "the release verifier should recover from Apple's transient ticket lookup error" "$OUT"
+[ "$(calls | grep -c 'stapler validate')" = 5 ] || bad "the release verifier must retry ticket lookup before continuing through the app and update archive" "$(calls)"
+contains "$OUT" "retrying validation (2/3)" || bad "the release verifier should report the retry" "$OUT"
+ok "the release verifier retries transient ticket-service network errors and then verifies the full release"
+
+verify "$WORK/good" werkbord-v1.2.3 validate-down
+[ $RC -ne 0 ] && contains "$OUT" "no valid notarization ticket stapled" || bad "the release verifier must fail closed when Apple's ticket service stays unavailable" "$OUT"
+[ "$(calls | grep -c 'stapler validate')" = 3 ] || bad "the release verifier must stop after three ticket lookups" "$(calls)"
+if contains "$(calls)" "spctl --assess"; then bad "Gatekeeper must not run after ticket validation remains unavailable" "$(calls)"; fi
+ok "the release verifier stops after three unsuccessful network retries and never treats the ticket as valid"
 
 release "$WORK/wrongprogram" 1.2.3 1.2.4
 verify "$WORK/wrongprogram"

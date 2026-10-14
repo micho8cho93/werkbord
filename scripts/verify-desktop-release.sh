@@ -26,7 +26,8 @@
 # copies is removed.
 #
 # Environment (for tests and mirrors): WERKBORD_RELEASE_BASE (default the GitHub releases' download
-# address), DESKTOP_ARCH (default universal), and the programs it runs: CURL, XCRUN, SPCTL, CODESIGN, HDIUTIL.
+# address), DESKTOP_ARCH (default universal), STAPLER_RETRY_SLEEP (default 10 seconds), and the programs it runs:
+# CURL, XCRUN, SPCTL, CODESIGN, HDIUTIL.
 set -eu
 
 die() { printf 'verify-desktop-release: FAILED: %s\n' "$*" >&2; exit 1; }
@@ -47,6 +48,7 @@ XCRUN=${XCRUN:-xcrun}
 SPCTL=${SPCTL:-spctl}
 CODESIGN=${CODESIGN:-codesign}
 HDIUTIL=${HDIUTIL:-hdiutil}
+STAPLER_RETRY_SLEEP=${STAPLER_RETRY_SLEEP:-10}
 root=$(cd "$(dirname "$0")/.." && pwd)
 
 WORK=$(mktemp -d)
@@ -56,6 +58,22 @@ cleanup() {
   rm -rf "$WORK"
 }
 trap cleanup EXIT INT TERM
+
+# stapler can lose its connection to Apple's ticket service just after notarization succeeded. Retry only those
+# network errors; a missing or invalid ticket still fails immediately and never reaches Gatekeeper or execution.
+validate_stapled_ticket() {
+  path=$1
+  attempt=0
+  while :; do
+    attempt=$((attempt + 1))
+    if $XCRUN stapler validate "$path" >"$WORK/out" 2>&1; then return 0; fi
+    if [ "$attempt" -ge 3 ] || ! grep -qiE 'NSURLErrorDomain|network connection|connection.*(lost|offline)|Internet connection|timed out' "$WORK/out"; then
+      return 1
+    fi
+    step "Apple ticket lookup hit a network error; retrying validation ($attempt/3)"
+    sleep "$STAPLER_RETRY_SLEEP"
+  done
+}
 
 # A release that was created a moment ago can take a little while to be served; a file:// base (a test) is not waited for.
 case "$BASE" in file://*) RETRY="" ;; *) RETRY="--retry 6 --retry-delay 10 --retry-all-errors" ;; esac
@@ -74,7 +92,7 @@ step "ok  sha256 matches ($have)"
 xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");Safari;" "$WORK/$dmg"
 "$CODESIGN" --verify --strict "$WORK/$dmg" 2>"$WORK/err" || { cat "$WORK/err" >&2; die "the disk image's signature does not verify"; }
 CODESIGN="$CODESIGN" "$root/scripts/check-desktop-signature.sh" --distribution "$WORK/$dmg" >/dev/null || die "the disk image is not signed with a Developer ID Application certificate"
-$XCRUN stapler validate "$WORK/$dmg" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the disk image has no valid notarization ticket stapled to it"; }
+validate_stapled_ticket "$WORK/$dmg" || { cat "$WORK/out" >&2; die "the disk image has no valid notarization ticket stapled to it"; }
 step "ok  the disk image is signed by the Developer ID, and its notarization ticket is stapled"
 $SPCTL --assess --type open --context context:primary-signature --verbose=2 "$WORK/$dmg" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "Gatekeeper rejects the disk image"; }
 step "ok  Gatekeeper accepts the disk image ($(tr '\n' ' ' < "$WORK/out" | sed 's/[[:space:]]*$//'))"
@@ -97,7 +115,7 @@ xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");Safari;" "$APP"
 "$CODESIGN" --verify --strict --deep --verbose=2 "$APP" 2>"$WORK/err" || { cat "$WORK/err" >&2; die "the app's signature does not verify (codesign --verify --deep --strict)"; }
 CODESIGN="$CODESIGN" "$root/scripts/check-desktop-signature.sh" --distribution "$APP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app is not signed the way a release must be"; }
 step "ok  codesign --verify --deep --strict passes; every piece of code is Developer ID signed with the hardened runtime"
-$XCRUN stapler validate "$APP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app has no valid notarization ticket stapled to it (it would need the network to open)"; }
+validate_stapled_ticket "$APP" || { cat "$WORK/out" >&2; die "the app has no valid notarization ticket stapled to it (it would need the network to open)"; }
 step "ok  the app's notarization ticket is stapled"
 $SPCTL --assess --type execute --verbose=2 "$APP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "Gatekeeper rejects the app, as it would for a person who downloaded it"; }
 case $(cat "$WORK/out") in
@@ -149,7 +167,7 @@ case "$version" in
     "$CODESIGN" --verify --strict --deep "$UAPP" 2>"$WORK/err" || { cat "$WORK/err" >&2; die "the app in the update archive does not verify"; }
     CODESIGN="$CODESIGN" "$root/scripts/check-desktop-signature.sh" --distribution "$UAPP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app in the update archive is not signed the way a release must be"; }
     "$root/scripts/check-desktop-updater.sh" --release "$UAPP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app in the update archive has the wrong update settings"; }
-    $XCRUN stapler validate "$UAPP" >"$WORK/out" 2>&1 || { cat "$WORK/out" >&2; die "the app in the update archive has no notarization ticket stapled"; }
+    validate_stapled_ticket "$UAPP" || { cat "$WORK/out" >&2; die "the app in the update archive has no notarization ticket stapled"; }
     same_a=$("$CODESIGN" -dvvv "$APP" 2>&1 | sed -n 's/^CDHash=//p' | head -1)
     same_b=$("$CODESIGN" -dvvv "$UAPP" 2>&1 | sed -n 's/^CDHash=//p' | head -1)
     [ -n "$same_a" ] && [ "$same_a" = "$same_b" ] || die "the app in the update archive is not the app in the disk image"
