@@ -8,7 +8,9 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'werkbord-e2e-'));
 const artifacts = process.env.BROWSER_ARTIFACT_DIR || path.join(temp, 'artifacts');
 fs.mkdirSync(artifacts, { recursive: true });
 const children = [];
-const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.test',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.test' };
 const commandTimeout = Number(process.env.BROWSER_COMMAND_TIMEOUT_MS) || 120000;
 function run(binary, args, extra = {}, quiet = false) {
     const r = cp.spawnSync(binary, args, { cwd: root, env: { ...env, ...extra }, encoding: 'utf8', timeout: commandTimeout });

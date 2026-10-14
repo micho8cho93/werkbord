@@ -633,7 +633,10 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         const mergeSheet = page.getByRole('dialog', {name:/Merge /});
         await mergeSheet.getByText(/Merge .* into main, on this computer only/).waitFor();
         assert(await mergeSheet.getByText(/Nothing is pushed/).isVisible(),'merge confirmation states its repository scope');
+        const mergeResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/git/merge'));
         await mergeSheet.getByRole('button',{name:'Merge into main',exact:true}).click();
+        const mergeResult = await (await mergeResponse).json();
+        assert.equal(mergeResult.ok, true, 'the real Git merge must succeed: ' + JSON.stringify(mergeResult));
         await mergeSheet.getByRole('button',{name:'Done',exact:true}).waitFor();
         await page.waitForFunction(() => document.querySelector('.panel .state select')?.value === 'done');
         await mergeSheet.getByRole('button',{name:'Done',exact:true}).click();
