@@ -36,8 +36,9 @@ title and introduction when preparing a draft or after automation creates a rele
 Editing presentation must preserve tags, publication dates, prerelease status, assets
 and latest selection. Only stable unified Werkbord releases may become latest.
 
-Stable unified releases are published only after the signed macOS and Windows apps,
-Linux packages and public download checks all succeed. The GUI app carries the Team
+The current release scope is macOS only; Linux and Windows publication is deferred.
+Stable unified releases are published only after the signed, notarized universal macOS app
+and public download and signed update-feed checks succeed. The GUI app carries the Team
 service and installer; do not attach standalone Team Host CLI archives. A pushed tag
 is not proof that a release is installable.
 
@@ -71,4 +72,5 @@ is not proof that a release is installable.
 | Team | `werkbord-team-v3.2.0` | `0.8.0` | Abandoned empty draft, deleted; superseded by the unified release. Do not reuse |
 | Individual | `werkbord-v4.5.4-preview.1` | `0.8.0-preview.1` | Published unified CLI preview; no Mac app asset |
 | Individual | `werkbord-v4.24.6` | `0.8.0` | Published stable; signed Mac app and macOS/Linux/Windows CLI archives |
-| Individual | `werkbord-v4.25.0` | `0.9.0` | Reserved stable; unified macOS/Linux/Windows desktop app |
+| Individual | `werkbord-v4.25.0` | — | Unpublished; superseded by 4.28.2 |
+| Individual | `werkbord-v4.28.2` | `0.9.0` | Reserved stable; unified macOS-only desktop app |

@@ -84,12 +84,14 @@ if release
   check(perms({}, release) == { "contents" => "read" }, "release.yml defaults to contents: read")
 
   jobs = release["jobs"]
-  required = %w[plan release-build preview-publish desktop-build linux-desktop-build windows-desktop-build stable-draft stable-publish macos-public-verify linux-public-verify windows-public-verify desktop-feed-public-verify stable-latest]
+  required = %w[plan release-build preview-publish desktop-build stable-draft stable-publish macos-public-verify desktop-feed-public-verify stable-latest]
   required.each { |name| check(jobs.key?(name), "release.yml has no job #{name}") }
 
+  %w[linux-desktop-build windows-desktop-build linux-public-verify windows-public-verify].each { |name| check(!jobs.key?(name), "macOS-only release must not include #{name}") }
+
   secret_jobs = jobs.select { |_, job| mentions_secret?(job) }.keys.sort
-  check(secret_jobs == %w[desktop-build linux-desktop-build windows-desktop-build], "release credentials are exposed to #{secret_jobs.inspect}")
-  %w[desktop-build linux-desktop-build windows-desktop-build].each do |name|
+  check(secret_jobs == %w[desktop-build], "release credentials are exposed to #{secret_jobs.inspect}")
+  %w[desktop-build].each do |name|
     job = jobs[name] or next
     check(perms(job, release) == { "contents" => "read" }, "#{name} has release credentials and must be read-only")
     check(job["environment"] == "desktop-release", "#{name} uses the protected desktop-release environment")
@@ -97,9 +99,6 @@ if release
     check(job["if"].to_s.include?("workflow_dispatch") && job["if"].to_s.include?("release-build.result"), "#{name} is a dry run on dispatch and waits for CI on tags")
     check(JSON.generate(job).include?("scripts/check-release-secrets.sh"), "#{name} checks the credentials it needs before building")
   end
-  check(JSON.generate(jobs["windows-desktop-build"]).include?("WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64"), "Windows releases require an Authenticode PFX")
-  check(JSON.generate(jobs["linux-desktop-build"]).include?("ubuntu-24.04-arm"), "Linux arm64 is built on a native arm64 runner")
-  check(jobs.dig("windows-desktop-build", "runs-on") == "windows-2025", "Windows app builds on a native Windows runner")
 
   writers = jobs.select { |_, job| (perms(job, release).is_a?(Hash) && perms(job, release).values.include?("write")) }.keys.sort
   check(writers == %w[preview-publish stable-draft stable-latest stable-publish], "only the release publisher jobs can write: #{writers.inspect}")
@@ -115,20 +114,20 @@ if release
     gate_condition = release_build["steps"].dig(gate_index || 0, "if").to_s
     check(gate_condition.include?("github.event_name == 'push'") && gate_condition.include?("!contains"), "the Team production gate applies only to stable tag pushes")
     check(steps.include?("make check") && steps.include?("make test-nebula") && steps.include?("make test-rqlite"), "release-build runs repository, native network and real-cluster checks")
-    check(steps.include?("make dist PRODUCT=werkbord"), "release-build includes the controller archives")
+    check(steps.include?('make dist PRODUCT=werkbord PLATFORMS=\"darwin/arm64 darwin/amd64\"'), "controller publication includes only macOS architectures")
     check(!steps.include?("gh release"), "release-build does not create a public release before platform builds finish")
     check(!JSON.generate(release).include?("make dist PRODUCT=werkbord-team"), "standalone Team Host archives are never built for publication")
   end
 
   stable_draft = jobs["stable-draft"]
   if stable_draft
-    check(needs(stable_draft).sort == %w[desktop-build linux-desktop-build plan release-build windows-desktop-build].sort, "stable draft waits for all three desktop builds and controller checks")
+    check(needs(stable_draft).sort == %w[desktop-build plan release-build].sort, "stable draft waits for the Mac desktop build and controller checks")
     check(stable_draft["if"].to_s.include?("stable"), "only a stable tag can create the public release draft")
     check(perms(stable_draft, release) == { "contents" => "write" }, "stable-draft is the release asset publisher")
     steps = JSON.generate(stable_draft["steps"])
     check(steps.include?("Release sequence:") && steps.include?("0.9.0") && steps.include?("Original build version:") && steps.include?("$version"), "stable release notes use the reserved display sequence and tag-derived build version")
     check(steps.include?("--draft --latest=false"), "stable release is drafted without becoming latest")
-    check(steps.include?("linux-desktop-amd64") && steps.include?("linux-desktop-arm64") && steps.include?("windows-desktop"), "the release draft gathers every desktop artifact")
+    check(!steps.include?("assets/linux") && !steps.include?("assets/windows"), "the release gathers only macOS assets")
     check(steps.include?("Standalone Team Host archives must not be published"), "the release rejects standalone Team Host archives")
     check(steps.include?("check-team-production-gate.sh"), "a stable release requires a version-specific Team production approval")
   end
@@ -137,16 +136,14 @@ if release
   check(needs(stable_publish).include?("stable-draft"), "stable-publish follows the assembled draft")
   check(JSON.generate(stable_publish["steps"]).include?("--draft=false") && !JSON.generate(stable_publish["steps"]).include?("--latest"), "stable-publish makes the complete release public but does not promote it yet")
 
-  %w[macos-public-verify linux-public-verify windows-public-verify desktop-feed-public-verify].each do |name|
+  %w[macos-public-verify desktop-feed-public-verify].each do |name|
     job = jobs[name] or next
     check(needs(job).include?("stable-publish"), "#{name} verifies publicly after the release is visible")
     check(job["if"].to_s.include?("push"), "#{name} never runs during a manual dry run")
   end
   check(JSON.generate(jobs["macos-public-verify"]).include?("verify-desktop-release.sh"), "Mac public verification checks the signed and notarized app")
-  check(JSON.generate(jobs["linux-public-verify"]).include?("verify-linux-desktop-release.sh"), "Linux public verification checks public package hashes and contents")
-  check(JSON.generate(jobs["windows-public-verify"]).include?("verify-windows-desktop-release.ps1"), "Windows public verification installs the signed public package")
   latest = jobs["stable-latest"]
-  check(needs(latest).sort == %w[desktop-feed-public-verify linux-public-verify macos-public-verify windows-public-verify].sort, "latest promotion waits for all public checks")
+  check(needs(latest).sort == %w[desktop-feed-public-verify macos-public-verify].sort, "latest promotion waits for all public checks")
   check(JSON.generate(latest["steps"]).include?("--latest --verify-tag"), "only the final job promotes the verified stable release")
   check(latest["if"].to_s.include?("push"), "manual dry runs never promote a release")
 
@@ -163,7 +160,7 @@ if release
 end
 
 sequence_doc = File.read("docs/RELEASE_SEQUENCE.md")
-check(sequence_doc.include?("werkbord-v4.25.0") && sequence_doc.include?("0.9.0") && sequence_doc.include?("Reserved stable"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
+check(sequence_doc.include?("werkbord-v4.28.2") && sequence_doc.include?("0.9.0") && sequence_doc.include?("Reserved stable"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
 
 check(!workflows.key?("#{DIR}/release-team-desktop.yml"), "there is no separate Team release workflow")
 if $failures.empty?

@@ -1,7 +1,7 @@
 name: release
 
-# One tag produces one unified release. Stable releases are assembled only after the signed Mac app,
-# native Linux packages and signed Windows installer have all built successfully. Only the desktop app
+# One tag produces one unified macOS-only release. Linux and Windows publication is deferred.
+# Stable releases require the signed, notarized universal Mac app and public download checks. Only the desktop app
 # carries the Team installer/service; this workflow never publishes standalone Team Host archives.
 on:
   push:
@@ -78,7 +78,7 @@ jobs:
           WERKBORD_REQUIRE_RQLITE: "1"
         run: make test-rqlite
       - name: Build the controller archives for the unified release
-        run: make dist PRODUCT=werkbord
+        run: make dist PRODUCT=werkbord PLATFORMS="darwin/arm64 darwin/amd64"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: controller-release
@@ -206,155 +206,8 @@ jobs:
           scripts/ci-keychain.sh delete || true
           rm -rf "$RUNNER_TEMP/notary"
 
-  linux-desktop-build:
-    needs: [plan, release-build]
-    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.release-build.result == 'success') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-24.04
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
-    environment: desktop-release
-    permissions:
-      contents: read
-    env:
-      LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: |
-            go.sum
-            desktop/go.sum
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Install Wails and Debian packaging dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libwebkit2gtk-4.1-0 policykit-1 systemd
-      - name: Check release credentials before building
-        run: scripts/check-release-secrets.sh linux
-      - name: Resolve the build version
-        id: version
-        env:
-          EVENT: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          version=$(scripts/product.sh werkbord version)
-          if [ "$EVENT" = workflow_dispatch ]; then version=${version%%-*}; fi
-          if [ "$EVENT" = push ] && [ "$REF_NAME" != "werkbord-v$version" ]; then
-            echo "::error::tag $REF_NAME does not match cmd/werkbord/VERSION ($version)"
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=werkbord-v$version" >> "$GITHUB_OUTPUT"
-      - name: Build the unified app and Linux packages
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: scripts/build-desktop-linux.sh "${{ matrix.arch }}" "$VERSION" dist/desktop
-      - name: Verify hashes, package metadata and the installed release trust check
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          ARCH: ${{ matrix.arch }}
-        run: |
-          set -euo pipefail
-          stem="Werkbord_${VERSION}_linux_${ARCH}"
-          (cd dist/desktop && sha256sum -c "$stem.deb.sha256" "$stem.tar.gz.sha256")
-          test "$(dpkg-deb -f "dist/desktop/$stem.deb" Architecture)" = "$ARCH"
-          tar -tzf "dist/desktop/$stem.tar.gz" | grep -F "$stem/app/bin/Werkbord" >/dev/null
-          sudo dpkg -i "dist/desktop/$stem.deb"
-          sudo /opt/werkbord/bin/Werkbord --verify-release | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x["ok"], x'
-          test "$(/opt/werkbord/Helpers/werkbord version)" = "v$VERSION"
-          test "$(/opt/werkbord/Helpers/werkbord-team version)" = "v$VERSION"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: linux-desktop-${{ matrix.arch }}
-          path: dist/desktop/Werkbord_${{ steps.version.outputs.version }}_linux_${{ matrix.arch }}.*
-          if-no-files-found: error
-          retention-days: 14
-
-  windows-desktop-build:
-    needs: [plan, release-build]
-    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.release-build.result == 'success') }}
-    runs-on: windows-2025
-    timeout-minutes: 90
-    environment: desktop-release
-    permissions:
-      contents: read
-    env:
-      LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
-      WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64 }}
-      WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: |
-            go.sum
-            desktop/go.sum
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Install NSIS and unzip for the signed app packages
-        run: choco install nsis unzip -y --no-progress
-      - name: Check signing and license inputs
-        run: bash scripts/check-release-secrets.sh windows
-      - name: Build the web app and embedded desktop shell
-        run: |
-          npm ci --prefix web
-          npm --prefix web run build
-          npm --prefix web run build:shell
-          node -e "const fs=require('node:fs'); fs.rmSync('internal/webui/dist',{recursive:true,force:true}); fs.mkdirSync('internal/webui/dist',{recursive:true}); fs.cpSync('web/dist','internal/webui/dist',{recursive:true});"
-      - name: Resolve the build version
-        id: version
-        shell: pwsh
-        env:
-          EVENT: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          $version = (Get-Content cmd/werkbord/VERSION -Raw).Trim()
-          if ($env:EVENT -eq 'workflow_dispatch' -and $version.Contains('-')) { $version = $version.Split('-')[0] }
-          if ($env:EVENT -eq 'push' -and $env:REF_NAME -ne "werkbord-v$version") { throw "tag $env:REF_NAME does not match cmd/werkbord/VERSION ($version)" }
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version" -Encoding utf8
-      - name: Write the PFX to a temporary file, build, then remove it
-        shell: pwsh
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          $pfx = Join-Path $env:RUNNER_TEMP 'werkbord-release.pfx'
-          try {
-            [System.IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64))
-            $env:WINDOWS_SIGNING_CERTIFICATE_PFX = $pfx
-            & scripts/build-desktop-windows.ps1 -Version $env:VERSION -OutputDirectory dist/desktop
-          } finally {
-            Remove-Item -LiteralPath $pfx -Force -ErrorAction SilentlyContinue
-            Remove-Item Env:WINDOWS_SIGNING_CERTIFICATE_PFX -ErrorAction SilentlyContinue
-          }
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: windows-desktop
-          path: dist/desktop/Werkbord_${{ steps.version.outputs.version }}_windows_amd64.*
-          if-no-files-found: error
-          retention-days: 14
-
   stable-draft:
-    needs: [plan, release-build, desktop-build, linux-desktop-build, windows-desktop-build]
+    needs: [plan, release-build, desktop-build]
     if: github.event_name == 'push' && needs.plan.outputs.stable == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -375,18 +228,6 @@ jobs:
         with:
           name: desktop-appcast
           path: assets/feed
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: linux-desktop-amd64
-          path: assets/linux-amd64
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: linux-desktop-arm64
-          path: assets/linux-arm64
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: windows-desktop
-          path: assets/windows
       - name: Assemble one release and reserve its display sequence
         env:
           GH_TOKEN: ${{ github.token }}
@@ -396,7 +237,7 @@ jobs:
           version=${GITHUB_REF_NAME#werkbord-v}
           scripts/check-team-production-gate.sh "$version"
           mkdir release-assets
-          for dir in assets/controller assets/macos assets/feed assets/linux-amd64 assets/linux-arm64 assets/windows; do
+          for dir in assets/controller assets/macos assets/feed; do
             cp "$dir"/* release-assets/
           done
           cp release-assets/Werkbord_"$version"_darwin_universal.dmg release-assets/Werkbord.dmg
@@ -406,14 +247,13 @@ jobs:
           fi
           for file in \
             "Werkbord_${version}_darwin_universal.dmg" "Werkbord_${version}_darwin_universal.zip" \
-            "Werkbord_${version}_linux_amd64.deb" "Werkbord_${version}_linux_arm64.deb" \
-            "Werkbord_${version}_windows_amd64_setup.exe" appcast.xml; do
+            appcast.xml; do
             test -s "release-assets/$file" || { echo "required release asset is missing: $file" >&2; exit 1; }
           done
           cat > release-notes.md <<EOF
           **Release sequence:** 0.9.0 · **Original build version:** $version
 
-          The release sequence is a display label for this product’s published history. Downloads and installed apps use the original build version; the Git tag is `$GITHUB_REF_NAME`.
+          The release sequence is a display label for this product’s published history. Downloads and installed apps use the original build version; the Git tag is \`$GITHUB_REF_NAME\`.
 
           ---
 
@@ -422,10 +262,11 @@ jobs:
           ### Desktop downloads
 
           - **macOS:** universal Apple Silicon and Intel disk image, signed and notarized.
-          - **Linux:** Debian packages and portable archives for amd64 and arm64. Install with GTK 3 and WebKit2GTK 4.1 available; the package declares its runtime dependencies.
-          - **Windows:** machine-wide amd64 installer, signed with Authenticode. The Team service setup requests Windows administrator approval.
+          Download Werkbord.dmg, open it and drag Werkbord to Applications. macOS may show its normal first-open confirmation; no security settings need to be disabled.
 
-          Controller command-line archives and their checksum manifest are included for existing terminal and service workflows. This release has no standalone Team Host archive.
+          Linux and Windows downloads are deferred for this release.
+
+          macOS controller command-line archives and their checksum manifest are included for existing terminal and service workflows. This release has no standalone Team Host archive.
           EOF
           gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord Individual — Release 0.9.0" --notes-file release-notes.md --draft --latest=false --verify-tag
 
@@ -460,43 +301,6 @@ jobs:
       - name: Download the public release and verify Gatekeeper, notarization and Sparkle contents
         run: scripts/verify-desktop-release.sh "$GITHUB_REF_NAME"
 
-  linux-public-verify:
-    needs: stable-publish
-    if: github.event_name == 'push'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-24.04
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - name: Download this architecture's public Linux packages and check their published hashes
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: scripts/verify-linux-desktop-release.sh "$GITHUB_REF_NAME" "$ARCH"
-
-  windows-public-verify:
-    needs: stable-publish
-    if: github.event_name == 'push'
-    runs-on: windows-2025
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - name: Download public packages, verify signatures and install the app
-        shell: pwsh
-        run: scripts/verify-windows-desktop-release.ps1 -Tag $env:GITHUB_REF_NAME
-
   desktop-feed-public-verify:
     needs: stable-publish
     if: github.event_name == 'push'
@@ -516,7 +320,7 @@ jobs:
         run: scripts/verify-appcast.sh "$GITHUB_REF_NAME"
 
   stable-latest:
-    needs: [macos-public-verify, linux-public-verify, windows-public-verify, desktop-feed-public-verify]
+    needs: [macos-public-verify, desktop-feed-public-verify]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -527,4 +331,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release edit "$GITHUB_REF_NAME" --latest --verify-tag
-          test "$(gh release view "$GITHUB_REF_NAME" --json isLatest --jq .isLatest)" = true
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = "$GITHUB_REF_NAME"

@@ -79,7 +79,7 @@ Notarization uses an API key, not your Apple ID password.
 
 ## 5. Make the GitHub environment and add the Apple secrets
 
-Secrets live in an **environment**, which only the three platform build jobs use and which requires your approval:
+Secrets live in an **environment**, which only the macOS build job uses and which requires your approval:
 
 1. <https://github.com/micho8cho93/werkbord/settings/environments> → **New environment** → name it exactly **`desktop-release`**.
 2. In it: **Required reviewers** → add yourself (a release then waits for your click before it can use a secret).

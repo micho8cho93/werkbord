@@ -67,8 +67,8 @@ this when a tag is pushed.
 
 The desktop app (`desktop/`) has no version of its own: the window and the `werkbord` program inside it are stamped with
 the same version, so a change to `desktop/`, `internal/launcher` or any `scripts/*desktop*` script bumps
-`cmd/werkbord/VERSION`. Its stable release includes a universal macOS disk image, Linux amd64/arm64 `.deb` and `.tar.gz`
-packages, and a signed Windows amd64 installer and `.zip` archive (see [Releases](#releases) and
+`cmd/werkbord/VERSION`. The current stable release publishes a universal macOS disk image; Linux and Windows
+packaging remains available in source but public downloads are deferred (see [Releases](#releases) and
 [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
 `internal/archtest` fails the tests if `VERSION` is malformed, or if a second `VERSION` file for Team comes back.
 
@@ -78,7 +78,7 @@ Werkbord Team's service and the installer in the app are stamped with this same 
 ## Releases
 
 Pushing a release tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, run `make check`,
-build the archives for every platform, and publish a GitHub release associated with the tag.
+build the macOS controller archives, and publish a GitHub release associated with the tag.
 GitHub display titles use the separate presentation sequence recorded in
 [RELEASE_SEQUENCE.md](RELEASE_SEQUENCE.md); build versions and tags keep the semantic
 versions described above. Apply the reserved title and original build version note to
@@ -96,7 +96,8 @@ new releases without changing their assets or latest selection:
   | `Werkbord_<version>_linux_<arch>.deb` and `.tar.gz` plus `.sha256` | native Linux app and local Team service for amd64 and arm64 |
   | `Werkbord_<version>_windows_amd64_setup.exe` and `.zip` plus `.sha256` | machine-wide Windows app and local Team service; the installer and Werkbord executables are Authenticode-signed |
 
-  The desktop and controller assets are gathered into one draft only after every platform build succeeds. The workflow publishes
+  The current public release scope is macOS only; Linux and Windows assets are deferred.
+  The Mac desktop and macOS controller assets are gathered into one draft after their builds succeed. The workflow publishes
   it with `latest` unset, checks the public downloads on fresh native runners, verifies the signed macOS appcast, and marks it
   latest last. Controller assets remain in `checksums.txt`; desktop assets are verified using their own `.sha256` sidecars.
   No standalone Team Host CLI archive is attached to this release.
