@@ -6,7 +6,7 @@ Review date: 2026-10-08. Product versions: Team **3.0.0**, individual Werkbord *
 
 ## macOS public preview scope (2026-10-14)
 
-Build `4.28.5-preview.3` is a public evaluation preview, not production admission.
+Build `4.28.5-preview.4` is a public evaluation preview, not production admission.
 The Mac packaging path now requires Developer ID signing, hardened runtime, Apple
 notarization, tickets stapled to both app and DMG, Gatekeeper acceptance and a
 signed update archive/feed. Build 4.28.4 passed these checks on GitHub's macOS

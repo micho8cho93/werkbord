@@ -146,6 +146,7 @@ if release
   end
 
   stable_publish = jobs["desktop-publish"]
+  check(JSON.generate(stable_publish["steps"]).include?("--repo") && JSON.generate(jobs["stable-latest"]["steps"]).include?("--repo"), "release editors explicitly select the repository in jobs without a checkout")
   check(needs(stable_publish).include?("desktop-draft"), "desktop-publish follows the assembled draft")
   check(JSON.generate(stable_publish["steps"]).include?("--draft=false") && !JSON.generate(stable_publish["steps"]).include?("--latest"), "desktop-publish makes the complete release public but does not promote it yet")
 
@@ -173,7 +174,7 @@ if release
 end
 
 sequence_doc = File.read("docs/RELEASE_SEQUENCE.md")
-check(sequence_doc.include?("werkbord-v4.28.5-preview.3") && sequence_doc.include?("0.9.0-preview.1") && sequence_doc.include?("Reserved public signed"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
+check(sequence_doc.include?("werkbord-v4.28.5-preview.4") && sequence_doc.include?("0.9.0-preview.1") && sequence_doc.include?("Reserved public signed"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
 
 check(!workflows.key?("#{DIR}/release-team-desktop.yml"), "there is no separate Team release workflow")
 if $failures.empty?
