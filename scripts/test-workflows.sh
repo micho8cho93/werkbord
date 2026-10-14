@@ -27,7 +27,7 @@ version_not_gt 4.24.2 4.24.2
 version_not_gt 4.24.1 4.24.2-preview.1
 
 command -v ruby >/dev/null 2>&1 || { echo "test-workflows: ruby is needed"; exit 1; }
-ruby -ryaml -rjson - <<'RUBY'
+ruby -ryaml -rjson -rtempfile -ropen3 - <<'RUBY'
 $failures = []
 def fail(msg); $failures << msg; end
 def check(cond, msg); cond || fail(msg); end
@@ -89,6 +89,20 @@ if release
 
   %w[linux-desktop-build windows-desktop-build linux-public-verify windows-public-verify].each { |name| check(!jobs.key?(name), "macOS-only release must not include #{name}") }
 
+  plan_script = jobs.dig("plan", "steps", 0, "run")
+  [["push", "werkbord-v4.28.4", "true", "true"],
+   ["push", "werkbord-v4.28.4-preview.1", "false", "false"],
+   ["workflow_dispatch", "main", "true", "false"]].each do |event, ref, desktop, stable|
+    Tempfile.create("werkbord-plan") do |output|
+      _, err, status = Open3.capture3({"EVENT" => event, "REF_NAME" => ref, "GITHUB_OUTPUT" => output.path}, "bash", "-c", plan_script)
+      check(status.success?, "release plan failed for #{ref}: #{err}")
+      values = File.read(output.path)
+      check(values.include?("desktop=#{desktop}\n") && values.include?("stable=#{stable}\n"), "wrong release routing for #{event} #{ref}: #{values}")
+    end
+  end
+  check(needs(jobs["release-build"]).include?("plan"), "release-build reads the stable decision from plan")
+  check(jobs.dig("preview-publish", "if").include?("needs.plan.outputs.stable == 'false'"), "only prerelease tags enter the preview publisher")
+
   secret_jobs = jobs.select { |_, job| mentions_secret?(job) }.keys.sort
   check(secret_jobs == %w[desktop-build], "release credentials are exposed to #{secret_jobs.inspect}")
   %w[desktop-build].each do |name|
@@ -112,7 +126,7 @@ if release
     checks_index = release_build["steps"].index { |step| step["run"].to_s.include?("make check") }
     check(gate_index && checks_index && gate_index < checks_index, "stable Team approval is checked before release builds and repository tests")
     gate_condition = release_build["steps"].dig(gate_index || 0, "if").to_s
-    check(gate_condition.include?("github.event_name == 'push'") && gate_condition.include?("!contains"), "the Team production gate applies only to stable tag pushes")
+    check(gate_condition.include?("github.event_name == 'push'") && gate_condition.include?("needs.plan.outputs.stable == 'true'"), "the Team production gate applies only to stable tag pushes")
     check(steps.include?("make check") && steps.include?("make test-nebula") && steps.include?("make test-rqlite"), "release-build runs repository, native network and real-cluster checks")
     check(steps.include?('make dist PRODUCT=werkbord PLATFORMS=\"darwin/arm64 darwin/amd64\"'), "controller publication includes only macOS architectures")
     check(!steps.include?("gh release"), "release-build does not create a public release before platform builds finish")
@@ -160,7 +174,7 @@ if release
 end
 
 sequence_doc = File.read("docs/RELEASE_SEQUENCE.md")
-check(sequence_doc.include?("werkbord-v4.28.3") && sequence_doc.include?("0.9.0") && sequence_doc.include?("Reserved stable"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
+check(sequence_doc.include?("werkbord-v4.28.4") && sequence_doc.include?("0.9.0") && sequence_doc.include?("Reserved stable"), "the unified release display number is reserved in docs/RELEASE_SEQUENCE.md")
 
 check(!workflows.key?("#{DIR}/release-team-desktop.yml"), "there is no separate Team release workflow")
 if $failures.empty?

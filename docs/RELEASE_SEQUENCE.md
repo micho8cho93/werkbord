@@ -72,5 +72,5 @@ is not proof that a release is installable.
 | Team | `werkbord-team-v3.2.0` | `0.8.0` | Abandoned empty draft, deleted; superseded by the unified release. Do not reuse |
 | Individual | `werkbord-v4.5.4-preview.1` | `0.8.0-preview.1` | Published unified CLI preview; no Mac app asset |
 | Individual | `werkbord-v4.24.6` | `0.8.0` | Published stable; signed Mac app and macOS/Linux/Windows CLI archives |
-| Individual | `werkbord-v4.25.0` | — | Unpublished; superseded by 4.28.3 |
-| Individual | `werkbord-v4.28.3` | `0.9.0` | Reserved stable; unified macOS-only desktop app |
+| Individual | `werkbord-v4.25.0` | — | Unpublished; superseded by 4.28.4 |
+| Individual | `werkbord-v4.28.4` | `0.9.0` | Reserved stable; unified macOS-only desktop app |

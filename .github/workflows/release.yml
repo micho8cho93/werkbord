@@ -32,7 +32,7 @@ jobs:
           if [ "$EVENT" = workflow_dispatch ]; then
             desktop=true
           elif [ "${REF_NAME#werkbord-v}" != "$REF_NAME" ]; then
-            case "$REF_NAME" in
+            case "${REF_NAME#werkbord-v}" in
               *-*) ;;
               *) desktop=true; stable=true ;;
             esac
@@ -41,6 +41,7 @@ jobs:
           echo "stable=$stable" >> "$GITHUB_OUTPUT"
 
   release-build:
+    needs: plan
     if: github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -67,7 +68,7 @@ jobs:
           test "$(scripts/product.sh from-tag "$TAG")" = werkbord
           scripts/verify-tag.sh "$TAG" "$SHA"
       - name: Require reviewed Team production approval for stable releases
-        if: ${{ github.event_name == 'push' && !contains(github.ref_name, '-') }}
+        if: ${{ github.event_name == 'push' && needs.plan.outputs.stable == 'true' }}
         run: scripts/check-team-production-gate.sh "${GITHUB_REF_NAME#werkbord-v}"
       - name: Run the repository checks
         run: make check
@@ -87,8 +88,8 @@ jobs:
           retention-days: 14
 
   preview-publish:
-    needs: release-build
-    if: github.event_name == 'push' && contains(github.ref_name, '-')
+    needs: [plan, release-build]
+    if: github.event_name == 'push' && needs.plan.outputs.stable == 'false'
     runs-on: ubuntu-latest
     permissions:
       contents: write
