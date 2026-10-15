@@ -129,6 +129,84 @@ func (s *Server) handleCompleteOnboarding(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, ob)
 }
 
+func (s *Server) handleOnboardingStep(w http.ResponseWriter, r *http.Request) {
+	if !s.settingsReady(w) {
+		return
+	}
+	var req struct {
+		Step  string `json:"step"`
+		State string `json:"state"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	ob, err := s.opt.Settings.SetOnboardingStep(r.Context(), req.Step, req.State)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ob)
+}
+
+func (s *Server) handleOnboardingVariant(w http.ResponseWriter, r *http.Request) {
+	if !s.settingsReady(w) {
+		return
+	}
+	var req struct {
+		Variant string `json:"variant"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	ob, err := s.opt.Settings.SetOnboardingVariant(r.Context(), req.Variant)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ob)
+}
+
+func (s *Server) handleMarkTour(w http.ResponseWriter, r *http.Request) {
+	if !s.settingsReady(w) {
+		return
+	}
+	var req struct {
+		Surface string `json:"surface"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	ob, err := s.opt.Settings.MarkTour(r.Context(), req.Surface)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ob)
+}
+
+// handleResetTours shows tours again: one surface, or all when none is named.
+func (s *Server) handleResetTours(w http.ResponseWriter, r *http.Request) {
+	if !s.settingsReady(w) {
+		return
+	}
+	var req struct {
+		Surface string `json:"surface"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	ob, err := s.opt.Settings.ResetTours(r.Context(), req.Surface)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ob)
+}
+
 func (s *Server) handleResetOnboarding(w http.ResponseWriter, r *http.Request) {
 	if !s.settingsReady(w) {
 		return

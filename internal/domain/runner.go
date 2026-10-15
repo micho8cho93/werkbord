@@ -74,4 +74,26 @@ type Onboarding struct {
 	// Skipped lists steps the user chose to skip ("network", "github"), so the app
 	// does not nag about them and a health check can still mention them.
 	Skipped []string `json:"skipped,omitempty"`
+	// Steps is the state of each guided-setup step: StepDone or StepSkipped. A step
+	// absent from the map is still to do. Steps complete from what the app verifies;
+	// the map only remembers the answer, so setup resumes where it stopped.
+	Steps map[string]string `json:"steps,omitempty"`
+	// Variant is the path the guided setup takes: OnboardingGitHub or OnboardingLocal.
+	Variant string `json:"variant,omitempty"`
+	// Tours records when each surface's short tour was shown, per device.
+	Tours map[string]time.Time `json:"tours,omitempty"`
 }
+
+// Guided-setup step states and paths.
+const (
+	StepDone         = "done"
+	StepSkipped      = "skipped"
+	OnboardingGitHub = "github"
+	OnboardingLocal  = "local"
+)
+
+// OnboardingSteps are the guided-setup steps, in order.
+var OnboardingSteps = []string{"computer", "agents", "github", "repository", "ticket", "assistant", "publish", "phone"}
+
+// TourSurfaces are the places that show a first-visit tour, once each per device.
+var TourSurfaces = []string{"desktop", "desktop-team", "phone", "phone-team", "settings", "analytics"}

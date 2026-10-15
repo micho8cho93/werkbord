@@ -283,6 +283,10 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   listRunners: () => request<{ runners: Runner[] }>('GET', '/api/runners').then((r) => normalizeRunners(r.runners)),
   onboarding: () => request<Onboarding>('GET', '/api/onboarding'),
   completeOnboarding: (skipped: string[] = []) => request<Onboarding>('POST', '/api/onboarding/complete', { skipped }),
+  setOnboardingStep: (step: string, state: 'done' | 'skipped' | '') => request<Onboarding>('POST', '/api/onboarding/step', { step, state }),
+  setOnboardingVariant: (variant: 'github' | 'local') => request<Onboarding>('POST', '/api/onboarding/variant', { variant }),
+  markTourSeen: (surface: string) => request<Onboarding>('POST', '/api/onboarding/tours/seen', { surface }),
+  resetTours: (surface = '') => request<Onboarding>('POST', '/api/onboarding/tours/reset', { surface }),
   resetOnboarding: () => request<Onboarding>('POST', '/api/onboarding/reset', {}),
 
   // The private network that lets a phone reach this controller.

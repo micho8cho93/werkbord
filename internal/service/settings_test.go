@@ -154,3 +154,49 @@ func TestThisComputerIsRegisteredOnceAsARunner(t *testing.T) {
 		t.Fatalf("runners = %+v, %v", rs, err)
 	}
 }
+
+func TestGuidedSetupStepsAndToursAreRememberedAndSurviveCompletion(t *testing.T) {
+	f := newFixture(t)
+	s := &Settings{Deps: f.deps}
+	if _, err := s.SetOnboardingStep(bg, "bogus", domain.StepDone); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("unknown step: %v", err)
+	}
+	if _, err := s.SetOnboardingStep(bg, "computer", "maybe"); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("unknown state: %v", err)
+	}
+	if _, err := s.SetOnboardingVariant(bg, "cloud"); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("unknown variant: %v", err)
+	}
+	if _, err := s.MarkTour(bg, "nowhere"); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("unknown tour: %v", err)
+	}
+	if _, err := s.SetOnboardingStep(bg, "github", domain.StepSkipped); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetOnboardingVariant(bg, domain.OnboardingLocal); err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.MarkTour(bg, "phone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, _ := s.MarkTour(bg, "phone")
+	if !again.Tours["phone"].Equal(first.Tours["phone"]) {
+		t.Fatal("a replay moved the date the tour was first shown")
+	}
+	done, err := s.CompleteOnboarding(bg, nil)
+	if err != nil || done.CompletedAt == nil || done.Steps["github"] != domain.StepSkipped || done.Variant != domain.OnboardingLocal || len(done.Tours) != 1 {
+		t.Fatalf("completing lost guided state: %+v, %v", done, err)
+	}
+	if ob, _ := s.SetOnboardingStep(bg, "github", ""); len(ob.Steps) != 0 {
+		t.Fatalf("a cleared step stays: %+v", ob.Steps)
+	}
+	if ob, _ := s.ResetTours(bg, "phone"); len(ob.Tours) != 0 || ob.CompletedAt == nil {
+		t.Fatalf("reset tour = %+v", ob)
+	}
+	_, _ = s.MarkTour(bg, "settings")
+	_, _ = s.MarkTour(bg, "analytics")
+	if ob, _ := s.ResetTours(bg, ""); len(ob.Tours) != 0 {
+		t.Fatalf("reset all tours = %+v", ob)
+	}
+}

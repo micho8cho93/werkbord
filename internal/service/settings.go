@@ -5,7 +5,9 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/store"
@@ -90,27 +92,108 @@ func (s *Settings) Onboarding(ctx context.Context) (domain.Onboarding, error) {
 	return ob, err
 }
 
-// CompleteOnboarding records that the user finished or skipped setup, and which
-// steps they skipped.
-func (s *Settings) CompleteOnboarding(ctx context.Context, skipped []string) (domain.Onboarding, error) {
+// updateOnboarding applies fn to the stored record, not the one Onboarding derives
+// from existing projects, so a derived answer is never written back.
+func (s *Settings) updateOnboarding(ctx context.Context, fn func(*domain.Onboarding) error) (domain.Onboarding, error) {
 	var out domain.Onboarding
-	for _, k := range skipped {
-		switch k {
-		case "network", "github", "agents", "projects":
-			out.Skipped = append(out.Skipped, k)
-		default:
-			return out, errors.Join(domain.ErrInvalid, errors.New("unknown setup step "+k))
-		}
-	}
-	now := s.now()
-	out.CompletedAt = &now
 	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
-		if err := tx.Settings().Set(ctx, domain.SettingOnboarding, out, now); err != nil {
+		out = domain.Onboarding{}
+		if err := tx.Settings().Get(ctx, domain.SettingOnboarding, &out); err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		if err := fn(&out); err != nil {
+			return err
+		}
+		if err := tx.Settings().Set(ctx, domain.SettingOnboarding, out, s.now()); err != nil {
 			return err
 		}
 		return em.emit(newEvent(domain.EventSettingsUpdated, map[string]string{"key": domain.SettingOnboarding}))
 	})
 	return out, err
+}
+
+func invalid(msg string) error { return errors.Join(domain.ErrInvalid, errors.New(msg)) }
+
+// CompleteOnboarding records that the user finished or skipped setup, and which
+// steps they skipped. Step states and tours already recorded are kept.
+func (s *Settings) CompleteOnboarding(ctx context.Context, skipped []string) (domain.Onboarding, error) {
+	for _, k := range skipped {
+		switch k {
+		case "network", "github", "agents", "projects":
+		default:
+			return domain.Onboarding{}, invalid("unknown setup step " + k)
+		}
+	}
+	return s.updateOnboarding(ctx, func(ob *domain.Onboarding) error {
+		now := s.now()
+		ob.CompletedAt = &now
+		ob.Skipped = append([]string(nil), skipped...)
+		return nil
+	})
+}
+
+// SetOnboardingStep records the state of one guided-setup step. An empty state
+// clears it, so the step is offered again.
+func (s *Settings) SetOnboardingStep(ctx context.Context, step, state string) (domain.Onboarding, error) {
+	if !slices.Contains(domain.OnboardingSteps, step) {
+		return domain.Onboarding{}, invalid("unknown setup step " + step)
+	}
+	if state != "" && state != domain.StepDone && state != domain.StepSkipped {
+		return domain.Onboarding{}, invalid("unknown step state " + state)
+	}
+	return s.updateOnboarding(ctx, func(ob *domain.Onboarding) error {
+		if state == "" {
+			delete(ob.Steps, step)
+			return nil
+		}
+		if ob.Steps == nil {
+			ob.Steps = map[string]string{}
+		}
+		ob.Steps[step] = state
+		return nil
+	})
+}
+
+// SetOnboardingVariant chooses the guided-setup path: with GitHub, or local only.
+func (s *Settings) SetOnboardingVariant(ctx context.Context, variant string) (domain.Onboarding, error) {
+	if variant != domain.OnboardingGitHub && variant != domain.OnboardingLocal {
+		return domain.Onboarding{}, invalid("unknown setup path " + variant)
+	}
+	return s.updateOnboarding(ctx, func(ob *domain.Onboarding) error { ob.Variant = variant; return nil })
+}
+
+// MarkTour records that a surface's tour was shown. The first time wins, so a
+// replay does not move the date.
+func (s *Settings) MarkTour(ctx context.Context, surface string) (domain.Onboarding, error) {
+	if !slices.Contains(domain.TourSurfaces, surface) {
+		return domain.Onboarding{}, invalid("unknown tour " + surface)
+	}
+	return s.updateOnboarding(ctx, func(ob *domain.Onboarding) error {
+		if _, seen := ob.Tours[surface]; seen {
+			return nil
+		}
+		if ob.Tours == nil {
+			ob.Tours = map[string]time.Time{}
+		}
+		ob.Tours[surface] = s.now()
+		return nil
+	})
+}
+
+// ResetTours forgets one surface's tour, or every tour when surface is empty, so
+// it is shown again.
+func (s *Settings) ResetTours(ctx context.Context, surface string) (domain.Onboarding, error) {
+	if surface != "" && !slices.Contains(domain.TourSurfaces, surface) {
+		return domain.Onboarding{}, invalid("unknown tour " + surface)
+	}
+	return s.updateOnboarding(ctx, func(ob *domain.Onboarding) error {
+		if surface == "" {
+			ob.Tours = nil
+		} else {
+			delete(ob.Tours, surface)
+		}
+		return nil
+	})
 }
 
 // ResetOnboarding forgets that setup was completed, so the app offers it again.

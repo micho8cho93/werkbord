@@ -171,3 +171,24 @@ func TestRunnerIsListedAndOnboardingIsRemembered(t *testing.T) {
 		t.Fatalf("remembered = %d %+v", code, again)
 	}
 }
+
+func TestGuidedSetupStateIsRememberedOverTheAPI(t *testing.T) {
+	rs := newRunsServer(t)
+	var ob domain.Onboarding
+	if code := do(t, "POST", rs.url+"/api/onboarding/step", `{"step":"bogus","state":"done"}`, &ob); code != 400 {
+		t.Fatalf("an unknown step = %d", code)
+	}
+	if code := do(t, "POST", rs.url+"/api/onboarding/step", `{"step":"github","state":"skipped"}`, &ob); code != 200 || ob.Steps["github"] != domain.StepSkipped {
+		t.Fatalf("step = %d %+v", code, ob)
+	}
+	if code := do(t, "POST", rs.url+"/api/onboarding/variant", `{"variant":"local"}`, &ob); code != 200 || ob.Variant != domain.OnboardingLocal {
+		t.Fatalf("variant = %d %+v", code, ob)
+	}
+	if code := do(t, "POST", rs.url+"/api/onboarding/tours/seen", `{"surface":"phone"}`, &ob); code != 200 || ob.Tours["phone"].IsZero() {
+		t.Fatalf("tour = %d %+v", code, ob)
+	}
+	var cleared domain.Onboarding // a fresh value: decoding into ob would keep its old map
+	if code := do(t, "POST", rs.url+"/api/onboarding/tours/reset", `{}`, &cleared); code != 200 || len(cleared.Tours) != 0 || cleared.Variant != domain.OnboardingLocal {
+		t.Fatalf("reset tours = %d %+v", code, cleared)
+	}
+}

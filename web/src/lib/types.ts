@@ -311,6 +311,11 @@ export interface Runner {
 export interface Onboarding {
   completedAt?: string;
   skipped?: string[];
+  /** Guided-setup steps the person finished or skipped, by step id. */
+  steps?: Record<string, 'done' | 'skipped'>;
+  variant?: 'github' | 'local';
+  /** When each surface's first-visit tour was shown on this device. */
+  tours?: Record<string, string>;
 }
 
 export type NetworkState = 'off' | 'starting' | 'needs_login' | 'needs_approval' | 'connected' | 'error';

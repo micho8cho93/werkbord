@@ -2,12 +2,17 @@
   import Icon from '../lib/Icon.svelte';
   import { app } from '../lib/state.svelte';
   import { router } from '../lib/router.svelte';
+  import { api } from '../lib/api';
   import { helpHref, searchHelp } from '../lib/help';
 
   let query = $state('');
   const projectId = $derived(router.projectId || app.lastProjectId);
   const project = $derived(app.project(projectId));
   const articles = $derived(searchHelp(query));
+  let replayed = $state(false);
+  async function replayTours() {
+    try { app.onboarding = await api.resetTours(); replayed = true; } catch { replayed = false; }
+  }
 </script>
 
 <section class="help" aria-labelledby="help-title">
@@ -21,6 +26,11 @@
       <input bind:value={query} type="search" placeholder="Try “merge” or “Ctrl+K”" autocomplete="off" />
     </label>
   </header>
+
+  <p class="replay">
+    <button class="btn" onclick={replayTours}>Replay the quick tours</button>
+    {#if replayed}<span role="status">Each tour shows again the next time you open its page.</span>{/if}
+  </p>
 
   <p class="result-count" aria-live="polite">{query.trim() ? `${articles.length} ${articles.length === 1 ? 'guide' : 'guides'} found` : `${articles.length} guides`}</p>
 
@@ -58,6 +68,7 @@
 </section>
 
 <style>
+  .replay { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 13px; }
   .help { max-width: 1040px; margin: 0 auto; }
   .intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 340px); gap: 28px; align-items: end; padding: 4px 0 18px; }
   h2 { margin: 0; font-size: 22px; font-weight: 600; }
