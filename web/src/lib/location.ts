@@ -14,11 +14,18 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics';
+export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics' | PhoneView;
+/**
+ * The pages only the phone has: the Control Deck that opens it and the screens its keys lead to. They are global (they look across
+ * every project), they are not in GLOBAL_VIEWS (the desktop navigation does not list them), and an address that names one on a wide
+ * window is settled to Needs you (App.svelte). Needs you, Projects and Analytics are the deck's other keys, and are the desktop's own pages.
+ */
+export type PhoneView = 'deck' | 'mywork' | 'schedule' | 'agents' | 'reviews' | 'repositories' | 'runners';
+export const PHONE_VIEWS: readonly PhoneView[] = ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'];
 export type ProjectSection = 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'analytics' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
-export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding'>; label: string; short: string }[] = [
+export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | PhoneView>; label: string; short: string }[] = [
   { id: 'control', label: 'Needs you', short: 'Needs you' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'analytics', label: 'Analytics', short: 'Analytics' },
@@ -78,7 +85,9 @@ export interface Location {
   sub?: string;
 }
 
-const isGlobal = (v: string): v is GlobalView => GLOBAL_VIEWS.some((g) => g.id === v) || (HIDDEN_GLOBAL as readonly string[]).includes(v);
+const isGlobal = (v: string): v is GlobalView => GLOBAL_VIEWS.some((g) => g.id === v) || (HIDDEN_GLOBAL as readonly string[]).includes(v) || (PHONE_VIEWS as readonly string[]).includes(v);
+/** Whether a page is one of the phone's own. */
+export const isPhoneView = (v: string): v is PhoneView => (PHONE_VIEWS as readonly string[]).includes(v);
 const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v);
 
 /** Sections that were renamed: an old link still lands. "Activity" was the run history, now Runs. */

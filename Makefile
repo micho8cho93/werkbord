@@ -84,6 +84,8 @@ test: web/node_modules
 	WERKBORD_SKIP_RQLITE=1 $(GO) test -timeout 30m ./...
 	cd web && $(NPM) test
 	node --test scripts/seed-browser-fixture.test.cjs
+	node --test relay/e2e/e2e.test.mjs
+	cd relay/connector && node build.mjs && node --check dist/sw.js && node --check dist/connect/connect.js
 
 ## test-werkbord / test-team: one product's tests (shared packages are tested with both)
 test-werkbord: web/node_modules
@@ -238,6 +240,10 @@ test-assistant-browser: build web-shell
 # Install Chromium once with: cd web && npx playwright install chromium
 test-browser: build build-team
 	node scripts/test-browser.cjs
+
+## test-phone-browser: the phone's Control Deck, its screens and the Assistant's place in the bar, at phone sizes in both themes
+test-phone-browser: web web-embed web-shell
+	BROWSER_PHONE_ONLY=1 node scripts/test-browser.cjs
 
 ## test-planning-browser: real drag, resize and contextual editing in Chromium and WebKit, with disposable APIs
 # Install both browsers once with: cd web && npx playwright install chromium webkit

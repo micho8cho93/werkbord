@@ -504,7 +504,8 @@ the HTTP API is treated as a remote-execution surface from day one.
   `activity`, and `#/p/<id>/task/<id>`, which belongs to the board). The list of a project's sections lives in
   one place (`PROJECT_SECTIONS` in `src/lib/location.ts`); the side rail, the tab bar and the switcher are
   built from it, so Calendar (V1) is one more entry, not a navigation rewrite.
-- **Phone first.** Under 900 px: sticky top bar with the project's name as its heading (tap to switch), bottom
+- **Phone first.** (A phone in a browser or installed from its home screen now opens on the Control Deck, with a two-place bottom bar and the
+  pages below as drill-downs: [MOBILE.md](MOBILE.md). What follows is the layout the desktop app's narrow window keeps.) Under 900 px: sticky top bar with the project's name as its heading (tap to switch), bottom
   tab bar within thumb reach (Needs you, then the project's sections, with safe-area insets), and the board
   shows one column at a time behind a four-way segmented control. From 900 px: a side rail replaces the tab
   bar, with the project switcher at its head, the global pages, and the current project's sections under its
@@ -886,8 +887,10 @@ there even when loopback was opened with `requireToken=false`. Funnel (public in
 log upload is switched off, and the sign-in link is never logged. The node sits behind a small `Backend`
 interface, so the manager is tested with a fake and, separately, against a real node talking to Tailscale's own
 in-process test control server and DERP relay (sign-in link, completing it, serving, a second node reaching it,
-identity across a restart). `GET /api/network/phone` returns the address and a link and QR code (SVG) that carry
-the token in the URL fragment.
+identity across a restart). `GET /api/network/phone` returns the address only. A phone is enrolled with a single-use code
+(`POST /api/phones/codes`, carried in the URL fragment as `#enroll=…`, spent by `POST /api/phones/enroll`) and is given a
+credential of its own (`internal/phoneaccess`, `wbp_…`, hashes only) that is accepted on a fixed list of routes
+(`internal/api/phone.go`) from the private listener and loopback only, and is revocable per phone ([PHONE.md](PHONE.md)).
 
 **GitHub** (`service.GitHubSetup`, `internal/github`) is optional and goes through the user's own `gh`: status
 (`gh api user`), sign-in (`gh auth login --web`, whose one-time code the app shows), the repositories the user can

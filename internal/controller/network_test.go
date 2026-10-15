@@ -176,18 +176,71 @@ func TestEnablingThePrivateNetworkServesTheAppWithTheTokenRequired(t *testing.T)
 		t.Fatalf("POST /api/update was accepted over the private network")
 	}
 
-	// The link for a phone carries the token in the fragment, with a QR code of it.
+	// Where a phone reaches the controller carries no credential: a phone is let in with its own, by an enrollment code.
 	code, body := get(t, base+"/api/network/phone", tok)
 	var phone struct {
-		URL, Link, QRSVG string
-		HTTPS            bool
+		URL   string
+		Link  string
+		QRSVG string
+		HTTPS bool
 	}
 	_ = json.Unmarshal([]byte(body), &phone)
-	if code != 200 || phone.URL != st.URL || phone.Link != "http://devboard-test.tail1234.ts.net/#token="+tok || !strings.HasPrefix(phone.QRSVG, "<svg") {
+	if code != 200 || phone.URL != st.URL || phone.Link != "" || phone.QRSVG != "" || strings.Contains(body, tok) {
 		t.Fatalf("phone link = %d %.200s", code, body)
 	}
 	if code, _ := get(t, base+"/api/network/phone", ""); code != 401 {
 		t.Fatalf("the phone link without a token = %d", code)
+	}
+
+	// Scanning the code enrolls a phone over the private network, with no token of the controller's, and the phone's own
+	// token then works there on its reviewed routes and on no others. Revoking it ends it.
+	code, body = post(t, base+"/api/phones/codes", tok)
+	var enrollment struct {
+		Link  string `json:"link"`
+		QRSVG string `json:"qrSvg"`
+	}
+	_ = json.Unmarshal([]byte(body), &enrollment)
+	if code != 201 || !strings.HasPrefix(enrollment.Link, "http://devboard-test.tail1234.ts.net/#enroll=") || !strings.HasPrefix(enrollment.QRSVG, "<svg") || strings.Contains(body, tok) {
+		t.Fatalf("enrollment code = %d %.200s", code, body)
+	}
+	secret := strings.TrimPrefix(enrollment.Link, "http://devboard-test.tail1234.ts.net/#enroll=")
+	enroll := func(code string) (int, string) {
+		resp, err := http.Post(priv+"/api/phones/enroll", "application/json", strings.NewReader(`{"code":"`+code+`","name":"Test phone"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	code, body = enroll(secret)
+	var phoneTok struct{ ID, Token string }
+	_ = json.Unmarshal([]byte(body), &phoneTok)
+	if code != 201 || !strings.HasPrefix(phoneTok.Token, "wbp_") {
+		t.Fatalf("enroll = %d %s", code, body)
+	}
+	if code, _ := enroll(secret); code != 403 {
+		t.Fatalf("a code used twice = %d", code)
+	}
+	if code, _ := get(t, priv+"/api/projects", phoneTok.Token); code != 200 {
+		t.Fatalf("a phone's token over the private network = %d", code)
+	}
+	if code, _ := get(t, priv+"/api/phones", phoneTok.Token); code != 403 {
+		t.Fatalf("a phone listing phones = %d", code)
+	}
+	if code, _ := get(t, priv+"/api/update", phoneTok.Token); code != 403 {
+		t.Fatalf("a phone reading what is not on its list = %d", code)
+	}
+	if code, body := get(t, base+"/api/phones", tok); code != 200 || !strings.Contains(body, "Test phone") || strings.Contains(body, phoneTok.Token) {
+		t.Fatalf("the owner's list of phones = %d %s", code, body)
+	}
+	req, _ := http.NewRequest("DELETE", base+"/api/phones/"+phoneTok.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode != 204 {
+		t.Fatalf("revoke: %v %v", err, resp)
+	}
+	if code, _ := get(t, priv+"/api/projects", phoneTok.Token); code != 401 {
+		t.Fatalf("a revoked phone = %d", code)
 	}
 }
 

@@ -308,3 +308,10 @@ func hostOnly(hostport string) string {
 	}
 	return hostport
 }
+
+// WithPrivateRequest marks ctx as belonging to a request that arrived by a door that is for phones, though not through
+// this manager's listener: the relay's tunnel (internal/relay/tunnel). It is the same trust as the private network's: the
+// request still needs a sign-in, and a phone's is checked against the same list of what a phone may do.
+func WithPrivateRequest(ctx context.Context) context.Context {
+	return context.WithValue(ctx, privateRequestKey{}, true)
+}

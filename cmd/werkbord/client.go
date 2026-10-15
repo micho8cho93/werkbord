@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"devboard/internal/phoneaccess"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -144,16 +145,27 @@ func (c *client) setNetwork(ctx context.Context, on bool) (networkInfo, error) {
 	return n, err
 }
 
-type phoneLink struct {
-	URL   string `json:"url"`
-	Link  string `json:"link"`
-	HTTPS bool   `json:"https"`
+// enrollment is a single-use code for one phone, as the link a QR code carries.
+type enrollment struct {
+	Link      string    `json:"link"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-func (c *client) phone(ctx context.Context) (phoneLink, error) {
-	var p phoneLink
-	err := c.do(ctx, http.MethodGet, "/api/network/phone", nil, &p)
-	return p, err
+func (c *client) enrollment(ctx context.Context) (enrollment, error) {
+	var e enrollment
+	err := c.do(ctx, http.MethodPost, "/api/phones/codes", map[string]string{}, &e)
+	if err == nil && e.Link == "" {
+		err = errors.New("the private network is not connected yet")
+	}
+	return e, err
+}
+
+func (c *client) phones(ctx context.Context) ([]phoneaccess.Entry, error) {
+	var r struct {
+		Phones []phoneaccess.Entry `json:"phones"`
+	}
+	err := c.do(ctx, http.MethodGet, "/api/phones", nil, &r)
+	return r.Phones, err
 }
 
 type runnerInfo struct {

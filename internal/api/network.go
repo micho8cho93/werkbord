@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"devboard/internal/netprivate"
 )
@@ -71,11 +70,8 @@ func (s *Server) handleNetworkDisable(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.networkStatus(r.Context()))
 }
 
-// handlePhoneLink returns what a phone needs to open Werkbord signed in: the
-// controller's private address, and a link that also carries the access token
-// (in the fragment, which a browser never sends to a server), as text and as a QR
-// code. This is the one response that contains the token; it goes only to a client
-// that already presented it.
+// handlePhoneLink returns where a phone reaches the controller: its private address. It carries no credential. A phone
+// is let in with an enrollment code, made by POST /api/phones/codes (phone.go), never with the controller's own token.
 func (s *Server) handlePhoneLink(w http.ResponseWriter, r *http.Request) {
 	if !s.networkReady(w) {
 		return
@@ -85,18 +81,5 @@ func (s *Server) handlePhoneLink(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "conflict", "the private network is not connected yet")
 		return
 	}
-	link := st.URL
-	privateToken := s.opt.PrivateToken
-	if s.opt.TokenSource != nil {
-		privateToken = s.currentToken()
-	}
-	if privateToken != "" {
-		link = strings.TrimSuffix(st.URL, "/") + "/#token=" + privateToken
-	}
-	svg, err := netprivate.QRSVG(link)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"url": st.URL, "link": link, "qrSvg": svg, "https": st.HTTPS})
+	writeJSON(w, http.StatusOK, map[string]any{"url": st.URL, "https": st.HTTPS})
 }

@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest';
+import { activeRunners, attentionLine, connectionWord, deckCounts, deckKeys } from './deck';
+import type { Overview, Runner } from '../types';
+
+const counts = { needsYou: 0, review: 0, running: 0, repoAttention: 0 };
+
+describe('deckKeys', () => {
+  it('is a fixed three by three in the order the design names', () => {
+    expect(deckKeys(counts).map((k) => k.label)).toEqual(['Needs you', 'Calendar', 'Projects', 'My Work', 'Agents', 'Analytics', 'Reviews', 'Git', 'Runners']);
+  });
+
+  it('points every key at a page of its own', () => {
+    const hrefs = deckKeys(counts).map((k) => k.href);
+    expect(new Set(hrefs).size).toBe(9);
+    expect(hrefs.every((h) => h.startsWith('#/'))).toBe(true);
+  });
+
+  it('reuses icons the app already draws, one per key', () => {
+    expect(deckKeys(counts).map((k) => k.icon)).toEqual(['control', 'calendar', 'folder', 'check', 'activity', 'analytics', 'merge', 'git', 'runner']);
+  });
+
+  it('counts only what a key means, and says it to a screen reader', () => {
+    const keys = Object.fromEntries(deckKeys({ needsYou: 3, review: 2, running: 1, repoAttention: 4 }).map((k) => [k.id, k]));
+    expect(keys.needs).toMatchObject({ count: 3, tone: 'wait', note: '3 items need you' });
+    expect(keys.reviews).toMatchObject({ count: 2, note: '2 ready for review' });
+    expect(keys.agents).toMatchObject({ count: 1, tone: 'work', note: '1 running' });
+    expect(keys.git).toMatchObject({ count: 4, tone: 'wait' });
+    expect(keys.calendar.count).toBe(0);
+    expect(keys.runners.count).toBe(0);
+  });
+
+  it('says nothing for a count of zero', () => {
+    expect(deckKeys(counts).every((k) => k.count === 0 && k.note === '')).toBe(true);
+  });
+});
+
+describe('deckCounts', () => {
+  it('adds up every project and takes needs you from the app', () => {
+    const overview = {
+      projects: [
+        { projectId: 'a', name: 'A', needsInput: 1, blocked: 0, idle: 0, running: 2, failed: 0, review: 1, repoAttention: 1, repoRisk: 0 },
+        { projectId: 'b', name: 'B', needsInput: 0, blocked: 0, idle: 0, running: 1, failed: 0, review: 2, repoAttention: 0, repoRisk: 0 },
+      ],
+    } as unknown as Overview;
+    expect(deckCounts(overview, 5)).toEqual({ needsYou: 5, review: 3, running: 3, repoAttention: 1 });
+  });
+
+  it('is all zeros until the overview arrives', () => {
+    expect(deckCounts(null, 0)).toEqual(counts);
+  });
+});
+
+describe('attentionLine', () => {
+  it('says what waits, then what is ready, then that all is clear', () => {
+    expect(attentionLine(3, 1)).toEqual({ text: '3 items need your input', waiting: true });
+    expect(attentionLine(1, 0)).toEqual({ text: '1 item needs your input', waiting: true });
+    expect(attentionLine(0, 2)).toEqual({ text: '2 ready for review', waiting: false });
+    expect(attentionLine(0, 0)).toEqual({ text: 'All clear', waiting: false });
+  });
+});
+
+describe('activeRunners', () => {
+  it('counts the ones that are connected and switched on', () => {
+    const r = (online: boolean, disabled: boolean) => ({ online, disabled }) as Runner;
+    expect(activeRunners([r(true, false), r(true, true), r(false, false)])).toHaveLength(1);
+  });
+});
+
+describe('connectionWord', () => {
+  it('names the connection and its tone', () => {
+    expect(connectionWord('live')).toEqual({ word: 'Connected', tone: 'ok' });
+    expect(connectionWord('syncing')).toEqual({ word: 'Syncing', tone: 'warn' });
+    expect(connectionWord('connecting')).toEqual({ word: 'Connecting', tone: 'warn' });
+    expect(connectionWord('offline')).toEqual({ word: 'Offline', tone: 'bad' });
+    expect(connectionWord('unauthorized').tone).toBe('bad');
+  });
+});

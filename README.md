@@ -239,7 +239,7 @@ Every implementation commit bumps the changed product's `VERSION` file and gets 
 `werkbord setup` (run by the installer) turns on phone access: Werkbord joins your own Tailscale network from
 inside the controller and serves the app there, over HTTPS when your tailnet has certificates turned on. Sign in
 to Tailscale once when it asks (a free account is enough), install the Tailscale app on your phone with the same
-account, and scan the QR code from `werkbord open --qr`, or from Settings, to open Werkbord already signed in.
+account, and scan the QR code from `werkbord phones add --qr`, or from Settings → Phones, to open Werkbord on it already signed in. Each phone has a sign-in of its own that you can revoke.
 Then "Add to Home Screen". Details, the security model and troubleshooting: [docs/PHONE.md](docs/PHONE.md).
 
 The controller on this computer still listens on `127.0.0.1` only; the private network is a second door that

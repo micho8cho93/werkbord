@@ -13,7 +13,9 @@
   import RunnersPanel from '../lib/RunnersPanel.svelte';
   import AgentsCard from '../lib/setup/AgentsCard.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
+  import { isPhone } from '../lib/phones/capability';
   import NetworkCard from '../lib/setup/NetworkCard.svelte';
+  import PhonesPanel from '../lib/phones/PhonesPanel.svelte';
   import { desktop } from '../lib/desktop.svelte';
   import { app } from '../lib/state.svelte';
   import { theme } from '../lib/theme.svelte';
@@ -25,12 +27,15 @@
   const GROUPS = [
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
-    { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
+    { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
+  // A phone's own settings are its sign-in and its display; the rest is changed at the computer.
+  const PHONE_SECTIONS = ['phones', 'alerts'];
+  const shownGroups = GROUPS.map((g) => ({ ...g, sections: g.sections.filter((s) => !isPhone() || PHONE_SECTIONS.includes(s.id)) })).filter((g) => g.sections.length);
   const SECTIONS = GROUPS.flatMap(g => [...g.sections]);
   type SectionId = (typeof SECTIONS)[number]['id'];
-  const section = $derived<SectionId>(SECTIONS.find((s) => s.id === router.query)?.id ?? 'defaults');
+  const section = $derived<SectionId>(SECTIONS.find((s) => s.id === router.query && (!isPhone() || PHONE_SECTIONS.includes(s.id)))?.id ?? (isPhone() ? 'phones' : 'defaults'));
   const href = (id: SectionId) => (id === 'defaults' ? globalHref('settings') : `${globalHref('settings')}?${id}`);
 
   let checking = $state(false);
@@ -118,7 +123,7 @@
     </select>
   </label>
   <nav class="sections" aria-label="Settings sections">
-    {#each GROUPS as group (group.label)}
+    {#each shownGroups as group (group.label)}
       <div class="section-group" role="group" aria-label={group.label}>
         <h2>{group.label}</h2>
         <div class="section-links">
@@ -157,6 +162,8 @@
       <RoutingRules />
     {:else if section === 'phone'}
       <NetworkCard />
+    {:else if section === 'phones'}
+      <PhonesPanel />
     {:else if section === 'github'}
       <GitHubCard />
     {:else if section === 'mcp'}

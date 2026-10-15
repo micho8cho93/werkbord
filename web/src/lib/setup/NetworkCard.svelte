@@ -2,14 +2,13 @@
   import { onMount } from 'svelte';
   import { api } from '../api';
   import { copyText } from '../clipboard';
-  import QrImage from '../QrImage.svelte';
-  import type { NetworkStatus, PhoneLink } from '../types';
+  import PhoneEnroll from '../phones/PhoneEnroll.svelte';
+  import type { NetworkStatus } from '../types';
   import SetupCard from './SetupCard.svelte';
 
   let { skipped = false, onskip }: { skipped?: boolean; onskip?: () => void } = $props();
 
   let net = $state<NetworkStatus | null>(null);
-  let phone = $state<PhoneLink | null>(null);
   let busy = $state(false);
   let error = $state('');
   /** Looking up the network failed. Phone access is optional, so this is a quiet line with a retry, never a red alert on first run. */
@@ -20,8 +19,6 @@
     try {
       net = await api.network();
       unreachable = '';
-      if (net.state === 'connected' && !phone) phone = await api.phoneLink().catch(() => null);
-      if (net.state !== 'connected') phone = null;
     } catch (err) {
       unreachable = err instanceof Error ? err.message : String(err);
     }
@@ -41,7 +38,6 @@
     error = '';
     try {
       net = on ? await api.enableNetwork() : await api.disableNetwork();
-      if (net.state !== 'connected') phone = null;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -93,15 +89,13 @@
       <button class="btn small" onclick={copy}>{copied ? 'Copied' : 'Copy address'}</button>
       <button class="btn small quiet" disabled={busy} onclick={() => change(false)}>Turn off phone access</button>
     </div>
-    {#if phone}
-      <div class="qr">
-        <QrImage svg={phone.qrSvg} size={176} label="QR code that opens Werkbord on your phone" />
-        <p class="muted small">
-          Scan this with your phone's camera to open Werkbord already signed in. It carries your access token: keep it to
-          yourself. The phone needs the Tailscale app, signed in to the same account.
-        </p>
-      </div>
-    {/if}
+    <div class="qr">
+      <PhoneEnroll />
+      <p class="muted small">
+        Each phone is added with its own code and has its own sign-in. See and revoke them in <a href="#/settings?phones">Settings → Phones</a>.
+        The phone needs the Tailscale app, signed in to the same account.
+      </p>
+    </div>
     {#if !net.https && net.httpsHint}
       <p class="hint">{net.httpsHint}</p>
     {/if}

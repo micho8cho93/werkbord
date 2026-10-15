@@ -10,10 +10,19 @@ Werkbord runs no servers of its own to do that. Instead it embeds a [Tailscale](
    account is enough; sign in with Google, GitHub, Microsoft or Apple.
 2. Install the **Tailscale app on your phone** and sign in with the **same account**. This is the one thing Dev
    Board cannot do for you.
-3. Scan the QR code (`werkbord open --qr`, or Settings → Phone access). It opens Werkbord on your phone already
-   signed in. Then "Add to Home Screen".
+3. Scan the QR code (`werkbord phones add --qr`, `werkbord open --qr`, or Settings → Phones → Add a phone) with your
+   phone's camera. It opens Werkbord in the phone's browser, already signed in. Then "Add to Home Screen".
+
+The phone is signed in until you revoke it: no second scan, no token to type. The code in the QR works for one phone, for
+five minutes.
 
 You never deal with ports, tunnels, VPN configuration, certificates or NAT traversal.
+
+**Without Tailscale.** If you have set up the relay (`docs/RELAY.md`: a small Cloudflare Worker and a static page on your own
+Cloudflare account), steps 1 and 2 are not needed: the QR code is a plain `https://` link, the phone's camera opens it in its
+browser, and the app comes from your computer through the relay, end-to-end encrypted. The phone shows "your computer is
+offline" when the computer is asleep and "temporarily unavailable" when the relay is at its limit. The two ways can be set up
+together; the QR code uses the relay while it is connected.
 
 ## What it is
 
@@ -28,16 +37,56 @@ You never deal with ports, tunnels, VPN configuration, certificates or NAT trave
   the tailnet, but a phone browser will not install it as an app or allow notifications from an `http://` page.
   Settings says so and links to the admin console switch (DNS → HTTPS Certificates).
 
+## Phones: what one can do, and how to revoke it
+
+Every phone has a **sign-in of its own** (`wbp_…`), not your controller token. You see each one (name, when it was added, when
+it was last seen) in **Settings → Phones**, or with `werkbord phones list`, and take any away at once:
+
+```
+werkbord phones list              the phones that can reach Werkbord, and when each was last seen
+werkbord phones add [--qr]        make a code for one more phone
+werkbord phones revoke <id>       sign a phone out, now
+```
+
+Revoking ends what the phone has open, including its live view, within a moment. The phone is then at the sign-in page and
+needs a new code to come back. At most sixteen phones.
+
+**What a phone can do.** See what the Control Deck and the task pages show (projects, tasks, runs, questions, calendar,
+analytics, Git, runners); create and edit tasks (not how they run); start a run **with the task's own settings**, finish or
+stop it, answer an agent, accept or reject its work; do everything the Git Control Center does (fetch, merge, push, delete a
+branch, clean a worktree, open a pull request); and use the **Assistant**, all of it, as on the desktop. It can read its own
+entry, rename itself and sign itself out.
+
+**What a phone cannot do.** Change any setting, register or change a repository, read or rotate the controller's token, pair or
+revoke a runner, choose an agent, model, policy or runner for a task or run, make codes or see and revoke phones, or manage
+connections or MCP clients. Those are yours, at your computer. The phone's screens do not show them (its Settings has only
+Phones and display); the controller refuses them with `403` regardless.
+
+The list is fixed and reviewed (`internal/api/phone.go`); a test fails when it changes without the change being read.
+
+**How a phone is let in.** The QR code holds `<address>/#enroll=<code>`. The code is 256 random bits, used once, void after five
+minutes, kept only as a hash, and a wrong, expired or used code all get the same answer. The browser never sends the part after
+`#` to a server; the page spends the code, is given the phone's token once, keeps it in the browser's storage and removes the
+code from the address. The phone's name comes from the browser ("iPhone (Safari)"); it can be changed on the phone and in
+Settings. Enrollment is tried at most ten times a minute.
+
+A phone's token is accepted only from the private network's listener and from this computer, never from any other address.
+
+**Known limit (iOS).** Safari and a home-screen web app do not share storage on iPhone. A phone enrolled in Safari may need one
+more scan after "Add to Home Screen", which then shows as a second phone: revoke the first.
+
 ## Security
 
-- **Nothing is exposed to the Internet.** The node only accepts connections from devices in your tailnet. Dev
-  Board never uses Tailscale Funnel, which is the feature that publishes to the Internet.
-- **Reaching the tailnet is not authentication.** The access token is required on every API request over the
-  private network, **even if you have set `requireToken=false` for loopback**; the private door never inherits
-  an open one. The QR code and "Copy" link carry the token in the URL *fragment* (`#token=…`), which a browser
-  never sends to a server. Treat the QR code like a password and do not screenshot it.
-- Everyone who can reach the device on your tailnet can see the sign-in page; only someone with the token can use
-  the API. If your tailnet is shared, use Tailscale ACLs to limit who can reach the Werkbord device.
+- **Nothing is exposed to the Internet.** The node only accepts connections from devices in your tailnet. Werkbord never
+  uses Tailscale Funnel, which is the feature that publishes to the Internet.
+- **Reaching the tailnet is not authentication.** A sign-in is required on every API request over the private network,
+  **even if you have set `requireToken=false` for loopback**; the private door never inherits an open one. A phone's is its own
+  (above). The QR code carries a single-use enrollment code in the URL *fragment* (`#enroll=…`), never your controller token.
+  It is worth a minute to whoever scans it first, so do not post a screenshot of it.
+- Your controller token still works over the private network, for another computer on your tailnet that you sign in with
+  `werkbord token --url`. The Assistant is not served to it there; it is served to enrolled phones.
+- Everyone who can reach the device on your tailnet can see the sign-in page; only someone with a phone's sign-in (or your token)
+  can use the API. If your tailnet is shared, use Tailscale ACLs to limit who can reach the Werkbord device.
 - Werkbord has no account, relay or coordination server of its own. The third party is Tailscale's coordination
   service, which your device talks to for sign-in and to find your phone; traffic between your devices is
   end-to-end encrypted (relayed by Tailscale's DERP servers only when a direct connection is impossible).

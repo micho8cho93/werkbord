@@ -4,6 +4,7 @@
   import { formatDateTime, formatTime } from './clock.svelte';
   import { runnerSlots, runnerState } from './format';
   import { app } from './state.svelte';
+  import { isPhone } from './phones/capability';
   import type { Pairing, Runner } from './types';
 
   let runners = $state<Runner[]>([]);
@@ -63,7 +64,7 @@
 </script>
 
 <section class="pn runners" aria-labelledby="runners-title">
-  <div class="heading"><div><h3 id="runners-title">Runners</h3><p class="muted">Your machines. Each uses its own Git and agent sign-ins.</p></div><button class="btn" onclick={() => (adding = !adding)}>{adding ? 'Close pairing' : 'Add runner'}</button></div>
+  <div class="heading"><div><h3 id="runners-title">Runners</h3><p class="muted">Your machines. Each uses its own Git and agent sign-ins.</p></div>{#if !isPhone()}<button class="btn" onclick={() => (adding = !adding)}>{adding ? 'Close pairing' : 'Add runner'}</button>{/if}</div>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if adding}
     <div class="pairing">
@@ -88,6 +89,7 @@
     <div class="runner">
       <div class="heading"><strong>{r.name}</strong><span class="state" data-online={r.online && !r.disabled} title={runnerSlots(r)}>{runnerState(r)} · {r.currentRuns}/{r.capacity}<span class="visually-hidden">, {runnerSlots(r)}</span></span></div>
       <p class="muted">{r.os}/{r.arch} · {(r.capabilities?.agents ?? []).filter(a=>a.available).map(a=>a.name).join(', ') || 'No available agents'}{r.kind === 'local' ? ' · Werkbord computer' : ''}</p>
+      {#if !isPhone()}
       <details ontoggle={e=>{expanded=e.currentTarget.open?[...expanded.filter(id=>id!==r.id),r.id]:expanded.filter(id=>id!==r.id)}}>
         <summary>Manage and inspect {r.name}</summary>
         <div class="controls">
@@ -106,6 +108,7 @@
           {#if r.kind === 'remote'}<p class="muted">An offline runner keeps ownership of its runs. Reconnect it to stop work; removal is available after every run ends. For a permanently lost machine, revoke its identity. This blocks its credentials immediately; active capacity is released after 120 seconds. Inspect that machine’s work before running the task again.</p>{/if}
         </div>
       </details>
+      {/if}
     </div>
   {/each}
 </section>

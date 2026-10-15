@@ -334,11 +334,40 @@ export interface NetworkStatus {
 }
 
 /** What a phone needs: the address, and a link and QR code that open it already signed in. */
-export interface PhoneLink {
+/** Where a phone reaches this controller. It carries no credential. */
+export interface PhoneAddress {
   url: string;
+  https: boolean;
+}
+
+/** A phone that has been enrolled. Never its token. */
+export interface PhoneEntry {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+/** A single-use code for one phone, as the link and QR code that carry it. */
+export interface PhoneEnrollment {
+  /** The code itself, which the link carries. */
+  code: string;
+  /** What a phone opens, or empty when there is no address to open yet. */
   link: string;
   qrSvg: string;
-  https: boolean;
+  expiresAt: string;
+  /** How the phone will reach this computer: the relay (a plain https link, no app on the phone) or the private network. */
+  via?: 'relay' | 'private network' | '';
+}
+
+/** The relay: the optional way for a phone to reach this computer with no VPN app (docs/RELAY.md). */
+export interface RelayStatus {
+  enabled: boolean;
+  connected: boolean;
+  phones: number;
+  connectorUrl?: string;
+  error?: string;
+  retryInSeconds?: number;
 }
 
 export type GitHubConnection = 'disabled' | 'missing' | 'signed_out' | 'signing_in' | 'signed_in' | 'error';

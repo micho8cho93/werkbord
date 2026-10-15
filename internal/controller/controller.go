@@ -34,6 +34,7 @@ import (
 	"devboard/internal/mcpaccess"
 	"devboard/internal/mcpgrant"
 	"devboard/internal/netprivate"
+	"devboard/internal/phoneaccess"
 	"devboard/internal/runner"
 	"devboard/internal/runnerwire"
 	"devboard/internal/service"
@@ -62,6 +63,7 @@ type Controller struct {
 	stopHealth  context.CancelFunc
 	server      *http.Server
 	network     *networkControl
+	relay       *relayControl
 	// networkBackend replaces the embedded Tailscale node; tests use it so that no
 	// real network is joined.
 	networkBackend netprivate.Backend
@@ -83,6 +85,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	defer func() {
 		if err != nil {
+			if c.relay != nil {
+				c.relay.Stop(context.Background())
+				c.relay = nil
+			}
 			if c.network != nil {
 				_ = c.network.Stop(context.Background())
 				c.network = nil
@@ -248,7 +254,6 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		Token:         token,
 		TokenSource:   func() string { value, _ := c.cfg.ResolveToken(false); return value },
 		AllowedHosts:  c.cfg.AllowedHosts,
-		PrivateToken:  token,
 	}
 	if !c.cfg.AuthRequired() {
 		apiOpts.Token = ""
@@ -272,6 +277,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		}
 		c.assistant.Start()
 		apiOpts.Assistant = c.assistant
+		// An enrolled phone may use it over the private network (and only an enrolled phone: see api.Options).
+		privateOpts.Assistant, privateOpts.AssistantPhonesOnly = c.assistant, true
 	}
 	// Other programs on this computer may be given a narrow credential of their own (internal/localaccess). That is for
 	// the loopback listener only: the private network, which anyone on it can reach, never takes one.
@@ -280,6 +287,13 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("local access: %w", err)
 	}
 	apiOpts.LocalAccess = access
+	// Phones are enrolled with a credential of their own (internal/phoneaccess). It is read from the private network's
+	// listener and from this computer, and from nowhere else.
+	phones, err := phoneaccess.Open(filepath.Join(c.cfg.DataDir, "phones.json"))
+	if err != nil {
+		return fmt.Errorf("phone access: %w", err)
+	}
+	apiOpts.Phones, privateOpts.Phones = phones, phones
 	privateHandler := &lateHandler{}
 	c.network = newNetworkControl(c.cfg, settings, privateHandler, c.networkBackend, c.log)
 	apiOpts.Network, privateOpts.Network = c.network, c.network
@@ -296,6 +310,12 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	apiOpts.Update = checker.Status
 	privateOpts.Update = apiOpts.Update
 	privateHandler.set(api.New(privateOpts).Handler())
+	if c.relay, err = newRelayControl(c.cfg.Relay, c.cfg.DataDir, phones, privateHandler, c.log); err != nil {
+		return fmt.Errorf("relay: %w", err)
+	}
+	if c.relay != nil {
+		apiOpts.Relay = c.relay
+	}
 	srv := api.New(apiOpts)
 
 	c.server = &http.Server{
@@ -327,6 +347,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		"auth", c.cfg.AuthRequired(), "version", c.version)
 	if err := c.network.StartIfWanted(ctx); err != nil {
 		return fmt.Errorf("private network: %w", err)
+	}
+	if c.relay != nil {
+		c.relay.Start()
 	}
 	if c.cfg.AuthRequired() && c.cfg.Token == "" {
 		c.log.Info("API token required; run `werkbord token` to print it", "token_file", c.cfg.TokenPath())
@@ -372,6 +395,10 @@ func (c *Controller) Run(ctx context.Context) error {
 // data-dir lock.
 func (c *Controller) Shutdown(ctx context.Context) error {
 	var err error
+	if c.relay != nil {
+		c.relay.Stop(ctx)
+		c.relay = nil
+	}
 	if c.network != nil {
 		err = c.network.Stop(ctx)
 		c.network = nil

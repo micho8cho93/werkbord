@@ -221,7 +221,7 @@ async function captureMatrix(page, name) {
       };
     });
     console.log('Review changes scroll metrics:', JSON.stringify({ filesHeading, ...jumpMetrics }));
-    const tabbar = await page.locator('.tabbar').boundingBox();
+    const tabbar = await page.getByRole('navigation', { name: 'Primary', exact: true }).boundingBox();
     assert(beforeJump && filesHeading && tabbar && filesHeading.y < beforeJump.y && filesHeading.y + filesHeading.height <= tabbar.y, `Review changes moves Changed files into view above phone navigation with reduced motion: ${JSON.stringify({ beforeJump, filesHeading, tabbar })}`);
 
     await repositoryActions.getByRole('button', { name: 'Merge…', exact: true }).click();

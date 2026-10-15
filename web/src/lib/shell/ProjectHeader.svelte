@@ -6,6 +6,8 @@
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
   import { shortPath } from '../projects';
+  import PhoneBack from '../mobile/PhoneBack.svelte';
+  import { phone } from '../mobile/phone.svelte';
   import { projectHref, router, tabsFor } from '../router.svelte';
   import { app } from '../state.svelte';
   import type { Project } from '../types';
@@ -23,12 +25,14 @@
   const branch = $derived(project.repository?.currentBranch ?? '');
 </script>
 
-<header class="head">
+<div class="bar" class:deck={phone.on}>
+<header class="head" class:deck={phone.on}>
+  {#if phone.on}<PhoneBack />{/if}
   <div class="where">
     <!-- On a phone the project name opens the switcher: it is the only way between projects there. -->
     <div class="name-row">
       <button class="name" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Switch project, current: {project.name}">
-        {#if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
+        {#if !framed && !phone.on}<span class="phone-mark"><Mark height={18} /></span>{/if}
         <h1>{project.name}</h1>
         <span class="chev"><Icon name="down" size={14} /></span>
       </button>
@@ -41,7 +45,7 @@
   </div>
   <div class="acts">
     {#if !framed}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
-    {#if !framed}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
+    {#if !framed && !phone.on}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
     <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
       <Icon name="search" /><span class="wide">Jump to</span><kbd class="key wide">{isMac ? '⌘' : 'Ctrl'} K</kbd>
     </button>
@@ -60,16 +64,25 @@
   </div>
 </header>
 
-<nav class="tabs" aria-label="{project.name} sections">
+<nav class="tabs" class:deck={phone.on} aria-label="{project.name} sections">
   {#each tabsFor(project.kind) as s (s.id)}
     <a class="tab" href={projectHref(project.id, s.id)} aria-current={active === s.id ? 'page' : undefined}>
       {s.label}
       {#if s.id === 'git' && gitItems > 0}<span class="num pend" aria-label="{gitItems} Git items need attention">{gitItems}</span>{/if}
     </a>
   {/each}
+  {#if phone.on}
+    <a class="tab" href={projectHref(project.id, 'defaults')} aria-current={active === 'defaults' ? 'page' : undefined}>Settings</a>
+  {/if}
 </nav>
+</div>
 
 <style>
+  /* The heading and the tabs are one piece; on a wide window the wrapper is not there, as far as layout goes. */
+  .bar {
+    display: contents;
+  }
+
   .head {
     flex: none;
     display: flex;
@@ -243,6 +256,42 @@
 
     .tabs {
       display: none;
+    }
+
+    /* With the Control Deck the bottom bar has only two places, so the project's sections are a compact row of tabs under its name. */
+    .head.deck {
+      gap: 4px;
+      padding-bottom: 4px;
+    }
+
+    .head.deck .where {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .head.deck .gear,
+    .head.deck .new {
+      display: none;
+    }
+
+    .bar.deck {
+      display: block;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: color-mix(in srgb, var(--bg) 90%, transparent);
+      backdrop-filter: blur(10px);
+    }
+
+    .head.deck {
+      position: static;
+      background: none;
+      backdrop-filter: none;
+    }
+
+    .tabs.deck {
+      display: flex;
+      padding: 0 12px;
     }
   }
 </style>

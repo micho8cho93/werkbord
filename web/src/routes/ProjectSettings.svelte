@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isPhone } from '../lib/phones/capability';
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
@@ -49,7 +50,9 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
   let section = $state<'defaults' | 'capacity' | 'repository'>('defaults');
 </script>
 
-{#if project.kind === 'work'}
+{#if isPhone()}
+  <section class="pn"><h3>{project.name}</h3><p class="muted">A project's settings are changed at your computer.</p></section>
+{:else if project.kind === 'work'}
   <div class="settings single">
     <section class="pn">
       <h3>{project.name}</h3>

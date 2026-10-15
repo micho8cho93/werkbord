@@ -14,6 +14,7 @@
     validModelName,
     type Resolved,
   } from './execution';
+  import { isPhone } from './phones/capability';
   import { INTERACTION_OPTIONS, PERMISSIONS_NOTE, interactionLabel } from './policy';
   import { router } from './router.svelte';
   import { app } from './state.svelte';
@@ -123,6 +124,7 @@
   const noAgentYet = $derived(!agentForOptions);
 </script>
 
+{#if !isPhone()}
 <div class="fields" class:compact={dense} class:columns>
   <div class="field">
     <label for="{idPrefix}-runner">Runner</label>
@@ -260,6 +262,7 @@
   </details>
   {/if}
 </div>
+{/if}
 
 <style>
   .fields {

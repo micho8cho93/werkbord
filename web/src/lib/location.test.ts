@@ -202,8 +202,22 @@ describe('the phone\'s More entry', () => {
 });
 
 describe('the installed app', () => {
-  it('starts on Needs you', () => {
+  it('starts on the Control Deck, which a wide window settles to Needs you', () => {
     const manifest = JSON.parse(manifestSource);
-    expect(parse(new URL(manifest.start_url, 'https://x.test').hash).view).toBe('control');
+    expect(parse(new URL(manifest.start_url, 'https://x.test').hash).view).toBe('deck');
+  });
+});
+
+describe('the phone\u2019s own pages', () => {
+  it('parses the deck and the screens its keys lead to as global pages', () => {
+    for (const view of ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'] as const) {
+      expect(parse(`#/${view}`)).toEqual({ view, projectId: '', taskId: '' });
+      expect(hrefOf({ view, projectId: '', taskId: '' })).toBe(`#/${view}`);
+      expect(inProject(view)).toBe(false);
+    }
+  });
+
+  it('keeps them out of the desktop navigation', () => {
+    expect(GLOBAL_VIEWS.map((g) => g.id)).not.toContain('deck');
   });
 });

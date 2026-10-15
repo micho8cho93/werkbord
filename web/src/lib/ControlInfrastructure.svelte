@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isPhone } from './phones/capability';
   import { globalHref } from './router.svelte';
   import { app } from './state.svelte';
 
@@ -34,7 +35,7 @@
 </script>
 
 <section class="pn" aria-labelledby="infra-title">
-  <div class="ph"><span id="infra-title">Runners</span>{#if app.overview}<span class="chip">{machines.length}</span>{/if}<a class="end small runner-manage" href="{globalHref('settings')}?runners">Manage</a></div>
+  <div class="ph"><span id="infra-title">Runners</span>{#if app.overview}<span class="chip">{machines.length}</span>{/if}{#if !isPhone()}<a class="end small runner-manage" href="{globalHref('settings')}?runners">Manage</a>{/if}</div>
   <p class="muted small runner-summary" role="status">{runnerSummary}</p>
   {#if !app.overview && app.connection === 'offline'}
     <p class="muted small">Reconnect to load runner details.</p>

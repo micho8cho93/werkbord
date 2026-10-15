@@ -251,19 +251,12 @@ func (a *app) setupNetwork(ctx context.Context, c *client, f setupFlags) (networ
 
 // showPhone prints the phone address and, on a terminal, its QR code.
 func (a *app) showPhone(ctx context.Context, c *client, n networkInfo) {
-	link, err := c.phone(ctx)
-	if err != nil {
+	if !a.isTerminal(a.out) {
+		a.printf("\nOn your phone (same Tailscale account): %s\nRun `werkbord phones add --qr` for the code to scan.\n", n.URL)
 		return
 	}
-	a.printf("\nOn your phone (same Tailscale account): %s\n", link.URL)
-	if a.isTerminal(a.out) {
-		if text, err := netprivate.QRText(link.Link); err == nil {
-			a.printf("Scan to open it already signed in:\n\n%s\n", indent(strings.TrimRight(text, "\n"), "  "))
-		}
-	}
-	if !link.HTTPS && n.HTTPSHint != "" {
-		a.printf("Note: %s\n", n.HTTPSHint)
-	}
+	a.printf("\n")
+	_ = a.printEnrollment(ctx, c, n, false)
 }
 
 // writeConfig writes config.json atomically, readable by the user only.
