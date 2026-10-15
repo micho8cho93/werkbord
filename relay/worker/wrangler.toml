@@ -1,0 +1,15 @@
+# Werkbord relay. Runs on the Cloudflare Workers FREE plan.
+#
+# The free plan only offers SQLite-backed Durable Objects, so the class is declared
+# with new_sqlite_classes (never new_classes). Moving to Workers Paid needs no change here.
+name = "werkbord-relay"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

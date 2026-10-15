@@ -84,6 +84,7 @@ test: web/node_modules
 	WERKBORD_SKIP_RQLITE=1 $(GO) test -timeout 30m ./...
 	cd web && $(NPM) test
 	node --test scripts/seed-browser-fixture.test.cjs
+	node --test relay/e2e/e2e.test.mjs
 
 ## test-werkbord / test-team: one product's tests (shared packages are tested with both)
 test-werkbord: web/node_modules
