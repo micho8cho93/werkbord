@@ -83,4 +83,5 @@ is not proof that a release is installable.
 | Individual | `werkbord-v4.29.0-preview.1` | — | Unpublished; empty Team workspace analytics encountered a null project list; superseded by preview.2 |
 | Individual | `werkbord-v4.29.0-preview.2` | `0.10.0-preview.1` | Published public signed macOS preview; focused analytics views and Universal startup; public Mac download and signed update-feed verification passed; Team production admission remains blocked |
 | Individual | `werkbord-v4.37.0-preview.1` | — | Unpublished; in-process relay connection-registration races and obsolete Assistant phone browser expectations; superseded by 4.37.1-preview.1 |
-| Individual | `werkbord-v4.37.1-preview.1` | `0.11.0-preview.1` | Reserved public signed macOS preview; phone identity, phone Git and Assistant access, encrypted relay and connector; Team production admission remains blocked |
+| Individual | `werkbord-v4.37.1-preview.1` | — | Unpublished; Assistant dictation fixture emitted speech before asynchronous recognizer startup completed; superseded by 4.37.2-preview.1 |
+| Individual | `werkbord-v4.37.2-preview.1` | `0.11.0-preview.1` | Reserved public signed macOS preview; phone identity, phone Git and Assistant access, encrypted relay and connector; Team production admission remains blocked |

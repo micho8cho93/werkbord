@@ -633,12 +633,13 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.addInitScript(() => {
                 // A recogniser the test controls. Chromium's own has no speech service in a test.
                 class Rec {
-                    constructor() { window.__rec = this; window.__made = (window.__made || 0) + 1; this.started = 0; }
-                    start() { this.started++; setTimeout(() => this.onstart?.(), 0); }
+                    constructor() { window.__rec = this; window.__made = (window.__made || 0) + 1; this.started = 0; this.ready = false; }
+                    start() { this.started++; setTimeout(() => { this.onstart?.(); this.ready = true; }, 0); }
                     stop() { setTimeout(() => this.onend?.(), 0); }
                     abort() { this.onend?.(); }
-                    say(parts) { this.onresult?.({ resultIndex: 0, results: parts.map(([t, f]) => ({ isFinal: f, 0: { transcript: t } })) }); }
+                    say(parts) { assertReady(this); this.onresult?.({ resultIndex: 0, results: parts.map(([t, f]) => ({ isFinal: f, 0: { transcript: t } })) }); }
                 }
+                function assertReady(rec) { if (!rec.ready) throw Error('The fixture must wait for onstart before emitting speech.'); }
                 window.SpeechRecognition = Rec;
                 window.webkitSpeechRecognition = Rec;
             });
@@ -656,11 +657,13 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(await page.evaluate(() => window.__rec), undefined, 'nothing is listening before the person agrees');
             await page.screenshot({ path: path.join(artifacts, 'assistant-dictation-notice.png') });
             await notice.getByRole('button', { name: 'Use dictation' }).click();
-            await page.waitForFunction(() => window.__rec?.started === 1);
+            // start() schedules onstart asynchronously. Emitting a result before it fires lets onstart overwrite "hearing".
+            await page.waitForFunction(() => window.__rec?.started === 1 && window.__rec.ready);
             // While it listens: a strip says so, the box shows what is being said as it is said, and there are three ways out.
             const listening = page.getByTestId('assistant-listening');
             await listening.waitFor();
-            assert.match(await listening.innerText(), /Listening|Starting the microphone/);
+            await page.waitForFunction(() => document.querySelector('[data-testid="assistant-listening"]')?.dataset.phase === 'listening');
+            assert.match(await listening.innerText(), /Listening/);
             assert.equal(await page.getByTestId('assistant-dictation-cancel').count(), 1, 'a cross to cancel');
             assert.equal(await mic.getAttribute('aria-label'), 'Finish dictation and keep the text to edit');
             const box = page.getByRole('textbox', { name: 'Message to the assistant' });
@@ -683,7 +686,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
 
             // The cross throws away what was said, and only that.
             await mic.click();
-            await page.waitForFunction(() => window.__made === 2 && window.__rec.started === 1);
+            await page.waitForFunction(() => window.__made === 2 && window.__rec.started === 1 && window.__rec.ready);
             assert.equal(await page.getByTestId('assistant-dictation-notice').count(), 0, 'told once per device, not every time');
             await page.evaluate(() => window.__rec.say([['something I did not mean', true]]));
             await page.waitForFunction(() => document.querySelector('textarea').value === 'what is blocked today something I did not mean');
@@ -694,7 +697,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
 
             // Escape does the same, and does not close the assistant.
             await mic.click();
-            await page.waitForFunction(() => window.__made === 3);
+            await page.waitForFunction(() => window.__made === 3 && window.__rec.ready);
             await page.evaluate(() => window.__rec.say([['nor this', true]]));
             await page.keyboard.press('Escape');
             await page.waitForFunction(() => !document.querySelector('[data-testid="assistant-listening"]'));
@@ -705,7 +708,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             // Send, while it listens, finishes it and sends the message once the last words are text.
             await box.fill('');
             await mic.click();
-            await page.waitForFunction(() => window.__made === 4);
+            await page.waitForFunction(() => window.__made === 4 && window.__rec.ready);
             await page.evaluate(() => window.__rec.say([['hello from my voice', true]]));
             await page.evaluate(() => window.__rec.say([['and the last bit', false]], 1));
             await page.getByTestId('assistant-send').click();
@@ -719,9 +722,9 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.locator('article.reply').last().waitFor();
             await box.fill('');
             await mic.click();
-            await page.waitForFunction(() => window.__made === 5);
+            await page.waitForFunction(() => window.__made === 5 && window.__rec.ready);
             await page.evaluate(() => { const r = window.__rec; r.onend?.(); });
-            await page.waitForFunction(() => window.__made === 6 && window.__rec.started === 1);
+            await page.waitForFunction(() => window.__made === 6 && window.__rec.started === 1 && window.__rec.ready);
             assert.equal(await page.getByTestId('assistant-listening').count(), 1, 'still listening');
             await page.evaluate(() => window.__rec.say([['carried on', true]]));
             await mic.click();
@@ -731,7 +734,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             // A refused microphone is explained, in words for this app or for the browser.
             await box.fill('');
             await mic.click();
-            await page.waitForFunction(() => window.__made === 7);
+            await page.waitForFunction(() => window.__made === 7 && window.__rec.ready);
             await page.evaluate(() => { const r = window.__rec; r.onerror?.({ error: 'not-allowed' }); r.onend?.(); });
             await page.getByTestId('assistant-dictation-note').filter({ hasText: 'The microphone is blocked' }).waitFor();
             assert.equal(await page.getByTestId('assistant-listening').count(), 0);
