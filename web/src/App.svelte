@@ -41,6 +41,7 @@
   import Git from './routes/Git.svelte';
   import Help from './routes/Help.svelte';
   import Onboarding from './routes/Onboarding.svelte';
+  import Tour from './lib/Tour.svelte';
   import ProjectSettings from './routes/ProjectSettings.svelte';
   import ProjectOverview from './routes/ProjectOverview.svelte';
   import WorkOverview from './routes/WorkOverview.svelte';
@@ -220,6 +221,7 @@
       {/if}
 
       <PhoneWelcome />
+      <Tour surface="desktop" enabled={!isPhone() && !app.needsOnboarding && router.view !== 'onboarding'} />
       {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}
       <!-- The Control Deck says it in its own strip. -->
       {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}

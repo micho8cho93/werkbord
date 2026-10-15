@@ -104,4 +104,4 @@ const (
 var OnboardingSteps = []string{"computer", "agents", "github", "repository", "ticket", "assistant", "publish", "phone"}
 
 // TourSurfaces are the places that show a first-visit tour, once each per device.
-var TourSurfaces = []string{"desktop", "desktop-team", "phone", "phone-team", "settings", "analytics"}
+var TourSurfaces = []string{"desktop", "phone", "settings", "analytics"}

@@ -699,3 +699,15 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
 .analytics-day > span { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); }
 .analytics-day:first-child > span { left: 0; transform: none; }
 .analytics-day:last-child > span { left: auto; right: 0; transform: none; }
+
+/* The first-visit tour (tour.js): a card in the corner, outside the page that re-renders. */
+.team-tour { position: fixed; right: 16px; bottom: 16px; z-index: 60; width: min(320px, calc(100vw - 24px)); display: grid; gap: 6px; padding: 14px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, .18); }
+.team-tour h2 { margin: 0; font-size: 15px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.team-tour p { margin: 0; }
+.team-tour .tour-count { font-size: 12px; color: var(--muted); }
+.team-tour .tour-body { font-size: 13px; color: var(--muted); }
+.team-tour .tour-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.team-tour .tour-grow { flex: 1; }
+.team-tour button { min-height: 36px; }
+@media (max-width: 640px) { .team-tour { left: 12px; right: 12px; width: auto; bottom: calc(12px + env(safe-area-inset-bottom)); } }
+@media (prefers-reduced-motion: no-preference) { .team-tour { animation: tour-in .18s ease-out; } @keyframes tour-in { from { opacity: 0; transform: translateY(6px); } } }

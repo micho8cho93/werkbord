@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { api } from './api';
   import { app } from './state.svelte';
-  import { TOURS, tourDue, type TourSurface } from './setup/tours';
+  import { LOCAL_SURFACES, TOURS, markHere, tourDue, type TourSurface } from './setup/tours';
+  import { tourHost } from './setup/tourhost.svelte';
 
-  let { surface }: { surface: TourSurface } = $props();
+  /** `enabled` holds a tour back while something else has the person's attention, such as first-time setup. */
+  let { surface, enabled = true }: { surface: TourSurface; enabled?: boolean } = $props();
 
   const steps = $derived(TOURS[surface]);
   let index = $state(0);
@@ -16,10 +18,15 @@
 
   // Offered once the onboarding record has loaded; closing it, however it closes, counts as seen.
   $effect(() => {
-    if (!open && tourDue(app.onboarding, surface)) {
+    if (open || !enabled || tourHost.open || !tourDue(app.onboarding, surface)) return;
+    // A moment for the page to lay itself out, so that a tip can point at what it is about.
+    const t = setTimeout(() => {
+      if (tourHost.open) return;
       index = 0;
       open = true;
-    }
+      tourHost.open = surface;
+    }, 700);
+    return () => clearTimeout(t);
   });
 
   function measure() {
@@ -41,8 +48,13 @@
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('resize', measure); };
   });
 
+  // Leaving the page with a tip showing frees the slot; the tour was not finished, so it comes back next visit.
+  onDestroy(() => { if (tourHost.open === surface) tourHost.open = ''; });
+
   async function close() {
     open = false;
+    if (tourHost.open === surface) tourHost.open = '';
+    if (LOCAL_SURFACES.includes(surface)) { markHere(surface); return; }
     try { app.onboarding = await api.markTourSeen(surface); } catch { /* shown again next time; harmless */ }
   }
 

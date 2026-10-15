@@ -6,6 +6,7 @@
   import { app } from '../state.svelte';
   import { activeRunners, attentionLine, connectionWord, deckCounts, deckKeys } from './deck';
   import Keycap from './Keycap.svelte';
+  import Tour from '../Tour.svelte';
 
   // The phone's home. A header that says whether the controller is reachable, one line on what needs the person, the nine keys, and
   // what the agents are doing now. It only reads what the app already holds (the Control Center overview and the runners); the keys
@@ -28,6 +29,7 @@
 </script>
 
 <div class="deck-page">
+  <Tour surface="phone" />
   <header class="top">
     <div class="id">
       <a class="brand" href={globalHref('deck')} aria-label="Werkbord, Control Deck">

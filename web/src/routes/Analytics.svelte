@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Tour from '../lib/Tour.svelte';
   import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
   import { analyticsDuration, executionTotals, measuredCost, measuredNumber, type AnalyticsReport } from '../lib/analytics';
@@ -77,6 +78,7 @@
 </script>
 
 <div class="analytics">
+  <Tour surface="analytics" />
   <div class="tabs" role="tablist" aria-label="Analytics views">
     {#each views as tab, i (tab)}<button id="analytics-tab-{tab}" role="tab" aria-selected={view === tab} aria-controls="analytics-panel" tabindex={view === tab ? 0 : -1} onclick={() => view = tab} onkeydown={event => tabKey(event, i)}>{tab}</button>{/each}
   </div>

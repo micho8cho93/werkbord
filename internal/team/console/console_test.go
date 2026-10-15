@@ -95,3 +95,22 @@ func TestTheTimelineAndLabelsNeverBuildMarkupFromData(t *testing.T) {
 		t.Error("index.html must load timeline.js before console.js")
 	}
 }
+
+// The first-visit tour is plain text on a page that holds a member's work: it builds no HTML, is loaded by the console, and is
+// served like the rest.
+func TestTheTourIsLoadedAndBuildsNoHTML(t *testing.T) {
+	root, _ := fs.Sub(static, "static")
+	tour, err := fs.ReadFile(root, "tour.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, banned := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
+		if strings.Contains(string(tour), banned) {
+			t.Errorf("tour.js uses %s", banned)
+		}
+	}
+	index, _ := fs.ReadFile(root, "index.html")
+	if !strings.Contains(string(index), `src="tour.js"`) {
+		t.Error("index.html must load tour.js")
+	}
+}

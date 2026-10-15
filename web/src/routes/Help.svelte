@@ -3,6 +3,7 @@
   import { app } from '../lib/state.svelte';
   import { router } from '../lib/router.svelte';
   import { api } from '../lib/api';
+  import { forgetHere } from '../lib/setup/tours';
   import { helpHref, searchHelp } from '../lib/help';
 
   let query = $state('');
@@ -11,7 +12,8 @@
   const articles = $derived(searchHelp(query));
   let replayed = $state(false);
   async function replayTours() {
-    try { app.onboarding = await api.resetTours(); replayed = true; } catch { replayed = false; }
+    forgetHere();
+    try { app.onboarding = await api.resetTours(); replayed = true; } catch { replayed = true; /* a phone keeps its own, and that is cleared */ }
   }
 </script>
 

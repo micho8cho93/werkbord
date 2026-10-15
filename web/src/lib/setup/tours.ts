@@ -1,7 +1,10 @@
 import type { Onboarding } from '../types';
 
-/** The places that show a short first-visit tour, once each per device. */
-export type TourSurface = 'desktop' | 'desktop-team' | 'phone' | 'phone-team' | 'settings' | 'analytics';
+/**
+ * The places in Individual that show a short first-visit tour, once each. Team's own tours live in Team's pages
+ * (internal/team), which keep their own record.
+ */
+export type TourSurface = 'desktop' | 'phone' | 'settings' | 'analytics';
 
 export interface TourStep {
   title: string;
@@ -10,20 +13,98 @@ export interface TourStep {
   target?: string;
 }
 
-/** Tours are written against the real screens and never show sample data. Surfaces fill in as their tours are built. */
+/**
+ * Tours are written against the real screens and never show sample data. Each is a few tips, because the rest of the app is
+ * the same wherever you meet it.
+ */
 export const TOURS: Record<TourSurface, readonly TourStep[]> = {
-  desktop: [],
-  'desktop-team': [],
-  phone: [],
-  'phone-team': [],
-  settings: [],
-  analytics: [],
+  desktop: [
+    {
+      title: 'Needs you comes first',
+      body: 'Questions from the assistant, work to review and anything blocked wait here. Start here when you come back.',
+      target: '.rail nav[aria-label="Everywhere"] a',
+    },
+    {
+      title: 'Each project is a repository',
+      body: 'Open one to see its board, calendar, Git and runs. Add the next one with the plus.',
+      target: '.rail nav[aria-label="Projects"]',
+    },
+    {
+      title: 'Press N for a new ticket',
+      body: 'Inside a project, N adds a ticket. Start the assistant on it and watch it work from the ticket.',
+    },
+    {
+      title: 'Help has short guides',
+      body: 'Each one uses the words you see in the app. You can replay these tips from Help.',
+      target: '.rail a[href*="help"]',
+    },
+  ],
+  phone: [
+    {
+      title: 'What needs you',
+      body: 'Answer the assistant or approve finished work from here, wherever you are.',
+      target: '[data-testid="deck-attention"]',
+    },
+    {
+      title: 'The keys',
+      body: 'Open the board, calendar, Git, runners and more. Nothing here starts or changes anything by itself.',
+      target: '.housing',
+    },
+    {
+      title: 'Settings stay on your computer',
+      body: 'This phone can see your work, answer agents and use the Assistant. Merging, pushing and changing settings happen on your computer.',
+      target: 'a[aria-label="Settings"]',
+    },
+  ],
+  settings: [
+    {
+      title: 'Three sections are worth knowing',
+      body: 'Runners are your machines, Agents are the assistants that may run, and Task defaults say how new tickets run. The rest can wait.',
+      target: 'nav[aria-label="Settings sections"]',
+    },
+  ],
+  analytics: [
+    {
+      title: 'This fills in as you work',
+      body: 'Cost, time and outcomes appear after your first runs. Nothing here is sample data, so an empty chart means nothing has run yet.',
+    },
+  ],
 };
 
 export const TOUR_SURFACES = Object.keys(TOURS) as TourSurface[];
 
-/** A tour is offered when it has tips, the onboarding record has loaded, and this device has not shown it yet. */
-export function tourDue(onboarding: Onboarding | null, surface: TourSurface, tours: Record<TourSurface, readonly TourStep[]> = TOURS): boolean {
-  if (!onboarding || tours[surface].length === 0) return false;
+/**
+ * A phone's tour is remembered on the phone, not on the computer: every phone you pair reaches the same computer, and each
+ * should get its own first look.
+ */
+export const LOCAL_SURFACES: readonly TourSurface[] = ['phone'];
+
+const localKey = (surface: TourSurface) => `werkbord-tour-${surface}`;
+
+export function seenHere(surface: TourSurface): boolean {
+  try { return localStorage.getItem(localKey(surface)) !== null; } catch { return false; }
+}
+
+export function markHere(surface: TourSurface): void {
+  try { localStorage.setItem(localKey(surface), new Date().toISOString()); } catch { /* shown again next time; harmless */ }
+}
+
+export function forgetHere(): void {
+  for (const s of LOCAL_SURFACES) { try { localStorage.removeItem(localKey(s)); } catch { /* nothing to forget */ } }
+}
+
+/**
+ * A tour is offered when it has tips and this device has not shown it yet. The ones kept on the computer wait for the onboarding
+ * record to load; the ones kept on a phone do not need it.
+ */
+export function tourDue(
+  onboarding: Onboarding | null,
+  surface: TourSurface,
+  tours: Record<TourSurface, readonly TourStep[]> = TOURS,
+  seenLocally: (s: TourSurface) => boolean = seenHere,
+): boolean {
+  if (tours[surface].length === 0) return false;
+  if (LOCAL_SURFACES.includes(surface)) return !seenLocally(surface);
+  if (!onboarding) return false;
   return !onboarding.tours?.[surface];
 }

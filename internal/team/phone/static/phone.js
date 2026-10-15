@@ -58,9 +58,18 @@ async function refresh() {
    snapshot = data;
    el("status").textContent = "Updated " + new Date(data.at).toLocaleTimeString();
    render();
+   showTour();
  } catch (error) { el("status").textContent = error.message; }
  finally { busy = false; el("refresh").disabled = false; }
 }
+// A one-time note on what this view is, remembered on this phone (it is only the phone's own first look).
+const TOUR_KEY = "werkbord-team-phone-tour";
+function tourSeen() { try { return localStorage.getItem(TOUR_KEY) !== null; } catch (_) { return true; } }
+function showTour() { if (!tourSeen()) el("tour").hidden = false; }
+el("tour-done").addEventListener("click", () => {
+ el("tour").hidden = true;
+ try { localStorage.setItem(TOUR_KEY, new Date().toISOString()); } catch (_) { /* shown again next time; harmless */ }
+});
 el("refresh").addEventListener("click", refresh);
 window.addEventListener("hashchange", render);
 render();

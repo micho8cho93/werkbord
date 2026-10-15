@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Tour from '../lib/Tour.svelte';
   import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
   import Icon from '../lib/Icon.svelte';
@@ -115,6 +116,7 @@
 
 
 <div class="settings">
+  <Tour surface="settings" enabled={!isPhone()} />
   <label class="mobile-section">
     <span>Settings section</span>
     <select aria-label="Settings section" value={section} onchange={(event) => { location.hash = href(event.currentTarget.value as SectionId); }}>
