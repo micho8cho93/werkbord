@@ -18,6 +18,12 @@
   import Toasts from './lib/shell/Toasts.svelte';
   import { app } from './lib/state.svelte';
   import Deck from './lib/mobile/Deck.svelte';
+  import Agents from './lib/mobile/Agents.svelte';
+  import Repositories from './lib/mobile/Repositories.svelte';
+  import Reviews from './lib/mobile/Reviews.svelte';
+  import Runners from './lib/mobile/Runners.svelte';
+  import MyWork from './lib/mobile/MyWork.svelte';
+  import Schedule from './lib/mobile/Schedule.svelte';
   import PhoneBack from './lib/mobile/PhoneBack.svelte';
   import PhoneNav from './lib/mobile/PhoneNav.svelte';
   import { titleOf } from './lib/mobile/nav';
@@ -206,6 +212,18 @@
         {#if phoneMoreLocation && !framed && !deck}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
         {#if router.view === 'deck'}
           {#if deck}<Deck />{/if}
+        {:else if router.view === 'reviews'}
+          {#if deck}<Reviews />{/if}
+        {:else if router.view === 'repositories'}
+          {#if deck}<Repositories />{/if}
+        {:else if router.view === 'runners'}
+          {#if deck}<Runners />{/if}
+        {:else if router.view === 'agents'}
+          {#if deck}<Agents />{/if}
+        {:else if router.view === 'mywork'}
+          {#if deck}<MyWork />{/if}
+        {:else if router.view === 'schedule'}
+          {#if deck}<Schedule />{/if}
         {:else if router.view === 'control'}
           <ControlCenter />
         {:else if router.view === 'analytics'}

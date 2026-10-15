@@ -21,7 +21,7 @@
   }
 </script>
 
-<nav class="phone-nav" aria-label="Primary" data-phone-nav>
+<nav class="phone-nav" class:over={assistant.mounted} aria-label="Primary" data-phone-nav>
   <a class="tab" href={globalHref('deck')} aria-current={!assistant.isOpen ? 'page' : undefined} onclick={toDeck} data-testid="nav-deck">
     <span class="mark"><Icon name="control" size={22} /></span>
     <span class="label">Control Deck</span>
@@ -41,8 +41,8 @@
   .phone-nav {
     position: fixed;
     inset: auto 0 0 0;
-    /* Over the assistant, which is 60: it covers the page, not this. */
-    z-index: 70;
+    /* Under sheets (50) like the tab bar it replaces, so a sheet's own buttons are never covered. */
+    z-index: 10;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
@@ -50,6 +50,11 @@
     background: color-mix(in srgb, var(--bg) 94%, transparent);
     backdrop-filter: blur(10px);
     border-top: 1px solid var(--border);
+  }
+
+  /* While the assistant is open, over it (it is 60): it covers the page, not this. */
+  .phone-nav.over {
+    z-index: 70;
   }
 
   .tab {
