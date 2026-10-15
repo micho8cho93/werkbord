@@ -316,6 +316,8 @@ export interface Onboarding {
   variant?: 'github' | 'local';
   /** When each surface's first-visit tour was shown on this device. */
   tours?: Record<string, string>;
+  /** The project and ticket the guided setup made, so it resumes where it stopped. */
+  example?: { projectId: string; taskId?: string };
 }
 
 export type NetworkState = 'off' | 'starting' | 'needs_login' | 'needs_approval' | 'connected' | 'error';

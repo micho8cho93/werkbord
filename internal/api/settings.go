@@ -168,6 +168,26 @@ func (s *Server) handleOnboardingVariant(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, ob)
 }
 
+func (s *Server) handleOnboardingExample(w http.ResponseWriter, r *http.Request) {
+	if !s.settingsReady(w) {
+		return
+	}
+	var req struct {
+		ProjectID string `json:"projectId"`
+		TaskID    string `json:"taskId"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	ob, err := s.opt.Settings.SetOnboardingExample(r.Context(), req.ProjectID, req.TaskID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ob)
+}
+
 func (s *Server) handleMarkTour(w http.ResponseWriter, r *http.Request) {
 	if !s.settingsReady(w) {
 		return

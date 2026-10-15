@@ -5,7 +5,7 @@
   import { createPlan, DEFAULT_REPO_NAME, repoNameProblem } from './createRepo';
   import SetupCard from './SetupCard.svelte';
 
-  let { github, onadded }: { github: GitHubStatusInfo | null; onadded?: (fullName: string, pagesUrl: string) => void } = $props();
+  let { github, onadded }: { github: GitHubStatusInfo | null; onadded?: (projectId: string, pagesUrl: string) => void } = $props();
 
   let name = $state(DEFAULT_REPO_NAME);
   let isPrivate = $state(false);
@@ -27,7 +27,7 @@
       if (res.project) app.upsertProject(res.project);
       made = { fullName: res.repository.fullName, url: res.repository.url, pagesUrl: res.pagesUrl ?? '', pagesError: res.pagesError ?? '' };
       confirming = false;
-      onadded?.(res.repository.fullName, made.pagesUrl);
+      if (res.project) onadded?.(res.project.id, made.pagesUrl);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {

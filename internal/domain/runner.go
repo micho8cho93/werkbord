@@ -82,6 +82,14 @@ type Onboarding struct {
 	Variant string `json:"variant,omitempty"`
 	// Tours records when each surface's short tour was shown, per device.
 	Tours map[string]time.Time `json:"tours,omitempty"`
+	// Example is the project and task the guided setup made, so it resumes where it stopped.
+	Example *OnboardingExample `json:"example,omitempty"`
+}
+
+// OnboardingExample names the example project and its ticket.
+type OnboardingExample struct {
+	ProjectID string `json:"projectId"`
+	TaskID    string `json:"taskId,omitempty"`
 }
 
 // Guided-setup step states and paths.

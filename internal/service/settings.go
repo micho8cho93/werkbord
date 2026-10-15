@@ -162,6 +162,19 @@ func (s *Settings) SetOnboardingVariant(ctx context.Context, variant string) (do
 	return s.updateOnboarding(ctx, func(ob *domain.Onboarding) error { ob.Variant = variant; return nil })
 }
 
+// SetOnboardingExample remembers the example project and ticket. An empty
+// project forgets them.
+func (s *Settings) SetOnboardingExample(ctx context.Context, projectID, taskID string) (domain.Onboarding, error) {
+	return s.updateOnboarding(ctx, func(ob *domain.Onboarding) error {
+		if projectID == "" {
+			ob.Example = nil
+			return nil
+		}
+		ob.Example = &domain.OnboardingExample{ProjectID: projectID, TaskID: taskID}
+		return nil
+	})
+}
+
 // MarkTour records that a surface's tour was shown. The first time wins, so a
 // replay does not move the date.
 func (s *Settings) MarkTour(ctx context.Context, surface string) (domain.Onboarding, error) {

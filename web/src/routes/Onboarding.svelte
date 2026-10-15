@@ -4,6 +4,8 @@
   import { globalHref, router } from '../lib/router.svelte';
   import AgentsCard from '../lib/setup/AgentsCard.svelte';
   import CreateRepoCard from '../lib/setup/CreateRepoCard.svelte';
+  import HelloFlow from '../lib/setup/HelloFlow.svelte';
+  import { exampleStage } from '../lib/setup/hello';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import NetworkCard from '../lib/setup/NetworkCard.svelte';
   import ReposCard from '../lib/setup/ReposCard.svelte';
@@ -23,15 +25,25 @@
   const local = $derived(localReadiness(app.runners, app.agents, app.projects, app.connection === 'live' && !readinessUnavailable));
   const stepStates = $derived(app.onboarding?.steps ?? {});
   const githubDone = $derived(github?.state === 'signed_in' && !github.missingScopes?.length);
+  const example = $derived(app.onboarding?.example);
+  const exampleScope = $derived(example ? app.scope(example.projectId) : undefined);
+  const exampleTask = $derived(example?.taskId ? exampleScope?.tasks.find((t) => t.id === example.taskId) : undefined);
+  const stage = $derived(exampleStage(exampleTask, exampleTask ? exampleScope?.latestRun[exampleTask.id] : undefined));
+  const stepDone = (id: string) => stepStates[id] === 'done' || stepStates[id] === 'skipped';
+  const variant = $derived<'github' | 'local'>(app.onboarding?.variant === 'local' ? 'local' : 'github');
   // GitHub sits between the agent and the repository. It is optional: skipping it keeps everything local.
   const steps = $derived([
     local.steps[0],
     local.steps[1],
     { id: 'github', label: 'GitHub', done: githubDone, optional: true },
     { ...local.steps[2], optional: false },
+    { id: 'ticket', label: 'Ticket', done: stepDone('ticket') || !!exampleTask },
+    { id: 'assistant', label: 'Assistant', done: stepDone('assistant') || stage === 'review' || stage === 'done' },
+    { id: 'publish', label: variant === 'local' ? 'Merge' : 'Publish', done: stepStates.publish === 'done' },
   ].map((x) => ({ optional: false, ...x })));
   // Resumes at the first step that is neither verified nor skipped, unless the person picked another.
   const current = $derived(chosen ?? steps.find((x) => !x.done && stepStates[x.id] !== 'skipped')?.id ?? steps[steps.length - 1].id);
+  const exampleStep = $derived(current === 'ticket' || current === 'assistant' || current === 'publish');
   const currentIndex = $derived(steps.findIndex((x) => x.id === current));
   const currentStep = $derived(steps[currentIndex]);
 
@@ -52,6 +64,14 @@
   function go(id: string) {
     chosen = id;
     if (id === 'computer' || id === 'agents') void recheck();
+  }
+
+  // The repository the setup just made is the example the rest of the path works on.
+  async function madeRepo(projectId: string) {
+    try {
+      app.onboarding = await api.setOnboardingExample(projectId);
+      go('ticket');
+    } catch (err) { error = err instanceof Error ? err.message : String(err); }
   }
 
   async function skipStep() {
@@ -137,14 +157,18 @@
   {:else if current === 'github'}
   <p class="muted">GitHub lets Werkbord create a repository for you and publish a page from it. Without it, everything still works on this computer.</p>
   <GitHubCard skipped={stepStates.github === 'skipped'} onskip={skipStep} onchange={(s) => (github = s)} />
-  {:else}
-  {#if githubDone}<CreateRepoCard {github} />{/if}
+  {:else if current === 'repository'}
+  {#if githubDone}<CreateRepoCard {github} onadded={madeRepo} />{/if}
   <ReposCard {github} />
+  {:else}
+  <HelloFlow step={current as 'ticket' | 'assistant' | 'publish'} {variant} onstep={go} ondone={() => finish(false)} />
   {/if}
 
   <nav class="actions" aria-label="Setup navigation">
     {#if currentIndex > 0}<button class="btn big" onclick={() => go(steps[currentIndex - 1].id)}>Back</button>{/if}
-    {#if (currentStep.done || stepStates[current] === 'skipped') && currentIndex < steps.length - 1}
+    {#if exampleStep}
+      <!-- The example steps carry their own buttons. -->
+    {:else if (currentStep.done || stepStates[current] === 'skipped') && currentIndex < steps.length - 1}
       <button class="btn primary big" onclick={() => go(steps[currentIndex + 1].id)}>Next</button>
     {:else if local.ready}
       <button class="btn primary big" disabled={checking || finishing} onclick={() => finish(true)}>{finishing ? 'Opening…' : 'Create your first task'}</button>

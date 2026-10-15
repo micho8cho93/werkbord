@@ -129,3 +129,37 @@ func (s *Server) handleGitHubPages(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, st)
 }
+
+// handleLocalExample makes the example repository on this computer, for a person
+// who is not using GitHub.
+func (s *Server) handleLocalExample(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	p, err := s.opt.GitHub.CreateLocalExample(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, p)
+}
+
+// handleScaffoldExample commits the template page to the example project.
+func (s *Server) handleScaffoldExample(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	var req struct {
+		ProjectID string `json:"projectId"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	res, err := s.opt.GitHub.ScaffoldExample(r.Context(), req.ProjectID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, res)
+}

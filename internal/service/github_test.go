@@ -411,3 +411,52 @@ func TestCreatingARepositoryKeepsWhatWorkedWhenPagesOrNameFail(t *testing.T) {
 		t.Fatalf("clone failure = %+v, %v", res, err)
 	}
 }
+
+func TestLocalExampleIsMadeOnceAndTemplateNeverOverwrites(t *testing.T) {
+	g := newGHFixture(t)
+	p, err := g.setup.CreateLocalExample(bg)
+	if err != nil || !strings.HasSuffix(p.RepoPath, "werkbord-hello") {
+		t.Fatalf("local example = %+v, %v", p, err)
+	}
+	again, err := g.setup.CreateLocalExample(bg)
+	if err != nil || !strings.HasSuffix(again.RepoPath, "werkbord-hello-2") || again.RepoPath == p.RepoPath {
+		t.Fatalf("a second example must go next to the first: %+v, %v", again, err)
+	}
+
+	res, err := g.setup.ScaffoldExample(bg, p.ID)
+	if err != nil || res.Branch != "main" || len(res.Commit) < 7 {
+		t.Fatalf("scaffold = %+v, %v", res, err)
+	}
+	for _, f := range []string{"index.html", ".github/workflows/pages.yml"} {
+		if _, err := os.Stat(filepath.Join(p.RepoPath, filepath.FromSlash(f))); err != nil {
+			t.Fatalf("%s was not written: %v", f, err)
+		}
+	}
+	out, _ := exec.Command("git", "-C", p.RepoPath, "status", "--porcelain").Output()
+	if len(out) != 0 {
+		t.Fatalf("the template was left uncommitted: %s", out)
+	}
+	if _, err := g.setup.ScaffoldExample(bg, p.ID); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("a second scaffold must not overwrite: %v", err)
+	}
+
+	// Uncommitted work is never swept into the template commit.
+	if err := os.WriteFile(filepath.Join(again.RepoPath, "mine.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.setup.ScaffoldExample(bg, again.ID); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("dirty tree: %v", err)
+	}
+}
+
+func TestExampleProjectIsRemembered(t *testing.T) {
+	f := newFixture(t)
+	s := &Settings{Deps: f.deps}
+	ob, err := s.SetOnboardingExample(bg, "p1", "t1")
+	if err != nil || ob.Example == nil || ob.Example.TaskID != "t1" {
+		t.Fatalf("example = %+v, %v", ob, err)
+	}
+	if ob, _ = s.SetOnboardingExample(bg, "", ""); ob.Example != nil {
+		t.Fatalf("forgotten example = %+v", ob.Example)
+	}
+}
