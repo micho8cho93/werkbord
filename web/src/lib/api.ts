@@ -52,6 +52,7 @@ import type {
 } from './types';
 import { normalizeRunner, normalizeRunners } from './runners';
 import { startRefusal } from './scheduling';
+import { isPhone } from './phones/capability';
 
 const TOKEN_KEY = 'devboard.token';
 let memoryToken: string | null = null;
@@ -221,6 +222,14 @@ export interface RunChoice {
   interaction?: InteractionPolicy;
 }
 
+/** What a phone may not choose: how work is carried out is the owner's, at the computer (internal/api/phone.go). */
+function withoutExecution<T extends object>(body: T): T {
+  if (!isPhone()) return body;
+  const copy = { ...body } as Record<string, unknown>;
+  for (const key of ['execution', 'runnerId', 'agentId', 'model', 'reasoning', 'policy']) delete copy[key];
+  return copy as T;
+}
+
 export const api = {
   analytics: (project: string, days: number, provider: string) => request<import('./analytics').AnalyticsReport>('GET', `/api/analytics?${new URLSearchParams({ project, days: String(days), provider })}`),
 schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET', `${inProject(projectId)}/schedule`).then(r => r.decisions),
@@ -228,7 +237,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
  setOrchestrationSettings: (projectId: string, concurrencyLimit: number) => request<{concurrencyLimit: number}>('PUT', `${inProject(projectId)}/orchestration`, {concurrencyLimit}),
  generateHandoff: (projectId: string, runId: string) => request<Run>('POST', `${inProject(projectId)}/runs/${enc(runId)}/handoff`),
  saveHandoff: (run: Run, handoff: Handoff) => request<Run>('PUT', `${inProject(run.projectId)}/runs/${enc(run.id)}/handoff`, {version: run.version, handoff}),
- continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, {runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})}),
+ continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, withoutExecution({runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})})),
  health: () => request<Health>('GET', '/api/health'),
   mcpConnections: () => request<{connections:MCPConnection[]}>('GET', '/api/connections').then(r=>r.connections),
   mcpOperations: () => request<{operations:MCPBoardOperation[]}>('GET', '/api/mcp/operations').then(r=>r.operations),
@@ -318,7 +327,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   archiveTask: (task: Task, archived = true) => request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, { archived, version: task.version }),
   archiveDone: (projectId: string) => request<{ tasks: Task[] }>('POST', `${inProject(projectId)}/tasks/archive-done`).then(r => r.tasks),
   createTask: (projectId: string, title: string, description = '', execution?: ExecutionConfig, more: Omit<NewTaskOptions, 'execution'> = {}) =>
-    request<Task>('POST', `${inProject(projectId)}/tasks`, { title, description, ...(execution ? { execution } : {}), ...more }),
+    request<Task>('POST', `${inProject(projectId)}/tasks`, withoutExecution({ title, description, ...(execution ? { execution } : {}), ...more })),
   /** What is wrong with a project's dependencies and planned dates. It only reports. */
   timeline: (projectId: string) => request<{ warnings: TimelineWarning[] }>('GET', `${inProject(projectId)}/timeline`).then((r) => r.warnings ?? []),
 
@@ -329,11 +338,11 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
     request<Label>('PATCH', `/api/labels/${enc(label.id)}`, { ...edit, version: label.version }),
   deleteLabel: (id: string) => requestNoContent('DELETE', `/api/labels/${enc(id)}`),
   editTask: (task: Task, edit: TaskEdit) =>
-    request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, { ...edit, version: task.version }),
+    request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, withoutExecution({ ...edit, version: task.version })),
   moveTask: (task: Task, state: TaskState) => api.editTask(task, { state }),
 
   startRun: (projectId: string, taskId: string, choice: RunChoice = {}, instructions = '', resume = false) =>
-    request<Run>('POST', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`, {
+    request<Run>('POST', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`, withoutExecution({
       ...(choice.runnerId ? { runnerId:choice.runnerId } : {}),
       ...(choice.agentId ? { agentId: choice.agentId } : {}),
       ...(choice.model ? { model: choice.model } : {}),
@@ -341,7 +350,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
       instructions,
       resume,
       ...(choice.interaction ? { policy: { interaction: choice.interaction } } : {}),
-    }).catch((err: unknown) => {
+    })).catch((err: unknown) => {
       // A start the scheduler refused is said in plain words everywhere a run is started; the code stays "conflict".
       throw err instanceof ApiError && err.code === 'conflict' ? new ApiError(err.status, err.code, startRefusal(err.message), err.question) : err;
     }),

@@ -41,7 +41,7 @@ func TestTheAssistantIsServedToThePersonOnThisComputerAndToEnrolledPhonesOnThePr
 	if code, body := post(t, priv+"/api/assistant/sessions", tok); code != 403 {
 		t.Errorf("creating a conversation over the private network with the controller's token = %d %s", code, body)
 	}
-	// An enrolled phone has it, except the folders it is given on the computer and its audit log.
+	// An enrolled phone has all of it.
 	waitFor(t, "connected", func() bool {
 		code, body := get(t, base+"/api/network", tok)
 		return code == 200 && strings.Contains(body, `"connected"`)
@@ -63,11 +63,9 @@ func TestTheAssistantIsServedToThePersonOnThisComputerAndToEnrolledPhonesOnThePr
 	if code, body := get(t, priv+"/api/assistant/providers", enrolled.Token); code != 200 || !strings.Contains(body, `"claude-code"`) {
 		t.Errorf("an enrolled phone's assistant = %d %.200s", code, body)
 	}
-	if code, _ := get(t, priv+"/api/assistant/audit", enrolled.Token); code != 403 {
-		t.Errorf("an enrolled phone's assistant audit = %d, want 403", code)
-	}
-	if code, _ := post(t, priv+"/api/assistant/sessions/x/workspaces", enrolled.Token); code != 403 {
-		t.Errorf("an enrolled phone giving the assistant folders = %d, want 403", code)
+	// All of it, as on the desktop: the audit log too.
+	if code, _ := get(t, priv+"/api/assistant/audit", enrolled.Token); code == 403 || code == 401 {
+		t.Errorf("an enrolled phone's assistant audit = %d", code)
 	}
 	// Nothing is started, or made on disk, until someone uses it.
 	if _, err := os.Stat(filepath.Join(c.cfg.DataDir, "assistant")); err == nil {

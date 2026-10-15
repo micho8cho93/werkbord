@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isPhone } from './phones/capability';
   import { api } from './api';
   import LabelChip from './LabelChip.svelte';
   import { LABEL_COLORS, sortedLabels } from './labels';
@@ -85,7 +86,7 @@
           <li class="none">{all.length ? 'No label by that name.' : canCreate ? 'No labels yet. Name one below.' : 'No labels yet. Make them in Settings.'}</li>
         {/each}
       </ul>
-      {#if canCreate && q && !exact}
+      {#if canCreate && q && !exact && !isPhone()}
         <div class="make">
           <div class="swatches" role="radiogroup" aria-label="Colour">
             {#each LABEL_COLORS as c (c)}

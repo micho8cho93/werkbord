@@ -3,6 +3,7 @@
   import { api, ApiError, setToken } from '../api';
   import { formatDateTime } from '../clock.svelte';
   import type { NetworkStatus, PhoneEntry } from '../types';
+  import { isPhone } from './capability';
   import PhoneEnroll from './PhoneEnroll.svelte';
   import { lastSeen } from './phones';
 
@@ -19,6 +20,10 @@
 
   async function refresh() {
     try {
+      if (isPhone()) {
+        self = await api.phoneSelf();
+        return;
+      }
       phones = await api.phones();
       now = Date.now();
       error = '';
@@ -38,7 +43,7 @@
 
   onMount(() => {
     void refresh();
-    void api.network().then((n) => (net = n)).catch(() => {});
+    if (!isPhone()) void api.network().then((n) => (net = n)).catch(() => {});
     const t = setInterval(() => {
       if (document.visibilityState === 'visible' && !self) void refresh();
     }, 10000);

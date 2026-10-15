@@ -245,7 +245,9 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
         assert.equal(await asPhone('PUT', '/api/settings/execution', {}), 403, 'a phone cannot change settings');
         assert.equal(await asPhone('POST', '/api/projects', { path: repo }), 403, 'a phone cannot register a repository');
         assert.equal(await asPhone('GET', '/api/phones'), 403, 'a phone cannot list phones');
-        assert.equal(await asPhone('POST', `/api/projects/${project.id}/git/push`, {}), 403, 'a phone cannot push');
+        assert.notEqual(await asPhone('POST', `/api/projects/${project.id}/git/push`, {}), 403, 'a phone may use Git, push included');
+        assert.notEqual(await asPhone('GET', '/api/assistant/audit'), 403, 'the whole Assistant is there');
+        assert.equal(await asPhone('POST', `/api/projects/${project.id}/tasks`, { title: 'x', execution: { agent: 'a' } }), 403, 'a phone does not choose how a task runs');
         assert.equal(await asPhone('POST', '/api/phones/codes', {}), 403, 'a phone cannot enroll another');
         // The Assistant is allowed (the surface opens; whether a provider is installed is the machine's business).
         await page.getByTestId('nav-assistant').click();
@@ -263,6 +265,20 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
             await page.goto(base + '/#/deck');
             assert.deepEqual([...new Set(refused)], [], 'a phone\'s own screens ask for nothing it is refused');
         }
+        // What it may not do is not on screen: no way to add a project, no run settings, a Settings with only its own.
+        await page.goto(base + '/#/projects');
+        await page.getByRole('heading', { level: 1 }).first().waitFor();
+        assert.equal(await page.getByText('Add a project').count(), 0, 'no way to add a project');
+        const firstTask = (await ownerRequest('GET', `/api/projects/${project.id}/tasks`)).tasks[0];
+        await page.goto(base + `/#/p/${project.id}/task/${firstTask.id}`);
+        await page.waitForTimeout(500);
+        assert.equal(await page.locator('#run-agent, [id^="run-"]').count(), 0, 'no run settings on a task');
+        await page.goto(base + '/#/runners');
+        await page.waitForTimeout(500);
+        assert.equal(await page.getByRole('button', { name: 'Add runner' }).count(), 0, 'no way to pair a runner');
+        await page.goto(base + '/#/settings');
+        await page.getByTestId('phone-self').waitFor();
+        assert.equal(await page.getByRole('link', { name: 'Runners', exact: true }).count(), 0, 'Settings has nothing a phone cannot change');
         // Settings -> Phones shows this phone and lets it sign itself out.
         await page.goto(base + '/#/settings?phones');
         await page.getByTestId('phone-self').waitFor();

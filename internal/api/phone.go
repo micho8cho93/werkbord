@@ -27,8 +27,9 @@ import (
 //
 // A phone is the owner's remote control, not a second owner. It can see everything the Control Deck and the task pages
 // show, work with tasks and runs, answer agents and use the Assistant. It cannot change a setting, register or change a
-// repository, touch the controller's token, pair or revoke a runner, enroll or revoke phones, or do anything in Git that
-// cannot be undone. Those are the owner's, at the computer.
+// repository, touch the controller's token, pair or revoke a runner, choose how a task or run executes, or enroll or
+// revoke phones. Those are the owner's, at the computer. Git (merge, push, branch delete, worktree clean, pull request)
+// and the whole Assistant are allowed: the owner decided so.
 
 const forbiddenForPhone = "this phone's access to Werkbord does not include that: do it at your computer"
 
@@ -98,14 +99,22 @@ var phoneRoutes = []phoneRoute{
 	{method: "PATCH", pattern: "/api/projects/{}/runs/{}/assessment", fields: []string{"acceptance"}},
 	{method: "POST", pattern: "/api/projects/{}/questions/{}/answer", fields: []string{"answer"}},
 
-	// Git: looking, fetching (it only updates what Git already knows of the remote) and the repository health list.
-	// No merge, push, branch delete, worktree clean or pull request: see phoneRefusedGit.
+	// Git: the whole Control Center, actions included. Each action checks again before it acts and says what it did
+	// (service.GitControl); the owner has chosen that a phone may do them.
 	{method: "POST", pattern: "/api/projects/{}/git/fetch"},
+	{method: "POST", pattern: "/api/projects/{}/git/push", anyBody: true},
+	{method: "POST", pattern: "/api/projects/{}/git/merge/plan", anyBody: true},
+	{method: "POST", pattern: "/api/projects/{}/git/merge", anyBody: true},
+	{method: "POST", pattern: "/api/projects/{}/git/branches/delete-plan", anyBody: true},
+	{method: "POST", pattern: "/api/projects/{}/git/branches/delete", anyBody: true},
+	{method: "POST", pattern: "/api/projects/{}/git/worktrees/clean-plan", anyBody: true},
+	{method: "POST", pattern: "/api/projects/{}/git/worktrees/clean", anyBody: true},
+	{method: "POST", pattern: "/api/projects/{}/git/pull-requests", anyBody: true},
 	{method: "POST", pattern: "/api/projects/{}/git/health/refresh"},
 	{method: "POST", pattern: "/api/projects/{}/git/health/findings/{}/dismiss"},
 	{method: "POST", pattern: "/api/projects/{}/git/health/findings/{}/reopen"},
 
-	// the Assistant. Not the folders it is given on the computer, nor its audit log.
+	// the Assistant, all of it, as on the desktop.
 	{method: "GET", pattern: "/api/assistant/providers"},
 	{method: "GET", pattern: "/api/assistant/sessions"},
 	{method: "POST", pattern: "/api/assistant/sessions", anyBody: true},
@@ -118,19 +127,11 @@ var phoneRoutes = []phoneRoute{
 	{method: "POST", pattern: "/api/assistant/sessions/{}/cancel"},
 	{method: "GET", pattern: "/api/assistant/sessions/{}/events"},
 	{method: "POST", pattern: "/api/assistant/sessions/{}/actions/{}", anyBody: true},
-}
-
-// phoneRefusedGit is the Git the phone is refused on purpose, with the reason. Nothing reads it but the test that keeps
-// it honest: these are the decisions, written down where a change to the list above will be seen.
-var phoneRefusedGit = map[string]string{
-	"POST /api/projects/{}/git/push":                 "pushes commits to a remote: cannot be undone from here",
-	"POST /api/projects/{}/git/merge":                "changes a branch's history",
-	"POST /api/projects/{}/git/merge/plan":           "only useful with the merge",
-	"POST /api/projects/{}/git/branches/delete":      "deletes a branch (and with it the remote's, when asked)",
-	"POST /api/projects/{}/git/branches/delete-plan": "only useful with the delete",
-	"POST /api/projects/{}/git/worktrees/clean":      "deletes a worktree's files",
-	"POST /api/projects/{}/git/worktrees/clean-plan": "only useful with the clean",
-	"POST /api/projects/{}/git/pull-requests":        "publishes to GitHub as the owner",
+	{method: "POST", pattern: "/api/assistant/sessions/{}/workspaces", anyBody: true},
+	{method: "GET", pattern: "/api/assistant/sessions/{}/workspace-requests/{}"},
+	{method: "POST", pattern: "/api/assistant/sessions/{}/workspace-requests/{}", anyBody: true},
+	{method: "GET", pattern: "/api/assistant/audit"},
+	{method: "GET", pattern: "/api/assistant/audit/verify"},
 }
 
 func phoneRouteFor(method, path string) (phoneRoute, bool) {

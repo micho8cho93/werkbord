@@ -18,12 +18,13 @@ it is not the controller's token, and it works on a fixed list of routes (`inter
 | --- | --- |
 | Read everything the deck and the task pages show | Change settings, register or change a repository |
 | Create and edit tasks, start a run with the task's own settings, stop or finish it, answer an agent, accept or reject its work | Choose an agent, model, policy or runner for a task or run; pair or revoke runners |
-| Use the Assistant | Give the Assistant folders on the computer; read its audit log |
-| Look at Git and fetch | Merge, push, delete a branch, clean a worktree, open a pull request |
+| Use the Assistant, all of it (Team workspace tools need the desktop app, which a phone does not have) | |
+| Use Git as the Control Center does: fetch, merge, push, delete a branch, clean a worktree, open a pull request | |
 | Read, rename and sign out itself | Make codes, list or revoke phones, read or rotate the token |
 
-Where a screen offers something a phone cannot do, the request is refused (`403`) and the app says it is done at the computer.
-The screens do not yet hide those buttons.
+What a phone cannot do is not shown: no Add a project, no run settings or agent pickers, no runner pairing or management, no label creation,
+no project settings, and a Settings with only Phones and display (`lib/phones/capability.ts`: a browser holding a `wbp_` credential). The controller
+refuses them with `403` regardless.
 
 ## The Control Deck
 
@@ -84,7 +85,7 @@ opens the same editor the board uses for the dates. Nothing is moved by dragging
 ## The Assistant
 
 The Assistant is unchanged: same conversation engine, providers, model picker, tools, dictation, streaming and confirmation cards. A phone that
-has been enrolled may use it over the private network (it is the only thing there that can); it is not given folders on the computer. On a phone
+has been enrolled may use it over the private network (it is the only thing there that can), through every assistant route the desktop uses. On a phone
 its surface stops where the bar begins (and takes the room when the on-screen keyboard is up), its Close button gives way to the bar, and the
 bar's two places are part of its focus order. Nothing was added to what it may do.
 

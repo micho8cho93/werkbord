@@ -6,6 +6,7 @@
   import { assistant } from './lib/assistant/store.svelte';
   import { embedded } from './lib/embed';
   import NeedsInputBanner from './lib/NeedsInputBanner.svelte';
+  import { isPhone } from './lib/phones/capability';
   import PhoneWelcome from './lib/phones/PhoneWelcome.svelte';
   import ConnectionBanner from './lib/ConnectionBanner.svelte';
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
@@ -108,7 +109,7 @@
   let setupOffered = false;
   $effect(() => {
     if (!loaded && app.onboarding === null) return;
-    if (app.needsOnboarding && !setupOffered && router.view !== 'onboarding') {
+    if (app.needsOnboarding && !isPhone() && !setupOffered && router.view !== 'onboarding') {
       setupOffered = true;
       router.go({ view: 'onboarding', projectId: '', taskId: '' });
     }
@@ -161,7 +162,7 @@
 
   /** The phone's tabs, as on the identity sheet: what needs you first, then the project's sections. */
   let moreOpen = $state(false);
-  const more = $derived(moreEntries(project?.id ?? ''));
+  const more = $derived(moreEntries(project?.id ?? '').filter((e) => !isPhone() || e.id !== 'defaults'));
   // A page opened from the sheet, or by the back button, leaves the sheet behind.
   $effect(() => {
     void [router.view, router.projectId];

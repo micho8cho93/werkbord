@@ -46,15 +46,15 @@ Revoking ends what the phone has open, including its live view, within a moment.
 needs a new code to come back. At most sixteen phones.
 
 **What a phone can do.** See what the Control Deck and the task pages show (projects, tasks, runs, questions, calendar,
-analytics, Git as a reader, runners as a reader); create and edit tasks (not how they run); start a run **with the task's own
-settings**, finish or stop it, answer an agent, accept or reject its work; fetch in Git; and use the **Assistant**.
-It can read its own entry, rename itself and sign itself out.
+analytics, Git, runners); create and edit tasks (not how they run); start a run **with the task's own settings**, finish or
+stop it, answer an agent, accept or reject its work; do everything the Git Control Center does (fetch, merge, push, delete a
+branch, clean a worktree, open a pull request); and use the **Assistant**, all of it, as on the desktop. It can read its own
+entry, rename itself and sign itself out.
 
 **What a phone cannot do.** Change any setting, register or change a repository, read or rotate the controller's token, pair or
-revoke a runner, choose an agent, model, policy or runner for a task or run, make codes or see and revoke phones, give the
-Assistant folders on your computer or read its audit log, manage connections or MCP clients, and do anything in Git that cannot
-be undone: merge, push, delete a branch, clean a worktree or open a pull request. Those are yours, at your computer. A phone
-asking for one gets `403`, and the app says so.
+revoke a runner, choose an agent, model, policy or runner for a task or run, make codes or see and revoke phones, or manage
+connections or MCP clients. Those are yours, at your computer. The phone's screens do not show them (its Settings has only
+Phones and display); the controller refuses them with `403` regardless.
 
 The list is fixed and reviewed (`internal/api/phone.go`); a test fails when it changes without the change being read.
 

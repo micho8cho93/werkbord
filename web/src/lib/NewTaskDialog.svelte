@@ -7,6 +7,7 @@
   import { INTERACTION_OPTIONS, PERMISSIONS_NOTE } from './policy';
   import { globalHref } from './router.svelte';
   import ExecutionFields from './ExecutionFields.svelte';
+  import { isPhone } from './phones/capability';
   import { router } from './router.svelte';
   import Sheet from './Sheet.svelte';
   import TaskPlanFields from './TaskPlanFields.svelte';
@@ -147,7 +148,7 @@
         <p class="hint">Permission requests still come to you.</p>
         {#if busyOnly}<p class="hint" role="status">{BUSY_RUNNERS} Add it to Backlog now and start it from its card.</p>
         {:else if !agentReady}<p class="hint">{app.connection !== 'live' ? 'Reconnect to confirm availability before starting.' : 'The selected agent or runner is unavailable.'} You can save this task in Backlog. <a href={globalHref('settings')}>Check Settings</a>.</p>{/if}
-        <details><summary>Change run settings</summary><p class="hint">{interaction.description} {PERMISSIONS_NOTE} From {sourceLabel(effective.sources.interaction)}.</p><ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" disabled={!!saved || uncertainSave} columns /></details>
+        {#if !isPhone()}<details><summary>Change run settings</summary><p class="hint">{interaction.description} {PERMISSIONS_NOTE} From {sourceLabel(effective.sources.interaction)}.</p><ExecutionFields bind:value={execution} {inherited} idPrefix="new-task" disabled={!!saved || uncertainSave} columns /></details>{/if}
       </section>
     {/if}
     <fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:plan repository={!isWork} idPrefix="new-task" issues={planIssues} /></fieldset>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isPhone } from '../lib/phones/capability';
   import FolderPicker from '../lib/FolderPicker.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import ReposCard from '../lib/setup/ReposCard.svelte';
@@ -97,6 +98,7 @@
     {/if}
   </section>
 
+  {#if !isPhone()}
   <section class="pn register" id="add-project">
     <h3>Add a project</h3>
     <div class="seg" role="group" aria-label="Project source">
@@ -135,6 +137,7 @@
       <ReposCard {github} showFolder={false} />
     {/if}
   </section>
+  {/if}
 </div>
 
 {#if phone.on && !formShown}
