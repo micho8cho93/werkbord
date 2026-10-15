@@ -36,6 +36,8 @@ type GitHubSetup struct {
 	ScanRoots []string
 	// CloneRoot overrides where new clones are made.
 	CloneRoot string
+	// Probe overrides how a published address is checked (tests).
+	Probe func(ctx context.Context, url string) bool
 
 	mu        sync.Mutex
 	account   *github.Account

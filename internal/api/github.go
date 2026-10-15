@@ -1,6 +1,10 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+
+	"devboard/internal/service"
+)
 
 func (s *Server) githubReady(w http.ResponseWriter) bool {
 	if s.opt.GitHub == nil {
@@ -88,4 +92,40 @@ func (s *Server) handleGitHubAddRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, res)
+}
+
+// handleGitHubCreateRepo creates the repository the person confirmed, turns on
+// Pages, and makes it a project on this computer.
+func (s *Server) handleGitHubCreateRepo(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	var req service.CreateRepoRequest
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	res, err := s.opt.GitHub.CreateRepository(r.Context(), req)
+	if err != nil {
+		if res != nil { // partly done: say what exists
+			writeJSON(w, http.StatusConflict, map[string]any{"error": map[string]any{"code": "conflict", "message": err.Error()}, "result": res})
+			return
+		}
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, res)
+}
+
+// handleGitHubPages reports whether a repository's site is up.
+func (s *Server) handleGitHubPages(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	st, err := s.opt.GitHub.Pages(r.Context(), r.URL.Query().Get("repo"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
 }

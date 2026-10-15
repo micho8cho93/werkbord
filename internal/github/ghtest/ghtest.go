@@ -28,6 +28,24 @@ api)
     echo "gh: To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4
   fi
   case "$*" in
+  *"-X POST"*"user/repos"*)
+    [ -f "$D/exists" ] && { echo "gh: Repository creation failed: name already exists on this account (HTTP 422)" >&2; exit 1; }
+    name=""
+    for a in "$@"; do case "$a" in name=*) name="${a#name=}" ;; esac; done
+    private=false
+    case "$*" in *"private=true"*) private=true ;; esac
+    echo "{\"full_name\":\"octo/$name\",\"name\":\"$name\",\"private\":$private,\"default_branch\":\"main\",\"html_url\":\"https://github.com/octo/$name\",\"owner\":{\"login\":\"octo\"}}"
+    exit 0 ;;
+  *"-X POST"*"/pages"*)
+    name=""
+    for a in "$@"; do case "$a" in repos/*/pages) name="${a#repos/octo/}"; name="${name%/pages}" ;; esac; done
+    [ -f "$D/pages_denied" ] && { echo "gh: Your current plan does not support GitHub Pages for this repository. (HTTP 422)" >&2; exit 1; }
+    echo "{\"html_url\":\"https://octo.github.io/$name/\",\"build_type\":\"workflow\"}" | tee "$D/pages.$name" ; exit 0 ;;
+  *"/pages"*)
+    name=""
+    for a in "$@"; do case "$a" in repos/*/pages) name="${a#repos/octo/}"; name="${name%/pages}" ;; esac; done
+    if [ -f "$D/pages.$name" ]; then cat "$D/pages.$name"; exit 0; fi
+    echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
   *user/repos*)
     page=1
     for a in "$@"; do case "$a" in page=*) page="${a#page=}" ;; esac; done
@@ -77,6 +95,12 @@ func (f *Fake) write(name, body string) {
 		panic(err)
 	}
 }
+
+// PagesDenied makes enabling Pages fail as it does on a plan without it.
+func (f *Fake) PagesDenied() { f.write("pages_denied", "") }
+
+// RepoExists makes creating a repository fail as if the name were taken.
+func (f *Fake) RepoExists() { f.write("exists", "") }
 
 // Scopes sets the OAuth scopes the fake's token reports ("" means none).
 func (f *Fake) Scopes(list string) { f.write("scopes", list) }

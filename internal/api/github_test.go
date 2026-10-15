@@ -81,3 +81,22 @@ func TestOptionalEndpointsAreUnavailableWithoutTheirService(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateRepoAndPagesEndpointsRefuseWhatIsNotConfirmedOrValid(t *testing.T) {
+	url, gh := newGitHubServer(t)
+	gh.SignIn()
+	var out map[string]any
+	if code := do(t, "POST", url+"/api/github/repos/create", `{"name":"bad name","description":"","private":false}`, &out); code != 400 {
+		t.Fatalf("a bad name = %d %v", code, out)
+	}
+	if code := do(t, "POST", url+"/api/github/repos/create", `{"name":"ok","extra":1}`, &out); code != 400 {
+		t.Fatalf("an unknown field = %d", code)
+	}
+	var st service.PagesState
+	if code := do(t, "GET", url+"/api/github/pages?repo=octo/none", "", &st); code != 200 || st.State != "disabled" {
+		t.Fatalf("pages = %d %+v", code, st)
+	}
+	if code := do(t, "GET", url+"/api/github/pages?repo=nonsense", "", &out); code != 400 {
+		t.Fatalf("a bad repo = %d", code)
+	}
+}

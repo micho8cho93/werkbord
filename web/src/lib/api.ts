@@ -316,6 +316,10 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   githubAddRepo: (fullName: string, path = '') =>
     request<{ project: Project; cloned: boolean }>('POST', '/api/github/repos/add', { fullName, path }),
 
+  githubCreateRepo: (req: { name: string; description: string; private: boolean }) =>
+    request<{ repository: { fullName: string; url: string; private: boolean }; project: Project | null; pagesUrl?: string; pagesError?: string }>('POST', '/api/github/repos/create', req),
+  githubPages: (repo: string) => request<{ enabled: boolean; url?: string; state: 'disabled' | 'waiting' | 'live' }>('GET', `/api/github/pages?${new URLSearchParams({ repo })}`),
+
   // Global: the projects, and the one view that looks across all of them.
   listProjects: () => request<{ projects: Project[] }>('GET', '/api/projects').then((r) => r.projects),
   registerProject: (path: string, name: string) => request<Project>('POST', '/api/projects', { path, name }),

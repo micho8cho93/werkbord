@@ -341,3 +341,73 @@ func TestGitHubStatusNamesMissingScopesAndRefreshGrantsThem(t *testing.T) {
 	}
 	t.Fatalf("scopes never arrived: %+v", g.setup.Status(bg))
 }
+
+func TestCreatingARepositoryEnablesPagesClonesAndRegistersIt(t *testing.T) {
+	g := newGHFixture(t)
+	g.gh.SignIn()
+	remotes := t.TempDir()
+	remoteRepo(t, remotes, "octo", "werkbord-hello") // what GitHub would now hold
+	pretendGitHub(t, remotes)
+	g.setup.Probe = func(context.Context, string) bool { return false }
+
+	if _, err := g.setup.CreateRepository(bg, CreateRepoRequest{Name: "bad name"}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("a bad name: %v", err)
+	}
+	g.gh.Scopes("repo")
+	g.setup.forgetAccount()
+	if _, err := g.setup.CreateRepository(bg, CreateRepoRequest{Name: "werkbord-hello"}); !errors.Is(err, domain.ErrConflict) || !strings.Contains(err.Error(), "workflow") {
+		t.Fatalf("missing scope: %v", err)
+	}
+	g.gh.Scopes("repo, workflow")
+	g.setup.forgetAccount()
+
+	res, err := g.setup.CreateRepository(bg, CreateRepoRequest{Name: "werkbord-hello", Description: "My first Werkbord project"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Repository.FullName != "octo/werkbord-hello" || res.PagesURL != "https://octo.github.io/werkbord-hello/" || res.PagesError != "" {
+		t.Fatalf("result = %+v", res)
+	}
+	if res.Project == nil || !strings.HasSuffix(res.Project.RepoPath, "werkbord-hello") {
+		t.Fatalf("project = %+v", res.Project)
+	}
+	st, err := g.setup.Pages(bg, "octo/werkbord-hello")
+	if err != nil || !st.Enabled || st.State != "waiting" {
+		t.Fatalf("pages before deploy = %+v, %v", st, err)
+	}
+	g.setup.Probe = func(context.Context, string) bool { return true }
+	if st, _ := g.setup.Pages(bg, "octo/werkbord-hello"); st.State != "live" {
+		t.Fatalf("pages after deploy = %+v", st)
+	}
+	if st, _ := g.setup.Pages(bg, "octo/other"); st.State != "disabled" {
+		t.Fatalf("a repository without pages = %+v", st)
+	}
+}
+
+func TestCreatingARepositoryKeepsWhatWorkedWhenPagesOrNameFail(t *testing.T) {
+	g := newGHFixture(t)
+	g.gh.SignIn()
+	remotes := t.TempDir()
+	remoteRepo(t, remotes, "octo", "private-one")
+	pretendGitHub(t, remotes)
+
+	g.gh.PagesDenied()
+	res, err := g.setup.CreateRepository(bg, CreateRepoRequest{Name: "private-one", Private: true})
+	if err != nil || res.PagesError == "" || res.PagesURL != "" || res.Project == nil {
+		t.Fatalf("pages denied should still give a repository and project: %+v, %v", res, err)
+	}
+
+	g.gh.RepoExists()
+	if _, err := g.setup.CreateRepository(bg, CreateRepoRequest{Name: "private-one"}); !errors.Is(err, domain.ErrConflict) || !strings.Contains(err.Error(), "already have") {
+		t.Fatalf("a taken name: %v", err)
+	}
+
+	// Created on GitHub but the clone fails: the error says what exists.
+	g2 := newGHFixture(t)
+	g2.gh.SignIn()
+	pretendGitHub(t, t.TempDir()) // nothing to clone
+	res, err = g2.setup.CreateRepository(bg, CreateRepoRequest{Name: "ghost"})
+	if err == nil || res == nil || res.Repository.FullName != "octo/ghost" || !strings.Contains(err.Error(), "created on GitHub") {
+		t.Fatalf("clone failure = %+v, %v", res, err)
+	}
+}

@@ -175,6 +175,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/github/login/cancel", s.handleGitHubLoginCancel)
 	mux.HandleFunc("GET /api/github/repos", s.handleGitHubRepos)
 	mux.HandleFunc("POST /api/github/repos/add", s.handleGitHubAddRepo)
+	mux.HandleFunc("POST /api/github/repos/create", s.handleGitHubCreateRepo)
+	mux.HandleFunc("GET /api/github/pages", s.handleGitHubPages)
 	mux.HandleFunc("GET /api/network", s.handleNetworkStatus)
 	mux.HandleFunc("POST /api/network/enable", s.handleNetworkEnable)
 	mux.HandleFunc("POST /api/network/disable", s.handleNetworkDisable)

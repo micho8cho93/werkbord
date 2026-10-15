@@ -3,6 +3,7 @@
   import { api } from '../lib/api';
   import { globalHref, router } from '../lib/router.svelte';
   import AgentsCard from '../lib/setup/AgentsCard.svelte';
+  import CreateRepoCard from '../lib/setup/CreateRepoCard.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import NetworkCard from '../lib/setup/NetworkCard.svelte';
   import ReposCard from '../lib/setup/ReposCard.svelte';
@@ -137,6 +138,7 @@
   <p class="muted">GitHub lets Werkbord create a repository for you and publish a page from it. Without it, everything still works on this computer.</p>
   <GitHubCard skipped={stepStates.github === 'skipped'} onskip={skipStep} onchange={(s) => (github = s)} />
   {:else}
+  {#if githubDone}<CreateRepoCard {github} />{/if}
   <ReposCard {github} />
   {/if}
 
