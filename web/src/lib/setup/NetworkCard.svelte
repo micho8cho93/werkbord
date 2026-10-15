@@ -6,7 +6,7 @@
   import type { NetworkStatus } from '../types';
   import SetupCard from './SetupCard.svelte';
 
-  let { skipped = false, onskip }: { skipped?: boolean; onskip?: () => void } = $props();
+  let { skipped = false, onskip, onenrolled }: { skipped?: boolean; onskip?: () => void; onenrolled?: () => void } = $props();
 
   let net = $state<NetworkStatus | null>(null);
   let busy = $state(false);
@@ -90,7 +90,7 @@
       <button class="btn small quiet" disabled={busy} onclick={() => change(false)}>Turn off phone access</button>
     </div>
     <div class="qr">
-      <PhoneEnroll />
+      <PhoneEnroll {onenrolled} />
       <p class="muted small">
         Each phone is added with its own code and has its own sign-in. See and revoke them in <a href="#/settings?phones">Settings → Phones</a>.
         The phone needs the Tailscale app, signed in to the same account.

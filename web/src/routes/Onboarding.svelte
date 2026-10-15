@@ -16,12 +16,12 @@
 
   let github = $state<GitHubStatusInfo | null>(null);
   let net = $state<NetworkStatus | null>(null);
-  let skippedNetwork = $state(false);
   let finishing = $state(false);
   let error = $state('');
   let readinessUnavailable = $state(false);
   let checking = $state(false);
   let chosen = $state<string | null>(null);
+  let phonePaired = $state(false);
   const local = $derived(localReadiness(app.runners, app.agents, app.projects, app.connection === 'live' && !readinessUnavailable));
   const stepStates = $derived(app.onboarding?.steps ?? {});
   const githubDone = $derived(github?.state === 'signed_in' && !github.missingScopes?.length);
@@ -40,6 +40,7 @@
     { id: 'ticket', label: 'Ticket', done: stepDone('ticket') || !!exampleTask },
     { id: 'assistant', label: 'Assistant', done: stepDone('assistant') || stage === 'review' || stage === 'done' },
     { id: 'publish', label: variant === 'local' ? 'Merge' : 'Publish', done: stepStates.publish === 'done' },
+    { id: 'phone', label: 'Phone', done: phonePaired || stepStates.phone === 'done', optional: true },
   ].map((x) => ({ optional: false, ...x })));
   // Resumes at the first step that is neither verified nor skipped, unless the person picked another.
   const current = $derived(chosen ?? steps.find((x) => !x.done && stepStates[x.id] !== 'skipped')?.id ?? steps[steps.length - 1].id);
@@ -74,6 +75,11 @@
     } catch (err) { error = err instanceof Error ? err.message : String(err); }
   }
 
+  async function phoneEnrolled() {
+    phonePaired = true;
+    try { app.onboarding = await api.setOnboardingStep('phone', 'done'); } catch { /* the phone is paired either way */ }
+  }
+
   async function skipStep() {
     try {
       app.onboarding = await api.setOnboardingStep(current, 'skipped');
@@ -94,6 +100,7 @@
   onMount(() => {
     void recheck();
     api.github().then((g) => (github = g), () => {});
+    api.phones().then((p) => (phonePaired = p.length > 0), () => {});
     // The cards report their own state; this page also needs them to say what was skipped.
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') api.network().then((n) => (net = n), () => {});
@@ -160,13 +167,20 @@
   {:else if current === 'repository'}
   {#if githubDone}<CreateRepoCard {github} onadded={madeRepo} />{/if}
   <ReposCard {github} />
+  {:else if current === 'phone'}
+  <p class="muted">Last step: take Werkbord with you. Your phone becomes a remote for the runner on this computer, so you can answer the assistant and approve work from anywhere. It is optional and you can do it later in Settings.</p>
+  <NetworkCard skipped={stepStates.phone === 'skipped'} onskip={skipStep} onenrolled={phoneEnrolled} />
+  {#if phonePaired}<p role="status">Your phone is connected. Open Werkbord on it to take a short tour.</p>{/if}
   {:else}
-  <HelloFlow step={current as 'ticket' | 'assistant' | 'publish'} {variant} onstep={go} ondone={() => finish(false)} />
+  <HelloFlow step={current as 'ticket' | 'assistant' | 'publish'} {variant} onstep={go} ondone={() => go('phone')} />
   {/if}
 
   <nav class="actions" aria-label="Setup navigation">
     {#if currentIndex > 0}<button class="btn big" onclick={() => go(steps[currentIndex - 1].id)}>Back</button>{/if}
-    {#if exampleStep}
+    {#if current === 'phone'}
+      <button class="btn primary big" disabled={finishing} onclick={() => finish(false)}>{finishing ? 'Opening…' : 'Finish setup'}</button>
+      {#if !currentStep.done}<button class="btn big" onclick={skipStep}>Skip for now</button>{/if}
+    {:else if exampleStep}
       <!-- The example steps carry their own buttons. -->
     {:else if (currentStep.done || stepStates[current] === 'skipped') && currentIndex < steps.length - 1}
       <button class="btn primary big" onclick={() => go(steps[currentIndex + 1].id)}>Next</button>
@@ -176,17 +190,8 @@
       <button class="btn primary big" disabled={checking} onclick={() => void recheck()}>{checking ? 'Checking…' : 'Check again'}</button>
       {#if currentStep.optional}<button class="btn big" onclick={skipStep}>Skip this step</button>{/if}
     {/if}
-    <button class="btn big" disabled={finishing} onclick={() => finish(false)}>Finish later</button>
+    {#if current !== 'phone'}<button class="btn big" disabled={finishing} onclick={() => finish(false)}>Finish later</button>{/if}
   </nav>
-
-  <details class="optional">
-    <summary>Phone access <span class="muted">Optional</span></summary>
-    <div class="optional-body">
-      <p class="muted">Not required to run a local coding task. Set it up here or later in Settings.</p>
-      <p class="optional-status">Phone access: {net?.state === 'connected' ? 'Connected' : skippedNetwork ? 'Optional—skipped' : 'Optional'}</p>
-      <NetworkCard skipped={skippedNetwork} onskip={() => (skippedNetwork = true)} />
-    </div>
-  </details>
 
   <footer class="done">
     <p class="muted small">Finish later keeps what you have done. You can come back to any of this under Settings.</p>
@@ -229,10 +234,6 @@
     flex-wrap: wrap;
   }
   .progress-label { font-size: 13px; font-weight: 500; }
-  .optional { border-top: 1px solid var(--border); padding-top: 12px; }
-  .optional summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 500; }
-  .optional-body { display: grid; gap: 16px; padding-top: 12px; }
-  .optional-status { font-size: 12px; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
   .progress .chip { cursor: pointer; min-height: 36px; }
