@@ -7,15 +7,14 @@
   import HelloFlow from '../lib/setup/HelloFlow.svelte';
   import { exampleStage } from '../lib/setup/hello';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
-  import NetworkCard from '../lib/setup/NetworkCard.svelte';
+  import PhoneStepCard from '../lib/setup/PhoneStepCard.svelte';
   import ReposCard from '../lib/setup/ReposCard.svelte';
   import SetupCard from '../lib/setup/SetupCard.svelte';
   import { localReadiness } from '../lib/setup/readiness';
   import { app } from '../lib/state.svelte';
-  import type { GitHubStatusInfo, NetworkStatus } from '../lib/types';
+  import type { GitHubStatusInfo } from '../lib/types';
 
   let github = $state<GitHubStatusInfo | null>(null);
-  let net = $state<NetworkStatus | null>(null);
   let finishing = $state(false);
   let error = $state('');
   let readinessUnavailable = $state(false);
@@ -101,12 +100,6 @@
     void recheck();
     api.github().then((g) => (github = g), () => {});
     api.phones().then((p) => (phonePaired = p.length > 0), () => {});
-    // The cards report their own state; this page also needs them to say what was skipped.
-    const t = setInterval(() => {
-      if (document.visibilityState === 'visible') api.network().then((n) => (net = n), () => {});
-    }, 3000);
-    api.network().then((n) => (net = n), () => {});
-    return () => clearInterval(t);
   });
 
   async function finish(createTask = false) {
@@ -115,7 +108,7 @@
     error = '';
     try {
       const skipped: string[] = [];
-      if (net?.state !== 'connected') skipped.push('network');
+      if (!phonePaired) skipped.push('network');
       if (github?.state !== 'signed_in') skipped.push('github');
       if (!app.agents.some((a) => a.available)) skipped.push('agents');
       if (!local.project) skipped.push('projects');
@@ -169,7 +162,7 @@
   <ReposCard {github} />
   {:else if current === 'phone'}
   <p class="muted">Last step: take Werkbord with you. Your phone becomes a remote for the runner on this computer, so you can answer the assistant and approve work from anywhere. It is optional and you can do it later in Settings.</p>
-  <NetworkCard skipped={stepStates.phone === 'skipped'} onskip={skipStep} onenrolled={phoneEnrolled} />
+  <PhoneStepCard paired={phonePaired} skipped={stepStates.phone === 'skipped'} onenrolled={phoneEnrolled} />
   {#if phonePaired}<p role="status">Your phone is connected. Open Werkbord on it to take a short tour.</p>{/if}
   {:else}
   <HelloFlow step={current as 'ticket' | 'assistant' | 'publish'} {variant} onstep={go} ondone={() => go('phone')} />
