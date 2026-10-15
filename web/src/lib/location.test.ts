@@ -207,3 +207,17 @@ describe('the installed app', () => {
     expect(parse(new URL(manifest.start_url, 'https://x.test').hash).view).toBe('control');
   });
 });
+
+describe('the phone\u2019s own pages', () => {
+  it('parses the deck and the screens its keys lead to as global pages', () => {
+    for (const view of ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'] as const) {
+      expect(parse(`#/${view}`)).toEqual({ view, projectId: '', taskId: '' });
+      expect(hrefOf({ view, projectId: '', taskId: '' })).toBe(`#/${view}`);
+      expect(inProject(view)).toBe(false);
+    }
+  });
+
+  it('keeps them out of the desktop navigation', () => {
+    expect(GLOBAL_VIEWS.map((g) => g.id)).not.toContain('deck');
+  });
+});

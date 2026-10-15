@@ -4,6 +4,7 @@
   import Composer from './Composer.svelte';
   import Conversation from './Conversation.svelte';
   import ModelPicker from './ModelPicker.svelte';
+  import { phone } from '../mobile/phone.svelte';
   import { assistant } from './store.svelte';
   import { colourOf, plan, prefersReducedMotion, Reveal } from './transition';
 
@@ -68,6 +69,9 @@
     const fit = () => {
       surface?.style.setProperty('--vvh', `${vv.height}px`);
       surface?.style.setProperty('--vvt', `${vv.offsetTop}px`);
+      // The phone's bottom bar stays under the assistant. With the on-screen keyboard up it is behind the keyboard, and the box
+      // takes the room.
+      surface?.style.setProperty('--asst-nav', window.innerHeight - vv.height > 100 ? '0px' : 'calc(var(--tabbar-h) + env(safe-area-inset-bottom))');
     };
     fit();
     vv.addEventListener('resize', fit);
@@ -96,12 +100,14 @@
   /** Keeps Tab inside the assistant: past the last control it goes to the first, before the first it goes to the last. */
   function trap(e: KeyboardEvent) {
     if (!surface) return;
-    const items = [...surface.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
+    // On the phone the bottom bar's two places are part of the dialog's order: they are how the person leaves it.
+    const inside = [...surface.querySelectorAll<HTMLElement>(FOCUSABLE), ...(phone.on ? document.querySelectorAll<HTMLElement>('[data-phone-nav] ' + FOCUSABLE.split(', ').join(', [data-phone-nav] ')) : [])];
+    const items = inside.filter((el) => el.offsetParent !== null || el === document.activeElement);
     if (items.length === 0) return;
     const first = items[0];
     const last = items[items.length - 1];
     const at = document.activeElement as HTMLElement | null;
-    if (!at || !surface.contains(at)) {
+    if (!at || !(surface.contains(at) || (phone.on && at.closest('[data-phone-nav]')))) {
       e.preventDefault();
       first.focus();
     } else if (e.shiftKey && at === first) {
@@ -146,7 +152,8 @@
     class="surface"
     data-phase={assistant.phase}
     role="dialog"
-    aria-modal="true"
+    aria-modal={phone.on ? undefined : 'true'}
+    data-nav={phone.on ? 'on' : undefined}
     aria-labelledby="asst-title"
     inert={assistant.phase === 'closing'}
     data-testid="assistant"
@@ -163,7 +170,7 @@
               <Icon name="plus" size={14} /><span class="wide">{armed ? (assistant.waiting > 0 ? 'Drops what is waiting' : 'Stops the reply') + '. Sure?' : 'New'}</span>
             </button>
           {/if}
-          <button class="btn quiet close" type="button" onclick={() => assistant.hide()} aria-label="Close assistant" title="Close ({isMac ? '' : 'Esc'})" data-testid="assistant-close">
+          <button class="btn quiet close" class:phone-nav={phone.on} type="button" onclick={() => assistant.hide()} aria-label="Close assistant" title="Close ({isMac ? '' : 'Esc'})" data-testid="assistant-close">
             <Icon name="close" size={16} /><span class="wide">Close</span><kbd class="key wide">Esc</kbd>
           </button>
         </div>
@@ -189,11 +196,14 @@
     top: var(--vvt, 0px);
     left: 0;
     width: 100%;
-    height: var(--vvh, 100dvh);
+    height: calc(var(--vvh, 100dvh) - var(--asst-nav, 0px));
     z-index: 60;
     background: var(--asst-to);
     color: var(--text);
     overflow: hidden;
+  }
+  .surface[data-nav='on'] {
+    --asst-nav: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   }
   .inner {
     display: flex;
@@ -287,6 +297,10 @@
   }
   .close {
     gap: 8px;
+  }
+  /* With the phone's bottom bar the way out is the bar: its Assistant tab closes the assistant and its other tab leaves it. */
+  .close.phone-nav {
+    display: none;
   }
   .btn.armed {
     color: #fff;

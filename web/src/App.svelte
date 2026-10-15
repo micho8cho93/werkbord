@@ -10,13 +10,19 @@
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
   import ProjectSwitcher from './lib/ProjectSwitcher.svelte';
   import { pageTitle } from './lib/questions';
-  import { GLOBAL_VIEWS, globalHref, hrefOf, inMore, inProject, moreEntries, projectHref, resolved, router, sectionApplies } from './lib/router.svelte';
+  import { GLOBAL_VIEWS, globalHref, hrefOf, inMore, inProject, isPhoneView, moreEntries, projectHref, resolved, router, sectionApplies } from './lib/router.svelte';
   import Sheet from './lib/Sheet.svelte';
   import ScheduleWatch from './lib/ScheduleWatch.svelte';
   import ProjectHeader from './lib/shell/ProjectHeader.svelte';
   import Rail from './lib/shell/Rail.svelte';
   import Toasts from './lib/shell/Toasts.svelte';
   import { app } from './lib/state.svelte';
+  import Deck from './lib/mobile/Deck.svelte';
+  import PhoneBack from './lib/mobile/PhoneBack.svelte';
+  import PhoneNav from './lib/mobile/PhoneNav.svelte';
+  import { titleOf } from './lib/mobile/nav';
+  import { phone } from './lib/mobile/phone.svelte';
+  import { trail } from './lib/mobile/trail.svelte';
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import Board from './routes/Board.svelte';
@@ -43,8 +49,18 @@
   const project = $derived(app.project(projectId));
   const scope = $derived(router.projectId ? app.scopes.get(router.projectId) : undefined);
 
-  const globalTitle = $derived(router.view === 'onboarding' ? 'Set up Werkbord' : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? ''));
+  const globalTitle = $derived(router.view === 'onboarding' ? 'Set up Werkbord' : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? titleOf(router.view)));
+  /** The phone has its own navigation (the Control Deck and the Assistant). A narrow window of the desktop app keeps the desktop's. */
+  const deck = $derived(phone.on);
   const phoneMoreLocation = $derived(router.view === 'analytics' ? 'Analytics' : router.view === 'overview' ? 'Overview' : router.view === 'defaults' ? 'Project settings' : '');
+
+  // The phone opens on the Control Deck: an address that names no page (the app opened from the home screen) lands there. On a wide
+  // window the deck and the screens only the phone has do not exist, and an address that names one is Needs you.
+  $effect(() => {
+    if (!loaded && app.onboarding === null) return;
+    if (deck && !location.hash.replace(/^#\/?/, '')) router.go({ view: 'deck', projectId: '', taskId: '' }, true);
+    else if (!deck && !framed && isPhoneView(router.view)) router.go({ view: 'control', projectId: '', taskId: '' }, true);
+  });
 
   // An address that names no project (an old link, or none) is settled to the project last used. Until the
   // projects are known there is nothing to settle it against.
@@ -65,6 +81,12 @@
     if (project && inProject(v) && v !== 'task' && !sectionApplies(v, project.kind)) {
       router.go({ view: 'board', projectId: project.id, taskId: '' }, true);
     }
+  });
+
+  // Where the person has been, so that Back goes there.
+  $effect(() => {
+    void [router.view, router.projectId, router.taskId, router.sub];
+    trail.note();
   });
 
   // First-time setup opens by itself, once, until it is finished or skipped. It is a page like any other: nothing is
@@ -159,15 +181,15 @@
     <div class="main-area">
       {#if inside && project}
         <ProjectHeader {project} />
-      {:else}
+      {:else if router.view !== 'deck' || !deck}
         <header class="ghead">
           <div class="gtitle">
-            {#if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
+            {#if deck}<PhoneBack />{:else if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
             <h1>{globalTitle}</h1>
           </div>
           <div class="gacts">
             {#if !framed}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
-            {#if !framed}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
+            {#if !framed && !deck}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
             <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
               <Icon name="search" /><span class="wide">Jump to</span>
             </button>
@@ -176,12 +198,15 @@
       {/if}
 
       {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}
-      <NeedsInputBanner />
+      <!-- The Control Deck says it in its own strip. -->
+      {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}
       <UpdateBanner />
 
       <main id="main-content" tabindex="-1" bind:this={mainEl}>
-        {#if phoneMoreLocation && !framed}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
-        {#if router.view === 'control'}
+        {#if phoneMoreLocation && !framed && !deck}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
+        {#if router.view === 'deck'}
+          {#if deck}<Deck />{/if}
+        {:else if router.view === 'control'}
           <ControlCenter />
         {:else if router.view === 'analytics'}
           <Analytics />
@@ -229,6 +254,7 @@
       </main>
     </div>
 
+    {#if !deck}
     <nav class="tabbar" aria-label="Primary">
       {#each phoneTabs as t (t.id)}
         <a href={t.href} class="tab" aria-current={t.current ? 'page' : undefined}>
@@ -258,6 +284,7 @@
         </ul>
       </Sheet>
     {/if}
+    {/if}
 
     <ProjectSwitcher />
     {#if app.newTaskOpen && project}{#key project.id}<NewTaskDialog {project} />{/key}{/if}
@@ -265,6 +292,8 @@
   </div>
   <!-- In the desktop window the assistant is the shell's own frame over the whole window (lib/assistant/AssistantSurface). -->
   {#if !framed}<Assistant />{/if}
+  <!-- Outside the shell, which is inert while the assistant is open: the phone's two places stay reachable over it. -->
+  {#if deck}<PhoneNav />{/if}
 {/if}
 
 <style>
