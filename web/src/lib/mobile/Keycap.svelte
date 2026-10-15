@@ -89,6 +89,16 @@
       box-shadow 0.16s var(--ease);
   }
 
+  @media (max-width: 359px) {
+    .name {
+      font-size: 12px;
+    }
+
+    .face {
+      padding: 0 2px;
+    }
+  }
+
   .face {
     display: flex;
     flex-direction: column;

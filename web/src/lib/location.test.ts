@@ -202,9 +202,9 @@ describe('the phone\'s More entry', () => {
 });
 
 describe('the installed app', () => {
-  it('starts on Needs you', () => {
+  it('starts on the Control Deck, which a wide window settles to Needs you', () => {
     const manifest = JSON.parse(manifestSource);
-    expect(parse(new URL(manifest.start_url, 'https://x.test').hash).view).toBe('control');
+    expect(parse(new URL(manifest.start_url, 'https://x.test').hash).view).toBe('deck');
   });
 });
 

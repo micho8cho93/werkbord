@@ -6,6 +6,22 @@ module.exports = async function checkKanban(page, count, artifacts, name) {
     await board.waitFor();
     for (const [size, width, height] of [['desktop', 1440, 1000], ['window', 1100, 800], ['tablet', 900, 800], ['mobile', 390, 844]]) {
         await page.setViewportSize({ width, height });
+        if (name === 'individual' && width < 900) {
+            // The phone shows one column at a time behind a segmented control (docs/MOBILE.md); every column stays one touch away.
+            const switcher = page.getByRole('group', { name: 'Board column', exact: true });
+            await switcher.waitFor();
+            const buttons = switcher.getByRole('button');
+            assert.equal(await buttons.count(), count, `${name} ${size}: one segment for each column`);
+            for (let i = 0; i < count; i++) {
+                await buttons.nth(i).click();
+                const shown = await board.evaluate(el => [...el.querySelectorAll(':scope > section')].filter(col => getComputedStyle(col).display !== 'none').length);
+                assert.equal(shown, 1, `${name} ${size}: exactly one column is shown`);
+                assert.equal(await buttons.nth(i).getAttribute('aria-pressed'), 'true', `${name} ${size}: the segment says which`);
+            }
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, `${name} ${size}: no horizontal overflow`);
+            await page.screenshot({ path: path.join(artifacts, `${name}-kanban-${size}.png`) });
+            continue;
+        }
         // Team can replace its DOM during a live update; wait for the resized board to finish laying out.
         await page.waitForFunction(expected => {
             const columns = document.querySelectorAll('[aria-label="Kanban board"] > section');

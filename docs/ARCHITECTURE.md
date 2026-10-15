@@ -504,7 +504,8 @@ the HTTP API is treated as a remote-execution surface from day one.
   `activity`, and `#/p/<id>/task/<id>`, which belongs to the board). The list of a project's sections lives in
   one place (`PROJECT_SECTIONS` in `src/lib/location.ts`); the side rail, the tab bar and the switcher are
   built from it, so Calendar (V1) is one more entry, not a navigation rewrite.
-- **Phone first.** Under 900 px: sticky top bar with the project's name as its heading (tap to switch), bottom
+- **Phone first.** (A phone in a browser or installed from its home screen now opens on the Control Deck, with a two-place bottom bar and the
+  pages below as drill-downs: [MOBILE.md](MOBILE.md). What follows is the layout the desktop app's narrow window keeps.) Under 900 px: sticky top bar with the project's name as its heading (tap to switch), bottom
   tab bar within thumb reach (Needs you, then the project's sections, with safe-area insets), and the board
   shows one column at a time behind a four-way segmented control. From 900 px: a side rail replaces the tab
   bar, with the project switcher at its head, the global pages, and the current project's sections under its

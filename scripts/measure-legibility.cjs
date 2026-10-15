@@ -120,6 +120,10 @@ function measure(minPx) {
     const work = projects.find((p) => p.kind === 'work');
     const pages = [['needs-you', '#/control'], ['projects', '#/projects'], ['help', '#/help']];
     for (const s of ['defaults', 'labels', 'routing', 'runners', 'agents', 'computer', 'phone', 'github', 'alerts']) pages.push(['settings-' + s, '#/settings' + (s === 'defaults' ? '' : '?' + s)]);
+    // The pages only the phone has: the Control Deck, the screens its keys open, and the Calendar's three views. Measured at phone width only.
+    const phoneOnly = [['phone-deck', '#/deck'], ['phone-my-work', '#/mywork'], ['phone-agents', '#/agents'], ['phone-reviews', '#/reviews'], ['phone-git', '#/repositories'], ['phone-runners', '#/runners'], ['phone-calendar-month', '#/schedule', (pg) => pg.getByRole('group', { name: 'Calendar view' }).getByRole('button', { name: 'Month', exact: true }).click()]];
+    phoneOnly.push(['phone-calendar-week', '#/schedule', (pg) => pg.getByRole('group', { name: 'Calendar view' }).getByRole('button', { name: 'Week', exact: true }).click()]);
+    phoneOnly.push(['phone-calendar-timeline', '#/schedule', (pg) => pg.getByRole('group', { name: 'Calendar view' }).getByRole('button', { name: 'Timeline', exact: true }).click()]);
     for (const [label, p] of [['repo', repo], ['work', work]]) {
         if (!p) continue;
         const secs = p.kind === 'work' ? ['overview', 'board', 'timeline', 'defaults'] : ['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'defaults'];
@@ -172,9 +176,10 @@ function measure(minPx) {
             await page.setViewportSize({ width, height });
             await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
             await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
-            for (const [name, hash] of pages) {
+            for (const [name, hash, act] of size === 'phone' ? [...pages, ...phoneOnly] : pages) {
                 await page.goto(base + '/' + hash);
                 await page.waitForTimeout(450);
+                if (act) { await act(page); await page.waitForTimeout(250); }
                 const res = await page.evaluate(measure, MIN_PX);
                 nodes += res.rows.length;
                 for (const r of res.rows) all.push({ ...r, theme, size, page: name });
@@ -190,10 +195,12 @@ function measure(minPx) {
                 await page.getByRole('heading', { name: 'New task in ' + repo.name, exact: true }).waitFor();
                 await page.screenshot({ path: require('node:path').join(screenshots, `new-task-${size}-${theme}.png`) });
                 await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-                await page.locator('[data-testid="assistant-button"]:visible').click();
+                // On a phone the Assistant is a place in the bottom bar and the bar closes it; elsewhere it is the page's button.
+                await page.locator(size === 'phone' ? '[data-testid="nav-assistant"]' : '[data-testid="assistant-button"]:visible').click();
                 await page.getByTestId('assistant').waitFor();
                 await page.screenshot({ path: require('node:path').join(screenshots, `assistant-${size}-${theme}.png`) });
-                await page.getByTestId('assistant-close').click();
+                if (size === 'phone') await page.locator('[data-testid="nav-assistant"]').click();
+                else await page.getByTestId('assistant-close').click();
             }
         }
     }
@@ -213,7 +220,7 @@ function measure(minPx) {
     };
     const contrast = group(fail, (r) => `${r.theme}|${r.sel}|${r.fg}|${r.bg}`).sort((a, b) => a.ratio - b.ratio);
     const tiny = group(small, (r) => `${r.sel}|${r.px}`).sort((a, b) => a.px - b.px);
-    console.log(`measured ${nodes} text nodes over ${pages.length} pages x 2 themes x 2 sizes`);
+    console.log(`measured ${nodes} text nodes over ${pages.length} pages (and ${phoneOnly.length} phone-only ones) x 2 themes x 2 sizes`);
     console.log(`\nCONTRAST FAILURES: ${contrast.length} distinct (${fail.length} nodes)`);
     for (const c of contrast) console.log(`${c.ratio.toFixed(2).padStart(5)} <${c.need}  ${c.theme.padEnd(5)} ${c.sel.slice(0, 44).padEnd(44)} ${c.fg} on ${c.bg}  ${c.px}px  "${c.text}"  [${c.pages.slice(0, 3).join(', ')}]`);
     console.log(`\nTEXT BELOW ${MIN_PX}px: ${tiny.length} distinct (${small.length} nodes)`);

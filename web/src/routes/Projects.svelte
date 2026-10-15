@@ -217,9 +217,27 @@
     }
   }
 
+  /* On a phone what a project asks of you is said under its name instead of left out, with its count beside the name. */
   @media (max-width: 640px) {
+    .project {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: 12px;
+      row-gap: 4px;
+      padding: 12px 8px;
+    }
+
+    .project .num {
+      grid-column: 3;
+      grid-row: 1;
+    }
+
     .sum {
-      display: none;
+      grid-column: 2 / -1;
+      grid-row: 2;
+      max-width: none;
+      white-space: normal;
     }
   }
 </style>

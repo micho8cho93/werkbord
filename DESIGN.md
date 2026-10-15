@@ -75,6 +75,9 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   ([ARCHITECTURE.md §22](docs/ARCHITECTURE.md#the-window-and-its-workspaces)). Inside a project: header (path · branch, name, Jump to ⌘K, project
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
   themselves (board columns, panel feed), not the page.
+- Phone (under 900px, outside the desktop app): the Control Deck, nine keycaps in a matte housing, is home, and the bottom bar has two
+  places, the deck and the Assistant ([docs/MOBILE.md](docs/MOBILE.md)). The deck is the one place the flat paper gives way to material,
+  built from the same tokens; every other phone page is the desktop's page in a phone layout.
 - A task opens as a panel over its board (`#/p/<id>/task/<id>`); Esc closes it.
 - Project tabs in both Individual and Team: Overview · Board · Calendar · Git · Runs. Timeline is a presentation
   within Calendar, selected beside the Calendar presentation; it is not a sixth project tab. Calendar opens on a week.
@@ -83,16 +86,16 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   scrolling inside the window) and `.pn` panels with a `.ph` header; groups that want an action sit in an
   inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
-- Phone (<900px): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git · Runs · More;
+- A narrow window of the desktop app (<900px; a phone in a browser has the Control Deck instead): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git · Runs · More;
   one equal column per tab, including for work projects), floating New task button,
   horizontally scrolling Kanban columns and tables as two-line rows. Git and Settings use a compact, labeled native
   section chooser. Its selected option states the current subsection;
   choosing one keeps the existing hash address, direct links and browser Back behavior. The desktop section navigation
   remains visible at wide widths. In the desktop shell's intermediate-width icon rail, an accessible expand control
   reveals the section names and project list without changing workspace or project routes.
-  The installed app starts on Needs you
-  (`start_url` `/#/control`). More is a sheet reaching what the bar has no room for: the project's Overview and
-  settings, Projects and Settings. The board opens on the first column holding something that needs you (a question,
+  The installed app starts on the Control Deck (`start_url` `/#/deck`; on a wide window that address is settled to Needs you).
+  In the desktop shell's narrow window the bottom bar above stays as it was; outside it the phone has the two-place bar and the
+  Control Deck described under Layout. The board opens on the first column holding something that needs you (a question,
   a reply, blocked work, or work in Review). Buttons that answer from a card are at least 44px tall, and a task
   panel's actions wrap onto their own row rather than clip. A loaded task detail has one visible close control,
   with a 44px target on phones.

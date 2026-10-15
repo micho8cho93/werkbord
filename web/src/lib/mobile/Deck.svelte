@@ -82,6 +82,11 @@
       {#if working.length > shown.length}<p class="more mm">and {working.length - shown.length} more</p>{/if}
     {/if}
   </a>
+
+  <nav class="more" aria-label="More">
+    <a href={globalHref('help')}>Help and shortcuts</a>
+    <button type="button" onclick={() => (app.switcherOpen = true)}>Jump to…</button>
+  </nav>
 </div>
 
 <style>
@@ -232,6 +237,38 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
+  }
+
+  /* The narrowest phones keep nine keys in three columns by giving the keys the room: less housing, closer keys. */
+  @media (max-width: 359px) {
+    .housing {
+      padding: 12px;
+      border-radius: 22px;
+    }
+
+    .grid {
+      gap: 8px;
+    }
+  }
+
+  .more {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .more a,
+  .more button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 13px;
+    text-decoration: none;
   }
 
   .activity {

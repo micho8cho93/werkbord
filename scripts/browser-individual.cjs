@@ -551,7 +551,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         const beforeReviewJump = await changedFilesHeading.boundingBox();
         await page.getByRole('button',{name:'Review changes',exact:true}).click();
         const filesHeadingBox = await changedFilesHeading.boundingBox();
-        const tabbarBox = await page.locator('.tabbar').boundingBox();
+        const tabbarBox = await page.getByRole('navigation', { name: 'Primary', exact: true }).boundingBox();
         assert(beforeReviewJump && filesHeadingBox && tabbarBox && filesHeadingBox.y < beforeReviewJump.y && filesHeadingBox.y + filesHeadingBox.height <= tabbarBox.y,'Review changes moves the file list into view above phone navigation with reduced motion');
         const detailMerge = actionsDisclosure.getByRole('button',{name:'Merge…',exact:true});
         await detailMerge.waitFor();
@@ -647,6 +647,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await undo.waitFor();
         await undo.click();
         await page.locator('.panel').waitFor({state:'hidden'});
+        // On a phone the board shows one column at a time: ask for Done.
+        const doneSegment = page.getByRole('group',{name:'Board column',exact:true}).getByRole('button',{name:/^Done/});
+        if (await doneSegment.count()) await doneSegment.click();
         await page.locator('#col-done .task').filter({hasText:localTask.title}).waitFor();
         assert.equal((await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(t=>t.id===localTask.id).state,'done','Archive Undo restores the task after its merge to Done');
         await page.evaluate(() => document.documentElement.dataset.theme = 'light');

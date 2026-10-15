@@ -239,6 +239,10 @@ test-assistant-browser: build web-shell
 test-browser: build build-team
 	node scripts/test-browser.cjs
 
+## test-phone-browser: the phone's Control Deck, its screens and the Assistant's place in the bar, at phone sizes in both themes
+test-phone-browser: web web-embed web-shell
+	BROWSER_PHONE_ONLY=1 node scripts/test-browser.cjs
+
 ## test-planning-browser: real drag, resize and contextual editing in Chromium and WebKit, with disposable APIs
 # Install both browsers once with: cd web && npx playwright install chromium webkit
 test-planning-browser: web web-embed web-shell

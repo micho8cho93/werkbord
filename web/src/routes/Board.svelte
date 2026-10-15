@@ -5,6 +5,8 @@
   import { agentWorkable, dropAction } from '../lib/board';
   import Archive from '../lib/board/Archive.svelte';
   import TaskCard from '../lib/board/TaskCard.svelte';
+  import { phone } from '../lib/mobile/phone.svelte';
+  import Segmented from '../lib/mobile/Segmented.svelte';
   import { agentLabel, resolveFor, type Resolved } from '../lib/execution';
   import { setFilter } from '../lib/filters.svelte';
   import { filterActive, matches, noFilter } from '../lib/labels';
@@ -59,6 +61,14 @@
       return { state, tasks: limited, total: sorted.length };
     }),
   );
+
+  // On the phone with the Control Deck the board shows one column at a time behind a segmented control, as the architecture says a
+  // phone should: it opens on what is under way, then what is waiting for review, then the backlog.
+  let phoneColumn = $state<TaskState | ''>('');
+  const phoneShown = $derived<TaskState>(
+    phoneColumn || (columns.find((c) => c.state === 'doing')?.total ? 'doing' : columns.find((c) => c.state === 'review')?.total ? 'review' : 'backlog'),
+  );
+  const phoneColumns = $derived(columns.map((c) => ({ id: c.state, label: TASK_STATE_LABELS[c.state], count: c.total })));
 
   // ---- the legend: what the agents are doing, at a glance ----
   const legend = $derived.by(() => {
@@ -310,6 +320,9 @@
   {#if viewingArchive}
     <Archive {scope} />
   {:else}
+  {#if phone.on}
+    <div class="phone-columns"><Segmented options={phoneColumns} value={phoneShown} onchange={(id: TaskState) => (phoneColumn = id)} label="Board column" /></div>
+  {/if}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scrollable board needs keyboard focus for horizontal panning.) -->
   <div class="cols" role="region" aria-label="Kanban board" data-board tabindex="0">
     {#each columns as col (col.state)}
@@ -319,6 +332,7 @@
         class="col tray"
         class:over={over === col.state && !!hint}
         class:target={!!hint}
+        class:off={phone.on && col.state !== phoneShown}
         aria-label={TASK_STATE_LABELS[col.state]}
         data-board-column={col.state}
         ondragover={(e) => onDragOver(e, col.state)}
@@ -407,6 +421,8 @@
 <GitSheets projectId={project.id} store={git} />
 
 <style>
+  .phone-columns { padding: 0 16px 12px; }
+  .col.off { display: none; }
   .phone-filters { display: none; }
   .phone-new { display: none; }
   .view {

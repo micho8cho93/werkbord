@@ -149,9 +149,9 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Days of the neighbouring months: the secondary ink, not a faded one, so they stay legible. */
   .day.out {
     color: var(--text-2);
-    opacity: 0.6;
   }
 
   .n {
