@@ -7,7 +7,7 @@ import { Link, LinkError, decodePairing } from "./link.js";
 import { kvGet } from "./store.js";
 
 const CACHE_ASSETS = "werkbord-assets-1";
-const CACHE_PAGES = "werkbord-connector-2";
+const CACHE_PAGES = "werkbord-connector-3";
 const STATUS_PAGE = "/connector/status.html";
 const PAGES = [STATUS_PAGE, "/connector/style.css", "/connector/lanes.js", "/connector/lanes.css"];
 const MAX_ASSETS = 120;

@@ -65,7 +65,7 @@ async function main() {
       return show("unsupported", false);
     }
     if (!result.ok) return show(result.reason, result.reason === "offline" || result.reason === "unavailable");
-    location.replace(pairing.lane === "team" ? "/team/" : pairing.code ? "/#enroll=" + encodeURIComponent(pairing.code) : "/");
+    location.replace(pairing.lane === "team" ? "/team/#/mywork" : pairing.code ? "/#enroll=" + encodeURIComponent(pairing.code) : "/");
   };
   $("retry").addEventListener("click", attempt);
   await attempt();

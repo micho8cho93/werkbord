@@ -91,21 +91,25 @@ bar's two places are part of its focus order. Nothing was added to what it may d
 
 ## Individual and Team
 
-The Control Deck is **Individual's** phone interface. It does not show an Individual | Team control, because Team cannot be reached from a phone
-today. This is the backend work that is missing, not a presentation choice:
+The relay connector keeps **Control Deck** and **Assistant** as the two main destinations. The deck has no workspace selector.
+Inside each section, a labelled **Individual | Team** selector switches that section's scope. Choosing Team in Git keeps Git
+open; returning to the deck and opening Projects then opens Team Projects. Choosing Individual reverses this for subsequent
+sections. The preference is stored on this phone and survives reloads and visits to the Assistant. It does not change either
+lane's pairing, credentials or permissions. Direct workspace links still open the workspace they name.
 
-- A Team workspace answers remote requests only over its own Nebula network, and only to a member computer that signs each request with its
-  enrolled device key (`TEAM_SECURITY.md`, points 5 and 7). Member bearer credentials work on loopback only. A phone is not a member
-  computer: it has no Nebula certificate and no signing client.
-- The desktop window reaches Team through the app's native bridge (`web/src/shell/native.ts`, `internal/workspace`). A phone has no native app.
-- Adding Team to the phone therefore needs a new, narrow, read-mostly relay on the person's **own** computer: a Team client already runs there
-  with the device key, and it would answer a fixed list of read questions (My Work, Calendar, Reviews, Analytics, Projects) for the phone, over
-  the existing private door and behind a revocable grant of its own (a phone's sign-in is already one: `internal/phoneaccess`), with `internal/archtest` tests that it starts nothing and reaches nothing
-  on a member's machine. That is Team code (`internal/team/`), it needs its own design and security review, and it is not started.
+This navigation belongs to `relay/connector/static/connector/lanes.js`, injected by the connector into the two separately served
+applications. Individual's PWA does not import or render Team. A direct private-network Individual connection retains its own
+Control Deck and Assistant; the cross-product selector is available through the paired relay connector.
 
-The deck's screens are written against the Individual controller's own endpoints and ask for nothing Team-specific, so a workspace switch
-(a segmented control on Projects, Calendar, Analytics, My Work and Reviews, and a sheet to choose between several Team workspaces) can be added
-above them when that relay exists, without changing them.
+Team phone pages (`internal/team/phone/static/`) show one section at a time from the existing read-only summary: Projects,
+Needs you, My Work, Calendar, Reviews, reported execution under Agents, and reported conflicts under Git. Git does not expose
+branches, commits or repository actions. Analytics, Runners and Settings explain the phone summary's limits and keep the
+selector available. Failed refreshes clear the displayed summary. Missing Team pairing retains the selector and main
+navigation so the person can return to Individual.
+
+Team and Individual retain independent encrypted relay connections and grants. Team phone access is pinned to the member
+and workspace that issued it; it reaches only the Team phone static files and summary endpoint. It does not expose the
+workspace console, device API or execution routes. The Assistant runs through Individual's existing phone access.
 
 ## What the desktop has that the phone does not
 
@@ -129,3 +133,6 @@ above them when that relay exists, without changing them.
 - `scripts/measure-legibility.cjs --check` measures the phone-only pages too (the deck, My Work, Agents, Reviews, Git, Runners and the Calendar's three views): no text
   under 11.5px and none under its contrast floor. (It reports one finding that is not on these pages and was there before: dark-theme "Run settings" in the
   desktop task panel.)
+
+- `relay/connector/test/navigation.test.mjs` exercises section-preserving scope changes, remembered scope across deck keys,
+  reloads and Assistant visits, revoked-summary clearing, and the real Team phone views at 320, 430 and 844px in both themes.

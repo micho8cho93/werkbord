@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Team · Werkbord</title>
   <link rel="stylesheet" href="/team/phone.css">
   <script src="/team/phone.js" defer></script>
@@ -10,21 +10,15 @@
 <body>
   <main>
     <p class="mark">werkbord · Team</p>
-    <h1 id="name">Team workspace</h1>
+    <a class="back" href="/#/deck">Back to Control Deck</a>
+    <h1 id="section-title">My Work</h1>
+    <p id="name">Team workspace</p>
     <p>Read-only access from your member computer.</p>
     <p id="status" role="status">Connecting to your workspace…</p>
     <button id="refresh" type="button">Refresh</button>
-    <section aria-labelledby="attention-title">
-      <h2 id="attention-title">Needs you</h2>
-      <ul id="attention"></ul>
-    </section>
-    <section aria-labelledby="work-title">
-      <h2 id="work-title">My work</h2>
-      <ul id="work"></ul>
-    </section>
-    <section aria-labelledby="schedule-title">
-      <h2 id="schedule-title">Calendar</h2>
-      <ul id="schedule"></ul>
+    <section aria-labelledby="section-title">
+      <p id="detail"></p>
+      <ul id="items"></ul>
     </section>
   </main>
 </body>

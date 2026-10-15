@@ -5,7 +5,7 @@
   "description": "The static page a phone opens to reach Werkbord through the relay. Deployed to Cloudflare Pages.",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.mjs",
     "deploy": "npm run build && npx wrangler pages deploy dist --project-name werkbord-connect"
   }
 }
