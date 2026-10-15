@@ -118,7 +118,8 @@ guarantees are elsewhere:
 - A project the principal may not see is "not found", the same answer as one that does not exist, for every operation,
   including lists that span projects.
 - One conversation cannot confirm, see or affect another's proposals. A local access token (`wba_…`) cannot reach the
-  assistant at all, whatever its scope. The private network does not serve it.
+  assistant at all, whatever its scope. The private network serves it to an enrolled phone ([PHONE.md](PHONE.md)) and to nobody else: not to the
+  controller's own token there. A phone is not given folders on the computer (`/workspaces`) or the audit log.
 - The operations reach the board **only through the domain services** (`internal/service`), never a table, Git, a runner
   or a process; the engine reaches it only through the operations; and `internal/archtest` fails the build if either imports
   more.

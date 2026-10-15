@@ -81,7 +81,7 @@ the end of it.
 | --- | --- |
 | `werkbord status` | what is running, where, as which service, phone address, runner, agents; `--json` for scripts. Exits 1 when the controller is not running |
 | `werkbord start` / `stop` / `restart` | manage the service. They manage the controller the service owns and never start a second one beside it: if one is already answering (say, `werkbord serve` in a terminal) `start` says so and `stop` tells you it was not started by the service |
-| `werkbord open` | open the app in your browser, signed in. `--print` prints the link instead; `--phone` brings up phone access if needed and shows the address; `--qr` adds a QR code |
+| `werkbord open` | open the app in your browser, signed in. `--print` prints the link instead; `--phone` brings up phone access if needed and shows the address; `--qr` shows the QR code that signs a phone in (see `werkbord phones`) |
 | `werkbord doctor` | check the controller, database, Git, Codex, Claude, private network, GitHub, runner registration and every configured project. `--json`, `--strict` (warnings fail too). It never prints a secret |
 | `werkbord update` | install the latest release over this executable and restart the controller; `--check` only looks, `--version vX.Y.Z` picks one |
 | `werkbord uninstall` | remove the login service. Your data stays |

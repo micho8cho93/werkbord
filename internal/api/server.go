@@ -17,6 +17,7 @@ import (
 	"devboard/internal/httpkit"
 	"devboard/internal/localaccess"
 	"devboard/internal/mcpaccess"
+	"devboard/internal/phoneaccess"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
@@ -49,15 +50,12 @@ type Options struct {
 	// nil disables /api/update. It only reports: installing is `werkbord update`, run
 	// on this computer by the person at it, and is not something any client can ask the
 	// controller to do.
-	Update func(ctx context.Context, force bool) update.Status
-	// PrivateToken is the access token a phone presents on the private network. It
-	// is put in the link and QR code that open Werkbord there, and nowhere else.
-	PrivateToken string
-	Store        store.Store       // for health checks and event replay
-	Events       events.Subscriber // live event source
-	Log          *slog.Logger
-	Version      string
-	Web          http.Handler // serves the PWA; nil disables it
+	Update  func(ctx context.Context, force bool) update.Status
+	Store   store.Store       // for health checks and event replay
+	Events  events.Subscriber // live event source
+	Log     *slog.Logger
+	Version string
+	Web     http.Handler // serves the PWA; nil disables it
 
 	// Assistant is the conversational assistant (internal/assistant); nil disables its endpoints. It is set on the loopback
 	// listener only: the private network does not serve it.
@@ -77,6 +75,12 @@ type Options struct {
 	// LocalAccess holds the narrow credentials of other programs on this computer (localaccess.go); nil means there
 	// are none and none is accepted. It is set on the loopback listener only: the private network never takes one.
 	LocalAccess *localaccess.Store
+	// Phones holds the enrolled phones (phone.go); nil means there are none and none is accepted. A phone token is read
+	// only from the private network's listener and from this computer.
+	Phones *phoneaccess.Store
+	// AssistantPhonesOnly serves the assistant to enrolled phones and to nobody else: for the private network's
+	// listener, where the controller's own token has never reached it.
+	AssistantPhonesOnly bool
 }
 
 // Server holds the HTTP handlers.
@@ -84,6 +88,8 @@ type Server struct {
 	opt     Options
 	log     *slog.Logger
 	started time.Time
+	// enrollLimit bounds tries at the enrollment code.
+	enrollLimit *attemptLimiter
 }
 
 // New builds a Server.
@@ -98,7 +104,7 @@ func New(opt Options) *Server {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Server{opt: opt, log: log, started: time.Now()}
+	return &Server{opt: opt, log: log, started: time.Now(), enrollLimit: &attemptLimiter{max: enrollAttemptsPerMinute, per: time.Minute, now: time.Now}}
 }
 
 // Handler returns the root handler with middleware applied.
@@ -142,6 +148,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/local-access", s.handleLocalAccessCreate)
 	mux.HandleFunc("DELETE /api/local-access/{id}", s.handleLocalAccessRevoke)
 	mux.HandleFunc("GET /api/local-access/self", s.handleLocalAccessSelfRefused)
+	mux.HandleFunc("GET /api/phones", s.handlePhoneList)
+	mux.HandleFunc("POST /api/phones/codes", s.handlePhoneCode)
+	mux.HandleFunc("POST /api/phones/enroll", s.handlePhoneEnroll)
+	mux.HandleFunc("DELETE /api/phones/{id}", s.handlePhoneRevoke)
+	mux.HandleFunc("PATCH /api/phones/{id}", s.handlePhoneRename)
+	mux.HandleFunc("GET /api/phones/self", s.handlePhoneSelfRefused)
+	mux.HandleFunc("PATCH /api/phones/self", s.handlePhoneSelfRefused)
+	mux.HandleFunc("POST /api/phones/self/signout", s.handlePhoneSelfRefused)
 	if s.opt.MCPManagement {
 		mux.HandleFunc("GET /api/mcp/operations", s.handleMCPOperations)
 		mux.HandleFunc("GET /api/mcp/grants", s.handleMCPGrants)

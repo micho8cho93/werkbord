@@ -8,6 +8,23 @@ and the desktop app's window (which has its own sidebar) are unchanged.
 Code: `web/src/lib/mobile/`. Wired in `web/src/App.svelte`. Tests: `web/src/lib/mobile/*.test.ts` and `scripts/browser-phone.cjs`
 (`make test-phone-browser`).
 
+## Signing in, and what a phone may do
+
+A phone is let in by scanning a QR code, once ([PHONE.md](PHONE.md)): it opens the app already signed in, with a credential of its
+own, and stays signed in until you revoke it (Settings → Phones, or `werkbord phones revoke <id>`). It is not the desktop's sign-in:
+it is not the controller's token, and it works on a fixed list of routes (`internal/api/phone.go`).
+
+| A phone can | A phone cannot |
+| --- | --- |
+| Read everything the deck and the task pages show | Change settings, register or change a repository |
+| Create and edit tasks, start a run with the task's own settings, stop or finish it, answer an agent, accept or reject its work | Choose an agent, model, policy or runner for a task or run; pair or revoke runners |
+| Use the Assistant | Give the Assistant folders on the computer; read its audit log |
+| Look at Git and fetch | Merge, push, delete a branch, clean a worktree, open a pull request |
+| Read, rename and sign out itself | Make codes, list or revoke phones, read or rotate the token |
+
+Where a screen offers something a phone cannot do, the request is refused (`403`) and the app says it is done at the computer.
+The screens do not yet hide those buttons.
+
 ## The Control Deck
 
 A header (the mark, one line saying whether the controller is reachable and how many runners and agents there are, Settings), one line on what needs you, nine keys, and what the agents are
@@ -66,7 +83,8 @@ opens the same editor the board uses for the dates. Nothing is moved by dragging
 
 ## The Assistant
 
-The Assistant is unchanged: same conversation engine, providers, model picker, tools, dictation, streaming and confirmation cards. On a phone
+The Assistant is unchanged: same conversation engine, providers, model picker, tools, dictation, streaming and confirmation cards. A phone that
+has been enrolled may use it over the private network (it is the only thing there that can); it is not given folders on the computer. On a phone
 its surface stops where the bar begins (and takes the room when the on-screen keyboard is up), its Close button gives way to the bar, and the
 bar's two places are part of its focus order. Nothing was added to what it may do.
 
@@ -81,7 +99,7 @@ today. This is the backend work that is missing, not a presentation choice:
 - The desktop window reaches Team through the app's native bridge (`web/src/shell/native.ts`, `internal/workspace`). A phone has no native app.
 - Adding Team to the phone therefore needs a new, narrow, read-mostly relay on the person's **own** computer: a Team client already runs there
   with the device key, and it would answer a fixed list of read questions (My Work, Calendar, Reviews, Analytics, Projects) for the phone, over
-  the existing Tailscale door and behind a revocable grant of its own, with `internal/archtest` tests that it starts nothing and reaches nothing
+  the existing private door and behind a revocable grant of its own (a phone's sign-in is already one: `internal/phoneaccess`), with `internal/archtest` tests that it starts nothing and reaches nothing
   on a member's machine. That is Team code (`internal/team/`), it needs its own design and security review, and it is not started.
 
 The deck's screens are written against the Individual controller's own endpoints and ask for nothing Team-specific, so a workspace switch
@@ -101,7 +119,9 @@ above them when that relay exists, without changing them.
 ## Tests
 
 - `web/src/lib/mobile/*.test.ts`: the deck's keys and counts, Back, the calendar's two kinds of time, My Work, agents, Git digests (`npx vitest run`).
-- `scripts/browser-phone.cjs` (`make test-phone-browser`, and part of `make test-browser`): in a real browser against the disposable fixture, the nine keys
+- `scripts/browser-phone.cjs` (`make test-phone-browser`, and part of `make test-browser`): in a real browser against the disposable fixture, a phone that scans a
+  code is signed in with a credential of its own, a second scan of the same code is refused, its own screens meet no refusal, the owner's things are refused, and a revoked phone is
+  signed out while its page is open; Settings → Phones lists, adds (with the countdown) and revokes with a confirm. And the nine keys
   are equal and in three columns with material round them, each opens its page and Back returns, a held key drops (and does not move with reduced motion),
   Month, Week and Timeline, the Assistant's place in the bar, 320 to 430px and landscape in both themes without horizontal overflow, one board column at a time,
   and a wide window that stays the desktop.

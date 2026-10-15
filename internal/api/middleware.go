@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"devboard/internal/localaccess"
+	"devboard/internal/phoneaccess"
 )
 
 // checkHost defends against DNS rebinding when the API is unauthenticated:
@@ -70,6 +71,10 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r) // the PWA shell itself is public; its data is not
 			return
 		}
+		if r.Method == http.MethodPost && r.URL.Path == "/api/phones/enroll" {
+			next.ServeHTTP(w, r) // a phone has no token yet: its single-use code is what it presents (phone.go)
+			return
+		}
 		got := ""
 		if v, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
 			got = v
@@ -78,6 +83,12 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 		}
 		want := []byte(s.currentToken())
 		if len(want) > 0 && subtle.ConstantTimeCompare([]byte(got), want) == 1 {
+			if s.opt.AssistantPhonesOnly && (r.URL.Path == "/api/assistant" || strings.HasPrefix(r.URL.Path, "/api/assistant/")) {
+				// On the private network the assistant is for enrolled phones, not for the controller's own token (which
+				// has never reached it there).
+				writeError(w, http.StatusForbidden, "forbidden", "the assistant is not served on this address to the controller's token")
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -85,6 +96,13 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 		if s.opt.LocalAccess != nil && strings.HasPrefix(got, localaccess.TokenPrefix) && fromThisComputer(r) {
 			if entry, ok := s.opt.LocalAccess.Authenticate(got); ok {
 				s.scoped(entry, next).ServeHTTP(w, r)
+				return
+			}
+		}
+		// A phone that was enrolled, with its own credential (phone.go): from the doors that are for phones, and nowhere else.
+		if s.opt.Phones != nil && strings.HasPrefix(got, phoneaccess.TokenPrefix) && s.phoneDoor(r) {
+			if entry, ok := s.opt.Phones.Authenticate(got); ok {
+				s.phoneScoped(entry, next).ServeHTTP(w, r)
 				return
 			}
 		}

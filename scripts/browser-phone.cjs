@@ -183,6 +183,146 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     }
     console.log('PASS phone board: one column at a time');
 
+    // ---- a phone scans a code and is signed in, with a credential of its own; revoking signs it out ----
+    {
+        const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+        const newPhone = async () => {
+            const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, userAgent: IPHONE });
+            const page = await ctx.newPage();
+            page.setDefaultTimeout(10000);
+            page.on('pageerror', (e) => errors.push(e.message));
+            return { ctx, page };
+        };
+        const ownerRequest = async (method, route, data) => api(method, route, data);
+        for (const old of (await ownerRequest('GET', '/api/phones')).phones) await ownerRequest('DELETE', '/api/phones/' + old.id);
+
+        // Scan: the page opens with only the code in its fragment, and nothing else is asked of the person.
+        const { code } = await ownerRequest('POST', '/api/phones/codes', {});
+        assert(code && code.length >= 43, 'a code of at least 256 bits');
+        const { ctx, page } = await newPhone();
+        const tokenCalls = [];
+        page.on('request', (r) => { if (r.url().includes(code) || (r.postData() || '').includes(token)) tokenCalls.push(r.url()); });
+        await page.goto(base + '/#enroll=' + code);
+        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('phone-welcome').waitFor();
+        assert.match(await page.getByTestId('phone-welcome').innerText(), /Signed in as iPhone \(Safari\)/, 'named from the device, without asking');
+        assert(!page.url().includes('enroll') && !page.url().includes(code), 'the code is gone from the address bar');
+        const stored = await page.evaluate(() => localStorage.getItem('devboard.token'));
+        assert(stored && stored.startsWith('wbp_') && stored !== token, 'the phone holds a credential of its own, not the owner token');
+        const listed = (await ownerRequest('GET', '/api/phones')).phones;
+        assert.equal(listed.length, 1, 'the owner sees one phone');
+        assert.equal(listed[0].name, 'iPhone (Safari)');
+        // The name is editable.
+        await page.getByTestId('phone-welcome').getByRole('button', { name: 'Rename' }).click();
+        await page.getByLabel('Name of this phone').fill('Michel iPhone');
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        await page.getByText('Michel iPhone').first().waitFor();
+        assert.equal((await ownerRequest('GET', '/api/phones')).phones[0].name, 'Michel iPhone');
+        await page.getByRole('button', { name: 'OK', exact: true }).click();
+        console.log('PASS phone enrollment: scan to signed in, with a credential of its own');
+
+        // The code is single-use.
+        {
+            const second = await newPhone();
+            await second.page.goto(base + '/#enroll=' + code);
+            await second.page.getByTestId('enroll-failed').waitFor();
+            assert.match(await second.page.getByTestId('enroll-failed').innerText(), /did not work/);
+            assert.equal(await second.page.evaluate(() => localStorage.getItem('devboard.token')), null, 'a replayed code signs nothing in');
+            await second.ctx.close();
+        }
+
+        // Persistent: a reload is still signed in, with no second welcome.
+        await page.reload();
+        await page.getByTestId('deck-attention').waitFor();
+        assert.equal(await page.getByTestId('phone-welcome').count(), 0);
+
+        // Scope: the phone does its work, and the owner's things are refused.
+        const asPhone = (method, route, data) => page.evaluate(async ([method, route, data]) => {
+            const res = await fetch(route, { method, headers: { Authorization: 'Bearer ' + localStorage.getItem('devboard.token'), 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined });
+            return res.status;
+        }, [method, route, data]);
+        assert.equal(await asPhone('GET', '/api/projects'), 200);
+        assert.equal(await asPhone('PUT', '/api/settings/execution', {}), 403, 'a phone cannot change settings');
+        assert.equal(await asPhone('POST', '/api/projects', { path: repo }), 403, 'a phone cannot register a repository');
+        assert.equal(await asPhone('GET', '/api/phones'), 403, 'a phone cannot list phones');
+        assert.equal(await asPhone('POST', `/api/projects/${project.id}/git/push`, {}), 403, 'a phone cannot push');
+        assert.equal(await asPhone('POST', '/api/phones/codes', {}), 403, 'a phone cannot enroll another');
+        // The Assistant is allowed (the surface opens; whether a provider is installed is the machine's business).
+        await page.getByTestId('nav-assistant').click();
+        await page.getByTestId('assistant').waitFor();
+        await page.getByTestId('nav-deck').click();
+        // Everything the phone's own screens ask for is on its list: a walk through them meets no refusal.
+        {
+            const refused = [];
+            page.on('response', (res) => { if (res.status() === 403) refused.push(res.request().method() + ' ' + new URL(res.url()).pathname); });
+            const tasks = (await ownerRequest('GET', `/api/projects/${project.id}/tasks`)).tasks;
+            for (const hash of ['#/deck', ...KEYS.map((k) => k[2]), `#/p/${project.id}/board`, `#/p/${project.id}/task/${tasks[0].id}`, `#/p/${project.id}/git`, `#/p/${project.id}/runs`, `#/p/${project.id}/calendar`, '#/settings']) {
+                await page.goto(base + '/' + hash);
+                await page.waitForTimeout(500);
+            }
+            await page.goto(base + '/#/deck');
+            assert.deepEqual([...new Set(refused)], [], 'a phone\'s own screens ask for nothing it is refused');
+        }
+        // Settings -> Phones shows this phone and lets it sign itself out.
+        await page.goto(base + '/#/settings?phones');
+        await page.getByTestId('phone-self').waitFor();
+        assert.match(await page.getByTestId('phone-self').innerText(), /Michel iPhone/);
+        await page.goto(base + '/#/deck');
+        await page.getByTestId('deck-attention').waitFor();
+        console.log('PASS phone scope: its work is allowed, the owner\'s things are refused');
+
+        // Revoke: the open page is signed out without being touched.
+        await ownerRequest('DELETE', '/api/phones/' + listed[0].id);
+        await page.getByTestId('signed-out').waitFor({ timeout: 15000 });
+        assert.equal(await page.getByTestId('deck-attention').count(), 0, 'nothing of the app is left on screen');
+        await page.reload();
+        await page.getByTestId('signed-out').waitFor();
+        assert.equal(await asPhone('GET', '/api/projects'), 401, 'the revoked credential is refused');
+        assert.equal((await ownerRequest('GET', '/api/phones')).phones.length, 0);
+        assert.deepEqual(tokenCalls, [], 'neither the code nor the owner token was sent anywhere it should not be');
+        console.log('PASS phone revoke: signed out at once, and it stays signed out');
+        await ctx.close();
+    }
+
+    // ---- Settings -> Phones on the computer: the list, Revoke with a confirm, and Add a phone with its countdown ----
+    {
+        const { code } = await api('POST', '/api/phones/codes', {});
+        const ph = await (await fetch(base + '/api/phones/enroll', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, name: 'Desk iPad' }) })).json();
+        const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+        const page = await ctx.newPage();
+        page.setDefaultTimeout(10000);
+        page.on('pageerror', (e) => errors.push(e.message));
+        await page.goto(base + '/#token=' + token);
+        await page.goto(base + '/#/settings?phones');
+        const row = page.locator(`[data-phone="${ph.id}"]`);
+        await row.waitFor();
+        assert.match(await row.innerText(), /Desk iPad/);
+        assert.match(await row.innerText(), /added .*last seen/);
+        await page.getByRole('button', { name: 'Add a phone' }).click();
+        const timer = page.getByTestId('phone-countdown');
+        await timer.waitFor();
+        assert.match(await timer.innerText(), /\b[45]:\d\d\b/, 'a countdown from five minutes');
+        const first = await timer.innerText();
+        await page.waitForTimeout(2200);
+        assert.notEqual(await timer.innerText(), first, 'the countdown moves');
+        assert.equal(await page.getByTestId('phone-enroll').locator('img').count(), 1, 'the QR code is shown');
+        assert(!(await page.content()).includes(token), 'the owner token is nowhere on the page');
+        await page.screenshot({ path: path.join(artifacts, 'settings-phones.png') });
+        // Revoke asks first.
+        let asked = '';
+        page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
+        await row.getByRole('button', { name: 'Revoke' }).click();
+        await page.waitForTimeout(200);
+        assert.match(asked, /Revoke Desk iPad\?/);
+        assert.equal((await api('GET', '/api/phones')).phones.length, 1, 'declining the confirm revokes nothing');
+        page.once('dialog', (d) => d.accept());
+        await row.getByRole('button', { name: 'Revoke' }).click();
+        await row.waitFor({ state: 'detached' });
+        assert.equal((await api('GET', '/api/phones')).phones.length, 0);
+        console.log('PASS Settings -> Phones: list, add with a countdown, revoke with a confirm');
+        await ctx.close();
+    }
+
     // ---- a wide window stays the desktop ----
     {
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });

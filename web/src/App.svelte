@@ -6,6 +6,7 @@
   import { assistant } from './lib/assistant/store.svelte';
   import { embedded } from './lib/embed';
   import NeedsInputBanner from './lib/NeedsInputBanner.svelte';
+  import PhoneWelcome from './lib/phones/PhoneWelcome.svelte';
   import ConnectionBanner from './lib/ConnectionBanner.svelte';
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
   import ProjectSwitcher from './lib/ProjectSwitcher.svelte';
@@ -217,6 +218,7 @@
         </header>
       {/if}
 
+      <PhoneWelcome />
       {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}
       <!-- The Control Deck says it in its own strip. -->
       {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}

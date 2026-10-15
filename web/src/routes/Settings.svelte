@@ -14,6 +14,7 @@
   import AgentsCard from '../lib/setup/AgentsCard.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import NetworkCard from '../lib/setup/NetworkCard.svelte';
+  import PhonesPanel from '../lib/phones/PhonesPanel.svelte';
   import { desktop } from '../lib/desktop.svelte';
   import { app } from '../lib/state.svelte';
   import { theme } from '../lib/theme.svelte';
@@ -25,7 +26,7 @@
   const GROUPS = [
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
-    { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
+    { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
   const SECTIONS = GROUPS.flatMap(g => [...g.sections]);
@@ -157,6 +158,8 @@
       <RoutingRules />
     {:else if section === 'phone'}
       <NetworkCard />
+    {:else if section === 'phones'}
+      <PhonesPanel />
     {:else if section === 'github'}
       <GitHubCard />
     {:else if section === 'mcp'}

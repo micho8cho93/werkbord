@@ -21,6 +21,7 @@ import (
 	"devboard/internal/events"
 	"devboard/internal/gitrepo"
 	"devboard/internal/localaccess"
+	"devboard/internal/phoneaccess"
 	"devboard/internal/netprivate"
 	"devboard/internal/runner"
 	"devboard/internal/service"
@@ -104,7 +105,11 @@ func main() {
 			_ = assistantEngine.Shutdown(stop)
 		}()
 	}
-	handler := api.New(api.Options{Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	phones, err := phoneaccess.Open(filepath.Join(dir, "phones.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	handler := api.New(api.Options{Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

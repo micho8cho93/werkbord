@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -145,11 +146,14 @@ func TestOpenOnThisComputerAndForAPhone(t *testing.T) {
 		t.Fatalf("%v\n%s", err, e.output())
 	}
 	out := e.output()
-	if !strings.Contains(out, "https://devboard-test.tail1234.ts.net/") || !strings.Contains(out, "scan this") || !strings.Contains(out, "█") {
+	if !strings.Contains(out, "https://devboard-test.tail1234.ts.net/") || !strings.Contains(out, "Scan this") || !strings.Contains(out, "█") {
 		t.Fatalf("phone output:\n%s", out)
 	}
 	if strings.Contains(out, e.token()) {
 		t.Fatalf("the token was printed (it is in the QR code, not as text):\n%s", out)
+	}
+	if strings.Contains(out, "#enroll=") || strings.Contains(out, "#token=") {
+		t.Fatalf("a credential was printed as text (it is in the QR code):\n%s", out)
 	}
 	if o := e.opened(); o[len(o)-1] != e.node.authURL {
 		t.Fatalf("the sign-in page was not opened: %v", o)
@@ -164,6 +168,45 @@ func TestOpenOnThisComputerAndForAPhone(t *testing.T) {
 	}
 	if err := e.app.cmdOpen(bg, []string{"--bogus"}); err == nil {
 		t.Fatal("an unknown flag was accepted")
+	}
+
+	// `phones`: nothing enrolled, then one that scanned a code, then none after it is revoked.
+	e.out.Reset()
+	if err := e.app.cmdPhones(bg, []string{"list"}); err != nil || !strings.Contains(e.output(), "No phone is enrolled") {
+		t.Fatalf("%v\n%s", err, e.output())
+	}
+	e.out.Reset()
+	if err := e.app.cmdPhones(bg, []string{"add", "--qr"}); err != nil || !strings.Contains(e.output(), "█") || !strings.Contains(e.output(), "5 minutes") {
+		t.Fatalf("%v\n%s", err, e.output())
+	}
+	enr, err := mustClient(t, e).enrollment(bg)
+	if err != nil || !strings.Contains(enr.Link, "/#enroll=") {
+		t.Fatalf("%+v %v", enr, err)
+	}
+	code := enr.Link[strings.Index(enr.Link, "#enroll=")+len("#enroll="):]
+	resp, err := http.Post(e.app.controllerURL()+"/api/phones/enroll", "application/json", strings.NewReader(`{"code":"`+code+`","name":"Test phone"}`))
+	if err != nil || resp.StatusCode != 201 {
+		t.Fatalf("enroll: %v %v", resp, err)
+	}
+	var phone struct{ ID string }
+	_ = json.NewDecoder(resp.Body).Decode(&phone)
+	resp.Body.Close()
+	e.out.Reset()
+	if err := e.app.cmdPhones(bg, []string{"list"}); err != nil || !strings.Contains(e.output(), phone.ID) || !strings.Contains(e.output(), "Test phone") || !strings.Contains(e.output(), "never seen") {
+		t.Fatalf("%v\n%s", err, e.output())
+	}
+	if err := e.app.cmdPhones(bg, []string{"revoke", phone.ID}); err != nil {
+		t.Fatal(err)
+	}
+	e.out.Reset()
+	if err := e.app.cmdPhones(bg, []string{"list"}); err != nil || !strings.Contains(e.output(), "No phone is enrolled") {
+		t.Fatalf("%v\n%s", err, e.output())
+	}
+	if err := e.app.cmdPhones(bg, []string{"revoke", phone.ID}); err == nil {
+		t.Fatal("revoked a phone twice")
+	}
+	if err := e.app.cmdPhones(bg, []string{"bogus"}); err == nil {
+		t.Fatal("an unknown command was accepted")
 	}
 }
 

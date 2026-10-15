@@ -887,8 +887,10 @@ there even when loopback was opened with `requireToken=false`. Funnel (public in
 log upload is switched off, and the sign-in link is never logged. The node sits behind a small `Backend`
 interface, so the manager is tested with a fake and, separately, against a real node talking to Tailscale's own
 in-process test control server and DERP relay (sign-in link, completing it, serving, a second node reaching it,
-identity across a restart). `GET /api/network/phone` returns the address and a link and QR code (SVG) that carry
-the token in the URL fragment.
+identity across a restart). `GET /api/network/phone` returns the address only. A phone is enrolled with a single-use code
+(`POST /api/phones/codes`, carried in the URL fragment as `#enroll=…`, spent by `POST /api/phones/enroll`) and is given a
+credential of its own (`internal/phoneaccess`, `wbp_…`, hashes only) that is accepted on a fixed list of routes
+(`internal/api/phone.go`) from the private listener and loopback only, and is revocable per phone ([PHONE.md](PHONE.md)).
 
 **GitHub** (`service.GitHubSetup`, `internal/github`) is optional and goes through the user's own `gh`: status
 (`gh api user`), sign-in (`gh auth login --web`, whose one-time code the app shows), the repositories the user can

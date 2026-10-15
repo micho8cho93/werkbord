@@ -28,7 +28,9 @@ import type {
   NetworkStatus,
   Onboarding,
   Overview,
-  PhoneLink,
+  PhoneAddress,
+  PhoneEnrollment,
+  PhoneEntry,
   RepoList,
   RepositoryHealth,
   Project,
@@ -112,6 +114,21 @@ export function adoptTokenFromURL(): void {
     // A malformed link must not crash startup or replace a valid credential.
   }
   history.replaceState(null, '', location.pathname + '#/');
+}
+
+/**
+ * Takes the enrollment code out of a phone link of the form /#enroll=<code> and removes it from the address bar. It is
+ * the one thing a scanned QR code carries; the browser never sends a fragment to a server. Null when there is none.
+ */
+export function takeEnrollmentCode(): string | null {
+  const m = /(?:^#|&)enroll=([^&]+)/.exec(location.hash);
+  if (!m) return null;
+  history.replaceState(null, '', location.pathname + '#/');
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return '';
+  }
 }
 
 export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -262,7 +279,18 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   network: () => request<NetworkStatus>('GET', '/api/network'),
   enableNetwork: () => request<NetworkStatus>('POST', '/api/network/enable', {}),
   disableNetwork: () => request<NetworkStatus>('POST', '/api/network/disable', {}),
-  phoneLink: () => request<PhoneLink>('GET', '/api/network/phone'),
+  phoneAddress: () => request<PhoneAddress>('GET', '/api/network/phone'),
+
+  // Phones: each has a credential of its own, that the owner can see and revoke. A phone enrolls with a single-use code
+  // from its QR code and is given its token once; it can then read and rename itself and sign itself out.
+  phones: () => request<{ phones: PhoneEntry[] }>('GET', '/api/phones').then((r) => r.phones),
+  createPhoneCode: () => request<PhoneEnrollment>('POST', '/api/phones/codes', {}),
+  revokePhone: (id: string) => requestNoContent('DELETE', `/api/phones/${enc(id)}`),
+  renamePhone: (id: string, name: string) => request<PhoneEntry>('PATCH', `/api/phones/${enc(id)}`, { name }),
+  enrollPhone: (code: string, name: string) => request<PhoneEntry & { token: string }>('POST', '/api/phones/enroll', { code, name }),
+  phoneSelf: () => request<PhoneEntry>('GET', '/api/phones/self'),
+  renameSelf: (name: string) => request<PhoneEntry>('PATCH', '/api/phones/self', { name }),
+  signOutSelf: () => requestNoContent('POST', '/api/phones/self/signout'),
 
   // GitHub, through the user's own GitHub CLI. Optional.
   github: () => request<GitHubStatusInfo>('GET', '/api/github'),

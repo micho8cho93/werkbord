@@ -561,7 +561,7 @@ func (a *app) cmdOpen(ctx context.Context, args []string) error {
 const phoneTimeout = 5 * time.Minute
 
 // openPhone gets the private network running and signed in, then shows the
-// address (and a QR code) for a phone.
+// QR code that enrolls a phone: a single-use code, not the controller's token.
 func (a *app) openPhone(ctx context.Context, c *client, printOnly, qr bool) error {
 	n, err := a.ensureNetwork(ctx, c, phoneTimeout, !printOnly)
 	if err != nil {
@@ -570,23 +570,7 @@ func (a *app) openPhone(ctx context.Context, c *client, printOnly, qr bool) erro
 	if n.State != string(netprivate.StateConnected) {
 		return fmt.Errorf("the private network is %s: finish signing in, then run this again", n.State)
 	}
-	link, err := c.phone(ctx)
-	if err != nil {
-		return err
-	}
-	a.printf("Open this on your phone (it must be on the same Tailscale account):\n\n  %s\n\n", link.URL)
-	if !link.HTTPS && n.HTTPSHint != "" {
-		a.printf("Note: %s\n\n", n.HTTPSHint)
-	}
-	if qr || a.isTerminal(a.out) {
-		// The code carries the sign-in token, so it opens Werkbord already signed in.
-		text, err := netprivate.QRText(link.Link)
-		if err != nil {
-			return err
-		}
-		a.printf("Or scan this to open it already signed in:\n\n%s\n", indent(strings.TrimRight(text, "\n"), "  "))
-	}
-	return nil
+	return a.printEnrollment(ctx, c, n, qr)
 }
 
 // ensureNetwork turns the private network on (unless the user turned it off) and,
