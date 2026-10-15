@@ -130,10 +130,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	rm.mu.Unlock()
-
+	// Keep admission, upgrade and registration under one lock. Dial can return as soon as Accept writes the handshake;
+	// the next connection must see this one registered before checking runner availability or the phone limit.
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{relay.Subprotocol}})
 	if err != nil {
+		rm.mu.Unlock()
 		return
 	}
 	c.SetReadLimit(relay.MaxFrame)
@@ -145,7 +146,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) runner(rm *room, c *websocket.Conn) {
-	rm.mu.Lock()
+	// ServeHTTP holds rm.mu until this connection is registered.
 	old := rm.runner
 	phones := rm.phones
 	rm.runner, rm.phones = c, map[relay.PeerID]*websocket.Conn{}
@@ -202,9 +203,9 @@ func (s *Server) runner(rm *room, c *websocket.Conn) {
 }
 
 func (s *Server) phone(rm *room, c *websocket.Conn) {
+	// ServeHTTP holds rm.mu until this connection is registered.
 	var peer relay.PeerID
 	_, _ = rand.Read(peer[:])
-	rm.mu.Lock()
 	runner := rm.runner
 	rm.phones[peer] = c
 	rm.mu.Unlock()

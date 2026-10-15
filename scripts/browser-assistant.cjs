@@ -798,8 +798,9 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
         {
             const { ctx, page } = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
             await page.goto(base + '/#token=' + token);
+            await page.getByTestId('deck-attention').waitFor();
             await page.goto(base + '/#/projects');
-            const button = page.locator('[data-testid="assistant-button"]:visible').first();
+            const button = page.getByTestId('nav-assistant');
             await button.waitFor();
             const bb = await button.boundingBox();
             assert.ok(bb.width >= 44 && bb.height >= 44, 'a thumb-sized way in: ' + JSON.stringify(bb));
@@ -809,17 +810,21 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await surface(page).waitFor();
             await page.waitForFunction(() => document.querySelector('[data-testid="assistant"]')?.dataset.phase === 'open');
             const r = await surface(page).boundingBox();
-            assert.deepEqual([r.x, r.y, r.width, r.height], [0, 0, 390, 844], 'it fills the phone');
+            const nav = page.locator('[data-phone-nav]');
+            const navBox = await nav.boundingBox();
+            assert.deepEqual([r.x, r.y, r.width, r.height], [0, 0, 390, navBox.y], 'it fills the phone above its persistent navigation');
+            assert.equal(navBox.y + navBox.height, 844, 'the navigation stays at the bottom of the phone');
+            assert.equal(await button.getAttribute('aria-current'), 'page', 'the Assistant is the selected place');
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no sideways scrolling');
             await page.screenshot({ path: path.join(artifacts, 'assistant-empty-mobile.png') });
             const sendBox = await page.getByRole('button', { name: 'Send', exact: true }).boundingBox();
-            const closeBox = await page.getByTestId('assistant-close').boundingBox();
+            const deckBox = await page.getByTestId('nav-deck').boundingBox();
             const micBox = await page.getByTestId('assistant-mic').boundingBox();
             // Transformed bounds can report 43.999999px for a 44px control; allow only subpixel rounding.
-            for (const b of [sendBox, closeBox, micBox]) assert.ok(b.width >= 44 - 0.001 && b.height >= 44 - 0.001, 'tap targets are at least 44px: ' + JSON.stringify(b));
+            for (const b of [sendBox, bb, deckBox, micBox]) assert.ok(b.width >= 44 - 0.001 && b.height >= 44 - 0.001, 'tap targets are at least 44px: ' + JSON.stringify(b));
             assert.equal(await page.getByRole('textbox', { name: 'Message to the assistant' }).evaluate(el => parseFloat(getComputedStyle(el).fontSize)), 16, 'the box is 16px so the phone does not zoom');
             const comp = await page.getByRole('textbox', { name: 'Message to the assistant' }).boundingBox();
-            assert.ok(comp.y + comp.height <= 844, 'the box is on screen');
+            assert.ok(comp.y + comp.height <= navBox.y, 'the box is above the navigation');
             await sendText(page, `add a ticket to ${project.id}`);
             await page.locator('section.confirm').waitFor();
             const cb = await page.locator('section.confirm').boundingBox();
@@ -852,9 +857,10 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.screenshot({ path: path.join(artifacts, 'assistant-openui-mobile.png') });
             ok('generated UI uses a single-column metric grid and contained table scrolling on a phone');
 
-            await page.getByTestId('assistant-close').tap();
+            await button.tap();
             await surface(page).waitFor({ state: 'detached' });
-            ok('on a phone: thumb-sized controls, fills the screen, nothing overflows, the chooser and confirmations fit');
+            assert.equal(await button.getAttribute('aria-expanded'), 'false', 'the Assistant tab closes it');
+            ok('on a phone: thumb-sized controls, fills the screen above persistent navigation, nothing overflows, the chooser and confirmations fit');
             await ctx.close();
         }
 
