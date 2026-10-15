@@ -76,3 +76,10 @@ Phase 2 owner controls and shared request scheduling are documented in
 cannot dispatch; a dispatch-only grant cannot approve. Valid signatures never
 replace local policy checks. Revocation prevents new authorization without
 silently terminating an accepted local process.
+
+## Team phone access
+
+The optional phone lane adds a distinct local read-only summary grant, with its own
+[security review](TEAM_PHONE_SECURITY.md). It uses a company-owned `werkbord-team phone-relay` and an explicitly configured
+connector. It never exposes the local device API, workspace writes or execution controls. Pairing and revocation are local
+member actions; workspace membership and project access continue to be checked by the Workspace Host.

@@ -33,13 +33,13 @@ async function ask(worker, message) {
   });
 }
 
-async function connect() {
+async function connect(lane) {
   document.body.dataset.state = "working";
   $("title").textContent = "Connecting to your computer";
   $("text").textContent = "This takes a few seconds.";
   const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
   await navigator.serviceWorker.ready;
-  return ask(reg.active || (await navigator.serviceWorker.ready).active, { type: "reset" });
+  return ask(reg.active || (await navigator.serviceWorker.ready).active, { type: "reset", lane });
 }
 
 async function main() {
@@ -53,19 +53,19 @@ async function main() {
   }
   history.replaceState(null, "", location.pathname); // the pairing is a secret: not in the address bar, history or a screenshot
   try {
-    await kvSet("pairing", raw.replace(/^#/, ""));
+    await kvSet(pairing.lane === "team" ? "pairing:team" : "pairing", raw.replace(/^#/, ""));
   } catch {
     return show("unsupported", false);
   }
   const attempt = async () => {
     let result;
     try {
-      result = await connect();
+      result = await connect(pairing.lane);
     } catch {
       return show("unsupported", false);
     }
     if (!result.ok) return show(result.reason, result.reason === "offline" || result.reason === "unavailable");
-    location.replace(pairing.code ? "/#enroll=" + encodeURIComponent(pairing.code) : "/");
+    location.replace(pairing.lane === "team" ? "/team/" : pairing.code ? "/#enroll=" + encodeURIComponent(pairing.code) : "/");
   };
   $("retry").addEventListener("click", attempt);
   await attempt();

@@ -1,0 +1,37 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f5f5f2;
+  --ink: #0a0a0a;
+  --muted: #55554f;
+  --line: #dad9d3;
+  --accent: #2447ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0c;
+    --ink: #f0f0ec;
+    --muted: #a3a39d;
+    --line: #2a2a2d;
+    --accent: #7c93ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+main { max-width: 48rem; margin: auto; padding: 24px 20px; }
+h1 { font-size: 22px; margin: 8px 0; }
+h2 { font-size: 17px; }
+p { color: var(--muted); }
+.mark { font: 600 13px ui-monospace, monospace; }
+section { border-top: 1px solid var(--line); margin-top: 24px; }
+ul { padding: 0; list-style: none; }
+li { padding: 12px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+button {
+  font: inherit;
+  min-height: 44px;
+  padding: 8px 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--accent);
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

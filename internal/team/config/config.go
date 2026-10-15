@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,6 +59,10 @@ const (
 
 // Config holds Team's settings.
 type Config struct {
+	// Phone relay and connector are explicitly configured by the company on this member computer.
+	PhoneRelayEndpoint     string
+	PhoneConnectorEndpoint string
+
 	// Production commands require an offline license; the key is supplied only by the executable's build.
 	LicenseRequired bool
 	LicenseKey      []byte
@@ -137,6 +142,8 @@ func Load() Config {
 			*dst = v
 		}
 	}
+	set("WERKBORD_TEAM_PHONE_RELAY_URL", &c.PhoneRelayEndpoint)
+	set("WERKBORD_TEAM_PHONE_CONNECTOR_URL", &c.PhoneConnectorEndpoint)
 	set("WERKBORD_TEAM_ADDR", &c.Addr)
 	set("WERKBORD_TEAM_LICENSE_FILE", &c.LicenseFile)
 	set("WERKBORD_TEAM_KEY_STORAGE", &c.KeyStorage)
@@ -210,6 +217,22 @@ func splitList(v string) []string {
 
 // Validate checks the settings for mistakes.
 func (c Config) Validate() error {
+	if (c.PhoneRelayEndpoint == "") != (c.PhoneConnectorEndpoint == "") {
+		return fmt.Errorf("phone relay and connector URLs must both be configured")
+	}
+	for _, raw := range []string{c.PhoneRelayEndpoint, c.PhoneConnectorEndpoint} {
+		if raw == "" {
+			continue
+		}
+		u, err := url.Parse(raw)
+		if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+			return fmt.Errorf("invalid phone access URL")
+		}
+		if u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "localhost" || (net.ParseIP(u.Hostname()) != nil && net.ParseIP(u.Hostname()).IsLoopback()))) {
+			return fmt.Errorf("phone access requires HTTPS (HTTP is allowed only on loopback)")
+		}
+	}
+
 	switch c.KeyStorage {
 	case "", "file", "os":
 	default:

@@ -490,6 +490,11 @@ function signIn() {
 function secretBox() {
   if (!state.secret) return '';
   const s = state.secret;
+  if (s.kind === 'phone') return h('div', { class: 'secret', role: 'status' },
+    h('strong', {}, 'Pair your Team phone'),
+    h('p', { class: 'muted' }, 'Open this private link on your phone. Anyone with it can read your Team summary until you revoke it.'),
+    h('code', {}, s.token), extLink(s.token, 'Open phone link'),
+    h('div', { class: 'actions' }, copy(s.token, 'Copy phone link'), h('button', { class: 'plain', onclick: () => { state.secret = null; render(); } }, 'Done')));
   const invite = s.kind === 'invite';
   // A project invite is a code and nothing else. A link would carry this window's own address, which is this computer's
   // (the Team app's window is a page of a service on 127.0.0.1) and means nothing on anyone else's.

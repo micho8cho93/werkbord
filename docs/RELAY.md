@@ -223,3 +223,26 @@ When you upgrade to Workers Paid nothing changes. Worth doing then: a billing al
   `relay/connector/dist` (port 8788, say), a controller started with `WERKBORD_RELAY_URL=http://localhost:8787` and
   `WERKBORD_CONNECTOR_URL=http://localhost:8788` and its own data directory, then open the link from Add a phone. This is how the
   pairing, return visits, sleep, relay-down and revoke were checked in Chromium.
+
+## Team lane: company-owned relay
+
+`werkbord-team phone-relay --addr 127.0.0.1:7432 --data-dir /var/lib/werkbord-phone-relay` runs the same relay protocol in
+Go inside the Team executable. Put it behind your company's HTTPS proxy with WebSocket upgrades enabled. It retains room
+join-key hashes across restart; it holds no workspace or encryption credentials. This is an opt-in company deployment.
+
+Deploy the connector's static files as above. On member computers, set both `WERKBORD_TEAM_PHONE_RELAY_URL=https://relay.company.example`
+and `WERKBORD_TEAM_PHONE_CONNECTOR_URL=https://connect.company.example` for the Team daemon, then restart it. The company
+supplies these addresses; Werkbord operates neither service. Without them Team Settings says **Ask your admin to turn on phone access**.
+
+In Team Settings → This computer → Phone access, choose **Pair a phone**, copy the private link to your phone and open it.
+The member computer must remain online. The phone can read Needs you, My work and Calendar summaries; it cannot change
+Team records or start work. Revoke individual grants in the same settings panel. A pairing link remains a credential until
+revoked; keep it private. See [the separate grant security review](TEAM_PHONE_SECURITY.md).
+
+The connector supplies the **Individual | Team** switch on both phone views. Pair both lanes at the same connector origin
+to switch between them; each keeps its own pairing and connection. The default connector build accepts HTTPS relays from
+both lanes; a `RELAY_URL`-pinned build accepts only that relay, so use a shared company relay or omit that pin when two relay
+origins are needed. Trust the connector operator with every lane paired there. Individual's code and permissions are unchanged.
+
+The local authenticated device API exposes `GET /api/device/v1/phones` (status and grant IDs), `POST /api/device/v1/phones`
+(issue a link), and `DELETE /api/device/v1/phones/{id}` (revoke). These endpoints are never reachable through the phone tunnel.

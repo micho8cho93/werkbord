@@ -53,7 +53,8 @@ type DaemonOptions struct {
 
 // Daemon owns one device and its connection to a workspace. Its local API is never served on the overlay.
 type Daemon struct {
-	o DaemonOptions
+	phone *phoneLane
+	o     DaemonOptions
 	// Internal transport substitution for unprivileged end-to-end tests; never configured by an API or flag.
 	hostDial        func(context.Context, string, string) (net.Conn, error)
 	state           *devicestate.State
@@ -98,7 +99,11 @@ func NewDaemon(o DaemonOptions) (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Daemon{o: o, state: st, wake: make(chan struct{}, 1)}, nil
+	d := &Daemon{o: o, state: st, wake: make(chan struct{}, 1)}
+	if err := d.openPhone(); err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
 func (d *Daemon) workspaceConfig() config.Config {
@@ -169,6 +174,9 @@ func (d *Daemon) RunDevice(ctx context.Context) {
 // Handler is used only on loopback. Workspace credentials never reach the renderer.
 func (d *Daemon) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/device/v1/phones", d.phoneStatus)
+	mux.HandleFunc("POST /api/device/v1/phones", d.phonePair)
+	mux.HandleFunc("DELETE /api/device/v1/phones/{id}", d.phoneRevoke)
 	mux.HandleFunc("GET /api/device/v1/state", d.localState)
 	mux.HandleFunc("GET /api/device/v1/summary", d.workspaceSummary)
 	mux.HandleFunc("POST /api/device/v1/create", d.createWorkspace)

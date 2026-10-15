@@ -59,7 +59,8 @@ export function decodePairing(text) {
     throw bad();
   }
   if (runnerKey.length !== 32 || secret.length !== 32) throw bad();
-  return { relay, room: p.r, joinKey: p.j, runnerKey, secret, code: typeof p.c === "string" ? p.c : "" };
+  if (p.lane !== undefined && p.lane !== "team" && p.lane !== "individual") throw bad();
+  return { lane: p.lane || "individual", relay, room: p.r, joinKey: p.j, runnerKey, secret, code: typeof p.c === "string" ? p.c : "" };
 }
 
 function pack(type, id, payload) {

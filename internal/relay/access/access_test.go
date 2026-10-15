@@ -129,3 +129,34 @@ func TestCodesWaitingAreBounded(t *testing.T) {
 		t.Fatal("unbounded codes")
 	}
 }
+
+func TestCheckedRevocationReportsSaveFailureAndRetryPersistsIt(t *testing.T) {
+	s, path := open(t)
+	pairing, err := s.NewPairing("https://relay.company.example", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := idOf(t, pairing.Secret)
+	if err = s.Bind(id, "client"); err != nil {
+		t.Fatal(err)
+	}
+	original := s.path
+	s.path = filepath.Join(path, "not-a-directory")
+	if gone, err := s.Revoke("client"); err == nil || len(gone) != 1 {
+		t.Fatal("failed persistence was reported as success")
+	}
+	if _, ok := s.Lookup(id); ok {
+		t.Fatal("failed save kept session access")
+	}
+	s.path = original
+	if _, err = s.Revoke("client"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := again.Lookup(id); ok {
+		t.Fatal("retry resurrected a revoked grant")
+	}
+}

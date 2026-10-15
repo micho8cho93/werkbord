@@ -24,6 +24,14 @@ import (
 
 // deviceLoop supervises this device, never a member's developer processes.
 func (d *Daemon) deviceLoop(ctx context.Context) {
+	if d.phone != nil {
+		phoneCtx, stopPhone := context.WithCancel(ctx)
+		d.phone.tunnel.Context = phoneCtx
+		done := make(chan struct{})
+		go func() { defer close(done); _ = d.phone.client.Run(phoneCtx) }()
+		defer func() { stopPhone(); <-done }()
+	}
+
 	var infraCancel context.CancelFunc
 	var infraDone chan error
 	var hostRole bool

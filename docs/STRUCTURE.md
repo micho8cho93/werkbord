@@ -110,6 +110,12 @@ The same goes for the web: the PWA in `web/` is Individual's app. `web/src/shell
 console (`internal/team/console`). When Team needs real UI reuse, extract the components both use into a shared web
 package (for example `web-ui/`) that `web/` and a Team web app both depend on; do not put Team screens in `web/`.
 
+`internal/relay` and its `e2e`, `access`, `client`, `tunnel` and `server` packages are shared protocol plumbing:
+opaque client bindings, pairing keys, ciphertext framing and bounded HTTP transport. They hold no product routes or
+workspace authority. Individual supplies its phone handler; Team supplies its separate read-only summary grant under
+`internal/team/server/daemon_phone.go` and its phone view under `internal/team/phone/`. The company relay is the
+`werkbord-team phone-relay` command. See [TEAM_PHONE_SECURITY.md](TEAM_PHONE_SECURITY.md).
+
 ### Dependency direction
 
 ```

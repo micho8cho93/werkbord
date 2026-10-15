@@ -37,6 +37,13 @@ const (
 // into a shared package that holds no individual-product behaviour (as sqlitekit
 // and httpkit were) and add it here, in the same change.
 var teamAllowed = []string{
+	module + "/internal/relay",        // neutral ciphertext protocol; product routes remain in their product
+	module + "/internal/relay/e2e",    // product-neutral encryption, no device registry or execution authority
+	module + "/internal/relay/access", // opaque client bindings and pairing keys; no product API
+	module + "/internal/relay/client", // outbound encrypted transport; caller supplies secrets and handler
+	module + "/internal/relay/tunnel", // bounded HTTP framing; caller supplies all authorisation
+	module + "/internal/relay/server", // opaque Worker-compatible byte forwarding
+
 	module + "/internal/uipresentation", // neutral static board presentation; no product behavior or credentials
 	teamCmd,
 	teamTree, // and below

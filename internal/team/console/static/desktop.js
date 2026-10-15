@@ -317,7 +317,7 @@ async function settingsView() {
   const hostOffer = h('input', { name: 'offer-workspace-host', type: 'checkbox', checked: s.offerWorkspaceHost });
   const connectivityOffer = h('input', { name: 'offer-connectivity-host', type: 'checkbox', checked: s.offerConnectivityHost });
   const plan = await deviceApi('GET', '/removal');
-  return h('div', {}, runnerSetup(), syncPanel(), h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } },
+  return h('div', {}, runnerSetup(), syncPanel(), await phoneSettings(), h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } },
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Computer'), field('Type', form), field('Sleeps automatically', sleeps)),
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Hosting'), field('Workspace Host', hostOffer), field('Connectivity Host', connectivityOffer),
       h('p', { class: 'muted' }, 'Hosting starts after administrator approval; sleep pauses this computer’s work.'),
@@ -429,4 +429,18 @@ function ownExecutionPanel(k) {
       h('details', {}, h('summary', {}, 'Untrusted task context'), h('pre', { class: 'prose' }, view.preview.title + '\n' + view.preview.description)),
       h('button', { class: 'primary', onclick: () => act(async () => { view.approval = await deviceApi('POST', '/execution/approve', request()); if (!view.schedule && !selection.preapprove) { await deviceApi('POST', '/execution/start', request()); view.preview = null; view.approval = null; selection.executionId = 'exe_' + crypto.randomUUID().replaceAll('-', ''); await refresh(); } }) }, view.schedule || selection.preapprove ? 'Approve this execution once' : 'Approve and start my run')) : '',
     view.approval ? h('p', { role: 'status' }, 'Authorized once until ' + new Date(view.approval.expiresAt).toLocaleString() + '. The scheduled request will wait for eligibility and this runner.') : '', questions, runs);
+}
+
+
+async function phoneSettings() {
+  const status = await deviceApi('GET', '/phones');
+  const panel = h('section', { class: 'panel' }, h('h2', {}, 'Phone access'));
+  if (!status.enabled) { panel.append(h('p', { class: 'muted' }, 'Ask your admin to turn on phone access')); return panel; }
+  panel.append(h('p', { class: 'muted' }, status.connected ? 'Connected to your company relay. Phones can read your Team summary.' : 'The company relay is reconnecting. Keep this computer online.'));
+  panel.append(h('button', { class: 'primary', onclick: () => act(async () => {
+    const grant = await deviceApi('POST', '/phones');
+    state.secret = { kind: 'phone', token: grant.url, name: 'Team phone' };
+  }) }, 'Pair a phone'));
+  for (const id of status.grants || []) panel.append(h('div', { class: 'row' }, h('code', { class: 'grow' }, 'Phone ' + id.slice(-8)), h('button', { class: 'plain', onclick: () => act(() => deviceApi('DELETE', '/phones/' + encodeURIComponent(id))) }, 'Revoke phone')));
+  return panel;
 }

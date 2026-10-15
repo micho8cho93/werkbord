@@ -1,6 +1,6 @@
 // Package relay holds the shared vocabulary of Werkbord's relay protocol (docs/RELAY.md): the
-// relay-facing frame format, close codes and the pairing a QR code carries. The relay itself
-// is a Cloudflare Worker (relay/worker); it forwards bytes and never holds a key.
+// relay-facing frame format, close codes and the pairing a QR code carries. The Worker (relay/worker)
+// and Go relay (server) forward opaque bytes and never hold an encryption key.
 package relay
 
 import (
@@ -118,6 +118,7 @@ func WebSocketURL(base, roomID, role string) (string, error) {
 // ever receives it. The runner key lets the phone reject an impostor; the secret lets the
 // runner reject a stranger.
 type Pairing struct {
+	Lane      string `json:"lane,omitempty"` // optional connector lane; no authority
 	V         int    `json:"v"`
 	Relay     string `json:"u"` // https://relay.example.workers.dev
 	Room      string `json:"r"`

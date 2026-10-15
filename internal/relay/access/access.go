@@ -30,7 +30,7 @@ const maxPending = 32
 type boundRecord struct {
 	ID     string    `json:"id"`     // hex of the secret's e2e.PSKID
 	Secret string    `json:"secret"` // base64url
-	Phone  string    `json:"phone"`  // phoneaccess entry ID
+	Phone  string    `json:"phone"`  // opaque client binding ID
 	Added  time.Time `json:"added"`
 }
 
@@ -168,24 +168,23 @@ func (s *Store) Bind(id e2e.PSKID, phone string) error {
 // Unbind takes away the secrets of a phone (it was revoked) and returns them, so the connections made with them can be
 // ended.
 func (s *Store) Unbind(phone string) []e2e.PSKID {
+	gone, _ := s.Revoke(phone)
+	return gone
+}
+
+// Revoke removes a client's secrets in memory and reports whether the change was saved.
+// Retrying also saves when the secrets are already gone, so failed durable revocations can be repaired.
+func (s *Store) Revoke(phone string) ([]e2e.PSKID, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var gone []e2e.PSKID
 	for id, r := range s.bound {
 		if r.Phone == phone {
 			gone = append(gone, id)
+			delete(s.bound, id)
 		}
 	}
-	if len(gone) == 0 {
-		return nil
-	}
-	for _, id := range gone {
-		delete(s.bound, id)
-	}
-	// If the save fails the secrets are still gone from memory, which is what matters now; Prune removes them on the
-	// next start, since their phone is revoked.
-	_ = s.save()
-	return gone
+	return gone, s.save()
 }
 
 // Prune forgets the secrets of phones that no longer exist, for a start after a restore or a failed save.
@@ -249,4 +248,23 @@ func (s *Store) save() error {
 	}
 	ok = true
 	return nil
+}
+
+// Bindings lists the opaque client IDs bound to credentials, without any secret.
+func (s *Store) Bindings() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, 0, len(s.bound))
+	for _, r := range s.bound {
+		out = append(out, r.Phone)
+	}
+	return out
+}
+
+// BoundClient returns the opaque client ID for a bound secret. Pending secrets have no client.
+func (s *Store) BoundClient(id e2e.PSKID) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, ok := s.bound[id]
+	return r.Phone, ok
 }

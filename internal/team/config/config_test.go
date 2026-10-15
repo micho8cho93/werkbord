@@ -104,3 +104,26 @@ func TestTheNetworkSettingsAreTheCustomersOwnAddressesAndFiles(t *testing.T) {
 		t.Error("an unreadable port was accepted")
 	}
 }
+
+func TestCompanyPhoneEndpointsRequireBothAndHTTPS(t *testing.T) {
+	for _, tc := range []struct {
+		relay, connector string
+		valid            bool
+	}{
+		{"", "", true},
+		{"https://relay.company.example", "https://connect.company.example", true},
+		{"http://127.0.0.1:8787", "http://localhost:8788", true},
+		{"https://relay.company.example", "", false},
+		{"http://relay.company.example", "https://connect.company.example", false},
+		{"https://user:password@relay.company.example", "https://connect.company.example", false},
+		{"https://relay.company.example/path", "https://connect.company.example", false},
+		{"https://relay.company.example?token=secret", "https://connect.company.example", false},
+	} {
+		c := Default()
+		c.PhoneRelayEndpoint = tc.relay
+		c.PhoneConnectorEndpoint = tc.connector
+		if err := c.Validate(); (err == nil) != tc.valid {
+			t.Errorf("%q %q: %v", tc.relay, tc.connector, err)
+		}
+	}
+}

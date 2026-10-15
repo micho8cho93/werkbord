@@ -46,6 +46,7 @@ var version = "dev"
 const usage = `usage: werkbord-team <command> [flags]
 
 commands:
+  phone-relay        serve the company-owned encrypted phone relay (put behind HTTPS)
   daemon             run this device's background service (workspace, networking and local runner bridge)
   workspace create   start a workspace with Nebula; prints the owner's local token once
   serve              run the Team server in the foreground
@@ -87,6 +88,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	cfg := config.Load()
 	cfg.LicenseKey, _ = base64.RawURLEncoding.DecodeString(licenseIssuer)
 	switch args[0] {
+	case "phone-relay":
+		return cmdPhoneRelay(ctx, cfg, args[1:], stderr)
 	case "daemon":
 		return cmdDaemon(ctx, cfg, args[1:], stderr)
 	case "serve":
