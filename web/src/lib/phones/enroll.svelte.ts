@@ -26,7 +26,7 @@ export async function enrollFromURL(ua: string = typeof navigator === 'undefined
       err instanceof ApiError && err.status === 429
         ? 'Too many tries. Wait a minute, then scan again.'
         : err instanceof ApiError && err.status === 0
-          ? 'Cannot reach Werkbord. Check that this phone is online and your computer is awake (with Tailscale, on the same account), then scan again.'
+          ? 'Cannot reach Werkbord. Check that this phone is online and your computer is awake and connected to the relay, then scan again.'
           : 'That code did not work. It is used once and lasts five minutes: make a new one in Settings → Phones on your computer.';
     enrollment.state = 'failed';
   }

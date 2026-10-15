@@ -14,7 +14,6 @@
   import AgentsCard from '../lib/setup/AgentsCard.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import { isPhone } from '../lib/phones/capability';
-  import NetworkCard from '../lib/setup/NetworkCard.svelte';
   import PhonesPanel from '../lib/phones/PhonesPanel.svelte';
   import { desktop } from '../lib/desktop.svelte';
   import { app } from '../lib/state.svelte';
@@ -27,7 +26,7 @@
   const GROUPS = [
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
-    { label: 'Connections', sections: [{ id: 'phone', label: 'Phone access' }, { id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
+    { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
   // A phone's own settings are its sign-in and its display; the rest is changed at the computer.
@@ -160,8 +159,6 @@
       <RunnersPanel />
     {:else if section === 'routing'}
       <RoutingRules />
-    {:else if section === 'phone'}
-      <NetworkCard />
     {:else if section === 'phones'}
       <PhonesPanel />
     {:else if section === 'github'}

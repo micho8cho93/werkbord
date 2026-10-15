@@ -2,14 +2,13 @@
   import { onMount } from 'svelte';
   import { api, ApiError, setToken } from '../api';
   import { formatDateTime } from '../clock.svelte';
-  import type { NetworkStatus, PhoneEntry, RelayStatus } from '../types';
+  import type { PhoneEntry, RelayStatus } from '../types';
   import { isPhone } from './capability';
   import PhoneEnroll from './PhoneEnroll.svelte';
   import { lastSeen } from './phones';
 
   /** Settings → Phones: who can reach this Werkbord from a phone, when they were last seen, and a way to take any away. */
   let phones = $state<PhoneEntry[] | null>(null);
-  let net = $state<NetworkStatus | null>(null);
   let relay = $state<RelayStatus | null>(null);
   let error = $state('');
   let busy = $state('');
@@ -45,7 +44,6 @@
   onMount(() => {
     void refresh();
     if (!isPhone()) {
-      void api.network().then((n) => (net = n)).catch(() => {});
       void api.relay().then((r) => (relay = r)).catch(() => {});
     }
     const t = setInterval(() => {
@@ -140,8 +138,10 @@
         {/each}
       </ul>
     {/if}
-    {#if net && net.state !== 'connected' && !relay?.enabled}
-      <p class="muted">Phones reach Werkbord over the private network. Turn on <a href="#/settings?phone">Phone access</a> first.</p>
+    {#if relay && !relay.enabled}
+      <p class="muted">Phones reach this computer through a relay in your own Cloudflare account, and it is not set up yet. Add its addresses to <code>config.json</code> as <code>relay.url</code> and <code>relay.connectorUrl</code>, then restart Werkbord. The steps are in <code>docs/RELAY.md</code>.</p>
+    {:else if relay && !relay.connected}
+      <p class="muted" role="status">Connecting to your relay…{relay.error ? ` ${relay.error}` : ''}</p>
     {:else}
       <PhoneEnroll onenrolled={refresh} />
     {/if}

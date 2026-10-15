@@ -29,7 +29,7 @@
     try {
       before = (await api.phones()).length;
       const made = await api.createPhoneCode();
-      if (!made.qrSvg) throw new Error('There is no way for a phone to reach this computer yet. Turn on Phone access first, or set up the relay.');
+      if (!made.qrSvg) throw new Error('There is no way for a phone to reach this computer yet. The relay is not connected: check Settings → Phones.');
       code = made;
       now = Date.now();
       stop();

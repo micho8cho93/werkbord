@@ -76,7 +76,7 @@ describe('scanning the QR code', () => {
     expect(replaceState).toHaveBeenCalledWith(null, '', '/#/'); // the failed code is not left in the address bar either
   });
 
-  it('tells a rate-limited phone to wait, and an unreachable controller to check Tailscale', async () => {
+  it('tells a rate-limited phone to wait, and an unreachable controller to check the relay connection', async () => {
     page('#enroll=x');
     answer(429, { error: { code: 'rate_limited', message: 'too many' } });
     let m = await import('./enroll.svelte');
@@ -88,7 +88,7 @@ describe('scanning the QR code', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('network'); }));
     m = await import('./enroll.svelte');
     await m.enrollFromURL(IPHONE);
-    expect(m.enrollment.error).toMatch(/Tailscale/);
+    expect(m.enrollment.error).toMatch(/relay/);
   });
 
   it('does nothing without a code, and does not touch a page that has only a token link', async () => {
