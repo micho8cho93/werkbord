@@ -23,6 +23,9 @@ import (
 var (
 	roomRE = regexp.MustCompile(`^/v1/room/([0-9a-f]{32})$`)
 	keyRE  = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+
+	statusRE = regexp.MustCompile(`^/v1/room/([0-9a-f]{32})/status$`)
+	bearerRE = regexp.MustCompile(`^Bearer ([A-Za-z0-9_-]{43})$`)
 )
 
 type room struct {
@@ -52,6 +55,16 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "authorization")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if m := statusRE.FindStringSubmatch(r.URL.Path); m != nil {
+		s.status(w, r, m[1])
+		return
+	}
 	if r.URL.Path == "/v1/health" {
 		writeJSON(w, 200, map[string]any{"ok": true, "protocol": 1, "maxFrame": relay.MaxFrame})
 		return
@@ -138,10 +151,10 @@ func (s *Server) runner(rm *room, c *websocket.Conn) {
 	rm.runner, rm.phones = c, map[relay.PeerID]*websocket.Conn{}
 	rm.mu.Unlock()
 	if old != nil {
-		_ = old.Close(relay.CloseReplaced, "replaced by a newer runner connection")
+		go func() { _ = old.Close(relay.CloseReplaced, "replaced by a newer runner connection") }()
 	}
 	for _, p := range phones {
-		_ = p.Close(relay.CloseRunnerGone, "runner reconnected")
+		go func() { _ = p.Close(relay.CloseRunnerGone, "runner reconnected") }()
 	}
 	ctx := context.Background()
 	for {
@@ -169,7 +182,9 @@ func (s *Server) runner(rm *room, c *websocket.Conn) {
 		case relay.TData:
 			_ = p.Write(ctx, websocket.MessageBinary, payload)
 		case relay.TKick:
-			_ = p.Close(relay.CloseKicked, "removed by the runner")
+			// A graceful close waits for the phone to answer; it must not hold up this runner's other traffic (the
+			// real relay does not wait either).
+			go func() { _ = p.Close(relay.CloseKicked, "removed by the runner") }()
 		}
 	}
 	rm.mu.Lock()
@@ -182,7 +197,7 @@ func (s *Server) runner(rm *room, c *websocket.Conn) {
 	}
 	rm.mu.Unlock()
 	for _, p := range phones {
-		_ = p.Close(relay.CloseRunnerGone, "runner went away")
+		go func() { _ = p.Close(relay.CloseRunnerGone, "runner went away") }()
 	}
 }
 
@@ -236,4 +251,31 @@ func (s *Server) phone(rm *room, c *websocket.Conn) {
 		}
 		_ = runner.Write(ctx, websocket.MessageBinary, relay.Frame(relay.TData, peer, b))
 	}
+}
+
+// status answers GET /v1/room/<id>/status: whether a runner is connected, to a caller with the room's key.
+func (s *Server) status(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "GET only"})
+		return
+	}
+	m := bearerRE.FindStringSubmatch(r.Header.Get("Authorization"))
+	if m == nil {
+		writeJSON(w, 401, map[string]string{"error": "missing or malformed join key"})
+		return
+	}
+	s.mu.Lock()
+	rm := s.rooms[id]
+	s.mu.Unlock()
+	if rm == nil {
+		writeJSON(w, 401, map[string]string{"error": "wrong join key"})
+		return
+	}
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	if rm.auth == "" || subtle.ConstantTimeCompare([]byte(rm.auth), []byte(relay.JoinKeyHash(m[1]))) != 1 {
+		writeJSON(w, 401, map[string]string{"error": "wrong join key"})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"runner": rm.runner != nil, "phones": len(rm.phones)})
 }

@@ -29,7 +29,7 @@
     try {
       before = (await api.phones()).length;
       const made = await api.createPhoneCode();
-      if (!made.qrSvg) throw new Error('The private network is not connected yet. Turn on Phone access first.');
+      if (!made.qrSvg) throw new Error('There is no way for a phone to reach this computer yet. Turn on Phone access first, or set up the relay.');
       code = made;
       now = Date.now();
       stop();
@@ -79,7 +79,9 @@
         <p class="muted" role="status">This code has expired.</p>
         <div class="row"><button class="btn small primary" disabled={busy} onclick={start}>Make a new one</button><button class="btn small quiet" onclick={close}>Close</button></div>
       {:else}
-        <p>Scan with your phone's camera. It opens Werkbord there, signed in.</p>
+        <p>
+          Scan with your phone's camera. It opens Werkbord there, signed in{code.via === 'relay' ? '. No app is needed on the phone' : ''}.
+        </p>
         <p class="muted small" role="timer" data-testid="phone-countdown">Works for one phone, for <span class="mono">{left}</span> more. It never contains your access token.</p>
         <div class="row"><button class="btn small quiet" onclick={close}>Cancel</button></div>
       {/if}

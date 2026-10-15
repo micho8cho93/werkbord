@@ -79,11 +79,12 @@ type Store struct {
 	path string
 	now  func() time.Time
 
-	mu      sync.Mutex
-	recs    []record
-	codes   []pendingCode
-	touched time.Time // when a last use was last written
-	watch   map[string][]chan struct{}
+	mu       sync.Mutex
+	recs     []record
+	codes    []pendingCode
+	touched  time.Time // when a last use was last written
+	watch    map[string][]chan struct{}
+	onRevoke []func(id string)
 }
 
 type file struct {
@@ -289,6 +290,19 @@ func (s *Store) Rename(id, name string) (Entry, bool, error) {
 // Revoke takes a phone's access away at once, and ends whatever it has open (see Watch). It reports whether there was
 // one.
 func (s *Store) Revoke(id string) (bool, error) {
+	ok, err := s.revoke(id)
+	if ok {
+		s.mu.Lock()
+		hooks := append([]func(string){}, s.onRevoke...)
+		s.mu.Unlock()
+		for _, f := range hooks {
+			f(id)
+		}
+	}
+	return ok, err
+}
+
+func (s *Store) revoke(id string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	kept := make([]record, 0, len(s.recs))
@@ -311,6 +325,14 @@ func (s *Store) Revoke(id string) (bool, error) {
 	}
 	delete(s.watch, id)
 	return true, nil
+}
+
+// OnRevoke registers f to be called, after the phone is gone, each time a phone is revoked. It is for ending whatever the
+// phone reached the controller by (a relay connection, say) beyond the requests Watch ends.
+func (s *Store) OnRevoke(f func(id string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onRevoke = append(s.onRevoke, f)
 }
 
 // Watch returns a channel that is closed when the phone is revoked, and a function that stops watching. For a phone that

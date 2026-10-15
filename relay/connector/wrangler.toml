@@ -1,0 +1,4 @@
+# Werkbord connector: static files on Cloudflare Pages (free plan; static asset requests are not billed).
+name = "werkbord-connect"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-01-01"

@@ -85,6 +85,7 @@ test: web/node_modules
 	cd web && $(NPM) test
 	node --test scripts/seed-browser-fixture.test.cjs
 	node --test relay/e2e/e2e.test.mjs
+	cd relay/connector && node build.mjs && node --check dist/sw.js && node --check dist/connect/connect.js
 
 ## test-werkbord / test-team: one product's tests (shared packages are tested with both)
 test-werkbord: web/node_modules

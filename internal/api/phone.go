@@ -296,17 +296,37 @@ func (s *Server) handlePhoneCode(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	out := map[string]any{"code": code, "expiresAt": expires, "link": "", "qrSvg": ""}
-	if base := s.phoneBaseURL(); base != "" {
-		link := strings.TrimSuffix(base, "/") + "/#enroll=" + code
+	out := map[string]any{"code": code, "expiresAt": expires, "link": "", "qrSvg": "", "via": ""}
+	link, via, err := s.phoneLink(code)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if link != "" {
 		svg, err := netprivate.QRSVG(link)
 		if err != nil {
 			s.fail(w, r, err)
 			return
 		}
-		out["link"], out["qrSvg"] = link, svg
+		out["link"], out["qrSvg"], out["via"] = link, svg, via
 	}
 	writeJSON(w, http.StatusCreated, out)
+}
+
+// phoneLink is the address a phone opens to enroll with code, and how it will reach the controller: "relay" (a plain
+// https link, no app on the phone) or "private network" (Tailscale). The relay is preferred when it is set up and
+// connected; when it is set up but not connected, a connected private network is used instead, and when neither is
+// connected the relay's link is given anyway, since it works as soon as the computer is back online. "" means no link.
+func (s *Server) phoneLink(code string) (link, via string, err error) {
+	relayOn := s.opt.Relay != nil && s.opt.Relay.Status().Enabled
+	if relayOn && (s.opt.Relay.Status().Connected || s.phoneBaseURL() == "") {
+		link, err = s.opt.Relay.Link(code)
+		return link, "relay", err
+	}
+	if base := s.phoneBaseURL(); base != "" {
+		return strings.TrimSuffix(base, "/") + "/#enroll=" + code, "private network", nil
+	}
+	return "", "", nil
 }
 
 // phoneBaseURL is the address a phone opens, or "" when there is none yet.

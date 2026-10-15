@@ -356,6 +356,18 @@ export interface PhoneEnrollment {
   link: string;
   qrSvg: string;
   expiresAt: string;
+  /** How the phone will reach this computer: the relay (a plain https link, no app on the phone) or the private network. */
+  via?: 'relay' | 'private network' | '';
+}
+
+/** The relay: the optional way for a phone to reach this computer with no VPN app (docs/RELAY.md). */
+export interface RelayStatus {
+  enabled: boolean;
+  connected: boolean;
+  phones: number;
+  connectorUrl?: string;
+  error?: string;
+  retryInSeconds?: number;
 }
 
 export type GitHubConnection = 'disabled' | 'missing' | 'signed_out' | 'signing_in' | 'signed_in' | 'error';

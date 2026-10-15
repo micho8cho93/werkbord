@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -66,6 +67,9 @@ type Config struct {
 	Agents map[string]AgentConfig `json:"agents,omitempty"`
 	// Network tunes the private network (see internal/netprivate).
 	Network NetworkConfig `json:"network,omitempty"`
+	// Relay is the optional way for a phone to reach this computer through a relay of your own, with no VPN app on the
+	// phone (see docs/RELAY.md).
+	Relay RelayConfig `json:"relay,omitempty"`
 	// GitHub tunes the optional GitHub integration, which runs the user's own
 	// GitHub CLI. Dev Board has no GitHub account or token of its own.
 	GitHub GitHubConfig `json:"github,omitempty"`
@@ -112,6 +116,16 @@ type NetworkConfig struct {
 	ControlURL string `json:"controlUrl,omitempty"`
 	// AuthKey is never read from this file: a key written to disk is a key that
 	// leaks. Set WERKBORD_TS_AUTHKEY (or TS_AUTHKEY) to sign in without a browser.
+}
+
+// RelayConfig points at the two small things you deploy to your own Cloudflare account (docs/RELAY.md): the relay, a
+// Worker that forwards encrypted bytes, and the connector, a static page a phone opens. Both empty means the relay is off.
+type RelayConfig struct {
+	// URL is the relay's address, such as https://werkbord-relay.<you>.workers.dev.
+	URL string `json:"url,omitempty"`
+	// ConnectorURL is the connector page's address, such as https://werkbord-connect.pages.dev. A QR code is a plain
+	// link to it.
+	ConnectorURL string `json:"connectorUrl,omitempty"`
 }
 
 // GitHubConfig is the user's choices for the GitHub integration.
@@ -384,6 +398,8 @@ func (c *Config) loadEnv() error {
 	set("WORKTREES_DIR", &c.WorktreesDir)
 	set("NETWORK_HOSTNAME", &c.Network.Hostname)
 	set("NETWORK_CONTROL_URL", &c.Network.ControlURL)
+	set("RELAY_URL", &c.Relay.URL)
+	set("CONNECTOR_URL", &c.Relay.ConnectorURL)
 	if v, from := Env("NETWORK"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
@@ -442,6 +458,9 @@ func (c Config) Validate() error {
 	}
 	if u := c.Network.ControlURL; u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
 		return fmt.Errorf("network.controlUrl %q: want an http(s) URL", u)
+	}
+	if err := c.Relay.validate(); err != nil {
+		return err
 	}
 	if len(c.EmbedOrigins) > 0 {
 		if _, err := httpkit.ParseEmbedOrigins(strings.Join(c.EmbedOrigins, ",")); err != nil {
@@ -615,4 +634,35 @@ func writeToken(path, token string) error {
 		return closeErr
 	}
 	return os.Rename(f.Name(), path)
+}
+
+// Enabled reports whether the relay is set up: both addresses are needed, one without the other cannot make a link.
+func (r RelayConfig) Enabled() bool { return r.URL != "" && r.ConnectorURL != "" }
+
+func (r RelayConfig) validate() error {
+	for _, f := range []struct{ name, v string }{{"relay.url", r.URL}, {"relay.connectorUrl", r.ConnectorURL}} {
+		if f.v == "" {
+			continue
+		}
+		u, err := url.Parse(f.v)
+		if err != nil || u.Host == "" || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+			return fmt.Errorf("%s %q: want an address like https://name.example.com", f.name, f.v)
+		}
+		// A phone's browser only runs the connector over https. http is for trying it on this computer.
+		if u.Scheme != "https" && !(u.Scheme == "http" && isLoopbackHost(u.Hostname())) {
+			return fmt.Errorf("%s %q: want https (http only for localhost)", f.name, f.v)
+		}
+	}
+	if (r.URL == "") != (r.ConnectorURL == "") {
+		return errors.New("relay.url and relay.connectorUrl go together: set both, or neither")
+	}
+	return nil
+}
+
+func isLoopbackHost(h string) bool {
+	if h == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }

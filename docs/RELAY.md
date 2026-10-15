@@ -5,7 +5,9 @@ The relay lets a phone reach the controller on your computer without Tailscale. 
 end to end between the phone and the runner; the relay sees ciphertext, holds no key and stores one hash.
 
 Pieces: the protocol (this file), the Worker (`relay/worker`), the runner client (`internal/relay/client`), the
-end-to-end crypto (`internal/relay/e2e`, and `relay/e2e/e2e.mjs` for the browser), and shared conformance tests.
+end-to-end crypto (`internal/relay/e2e`, and `relay/e2e/e2e.mjs` for the browser), shared conformance tests, the HTTP tunnel
+and the runner's keys (`internal/relay/tunnel`, `internal/relay/access`), and the **connector**, the static page a phone opens
+(`relay/connector`, [below](#the-connector-scan-and-go)).
 
 ## Free plan first
 
@@ -61,6 +63,12 @@ subprotocols `werkbord.relay.v1` and `wb-auth.<joinKey>` (a browser cannot set h
 
 `GET /v1/health` → `{"ok":true,"protocol":1,"maxFrame":65536}`.
 
+`GET /v1/room/<roomId>/status` with `Authorization: Bearer <joinKey>` → `{"runner":true|false,"phones":n}`, or `401` for a wrong or
+missing key or a room no runner has claimed. It exists for browsers: a failed WebSocket upgrade tells a page nothing, not even
+the status, so after a failure the connector asks this plain request *why*. Both this and `/v1/health` answer from any origin
+(`Access-Control-Allow-Origin: *`; the join key is the gate, no cookie is involved) and `OPTIONS` with `204`. It is only asked
+after a failure, so it costs nothing while things work.
+
 **Phone connection**: raw payloads both ways, nothing added. **Runner connection**: every message has a 9-byte header, the
 type and an 8-byte phone id the relay assigned:
 
@@ -98,11 +106,85 @@ runner knows it reached a holder of the secret; a recorded session stays closed 
 (fresh ephemerals on both sides); the relay can drop, delay or replay-at-most-once but not read or alter. A session lasts as long as the
 relay connection of that phone; any disconnect is a new hello.
 
-**Not in this step**, by design: how the secret becomes long-lived after enrollment and how revoking a phone rotates it (the
-phone identity layer, `internal/phoneaccess`, owns that); resuming a session without a new hello; messages larger than one
-frame. Revoking a phone today means `Kick` and deleting its secret from the store; the `joinKey` is shared by the runner's
-phones, so a revoked phone can still open a relay connection and be refused at the handshake. That costs quota, not data.
-Rotating the `joinKey` is a later change.
+**Not done**, by design: resuming a session without a new hello; messages larger than one frame. The `joinKey` is shared by the
+runner's phones, so a revoked phone can still open a relay connection and be refused at the handshake. That costs quota, not
+data. Rotating the `joinKey` is a later change.
+
+## The connector: scan and go
+
+A QR code is a plain link, `https://<your-connector>/connect/#wbr1.…`, so the phone's own camera opens it in its default
+browser: **no Tailscale app, no app of any kind**. The pairing sits after the `#`, which a browser never sends to a server; the
+page removes it from the address bar as soon as it has read it. Tailscale stays an option: with both set up, the QR code is the
+relay's while the relay is connected, and the private network's otherwise (`"via"` in the answer of `POST /api/phones/codes`).
+
+```
+phone browser ── https ──▶ connector (Cloudflare Pages: static files, no code of yours runs there)
+     │  /connect/  stores the pairing, installs the service worker, checks the whole way, opens the app
+     ▼
+service worker (/sw.js) ── wss, end-to-end encrypted ──▶ relay (Worker) ──▶ your computer's controller
+     ▲  answers every request the app makes of its own origin by asking your computer; caches only /assets/*
+```
+
+**The app is served by your computer**, through the relay. Pages holds a dozen small static files and no copy of the app, so
+the phone always runs the version your computer runs, and a Pages deploy is never needed when Werkbord updates. The phone's
+service worker (`relay/connector/src/sw.js`) turns each fetch into a request on the tunnel (`internal/relay/tunnel`), which the
+runner answers with the same handler the private network serves. A phone therefore has exactly the access a phone has anywhere
+else (`internal/api/phone.go`: a fixed, reviewed list), and the tunnel is not a second way in: it adds nothing the controller
+does not already check, and passes only a few request headers (no `Origin`, `Cookie` or `Host`).
+
+**Pairing and coming back.** The QR code carries the pairing and the enrollment code of the phone. `/connect/` keeps the pairing in
+IndexedDB, connects, then opens `/#enroll=<code>`: the app spends the code as it does for any phone, gets the phone's own token,
+and the runner binds the pairing's secret to that phone. From then on the phone reconnects by itself, with a new end-to-end hello
+each time, for as long as the phone is not revoked. Before enrollment a secret works for five minutes, like the code. Revoking a
+phone (Settings → Phones) deletes its secret and removes its connection from the relay at once. `relay.json` in the data
+directory holds the runner's key, the room and these secrets (`0600`). Deleting it signs every phone out.
+
+**Failures a person sees.** A page cannot see why a WebSocket failed, so the worker asks the relay (`/status`) and the screens say
+what is true:
+
+| What happened | The phone says |
+| --- | --- |
+| The relay answers and no runner is connected (the computer is asleep, off, or off the network) | **Your computer is offline.** It tries again by itself every few seconds while the page is on screen |
+| The relay cannot be reached, answers 429 or 5xx (at its daily limit, or down), or a ninth phone is refused | **Temporarily unavailable.** Same retry |
+| The computer closes the connection because it does not know this phone (revoked, or a code that ran out) | **This phone was signed out** / the code ran out: scan a new code |
+| The pairing does not match the runner (`relay.json` was deleted) | **This link is out of date**: scan a new code |
+
+While the app is open, its own requests get `503` with `{"error":{"code":"relay_offline"|"relay_unavailable",…}}`, which the app
+shows as it shows any error. The worker backs off between the app's background retries (2 s doubling to 1 min) so a busy app
+does not spend the relay's quota; opening or reloading the page always asks fresh.
+
+**Free-plan cost.** A page load is a dozen requests on one WebSocket (1/20 of a Durable Object request each); `/assets/*` is
+content-hashed and cached on the phone, so repeat loads are cheaper still. The runner's responses are outgoing messages, which
+the free plan does not count.
+
+### Tunnel format
+
+Inside an end-to-end data frame (at most 60 KiB of plaintext): `type (1) ‖ request id (4, big-endian, chosen by the phone) ‖
+payload`. A request is `ReqHead` (JSON `{m, p, h}`: method, path with query, a few lower-cased headers), any number of `ReqBody`
+(32 KiB chunks), then `ReqEnd`; a response is `ResHead` (JSON `{s, h}`), `ResBody` chunks, `ResEnd`. `Cancel` (phone) and `Err`
+(runner, JSON `{c, m}`) end a request early. Limits: 24 requests open at once per phone, a 16 KiB head, a 16 MiB request body.
+A response is streamed as the handler writes it, which is what lets the live event stream work. Types and limits are in
+`internal/relay/tunnel/tunnel.go`.
+
+### Setting it up (your actions, once)
+
+1. Deploy the relay (above) and note its address.
+2. Build and deploy the connector to Cloudflare Pages (free; a `*.pages.dev` address is fine):
+   ```
+   cd relay/connector
+   RELAY_URL=https://werkbord-relay.<your-subdomain>.workers.dev npm run build   # RELAY_URL only tightens the Content-Security-Policy
+   npx wrangler pages deploy dist --project-name werkbord-connect                  # prints https://werkbord-connect.pages.dev
+   ```
+3. Tell the controller both addresses, in `config.json` or the environment, then restart it:
+   ```json
+   { "relay": { "url": "https://werkbord-relay.<you>.workers.dev", "connectorUrl": "https://werkbord-connect.<you>.pages.dev" } }
+   ```
+   `WERKBORD_RELAY_URL` and `WERKBORD_CONNECTOR_URL` do the same. Both or neither: one alone is refused. Plain `http` is accepted only for
+   `localhost`, for trying it on one computer.
+4. Settings → Phones → Add a phone. `GET /api/relay` (and the app) say whether the computer is connected.
+
+Everything runs on your Cloudflare account and your computer. Nothing is sent to Werkbord's authors, and the connector holds no
+secret: it is the same static files for everyone, and a pairing only ever lives in a phone and in `relay.json`.
 
 ## Deploying the relay (your action, once)
 
@@ -128,6 +210,16 @@ When you upgrade to Workers Paid nothing changes. Worth doing then: a billing al
 ## Tests
 
 - `go test ./internal/relay/...`: the e2e crypto and vectors, the conformance suite against the in-process relay, the runner
-  client end to end (handshake, encrypted traffic, single-use secret, kick, retry through 503s, reconnect, rejected key).
+  client end to end (handshake, encrypted traffic, single-use secret, kick, retry through 503s, reconnect, rejected key), the
+  runner's key store, and `internal/relay/tunnel`, which runs the connector's own `link.js` under Node against the Go runner
+  (request and response bodies of 200–300 KiB, a stream that arrives as it is written, concurrent requests, cancellation,
+  what reaches the controller, and why a connection fails: removed, mismatched, relay unreachable, relay full, computer offline;
+  skipped where Node is missing).
+- `go test ./internal/controller -run Relay`: a phone enrolls through the relay with the code in its QR link, comes back with
+  no new code, is held to the phone's reviewed routes, and is put off the relay when revoked.
 - `node --test relay/e2e/e2e.test.mjs`: the browser crypto against the same vectors.
 - `WERKBORD_RELAY_TEST_URL=… go test ./internal/relay/... -run Cloudflare`: the same suites against a real Worker.
+- By hand, in a real browser with no Cloudflare account: `npm run dev` in `relay/worker`, `node build.mjs` and any static server on
+  `relay/connector/dist` (port 8788, say), a controller started with `WERKBORD_RELAY_URL=http://localhost:8787` and
+  `WERKBORD_CONNECTOR_URL=http://localhost:8788` and its own data directory, then open the link from Add a phone. This is how the
+  pairing, return visits, sleep, relay-down and revoke were checked in Chromium.

@@ -285,4 +285,54 @@ func Run(t *testing.T, base string) {
 			t.Fatalf("ninth phone: %v %d", err, status(resp))
 		}
 	})
+
+	t.Run("status tells a browser whether the runner is there, with the key", func(t *testing.T) {
+		e := fresh(t)
+		get := func(key string) (int, string, string) {
+			req, _ := http.NewRequest("GET", base+"/v1/room/"+e.room.ID+"/status", nil)
+			if key != "" {
+				req.Header.Set("Authorization", "Bearer "+key)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			b, _ := io.ReadAll(resp.Body)
+			return resp.StatusCode, string(b), resp.Header.Get("Access-Control-Allow-Origin")
+		}
+		if code, _, _ := get(e.room.JoinKey); code != 401 {
+			t.Fatalf("a room no runner has claimed: %d, want 401", code)
+		}
+		runner := e.must("runner")
+		code, body, cors := get(e.room.JoinKey)
+		var st struct {
+			Runner bool
+			Phones int
+		}
+		if err := json.Unmarshal([]byte(body), &st); code != 200 || err != nil || !st.Runner || st.Phones != 0 {
+			t.Fatalf("with a runner: %d %s", code, body)
+		}
+		if cors != "*" {
+			t.Fatalf("a browser on another origin needs Access-Control-Allow-Origin, got %q", cors)
+		}
+		if code, _, _ := get(relay.NewRoom().JoinKey); code != 401 {
+			t.Fatalf("wrong key: %d, want 401", code)
+		}
+		if code, _, _ := get(""); code != 401 {
+			t.Fatalf("no key: %d, want 401", code)
+		}
+		_ = runner.Close(websocket.StatusNormalClosure, "bye")
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			_, body, _ := get(e.room.JoinKey)
+			if json.Unmarshal([]byte(body), &st) == nil && !st.Runner {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("status still says a runner is there: %s", body)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	})
 }

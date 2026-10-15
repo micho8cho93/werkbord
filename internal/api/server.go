@@ -78,6 +78,9 @@ type Options struct {
 	// Phones holds the enrolled phones (phone.go); nil means there are none and none is accepted. A phone token is read
 	// only from the private network's listener and from this computer.
 	Phones *phoneaccess.Store
+	// Relay is the connection to the relay (relay.go); nil when none is set up. It is set on the loopback listener only:
+	// codes are made at the computer.
+	Relay RelayController
 	// AssistantPhonesOnly serves the assistant to enrolled phones and to nobody else: for the private network's
 	// listener, where the controller's own token has never reached it.
 	AssistantPhonesOnly bool
@@ -175,6 +178,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/network/enable", s.handleNetworkEnable)
 	mux.HandleFunc("POST /api/network/disable", s.handleNetworkDisable)
 	mux.HandleFunc("GET /api/network/phone", s.handlePhoneLink)
+	mux.HandleFunc("GET /api/relay", s.handleRelayStatus)
 	mux.HandleFunc("GET /api/onboarding", s.handleGetOnboarding)
 	mux.HandleFunc("POST /api/onboarding/complete", s.handleCompleteOnboarding)
 	mux.HandleFunc("POST /api/onboarding/reset", s.handleResetOnboarding)

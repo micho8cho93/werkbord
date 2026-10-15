@@ -26,6 +26,7 @@ import type {
   TimelineWarning,
   WorkMode,
   NetworkStatus,
+  RelayStatus,
   Onboarding,
   Overview,
   PhoneAddress,
@@ -286,6 +287,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
 
   // The private network that lets a phone reach this controller.
   network: () => request<NetworkStatus>('GET', '/api/network'),
+  relay: () => request<RelayStatus>('GET', '/api/relay'),
   enableNetwork: () => request<NetworkStatus>('POST', '/api/network/enable', {}),
   disableNetwork: () => request<NetworkStatus>('POST', '/api/network/disable', {}),
   phoneAddress: () => request<PhoneAddress>('GET', '/api/network/phone'),

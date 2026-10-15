@@ -18,6 +18,12 @@ five minutes.
 
 You never deal with ports, tunnels, VPN configuration, certificates or NAT traversal.
 
+**Without Tailscale.** If you have set up the relay (`docs/RELAY.md`: a small Cloudflare Worker and a static page on your own
+Cloudflare account), steps 1 and 2 are not needed: the QR code is a plain `https://` link, the phone's camera opens it in its
+browser, and the app comes from your computer through the relay, end-to-end encrypted. The phone shows "your computer is
+offline" when the computer is asleep and "temporarily unavailable" when the relay is at its limit. The two ways can be set up
+together; the QR code uses the relay while it is connected.
+
 ## What it is
 
 - The controller keeps listening on `127.0.0.1` for this computer, as before.

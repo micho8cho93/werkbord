@@ -440,3 +440,29 @@ func TestAttachmentSettingsAreLoadedAndDefaultToHalfAnHourWithFilesOn(t *testing
 		t.Fatalf("by default files are accepted and the engine's own 30 minutes applies: %+v", d)
 	}
 }
+
+func TestRelayNeedsBothAddressesAndHttps(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		r    RelayConfig
+		ok   bool
+	}{
+		{"neither", RelayConfig{}, true},
+		{"both", RelayConfig{URL: "https://relay.example.workers.dev", ConnectorURL: "https://connect.example.pages.dev"}, true},
+		{"localhost for trying it", RelayConfig{URL: "http://localhost:8787", ConnectorURL: "http://127.0.0.1:8788"}, true},
+		{"only the relay", RelayConfig{URL: "https://relay.example.workers.dev"}, false},
+		{"only the connector", RelayConfig{ConnectorURL: "https://connect.example.pages.dev"}, false},
+		{"plain http elsewhere", RelayConfig{URL: "http://relay.example.com", ConnectorURL: "https://connect.example.pages.dev"}, false},
+		{"a path", RelayConfig{URL: "https://relay.example.com/v1", ConnectorURL: "https://connect.example.pages.dev"}, false},
+		{"a query", RelayConfig{URL: "https://relay.example.com/?a=1", ConnectorURL: "https://connect.example.pages.dev"}, false},
+	} {
+		c := Default()
+		c.Relay = tc.r
+		if err := c.Validate(); (err == nil) != tc.ok {
+			t.Errorf("%s: %v", tc.name, err)
+		}
+	}
+	if (RelayConfig{URL: "https://a.example"}).Enabled() {
+		t.Error("a relay with no connector cannot make a link")
+	}
+}

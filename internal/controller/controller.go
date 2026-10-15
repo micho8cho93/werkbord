@@ -63,6 +63,7 @@ type Controller struct {
 	stopHealth  context.CancelFunc
 	server      *http.Server
 	network     *networkControl
+	relay       *relayControl
 	// networkBackend replaces the embedded Tailscale node; tests use it so that no
 	// real network is joined.
 	networkBackend netprivate.Backend
@@ -84,6 +85,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	defer func() {
 		if err != nil {
+			if c.relay != nil {
+				c.relay.Stop(context.Background())
+				c.relay = nil
+			}
 			if c.network != nil {
 				_ = c.network.Stop(context.Background())
 				c.network = nil
@@ -305,6 +310,12 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	apiOpts.Update = checker.Status
 	privateOpts.Update = apiOpts.Update
 	privateHandler.set(api.New(privateOpts).Handler())
+	if c.relay, err = newRelayControl(c.cfg.Relay, c.cfg.DataDir, phones, privateHandler, c.log); err != nil {
+		return fmt.Errorf("relay: %w", err)
+	}
+	if c.relay != nil {
+		apiOpts.Relay = c.relay
+	}
 	srv := api.New(apiOpts)
 
 	c.server = &http.Server{
@@ -336,6 +347,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		"auth", c.cfg.AuthRequired(), "version", c.version)
 	if err := c.network.StartIfWanted(ctx); err != nil {
 		return fmt.Errorf("private network: %w", err)
+	}
+	if c.relay != nil {
+		c.relay.Start()
 	}
 	if c.cfg.AuthRequired() && c.cfg.Token == "" {
 		c.log.Info("API token required; run `werkbord token` to print it", "token_file", c.cfg.TokenPath())
@@ -381,6 +395,10 @@ func (c *Controller) Run(ctx context.Context) error {
 // data-dir lock.
 func (c *Controller) Shutdown(ctx context.Context) error {
 	var err error
+	if c.relay != nil {
+		c.relay.Stop(ctx)
+		c.relay = nil
+	}
 	if c.network != nil {
 		err = c.network.Stop(ctx)
 		c.network = nil

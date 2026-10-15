@@ -124,6 +124,9 @@ type Pairing struct {
 	JoinKey   string `json:"j"`
 	RunnerKey string `json:"k"` // base64url X25519 public key
 	Secret    string `json:"s"` // base64url pre-shared secret
+	// Code is the phone enrollment code (internal/phoneaccess) this pairing stands for. The connector opens the app
+	// with it, and the app spends it as it does for any phone. Optional: a pairing without it only reconnects.
+	Code string `json:"c,omitempty"`
 }
 
 const pairingPrefix = "wbr1."

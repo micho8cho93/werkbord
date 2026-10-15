@@ -19,8 +19,21 @@ const AUTH_PREFIX = "wb-auth.";
 const ROOM_RE = /^[0-9a-f]{32}$/;
 const KEY_RE = /^[A-Za-z0-9_-]{43}$/;
 
+// A browser on another origin (the connector page) asks "why could I not connect?" with a plain request, because a failed
+// WebSocket upgrade tells it nothing. The join key already gates everything and no cookie is involved, so any origin may ask.
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers": "authorization",
+  "access-control-max-age": "86400",
+};
+
 const json = (status, body) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...CORS } });
+
+function bearerKey(request) {
+  const m = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.get("Authorization") || "");
+  return m ? m[1] : null;
+}
 
 function parseAuth(request) {
   const offered = (request.headers.get("Sec-WebSocket-Protocol") || "").split(",").map((s) => s.trim());
@@ -48,7 +61,14 @@ const fromHex = (s) => Uint8Array.from(s.match(/../g).map((h) => parseInt(h, 16)
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (url.pathname === "/v1/health") return json(200, { ok: true, protocol: 1, maxFrame: MAX_FRAME });
+    const st = /^\/v1\/room\/([0-9a-f]{32})\/status$/.exec(url.pathname);
+    if (st) {
+      if (request.method !== "GET") return json(405, { error: "GET only" });
+      if (!bearerKey(request)) return json(401, { error: "missing or malformed join key" });
+      return env.ROOMS.get(env.ROOMS.idFromName(st[1])).fetch(request);
+    }
     const m = /^\/v1\/room\/([0-9a-f]{32})$/.exec(url.pathname);
     if (!m) return json(404, { error: "not found" });
     if (request.headers.get("Upgrade") !== "websocket") return json(426, { error: "websocket required" });
@@ -70,6 +90,7 @@ export class Room extends DurableObject {
   }
 
   async fetch(request) {
+    if (new URL(request.url).pathname.endsWith("/status")) return this.#status(request);
     const role = new URL(request.url).searchParams.get("role");
     const key = parseAuth(request);
     if (!key) return json(401, { error: "missing or malformed join key" });
@@ -99,6 +120,14 @@ export class Room extends DurableObject {
       this.#toRunner(T_EVENT, peer, Uint8Array.of(EV_CONNECTED));
     }
     return new Response(null, { status: 101, webSocket: client, headers: { "Sec-WebSocket-Protocol": SUBPROTOCOL } });
+  }
+
+  // Whether a runner is connected: the one thing a phone that could not connect needs to know.
+  async #status(request) {
+    const key = bearerKey(request);
+    const stored = await this.ctx.storage.get("auth");
+    if (!key || stored === undefined || !equalHex(stored, await sha256Hex(key))) return json(401, { error: "wrong join key" });
+    return json(200, { runner: this.ctx.getWebSockets("runner").length > 0, phones: this.ctx.getWebSockets("phone").length });
   }
 
   async webSocketMessage(ws, message) {
