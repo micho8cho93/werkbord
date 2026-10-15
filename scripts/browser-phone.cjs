@@ -70,7 +70,8 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
             await page.locator(`[data-key="${id}"]`).click();
             await page.waitForFunction((h) => location.hash.startsWith(h), hash);
             await page.getByRole('heading', { level: 1 }).first().waitFor();
-            assert.equal(await page.getByRole('heading', { level: 1 }).first().innerText(), label === 'Git' ? 'Git' : label, `${label} has its title`);
+            // A count (Needs you) sits in the heading as its own badge, on a second line of text.
+            assert.equal((await page.getByRole('heading', { level: 1 }).first().innerText()).split('\n')[0], label, `${label} has its title`);
             await noOverflow(page, label);
             await page.getByTestId('phone-back').click();
             await page.waitForFunction(() => location.hash === '#/deck');
@@ -102,6 +103,8 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     // ---- the Calendar: Month, Week and Timeline, plan and schedule kept apart ----
     {
         const { ctx, page } = await phone(390, 844);
+        // Signing in rewrites the address once the page has started; wait for the deck so that it cannot overwrite where we go next.
+        await page.getByTestId('deck-attention').waitFor();
         await page.goto(base + '/#/schedule');
         await page.getByRole('button', { name: 'Month', exact: true }).waitFor();
         await page.locator(`[data-day="${day(0)}"]`).click();
@@ -170,6 +173,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     // ---- the project's board shows one column at a time ----
     {
         const { ctx, page } = await phone(390, 844);
+        await page.getByTestId('deck-attention').waitFor();
         await page.goto(base + `/#/p/${project.id}/board`);
         const group = page.getByRole('group', { name: 'Board column' });
         await group.waitFor();

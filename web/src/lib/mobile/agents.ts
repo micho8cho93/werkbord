@@ -50,3 +50,49 @@ export function usageLine(run: { usage?: { inputTokens?: number; outputTokens?: 
   const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
   return [u.inputTokens !== undefined ? `${k(u.inputTokens)} in` : '', u.outputTokens !== undefined ? `${k(u.outputTokens)} out` : ''].filter(Boolean).join(' · ');
 }
+
+export type AgentFilter = 'all' | 'running' | 'waiting' | 'idle';
+
+export interface AgentCard {
+  id: string;
+  name: string;
+  state: FleetState;
+  /** Its sessions that are active now, the ones that need the person first. */
+  sessions: AttentionRun[];
+  /** What to do when it cannot be started: how to install it or sign in, as the agent says. */
+  guidance: string;
+}
+
+/**
+ * One card for each agent the person has or has a session of: the installed ones, and any agent that appears only in a run (a runner's).
+ * Each carries its active sessions, so "what is it doing" is on the card rather than in a separate list.
+ */
+export function agentCards(agents: readonly Agent[], overview: Overview | null): AgentCard[] {
+  const runs = (overview?.runs ?? []).filter((x) => runStatus(x.run).active);
+  const known = fleet(agents, overview).map<AgentCard>((e) => ({
+    id: e.agent.id,
+    name: e.agent.name,
+    state: e.state,
+    sessions: runs.filter((x) => x.run.agentId === e.agent.id).sort((a, b) => Number(runStatus(b.run).needsInput) - Number(runStatus(a.run).needsInput)),
+    guidance: e.agent.available ? '' : (e.agent.guidance ?? e.agent.detail ?? ''),
+  }));
+  const extra = [...new Set(runs.map((x) => x.run.agentId))]
+    .filter((id) => !agents.some((a) => a.id === id))
+    .map<AgentCard>((id) => {
+      const sessions = runs.filter((x) => x.run.agentId === id);
+      return { id, name: id, state: sessions.some((x) => runStatus(x.run).needsInput) ? 'Waiting for you' : 'Working', sessions, guidance: '' };
+    });
+  return [...known, ...extra].sort((a, b) => rank(a.state) - rank(b.state));
+}
+
+const rank = (s: FleetState): number => (s === 'Waiting for you' ? 0 : s === 'Working' ? 1 : s === 'Idle' ? 2 : 3);
+
+export function matchesFilter(c: AgentCard, f: AgentFilter): boolean {
+  return f === 'all' || (f === 'running' && c.state === 'Working') || (f === 'waiting' && c.state === 'Waiting for you') || (f === 'idle' && c.state === 'Idle');
+}
+
+/** "4 running · 1 waiting for you · 2 idle", only what is true. */
+export function fleetLine(cards: readonly AgentCard[]): string {
+  const n = (f: AgentFilter) => cards.filter((c) => matchesFilter(c, f)).length;
+  return [n('running') ? `${n('running')} running` : '', n('waiting') ? `${n('waiting')} waiting for you` : '', n('idle') ? `${n('idle')} idle` : ''].filter(Boolean).join(' · ') || 'None running';
+}

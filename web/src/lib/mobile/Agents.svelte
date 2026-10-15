@@ -1,15 +1,26 @@
 <script lang="ts">
-  import { agentSessions, fleet } from './agents';
+  import Icon from '../Icon.svelte';
   import { app } from '../state.svelte';
+  import { agentCards, agentSessions, matchesFilter, type AgentFilter } from './agents';
+  import Segmented from './Segmented.svelte';
   import SessionRow from './SessionRow.svelte';
 
-  // Every agent session across the projects, the ones that need the person first, and the agents installed on this computer with what
-  // each is doing. It reads the controller's own overview and changes nothing except a stop the person confirms.
-  const sessions = $derived(agentSessions(app.overview));
-  const agents = $derived(fleet(app.agents, app.overview));
+  // Each agent as a card: whether it is working, waiting for you or idle, and what it is doing, with the controls of its session (open,
+  // reply, stop). It reads the controller's own overview and changes nothing except a stop the person confirms.
+  const cards = $derived(agentCards(app.agents, app.overview));
+  const failed = $derived(agentSessions(app.overview).failed);
   const loaded = $derived(app.overview !== null);
-  const none = $derived(sessions.needs.length + sessions.running.length + sessions.failed.length === 0);
   const stale = $derived(app.connection !== 'live');
+  let filter = $state<AgentFilter>('all');
+  const n = (f: AgentFilter) => cards.filter((c) => matchesFilter(c, f)).length;
+  const filters = $derived([
+    { id: 'all', label: 'All', count: n('all') },
+    { id: 'running', label: 'Running', count: n('running') },
+    { id: 'waiting', label: 'Waiting', count: n('waiting') },
+    { id: 'idle', label: 'Idle', count: n('idle') },
+  ] as const);
+  const shown = $derived(cards.filter((c) => matchesFilter(c, filter)));
+  const tone = (s: string) => (s === 'Working' ? 'work' : s === 'Waiting for you' ? 'ask' : s === 'Idle' ? 'ok' : 'neutral');
 </script>
 
 <div class="agents">
@@ -17,52 +28,41 @@
     <p class="note" role="status">Looking…</p>
   {:else}
     {#if stale}<p class="note" role="status">Live updates are not connected. These are the last reported states.</p>{/if}
-    {#if none}
-      <p class="note">No agent sessions are running or waiting. Start an agent on a task from its Board.</p>
+    <Segmented options={filters} value={filter} onchange={(id: AgentFilter) => (filter = id)} label="Show agents" />
+    {#if cards.length === 0}
+      <p class="note">No agents were found. Install one (Claude Code or Codex) on the computer that runs Werkbord.</p>
+    {:else if shown.length === 0}
+      <p class="note">No agent is {filter === 'waiting' ? 'waiting for you' : filter}.</p>
     {/if}
-    {#if sessions.needs.length}
-      <section aria-labelledby="ag-needs">
-        <h2 id="ag-needs" class="lab">Waiting for you <span class="num pend">{sessions.needs.length}</span></h2>
-        <ul>{#each sessions.needs as x (x.run.id)}<SessionRow {x} />{/each}</ul>
-      </section>
-    {/if}
-    {#if sessions.running.length}
-      <section aria-labelledby="ag-run">
-        <h2 id="ag-run" class="lab">Running <span class="num">{sessions.running.length}</span></h2>
-        <ul>{#each sessions.running as x (x.run.id)}<SessionRow {x} />{/each}</ul>
-      </section>
-    {/if}
-    {#if sessions.failed.length}
+    <ul class="cards">
+      {#each shown as c (c.id)}
+        <li class="card agent" data-testid="agent-card" data-state={c.state} data-tone={tone(c.state)}>
+          <div class="head">
+            <span class="tile" aria-hidden="true"><Icon name="activity" size={20} /></span>
+            <span class="who">
+              <span class="name">{c.name}</span>
+              <span class="state mm"><span class="dot" data-tone={tone(c.state)} aria-hidden="true"></span>{c.state}{c.sessions.length > 1 ? ` · ${c.sessions.length} sessions` : ''}</span>
+            </span>
+          </div>
+          {#if c.guidance}<p class="note">{c.guidance}</p>{/if}
+          {#if c.state === 'Idle'}<p class="note">Ready. Start it on a task from a project's Board.</p>{/if}
+          {#each c.sessions as x (x.run.id)}<ul class="inside"><SessionRow {x} bare /></ul>{/each}
+        </li>
+      {/each}
+    </ul>
+    {#if failed.length}
       <section aria-labelledby="ag-failed">
-        <h2 id="ag-failed" class="lab">Failed <span class="chip">{sessions.failed.length}</span></h2>
-        <ul>{#each sessions.failed as x (x.run.id)}<SessionRow {x} />{/each}</ul>
+        <h2 id="ag-failed" class="lab">Failed <span class="chip">{failed.length}</span></h2>
+        <ul class="cards">{#each failed as x (x.run.id)}<SessionRow {x} />{/each}</ul>
       </section>
     {/if}
-    <section aria-labelledby="ag-fleet">
-      <h2 id="ag-fleet" class="lab">On this computer</h2>
-      {#if agents.length === 0}
-        <p class="note">No agents were found. Install one (Claude Code or Codex) on the computer that runs Werkbord.</p>
-      {:else}
-        <ul class="fleet card">
-          {#each agents as e (e.agent.id)}
-            <li data-testid="fleet-agent">
-              <span class="who">
-                <span class="name">{e.agent.name}</span>
-                <span class="meta mm">{e.agent.version ? `v${e.agent.version}` : ''}{e.agent.available ? '' : (e.agent.guidance ?? e.agent.detail ?? '')}</span>
-              </span>
-              <span class="state mm" data-state={e.state}><span class="dot" data-tone={e.state === 'Working' ? 'work' : e.state === 'Waiting for you' ? 'ask' : e.state === 'Idle' ? 'ok' : 'neutral'}></span>{e.state}{e.active > 1 ? ` · ${e.active}` : ''}</span>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </section>
   {/if}
 </div>
 
 <style>
   .agents {
     display: grid;
-    gap: 18px;
+    gap: 14px;
     padding: 4px 16px 24px;
   }
 
@@ -82,6 +82,9 @@
     list-style: none;
     margin: 0;
     padding: 0;
+  }
+
+  .cards {
     display: grid;
     gap: 10px;
   }
@@ -92,22 +95,46 @@
     font-size: 13px;
   }
 
-  .fleet {
-    gap: 0;
+  .agent {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
   }
 
-  .fleet li {
+  .agent[data-tone='ask'] {
+    border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+    box-shadow:
+      var(--card-sh),
+      0 0 0 3px var(--amber-ring);
+  }
+
+  .head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
-    min-height: 52px;
-    padding: 8px 14px;
-    border-bottom: 1px solid var(--border);
   }
 
-  .fleet li:last-child {
-    border-bottom: 0;
+  /* The agent's tile: the design system's tray with the same icon the Agents key has. */
+  .tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    box-shadow: var(--tray-sh);
+    color: var(--accent);
+  }
+
+  .agent[data-tone='ask'] .tile {
+    color: var(--warn);
+  }
+
+  .agent[data-tone='ok'] .tile,
+  .agent[data-tone='neutral'] .tile {
+    color: var(--text-2);
   }
 
   .who {
@@ -117,18 +144,17 @@
   }
 
   .name {
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .meta {
-    overflow-wrap: anywhere;
+    font-size: 15px;
+    font-weight: 600;
   }
 
   .state {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    flex: none;
+  }
+
+  .inside {
+    display: grid;
   }
 </style>

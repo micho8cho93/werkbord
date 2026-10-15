@@ -11,7 +11,7 @@
 
   // One agent session: who is working on what, how it stands, the last thing it did, and what the person can do from here, which is
   // open it (its output, questions and every other control are on the task) or stop it. Stopping asks twice, as it does on the task.
-  let { x }: { x: AttentionRun } = $props();
+  let { x, bare = false }: { x: AttentionRun; bare?: boolean } = $props();
   const run = $derived(x.run);
   const status = $derived(runStatus(run));
   const activity = $derived(oneLine(cardActivity(run), 140));
@@ -42,9 +42,9 @@
   }
 </script>
 
-<li class="card session" data-testid="session" data-tone={status.tone}>
+<li class="session" class:card={!bare} class:bare data-testid="session" data-tone={status.tone}>
   <div class="top">
-    <span class="agent">{agentLabel(app.agents, run.agentId)}</span>
+    {#if !bare}<span class="agent">{agentLabel(app.agents, run.agentId)}</span>{/if}
     <RunBadge {run} />
   </div>
   <a class="task" {href}>{x.taskTitle}</a>
@@ -71,7 +71,13 @@
     list-style: none;
   }
 
-  .session[data-tone='ask'] {
+  /* Inside an agent's card the session is a part of it, set off by a line, not a card of its own. */
+  .session.bare {
+    padding: 12px 0 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .session[data-tone='ask']:not(.bare) {
     border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
     box-shadow:
       var(--card-sh),

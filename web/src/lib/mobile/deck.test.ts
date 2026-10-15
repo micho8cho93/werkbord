@@ -68,7 +68,7 @@ describe('activeRunners', () => {
 
 describe('connectionWord', () => {
   it('names the connection and its tone', () => {
-    expect(connectionWord('live')).toEqual({ word: 'Live', tone: 'ok' });
+    expect(connectionWord('live')).toEqual({ word: 'Connected', tone: 'ok' });
     expect(connectionWord('syncing')).toEqual({ word: 'Syncing', tone: 'warn' });
     expect(connectionWord('connecting')).toEqual({ word: 'Connecting', tone: 'warn' });
     expect(connectionWord('offline')).toEqual({ word: 'Offline', tone: 'bad' });

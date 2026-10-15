@@ -27,7 +27,9 @@
   import PhoneBack from './lib/mobile/PhoneBack.svelte';
   import PhoneNav from './lib/mobile/PhoneNav.svelte';
   import { titleOf } from './lib/mobile/nav';
+  import { agentCards } from './lib/mobile/agents';
   import { phone } from './lib/mobile/phone.svelte';
+  import { phoneSubtitle } from './lib/mobile/subtitle';
   import { trail } from './lib/mobile/trail.svelte';
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
@@ -58,6 +60,11 @@
   const globalTitle = $derived(router.view === 'onboarding' ? 'Set up Werkbord' : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? titleOf(router.view)));
   /** The phone has its own navigation (the Control Deck and the Assistant). A narrow window of the desktop app keeps the desktop's. */
   const deck = $derived(phone.on);
+  const subtitle = $derived(
+    deck
+      ? phoneSubtitle(router.view, { needsYou: app.needsYou, review: app.overview?.review.length ?? 0, cards: agentCards(app.agents, app.overview), runners: app.runners })
+      : null,
+  );
   const phoneMoreLocation = $derived(router.view === 'analytics' ? 'Analytics' : router.view === 'overview' ? 'Overview' : router.view === 'defaults' ? 'Project settings' : '');
 
   // The phone opens on the Control Deck: an address that names no page (the app opened from the home screen) lands there. On a wide
@@ -191,7 +198,14 @@
         <header class="ghead">
           <div class="gtitle">
             {#if deck}<PhoneBack />{:else if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
-            <h1>{globalTitle}</h1>
+            {#if subtitle}
+              <div class="ttl">
+                <h1>{globalTitle}{#if subtitle.badge}<span class="num pend" aria-label="{subtitle.badge} need you">{subtitle.badge}</span>{/if}</h1>
+                <p class="sub mm" data-testid="phone-subtitle">{#if subtitle.dot}<span class="dot" data-tone={subtitle.dot === 'ok' ? 'ok' : subtitle.dot === 'ask' ? 'ask' : 'neutral'} aria-hidden="true"></span>{/if}{subtitle.text}</p>
+              </div>
+            {:else}
+              <h1>{globalTitle}</h1>
+            {/if}
           </div>
           <div class="gacts">
             {#if !framed}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
@@ -394,6 +408,25 @@
 
   .phone-mark {
     display: none;
+  }
+
+  .ttl {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .ttl h1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
   }
 
   .gacts {

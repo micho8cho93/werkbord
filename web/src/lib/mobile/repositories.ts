@@ -2,7 +2,8 @@
 // pull requests (when GitHub is reachable) and the repository's health. Every number is one of those, never worked out here. No
 // framework code, so it can be tested on its own.
 
-import type { GitHubPR, GitHubState, GitOverview, RepositoryHealth } from '../types';
+import { headline, needsAttention } from '../gitui';
+import type { GitBranch, GitCommit, GitHubPR, GitHubState, GitOverview, RepositoryHealth } from '../types';
 
 export interface RepoDigest {
   branch: string;
@@ -51,4 +52,32 @@ export function repoDigest(o: GitOverview | null, github: GitHubState | null, he
 export function workingLine(d: Pick<RepoDigest, 'changed' | 'ahead' | 'behind'>): string {
   const parts = [d.changed ? `${d.changed} changed` : '', d.ahead ? `${d.ahead} ahead` : '', d.behind ? `${d.behind} behind` : ''].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'Clean';
+}
+
+export interface RepoSource {
+  project: { id: string; name: string };
+  overview: GitOverview | null;
+  github: GitHubState | null;
+}
+
+export type RepoView = 'overview' | 'prs' | 'branches' | 'commits';
+
+/** Open pull requests in every repository GitHub could be asked about, the most recently touched first. */
+export function openPullRequests(sources: readonly RepoSource[]): { project: RepoSource['project']; pr: GitHubPR }[] {
+  return sources
+    .flatMap((s) => (s.github?.available ? s.github.pullRequests.filter((p) => p.state === 'open').map((pr) => ({ project: s.project, pr })) : []))
+    .sort((a, b) => (b.pr.updatedAt ?? b.pr.createdAt ?? '').localeCompare(a.pr.updatedAt ?? a.pr.createdAt ?? ''));
+}
+
+/** Local branches that want the person (Git's own attention list, minus housekeeping), with the most pressing reason. */
+export function branchesNeedingYou(sources: readonly RepoSource[]): { project: RepoSource['project']; branch: GitBranch; reason: string }[] {
+  return sources.flatMap((s) => (s.overview?.branches ?? []).filter(needsAttention).map((branch) => ({ project: s.project, branch, reason: headline(branch)?.message ?? '' })));
+}
+
+/** The latest commits of every repository, newest first. */
+export function latestCommits(sources: readonly RepoSource[], limit = 20): { project: RepoSource['project']; commit: GitCommit }[] {
+  return sources
+    .flatMap((s) => (s.overview?.local.recentCommits ?? []).map((commit) => ({ project: s.project, commit })))
+    .sort((a, b) => b.commit.date.localeCompare(a.commit.date))
+    .slice(0, limit);
 }

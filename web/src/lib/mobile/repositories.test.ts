@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { repoDigest, workingLine } from './repositories';
+import { branchesNeedingYou, latestCommits, openPullRequests, repoDigest, workingLine, type RepoSource } from './repositories';
 import type { GitHubState, GitOverview, RepositoryHealth } from '../types';
 
 const overview = (over: Record<string, unknown> = {}) =>
@@ -49,5 +49,29 @@ describe('workingLine', () => {
     expect(workingLine({ changed: 3, ahead: 2, behind: 1 })).toBe('3 changed · 2 ahead · 1 behind');
     expect(workingLine({ changed: 0, ahead: 0, behind: 4 })).toBe('4 behind');
     expect(workingLine({ changed: 0, ahead: 0, behind: 0 })).toBe('Clean');
+  });
+});
+
+describe('across repositories', () => {
+  const p = (id: string) => ({ id, name: id.toUpperCase() });
+  const source = (id: string, o: Record<string, unknown> | null, github: GitHubState | null): RepoSource => ({ project: p(id), overview: o as unknown as GitOverview | null, github });
+  const branch = (name: string, severity: 'action' | 'warn' | 'info', over: Record<string, unknown> = {}) => ({ name, scope: 'local', target: false, attention: [{ severity, kind: 'x', message: `${name} says ${severity}` }], ...over });
+
+  it('lists open pull requests newest first, and none where GitHub could not be asked', () => {
+    const a = source('a', null, { available: true, pullRequests: [{ number: 1, state: 'open', updatedAt: '2026-10-01' }, { number: 2, state: 'merged', updatedAt: '2026-10-09' }] } as unknown as GitHubState);
+    const b = source('b', null, { available: true, pullRequests: [{ number: 3, state: 'open', updatedAt: '2026-10-05' }] } as unknown as GitHubState);
+    const c = source('c', null, { available: false, pullRequests: [{ number: 4, state: 'open' }] } as unknown as GitHubState);
+    expect(openPullRequests([a, b, c]).map((x) => [x.project.id, x.pr.number])).toEqual([['b', 3], ['a', 1]]);
+  });
+
+  it('lists branches that want the person with the reason Git gives, and not housekeeping', () => {
+    const a = source('a', { branches: [branch('fix', 'action'), branch('old', 'info'), branch('main', 'warn', { target: true }), branch('rem', 'action', { scope: 'remote' })] }, null);
+    expect(branchesNeedingYou([a]).map((x) => [x.branch.name, x.reason])).toEqual([['fix', 'fix says action']]);
+  });
+
+  it('lists the latest commits of every repository, newest first, up to a limit', () => {
+    const commits = (...dates: string[]) => ({ local: { recentCommits: dates.map((date, i) => ({ sha: `s${date}${i}`, subject: date, author: '', date })) } });
+    const out = latestCommits([source('a', commits('2026-10-01', '2026-10-03'), null), source('b', commits('2026-10-02'), null)], 2);
+    expect(out.map((x) => x.commit.date)).toEqual(['2026-10-03', '2026-10-02']);
   });
 });

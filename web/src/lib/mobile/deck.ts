@@ -70,7 +70,7 @@ export function activeRunners(runners: readonly Runner[]): Runner[] {
 
 /** The connection, in the word and tone the top bar uses for it. */
 export function connectionWord(c: 'connecting' | 'syncing' | 'live' | 'offline' | 'unauthorized'): { word: string; tone: 'ok' | 'warn' | 'bad' } {
-  if (c === 'live') return { word: 'Live', tone: 'ok' };
+  if (c === 'live') return { word: 'Connected', tone: 'ok' };
   if (c === 'offline') return { word: 'Offline', tone: 'bad' };
   if (c === 'unauthorized') return { word: 'Signed out', tone: 'bad' };
   return { word: c === 'syncing' ? 'Syncing' : 'Connecting', tone: 'warn' };

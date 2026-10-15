@@ -5,6 +5,8 @@
   import type { GitHubStatusInfo } from '../lib/types';
   import { api } from '../lib/api';
   import { activitySummary, attentionCount, shortPath } from '../lib/projects';
+  import Icon from '../lib/Icon.svelte';
+  import { phone } from '../lib/mobile/phone.svelte';
   import { projectHref, router, switchedTo } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
 
@@ -50,6 +52,21 @@
     }
   }
 
+  /** A phone's way to the form below the list: the one thing the page is for besides opening a project. */
+  function toForm() {
+    document.getElementById('add-project')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  // The button goes once the form is on screen: it would sit on top of the fields.
+  let formShown = $state(false);
+  $effect(() => {
+    const form = document.getElementById('add-project');
+    if (!form || typeof IntersectionObserver === 'undefined') return;
+    const watch = new IntersectionObserver(([e]) => (formShown = e.isIntersecting), { threshold: 0.25 });
+    watch.observe(form);
+    return () => watch.disconnect();
+  });
+
   const activity = (id: string) => app.overview?.projects.find((p) => p.projectId === id);
 </script>
 
@@ -64,6 +81,7 @@
           <li>
             <a class="project" href={projectHref(p.id, 'overview')} onclick={() => app.enter(p.id)}>
               <span class="sq"></span>
+              <span class="tile" aria-hidden="true"><Icon name={p.kind === 'work' ? 'board' : 'folder'} size={18} /></span>
               <span class="what">
                 <span class="name">{p.name}</span>
                 <span class="mm path">{p.kind === 'work' ? 'Work project · no repository' : shortPath(p.repoPath)}{p.repository ? ` · ${p.repository.currentBranch || 'detached'}` : ''}</span>
@@ -79,7 +97,7 @@
     {/if}
   </section>
 
-  <section class="pn register">
+  <section class="pn register" id="add-project">
     <h3>Add a project</h3>
     <div class="seg" role="group" aria-label="Project source">
       <button aria-pressed={source === 'local'} onclick={() => source = 'local'}>Local folder</button>
@@ -118,6 +136,10 @@
     {/if}
   </section>
 </div>
+
+{#if phone.on && !formShown}
+  <button class="btn primary new" type="button" onclick={toForm}><Icon name="plus" size={16} />New project</button>
+{/if}
 
 <style>
   .layout {
@@ -217,8 +239,39 @@
     }
   }
 
+  .tile {
+    display: none;
+  }
+
   /* On a phone what a project asks of you is said under its name instead of left out, with its count beside the name. */
   @media (max-width: 640px) {
+    .sq {
+      display: none;
+    }
+
+    .tile {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: var(--surface-2);
+      box-shadow: var(--tray-sh);
+      color: var(--text-2);
+    }
+
+    .new {
+      position: fixed;
+      right: 16px;
+      bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 14px);
+      z-index: 9;
+      min-height: 48px;
+      padding-inline: 18px;
+      box-shadow: var(--pri-sh), var(--win-sh);
+    }
+
     .project {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;

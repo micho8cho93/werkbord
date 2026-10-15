@@ -10,7 +10,7 @@ Code: `web/src/lib/mobile/`. Wired in `web/src/App.svelte`. Tests: `web/src/lib/
 
 ## The Control Deck
 
-A header (the mark, whether the controller is reachable, Settings), one line on what needs you, nine keys, and what the agents are
+A header (the mark, one line saying whether the controller is reachable and how many runners and agents there are, Settings), one line on what needs you, nine keys, and what the agents are
 doing. The deck only reads what the app already holds (the Control Center overview and the runners). A key is a link to a page; it
 starts, stops and changes nothing.
 
@@ -20,14 +20,14 @@ starts, stops and changes nothing.
 | Calendar | `#/schedule` | `lib/mobile/Schedule.svelte`: Month, Week, Timeline | |
 | Projects | `#/projects` | the Projects page, each project with what it asks of you | |
 | My Work | `#/mywork` | `lib/mobile/MyWork.svelte`, the board's status words | |
-| Agents | `#/agents` | `lib/mobile/Agents.svelte`, `RunBadge`, the task page for output, questions and replies | runs working |
+| Agents | `#/agents` | `lib/mobile/Agents.svelte`: a card for each agent (working, waiting for you, idle, not available) with its sessions, `RunBadge`, Reply and a Stop that asks twice; the task page for output and questions | runs working |
 | Analytics | `#/analytics` | the Analytics page, unchanged | |
 | Reviews | `#/reviews` | `lib/mobile/Reviews.svelte`, the task page for the review itself | tasks ready for review |
-| Git | `#/repositories` | `lib/mobile/Repositories.svelte` over the Git Control Center's store; each repository opens it | repository findings that need attention |
-| Runners | `#/runners` | the Runners panel Settings already has | |
+| Git | `#/repositories` | `lib/mobile/Repositories.svelte` over the Git Control Center's store, four ways: Overview, Pull requests, Branches, Commits; every row opens the Control Center | repository findings that need attention |
+| Runners | `#/runners` | a card for each runner (state, run slots, CPU, free memory, as it reports them) over the Runners panel Settings already has, for managing them | |
 
 The icons are the ones the desktop navigation already draws for each place (`lib/Icon.svelte`); the Assistant's is the Assistant's.
-Counts are amber when they are work waiting for you, cobalt when they are work going on, and absent when zero.
+Pages have a subtitle that says how their subject stands (`subtitle.ts`: "4 running · 1 waiting for you · 2 idle", "3 online · 1 offline"). Filters are segmented controls with counts. Counts are amber when they are work waiting for you, cobalt when they are work going on, and absent when zero.
 
 ### The look
 

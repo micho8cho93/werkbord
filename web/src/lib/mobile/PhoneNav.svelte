@@ -76,14 +76,20 @@
     touch-action: manipulation;
   }
 
-  /* The place you are in is the current nav item of the design system: inset, ink. */
+  /* The place you are in is cobalt with the tab strip's own underline (as a project's tabs mark theirs). */
   .tab[aria-current='page'] {
-    color: var(--text);
+    color: var(--accent);
   }
 
-  .tab[aria-current='page'] .mark {
-    background: var(--surface-2);
-    box-shadow: var(--tray-sh);
+  .tab[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    left: 22%;
+    right: 22%;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--accent);
   }
 
   .mark {
@@ -93,6 +99,7 @@
     width: 52px;
     height: 30px;
     border-radius: 15px;
+    color: inherit;
     transition: background 0.16s;
   }
 
@@ -102,7 +109,7 @@
   }
 
   /* The assistant keeps its own colour, as it does wherever else it is drawn. */
-  .asst {
+  .tab:not([aria-current='page']) .asst {
     color: var(--accent);
   }
 

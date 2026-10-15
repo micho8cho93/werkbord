@@ -27,8 +27,9 @@
   .phone-seg button {
     flex: 1;
     min-width: 0;
-    padding: 0 6px;
+    padding: 0 4px;
     justify-content: center;
+    white-space: nowrap;
     min-height: 40px;
     height: auto;
     font-size: 13.5px;

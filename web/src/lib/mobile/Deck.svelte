@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { agentName, runElapsed } from '../format';
+  import { agentName, runStatus } from '../format';
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
-  import RunBadge from '../RunBadge.svelte';
   import { globalHref } from '../router.svelte';
   import { app } from '../state.svelte';
   import { activeRunners, attentionLine, connectionWord, deckCounts, deckKeys } from './deck';
@@ -18,34 +17,37 @@
   const link = $derived(connectionWord(app.connection));
   const runners = $derived(activeRunners(app.runners));
   const loaded = $derived(app.overview !== null);
-  const working = $derived((app.overview?.runs ?? []).filter((x) => x.run.state === 'running' || x.run.state === 'starting'));
-  const shown = $derived(working.slice(0, 3));
+  const active = $derived((app.overview?.runs ?? []).filter((x) => runStatus(x.run).active));
+  const waiting = $derived(active.filter((x) => runStatus(x.run).needsInput).length);
+  const working = $derived(active.filter((x) => x.run.state === 'running' || x.run.state === 'starting'));
+  // "2 agents running · 1 waiting for you", and which agents they are.
+  const headline = $derived(
+    [working.length ? `${working.length} ${working.length === 1 ? 'agent' : 'agents'} running` : '', waiting ? `${waiting} waiting for you` : ''].filter(Boolean).join(' · ') || 'No agents are running',
+  );
+  const names = $derived([...new Set(active.map((x) => agentName(app.agents, x.run.agentId)))].join(', '));
 </script>
 
 <div class="deck-page">
   <header class="top">
-    <a class="brand" href={globalHref('deck')} aria-label="Werkbord, Control Deck">
-      <Mark height={20} />
-      <span class="wm">werkbord</span>
-    </a>
-    <div class="status">
-      {#if app.connection === 'offline'}
-        <button class="chip link" data-tone={link.tone} type="button" onclick={() => app.reconnect()} aria-label="Offline. Reconnect" data-testid="deck-connection">
-          <span class="dot" aria-hidden="true"></span>{link.word}
-        </button>
-      {:else}
-        <span class="chip link" data-tone={link.tone} role="status" data-testid="deck-connection"><span class="dot" aria-hidden="true"></span>{link.word}</span>
-      {/if}
-      <a class="btn icon" href={globalHref('settings')} aria-label="Settings" title="Settings"><Icon name="settings" /></a>
+    <div class="id">
+      <a class="brand" href={globalHref('deck')} aria-label="Werkbord, Control Deck">
+        <Mark height={20} />
+        <span class="wm">werkbord</span>
+      </a>
+      <p class="status mm" data-testid="deck-fleet">
+        {#if app.connection === 'offline'}
+          <button class="reconnect" data-tone={link.tone} type="button" onclick={() => app.reconnect()} aria-label="Offline. Reconnect" data-testid="deck-connection"><span class="dot" aria-hidden="true"></span>{link.word}. Reconnect</button>
+        {:else}
+          <span class="conn" data-tone={link.tone} role="status" data-testid="deck-connection"><span class="dot" aria-hidden="true"></span>{link.word}</span>
+        {/if}
+        {#if loaded} · {runners.length} {runners.length === 1 ? 'runner' : 'runners'}{counts.running ? ` · ${counts.running} ${counts.running === 1 ? 'agent' : 'agents'} running` : ''}{/if}
+      </p>
     </div>
+    <a class="btn icon" href={globalHref('settings')} aria-label="Settings" title="Settings"><Icon name="settings" /></a>
   </header>
 
-  <p class="fleet mm" data-testid="deck-fleet">
-    {#if !loaded}Looking…{:else}{runners.length} {runners.length === 1 ? 'runner' : 'runners'} online · {counts.running} {counts.running === 1 ? 'agent' : 'agents'} running{/if}
-  </p>
-
   <a class="attention card" class:waiting={attention.waiting} href={globalHref('control')} data-testid="deck-attention">
-    <span class="signal" aria-hidden="true"></span>
+    {#if attention.waiting}<span class="num pend" aria-hidden="true">{counts.needsYou}</span>{:else}<span class="signal" aria-hidden="true"></span>{/if}
     <span class="say">{loaded ? attention.text : 'Looking…'}</span>
     <Icon name="right" size={16} />
   </a>
@@ -58,29 +60,13 @@
     </div>
   </section>
 
-  <a class="activity card" href={globalHref('agents')} data-testid="deck-activity" aria-label="Agents. {working.length ? `${working.length} running` : 'None running'}">
-    <div class="head">
-      <span class="lab">Running now</span>
-      <Icon name="right" size={16} />
-    </div>
-    {#if !loaded}
-      <p class="none">Looking…</p>
-    {:else if shown.length === 0}
-      <p class="none">No agents are running.</p>
-    {:else}
-      <ul>
-        {#each shown as x (x.run.id)}
-          <li>
-            <span class="who">
-              <span class="task">{x.taskTitle}</span>
-              <span class="meta mm">{x.projectName} · {agentName(app.agents, x.run.agentId)} · {runElapsed(x.run, app.now)}</span>
-            </span>
-            <RunBadge run={x.run} />
-          </li>
-        {/each}
-      </ul>
-      {#if working.length > shown.length}<p class="more mm">and {working.length - shown.length} more</p>{/if}
-    {/if}
+  <a class="activity card" href={globalHref('agents')} data-testid="deck-activity" aria-label="Agents. {headline}">
+    <span class="tile" aria-hidden="true"><Icon name="activity" size={20} /></span>
+    <span class="who">
+      <span class="task">{loaded ? headline : 'Looking…'}</span>
+      {#if names}<span class="meta mm">{names}</span>{/if}
+    </span>
+    <Icon name="right" size={16} />
   </a>
 
   <nav class="more" aria-label="More">
@@ -125,44 +111,55 @@
     line-height: 1;
   }
 
-  .status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .id {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
   }
 
-  .chip.link {
-    height: 28px;
-    border: 0;
-    font: inherit;
-    font-family: var(--mono);
-    font-weight: 500;
-    font-size: 11.5px;
+  /* The connection and the machines, as one quiet line under the name. */
+  .status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 4px;
+    margin: 0;
+  }
+
+  .conn,
+  .reconnect {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     color: var(--text);
   }
 
-  button.chip.link {
+  .reconnect {
     min-height: 44px;
-    padding-inline: 12px;
-    background: transparent;
+    margin: -12px 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
   }
 
-  .chip .dot {
+  .status .dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background: var(--text-2);
   }
 
-  .chip[data-tone='ok'] .dot {
+  [data-tone='ok'] > .dot {
     background: var(--ok);
   }
 
-  .chip[data-tone='warn'] .dot {
+  [data-tone='warn'] > .dot {
     background: var(--warn);
   }
 
-  .chip[data-tone='bad'] .dot {
+  [data-tone='bad'] > .dot {
     background: var(--danger);
   }
 
@@ -174,10 +171,6 @@
     align-items: center;
     justify-content: center;
     text-decoration: none;
-  }
-
-  .fleet {
-    margin: -4px 2px 0;
   }
 
   .attention {
@@ -272,33 +265,32 @@
   }
 
   .activity {
-    display: block;
-    padding: 12px 14px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 64px;
+    padding: 10px 14px;
     color: var(--text);
     text-decoration: none;
   }
 
-  .activity .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
+  .activity > :global(svg:last-child) {
+    margin-left: auto;
+    flex: none;
     color: var(--text-2);
   }
 
-  .activity ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 10px;
-  }
-
-  .activity li {
-    display: flex;
+  .tile {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    justify-content: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    box-shadow: var(--tray-sh);
+    color: var(--accent);
   }
 
   .who {
@@ -310,25 +302,11 @@
   .task {
     font-size: 14px;
     font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .meta {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .none,
-  .more {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text-2);
-  }
-
-  .more {
-    margin-top: 8px;
   }
 </style>
