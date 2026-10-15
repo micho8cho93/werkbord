@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,29 @@ type Account struct {
 	Host  string `json:"host"`
 	Login string `json:"login"`
 	Name  string `json:"name,omitempty"`
+	// Scopes are the OAuth scopes of the token, when GitHub reports them. Empty with
+	// ScopesKnown false means it did not (a fine-grained token): do not guess.
+	Scopes      []string `json:"scopes,omitempty"`
+	ScopesKnown bool     `json:"scopesKnown"`
+}
+
+// RequiredScopes are what the guided setup needs: creating a repository and
+// pushing a Pages workflow.
+var RequiredScopes = []string{"repo", "workflow"}
+
+// MissingScopes returns the required scopes the token lacks. It says nothing when
+// the scopes are not known.
+func (a *Account) MissingScopes() []string {
+	if a == nil || !a.ScopesKnown {
+		return nil
+	}
+	var missing []string
+	for _, want := range RequiredScopes {
+		if !slices.Contains(a.Scopes, want) {
+			missing = append(missing, want)
+		}
+	}
+	return missing
 }
 
 // Version returns the installed gh's version, or a *Error saying it is missing.
@@ -44,18 +68,38 @@ var versionRE = regexp.MustCompile(`\d+\.\d+\.\d+\S*`)
 // also finds out that a stored token has expired or been revoked, which `gh auth
 // status` alone does not.
 func (c *CLI) Account(ctx context.Context) (*Account, error) {
-	out, err := c.run(ctx, "api", "--hostname", "github.com", "user")
+	out, err := c.run(ctx, "api", "--hostname", "github.com", "-i", "user")
 	if err != nil {
 		return nil, err
 	}
+	head, body := splitResponse(string(out))
 	var u struct {
 		Login string `json:"login"`
 		Name  string `json:"name"`
 	}
-	if err := json.Unmarshal(out, &u); err != nil || u.Login == "" {
+	if err := json.Unmarshal([]byte(body), &u); err != nil || u.Login == "" {
 		return nil, &Error{Reason: domain.GHError, Message: "GitHub's answer could not be read"}
 	}
-	return &Account{Host: "github.com", Login: u.Login, Name: u.Name}, nil
+	a := &Account{Host: "github.com", Login: u.Login, Name: u.Name}
+	for _, line := range strings.Split(head, "\n") {
+		k, v, ok := strings.Cut(strings.TrimSpace(line), ":")
+		if ok && strings.EqualFold(k, "X-OAuth-Scopes") {
+			a.ScopesKnown = true
+			for _, sc := range strings.Split(v, ",") {
+				if sc = strings.TrimSpace(sc); sc != "" {
+					a.Scopes = append(a.Scopes, sc)
+				}
+			}
+		}
+	}
+	return a, nil
+}
+
+// splitResponse separates the headers from the body of `gh api -i` output.
+func splitResponse(out string) (head, body string) {
+	out = strings.ReplaceAll(out, "\r\n", "\n")
+	head, body, _ = strings.Cut(out, "\n\n")
+	return head, body
 }
 
 // Repository is a repository the signed-in user can reach, as GitHub describes it.
@@ -199,6 +243,16 @@ func (l *LoginSession) Status() Login {
 // code is known (or it has failed). Starting while an attempt is pending returns
 // that attempt.
 func (l *LoginSession) Start(ctx context.Context) (Login, error) {
+	return l.start(ctx, "auth", "login", "--hostname", "github.com", "--web", "--git-protocol", "https", "--skip-ssh-key", "--scopes", "workflow")
+}
+
+// StartRefresh asks for the scopes the guided setup needs on an existing sign-in,
+// with the same one-time code flow.
+func (l *LoginSession) StartRefresh(ctx context.Context) (Login, error) {
+	return l.start(ctx, "auth", "refresh", "--hostname", "github.com", "--scopes", "repo,workflow")
+}
+
+func (l *LoginSession) start(ctx context.Context, args ...string) (Login, error) {
 	l.mu.Lock()
 	if l.state.State == LoginPending {
 		st := l.state
@@ -212,7 +266,7 @@ func (l *LoginSession) Start(ctx context.Context) (Login, error) {
 		bin = "gh"
 	}
 	runCtx, cancel := context.WithTimeout(context.Background(), loginTimeout)
-	cmd := exec.CommandContext(runCtx, bin, "auth", "login", "--hostname", "github.com", "--web", "--git-protocol", "https", "--skip-ssh-key")
+	cmd := exec.CommandContext(runCtx, bin, args...)
 	cmd.Env = ghEnv(os.Environ())
 	cmd.WaitDelay = time.Second
 	detach(cmd)

@@ -310,3 +310,34 @@ func TestCloningNeverOverwritesAndCleansUpAfterAFailure(t *testing.T) {
 		t.Fatal("a failed clone left a directory behind")
 	}
 }
+
+func TestGitHubStatusNamesMissingScopesAndRefreshGrantsThem(t *testing.T) {
+	g := newGHFixture(t)
+	g.gh.SignIn()
+	g.gh.Scopes("repo, read:org")
+	st := g.setup.Status(bg)
+	if st.State != GitHubSignedIn || len(st.MissingScopes) != 1 || st.MissingScopes[0] != "workflow" {
+		t.Fatalf("status = %+v", st)
+	}
+	g.gh.Scopes("repo, workflow")
+	g.setup.forgetAccount()
+	if st := g.setup.Status(bg); len(st.MissingScopes) != 0 {
+		t.Fatalf("nothing should be missing: %+v", st)
+	}
+
+	g.gh.Scopes("repo")
+	g.setup.forgetAccount()
+	l, err := g.setup.StartScopeRefresh(bg)
+	if err != nil || l.Code == "" {
+		t.Fatalf("refresh = %+v, %v", l, err)
+	}
+	g.gh.Approve()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if st := g.setup.Status(bg); st.State == GitHubSignedIn && len(st.MissingScopes) == 0 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("scopes never arrived: %+v", g.setup.Status(bg))
+}

@@ -309,6 +309,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
 
   // GitHub, through the user's own GitHub CLI. Optional.
   github: () => request<GitHubStatusInfo>('GET', '/api/github'),
+  githubScopes: () => request<GitHubLogin>('POST', '/api/github/scopes', {}),
   githubLogin: () => request<GitHubLogin>('POST', '/api/github/login', {}),
   githubCancelLogin: () => request<GitHubStatusInfo>('POST', '/api/github/login/cancel', {}),
   githubRepos: () => request<RepoList>('GET', '/api/github/repos'),

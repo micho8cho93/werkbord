@@ -32,6 +32,20 @@ func (s *Server) handleGitHubLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, l)
 }
 
+// handleGitHubScopes asks for the permissions the guided setup needs on the
+// account already signed in; the app polls /api/github like a sign-in.
+func (s *Server) handleGitHubScopes(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	l, err := s.opt.GitHub.StartScopeRefresh(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, l)
+}
+
 func (s *Server) handleGitHubLoginCancel(w http.ResponseWriter, r *http.Request) {
 	if !s.githubReady(w) {
 		return

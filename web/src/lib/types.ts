@@ -387,7 +387,9 @@ export interface GitHubLogin {
 
 export interface GitHubStatusInfo {
   state: GitHubConnection;
-  account?: { host: string; login: string; name?: string };
+  account?: { host: string; login: string; name?: string; scopes?: string[]; scopesKnown?: boolean };
+  /** What the guided setup needs and the token lacks (for example "workflow"). */
+  missingScopes?: string[];
   version?: string;
   message?: string;
   guidance?: string;

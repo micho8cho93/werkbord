@@ -33,17 +33,23 @@ api)
     for a in "$@"; do case "$a" in page=*) page="${a#page=}" ;; esac; done
     if [ -f "$D/repos.$page.json" ]; then cat "$D/repos.$page.json"; else echo "[]"; fi
     exit 0 ;;
-  *) cat "$D/user.json"; exit 0 ;;
+  *)
+    case "$*" in *" -i "*)
+      echo "HTTP/2.0 200 OK"
+      if [ -f "$D/scopes" ]; then echo "X-Oauth-Scopes: $(cat "$D/scopes")"; else echo "X-Oauth-Scopes: repo, read:org, workflow"; fi
+      echo "" ;;
+    esac
+    cat "$D/user.json"; exit 0 ;;
   esac ;;
 auth)
   case "$2" in
-  login)
+  login|refresh)
     echo ""
     echo "! First copy your one-time code: ABCD-1234"
     echo "Open this URL to continue in your web browser: https://github.com/login/device"
     i=0
     while [ ! -f "$D/approve" ] && [ ! -f "$D/deny" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
-    if [ -f "$D/approve" ]; then touch "$D/signedin"; exit 0; fi
+    if [ -f "$D/approve" ]; then touch "$D/signedin"; echo "repo, read:org, workflow" > "$D/scopes"; exit 0; fi
     echo "authentication failed" >&2; exit 1 ;;
   git-credential) exit 0 ;;
   esac ;;
@@ -71,6 +77,9 @@ func (f *Fake) write(name, body string) {
 		panic(err)
 	}
 }
+
+// Scopes sets the OAuth scopes the fake's token reports ("" means none).
+func (f *Fake) Scopes(list string) { f.write("scopes", list) }
 
 // SignIn makes the fake signed in.
 func (f *Fake) SignIn() { f.write("signedin", "") }

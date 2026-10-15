@@ -57,7 +57,10 @@ type GitHubStatus struct {
 	State string `json:"state"`
 	// Account is who is signed in, when State is signed_in.
 	Account *github.Account `json:"account,omitempty"`
-	Version string          `json:"version,omitempty"`
+	// MissingScopes are what the guided setup needs and the token lacks, so the app
+	// can ask for them. Empty when nothing is missing or the scopes are not known.
+	MissingScopes []string `json:"missingScopes,omitempty"`
+	Version       string   `json:"version,omitempty"`
 	// Message says what is wrong, and Guidance what to do about it.
 	Message  string       `json:"message,omitempty"`
 	Guidance string       `json:"guidance,omitempty"`
@@ -100,7 +103,7 @@ func (g *GitHubSetup) Status(ctx context.Context) GitHubStatus {
 	if err != nil {
 		return g.failed(st, err)
 	}
-	st.State, st.Account = GitHubSignedIn, acct
+	st.State, st.Account, st.MissingScopes = GitHubSignedIn, acct, acct.MissingScopes()
 	return st
 }
 
@@ -154,6 +157,21 @@ func (g *GitHubSetup) StartLogin(ctx context.Context) (github.Login, error) {
 		return github.Login{}, fmt.Errorf("%w: the GitHub integration is turned off", domain.ErrConflict)
 	}
 	l, err := g.Login.Start(ctx)
+	var ge *github.Error
+	if errors.As(err, &ge) {
+		return l, fmt.Errorf("%w: %s", domain.ErrConflict, ge.Message)
+	}
+	g.forgetAccount()
+	return l, err
+}
+
+// StartScopeRefresh asks GitHub for the extra permissions the guided setup needs,
+// on the account that is already signed in.
+func (g *GitHubSetup) StartScopeRefresh(ctx context.Context) (github.Login, error) {
+	if g.CLI == nil || g.Login == nil {
+		return github.Login{}, fmt.Errorf("%w: the GitHub integration is turned off", domain.ErrConflict)
+	}
+	l, err := g.Login.StartRefresh(ctx)
 	var ge *github.Error
 	if errors.As(err, &ge) {
 		return l, fmt.Errorf("%w: %s", domain.ErrConflict, ge.Message)

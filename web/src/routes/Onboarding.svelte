@@ -14,7 +14,6 @@
   let github = $state<GitHubStatusInfo | null>(null);
   let net = $state<NetworkStatus | null>(null);
   let skippedNetwork = $state(false);
-  let skippedGithub = $state(false);
   let finishing = $state(false);
   let error = $state('');
   let readinessUnavailable = $state(false);
@@ -22,10 +21,18 @@
   let chosen = $state<string | null>(null);
   const local = $derived(localReadiness(app.runners, app.agents, app.projects, app.connection === 'live' && !readinessUnavailable));
   const stepStates = $derived(app.onboarding?.steps ?? {});
+  const githubDone = $derived(github?.state === 'signed_in' && !github.missingScopes?.length);
+  // GitHub sits between the agent and the repository. It is optional: skipping it keeps everything local.
+  const steps = $derived([
+    local.steps[0],
+    local.steps[1],
+    { id: 'github', label: 'GitHub', done: githubDone, optional: true },
+    { ...local.steps[2], optional: false },
+  ].map((x) => ({ optional: false, ...x })));
   // Resumes at the first step that is neither verified nor skipped, unless the person picked another.
-  const current = $derived(chosen ?? local.steps.find((x) => !x.done && stepStates[x.id] !== 'skipped')?.id ?? local.steps[local.steps.length - 1].id);
-  const currentIndex = $derived(local.steps.findIndex((x) => x.id === current));
-  const currentStep = $derived(local.steps[currentIndex]);
+  const current = $derived(chosen ?? steps.find((x) => !x.done && stepStates[x.id] !== 'skipped')?.id ?? steps[steps.length - 1].id);
+  const currentIndex = $derived(steps.findIndex((x) => x.id === current));
+  const currentStep = $derived(steps[currentIndex]);
 
   async function recheck() {
     checking = true;
@@ -43,18 +50,29 @@
 
   function go(id: string) {
     chosen = id;
-    if (id !== 'repository') void recheck();
+    if (id === 'computer' || id === 'agents') void recheck();
   }
 
   async function skipStep() {
     try {
       app.onboarding = await api.setOnboardingStep(current, 'skipped');
-      chosen = local.steps[currentIndex + 1]?.id ?? null;
+      // Without GitHub the example runs in a local repository.
+      if (current === 'github') app.onboarding = await api.setOnboardingVariant('local');
+      chosen = steps[currentIndex + 1]?.id ?? null;
     } catch (err) { error = err instanceof Error ? err.message : String(err); }
   }
 
+  // Connecting GitHub (or undoing a skip) puts the example back on the GitHub path.
+  $effect(() => {
+    if (githubDone && app.onboarding && app.onboarding.variant !== 'github') {
+      void api.setOnboardingVariant('github').then((o) => (app.onboarding = o), () => {});
+      if (stepStates.github) void api.setOnboardingStep('github', '').then((o) => (app.onboarding = o), () => {});
+    }
+  });
+
   onMount(() => {
     void recheck();
+    api.github().then((g) => (github = g), () => {});
     // The cards report their own state; this page also needs them to say what was skipped.
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') api.network().then((n) => (net = n), () => {});
@@ -94,10 +112,10 @@
     </p>
     <p class="progress-label" role="status">{local.completed} of 3 requirements verified{local.ready ? ' · ready to create a task' : ''}</p>
     <ol class="progress" aria-label="Setup steps">
-      {#each local.steps as s, i (s.id)}
+      {#each steps as s, i (s.id)}
         <li>
           <button class="chip" data-done={s.done} aria-current={s.id === current ? 'step' : undefined} onclick={() => go(s.id)}>
-            <span class="dot" data-tone={s.done ? 'ok' : 'neutral'}></span>{i + 1}. {s.label}<span class="visually-hidden">{s.done ? ', done' : stepStates[s.id] === 'skipped' ? ', skipped' : ', to do'}</span>
+            <span class="dot" data-tone={s.done ? 'ok' : 'neutral'}></span>{i + 1}. {s.label}{s.optional ? ' (optional)' : ''}<span class="visually-hidden">{s.done ? ', done' : stepStates[s.id] === 'skipped' ? ', skipped' : ', to do'}</span>
           </button>
         </li>
       {/each}
@@ -115,30 +133,32 @@
   </SetupCard>
   {:else if current === 'agents'}
   <AgentsCard />
+  {:else if current === 'github'}
+  <p class="muted">GitHub lets Werkbord create a repository for you and publish a page from it. Without it, everything still works on this computer.</p>
+  <GitHubCard skipped={stepStates.github === 'skipped'} onskip={skipStep} onchange={(s) => (github = s)} />
   {:else}
   <ReposCard {github} />
   {/if}
 
   <nav class="actions" aria-label="Setup navigation">
-    {#if currentIndex > 0}<button class="btn big" onclick={() => go(local.steps[currentIndex - 1].id)}>Back</button>{/if}
-    {#if currentStep.done && currentIndex < local.steps.length - 1}
-      <button class="btn primary big" onclick={() => go(local.steps[currentIndex + 1].id)}>Next</button>
+    {#if currentIndex > 0}<button class="btn big" onclick={() => go(steps[currentIndex - 1].id)}>Back</button>{/if}
+    {#if (currentStep.done || stepStates[current] === 'skipped') && currentIndex < steps.length - 1}
+      <button class="btn primary big" onclick={() => go(steps[currentIndex + 1].id)}>Next</button>
     {:else if local.ready}
       <button class="btn primary big" disabled={checking || finishing} onclick={() => finish(true)}>{finishing ? 'Opening…' : 'Create your first task'}</button>
     {:else if !currentStep.done}
       <button class="btn primary big" disabled={checking} onclick={() => void recheck()}>{checking ? 'Checking…' : 'Check again'}</button>
-      {#if currentIndex < local.steps.length - 1}<button class="btn big" onclick={skipStep}>Skip this step</button>{/if}
+      {#if currentStep.optional}<button class="btn big" onclick={skipStep}>Skip this step</button>{/if}
     {/if}
     <button class="btn big" disabled={finishing} onclick={() => finish(false)}>Finish later</button>
   </nav>
 
   <details class="optional">
-    <summary>Optional connections <span class="muted">Phone access and GitHub</span></summary>
+    <summary>Phone access <span class="muted">Optional</span></summary>
     <div class="optional-body">
-      <p class="muted">Neither is required to run a local coding task. Configure them here or later in Settings.</p>
-      <p class="optional-status">Phone access: {net?.state === 'connected' ? 'Connected' : skippedNetwork ? 'Optional—skipped' : 'Optional'} · GitHub: {github?.state === 'signed_in' ? 'Connected' : skippedGithub ? 'Optional—skipped' : 'Optional'}</p>
+      <p class="muted">Not required to run a local coding task. Set it up here or later in Settings.</p>
+      <p class="optional-status">Phone access: {net?.state === 'connected' ? 'Connected' : skippedNetwork ? 'Optional—skipped' : 'Optional'}</p>
       <NetworkCard skipped={skippedNetwork} onskip={() => (skippedNetwork = true)} />
-      <GitHubCard skipped={skippedGithub} onskip={() => (skippedGithub = true)} onchange={(s) => (github = s)} />
     </div>
   </details>
 

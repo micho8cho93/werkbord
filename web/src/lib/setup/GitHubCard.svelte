@@ -17,13 +17,15 @@
   /** Looking up the connection failed. GitHub is optional, so this is a quiet line with a retry, never a red alert on first run. */
   let unreachable = $state('');
   let copied = $state(false);
+  let missingKey = '';
 
   async function refresh() {
     try {
       const was = gh?.state;
       gh = await api.github();
       unreachable = '';
-      if (was !== gh.state) onchange?.(gh);
+      if (was !== gh.state || missingKey !== (gh.missingScopes ?? []).join()) onchange?.(gh);
+      missingKey = (gh.missingScopes ?? []).join();
     } catch (err) {
       unreachable = err instanceof Error ? err.message : String(err);
     }
@@ -51,6 +53,19 @@
     }
   }
 
+  async function grant() {
+    busy = true;
+    error = '';
+    try {
+      await api.githubScopes();
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = false;
+    }
+  }
+
   async function cancel() {
     gh = await api.githubCancelLogin().catch(() => gh);
   }
@@ -63,13 +78,13 @@
   }
 
   const status = $derived(
-    gh?.state === 'signed_in' ? 'done' : skipped || gh?.state === 'disabled' ? 'off' : gh?.state === 'signing_in' ? 'wait' : 'todo',
+    gh?.state === 'signed_in' ? (gh.missingScopes?.length ? 'todo' : 'done') : skipped || gh?.state === 'disabled' ? 'off' : gh?.state === 'signing_in' ? 'wait' : 'todo',
   );
   const summary = $derived(
     !gh
       ? ''
       : gh.state === 'signed_in'
-        ? `Connected as ${gh.account?.login ?? ''}`
+        ? `Connected as ${gh.account?.login ?? ''}${gh.missingScopes?.length ? ' · needs more permission' : ''}`
         : gh.state === 'disabled'
           ? 'Turned off in config.json'
           : skipped
@@ -89,6 +104,13 @@
       Werkbord can list your repositories and show pull requests and checks, using your own GitHub sign-in (through the GitHub CLI).
       Nothing about Werkbord is stored in GitHub.
     </p>
+    {#if gh.missingScopes?.length}
+      <p>
+        To create repositories and publish a page, GitHub also needs to allow <strong>{gh.missingScopes.join(' and ')}</strong>.
+        You approve it on github.com with a one-time code, as you did when connecting.
+      </p>
+      <div class="row"><button class="btn primary" disabled={busy} onclick={grant}>{busy ? 'Starting…' : 'Allow on GitHub'}</button></div>
+    {/if}
     <p class="muted small">To disconnect, run <code>gh auth logout</code> in a terminal.</p>
   {:else if gh.state === 'signing_in'}
     <p>On GitHub, enter this code and approve:</p>
