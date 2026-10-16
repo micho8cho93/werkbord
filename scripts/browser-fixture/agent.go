@@ -58,6 +58,12 @@ func runFixtureAgent() error {
 			fmt.Println("WERKBORD_STAGE 3 completed")
 			fmt.Println("WERKBORD_STAGE 4 running")
 			fmt.Println("Fixture verification evidence: reproducible test failure")
+		case "workflow-clean":
+			for stage := 3; stage <= 6; stage++ {
+				fmt.Printf("WERKBORD_STAGE %d completed\n", stage)
+			}
+			fmt.Println("No bugs found in this scan.")
+			return nil
 		case "workflow-report":
 			fmt.Println("WERKBORD_STAGE 4 completed")
 			fmt.Println("WERKBORD_STAGE 5 completed")

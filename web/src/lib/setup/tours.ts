@@ -39,32 +39,11 @@ export const TOURS: Record<TourSurface, readonly TourStep[]> = {
       target: '.rail a[href*="help"]',
     },
   ],
-  phone: [
-    {
-      title: 'Your Control Deck',
-      body: 'Six keys open your work. Needs you keeps questions, blocked work and reviews within reach. Three empty positions are ready for your own buttons.',
-      target: '.housing',
-    },
-    {
-      title: 'Make the deck yours',
-      body: 'Use Edit Deck to add, replace or remove any button. Drag to swap positions, or choose Move to position in a button’s menu. Done saves your layout to this computer for this phone.',
-      target: '[data-testid="edit-deck"]',
-    },
-    {
-      title: 'Workflows run on a repository',
-      body: 'Add Find Bugs, Improve Tests or another workflow. Choose an Individual repository and an agent and model, or keep the defaults. Saving configures it; tapping it starts work.',
-      target: '.housing',
-    },
-    {
-      title: 'Follow the work',
-      body: 'Workflow executions shows progress. Open a task for output, questions and Stop. Work continues when you leave this page. Hold a workflow, press Shift+F10, or use Edit Deck to configure it again.',
-    },
-    {
-      title: 'Search and help are here',
-      body: 'Jump to searches your work. Help explains the controls. This phone can use workflows and Git actions; repository registration, runner management and general settings stay on your computer.',
-      target: '.header-actions',
-    },
-  ],
+  // The phone uses DeckOnboarding's real interactions; this entry retains tourDue/Help replay eligibility.
+  phone: [{
+    title: 'Make the Control Deck yours',
+    body: 'Choose a workflow, hold to configure it, tap to run and open its progress. Edit Deck can change all nine positions after onboarding.',
+  }],
   settings: [
     {
       title: 'Three sections are worth knowing',

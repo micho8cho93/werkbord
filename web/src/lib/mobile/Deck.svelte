@@ -9,7 +9,9 @@
   import { app } from '../state.svelte';
   import { activeRunners, connectionWord, deckCounts, deckKeys, type DeckKey } from './deck';
   import Keycap from './Keycap.svelte';
-  import Tour from '../Tour.svelte';
+  import { markHere, seenHere, tourDue } from '../setup/tours';
+  import { eligibleRunners, executionAgents, resolveFor } from '../execution';
+  import DeckOnboarding from './DeckOnboarding.svelte';
   import DeckLibrary from './DeckLibrary.svelte';
   import Sheet from '../Sheet.svelte';
   import WorkflowSettings from './WorkflowSettings.svelte';
@@ -45,13 +47,59 @@
   let approving = $state<{slot: DeckSlot; override: boolean; targets?: string[]} | null>(null);
   let starting = $state(false);
   let storageKey = '';
+  let guide = $state(0);
+  let guideReady = $state(false);
+  let guideSlot = $state('');
+  let inspected = $state(false);
+  let preview = $state(false);
+  let guideStorage = '';
+  const selectedWorkflow = $derived(layout.slots.find(s => s?.id === guideSlot) ?? layout.slots.slice(6).find(s => s && workflow(s.button)));
+  const hasWorkflow = $derived(layout.slots.slice(6).some(s => s && workflow(s.button)));
+  const exampleProject = $derived(app.projects.find(p => p.id === app.onboarding?.example?.projectId && p.repoPath));
+  const guideProject = $derived(app.project(selectedWorkflow?.projectIds?.[0] ?? ''));
+  const defaults = $derived(resolveFor({}, guideProject?.execution, app.globalExecution));
+  const liveDemo = $derived(!!guideProject && app.connection === 'live' && eligibleRunners(app.runners, guideProject.id, selectedWorkflow?.runner || defaults.runner).length > 0 && executionAgents(app.agents, app.runners, guideProject.id, selectedWorkflow?.runner || defaults.runner).some(a => !(selectedWorkflow?.agent || defaults.agent) || a.id === (selectedWorkflow?.agent || defaults.agent)));
+  function advance(step: number) { guide = step; try { localStorage.setItem(guideStorage, JSON.stringify({step, slot: guideSlot, preview})); } catch { /* the saved deck remains authoritative */ } }
+  async function finishGuide() {
+    if (!hasWorkflow) { advance(2); return; }
+    try {
+      await persist(); markHere('phone');
+      if (!seenHere('phone')) throw new Error('Enable browser storage to remember completed onboarding. Your deck is saved.');
+      localStorage.removeItem(guideStorage); guide = 0;
+    } catch (err) { error = err instanceof Error ? err.message : String(err); }
+  }
+  function addGuideButton() { const empty = layout.slots.findIndex((s,i) => i >= 6 && !s); library = empty >= 0 ? empty : 6; }
+  function configureGuide() { if (selectedWorkflow) configuring = layout.slots.findIndex(s => s?.id === selectedWorkflow.id); }
+  function recommendBugs() {
+    const existing = layout.slots.find(s => s?.button === 'find-bugs');
+    if (existing) { guideSlot = existing.id; configuring = layout.slots.findIndex(s => s?.id === existing.id); return; }
+    const empty = layout.slots.findIndex((s,i) => i >= 6 && !s);
+    const index = empty >= 0 ? empty : layout.slots.findIndex(s => s?.id === selectedWorkflow?.id);
+    if (index < 6) return;
+    const slot: DeckSlot = {id: crypto.randomUUID(), button: 'find-bugs', target: exampleProject ? 'selected' : 'ask', ...(exampleProject ? {projectIds: [exampleProject.id]} : {}), output: 'report'};
+    layout.slots = place(layout.slots,index,slot); guideSlot = slot.id; configuring = index;
+  }
+  $effect(() => {
+    if (preview) return;
+    if (guide === 5 && workflows.selected) inspected = true;
+    if (guide === 5 && inspected && !workflows.selected) { inspected = false; advance(6); }
+  });
   let dragFrom: number | null = null;
   let dragTo = $state<number | null>(null);
 
   async function refreshHistory() { history = await deckApi.history(); }
   async function load() {
     error = '';
-    try { layout = await deckApi.load(); await refreshHistory(); ready = true; }
+    try {
+      layout = await deckApi.load(); await refreshHistory(); ready = true;
+      if (!guideReady) {
+        if (tourDue(app.onboarding, 'phone')) {
+          try { const saved = JSON.parse(localStorage.getItem(guideStorage) ?? 'null'); guide = saved?.step >= 1 && saved.step <= 6 ? saved.step : 1; guideSlot = saved?.slot ?? ''; preview = saved?.preview === true; }
+          catch { guide = 1; }
+        }
+        guideReady = true;
+      }
+    }
     catch (err) { error = err instanceof Error ? err.message : String(err); }
   }
   onMount(() => {
@@ -61,7 +109,10 @@
         const owner = isPhone() ? (await api.phoneSelf()).id : 'owner';
         storageKey = `werkbord.deck.pending.${owner}`;
         try { pending = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null'); } catch { /* no previous request */ }
-        if (!disposed) await load();
+        if (!disposed) {
+          guideStorage = `werkbord.deck.onboarding.${owner}`;
+          await load();
+        }
       } catch (err) { if (!disposed) error = err instanceof Error ? err.message : String(err); }
     })();
     const visibility = () => { if (document.visibilityState === 'visible') void refreshHistory().catch(() => {}); };
@@ -81,13 +132,17 @@
     const slot: DeckSlot = { id: crypto.randomUUID(), button };
     layout.slots = place(layout.slots, index, slot);
     library = null;
-    if (workflow(button)) configuring = index;
+    if (guide) {
+      if (workflow(button)) { guideSlot = slot.id; layout.slots[index] = {...slot, target: exampleProject ? 'selected' : 'ask', ...(exampleProject ? {projectIds: [exampleProject.id]} : {}), output: 'report'}; }
+      void persist().catch(() => {});
+    } else if (workflow(button)) configuring = index;
   }
   async function configure(slot: DeckSlot) {
     if (configuring === null) return;
     const next = { ...layout, slots: place(layout.slots, configuring, slot) };
-    if (editing) layout = next; else await persist(next);
+    if (editing && !guide) layout = next; else await persist(next);
     configuring = null;
+    if (guide === 3 || guide === 4) advance(4);
   }
   function move(from: number, to: number) {
     layout.slots = rearrange(layout.slots, from, to); library = null;
@@ -106,7 +161,7 @@
   function keyFor(slot: DeckSlot | null): DeckKey {
     if (!slot) return { id: 'empty', label: 'Add button', icon: 'plus', href: '', count: 0, tone: 'plain', note: '' };
     const w = workflow(slot.button);
-    if (!w) return keys.find(k => k.id === slot.button)!;
+    if (!w) { const key = keys.find(k => k.id === slot.button)!; return guide ? {...key, href: ''} : key; }
     const run = latest(slot);
     return { id: slot.button, label: w.label, icon: w.icon, href: '', count: 0, tone: run && runStatus(run).active ? (runStatus(run).needsInput ? 'wait' : 'work') : 'plain', note: run ? runStatus(run).label : '' };
   }
@@ -117,7 +172,7 @@
     if ((!slot.target || slot.target === 'current') && !slot.projectId && !app.lastProjectId) { configuring = layout.slots.findIndex(s => s?.id === slot.id); return; }
     if (!approved && (slot.output === 'changes' || slot.approval === 'always')) { approving = {slot, override, targets}; return; }
     const tracked = workflows.executions.find(x => x.slotId === slot.id && !terminal(x.run));
-    if (!override && tracked) { workflows.open(tracked.taskId); return; }
+    if (!override && tracked) { if (guide === 4) advance(5); workflows.open(tracked.taskId); return; }
     const run = latest(slot);
     if (!override && run && runStatus(run).active) { workflows.open(run.taskId); return; }
     if (pending) { error = 'Check the previous workflow start before starting another.'; return; }
@@ -140,6 +195,7 @@
       await refreshHistory();
       await workflows.refresh();
       announcement = `${result.task.title} started`;
+      if (guide === 4) advance(5);
       app.refreshOverview();
     } catch (err) {
       const refused = err instanceof ApiError && err.status < 500;
@@ -153,7 +209,7 @@
 </script>
 
 <div class="deck-page">
-  <Tour surface="phone" enabled={ready && !editing && configuring === null && library === null && !starting} />
+
   <header class="top">
     <div class="id">
       <a class="brand" href={globalHref('deck')} aria-label="Werkbord, Control Deck">
@@ -176,9 +232,19 @@
     </nav>
   </header>
   <WorkflowBanner />
+  {#if guide === 5 && preview}
+    <section class="preview" aria-label="Interactive preview progress">
+      <button class="btn" onclick={() => inspected = true}>Interactive preview · Open execution details</button>
+    </section>
+  {/if}
+  {#if guideReady && guide}
+    <DeckOnboarding step={guide} {hasWorkflow} full={layout.slots.slice(6).every(Boolean)} workflowName={workflow(selectedWorkflow?.button ?? '')?.label ?? ''}
+      liveDemo={(liveDemo && !error) || !!pending} {preview} busy={saving || starting} onnext={advance} onadd={addGuideButton} onconfigure={configureGuide}
+      onrecommend={recommendBugs} onpreview={() => { preview = true; advance(4); }} onfinish={finishGuide} />
+  {/if}
   <div class="deck-toolbar">
     <span class="deck-title">Control Deck</span>
-    <button class="btn small" type="button" disabled={!ready || saving || starting} onclick={() => { if (editing) void done(); else { editing = true; announcement = 'Editing deck'; } }} data-testid="edit-deck">{saving ? 'Saving…' : editing ? 'Done' : 'Edit Deck'}</button>
+    <button class="btn small" type="button" disabled={!ready || saving || starting || !!guide} onclick={() => { if (editing) void done(); else { editing = true; announcement = 'Editing deck'; } }} data-testid="edit-deck">{saving ? 'Saving…' : editing ? 'Done' : 'Edit Deck'}</button>
   </div>
   {#if editing}<p class="edit-hint">Tap to replace or remove. Drag to swap positions, or use Move to position in the button menu.</p>{/if}
   {#if error}<p class="error" role="alert">{error} {workflowRecovery(error)}</p><button class="btn small" onclick={load} disabled={saving || starting}>Reload saved deck</button>{/if}
@@ -199,26 +265,43 @@
   <section class="housing" aria-label="Control Deck">
     <div class="grid" data-testid="deck-grid" aria-busy={!ready}>
       {#each layout.slots as slot, i (i)}
-        <div class="position" class:drop-target={dragTo === i} data-deck-position={i}>
+        <div class="position" class:drop-target={dragTo === i} class:guided={!!guide && guide >= 3 && slot?.id === selectedWorkflow?.id} data-deck-position={i}>
           <Keycap key={keyFor(slot)} empty={!slot} {editing}
             target={slot && workflow(slot.button) ? targetLabel(slot, app.projects, app.lastProjectId) : ''}
-            disabled={!ready || saving || starting || (!!slot && !!workflow(slot.button) && app.connection !== 'live')}
-            onclick={!slot || editing ? () => { editing = true; library = i; } : workflow(slot.button) ? () => void launch(slot) : undefined}
-            onconfigure={slot && workflow(slot.button) ? () => { configuring = i; } : undefined}
+            disabled={!ready || saving || starting || (!!slot && !!workflow(slot.button) && app.connection !== 'live' && !(guide && (preview || guide === 3))) || (!!guide && (i < 6 || guide === 1 || guide === 5 || guide === 6))}
+            onclick={guide && i >= 6 ? () => {
+              if (guide === 2) { library = i; return; }
+              if (!slot || !workflow(slot.button)) return;
+              guideSlot = slot.id;
+              if (guide === 3) configureGuide();
+              else if (guide === 4 && preview) advance(5);
+              else if (guide === 4) void launch(slot);
+            } : !slot || editing ? () => { if (guide) { if (guide === 2 && i >= 6) library = i; } else { editing = true; library = i; } } : slot && workflow(slot.button) ? () => void launch(slot) : undefined}
+            onconfigure={slot && workflow(slot.button) ? () => { if (guide) guideSlot = slot.id; configuring = i; } : undefined}
             ondrag={(x,y) => dragging(i,x,y)} ondrop={drop} />
         </div>
       {/each}
     </div>
   </section>
+  {#if guide === 5 && preview}
+    {#if inspected}
+      <Sheet title="Interactive preview · execution details" onclose={() => { inspected = false; advance(6); }}>
+        <p>Preview only. No agent is running and no repository has been scanned.</p>
+        <dl><dt>Repository</dt><dd>{guideProject?.name ?? 'Select a repository in workflow settings'}</dd><dt>Current stage</dt><dd>Waiting to run (preview)</dd><dt>Completed stages</dt><dd>None — preview only</dd><dt>Agent activity</dt><dd>No live activity. A real run shows reported output here.</dd><dt>Findings or results</dt><dd>No scan results. A real scan reports credible findings, or “No bugs found in this scan.”</dd></dl>
+        <button class="btn" onclick={() => { inspected = false; advance(6); }}>Stop preview</button>
+        {#snippet footer()}<button class="btn primary" onclick={() => { inspected = false; advance(6); }}>Return to Control Deck</button>{/snippet}
+      </Sheet>
+    {/if}
+  {/if}
   <DeckRuns {history} />
   {#if library !== null}
-    <DeckLibrary position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose}
-      onremove={() => { if (library !== null) layout.slots = place(layout.slots,library,null); library = null; }}
+    <DeckLibrary onboarding={!!guide} position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose}
+      onremove={() => { if (library !== null) layout.slots = place(layout.slots,library,null); library = null; if (guide) void persist().catch(() => {}); }}
       onmove={to => { if (library !== null) move(library,to); }}
       onconfigure={() => { configuring = library; library = null; }} />
   {/if}
   {#if configuring !== null && layout.slots[configuring]}
-    <WorkflowSettings slot={layout.slots[configuring]!} onclose={() => configuring = null} onsave={configure} onrun={editing ? undefined : async slot => { configuring = null; await launch(slot, true); }} />
+    <WorkflowSettings onboarding={!!guide} onpreview={() => { configuring = null; preview = true; advance(4); }} slot={layout.slots[configuring]!} onclose={() => configuring = null} onsave={configure} onrun={editing || guide ? undefined : async slot => { configuring = null; await launch(slot, true); }} />
   {/if}
 
   {#if approving}
@@ -247,6 +330,10 @@
 </div>
 
 <style>
+  .guided { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 17px; }
+  .preview { display: grid; gap: 8px; }
+  dt { margin-top: 14px; font-weight: 600; }
+  dd { margin: 4px 0 0; color: var(--text-2); }
   .target-picker { display: grid; gap: 8px; }
   .target-picker label { display: flex; gap: 8px; align-items: center; min-height: 44px; }
   .deck-page {

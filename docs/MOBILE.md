@@ -193,3 +193,41 @@ workspace console, device API or execution routes. The Assistant runs through In
   hold versus tap, Shift+F10, drag and keyboard-compatible moves, saved empty slots, execution after refresh, output and stop,
   a completely empty deck, and workflow targets in light/dark at phone sizes. `BROWSER_DECK_ONLY=1 node scripts/test-browser.cjs`
   runs this check alone after the web build. Service tests reopen SQLite to verify preference persistence.
+
+## Interactive first-use Control Deck onboarding (4.49)
+
+Connection, phone enrolment/authentication, computer/agent sign-in, repository setup and the introductory task remain in the
+existing setup path. Once an enrolled phone (or narrow browser) opens its deck, the former tooltip tour is replaced by six
+inline steps: introduce the actual six-key/three-empty deck, choose up to three extra buttons, hold a highlighted workflow to
+configure it, tap to run, open its progress indicator, and finish back on the deck.
+
+The onboarding library separates page navigation (Reviews, Git, Runners) from the six executable workflows. Continue requires
+at least one workflow; one choice is sufficient. The first six positions are preserved during this stage. The existing setup
+example repository is preselected when it is registered and accessible. Otherwise the person selects an authorised registered
+repository; a phone cannot register one. If none is registered, the configuration sheet offers a direct interactive preview. The concise configuration sheet teaches repository selection and inherited agent/model
+defaults. The introductory output is a report. Runner, output, approval and batch-limit controls remain available in full
+configuration after onboarding. Saving never executes. Find Bugs is recommended; selecting it uses an empty socket or replaces
+the highlighted workflow if all three additions are occupied.
+
+A tap uses the real workflow API and ordinary authorised runner. Existing progress, stage evidence, agent output and Stop
+controls are reused. Missing output never implies a successful or clean scan. The Find Bugs brief asks for “No bugs found in
+this scan.” only after a completed scan with no credible findings; unavailable or incomplete investigation must be reported as
+such. Opening and closing execution details returns to the finish instruction. Inspection can be deferred and execution can be
+skipped without claiming it happened; an active job continues unless explicitly stopped.
+
+If readiness is unavailable, or a start is refused, the guide offers **Try interactive preview**. A preview tap opens a labelled
+preview progress control, then a details sheet with the selected repository, waiting stage, zero completed stages, no agent
+activity and no scan results. Stop preview/Return to Control Deck ends it. No preview action calls the workflow start API. With no repository yet, the saved button asks for its repository when run later.
+An uncertain start retains the existing retry/check-task guard instead of offering a preview that could obscure a real job.
+
+Choices and configuration save through the existing versioned controller deck record. Guide position, highlighted choice and
+preview identity resume from browser storage scoped to the phone ID (or owner browser). Finish saves the deck before marking
+the existing `werkbord-tour-phone-deck-v2` completion key. Returning users with that key keep their layout and are not forced
+through the new guide. Editing or emptying the deck does not reset completion. Help's existing replay action can reset it.
+Clearing browser data resets local tour completion, while the controller still retains the authenticated phone's saved deck.
+
+`scripts/browser-deck-onboarding.cjs`, included in the phone/deck browser suites, covers first use, navigation-only rejection,
+optional empty slots, three additions, setup repository/default configuration, live scripted-runner execution and Stop,
+refused execution plus preview, skipping, reconnection/reload, persisted layout/settings and returning users. These fixtures
+exercise the real process and API without paid model credentials; they do not establish provider sign-in, finding quality or
+physical-phone usability.

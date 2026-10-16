@@ -345,3 +345,12 @@ explicitly agent-reported investigation stages. Missing stage reports stay pendi
 The monitor uses durable task/run history and the existing event stream, catches up on reconnect, and treats an unacknowledged
 Stop as uncertain. Completed evidence stays available after cancellation or partial failure. Use the existing bottom sheet,
 status text colours, 44px actions and reduced-motion behaviour.
+
+### Interactive phone onboarding (4.49)
+
+The phone's first-use deck guide is inline above the existing tactile housing. It uses the actual button library, hold/keyboard
+configuration and execution monitor. Keep one short instruction beside the action, a six-step count, and 44px controls. Require
+one workflow among up to three additions; leave unused sockets empty. The introductory configuration emphasises the setup
+repository and inherited agent/model defaults. Unavailable execution offers an explicitly labelled interactive preview with
+no simulated findings or completed stages. Finish remembers completion independently of subsequent deck edits. Existing setup
+and desktop tours remain unchanged.

@@ -4,10 +4,10 @@
   import { app } from '../state.svelte';
   import { eligibleRunners, executionAgents, modelChoices, reasoningChoices, resolveFor, validModelName } from '../execution';
   import { workflow, type DeckSlot } from './layout';
-  let { slot, onclose, onsave, onrun }: { slot: DeckSlot; onclose: () => void; onsave: (slot: DeckSlot) => Promise<void>; onrun?: (slot: DeckSlot) => Promise<void> } = $props();
+  let { onboarding = false, slot, onclose, onsave, onrun, onpreview }: { onpreview?: () => void; onboarding?: boolean; slot: DeckSlot; onclose: () => void; onsave: (slot: DeckSlot) => Promise<void>; onrun?: (slot: DeckSlot) => Promise<void> } = $props();
   let agent = $state(untrack(() => slot.agent ?? ''));
   let model = $state(untrack(() => slot.model === 'default' ? '' : slot.model ?? ''));
-  let target = $state<NonNullable<DeckSlot['target']>>(untrack(() => slot.target ?? (slot.projectId ? 'selected' : 'current')));
+  let target = $state<NonNullable<DeckSlot['target']>>(untrack(() => onboarding ? 'selected' : slot.target ?? (slot.projectId ? 'selected' : 'current')));
   let projectIds = $state<string[]>(untrack(() => slot.projectIds ?? (slot.projectId ? [slot.projectId] : [])));
   let reasoning = $state(untrack(() => slot.reasoning ?? ''));
   let runner = $state(untrack(() => slot.runner ?? ''));
@@ -40,15 +40,16 @@
 
 <Sheet title="Configure {definition?.label ?? 'workflow'}" {onclose}>
   <form id="workflow-settings" onsubmit={save}>
-    <p>{definition?.description}</p>
-    <p class="muted">Runs on Individual through your existing runner and permissions. Changes are reviewed through the task.</p>
+    {#if onboarding}<p>Choose the test repository from setup, or another repository you authorise for this demonstration. Keep Agent and Model on their defaults to use its existing execution settings. Saving does not run it.</p>{/if}
+    {#if !onboarding}<p>{definition?.description}</p>
+    <p class="muted">Runs on Individual through your existing runner and permissions. Changes are reviewed through the task.</p>{/if}
     <label>Repository target <select class="select" bind:value={target} disabled={busy}>
-      <option value="current">Current project (resolved when run)</option><option value="selected">Selected repositories</option><option value="all">All accessible repositories</option><option value="ask">Ask every time</option>
+      <option value="selected">Selected repositories</option>{#if !onboarding}<option value="current">Current project (resolved when run)</option><option value="all">All accessible repositories</option><option value="ask">Ask every time</option>{/if}
     </select></label>
     {#if target === 'current'}<p class="muted">Current: {app.project(app.lastProjectId)?.name ?? 'Choose a project before running'}</p>{/if}
     {#if target === 'selected'}<fieldset><legend>Repositories</legend>{#each repositories as p (p.id)}<label class="check"><input type="checkbox" bind:group={projectIds} value={p.id} disabled={busy} />{p.name}</label>{/each}</fieldset>{/if}
-    <label>Runner <select class="select" bind:value={runner} disabled={busy}><option value="">Project / controller default</option><option value="automatic">Automatic</option>{#each app.runners.filter(r => !r.disabled) as r (r.id)}<option value={r.id}>{r.name}{r.online ? '' : ' (offline)'}</option>{/each}</select></label>
-    {#if !repositories.length}<p class="muted">Add a Git repository on your computer first, then return here.</p>{/if}
+    {#if !onboarding}<label>Runner <select class="select" bind:value={runner} disabled={busy}><option value="">Project / controller default</option><option value="automatic">Automatic</option>{#each app.runners.filter(r => !r.disabled) as r (r.id)}<option value={r.id}>{r.name}{r.online ? '' : ' (offline)'}</option>{/each}</select></label>{/if}
+    {#if !repositories.length}<p class="muted">Add a Git repository on your computer first, then return here.</p>{#if onboarding && onpreview}<button class="btn" type="button" onclick={onpreview}>Continue with interactive preview</button>{/if}{/if}
     <label>Agent <select class="select" bind:value={agent} disabled={busy} onchange={() => { model = ''; reasoning = ''; custom = false; }}>
       <option value="">Project / controller default{inherited.agent ? ` (${inherited.agent})` : ''}</option>
       {#each agents as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
@@ -62,12 +63,12 @@
     </select></label>
     {#if custom && agent}<label>Model name <input class="input" bind:value={model} disabled={busy} maxlength="100" autocomplete="off" autocapitalize="off" spellcheck="false" /></label>{/if}
     {#if reasoningChoices(options, model).length > 1}<label>Reasoning <select class="select" bind:value={reasoning} disabled={busy || !agent}><option value="">Inherit execution default</option>{#each reasoningChoices(options, model) as r (r.id)}<option value={r.id}>{r.name}</option>{/each}</select></label>{/if}
-    <label>Output <select class="select" bind:value={output} disabled={busy}><option value="report">Report</option><option value="drafts">Draft tasks in Backlog</option>{#if slot.button === 'improve-tests' || slot.button === 'refactor-codebase'}<option value="changes">Propose, then implement approved changes</option>{/if}</select></label>
+    {#if !onboarding}<label>Output <select class="select" bind:value={output} disabled={busy}><option value="report">Report</option><option value="drafts">Draft tasks in Backlog</option>{#if slot.button === 'improve-tests' || slot.button === 'refactor-codebase'}<option value="changes">Propose, then implement approved changes</option>{/if}</select></label>
     <label>Approval <select class="select" bind:value={approval} disabled={busy}><option value="changes">Before changes and sensitive actions</option><option value="always">Before investigation as well</option></select></label>
-    <label>Maximum repositories (0 = no additional limit) <input class="input" type="number" min="0" max="100" step="1" bind:value={maxRepositories} disabled={busy} /></label>
+    <label>Maximum repositories (0 = no additional limit) <input class="input" type="number" min="0" max="100" step="1" bind:value={maxRepositories} disabled={busy} /></label>{/if}
     {#if problem}<p class="error" role="alert">{problem}</p>{/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-    <p class="muted">Saving configures this button. Tap it on the deck to start work. Hold it, press Shift+F10, or use Edit Deck to configure it again.</p>
+    <p class="muted">{onboarding ? 'The introductory run produces a report. Full settings are available after onboarding. ' : ''}Saving configures this button. Tap it on the deck to start work. Hold it, press Shift+F10, or use Edit Deck to configure it again.</p>
   </form>
   {#snippet footer()}
     <button class="btn" type="button" onclick={onclose} disabled={busy}>Cancel</button>
