@@ -61,6 +61,14 @@
    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !narrow.matches) return;
    const a = event.target.closest?.("a[href]");
    if (!a || a.closest("#phone-lanes") || a.target || a.hasAttribute("download")) return;
+   // Workflow execution belongs to Individual even when section navigation last used Team.
+   // This selects a destination only; credentials and backend permissions stay separate.
+   if (a.closest('[data-workspace="individual"]')) {
+     selected = "individual";
+     try { localStorage.setItem(preference, selected); } catch { /* Keep this visit usable. */ }
+     update();
+     return;
+   }
    const url = new URL(a.href, location.href);
    if (url.origin !== location.origin || url.pathname !== "/") return;
    const section = sectionOf(url.hash);

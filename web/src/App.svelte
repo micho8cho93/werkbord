@@ -221,9 +221,9 @@
       {/if}
 
       <PhoneWelcome />
-      <Tour surface="desktop" enabled={!isPhone() && !app.needsOnboarding && router.view !== 'onboarding'} />
+      <Tour surface="desktop" enabled={!deck && !isPhone() && !app.needsOnboarding && router.view !== 'onboarding'} />
       {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}
-      <!-- The Control Deck says it in its own strip. -->
+      <!-- The Control Deck exposes Needs you through its configurable key. -->
       {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}
       <UpdateBanner />
 

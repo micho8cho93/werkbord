@@ -36,6 +36,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     const errors = [];
     async function phone(width, height, scheme = 'light', extra = {}) {
         const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: true, isMobile: true, colorScheme: scheme, deviceScaleFactor: 2, ...extra });
+        await ctx.addInitScript(() => localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture'));
         const page = await ctx.newPage();
         page.setDefaultTimeout(10000);
         page.on('pageerror', (e) => errors.push(e.message));
@@ -47,24 +48,38 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     // ---- the deck is where the phone opens, nine equal keys in three columns ----
     {
         const { ctx, page } = await phone(390, 844);
-        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('deck-grid').waitFor();
         assert.match(page.url(), /#\/deck$/, 'a phone opens on the Control Deck');
         const keys = page.locator('[data-key]');
-        assert.equal(await keys.count(), 9, 'nine keys');
-        assert.deepEqual(await keys.evaluateAll((els) => els.map((e) => e.dataset.key)), KEYS.map((k) => k[0]), 'the default arrangement');
-        const boxes = await keys.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }));
+        assert.equal(await keys.count(), 6, 'six initial navigation keys');
+        assert.equal(await page.getByRole('button', { name: 'Empty slot. Add a button', exact: true }).count(), 3, 'three empty sockets');
+        assert.equal(await page.getByText('All clear', { exact: true }).count(), 0, 'no redundant All clear banner');
+        await page.getByRole('button', { name: 'Jump to', exact: true }).waitFor();
+        await page.getByRole('link', { name: 'Help and shortcuts', exact: true }).waitFor();
+        assert.deepEqual(await keys.evaluateAll((els) => els.map((e) => e.dataset.key)), KEYS.slice(0,6).map((k) => k[0]), 'the default arrangement');
+        const boxes = await page.locator('[data-deck-position] .key-slot').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }));
         assert.equal(new Set(boxes.map((b) => b.w)).size, 1, 'equal widths');
         assert.equal(new Set(boxes.map((b) => b.h)).size, 1, 'equal heights');
         assert.equal(new Set(boxes.map((b) => b.x)).size, 3, 'three columns');
         assert.equal(new Set(boxes.map((b) => b.y)).size, 3, 'three rows');
         assert(boxes.every((b) => b.w >= 44 && b.h >= 44), 'touch targets of at least 44px');
         assert(boxes[0].x > 16 + 10 && boxes[2].x + boxes[2].w < 390 - 16 - 10, 'the keys sit inside a housing with material round them');
-        for (const [, label] of KEYS) await page.locator('[data-key]', { hasText: label }).first().waitFor();
+        for (const [, label] of KEYS.slice(0,6)) await page.locator('[data-key]', { hasText: label }).first().waitFor();
         const nav = page.getByRole('navigation', { name: 'Primary' });
         assert.equal(await nav.getByRole('link').count() + await nav.getByRole('button').count(), 2, 'two places at the bottom');
         assert.equal(await nav.getByTestId('nav-deck').getAttribute('aria-current'), 'page');
         await noOverflow(page, 'the deck');
 
+        // Restore the optional navigation keys through the library, then exercise all existing routes.
+        await page.getByTestId('edit-deck').click();
+        for (let i = 6; i < 9; i++) {
+            await page.locator(`[data-deck-position="${i}"] .key-slot`).click();
+            await page.getByRole('dialog').getByRole('button', { name: KEYS[i][1], exact: true }).click();
+        }
+        await page.getByRole('button', { name: 'Done', exact: true }).click();
+        await page.getByRole('button', { name: 'Edit Deck', exact: true }).waitFor();
+        await page.reload();
+        await page.waitForFunction(() => document.querySelectorAll('[data-key]').length === 9);
         // Every key opens its page, and Back comes home.
         for (const [id, label, hash] of KEYS) {
             await page.locator(`[data-key="${id}"]`).click();
@@ -76,14 +91,16 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
             await page.getByTestId('phone-back').click();
             await page.waitForFunction(() => location.hash === '#/deck');
         }
-        console.log('PASS phone deck: nine keys, each opens its page, Back returns');
+        const saved = await api('GET', '/api/deck');
+        await api('PUT', '/api/deck', { version: saved.version, slots: saved.slots.map((s,i) => i < 6 ? s : null) });
+        console.log('PASS phone deck: six defaults, three empty slots, library persistence and all navigation routes');
         await ctx.close();
     }
 
     // ---- a key is pressed down while it is held, and not moved at all with reduced motion ----
     for (const reduced of [false, true]) {
         const { ctx, page } = await phone(390, 844, 'light', { reducedMotion: reduced ? 'reduce' : 'no-preference' });
-        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('deck-grid').waitFor();
         const key = page.locator('[data-key="calendar"]');
         const cap = key.locator('.cap');
         const rest = await cap.evaluate((e) => getComputedStyle(e).transform);
@@ -104,7 +121,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     {
         const { ctx, page } = await phone(390, 844);
         // Signing in rewrites the address once the page has started; wait for the deck so that it cannot overwrite where we go next.
-        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('deck-grid').waitFor();
         await page.goto(base + '/#/schedule');
         await page.getByRole('button', { name: 'Month', exact: true }).waitFor();
         await page.locator(`[data-day="${day(0)}"]`).click();
@@ -139,7 +156,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     // ---- the Assistant is the second place, and the bar stays over it ----
     {
         const { ctx, page } = await phone(390, 844);
-        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('deck-grid').waitFor();
         await page.getByTestId('nav-assistant').click();
         await page.getByTestId('assistant').waitFor();
         assert.equal(await page.getByTestId('nav-assistant').getAttribute('aria-current'), 'page');
@@ -157,7 +174,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     for (const [w, h] of [[320, 568], [360, 740], [430, 932], [844, 390]]) {
         for (const scheme of ['light', 'dark']) {
             const { ctx, page } = await phone(w, h, scheme);
-            await page.getByTestId('deck-attention').waitFor();
+            await page.getByTestId('deck-grid').waitFor();
             for (const hash of ['#/deck', '#/mywork', '#/schedule', '#/agents', '#/reviews', '#/repositories', '#/runners', '#/analytics', '#/control', '#/projects', `#/p/${project.id}/board`]) {
                 await page.goto(base + '/' + hash);
                 await page.waitForTimeout(300);
@@ -173,7 +190,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
     // ---- the project's board shows one column at a time ----
     {
         const { ctx, page } = await phone(390, 844);
-        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('deck-grid').waitFor();
         await page.goto(base + `/#/p/${project.id}/board`);
         const group = page.getByRole('group', { name: 'Board column' });
         await group.waitFor();
@@ -203,7 +220,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
         const tokenCalls = [];
         page.on('request', (r) => { if (r.url().includes(code) || (r.postData() || '').includes(token)) tokenCalls.push(r.url()); });
         await page.goto(base + '/#enroll=' + code);
-        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('deck-grid').waitFor();
         await page.getByTestId('phone-welcome').waitFor();
         assert.match(await page.getByTestId('phone-welcome').innerText(), /Signed in as iPhone \(Safari\)/, 'named from the device, without asking');
         assert(!page.url().includes('enroll') && !page.url().includes(code), 'the code is gone from the address bar');
@@ -233,7 +250,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
 
         // Persistent: a reload is still signed in, with no second welcome.
         await page.reload();
-        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('deck-grid').waitFor();
         assert.equal(await page.getByTestId('phone-welcome').count(), 0);
 
         // Scope: the phone does its work, and the owner's things are refused.
@@ -284,13 +301,13 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
         await page.getByTestId('phone-self').waitFor();
         assert.match(await page.getByTestId('phone-self').innerText(), /Michel iPhone/);
         await page.goto(base + '/#/deck');
-        await page.getByTestId('deck-attention').waitFor();
+        await page.getByTestId('deck-grid').waitFor();
         console.log('PASS phone scope: its work is allowed, the owner\'s things are refused');
 
         // Revoke: the open page is signed out without being touched.
         await ownerRequest('DELETE', '/api/phones/' + listed[0].id);
         await page.getByTestId('signed-out').waitFor({ timeout: 15000 });
-        assert.equal(await page.getByTestId('deck-attention').count(), 0, 'nothing of the app is left on screen');
+        assert.equal(await page.getByTestId('deck-grid').count(), 0, 'nothing of the app is left on screen');
         await page.reload();
         await page.getByTestId('signed-out').waitFor();
         assert.equal(await asPhone('GET', '/api/projects'), 401, 'the revoked credential is refused');

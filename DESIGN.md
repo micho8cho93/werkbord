@@ -75,7 +75,7 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
   ([ARCHITECTURE.md §22](docs/ARCHITECTURE.md#the-window-and-its-workspaces)). Inside a project: header (path · branch, name, Jump to ⌘K, project
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
   themselves (board columns, panel feed), not the page.
-- Phone (under 900px, outside the desktop app): the Control Deck, nine keycaps in a matte housing, is home, and the bottom bar has two
+- Phone (under 900px, outside the desktop app): the configurable Control Deck, nine positions in a matte housing, is home, and the bottom bar has two
   places, the deck and the Assistant ([docs/MOBILE.md](docs/MOBILE.md)). The deck is the one place the flat paper gives way to material,
   built from the same tokens; every other phone page is the desktop's page in a phone layout.
 - A task opens as a panel over its board (`#/p/<id>/task/<id>`); Esc closes it.
@@ -323,3 +323,15 @@ Home and End, show selected state and retain visible labels at narrow widths.
 
 Every desktop window opens on Universal → My Work. Stored workspace locations remain available when a person explicitly
 opens that workspace; they do not choose the startup surface.
+
+### Configurable phone Control Deck (4.46)
+
+The initial deck keeps Needs you, Calendar, Projects, My Work, Agents and Analytics, with three empty sockets. Edit Deck / Done
+stays visible above the housing. Every position can be replaced, removed or moved, including by keyboard through Move to
+position. Empty sockets remain empty. Preserve the keycap materials, themes and reduced-motion behaviour.
+
+Workflow keys show their name, icon and repository target (or reported run state). Tap executes a configured workflow; hold,
+Shift+F10, context menu and the editing settings control configure it. Configuration never starts work. Workflows target
+Individual repositories; ordinary task views provide output, questions, review and cancellation. Phone preferences live in the
+controller per enrolled phone. The redundant attention strip is removed; Needs you retains its live count and destination.
+Search and Help sit beside Settings in the header with 44px targets. The per-phone tour explains editing and execution.

@@ -1,5 +1,4 @@
-// The Control Deck: which nine keys it has, in which order, and what each says about the work behind it. No framework code, so
-// it can be tested on its own. A key is a shortcut to a page; it never does anything itself and carries nothing the page does not.
+// The navigation button catalogue and live counts. The saved nine-position layout and workflow catalogue live in layout.ts.
 
 import type { IconName } from '../Icon.svelte';
 import { globalHref } from '../location';
@@ -11,7 +10,7 @@ export type DeckKeyId = 'needs' | 'calendar' | 'projects' | 'mywork' | 'agents' 
 export type DeckTone = 'wait' | 'work' | 'plain';
 
 export interface DeckKey {
-  id: DeckKeyId;
+  id: string;
   label: string;
   icon: IconName;
   href: string;
@@ -32,7 +31,7 @@ export interface DeckCounts {
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /**
- * The default arrangement, left to right and top to bottom. Each key's icon is the one the desktop navigation already uses for that
+ * The navigation catalogue, in the original order. Each key's icon is the one the desktop navigation already uses for that
  * place (the sidebar's and rail's), so nothing here is a new picture for something the app already draws.
  */
 export function deckKeys(c: DeckCounts): DeckKey[] {
@@ -54,13 +53,6 @@ export function deckCounts(overview: Overview | null, needsYou: number): DeckCou
   const projects = overview?.projects ?? [];
   const sum = (f: (p: Overview['projects'][number]) => number) => projects.reduce((n, p) => n + f(p), 0);
   return { needsYou, review: sum((p) => p.review), running: sum((p) => p.running), repoAttention: sum((p) => p.repoAttention) };
-}
-
-/** The attention strip's sentence: what waits for the person, most pressing first, or that nothing does. */
-export function attentionLine(needsYou: number, review: number): { text: string; waiting: boolean } {
-  if (needsYou > 0) return { text: `${plural(needsYou, 'item')} ${needsYou === 1 ? 'needs' : 'need'} your input`, waiting: true };
-  if (review > 0) return { text: `${review} ready for review`, waiting: false };
-  return { text: 'All clear', waiting: false };
 }
 
 /** Runners the person's computer can use right now: connected and not switched off. */

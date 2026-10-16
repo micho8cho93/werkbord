@@ -1,0 +1,126 @@
+// Configurable deck integration against the disposable controller and real runner fixture.
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const fs = require('node:fs');
+const base = process.env.PERSONAL_BROWSER_URL;
+const owner = 'disposable-browser-credential';
+async function request(token, method, route, body) {
+    const response = await fetch(base + route, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const raw = await response.text();
+    assert(response.ok, `${method} ${route}: ${response.status} ${raw}`);
+    return raw ? JSON.parse(raw) : null;
+}
+(async () => {
+    let project = (await request(owner, 'GET', '/api/projects')).projects.find(p => p.repoPath === fs.realpathSync(process.env.WERKBORD_BROWSER_REPO));
+    if (!project) project = await request(owner, 'POST', '/api/projects', { path: fs.realpathSync(process.env.WERKBORD_BROWSER_REPO), name: 'Deck fixture' });
+    const code = await request(owner, 'POST', '/api/phones/codes', {});
+    const phone = await request('', 'POST', '/api/phones/enroll', { code: code.code, name: 'Deck integration fixture' });
+    const browser = await chromium.launch({ headless: true });
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const errors = [];
+    await ctx.addInitScript(token => {
+        localStorage.setItem('devboard.token', token);
+        localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture');
+    }, phone.token);
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(10000);
+    page.on('pageerror', e => errors.push(e.message));
+    let starts = 0;
+    page.on('request', r => { if (new URL(r.url()).pathname === '/api/deck/workflows' && r.method() === 'POST') starts++; });
+    const socket = i => page.locator(`[data-deck-position="${i}"] .key-slot`);
+    const dialog = () => page.getByRole('dialog');
+    const edit = () => page.getByRole('button', { name: 'Edit Deck', exact: true });
+    const done = () => page.getByRole('button', { name: 'Done', exact: true });
+    try {
+        await page.goto(base + '/#/deck');
+        await edit().waitFor();
+        await edit().click();
+        await socket(6).click();
+        await dialog().getByRole('button', { name: /^Find Bugs/ }).click();
+        await dialog().getByRole('combobox', { name: 'Repository', exact: true }).selectOption(project.id);
+        await dialog().getByRole('combobox', { name: 'Agent', exact: true }).selectOption('fixture');
+        await dialog().getByRole('button', { name: 'Save configuration', exact: true }).click();
+        assert.equal(starts, 0, 'configuration never executes');
+        await done().click();
+        await edit().waitFor();
+        await page.reload(); await edit().waitFor();
+        await page.waitForFunction(() => document.querySelector('[data-deck-position="6"] [data-key="find-bugs"]'));
+        assert((await socket(6).innerText()).includes(project.name), 'workflow shows its repository target');
+
+        // Holding configures, releasing never launches. Escape restores keyboard focus.
+        const box = await socket(6).boundingBox();
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down(); await page.waitForTimeout(650); await page.mouse.up();
+        await dialog().getByRole('heading', { name: 'Configure Find Bugs' }).waitFor();
+        assert.equal(starts, 0, 'long press does not execute');
+        await page.keyboard.press('Escape');
+        await socket(6).focus(); await page.keyboard.press('Shift+F10');
+        await dialog().getByRole('heading', { name: 'Configure Find Bugs' }).waitFor();
+        await page.keyboard.press('Escape');
+        assert.equal(starts, 0, 'keyboard configuration does not execute');
+
+        // Pointer dragging preserves empty positions. The menu supplies a keyboard alternative.
+        await edit().click();
+        const from = await socket(6).boundingBox(), to = await socket(8).boundingBox();
+
+        await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+        await page.mouse.down(); await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 }); await page.mouse.up();
+        await page.waitForFunction(() => document.querySelector('[data-deck-position="8"] [data-key="find-bugs"]'));
+        assert.equal(starts, 0, 'drag never executes');
+        await socket(8).click();
+        await dialog().getByRole('combobox', { name: 'Move to position' }).selectOption({ label: '8' });
+        await page.waitForFunction(() => document.querySelector('[data-deck-position="7"] [data-key="find-bugs"]'));
+        await done().click(); await edit().waitFor();
+        await page.reload(); await edit().waitFor();
+        assert.equal(await socket(6).getAttribute('data-key'), null);
+        assert.equal(await socket(8).getAttribute('data-key'), null);
+        await page.waitForFunction(() => document.querySelector('[data-deck-position="7"] [data-key="find-bugs"]'));
+
+        // A genuine tap starts one ordinary run. Reconnecting restores its progress and task view.
+        await socket(7).click();
+        const executions = page.getByRole('region', { name: 'Workflow executions' });
+        await executions.getByRole('link', { name: 'Find Bugs', exact: true }).waitFor();
+        assert.equal(starts, 1, 'tap executes once');
+        await page.reload(); await edit().waitFor();
+        await executions.getByRole('link', { name: 'Find Bugs', exact: true }).waitFor();
+        await executions.getByRole('link', { name: 'Find Bugs', exact: true }).click();
+        await page.waitForFunction(() => location.hash.includes('/task/'));
+        await page.getByText('Fixture process ready', { exact: false }).first().waitFor();
+        assert.equal(starts, 1, 'reload and detail view do not replay execution');
+        const history = await request(phone.token, 'GET', '/api/deck/history');
+        const runs = await request(phone.token, 'GET', `/api/projects/${project.id}/tasks/${history[0].taskId}/runs`);
+        assert.equal(runs.runs.length, 1);
+        await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${runs.runs[0].id}/stop`, {});
+        await page.goto(base + '/#/deck'); await edit().waitFor();
+
+        // Workflow labels, targets, edit controls and sheets fit both themes and phone sizes.
+        for (const width of [320, 430, 844]) {
+            await page.setViewportSize({ width, height: width === 844 ? 390 : 844 });
+            for (const colorScheme of ['light', 'dark']) {
+                await page.emulateMedia({ colorScheme });
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `workflow deck ${width} ${colorScheme}`);
+                for (const target of [page.getByRole('button', { name: 'Jump to', exact: true }), page.getByRole('link', { name: 'Help and shortcuts', exact: true }), edit()]) {
+                    const r = await target.boundingBox(); assert(r.width >= 44 && r.height >= 44, '44px controls');
+                }
+                if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, `configured-deck-${width}-${colorScheme}.png`), fullPage: true });
+            }
+        }
+        // Removing everything persists an intentionally empty deck.
+        await page.setViewportSize({ width: 390, height: 844 });
+        await edit().click();
+        for (const i of [0,1,2,3,4,5,7]) { await socket(i).click(); await dialog().getByRole('button', { name: 'Remove button', exact: true }).click(); }
+        await done().click(); await edit().waitFor(); await page.reload(); await edit().waitFor();
+        await page.waitForFunction(() => document.querySelectorAll('[data-key]').length === 0);
+        assert.equal(await page.getByRole('button', { name: 'Empty slot. Add a button', exact: true }).count(), 9);
+        assert.deepEqual(errors, []);
+        console.log('PASS configurable deck: persistence, touch/keyboard configuration, dragging, explicit empties, normal execution, progress and detail, themes and 44px targets');
+    } catch (e) {
+        console.error('Deck positions:', await page.locator('[data-deck-position]').evaluateAll(els => els.map(el => el.innerText)));
+        if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, 'deck-failure.png'), fullPage: true });
+        throw e;
+    } finally {
+        await browser.close();
+        await request(owner, 'DELETE', '/api/phones/' + phone.id);
+    }
+})().catch(e => { console.error(e); process.exitCode = 1; });

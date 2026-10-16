@@ -58,9 +58,14 @@ branch, clean a worktree, open a pull request); and use the **Assistant**, all o
 entry, rename itself and sign itself out.
 
 **What a phone cannot do.** Change any setting, register or change a repository, read or rotate the controller's token, pair or
-revoke a runner, choose an agent, model, policy or runner for a task or run, make codes or see and revoke phones, or manage
+revoke a runner, change general task/run execution settings, make codes or see and revoke phones, or manage
 connections or MCP clients. Those are yours, at your computer. The phone's screens do not show them (its Settings has only
 Phones and display); the controller refuses them with `403` regardless.
+
+**Configurable deck exception.** A phone may save only its own nine-position deck and choose an agent/model for one of six
+fixed workflow buttons targeting a registered Individual repository. The dedicated deck routes do not permit policy changes,
+runner selection, repository registration, general settings or arbitrary commands. Workflow starts use ordinary tasks/runs
+and the same agent permission checks. See [MOBILE.md](MOBILE.md).
 
 The list is fixed and reviewed (`internal/api/phone.go`); a test fails when it changes without the change being read.
 

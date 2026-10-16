@@ -21,8 +21,8 @@ import (
 	"devboard/internal/events"
 	"devboard/internal/gitrepo"
 	"devboard/internal/localaccess"
-	"devboard/internal/phoneaccess"
 	"devboard/internal/netprivate"
+	"devboard/internal/phoneaccess"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store/sqlite"
@@ -37,6 +37,16 @@ func (network) Status() netprivate.Status {
 func (network) Enable(context.Context) error  { return nil }
 func (network) Disable(context.Context) error { return nil }
 func (network) Choice(context.Context) string { return "on" }
+
+// The fixture reports relay readiness without contacting external infrastructure.
+// QR links remain local; browser enrollment tests exercise the real phone API.
+type fixtureRelay struct{}
+
+func (fixtureRelay) Status() api.RelayStatus { return api.RelayStatus{Enabled: true, Connected: true} }
+func (fixtureRelay) Link(code string) (string, error) {
+	return "http://127.0.0.1:17421/#enroll=" + code, nil
+}
+
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--agent-fixture" {
 		if err := runFixtureAgent(); err != nil {
@@ -109,7 +119,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	handler := api.New(api.Options{Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	handler := api.New(api.Options{Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

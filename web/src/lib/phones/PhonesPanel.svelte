@@ -97,7 +97,7 @@
       <p class="muted">This phone is signed in to Werkbord by its own code. Phones are managed on your computer.</p>
     {:else}
       <p class="muted">
-        A phone you add can see your work, answer agents and use the Assistant. It cannot change settings, add repositories, merge or push.
+        A phone you add can see your work, answer agents, use the Assistant, run configured workflows and use Git actions. General settings, adding repositories and managing runners stay on this computer.
         Each phone has its own sign-in that you can take away.
       </p>
     {/if}

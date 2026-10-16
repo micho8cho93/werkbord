@@ -1,35 +1,144 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { ApiError, api } from '../api';
+  import { isPhone } from '../phones/capability';
   import { agentName, runStatus } from '../format';
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
-  import { globalHref } from '../router.svelte';
+  import { globalHref, taskHref } from '../location';
   import { app } from '../state.svelte';
-  import { activeRunners, attentionLine, connectionWord, deckCounts, deckKeys } from './deck';
+  import { activeRunners, connectionWord, deckCounts, deckKeys, type DeckKey } from './deck';
   import Keycap from './Keycap.svelte';
   import Tour from '../Tour.svelte';
-
-  // The phone's home. A header that says whether the controller is reachable, one line on what needs the person, the nine keys, and
-  // what the agents are doing now. It only reads what the app already holds (the Control Center overview and the runners); the keys
-  // are links to pages, so nothing here can start, stop or change anything.
+  import DeckLibrary from './DeckLibrary.svelte';
+  import WorkflowSettings from './WorkflowSettings.svelte';
+  import DeckRuns from './DeckRuns.svelte';
+  import { deckApi, initialLayout, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot } from './layout';
 
   const counts = $derived(deckCounts(app.overview, app.needsYou));
   const keys = $derived(deckKeys(counts));
-  const attention = $derived(attentionLine(counts.needsYou, counts.review));
   const link = $derived(connectionWord(app.connection));
   const runners = $derived(activeRunners(app.runners));
   const loaded = $derived(app.overview !== null);
   const active = $derived((app.overview?.runs ?? []).filter((x) => runStatus(x.run).active));
   const waiting = $derived(active.filter((x) => runStatus(x.run).needsInput).length);
   const working = $derived(active.filter((x) => x.run.state === 'running' || x.run.state === 'starting'));
-  // "2 agents running · 1 waiting for you", and which agents they are.
-  const headline = $derived(
-    [working.length ? `${working.length} ${working.length === 1 ? 'agent' : 'agents'} running` : '', waiting ? `${waiting} waiting for you` : ''].filter(Boolean).join(' · ') || 'No agents are running',
-  );
+  const headline = $derived([working.length ? `${working.length} ${working.length === 1 ? 'agent' : 'agents'} running` : '', waiting ? `${waiting} waiting for you` : ''].filter(Boolean).join(' · ') || 'No agents are running');
   const names = $derived([...new Set(active.map((x) => agentName(app.agents, x.run.agentId)))].join(', '));
+  let layout = $state<DeckLayout>(initialLayout());
+  let ready = $state(false);
+  let saving = $state(false);
+  let editing = $state(false);
+  let error = $state('');
+  let announcement = $state('');
+  let library = $state<number | null>(null);
+  let configuring = $state<number | null>(null);
+  let history = $state<DeckExecution[]>([]);
+  let pending = $state<{ slotId: string; requestId: string } | null>(null);
+  let starting = $state(false);
+  let storageKey = '';
+  let dragFrom: number | null = null;
+  let dragTo = $state<number | null>(null);
+
+  async function refreshHistory() { history = await deckApi.history(); }
+  async function load() {
+    error = '';
+    try { layout = await deckApi.load(); await refreshHistory(); ready = true; }
+    catch (err) { error = err instanceof Error ? err.message : String(err); }
+  }
+  onMount(() => {
+    let disposed = false;
+    void (async () => {
+      try {
+        const owner = isPhone() ? (await api.phoneSelf()).id : 'owner';
+        storageKey = `werkbord.deck.pending.${owner}`;
+        try { pending = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null'); } catch { /* no previous request */ }
+        if (!disposed) await load();
+      } catch (err) { if (!disposed) error = err instanceof Error ? err.message : String(err); }
+    })();
+    const visibility = () => { if (document.visibilityState === 'visible') void refreshHistory().catch(() => {}); };
+    document.addEventListener('visibilitychange', visibility);
+    return () => { disposed = true; document.removeEventListener('visibilitychange', visibility); };
+  });
+  async function persist(next = layout) {
+    saving = true; error = '';
+    try { layout = await deckApi.save(next); announcement = 'Deck saved'; }
+    catch (err) { error = err instanceof Error ? err.message : String(err); throw err; }
+    finally { saving = false; }
+  }
+  async function done() { try { await persist(); editing = false; } catch { /* keep the edited layout */ } }
+  function choose(button: ButtonId) {
+    if (library === null) return;
+    const index = library;
+    const slot: DeckSlot = { id: crypto.randomUUID(), button };
+    layout.slots = place(layout.slots, index, slot);
+    library = null;
+    if (workflow(button)) configuring = index;
+  }
+  async function configure(slot: DeckSlot) {
+    if (configuring === null) return;
+    const next = { ...layout, slots: place(layout.slots, configuring, slot) };
+    if (editing) layout = next; else await persist(next);
+    configuring = null;
+  }
+  function move(from: number, to: number) {
+    layout.slots = rearrange(layout.slots, from, to); library = null;
+    announcement = `Moved button from position ${from + 1} to ${to + 1}`;
+  }
+  function dragging(from: number, x: number, y: number) {
+    dragFrom = from;
+    const target = document.elementFromPoint(x,y)?.closest<HTMLElement>('[data-deck-position]');
+    dragTo = target ? Number(target.dataset.deckPosition) : null;
+  }
+  function drop(cancelled = false) { if (!cancelled && dragFrom !== null && dragTo !== null) move(dragFrom, dragTo); dragFrom = null; dragTo = null; }
+  function latest(slot: DeckSlot) {
+    const h = history.find(h => h.slotId === slot.id);
+    return h ? app.scope(h.projectId)?.latestRun[h.taskId] : undefined;
+  }
+  function keyFor(slot: DeckSlot | null): DeckKey {
+    if (!slot) return { id: 'empty', label: 'Add button', icon: 'plus', href: '', count: 0, tone: 'plain', note: '' };
+    const w = workflow(slot.button);
+    if (!w) return keys.find(k => k.id === slot.button)!;
+    const run = latest(slot);
+    return { id: slot.button, label: w.label, icon: w.icon, href: '', count: 0, tone: run && runStatus(run).active ? (runStatus(run).needsInput ? 'wait' : 'work') : 'plain', note: run ? runStatus(run).label : '' };
+  }
+  function clearPending() { pending = null; try { sessionStorage.removeItem(storageKey); } catch { /* server still deduplicates */ } }
+  async function launch(slot: DeckSlot) {
+    if (starting || app.connection !== 'live') return;
+    if (!slot.projectId) { configuring = layout.slots.findIndex(s => s?.id === slot.id); return; }
+    const run = latest(slot);
+    if (run && runStatus(run).active) { location.hash = taskHref(run.projectId, run.taskId, run.id); return; }
+    if (pending) { error = 'Check the previous workflow start before starting another.'; return; }
+    pending = { slotId: slot.id, requestId: crypto.randomUUID() };
+    try { sessionStorage.setItem(storageKey, JSON.stringify(pending)); }
+    catch { error = 'This browser cannot save the start request. Enable browser storage and try again.'; pending = null; return; }
+    await executePending();
+  }
+  async function executePending() {
+    if (!pending || starting || app.connection !== 'live') return;
+    const invocation = pending;
+    starting = true; error = '';
+    try {
+      const result = await deckApi.start(invocation.slotId, invocation.requestId);
+      app.warm(result.task.projectId);
+      app.scope(result.task.projectId)?.upsertTask(result.task);
+      app.scope(result.task.projectId)?.upsertRun(result.run);
+      history = [{ ...invocation, projectId: result.task.projectId, taskId: result.task.id }, ...history.filter(h => h.requestId !== invocation.requestId)].slice(0,32);
+      clearPending();
+      announcement = `${result.task.title} started`;
+      app.refreshOverview();
+    } catch (err) {
+      const refused = err instanceof ApiError && err.status < 500;
+      if (refused) clearPending();
+      error = `${err instanceof Error ? err.message : String(err)}${refused ? ' Check Workflow executions for a saved task.' : ' The start may have been accepted. Check its task, or retry the same start safely.'}`;
+      await refreshHistory().catch(() => {});
+    } finally { starting = false; }
+  }
+
 </script>
 
 <div class="deck-page">
-  <Tour surface="phone" />
+  <Tour surface="phone" enabled={ready && !editing && configuring === null && library === null && !starting} />
   <header class="top">
     <div class="id">
       <a class="brand" href={globalHref('deck')} aria-label="Werkbord, Control Deck">
@@ -45,22 +154,56 @@
         {#if loaded} · {runners.length} {runners.length === 1 ? 'runner' : 'runners'}{counts.running ? ` · ${counts.running} ${counts.running === 1 ? 'agent' : 'agents'} running` : ''}{/if}
       </p>
     </div>
-    <a class="btn icon" href={globalHref('settings')} aria-label="Settings" title="Settings"><Icon name="settings" /></a>
+    <nav class="header-actions" aria-label="Deck tools">
+      <button class="btn icon" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to" title="Jump to"><Icon name="search" /></button>
+      <a class="btn icon" href={globalHref('help')} aria-label="Help and shortcuts" title="Help and shortcuts"><Icon name="help" /></a>
+      <a class="btn icon" href={globalHref('settings')} aria-label="Settings" title="Settings"><Icon name="settings" /></a>
+    </nav>
   </header>
-
-  <a class="attention card" class:waiting={attention.waiting} href={globalHref('control')} data-testid="deck-attention">
-    {#if attention.waiting}<span class="num pend" aria-hidden="true">{counts.needsYou}</span>{:else}<span class="signal" aria-hidden="true"></span>{/if}
-    <span class="say">{loaded ? attention.text : 'Looking…'}</span>
-    <Icon name="right" size={16} />
-  </a>
+  <div class="deck-toolbar">
+    <span class="deck-title">Control Deck</span>
+    <button class="btn small" type="button" disabled={!ready || saving || starting} onclick={() => { if (editing) void done(); else { editing = true; announcement = 'Editing deck'; } }} data-testid="edit-deck">{saving ? 'Saving…' : editing ? 'Done' : 'Edit Deck'}</button>
+  </div>
+  {#if editing}<p class="edit-hint">Tap to replace or remove. Drag to swap positions, or use Move to position in the button menu.</p>{/if}
+  {#if error}<p class="error" role="alert">{error}</p><button class="btn small" onclick={load} disabled={saving || starting}>Reload saved deck</button>{/if}
+  {#if pending}
+    <div class="pending" role="status">
+      <p>{starting ? 'Starting workflow…' : 'A workflow start needs checking. Its task may already exist.'}</p>
+      {#if !starting}
+        <button class="btn small" disabled={app.connection !== 'live'} onclick={() => void executePending()}>Retry same start</button>
+        {#if history.find(h => h.requestId === pending?.requestId)}
+          {@const h = history.find(h => h.requestId === pending?.requestId)!}
+          <a class="btn small" href={taskHref(h.projectId,h.taskId)} data-workspace="individual" onclick={clearPending}>Check saved task</a>
+        {/if}
+      {/if}
+    </div>
+  {/if}
+  <span class="visually-hidden" role="status" aria-live="polite">{announcement}</span>
 
   <section class="housing" aria-label="Control Deck">
-    <div class="grid">
-      {#each keys as key (key.id)}
-        <Keycap {key} />
+    <div class="grid" data-testid="deck-grid" aria-busy={!ready}>
+      {#each layout.slots as slot, i (i)}
+        <div class="position" class:drop-target={dragTo === i} data-deck-position={i}>
+          <Keycap key={keyFor(slot)} empty={!slot} {editing}
+            target={slot && workflow(slot.button) ? (slot.projectId ? app.project(slot.projectId)?.name ?? 'Unavailable' : 'Set repository') : ''}
+            disabled={!ready || saving || starting || (!!slot && !!workflow(slot.button) && app.connection !== 'live')}
+            onclick={!slot || editing ? () => { editing = true; library = i; } : workflow(slot.button) ? () => void launch(slot) : undefined}
+            onconfigure={slot && workflow(slot.button) ? () => { configuring = i; } : undefined}
+            ondrag={(x,y) => dragging(i,x,y)} ondrop={drop} />
+        </div>
       {/each}
     </div>
   </section>
+  <DeckRuns {history} />
+  {#if library !== null}
+    <DeckLibrary position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose}
+      onremove={() => { if (library !== null) layout.slots = place(layout.slots,library,null); library = null; }}
+      onmove={to => { if (library !== null) move(library,to); }}
+      onconfigure={() => { configuring = library; library = null; }} />
+  {/if}
+  {#if configuring !== null && layout.slots[configuring]}
+    <WorkflowSettings slot={layout.slots[configuring]!} onclose={() => configuring = null} onsave={configure} />
+  {/if}
 
   <a class="activity card" href={globalHref('agents')} data-testid="deck-activity" aria-label="Agents. {headline}">
     <span class="tile" aria-hidden="true"><Icon name="activity" size={20} /></span>
@@ -71,10 +214,6 @@
     <Icon name="right" size={16} />
   </a>
 
-  <nav class="more" aria-label="More">
-    <a href={globalHref('help')}>Help and shortcuts</a>
-    <button type="button" onclick={() => (app.switcherOpen = true)}>Jump to…</button>
-  </nav>
 </div>
 
 <style>
@@ -89,6 +228,16 @@
     margin: 0 auto;
   }
 
+  .header-actions { display: flex; flex: none; gap: 4px; }
+  .deck-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .deck-title { font-size: 14px; font-weight: 500; }
+  .deck-toolbar button { min-height: 44px; }
+  .edit-hint { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
+  .pending { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pending p { flex-basis: 100%; margin: 0; }
+  .position { min-width: 0; }
+  .drop-target { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 17px; }
+  @media (max-width: 359px) { .brand { gap: 5px; } .wm { font-size: 15px; } .top { gap: 6px; } .header-actions { gap: 0; } }
   .top {
     display: flex;
     align-items: center;
@@ -175,42 +324,6 @@
     text-decoration: none;
   }
 
-  .attention {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 52px;
-    padding: 0 14px;
-    color: var(--text);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 14px;
-  }
-
-  .attention :global(svg:last-child) {
-    margin-left: auto;
-    color: var(--text-2);
-  }
-
-  .signal {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--ok);
-    flex: none;
-  }
-
-  .attention.waiting {
-    border-color: var(--amber);
-    box-shadow:
-      var(--card-sh),
-      0 0 0 3px var(--amber-ring);
-  }
-
-  .attention.waiting .signal {
-    background: var(--amber);
-  }
-
   /* The keyboard. A thick matte housing in the tray's paper, with a little grain, a lit top edge and a dark lower one; the keys
      do not stretch to fill the screen, the material around them is part of it. */
   .housing {
@@ -244,26 +357,6 @@
     .grid {
       gap: 8px;
     }
-  }
-
-  .more {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  .more a,
-  .more button {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    padding: 0 12px;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font: inherit;
-    font-size: 13px;
-    text-decoration: none;
   }
 
   .activity {

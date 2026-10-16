@@ -41,19 +41,28 @@ export const TOURS: Record<TourSurface, readonly TourStep[]> = {
   ],
   phone: [
     {
-      title: 'What needs you',
-      body: 'Answer the assistant or approve finished work from here, wherever you are.',
-      target: '[data-testid="deck-attention"]',
-    },
-    {
-      title: 'The keys',
-      body: 'Open the board, calendar, Git, runners and more. Nothing here starts or changes anything by itself.',
+      title: 'Your Control Deck',
+      body: 'Six keys open your work. Needs you keeps questions, blocked work and reviews within reach. Three empty positions are ready for your own buttons.',
       target: '.housing',
     },
     {
-      title: 'Settings stay on your computer',
-      body: 'This phone can see your work, answer agents and use the Assistant. Merging, pushing and changing settings happen on your computer.',
-      target: 'a[aria-label="Settings"]',
+      title: 'Make the deck yours',
+      body: 'Use Edit Deck to add, replace or remove any button. Drag to swap positions, or choose Move to position in a button’s menu. Done saves your layout to this computer for this phone.',
+      target: '[data-testid="edit-deck"]',
+    },
+    {
+      title: 'Workflows run on a repository',
+      body: 'Add Find Bugs, Improve Tests or another workflow. Choose an Individual repository and an agent and model, or keep the defaults. Saving configures it; tapping it starts work.',
+      target: '.housing',
+    },
+    {
+      title: 'Follow the work',
+      body: 'Workflow executions shows progress. Open a task for output, questions and Stop. Work continues when you leave this page. Hold a workflow, press Shift+F10, or use Edit Deck to configure it again.',
+    },
+    {
+      title: 'Search and help are here',
+      body: 'Jump to searches your work. Help explains the controls. This phone can use workflows and Git actions; repository registration, runner management and general settings stay on your computer.',
+      target: '.header-actions',
     },
   ],
   settings: [
@@ -79,7 +88,7 @@ export const TOUR_SURFACES = Object.keys(TOURS) as TourSurface[];
  */
 export const LOCAL_SURFACES: readonly TourSurface[] = ['phone'];
 
-const localKey = (surface: TourSurface) => `werkbord-tour-${surface}`;
+const localKey = (surface: TourSurface) => `werkbord-tour-${surface}${surface === 'phone' ? '-deck-v2' : ''}`;
 
 export function seenHere(surface: TourSurface): boolean {
   try { return localStorage.getItem(localKey(surface)) !== null; } catch { return false; }

@@ -16,21 +16,49 @@ it is not the controller's token, and it works on a fixed list of routes (`inter
 
 | A phone can | A phone cannot |
 | --- | --- |
-| Read everything the deck and the task pages show | Change settings, register or change a repository |
-| Create and edit tasks, start a run with the task's own settings, stop or finish it, answer an agent, accept or reject its work | Choose an agent, model, policy or runner for a task or run; pair or revoke runners |
+| Read everything the deck and the task pages show | Change general settings, register or change a repository |
+| Create and edit tasks, start a run with the task's own settings, stop or finish it, answer an agent, accept or reject its work | Choose general task/run execution settings (workflow buttons may choose their own agent/model); pair or revoke runners |
 | Use the Assistant, all of it (Team workspace tools need the desktop app, which a phone does not have) | |
 | Use Git as the Control Center does: fetch, merge, push, delete a branch, clean a worktree, open a pull request | |
 | Read, rename and sign out itself | Make codes, list or revoke phones, read or rotate the token |
 
-What a phone cannot do is not shown: no Add a project, no run settings or agent pickers, no runner pairing or management, no label creation,
+What a phone cannot do is not shown: no Add a project, no general run settings or agent pickers outside workflow configuration, no runner pairing or management, no label creation,
 no project settings, and a Settings with only Phones and display (`lib/phones/capability.ts`: a browser holding a `wbp_` credential). The controller
 refuses them with `403` regardless.
 
 ## The Control Deck
 
-A header (the mark, one line saying whether the controller is reachable and how many runners and agents there are, Settings), one line on what needs you, nine keys, and what the agents are
-doing. The deck only reads what the app already holds (the Control Center overview and the runners). A key is a link to a page; it
-starts, stops and changes nothing.
+A header (the mark and controller/runner status), search, help and Settings, an Edit Deck control, nine positions, and what the agents are doing. The first six navigation keys retain their original positions. The last three start empty.
+All nine positions are configurable, including an entirely empty deck. Navigation buttons keep their existing routes.
+
+Edit Deck opens editing: tap an empty position for the library, tap a button to replace/remove it or choose Move to position,
+and drag to swap two positions (including an empty one). Done saves to the controller. Workflow settings are available from
+the editing gear, a hold, the context menu or Shift+F10. Long presses and drags never execute a workflow.
+
+The library offers Reviews, Git, Runners and six workflows: Find Bugs, Improve Tests, Security Audit, Dependency Check,
+Refactor Codebase and Sprint Summary. The original six navigation buttons can also be restored from it. Workflow configuration
+selects a registered Individual repository and optionally an agent/model. Find Bugs, Security Audit, Dependency Check and
+Sprint Summary request reports without file edits; Improve Tests and Refactor Codebase request changes in ordinary task
+worktrees. These briefs do not add a sandbox or override the agent's existing permissions. Sprint Summary covers 14 days.
+
+Preferences are versioned JSON records in the existing controller settings store, scoped to the authenticated phone ID (or
+the local owner for a browser using the owner token). `GET/PUT /api/deck` reads/saves nine explicit positions, checks versions
+and rejects unknown fields and buttons. Phone callers cannot select another owner's record. Browser storage is not the layout's
+source of truth. An empty saved deck is distinct from a new deck.
+
+`POST /api/deck/workflows` accepts only a saved slot ID and an invocation request ID. The controller pins that invocation's
+configuration, deduplicates its task via the existing source-reference mechanism and returns the original run on replay,
+including after completion. It never accepts a shell command, policy or arbitrary execution overrides. The normal task/run
+services, worktrees, runner capacity, permission prompts and cancellation remain authoritative. Starts continue after a phone
+disconnects; controller restarts use existing run recovery and do not automatically rerun interrupted work.
+
+`GET /api/deck/history` returns the phone's last 32 task references; the deck shows the latest eight with existing session rows.
+Open a task for full output, questions, review and Stop. Progress reports observed state and activity, never an invented percentage.
+A lost start response keeps a tab-persistent guard with Retry same start / Check saved task. No mutation is automatically replayed.
+The relay connector honours explicit Individual workflow result links while retaining normal remembered-scope navigation.
+
+The All clear/attention strip is removed. Needs you retains its route and live count. Search and Help are header icons beside
+Settings. The table below lists the navigation catalogue, rather than the initial saved layout.
 
 | Key | Page | Reuses | Counts |
 | --- | --- | --- | --- |
@@ -126,7 +154,7 @@ workspace console, device API or execution routes. The Assistant runs through In
 - `web/src/lib/mobile/*.test.ts`: the deck's keys and counts, Back, the calendar's two kinds of time, My Work, agents, Git digests (`npx vitest run`).
 - `scripts/browser-phone.cjs` (`make test-phone-browser`, and part of `make test-browser`): in a real browser against the disposable fixture, a phone that scans a
   code is signed in with a credential of its own, a second scan of the same code is refused, its own screens meet no refusal, the owner's things are refused, and a revoked phone is
-  signed out while its page is open; Settings → Phones lists, adds (with the countdown) and revokes with a confirm. And the nine keys
+  signed out while its page is open; Settings → Phones lists, adds (with the countdown) and revokes with a confirm. And the nine positions
   are equal and in three columns with material round them, each opens its page and Back returns, a held key drops (and does not move with reduced motion),
   Month, Week and Timeline, the Assistant's place in the bar, 320 to 430px and landscape in both themes without horizontal overflow, one board column at a time,
   and a wide window that stays the desktop.
@@ -136,3 +164,8 @@ workspace console, device API or execution routes. The Assistant runs through In
 
 - `relay/connector/test/navigation.test.mjs` exercises section-preserving scope changes, remembered scope across deck keys,
   reloads and Assistant visits, revoked-summary clearing, and the real Team phone views at 320, 430 and 844px in both themes.
+
+- `scripts/browser-deck.cjs` uses an enrolled phone and the real disposable runner process: configuring without executing,
+  hold versus tap, Shift+F10, drag and keyboard-compatible moves, saved empty slots, execution after refresh, output and stop,
+  a completely empty deck, and workflow targets in light/dark at phone sizes. `BROWSER_DECK_ONLY=1 node scripts/test-browser.cjs`
+  runs this check alone after the web build. Service tests reopen SQLite to verify preference persistence.

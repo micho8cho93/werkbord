@@ -9,7 +9,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const inject = (html) => html.replace('</head>', '<script defer src="/connector/lanes.js"></script><link rel="stylesheet" href="/connector/lanes.css"></head>');
 // The Individual fixture supplies only the existing product navigation contract. Team runs its real shipped view.
 const individual = inject(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>
-<main><h1>Control Deck</h1><a href="#/projects">Projects</a><a href="#/repositories">Git</a><a href="#/schedule">Calendar</a></main>
+<main><h1>Control Deck</h1><a href="#/projects">Projects</a><a href="#/repositories">Git</a><a href="#/schedule">Calendar</a><a data-workspace="individual" href="#/p/workflow/task/result">Open workflow task</a></main>
 <nav data-phone-nav aria-label="Primary"><a href="#/deck">Control Deck</a><button data-testid="nav-assistant" aria-expanded="false">Assistant</button></nav>
 <script>document.querySelector('button').onclick = function() { this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') !== 'true'); };</script>
 </body></html>`);
@@ -72,6 +72,12 @@ test('phone sections share scope while the deck and Assistant remain the primary
    await page.getByRole('link', { name: 'Projects', exact: true }).click();
    await page.waitForURL(base + '/#/projects');
    assert.equal(await page.locator('#phone-lanes [aria-current]').innerText(), 'Individual');
+   // A workflow's result is explicitly Individual, independent of remembered section scope.
+   await page.evaluate(() => localStorage.setItem('werkbord.phone.lane', 'team'));
+   await page.goto(base + '/#/deck');
+   await page.getByRole('link', { name: 'Open workflow task', exact: true }).click();
+   await page.waitForURL(base + '/#/p/workflow/task/result');
+   assert.equal(await page.evaluate(() => localStorage.getItem('werkbord.phone.lane')), 'individual');
    // A failed refresh removes sensitive summary rows; switching away remains possible.
    await page.locator('#phone-lanes').getByRole('link', { name: 'Team', exact: true }).click();
    await page.getByText('Website', { exact: true }).waitFor();

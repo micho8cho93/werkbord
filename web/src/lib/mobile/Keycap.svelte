@@ -1,46 +1,73 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import Icon from '../Icon.svelte';
   import type { DeckKey } from './deck';
+  import { KeyPress } from './press';
 
-  // One key of the deck: a link to a page, drawn as a keycap that sits in its own well. It is a plain link, so it works from the
-  // keyboard and a screen reader and opens in a new tab like any other; the keycap only moves while it is held down.
-  let { key }: { key: DeckKey } = $props();
+  let { key, target = '', editing = false, empty = false, disabled = false, onclick, onconfigure, ondrag, ondrop }:
+    { key: DeckKey; target?: string; editing?: boolean; empty?: boolean; disabled?: boolean; onclick?: () => void; onconfigure?: () => void; ondrag?: (x: number, y: number) => void; ondrop?: (cancelled?: boolean) => void } = $props();
   let pressed = $state(false);
-  const release = () => (pressed = false);
+  const gesture = new KeyPress(() => { pressed = false; onconfigure?.(); }, (x,y) => { if (editing) ondrag?.(x,y); });
+  const release = () => { pressed = false; gesture.end(); };
+  onDestroy(() => gesture.cancel());
+  const href = $derived(!editing && !empty && key.href ? key.href : undefined);
 </script>
 
-<a
-  class="key-slot"
-  href={key.href}
-  data-key={key.id}
-  data-tone={key.tone}
-  data-lit={key.count > 0 ? 'on' : undefined}
-  data-pressed={pressed ? 'on' : undefined}
-  aria-label={key.note ? `${key.label}, ${key.note}` : key.label}
-  onpointerdown={() => (pressed = true)}
-  onpointerup={release}
-  onpointercancel={release}
-  onpointerleave={release}
-  onblur={release}
-  onkeydown={(e) => (e.key === ' ' || e.key === 'Enter') && (pressed = true)}
-  onkeyup={release}
->
-  <span class="cap">
-    <span class="face">
-      <span class="glyph"><Icon name={key.icon} size={26} /></span>
-      <span class="name">{key.label}</span>
+<div class="key-holder">
+  <svelte:element
+    this={href ? 'a' : 'button'}
+    type={href ? undefined : 'button'}
+    role={href ? 'link' : 'button'}
+    class="key-slot"
+    class:editing
+    class:empty
+    {href}
+    disabled={href ? undefined : disabled}
+    data-key={empty ? undefined : key.id}
+    data-tone={key.tone}
+    data-lit={key.count > 0 || !!key.note ? 'on' : undefined}
+    data-pressed={pressed ? 'on' : undefined}
+    aria-label={empty ? 'Empty slot. Add a button' : [key.label, target, key.note, editing ? 'Replace or remove' : ''].filter(Boolean).join(', ')}
+    title={onconfigure ? 'Hold or press Shift+F10 to configure. You can also use Edit Deck.' : undefined}
+    onpointerdown={(e: PointerEvent) => { if (e.button !== 0 || disabled) return; pressed = true; gesture.start(e.clientX,e.clientY,!!onconfigure && !editing); if (editing) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
+    onpointermove={(e: PointerEvent) => gesture.move(e.clientX,e.clientY)}
+    onpointerup={() => { release(); if (editing) ondrop?.(); }}
+    onpointercancel={() => { pressed = false; gesture.cancel(); ondrop?.(true); }}
+    onpointerleave={() => { if (!editing) { pressed = false; gesture.cancel(); } }}
+    onblur={release}
+    oncontextmenu={(e: MouseEvent) => { if (onconfigure) { e.preventDefault(); gesture.cancel(); onconfigure(); } }}
+    onclick={(e: MouseEvent) => { if (gesture.consumeClick()) { e.preventDefault(); return; } onclick?.(); }}
+    onkeydown={(e: KeyboardEvent) => { if (onconfigure && (e.key === 'ContextMenu' || e.key === 'F10' && e.shiftKey)) { e.preventDefault(); onconfigure(); } else if (e.key === ' ' || e.key === 'Enter') { gesture.start(0,0,false); gesture.end(); pressed = true; } }}
+    onkeyup={release}
+  >
+    <span class="cap">
+      <span class="face" class:targeted={!!target}>
+        <span class="glyph"><Icon name={empty ? 'plus' : key.icon} size={target ? 20 : 26} /></span>
+        <span class="name">{empty ? 'Add button' : key.label}</span>
+        {#if target}<span class="target">{target}</span>{/if}
+      </span>
+      {#if key.count > 0}<span class="num" class:pend={key.tone === 'wait'} aria-hidden="true">{key.count > 99 ? '99+' : key.count}</span>{/if}
     </span>
-    {#if key.count > 0}
-      <span class="num" class:pend={key.tone === 'wait'} aria-hidden="true">{key.count > 99 ? '99+' : key.count}</span>
-    {/if}
-  </span>
-</a>
+  </svelte:element>
+  {#if editing && onconfigure}<button class="configure" type="button" aria-label="Configure {key.label}" onclick={onconfigure}><Icon name="settings" size={14} /></button>{/if}
+</div>
 
 <style>
   /* The well: the dark socket the keycap stands in. It is the tray of the design system, pressed a little deeper. */
+  .key-holder { position: relative; min-width: 0; }
+  .configure { position: absolute; top: -10px; right: -10px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--text); cursor: pointer; }
+  .target { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11.5px/1.2 var(--mono); color: var(--text-2); }
+  .key-slot.editing { touch-action: none; cursor: grab; }
+  .key-slot:disabled { cursor: wait; }
+  .empty .cap { background: var(--surface-2); box-shadow: inset 0 1px 3px color-mix(in srgb, var(--text) 12%, transparent); transform: none; border-style: dashed; }
   .key-slot {
     --lift: 4px;
     position: relative;
+    font: inherit;
+    cursor: pointer;
+    border: 0;
+    width: 100%;
+    text-align: center;
     display: block;
     aspect-ratio: 1 / 1;
     min-width: 0;
@@ -105,8 +132,11 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
+    max-width: 100%;
     padding: 0 4px;
   }
+
+  .face.targeted { gap: 4px; }
 
   .glyph {
     display: inline-flex;
@@ -118,7 +148,8 @@
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
     font-size: 12.5px;
     font-weight: 500;
     letter-spacing: -0.005em;

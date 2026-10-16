@@ -27,7 +27,7 @@ import (
 //
 // A phone is the owner's remote control, not a second owner. It can see everything the Control Deck and the task pages
 // show, work with tasks and runs, answer agents and use the Assistant. It cannot change a setting, register or change a
-// repository, touch the controller's token, pair or revoke a runner, choose how a task or run executes, or enroll or
+// repository, touch the controller's token, pair or revoke a runner, change general execution settings (fixed deck workflows may choose agent/model), or enroll or
 // revoke phones. Those are the owner's, at the computer. Git (merge, push, branch delete, worktree clean, pull request)
 // and the whole Assistant are allowed: the owner decided so.
 
@@ -48,6 +48,12 @@ var phoneRoutes = []phoneRoute{
 	{method: "GET", pattern: "/api/phones/self"},
 	{method: "PATCH", pattern: "/api/phones/self", fields: []string{"name"}},
 	{method: "POST", pattern: "/api/phones/self/signout"},
+
+	// Deck preferences and fixed workflows only. General execution/settings routes stay forbidden.
+	{method: "GET", pattern: "/api/deck"},
+	{method: "PUT", pattern: "/api/deck", fields: []string{"version", "slots"}},
+	{method: "GET", pattern: "/api/deck/history"},
+	{method: "POST", pattern: "/api/deck/workflows", fields: []string{"slotId", "requestId"}},
 
 	// reading: the Control Deck, the task pages, Git's Control Center
 	{method: "GET", pattern: "/api/events"},

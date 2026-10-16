@@ -393,6 +393,7 @@ func TestOnTheAssistantDoorOnlyAPhoneComesIn(t *testing.T) {
 
 // The list of what a phone may do is exactly this, and every other route the controller has refuses it.
 var reviewedPhoneRoutes = []string{
+	"GET /api/deck", "PUT /api/deck", "GET /api/deck/history", "POST /api/deck/workflows",
 	"GET /api/phones/self", "PATCH /api/phones/self", "POST /api/phones/self/signout",
 	"GET /api/events", "GET /api/onboarding", "GET /api/settings", "GET /api/agents", "GET /api/agents/{}/options", "GET /api/runners", "GET /api/labels",
 	"GET /api/control-center", "GET /api/analytics", "GET /api/workspace/v1/summary",

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { activeRunners, attentionLine, connectionWord, deckCounts, deckKeys } from './deck';
+import { activeRunners, connectionWord, deckCounts, deckKeys } from './deck';
 import type { Overview, Runner } from '../types';
 
 const counts = { needsYou: 0, review: 0, running: 0, repoAttention: 0 };
 
 describe('deckKeys', () => {
-  it('is a fixed three by three in the order the design names', () => {
+  it('preserves all nine original navigation destinations in the catalogue', () => {
     expect(deckKeys(counts).map((k) => k.label)).toEqual(['Needs you', 'Calendar', 'Projects', 'My Work', 'Agents', 'Analytics', 'Reviews', 'Git', 'Runners']);
   });
 
@@ -47,15 +47,6 @@ describe('deckCounts', () => {
 
   it('is all zeros until the overview arrives', () => {
     expect(deckCounts(null, 0)).toEqual(counts);
-  });
-});
-
-describe('attentionLine', () => {
-  it('says what waits, then what is ready, then that all is clear', () => {
-    expect(attentionLine(3, 1)).toEqual({ text: '3 items need your input', waiting: true });
-    expect(attentionLine(1, 0)).toEqual({ text: '1 item needs your input', waiting: true });
-    expect(attentionLine(0, 2)).toEqual({ text: '2 ready for review', waiting: false });
-    expect(attentionLine(0, 0)).toEqual({ text: 'All clear', waiting: false });
   });
 });
 

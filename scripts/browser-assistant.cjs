@@ -801,7 +801,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
         {
             const { ctx, page } = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
             await page.goto(base + '/#token=' + token);
-            await page.getByTestId('deck-attention').waitFor();
+            await page.getByTestId('deck-grid').waitFor();
             await page.goto(base + '/#/projects');
             const button = page.getByTestId('nav-assistant');
             await button.waitFor();
