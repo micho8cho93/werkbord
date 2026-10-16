@@ -28,10 +28,10 @@ refuses them with `403` regardless.
 
 ## The Control Deck
 
-A header (the mark and controller/runner status), search, help and Settings, an Edit Deck control, nine positions, and what the agents are doing. The first six navigation keys retain their original positions. The last three start empty.
+A header (the mark and controller/runner status), icon-only Edit Deck (pencil), search, help and Settings controls, and nine positions. The Agents key shows the exact running count in a corner badge, hidden at zero; there is no separate agents activity row or deck title row. The first six navigation keys retain their original positions. The last three start empty.
 All nine positions are configurable, including an entirely empty deck. Navigation buttons keep their existing routes.
 
-Edit Deck opens editing: tap an empty position for the library, tap a button to replace/remove it or choose Move to position,
+The header pencil opens editing and becomes a checkmark to save: tap an empty position for the library, tap a button to replace/remove it or choose Move to position,
 and drag to swap two positions (including an empty one). Done saves to the controller. Workflow settings are available from
 the editing gear, a hold, the context menu or Shift+F10. Long presses and drags never execute a workflow.
 

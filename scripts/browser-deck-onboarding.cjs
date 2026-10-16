@@ -102,7 +102,7 @@ async function request(token, method, route, body) {
         } else {
           await guide().getByRole('button',{name:'Skip execution for now'}).click(); assert.equal(starts,0);
         }
-        await guide().getByText('Tap to run. Hold to configure. Edit Deck to rearrange.').waitFor();
+        await guide().getByText('Tap to run. Hold to configure. Use the pencil icon at the top to edit your deck.').waitFor();
         if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({path:path.join(process.env.BROWSER_ARTIFACT_DIR,`onboarding-${mode}.png`),fullPage:true});
         await guide().getByRole('button',{name:'Finish onboarding'}).click();
         await page.waitForFunction(() => { const button = document.querySelector('[data-testid="edit-deck"]'); return button && !button.disabled; });

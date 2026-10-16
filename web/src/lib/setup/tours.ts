@@ -42,7 +42,7 @@ export const TOURS: Record<TourSurface, readonly TourStep[]> = {
   // The phone uses DeckOnboarding's real interactions; this entry retains tourDue/Help replay eligibility.
   phone: [{
     title: 'Make the Control Deck yours',
-    body: 'Choose a workflow, hold to configure it, tap to run and open its progress. Edit Deck can change all nine positions after onboarding.',
+    body: 'Choose a workflow, hold to configure it, tap to run and open its progress. The pencil icon at the top edits all nine positions; the checkmark saves. The Agents corner badge counts running agents.',
   }],
   settings: [
     {

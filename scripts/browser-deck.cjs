@@ -35,7 +35,31 @@ async function request(token, method, route, body) {
     try {
         await page.goto(base + '/#/deck');
         await edit().waitFor();
+        assert.equal(await edit().innerText(), '', 'Edit Deck uses only an icon');
+        assert.equal(await page.getByRole('navigation', {name:'Deck tools'}).getByTestId('edit-deck').count(), 1);
+        assert.equal(await page.getByTestId('deck-activity').count(), 0, 'no separate agents activity row');
+        assert.equal(await page.locator('.deck-toolbar').count(), 0, 'no deck title row');
+        // Count fixtures cover hidden zero, single, multiple and untruncated large counts.
+        for (const running of [0, 1, 7, 123, 0]) {
+            await page.route('**/api/control-center', async route => {
+                const response = await route.fetch();
+                const overview = await response.json();
+                overview.projects = overview.projects.map((p,i) => ({...p, running: i === 0 ? running : 0}));
+                await route.fulfill({response, json:overview});
+            });
+            await page.reload(); await edit().waitFor();
+            const agents = page.locator('[data-key="agents"]');
+            await agents.getByText('Agents', {exact:true}).waitFor();
+            if (running) {
+                await page.waitForFunction(n => document.querySelector('[data-key="agents"] .num')?.textContent === String(n), running);
+                assert.equal(await agents.getAttribute('aria-label'), `Agents, ${running} running`);
+            } else assert.equal(await agents.locator('.num').count(), 0);
+            await page.unroute('**/api/control-center');
+        }
+        await page.reload(); await edit().waitFor();
         await edit().click();
+        assert.equal(await done().innerText(), '', 'Save uses only a checkmark');
+        assert.equal(await done().getAttribute('aria-pressed'), 'true');
         await socket(6).click();
         await dialog().getByRole('button', { name: /^Find Bugs/ }).click();
         await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('selected');

@@ -14,6 +14,7 @@
     | 'folder'
     | 'runner'
     | 'settings'
+    | 'edit'
     | 'help'
     | 'defaults'
     | 'search'
@@ -65,6 +66,8 @@
     <rect x="6" y="1.8" width="4" height="7.4" rx="2" /><path d="M3.4 7.6a4.6 4.6 0 0 0 9.2 0M8 12.2v2M5.8 14.2h4.4" />
   {:else if name === 'send'}
     <path d="M8 13V3.2M3.8 7.4L8 3.2l4.2 4.2" />
+  {:else if name === 'edit'}
+    <path d="M9.8 2.6a1.6 1.6 0 0 1 2.3 2.3l-7.6 7.6-3 .7.7-3zM8.7 3.7l2.3 2.3M8 14h6" />
   {:else if name === 'control'}
     <rect x="2" y="2" width="5" height="5" rx="1" /><rect x="9" y="2" width="5" height="5" rx="1" /><rect x="2" y="9" width="5" height="5" rx="1" /><rect x="9" y="9" width="5" height="5" rx="1" />
   {:else if name === 'overview'}

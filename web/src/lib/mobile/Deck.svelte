@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { ApiError, api } from '../api';
   import { isPhone } from '../phones/capability';
-  import { agentName, runStatus } from '../format';
+  import { runStatus } from '../format';
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
   import { globalHref, taskHref } from '../location';
@@ -26,11 +26,6 @@
   const link = $derived(connectionWord(app.connection));
   const runners = $derived(activeRunners(app.runners));
   const loaded = $derived(app.overview !== null);
-  const active = $derived((app.overview?.runs ?? []).filter((x) => runStatus(x.run).active));
-  const waiting = $derived(active.filter((x) => runStatus(x.run).needsInput).length);
-  const working = $derived(active.filter((x) => x.run.state === 'running' || x.run.state === 'starting'));
-  const headline = $derived([working.length ? `${working.length} ${working.length === 1 ? 'agent' : 'agents'} running` : '', waiting ? `${waiting} waiting for you` : ''].filter(Boolean).join(' · ') || 'No agents are running');
-  const names = $derived([...new Set(active.map((x) => agentName(app.agents, x.run.agentId)))].join(', '));
   let layout = $state<DeckLayout>(initialLayout());
   let ready = $state(false);
   let saving = $state(false);
@@ -222,10 +217,13 @@
         {:else}
           <span class="conn" data-tone={link.tone} role="status" data-testid="deck-connection"><span class="dot" aria-hidden="true"></span>{link.word}</span>
         {/if}
-        {#if loaded} · {runners.length} {runners.length === 1 ? 'runner' : 'runners'}{counts.running ? ` · ${counts.running} ${counts.running === 1 ? 'agent' : 'agents'} running` : ''}{/if}
+        {#if loaded}<span class="runner-count">· {runners.length} {runners.length === 1 ? 'runner' : 'runners'}</span>{/if}
       </p>
     </div>
     <nav class="header-actions" aria-label="Deck tools">
+      <button class="btn icon" class:editing type="button" disabled={!ready || saving || starting || !!guide}
+        aria-label={saving ? 'Saving…' : editing ? 'Done' : 'Edit Deck'} title={saving ? 'Saving…' : editing ? 'Save deck' : 'Edit Deck'} aria-pressed={editing}
+        onclick={() => { if (editing) void done(); else { editing = true; announcement = 'Editing deck'; } }} data-testid="edit-deck"><Icon name={editing ? 'check' : 'edit'} /></button>
       <button class="btn icon" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to" title="Jump to"><Icon name="search" /></button>
       <a class="btn icon" href={globalHref('help')} aria-label="Help and shortcuts" title="Help and shortcuts"><Icon name="help" /></a>
       <a class="btn icon" href={globalHref('settings')} aria-label="Settings" title="Settings"><Icon name="settings" /></a>
@@ -242,10 +240,6 @@
       liveDemo={(liveDemo && !error) || !!pending} {preview} busy={saving || starting} onnext={advance} onadd={addGuideButton} onconfigure={configureGuide}
       onrecommend={recommendBugs} onpreview={() => { preview = true; advance(4); }} onfinish={finishGuide} />
   {/if}
-  <div class="deck-toolbar">
-    <span class="deck-title">Control Deck</span>
-    <button class="btn small" type="button" disabled={!ready || saving || starting || !!guide} onclick={() => { if (editing) void done(); else { editing = true; announcement = 'Editing deck'; } }} data-testid="edit-deck">{saving ? 'Saving…' : editing ? 'Done' : 'Edit Deck'}</button>
-  </div>
   {#if editing}<p class="edit-hint">Tap to replace or remove. Drag to swap positions, or use Move to position in the button menu.</p>{/if}
   {#if error}<p class="error" role="alert">{error} {workflowRecovery(error)}</p><button class="btn small" onclick={load} disabled={saving || starting}>Reload saved deck</button>{/if}
   {#if pending}
@@ -318,15 +312,6 @@
     </Sheet>
   {/if}
 
-  <a class="activity card" href={globalHref('agents')} data-testid="deck-activity" aria-label="Agents. {headline}">
-    <span class="tile" aria-hidden="true"><Icon name="activity" size={20} /></span>
-    <span class="who">
-      <span class="task">{loaded ? headline : 'Looking…'}</span>
-      {#if names}<span class="meta mm">{names}</span>{/if}
-    </span>
-    <Icon name="right" size={16} />
-  </a>
-
 </div>
 
 <style>
@@ -348,15 +333,13 @@
   }
 
   .header-actions { display: flex; flex: none; gap: 4px; }
-  .deck-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .deck-title { font-size: 14px; font-weight: 500; }
-  .deck-toolbar button { min-height: 44px; }
+  .header-actions .editing { color: var(--accent); background: var(--surface-2); }
   .edit-hint { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
   .pending { display: flex; flex-wrap: wrap; gap: 8px; }
   .pending p { flex-basis: 100%; margin: 0; }
   .position { min-width: 0; }
   .drop-target { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 17px; }
-  @media (max-width: 359px) { .brand { gap: 5px; } .wm { font-size: 15px; } .top { gap: 6px; } .header-actions { gap: 0; } }
+  @media (max-width: 359px) { .brand { gap: 4px; } .brand :global(svg) { height: 18px; width: auto; } .wm { font-size: 14px; } .top { gap: 4px; } .header-actions { gap: 0; } }
   .top {
     display: flex;
     align-items: center;
@@ -388,6 +371,7 @@
   }
 
   /* The connection and the machines, as one quiet line under the name. */
+  .runner-count { white-space: nowrap; }
   .status {
     display: flex;
     flex-wrap: wrap;
@@ -478,49 +462,4 @@
     }
   }
 
-  .activity {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 64px;
-    padding: 10px 14px;
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .activity > :global(svg:last-child) {
-    margin-left: auto;
-    flex: none;
-    color: var(--text-2);
-  }
-
-  .tile {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: var(--surface-2);
-    box-shadow: var(--tray-sh);
-    color: var(--accent);
-  }
-
-  .who {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .task {
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .meta {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 </style>

@@ -46,7 +46,7 @@
         <span class="name">{empty ? 'Add button' : key.label}</span>
         {#if target}<span class="target">{target}</span>{/if}
       </span>
-      {#if key.count > 0}<span class="num" class:pend={key.tone === 'wait'} aria-hidden="true">{key.count > 99 ? '99+' : key.count}</span>{/if}
+      {#if key.count > 0}<span class="num" class:pend={key.tone === 'wait'} aria-hidden="true">{key.id !== 'agents' && key.count > 99 ? '99+' : key.count}</span>{/if}
     </span>
   </svelte:element>
   {#if editing && onconfigure}<button class="configure" type="button" aria-label="Configure {key.label}" onclick={onconfigure}><Icon name="settings" size={14} /></button>{/if}

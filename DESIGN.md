@@ -326,15 +326,14 @@ opens that workspace; they do not choose the startup surface.
 
 ### Configurable phone Control Deck (4.46)
 
-The initial deck keeps Needs you, Calendar, Projects, My Work, Agents and Analytics, with three empty sockets. Edit Deck / Done
-stays visible above the housing. Every position can be replaced, removed or moved, including by keyboard through Move to
+The initial deck keeps Needs you, Calendar, Projects, My Work, Agents and Analytics, with three empty sockets. An icon-only pencil in the header enters editing; its checkmark saves the deck. Every position can be replaced, removed or moved, including by keyboard through Move to
 position. Empty sockets remain empty. Preserve the keycap materials, themes and reduced-motion behaviour.
 
 Workflow keys show their name, icon and repository target (or reported run state). Tap executes a configured workflow; hold,
 Shift+F10, context menu and the editing settings control configure it. Configuration never starts work. Workflows target
 Individual repositories; ordinary task views provide output, questions, review and cancellation. Phone preferences live in the
 controller per enrolled phone. The redundant attention strip is removed; Needs you retains its live count and destination.
-Search and Help sit beside Settings in the header with 44px targets. The per-phone tour explains editing and execution.
+Edit Deck, Search and Help sit beside Settings in the header with 44px targets. The per-phone tour explains editing and execution.
 
 ### Persistent phone workflow execution (4.48)
 
@@ -354,3 +353,9 @@ one workflow among up to three additions; leave unused sockets empty. The introd
 repository and inherited agent/model defaults. Unavailable execution offers an explicitly labelled interactive preview with
 no simulated findings or completed stages. Finish remembers completion independently of subsequent deck edits. Existing setup
 and desktop tours remain unchanged.
+
+### Compact phone deck (4.49.1)
+
+The Agents key carries the exact live running count in its corner badge, hidden at zero. The separate agents activity row and
+Control Deck title/edit row are removed. The header pencil edits the deck and changes to a checkmark to save, with accessible
+labels and pressed state. Onboarding explains the pencil, checkmark and Agents badge.

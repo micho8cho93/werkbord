@@ -85,3 +85,4 @@ is not proof that a release is installable.
 | Individual | `werkbord-v4.37.0-preview.1` | — | Unpublished; in-process relay connection-registration races and obsolete Assistant phone browser expectations; superseded by 4.37.1-preview.1 |
 | Individual | `werkbord-v4.37.1-preview.1` | — | Unpublished; Assistant dictation fixture emitted speech before asynchronous recognizer startup completed; superseded by 4.37.2-preview.1 |
 | Individual | `werkbord-v4.37.2-preview.1` | `0.11.0-preview.1` | Published public signed macOS preview; phone identity, phone Git and Assistant access, encrypted relay and connector; public Mac download and signed preview-feed verification passed; Team production admission remains blocked |
+| Individual | `werkbord-v4.49.1-preview.1` | `0.12.0-preview.1` | Reserved public signed macOS preview; configurable deck workflows, interactive onboarding and compact deck controls; Team production admission remains blocked |

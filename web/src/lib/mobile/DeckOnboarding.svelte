@@ -11,7 +11,7 @@
     <p>Make the Control Deck yours. Choose shortcuts and workflows for the actions you use most.</p>
     <button class="btn primary" onclick={() => { onnext(2); onadd(); }}>Choose buttons</button>
   {:else if step === 2}
-    <p>Fill up to three empty positions. Choose at least one executable workflow; navigation buttons open pages. You can customise the full nine-button deck later.</p>
+    <p>Fill up to three empty positions. Choose at least one executable workflow; navigation buttons open pages. Later, use the pencil icon at the top to edit all nine positions.</p>
     <div class="actions"><button class="btn" onclick={onadd}>{full ? 'Replace a choice' : 'Add a button'}</button><button class="btn primary" disabled={!hasWorkflow || busy} onclick={() => onnext(3)}>Continue</button></div>
   {:else if step === 3}
     <p>Press and hold a workflow button to change its settings.</p>
@@ -28,8 +28,9 @@
     <p class="muted">Live work continues when you leave. Only reported stages and findings are shown.</p>
     <button class="btn" onclick={() => onnext(6)}>Inspect later</button>
   {:else}
-    <p>Tap to run. Hold to configure. Edit Deck to rearrange.</p>
-    <p class="muted">Change a workflow’s repository target to inspect other repositories. You can remove or replace every button.</p>
+    <p>Tap to run. Hold to configure. Use the pencil icon at the top to edit your deck.</p>
+    <p class="muted">The corner badge on Agents shows how many agents are running and disappears when none are running. Tap Agents to see their activity.</p>
+    <p class="muted">Use the pencil to replace, remove or move buttons, then the checkmark to save.</p>
     <button class="btn primary" disabled={busy} onclick={() => void onfinish()}>{busy ? 'Saving…' : 'Finish onboarding'}</button>
   {/if}
 </section>
