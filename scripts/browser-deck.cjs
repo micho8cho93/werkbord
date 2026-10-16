@@ -78,21 +78,44 @@ async function request(token, method, route, body) {
         assert.equal(await socket(8).getAttribute('data-key'), null);
         await page.waitForFunction(() => document.querySelector('[data-deck-position="7"] [data-key="find-bugs"]'));
 
-        // A genuine tap starts one ordinary run. Reconnecting restores its progress and task view.
+        // A genuine tap starts one ordinary run and stays on the deck.
         await socket(7).click();
         const executions = page.getByRole('region', { name: 'Workflow executions' });
+        const banner = page.getByTestId('workflow-banner');
         await executions.getByRole('link', { name: 'Find Bugs', exact: true }).waitFor();
+        await banner.getByRole('button', {name:'Open Find Bugs execution details'}).waitFor();
+        assert.equal(new URL(page.url()).hash, '#/deck', 'start stays on the Control Deck');
         assert.equal(starts, 1, 'tap executes once');
-        await page.reload(); await edit().waitFor();
-        await executions.getByRole('link', { name: 'Find Bugs', exact: true }).waitFor();
-        await executions.getByRole('link', { name: 'Find Bugs', exact: true }).click();
-        await page.waitForFunction(() => location.hash.includes('/task/'));
-        await page.getByText('Fixture process ready', { exact: false }).first().waitFor();
-        assert.equal(starts, 1, 'reload and detail view do not replay execution');
         const history = await request(phone.token, 'GET', '/api/deck/history');
         const runs = await request(phone.token, 'GET', `/api/projects/${project.id}/tasks/${history[0].taskId}/runs`);
         assert.equal(runs.runs.length, 1);
-        await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${runs.runs[0].id}/stop`, {});
+        const firstRun = runs.runs[0];
+        await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${firstRun.id}/input`, {text:'workflow-verify'});
+        await banner.getByText(/Verify potential findings/).waitFor();
+        await banner.getByRole('button', {name:'Open Find Bugs execution details'}).click();
+        await dialog().getByRole('heading', {name:'Find Bugs execution'}).waitFor();
+        await dialog().locator('summary').filter({hasText:'Verify potential findings'}).waitFor();
+        await dialog().getByText(/Fixture verification evidence/).waitFor();
+        if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({path:path.join(process.env.BROWSER_ARTIFACT_DIR,'workflow-execution-detail.png'),fullPage:true});
+        await page.keyboard.press('Escape');
+        // Navigation retains the banner, and tapping the key again only opens this execution.
+        await socket(7).click(); await dialog().getByRole('heading', {name:'Find Bugs execution'}).waitFor();
+        assert.equal(starts, 1, 'tapping an active workflow does not duplicate the job');
+        await page.keyboard.press('Escape');
+        await page.locator('[data-key="agents"]').click();
+        await banner.getByRole('button', {name:'Open Find Bugs execution details'}).waitFor();
+        await ctx.setOffline(true);
+        // The authorised process progresses while its browser is disconnected.
+        await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${firstRun.id}/input`, {text:'workflow-report'});
+        await ctx.setOffline(false);
+        await page.reload();
+        await banner.getByText(/6 of 6 stages reported complete/).waitFor();
+        assert.equal(starts, 1, 'reconnection never starts another job');
+        // Stop in the persistent banner reaches the process and is confirmed by durable state.
+        await banner.getByRole('button', {name:/Stop Find Bugs in/}).click();
+        await banner.getByText('Cancelled', {exact:true}).waitFor();
+        const stopped = await request(phone.token,'GET',`/api/projects/${project.id}/runs/${firstRun.id}`);
+        assert.equal(stopped.state,'stopped');
         await page.goto(base + '/#/deck'); await edit().waitFor();
 
         // A one-off picker changes this invocation without changing the saved target.
@@ -111,7 +134,12 @@ async function request(token, method, route, body) {
         const persisted = await request(phone.token, 'GET', '/api/deck');
         assert.equal(persisted.slots[7].target, 'selected', 'one-off scope is not saved');
         assert.notEqual(persisted.slots[7].output, 'report', 'one-off output is not saved');
-        await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${oneOff.run.id}/stop`, {});
+        await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${oneOff.run.id}/input`, {text:'fail'});
+        await banner.getByText('Failed', {exact:true}).waitFor();
+        await banner.getByRole('button', {name:'Open Find Bugs execution details'}).click();
+        await dialog().getByText(/Partial completion/).waitFor();
+        await dialog().getByRole('link', {name:'Change Settings'}).waitFor();
+        await page.keyboard.press('Escape');
         await page.reload(); await edit().waitFor();
 
         // Workflow labels, targets, edit controls and sheets fit both themes and phone sizes.
@@ -141,6 +169,7 @@ async function request(token, method, route, body) {
         assert.deepEqual(errors, []);
         console.log('PASS configurable deck: persistence, touch/keyboard configuration, dragging, explicit empties, normal execution, progress and detail, themes and 44px targets');
     } catch (e) {
+        console.error('Browser errors:', errors);
         console.error('Deck positions:', await page.locator('[data-deck-position]').evaluateAll(els => els.map(el => el.innerText)));
         if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, 'deck-failure.png'), fullPage: true, animations: 'disabled' });
         throw e;

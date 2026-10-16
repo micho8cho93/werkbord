@@ -14,6 +14,9 @@
   import Sheet from '../Sheet.svelte';
   import WorkflowSettings from './WorkflowSettings.svelte';
   import DeckRuns from './DeckRuns.svelte';
+  import WorkflowBanner from './WorkflowBanner.svelte';
+  import { workflows } from './workflows.svelte';
+  import { terminal, workflowRecovery } from './workflow-progress';
   import { deckApi, targetLabel, initialLayout, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
 
   const counts = $derived(deckCounts(app.overview, app.needsYou));
@@ -113,8 +116,10 @@
     if (slot.target === 'ask' && !targets) { picking = slot; picked = []; once = override; return; }
     if ((!slot.target || slot.target === 'current') && !slot.projectId && !app.lastProjectId) { configuring = layout.slots.findIndex(s => s?.id === slot.id); return; }
     if (!approved && (slot.output === 'changes' || slot.approval === 'always')) { approving = {slot, override, targets}; return; }
+    const tracked = workflows.executions.find(x => x.slotId === slot.id && !terminal(x.run));
+    if (!override && tracked) { workflows.open(tracked.taskId); return; }
     const run = latest(slot);
-    if (!override && run && runStatus(run).active) { location.hash = taskHref(run.projectId, run.taskId, run.id); return; }
+    if (!override && run && runStatus(run).active) { workflows.open(run.taskId); return; }
     if (pending) { error = 'Check the previous workflow start before starting another.'; return; }
     pending = { slotId: slot.id, requestId: crypto.randomUUID(), approved, currentProjectId: app.lastProjectId, ...(targets ? {projectIds: targets} : {}), ...(override ? {override: slot} : {}) };
     try { sessionStorage.setItem(storageKey, JSON.stringify(pending)); }
@@ -125,6 +130,7 @@
     if (!pending || starting || app.connection !== 'live') return;
     const invocation = pending;
     starting = true; error = '';
+    workflows.starting = { name: workflow(layout.slots.find(s => s?.id === invocation.slotId)?.button ?? '')?.label ?? 'Workflow', requestId: invocation.requestId };
     try {
       const result = await deckApi.start(invocation.slotId, invocation.requestId, {approved: invocation.approved, currentProjectId: invocation.currentProjectId, projectIds: invocation.projectIds, override: invocation.override});
       for (const task of result.tasks) { app.warm(task.projectId); app.scope(task.projectId)?.upsertTask(task); }
@@ -132,6 +138,7 @@
       history = [{ ...invocation, projectId: result.task.projectId, taskId: result.task.id }, ...history.filter(h => h.requestId !== invocation.requestId)].slice(0,32);
       clearPending();
       await refreshHistory();
+      await workflows.refresh();
       announcement = `${result.task.title} started`;
       app.refreshOverview();
     } catch (err) {
@@ -139,7 +146,8 @@
       if (refused) clearPending();
       error = `${err instanceof Error ? err.message : String(err)}${refused ? ' Check Workflow executions for a saved task.' : ' The start may have been accepted. Check its task, or retry the same start safely.'}`;
       await refreshHistory().catch(() => {});
-    } finally { starting = false; }
+      await workflows.refresh();
+    } finally { starting = false; workflows.starting = null; }
   }
 
 </script>
@@ -167,12 +175,13 @@
       <a class="btn icon" href={globalHref('settings')} aria-label="Settings" title="Settings"><Icon name="settings" /></a>
     </nav>
   </header>
+  <WorkflowBanner />
   <div class="deck-toolbar">
     <span class="deck-title">Control Deck</span>
     <button class="btn small" type="button" disabled={!ready || saving || starting} onclick={() => { if (editing) void done(); else { editing = true; announcement = 'Editing deck'; } }} data-testid="edit-deck">{saving ? 'Saving…' : editing ? 'Done' : 'Edit Deck'}</button>
   </div>
   {#if editing}<p class="edit-hint">Tap to replace or remove. Drag to swap positions, or use Move to position in the button menu.</p>{/if}
-  {#if error}<p class="error" role="alert">{error}</p><button class="btn small" onclick={load} disabled={saving || starting}>Reload saved deck</button>{/if}
+  {#if error}<p class="error" role="alert">{error} {workflowRecovery(error)}</p><button class="btn small" onclick={load} disabled={saving || starting}>Reload saved deck</button>{/if}
   {#if pending}
     <div class="pending" role="status">
       <p>{starting ? 'Starting workflow…' : 'A workflow start needs checking. Its task may already exist.'}</p>

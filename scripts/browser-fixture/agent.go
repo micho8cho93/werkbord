@@ -31,7 +31,7 @@ func (fixtureAdapter) Start(_ context.Context, req agent.StartRequest) (agent.Se
 		case "question":
 			s.Emit(agent.Event{Kind: agent.KindQuestion, Question: &agent.Question{Ref: "fixture-question", Kind: domain.QuestionDecision, Prompt: "Commit the fixture work?", Options: []string{"Yes", "No"}}})
 		default:
-			s.Emit(agent.Event{Kind: agent.KindOutput, Stream: domain.StreamAssistant, Text: string(line)})
+			s.Emit(agent.Event{Kind: agent.KindOutput, Stream: domain.StreamAssistant, Text: string(line) + "\n"})
 		}
 	}
 	if err := s.Launch(); err != nil {
@@ -54,6 +54,15 @@ func runFixtureAgent() error {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		switch scanner.Text() {
+		case "workflow-verify":
+			fmt.Println("WERKBORD_STAGE 3 completed")
+			fmt.Println("WERKBORD_STAGE 4 running")
+			fmt.Println("Fixture verification evidence: reproducible test failure")
+		case "workflow-report":
+			fmt.Println("WERKBORD_STAGE 4 completed")
+			fmt.Println("WERKBORD_STAGE 5 completed")
+			fmt.Println("WERKBORD_STAGE 6 completed")
+			fmt.Println("Fixture findings report preserved")
 		case "fail":
 			return fmt.Errorf("intentional fixture agent failure")
 		case "ask":

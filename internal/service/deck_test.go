@@ -302,3 +302,61 @@ func TestDeckUpgradeReplaysPreviouslyAcceptedRequest(t *testing.T) {
 		t.Fatalf("upgrade duplicated task: %+v %v", replayed, err)
 	}
 }
+
+func TestDeckHistoryRetainsActiveAndPartiallyStartedExecutions(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	p, err := f.projects.Register(ctx, "/repos/history", "History")
+	if err != nil {
+		t.Fatal(err)
+	}
+	makeTask := func(title string) *domain.Task {
+		t.Helper()
+		task, err := f.tasks.CreateTask(ctx, NewTask{ProjectID: p.ID, Title: title})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return task
+	}
+	active, failed, partial := makeTask("Active"), makeTask("Failed"), makeTask("Partial")
+	if _, err := f.runs.Create(ctx, NewRun{TaskID: active.ID, AgentID: "fake", Prompt: "Inspect"}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := f.runs.Create(ctx, NewRun{TaskID: failed.ID, AgentID: "fake", Prompt: "Inspect"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.runs.End(ctx, run.ID, Ended{State: domain.RunFailed, Reason: "setup failed"}); err != nil {
+		t.Fatal(err)
+	}
+	history := make([]DeckExecution, 99)
+	for i := range history {
+		history[i] = DeckExecution{RequestID: "recent", TaskID: failed.ID, ProjectID: p.ID}
+	}
+	history = append(history, DeckExecution{RequestID: "old-active", TaskID: active.ID, ProjectID: p.ID}, DeckExecution{RequestID: "old-failed", TaskID: failed.ID, ProjectID: p.ID}, DeckExecution{RequestID: "old-partial", TaskID: partial.ID, ProjectID: p.ID})
+	s := &Settings{Deps: f.deps}
+	layout := DefaultDeck()
+	layout.Slots[6] = &DeckSlot{ID: "workflow", Button: "find-bugs", ProjectID: p.ID}
+	if _, err := s.SetDeck(ctx, "owner", layout); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.deps.Store.Update(ctx, func(tx store.Tx) error {
+		return tx.Settings().Set(ctx, DeckOwnerKey("owner")+".history", history, s.now())
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PrepareDeckTask(ctx, f.tasks, "owner", "workflow", "history-request-1234"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.DeckHistory(ctx, "owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, execution := range got {
+		seen[execution.RequestID] = true
+	}
+	if len(got) != 102 || !seen["old-active"] || !seen["old-partial"] || seen["old-failed"] {
+		t.Fatalf("lost active/partial execution or retained old failure: %d %+v", len(got), seen)
+	}
+}

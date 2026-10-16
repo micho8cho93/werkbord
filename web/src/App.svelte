@@ -1,4 +1,5 @@
 <script lang="ts">
+  import WorkflowMonitor from './lib/mobile/WorkflowMonitor.svelte';
   import Icon, { type IconName } from './lib/Icon.svelte';
   import Mark from './lib/Mark.svelte';
   import Assistant from './lib/assistant/Assistant.svelte';
@@ -220,6 +221,7 @@
         </header>
       {/if}
 
+      {#if deck}<WorkflowMonitor />{/if}
       <PhoneWelcome />
       <Tour surface="desktop" enabled={!deck && !isPhone() && !app.needsOnboarding && router.view !== 'onboarding'} />
       {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}

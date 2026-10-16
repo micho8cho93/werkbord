@@ -24,7 +24,7 @@ export function targetLabel(slot: DeckSlot, projects: readonly {id: string; name
  return `Current: ${names([current]) || 'Choose project'}`;
 }
 export interface DeckLayout { version: number; slots: (DeckSlot | null)[] }
-export interface DeckExecution { requestId: string; slotId: string; projectId: string; taskId: string }
+export interface DeckExecution { requestId: string; slotId: string; projectId: string; taskId: string; configuration?: DeckSlot }
 export function workflow(id: string) { return WORKFLOWS.find(w => w.id === id); }
 export function initialLayout(): DeckLayout {
   return { version: 0, slots: [...(['needs', 'calendar', 'projects', 'mywork', 'agents', 'analytics'] as DeckKeyId[]).map(button => ({ id: button, button })), null, null, null] };

@@ -335,3 +335,13 @@ Shift+F10, context menu and the editing settings control configure it. Configura
 Individual repositories; ordinary task views provide output, questions, review and cancellation. Phone preferences live in the
 controller per enrolled phone. The redundant attention strip is removed; Needs you retains its live count and destination.
 Search and Help sit beside Settings in the header with 44px targets. The per-phone tour explains editing and execution.
+
+### Persistent phone workflow execution (4.48)
+
+A workflow tap keeps the Control Deck open. The execution banner sits below the header and stays accessible while scrolling
+and navigating phone screens. Each repository run has its own labelled Stop action and stage count; terminal results remain
+available in history. Opening the banner shows a vertical, expandable sequence with controller-observed preparation and
+explicitly agent-reported investigation stages. Missing stage reports stay pending; no elapsed-time percentage is shown.
+The monitor uses durable task/run history and the existing event stream, catches up on reconnect, and treats an unacknowledged
+Stop as uncertain. Completed evidence stays available after cancellation or partial failure. Use the existing bottom sheet,
+status text colours, 44px actions and reduced-motion behaviour.
