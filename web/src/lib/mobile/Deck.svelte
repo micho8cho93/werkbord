@@ -326,20 +326,21 @@
     --deck-wall: light-dark(color-mix(in srgb, var(--text) 20%, var(--border)), color-mix(in srgb, var(--ground) 72%, var(--border)));
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: calc(10px + env(safe-area-inset-top)) 16px 20px;
+    gap: 20px;
+    min-height: 100dvh;
+    padding: calc(14px + env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom));
     max-width: 440px;
     margin: 0 auto;
   }
 
-  .header-actions { display: flex; flex: none; gap: 4px; }
+  .header-actions { display: flex; flex: none; gap: 10px; }
   .header-actions .editing { color: var(--accent); background: var(--surface-2); }
   .edit-hint { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
   .pending { display: flex; flex-wrap: wrap; gap: 8px; }
   .pending p { flex-basis: 100%; margin: 0; }
   .position { min-width: 0; }
   .drop-target { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 17px; }
-  @media (max-width: 359px) { .brand { gap: 4px; } .brand :global(svg) { height: 18px; width: auto; } .wm { font-size: 14px; } .top { gap: 4px; } .header-actions { gap: 0; } }
+  @media (max-width: 359px) { .brand { gap: 4px; } .brand :global(svg) { height: 18px; width: auto; } .wm { font-size: 14px; } .top { gap: 4px; } .header-actions { gap: 4px; } }
   .top {
     display: flex;
     align-items: center;
@@ -430,7 +431,8 @@
   /* The keyboard. A thick matte housing in the tray's paper, with a little grain, a lit top edge and a dark lower one; the keys
      do not stretch to fill the screen, the material around them is part of it. */
   .housing {
-    padding: 18px;
+    margin-block: auto;
+    padding: 24px;
     border-radius: 26px;
     border: 1px solid var(--border);
     background:
@@ -447,18 +449,18 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    gap: 20px 18px;
   }
 
   /* The narrowest phones keep nine keys in three columns by giving the keys the room: less housing, closer keys. */
   @media (max-width: 359px) {
     .housing {
-      padding: 12px;
+      padding: 16px;
       border-radius: 22px;
     }
 
     .grid {
-      gap: 8px;
+      gap: 14px 12px;
     }
   }
 

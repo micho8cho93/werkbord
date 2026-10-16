@@ -32,7 +32,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.getByRole('heading', { name: 'Welcome to Werkbord', exact: true }).waitFor();
     await page.getByText('2 of 3 requirements verified', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Create your first task', exact: true }).count(), 0, 'a repository is required for local coding');
-    assert.equal(await page.locator('details.optional').getAttribute('open'), null, 'optional connections start collapsed');
+    await page.getByRole('list', { name: 'Setup steps' }).getByRole('button', { name: /GitHub \(optional\)/ }).waitFor();
+    await page.getByRole('list', { name: 'Setup steps' }).getByRole('button', { name: /Phone \(optional\)/ }).waitFor();
+    assert.equal(await page.getByRole('list', { name: 'Setup steps' }).locator('[aria-current="step"]').count(), 1, 'setup selects one step at a time');
     for (const theme of ['light', 'dark']) {
         await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
         for (const [size, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
@@ -41,10 +43,13 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
             await page.screenshot({ path: path.join(artifacts, `onboarding-${size}-${theme}.png`) });
         }
     }
-    await page.getByRole('button', { name: 'Continue with planning only', exact: true }).click();
+    await page.getByRole('button', { name: 'Finish later', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     console.log('PASS first-run setup and continue into empty project workflow, desktop/mobile');
     await api('POST', '/api/onboarding/complete', {});
+    // This suite exercises task and settings interactions after setup. First-visit tours
+    // are covered separately and must not overlay the sheets under test.
+    for (const surface of ['desktop', 'settings', 'analytics']) await api('POST', '/api/onboarding/tours/seen', { surface });
     let projects = await api('GET', '/api/projects');
     let p = projects.projects.find(p => p.repoPath === repo);
     if (!p)
@@ -105,7 +110,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.getByRole('alert').filter({ hasText: 'Runner readiness unavailable' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Create your first task', exact: true }).count(), 0, 'failed readiness check cannot reuse a cached success');
     await page.unroute('**/api/runners');
-    await page.getByRole('button', { name: 'Check local runner', exact: true }).click();
+    await page.getByRole('button', { name: 'Check again', exact: true }).click();
     await page.getByText('3 of 3 requirements verified · ready to create a task', { exact: true }).waitFor();
     await page.route('**/api/onboarding/complete', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'unavailable', message: 'Could not complete setup' } }) }));
     await page.getByRole('button', { name: 'Create your first task', exact: true }).click();
@@ -171,7 +176,8 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.keyboard.press('Escape');
     await taskDialog.waitFor({ state: 'hidden' });
     assert.equal(await page.evaluate(() => document.activeElement?.isConnected), true, 'Escape closes the Sheet without focusing a stale setup control');
-    console.log('PASS verified local checklist, optional connections collapsed, planning alternative and first task in registered repository');
+    console.log('PASS verified local checklist, optional setup steps, planning alternative and first task in registered repository');
+    const originalExecution = p.execution ?? {};
     const pair = await api('POST', '/api/runners/pair', { projects: [p.id], allowClone: false });
     const secret = pair.code.split('.')[2];
     const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
@@ -713,6 +719,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     }
     finally {
         clearInterval(timer);
+        await api('PUT', `/api/projects/${p.id}/execution`, originalExecution);
         await browser.close();
     }
 })().catch(e => { console.error(e.stack); process.exit(1); });
