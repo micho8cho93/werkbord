@@ -11,9 +11,10 @@
   import Keycap from './Keycap.svelte';
   import Tour from '../Tour.svelte';
   import DeckLibrary from './DeckLibrary.svelte';
+  import Sheet from '../Sheet.svelte';
   import WorkflowSettings from './WorkflowSettings.svelte';
   import DeckRuns from './DeckRuns.svelte';
-  import { deckApi, initialLayout, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot } from './layout';
+  import { deckApi, targetLabel, initialLayout, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
 
   const counts = $derived(deckCounts(app.overview, app.needsYou));
   const keys = $derived(deckKeys(counts));
@@ -34,7 +35,11 @@
   let library = $state<number | null>(null);
   let configuring = $state<number | null>(null);
   let history = $state<DeckExecution[]>([]);
-  let pending = $state<{ slotId: string; requestId: string } | null>(null);
+  let pending = $state<({ slotId: string; requestId: string } & DeckStart) | null>(null);
+  let picking = $state<DeckSlot | null>(null);
+  let picked = $state<string[]>([]);
+  let once = false;
+  let approving = $state<{slot: DeckSlot; override: boolean; targets?: string[]} | null>(null);
   let starting = $state(false);
   let storageKey = '';
   let dragFrom: number | null = null;
@@ -103,13 +108,15 @@
     return { id: slot.button, label: w.label, icon: w.icon, href: '', count: 0, tone: run && runStatus(run).active ? (runStatus(run).needsInput ? 'wait' : 'work') : 'plain', note: run ? runStatus(run).label : '' };
   }
   function clearPending() { pending = null; try { sessionStorage.removeItem(storageKey); } catch { /* server still deduplicates */ } }
-  async function launch(slot: DeckSlot) {
+  async function launch(slot: DeckSlot, override = false, targets?: string[], approved = false) {
     if (starting || app.connection !== 'live') return;
-    if (!slot.projectId) { configuring = layout.slots.findIndex(s => s?.id === slot.id); return; }
+    if (slot.target === 'ask' && !targets) { picking = slot; picked = []; once = override; return; }
+    if ((!slot.target || slot.target === 'current') && !slot.projectId && !app.lastProjectId) { configuring = layout.slots.findIndex(s => s?.id === slot.id); return; }
+    if (!approved && (slot.output === 'changes' || slot.approval === 'always')) { approving = {slot, override, targets}; return; }
     const run = latest(slot);
-    if (run && runStatus(run).active) { location.hash = taskHref(run.projectId, run.taskId, run.id); return; }
+    if (!override && run && runStatus(run).active) { location.hash = taskHref(run.projectId, run.taskId, run.id); return; }
     if (pending) { error = 'Check the previous workflow start before starting another.'; return; }
-    pending = { slotId: slot.id, requestId: crypto.randomUUID() };
+    pending = { slotId: slot.id, requestId: crypto.randomUUID(), approved, currentProjectId: app.lastProjectId, ...(targets ? {projectIds: targets} : {}), ...(override ? {override: slot} : {}) };
     try { sessionStorage.setItem(storageKey, JSON.stringify(pending)); }
     catch { error = 'This browser cannot save the start request. Enable browser storage and try again.'; pending = null; return; }
     await executePending();
@@ -119,12 +126,12 @@
     const invocation = pending;
     starting = true; error = '';
     try {
-      const result = await deckApi.start(invocation.slotId, invocation.requestId);
-      app.warm(result.task.projectId);
-      app.scope(result.task.projectId)?.upsertTask(result.task);
-      app.scope(result.task.projectId)?.upsertRun(result.run);
+      const result = await deckApi.start(invocation.slotId, invocation.requestId, {approved: invocation.approved, currentProjectId: invocation.currentProjectId, projectIds: invocation.projectIds, override: invocation.override});
+      for (const task of result.tasks) { app.warm(task.projectId); app.scope(task.projectId)?.upsertTask(task); }
+      for (const run of result.runs) app.scope(run.projectId)?.upsertRun(run);
       history = [{ ...invocation, projectId: result.task.projectId, taskId: result.task.id }, ...history.filter(h => h.requestId !== invocation.requestId)].slice(0,32);
       clearPending();
+      await refreshHistory();
       announcement = `${result.task.title} started`;
       app.refreshOverview();
     } catch (err) {
@@ -185,7 +192,7 @@
       {#each layout.slots as slot, i (i)}
         <div class="position" class:drop-target={dragTo === i} data-deck-position={i}>
           <Keycap key={keyFor(slot)} empty={!slot} {editing}
-            target={slot && workflow(slot.button) ? (slot.projectId ? app.project(slot.projectId)?.name ?? 'Unavailable' : 'Set repository') : ''}
+            target={slot && workflow(slot.button) ? targetLabel(slot, app.projects, app.lastProjectId) : ''}
             disabled={!ready || saving || starting || (!!slot && !!workflow(slot.button) && app.connection !== 'live')}
             onclick={!slot || editing ? () => { editing = true; library = i; } : workflow(slot.button) ? () => void launch(slot) : undefined}
             onconfigure={slot && workflow(slot.button) ? () => { configuring = i; } : undefined}
@@ -202,7 +209,21 @@
       onconfigure={() => { configuring = library; library = null; }} />
   {/if}
   {#if configuring !== null && layout.slots[configuring]}
-    <WorkflowSettings slot={layout.slots[configuring]!} onclose={() => configuring = null} onsave={configure} />
+    <WorkflowSettings slot={layout.slots[configuring]!} onclose={() => configuring = null} onsave={configure} onrun={editing ? undefined : async slot => { configuring = null; await launch(slot, true); }} />
+  {/if}
+
+  {#if approving}
+    <Sheet title="Approve workflow execution" onclose={() => approving = null}>
+      <p>{workflow(approving.slot.button)?.label} · {targetLabel(approving.slot, app.projects, app.lastProjectId)}</p>
+      <p>{approving.slot.output === 'changes' ? 'Authorise proposing changes in task worktrees. The agent must request approval for its concrete changes before editing. Commits, pushes and destructive actions require separate approval.' : 'Authorise investigation and relevant tests for this invocation.'}</p>
+      {#snippet footer()}<button class="btn" onclick={() => approving = null}>Cancel</button><button class="btn primary" onclick={() => { const a = approving!; approving = null; void launch(a.slot, a.override, a.targets, true); }}>Approve and run</button>{/snippet}
+    </Sheet>
+  {/if}
+  {#if picking}
+    <Sheet title="Choose workflow repositories" onclose={() => picking = null}>
+      <div class="target-picker">{#each app.projects.filter(p => p.kind !== 'work' && p.repoPath) as p (p.id)}<label><input type="checkbox" value={p.id} bind:group={picked} />{p.name}</label>{/each}</div>
+      {#snippet footer()}<button class="btn" onclick={() => picking = null}>Cancel</button><button class="btn primary" disabled={!picked.length} onclick={() => { const slot = picking!; picking = null; void launch(slot, once, picked); }}>Run workflow</button>{/snippet}
+    </Sheet>
   {/if}
 
   <a class="activity card" href={globalHref('agents')} data-testid="deck-activity" aria-label="Agents. {headline}">
@@ -217,6 +238,8 @@
 </div>
 
 <style>
+  .target-picker { display: grid; gap: 8px; }
+  .target-picker label { display: flex; gap: 8px; align-items: center; min-height: 44px; }
   .deck-page {
     --deck-edge-light: light-dark(var(--surface), color-mix(in srgb, var(--text) 9%, transparent));
     --deck-wall: light-dark(color-mix(in srgb, var(--text) 20%, var(--border)), color-mix(in srgb, var(--ground) 72%, var(--border)));

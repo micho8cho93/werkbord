@@ -5,15 +5,24 @@ import type { IconName } from '../Icon.svelte';
 
 export const WORKFLOWS = [
   { id: 'find-bugs', label: 'Find Bugs', icon: 'search', description: 'Report reproducible bugs and suggested fixes. Leaves files unchanged.' },
-  { id: 'improve-tests', label: 'Improve Tests', icon: 'check', description: 'Add focused regression tests and run relevant checks in a task worktree.' },
+  { id: 'improve-tests', label: 'Improve Tests', icon: 'check', description: 'Find coverage gaps, propose tests and validate approved changes.' },
   { id: 'security-audit', label: 'Security Audit', icon: 'control', description: 'Report security risks and remediation. Leaves files unchanged.' },
   { id: 'dependency-check', label: 'Dependency Check', icon: 'branch', description: 'Report dependency risks and recommended updates. Does not update packages.' },
-  { id: 'refactor-codebase', label: 'Refactor Codebase', icon: 'git', description: 'Make one small, behaviour-preserving refactor in a task worktree.' },
-  { id: 'sprint-summary', label: 'Sprint Summary', icon: 'runs', description: 'Summarise Git activity from the last 14 days. Leaves files unchanged.' },
+  { id: 'refactor-codebase', label: 'Refactor Codebase', icon: 'git', description: 'Propose targeted refactors and validate approved changes.' },
+  { id: 'sprint-summary', label: 'Sprint Summary', icon: 'runs', description: 'Summarise tasks, blockers, agent activity and Git activity from the last 14 days.' },
 ] as const satisfies readonly { id: string; label: string; icon: IconName; description: string }[];
 export type WorkflowId = typeof WORKFLOWS[number]['id'];
 export type ButtonId = DeckKeyId | WorkflowId;
-export interface DeckSlot { id: string; button: ButtonId; projectId?: string; agent?: string; model?: string }
+export interface DeckSlot { id: string; button: ButtonId; projectId?: string; agent?: string; model?: string; reasoning?: string; runner?: string; target?: 'current' | 'selected' | 'all' | 'ask'; projectIds?: string[]; output?: 'report' | 'drafts' | 'changes'; approval?: 'always' | 'changes'; maxRepositories?: number }
+export interface DeckStart { approved?: boolean; currentProjectId?: string; projectIds?: string[]; override?: DeckSlot }
+export function targetLabel(slot: DeckSlot, projects: readonly {id: string; name: string}[], current: string): string {
+ const names = (ids: string[]) => ids.map(id => projects.find(p => p.id === id)?.name ?? 'Unavailable').join(', ');
+ if (slot.target === 'all') return 'All accessible repositories';
+ if (slot.target === 'ask') return 'Ask every time';
+ if (slot.target === 'selected') { const ids = slot.projectIds ?? []; return ids.length > 1 ? `${ids.length} repos: ${names(ids)}` : names(ids) || 'Choose repositories'; }
+ if (!slot.target && slot.projectId) return names([slot.projectId]);
+ return `Current: ${names([current]) || 'Choose project'}`;
+}
 export interface DeckLayout { version: number; slots: (DeckSlot | null)[] }
 export interface DeckExecution { requestId: string; slotId: string; projectId: string; taskId: string }
 export function workflow(id: string) { return WORKFLOWS.find(w => w.id === id); }
@@ -33,5 +42,5 @@ export const deckApi = {
   load: () => request<DeckLayout>('GET', '/api/deck'),
   save: (layout: DeckLayout) => request<DeckLayout>('PUT', '/api/deck', layout),
   history: () => request<DeckExecution[]>('GET', '/api/deck/history'),
-  start: (slotId: string, requestId: string) => request<{ task: Task; run: Run }>('POST', '/api/deck/workflows', { slotId, requestId }),
+  start: (slotId: string, requestId: string, input: DeckStart = {}) => request<{ task: Task; run: Run; tasks: Task[]; runs: Run[] }>('POST', '/api/deck/workflows', { slotId, requestId, ...input }),
 };

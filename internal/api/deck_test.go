@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -129,5 +130,51 @@ func TestPhoneWorkflowUsesNormalRunAndDeduplicatesConcurrentAndCompletedRetries(
 	other, _ := p.enrolled(t, "B")
 	if code, raw := call(t, "GET", p.url+"/api/deck/history", other, ""); code != 200 || strings.TrimSpace(string(raw)) != "[]" {
 		t.Fatalf("history leaked: %d %s", code, raw)
+	}
+}
+
+func TestPhoneCanConfigureAndRunEveryPresetWithoutAdministrativeAccess(t *testing.T) {
+	p := newPhoned(t)
+	token, _ := p.enrolled(t, "Preset phone")
+	for i, preset := range service.DeckWorkflows {
+		t.Run(preset.ID, func(t *testing.T) {
+			code, raw := call(t, "GET", p.url+"/api/deck", token, "")
+			if code != 200 {
+				t.Fatal(code)
+			}
+			var layout service.DeckLayout
+			_ = json.Unmarshal(raw, &layout)
+			layout.Slots[6] = &service.DeckSlot{ID: "preset", Button: preset.ID, Target: "current", Agent: "fake", Output: "report", Approval: "changes", MaxRepositories: 1}
+			body, _ := json.Marshal(layout)
+			if code, raw = call(t, "PUT", p.url+"/api/deck", token, string(body)); code != 200 {
+				t.Fatalf("save: %d %s", code, raw)
+			}
+			body, _ = json.Marshal(map[string]any{"slotId": "preset", "requestId": fmt.Sprintf("preset-request-%04d", i), "currentProjectId": p.project.ID})
+			code, raw = call(t, "POST", p.url+"/api/deck/workflows", token, string(body))
+			if code != 200 {
+				t.Fatalf("start: %d %s", code, raw)
+			}
+			var result struct {
+				Task domain.Task
+				Run  domain.Run
+			}
+			_ = json.Unmarshal(raw, &result)
+			if result.Task.Title != preset.Name || result.Run.AgentID != "fake" || result.Run.WorktreeID == "" {
+				t.Fatalf("wrong preset %s", raw)
+			}
+			p.finish(t, result.Run)
+		})
+	}
+	for _, body := range []string{
+		`{"slotId":"preset","requestId":"unsafe-request-1234","override":{"id":"preset","button":"sprint-summary","target":"selected","projectIds":["unknown"]}}`,
+		`{"slotId":"preset","requestId":"unsafe-request-1234","override":{"id":"preset","button":"sprint-summary","target":"all","interaction":"autonomous"}}`,
+		`{"slotId":"preset","requestId":"unsafe-request-1234","override":{"id":"preset","button":"arbitrary-command","target":"all"}}`,
+	} {
+		if code, raw := call(t, "POST", p.url+"/api/deck/workflows", token, body); code < 400 {
+			t.Fatalf("accepted: %s", raw)
+		}
+	}
+	if code, _ := call(t, "PUT", p.url+"/api/settings/execution", token, `{"agent":"fake"}`); code != 403 {
+		t.Fatal("phone gained settings access")
 	}
 }

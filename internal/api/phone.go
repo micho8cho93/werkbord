@@ -53,7 +53,7 @@ var phoneRoutes = []phoneRoute{
 	{method: "GET", pattern: "/api/deck"},
 	{method: "PUT", pattern: "/api/deck", fields: []string{"version", "slots"}},
 	{method: "GET", pattern: "/api/deck/history"},
-	{method: "POST", pattern: "/api/deck/workflows", fields: []string{"slotId", "requestId"}},
+	{method: "POST", pattern: "/api/deck/workflows", fields: []string{"slotId", "requestId", "currentProjectId", "projectIds", "override", "approved"}},
 
 	// reading: the Control Deck, the task pages, Git's Control Center
 	{method: "GET", pattern: "/api/events"},

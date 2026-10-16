@@ -66,17 +66,21 @@ func (s *Server) handleDeckWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		SlotID    string `json:"slotId"`
-		RequestID string `json:"requestId"`
+		Approved         bool              `json:"approved,omitempty"`
+		SlotID           string            `json:"slotId"`
+		RequestID        string            `json:"requestId"`
+		CurrentProjectID string            `json:"currentProjectId,omitempty"`
+		ProjectIDs       []string          `json:"projectIds,omitempty"`
+		Override         *service.DeckSlot `json:"override,omitempty"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	task, run, err := s.opt.Runner.StartDeckWorkflow(r.Context(), s.opt.Settings, deckOwner(r), req.SlotID, req.RequestID)
+	tasks, runs, err := s.opt.Runner.StartDeckWorkflows(r.Context(), s.opt.Settings, deckOwner(r), req.SlotID, req.RequestID, service.DeckStart{Approved: req.Approved, CurrentProjectID: req.CurrentProjectID, ProjectIDs: req.ProjectIDs, Override: req.Override})
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"task": task, "run": run})
+	writeJSON(w, 200, map[string]any{"task": tasks[0], "run": runs[0], "tasks": tasks, "runs": runs})
 }

@@ -38,7 +38,8 @@ async function request(token, method, route, body) {
         await edit().click();
         await socket(6).click();
         await dialog().getByRole('button', { name: /^Find Bugs/ }).click();
-        await dialog().getByRole('combobox', { name: 'Repository', exact: true }).selectOption(project.id);
+        await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('selected');
+        await dialog().getByRole('checkbox', { name: project.name, exact: true }).check();
         await dialog().getByRole('combobox', { name: 'Agent', exact: true }).selectOption('fixture');
         await dialog().getByRole('button', { name: 'Save configuration', exact: true }).click();
         assert.equal(starts, 0, 'configuration never executes');
@@ -94,6 +95,25 @@ async function request(token, method, route, body) {
         await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${runs.runs[0].id}/stop`, {});
         await page.goto(base + '/#/deck'); await edit().waitFor();
 
+        // A one-off picker changes this invocation without changing the saved target.
+        await socket(7).focus(); await page.keyboard.press('Shift+F10');
+        await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('ask');
+        await dialog().getByRole('combobox', { name: 'Output', exact: true }).selectOption('report');
+        await dialog().getByRole('button', { name: 'Run Once With Different Settings', exact: true }).click();
+        await dialog().getByRole('heading', { name: 'Choose workflow repositories' }).waitFor();
+        assert.equal(starts, 1, 'picker does not launch before a repository is selected');
+        await dialog().getByRole('checkbox', { name: project.name, exact: true }).check();
+        const oneOffResponse = page.waitForResponse(r => new URL(r.url()).pathname === '/api/deck/workflows' && r.request().method() === 'POST');
+        await dialog().getByRole('button', { name: 'Run workflow', exact: true }).click();
+        const response = await oneOffResponse; assert(response.ok());
+        const oneOff = await response.json();
+        assert.equal(oneOff.tasks.length, 1); assert.equal(oneOff.task.projectId, project.id);
+        const persisted = await request(phone.token, 'GET', '/api/deck');
+        assert.equal(persisted.slots[7].target, 'selected', 'one-off scope is not saved');
+        assert.notEqual(persisted.slots[7].output, 'report', 'one-off output is not saved');
+        await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${oneOff.run.id}/stop`, {});
+        await page.reload(); await edit().waitFor();
+
         // Workflow labels, targets, edit controls and sheets fit both themes and phone sizes.
         for (const width of [320, 430, 844]) {
             await page.setViewportSize({ width, height: width === 844 ? 390 : 844 });
@@ -103,7 +123,12 @@ async function request(token, method, route, body) {
                 for (const target of [page.getByRole('button', { name: 'Jump to', exact: true }), page.getByRole('link', { name: 'Help and shortcuts', exact: true }), edit()]) {
                     const r = await target.boundingBox(); assert(r.width >= 44 && r.height >= 44, '44px controls');
                 }
-                if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, `configured-deck-${width}-${colorScheme}.png`), fullPage: true });
+                if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, `configured-deck-${width}-${colorScheme}.png`), fullPage: true, animations: 'disabled' });
+                await socket(7).focus(); await page.keyboard.press('Shift+F10');
+                await dialog().getByRole('heading', { name: 'Configure Find Bugs' }).waitFor();
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `configuration ${width} ${colorScheme}`);
+                if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, `workflow-settings-${width}-${colorScheme}.png`), fullPage: true, animations: 'disabled' });
+                await page.keyboard.press('Escape');
             }
         }
         // Removing everything persists an intentionally empty deck.
@@ -117,7 +142,7 @@ async function request(token, method, route, body) {
         console.log('PASS configurable deck: persistence, touch/keyboard configuration, dragging, explicit empties, normal execution, progress and detail, themes and 44px targets');
     } catch (e) {
         console.error('Deck positions:', await page.locator('[data-deck-position]').evaluateAll(els => els.map(el => el.innerText)));
-        if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, 'deck-failure.png'), fullPage: true });
+        if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, 'deck-failure.png'), fullPage: true, animations: 'disabled' });
         throw e;
     } finally {
         await browser.close();

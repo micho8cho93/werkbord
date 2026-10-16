@@ -17,7 +17,7 @@ it is not the controller's token, and it works on a fixed list of routes (`inter
 | A phone can | A phone cannot |
 | --- | --- |
 | Read everything the deck and the task pages show | Change general settings, register or change a repository |
-| Create and edit tasks, start a run with the task's own settings, stop or finish it, answer an agent, accept or reject its work | Choose general task/run execution settings (workflow buttons may choose their own agent/model); pair or revoke runners |
+| Create and edit tasks, start a run with the task's own settings, stop or finish it, answer an agent, accept or reject its work | Choose general task/run execution settings (workflow buttons may configure their own scoped execution); pair or revoke runners |
 | Use the Assistant, all of it (Team workspace tools need the desktop app, which a phone does not have) | |
 | Use Git as the Control Center does: fetch, merge, push, delete a branch, clean a worktree, open a pull request | |
 | Read, rename and sign out itself | Make codes, list or revoke phones, read or rotate the token |
@@ -37,24 +37,48 @@ the editing gear, a hold, the context menu or Shift+F10. Long presses and drags 
 
 The library offers Reviews, Git, Runners and six workflows: Find Bugs, Improve Tests, Security Audit, Dependency Check,
 Refactor Codebase and Sprint Summary. The original six navigation buttons can also be restored from it. Workflow configuration
-selects a registered Individual repository and optionally an agent/model. Find Bugs, Security Audit, Dependency Check and
-Sprint Summary request reports without file edits; Improve Tests and Refactor Codebase request changes in ordinary task
-worktrees. These briefs do not add a sandbox or override the agent's existing permissions. Sprint Summary covers 14 days.
+supports Current project (the last Individual project opened, resolved when tapped), Selected repositories, All accessible
+repositories, and Ask every time. The button displays the chosen scope. All targets are registered repositories authorised
+for the controller owner; a phone's existing owner grant does not give access to other users or Team execution.
+
+The sheet selects a runner, agent/provider profile, model and supported reasoning settings using the existing execution
+catalogue. Empty values inherit project/controller defaults. It also selects report, draft-task or approved-change output,
+approval before sensitive actions (optionally before investigation too), and an optional maximum repository count. A scope
+over the limit is refused rather than silently truncated. Run Once With Different Settings uses an invocation override and
+leaves the saved slot unchanged. Asking for targets opens a compact repository picker.
+
+Find Bugs verifies credible findings and avoids existing tasks; its default output creates human-owned Backlog drafts with
+file references. Improve Tests finds coverage gaps and proposes tests. Security Audit uses available scanners and classifies
+findings. Dependency Check inspects manifests/lockfiles and distinguishes verified advisories from unknowns. Refactor Codebase
+proposes targeted changes; Improve Tests and Refactor Codebase can implement changes after approval and validate them with
+relevant tests. Sprint Summary includes captured tasks, blockers and agent activity as well as 14 days of Git activity.
+Reports and proposals do not authorise edits. Sensitive output requires explicit invocation approval server-side; concrete
+changes and subsequent commits, pushes or destructive operations still require human approval through the agent's existing
+question/permission flow. Workflow briefs do not add a sandbox or override provider runtime permissions.
 
 Preferences are versioned JSON records in the existing controller settings store, scoped to the authenticated phone ID (or
 the local owner for a browser using the owner token). `GET/PUT /api/deck` reads/saves nine explicit positions, checks versions
 and rejects unknown fields and buttons. Phone callers cannot select another owner's record. Browser storage is not the layout's
 source of truth. An empty saved deck is distinct from a new deck.
 
-`POST /api/deck/workflows` accepts only a saved slot ID and an invocation request ID. The controller pins that invocation's
-configuration, deduplicates its task via the existing source-reference mechanism and returns the original run on replay,
-including after completion. It never accepts a shell command, policy or arbitrary execution overrides. The normal task/run
-services, worktrees, runner capacity, permission prompts and cancellation remain authoritative. Starts continue after a phone
-disconnects; controller restarts use existing run recovery and do not automatically rerun interrupted work.
+`POST /api/deck/workflows` accepts a saved slot ID, an invocation request ID, the current project ID, picker targets for
+Ask every time, a validated one-off configuration, and explicit invocation approval when required. It never accepts commands,
+policy flags, general task execution changes or resource registration. The server atomically captures exact targets,
+execution defaults and a bounded task/run context before creating tasks. Each repository uses an ordinary task and run.
+Retries reuse the snapshot, skip existing runs (including completed ones), and continue a partially started batch. Stage 2
+accepted requests retain their original source references across upgrades.
 
-`GET /api/deck/history` returns the phone's last 32 task references; the deck shows the latest eight with existing session rows.
-Open a task for full output, questions, review and Stop. Progress reports observed state and activity, never an invented percentage.
-A lost start response keeps a tab-persistent guard with Retry same start / Check saved task. No mutation is automatically replayed.
+`GET /api/deck/history` returns up to 100 task references and their captured configuration; the deck shows the latest eight
+with existing session rows. Open a task for output, approval questions, review and Stop. Draft output uses bounded structured
+`WERKBORD_DRAFT` findings in assistant output; the run service creates human-owned Backlog tasks with source-reference
+deduplication by project, workflow and finding key. Tool output cannot create drafts, nor can model output choose their
+project, execution settings or state. Unstructured findings remain available in the report.
+
+The normal task/run services, worktrees, authorised runner routing, capacity, model resolution, permission prompts and
+cancellation remain authoritative. Starts continue after a phone disconnects; controller restarts use existing run recovery
+and do not automatically rerun interrupted work. A lost start response keeps a tab-persistent guard with Retry same start /
+Check saved task. Progress reports observed state and activity, never an invented percentage.
+
 The relay connector honours explicit Individual workflow result links while retaining normal remembered-scope navigation.
 
 The All clear/attention strip is removed. Needs you retains its route and live count. Search and Help are header icons beside

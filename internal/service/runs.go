@@ -248,6 +248,9 @@ func (s *Runs) End(ctx context.Context, id string, in Ended) (*domain.Run, error
 	if err != nil {
 		return nil, err
 	}
+	if r.State == domain.RunCompleted {
+		s.collectDeckDrafts(ctx, r)
+	}
 	if s.Handoffs != nil {
 		if captured, e := s.Handoffs.Generate(ctx, r.ID); e == nil {
 			r = captured
@@ -797,6 +800,9 @@ func (s *Runs) MarkIdle(ctx context.Context, runID string) (*domain.Run, error) 
 		}
 		return emitAgent(em, domain.EventAgentWaiting, r, map[string]any{"reason": "turn_complete"})
 	})
+	if err == nil && r.State == domain.RunWaitingForUser && r.Waiting == domain.WaitIdle {
+		s.collectDeckDrafts(ctx, r)
+	}
 	return r, err
 }
 
