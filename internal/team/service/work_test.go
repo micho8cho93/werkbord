@@ -49,12 +49,12 @@ func TestMyWorkShowsWhatTheMemberIsDoingAcrossProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Bo claims one ticket here, is given one by Ada, has submitted a third, and has one in the other project.
-	claimed := tm.claimed(tm.bo, "Fix login")
+	claimed := tm.working(tm.bo, "Fix login")
 	given := tm.ticket(tm.owner, "Add audit log", domain.TicketAvailable)
 	if _, err := tm.svc.AssignTicket(bg, tm.owner, tm.pid(), given.ID, tm.bo.Member.ID); err != nil {
 		t.Fatal(err)
 	}
-	sub := tm.claimed(tm.bo, "Rotate keys")
+	sub := tm.working(tm.bo, "Rotate keys")
 	tm.report(tm.bo, sub, openPR())
 	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), sub.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
@@ -67,17 +67,17 @@ func TestMyWorkShowsWhatTheMemberIsDoingAcrossProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Cy's work must not appear.
-	cyK := tm.claimed(tm.cy, "Cy's thing")
+	cyK := tm.working(tm.cy, "Cy's thing")
 
 	w, err := tm.svc.MyWork(bg, tm.bo)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(w.InProgress) != 3 || len(w.Submitted) != 1 {
+	if len(w.Ready) != 2 || len(w.InProgress) != 1 || len(w.Submitted) != 1 {
 		t.Fatalf("in progress %d, submitted %d", len(w.InProgress), len(w.Submitted))
 	}
 	byKey := map[string]WorkItem{}
-	for _, it := range append(append([]WorkItem{}, w.InProgress...), w.Submitted...) {
+	for _, it := range append(append(append([]WorkItem{}, w.Ready...), w.InProgress...), w.Submitted...) {
 		byKey[it.Ticket.Key] = it
 		if it.Ticket.AssigneeID != tm.bo.Member.ID || it.Ticket.Key == cyK.Key {
 			t.Fatalf("someone else's work in My Work: %+v", it.Ticket)
@@ -125,7 +125,7 @@ func TestMyWorkShowsWhatTheMemberIsDoingAcrossProjects(t *testing.T) {
 
 func TestMyWorkSaysWhatWaitsForTheMember(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Fix login")
+	k := tm.working(tm.bo, "Fix login")
 	// Open pull request, conflicts, behind: the worst first.
 	pr := openPR()
 	pr.Mergeable, pr.Behind = domain.MergeConflicting, 4
@@ -150,6 +150,9 @@ func TestMyWorkSaysWhatWaitsForTheMember(t *testing.T) {
 		t.Fatalf("a clean open pull request should suggest submitting: %+v", w.NeedsAction)
 	}
 	// Submitted, then sent back with a note: the note reaches the author.
+	if _, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +168,9 @@ func TestMyWorkSaysWhatWaitsForTheMember(t *testing.T) {
 		t.Fatal("told to submit a ticket that was just sent back")
 	}
 	// Resubmitted: nothing of that kind waits any more.
+	if _, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +180,7 @@ func TestMyWorkSaysWhatWaitsForTheMember(t *testing.T) {
 	}
 
 	// The reviewer is asked, and then is told when the pull request is merged.
-	k2 := tm.claimed(tm.cy, "Another")
+	k2 := tm.working(tm.cy, "Another")
 	tm.report(tm.cy, k2, openPR2())
 	if _, err := tm.svc.SubmitTicket(bg, tm.cy, tm.pid(), k2.ID, SubmitInput{ReviewerID: tm.di.Member.ID}); err != nil {
 		t.Fatal(err)
@@ -206,7 +212,7 @@ func openPR2() domain.PullRequest {
 
 func TestAStaleTicketAsksToBeReleased(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Slow one")
+	k := tm.working(tm.bo, "Slow one")
 	tm.svc.now = func() time.Time { return time.Now().Add(StaleAfter + 24*time.Hour) }
 	w, _ := tm.svc.MyWork(bg, tm.bo)
 	if _, ok := actionKinds(w)["stale:"+k.Key]; !ok {
@@ -218,9 +224,9 @@ func TestAStaleTicketAsksToBeReleased(t *testing.T) {
 
 func TestReviewsListsWhatAReviewerMayDecide(t *testing.T) {
 	tm := newTeam(t)
-	k1 := tm.claimed(tm.bo, "First")
+	k1 := tm.working(tm.bo, "First")
 	tm.report(tm.bo, k1, openPR())
-	k2 := tm.claimed(tm.cy, "Second")
+	k2 := tm.working(tm.cy, "Second")
 	conf := openPR2()
 	conf.Mergeable = domain.MergeConflicting
 	tm.report(tm.cy, k2, conf)
@@ -310,6 +316,9 @@ func TestReviewsAcrossProjectsStayWithinWhatTheViewerCanSee(t *testing.T) {
 	if _, err := tm.svc.ClaimTicket(bg, tm.owner, secret.ID, k.ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := tm.svc.StartWork(bg, tm.owner, secret.ID, k.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.owner, secret.ID, k.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}
@@ -334,11 +343,11 @@ func TestTheOverviewShowsWhatIsAvailableAndWhoIsOnWhat(t *testing.T) {
 	tm.ticket(tm.owner, "Idea", domain.TicketBacklog)
 	tm.ticket(tm.owner, "Open 1", domain.TicketAvailable)
 	tm.ticket(tm.owner, "Open 2", domain.TicketAvailable)
-	k := tm.claimed(tm.bo, "Bo's")
+	k := tm.working(tm.bo, "Bo's")
 	conf := openPR()
 	conf.Mergeable = domain.MergeConflicting
 	tm.report(tm.bo, k, conf)
-	r := tm.claimed(tm.cy, "Cy's")
+	r := tm.working(tm.cy, "Cy's")
 	tm.report(tm.cy, r, openPR2())
 	if _, err := tm.svc.SubmitTicket(bg, tm.cy, tm.pid(), r.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
@@ -392,6 +401,9 @@ func TestWorkspaceSyncReportsEveryImportantEvent(t *testing.T) {
 	if _, err := tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, tm.bo.Member.ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}
@@ -419,7 +431,7 @@ func TestWorkspaceSyncReportsEveryImportantEvent(t *testing.T) {
 		}
 	}
 	want := []domain.ActivityKind{
-		domain.ActTicketCreated, domain.ActTicketClaimed, domain.ActPullRequestMade, domain.ActTicketReleased, domain.ActTicketReassigned, domain.ActTicketReassigned,
+		domain.ActTicketCreated, domain.ActTicketClaimed, domain.ActPullRequestMade, domain.ActTicketReleased, domain.ActTicketReassigned, domain.ActTicketReassigned, domain.ActTicketMoved,
 		domain.ActWorkSubmitted, domain.ActReviewRequested, domain.ActPullRequestMerged, domain.ActTicketCompleted,
 	}
 	if fmt.Sprint(kinds) != fmt.Sprint(want) {
@@ -625,7 +637,7 @@ func TestRacingTransitionsHaveExactlyOneWinner(t *testing.T) {
 	}{
 		{
 			name:  "the holder submits while the owner takes it back",
-			setup: func(tm *team) domain.Ticket { return tm.claimed(tm.bo, "A") },
+			setup: func(tm *team) domain.Ticket { return tm.working(tm.bo, "A") },
 			ops: []op{
 				{"submit", func(tm *team, k domain.Ticket) error {
 					_, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{})
@@ -643,7 +655,10 @@ func TestRacingTransitionsHaveExactlyOneWinner(t *testing.T) {
 		{
 			name: "a reviewer completes while another sends it back",
 			setup: func(tm *team) domain.Ticket {
-				k := tm.claimed(tm.bo, "B")
+				k := tm.working(tm.bo, "B")
+				if _, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID); err != nil {
+					t.Fatal(err)
+				}
 				if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{}); err != nil {
 					tm.t.Fatal(err)
 				}
@@ -665,7 +680,7 @@ func TestRacingTransitionsHaveExactlyOneWinner(t *testing.T) {
 		},
 		{
 			name:  "two owners reassign it to different people",
-			setup: func(tm *team) domain.Ticket { return tm.claimed(tm.bo, "C") },
+			setup: func(tm *team) domain.Ticket { return tm.working(tm.bo, "C") },
 			ops: []op{
 				{"to Cy", func(tm *team, k domain.Ticket) error {
 					_, err := tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, tm.cy.Member.ID)
@@ -683,7 +698,7 @@ func TestRacingTransitionsHaveExactlyOneWinner(t *testing.T) {
 		},
 		{
 			name:  "the holder releases while someone else claims the moment it is free",
-			setup: func(tm *team) domain.Ticket { return tm.claimed(tm.bo, "D") },
+			setup: func(tm *team) domain.Ticket { return tm.working(tm.bo, "D") },
 			ops: []op{
 				{"release", func(tm *team, k domain.Ticket) error {
 					_, err := tm.svc.ReleaseTicket(bg, tm.bo, tm.pid(), k.ID)
@@ -695,7 +710,7 @@ func TestRacingTransitionsHaveExactlyOneWinner(t *testing.T) {
 				}},
 			},
 			final: func(k domain.Ticket) bool {
-				return (k.Status == domain.TicketAvailable && k.AssigneeID == "") || (k.Status == domain.TicketInProgress && k.AssigneeID != "")
+				return k.Status == domain.TicketAvailable
 			},
 		},
 	}
@@ -830,7 +845,8 @@ func TestAStormOfOperationsLeavesAConsistentBoard(t *testing.T) {
 	versionSum := int64(0)
 	for _, k := range board.Tickets {
 		held := k.Status == domain.TicketInProgress || k.Status == domain.TicketReview
-		if held != (k.AssigneeID != "") && k.Status != domain.TicketDone {
+		reserved := k.Status == domain.TicketAvailable && k.AssigneeID != ""
+		if (held || reserved) != (k.AssigneeID != "") && k.Status != domain.TicketDone {
 			t.Fatalf("%s is %s held by %q", k.Key, k.Status, k.AssigneeID)
 		}
 		if k.Status == domain.TicketDone && k.CompletedAt == nil {
@@ -854,8 +870,11 @@ func TestAStormOfOperationsLeavesAConsistentBoard(t *testing.T) {
 // A merged pull request stays merged: a delayed report from a slow Werkbord cannot reopen it.
 func TestAMergedPullRequestCannotBeTurnedBackIntoAnOpenOne(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Merge me")
+	k := tm.working(tm.bo, "Merge me")
 	tm.report(tm.bo, k, openPR())
+	if _, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}

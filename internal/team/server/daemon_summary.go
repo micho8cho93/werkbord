@@ -163,6 +163,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 					Href: ticketHref(k.ProjectID, k.ID), Execution: executionOf(in.Progress[k.ID]), Report: executionReportOf(in.Progress[k.ID]), UpdatedAt: k.UpdatedAt})
 			}
 		}
+		add(in.MyWork.Ready)
 		add(in.MyWork.InProgress)
 		add(in.MyWork.Submitted)
 		for _, a := range in.MyWork.NeedsAction {
@@ -359,7 +360,7 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 	in.MyWork = &mw
 	// Read only the current holder's allowlisted progress, never raw runner output.
 	in.Progress = map[string]*domain.ProgressRecord{}
-	for i, w := range append(append([]service.WorkItem{}, mw.InProgress...), mw.Submitted...) {
+	for i, w := range append(append(append([]service.WorkItem{}, mw.Ready...), mw.InProgress...), mw.Submitted...) {
 		if i >= 32 {
 			break
 		}

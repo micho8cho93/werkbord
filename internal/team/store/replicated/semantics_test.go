@@ -114,7 +114,7 @@ func TestExactlyOneHostClaimsATicket(t *testing.T) {
 			t.Fatal(err)
 		}
 		w, _ := winner.Load(id)
-		if got.AssigneeID != w || got.Status != domain.TicketInProgress {
+		if got.AssigneeID != w || got.Status != domain.TicketAvailable {
 			t.Errorf("ticket %s is %s held by %s, but %v was told they won", id, got.Status, got.AssigneeID, w)
 		}
 	}
@@ -227,7 +227,7 @@ func TestUpdateIsAtomicAndSeesItsOwnWrites(t *testing.T) {
 			t.Errorf("claim %v %v", ok, err)
 		}
 		got, err := tx.Ticket(bg, k.ws, k.project, k.ticket)
-		if err != nil || got.Status != domain.TicketInProgress || got.AssigneeID != k.owner {
+		if err != nil || got.Status != domain.TicketAvailable || got.AssigneeID != k.owner {
 			t.Errorf("a read after the write: %+v %v", got, err)
 		}
 		again, err := tx.ClaimTicket(bg, k.ws, k.project, k.ticket, k.owner, "b", time.Now())

@@ -92,7 +92,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await dev('second','PUT','/settings',{...joined.settings,form:'desktop'});
  const project=await team('POST','/projects',{name:'Customer portal',repository:'https://github.com/acme/shop'});
  const ticket=await team('POST',`/projects/${project.id}/tickets`,{title:'Improve the sign-in experience',description:'Keep the session clear and accessible.',requirements:'All states readable',status:'available'});
- await team('POST',`/projects/${project.id}/tickets/${ticket.id}/claim`,{});
+ const reserved=await team('POST',`/projects/${project.id}/tickets/${ticket.id}/claim`,{});assert.equal(reserved.status,'available');assert(reserved.assigneeId);console.log('PASS claim reserves the ticket in Available');
  await page.keyboard.press('Meta+k');const search=page.getByRole('combobox',{name:'Search projects, tickets and sections'});await search.fill(ticket.key);await page.getByRole('dialog').getByRole('option').filter({hasText:ticket.title}).waitFor();await search.press('Enter');await page.waitForFunction(id=>state.ticketId===id&&!!document.querySelector('.ticket'),ticket.id);await page.keyboard.press('Escape');
  await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await page.reload();await page.getByRole('button',{name:'Switch to light mode',exact:true}).waitFor();await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
  console.log('PASS Cmd K through the enrolled device API and persistent desktop theme selection');
@@ -110,28 +110,28 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  // Phase 2: authenticated local controls, effective policy, one-shot launch,
  // privileged question answer and shared scheduling through the owner controller.
  await page.goto(m.first+`/?tab=board&project=${project.id}&ticket=${ticket.id}`);
- await page.getByRole('button',{name:'Agent controls',exact:true}).click();
- await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Review execution policy',exact:true}).count();},'local execution controls');
- await page.getByRole('button',{name:'Review execution policy',exact:true}).click();
- assert(await page.getByRole('button',{name:'Review execution policy',exact:true}).isDisabled(),'a current preview cannot be repeated');
+ await page.getByRole('button',{name:'Review and start agent',exact:true}).waitFor();
+ await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Review and start agent',exact:true}).count();},'local execution controls');
+ await page.getByRole('button',{name:'Review and start agent',exact:true}).click();
+ assert(await page.getByRole('button',{name:'Review and start agent',exact:true}).isDisabled(),'a current preview cannot be repeated');
  await page.getByRole('heading',{name:'Effective policy',exact:true}).waitFor();
  await shot(page,'agent-policy');await shot(page,'agent-policy-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  let approvals=0;const countApprovals=request=>{if(request.method()==='POST'&&request.url().endsWith('/execution/approve'))approvals++;};page.on('request',countApprovals);
  await page.route('**/api/device/v1/execution/start',route=>route.fulfill({status:503,json:{error:{message:'Fixture start temporarily unavailable'}}}));
- await page.getByRole('button',{name:'Approve and start my run',exact:true}).click();
+ await page.getByRole('button',{name:'Start agent',exact:true}).click();
  await page.getByText('Fixture start temporarily unavailable',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Start my approved run',exact:true}).waitFor();
  await page.unrouteAll({behavior:'wait'});
  await page.getByRole('button',{name:'Start my approved run',exact:true}).click();
  await page.getByRole('button',{name:'Stop my run',exact:true}).waitFor();
+ assert.equal((await team('GET',`/projects/${project.id}/tickets/${ticket.id}`)).status,'in_progress');
  assert.equal(approvals,1,'retrying a failed start reuses its saved one-shot approval');page.off('request',countApprovals);
  const localProjects=await http(individualURL,full,'GET','/api/projects');
  const localProject=localProjects.projects.find(p=>p.name==='Customer portal');
  const localRuns=await http(individualURL,full,'GET',`/api/projects/${localProject.id}/runs`);
  const running=localRuns.runs.find(r=>['running','waiting_for_user'].includes(r.state));assert(running,'local run launched');
- await http(individualURL,full,'POST',`/api/projects/${localProject.id}/runs/${running.id}/input`,{text:'ask'});
+ await page.getByRole('textbox',{name:'Message your agent',exact:true}).fill('ask');await page.getByRole('button',{name:'Send message',exact:true}).click();
  await wait(async()=>{const detail=await dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${ticket.id}`);return detail.questions.length===1;},'agent question');
- await page.getByRole('button',{name:'Refresh progress',exact:true}).click();
  await page.getByText('Commit the fixture work?',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Yes',exact:true}).click();
  await wait(async()=>{const detail=await dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${ticket.id}`);return detail.questions.length===0;},'owner answer delivered');
@@ -139,7 +139,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  // Present an active blocked report; Stop must remain available and another immediate start must not.
  await page.evaluate(async key=>{const view=executionViews.get(key);view.detail.runs.forEach(run=>{if(['starting','running','waiting_for_user'].includes(run.state))run.state='blocked';});await render();},project.id+':'+ticket.id);
  assert(await page.getByRole('button',{name:'Stop my run',exact:true}).isEnabled(),'a blocked agent can still be stopped');
- assert(await page.getByRole('button',{name:'Review execution policy',exact:true}).isDisabled(),'a blocked run still occupies execution');
+ assert(await page.getByRole('button',{name:'Review and start agent',exact:true}).isDisabled(),'a blocked run still occupies execution');
  await page.getByRole('button',{name:'Stop my run',exact:true}).click();
  await wait(async()=>{const r=await http(individualURL,full,'GET',`/api/projects/${localProject.id}/runs/${running.id}`);return r.state==='stopped';},'owner stop');
  await page.waitForFunction(()=>!actionBusy);
@@ -153,9 +153,9 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.getByRole('button',{name:'Propose schedule',exact:true}).click();
  const createdSchedule=await scheduleReply;assert(createdSchedule.ok(),await createdSchedule.text());
  await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Cancel request',exact:true}).count();},'shared schedule created');
- await page.getByRole('button',{name:'Agent controls',exact:true}).click();
- await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Review execution policy',exact:true}).count();},'local execution controls');
- await page.getByRole('button',{name:'Review execution policy',exact:true}).click();
+ await page.getByRole('button',{name:'Review and start agent',exact:true}).waitFor();
+ await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Review and start agent',exact:true}).count();},'local execution controls');
+ await page.getByRole('button',{name:'Review and start agent',exact:true}).click();
  await page.getByRole('button',{name:'Approve this execution once',exact:true}).click();
  await page.getByText(/Authorized once until/).waitFor();
  assert(await page.getByRole('button',{name:'Approve this execution once',exact:true}).isDisabled(),'one-shot approval cannot repeat');
@@ -163,6 +163,24 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.getByRole('button',{name:'Cancel request',exact:true}).click();
  await wait(async()=>{const list=await team('GET',`/projects/${project.id}/schedules`);return list[0]?.state==='canceled';},'canceled schedule');
  console.log('PASS local agent controls, policy review, start, question, stop, scheduled preapproval and cancellation');
+ const colleague=await team('POST','/members',{name:'Bo',role:'member'});
+ await team('PUT',`/projects/${project.id}/members/${colleague.member.id}`,{role:'member'});
+ const privateTicket=await team('POST',`/projects/${project.id}/tickets`,{title:'Bo’s private work',status:'available'});
+ const assigned=await team('POST',`/projects/${project.id}/tickets/${privateTicket.id}/assign`,{memberId:colleague.member.id});assert.equal(assigned.status,'available');
+ await assert.rejects(()=>dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${privateTicket.id}`),/only the current holder/);
+ await assert.rejects(()=>dev('first','POST','/execution/input',{projectId:project.id,ticketId:privateTicket.id,runId:running.id,text:'Continue'}),/only the current holder/);
+ await page.goto(m.first+`/?tab=board&project=${project.id}&ticket=${privateTicket.id}`);
+ await page.locator('.ticket').getByText(/Bo has claimed this ticket/).waitFor();
+ assert.equal(await page.getByRole('region',{name:'Your private agent',exact:true}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'Start work',exact:true}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'Claim this ticket',exact:true}).count(),0);
+ await shot(page,'teammate-ticket');await shot(page,'teammate-ticket-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
+ await page.getByRole('button',{name:'My tickets (1)',exact:true}).click();
+ await page.getByRole('region',{name:'Kanban board'}).getByRole('button',{name:privateTicket.title,exact:true}).waitFor({state:'detached'});
+ await page.getByRole('button',{name:'All tickets',exact:true}).click();
+ await page.getByRole('region',{name:'Kanban board'}).getByRole('button',{name:privateTicket.title,exact:true}).waitFor();
+ console.log('PASS teammate privacy, own-ticket filter and authenticated refusal of another member’s runner controls');
+
 
  // Presentation-only regression: a request remains observable through queued → delivered → done.
  let progressCalls=0;await page.route('**/api/team/v1/messages/ui-progress-fixture',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({id:'ui-progress-fixture',state:++progressCalls===1?'queued':progressCalls===2?'delivered':'done',result:{}})}));

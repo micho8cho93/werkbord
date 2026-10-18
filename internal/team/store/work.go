@@ -59,11 +59,11 @@ func (t *sqlTx) TicketCounts(ctx context.Context, workspaceID string) (map[strin
 }
 
 // HeldTickets lists the tickets of a workspace that someone is working on or that
-// wait for a review (in progress or in review), across all its projects; commits
+// wait for a review, including reserved Available work, across all its projects; commits
 // are not loaded. Finished and unclaimed tickets are never what a member's work
 // views are about, and leaving them out keeps these views small as a board grows.
 func (t *sqlTx) HeldTickets(ctx context.Context, workspaceID string) ([]domain.Ticket, error) {
-	rows, err := t.q.QueryContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND archived_at IS NULL AND status IN ('in_progress', 'review') ORDER BY updated_at DESC, number`, workspaceID)
+	rows, err := t.q.QueryContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND archived_at IS NULL AND status IN ('available', 'in_progress', 'review') AND assignee_id IS NOT NULL ORDER BY updated_at DESC, number`, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (t *sqlTx) HeldTickets(ctx context.Context, workspaceID string) ([]domain.T
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if err := t.fillPlanning(ctx, workspaceID, out, `t.status IN ('in_progress', 'review') AND t.archived_at IS NULL`); err != nil {
+	if err := t.fillPlanning(ctx, workspaceID, out, `t.status IN ('available', 'in_progress', 'review') AND t.assignee_id IS NOT NULL AND t.archived_at IS NULL`); err != nil {
 		return nil, err
 	}
 	return out, nil

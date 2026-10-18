@@ -130,6 +130,7 @@ func TestAProjectWithNoRepositoryRunsTheWholeBoardWithoutGit(t *testing.T) {
 	k := owner.want(201, "POST", base, `{"title":"Interview","status":"available","workMode":"human"}`)
 	id := str(k, "id")
 	owner.want(200, "POST", base+"/"+id+"/claim", nil)
+	owner.want(200, "POST", base+"/"+id+"/start-work", nil)
 	owner.want(200, "POST", base+"/"+id+"/submit", `{}`)
 	done := owner.want(200, "POST", base+"/"+id+"/complete", nil)
 	if str(done, "status") != "done" {

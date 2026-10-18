@@ -50,7 +50,7 @@ func (h *Handler) startAuthorized(ctx context.Context, workspace string, p envel
 	if err := host.Do(ctx, "GET", "/projects/"+p.ProjectID+"/tickets/"+p.TicketID, nil, &ticket); err != nil {
 		return refuse("current ticket authority unavailable")
 	}
-	if ticket.AssigneeID != h.Self.MemberID || !ticket.Status.Held() || ticket.ArchivedAt != nil || project.Archived || service.ScheduleContext(workspace, project, ticket) != ref.Context {
+	if ticket.AssigneeID != h.Self.MemberID || !ticket.Claimed() || ticket.ArchivedAt != nil || project.Archived || service.ScheduleContext(workspace, project, ticket) != ref.Context {
 		return refuse("ticket assignment or context changed")
 	}
 	in := integration.ExecutionDispatch{ExecutionID: p.ExecutionID, Fence: p.FenceID}

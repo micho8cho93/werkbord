@@ -13,7 +13,7 @@ import (
 
 // The ticket workflow:
 //
-//	backlog ⇄ available ──claim/assign──▶ in_progress ──submit──▶ review ──complete──▶ done
+//	backlog ⇄ available (claim/assign) ──start-work──▶ in_progress ──submit──▶ review ──complete──▶ done
 //	                 ▲                         │   ▲                 │
 //	                 └──────── release ────────┘   └─ request changes┘        done ──reopen──▶ available
 //
@@ -321,6 +321,9 @@ func (s *Service) MoveTicket(ctx context.Context, a Actor, projectID, ticketID s
 		default:
 			return fmt.Errorf("%w: %s cannot be moved from %s to %s directly; use claim, release, submit, request changes or complete", domain.ErrInvalid, k.Key, from.Label(), to.Label())
 		}
+		if from == domain.TicketAvailable && k.AssigneeID != "" {
+			return fmt.Errorf("%w: release the claim before moving this ticket to backlog", domain.ErrConflict)
+		}
 		if err := transition(&k, to); err != nil {
 			return err
 		}
@@ -346,9 +349,8 @@ func (s *Service) MoveTicket(ctx context.Context, a Actor, projectID, ticketID s
 	return k, err
 }
 
-// ClaimTicket makes the actor the active owner of an available ticket and moves
-// it to In Progress. It is atomic: when several members claim the same ticket at
-// once, exactly one succeeds and the rest get a conflict naming who has it.
+// ClaimTicket reserves Available work for the actor without starting it.
+// Concurrent claims have one winner; conflicts name the current owner.
 func (s *Service) ClaimTicket(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
 	var k domain.Ticket
 	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
@@ -380,6 +382,41 @@ func (s *Service) ClaimTicket(ctx context.Context, a Actor, projectID, ticketID 
 	return k, err
 }
 
+// StartWork records intentional work, including research or a member's own agent.
+// It never chooses a runner or starts a process. The claim and Git branch survive.
+func (s *Service) StartWork(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
+	var k domain.Ticket
+	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
+		if err = x.require(domain.PPTicketsClaim, "start your work"); err != nil {
+			return err
+		}
+		if k, err = s.loadTicket(ctx, tx, a, x, ticketID); err != nil {
+			return err
+		}
+		if !x.Member || k.AssigneeID != a.Member.ID {
+			return forbidden("start someone else's ticket")
+		}
+		if x.Project.Archived {
+			return fmt.Errorf("%w: project is archived", domain.ErrConflict)
+		}
+		if k.Status == domain.TicketInProgress {
+			return nil
+		}
+		if k.Status != domain.TicketAvailable {
+			return fmt.Errorf("%w: only a claimed Available ticket can start work", domain.ErrConflict)
+		}
+		if err = transition(&k, domain.TicketInProgress); err != nil {
+			return err
+		}
+		k.UpdatedAt = s.stamp()
+		if k, err = s.save(ctx, tx, a, k); err != nil {
+			return err
+		}
+		return s.record(ctx, tx, a, k, domain.ActTicketMoved, "Available → In Progress")
+	})
+	return k, err
+}
+
 // claimConflict explains why a claim did not take: the ticket was claimed first
 // by someone else, or it was never available.
 func (s *Service) claimConflict(ctx context.Context, tx store.Tx, a Actor, projectID, ticketID string) error {
@@ -388,15 +425,15 @@ func (s *Service) claimConflict(ctx context.Context, tx store.Tx, a Actor, proje
 		return err
 	}
 	switch {
-	case cur.AssigneeID == a.Member.ID && cur.Status.Held():
+	case cur.AssigneeID == a.Member.ID && cur.Claimed():
 		return fmt.Errorf("%w: you already hold %s", domain.ErrConflict, cur.Key)
-	case cur.AssigneeID != "" && cur.Status.Held():
+	case cur.AssigneeID != "" && cur.Claimed():
 		return fmt.Errorf("%w: %s was already claimed by %s", domain.ErrConflict, cur.Key, s.nameOf(ctx, tx, a, cur.AssigneeID))
 	}
 	return fmt.Errorf("%w: %s is %s; only an available ticket can be claimed", domain.ErrConflict, cur.Key, cur.Status.Label())
 }
 
-// ReleaseTicket puts a ticket in progress back on the board as available. Its
+// ReleaseTicket releases reserved or active work back to the unassigned board. Its
 // holder may release it; so may anyone with tickets.assign (the project owner).
 // The branch name stays on the ticket, so whoever claims it next is pointed at the same work.
 func (s *Service) ReleaseTicket(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
@@ -405,17 +442,15 @@ func (s *Service) ReleaseTicket(ctx context.Context, a Actor, projectID, ticketI
 		if k, err = s.loadTicket(ctx, tx, a, x, ticketID); err != nil {
 			return err
 		}
-		if k.Status != domain.TicketInProgress {
-			return fmt.Errorf("%w: %s is %s; only a ticket in progress can be released", domain.ErrConflict, k.Key, k.Status.Label())
+		if !k.Claimed() || k.Status == domain.TicketReview {
+			return fmt.Errorf("%w: %s must be claimed or in progress to release it", domain.ErrConflict, k.Key)
 		}
 		if k.AssigneeID != a.Member.ID && !x.can(domain.PPTicketsAssign) {
 			return forbidden("release a ticket someone else holds")
 		}
 		former := k.AssigneeID
-		if err := transition(&k, domain.TicketAvailable); err != nil {
-			return err
-		}
-		k.AssigneeID, k.UpdatedAt = "", s.stamp()
+		k.Status = domain.TicketAvailable
+		k.AssigneeID, k.UpdatedAt, k.ClaimedAt = "", s.stamp(), nil
 		if k, err = s.save(ctx, tx, a, k); err != nil {
 			return err
 		}
@@ -429,8 +464,7 @@ func (s *Service) ReleaseTicket(ctx context.Context, a Actor, projectID, ticketI
 }
 
 // AssignTicket gives a ticket to a member of the project, or hands it from one
-// member to another. It needs tickets.assign. An unclaimed ticket moves to In
-// Progress; one in progress keeps its branch and its history, and only its owner changes.
+// member to another. It needs tickets.assign. An unclaimed ticket stays Available; one in progress keeps its branch and its history, and only its owner changes.
 func (s *Service) AssignTicket(ctx context.Context, a Actor, projectID, ticketID, memberID string) (domain.Ticket, error) {
 	var k domain.Ticket
 	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
@@ -453,9 +487,10 @@ func (s *Service) AssignTicket(ctx context.Context, a Actor, projectID, ticketID
 		prev := k.AssigneeID
 		switch k.Status {
 		case domain.TicketBacklog, domain.TicketAvailable:
-			if err := transition(&k, domain.TicketInProgress); err != nil {
-				return err
+			if prev == memberID {
+				return fmt.Errorf("%w: ticket already assigned", domain.ErrConflict)
 			}
+			k.Status = domain.TicketAvailable
 			now := s.stamp()
 			k.ClaimedAt = &now
 			if k.Branch == "" {

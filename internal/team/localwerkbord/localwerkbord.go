@@ -669,6 +669,37 @@ func (c *Client) TaskDetail(ctx context.Context, pid, tid string) (map[string]an
 	return map[string]any{"runs": own, "questions": qs, "runners": runners, "agents": agentReply.Agents, "stopBehavior": "stop/restart; no live pause"}, nil
 }
 
+func (c *Client) RunActivity(ctx context.Context, pid, rid string) (map[string]any, error) {
+	if err := checkID(pid); err != nil {
+		return nil, err
+	}
+	if err := checkID(rid); err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	err := c.do(ctx, "GET", "/api/projects/"+pid+"/runs/"+rid+"/events?limit=200", nil, &out)
+	return out, err
+}
+
+func (c *Client) SendInput(ctx context.Context, pid, rid, text string) error {
+	if err := checkID(pid); err != nil {
+		return err
+	}
+	if err := checkID(rid); err != nil {
+		return err
+	}
+	return c.do(ctx, "POST", "/api/projects/"+pid+"/runs/"+rid+"/input", map[string]string{"text": text}, nil)
+}
+
+func (c *Client) AgentOptions(ctx context.Context, id string) (map[string]any, error) {
+	if err := checkID(id); err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	err := c.do(ctx, "GET", "/api/agents/"+id+"/options", nil, &out)
+	return out, err
+}
+
 // RequireExecutionAccess checks the grant is the per-device execution grant (execution-local-v1) and nothing broader or
 // different, so a credential handed over by another program cannot be mistaken for one.
 func (c *Client) RequireExecutionAccess(ctx context.Context) error {

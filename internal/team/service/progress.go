@@ -55,7 +55,7 @@ func (s *Service) ReportProgress(ctx context.Context, a Actor, pid, tid string, 
 		if err != nil {
 			return err
 		}
-		if k.AssigneeID != a.Member.ID || !k.Status.Held() || k.ClaimedAt == nil || k.Assignment != in.Assignment || !k.ClaimedAt.Equal(in.ClaimAt) {
+		if k.AssigneeID != a.Member.ID || !k.Claimed() || k.ClaimedAt == nil || k.Assignment != in.Assignment || !k.ClaimedAt.Equal(in.ClaimAt) {
 			return fmt.Errorf("%w: ticket assignment changed", domain.ErrConflict)
 		}
 		old, err := tx.Progress(ctx, a.Workspace.ID, pid, tid, dev.ID)
@@ -72,6 +72,15 @@ func (s *Service) ReportProgress(ctx context.Context, a Actor, pid, tid string, 
 			}
 			if old.Assignment == in.Assignment && (old.TaskID != in.TaskID || old.ProjectID != in.ProjectID) {
 				return fmt.Errorf("%w: task association changed", domain.ErrConflict)
+			}
+		}
+		if k.Status == domain.TicketAvailable && in.Execution.RunID != "" && in.Execution.StartedAt != nil && !in.Execution.StartedAt.Before(*k.ClaimedAt) {
+			k.Status, k.UpdatedAt = domain.TicketInProgress, s.stamp()
+			if k, err = s.save(ctx, tx, a, k); err != nil {
+				return err
+			}
+			if err = s.record(ctx, tx, a, k, domain.ActTicketMoved, "Available → In Progress"); err != nil {
+				return err
 			}
 		}
 		if in.Git != nil {
@@ -126,7 +135,7 @@ func (s *Service) TicketProgress(ctx context.Context, a Actor, pid, tid string) 
 				continue
 			}
 			r.Stale = s.stamp().Sub(r.ReportedAt) > domain.DeviceOnlineWindow
-			if k.Status.Held() && k.ArchivedAt == nil && k.ClaimedAt != nil && k.Assignment == r.Assignment && k.AssigneeID == r.MemberID && k.ClaimedAt.Equal(r.ClaimAt) {
+			if k.Claimed() && k.ArchivedAt == nil && k.ClaimedAt != nil && k.Assignment == r.Assignment && k.AssigneeID == r.MemberID && k.ClaimedAt.Equal(r.ClaimAt) {
 				out = append(out, r)
 			}
 		}

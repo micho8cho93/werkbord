@@ -42,3 +42,16 @@ input, textarea { caret-color: var(--accent); }
 .check-row input { width: 16px; height: 16px; margin: 0; }
 .inline.individual { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .inline.individual p { margin: 0; }
+
+.execution-output { max-height: 360px; overflow: auto; padding: 12px; background: var(--s2); border: 1px solid var(--line); border-radius: 6px; }
+.execution-message + .execution-message { margin-top: 12px; }
+.execution-message pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.execution-activity form { margin-top: 12px; }
+.execution-activity input { flex: 1; min-width: 180px; }
+
+.agent-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-block: 12px; }
+.agent-choices label { min-width: 0; margin: 0; }
+.agent-choices input, .agent-choices select { width: 100%; }
+@media (max-width: 600px) { .agent-choices { grid-template-columns: minmax(0, 1fr); } }
+
+.board-tools [aria-pressed='true'] { background: var(--s2); box-shadow: var(--press-sh); color: var(--accent); }

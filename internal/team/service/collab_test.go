@@ -56,10 +56,14 @@ const (
 	shaOne = "0123456789abcdef0123456789abcdef01234567"
 )
 
-func (tm *team) claimed(a Actor, title string) domain.Ticket {
+func (tm *team) working(a Actor, title string) domain.Ticket {
 	tm.t.Helper()
 	k := tm.ticket(tm.owner, title, domain.TicketAvailable)
 	k, err := tm.svc.ClaimTicket(bg, a, tm.pid(), k.ID)
+	if err != nil {
+		tm.t.Fatal(err)
+	}
+	k, err = tm.svc.StartWork(bg, a, tm.pid(), k.ID)
 	if err != nil {
 		tm.t.Fatal(err)
 	}
@@ -135,8 +139,8 @@ func TestAProjectIsInvisibleToPeopleNotOnIt(t *testing.T) {
 
 func TestRemovingAMemberPutsTheirTicketsBackOnTheBoard(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Fix login")
-	other := tm.claimed(tm.cy, "Other")
+	k := tm.working(tm.bo, "Fix login")
+	other := tm.working(tm.cy, "Other")
 	if err := tm.svc.RemoveProjectMember(bg, tm.owner, tm.pid(), tm.bo.Member.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -233,14 +237,14 @@ func TestEditingATicket(t *testing.T) {
 
 // ---- claiming ----
 
-func TestClaimingATicketAssignsItAndStartsIt(t *testing.T) {
+func TestClaimingATicketReservesItUntilTheHolderStartsWork(t *testing.T) {
 	tm := newTeam(t)
 	k := tm.ticket(tm.owner, "Authentication error", domain.TicketAvailable)
 	got, err := tm.svc.ClaimTicket(bg, tm.bo, tm.pid(), k.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != domain.TicketInProgress || got.AssigneeID != tm.bo.Member.ID || got.Branch != "wb-1-authentication-error" || got.ClaimedAt == nil {
+	if got.Status != domain.TicketAvailable || got.AssigneeID != tm.bo.Member.ID || got.Branch != "wb-1-authentication-error" || got.ClaimedAt == nil {
 		t.Fatalf("%+v", got)
 	}
 	// Someone else cannot claim it, and is told who has it.
@@ -310,7 +314,7 @@ func TestConcurrentClaimsGiveTheTicketToExactlyOneMember(t *testing.T) {
 			t.Fatalf("round %d: %d winners (%v), %d losers", round, len(winners), winners, losers)
 		}
 		final, _ := tm.svc.GetTicket(bg, tm.owner, tm.pid(), k.ID)
-		if final.AssigneeID != winners[0] || final.Status != domain.TicketInProgress || final.Version != k.Version+1 {
+		if final.AssigneeID != winners[0] || final.Status != domain.TicketAvailable || final.Version != k.Version+1 {
 			t.Fatalf("the board disagrees with the winner: %+v vs %v", final, winners)
 		}
 	}
@@ -351,7 +355,7 @@ func TestTheStoreClaimIsAGuardedUpdate(t *testing.T) {
 
 func TestReleaseAndReassign(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Move me")
+	k := tm.working(tm.bo, "Move me")
 
 	// Only the holder or an owner releases.
 	_, err := tm.svc.ReleaseTicket(bg, tm.cy, tm.pid(), k.ID)
@@ -376,12 +380,12 @@ func TestReleaseAndReassign(t *testing.T) {
 	_, err = tm.svc.AssignTicket(bg, tm.bo, tm.pid(), k.ID, tm.cy.Member.ID)
 	wantErr(t, err, domain.ErrForbidden)
 	got, err = tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, tm.bo.Member.ID)
-	if err != nil || got.AssigneeID != tm.bo.Member.ID || got.Status != domain.TicketInProgress {
+	if err != nil || got.AssigneeID != tm.bo.Member.ID || got.Status != domain.TicketAvailable {
 		t.Fatalf("%+v %v", got, err)
 	}
 	branch := got.Branch
 	got, err = tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, tm.cy.Member.ID)
-	if err != nil || got.AssigneeID != tm.cy.Member.ID || got.Status != domain.TicketInProgress || got.Branch != branch {
+	if err != nil || got.AssigneeID != tm.cy.Member.ID || got.Status != domain.TicketAvailable || got.Branch != branch {
 		t.Fatalf("%+v %v", got, err)
 	}
 	_, err = tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, tm.cy.Member.ID)
@@ -390,6 +394,9 @@ func TestReleaseAndReassign(t *testing.T) {
 	eve, _ := tm.member(tm.owner, "Eve")
 	_, err = tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, eve.Member.ID)
 	wantErr(t, err, domain.ErrInvalid)
+	if _, err := tm.svc.StartWork(bg, tm.cy, tm.pid(), k.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.cy, tm.pid(), k.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}
@@ -397,8 +404,8 @@ func TestReleaseAndReassign(t *testing.T) {
 	wantErr(t, err, domain.ErrConflict)
 
 	// The history says who did what.
-	want := []domain.ActivityKind{domain.ActTicketCreated, domain.ActTicketClaimed, domain.ActTicketReleased, domain.ActTicketClaimed, domain.ActTicketReleased,
-		domain.ActTicketReassigned, domain.ActTicketReassigned, domain.ActWorkSubmitted, domain.ActReviewRequested}
+	want := []domain.ActivityKind{domain.ActTicketCreated, domain.ActTicketClaimed, domain.ActTicketMoved, domain.ActTicketReleased, domain.ActTicketClaimed, domain.ActTicketReleased,
+		domain.ActTicketReassigned, domain.ActTicketReassigned, domain.ActTicketMoved, domain.ActWorkSubmitted, domain.ActReviewRequested}
 	if got := tm.activityKinds(); fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("activity:\n got %v\nwant %v", got, want)
 	}
@@ -459,6 +466,9 @@ func TestTheWholeLifecycleAndItsGuards(t *testing.T) {
 	if k, err = tm.svc.ClaimTicket(bg, tm.bo, tm.pid(), k.ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID); err != nil {
+		t.Fatal(err)
+	}
 	// Someone else cannot submit it; a bad reviewer is refused.
 	_, err = tm.svc.SubmitTicket(bg, tm.cy, tm.pid(), k.ID, SubmitInput{})
 	wantErr(t, err, domain.ErrForbidden)
@@ -511,7 +521,7 @@ func TestTheWholeLifecycleAndItsGuards(t *testing.T) {
 		t.Fatalf("%+v %v", k, err)
 	}
 
-	want := []domain.ActivityKind{domain.ActTicketCreated, domain.ActTicketMoved, domain.ActTicketClaimed,
+	want := []domain.ActivityKind{domain.ActTicketCreated, domain.ActTicketMoved, domain.ActTicketClaimed, domain.ActTicketMoved,
 		domain.ActPullRequestMade, domain.ActWorkSubmitted, domain.ActReviewRequested, domain.ActChangesRequested,
 		domain.ActWorkSubmitted, domain.ActReviewRequested, domain.ActPullRequestMerged, domain.ActTicketCompleted, domain.ActTicketReopened}
 	if got := tm.activityKinds(); fmt.Sprint(got) != fmt.Sprint(want) {
@@ -522,7 +532,7 @@ func TestTheWholeLifecycleAndItsGuards(t *testing.T) {
 func TestWhoMayCompleteTheirOwnWork(t *testing.T) {
 	tm := newTeam(t)
 	// A reviewer who did the work cannot sign it off themselves…
-	k := tm.claimed(tm.di, "Reviewer's own")
+	k := tm.working(tm.di, "Reviewer's own")
 	if _, err := tm.svc.SubmitTicket(bg, tm.di, tm.pid(), k.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}
@@ -531,6 +541,9 @@ func TestWhoMayCompleteTheirOwnWork(t *testing.T) {
 	// …but a project owner working alone can.
 	k2 := tm.ticket(tm.owner, "Owner's own", domain.TicketAvailable)
 	if _, err := tm.svc.ClaimTicket(bg, tm.owner, tm.pid(), k2.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tm.svc.StartWork(bg, tm.owner, tm.pid(), k2.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.owner, tm.pid(), k2.ID, SubmitInput{}); err != nil {
@@ -543,7 +556,10 @@ func TestWhoMayCompleteTheirOwnWork(t *testing.T) {
 
 func TestSendingBackWorkWhoseOwnerLeftPutsItOnTheBoard(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Orphaned")
+	k := tm.working(tm.bo, "Orphaned")
+	if _, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}
@@ -591,7 +607,7 @@ func TestBranchNamesAreDerivedFromTheTicket(t *testing.T) {
 
 func TestReportingGitWorkOnATicket(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Authentication error")
+	k := tm.working(tm.bo, "Authentication error")
 	if k.Branch != "wb-1-authentication-error" {
 		t.Fatal(k.Branch)
 	}
@@ -645,8 +661,8 @@ func TestReportingGitWorkOnATicket(t *testing.T) {
 
 func TestGitReportsAreValidatedAndPermissioned(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "First")
-	other := tm.claimed(tm.cy, "Second")
+	k := tm.working(tm.bo, "First")
+	other := tm.working(tm.cy, "Second")
 	bad := []struct {
 		name string
 		in   GitReport
@@ -701,10 +717,10 @@ func TestRepositoryStateSurfacesWhatNeedsAttention(t *testing.T) {
 	files := func(f ...string) []string { return f }
 	n := func(i int) *int { return &i }
 
-	behindT := tm.claimed(tm.bo, "Behind main")
-	conflictT := tm.claimed(tm.cy, "Conflicting")
-	overlapT := tm.claimed(tm.di, "Overlapping")
-	staleT := tm.claimed(tm.bo, "Gone quiet")
+	behindT := tm.working(tm.bo, "Behind main")
+	conflictT := tm.working(tm.cy, "Conflicting")
+	overlapT := tm.working(tm.di, "Overlapping")
+	staleT := tm.working(tm.bo, "Gone quiet")
 	report := func(a Actor, k domain.Ticket, st BranchState, pr *domain.PullRequest) {
 		t.Helper()
 		if _, err := tm.svc.ReportGit(bg, a, tm.pid(), k.ID, GitReport{State: &st, PullRequest: pr}); err != nil {
@@ -837,7 +853,7 @@ func TestHandoffGivesTheHolderTheirTicketContext(t *testing.T) {
 	if _, err := tm.svc.UpdateProject(bg, tm.owner, tm.pid(), ProjectPatch{Description: &desc}); err != nil {
 		t.Fatal(err)
 	}
-	k := tm.claimed(tm.bo, "Authentication error")
+	k := tm.working(tm.bo, "Authentication error")
 
 	h, err := tm.svc.HandoffTicketToRunner(bg, tm.bo, tm.pid(), k.ID)
 	if err != nil {
@@ -900,7 +916,7 @@ func TestHandoffGivesTheHolderTheirTicketContext(t *testing.T) {
 // The handoff and the rest of what Team shares carry coordination metadata only.
 func TestNothingSharedCarriesACredentialOrAMachine(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Secrets")
+	k := tm.working(tm.bo, "Secrets")
 	if _, err := tm.svc.ReportGit(bg, tm.bo, tm.pid(), k.ID, GitReport{PullRequest: &domain.PullRequest{URL: prURL}}); err != nil {
 		t.Fatal(err)
 	}
@@ -1123,7 +1139,7 @@ func newWorldOn(t *testing.T, db store.Store) *world { return &world{t: t, svc: 
 
 func TestWorkspacesCannotReachEachOthersBoards(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Private")
+	k := tm.working(tm.bo, "Private")
 	w2 := newWorldOn(t, tm.db)
 	rival, _ := w2.workspace("Rival", "Rex")
 	rp := w2.project(rival, "Theirs")
@@ -1224,4 +1240,51 @@ func TestProjectRolePermissions(t *testing.T) {
 	if r, err := domain.ParseProjectRole(""); err != nil || r != domain.ProjectContributor {
 		t.Error("the default project role is a plain member")
 	}
+}
+
+func TestReservedWorkHasOneOwnerAndStartingPreservesExecutionFence(t *testing.T) {
+	tm := newTeam(t)
+	k := tm.ticket(tm.owner, "Prepare privately", domain.TicketAvailable)
+	claimed, err := tm.svc.ClaimTicket(bg, tm.bo, tm.pid(), k.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed.Status != domain.TicketAvailable || !claimed.Claimed() {
+		t.Fatalf("claim started work: %+v", claimed)
+	}
+	before := ScheduleContext(tm.bo.Workspace.ID, tm.project, claimed)
+	for _, actor := range []Actor{tm.owner, tm.cy} {
+		_, err := tm.svc.StartWork(bg, actor, tm.pid(), k.ID)
+		wantErr(t, err, domain.ErrForbidden)
+	}
+	work, err := tm.svc.MyWork(bg, tm.bo)
+	if err != nil || len(work.Ready) != 1 || len(work.InProgress) != 0 || len(work.Submitted) != 0 {
+		t.Fatalf("reservation is not ready work: %+v %v", work, err)
+	}
+	// Private refreshes must not manufacture shared activity or start work.
+	activity := len(tm.activityKinds())
+	for i := 0; i < 2; i++ {
+		if _, err := tm.svc.TicketHandoff(bg, tm.bo, tm.pid(), k.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(tm.activityKinds()) != activity {
+		t.Fatal("reading private controls recorded activity")
+	}
+	started, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.Status != domain.TicketInProgress || started.Assignment != claimed.Assignment || !started.ClaimedAt.Equal(*claimed.ClaimedAt) || started.Branch != claimed.Branch || ScheduleContext(tm.bo.Workspace.ID, tm.project, started) != before {
+		t.Fatalf("starting invalidated the approved ticket: %+v", started)
+	}
+	again, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID)
+	if err != nil || again.Version != started.Version {
+		t.Fatalf("retry started work twice: %+v %v", again, err)
+	}
+	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID)
+	wantErr(t, err, domain.ErrConflict) // review may only reopen through request-changes
 }

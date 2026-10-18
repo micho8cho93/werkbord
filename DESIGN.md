@@ -365,3 +365,12 @@ labels and pressed state. Onboarding explains the pencil, checkmark and Agents b
 The first six Control Deck keys stay ready and the bottom three start empty. First use accepts navigation, workflows or empty positions. Workflow keys carry a cobalt-tinted face and a Workflow accessible label. New workflows ask for repositories on tap in a bottom sheet; hold opens saved settings. Find Bugs, Security Audit and Dependency Check default to human-owned draft findings. Execution details link each saved finding to its task under Next actions, including deduplicated findings from repeated scans.
 
 Onboarding checks readiness before presenting a setup action. Verified local runner, agent and repository steps become disabled status controls and leave the active path automatically. Team's connected runner has one disabled Runner connected control; configured but unavailable runners can reconnect without repeating installation. The members directory uses compact rows with two-letter initials, a tinted self avatar, role, connected/disconnected runner counts and reported Team phone status. Devices report actual runner connection and authenticated phone sessions; a registered device or paired phone alone never proves a connection. Legacy or stale reports stay unknown. Runner summaries use Connected, Disconnected or Connection unknown instead of occupied/total execution slots; capacity remains in settings.
+
+### Team claims and private agent work (4.52)
+
+Claim reserves a ticket in Available. My tickets filters the project board by current owner; All tickets shows the shared
+board. Cards name the owner and relative claim time. Start work records active manual/research work; agent dispatch moves
+its owner's ticket to In Progress. Private controls load directly on an owned ticket, use actual controller model/reasoning
+choices, surface questions before configuration, and refresh conversation/activity automatically. Advanced device and long
+approval choices stay in a disclosure. Teammate views show coordination and Git/review facts; conversations and controls stay
+with the owner. Preserve local policy review, assignment fencing, working branches and the existing PR/review gates.

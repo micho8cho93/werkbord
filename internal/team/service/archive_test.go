@@ -8,7 +8,7 @@ import (
 
 func TestTicketArchivePermissionsHistoryAndRestore(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Retain the work")
+	k := tm.working(tm.bo, "Retain the work")
 	commits := []domain.Commit{{SHA: shaOne, Subject: "Archived implementation"}}
 	k, err := tm.svc.ReportGit(bg, tm.bo, tm.pid(), k.ID, GitReport{Commits: &commits, PullRequest: &domain.PullRequest{URL: prURL, Number: 7, State: domain.PROpen, Mergeable: domain.MergeConflicting}})
 	if err != nil {
@@ -58,7 +58,7 @@ func TestTicketArchivePermissionsHistoryAndRestore(t *testing.T) {
 
 func TestTeamClearDonePreservesDetailsAndDoesNotHideOpenWork(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "Finished")
+	k := tm.working(tm.bo, "Finished")
 	k, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{})
 	if err != nil {
 		t.Fatal(err)

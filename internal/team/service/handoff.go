@@ -79,8 +79,21 @@ type HandoffPerson struct {
 // holder does. Nobody can get a handoff "for" someone else, and there is no way
 // to pass one to another member's runner from here.
 func (s *Service) HandoffTicketToRunner(ctx context.Context, a Actor, projectID, ticketID string) (Handoff, error) {
+	return s.ticketHandoff(ctx, a, projectID, ticketID, true)
+}
+
+// TicketHandoff reads the current holder’s context without recording activity.
+func (s *Service) TicketHandoff(ctx context.Context, a Actor, projectID, ticketID string) (Handoff, error) {
+	return s.ticketHandoff(ctx, a, projectID, ticketID, false)
+}
+
+func (s *Service) ticketHandoff(ctx context.Context, a Actor, projectID, ticketID string, record bool) (Handoff, error) {
 	var h Handoff
-	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
+	accessTicket := s.view
+	if record {
+		accessTicket = s.mutate
+	}
+	err := accessTicket(ctx, a, projectID, func(tx store.Tx, x access) error {
 		if err := x.require(domain.PPHandoffOwnTasks, "open tickets in your runner"); err != nil {
 			return err
 		}
@@ -88,7 +101,7 @@ func (s *Service) HandoffTicketToRunner(ctx context.Context, a Actor, projectID,
 		if err != nil {
 			return err
 		}
-		if k.AssigneeID != a.Member.ID || !k.Status.Held() {
+		if k.AssigneeID != a.Member.ID || !k.Claimed() {
 			return fmt.Errorf("%w: only the member who holds %s can open it in their runner; claim it first", domain.ErrForbidden, k.Key)
 		}
 		// The handoff is what an agent starts from: human work has none.
@@ -119,7 +132,10 @@ func (s *Service) HandoffTicketToRunner(ctx context.Context, a Actor, projectID,
 			For: HandoffPerson{ID: a.Member.ID, Name: a.Member.Name},
 		}
 		h.Prompt = handoffPrompt(h)
-		return s.record(ctx, tx, a, k, domain.ActHandedOff, "")
+		if record {
+			return s.record(ctx, tx, a, k, domain.ActHandedOff, "")
+		}
+		return nil
 	})
 	return h, err
 }

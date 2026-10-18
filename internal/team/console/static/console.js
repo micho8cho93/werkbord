@@ -236,6 +236,7 @@ function signOut() {
   try { sessionStorage.removeItem(KEY('token')); } catch (_) {}
   stopSync();
   drafts.clear(); draftVersions.clear(); renderedScope = "";
+  if (typeof executionViews !== 'undefined') executionViews.clear();
   Object.assign(state, { token: null, me: null, ov: null, secret: null, data: null, ticketId: null, handoff: null, memberQuery: '' });
   render();
 }
@@ -884,6 +885,7 @@ async function myWorkView() {
   return h('div', {},
     h('div', { class: 'panel' }, h('h2', {}, 'Needs your attention'), attn,
       w.reviewsWaiting ? h('p', {}, h('button', { class: 'link', onclick: () => go('reviews') }, plural(w.reviewsWaiting, 'ticket') + ' waiting for a review you can do')) : ''),
+    h('div', { class: 'panel' }, h('h2', {}, 'Claimed · ready to start (' + (w.ready || []).length + ')'), list(w.ready || [], 'Claim a ticket from a project board to prepare your work.')),
     h('div', { class: 'panel' }, h('h2', {}, 'In progress (' + w.inProgress.length + ')'), list(w.inProgress, 'You are not working on a ticket. Claim one from a board.')),
     h('div', { class: 'panel' }, h('h2', {}, 'Submitted, waiting for review (' + w.submitted.length + ')'), list(w.submitted, 'Nothing of yours is waiting for a review.')),
     h('div', { class: 'panel' }, h('h2', {}, 'Your open pull requests (' + w.pullRequests.length + ')'),
@@ -911,7 +913,7 @@ function workItem(it, extra) {
     commits,
     extra || '',
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
-    mine && (k.workMode || 'agent') !== 'human' && (k.status === 'in_progress' || k.status === 'review')
+    mine && (k.workMode || 'agent') !== 'human' && ['available', 'in_progress', 'review'].includes(k.status)
       ? (() => {
           const individual = typeof individualActions === 'function' ? individualActions(it.project.id, k.id, true) : '';
           return h('div', { class: 'actions' }, individual, h('button', { class: (individual ? 'plain' : 'primary') + ' small', onclick: () => openInRunner(it) }, 'Open in my runner'),
@@ -1070,9 +1072,9 @@ function dropAction(d, k, to) {
   if (!k || k.archivedAt || pendingTickets.has(k.id) || k.status === to) return null;
   const creator = k.creatorId === state.me.member.id || pcan('tickets.edit');
   const holder = k.assigneeId === state.me.member.id || pcan('tickets.assign');
-  if ((k.status === 'backlog' && to === 'available' || k.status === 'available' && to === 'backlog') && creator) return ['move', { status: to }];
-  if (to === 'in_progress' && k.status === 'available' && d.board.member && pcan('tickets.claim')) return ['claim'];
-  if (to === 'in_progress' && k.status === 'backlog' && d.board.member && pcan('tickets.assign')) return ['assign', { memberId: state.me.member.id }];
+  if ((k.status === 'backlog' && to === 'available' || k.status === 'available' && !k.assigneeId && to === 'backlog') && creator) return ['move', { status: to }];
+  if (to === 'in_progress' && k.status === 'available' && k.assigneeId === state.me.member.id) return ['start-work'];
+
   if (k.status === 'in_progress' && to === 'available' && holder) return ['release'];
   if (k.status === 'review' && to === 'in_progress' && pcan('tickets.review') && k.assigneeId) return ['request-changes', { note: '' }];
   if (k.status === 'in_progress' && to === 'review' && holder) return ['submit', {}];
@@ -1083,6 +1085,7 @@ function dropAction(d, k, to) {
 // The same rule as the server's: every part of the filter that is set must hold.
 function matchesFilter(k) {
   const f = state.filter;
+  if (state.ownTickets && k.assigneeId !== state.me.member.id) return false;
   if (f.mode && (k.workMode || 'agent') !== f.mode) return false;
   if (!f.labels.length) return true;
   const have = new Set(k.labelIds || []);
@@ -1120,7 +1123,10 @@ function filterBar(d) {
 
 function boardTab(d) {
   const b = d.board;
-  const toolbar = h('div', { class: 'actions board-tools' }, filterBar(d),
+  const toolbar = h('div', { class: 'actions board-tools' },
+    h('div', { class: 'actions', role: 'group', 'aria-label': 'Whose tickets' },
+      h('button', { class: 'plain', 'aria-pressed': !state.ownTickets, onclick: () => { state.ownTickets = false; render(); } }, 'All tickets'),
+      h('button', { class: 'plain', 'aria-pressed': !!state.ownTickets, onclick: () => { state.ownTickets = true; render(); } }, 'My tickets (' + b.tickets.filter(k => k.assigneeId === state.me.member.id).length + ')')), filterBar(d),
     h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
     pcan('tickets.reopen') ? h('button', { class: 'plain', disabled: !b.tickets.some(k => k.status === 'done'), onclick: () => act(async () => { const result = await api('POST', '/projects/' + d.id + '/tickets/archive-done'); state.info = plural(result.archived, 'ticket') + ' moved to the archive.'; }) }, 'Archive Done tickets') : '',
     '');
@@ -1152,7 +1158,7 @@ function archiveTab(d) {
 }
 function canArchiveTicket(k) {
   if (k.status === 'done') return pcan('tickets.reopen');
-  if (['in_progress', 'review'].includes(k.status)) return k.assigneeId === state.me.member.id || pcan('tickets.assign');
+  if (k.assigneeId && ['available', 'in_progress', 'review'].includes(k.status)) return k.assigneeId === state.me.member.id || pcan('tickets.assign');
   return k.creatorId === state.me.member.id || pcan('tickets.edit');
 }
 
@@ -1171,18 +1177,18 @@ function card(d, k) {
     h('button', { type: 'button', 'data-drag-handle': '', draggable: false, 'aria-label': 'Move ticket: ' + k.title, title: 'Drag to a column, or use Left and Right arrows' }, icon('board')),
     h('div', { class: 'muted small' }, k.key),
     h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
-    h('p', { class: 'work-status' }, pendingTickets.has(k.id) ? 'Updating ticket…' : statusName(k.status)),
-    progress ? h('p', { class: 'work-detail' }, (progress.stale ? 'Last reported: ' : 'Reported: ') + progress.execution.state.replaceAll('_', ' ') + ' · ' + ago(progress.reportedAt)) : '',
+    h('p', { class: 'work-status' }, pendingTickets.has(k.id) ? 'Updating ticket…' : k.status === 'available' && k.assigneeId ? 'Claimed · ready to start' : statusName(k.status)),
+    progress?.execution.runId && mine ? h('p', { class: 'work-detail' }, (progress.stale ? 'Last reported: ' : 'Reported: ') + progress.execution.state.replaceAll('_', ' ') + ' · ' + ago(progress.reportedAt)) : '',
     k.description ? h('p', { class: 'work-detail' }, k.description.length > 180 ? k.description.slice(0, 177) + '…' : k.description) : '',
     k.branch ? h('p', { class: 'work-detail' }, k.branch) : '',
     k.plan && (k.plan.start || k.plan.end) ? h('p', { class: 'work-detail' }, 'Planned ' + (k.plan.start || k.plan.end) + (k.plan.end && k.plan.end !== k.plan.start ? ' – ' + k.plan.end : '')) : '',
     labelsOf(k, d.board.labels).length ? h('div', { class: 'lbls', 'aria-label': 'Labels' }, labelsOf(k, d.board.labels).map(labelChip)) : '',
-    k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId), k.status === 'in_progress' ? ' · active' : '') : '',
+    k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId), k.status === 'in_progress' ? ' · working on it' : '', k.claimedAt ? ' · claimed ' + ago(k.claimedAt) : '') : '',
     flags.length ? h('div', { class: 'flags' }, flags) : '',
     k.status === 'review' ? h('button', { class: 'plain small', onclick: () => openTicket(d.id, k.id) }, 'Review work') : '',
-    k.status === 'in_progress' && mine ? h('button', { class: 'plain small', onclick: () => openTicket(d.id, k.id) }, 'Open work') : '',
-    (k.status === 'available' && d.board.member && pcan('tickets.claim'))
-      ? h('button', { class: 'primary small', onclick: () => act(() => api('POST', projectPath(k) + '/claim')) }, 'Claim') : '');
+    ['available', 'in_progress'].includes(k.status) && mine ? h('button', { class: 'plain small', onclick: () => openTicket(d.id, k.id) }, 'Open work') : '',
+    (k.status === 'available' && !k.assigneeId && d.board.member && pcan('tickets.claim'))
+      ? h('button', { class: 'primary small', onclick: () => act(async () => { await api('POST', projectPath(k) + '/claim'); state.ticketId = k.id; remember(); }) }, 'Claim') : '');
 }
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }
@@ -1327,6 +1333,7 @@ function ticketPanel(d, k) {
   const mine = k.assigneeId === me;
   const pr = k.pullRequest;
   const path = projectPath(k);
+  const agentWork = (k.workMode || 'agent') !== 'human'; // no agent is asked to do human work: nothing to open in a runner
   const actions = [];
   const run = (method, p, body) => () => act(() => api(method, path + p, body));
   const isCreator = k.creatorId === me;
@@ -1335,16 +1342,16 @@ function ticketPanel(d, k) {
   if (!k.archivedAt) {
 
   if (k.status === 'backlog' && (isCreator || pcan('tickets.edit'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'available' }) }, 'Make available'));
-  if (k.status === 'available') {
+  if (k.status === 'available' && !k.assigneeId) {
     if (b.member && pcan('tickets.claim')) actions.push(h('button', { class: 'primary', onclick: run('POST', '/claim') }, 'Claim this ticket'));
     if (isCreator || pcan('tickets.edit')) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'backlog' }) }, 'Move to backlog'));
   }
-  const agentWork = (k.workMode || 'agent') !== 'human'; // no agent is asked to do human work: nothing to open in a runner
-  const individual = mine && agentWork && (k.status === 'in_progress' || k.status === 'review') && typeof individualActions === 'function' ? individualActions(k.projectId, k.id) : '';
+  const individual = mine && agentWork && ['available', 'in_progress', 'review'].includes(k.status) && typeof individualActions === 'function' ? individualActions(k.projectId, k.id) : '';
   if (individual) actions.push(individual);
-  if ((k.status === 'in_progress' || k.status === 'review') && mine && agentWork && pcan('handoff.own'))
+  if (['available', 'in_progress', 'review'].includes(k.status) && mine && agentWork && pcan('handoff.own'))
     actions.push(h('button', { class: individual ? 'plain' : 'primary', onclick: () => act(async () => { state.handoff = await api('POST', path + '/handoff'); }) }, 'Open in my runner'));
-  if (k.status === 'in_progress' && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Take it back'));
+  if (k.status === 'available' && mine) actions.push(h('button', { class: agentWork && state.desktop ? 'plain' : 'primary', onclick: run('POST', '/start-work') }, 'Start work'));
+  if (['available', 'in_progress'].includes(k.status) && k.assigneeId && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Take it back'));
   if (k.status === 'review' && pcan('tickets.review')) {
     const note = h('input', { name: 'rc-note-' + k.id, placeholder: 'What should change? (optional)', maxlength: 1000 });
     const blocker = b.completion[k.id];
@@ -1391,15 +1398,15 @@ function ticketPanel(d, k) {
     h('div', { class: 'actions' }, actions.filter(a => a.classList.contains('primary') || ['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent))),
     actions.some(a => !a.classList.contains('primary') && !['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent)) ? h('details', { class: 'ticket-more' }, h('summary', {}, 'More actions'), h('div', { class: 'actions' }, actions.filter(a => !a.classList.contains('primary') && !['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent)))) : '',
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
-    mine && state.desktop && !k.archivedAt && ['in_progress', 'review'].includes(k.status) ? ownExecutionPanel(k) : '',
+    mine && state.desktop && !k.archivedAt && ['available', 'in_progress', 'review'].includes(k.status) && agentWork ? ownExecutionPanel(k) : '',
     !k.archivedAt ? teamSchedulePanel(k, b) : '',
     h('div', { class: 'two' },
       h('div', {},
         h('h3', {}, 'Description'), h('p', { class: 'prose' }, k.description || '—'),
         h('h3', {}, 'Requirements and context'), h('p', { class: 'prose' }, k.requirements || '—'),
         canEditText ? editTicket(d, k, path) : ''),
-      h('div', {}, facts, executionProgress(d.progress || []), h('h3', {}, 'Commits'), commits,
-        !k.archivedAt && (mine || pcan('git.report_any')) && (k.status === 'in_progress' || k.status === 'review') ? gitForm(k, path) : '')));
+      h('div', {}, facts, mine ? executionProgress(d.progress || []) : h('p', { class: 'muted' }, k.assigneeId ? personName(d, k.assigneeId) + (k.status === 'available' ? ' has claimed this ticket. Agent choices, conversations and output are private to them.' : ' owns this work. Agent choices, conversations and output are private to them.') : 'Claim this ticket to prepare your own agent.'), h('h3', {}, 'Commits'), commits,
+        !k.archivedAt && k.assigneeId && (mine || pcan('git.report_any')) && ['available', 'in_progress', 'review'].includes(k.status) ? gitForm(k, path) : '')));
 }
 
 function executionProgress(records) {
@@ -1522,7 +1529,7 @@ function activityTab(d) {
   const reports = d.progressReports || [];
   return h('section', { class: 'panel' }, h('h2', {}, 'Runs'),
     h('p', { class: 'muted' }, 'Execution reported by members’ own Werkbords. Team does not run agents; raw output and full run history stay with each owner.'),
-    reports.length ? reports.map(r => h('section', { class: 'run-report' }, h('h3', {}, r.ticket.title), executionProgress(r.progress))) : h('p', { class: 'muted' }, 'No execution has been reported for this project.'));
+    reports.length ? reports.map(r => h('section', { class: 'run-report' }, h('h3', {}, r.ticket.title), r.ticket.assigneeId === state.me.member.id ? executionProgress(r.progress) : h('p', { class: 'muted' }, statusName(r.ticket.status) + ' · owned by ' + personName(d, r.ticket.assigneeId)))) : h('p', { class: 'muted' }, 'No execution has been reported for this project.'));
 }
 
 // ---- people and invites ----
@@ -1651,7 +1658,7 @@ function teamSchedulePanel(k, b) {
     const proposed = new Set(current ? current.dependencies || [] : []), now = new Set(k.dependencies || []);
     if (live && (proposed.size !== now.size || [...now].some((id) => !proposed.has(id)))) box.append(h('p', { class: 'advice', role: 'alert' }, 'This request is stale: the ticket’s dependencies changed after it was proposed. It will not start until you propose it again below.'));
     const allowed = k.assigneeId === state.me.member.id || pcan('tickets.assign');
-    if (!allowed || !['in_progress', 'review'].includes(k.status)) return;
+    if (!allowed || !k.assigneeId || !['available', 'in_progress', 'review'].includes(k.status)) return;
     const key = k.projectId + ':' + k.id;
     let draft = scheduleDrafts.get(key);
     if (!draft || draft.version !== (current?.version || 0)) {
@@ -1906,7 +1913,7 @@ function dropRefusal(d, k, to) {
   if (d.board.project.archived) return 'Unarchive this project before moving tickets.';
   if (to === 'done' && k.status === 'review') return d.board.completion[k.id] || 'You need review permission to complete this ticket.';
   if (to === 'review') return k.status !== 'in_progress' ? 'Claim this ticket and move it into Doing before submitting it for review.' : 'Only its owner or a project owner can submit this ticket for review.';
-  if (to === 'in_progress') return !d.board.member ? 'Join this project before claiming a ticket.' : 'Make this ticket available, or request changes from Review, before starting work.';
+  if (to === 'in_progress') return !d.board.member ? 'Join this project before claiming a ticket.' : k.status === 'available' && !k.assigneeId ? 'Claim this ticket first, then start work from its details.' : k.status === 'available' ? 'Only the member who claimed this ticket can start work.' : 'Make this ticket available, or request changes from Review, before starting work.';
   if (to === 'backlog' && ['in_progress', 'review'].includes(k.status)) return 'Release the ticket into Available before moving it to Backlog.';
   return 'This move needs the ticket’s normal workflow action or your project owner’s permission. Open the ticket to see the available actions.';
 }

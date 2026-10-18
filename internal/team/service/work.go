@@ -153,8 +153,9 @@ func (v visibleWork) item(k domain.Ticket) WorkItem {
 
 // MyWork is the signed-in member's own work across every project they are on.
 type MyWork struct {
-	Revision    int64     `json:"revision"`
-	GeneratedAt time.Time `json:"generatedAt"`
+	Ready       []WorkItem `json:"ready"` // claimed and available to start
+	Revision    int64      `json:"revision"`
+	GeneratedAt time.Time  `json:"generatedAt"`
 	// InProgress are the tickets the member holds and is working on, including the ones somebody assigned them.
 	InProgress []WorkItem `json:"inProgress"`
 	// Submitted are the member's tickets waiting for a review.
@@ -181,7 +182,7 @@ var latestKinds = []domain.ActivityKind{domain.ActTicketClaimed, domain.ActTicke
 // MyWork returns what the member is working on, what waits for them, and the
 // state of their branches.
 func (s *Service) MyWork(ctx context.Context, a Actor) (MyWork, error) {
-	out := MyWork{GeneratedAt: s.stamp(), InProgress: []WorkItem{}, Submitted: []WorkItem{}, PullRequests: []WorkItem{}, NeedsAction: []Action{}, Repositories: []MyRepository{}}
+	out := MyWork{Ready: []WorkItem{}, GeneratedAt: s.stamp(), InProgress: []WorkItem{}, Submitted: []WorkItem{}, PullRequests: []WorkItem{}, NeedsAction: []Action{}, Repositories: []MyRepository{}}
 	err := s.db.View(ctx, func(tx store.Tx) error {
 		v, err := s.loadVisible(ctx, tx, a)
 		if err != nil {
@@ -224,7 +225,9 @@ func (s *Service) MyWork(ctx context.Context, a Actor) (MyWork, error) {
 			if l.Kind == domain.ActTicketReassigned && l.ActorID != a.Member.ID {
 				it.AssignedBy = v.who(l.ActorID)
 			}
-			if k.Status == domain.TicketInProgress {
+			if k.Status == domain.TicketAvailable {
+				out.Ready = append(out.Ready, it)
+			} else if k.Status == domain.TicketInProgress {
 				out.InProgress = append(out.InProgress, it)
 			} else {
 				out.Submitted = append(out.Submitted, it)
@@ -504,7 +507,6 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 					ps.Counts[string(st)] = 0
 				}
 			}
-			out.Available += ps.Counts[string(domain.TicketAvailable)]
 			if !p.Archived {
 				tickets, err := tx.Tickets(ctx, a.Workspace.ID, p.ID)
 				if err != nil {
@@ -514,6 +516,9 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 					byTicket := map[string]domain.Ticket{}
 					for _, k := range tickets {
 						byTicket[k.ID] = k
+						if k.Status == domain.TicketAvailable && k.AssigneeID == "" && k.ArchivedAt == nil {
+							out.Available++
+						}
 						if k.ArchivedAt != nil || (k.Plan.Start == "" && k.Plan.End == "") || len(out.Planned) >= workspace.MaxItems {
 							continue
 						}
@@ -565,7 +570,7 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 			} else if k.Status == domain.TicketReview && v.role[p.ID].Can(domain.PPTicketsReview) {
 				out.Projects[idx[p.ID]].ToReview++
 			}
-			if len(out.Working) < MaxWorking {
+			if k.Status.Held() && len(out.Working) < MaxWorking {
 				out.Working = append(out.Working, v.item(k))
 			}
 		}

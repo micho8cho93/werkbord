@@ -22,7 +22,7 @@ func (s *Service) ArchiveTicket(ctx context.Context, a Actor, projectID, ticketI
 		if k.Version != version {
 			return fmt.Errorf("%w: this ticket changed; reload it and try again", domain.ErrConflict)
 		}
-		if k.Status.Held() {
+		if k.Claimed() {
 			if k.AssigneeID != a.Member.ID && !x.can(domain.PPTicketsAssign) {
 				return forbidden("close work someone else holds")
 			}

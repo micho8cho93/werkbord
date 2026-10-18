@@ -235,9 +235,11 @@ The legal moves are written once, in `domain.TicketStatus.CanTransitionTo`:
 | From | To | How | Who |
 | --- | --- | --- | --- |
 | Backlog | Available | `move` | creator, or `tickets.edit` |
-| Available | Backlog | `move` | creator, or `tickets.edit` |
-| Backlog / Available | In Progress | `claim` (yourself) or `assign` (a member of the project) | any member / `tickets.assign` |
-| In Progress | Available | `release` | the holder, or `tickets.assign` |
+| Available, unassigned | Backlog | `move` | creator, or `tickets.edit` |
+| Available | Available, assigned | `claim` (yourself) | any project member |
+| Backlog / Available | Available, assigned | `assign` (a member of the project) | `tickets.assign` |
+| Available, assigned | In Progress | `start-work`, or starting your own agent | the holder |
+| Available, assigned / In Progress | Available, unassigned | `release` | the holder, or `tickets.assign` |
 | In Progress | In Progress | `assign` to someone else (**reassign**: same branch, new owner) | `tickets.assign` |
 | In Progress | Review | `submit` (optionally with a pull request and a named reviewer) | the holder, or `tickets.assign` |
 | Review | In Progress | `request-changes` (with a note) | `tickets.review` |
@@ -248,7 +250,7 @@ Anything else is refused with a `409` that says what the ticket is and what it c
 
 - **Claiming is atomic.** `claim` is one guarded `UPDATE ... WHERE status = 'available' AND assignee_id IS NULL`, so of any
   number of simultaneous claims exactly one succeeds and the rest get `409 "WB-1 was already claimed by Bo"`. The database
-  also refuses, by `CHECK`, a ticket that is in progress with nobody on it or available with somebody on it.
+  also refuses, by `CHECK`, a ticket that is in progress with nobody on it or in the backlog with somebody on it. Available tickets can be claimed while the owner prepares work.
 - **Edits are version-checked.** Every write bumps `version`; `PATCH` with a stale `version` is a `409`.
 - **A reviewer cannot sign off their own work** (a project owner can, so someone working alone can finish their ticket).
 - **Team will not call a ticket Done while its pull request is open.** Merge or close it on your Git host, record that
@@ -654,3 +656,18 @@ The full review (every surface, the evidence for each, and the risks that remain
 ## Automatic Individual synchronization
 
 In the desktop app, connecting your Individual runner synchronizes every project you are on (turn projects off in Settings → Tickets in Individual) and each held ticket offers **Open in Werkbord**. Without it, members can opt projects into a persistent user connector: claiming/accepting a ticket imports it into their own Individual workspace, and local lifecycle/Git metadata is reported automatically. The ticket panel shows Individual execution separately from Team review/completion. Manual handoff/report/watch remain supported. Setup and conflict recovery: [INTEGRATION.md](INTEGRATION.md).
+
+### Preparing and running your own Team work
+
+A claim reserves a ticket in Available and records its owner and claim time; it does not imply work has started.
+The project board's **My tickets** filter shows your assignments in their shared columns. **Start work** moves your
+claim to In Progress for research or manual work. Starting your agent does the same after local dispatch succeeds.
+Agent controls load directly on your claimed ticket in the desktop app, with your controller's available agents,
+models and reasoning levels. Exact execution policy approval still happens locally. Questions, messages, activity,
+stop/restart and handoff results stay on your own controller and refresh in your ticket. Other members see ownership,
+claim time, shared status and the branch/PR facts used for review; their ticket view has no execution controls or conversation.
+
+Claiming and starting preserve the same assignment interval, local task, repository and working branch. The existing
+handoff asks the agent to commit, push and open a PR on that branch, and to leave merging to the reviewer. Reported agent
+completion does not submit, approve, merge or complete the Team ticket. The normal review and PR completion checks still apply.
+A read-only `GET .../handoff` supplies private refreshes without recording repeated handoff activity.

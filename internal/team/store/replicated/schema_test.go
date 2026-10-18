@@ -215,3 +215,58 @@ func insertTicketBeforeSourceRef(ctx context.Context, q store.Queryer, workspace
 		ticket.CreatedAt.UTC().UnixMilli(), ticket.UpdatedAt.UTC().UnixMilli())
 	return err
 }
+
+func TestClaimUpgradeKeepsWorkAndReportsOnTheReplicatedStore(t *testing.T) {
+	c := rqlitetest.New(t, rqlitetest.Options{Nodes: 3})
+	all, err := store.Migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := len(all) - 1
+	if all[target].Name != "claim_before_work" {
+		t.Fatal("update migration target")
+	}
+	old := open(t, c, 0, func(o *Options) { o.Migrations = all[:target] })
+	k := seed(t, old)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	if err := old.update(bg, func(q store.Queryer) error {
+		if _, err := q.ExecContext(bg, `UPDATE tickets SET status='in_progress',assignee_id=?,branch='wb-1-work',claimed_at=? WHERE id=?`, k.owner, now.UnixMilli(), k.ticket); err != nil {
+			return err
+		}
+		return store.NewTx(q).ReplaceCommits(bg, k.ticket, []domain.Commit{{SHA: "abcdef0", Subject: "Preserve", CommittedAt: now}})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := old.update(bg, func(q store.Queryer) error {
+		_, err := q.ExecContext(bg, `INSERT INTO ticket_schedules VALUES(?,?,?,3,'{"executionId":"exe_upgrade"}')`, k.ws, k.project, k.ticket)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before := ticketOf(t, old, k)
+	_ = old.Close()
+	upgraded := open(t, c, 1)
+	settle(t, upgraded)
+	got := ticketOf(t, upgraded, k)
+	if got.Status != domain.TicketInProgress || got.AssigneeID != before.AssigneeID || got.Assignment != before.Assignment || len(got.Commits) != 1 || got.Commits[0].Subject != "Preserve" {
+		t.Fatalf("upgrade lost active work: %+v", got)
+	}
+	if err := upgraded.update(bg, func(q store.Queryer) error {
+		var doc string
+		if err := q.QueryRowContext(bg, `SELECT document FROM ticket_schedules WHERE ticket_id=?`, k.ticket).Scan(&doc); err != nil {
+			return err
+		}
+		if doc != `{"executionId":"exe_upgrade"}` {
+			t.Fatalf("lost schedule: %s", doc)
+		}
+		_, err := q.ExecContext(bg, `UPDATE tickets SET status='available' WHERE id=?`, k.ticket)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	settle(t, upgraded)
+	reserved := ticketOf(t, upgraded, k)
+	if reserved.Status != domain.TicketAvailable || reserved.AssigneeID != k.owner || reserved.Assignment != before.Assignment {
+		t.Fatalf("reservation changed ownership: %+v", reserved)
+	}
+}

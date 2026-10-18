@@ -139,6 +139,9 @@ func TestLabelsOnTicketsAreTicketEditsWithTicketRules(t *testing.T) {
 	if _, err := tm.svc.ClaimTicket(bg, tm.bo, tm.pid(), av.ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), av.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), av.ID, SubmitInput{}); err != nil {
 		t.Fatal(err)
 	}
@@ -254,6 +257,9 @@ func TestTicketsOfAProjectWithNoRepositoryNeedNoGit(t *testing.T) {
 		t.Fatalf("ticket = %+v", k)
 	}
 	if _, err := tm.svc.ClaimTicket(bg, tm.bo, tm.pid(), k.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), k.ID, SubmitInput{}); err != nil {
@@ -395,7 +401,7 @@ func TestExistingTicketsKeepBehavingAsAgentWorkWithNoPlan(t *testing.T) {
 
 func TestHumanWorkHasNoHandoffForAnAgent(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "to hand off")
+	k := tm.working(tm.bo, "to hand off")
 	if _, err := tm.svc.HandoffTicketToRunner(bg, tm.bo, tm.pid(), k.ID); err != nil {
 		t.Fatalf("agent work still opens in a runner: %v", err)
 	}

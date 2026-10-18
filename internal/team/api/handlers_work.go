@@ -95,8 +95,18 @@ func (s *Server) handleMoveTicket(w http.ResponseWriter, r *http.Request) {
 	s.respond(w, r, http.StatusOK, k, err)
 }
 
+func (s *Server) handleTicketHandoff(w http.ResponseWriter, r *http.Request) {
+	out, err := s.opt.Service.TicketHandoff(r.Context(), actorOf(r), r.PathValue("id"), r.PathValue("tid"))
+	s.respond(w, r, http.StatusOK, out, err)
+}
+
 func (s *Server) handleClaimTicket(w http.ResponseWriter, r *http.Request) {
 	k, err := s.opt.Service.ClaimTicket(r.Context(), actorOf(r), r.PathValue("id"), r.PathValue("tid"))
+	s.respond(w, r, http.StatusOK, k, err)
+}
+
+func (s *Server) handleStartWork(w http.ResponseWriter, r *http.Request) {
+	k, err := s.opt.Service.StartWork(r.Context(), actorOf(r), r.PathValue("id"), r.PathValue("tid"))
 	s.respond(w, r, http.StatusOK, k, err)
 }
 

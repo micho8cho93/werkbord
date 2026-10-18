@@ -33,6 +33,7 @@ func TestTeamRestartPreservesReviewMetadataCredentialsAndSync(t *testing.T) {
 	k := owner.ok("POST", projectPath+"/tickets", map[string]any{"title": "Existing ticket", "status": "available"})
 	ticketPath := projectPath + "/tickets/" + text(k, "id")
 	k = owner.ok("POST", ticketPath+"/claim", nil)
+	owner.ok("POST", ticketPath+"/start-work", nil)
 	sha := "0123456789abcdef0123456789abcdef01234567"
 	owner.ok("PUT", ticketPath+"/git", map[string]any{"commits": []map[string]any{{"sha": sha, "subject": "Existing commit", "author": "Owner", "committedAt": time.Now().UTC().Format(time.RFC3339)}}, "pullRequest": map[string]any{"number": 9, "url": "https://github.com/acme/shop/pull/9", "state": "merged"}, "state": map[string]any{"headSha": sha, "baseBranch": "main", "ahead": 1, "behind": 0, "files": []string{"preserved.go"}}})
 	owner.ok("POST", ticketPath+"/submit", map[string]any{})

@@ -193,7 +193,7 @@ func TestTheWholeTeamWorkflowFromProjectToDone(t *testing.T) {
 
 	// 3. B claims it. A, who is also a project owner, can no longer claim it.
 	claimed := b.ok("POST", tk+"/claim", nil)
-	if text(claimed, "status") != "in_progress" || text(claimed, "branch") != "wb-1-authentication-error" {
+	if text(claimed, "status") != "available" || text(claimed, "branch") != "wb-1-authentication-error" {
 		t.Fatalf("%v", claimed)
 	}
 	if code, m := a.call("POST", tk+"/claim", nil); code != 409 || !strings.Contains(fmt.Sprint(m), "already claimed by Bo") {
@@ -234,7 +234,7 @@ func TestTheWholeTeamWorkflowFromProjectToDone(t *testing.T) {
 
 	// 4. B's My Work shows it; A's does not.
 	mine := b.ok("GET", "/my-work", nil)
-	if ip := list(mine, "inProgress"); len(ip) != 1 || text(obj(ip[0], "ticket"), "key") != "WB-1" || text(obj(ip[0], "project"), "name") != "Shop" {
+	if ip := list(mine, "ready"); len(ip) != 1 || text(obj(ip[0], "ticket"), "key") != "WB-1" || text(obj(ip[0], "project"), "name") != "Shop" {
 		t.Fatalf("B's My Work: %v", mine)
 	}
 	if ap := a.ok("GET", "/my-work", nil); len(list(ap, "inProgress")) != 0 {
@@ -251,6 +251,8 @@ func TestTheWholeTeamWorkflowFromProjectToDone(t *testing.T) {
 	if code := a.status("POST", tk+"/handoff", nil); code < 400 {
 		t.Fatalf("A opened B's ticket in a runner: %d", code)
 	}
+
+	b.ok("POST", tk+"/start-work", nil)
 
 	// 6. B works. B's Werkbord reports the branch, a commit and the pull request.
 	at := time.Now().UTC().Format(time.RFC3339)
@@ -338,7 +340,7 @@ func TestTheWholeTeamWorkflowFromProjectToDone(t *testing.T) {
 			kinds = append(kinds, text(acts[i], "kind"))
 		}
 	}
-	want := "ticket.created ticket.claimed ticket.handed_off ticket.pull_request_created ticket.work_submitted ticket.review_requested ticket.pull_request_merged ticket.completed"
+	want := "ticket.created ticket.claimed ticket.handed_off ticket.moved ticket.pull_request_created ticket.work_submitted ticket.review_requested ticket.pull_request_merged ticket.completed"
 	if got := strings.Join(kinds, " "); got != want {
 		t.Fatalf("history\n got %s\nwant %s", got, want)
 	}

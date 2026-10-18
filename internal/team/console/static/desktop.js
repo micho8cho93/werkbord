@@ -396,21 +396,42 @@ function ownExecutionPanel(k) {
   const key = k.projectId + ':' + k.id;
   let view = executionViews.get(key);
   const refresh = async () => {
-    const detail = await deviceApi('GET', '/execution/detail?projectId=' + encodeURIComponent(k.projectId) + '&ticketId=' + encodeURIComponent(k.id));
-    const schedules = await api('GET', '/projects/' + k.projectId + '/schedules');
-    const scheduled = schedules.find(s => s.ticketId === k.id && !['completed', 'canceled'].includes(s.state));
-    view = { ...view, detail, schedule: scheduled };
-    if (!view.selection) view.selection = { projectId: k.projectId, ticketId: k.id, executionId: scheduled?.executionId || 'exe_' + crypto.randomUUID().replaceAll('-', ''), runnerId: detail.runners.find(r => r.kind === 'local' && !r.disabled && !r.removed)?.id || '', agentId: detail.agents.find(a => a.available)?.id || 'codex', model: 'default', reasoning: 'default', interaction: 'interactive' };
-    if (scheduled && view.selection.executionId !== scheduled.executionId) { view.selection.executionId = scheduled.executionId; view.preview = null; }
-    executionViews.set(key, view);
+    if (view.loading) return;
+    view.loading = true;
+    try {
+      const detail = await deviceApi('GET', '/execution/detail?projectId=' + encodeURIComponent(k.projectId) + '&ticketId=' + encodeURIComponent(k.id) + '&agentId=' + encodeURIComponent(view.selection?.agentId || '') + '&runId=' + encodeURIComponent(view.selectedRunId || ''));
+      const schedules = await api('GET', '/projects/' + k.projectId + '/schedules');
+      const scheduled = schedules.find(s => s.ticketId === k.id && !['completed', 'canceled'].includes(s.state));
+      const before = new Set((view.detail?.questions || []).map(q => q.id));
+      if (view.detail && detail.questions.some(q => q.state === 'pending' && !before.has(q.id))) toast(k.key + ': your agent needs an answer.');
+      view.detail = detail; view.schedule = scheduled; view.error = '';
+      if (!view.selection) view.selection = { projectId: k.projectId, ticketId: k.id, executionId: scheduled?.executionId || 'exe_' + crypto.randomUUID().replaceAll('-', ''), runnerId: detail.runners.find(r => r.kind === 'local' && !r.disabled && !r.removed)?.id || '', agentId: detail.options?.agentId || detail.agents.find(a => a.available)?.id || '', model: 'default', reasoning: 'default', interaction: 'interactive' };
+      if (scheduled && view.selection.executionId !== scheduled.executionId) { view.selection.executionId = scheduled.executionId; view.preview = null; view.approval = null; }
+      view.updatedAt = Date.now();
+    } catch (error) { view.error = error.message; }
+    finally { view.loading = false; }
   };
-  if (!view) return h('section', { class: 'handoff' }, h('h3', {}, 'Your agent'), h('p', { class: 'muted' }, 'Choose your own runner and review its effective policy before approving a run.'), h('button', { class: 'primary', onclick: () => act(refresh) }, 'Agent controls'));
+  if (!view) {
+    view = { loading: false }; executionViews.set(key, view);
+    void refresh().then(() => { if (state.ticketId === k.id && state.projectId === k.projectId) render(); });
+  }
+  view.refresh = refresh;
+  if (!view.detail) return h('section', { class: 'handoff', 'aria-label': 'Your private agent' }, h('h3', {}, 'Your private agent'),
+    h('p', { class: 'muted', role: 'status' }, view.error || 'Loading your runner and agent choices…'),
+    view.error ? h('button', { class: 'plain', onclick: () => act(refresh) }, 'Retry agent controls') : '');
   const selection = view.selection;
-  const change = (field, value) => { selection[field] = value; view.preview = null; view.approval = null; render(); };
-  const agent = h('select', { name: 'agent-' + k.id, onchange: e => change('agentId', e.target.value) }, view.detail.agents.map(a => h('option', { value: a.id, selected: a.id === selection.agentId }, a.name + (a.available ? '' : ' · unavailable'))));
+  const change = (field, value) => { selection[field] = value; view.preview = null; view.approval = null; if (field === 'agentId') { selection.model = 'default'; selection.reasoning = 'default'; act(refresh); } else render(); };
+  const agent = h('select', { name: 'agent-' + k.id, onchange: e => change('agentId', e.target.value) }, view.detail.agents.map(a => h('option', { value: a.id, selected: a.id === selection.agentId, disabled: !a.available }, a.name + (a.available ? '' : ' · unavailable'))));
   const runner = h('select', { name: 'runner-' + k.id, onchange: e => change('runnerId', e.target.value) }, view.detail.runners.filter(r => r.kind === 'local' && !r.removed && !r.disabled).map(r => h('option', { value: r.id, selected: r.id === selection.runnerId }, r.name + (r.online ? ' · online' : ' · offline'))));
-  const model = h('input', { name: 'model-' + k.id, value: selection.model, maxlength: 100, oninput: e => change('model', e.target.value), placeholder: 'default' });
-  const reasoning = h('input', { name: 'reasoning-' + k.id, value: selection.reasoning, maxlength: 40, oninput: e => change('reasoning', e.target.value), placeholder: 'default' });
+  const options = view.detail.options?.agentId === selection.agentId ? view.detail.options : null;
+  const modelChoices = options?.models || [{ id: 'default', name: 'Agent default' }];
+  const model = options?.customModels ? h('input', { name: 'model-' + k.id, list: 'models-' + k.id, value: selection.model, maxlength: 100, onchange: e => change('model', e.target.value), placeholder: 'default' })
+    : h('select', { name: 'model-' + k.id, onchange: e => { selection.reasoning = 'default'; change('model', e.target.value); } }, modelChoices.map(m => h('option', { value: m.id, selected: m.id === selection.model }, m.name)));
+  const modelList = h('datalist', { id: 'models-' + k.id }, modelChoices.map(m => h('option', { value: m.id }, m.name)));
+  const allowed = modelChoices.find(m => m.id === selection.model)?.reasoning || [];
+  const reasoningChoices = (options?.reasoning || [{ id: 'default', name: 'Agent default' }]).filter(r => r.id === 'default' || !allowed.length || allowed.includes(r.id));
+  if (!reasoningChoices.some(r => r.id === selection.reasoning)) selection.reasoning = 'default';
+  const reasoning = h('select', { name: 'reasoning-' + k.id, onchange: e => change('reasoning', e.target.value) }, reasoningChoices.map(r => h('option', { value: r.id, selected: r.id === selection.reasoning }, r.name)));
   const interaction = h('select', { name: 'interaction-' + k.id, onchange: e => change('interaction', e.target.value) }, [['interactive', 'Ask me when needed'], ['autonomous', 'Investigate independently'], ['autonomous_stop_if_blocked', 'Stop if blocked']].map(([value, label]) => h('option', { value, selected: value === selection.interaction }, label)));
   const preapprove = h('input', { type: 'checkbox', name: 'preapprove-' + k.id, checked: !!selection.preapprove, onchange: e => change('preapprove', e.target.checked) });
   const request = () => ({ ...selection, digest: view.preview?.digest || '' });
@@ -418,28 +439,37 @@ function ownExecutionPanel(k) {
   const questions = view.detail.questions.filter(q => q.state === 'pending').map(q => {
     const answer = h('input', { name: 'agent-reply-' + q.id, maxlength: 2000, 'aria-label': 'Your answer' });
     return h('div', { class: 'execution-row' }, h('strong', {}, q.kind === 'approval' ? 'Permission requested' : 'Your agent asks'), h('p', { class: 'prose' }, q.prompt), q.context ? h('pre', {}, q.context) : '',
-      q.options?.length ? h('div', { class: 'actions' }, q.options.map(o => h('button', { class: 'plain', onclick: () => control('answer', q.runId, q.id, o) }, o))) : h('div', { class: 'actions' }, answer, h('button', { class: 'primary', onclick: () => control('answer', q.runId, q.id, '', answer.value) }, 'Reply')));
+      q.options?.length ? h('div', { class: 'actions' }, q.options.map(o => h('button', { class: 'plain', onclick: () => control('answer', q.runId, q.id, o) }, o))) : '',
+      !q.options?.length || q.allowFreeText ? h('form', { class: 'actions', onsubmit: e => { e.preventDefault(); control('answer', q.runId, q.id, '', answer.value); } }, answer, h('button', { class: 'primary', disabled: !!view.error }, 'Reply')) : '');
   });
-  const runs = view.detail.runs.map(run => h('div', { class: 'execution-row' }, h('strong', {}, run.agentId + ' · ' + run.state), run.branch ? h('p', {}, 'Branch: ', h('code', {}, run.branch)) : '',
+  const runs = view.detail.runs.map(run => h('div', { class: 'execution-row' }, h('strong', {}, run.agentId + ' · ' + run.state), h('button', { class: 'plain small', 'aria-pressed': view.detail.selectedRunId === run.id, onclick: () => act(async () => { view.selectedRunId = run.id; await refresh(); }) }, 'View activity'), run.branch ? h('p', {}, 'Branch: ', h('code', {}, run.branch)) : '',
     ['starting', 'running', 'waiting_for_user', 'blocked'].includes(run.state) ? h('button', { class: 'danger', onclick: () => control('stop', run.id) }, 'Stop my run') : '',
     run.handoff ? h('details', {}, h('summary', {}, ['completed','failed','stopped'].includes(run.state) ? 'Review final handoff' : 'Review handoff'), h('pre', { class: 'prose' }, JSON.stringify(run.handoff, null, 2))) : ''));
-  return h('section', { class: 'handoff' }, h('h3', {}, 'Your agent'), h('p', { class: 'muted' }, 'Stop/restart is supported. Live pause is unavailable. Agent permissions remain configured on this computer.'),
-    field('Runner on this computer', runner), field('Agent', agent), field('Model', model), field('Reasoning', reasoning), field('Conversation policy', interaction),
-    h('p', { class: 'muted' }, 'To use another enrolled device, open this ticket there and approve its exact execution locally; use “Open in my runner” to send the signed request.'),
+  const message = h('input', { name: 'agent-message-' + k.id, maxlength: 20000, required: true, 'aria-label': 'Message your agent' });
+  const currentRun = view.detail.runs.find(r => r.id === view.detail.selectedRunId);
+  const activity = view.detail.activity ? h('section', { class: 'execution-activity', 'aria-label': 'Private agent activity' }, h('h4', {}, 'Agent activity'),
+    view.detail.activity.hasMore ? h('p', { class: 'muted small' }, 'Showing the latest 200 events. Open in Werkbord for the full history.') : '',
+    h('div', { class: 'execution-output', 'data-scroll-key': 'agent-output-' + k.id }, (view.detail.activity.events || []).filter(e => e.type === 'agent.output').map(e => h('div', { class: 'execution-message' }, h('strong', {}, e.payload.stream), h('pre', { class: 'prose' }, e.payload.text))),
+      !(view.detail.activity.events || []).some(e => e.type === 'agent.output') ? h('p', { class: 'muted' }, 'No agent output yet.') : ''),
+    currentRun && ['running', 'waiting_for_user'].includes(currentRun.state) ? h('form', { class: 'actions', onsubmit: e => { e.preventDefault(); act(async () => { await deviceApi('POST', '/execution/input', { projectId: k.projectId, ticketId: k.id, runId: currentRun.id, text: message.value }); message.value = ''; delete message.dataset.dirty; await refresh(); }); } }, message, h('button', { class: 'plain' }, 'Send message')) : '') : '';
+  return h('section', { class: 'handoff', 'aria-label': 'Your private agent' }, h('h3', {}, 'Your private agent'), h('p', { class: 'muted' }, 'Your choices, conversation and output stay on this computer. Starting an agent moves the shared ticket to In Progress.'), questions,
+    view.error ? h('p', { class: 'error', role: 'alert' }, view.error + ' Showing the last loaded details; refresh to reconnect.') : '',
+    h('div', { class: 'agent-choices' }, field('Runner on this computer', runner), field('Agent', agent), field('Model', model), modelList, field('Reasoning', reasoning), field('Conversation policy', interaction)), view.detail.optionsError ? h('p', { class: 'muted' }, view.detail.optionsError) : '',
+
     view.schedule ? h('p', {}, 'Scheduled request: ' + view.schedule.state + ' · ' + new Date(view.schedule.at).toLocaleString() + ' · ' + view.schedule.timezone) : '',
-    h('label', { class: 'execution-preapproval' }, preapprove, ' Keep this exact one-shot authorization for up to 30 days'),
-    h('div', { class: 'actions' }, h('button', { class: 'plain', disabled: !!view.preview || !!view.approval || (!view.schedule && view.detail.runs.some(r => ['starting', 'running', 'waiting_for_user', 'blocked'].includes(r.state))), onclick: () => act(async () => { view.preview = await deviceApi('POST', '/execution/preview', request()); view.approval = null; }) }, 'Review execution policy'), h('button', { class: 'plain', onclick: () => act(refresh) }, 'Refresh progress')),
-    view.preview ? h('div', {}, h('h4', {}, 'Effective policy'), h('pre', {}, JSON.stringify({ runner: view.preview.request.runnerId, agent: view.preview.request.agentId, model: view.preview.request.model, interaction: view.preview.request.interaction, ...view.preview.runtimePolicy }, null, 2)),
+    h('details', {}, h('summary', {}, 'Schedule or use another device'), h('p', { class: 'muted' }, 'To use another of your devices, approve the exact execution there first, then use Open in my runner.'), h('label', { class: 'execution-preapproval' }, preapprove, ' Keep this exact one-shot authorization for up to 30 days')),
+    h('div', { class: 'actions' }, h('button', { class: 'primary', disabled: !!view.error || !selection.agentId || !selection.runnerId || !!view.preview || !!view.approval || (!view.schedule && view.detail.runs.some(r => ['starting', 'running', 'waiting_for_user', 'blocked'].includes(r.state))), onclick: () => act(async () => { view.preview = await deviceApi('POST', '/execution/preview', request()); view.approval = null; }) }, 'Review and start agent'), h('button', { class: 'plain', onclick: () => act(refresh) }, 'Refresh progress')),
+    view.preview ? h('div', {}, h('h4', {}, 'Effective policy'), h('p', {}, (view.detail.agents.find(a => a.id === selection.agentId)?.name || selection.agentId) + ' · ' + selection.model + ' · ' + selection.reasoning + ' reasoning'), h('p', { class: 'muted' }, 'Starts on your ticket’s working branch with this computer’s agent permissions. The agent is asked to push a pull request for team review.'), h('details', {}, h('summary', {}, 'Runner permissions'), h('pre', {}, JSON.stringify(view.preview.runtimePolicy, null, 2))),
       h('details', {}, h('summary', {}, 'Untrusted task context'), h('pre', { class: 'prose' }, view.preview.title + '\n' + view.preview.description)),
-      h('button', { class: 'primary', disabled: !!view.approval && (!!view.schedule || !!selection.preapprove || view.detail.runs.some(r => ['starting', 'running', 'waiting_for_user', 'blocked'].includes(r.state))), onclick: () => act(async () => {
+      h('button', { class: 'primary', disabled: !!view.error || (!!view.approval && (!!view.schedule || !!selection.preapprove || view.detail.runs.some(r => ['starting', 'running', 'waiting_for_user', 'blocked'].includes(r.state)))), onclick: () => act(async () => {
         if (!view.approval) view.approval = await deviceApi('POST', '/execution/approve', request());
         if (!view.schedule && !selection.preapprove) {
           try { await deviceApi('POST', '/execution/start', request()); }
           catch (error) { await refresh().catch(() => {}); throw error; }
           view.preview = null; view.approval = null; selection.executionId = 'exe_' + crypto.randomUUID().replaceAll('-', ''); await refresh();
         }
-      }) }, view.schedule || selection.preapprove ? 'Approve this execution once' : view.approval ? 'Start my approved run' : 'Approve and start my run')) : '',
-    view.approval ? h('p', { role: 'status' }, 'Authorized once until ' + new Date(view.approval.expiresAt).toLocaleString() + '. The scheduled request will wait for eligibility and this runner.') : '', questions, runs);
+      }) }, view.schedule || selection.preapprove ? 'Approve this execution once' : view.approval ? 'Start my approved run' : 'Start agent')) : '',
+    view.approval ? h('p', { role: 'status' }, 'Authorized once until ' + new Date(view.approval.expiresAt).toLocaleString() + '. The scheduled request will wait for eligibility and this runner.') : '', runs, view.detail.activityError ? h('p', { class: 'error' }, view.detail.activityError) : '', activity);
 }
 
 
@@ -455,3 +485,12 @@ async function phoneSettings() {
   for (const id of status.grants || []) panel.append(h('div', { class: 'row' }, h('code', { class: 'grow' }, 'Phone ' + id.slice(-8)), h('button', { class: 'plain', onclick: () => act(() => deviceApi('DELETE', '/phones/' + encodeURIComponent(id))) }, 'Revoke phone')));
   return panel;
 }
+
+setInterval(async () => {
+  if (!state.desktop || !state.ticketId || actionBusy || document.visibilityState !== 'visible') return;
+  const key = state.projectId + ':' + state.ticketId;
+  const view = executionViews.get(key);
+  if (!view?.refresh || view.loading) return;
+  await view.refresh();
+  if (key === state.projectId + ':' + state.ticketId && !actionBusy) await render();
+}, 5000);

@@ -71,7 +71,7 @@ func TestCollaborativeWorkflowOverHTTP(t *testing.T) {
 	board := owner.want(200, "GET", p+"/board", nil)
 	tickets := board["tickets"].([]any)
 	got := tickets[0].(map[string]any)
-	if got["status"] != "in_progress" || got["assigneeId"] == "" || str(got, "branch") != "wb-1-authentication-error" {
+	if got["status"] != "available" || got["assigneeId"] == "" || str(got, "branch") != "wb-1-authentication-error" {
 		t.Fatalf("%v", got)
 	}
 	if len(board["statuses"].([]any)) != 5 || board["role"] != "owner" {
@@ -88,6 +88,12 @@ func TestCollaborativeWorkflowOverHTTP(t *testing.T) {
 		t.Fatalf("%v", h["prompt"])
 	}
 
+	other.want(403, "POST", tk+"/start-work", nil)
+	owner.want(403, "POST", tk+"/start-work", nil)
+	started := holder.want(200, "POST", tk+"/start-work", nil)
+	if started["status"] != "in_progress" || started["assignment"] != got["assignment"] {
+		t.Fatalf("start changed ownership: %v", started)
+	}
 	// The holder reports Git work; somebody else cannot.
 	report := `{"commits":[{"sha":"0123456","subject":"Fix it","author":"Bo","committedAt":"2026-06-01T10:00:00Z"}],
 	  "pullRequest":{"number":9,"url":"https://github.com/acme/shop/pull/9","mergeable":"mergeable","baseBranch":"main","behind":4,"ahead":1},

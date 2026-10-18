@@ -58,19 +58,23 @@ func (d *Daemon) localExecutionContext(ctx context.Context, in localExecutionInp
 	if err := host.Do(ctx, "GET", "/projects/"+in.ProjectID+"/tickets/"+in.TicketID, nil, &k); err != nil {
 		return nil, nil, p, k, "", err
 	}
-	if k.AssigneeID != member || !k.Status.Held() || k.ArchivedAt != nil || p.Archived {
+	if k.AssigneeID != member || !k.Claimed() || k.ArchivedAt != nil || p.Archived {
 		return nil, nil, p, k, "", errors.New("only the current holder can control their ticket")
 	}
 	return bridge, host, p, k, service.ScheduleContext(me.Workspace.ID, p, k), nil
 }
 func (d *Daemon) importExecutionTask(ctx context.Context, bridge *localwerkbord.Client, host *hostclient.Client, p domain.Project, k domain.Ticket) (string, string, error) {
-	hf, err := host.Handoff(ctx, p.ID, k.ID)
+	var hf hostclient.Handoff
+	err := host.Do(ctx, "GET", "/projects/"+p.ID+"/tickets/"+k.ID+"/handoff", nil, &hf)
 	if err != nil {
 		return "", "", err
 	}
 	d.mu.RLock()
 	w, member := d.mat.Meta.WorkspaceID, d.memberID
 	d.mu.RUnlock()
+	if hf.Schema != hostclient.HandoffSchema {
+		return "", "", errors.New("update Werkbord Team: unsupported ticket handoff")
+	}
 	if hf.For.ID != member || hf.Project.ID != p.ID || hf.Ticket.ID != k.ID {
 		return "", "", errors.New("handoff identity changed")
 	}
@@ -271,6 +275,12 @@ func (d *Daemon) startExecution(w http.ResponseWriter, r *http.Request) {
 		daemonFail(w, err)
 		return
 	}
+	_, host, _, k, _, contextErr := d.localExecutionContext(r.Context(), in)
+	if contextErr == nil && k.Status == domain.TicketAvailable {
+		// Dispatch already succeeded: a lost coordination response must not invite a duplicate run.
+		var started domain.Ticket
+		_ = host.Do(r.Context(), "POST", "/projects/"+in.ProjectID+"/tickets/"+in.TicketID+"/start-work", nil, &started)
+	}
 	httpkit.WriteJSON(w, 200, map[string]string{"runId": run})
 }
 func (d *Daemon) executionDetail(w http.ResponseWriter, r *http.Request) {
@@ -290,6 +300,40 @@ func (d *Daemon) executionDetail(w http.ResponseWriter, r *http.Request) {
 		daemonFail(w, err)
 		return
 	}
+	selectedRun := r.URL.Query().Get("runId")
+	runs := out["runs"].([]map[string]any)
+	if selectedRun == "" && len(runs) > 0 {
+		selectedRun, _ = runs[0]["id"].(string)
+	}
+	for _, run := range runs {
+		if run["id"] == selectedRun {
+			activity, activityErr := bridge.RunActivity(r.Context(), pid, selectedRun)
+			if activityErr == nil {
+				out["activity"] = activity
+				out["selectedRunId"] = selectedRun
+			} else {
+				out["activityError"] = "Agent activity could not be loaded. Refresh to retry."
+			}
+			break
+		}
+	}
+	agentID := r.URL.Query().Get("agentId")
+	if agentID == "" {
+		for _, agent := range out["agents"].([]map[string]any) {
+			if agent["available"] == true {
+				agentID, _ = agent["id"].(string)
+				break
+			}
+		}
+	}
+	if agentID != "" {
+		options, optionsErr := bridge.AgentOptions(r.Context(), agentID)
+		if optionsErr == nil {
+			out["options"] = options
+		} else {
+			out["optionsError"] = "Model choices unavailable. Use agent defaults or refresh to retry."
+		}
+	}
 	httpkit.WriteJSON(w, 200, out)
 }
 func (d *Daemon) executionControl(w http.ResponseWriter, r *http.Request) {
@@ -300,6 +344,7 @@ func (d *Daemon) executionControl(w http.ResponseWriter, r *http.Request) {
 		QuestionID string `json:"questionId"`
 		Option     string `json:"option"`
 		Reply      string `json:"reply"`
+		Text       string `json:"text"`
 	}
 	if !daemonDecode(w, r, &in) {
 		return
@@ -331,6 +376,8 @@ func (d *Daemon) executionControl(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.PathValue("action") == "stop" {
 		err = bridge.StopRun(r.Context(), in.RunID)
+	} else if r.PathValue("action") == "input" {
+		err = bridge.SendInput(r.Context(), pid, in.RunID, in.Text)
 	} else if r.PathValue("action") == "answer" {
 		err = bridge.Answer(r.Context(), in.RunID, in.QuestionID, in.Option, in.Reply)
 	} else {

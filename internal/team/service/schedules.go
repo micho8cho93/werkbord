@@ -113,7 +113,7 @@ func (s *Service) SetSchedule(ctx context.Context, a Actor, pid, tid string, in 
 		if !x.can(domain.PPTicketsAssign) && k.AssigneeID != a.Member.ID {
 			return forbidden("propose another member's schedule")
 		}
-		if !k.Status.Held() || k.AssigneeID == "" {
+		if !k.Claimed() || k.AssigneeID == "" {
 			return fmt.Errorf("%w: assign or claim the ticket before scheduling", domain.ErrConflict)
 		}
 		old, err := tx.Schedule(ctx, a.Workspace.ID, pid, tid)
@@ -172,7 +172,7 @@ func (s *Service) scheduleEligibility(ctx context.Context, tx store.Tx, a Actor,
 	if err != nil {
 		return "", err
 	}
-	if x.Project.Archived || k.ArchivedAt != nil || !k.Status.Held() || k.AssigneeID != v.MemberID || k.Assignment != v.Assignment {
+	if x.Project.Archived || k.ArchivedAt != nil || !k.Claimed() || k.AssigneeID != v.MemberID || k.Assignment != v.Assignment {
 		return "ticket context or assignment changed", nil
 	}
 	if !contextHolds(a.Workspace.ID, x.Project, k, v) {

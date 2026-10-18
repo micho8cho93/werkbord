@@ -161,7 +161,7 @@ func (t *sqlTx) Tickets(ctx context.Context, workspaceID, projectID string) ([]d
 // of any number of simultaneous claims exactly one affects a row. It reports
 // whether this call was the one.
 func (t *sqlTx) ClaimTicket(ctx context.Context, workspaceID, projectID, id, memberID, branch string, now time.Time) (bool, error) {
-	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET status = 'in_progress', assignee_id = ?, branch = CASE WHEN branch = '' THEN ? ELSE branch END,
+	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET assignee_id = ?, branch = CASE WHEN branch = '' THEN ? ELSE branch END,
 		claimed_at = ?, submitted_at = NULL, completed_at = NULL, reviewer_id = NULL, version = version + 1, updated_at = ?
 		WHERE workspace_id = ? AND project_id = ? AND id = ? AND status = 'available' AND assignee_id IS NULL AND archived_at IS NULL`,
 		memberID, branch, ms(now), ms(now), workspaceID, projectID, id)
@@ -245,7 +245,7 @@ func (t *sqlTx) commits(ctx context.Context, ticketID string) ([]domain.Commit, 
 // working on) and returns them.
 func (t *sqlTx) ReleaseHeld(ctx context.Context, workspaceID, projectID, memberID string, now time.Time) ([]domain.Ticket, error) {
 	rows, err := t.q.QueryContext(ctx, `UPDATE tickets SET status = 'available', assignee_id = NULL, version = version + 1, updated_at = ?
-		WHERE workspace_id = ? AND project_id = ? AND assignee_id = ? AND status = 'in_progress' RETURNING `+ticketCols,
+		WHERE workspace_id = ? AND project_id = ? AND assignee_id = ? AND status IN ('available', 'in_progress') RETURNING `+ticketCols,
 		ms(now), workspaceID, projectID, memberID)
 	if err != nil {
 		return nil, err
@@ -264,7 +264,7 @@ func (t *sqlTx) ReleaseHeld(ctx context.Context, workspaceID, projectID, memberI
 
 // ProjectsOfMemberWithHeldTickets lists the projects in which a member holds a ticket in progress.
 func (t *sqlTx) ProjectsOfMemberWithHeldTickets(ctx context.Context, workspaceID, memberID string) ([]string, error) {
-	rows, err := t.q.QueryContext(ctx, `SELECT DISTINCT project_id FROM tickets WHERE workspace_id = ? AND assignee_id = ? AND status = 'in_progress'`, workspaceID, memberID)
+	rows, err := t.q.QueryContext(ctx, `SELECT DISTINCT project_id FROM tickets WHERE workspace_id = ? AND assignee_id = ? AND status IN ('available', 'in_progress')`, workspaceID, memberID)
 	if err != nil {
 		return nil, err
 	}

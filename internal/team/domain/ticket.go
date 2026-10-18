@@ -24,7 +24,7 @@ type TicketStatus string
 
 const (
 	TicketBacklog    TicketStatus = "backlog"     // an idea; not ready to be picked up
-	TicketAvailable  TicketStatus = "available"   // ready: any member of the project may claim it
+	TicketAvailable  TicketStatus = "available"   // ready; may be reserved by one member before work starts
 	TicketInProgress TicketStatus = "in_progress" // one member holds it and is working on it
 	TicketReview     TicketStatus = "review"      // the work is submitted and waits for a reviewer
 	TicketDone       TicketStatus = "done"
@@ -95,6 +95,11 @@ func (s TicketStatus) CanTransitionTo(next TicketStatus) bool {
 // Held reports whether a ticket in this status has an owner who is working on it.
 func (s TicketStatus) Held() bool { return s == TicketInProgress || s == TicketReview }
 
+// Claimed reports a current ownership interval, including work reserved in Available.
+func (k Ticket) Claimed() bool {
+	return k.AssigneeID != "" && (k.Status == TicketAvailable || k.Status.Held())
+}
+
 // PullRequest is what the team knows about a ticket's pull request. Team never
 // asks GitHub: the developer's own Werkbord, signed in to GitHub as them, reports it.
 type PullRequest struct {
@@ -156,7 +161,7 @@ type Ticket struct {
 	Requirements string       `json:"requirements"`
 	SourceRef    string       `json:"sourceRef,omitempty"`
 	Status       TicketStatus `json:"status"`
-	AssigneeID   string       `json:"assigneeId,omitempty"` // the active owner, while the ticket is held
+	AssigneeID   string       `json:"assigneeId,omitempty"` // the owner, including a claim reserved in Available
 	CreatorID    string       `json:"creatorId"`
 	ReviewerID   string       `json:"reviewerId,omitempty"` // who was asked to review it, if anyone in particular
 	Branch       string       `json:"branch,omitempty"`

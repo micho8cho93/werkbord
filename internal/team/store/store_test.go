@@ -163,7 +163,7 @@ func TestTheSchemaRefusesImpossibleTickets(t *testing.T) {
 	}
 	for name, err := range map[string]error{
 		"in progress with nobody":        insert("t2", 2, "w1", "p1", "in_progress", nil),
-		"available with somebody":        insert("t3", 3, "w1", "p1", "available", "m1"),
+		"backlog with somebody":          insert("t3", 3, "w1", "p1", "backlog", "m1"),
 		"a made-up status":               insert("t4", 4, "w1", "p1", "limbo", nil),
 		"a duplicate number":             insert("t5", 1, "w1", "p1", "backlog", nil),
 		"a project of another workspace": insert("t6", 6, "w2", "p1", "backlog", nil),

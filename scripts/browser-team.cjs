@@ -35,6 +35,8 @@ async function api(method, path, data, credential = token) {
     const q = await api('POST', '/projects', { name: 'Beta ' + Date.now(), repository: 'https://github.com/acme/shop-b' });
     let k = await api('POST', `/projects/${p.id}/tickets`, { title: 'Concurrent ticket', description: 'Original description', requirements: 'Original context', status: 'available' });
     k = await api('POST', `/projects/${p.id}/tickets/${k.id}/claim`);
+    assert.equal(k.status, 'available');
+    k = await api('POST', `/projects/${p.id}/tickets/${k.id}/start-work`);
     await page.goto(base + '/#token=' + token);
     const primary = page.getByRole('navigation', { name: 'Werkbord Team', exact: true });
     assert.equal(await page.getByRole('navigation', { name: 'Team administration' }).count(), 0, 'administration is only shown inside Settings');
@@ -182,7 +184,9 @@ async function api(method, path, data, credential = token) {
     await require('./browser-kanban.cjs')(page, 5, artifacts, 'team');
     let dragged = await api('POST', `/projects/${p.id}/tickets`, { title: 'Team drag fixture', description: 'Keep this context', status: 'backlog' });
     await page.getByRole('button', { name: dragged.title, exact: true }).waitFor();
-    const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/assign'));
+    await api('POST', `/projects/${p.id}/tickets/${dragged.id}/move`, {status:'available'});
+    await api('POST', `/projects/${p.id}/tickets/${dragged.id}/claim`);
+    const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/start-work'));
     await page.getByRole('button', { name: dragged.title, exact: true }).locator('..').dragTo(page.getByRole('region', { name: 'In Progress', exact: true }));
     assert.equal((await assignResponse).status(), 200);
     await page.getByRole('region', { name: 'In Progress', exact: true }).getByRole('button', { name: dragged.title, exact: true }).waitFor();

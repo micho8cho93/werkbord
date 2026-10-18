@@ -174,11 +174,11 @@ func (c *Connector) Tick(ctx context.Context) error {
 		return teamErr
 	}
 	held := map[string]service.WorkItem{}
-	for _, item := range append(work.InProgress, work.Submitted...) {
+	for _, item := range append(append(work.Ready, work.InProgress...), work.Submitted...) {
 		if !integration.Identifier(item.Project.ID) || !integration.Identifier(item.Ticket.ID) || item.Ticket.ProjectID != item.Project.ID {
 			return errors.New("workspace returned an invalid ticket identity")
 		}
-		if item.Ticket.AssigneeID == c.MemberID && item.Ticket.Status.Held() && item.Ticket.ArchivedAt == nil && !item.Project.Archived {
+		if item.Ticket.AssigneeID == c.MemberID && item.Ticket.Claimed() && item.Ticket.ArchivedAt == nil && !item.Project.Archived {
 			held[item.Project.ID+":"+item.Ticket.ID] = item
 		}
 	}

@@ -64,7 +64,7 @@ func scheduleInput() ScheduleInput {
 }
 func TestSchedulesAreRequestsWithGuardedOwnerDeviceClaims(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "scheduled")
+	k := tm.working(tm.bo, "scheduled")
 	v, err := tm.svc.SetSchedule(bg, tm.owner, tm.pid(), k.ID, scheduleInput())
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +129,7 @@ func TestScheduleTimeDependenciesAssignmentAndRevocation(t *testing.T) {
 	for _, kind := range []string{"early", "missed", "dependency", "order", "assignment", "revoked", "timezone", "cycle"} {
 		t.Run(kind, func(t *testing.T) {
 			tm := newTeam(t)
-			k := tm.claimed(tm.bo, "scheduled")
+			k := tm.working(tm.bo, "scheduled")
 			a := scheduleActor(t, tm, tm.bo, "runner")
 			in := scheduleInput()
 			switch kind {
@@ -146,10 +146,10 @@ func TestScheduleTimeDependenciesAssignmentAndRevocation(t *testing.T) {
 				in.Dependencies = []string{k.ID}
 			case "dependency":
 				// What a request waits for is the ticket's own list.
-				dep := tm.claimed(tm.bo, "dep")
+				dep := tm.working(tm.bo, "dep")
 				tm.waitsFor(k, dep.ID)
 			case "order":
-				earlier := tm.claimed(tm.bo, "first")
+				earlier := tm.working(tm.bo, "first")
 				if _, err := tm.svc.SetSchedule(bg, tm.bo, tm.pid(), earlier.ID, scheduleInput()); err != nil {
 					t.Fatal(err)
 				}
@@ -190,7 +190,7 @@ func TestScheduleClaimSurvivesClusterFailoverAndRefusesNoQuorum(t *testing.T) {
 		t.Skip("requires three-node service harness")
 	}
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "failover schedule")
+	k := tm.working(tm.bo, "failover schedule")
 	a := scheduleActor(t, tm, tm.bo, "runner")
 	v, err := tm.svc.SetSchedule(bg, tm.bo, tm.pid(), k.ID, scheduleInput())
 	if err != nil {
@@ -241,7 +241,7 @@ func TestScheduleClaimSurvivesClusterFailoverAndRefusesNoQuorum(t *testing.T) {
 
 func TestCompletedScheduleUnlocksDependentOrderedWork(t *testing.T) {
 	tm := newTeam(t)
-	first, second := tm.claimed(tm.bo, "first"), tm.claimed(tm.bo, "second")
+	first, second := tm.working(tm.bo, "first"), tm.working(tm.bo, "second")
 	a := scheduleActor(t, tm, tm.bo, "runner")
 	ctx := AuthenticatedContext(bg, a)
 	one, err := tm.svc.SetSchedule(bg, tm.bo, tm.pid(), first.ID, scheduleInput())
@@ -274,7 +274,7 @@ func TestCompletedScheduleUnlocksDependentOrderedWork(t *testing.T) {
 // the request is blocked and cannot be dispatched; once it is, it can.
 func TestTicketDependenciesGateASharedRequest(t *testing.T) {
 	tm := newTeam(t)
-	first, second := tm.claimed(tm.bo, "first"), tm.claimed(tm.bo, "second")
+	first, second := tm.working(tm.bo, "first"), tm.working(tm.bo, "second")
 	second = tm.waitsFor(second, first.ID)
 	a := scheduleActor(t, tm, tm.bo, "runner")
 	if _, err := tm.svc.SetSchedule(bg, tm.bo, tm.pid(), first.ID, scheduleInput()); err != nil {
@@ -313,7 +313,7 @@ func TestTicketDependenciesGateASharedRequest(t *testing.T) {
 // Dependencies that were only ever set in the ticket form, never on a request, are enforced now.
 func TestDependenciesSetOnlyOnTheTicketAreEnforcedBySharedRequests(t *testing.T) {
 	tm := newTeam(t)
-	first := tm.claimed(tm.bo, "first")
+	first := tm.working(tm.bo, "first")
 	k, err := tm.svc.CreateTicket(bg, tm.owner, tm.pid(), TicketInput{Title: "second", Status: domain.TicketAvailable, Dependencies: []string{first.ID}})
 	if err != nil {
 		t.Fatal(err)
@@ -338,7 +338,7 @@ func TestDependenciesSetOnlyOnTheTicketAreEnforcedBySharedRequests(t *testing.T)
 // proposed, says so, and cannot be dispatched until it is proposed again.
 func TestEditingDependenciesMakesALiveRequestStaleUntilItIsProposedAgain(t *testing.T) {
 	tm := newTeam(t)
-	first, other, k := tm.claimed(tm.bo, "first"), tm.claimed(tm.bo, "other"), tm.claimed(tm.bo, "k")
+	first, other, k := tm.working(tm.bo, "first"), tm.working(tm.bo, "other"), tm.working(tm.bo, "k")
 	a := scheduleActor(t, tm, tm.bo, "runner")
 	k = tm.waitsFor(k, first.ID, other.ID)
 	v, err := tm.svc.SetSchedule(bg, tm.bo, tm.pid(), k.ID, scheduleInput())
@@ -353,7 +353,7 @@ func TestEditingDependenciesMakesALiveRequestStaleUntilItIsProposedAgain(t *test
 		t.Fatalf("reordering made the request stale: %q", got.Reason)
 	}
 
-	for name, deps := range map[string][]string{"one removed": {first.ID}, "all removed": {}, "one added": {first.ID, other.ID, tm.claimed(tm.bo, "third").ID}} {
+	for name, deps := range map[string][]string{"one removed": {first.ID}, "all removed": {}, "one added": {first.ID, other.ID, tm.working(tm.bo, "third").ID}} {
 		t.Run(name, func(t *testing.T) {
 			tm.waitsFor(k, deps...)
 			got := tm.scheduleOf(k)
@@ -387,7 +387,7 @@ func TestEditingDependenciesMakesALiveRequestStaleUntilItIsProposedAgain(t *test
 // request wait, saying why and what to do, rather than waiting for ever with a vague reason.
 func TestAnArchivedDependencyMakesTheRequestWaitAndSaysSo(t *testing.T) {
 	tm := newTeam(t)
-	dep, k := tm.claimed(tm.bo, "dep"), tm.claimed(tm.bo, "k")
+	dep, k := tm.working(tm.bo, "dep"), tm.working(tm.bo, "k")
 	a := scheduleActor(t, tm, tm.bo, "runner")
 	tm.waitsFor(k, dep.ID)
 	v, err := tm.svc.SetSchedule(bg, tm.bo, tm.pid(), k.ID, scheduleInput())
@@ -406,7 +406,7 @@ func TestAnArchivedDependencyMakesTheRequestWaitAndSaysSo(t *testing.T) {
 		t.Fatalf("dispatch = %v", err)
 	}
 	// A new dependency on unfinished archived work is refused.
-	later := tm.claimed(tm.bo, "later")
+	later := tm.working(tm.bo, "later")
 	archivedDependency := []string{dep.ID}
 	if _, err := tm.svc.UpdateTicket(bg, tm.owner, tm.pid(), later.ID, TicketPatch{Dependencies: &archivedDependency}); !errors.Is(err, domain.ErrInvalid) {
 		t.Fatalf("new archived prerequisite was accepted: %v", err)
@@ -426,7 +426,7 @@ func TestAnArchivedDependencyMakesTheRequestWaitAndSaysSo(t *testing.T) {
 // A client of the old interface may still send dependencies with a request: only the ticket's own list is accepted.
 func TestAScheduleRequestMayRepeatTheTicketsDependenciesAndNothingElse(t *testing.T) {
 	tm := newTeam(t)
-	first, other, k := tm.claimed(tm.bo, "first"), tm.claimed(tm.bo, "other"), tm.claimed(tm.bo, "k")
+	first, other, k := tm.working(tm.bo, "first"), tm.working(tm.bo, "other"), tm.working(tm.bo, "k")
 	tm.waitsFor(k, first.ID, other.ID)
 	version := int64(0)
 	try := func(deps []string) error {
@@ -450,7 +450,7 @@ func TestAScheduleRequestMayRepeatTheTicketsDependenciesAndNothingElse(t *testin
 		}
 	}
 	// A ticket that waits for nothing accepts the empty list an old client sends.
-	free := tm.claimed(tm.bo, "free")
+	free := tm.working(tm.bo, "free")
 	in := scheduleInput()
 	in.Dependencies = []string{}
 	if _, err := tm.svc.SetSchedule(bg, tm.bo, tm.pid(), free.ID, in); err != nil {
@@ -462,7 +462,7 @@ func TestAScheduleRequestMayRepeatTheTicketsDependenciesAndNothingElse(t *testin
 // see one) is reported by the timeline, cannot be proposed, and makes no request loop.
 func TestTicketDependenciesCannotMakeACircle(t *testing.T) {
 	tm := newTeam(t)
-	a, b := tm.claimed(tm.bo, "a"), tm.claimed(tm.bo, "b")
+	a, b := tm.working(tm.bo, "a"), tm.working(tm.bo, "b")
 	tm.waitsFor(b, a.ID)
 	ids := []string{b.ID}
 	if _, err := tm.svc.UpdateTicket(bg, tm.owner, tm.pid(), a.ID, TicketPatch{Dependencies: &ids}); !errors.Is(err, domain.ErrInvalid) {
@@ -523,11 +523,11 @@ func TestRequestsProposedBeforeDependenciesWereFencedStayValid(t *testing.T) {
 		sum := sha256.Sum256(raw)
 		return hex.EncodeToString(sum[:])
 	}
-	free := tm.claimed(tm.bo, "free")
+	free := tm.working(tm.bo, "free")
 	if ScheduleContext(ws, tm.project, free) != old(free) {
 		t.Fatal("the fence of a ticket that waits for nothing changed")
 	}
-	first, other, k := tm.claimed(tm.bo, "first"), tm.claimed(tm.bo, "other"), tm.claimed(tm.bo, "k")
+	first, other, k := tm.working(tm.bo, "first"), tm.working(tm.bo, "other"), tm.working(tm.bo, "k")
 	k = tm.waitsFor(k, first.ID, other.ID)
 	if ScheduleContext(ws, tm.project, k) == old(k) || ScheduleContext(ws, tm.project, k) != ScheduleContext(ws, tm.project, func() domain.Ticket { c := k; c.Dependencies = []string{other.ID, first.ID}; return c }()) {
 		t.Fatal("dependencies are not part of the fence, or their order is")

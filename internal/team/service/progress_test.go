@@ -14,7 +14,7 @@ func TestProgressOrdersReportsAndCannotCompleteOrResurrectOwnership(t *testing.T
 	tm := newTeam(t)
 	clock := time.Now().UTC().Truncate(time.Millisecond)
 	tm.svc.SetClock(func() time.Time { return clock })
-	k := tm.claimed(tm.bo, "sync")
+	k := tm.working(tm.bo, "sync")
 	identity := laptop(t, "connector")
 	device := tm.mustRegister(tm.bo, identity, domain.CapabilityRunner)
 	token, err := tm.svc.IssueLocalDeviceCredential(bg, tm.bo.Workspace.ID, device.ID)
@@ -86,7 +86,7 @@ func TestProgressRequiresQuorumAndRetriesAfterRecovery(t *testing.T) {
 		t.Skip("requires the existing three-node replicated service harness")
 	}
 	tm := newTeam(t)
-	k := tm.claimed(tm.bo, "quorum progress")
+	k := tm.working(tm.bo, "quorum progress")
 	identity := laptop(t, "quorum connector")
 	device := tm.mustRegister(tm.bo, identity, domain.CapabilityRunner)
 	token, err := tm.svc.IssueLocalDeviceCredential(bg, tm.bo.Workspace.ID, device.ID)

@@ -49,7 +49,7 @@ func (s *Service) ReportGit(ctx context.Context, a Actor, projectID, ticketID st
 		if k.AssigneeID != a.Member.ID && !x.can(domain.PPGitReportAny) {
 			return forbidden("report Git work for a ticket someone else holds")
 		}
-		if !k.Status.Held() {
+		if !k.Claimed() {
 			return fmt.Errorf("%w: %s is %s; Git work is reported for tickets in progress or in review", domain.ErrConflict, k.Key, k.Status.Label())
 		}
 		return s.applyGitReport(ctx, tx, a, &k, in)

@@ -35,6 +35,9 @@ type scopedRoute struct {
 }
 
 var executionScopedRoutes = []scopedRoute{
+	{method: "GET", pattern: "/api/projects/{}/runs/{}/events"},
+	{method: "POST", pattern: "/api/projects/{}/runs/{}/input", fields: []string{"text"}},
+	{method: "GET", pattern: "/api/agents/{}/options"},
 	{method: "GET", pattern: "/api/agents"},
 	{method: "GET", pattern: "/api/projects/{}/tasks/{}/runs"},
 	{method: "POST", pattern: "/api/execution/v1/preview", fields: []string{"executionId", "projectId", "taskId", "fence", "runnerId", "agentId", "model", "reasoning", "interaction", "notBefore", "deadline"}},
