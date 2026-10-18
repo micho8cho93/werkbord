@@ -32,6 +32,7 @@ const (
 	EventGitBranchDeleted EventType = "git.branch_deleted"
 	EventGitTreeCleaned   EventType = "git.worktree_cleaned"
 	EventGitPRCreated     EventType = "git.pull_request_created"
+	EventGitPRObserved    EventType = "git.pull_requests_observed" // authenticated PR state/check changes, payload GitHubState
 
 	// Question events. A question is announced by agent.question (payload:
 	// {question}) and closed by exactly one of these, whose payload is also

@@ -164,3 +164,23 @@ func (r gitRepoRepo) GetByCommonDir(ctx context.Context, commonDir string) (*dom
 	g, err := scanGitRepo(r.q.QueryRowContext(ctx, `SELECT `+gitRepoCols+` FROM git_repositories WHERE common_dir = ?`, commonDir))
 	return g, notFound(err, "repository with common dir", commonDir)
 }
+
+func (r gitRepoRepo) ListBounded(ctx context.Context, limit int) ([]domain.GitRepository, error) {
+	if limit < 1 || limit > 65 {
+		return nil, domain.ErrInvalid
+	}
+	rows, err := r.q.QueryContext(ctx, `SELECT `+gitRepoCols+` FROM git_repositories ORDER BY project_id LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.GitRepository
+	for rows.Next() {
+		g, err := scanGitRepo(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *g)
+	}
+	return out, rows.Err()
+}

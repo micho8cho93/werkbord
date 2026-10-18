@@ -45,6 +45,7 @@ type Tx interface {
 	Events() EventRepo
 	Assistant() AssistantRepo
 	Analytics() AnalyticsRepo
+	Memory() MemoryRepo
 }
 
 // AnalyticsData is a bounded projection of existing records, without prompts or transcripts.
@@ -99,6 +100,8 @@ type GitRepositoryRepo interface {
 	Upsert(ctx context.Context, r *domain.GitRepository) error
 	Get(ctx context.Context, projectID string) (*domain.GitRepository, error)
 	GetByCommonDir(ctx context.Context, commonDir string) (*domain.GitRepository, error)
+	// ListBounded returns at most limit snapshots, for conservative identity resolution.
+	ListBounded(context.Context, int) ([]domain.GitRepository, error)
 }
 
 // TaskRepo persists tasks. Update is compare-and-swap: it succeeds only if the
@@ -269,4 +272,39 @@ type AssistantRepo interface {
 	// PruneAudit removes the oldest entries, as one unbroken prefix, up to the first entry made at or after before, and
 	// remembers where it stopped. It returns how many it removed.
 	PruneAudit(ctx context.Context, before time.Time, at time.Time) (int64, error)
+}
+
+// MemoryRepo is private local persistence. Every record operation requires an
+// exact scope; no unscoped get/list/delete is provided. Writes require Update.
+type MemoryRepo interface {
+	RefreshGitObservation(context.Context, domain.MemoryScope, string, string, time.Time) error
+	RetireGitHeads(context.Context, domain.MemoryScope, string, time.Time) error
+	DeactivateRunEvidence(context.Context, string, string) error
+	ReactivateEvidence(context.Context, string, string) error
+	RetireObservations(context.Context, string, time.Time) error
+	KnowledgeRepositories(context.Context, string, int) ([]domain.GitRepository, error)
+	KnowledgeMatch(context.Context, domain.MemoryScope, domain.MemoryContent) (*domain.Memory, error)
+	KnowledgeRuns(context.Context, string, string, int) ([]domain.Run, error)
+	MarkExtracted(context.Context, string, string, int64) error
+	EvidenceSeen(context.Context, string, string) (bool, error)
+	AddEvidence(context.Context, domain.MemoryEvidence) error
+	Evidence(context.Context, domain.MemoryScope, string, int) ([]domain.MemoryEvidence, error)
+	EvidenceUsage(context.Context, string) (int64, error)
+	KnowledgeList(context.Context, domain.MemoryScope, domain.MemoryQuery, bool) ([]domain.Memory, error)
+
+	// Private maintenance only: exact partitions, bounded keyset traversal.
+	FreshnessScopes(context.Context, *domain.MemoryScope, int) ([]domain.MemoryScope, error)
+	FreshnessProjectScopes(context.Context, string, []string, *domain.MemoryScope, int) ([]domain.MemoryScope, error)
+	Freshness(context.Context, domain.MemoryScope) (*domain.MemoryFreshness, error)
+	SaveFreshness(context.Context, *domain.MemoryFreshness) error
+	// Invalidate changes lifecycle only, even when the content quota is full.
+	Invalidate(context.Context, domain.MemoryScope, string, int64, time.Time) error
+	Create(context.Context, *domain.Memory) error
+	Get(context.Context, domain.MemoryScope, string) (*domain.Memory, error)
+	FindFingerprint(context.Context, domain.MemoryScope, string) (*domain.Memory, error)
+	List(context.Context, domain.MemoryScope, domain.MemoryQuery) (domain.MemoryPage, error)
+	Update(context.Context, *domain.Memory) error
+	Delete(context.Context, domain.MemoryScope, string, int64) error
+	Usage(context.Context, string) (domain.MemoryUsage, error)
+	Prune(context.Context, string, time.Time, int) (int, error)
 }

@@ -28,6 +28,7 @@ import (
 type Options struct {
 	Distributed *service.Runners
 	Scheduler   *service.Scheduler
+	Memory      *service.Knowledge // private owner-only Individual memory; nil on network listeners
 	Handoffs    *service.Handoffs
 	Projects    *service.Projects
 	Tasks       *service.Tasks
@@ -121,6 +122,13 @@ func (s *Server) Handler() http.Handler {
 	// are global on purpose: the project list, the agents installed on this
 	// computer, the event stream, and the Control Center.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/projects/{pid}/memory", s.handleMemoryList)
+	mux.HandleFunc("POST /api/projects/{pid}/memory", s.handleMemorySave)
+	mux.HandleFunc("PATCH /api/projects/{pid}/memory/{id}", s.handleMemoryChange)
+	mux.HandleFunc("DELETE /api/projects/{pid}/memory/{id}", s.handleMemoryDelete)
+	mux.HandleFunc("GET /api/projects/{pid}/memory/{id}/sources", s.handleMemorySources)
+	mux.HandleFunc("GET /api/projects/{pid}/memory/context", s.handleMemoryContext)
+
 	mux.HandleFunc("GET /api/integration/v1/projects", s.handleIntegrationProjects)
 	mux.HandleFunc("POST /api/integration/v1/import", s.handleIntegrationImport)
 	mux.HandleFunc("PUT /api/integration/v1/waiting", s.handleIntegrationWaiting)

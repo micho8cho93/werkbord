@@ -256,10 +256,19 @@ func TestRepositoryHealthStartsAndStopsWithTheController(t *testing.T) {
 	if err := c.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if c.knowledge == nil {
+		t.Fatal("memory extraction worker was not wired")
+	}
+	if c.freshness == nil {
+		t.Fatal("memory freshness worker was not wired")
+	}
 	base := "http://" + c.Addr()
 	// No such project: the endpoint is there, and answers for the project.
 	if got := status(t, "GET", base+"/api/projects/prj_nope/git/health", "", nil); got != http.StatusNotFound {
 		t.Fatalf("health endpoint = %d, want 404 for an unknown project (503 means it is not wired)", got)
+	}
+	if got := status(t, "GET", base+"/api/projects/prj_nope/memory", "", nil); got != http.StatusNotFound {
+		t.Fatalf("memory endpoint = %d", got)
 	}
 	done := make(chan error, 1)
 	go func() {

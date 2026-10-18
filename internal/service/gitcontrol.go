@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -1070,22 +1071,17 @@ func (s *GitControl) WorkingDiff(ctx context.Context, projectID, worktreeID stri
 // PullRequests asks GitHub, through the user's own GitHub CLI, for the project's pull
 // requests. It is separate from everything local: whatever happens here, the
 // answer is a state (available or not, and why), never an error that hides the
-// local picture, and nothing is cached or stored.
+// local picture. Changed authenticated metadata is recorded as a durable event.
 func (s *GitControl) PullRequests(ctx context.Context, projectID string) (*domain.GitHubState, error) {
 	t, err := s.resolve(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	st := &domain.GitHubState{PullRequests: []domain.GitHubPR{}, FetchedAt: s.now()}
-	repo, _, err := s.githubRepo(ctx, t, st)
-	if err != nil {
-		return st, nil
+	st, err := s.readPullRequests(ctx, t)
+	if err != nil || !st.Available {
+		return st, err
 	}
-	prs, err := s.GitHub.PullRequests(ctx, repo, 40)
-	if err != nil {
-		ghFailure(st, err)
-		return st, nil
-	}
+	prs := st.PullRequests
 	a, err := s.associations(ctx, projectID)
 	if err != nil {
 		return nil, err
@@ -1098,6 +1094,52 @@ func (s *GitControl) PullRequests(ctx context.Context, projectID string) (*domai
 	}
 	st.Available, st.PullRequests = true, prs
 	return st, nil
+}
+
+// readPullRequests shares authenticated metadata reads with background reconciliation,
+// without the overview's potentially large task/worktree association query.
+func (s *GitControl) readPullRequests(ctx context.Context, t *gitCtx) (*domain.GitHubState, error) {
+	st := &domain.GitHubState{PullRequests: []domain.GitHubPR{}, FetchedAt: s.now()}
+	repo, _, err := s.githubRepo(ctx, t, st)
+	if err != nil {
+		return st, nil
+	}
+	prs, err := s.GitHub.PullRequests(ctx, repo, 40)
+	if err != nil {
+		ghFailure(st, err)
+		return st, nil
+	}
+	raw, err := json.Marshal(prs)
+	if err != nil || len(prs) > 40 || len(raw) > 256<<10 {
+		st.Reason, st.Message = domain.GHError, "GitHub metadata exceeded observation limits"
+		return st, nil
+	}
+	st.Available, st.PullRequests = true, prs
+	// Only changed authenticated metadata emits an event. Polls and UI reads
+	// share this durable deduplication, and never emit private memory content.
+	signatures := make(map[string]string, len(prs))
+	for _, pr := range prs {
+		signatures[pr.URL] = memoryDigest(pr)
+	}
+	digest := memoryDigest(signatures)
+	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
+		key := "git:pr-observation:" + t.project.ID
+		var old string
+		err := tx.Settings().Get(ctx, key, &old)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		if old == digest {
+			return nil
+		}
+		if err := tx.Settings().Set(ctx, key, digest, s.now()); err != nil {
+			return err
+		}
+		ev := newEvent(domain.EventGitPRObserved, st)
+		ev.ProjectID = t.project.ID
+		return em.emit(ev)
+	})
+	return st, err
 }
 
 // githubRepo finds the project's GitHub repository, or fills st with why there is none.

@@ -232,6 +232,12 @@ function withoutExecution<T extends object>(body: T): T {
 }
 
 export const api = {
+  memories: (project: string, query: string, status: string) => request<{records:import('./memory').Memory[];bounded:boolean}>('GET', `${inProject(project)}/memory?${new URLSearchParams({q:query,status,limit:'100'})}`),
+  saveMemory: (project: string, memory: import('./memory').ManualMemory) => request<import('./memory').Memory>('POST', `${inProject(project)}/memory`, memory),
+  changeMemory: (memory: import('./memory').Memory, change: {pinned?:boolean;archive?:boolean}) => request<import('./memory').Memory>('PATCH', `${inProject(memory.scope.projectId)}/memory/${enc(memory.id)}?${new URLSearchParams({repository:memory.scope.repository ?? ''})}`, {version:memory.version,...change}),
+  deleteMemory: (memory: import('./memory').Memory) => request<void>('DELETE', `${inProject(memory.scope.projectId)}/memory/${enc(memory.id)}?${new URLSearchParams({repository:memory.scope.repository ?? ''})}`, {version:memory.version}),
+  memorySources: (memory: import('./memory').Memory) => request<{sources:import('./memory').MemoryEvidence[]}>('GET', `${inProject(memory.scope.projectId)}/memory/${enc(memory.id)}/sources?${new URLSearchParams({repository:memory.scope.repository ?? ''})}`).then(r=>r.sources),
+
   analytics: (project: string, days: number, provider: string) => request<import('./analytics').AnalyticsReport>('GET', `/api/analytics?${new URLSearchParams({ project, days: String(days), provider })}`),
 schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET', `${inProject(projectId)}/schedule`).then(r => r.decisions),
  orchestrationSettings: (projectId: string) => request<{concurrencyLimit: number}>('GET', `${inProject(projectId)}/orchestration`),

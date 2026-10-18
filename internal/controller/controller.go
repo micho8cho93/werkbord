@@ -59,6 +59,8 @@ type Controller struct {
 	assistant   *assistant.Engine
 	appOps      *appops.Service
 	connections *connections.Service
+	freshness   *service.MemoryFreshness
+	knowledge   *service.Knowledge
 	health      *service.GitHealth
 	stopHealth  context.CancelFunc
 	server      *http.Server
@@ -138,6 +140,14 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	var healthCtx context.Context
 	healthCtx, c.stopHealth = context.WithCancel(context.Background())
 	c.health.Watch(healthCtx, c.broker)
+	c.freshness = &service.MemoryFreshness{Deps: deps, Control: gitControl}
+	c.freshness.Watch(healthCtx, c.broker)
+	memory, err := service.NewMemory(deps, "individual", domain.MemoryLimits{})
+	if err != nil {
+		return err
+	}
+	c.knowledge = &service.Knowledge{Memory: memory, Freshness: c.freshness}
+	c.knowledge.Watch(healthCtx)
 
 	scheduler := &service.Scheduler{Deps: deps, Git: git}
 	handoffs := &service.Handoffs{Deps: deps, Git: git}
@@ -228,6 +238,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("MCP client grants: %w", err)
 	}
 	apiOpts := api.Options{
+		Memory:       c.knowledge,
 		EmbedOrigins: c.cfg.EmbedOrigins,
 		Distributed:  distributed,
 		Scheduler:    scheduler, Handoffs: handoffs,
@@ -261,6 +272,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// What is served on the private network never trusts the network: it demands
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
+	privateOpts.Memory = nil
 	privateOpts.AuthRequired, privateOpts.Token = true, token
 	privateOpts.Assistant = nil       // the assistant is not served on the private network
 	privateOpts.Connections = nil     // upstream credentials and broker controls stay on this computer
@@ -445,7 +457,7 @@ func (c *Controller) teardown(ctx ...context.Context) error {
 		}
 		c.runner = nil
 	}
-	// The health watcher reads the database and publishes events: stop it before either goes.
+	// Health and memory workers read the database and observe events: stop both before either closes.
 	if c.stopHealth != nil {
 		c.stopHealth()
 		c.stopHealth = nil
@@ -453,6 +465,14 @@ func (c *Controller) teardown(ctx ...context.Context) error {
 	if c.health != nil {
 		c.health.Wait()
 		c.health = nil
+	}
+	if c.freshness != nil {
+		c.freshness.Wait()
+		c.freshness = nil
+	}
+	if c.knowledge != nil {
+		c.knowledge.Wait()
+		c.knowledge = nil
 	}
 	if c.broker != nil {
 		c.broker.Close()
