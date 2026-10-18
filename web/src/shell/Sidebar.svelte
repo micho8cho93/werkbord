@@ -56,12 +56,12 @@
   const assistantReachable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state !== 'unavailable');
   const assistantLabel = $derived(
     !assistantReachable
-      ? 'Sally, unavailable: Cannot reach Werkbord'
+      ? 'Salie, unavailable: Cannot reach Werkbord'
       : model.assistant.waiting > 0
-        ? `Sally, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'change is' : 'changes are'} waiting for you`
+        ? `Salie, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'change is' : 'changes are'} waiting for you`
         : model.assistant.running
-          ? 'Sally, working'
-          : 'Sally',
+          ? 'Salie, working'
+          : 'Salie',
   );
   function askAssistant() {
     const r = assistantButton?.getBoundingClientRect();
@@ -87,8 +87,8 @@
   </button>
 
   <div class="group ask">
-    <button bind:this={assistantButton} class="nav assistant" type="button" aria-haspopup="dialog" aria-expanded={model.assistant.open} aria-label={assistantLabel} title={assistantReachable ? 'Sally' : 'Cannot reach Werkbord'} disabled={!assistantReachable} onclick={askAssistant} data-page="assistant">
-      <span class="aico"><Icon name="assistant" /></span><span class="label">Sally</span>
+    <button bind:this={assistantButton} class="nav assistant" type="button" aria-haspopup="dialog" aria-expanded={model.assistant.open} aria-label={assistantLabel} title={assistantReachable ? 'Salie' : 'Cannot reach Werkbord'} disabled={!assistantReachable} onclick={askAssistant} data-page="assistant">
+      <span class="aico"><Icon name="assistant" /></span><span class="label">Salie</span>
       {#if model.assistant.waiting > 0}
         <span class="num" aria-hidden="true">{model.assistant.waiting}</span>
       {:else if model.assistant.running}

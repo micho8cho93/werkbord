@@ -102,10 +102,10 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 
 ### The window's workspace selector
 
-Universal is a peer choice beside Individual and each Team workspace. Its sidebar destinations are Sally,
+Universal is a peer choice beside Individual and each Team workspace. Its sidebar destinations are Salie,
 My Work, Workspaces and Calendar, in that order. Workspaces spans attention from all workspaces. Individual's workspace
 destinations are Workspace and Projects, with Analytics immediately below Add project. Each Team workspace lists
-Workspace, Projects, Reviews, Members and Analytics. The shell keeps Sally, Devices & Hosting, relevant workspace Settings
+Workspace, Projects, Reviews, Members and Analytics. The shell keeps Salie, Devices & Hosting, relevant workspace Settings
 and theme controls separate from these destinations. Universal has no workspace-specific Settings or project list. Project sections belong above
 the project's content, not in the workspace sidebar. The window uses its own 208px sidebar, collapsing to 48px;
 the intermediate-width label control reveals the names without changing the route.
