@@ -1215,9 +1215,9 @@ func TestMembersLearnOfEachOthersChanges(t *testing.T) {
 func TestProjectRolePermissions(t *testing.T) {
 	want := map[domain.ProjectRole]map[domain.ProjectPermission]bool{
 		domain.ProjectContributor: {domain.PPTicketsView: true, domain.PPTicketsCreate: true, domain.PPTicketsClaim: true, domain.PPGitReport: true, domain.PPHandoffOwnTasks: true,
-			domain.PPActivityView: true, domain.PPRepositoryView: true},
+			domain.PPActivityView: true, domain.PPRepositoryView: true, domain.PPCommentsPost: true},
 		domain.ProjectReviewer: {domain.PPTicketsView: true, domain.PPTicketsCreate: true, domain.PPTicketsClaim: true, domain.PPGitReport: true, domain.PPHandoffOwnTasks: true,
-			domain.PPActivityView: true, domain.PPRepositoryView: true, domain.PPTicketsReview: true, domain.PPGitReportAny: true},
+			domain.PPActivityView: true, domain.PPRepositoryView: true, domain.PPTicketsReview: true, domain.PPGitReportAny: true, domain.PPCommentsPost: true},
 	}
 	for _, role := range domain.ProjectRoles() {
 		for _, p := range domain.AllProjectPermissions() {

@@ -38,6 +38,11 @@ const (
 	PPActivityView    ProjectPermission = "activity.view"
 	PPRepositoryView  ProjectPermission = "repository.view"
 	PPHandoffOwnTasks ProjectPermission = "handoff.own" // open a ticket you hold in your own runner
+	// PPCommentsPost writes comments on the project's tickets, and edits and deletes one's own. Seeing the comments is
+	// seeing the ticket (tickets.view), so a role that may only look is never given this.
+	PPCommentsPost ProjectPermission = "comments.post"
+	// PPCommentsModerate deletes a comment somebody else wrote. It does not edit it: words stay their author's.
+	PPCommentsModerate ProjectPermission = "comments.moderate"
 )
 
 // AllProjectPermissions lists every project permission.
@@ -45,11 +50,12 @@ func AllProjectPermissions() []ProjectPermission {
 	return []ProjectPermission{
 		PPTicketsView, PPTicketsCreate, PPTicketsEdit, PPTicketsClaim, PPTicketsAssign, PPTicketsReview, PPTicketsReopen,
 		PPGitReport, PPGitReportAny, PPInvitesManage, PPMembersManage, PPActivityView, PPRepositoryView, PPHandoffOwnTasks,
+		PPCommentsPost, PPCommentsModerate,
 	}
 }
 
 var contributorPermissions = []ProjectPermission{
-	PPTicketsView, PPTicketsCreate, PPTicketsClaim, PPGitReport, PPActivityView, PPRepositoryView, PPHandoffOwnTasks,
+	PPTicketsView, PPTicketsCreate, PPTicketsClaim, PPGitReport, PPActivityView, PPRepositoryView, PPHandoffOwnTasks, PPCommentsPost,
 }
 
 var projectRolePermissions = map[ProjectRole][]ProjectPermission{

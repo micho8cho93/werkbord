@@ -49,6 +49,9 @@ var projectRoutes = []string{
 	"POST /projects/{id}/tickets/{tid}/complete", "PUT /projects/{id}/tickets/{tid}/git", "POST /projects/{id}/tickets/{tid}/handoff", "GET /projects/{id}/tickets/{tid}/handoff",
 	"GET /projects/{id}/repository", "POST /projects/{id}/repository/branches", "GET /projects/{id}/activity",
 	"GET /projects/{id}/invites", "POST /projects/{id}/invites", "DELETE /projects/{id}/invites/{inviteId}",
+	// The conversation on a ticket: text and mentions of people on the project, stored as coordination metadata.
+	"GET /projects/{id}/tickets/{tid}/comments", "POST /projects/{id}/tickets/{tid}/comments",
+	"PATCH /projects/{id}/tickets/{tid}/comments/{cid}", "DELETE /projects/{id}/tickets/{tid}/comments/{cid}",
 }
 
 // workspaceRoutes act on the signed-in member's own workspace, whichever project.
@@ -61,6 +64,8 @@ var workspaceRoutes = []string{
 	// The workspace's shared labels: names and colours. Every member lists them; only labels.manage changes them.
 	"GET /labels", "POST /labels", "PATCH /labels/{id}", "DELETE /labels/{id}",
 	"GET /overview", "GET /my-work", "GET /reviews", "GET /sync",
+	// What mentions in comments tell the signed-in member, and their marking one read: their own, and only on projects they are on.
+	"GET /notifications", "POST /notifications/{nid}/read",
 	// A Team MCP credential is separate from the member token and can only narrow its holder's own metadata access.
 	"GET /mcp/operations", "GET /mcp/grants", "POST /mcp/grants", "DELETE /mcp/grants/{id}",
 	"GET /mcp/proposals", "GET /mcp/proposals/{id}", "PUT /mcp/proposals/{id}", "POST /mcp/proposals/{id}/approve", "POST /mcp/proposals/{id}/decline",
@@ -193,6 +198,10 @@ func bodyFor(route string) string {
 		return `{"branches":[]}`
 	case "POST /projects/{id}/invites", "POST /projects/{id}/tickets/{tid}/submit", "POST /projects/{id}/tickets/{tid}/request-changes":
 		return `{}`
+	case "POST /projects/{id}/tickets/{tid}/comments":
+		return `{"clientId":"client-0001","segments":[{"type":"text","text":"hello"}]}`
+	case "PATCH /projects/{id}/tickets/{tid}/comments/{cid}":
+		return `{"version":1,"segments":[{"type":"text","text":"hello"}]}`
 	}
 	return `{}`
 }
@@ -210,7 +219,7 @@ func TestEveryRouteExceptTheTwoPublicOnesNeedsAToken(t *testing.T) {
 	ts := newServer(t)
 	anon := client{t: t, base: ts.URL}
 	bad := client{t: t, base: ts.URL, token: "wbt_" + strings.Repeat("a", 64)}
-	ids := map[string]string{"id": "tpj_x", "tid": "ttk_x", "memberId": "tmb_x", "inviteId": "tiv_x"}
+	ids := map[string]string{"id": "tpj_x", "tid": "ttk_x", "memberId": "tmb_x", "inviteId": "tiv_x", "cid": "tcm_x", "nid": "tnt_x"}
 	for _, r := range allRoutes() {
 		if publicRoutes[r[strings.Index(r, " ")+1:]] || publicRoutes[r] {
 			continue
@@ -239,7 +248,7 @@ func TestEveryProjectRouteHidesTheProjectFromOutsiders(t *testing.T) {
 	proj := owner.want(201, "POST", v1+"/projects", `{"name":"Secret"}`)
 	pid := str(proj, "id")
 	k := owner.want(201, "POST", v1+"/projects/"+pid+"/tickets", `{"title":"Hidden","status":"available"}`)
-	ids := map[string]string{"id": pid, "tid": str(k, "id"), "memberId": "tmb_x", "inviteId": "tiv_x"}
+	ids := map[string]string{"id": pid, "tid": str(k, "id"), "memberId": "tmb_x", "inviteId": "tiv_x", "cid": "tcm_x", "nid": "tnt_x"}
 
 	eve := client{t: t, base: ts.URL, token: str(owner.want(201, "POST", v1+"/members", `{"name":"Eve"}`), "token")}
 	for _, r := range projectRoutes {
@@ -268,7 +277,7 @@ func TestEveryProjectRouteHidesTheProjectFromOtherWorkspaces(t *testing.T) {
 	rival := client{t: t, base: ts.URL, token: b.Token}
 	pid := str(acme.want(201, "POST", v1+"/projects", `{"name":"Secret"}`), "id")
 	k := acme.want(201, "POST", v1+"/projects/"+pid+"/tickets", `{"title":"Hidden","status":"available"}`)
-	ids := map[string]string{"id": pid, "tid": str(k, "id"), "memberId": a.Owner.ID, "inviteId": "tiv_x"}
+	ids := map[string]string{"id": pid, "tid": str(k, "id"), "memberId": a.Owner.ID, "inviteId": "tiv_x", "cid": "tcm_x", "nid": "tnt_x"}
 	for _, r := range projectRoutes {
 		method, path := fill(r, ids)
 		if code, _, raw := rival.do(method, path, bodyFor(r)); code != 404 {

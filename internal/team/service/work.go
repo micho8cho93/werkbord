@@ -453,6 +453,8 @@ type ProjectSummary struct {
 	ToReview int                `json:"toReview"` // tickets in review the viewer may review
 	Problems int                `json:"problems"` // repository problems as last reported
 	Warnings int                `json:"warnings"`
+	// Mentions is how many unread notifications the viewer has on this project: comments that mention them.
+	Mentions int `json:"mentions"`
 }
 
 // Overview answers "what is available, and what is everyone working on?".
@@ -467,6 +469,8 @@ type Overview struct {
 	Working []WorkItem `json:"working"`
 	// Available counts the tickets anyone on the project could claim right now.
 	Available int `json:"available"`
+	// Mentions is how many unread notifications the viewer has, across the projects they are on.
+	Mentions int `json:"mentions"`
 }
 
 // MaxWorking bounds Overview.Working.
@@ -484,6 +488,10 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 		if ws, err := tx.Workspace(ctx, a.Workspace.ID); err == nil {
 			out.Workspace = ws
 		}
+		mentions, err := tx.UnreadNotifications(ctx, a.Workspace.ID, a.Member.ID)
+		if err != nil {
+			return err
+		}
 		counts, err := tx.TicketCounts(ctx, a.Workspace.ID)
 		if err != nil {
 			return err
@@ -498,7 +506,8 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 			if err != nil {
 				return err
 			}
-			ps := ProjectSummary{Project: p, Counts: map[string]int{}, People: len(ppl), Role: v.role[p.ID], Member: v.on[p.ID]}
+			ps := ProjectSummary{Project: p, Counts: map[string]int{}, People: len(ppl), Role: v.role[p.ID], Member: v.on[p.ID], Mentions: mentions[p.ID]}
+			out.Mentions += ps.Mentions
 			for st, n := range counts[p.ID] {
 				ps.Counts[string(st)] = n
 			}

@@ -44,9 +44,9 @@ The console (the page Team serves at its address) is organised around one questi
 
 | Tab | Answers | What is on it |
 | --- | --- | --- |
-| **Workspace** | What needs me? What is everyone doing? | Working now, actionable attention, shortcuts to your work and reviews, and each project's active work. |
+| **Workspace** | What needs me? What is everyone doing? | Working now, your unread mentions, actionable attention, shortcuts to your work and reviews, and each project's active work. The tab is named **Needs you**. |
 | **Projects** | Which projects are there, and who is on them? | The projects, creating one, each project's **People & invites**. |
-| **Board** | What work is there in this project? | The shared board: Backlog, Available, In Progress, Review, Done, and a ticket's details and actions. A project switcher keeps the Board, Git and Activity sections on one project. |
+| **Board** | What work is there in this project? | The shared board: Backlog, Available, In Progress, Review, Done, and a ticket's details, actions and **comments**. A project switcher keeps the Board, Git and Activity sections on one project. |
 | **Timeline** | When is the work planned, and what waits for what? | The project's tickets as date bars and milestones, grouped by label, status or who does the work, with dependencies as arrows and a list of conflicts. It only shows: nothing is ever rescheduled. See [PLANNING.md](PLANNING.md). |
 | **My Work** | What am I doing, and what waits for me? | What needs your attention (changes requested, a pull request with conflicts, behind its base, ready to submit, stale), your tickets in progress and in review with their Git links, your open pull requests, and the state of your own branches. **Open in my runner** is on every ticket you hold. |
 | **Reviews** | What needs a decision? | Tickets in review, those asked of you first: author, branch, pull request, commits, mergeability, and links to the pull request, branch and comparison on the Git host. Record that you merged, mark done, or request changes. Team does not reproduce a code-review interface; the diff is on the Git host. |
@@ -96,6 +96,8 @@ attention lists. Closing in Team changes coordination metadata only: stop an age
 - **Project role.** What a member may do inside one project: **owner**, **reviewer** or **member**. A workspace owner is
   an owner of every project. See [Project roles](#project-roles).
 - **Ticket.** A unit of work on a project's board, numbered across the workspace (`WB-142`). See [Tickets](#tickets).
+- **Comment.** A message in a ticket's shared conversation, which may mention people on the project. See [Comments and mentions](#comments-and-mentions).
+- **Notification.** A personal record that a comment mentions you, until you mark it read. See [Comments and mentions](#comments-and-mentions).
 - **Invite.** A link or code that lets someone join one project. See [Invites](#invites).
 - **Activity.** The project's history of coordination events. See [Activity](#activity).
 
@@ -201,6 +203,7 @@ claim ──▶ branch named wb-142-authentication-error ──▶ work and comm
 | `git.report` — report your own branches, commits and pull requests | ✓ | ✓ | ✓ |
 | `handoff.own` — open a ticket **you hold** in your own runner | ✓ | ✓ | ✓ |
 | `activity.view`, `repository.view` | ✓ | ✓ | ✓ |
+| `comments.post` — write comments on the project's tickets, and edit or delete your own | ✓ | ✓ | ✓ |
 | `tickets.review` — send work back, mark it done | ✓ | ✓ | |
 | `git.report_any` — report Git facts for a ticket someone else holds (to record a merge) | ✓ | ✓ | |
 | `tickets.edit` — edit any ticket, promote or demote it | ✓ | | |
@@ -208,6 +211,7 @@ claim ──▶ branch named wb-142-authentication-error ──▶ work and comm
 | `tickets.reopen` | ✓ | | |
 | `invites.manage` — create, list and revoke invites | ✓ | | |
 | `members.manage` — add and remove people, change project roles | ✓ | | |
+| `comments.moderate` — delete a comment someone else wrote (never edit it) | ✓ | | |
 
 As with workspace roles, code asks `Role.Can(permission)`, never "is this an owner"; a new project role is one entry in
 `internal/team/domain/project_roles.go`. Whoever creates a project is its owner, and a workspace member whose role carries
@@ -263,6 +267,74 @@ Branch names are derived the same way every time: `wb-<number>-<slug of the titl
 characters of slug, `wb-9-ticket` when the title has none). The name is set when a ticket is claimed and shown to
 everyone. It is a suggestion the developer's runner follows; a different branch can be recorded with `PUT .../git`, and
 two tickets cannot claim the same branch.
+
+### Comments and mentions
+
+Every ticket has a **Comments** section: one flat, chronological conversation that everyone who may see the ticket can read.
+Anyone with `comments.post` (every project role, and a workspace owner or admin on any project) writes in it, and can
+**mention** other people on the project: type `@` and choose from the picker, which opens under the box, filters as you type,
+and works from the keyboard (Up and Down, Enter or Tab to choose, Escape to close; the **@** button does the same for touch).
+There are no replies, reactions, attachments, broadcasts or subscriptions: a comment is words, and a mention is the only thing
+that tells anyone.
+
+**What a comment is.** An ordered list of **text** and **mention** segments, never markup: the console builds the page with
+`textContent`, the API accepts no HTML or Markdown meaning (what you type is what is shown, `<b>` included), and control
+characters and characters that reverse the direction of text are refused. At most **20,000 characters** (a mention counts as
+`@Name`) and **50 different people**. A mention is bound to a member's **ID**, never to a name: renaming someone does not break
+it (it shows their name now), someone who left is shown under the name they had, and a new member who is later given the same
+name is a different person who is not notified of it. Duplicate names are told apart in the picker by email, role or the end of
+the ID. A mention must be of someone **on the project when it is written**; an edit keeps a mention of someone who has since left.
+
+**Who may do what.**
+
+| | Who |
+| --- | --- |
+| Read | everyone who may see the ticket (`tickets.view`) |
+| Write, edit, delete your own | `comments.post` |
+| Delete someone else's | `comments.moderate` (a project owner); never edit |
+
+A view-only role would have `tickets.view` without `comments.post`; neither the API nor the console offers it a way to write.
+A **deleted** comment stays as a **tombstone** in the same place ("This comment was deleted", by its author or by a project
+manager, and when) with none of its words and no mentions, so the conversation keeps its order. Comments are kept on
+**completed** tickets, and on **archived** ones (or in an archived project) the conversation is **read-only**: it can be read
+and a mention opened and marked read, nothing is added, edited or deleted until the ticket is restored.
+
+**Safe to retry, safe to race.** Posting takes a client-made **creation ID**: posting the same comment again (a retry after a
+dropped connection) returns the first one (`200`, not `201`) and notifies nobody a second time; the same ID with other words is
+`409`. Every comment has a `version`; an edit sends the version it read and a stale one is `409` (the console keeps your draft
+and offers to load the latest). Concurrent edits have one winner.
+
+**Notifications.** Only an explicit mention makes one, and it belongs to its recipient alone:
+
+- One notification per **comment and person**: mentioning someone three times in a comment tells them once; **mentioning
+  yourself** tells nobody. Nothing is sent for a comment that mentions no one.
+- Saving a comment (the notification and the comment are one transaction) tells each person it mentions. An **edit** tells
+  the people it newly mentions, once; **taking a mention out** withdraws that person's notification; an edit that leaves their
+  mention alone **never reopens a notification they have read**; mentioning them again after taking them out is a new mention
+  and tells them again. **Deleting** a comment withdraws everything it made. A comment on an archived ticket keeps its unread
+  mentions: archiving clears nothing.
+- A notification is listed, counted and openable only while its recipient is **on the project**. When they leave it (or are
+  removed from the workspace) its notifications are withdrawn **by the database itself**, and they do not come back if the
+  person rejoins. Another member's notification is `404` to you, to read or mark.
+- A **count** is always the number of **unread** notifications. Nothing marks one read except **Mark read**: not opening it,
+  not opening the ticket, not seeing the comment.
+
+**Where they show.** *Needs you* lists your unread mentions across every project you are on; a project's *Overview* lists
+those of that project; the ticket highlights every comment that mentions you, with **Mark read** beside the unread ones. A row
+shows the author, the ticket key, an excerpt, the time, **Open comment** and **Mark read**. **Open comment** opens the ticket,
+loads the comments around that one, scrolls it into view and gives it the focus (the address `?tab=board&project=…&ticket=…&comment=…`
+does the same); the console says "Ada mentioned you on WB-4" when one arrives while it is open. Counts are on the *Needs you*
+navigation item, the project's *Overview* tab and the ticket's Comments heading.
+
+**Live, and steady.** Writing, editing and deleting a comment move the project's and the workspace's revision like any other change,
+and **reading a notification moves the workspace revision** too (database triggers do it), so every open window of a
+member re-reads and shows the same counts without being touched. A redraw never costs you your place: the unsent comment (text,
+who is mentioned, the open picker), the focus, the caret and the scroll stay where they were, and an unsent draft also survives a
+reload of the page (it is kept for the tab and removed when you post or sign out). A long conversation is read a page at a time
+(*Load earlier comments*, *Load newer comments*).
+
+**Not in this version:** operating-system alerts, email, phone pushes, and Universal workspace aggregation. A mention shows only
+where it is made: inside Team.
 
 ### Opening a ticket in *my* runner
 
@@ -359,8 +431,9 @@ anyone else. Only the code's hash is stored; listings never show it. An invite c
 A lightweight history of coordination events for each project, newest first (`GET /projects/{id}/activity`):
 `ticket.created`, `ticket.claimed`, `ticket.released`, `ticket.reassigned`, `ticket.work_submitted`,
 `ticket.pull_request_created`, `ticket.review_requested`, `ticket.changes_requested`, `ticket.completed`,
-`ticket.reopened`, `ticket.moved`, `ticket.handed_off`, `ticket.pull_request_merged`, `project.member_joined`. There is no
-chat and no comments: Team is a coordination tool, not a messenger.
+`ticket.reopened`, `ticket.moved`, `ticket.handed_off`, `ticket.pull_request_merged`, `project.member_joined`. Comments are not
+activity entries: a ticket's conversation has its own section ([Comments and mentions](#comments-and-mentions)) and only a mention
+notifies anyone. There is no chat or direct messaging: Team is a coordination tool, not a messenger.
 
 ### My Work, Reviews and the overview
 
@@ -375,7 +448,8 @@ scoped to the caller (a project you are not on contributes nothing).
   `canReview`, `canComplete` and, when it cannot be completed yet, a plain `blocker` ("the pull request is still open:
   merge it on your Git host, then record the merge"). The blocker uses the same rules `complete` enforces.
 - `GET /overview` — each project's counts by status, your tickets and reviews in it, repository problems and warnings,
-  everyone's tickets in progress or in review (`working`), and how many tickets are `available`.
+  everyone's tickets in progress or in review (`working`), how many tickets are `available`, and your unread `mentions`
+  (in total and for each project).
 - `GET /search?q=<text>` — at most 20 project references and 20 ticket summaries from visible projects in your
   workspace, with `moreProjects`/`moreTickets` when the limit was reached. Ticket summaries carry only `id`, `key`,
   `title`, `status`, `project` and `archived`; matching also covers stored ticket context and project names. All query
@@ -389,7 +463,8 @@ address for GitHub and GitLab and from the reported pull-request address; Team n
 
 Every change to a project's board or reported repository state bumps the project's `revision` in the same transaction,
 and database triggers move a **workspace revision** whenever anything members can see changes (a ticket, the people,
-a role, a project, the workspace's name), so no new kind of write can forget to.
+a role, a project, the workspace's name, a comment, a notification being made, withdrawn or read), so no new kind of write
+can forget to. A notification is read by one person, and it still reaches every window of theirs.
 
 `GET /sync?since=<revision>&after=<event id>&wait=20` holds the request open until the workspace revision is not
 `since` (or about 20 seconds pass) and answers:
@@ -429,6 +504,7 @@ Collaborative operations are written so that two people acting at once cannot co
 | **Project membership changes** | Membership, the role check and the ticket write are in the same transaction as the removal, so a member removed while claiming either fails to claim or has the ticket put straight back; a ticket is never left held by someone who is not on the project. |
 | **Text edits** | `PATCH` with the `version` you loaded is refused with `409` if someone else changed the ticket since. |
 | **Reported Git facts** | Reports are facts, last write wins, except that a **merged pull request cannot be reported back to open** (a late report from a slow client is refused), and two tickets cannot claim one branch. |
+| **Comments** | A comment takes the next place of its ticket inside the write transaction (unique per ticket); posting under one creation ID is unique per ticket and author, so a retry or a double click finds the first comment; an edit is `WHERE version = ?`, so of simultaneous edits of one version exactly one wins. A notification is unique per comment and person, and leaving a project withdraws that person's notifications in the same transaction, by trigger. |
 | **Invites** | Check and use are one `UPDATE`: a single-use invite cannot be spent twice. |
 | **Ticket numbers, history** | Numbers are unique per workspace in the database; every successful write leaves its history entry in the same transaction. |
 
@@ -595,6 +671,12 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `POST …/tickets/{tid}/complete` | `tickets.review` | → Done; refused while the pull request is open |
 | `PUT …/tickets/{tid}/git` `{branch?, commits?, pullRequest?, state?}` | the holder; or `git.report_any` | reported Git metadata |
 | `POST …/tickets/{tid}/handoff` | the holder only | the handoff for their own runner |
+| `GET …/tickets/{tid}/comments?limit=&before=&after=&around=` | `tickets.view` | the ticket's comments, oldest first, 50 by default (at most 100): the latest, or those `before` or `after` a `seq` position (`after=0` is the start), or a page `around` a comment ID, which is `focus`. Each comment has its author, `segments` (text and mentions), `version`, `editedAt`, tombstone fields, `mentionsMe`, your own `notification` on it, and `canEdit`/`canDelete`. Also `total`, `hasOlder`/`hasNewer`, `unreadMentions`, `canPost`, `readOnly` |
+| `POST …/tickets/{tid}/comments` `{clientId, segments}` | `comments.post` | segments are `{type:"text",text}` or `{type:"mention",memberId}`; `clientId` is 8 to 64 letters, digits, `-` or `_`; `201`, or `200` with the first comment when it was already posted; `409` for the same `clientId` with other words; `400` for an empty or over-long comment, more than 50 people, or anyone not on the project |
+| `PATCH …/tickets/{tid}/comments/{cid}` `{version, segments}` | its author | `409` for a stale version, a deleted comment, or an archived ticket |
+| `DELETE …/tickets/{tid}/comments/{cid}?version=` | its author, or `comments.moderate` | answers with the tombstone; deleting a tombstone changes nothing; the version is optional |
+| `GET /notifications?projectId=&state=unread\|all&limit=&cursor=` | any member | your own notifications, newest first, only on projects you are on: author, project, ticket key and title, comment ID, `excerpt`, times; `unread` counts yours (in the project asked for, if any); `hasMore` and `next` page it |
+| `POST /notifications/{nid}/read` | the recipient | idempotent: reading it again changes nothing and returns the time it was first read; someone else's, or one you can no longer see, is `404` |
 | `GET /projects/{id}/repository` | `repository.view` | branches, pull requests, what needs attention |
 | `POST /projects/{id}/repository/branches` `{branches:[{name, headSha?, baseBranch?, ahead?, behind?, lastCommitAt?, files?}], gone?:[]}` | a member of the project | |
 | `GET /projects/{id}/activity?before=&limit=` | `activity.view` | |
@@ -637,6 +719,10 @@ The full review (every surface, the evidence for each, and the risks that remain
   request addresses are rejected if they contain credentials. Free-text fields reject control characters.
 - Invite codes are 128 random bits, stored only as a hash, expire, count their uses atomically and can be revoked; the
   unauthenticated redeem call answers every unusable code with the same `404`.
+- A comment is written by a teammate and shown to everyone on the project, so it is plain text and member IDs only: no markup
+  is accepted, stored or built into a page, length and recipients are bounded, and control and direction-override characters are
+  refused. A notification is read, counted and marked only by its recipient, only while they are on the project. Like ticket
+  text, a comment can become context a reader pastes into their own agent: treat it as a description, not as authority.
 - The Team service talks to your own Werkbord only on a loopback address, never follows redirects, and uses only the narrow local
   grant the member connected, never a flag or the controller's full token.
 - Canonical vendor-signed licenses are verified offline and replicated with workspace data. Seats and expiry are

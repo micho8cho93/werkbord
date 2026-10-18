@@ -48,6 +48,7 @@ const state = {
   online: true,   // whether the live connection to the server is up
   desktop: null, device: null, joinLink: null,
   memberQuery: '', validationIssues: [], focusId: '',
+  focusComment: '', // a comment to open the next ticket at (from a notification, or a ?comment= address)
 };
 
 try {
@@ -236,6 +237,7 @@ function signOut() {
   try { sessionStorage.removeItem(KEY('token')); } catch (_) {}
   stopSync();
   drafts.clear(); draftVersions.clear(); renderedScope = "";
+  if (typeof clearCommentDrafts === 'function') clearCommentDrafts();
   if (typeof executionViews !== 'undefined') executionViews.clear();
   Object.assign(state, { token: null, me: null, ov: null, secret: null, data: null, ticketId: null, handoff: null, memberQuery: '' });
   render();
@@ -460,6 +462,7 @@ async function renderNow() {
   app.classList.add('signed-in');
   const ov = state.ov;
   const counts = {
+    workspace: ov.mentions || 0,
     board: sum(ov.projects, (p) => p.counts.available || 0),
     plans: 0,
     mywork: sum(ov.projects, (p) => p.mine),
@@ -480,6 +483,8 @@ async function renderNow() {
         state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
         secretBox(), settingsTab() ? settingsLayout(body) : body))));
   restore(app, keep, previousScope === screenScope());
+  revealComment();
+  noteMentions(ov.mentions || 0);
   revealActiveNavigation();
   if (focusMain) { app.querySelector('#main-title')?.focus({ preventScroll: true }); focusMain = false; }
   renderedScope = screenScope();
@@ -636,7 +641,7 @@ function statusName(st) { return { backlog: 'Backlog', available: 'Available', i
 
 async function workspaceView() {
   const ov = state.ov, me = state.me.member.id;
-  const w = await api('GET', '/my-work');
+  const [w, mentions] = await Promise.all([api('GET', '/my-work'), loadMentions()]);
   const mine = sum(ov.projects, (p) => p.mine), toReview = sum(ov.projects, (p) => p.toReview);
   const best = ov.projects.filter((p) => !p.project.archived).sort((a, b) => (b.counts.available || 0) - (a.counts.available || 0))[0];
 
@@ -661,10 +666,12 @@ async function workspaceView() {
   const attention = w.needsAction.map(a => h('div', { class: 'row attn ' + a.level },
     h('div', { class: 'grow' }, a.message), h('button', { class: 'plain small', onclick: () => openTicket(a.projectId, a.ticketId) }, 'Open ' + a.ticketKey)));
   const shortcut = (label, count, click, tone) => h('button', { class: 'overview-shortcut', onclick: click }, label, h('span', { class: 'badge' + (tone ? ' ' + tone : '') }, String(count)));
-  return h('div', { class: 'workspace-layout' + (attention.length || toReview ? ' has-attention' : '') },
+  const heard = mentions && mentions.notifications.length
+    ? h('div', { class: 'mentions-block', 'aria-label': 'Mentions' }, h('div', { class: 'section-head' }, h('h3', {}, 'Mentions'), h('span', { class: 'badge warn', title: 'Unread mentions' }, String(mentions.unread))), mentionRows(mentions)) : '';
+  return h('div', { class: 'workspace-layout' + (attention.length || toReview || heard ? ' has-attention' : '') },
     h('section', { class: 'work-feed', id: 'working-now', 'aria-label': 'Working now' }, h('div', { class: 'section-head' }, h('h2', {}, 'Working now'), h('span', { class: 'badge' }, String(ov.working.length))), working),
     h('aside', { class: 'workspace-side', 'aria-label': 'Workspace summary' },
-      h('section', { class: 'overview-attention' }, h('h2', {}, 'Needs you'), attention.length ? attention : h('p', { class: 'muted' }, 'All caught up.'),
+      h('section', { class: 'overview-attention' }, h('h2', {}, 'Needs you'), heard, attention.length ? attention : heard ? '' : h('p', { class: 'muted' }, 'All caught up.'),
         shortcut('My Work', mine, () => go('mywork')), shortcut('To review', toReview, () => go('reviews'), toReview ? 'warn' : ''),
         shortcut('Available to claim', ov.available, () => best ? openProject(best.project.id) : go('projects'))),
       h('section', {}, h('div', { class: 'section-head' }, h('h2', {}, 'Projects'), h('button', { class: 'link', onclick: () => go('projects') }, 'View all')), projects),
@@ -776,7 +783,9 @@ async function loadProject() {
   if (state.ticketId) {
     d.ticket = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId);
     d.progress = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId + '/progress');
-  }
+    d.comments = await loadComments(id, state.ticketId);
+  } else forgetOpenComment();
+  if (state.tab === 'overview') d.mentions = await loadMentions(id);
   if (state.tab === 'timeline' || state.tab === 'calendar') {
     d.timeline = await api('GET', '/projects/' + id + '/timeline');
     // Which tickets have a shared request for agent work: their dependencies gate its start. Only a marking, so it is optional.
@@ -804,7 +813,7 @@ async function projectScopedView() {
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
-  const tabs = projectTabs(p.id, [['overview', 'Overview', 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
+  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
   const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
   const settings = h('details', { class: 'project-details' }, h('summary', { class: 'plain small' }, 'Project settings'),
     h('div', { class: 'project-detail-content' }, h('h3', {}, 'Details'),
@@ -843,7 +852,10 @@ function projectOverviewTab(d) {
   return h('section', { class: 'panel' }, h('h2', {}, b.project.name), b.project.description ? h('p', {}, b.project.description) : '',
     h('div', { class: 'overview-counts' }, b.statuses.map(s => h('p', {}, h('strong', {}, String(b.tickets.filter(k => k.status === s.status).length)), ' ' + s.label))),
     h('p', { class: 'muted' }, 'Work is coordinated here. Git and execution evidence is provided by each member’s own Werkbord.'),
-    h('button', { class: 'primary', onclick: () => openProject(d.id, 'board') }, 'Open board'));
+    h('button', { class: 'primary', onclick: () => openProject(d.id, 'board') }, 'Open board'),
+    h('section', { class: 'mentions-block overview-mentions', 'aria-label': 'Mentions in this project' }, h('div', { class: 'section-head' }, h('h3', {}, 'Mentions'),
+      d.mentions && d.mentions.unread ? h('span', { class: 'badge warn', title: 'Unread mentions in this project' }, String(d.mentions.unread)) : ''),
+      mentionRows(d.mentions, 'No unread mentions in this project.')));
 }
 function calendarTab(d) {
   const toggle = h('div', { class: 'actions calendar-switch', role: 'group', 'aria-label': 'Calendar presentation' }, ['calendar', 'timeline'].map(mode => h('button', { class: 'plain small', 'aria-pressed': state.calendarMode === mode || state.tab === 'timeline' && mode === 'timeline', onclick: () => { state.calendarMode = mode; if (state.tab === 'timeline') state.tab = 'calendar'; render(); } }, mode === 'calendar' ? 'Calendar' : 'Timeline')));
@@ -1391,7 +1403,7 @@ function ticketPanel(d, k) {
     ? h('ul', { class: 'commits' }, k.commits.map((c) => h('li', {}, h('code', {}, c.sha.slice(0, 8)), ' ', c.subject, c.author ? h('span', { class: 'muted' }, ' · ' + c.author) : '')))
     : h('p', { class: 'muted' }, 'No commits reported.');
 
-  return h('div', { class: 'panel ticket' },
+  return h('div', { class: 'panel ticket', 'data-scroll-key': 'ticket-' + k.id },
     h('div', { class: 'ticket-head' },
       h('h2', {}, k.key + ' · ' + k.title),
       h('button', { class: 'plain', onclick: () => { state.ticketId = null; state.handoff = null; remember(); render(); } }, 'Close')),
@@ -1406,7 +1418,8 @@ function ticketPanel(d, k) {
         h('h3', {}, 'Requirements and context'), h('p', { class: 'prose' }, k.requirements || '—'),
         canEditText ? editTicket(d, k, path) : ''),
       h('div', {}, facts, mine ? executionProgress(d.progress || []) : h('p', { class: 'muted' }, k.assigneeId ? personName(d, k.assigneeId) + (k.status === 'available' ? ' has claimed this ticket. Agent choices, conversations and output are private to them.' : ' owns this work. Agent choices, conversations and output are private to them.') : 'Claim this ticket to prepare your own agent.'), h('h3', {}, 'Commits'), commits,
-        !k.archivedAt && k.assigneeId && (mine || pcan('git.report_any')) && ['available', 'in_progress', 'review'].includes(k.status) ? gitForm(k, path) : '')));
+        !k.archivedAt && k.assigneeId && (mine || pcan('git.report_any')) && ['available', 'in_progress', 'review'].includes(k.status) ? gitForm(k, path) : '')),
+    commentsSection(d, k));
 }
 
 function executionProgress(records) {
@@ -1584,6 +1597,7 @@ function readLocation() {
  state.tab = [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'people' ? tab : 'workspace';
  state.projectId = q.get('project') || null;
  state.ticketId = q.get('ticket') || null;
+ state.focusComment = state.ticketId && /^[A-Za-z0-9_-]{1,64}$/.test(q.get('comment') || '') ? q.get('comment') : '';
 }
 readLocation();
 window.addEventListener('popstate', () => { closeSearch(false); captureDrafts(); readLocation(); focusMain = true; state.data = null; state.handoff = null; render(); });

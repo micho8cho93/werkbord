@@ -11,7 +11,7 @@ import (
 
 func TestTheConsoleIsServedAndReadOnlyForOtherMethods(t *testing.T) {
 	h := Handler()
-	for _, path := range []string{"/", "/console.js", "/console.css", "/board.css", "/board-drag.js", "/theme.js", "/search.js", "/timeline.js", "/mark-dark.svg"} {
+	for _, path := range []string{"/", "/console.js", "/console.css", "/board.css", "/board-drag.js", "/theme.js", "/search.js", "/timeline.js", "/mentions.js", "/comments.js", "/comments.css", "/mark-dark.svg"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-cache" {
@@ -45,6 +45,21 @@ func TestTheConsoleNeverBuildsHTMLFromData(t *testing.T) {
 	for _, banned := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
 		if strings.Contains(string(search), banned) {
 			t.Errorf("search.js uses %s", banned)
+		}
+	}
+	// Comments are written by other members and shown to everyone on the project: they are text, in the box, the list and the rows.
+	for _, name := range []string{"comments.js", "mentions.js"} {
+		src, err := fs.ReadFile(root, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, banned := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "setTimeout('", `setTimeout("`, "DOMParser", "createContextualFragment", "srcdoc", "href:"} {
+			if strings.Contains(string(src), banned) {
+				t.Errorf("%s uses %s", name, banned)
+			}
+		}
+		if regexp.MustCompile(`setAttribute\(\s*['"]style['"]|\bstyle:\s*['"]|\.style\.cssText`).Match(src) {
+			t.Errorf("%s builds a style attribute from a string", name)
 		}
 	}
 	// A link built from server data is only ever followed if it is https: a pull
@@ -112,5 +127,27 @@ func TestTheTourIsLoadedAndBuildsNoHTML(t *testing.T) {
 	index, _ := fs.ReadFile(root, "index.html")
 	if !strings.Contains(string(index), `src="tour.js"`) {
 		t.Error("index.html must load tour.js")
+	}
+}
+
+// The comment box and its list are loaded in the order they need each other, and the pure part is a module of its own so that
+// scripts/team-mentions.test.cjs can run it under node.
+func TestCommentsAreLoadedAfterWhatTheyUse(t *testing.T) {
+	root, _ := fs.Sub(static, "static")
+	index, _ := fs.ReadFile(root, "index.html")
+	page := string(index)
+	at := func(name string) int { return strings.Index(page, `src="`+name+`"`) }
+	if at("mentions.js") < 0 || at("comments.js") < 0 || !(at("mentions.js") < at("comments.js")) || !(at("console.js") < at("comments.js")) {
+		t.Error("index.html must load mentions.js, then console.js, then comments.js")
+	}
+	if !strings.Contains(page, `href="comments.css"`) {
+		t.Error("index.html must load comments.css")
+	}
+	mentions, _ := fs.ReadFile(root, "mentions.js")
+	if !strings.Contains(string(mentions), "module.exports") {
+		t.Error("mentions.js must export for node as well as the page, to be testable on its own")
+	}
+	if strings.Contains(string(mentions), "document.") || strings.Contains(string(mentions), "window.") && !strings.Contains(string(mentions), "typeof window") {
+		t.Error("mentions.js must stay free of the page: it is the pure part")
 	}
 }

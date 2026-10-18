@@ -83,7 +83,7 @@ test-rqlite: rqlite
 test: web/node_modules
 	WERKBORD_SKIP_RQLITE=1 $(GO) test -timeout 30m ./...
 	cd web && $(NPM) test
-	node --test scripts/seed-browser-fixture.test.cjs
+	node --test scripts/seed-browser-fixture.test.cjs scripts/team-mentions.test.cjs
 	node --test relay/e2e/e2e.test.mjs relay/connector/test/lanes.test.mjs
 	cd relay/connector && node build.mjs && node --check dist/sw.js && node --check dist/connect/connect.js
 

@@ -1,0 +1,98 @@
+/*
+ * Comments on tickets and the mentions in them. Uses the console's own tokens, so both themes and every width follow it: amber is
+ * what waits for you (an unread mention), cobalt is what is being pointed at (the comment a notification opened), inset trays are
+ * where words are written.
+ */
+
+/* ---- the conversation ---- */
+.comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); min-width: 0; }
+.comments-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.comments-head h3 { margin: 0; }
+.ticket .comments h3 { margin: 0; }
+.comment-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 10px; }
+.comment-row { min-width: 0; }
+.comment { position: relative; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 0; scroll-margin: 96px 0 24px; }
+.comment:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.comment-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-bottom: 6px; font-size: 13px; }
+.comment-head .badge { margin-left: auto; }
+.comment-author { font-weight: 600; }
+.comment-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
+.comment-gone { margin: 0; font-style: italic; }
+.comment-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+/* Edit and Delete are always there but do not compete with the words: quiet until pointed at. */
+.comment-actions button.quiet { border-color: transparent; background: none; box-shadow: none; color: var(--muted); min-height: 30px; padding: 0 10px; }
+.comment-actions button.quiet:hover, .comment-actions button.quiet:focus-visible { color: var(--text); background: var(--s2); }
+.comment-actions button.quiet.danger-text:hover, .comment-actions button.quiet.danger-text:focus-visible { color: var(--danger-text); }
+
+/* a comment that mentions the viewer: amber while unread, quiet once read */
+.comment.mentions-me { background: var(--s2); }
+.comment.mentions-me.is-unread { box-shadow: inset 3px 0 0 var(--amber); }
+.comment.mentions-me.is-read { box-shadow: inset 3px 0 0 var(--line); }
+/* the comment a notification pointed at */
+.comment.is-referenced { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.comment.is-referenced.mentions-me.is-unread { box-shadow: inset 3px 0 0 var(--amber), 0 0 0 2px var(--accent); }
+@media (prefers-reduced-motion: no-preference) {
+  .comment.is-referenced { animation: comment-found 1.6s ease-out 1; }
+  @keyframes comment-found { from { box-shadow: 0 0 0 6px var(--amber-ring); } }
+}
+.comment.is-deleted { background: transparent; border-style: dashed; }
+
+.mention { display: inline; padding: 0 4px; border-radius: 4px; -webkit-box-decoration-break: clone; box-decoration-break: clone; background: var(--s2); color: var(--accent); font-weight: 500; overflow-wrap: anywhere; }
+.comment.mentions-me .mention { background: var(--panel); }
+.mention.me { background: var(--amber-ring); color: var(--text); }
+
+.comments-empty, .comments-note { margin: 0 0 14px; }
+
+/* ---- the box ---- */
+.comment-form { display: block; }
+.comment-field { position: relative; }
+.comment-input { display: block; width: 100%; min-height: 84px; resize: vertical; font: inherit; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 8px; }
+.comment-tools .grow { flex: 1 1 0; min-width: 0; }
+.comment-tools .muted { flex: 1 1 14rem; min-width: 0; }
+.comment-tools > button { flex: none; }
+.comment-count.over { color: var(--danger-text); font-weight: 600; }
+.mention-button { min-width: 34px; padding: 0 10px; font-family: var(--mono); font-weight: 600; }
+.comment-form .field-error:empty { display: none; }
+.comment-form .field-error { margin: 6px 0 0; }
+
+/* people who will be mentioned, as chips that can be taken out */
+.mention-chips { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.mention-chips[hidden] { display: none; }
+.mention-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px; border-radius: 999px; background: var(--s2); color: var(--accent); font-size: 12px; font-weight: 500; box-shadow: var(--tray-sh); }
+.mention-chip.me { color: var(--muted); }
+.chip-x { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 50%; background: none; color: inherit; font: inherit; font-size: 15px; line-height: 1; cursor: pointer; }
+.chip-x:hover { background: var(--line); }
+.chip-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* the picker of the project's people, under the box */
+.mention-picker { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); max-height: 15rem; overflow-y: auto; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 12px 28px -10px rgba(0, 0, 0, .35); }
+.mention-picker[hidden] { display: none; }
+.mention-option { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; min-height: 40px; }
+.mention-option .av { flex: none; }
+.mention-option.active, .mention-option:hover { background: var(--s2); }
+.mention-option.active { box-shadow: inset 0 0 0 2px var(--accent); }
+.mention-name { font-weight: 500; overflow-wrap: anywhere; }
+.mention-detail { margin-left: auto; text-align: right; overflow-wrap: anywhere; }
+.mention-option.alike .mention-detail { color: var(--text); }
+
+/* ---- the rows that tell a person they were mentioned ---- */
+.mentions-block { margin: 0 0 20px; min-width: 0; }
+.mentions-block .section-head { margin-bottom: 8px; }
+.mentions-block h3 { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.overview-mentions { margin-top: 24px; }
+.mention-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: 10px; row-gap: 8px; }
+.mention-row .av { margin-top: 2px; }
+.mention-row .grow { min-width: 0; flex-basis: auto; }
+.mention-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; }
+.mention-excerpt { margin: 4px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+@media (min-width: 640px) {
+  /* beside the work, where there is room, the actions go to the right of the quotation; in the narrow column they stay under it */
+  .overview-mentions .mention-row { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+  .overview-mentions .mention-actions { grid-column: auto; }
+}
+
+@media (max-width: 640px) {
+  .comment { padding: 12px; }
+  .comment-actions button, .comment-tools > button, .mention-actions button { min-height: 40px; }
+}

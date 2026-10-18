@@ -222,9 +222,15 @@ func TestClaimUpgradeKeepsWorkAndReportsOnTheReplicatedStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := len(all) - 1
-	if all[target].Name != "claim_before_work" {
-		t.Fatal("update migration target")
+	target := -1
+	for i, migration := range all {
+		if migration.Name == "claim_before_work" {
+			target = i
+			break
+		}
+	}
+	if target < 0 {
+		t.Fatal("claim_before_work migration is missing")
 	}
 	old := open(t, c, 0, func(o *Options) { o.Migrations = all[:target] })
 	k := seed(t, old)

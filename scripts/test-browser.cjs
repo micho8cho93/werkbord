@@ -89,6 +89,7 @@ async function cleanup() {
     if (process.env.BROWSER_PLANNING_ONLY === '1') { run(process.execPath, ['scripts/browser-planning.cjs'], testEnv); return; }
     if (process.env.BROWSER_CONTROLS_ONLY === '1') { run(process.execPath, ['scripts/browser-controls.cjs'], testEnv); return; }
     if (process.env.BROWSER_TEAM_ONLY === '1') { run(process.execPath, ['scripts/browser-team.cjs'], testEnv); return; }
+    if (process.env.BROWSER_COMMENTS_ONLY === '1') { run(process.execPath, ['scripts/browser-team-comments.cjs'], testEnv); return; }
     if (process.env.BROWSER_DECK_ONLY === '1') { run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
     if (process.env.BROWSER_PHONE_ONLY === '1') { run(process.execPath, ['scripts/browser-phone.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
     if (process.env.BROWSER_UX_ONLY === '1') { run(process.execPath, ['scripts/browser-workspace-ux.cjs'], testEnv); return; }
@@ -103,6 +104,7 @@ async function cleanup() {
     run(process.execPath, ['scripts/browser-controls.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-team.cjs'], testEnv);
     testEnv.TEAM_BROWSER_TOKEN_FILE = path.join(artifacts, 'active-token.txt');
+    run(process.execPath, ['scripts/browser-team-comments.cjs'], testEnv);
     // Analytics uses a separate disposable repository so earlier flows keep their own scope.
     const analyticsRepo = path.join(temp, 'analytics-repo'); fs.mkdirSync(analyticsRepo);
     run('git', ['-C', analyticsRepo, 'init', '-b', 'main'], {}, true);

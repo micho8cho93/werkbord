@@ -119,6 +119,9 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/team/v1/reviews", s.handleReviews)
 	api.HandleFunc("GET /api/team/v1/search", s.handleSearch)
 	api.HandleFunc("GET /api/team/v1/sync", s.handleWorkspaceSync)
+	// what mentions in comments tell the signed-in member: only theirs, only on projects they are on
+	api.HandleFunc("GET /api/team/v1/notifications", s.handleListNotifications)
+	api.HandleFunc("POST /api/team/v1/notifications/{nid}/read", s.handleMarkNotificationRead)
 	// the workspace's shared labels, and a project's timeline: names, colours, planned dates and dependencies, all
 	// stored metadata. Only people who manage the workspace change a label (labels.manage).
 	api.HandleFunc("GET /api/team/v1/labels", s.handleListLabels)
@@ -146,6 +149,11 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("PUT /api/team/v1/projects/{id}/tickets/{tid}/git", s.handleReportGit)
 	api.HandleFunc("PUT /api/team/v1/projects/{id}/tickets/{tid}/progress", s.handleReportProgress)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/tickets/{tid}/progress", s.handleTicketProgress)
+	// the conversation on a ticket: text and mentions of people on the project, nothing else
+	api.HandleFunc("GET /api/team/v1/projects/{id}/tickets/{tid}/comments", s.handleListComments)
+	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/comments", s.handlePostComment)
+	api.HandleFunc("PATCH /api/team/v1/projects/{id}/tickets/{tid}/comments/{cid}", s.handleEditComment)
+	api.HandleFunc("DELETE /api/team/v1/projects/{id}/tickets/{tid}/comments/{cid}", s.handleDeleteComment)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/tickets/{tid}/handoff", s.handleTicketHandoff)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/handoff", s.handleHandoff)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/schedules", s.handleSchedules)
@@ -243,7 +251,7 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 				httpkit.WriteError(w, http.StatusUnauthorized, "device_required", "A member token only works on the computer that hosts the workspace. To use this workspace from another computer, join it there with an invitation from Members in the Werkbord Team app.")
 				return
 			}
-			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bodyLimit(r)))
 			if err != nil {
 				s.fail(w, r, domain.ErrInvalid)
 				return
@@ -372,7 +380,7 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func (s *Server) decode(w http.ResponseWriter, r *http.Request, dst any) bool {
-	if err := httpkit.DecodeJSON(w, r, dst, maxBodyBytes); err != nil {
+	if err := httpkit.DecodeJSON(w, r, dst, bodyLimit(r)); err != nil {
 		s.fail(w, r, fmt.Errorf("%w: %v", domain.ErrInvalid, err))
 		return false
 	}

@@ -60,6 +60,7 @@ type Tx interface {
 	MCPTaskPlanQueries
 	NetworkQueries
 	MessageQueries
+	CommentQueries
 }
 
 // WorkspaceQueries are the workspace's own record and its change counter.
@@ -274,6 +275,37 @@ type MCPTaskPlanQueries interface {
 	MCPTaskPlanByKey(ctx context.Context, workspaceID, grantID, projectID, idempotencyKey string) (domain.MCPTaskPlanProposal, error)
 	MCPTaskPlans(ctx context.Context, workspaceID, grantID string, pendingOnly bool) ([]domain.MCPTaskPlanProposal, error)
 	SaveMCPTaskPlan(ctx context.Context, proposal domain.MCPTaskPlanProposal, pendingOnly bool) error
+}
+
+// CommentQueries are the comments on tickets, the people they mention, and the notification each mention makes for the person
+// it is for. A notification is only ever read for its own recipient, and only while they are on the project.
+type CommentQueries interface {
+	// InsertComment stores a comment as the next one of its ticket, with the people it mentions, and returns it with its position.
+	InsertComment(ctx context.Context, workspaceID string, c domain.Comment) (domain.Comment, error)
+	Comment(ctx context.Context, workspaceID, projectID, ticketID, id string) (domain.Comment, error)
+	// CommentByClientID finds the comment an author's client already posted under a creation ID.
+	CommentByClientID(ctx context.Context, workspaceID, ticketID, authorID, clientID string) (domain.Comment, bool, error)
+	CommentPage(ctx context.Context, workspaceID, ticketID string, q CommentPageQuery) (CommentPage, error)
+	CommentMentions(ctx context.Context, workspaceID, commentID string) ([]string, error)
+	SetCommentMentions(ctx context.Context, workspaceID, commentID string, memberIDs []string) error
+	// SaveComment writes an edit if the comment is still at the version the editor read (compare-and-swap).
+	SaveComment(ctx context.Context, workspaceID string, c domain.Comment, version int64) (domain.Comment, error)
+	// TombstoneComment deletes a comment's content and mentions, leaving a tombstone; false when it already was one.
+	TombstoneComment(ctx context.Context, workspaceID string, c domain.Comment, deletedBy string, version int64, now time.Time) (domain.Comment, bool, error)
+
+	// NotifyMention makes (or, if it was withdrawn, gives back) a person's notification for a comment; one exists per comment and person.
+	NotifyMention(ctx context.Context, workspaceID string, n domain.Notification) (bool, error)
+	// WithdrawNotifications takes away a comment's notifications for the people named, or for everyone when recipients is nil.
+	WithdrawNotifications(ctx context.Context, workspaceID, commentID string, recipients []string) error
+	CommentNotifications(ctx context.Context, workspaceID, recipientID string, commentIDs []string) (map[string]domain.Notification, error)
+	Notifications(ctx context.Context, workspaceID, recipientID string, q NotificationQuery) ([]NotificationRow, error)
+	Notification(ctx context.Context, workspaceID, recipientID, id string) (NotificationRow, error)
+	// UnreadNotifications counts a person's unread notifications by project.
+	UnreadNotifications(ctx context.Context, workspaceID, recipientID string) (map[string]int, error)
+	// UnreadNotificationsOnTicket counts the ones that are about one ticket.
+	UnreadNotificationsOnTicket(ctx context.Context, workspaceID, recipientID, ticketID string) (int, error)
+	// MarkNotificationRead is idempotent: it reports whether this call was the one that read it.
+	MarkNotificationRead(ctx context.Context, workspaceID, recipientID, id string, now time.Time) (domain.Notification, bool, error)
 }
 
 // MessageQueries are the mailbox of signed requests between a person's own devices. The workspace stores and
