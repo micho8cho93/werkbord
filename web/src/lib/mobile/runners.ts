@@ -1,7 +1,7 @@
 // The Runners screen's cards, from what each runner reports about itself. A runner is a machine of the person's own; the card says what
-// it is, whether it is reachable and how much of it is in use, and nothing it did not report. No framework code.
+// it is and whether it is connected, using only what it reported. No framework code.
 
-import { runnerState } from '../format';
+import { runnerConnection } from '../format';
 import type { Runner } from '../types';
 
 export type RunnerFilter = 'all' | 'online' | 'offline';
@@ -11,11 +11,9 @@ export interface RunnerCard {
   name: string;
   /** "darwin/arm64 · Werkbord 4.32", what it reports of itself. */
   spec: string;
-  state: ReturnType<typeof runnerState>;
+  state: string;
   tone: 'work' | 'ok' | 'neutral';
   online: boolean;
-  /** "2 of 4" run slots in use. */
-  slots: string;
   cpu: string;
   /** Free memory, when the runner reports it. */
   ram: string;
@@ -26,9 +24,9 @@ export interface RunnerCard {
 
 const gb = (n?: number): string => (n === undefined ? '' : `${(n / 1024 ** 3).toFixed(n >= 10 * 1024 ** 3 ? 0 : 1)} GB`);
 
-export function runnerCard(r: Runner): RunnerCard {
-  const state = runnerState(r);
-  const up = r.online && !r.disabled;
+export function runnerCard(r: Runner, live = true): RunnerCard {
+  const state = runnerConnection(r, live);
+  const up = live && r.online && !r.disabled;
   const caps = r.capabilities;
   return {
     id: r.id,
@@ -37,7 +35,6 @@ export function runnerCard(r: Runner): RunnerCard {
     state,
     tone: !up ? 'neutral' : r.currentRuns > 0 ? 'work' : 'ok',
     online: up,
-    slots: up ? `${r.currentRuns} of ${r.capacity}` : '',
     cpu: up && caps?.cpu ? `${caps.cpu} ${caps.cpu === 1 ? 'core' : 'cores'}` : '',
     ram: up && caps?.availableRamBytes !== undefined ? `${gb(caps.availableRamBytes)} free` : '',
     storage: up && caps?.storageBytes !== undefined ? `${gb(caps.storageBytes)}` : '',

@@ -90,6 +90,17 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 
+// A save becomes useful only when its fields differ from the accepted values. Recompute
+// after draft restoration too, so live updates cannot strand a changed form.
+function changedSubmit(label, fields, saved = fields.map(fieldValue), className = 'plain') {
+  const button = h('button', { class: className, disabled: true }, label);
+  button.refreshDisabled = () => { button.disabled = actionBusy || fields.every((el, i) => fieldValue(el) === saved[i]); };
+  fields.forEach(el => { el.addEventListener('input', button.refreshDisabled); el.addEventListener('change', button.refreshDisabled); });
+  button.refreshDisabled();
+  return button;
+}
+function fieldValue(el) { return el.type === 'checkbox' ? el.checked : el.value; }
+
 // The Werkbord mark and wordmark, and "team": the head of every screen.
 function brand() {
   return h('div', { class: 'brand' }, h('img', { src: teamTheme.dark ? 'mark-dark.svg' : 'mark.svg', alt: '', width: 30, height: 22 }), h('span', { class: 'wm' }, 'werkbord'), h('span', { class: 'prod' }, 'team'));
@@ -318,6 +329,7 @@ function restore(root, keep, focus) {
   const k = keep.fields[el.name];
   if (k && el.type !== 'file') { if (el.type === 'checkbox') el.checked = k.v; else el.value = k.v; el.dataset.dirty = '1'; }
  }
+ for (const button of root.querySelectorAll('button')) button.refreshDisabled?.();
  for (const [key, el] of disclosures(root)) if (key in keep.details) el.open = keep.details[key];
  if (focus && keep.focus) for (const el of root.querySelectorAll('[name]')) if (el.name === keep.focus.name) {
   el.focus({ preventScroll: true });
@@ -340,6 +352,10 @@ document.body.prepend(banner);
 document.body.append(toasts);
 function setOnline(on) {
   state.online = on; banner.hidden = on;
+  if (!on) {
+    app.querySelectorAll('.member-presence').forEach(el => { el.textContent = 'Runner connection unknown'; });
+    app.querySelectorAll('.member-phone').forEach(el => { el.textContent = 'Phone connection unknown'; });
+  }
 }
 
 // When the workspace's storage has no quorum of Workspace Hosts, reading works and every change is refused until enough of them
@@ -361,6 +377,7 @@ async function checkReadOnly() {
 }
 checkReadOnly();
 setInterval(checkReadOnly, 10000);
+setInterval(() => { if (state.tab === 'members' && state.me && !actionBusy && document.visibilityState === 'visible') render(); }, 15000);
 function toast(message) {
   const t = h('div', { class: 'toast', role: 'status' }, message);
   toasts.append(t);
@@ -660,14 +677,19 @@ function mergeBadge(it) {
   return h('span', { class: 'badge' + (m === 'conflicting' ? ' bad' : m === 'closed' ? ' warn' : '') }, text);
 }
 
-function membersPanels(members, devices = null) {
+function membersPanels(members) {
   const ordered = [...members].sort((a, b) => a.name.localeCompare(b.name));
   const rows = ordered.map(m => {
     const self = m.id === state.me.member.id;
-    const runners = (devices || []).filter(d => d.memberId === m.id && !d.revokedAt && d.capabilities.includes('runner'));
-    const latest = runners.map(d => d.lastSeenAt).filter(Boolean).sort().at(-1);
-    const recent = state.online && latest && Date.now() - new Date(latest).getTime() < 60000;
-    const presence = self && state.desktop ? 'This computer' : recent ? 'Runner device recently seen' : latest ? 'Runner device last seen ' + ago(latest) : runners.length ? 'Runner device registered' : 'Workspace member';
+    const c = m.connections;
+    const runnerParts = [];
+    if (c?.runnersConnected) runnerParts.push(plural(c.runnersConnected, 'runner') + ' connected');
+    if (c?.runnersDisconnected) runnerParts.push(plural(c.runnersDisconnected, 'runner') + ' disconnected');
+    if (c?.runnersUnknown) runnerParts.push(plural(c.runnersUnknown, 'runner') + ' · connection unknown');
+    const runners = !state.online || !c ? 'Runner connection unknown' : runnerParts.join(' · ') || 'No runners connected';
+    const phones = !state.online || !c ? 'Phone connection unknown'
+      : c.phonesConnected ? plural(c.phonesConnected, 'phone') + ' connected' + (c.phonesUnknown ? ' · other phone connections unknown' : '')
+      : c.phonesUnknown ? 'Phone connection unknown' : c.phonesPaired ? 'Phone disconnected · access paired' : 'No phone paired';
     const actions = [];
     if (!state.desktop && (m.id === state.me.member.id || can('members.manage'))) actions.push(
       h('button', { class: 'plain', type: 'button', onclick: () => act(async () => {
@@ -678,7 +700,7 @@ function membersPanels(members, devices = null) {
     if (can('admins.manage') && m.role !== 'owner') actions.push(h('button', { class: 'plain', type: 'button', onclick: () => act(() => api('PUT', '/members/' + m.id + '/role', { role: m.role === 'admin' ? 'member' : 'admin' })) }, m.role === 'admin' ? 'Remove admin role' : 'Make admin'));
     if (can('members.manage') && m.role !== 'owner') actions.push(h('button', { class: 'danger', type: 'button', onclick: () => confirm('Remove ' + m.name + ' from the workspace? Anything they are working on goes back on the board.') && act(() => api('DELETE', '/members/' + m.id)) }, 'Remove'));
     return h('div', { class: 'row member-row', 'data-member-id': m.id, 'data-self': String(self) }, h('span', { class: 'av', 'aria-hidden': 'true' }, m.name.trim().split(/\s+/).slice(0, 2).map(n => n[0]).join('').toUpperCase()),
-      h('div', { class: 'grow' }, h('strong', {}, m.name), self ? h('span', { class: 'muted small member-you' }, '(you)') : '', h('div', { class: 'muted member-presence' }, presence), m.email ? h('div', { class: 'muted member-email' }, m.email) : ''),
+      h('div', { class: 'grow' }, h('strong', {}, m.name), self ? h('span', { class: 'muted small member-you' }, '(you)') : '', h('div', { class: 'muted member-presence' }, runners), h('div', { class: 'muted member-phone' }, phones), m.email ? h('div', { class: 'muted member-email' }, m.email) : ''),
       h('span', { class: 'badge member-role' }, m.role[0].toUpperCase() + m.role.slice(1)),
       actions.length ? h('details', { class: 'member-manage', ontoggle: e => {
         if (e.currentTarget.open) app.querySelectorAll('.member-manage[open]').forEach(other => { if (other !== e.currentTarget) other.open = false; });
@@ -1420,7 +1442,7 @@ function editTicket(d, k, path) {
   return h('details', { open: ['calendar', 'timeline'].includes(state.tab) || state.validationIssues.some((issue) => issue.itemId === k.id || issue.otherId === k.id) }, h('summary', {}, 'Edit this ticket'),
     ticketVersion(k) !== k.version ? h('div', { role: 'alert' }, h('p', { class: 'error' }, 'Someone changed this ticket while you were editing. Your draft is kept. Copy your text before loading their version and combining the changes.'), h('button', { class: 'plain', type: 'button', onclick: () => { discardTicketDraft(k.id); render(); } }, 'Load latest version')) : '',
     h('form', { class: 'stack', 'data-ticket-id': k.id, 'data-ticket-version': k.version, onsubmit: (e) => { e.preventDefault(); if (!plan.validate()) return; act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, ...plan.read(), version: ticketVersion(k) }).then(() => discardTicketDraft(k.id)));  } },
-      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node, h('button', { class: 'plain' }, ['calendar', 'timeline'].includes(state.tab) ? 'Save changes' : 'Save')));
+      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node, changedSubmit(['calendar', 'timeline'].includes(state.tab) ? 'Save changes' : 'Save', [title, desc, reqs, ...plan.node.querySelectorAll('input, select, textarea')])));
 }
 
 // What the member's own Werkbord reports, entered by hand: useful until it reports for them.
@@ -1440,7 +1462,7 @@ function gitForm(k, path) {
           ...(behind.value !== '' ? { behind: Number(behind.value) } : {}) };
         await api('PUT', path + '/git', body); }); } },
       field('Branch', branch), field('Pull request address', url), field('Number', num), field('State', stateSel), field('Mergeable', mergeSel), field('Behind', behind),
-      h('button', { class: 'plain' }, 'Save')),
+      changedSubmit('Save', [branch, url, num, stateSel, mergeSel, behind])),
     k.status === 'in_progress' && pr.url ? h('button', { class: 'primary', onclick: () => act(() => api('POST', path + '/submit', {})) }, 'Submit for review') : '',
     k.status === 'in_progress' && !pr.url ? h('p', { class: 'muted' }, 'To submit for review: record the pull request above, or submit without one below.') : '',
     k.status === 'in_progress' && !pr.url ? h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/submit', {})) }, 'Submit for review without a pull request') : '');
@@ -1509,9 +1531,12 @@ function peopleTab(d) {
   const pid = d.id, manage = pcan('members.manage');
   const rows = d.people.map((p) => {
     const role = h('select', { name: 'role-' + p.id, 'aria-label': 'Role of ' + p.name }, ['owner', 'reviewer', 'member'].map((r) => h('option', { value: r, selected: p.projectRole === r }, r)));
+    const setRole = changedSubmit('Set role', [role], [p.projectRole]);
+    setRole.type = 'button';
+    setRole.addEventListener('click', () => act(() => api('PUT', '/projects/' + pid + '/members/' + p.id, { role: role.value })));
     return h('div', { class: 'row' },
       h('div', { class: 'grow' }, h('strong', {}, p.name), ' ', h('span', { class: 'muted' }, p.email || '')),
-      manage ? [role, h('button', { class: 'plain', onclick: () => act(() => api('PUT', '/projects/' + pid + '/members/' + p.id, { role: role.value })) }, 'Set role'),
+      manage ? [role, setRole,
         h('button', { class: 'danger', onclick: () => confirm('Take ' + p.name + ' off this project? Tickets they are working on go back on the board.') && act(() => api('DELETE', '/projects/' + pid + '/members/' + p.id)) }, 'Remove')]
         : h('span', { class: 'badge' }, p.projectRole));
   });
@@ -1673,7 +1698,7 @@ function teamSchedulePanel(k, b) {
         draft.errors.form = err instanceof Error ? err.message : String(err);
       }
     }); } }, field('Start time with UTC offset', at, issue('at', at)), field('Display timezone', timezone, issue('timezone', timezone)), field('Missed execution', missed), field('Wait before marking missed (seconds)', grace, issue('grace', grace)), field('Run order', order, issue('order', order)), field('Priority', priority, issue('priority', priority)), draft.errors.form ? h('p', { class: 'field-error', role: 'alert' }, draft.errors.form) : '', h('p', { class: 'muted small' }, 'Dependencies can keep execution waiting until they finish.'), h('button', { class: 'plain' }, current ? 'Reschedule request' : 'Propose schedule')));
-    if (current && !['completed', 'canceled'].includes(current.state)) box.append(h('button', { class: 'danger', onclick: () => act(() => api('POST', projectPath(k) + '/schedule/cancel', { version: current.version })) }, 'Cancel request'));
+    if (current && !['completed', 'canceled'].includes(current.state)) box.append(h('button', { class: 'danger', onclick: () => act(async () => { await api('POST', projectPath(k) + '/schedule/cancel', { version: current.version }); if (state.desktop) executionViews.delete(k.projectId + ':' + k.id); }) }, 'Cancel request'));
   }).catch(err => box.append(h('p', { class: 'advice', role: 'alert' }, err.message)));
   return box;
 }

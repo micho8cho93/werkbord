@@ -211,7 +211,54 @@ func (s *Service) ListMembers(ctx context.Context, a Actor) ([]domain.Member, er
 		return nil, err
 	}
 	var out []domain.Member
-	err := s.db.View(ctx, func(tx store.Tx) (err error) { out, err = tx.Members(ctx, a.Workspace.ID); return })
+	err := s.db.View(ctx, func(tx store.Tx) (err error) {
+		out, err = tx.Members(ctx, a.Workspace.ID)
+		if err != nil {
+			return err
+		}
+		devices, err := tx.Devices(ctx, a.Workspace.ID, "")
+		if err != nil {
+			return err
+		}
+		profiles, err := tx.DeviceProfiles(ctx, a.Workspace.ID)
+		if err != nil {
+			return err
+		}
+		now := s.stamp()
+		for i := range out {
+			c := &domain.MemberConnections{}
+			for _, d := range devices {
+				if d.MemberID != out[i].ID || d.Revoked() {
+					continue
+				}
+				p := profiles[d.ID].Connections
+				if d.Has(domain.CapabilityRunner) {
+					switch {
+					case !d.OnlineAt(now):
+						c.RunnersDisconnected++
+					case p == nil:
+						c.RunnersUnknown++
+					case p.RunnerConnected:
+						c.RunnersConnected++
+					default:
+						c.RunnersDisconnected++
+					}
+				}
+				if p == nil {
+					c.PhonesUnknown = true
+					continue
+				}
+				c.PhonesPaired += p.PhonesPaired
+				if d.OnlineAt(now) {
+					c.PhonesConnected += p.PhonesConnected
+				} else if p.PhonesPaired > 0 {
+					c.PhonesUnknown = true
+				}
+			}
+			out[i].Connections = c
+		}
+		return nil
+	})
 	return out, err
 }
 

@@ -2,12 +2,14 @@
   import { onMount } from 'svelte';
   import { api } from './api';
   import { formatDateTime, formatTime } from './clock.svelte';
-  import { runnerSlots, runnerState } from './format';
+  import { runnerConnection } from './format';
   import { app } from './state.svelte';
   import { isPhone } from './phones/capability';
   import type { Pairing, Runner } from './types';
 
   let runners = $state<Runner[]>([]);
+  let savedRunners = $state<Record<string, string>>({});
+  const settingsOf = (r: Runner) => JSON.stringify([r.name, r.capacity, r.automatic, r.disabled, [...r.projects].sort(), r.allowClone]);
   let loading = $state(true);
   let error = $state('');
   let busy = $state('');
@@ -22,7 +24,7 @@
   const size = (n?: number) => n === undefined ? 'Unknown' : `${(n / 1024 ** 3).toFixed(1)} GB`;
 
   async function refresh() {
-    try { runners = await api.listRunners(); app.runners = runners; error = ''; }
+    try { runners = await api.listRunners(); savedRunners = Object.fromEntries(runners.map(r => [r.id, settingsOf(r)])); app.runners = runners; error = ''; }
     catch (e) { error = e instanceof Error ? e.message : String(e); }
     finally { loading = false; }
   }
@@ -70,12 +72,12 @@
     <div class="pairing">
       <h4>Pair another machine</h4>
       <p class="muted">Select the projects it may execute. The code expires in five minutes and can be used once. Sign in to the same private network on that machine.</p>
-      <fieldset><legend>Authorized projects</legend>
+      <fieldset disabled={!!pairing && !expired}><legend>Authorized projects</legend>
         {#each app.projects as p (p.id)}<label class="check"><input type="checkbox" bind:group={projects} value={p.id} />{p.name}</label>{/each}
         {#if !app.projects.length}<p class="muted">Add a project before pairing a runner.</p>{/if}
       </fieldset>
-      <label class="check"><input type="checkbox" bind:checked={clone} />Allow cloning configured Git remotes</label>
-      <button class="btn primary" disabled={!!busy || !projects.length} onclick={pair}>{busy === 'pair' ? 'Generating…' : 'Generate pairing code'}</button>
+      <label class="check"><input type="checkbox" bind:checked={clone} disabled={!!pairing && !expired} />Allow cloning configured Git remotes</label>
+      <button class="btn primary" disabled={!!busy || !projects.length || !!pairing && !expired} onclick={pair}>{busy === 'pair' ? 'Generating…' : pairing && !expired ? 'Pairing code ready' : 'Generate pairing code'}</button>
       {#if pairing}
         <label for="runner-join">Run on the other machine</label>
         <textarea id="runner-join" class="input" rows="3" readonly value={`werkbord join ${pairing.code}${pairing.allowClone ? ' --allow-clone' : ''}`}></textarea>
@@ -87,7 +89,7 @@
   {#if loading}<p class="muted" role="status">Loading runners…</p>{/if}
   {#each runners as r (r.id)}
     <div class="runner">
-      <div class="heading"><strong>{r.name}</strong><span class="state" data-online={r.online && !r.disabled} title={runnerSlots(r)}>{runnerState(r)} · {r.currentRuns}/{r.capacity}<span class="visually-hidden">, {runnerSlots(r)}</span></span></div>
+      <div class="heading"><strong>{r.name}</strong><span class="state" data-online={app.connection === 'live' && r.online && !r.disabled}>{runnerConnection(r, app.connection === 'live')}</span></div>
       <p class="muted">{r.os}/{r.arch} · {(r.capabilities?.agents ?? []).filter(a=>a.available).map(a=>a.name).join(', ') || 'No available agents'}{r.kind === 'local' ? ' · Werkbord computer' : ''}</p>
       {#if !isPhone()}
       <details ontoggle={e=>{expanded=e.currentTarget.open?[...expanded.filter(id=>id!==r.id),r.id]:expanded.filter(id=>id!==r.id)}}>
@@ -101,7 +103,7 @@
             <fieldset><legend>Authorized projects</legend>{#each app.projects as p (p.id)}<label class="check"><input type="checkbox" bind:group={r.projects} value={p.id} />{p.name} <code>{p.id}</code></label>{/each}</fieldset>
             <label class="check"><input type="checkbox" bind:checked={r.allowClone} />Allow cloning (runner must also opt in)</label>
           {/if}
-          <div class="heading"><button class="btn primary" disabled={!!busy} onclick={() => save(r)}>{busy === r.id ? 'Saving…' : 'Save runner'}</button>{#if r.kind === 'remote'}<button class="btn" disabled={!!busy || r.currentRuns > 0} onclick={() => remove(r)}>Remove runner</button><button class="btn" disabled={!!busy} onclick={() => revoke(r)}>Revoke lost runner</button>{/if}</div>
+          <div class="heading"><button class="btn primary" disabled={!!busy || settingsOf(r) === savedRunners[r.id] || !r.name.trim() || !Number.isInteger(r.capacity) || r.capacity < 1 || r.capacity > 128} onclick={() => save(r)}>{busy === r.id ? 'Saving…' : 'Save runner'}</button>{#if r.kind === 'remote'}<button class="btn" disabled={!!busy || r.currentRuns > 0} onclick={() => remove(r)}>Remove runner</button><button class="btn" disabled={!!busy} onclick={() => revoke(r)}>Revoke lost runner</button>{/if}</div>
           <dl><dt>CPU</dt><dd>{r.capabilities?.cpu || 'Unknown'} logical cores</dd><dt>RAM / available</dt><dd>{size(r.capabilities?.ramBytes)} / {size(r.capabilities?.availableRamBytes)}</dd><dt>Free storage</dt><dd>{size(r.capabilities?.storageBytes)}</dd><dt>Last seen</dt><dd>{r.kind === 'local' ? 'Werkbord is online' : r.lastSeenAt.startsWith('0001') ? 'Waiting for first heartbeat' : formatDateTime(r.lastSeenAt)}</dd></dl>
           {#if r.capabilities?.diagnostics}<p class="error">{r.capabilities.diagnostics}</p>{/if}
           {#each r.capabilities?.agents ?? [] as a (a.id)}<p class="muted">{a.name} {a.version ?? ''} · {a.available ? 'Available' : a.detail || 'Unavailable'}</p>{/each}

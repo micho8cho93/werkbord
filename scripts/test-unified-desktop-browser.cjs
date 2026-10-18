@@ -139,7 +139,10 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await side.getByRole('button', { name: 'Reviews', exact: true }).click(); await side.locator('[data-page=ws-reviews][aria-current=page]').waitFor();
  console.log('PASS Team: the same sidebar lists its places, theme follows the sidebar, no rail of its own');
  await side.locator('[data-page=settings]').click();
- await firstFrame.getByRole('button', { name: 'Connect my Werkbord runner', exact: true }).click();
+ await firstFrame.getByRole('button', { name: /^(Connect existing runner|Reconnect runner|Runner connected)$/ }).waitFor();
+ const runnerConnected = (await dev('GET', '/state')).runner.connected;
+ if (runnerConnected) assert(await firstFrame.getByRole('button', { name: 'Runner connected', exact: true }).isDisabled(), 'connected runner setup cannot be repeated');
+ else await firstFrame.getByRole('button', { name: /^(Connect existing runner|Reconnect runner)$/ }).click();
  await wait(async () => (await dev('GET', '/state')).runner.connected, 'explicit narrow grant connection');
  // Claimed before the runner was connected: the Team service on this computer copies it into Individual, and the ticket opens there.
  await wait(async () => ((await dev('GET', '/state')).sync?.tickets || []).some(t => t.ticketId === ticket.id && t.taskId), 'claimed ticket copied into Individual');

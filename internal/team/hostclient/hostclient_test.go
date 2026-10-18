@@ -176,11 +176,11 @@ func TestTheHeartbeatAndTheInboxCarryOnlyWhatTheyShould(t *testing.T) {
 		}
 	})
 	c, _ := New(Options{Bases: []string{h.srv.URL}, Token: "t", Network: overlay, Timeout: time.Second})
-	if err := c.Heartbeat(bg, domain.DeviceProfile{Platform: "darwin", Form: domain.FormDesktop, Version: "2.7.0"}); err != nil {
+	if err := c.Heartbeat(bg, domain.DeviceProfile{Platform: "darwin", Form: domain.FormDesktop, Version: "2.7.0", Connections: &domain.DeviceConnections{RunnerConnected: true, PhonesPaired: 2, PhonesConnected: 1}}); err != nil {
 		t.Fatal(err)
 	}
 	body := gotBody.Load().(string)
-	for _, want := range []string{"POST /api/team/v1/device/heartbeat", `"platform":"darwin"`, `"form":"desktop"`} {
+	for _, want := range []string{"POST /api/team/v1/device/heartbeat", `"platform":"darwin"`, `"form":"desktop"`, `"runnerConnected":true`, `"phonesPaired":2`, `"phonesConnected":1`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("%q is missing from %s", want, body)
 		}
@@ -206,5 +206,27 @@ func TestAHandoffOfAnUnknownKindIsRefused(t *testing.T) {
 	c, _ := New(Options{Bases: []string{h.srv.URL}, Token: "t", Network: overlay})
 	if _, err := c.Handoff(bg, "tpj_1", "ttk_1"); err == nil || !strings.Contains(err.Error(), "does not understand") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestHeartbeatStillReachesAnOlderHost(t *testing.T) {
+	var requests atomic.Int32
+	h := newHost(t, func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if _, newer := body["connections"]; newer {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":{"code":"invalid","message":"json: unknown field \"connections\""}}`)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	c, _ := New(Options{Bases: []string{h.srv.URL}, Token: "t", Network: overlay, Timeout: time.Second})
+	err := c.Heartbeat(bg, domain.DeviceProfile{Platform: "darwin", Form: domain.FormDesktop, Connections: &domain.DeviceConnections{RunnerConnected: true}})
+	if err != nil || requests.Load() != 2 {
+		t.Fatalf("older Host heartbeat: %v (%d requests)", err, requests.Load())
 	}
 }

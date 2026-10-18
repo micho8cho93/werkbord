@@ -15,6 +15,7 @@ import (
 	relayclient "devboard/internal/relay/client"
 	"devboard/internal/relay/e2e"
 	"devboard/internal/relay/tunnel"
+	"devboard/internal/team/domain"
 	"devboard/internal/team/phone"
 )
 
@@ -49,6 +50,35 @@ func (d *Daemon) phoneStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpkit.WriteJSON(w, 200, map[string]any{"enabled": true, "connected": d.phone.client.Status().Connected, "grants": d.phone.store.Bindings()})
+}
+
+// connectionReport counts only this member's current-workspace grants and authenticated
+// tunnel peers. A relay connection alone says nothing about a phone being connected.
+func (d *Daemon) connectionReport(runnerConnected bool) *domain.DeviceConnections {
+	c := &domain.DeviceConnections{RunnerConnected: runnerConnected}
+	p, scope := d.phone, d.phoneScope()
+	if p == nil || scope == "" {
+		return c
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, binding := range p.store.Bindings() {
+		raw, ok := strings.CutPrefix(binding, scope+"-")
+		if !ok {
+			continue
+		}
+		decoded, err := hex.DecodeString(raw)
+		if err != nil || len(decoded) != len(e2e.PSKID{}) {
+			continue
+		}
+		var secret e2e.PSKID
+		copy(secret[:], decoded)
+		c.PhonesPaired++
+		if len(p.tunnel.PeersOf(secret)) > 0 {
+			c.PhonesConnected++
+		}
+	}
+	return c
 }
 
 // Only the authenticated local device API can issue a phone grant. Host credentials never cross the tunnel.

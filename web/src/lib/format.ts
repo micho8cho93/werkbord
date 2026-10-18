@@ -56,6 +56,13 @@ export function runnerState(r: Pick<Runner, 'online' | 'disabled' | 'currentRuns
   return r.currentRuns >= r.capacity ? 'Busy' : 'Working';
 }
 
+/** A connection is independent of occupied execution slots. Stale data never claims to be live. */
+export function runnerConnection(r: Pick<Runner, 'online' | 'disabled'>, live = true): string {
+  if (!live) return 'Connection unknown';
+  if (!r.online) return 'Disconnected';
+  return r.disabled ? 'Connected · new work disabled' : 'Connected';
+}
+
 /** "1 of 2 run slots in use": the count behind runnerState, for a label or a tooltip. */
 export const runnerSlots = (r: Pick<Runner, 'currentRuns' | 'capacity'>): string => `${r.currentRuns} of ${r.capacity} run ${r.capacity === 1 ? 'slot' : 'slots'} in use`;
 

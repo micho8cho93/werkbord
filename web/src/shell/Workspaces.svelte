@@ -97,7 +97,7 @@
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=backups')}>Backups</button>
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=settings')}>Settings and leaving</button>
             {#if i.state !== 'leaving' && !roles.includes('runner')}
-              <button class="btn" type="button" onclick={() => model.connectRunner(i.id)} data-testid="connect-runner">Connect my Individual runner</button>
+              <button class="btn" type="button" onclick={() => model.connectRunner(i.id)} disabled={!!model.busy} data-testid="connect-runner">Connect my Individual runner</button>
             {/if}
           {/if}
           {#if i.kind === 'team' && (i.state === 'setup' || i.state === 'leaving' || (i.state === 'connecting' && !i.role))}

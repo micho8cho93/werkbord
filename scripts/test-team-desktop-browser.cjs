@@ -70,8 +70,11 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  let ds;await wait(async()=>{ds=await team('GET','/devices');return ds[0]?.capabilities.includes('runner');},'automatic local runner registration');assert.equal(ds.length,1);assert(ds[0].capabilities.includes('runner'));assert(ds[0].capabilities.includes('workspace_host'));
  const owner=(await team('GET','/me')).member;
  await page.getByRole('navigation',{name:'Werkbord Team',exact:true}).getByRole('button',{name:'Members',exact:true}).click();
+ await wait(async()=> (await team('GET','/members')).find(m=>m.id===owner.id)?.connections?.runnersConnected===1,'first runner presence');
+ await page.evaluate(()=>render());
+ await page.locator('[data-member-id="'+owner.id+'"]').getByText('1 runner connected',{exact:true}).waitFor();
  await page.locator('[name=enrollment-label]').fill('Ada’s office Mac');await page.locator('[name=enrollment-person]').selectOption(owner.id);await page.getByRole('button',{name:'Create invitation',exact:true}).click();
- await page.getByText('Your invitation is ready',{exact:true}).waitFor();const link=await page.evaluate(()=>createdInvitation.link);await shot(page,'invitation');assert(await page.locator('.invite-qr').isVisible());
+ await page.getByText('Your invitation is ready',{exact:true}).waitFor();assert(await page.getByRole('button',{name:'Create invitation',exact:true}).isDisabled(),'displayed invitation cannot be duplicated');const link=await page.evaluate(()=>createdInvitation.link);await shot(page,'invitation');assert(await page.locator('.invite-qr').isVisible());
  const second=await browser.newPage({viewport:{width:1440,height:1000}});second.setDefaultTimeout(90000);second.on('pageerror',e=>errors.push(e.message));
  await second.goto(m.second+'/#token='+encodeURIComponent(m.secondKey)+'&join='+encodeURIComponent(link));await second.getByRole('button',{name:'Verify invitation',exact:true}).click();
  await second.locator('[name=join-member]').fill('Ada');await second.locator('[name=join-device]').fill('Office Mac');await second.getByRole('button',{name:'Join workspace',exact:true}).click();await second.getByRole('heading',{name:'Waiting for your administrator',exact:true}).waitFor();await shot(second,'join-pending');
@@ -79,6 +82,12 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await second.waitForFunction(()=>state.me&&state.desktop&&state.device.enrolled,{},{timeout:90000});
  const joined=await dev('second','GET','/state');assert(joined.enrolled);const registered=(await team('GET','/devices')).find(d=>d.id===joined.deviceId);assert(!registered.capabilities.includes('workspace_host'));
  await wait(async()=>{const s=await dev('second','GET','/state'),ds=await team('GET','/devices');return s.runner.connected&&ds.some(d=>d.id===joined.deviceId&&d.capabilities.includes('runner'));},'joined device runner registration');
+ await wait(async()=> (await team('GET','/members')).find(m=>m.id===owner.id)?.connections?.runnersConnected===2,'two actual member runners reported');
+ await page.goto(m.first+'/?tab=members');
+ await page.locator('[data-member-id="'+owner.id+'"]').getByText('2 runners connected',{exact:true}).waitFor();
+ await page.locator('[data-member-id="'+owner.id+'"]').getByText('No phone paired',{exact:true}).waitFor();
+ await shot(page,'members-connections');
+ await shot(page,'members-connections-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  console.log('PASS invitation QR/link, verified join, admin approval, own runner detection, independent Host role');
  await dev('second','PUT','/settings',{...joined.settings,form:'desktop'});
  const project=await team('POST','/projects',{name:'Customer portal',repository:'https://github.com/acme/shop'});
@@ -104,10 +113,18 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.getByRole('button',{name:'Agent controls',exact:true}).click();
  await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Review execution policy',exact:true}).count();},'local execution controls');
  await page.getByRole('button',{name:'Review execution policy',exact:true}).click();
+ assert(await page.getByRole('button',{name:'Review execution policy',exact:true}).isDisabled(),'a current preview cannot be repeated');
  await page.getByRole('heading',{name:'Effective policy',exact:true}).waitFor();
  await shot(page,'agent-policy');await shot(page,'agent-policy-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
+ let approvals=0;const countApprovals=request=>{if(request.method()==='POST'&&request.url().endsWith('/execution/approve'))approvals++;};page.on('request',countApprovals);
+ await page.route('**/api/device/v1/execution/start',route=>route.fulfill({status:503,json:{error:{message:'Fixture start temporarily unavailable'}}}));
  await page.getByRole('button',{name:'Approve and start my run',exact:true}).click();
+ await page.getByText('Fixture start temporarily unavailable',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Start my approved run',exact:true}).waitFor();
+ await page.unrouteAll({behavior:'wait'});
+ await page.getByRole('button',{name:'Start my approved run',exact:true}).click();
  await page.getByRole('button',{name:'Stop my run',exact:true}).waitFor();
+ assert.equal(approvals,1,'retrying a failed start reuses its saved one-shot approval');page.off('request',countApprovals);
  const localProjects=await http(individualURL,full,'GET','/api/projects');
  const localProject=localProjects.projects.find(p=>p.name==='Customer portal');
  const localRuns=await http(individualURL,full,'GET',`/api/projects/${localProject.id}/runs`);
@@ -118,6 +135,11 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.getByText('Commit the fixture work?',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Yes',exact:true}).click();
  await wait(async()=>{const detail=await dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${ticket.id}`);return detail.questions.length===0;},'owner answer delivered');
+ await page.waitForFunction(()=>!actionBusy);
+ // Present an active blocked report; Stop must remain available and another immediate start must not.
+ await page.evaluate(async key=>{const view=executionViews.get(key);view.detail.runs.forEach(run=>{if(['starting','running','waiting_for_user'].includes(run.state))run.state='blocked';});await render();},project.id+':'+ticket.id);
+ assert(await page.getByRole('button',{name:'Stop my run',exact:true}).isEnabled(),'a blocked agent can still be stopped');
+ assert(await page.getByRole('button',{name:'Review execution policy',exact:true}).isDisabled(),'a blocked run still occupies execution');
  await page.getByRole('button',{name:'Stop my run',exact:true}).click();
  await wait(async()=>{const r=await http(individualURL,full,'GET',`/api/projects/${localProject.id}/runs/${running.id}`);return r.state==='stopped';},'owner stop');
  await page.waitForFunction(()=>!actionBusy);
@@ -136,6 +158,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.getByRole('button',{name:'Review execution policy',exact:true}).click();
  await page.getByRole('button',{name:'Approve this execution once',exact:true}).click();
  await page.getByText(/Authorized once until/).waitFor();
+ assert(await page.getByRole('button',{name:'Approve this execution once',exact:true}).isDisabled(),'one-shot approval cannot repeat');
  await shot(page,'scheduled-policy');await shot(page,'scheduled-policy-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  await page.getByRole('button',{name:'Cancel request',exact:true}).click();
  await wait(async()=>{const list=await team('GET',`/projects/${project.id}/schedules`);return list[0]?.state==='canceled';},'canceled schedule');
@@ -143,8 +166,13 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
 
  // Presentation-only regression: a request remains observable through queued → delivered → done.
  let progressCalls=0;await page.route('**/api/team/v1/messages/ui-progress-fixture',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({id:'ui-progress-fixture',state:++progressCalls===1?'queued':progressCalls===2?'delivered':'done',result:{}})}));
- await page.evaluate(async()=>{activeRequest={id:'ui-progress-fixture'};await pollRequest();});
+ await page.goto(m.first+'/?tab=devices');
+ await page.getByRole('button',{name:'Runner status',exact:true}).first().waitFor();
+ await page.evaluate(async()=>{activeRequest={id:'ui-progress-fixture'};await pollRequest();await render();});
+ assert(await page.getByRole('button',{name:'Runner status',exact:true}).first().isDisabled(),'a queued device request cannot be duplicated');
  await page.waitForFunction(()=>activeRequest?.id==='ui-progress-fixture'&&activeRequest.state==='done');assert.equal(progressCalls,3);
+ await page.getByRole('button',{name:'Runner status',exact:true}).first().waitFor();
+ await wait(()=>page.getByRole('button',{name:'Runner status',exact:true}).first().isEnabled(),'device controls return after final result');
  await page.unroute('**/api/team/v1/messages/ui-progress-fixture');console.log('PASS request progress continues after delivery and stops at its final result');
  // A project invite is a code. The page's own address is this computer's, so a link would be useless to anyone else.
  await page.locator('nav').getByRole('button',{name:'Projects',exact:true}).click();await page.getByRole('heading',{name:'Join a project with a code',exact:true}).waitFor();

@@ -8,7 +8,11 @@ const runner = (over: Partial<Runner> = {}) =>
 
 describe('runnerCard', () => {
   it('says what a working runner reports of itself', () => {
-    expect(runnerCard(runner())).toMatchObject({ name: 'Mac mini', spec: 'darwin/arm64 · Werkbord 4.32.0', state: 'Working', tone: 'work', online: true, slots: '2 of 4', cpu: '8 cores', ram: '12 GB free', storage: '500 GB' });
+    expect(runnerCard(runner())).toMatchObject({ name: 'Mac mini', spec: 'darwin/arm64 · Werkbord 4.32.0', state: 'Connected', tone: 'work', online: true, cpu: '8 cores', ram: '12 GB free', storage: '500 GB' });
+  });
+
+  it('does not present cached connectivity as live', () => {
+    expect(runnerCard(runner(), false)).toMatchObject({ state: 'Connection unknown', online: false, tone: 'neutral' });
   });
 
   it('names this computer, and says nothing it was not told', () => {
@@ -18,12 +22,12 @@ describe('runnerCard', () => {
   });
 
   it('shows no usage for a runner that is offline or switched off', () => {
-    expect(runnerCard(runner({ online: false }))).toMatchObject({ state: 'Offline', tone: 'neutral', online: false, slots: '', cpu: '' });
-    expect(runnerCard(runner({ disabled: true }))).toMatchObject({ state: 'Disabled', online: false });
+    expect(runnerCard(runner({ online: false }))).toMatchObject({ state: 'Disconnected', tone: 'neutral', online: false, cpu: '' });
+    expect(runnerCard(runner({ disabled: true }))).toMatchObject({ state: 'Connected · new work disabled', online: false });
   });
 
   it('is idle and ok when connected with nothing running', () => {
-    expect(runnerCard(runner({ currentRuns: 0 }))).toMatchObject({ state: 'Idle', tone: 'ok' });
+    expect(runnerCard(runner({ currentRuns: 0 }))).toMatchObject({ state: 'Connected', tone: 'ok' });
   });
 });
 

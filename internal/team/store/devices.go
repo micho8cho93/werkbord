@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -193,18 +194,26 @@ func (t *sqlTx) RevokeDevice(ctx context.Context, workspaceID, id string, at tim
 
 // SaveDeviceProfile records what a device says about itself, replacing what it said before.
 func (t *sqlTx) SaveDeviceProfile(ctx context.Context, workspaceID string, p domain.DeviceProfile) error {
-	_, err := t.q.ExecContext(ctx, `INSERT INTO device_profiles (device_id, workspace_id, platform, form, sleeps, sleep_events, version, other_workspace, offer_workspace_role, offer_connectivity_role, reported_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	var connections any
+	if p.Connections != nil {
+		raw, err := json.Marshal(p.Connections)
+		if err != nil {
+			return err
+		}
+		connections = string(raw)
+	}
+	_, err := t.q.ExecContext(ctx, `INSERT INTO device_profiles (device_id, workspace_id, platform, form, sleeps, sleep_events, version, other_workspace, offer_workspace_role, offer_connectivity_role, reported_at, connections)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (device_id) DO UPDATE SET platform = excluded.platform, form = excluded.form, sleeps = excluded.sleeps,
-			sleep_events = excluded.sleep_events, version = excluded.version, other_workspace = excluded.other_workspace, offer_workspace_role = excluded.offer_workspace_role, offer_connectivity_role = excluded.offer_connectivity_role, reported_at = excluded.reported_at
+			sleep_events = excluded.sleep_events, version = excluded.version, other_workspace = excluded.other_workspace, offer_workspace_role = excluded.offer_workspace_role, offer_connectivity_role = excluded.offer_connectivity_role, reported_at = excluded.reported_at, connections = excluded.connections
 		WHERE device_profiles.workspace_id = excluded.workspace_id`,
-		p.DeviceID, workspaceID, p.Platform, string(p.Form), b2i(p.Sleeps), p.SleepEvents, p.Version, b2i(p.HostConflict), b2i(p.OfferWorkspaceHost), b2i(p.OfferConnectivityHost), ms(p.ReportedAt))
+		p.DeviceID, workspaceID, p.Platform, string(p.Form), b2i(p.Sleeps), p.SleepEvents, p.Version, b2i(p.HostConflict), b2i(p.OfferWorkspaceHost), b2i(p.OfferConnectivityHost), ms(p.ReportedAt), connections)
 	return err
 }
 
 // DeviceProfiles returns every profile in a workspace by device ID.
 func (t *sqlTx) DeviceProfiles(ctx context.Context, workspaceID string) (map[string]domain.DeviceProfile, error) {
-	rows, err := t.q.QueryContext(ctx, `SELECT device_id, platform, form, sleeps, sleep_events, version, other_workspace, offer_workspace_role, offer_connectivity_role, reported_at FROM device_profiles WHERE workspace_id = ?`, workspaceID)
+	rows, err := t.q.QueryContext(ctx, `SELECT device_id, platform, form, sleeps, sleep_events, version, other_workspace, offer_workspace_role, offer_connectivity_role, reported_at, connections FROM device_profiles WHERE workspace_id = ?`, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -215,8 +224,14 @@ func (t *sqlTx) DeviceProfiles(ctx context.Context, workspaceID string) (map[str
 		var form string
 		var sleeps, conflict, workspaceOffer, connectivityOffer int
 		var at int64
-		if err := rows.Scan(&p.DeviceID, &p.Platform, &form, &sleeps, &p.SleepEvents, &p.Version, &conflict, &workspaceOffer, &connectivityOffer, &at); err != nil {
+		var connections sql.NullString
+		if err := rows.Scan(&p.DeviceID, &p.Platform, &form, &sleeps, &p.SleepEvents, &p.Version, &conflict, &workspaceOffer, &connectivityOffer, &at, &connections); err != nil {
 			return nil, err
+		}
+		if connections.Valid {
+			if err := json.Unmarshal([]byte(connections.String), &p.Connections); err != nil {
+				return nil, err
+			}
 		}
 		p.Form, p.Sleeps, p.HostConflict, p.ReportedAt = domain.DeviceForm(form), sleeps == 1, conflict == 1, fromMS(at)
 		p.OfferWorkspaceHost, p.OfferConnectivityHost = workspaceOffer == 1, connectivityOffer == 1

@@ -51,9 +51,17 @@ type DeviceProfile struct {
 	// HostConflict: the device already hosts another Team workspace, and a computer hosts for only one.
 	HostConflict bool `json:"hostConflict,omitempty"`
 	// Volunteering is an owner's offer; only an administrator grants either role.
-	OfferWorkspaceHost    bool      `json:"offerWorkspaceHost,omitempty"`
-	OfferConnectivityHost bool      `json:"offerConnectivityHost,omitempty"`
-	ReportedAt            time.Time `json:"reportedAt"`
+	OfferWorkspaceHost    bool               `json:"offerWorkspaceHost,omitempty"`
+	OfferConnectivityHost bool               `json:"offerConnectivityHost,omitempty"`
+	Connections           *DeviceConnections `json:"connections,omitempty"`
+	ReportedAt            time.Time          `json:"reportedAt"`
+}
+
+// DeviceConnections contains only availability reported by this device, never phone identities or grants.
+type DeviceConnections struct {
+	RunnerConnected bool `json:"runnerConnected"`
+	PhonesPaired    int  `json:"phonesPaired"`
+	PhonesConnected int  `json:"phonesConnected"`
 }
 
 // Validate checks a profile is well formed.
@@ -72,12 +80,22 @@ func (p DeviceProfile) Validate() error {
 	if len(p.Version) > MaxDeviceVersionLen || strings.ContainsAny(p.Version, "\r\n\x00") {
 		return invalid("the version is at most %d characters on one line", MaxDeviceVersionLen)
 	}
+	if c := p.Connections; c != nil && (c.PhonesPaired < 0 || c.PhonesPaired > 16 || c.PhonesConnected < 0 || c.PhonesConnected > c.PhonesPaired) {
+		return invalid("phone connections must be between zero and the number of paired phones (at most 16)")
+	}
 	return nil
 }
 
 // Same reports whether two profiles say the same thing about a device (when they were reported is not part of it).
 func (p DeviceProfile) Same(o DeviceProfile) bool {
-	return p.Platform == o.Platform && p.Form == o.Form && p.Sleeps == o.Sleeps && p.SleepEvents == o.SleepEvents && p.Version == o.Version && p.HostConflict == o.HostConflict && p.OfferWorkspaceHost == o.OfferWorkspaceHost && p.OfferConnectivityHost == o.OfferConnectivityHost
+	return sameConnections(p.Connections, o.Connections) && p.Platform == o.Platform && p.Form == o.Form && p.Sleeps == o.Sleeps && p.SleepEvents == o.SleepEvents && p.Version == o.Version && p.HostConflict == o.HostConflict && p.OfferWorkspaceHost == o.OfferWorkspaceHost && p.OfferConnectivityHost == o.OfferConnectivityHost
+}
+
+func sameConnections(a, b *DeviceConnections) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // HostFit says how good a device is as a Workspace Host: whether it can be one at all, whether it is a good

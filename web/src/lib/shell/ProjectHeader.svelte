@@ -4,7 +4,6 @@
   const framed = embedded();
   import AssistantButton from '../assistant/AssistantButton.svelte';
   import Icon from '../Icon.svelte';
-  import Mark from '../Mark.svelte';
   import { shortPath } from '../projects';
   import PhoneBack from '../mobile/PhoneBack.svelte';
   import { phone } from '../mobile/phone.svelte';
@@ -31,11 +30,14 @@
   <div class="where">
     <!-- On a phone the project name opens the switcher: it is the only way between projects there. -->
     <div class="name-row">
-      <button class="name" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Switch project, current: {project.name}">
-        {#if !framed && !phone.on}<span class="phone-mark"><Mark height={18} /></span>{/if}
+      {#if phone.on}
+        <button class="name" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Switch project, current: {project.name}">
+          <h1>{project.name}</h1>
+          <span class="chev"><Icon name="down" size={14} /></span>
+        </button>
+      {:else}
         <h1>{project.name}</h1>
-        <span class="chev"><Icon name="down" size={14} /></span>
-      </button>
+      {/if}
     </div>
     {#if project.kind === 'work'}
       <p class="path">Work project · no Git repository</p>
@@ -46,9 +48,10 @@
   <div class="acts">
     {#if !framed}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
     {#if !framed && !phone.on}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
-    <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
+    {#if !phone.on}<button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
       <Icon name="search" /><span class="wide">Jump to</span><kbd class="key wide">{isMac ? '⌘' : 'Ctrl'} K</kbd>
     </button>
+    {/if}
     <a
       class="btn icon gear"
       href={projectHref(project.id, 'defaults')}
@@ -138,10 +141,6 @@
     color: var(--text);
   }
 
-  .phone-mark {
-    display: none;
-  }
-
   .path {
     font-family: var(--mono);
     font-size: 11.5px;
@@ -223,11 +222,6 @@
 
     h1 {
       font-size: 20px;
-    }
-
-    .phone-mark {
-      display: inline-flex;
-      margin-right: 4px;
     }
 
     .phone-only {

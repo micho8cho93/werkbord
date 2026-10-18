@@ -240,12 +240,13 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		SleepEvents int    `json:"sleepEvents"`
 		Version     string `json:"version"`
 		// HostConflict: the device already hosts another workspace.
-		HostConflict bool `json:"hostConflict"`
+		HostConflict bool                      `json:"hostConflict"`
+		Connections  *domain.DeviceConnections `json:"connections,omitempty"`
 	}
 	if !s.decode(w, r, &in) {
 		return
 	}
-	err := s.opt.Service.Heartbeat(r.Context(), actorOf(r), domain.DeviceProfile{Platform: in.Platform, Form: domain.DeviceForm(in.Form), Sleeps: in.Sleeps, SleepEvents: in.SleepEvents, Version: in.Version, HostConflict: in.HostConflict})
+	err := s.opt.Service.Heartbeat(r.Context(), actorOf(r), domain.DeviceProfile{Platform: in.Platform, Form: domain.DeviceForm(in.Form), Sleeps: in.Sleeps, SleepEvents: in.SleepEvents, Version: in.Version, HostConflict: in.HostConflict, Connections: in.Connections})
 	if err != nil {
 		s.fail(w, r, err)
 		return

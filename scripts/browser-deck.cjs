@@ -54,7 +54,7 @@ async function request(token, method, route, body) {
                 await page.waitForFunction(n => document.querySelector('[data-key="agents"] .num')?.textContent === String(n), running);
                 assert.equal(await agents.getAttribute('aria-label'), `Agents, ${running} running`);
             } else assert.equal(await agents.locator('.num').count(), 0);
-            await page.unroute('**/api/control-center');
+            await page.unrouteAll({ behavior: 'wait' });
         }
         await page.reload(); await edit().waitFor();
         await edit().click();

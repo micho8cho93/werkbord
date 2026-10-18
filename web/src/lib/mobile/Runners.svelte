@@ -1,15 +1,15 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
-  import RunnersPanel from '../RunnersPanel.svelte';
+  import { isPhone } from '../phones/capability';
+  import { globalHref } from '../router.svelte';
   import { app } from '../state.svelte';
   import { matchesRunner, runnerCard, type RunnerFilter } from './runners';
   import Segmented from './Segmented.svelte';
 
-  // The person's own runners: the machines that carry out their agents. The cards say how each stands (reachable, how much of it is in
-  // use, what it reports of itself); managing them (pairing, capacity, which projects, removing) is the panel Settings already has, with the
-  // same controls and the same rules, below. A runner belongs to the person who paired it; nothing here reaches anyone else's machine.
+  // One connection card per runner. Computer access links to the existing Settings
+  // controls; enrolled phones can inspect availability without seeing management actions.
   let filter = $state<RunnerFilter>('all');
-  const cards = $derived(app.runners.filter((r) => matchesRunner(r, filter)).map(runnerCard));
+  const cards = $derived(app.runners.filter((r) => matchesRunner(r, filter)).map(r => runnerCard(r, app.connection === 'live')));
   const n = (f: RunnerFilter) => app.runners.filter((r) => matchesRunner(r, f)).length;
   const filters = $derived([
     { id: 'all', label: 'All', count: n('all') },
@@ -22,7 +22,7 @@
   <Segmented options={filters} value={filter} onchange={(id: RunnerFilter) => (filter = id)} label="Show runners" />
 
   {#if app.runners.length === 0}
-    <p class="note">No runners are connected yet. Add one below.</p>
+    <p class="note">No runners are connected yet. Connect one in Settings on your computer.</p>
   {:else if cards.length === 0}
     <p class="note">No runner is {filter}.</p>
   {/if}
@@ -39,7 +39,6 @@
         </div>
         {#if c.online}
           <dl class="stats">
-            <div><dt>Run slots</dt><dd>{c.slots}</dd></div>
             {#if c.cpu}<div><dt>CPU</dt><dd>{c.cpu}</dd></div>{/if}
             {#if c.ram}<div><dt>Memory</dt><dd>{c.ram}</dd></div>{/if}
             {#if c.storage}<div><dt>Storage</dt><dd>{c.storage}</dd></div>{/if}
@@ -50,10 +49,7 @@
     {/each}
   </ul>
 
-  <section aria-labelledby="run-manage">
-    <h2 id="run-manage" class="lab">Manage</h2>
-    <RunnersPanel />
-  </section>
+  {#if !isPhone()}<a class="btn" href="{globalHref('settings')}?runners">Manage runners</a>{/if}
 </div>
 
 <style>
@@ -75,15 +71,6 @@
     margin: 0;
     color: var(--text-2);
     font-size: 13px;
-  }
-
-  section {
-    display: grid;
-    gap: 8px;
-  }
-
-  h2 {
-    margin: 0;
   }
 
   .runner {

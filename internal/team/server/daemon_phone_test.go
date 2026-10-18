@@ -187,6 +187,9 @@ func TestTeamPhoneGrantIsReadOnlyScopedAndRevokedOnAnOpenConnection(t *testing.T
 	if status, body := p.request(t, "GET", "/api/summary"); status != 200 || !strings.Contains(body, "Review login fix") || strings.Contains(body, "member-device-credential") || strings.Contains(body, d.key()) {
 		t.Fatalf("summary: %d %s", status, body)
 	}
+	if got := d.connectionReport(true); !got.RunnerConnected || got.PhonesPaired != 1 || got.PhonesConnected != 1 {
+		t.Fatalf("authenticated phone not reported: %+v", got)
+	}
 	d.lastSync = time.Time{}
 	if status, body := p.request(t, "GET", "/api/summary"); status != 200 || strings.Contains(body, "Review login fix") {
 		t.Fatal("offline summary leaked stale work")
@@ -197,6 +200,9 @@ func TestTeamPhoneGrantIsReadOnlyScopedAndRevokedOnAnOpenConnection(t *testing.T
 		}
 	}
 	d.memberID = "tmb_someone_else"
+	if got := d.connectionReport(false); got.PhonesPaired != 0 || got.PhonesConnected != 0 {
+		t.Fatalf("connection report crossed member scope: %+v", got)
+	}
 	if status, _ := p.request(t, "GET", "/api/summary"); status != 401 {
 		t.Fatal("grant crossed member boundary")
 	}
@@ -214,6 +220,9 @@ func TestTeamPhoneGrantIsReadOnlyScopedAndRevokedOnAnOpenConnection(t *testing.T
 	// Revocation removes the secret and closes this already-authenticated connection.
 	if r := daemonCall(d, "DELETE", "/api/device/v1/phones/"+grant.ID, ""); r.Code != 204 {
 		t.Fatal(r.Code)
+	}
+	if got := d.connectionReport(true); got.PhonesPaired != 0 || got.PhonesConnected != 0 {
+		t.Fatalf("revoked phone still reported: %+v", got)
 	}
 	if _, ok := d.phone.store.Lookup(e2e.IDOf(secret)); ok {
 		t.Fatal("revoked secret survived")

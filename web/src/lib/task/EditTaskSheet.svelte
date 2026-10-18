@@ -32,6 +32,10 @@
     scheduledAt: task.orchestration?.scheduledAt,
     zone: task.orchestration?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
   }));
+  const editKey = (t: string, d: string, e: ExecutionConfig, labels: string[], mode: WorkMode, p: Plan, deps: string[], at: string) =>
+    JSON.stringify([t.trim(), d, compact(e), [...labels].sort(), mode, p.start || '', p.end || '', !!p.milestone, [...deps].sort(), at]);
+  const initialScheduled = start.scheduledAt ? wallTime(start.scheduledAt, start.zone) : '';
+  const initialKey = editKey(start.title, start.description, start.execution, start.labelIds, start.workMode, start.plan, start.dependencies, initialScheduled);
   let title = $state(start.title);
   let description = $state(start.description);
   let execution = $state<ExecutionConfig>(start.execution);
@@ -39,7 +43,8 @@
   let workMode = $state<WorkMode>(start.workMode);
   let plan = $state<Plan>(start.plan);
   let dependencies = $state<string[]>(start.dependencies);
-  let scheduled = $state(start.scheduledAt ? wallTime(start.scheduledAt, start.zone) : '');
+  let scheduled = $state(initialScheduled);
+  const dirty = $derived(editKey(title, description, execution, labelIds, workMode, plan, dependencies, scheduled) !== initialKey);
   const project = $derived(app.project(task.projectId));
   const canAgent = $derived(agentWorkable({ workMode }, project));
   let busy = $state(false);
@@ -63,7 +68,7 @@
   }
 
   async function save() {
-    if (!title.trim() || busy) return;
+    if (!title.trim() || busy || !dirty) return;
     busy = true;
     error = '';
     serverIssues = [];
@@ -137,7 +142,7 @@
   </form>
   {#snippet footer()}
     <button class="btn" type="button" onclick={onclose}>Cancel</button>
-    <button class="btn primary" type="submit" form="edit-task-form" disabled={busy || !title.trim()}>{busy ? 'Saving…' : side ? 'Save changes' : 'Save'}</button>
+    <button class="btn primary" type="submit" form="edit-task-form" disabled={busy || !title.trim() || !dirty}>{busy ? 'Saving…' : side ? 'Save changes' : 'Save'}</button>
   {/snippet}
 </Sheet>
 

@@ -46,12 +46,13 @@ type Workspace struct {
 // Member is a person in a workspace. Their token is how they sign in; only its
 // hash is kept.
 type Member struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspaceId"`
-	Name        string    `json:"name"`
-	Email       string    `json:"email,omitempty"`
-	Role        Role      `json:"role"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspaceId"`
+	Name        string             `json:"name"`
+	Email       string             `json:"email,omitempty"`
+	Role        Role               `json:"role"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	Connections *MemberConnections `json:"connections,omitempty"`
 }
 
 // Can reports whether the member's role allows p.

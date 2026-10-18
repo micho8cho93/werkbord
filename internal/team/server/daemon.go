@@ -547,8 +547,9 @@ func (d *Daemon) profile() domain.DeviceProfile {
 	}
 	d.mu.RLock()
 	authority := d.mat != nil && d.mat.Meta.Authority
+	runnerConnected := d.runnerOK && time.Since(d.lastRunnerCheck) < time.Minute
 	d.mu.RUnlock()
 	// A device that does not host this workspace but already hosts another cannot be asked to host this one.
 	conflict := !authority && d.hostingAllowed() != nil
-	return domain.DeviceProfile{Platform: runtime.GOOS, Form: form, Sleeps: s.Sleeps || form == domain.FormLaptop, OfferWorkspaceHost: s.OfferWorkspaceHost, OfferConnectivityHost: s.OfferConnectivityHost, Version: d.o.Version, HostConflict: conflict}
+	return domain.DeviceProfile{Platform: runtime.GOOS, Form: form, Sleeps: s.Sleeps || form == domain.FormLaptop, OfferWorkspaceHost: s.OfferWorkspaceHost, OfferConnectivityHost: s.OfferConnectivityHost, Version: d.o.Version, HostConflict: conflict, Connections: d.connectionReport(runnerConnected)}
 }

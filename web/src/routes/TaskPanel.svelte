@@ -435,7 +435,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     {#snippet facts()}
         {#if factsSection === 'details'}
           <section>
-            <div class="sh"><h3>Planning</h3><button class="btn quiet small" aria-label="Change plan" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
+            <div class="sh"><h3>Planning</h3></div>
             <dl class="kv">
 
               <dt>When</dt><dd>{planSpan ? `${planSpan.milestone ? 'Milestone · ' : ''}${spanTitle(planSpan, new Date().getFullYear())}` : 'Not planned'}</dd>
@@ -446,7 +446,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
         {#if factsSection === 'run'}
         <section>
-          <div class="sh"><h3>How it runs</h3><button class="btn quiet small" aria-label="Change how it runs" disabled={!!task.archivedAt} onclick={() => (editing = true)}>Change</button></div>
+          <div class="sh"><h3>How it runs</h3></div>
           <dl class="kv">
             <dt>Agent</dt><dd>{effective.agent ? agentLabel(app.agents, effective.agent) : 'First that works'}</dd>
             {#if effective.model}<dt>Model</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.models, effective.model)}</dd>{/if}

@@ -121,8 +121,7 @@ async function resiliencePanel(compact = false) {
 async function membersView() {
   const members = await api('GET', '/members');
   // The directory uses reported device presence only; it never probes a member's runner.
-  const devices = await api('GET', '/devices').catch(() => null);
-  const content = membersPanels(members, devices);
+  const content = membersPanels(members);
   if (can('members.manage') && state.desktop) content.append(h('aside', { class: 'member-tools' }, await invitationsPanel(members)));
   return content;
 }
@@ -134,9 +133,9 @@ async function invitationsPanel(members) {
   const role = h('select', { name: 'enrollment-role' }, h('option', { value: 'member' }, 'Member'), can('admins.manage') ? h('option', { value: 'admin' }, 'Admin') : '');
   const invites = await api('GET', '/enrollment-invitations');
   return h('section', { class: 'panel' }, h('h2', {}, 'Invite a person or device'), h('p', { class: 'muted' }, 'Send a private invitation link. Opening it in the Team app sets up the connection. Administrators approve joining computers in Devices.'),
-    h('form', { onsubmit: e => { e.preventDefault(); act(async () => { createdInvitation = await api('POST', '/enrollment-invitations', { label: label.value, forMemberId: person.value, role: role.value, capabilities: [], requireApproval: true, expiresInHours: 24 }); }); } }, field('Invite label', label), field('Who is joining?', person), field('Role for a new teammate', role), h('button', { class: 'primary' }, 'Create invitation')),
+    h('form', { onsubmit: e => { e.preventDefault(); act(async () => { createdInvitation = await api('POST', '/enrollment-invitations', { label: label.value, forMemberId: person.value, role: role.value, capabilities: [], requireApproval: true, expiresInHours: 24 }); }); } }, field('Invite label', label), field('Who is joining?', person), field('Role for a new teammate', role), h('button', { class: 'primary', disabled: !!createdInvitation }, 'Create invitation')),
     createdInvitation ? h('div', { class: 'invite-result' }, h('strong', {}, 'Your invitation is ready'), h('p', { class: 'muted' }, 'Shown once. Copy it before closing this page. Scan the code on a device with Werkbord Team installed.'), createdInvitation.qr ? h('img', { src: createdInvitation.qr, width: 288, height: 288, alt: 'QR invitation to open Werkbord Team', class: 'invite-qr' }) : '', h('code', {}, createdInvitation.link), h('div', { class: 'actions' }, copy(createdInvitation.link, 'Copy invitation'), h('a', { href: createdInvitation.link.startsWith("werkbord://join/") ? createdInvitation.link : "#" }, 'Open in Team'), h('button', { class: 'plain', onclick: () => { createdInvitation = null; render(); } }, 'Done'))) : '',
-    invites.length ? h('div', {}, h('h3', {}, 'Recent invitations'), invites.map(i => h('div', { class: 'row' }, h('div', { class: 'grow' }, i.label || 'Device invitation'), h('span', { class: 'muted' }, i.state || (i.withdrawnAt ? 'revoked' : 'expires ' + new Date(i.expiresAt).toLocaleDateString())), !i.withdrawnAt ? h('button', { class: 'danger', onclick: () => act(() => api('DELETE', '/enrollment-invitations/' + i.id)) }, 'Revoke') : ''))) : '');
+    invites.length ? h('div', {}, h('h3', {}, 'Recent invitations'), invites.map(i => h('div', { class: 'row' }, h('div', { class: 'grow' }, i.label || 'Device invitation'), h('span', { class: 'muted' }, i.state || (i.withdrawnAt ? 'revoked' : 'expires ' + new Date(i.expiresAt).toLocaleDateString())), !i.withdrawnAt && !['expired', 'consumed', 'revoked'].includes(i.state) && new Date(i.expiresAt).getTime() > Date.now() ? h('button', { class: 'danger', onclick: () => act(() => api('DELETE', '/enrollment-invitations/' + i.id)) }, 'Revoke') : ''))) : '');
 }
 
 async function administrationView(tab) {
@@ -200,7 +199,7 @@ async function devicesView(hostsOnly) {
       fit?.hostFit.reasons?.map(reason => h('p', { class: 'muted' }, reason)) || '',
       admins && isHost && !fit?.removal?.allowed ? h('p', { class: 'advice' }, fit?.removal?.reason || 'Team cannot confirm that this Host can be safely removed yet.') : ''),
       isHost ? h('span', { class: 'badge' }, d.hostStatus) : '',
-      ownRunner && state.desktop ? h('button', { class: 'plain', onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: d.id, action: 'fetch_runner_status', payload: {} }); runnerStatus = null; await pollRequest(); }) }, 'Runner status') : '',
+      ownRunner && state.desktop ? h('button', { class: 'plain', disabled: requestPending(), onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: d.id, action: 'fetch_runner_status', payload: {} }); runnerStatus = null; await pollRequest(); }) }, 'Runner status') : '',
       admins && !isHost && fit?.hostFit.possible !== false ? h('button', { class: 'plain', onclick: () => confirm('Make ' + d.name + ' a Workspace Host? It will keep a workspace copy and should stay online.') && act(async () => { await api('PUT', '/devices/' + d.id + '/capabilities', { capabilities: [...d.capabilities, 'workspace_host'] }); await api('POST', '/devices/' + d.id + '/provision'); state.info = 'The device will become a Host automatically when its Team service next connects.'; }) }, 'Make Workspace Host') : '',
       admins && isHost && d.hostStatus === 'joining' ? h('button', { class: 'plain', onclick: () => act(() => api('POST', '/devices/' + d.id + '/provision')) }, 'Retry host setup') : '',
       admins && isHost ? h('button', { class: 'danger', disabled: !fit?.removal?.allowed, onclick: () => confirm('Remove ' + d.name + ' from the Workspace Hosts? Team will refuse if the remaining hosts cannot safely keep the workspace.') && act(async () => { await api('DELETE', '/devices/' + d.id + '/replica'); }) }, 'Remove host') : '',
@@ -330,7 +329,7 @@ async function settingsView() {
       h('details', {}, h('summary', {}, 'Details'), h('p', { class: 'muted' }, 'A trusted device can ask this computer to open tickets on its runner. Starting work still follows this computer’s local approvals.')),
       h('p', { class: 'identity' }, 'This computer · ', h('code', {}, state.device.identity)),
       (state.device.senders || []).map(d => h('div', { class: 'row' }, h('div', { class: 'grow' }, d.name, h('code', {}, d.identity)), h('button', { class: 'plain', onclick: () => act(() => deviceApi('POST', '/senders/' + d.deviceId + (d.approved ? '/revoke' : '/trust'), d.approved ? {} : { publicKey: d.publicKey })) }, d.approved ? 'Stop trusting' : 'Trust this device')))),
-    h('button', { class: 'primary' }, 'Save settings'))),
+    changedSubmit('Save settings', [form, sleeps, hostOffer, connectivityOffer, policy, open], undefined, 'primary'))),
     h('section', { class: 'panel' }, h('h2', {}, 'Execution approvals'), h('p', { class: 'muted' }, 'Choose a runner and review its permissions in the ticket’s Agent controls.')),
     h('section', { class: 'panel' }, h('h2', {}, 'Service and data'), h('p', { class: 'muted' }, 'Removing the GUI keeps the Team service and workspace running. Leaving can keep an archive or erase local data.'),
       plan.reason ? h('p', { class: 'advice' }, plan.reason) : '',
@@ -346,10 +345,12 @@ function runnerHandoff(hf) {
     const mine = ds.filter(d => d.memberId === state.me.member.id && d.capabilities.includes('runner') && !d.revokedAt);
     if (!mine.length) { box.append(h('p', { class: 'muted' }, 'Connect your free runner in Settings first.'), h('button', { class: 'plain', onclick: () => go('settings') }, 'Set up my runner')); return; }
     const pick = h('select', { name: 'handoff-runner', 'aria-label': 'Your runner' }, mine.map(d => h('option', { value: d.id }, d.name)));
-    box.append(h('div', { class: 'actions' }, pick, h('button', { class: 'primary', onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: pick.value, action: 'open_ticket_on_runner', payload: { projectId: hf.project.id, ticketId: hf.ticket.id } }); await pollRequest(); }) }, 'Open ticket on runner')), activeRequest ? requestPanel() : '');
+    box.append(h('div', { class: 'actions' }, pick, h('button', { class: 'primary', disabled: requestPending(), onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: pick.value, action: 'open_ticket_on_runner', payload: { projectId: hf.project.id, ticketId: hf.ticket.id } }); await pollRequest(); }) }, 'Open ticket on runner')), activeRequest ? requestPanel() : '');
   }).catch(e => { box.append(h('p', { class: 'error' }, e.message)); });
   return box;
 }
+
+function requestPending() { return !!activeRequest && ['queued', 'delivered'].includes(activeRequest.state); }
 
 async function pollRequest() {
   if (!activeRequest) return;
@@ -371,7 +372,7 @@ function requestPanel() {
   return h('div', { class: 'request-status', role: 'status' }, h('p', {}, ({ queued: 'Your request is queued. Your runner will receive it when it is online.', delivered: 'Your runner is processing the request.', done: 'Your runner completed the request.', refused: m.result?.reason || 'Your runner refused the request. Check its local approvals in Settings.', expired: 'The request expired before your runner handled it. Try again when it is online.' })[m.state] || m.state),
     m.result?.approvalId && m.result?.taskId ? h('button', { class: 'primary', onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: m.toDeviceId, action: 'start_approved_run', payload: { taskId: m.result.taskId, approvalId: m.result.approvalId } }); await pollRequest(); }) }, 'Start approved task') : '');
 }
-function runnerStatusPanel() { const policy = { ask: 'Each task needs approval on this computer.', off: 'Remote starts are turned off on this computer.', auto: 'Tickets from your trusted devices can be started here.' }[runnerStatus.remoteStart] || 'Check this computer’s approvals in Settings.'; return h('section', { class: 'panel' }, h('h2', {}, 'Your runner'), h('p', { class: 'muted' }, policy), (runnerStatus.executions || []).map(a => h('div', { class: 'row' }, h('div', { class: 'grow' }, a.title || 'Approved task'), h('button', { class: 'primary', onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: activeRequest.toDeviceId, action: 'start_authorized_run', payload: { projectId: a.teamProjectId, ticketId: a.ticketId, executionId: a.executionId, fenceId: a.fence } }); runnerStatus = null; await pollRequest(); }) }, 'Start approved task')))); }
+function runnerStatusPanel() { const policy = { ask: 'Each task needs approval on this computer.', off: 'Remote starts are turned off on this computer.', auto: 'Tickets from your trusted devices can be started here.' }[runnerStatus.remoteStart] || 'Check this computer’s approvals in Settings.'; return h('section', { class: 'panel' }, h('h2', {}, 'Your runner'), h('p', { class: 'muted' }, policy), (runnerStatus.executions || []).map(a => h('div', { class: 'row' }, h('div', { class: 'grow' }, a.title || 'Approved task'), h('button', { class: 'primary', disabled: requestPending(), onclick: () => act(async () => { activeRequest = await deviceApi('POST', '/requests', { target: activeRequest.toDeviceId, action: 'start_authorized_run', payload: { projectId: a.teamProjectId, ticketId: a.ticketId, executionId: a.executionId, fenceId: a.fence } }); runnerStatus = null; await pollRequest(); }) }, 'Start approved task')))); }
 
 window.addEventListener('load', () => {
   const native = nativeApp();
@@ -405,13 +406,13 @@ function ownExecutionPanel(k) {
   };
   if (!view) return h('section', { class: 'handoff' }, h('h3', {}, 'Your agent'), h('p', { class: 'muted' }, 'Choose your own runner and review its effective policy before approving a run.'), h('button', { class: 'primary', onclick: () => act(refresh) }, 'Agent controls'));
   const selection = view.selection;
-  const change = (field, value) => { selection[field] = value; view.preview = null; view.approval = null; };
+  const change = (field, value) => { selection[field] = value; view.preview = null; view.approval = null; render(); };
   const agent = h('select', { name: 'agent-' + k.id, onchange: e => change('agentId', e.target.value) }, view.detail.agents.map(a => h('option', { value: a.id, selected: a.id === selection.agentId }, a.name + (a.available ? '' : ' · unavailable'))));
   const runner = h('select', { name: 'runner-' + k.id, onchange: e => change('runnerId', e.target.value) }, view.detail.runners.filter(r => r.kind === 'local' && !r.removed && !r.disabled).map(r => h('option', { value: r.id, selected: r.id === selection.runnerId }, r.name + (r.online ? ' · online' : ' · offline'))));
   const model = h('input', { name: 'model-' + k.id, value: selection.model, maxlength: 100, oninput: e => change('model', e.target.value), placeholder: 'default' });
   const reasoning = h('input', { name: 'reasoning-' + k.id, value: selection.reasoning, maxlength: 40, oninput: e => change('reasoning', e.target.value), placeholder: 'default' });
   const interaction = h('select', { name: 'interaction-' + k.id, onchange: e => change('interaction', e.target.value) }, [['interactive', 'Ask me when needed'], ['autonomous', 'Investigate independently'], ['autonomous_stop_if_blocked', 'Stop if blocked']].map(([value, label]) => h('option', { value, selected: value === selection.interaction }, label)));
-  const preapprove = h('input', { type: 'checkbox', name: 'preapprove-' + k.id, checked: !!selection.preapprove, onchange: e => { selection.preapprove = e.target.checked; } });
+  const preapprove = h('input', { type: 'checkbox', name: 'preapprove-' + k.id, checked: !!selection.preapprove, onchange: e => change('preapprove', e.target.checked) });
   const request = () => ({ ...selection, digest: view.preview?.digest || '' });
   const control = (action, run, question, option, reply) => act(async () => { await deviceApi('POST', '/execution/' + action, { projectId: k.projectId, ticketId: k.id, runId: run, questionId: question || '', option: option || '', reply: reply || '' }); await refresh(); });
   const questions = view.detail.questions.filter(q => q.state === 'pending').map(q => {
@@ -420,17 +421,24 @@ function ownExecutionPanel(k) {
       q.options?.length ? h('div', { class: 'actions' }, q.options.map(o => h('button', { class: 'plain', onclick: () => control('answer', q.runId, q.id, o) }, o))) : h('div', { class: 'actions' }, answer, h('button', { class: 'primary', onclick: () => control('answer', q.runId, q.id, '', answer.value) }, 'Reply')));
   });
   const runs = view.detail.runs.map(run => h('div', { class: 'execution-row' }, h('strong', {}, run.agentId + ' · ' + run.state), run.branch ? h('p', {}, 'Branch: ', h('code', {}, run.branch)) : '',
-    ['starting', 'running', 'waiting_for_user'].includes(run.state) ? h('button', { class: 'danger', onclick: () => control('stop', run.id) }, 'Stop my run') : '',
-    run.handoff ? h('details', {}, h('summary', {}, ['completed','failed','stopped','blocked'].includes(run.state) ? 'Review final handoff' : 'Review handoff'), h('pre', { class: 'prose' }, JSON.stringify(run.handoff, null, 2))) : ''));
+    ['starting', 'running', 'waiting_for_user', 'blocked'].includes(run.state) ? h('button', { class: 'danger', onclick: () => control('stop', run.id) }, 'Stop my run') : '',
+    run.handoff ? h('details', {}, h('summary', {}, ['completed','failed','stopped'].includes(run.state) ? 'Review final handoff' : 'Review handoff'), h('pre', { class: 'prose' }, JSON.stringify(run.handoff, null, 2))) : ''));
   return h('section', { class: 'handoff' }, h('h3', {}, 'Your agent'), h('p', { class: 'muted' }, 'Stop/restart is supported. Live pause is unavailable. Agent permissions remain configured on this computer.'),
     field('Runner on this computer', runner), field('Agent', agent), field('Model', model), field('Reasoning', reasoning), field('Conversation policy', interaction),
     h('p', { class: 'muted' }, 'To use another enrolled device, open this ticket there and approve its exact execution locally; use “Open in my runner” to send the signed request.'),
     view.schedule ? h('p', {}, 'Scheduled request: ' + view.schedule.state + ' · ' + new Date(view.schedule.at).toLocaleString() + ' · ' + view.schedule.timezone) : '',
     h('label', { class: 'execution-preapproval' }, preapprove, ' Keep this exact one-shot authorization for up to 30 days'),
-    h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: () => act(async () => { view.preview = await deviceApi('POST', '/execution/preview', request()); view.approval = null; }) }, 'Review execution policy'), h('button', { class: 'plain', onclick: () => act(refresh) }, 'Refresh progress')),
+    h('div', { class: 'actions' }, h('button', { class: 'plain', disabled: !!view.preview || !!view.approval || (!view.schedule && view.detail.runs.some(r => ['starting', 'running', 'waiting_for_user', 'blocked'].includes(r.state))), onclick: () => act(async () => { view.preview = await deviceApi('POST', '/execution/preview', request()); view.approval = null; }) }, 'Review execution policy'), h('button', { class: 'plain', onclick: () => act(refresh) }, 'Refresh progress')),
     view.preview ? h('div', {}, h('h4', {}, 'Effective policy'), h('pre', {}, JSON.stringify({ runner: view.preview.request.runnerId, agent: view.preview.request.agentId, model: view.preview.request.model, interaction: view.preview.request.interaction, ...view.preview.runtimePolicy }, null, 2)),
       h('details', {}, h('summary', {}, 'Untrusted task context'), h('pre', { class: 'prose' }, view.preview.title + '\n' + view.preview.description)),
-      h('button', { class: 'primary', onclick: () => act(async () => { view.approval = await deviceApi('POST', '/execution/approve', request()); if (!view.schedule && !selection.preapprove) { await deviceApi('POST', '/execution/start', request()); view.preview = null; view.approval = null; selection.executionId = 'exe_' + crypto.randomUUID().replaceAll('-', ''); await refresh(); } }) }, view.schedule || selection.preapprove ? 'Approve this execution once' : 'Approve and start my run')) : '',
+      h('button', { class: 'primary', disabled: !!view.approval && (!!view.schedule || !!selection.preapprove || view.detail.runs.some(r => ['starting', 'running', 'waiting_for_user', 'blocked'].includes(r.state))), onclick: () => act(async () => {
+        if (!view.approval) view.approval = await deviceApi('POST', '/execution/approve', request());
+        if (!view.schedule && !selection.preapprove) {
+          try { await deviceApi('POST', '/execution/start', request()); }
+          catch (error) { await refresh().catch(() => {}); throw error; }
+          view.preview = null; view.approval = null; selection.executionId = 'exe_' + crypto.randomUUID().replaceAll('-', ''); await refresh();
+        }
+      }) }, view.schedule || selection.preapprove ? 'Approve this execution once' : view.approval ? 'Start my approved run' : 'Approve and start my run')) : '',
     view.approval ? h('p', { role: 'status' }, 'Authorized once until ' + new Date(view.approval.expiresAt).toLocaleString() + '. The scheduled request will wait for eligibility and this runner.') : '', questions, runs);
 }
 

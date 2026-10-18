@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { agentName, cardActivity, formatDuration, oneLine, runElapsed, runStatus, runnerSlots, runnerState, timeAgo } from './format';
+import { agentName, cardActivity, formatDuration, oneLine, runElapsed, runStatus, runnerConnection, runnerSlots, runnerState, timeAgo } from './format';
 import type { Run } from './types';
 
 const run = (over: Partial<Run> = {}): Run => ({
   id: 'run_1', taskId: 'tsk_1', projectId: 'prj_1', agentId: 'claude-code', state: 'running', version: 1,
   policy: { interaction: 'interactive' }, createdAt: '2026-10-04T10:00:00Z', updatedAt: '2026-10-04T10:00:00Z', ...over,
+});
+
+describe('runner connection', () => {
+  it('does not mistake unused capacity for a disconnected runner', () => {
+    expect(runnerConnection({ online: true, disabled: false })).toBe('Connected');
+    expect(runnerConnection({ online: false, disabled: false })).toBe('Disconnected');
+    expect(runnerConnection({ online: true, disabled: true })).toBe('Connected · new work disabled');
+    expect(runnerConnection({ online: true, disabled: false }, false)).toBe('Connection unknown');
+  });
 });
 
 describe('runner state', () => {

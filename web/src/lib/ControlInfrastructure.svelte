@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { runnerConnection } from './format';
   import { isPhone } from './phones/capability';
   import { globalHref } from './router.svelte';
   import { app } from './state.svelte';
@@ -48,13 +49,13 @@
       <summary>Runner details</summary>
       <ul class="rows">
         {#each machines as r (r.id)}
-          {@const current = r.disabled ? 'disabled' : app.connection !== 'live' ? 'availability unknown' : !r.online ? 'offline' : `${r.currentRuns}/${r.capacity} slots`}
+          {@const current = runnerConnection(r, app.connection === 'live')}
           {@const live = app.connection === 'live' && r.online && !r.disabled}
           <li>
             <div class="line">
               <span class="dot" data-tone={live ? 'ok' : 'neutral'}></span>
               <strong>{r.kind === 'local' ? `${r.name} · this computer` : r.name}</strong>
-              <span class="mm end" aria-label={app.connection === 'live' && r.online && !r.disabled ? `${r.currentRuns} of ${r.capacity} run slots in use` : current}>{current}</span>
+              <span class="mm end" aria-label={current}>{current}</span>
             </div>
             <p class="mm sub">{r.os}/{r.arch} · {(r.capabilities?.agents ?? []).filter((a) => a.available).map((a) => a.name).join(', ') || 'no agents available'}</p>
             {#if app.connection === 'live' && !r.online && r.currentRuns > 0}<p class="warning">Keeps ownership of its work. Reconnect it to reconcile.</p>{/if}

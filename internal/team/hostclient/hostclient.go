@@ -311,7 +311,18 @@ func (c *Client) Heartbeat(ctx context.Context, p domain.DeviceProfile) error {
 		// Sent only when true: a Workspace Host from before this field existed refuses a field it does not know.
 		body["hostConflict"] = true
 	}
-	return c.Do(ctx, "POST", "/device/heartbeat", body, nil)
+	if p.Connections != nil {
+		body["connections"] = p.Connections
+	}
+	err := c.Do(ctx, "POST", "/device/heartbeat", body, nil)
+	// A workspace may still have an older Host during a rolling app update. Its
+	// strict decoder refuses the new optional field before recording the heartbeat.
+	var refused *Error
+	if p.Connections != nil && errors.As(err, &refused) && refused.Status == http.StatusBadRequest && strings.Contains(refused.Message, `unknown field "connections"`) {
+		delete(body, "connections")
+		return c.Do(ctx, "POST", "/device/heartbeat", body, nil)
+	}
+	return err
 }
 
 // Inbox collects the signed requests waiting for this device, waiting up to wait for one.

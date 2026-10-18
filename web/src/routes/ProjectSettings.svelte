@@ -10,10 +10,37 @@
 
   let { project }: { project: Project } = $props();
 
-let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError=$state('');let concurrencySaved=$state(false);
- $effect(()=>{let active=true;api.orchestrationSettings(project.id).then(s=>{if(active)concurrency=s.concurrencyLimit;},e=>{if(active)concurrencyError=e.message;});return ()=>{active=false;};});
- async function saveConcurrency(){concurrencyBusy=true;concurrencyError='';concurrencySaved=false;try{await api.setOrchestrationSettings(project.id,concurrency);concurrencySaved=true;}catch(e){concurrencyError=e instanceof Error?e.message:String(e);}finally{concurrencyBusy=false;}}
- // This project's defaults: they override the global ones, and each task can override them in turn.
+  let concurrency = $state(1);
+  let savedConcurrency = $state<number | null>(null);
+  let concurrencyBusy = $state(false);
+  let concurrencyError = $state('');
+  let concurrencySaved = $state(false);
+  const capacityChanged = $derived(savedConcurrency !== null && concurrency !== savedConcurrency);
+  const capacityValid = $derived(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 16);
+  $effect(() => {
+    let active = true;
+    savedConcurrency = null;
+    concurrencySaved = false;
+    concurrencyError = '';
+    api.orchestrationSettings(project.id).then(settings => {
+      if (active) { concurrency = settings.concurrencyLimit; savedConcurrency = settings.concurrencyLimit; }
+    }, error => { if (active) concurrencyError = error.message; });
+    return () => { active = false; };
+  });
+  async function saveConcurrency() {
+    if (concurrencyBusy || !capacityChanged || !capacityValid) return;
+    const projectId = project.id;
+    concurrencyBusy = true;
+    concurrencyError = '';
+    concurrencySaved = false;
+    try {
+      const saved = await api.setOrchestrationSettings(projectId, concurrency);
+      if (project.id === projectId) { savedConcurrency = saved.concurrencyLimit; concurrencySaved = true; }
+    } catch (error) {
+      if (project.id === projectId) concurrencyError = error instanceof Error ? error.message : String(error);
+    } finally { concurrencyBusy = false; }
+  }
+  // This project's defaults: they override the global ones, and each task can override them in turn.
   let draft = $state<ExecutionConfig>({});
   let draftFor = '';
   let saving = $state(false);
@@ -94,9 +121,9 @@ let concurrency=$state(1);let concurrencyBusy=$state(false);let concurrencyError
 
 {:else if section === 'capacity'}
 <section class="pn">
- <h3>Concurrent runs</h3><label for="concurrency">Concurrent sessions in this project</label><input id="concurrency" class="input narrow" type="number" min="1" max="16" bind:value={concurrency} />
+ <h3>Concurrent runs</h3><label for="concurrency">Concurrent sessions in this project</label><input id="concurrency" class="input narrow" type="number" min="1" max="16" bind:value={concurrency} disabled={concurrencyBusy || savedConcurrency === null} />
  <p class="muted small">Running, starting, blocked, and waiting sessions all occupy capacity. Unknown or overlapping file scope still runs sequentially.</p>
- {#if concurrencyError}<p class="error" role="alert">{concurrencyError}</p>{/if}<div class="row"><button class="btn primary" disabled={concurrencyBusy} onclick={saveConcurrency}>Save capacity</button>{#if concurrencySaved}<span class="ok" role="status">Saved</span>{/if}</div>
+ {#if concurrencyError}<p class="error" role="alert">{concurrencyError}</p>{/if}<div class="row"><button class="btn primary" disabled={concurrencyBusy || !capacityChanged || !capacityValid} onclick={saveConcurrency}>Save capacity</button>{#if concurrencySaved && concurrency === savedConcurrency}<span class="ok" role="status">Saved</span>{/if}</div>
  </section>
   {:else}
   <section class="pn">

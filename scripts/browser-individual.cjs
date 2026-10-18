@@ -535,7 +535,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert(contextFileHref.includes(`task=${localTask.id}`) && contextFileHref.includes(`run=${localRun.id}`),'file drill-down retains the explicit review origin');
         await contextFile.click();
         await page.getByRole('region',{name:'Review from task',exact:true}).waitFor();
-        assert(await page.getByText('Tests reported · none · not verified',{exact:true}).isVisible(),'task result and reported test status stay visible while reading a diff');
+        await page.getByText('Tests reported · none · not verified',{exact:true}).waitFor({state:'visible'}); // The new file view resolves its review context asynchronously.
         assert((await page.getByRole('link',{name:`← ${ownedBranch.name}`,exact:true}).getAttribute('href')).includes(`task=${localTask.id}`),'file view returns to the task-associated branch');
         await captureDecisionSurface('task-owned-file');
         await page.getByRole('link',{name:`← ${ownedBranch.name}`,exact:true}).click();

@@ -2,7 +2,7 @@
   import AssistantButton from '../assistant/AssistantButton.svelte';
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
-  import { runnerSlots, runnerState } from '../format';
+  import { runnerConnection } from '../format';
   import { attentionCount } from '../projects';
   import { globalHref, hrefOf, router, switchedTo } from '../router.svelte';
   import { app } from '../state.svelte';
@@ -65,12 +65,12 @@
         <a href="{globalHref('settings')}?runners" class="sec-link"><Icon name="runner" />Runners</a>
       </div>
       {#each app.runners as r (r.id)}
-        {@const state = runnerState(r)}
-        <a class="nav runner" href="{globalHref('settings')}?runners" title="{r.hostname} · {state}{r.online && !r.disabled ? ` · ${runnerSlots(r)}` : ''}">
-          <span class="dot" data-tone={r.disabled || !r.online ? 'neutral' : r.currentRuns > 0 ? 'work' : 'ok'} class:off={r.disabled || !r.online} aria-hidden="true"></span>
+        {@const state = runnerConnection(r, app.connection === 'live')}
+        <a class="nav runner" href="{globalHref('settings')}?runners" title="{r.hostname} · {state}">
+          <span class="dot" data-tone={app.connection !== 'live' || r.disabled || !r.online ? 'neutral' : r.currentRuns > 0 ? 'work' : 'ok'} class:off={app.connection !== 'live' || r.disabled || !r.online} aria-hidden="true"></span>
           <span class="name">{r.kind === 'local' ? 'this computer' : r.name}</span>
-          <span class="n" aria-hidden="true">{r.disabled ? 'off' : r.online ? `${r.currentRuns}/${r.capacity}` : 'offline'}</span>
-          <span class="visually-hidden">{state}{r.online && !r.disabled ? `, ${runnerSlots(r)}` : ''}</span>
+          <span class="n" aria-hidden="true">{app.connection !== 'live' ? 'Unknown' : !r.online ? 'Disconnected' : r.disabled ? 'Disabled' : 'Connected'}</span>
+          <span class="visually-hidden">{state}</span>
         </a>
       {/each}
     </nav>

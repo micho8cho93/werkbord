@@ -27,8 +27,8 @@
 
 <div class="assessment" role="group" aria-label="Your assessment of this run" aria-describedby="assess-help-{run.id}">
   <span role="status">{busy ? 'Saving assessment…' : 'Your assessment: '}<strong>{!busy ? (run.usage?.acceptance === 'accepted' ? 'Accepted' : run.usage?.acceptance === 'rejected' ? 'Rejected' : 'Not recorded') : ''}</strong></span>
-  <button class="btn small" aria-pressed={run.usage?.acceptance === 'accepted'} disabled={busy} onclick={() => assess('accepted')}>Accept work</button>
-  <button class="btn small" aria-pressed={run.usage?.acceptance === 'rejected'} disabled={busy} onclick={() => assess('rejected')}>Reject work</button>
+  <button class="btn small" aria-pressed={run.usage?.acceptance === 'accepted'} disabled={busy || run.usage?.acceptance === 'accepted'} onclick={() => assess('accepted')}>Accept work</button>
+  <button class="btn small" aria-pressed={run.usage?.acceptance === 'rejected'} disabled={busy || run.usage?.acceptance === 'rejected'} onclick={() => assess('rejected')}>Reject work</button>
 </div>
 <p class="explanation muted small" id="assess-help-{run.id}">This records your assessment. It does not merge, move or archive the task. You can change it later.</p>
 {#if error}<p class="error" role="alert">{error}</p>{/if}
