@@ -36,7 +36,7 @@ const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n =
  */
 export function deckKeys(c: DeckCounts): DeckKey[] {
   return [
-    { id: 'needs', label: 'Needs you', icon: 'control', href: globalHref('control'), count: c.needsYou, tone: 'wait', note: c.needsYou ? `${plural(c.needsYou, 'item')} need you` : '' },
+    { id: 'needs', label: 'Workspace', icon: 'control', href: globalHref('control'), count: c.needsYou, tone: 'wait', note: c.needsYou ? `${plural(c.needsYou, 'item')} need you` : '' },
     { id: 'calendar', label: 'Calendar', icon: 'calendar', href: globalHref('schedule'), count: 0, tone: 'plain', note: '' },
     { id: 'projects', label: 'Projects', icon: 'folder', href: globalHref('projects'), count: 0, tone: 'plain', note: '' },
     { id: 'mywork', label: 'My Work', icon: 'check', href: globalHref('mywork'), count: 0, tone: 'plain', note: '' },

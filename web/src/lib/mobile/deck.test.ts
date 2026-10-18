@@ -6,7 +6,7 @@ const counts = { needsYou: 0, review: 0, running: 0, repoAttention: 0 };
 
 describe('deckKeys', () => {
   it('preserves all nine original navigation destinations in the catalogue', () => {
-    expect(deckKeys(counts).map((k) => k.label)).toEqual(['Needs you', 'Calendar', 'Projects', 'My Work', 'Agents', 'Analytics', 'Reviews', 'Git', 'Runners']);
+    expect(deckKeys(counts).map((k) => k.label)).toEqual(['Workspace', 'Calendar', 'Projects', 'My Work', 'Agents', 'Analytics', 'Reviews', 'Git', 'Runners']);
   });
 
   it('points every key at a page of its own', () => {

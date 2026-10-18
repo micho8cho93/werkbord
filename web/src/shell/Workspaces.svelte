@@ -28,7 +28,7 @@
 
 <section class="page" aria-labelledby="ws-h">
   <header>
-    <h1 id="ws-h">Workspaces and devices</h1>
+    <h1 id="ws-h">Devices &amp; Hosting</h1>
     <p class="lede">Closing this window stops nothing: your agents, schedules and Team services keep running.</p>
   </header>
 

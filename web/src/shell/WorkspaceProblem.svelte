@@ -10,7 +10,7 @@
   <p>{item?.detail || 'Check the connection, then refresh this workspace.'}</p>
   <div class="actions">
     <button class="btn primary" type="button" onclick={async () => { await model.refresh(); await model.open('personal'); }}>Check connection</button>
-    <button class="btn" type="button" onclick={() => model.go('workspaces')}>Workspaces and devices</button>
+    <button class="btn" type="button" onclick={() => model.go('workspaces')}>Devices &amp; Hosting</button>
   </div>
 </section>
 

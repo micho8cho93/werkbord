@@ -18,7 +18,7 @@ async function api(method, route, data) {
 const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const at = (n, h, m = 0) => { const d = new Date(); d.setDate(d.getDate() + n); d.setHours(h, m, 0, 0); return d.toISOString(); };
 
-const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/schedule'], ['projects', 'Projects', '#/projects'], ['mywork', 'My Work', '#/mywork'], ['agents', 'Agents', '#/agents'], ['analytics', 'Analytics', '#/analytics'], ['reviews', 'Reviews', '#/reviews'], ['git', 'Git', '#/repositories'], ['runners', 'Runners', '#/runners']];
+const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/schedule'], ['projects', 'Projects', '#/projects'], ['mywork', 'My Work', '#/mywork'], ['agents', 'Agents', '#/agents'], ['analytics', 'Analytics', '#/analytics'], ['reviews', 'Reviews', '#/reviews'], ['git', 'Git', '#/repositories'], ['runners', 'Runners', '#/runners']];
 
 (async () => {
     await api('POST', '/api/onboarding/complete', {});
@@ -362,7 +362,7 @@ const KEYS = [['needs', 'Needs you', '#/control'], ['calendar', 'Calendar', '#/s
         const page = await ctx.newPage();
         page.on('pageerror', (e) => errors.push(e.message));
         await page.goto(base + '/#token=' + token);
-        await page.getByRole('link', { name: 'Needs you' }).first().waitFor();
+        await page.getByRole('link', { name: 'Workspace' }).first().waitFor();
         await page.goto(base + '/#/deck');
         await page.waitForFunction(() => location.hash === '#/control');
         assert.equal(await page.locator('[data-phone-nav]').count(), 0, 'no phone bar on a wide window');

@@ -161,8 +161,8 @@ let browser, shellServer;
  await shellPage.getByTestId('workspace-switcher').click();
  await shellPage.screenshot({path:path.join(artifacts,'universal-switcher-desktop.png')});
  await shellPage.keyboard.press('Escape');
- for (const destination of ['My Work','Calendar','Needs you']) {
-  if (destination === 'Needs you') await side.locator('[data-page=inbox]').click(); else await side.getByRole('button',{name:destination,exact:true}).click();
+ for (const destination of ['My Work','Workspaces','Calendar']) {
+  if (destination === 'Workspaces') await side.locator('[data-page=inbox]').click(); else await side.getByRole('button',{name:destination,exact:true}).click();
   await shellPage.waitForTimeout(350);
   await shellPage.screenshot({path:path.join(artifacts,'universal-'+destination.toLowerCase().replaceAll(' ','-')+'-desktop.png')});
  }

@@ -20,12 +20,12 @@ export interface NavEntry {
 export function entries(kind: Kind): NavEntry[] {
   if (kind === 'personal') {
     return [
-      { key: 'home', title: 'Needs you', icon: 'overview', place: '#/control' },
+      { key: 'home', title: 'Workspace', icon: 'overview', place: '#/control' },
       { key: 'projects', title: 'Projects', icon: 'folder', place: '#/projects' },
     ];
   }
   return [
-    { key: 'home', title: 'Needs you', icon: 'overview', place: '?tab=workspace' },
+    { key: 'home', title: 'Workspace', icon: 'overview', place: '?tab=workspace' },
     { key: 'projects', title: 'Projects', icon: 'folder', place: '?tab=projects' },
     { key: 'reviews', title: 'Reviews', icon: 'merge', place: '?tab=reviews' },
     { key: 'members', title: 'Members', icon: 'people', place: '?tab=members' },

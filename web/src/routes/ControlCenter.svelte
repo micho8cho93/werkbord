@@ -110,7 +110,7 @@
         {/if}
       {/each}
     </div>
-    <p class="scope-note muted small">Needs you and project badges count interruptions. All also includes work ready for review.</p>
+    <p class="scope-note muted small">Workspace and project badges count interruptions. All also includes work ready for review.</p>
     <div class="filters">
       {#if app.projects.length > 1}
         <label class="pick" class:on={projectFilter}>
@@ -155,7 +155,7 @@
   </div>
 
   <div class="split">
-    <div class="pane" aria-label="Needs you">
+    <div class="pane" aria-label="Workspace">
       {#if app.waiting.length && segment === 'all'}
         <section class="waiting-list" aria-labelledby="waiting-h">
           <h2 id="waiting-h" class="ph">Team tickets waiting for a repository<span class="chip">{app.waiting.length}</span></h2>

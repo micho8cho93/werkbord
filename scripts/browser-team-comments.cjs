@@ -60,7 +60,7 @@ const clientId = () => 'browser-' + stamp + '-' + (++counter);
     for (const p of [adaPage, boPage, bo2Page]) await p.locator('.app-shell').waitFor();
     // Bo's two windows rest on Needs you, with nothing waiting.
     for (const p of [boPage, bo2Page]) await p.getByText('All caught up.').waitFor();
-    const navBadge = p => p.locator('.rail-primary button[aria-label="Needs you"] .count');
+    const navBadge = p => p.locator('.rail-primary button[aria-label="Workspace"] .count');
     assert.equal(await navBadge(boPage).count(), 0, 'nothing is counted before anyone is mentioned');
 
     // ---- Ada writes, choosing Bo with the keyboard ----

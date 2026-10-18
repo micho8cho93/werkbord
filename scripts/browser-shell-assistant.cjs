@@ -150,7 +150,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     try {
         const { ctx, page } = await open();
         const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
-        const button = side.getByRole('button', { name: /^Assistant/ });
+        const button = side.getByRole('button', { name: /^Sally/ });
         const surfaceEl = page.getByTestId('assistant-frame');
         const assistantFrame = page.frameLocator('[data-testid=assistant-frame]');
         await button.waitFor();
@@ -158,7 +158,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await button.getAttribute('aria-expanded'), 'false');
         assert.equal(await surfaceEl.count(), 0, 'nothing is loaded for the assistant until it is opened');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-button.png') });
-        ok('the sidebar has an Assistant button');
+        ok('the sidebar has a Sally button');
 
         // Go to a different workspace and leave something half-written there.
         await page.getByTestId('workspace-switcher').click();
@@ -329,7 +329,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Reduced motion applies here as well.
         {
             const { ctx, page } = await open({ reducedMotion: 'reduce' });
-            const button = page.getByRole('navigation', { name: 'Werkbord', exact: true }).getByRole('button', { name: /^Assistant/ });
+            const button = page.getByRole('navigation', { name: 'Werkbord', exact: true }).getByRole('button', { name: /^Sally/ });
             await button.click();
             const frame = await (await page.getByTestId('assistant-frame').elementHandle()).contentFrame();
             const sampling = sampleInFrame(frame, 500).catch(() => []);

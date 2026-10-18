@@ -8,7 +8,7 @@
   const KEY = 'werkbord-team-tour' + (BASE ? ':' + BASE.slice(3) : '');
   const TIPS = [
     ['Shared with your team', 'Projects, boards and tickets here are shared with the people on each project. Team coordinates the work; it never runs agents or reaches into anyone’s computer.'],
-    ['Needs you and My Work', 'Needs you collects what is waiting for you. My Work is your own tickets, and Reviews is work waiting for your verdict.'],
+    ['Workspace and My Work', 'Workspace collects what is waiting for you. My Work is your own tickets, and Reviews is work waiting for your verdict.'],
     ['Projects and invitations', 'Open Projects to see who is on each project and to invite people with a link.'],
     ['Run it on your own computer', 'Open a ticket in Werkbord to do the work on your own computer, with your own agents and sign-ins. Press ? to see these tips again.'],
   ];

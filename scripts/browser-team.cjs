@@ -58,7 +58,7 @@ async function api(method, path, data, credential = token) {
     console.log('PASS Settings disclosure, primary Members deep-link reload, self rotation and credential persistence');
     // Missing URL parameters reset older state, including on Back and Forward.
     await page.goto(base + '/');
-    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Needs you' }).waitFor();
+    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Workspace' }).waitFor();
     await page.getByRole('button', { name: 'Projects', exact: true }).click();
     await page.getByRole('button', { name: q.name, exact: true }).click();
     await page.waitForFunction(id => document.querySelector('[name="project-switch"]')?.value === id, q.id);
@@ -66,7 +66,7 @@ async function api(method, path, data, credential = token) {
     await page.locator('nav [aria-current="page"]').filter({ hasText: 'Projects' }).waitFor();
     assert.deepEqual(await page.evaluate(() => [state.tab, state.projectId, state.ticketId]), ['projects', null, null]);
     await page.goBack();
-    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Needs you' }).waitFor();
+    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Workspace' }).waitFor();
     assert.deepEqual(await page.evaluate(() => [state.tab, state.projectId, state.ticketId]), ['workspace', null, null]);
     await page.goForward();
     await page.locator('nav [aria-current="page"]').filter({ hasText: 'Projects' }).waitFor();
@@ -74,7 +74,7 @@ async function api(method, path, data, credential = token) {
     await page.goForward();
     await page.waitForFunction(id => document.querySelector('[name="project-switch"]')?.value === id, q.id);
     await page.goto(base + `/?tab=invalid&project=&ticket=`);
-    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Needs you' }).waitFor();
+    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Workspace' }).waitFor();
     assert.deepEqual(await page.evaluate(() => [state.tab, state.projectId, state.ticketId]), ['workspace', null, null]);
     await page.goto(base + `/?tab=people&project=${p.id}`);
     await page.getByRole('heading', { name: /^People on this project/ }).waitFor();

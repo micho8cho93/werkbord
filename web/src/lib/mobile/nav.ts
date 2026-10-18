@@ -5,7 +5,7 @@ import { globalHref, hrefOf, type Location, type View } from '../location';
 /** What a page is called in the phone's heading and in the words "Back to …". */
 const TITLES: Partial<Record<View, string>> = {
   deck: 'Control Deck',
-  control: 'Needs you',
+  control: 'Workspace',
   schedule: 'Calendar',
   projects: 'Projects',
   mywork: 'My Work',

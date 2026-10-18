@@ -26,7 +26,7 @@ export type ProjectSection = 'overview' | 'board' | 'calendar' | 'timeline' | 'g
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | PhoneView>; label: string; short: string }[] = [
-  { id: 'control', label: 'Needs you', short: 'Needs you' },
+  { id: 'control', label: 'Workspace', short: 'Workspace' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'analytics', label: 'Analytics', short: 'Analytics' },
   { id: 'settings', label: 'Settings', short: 'Settings' },

@@ -102,18 +102,18 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 
 ### The window's workspace selector
 
-Universal is a peer choice beside Individual and each Team workspace. Its sidebar destinations are My Work,
-Calendar and Needs you, spanning all workspaces. Individual's workspace destinations are Needs you and Projects,
-with Analytics immediately below Add project. Each Team workspace lists Needs you, Projects, Reviews, Members and Analytics.
-The shell keeps Assistant, Workspaces and devices, relevant workspace Settings and theme controls separate from
-these destinations. Universal has no workspace-specific Settings or project list. Project sections belong above
+Universal is a peer choice beside Individual and each Team workspace. Its sidebar destinations are Sally,
+My Work, Workspaces and Calendar, in that order. Workspaces spans attention from all workspaces. Individual's workspace
+destinations are Workspace and Projects, with Analytics immediately below Add project. Each Team workspace lists
+Workspace, Projects, Reviews, Members and Analytics. The shell keeps Sally, Devices & Hosting, relevant workspace Settings
+and theme controls separate from these destinations. Universal has no workspace-specific Settings or project list. Project sections belong above
 the project's content, not in the workspace sidebar. The window uses its own 208px sidebar, collapsing to 48px;
 the intermediate-width label control reveals the names without changing the route.
 
 ### Team console
 
 Team uses the same paper, ink, Geist, icon strokes and action colours, with its own coordination sections:
-Needs you · Projects · Reviews · Members · Analytics. Desktop has a 232px rail (248px above
+Workspace · Projects · Reviews · Members · Analytics. Desktop has a 232px rail (248px above
 1800px), project shortcuts and Settings at the foot. Changing projects keeps the current project section. Inside the
 desktop app the window's sidebar replaces the rail. A project's Overview, Board, Calendar, Git and Runs are tabs above
 its content; Project members appear in the project header; membership and invitation management live under Project settings. Calendar shows planned dates and shared schedule requests;

@@ -172,7 +172,7 @@
   });
 
   const phoneTabs = $derived<{ id: string; label: string; icon: IconName; href: string; current: boolean; count?: number }[]>([
-    { id: 'control', label: 'Needs you', icon: 'control', href: globalHref('control'), current: router.view === 'control', count: app.needsYou },
+    { id: 'control', label: 'Workspace', icon: 'control', href: globalHref('control'), current: router.view === 'control', count: app.needsYou },
     ...(['board', 'calendar', 'git', 'runs'] as const)
       .filter((s) => sectionApplies(s, project?.kind))
       .map((s) => ({

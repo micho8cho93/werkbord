@@ -7,8 +7,8 @@
   import { activeKey, entries, listed, settingsPlace } from './nav';
 
   // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), what spans every
-  // workspace (My Work, Calendar, Needs you), the open workspace's own places (its home, projects and so on), and last the
-  // things about this computer (Workspaces and devices, Settings of the workspace open, the theme). The workspaces' own
+  // workspace (My Work, Workspaces, Calendar), the open workspace's own places (its home, projects and so on), and last the
+  // things about this computer (Devices & Hosting, Settings of the workspace open, the theme). The workspaces' own
   // pages carry no navigation of their own in this window.
   const everywhereShown = $derived(model.universal);
   const active = $derived(model.view?.items.find((i) => i.id === model.current));
@@ -24,8 +24,8 @@
 
   const everywhere: { id: Page; title: string; icon: IconName }[] = [
     { id: 'mywork', title: 'My Work', icon: 'check' },
+    { id: 'inbox', title: 'Workspaces', icon: 'control' },
     { id: 'calendar', title: 'Calendar', icon: 'calendar' },
-    { id: 'inbox', title: 'Needs you', icon: 'control' },
   ];
 
   // A narrow window keeps room for the workspace's pages (they change to a phone layout under about 900px): the sidebar
@@ -56,12 +56,12 @@
   const assistantReachable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state !== 'unavailable');
   const assistantLabel = $derived(
     !assistantReachable
-      ? 'Assistant, unavailable: Cannot reach Werkbord'
+      ? 'Sally, unavailable: Cannot reach Werkbord'
       : model.assistant.waiting > 0
-        ? `Assistant, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'change is' : 'changes are'} waiting for you`
+        ? `Sally, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'change is' : 'changes are'} waiting for you`
         : model.assistant.running
-          ? 'Assistant, working'
-          : 'Assistant',
+          ? 'Sally, working'
+          : 'Sally',
   );
   function askAssistant() {
     const r = assistantButton?.getBoundingClientRect();
@@ -87,8 +87,8 @@
   </button>
 
   <div class="group ask">
-    <button bind:this={assistantButton} class="nav assistant" type="button" aria-haspopup="dialog" aria-expanded={model.assistant.open} aria-label={assistantLabel} title={assistantReachable ? 'Assistant' : 'Cannot reach Werkbord'} disabled={!assistantReachable} onclick={askAssistant} data-page="assistant">
-      <span class="aico"><Icon name="assistant" /></span><span class="label">Assistant</span>
+    <button bind:this={assistantButton} class="nav assistant" type="button" aria-haspopup="dialog" aria-expanded={model.assistant.open} aria-label={assistantLabel} title={assistantReachable ? 'Sally' : 'Cannot reach Werkbord'} disabled={!assistantReachable} onclick={askAssistant} data-page="assistant">
+      <span class="aico"><Icon name="assistant" /></span><span class="label">Sally</span>
       {#if model.assistant.waiting > 0}
         <span class="num" aria-hidden="true">{model.assistant.waiting}</span>
       {:else if model.assistant.running}
@@ -128,14 +128,14 @@
         {/if}
       {/each}
     {:else if !everywhereShown}
-      {@render item('Needs you', 'control', model.page === 'inbox', () => model.go('inbox'), 'inbox', needs)}
+      {@render item('Workspace', 'control', model.page === 'inbox', () => model.go('inbox'), 'inbox', needs)}
     {/if}
   </div>
 
   {/if}
   <div class="group bottom">
     <div class="lbl" aria-hidden="true"></div>
-    {@render item('Workspaces and devices', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
+    {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
     {#if usable && !model.universal}
       {@render item('Settings', 'settings', here === 'settings', () => model.visit(settingsPlace(kind)), 'settings')}
     {/if}

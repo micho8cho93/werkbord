@@ -20,7 +20,7 @@ export interface TourStep {
 export const TOURS: Record<TourSurface, readonly TourStep[]> = {
   desktop: [
     {
-      title: 'Needs you comes first',
+      title: 'Your Workspace comes first',
       body: 'Questions from the assistant, work to review and anything blocked wait here. Start here when you come back.',
       target: '.rail nav[aria-label="Everywhere"] a',
     },
