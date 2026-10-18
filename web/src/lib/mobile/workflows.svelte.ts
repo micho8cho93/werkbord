@@ -15,7 +15,7 @@ export class Workflows {
   private watching = new SvelteMap<string, () => void>();
   private refreshing: Promise<void> | null = null;
   private generation = 0;
-  open(taskId: string) { this.selected = taskId; }
+  open(taskId: string) { this.selected = taskId; void this.refresh(); }
   async refresh(recoverCompleted = true): Promise<void> {
     const generation = this.generation;
     if (this.refreshing) { await this.refreshing; if (generation === this.generation) return this.refresh(recoverCompleted); return; }

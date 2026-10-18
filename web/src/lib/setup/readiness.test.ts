@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { localReadiness } from './readiness';
+import { localReadiness, setupCurrent } from './readiness';
 import type { Agent, Project, Runner } from '../types';
 
 const runner = { kind: 'local', online: true, disabled: false, capacity: 1 } as Runner;
@@ -19,4 +19,13 @@ it('does not count a planning project as a repository and selects a registered c
   const work = { id: 'work', kind: 'work', repoPath: '' } as Project;
   expect(localReadiness([runner], [agent], [work], true)).toMatchObject({ completed: 2, next: 'repository', project: undefined });
   expect(localReadiness([runner], [agent], [work, repo], true).project).toBe(repo);
+});
+
+it('advances a selected setup step when detection verifies it and keeps completed requirements out of the path', () => {
+  const steps = [...localReadiness([runner], [agent], [repo], true).steps, { id: 'github', done: false }, { id: 'ticket', done: false }];
+  for (const id of ['computer', 'agents', 'repository']) expect(setupCurrent(steps, {}, id)).toBe('github');
+  expect(setupCurrent(steps, {github:'skipped'}, 'computer')).toBe('ticket');
+  expect(setupCurrent(steps, {}, 'ticket')).toBe('ticket');
+  const disconnected = [...localReadiness([runner], [agent], [repo], false).steps, {id:'github',done:false}];
+  expect(setupCurrent(disconnected, {}, 'computer')).toBe('computer');
 });

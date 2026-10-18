@@ -53,6 +53,10 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
    await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
   }
   if(label==='This computer'){
+   await page.waitForFunction(()=>state.device?.runner.connected);
+   await page.evaluate(()=>render());
+   assert(await page.getByRole('button',{name:'Runner connected',exact:true}).isDisabled(),'a connected runner cannot repeat setup');
+   assert.equal(await page.getByRole('button',{name:/Reconnect runner|Connect existing runner|Install \/ set up free runner/}).count(),0,'no redundant runner actions');
    await shot(page,'this-computer');await shot(page,'this-computer-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
    await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
    await page.waitForFunction(()=>{const el=document.querySelector('.settings-sections button[aria-current="page"]');if(!el)return false;const style=getComputedStyle(el);return document.documentElement.dataset.theme==='dark'&&style.backgroundColor==='rgb(37, 38, 43)'&&style.color==='rgb(240, 240, 236)';});

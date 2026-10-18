@@ -10,7 +10,7 @@
   import PhoneStepCard from '../lib/setup/PhoneStepCard.svelte';
   import ReposCard from '../lib/setup/ReposCard.svelte';
   import SetupCard from '../lib/setup/SetupCard.svelte';
-  import { localReadiness } from '../lib/setup/readiness';
+  import { localReadiness, setupCurrent } from '../lib/setup/readiness';
   import { app } from '../lib/state.svelte';
   import type { GitHubStatusInfo } from '../lib/types';
 
@@ -18,7 +18,8 @@
   let finishing = $state(false);
   let error = $state('');
   let readinessUnavailable = $state(false);
-  let checking = $state(false);
+  let checking = $state(true);
+  let checked = $state(false);
   let chosen = $state<string | null>(null);
   let phonePaired = $state(false);
   const local = $derived(localReadiness(app.runners, app.agents, app.projects, app.connection === 'live' && !readinessUnavailable));
@@ -42,10 +43,11 @@
     { id: 'phone', label: 'Phone', done: phonePaired || stepStates.phone === 'done', optional: true },
   ].map((x) => ({ optional: false, ...x })));
   // Resumes at the first step that is neither verified nor skipped, unless the person picked another.
-  const current = $derived(chosen ?? steps.find((x) => !x.done && stepStates[x.id] !== 'skipped')?.id ?? steps[steps.length - 1].id);
+  const current = $derived(setupCurrent(steps, stepStates, chosen));
   const exampleStep = $derived(current === 'ticket' || current === 'assistant' || current === 'publish');
   const currentIndex = $derived(steps.findIndex((x) => x.id === current));
   const currentStep = $derived(steps[currentIndex]);
+  const previous = $derived(steps.slice(0, currentIndex).reverse().find(s => !(s.done && ['computer', 'agents', 'repository'].includes(s.id))));
 
   async function recheck() {
     checking = true;
@@ -58,10 +60,11 @@
     } catch (err) {
       readinessUnavailable = true;
       error = err instanceof Error ? err.message : String(err);
-    } finally { checking = false; }
+    } finally { checking = false; checked = true; }
   }
 
   function go(id: string) {
+    if (['computer', 'agents', 'repository'].includes(id) && steps.find(s => s.id === id)?.done) return;
     chosen = id;
     if (id === 'computer' || id === 'agents') void recheck();
   }
@@ -131,11 +134,11 @@
     <p class="lede">
       Run your first local coding task. Your runner, agent sign-in and repository stay on your computer. You can also continue with planning only.
     </p>
-    <p class="progress-label" role="status">{local.completed} of 3 requirements verified{local.ready ? ' · ready to create a task' : ''}</p>
+    <p class="progress-label" role="status">{!checked ? 'Checking this computer…' : `${local.completed} of 3 requirements verified${local.ready ? ' · ready to create a task' : ''}`}</p>
     <ol class="progress" aria-label="Setup steps">
       {#each steps as s, i (s.id)}
         <li>
-          <button class="chip" data-done={s.done} aria-current={s.id === current ? 'step' : undefined} onclick={() => go(s.id)}>
+          <button class="chip" disabled={!checked || (s.done && ['computer', 'agents', 'repository'].includes(s.id))} data-done={s.done} aria-current={s.id === current ? 'step' : undefined} onclick={() => go(s.id)}>
             <span class="dot" data-tone={s.done ? 'ok' : 'neutral'}></span>{i + 1}. {s.label}{s.optional ? ' (optional)' : ''}<span class="visually-hidden">{s.done ? ', done' : stepStates[s.id] === 'skipped' ? ', skipped' : ', to do'}</span>
           </button>
         </li>
@@ -144,7 +147,9 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </header>
 
-  {#if current === 'computer'}
+  {#if !checked}
+    <p class="muted" role="status">Detecting your runner and available coding agents. Verified requirements will be marked done automatically.</p>
+  {:else if current === 'computer'}
   <SetupCard title="This computer" status={local.steps[0].done ? 'done' : checking ? 'wait' : 'todo'} summary={local.runner ? `${local.runner.name} · ${local.runner.os}/${local.runner.arch}` : 'No local runner reported'}>
     <p class="muted">
       {local.steps[0].done ? 'The local runner is online and enabled.' : app.connection !== 'live' ? 'Reconnect to verify local runner readiness.' : 'The local runner must be online, enabled and configured to run an agent.'} Your repositories, credentials and sessions stay on this computer.
@@ -168,8 +173,9 @@
   <HelloFlow step={current as 'ticket' | 'assistant' | 'publish'} {variant} onstep={go} ondone={() => go('phone')} />
   {/if}
 
+  {#if checked}
   <nav class="actions" aria-label="Setup navigation">
-    {#if currentIndex > 0}<button class="btn big" onclick={() => go(steps[currentIndex - 1].id)}>Back</button>{/if}
+    {#if previous}<button class="btn big" onclick={() => go(previous.id)}>Back</button>{/if}
     {#if current === 'phone'}
       <button class="btn primary big" disabled={finishing} onclick={() => finish(false)}>{finishing ? 'Opening…' : 'Finish setup'}</button>
       {#if !currentStep.done}<button class="btn big" onclick={skipStep}>Skip for now</button>{/if}
@@ -185,6 +191,7 @@
     {/if}
     {#if current !== 'phone'}<button class="btn big" disabled={finishing} onclick={() => finish(false)}>Finish later</button>{/if}
   </nav>
+  {/if}
 
   <footer class="done">
     <p class="muted small">Finish later keeps what you have done. You can come back to any of this under Settings.</p>
@@ -232,6 +239,7 @@
   .progress .chip { cursor: pointer; min-height: 36px; }
   .progress .chip[aria-current='step'] { border-color: var(--accent); }
   .progress .chip[data-done='true'] { color: var(--text); }
+  .progress .chip:disabled { opacity: 1; cursor: default; }
 
   .progress .dot[data-tone='neutral'] {
     opacity: 0.5;

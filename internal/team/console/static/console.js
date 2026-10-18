@@ -660,9 +660,14 @@ function mergeBadge(it) {
   return h('span', { class: 'badge' + (m === 'conflicting' ? ' bad' : m === 'closed' ? ' warn' : '') }, text);
 }
 
-function membersPanels(members) {
+function membersPanels(members, devices = null) {
   const ordered = [...members].sort((a, b) => a.name.localeCompare(b.name));
   const rows = ordered.map(m => {
+    const self = m.id === state.me.member.id;
+    const runners = (devices || []).filter(d => d.memberId === m.id && !d.revokedAt && d.capabilities.includes('runner'));
+    const latest = runners.map(d => d.lastSeenAt).filter(Boolean).sort().at(-1);
+    const recent = state.online && latest && Date.now() - new Date(latest).getTime() < 60000;
+    const presence = self && state.desktop ? 'This computer' : recent ? 'Runner device recently seen' : latest ? 'Runner device last seen ' + ago(latest) : runners.length ? 'Runner device registered' : 'Workspace member';
     const actions = [];
     if (!state.desktop && (m.id === state.me.member.id || can('members.manage'))) actions.push(
       h('button', { class: 'plain', type: 'button', onclick: () => act(async () => {
@@ -672,8 +677,8 @@ function membersPanels(members) {
       }) }, 'New token'));
     if (can('admins.manage') && m.role !== 'owner') actions.push(h('button', { class: 'plain', type: 'button', onclick: () => act(() => api('PUT', '/members/' + m.id + '/role', { role: m.role === 'admin' ? 'member' : 'admin' })) }, m.role === 'admin' ? 'Remove admin role' : 'Make admin'));
     if (can('members.manage') && m.role !== 'owner') actions.push(h('button', { class: 'danger', type: 'button', onclick: () => confirm('Remove ' + m.name + ' from the workspace? Anything they are working on goes back on the board.') && act(() => api('DELETE', '/members/' + m.id)) }, 'Remove'));
-    return h('div', { class: 'row member-row', 'data-member-id': m.id }, initial(m.name),
-      h('div', { class: 'grow' }, h('strong', {}, m.name), m.id === state.me.member.id ? h('span', { class: 'muted small member-you' }, 'You') : '', m.email ? h('div', { class: 'muted' }, m.email) : ''),
+    return h('div', { class: 'row member-row', 'data-member-id': m.id, 'data-self': String(self) }, h('span', { class: 'av', 'aria-hidden': 'true' }, m.name.trim().split(/\s+/).slice(0, 2).map(n => n[0]).join('').toUpperCase()),
+      h('div', { class: 'grow' }, h('strong', {}, m.name), self ? h('span', { class: 'muted small member-you' }, '(you)') : '', h('div', { class: 'muted member-presence' }, presence), m.email ? h('div', { class: 'muted member-email' }, m.email) : ''),
       h('span', { class: 'badge member-role' }, m.role[0].toUpperCase() + m.role.slice(1)),
       actions.length ? h('details', { class: 'member-manage', ontoggle: e => {
         if (e.currentTarget.open) app.querySelectorAll('.member-manage[open]').forEach(other => { if (other !== e.currentTarget) other.open = false; });
@@ -695,6 +700,7 @@ function membersPanels(members) {
   filter();
   const panels = [h('section', { class: 'panel member-directory', 'aria-label': 'Organization members' },
     h('div', { class: 'section-head' }, h('h2', {}, state.me.workspace.name), h('span', { class: 'badge' }, plural(members.length, 'member'))),
+    h('p', { class: 'muted member-intro' }, 'Each person keeps their own computer, runner and credentials.'),
     input, status, h('div', { class: 'member-list' }, rows))];
   if (can('members.manage') && !state.desktop) {
     const name = h('input', { name: 'm-name', required: true, maxlength: 80 });

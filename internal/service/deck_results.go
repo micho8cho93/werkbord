@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"slices"
 	"strings"
 
 	"devboard/internal/domain"
@@ -71,9 +73,25 @@ func (s *Runs) collectDeckDrafts(ctx context.Context, run *domain.Run) {
 			break
 		}
 		sum := sha256.Sum256([]byte(run.ProjectID + ":" + slot.Button + ":" + finding.Key))
-		_, err := tasks.CreateTask(ctx, NewTask{ProjectID: run.ProjectID, Title: finding.Title, Description: "Draft finding — review before scheduling.\n\n" + finding.Description + "\n\nReferences:\n" + strings.Join(finding.References, "\n") + "\n\nWorkflow task: " + run.TaskID, SourceRef: "deck-finding:" + hex.EncodeToString(sum[:]), WorkMode: planning.ModeHuman})
+		task, err := tasks.CreateTask(ctx, NewTask{ProjectID: run.ProjectID, Title: finding.Title, Description: "Draft finding — review before scheduling.\n\n" + finding.Description + "\n\nReferences:\n" + strings.Join(finding.References, "\n") + "\n\nWorkflow task: " + run.TaskID, SourceRef: "deck-finding:" + hex.EncodeToString(sum[:]), WorkMode: planning.ModeHuman})
 		if err != nil {
 			s.log().Warn("cannot create workflow draft", "run", run.ID, "err", err)
+			continue
+		}
+		// Link even a deduplicated finding to this execution, so its report opens
+		// the existing task rather than losing the next action on a repeated scan.
+		if err := s.Store.Update(ctx, func(tx store.Tx) error {
+			key := "deck-findings." + run.TaskID
+			var ids []string
+			if err := tx.Settings().Get(ctx, key, &ids); err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
+			if slices.Contains(ids, task.ID) || len(ids) >= 50 {
+				return nil
+			}
+			return tx.Settings().Set(ctx, key, append(ids, task.ID), s.now())
+		}); err != nil {
+			s.log().Warn("cannot link workflow draft", "run", run.ID, "err", err)
 		}
 	}
 }

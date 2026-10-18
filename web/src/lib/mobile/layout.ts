@@ -24,8 +24,12 @@ export function targetLabel(slot: DeckSlot, projects: readonly {id: string; name
  return `Current: ${names([current]) || 'Choose project'}`;
 }
 export interface DeckLayout { version: number; slots: (DeckSlot | null)[] }
-export interface DeckExecution { requestId: string; slotId: string; projectId: string; taskId: string; configuration?: DeckSlot }
+export interface DeckExecution { requestId: string; slotId: string; projectId: string; taskId: string; configuration?: DeckSlot; findings?: Task[] }
 export function workflow(id: string) { return WORKFLOWS.find(w => w.id === id); }
+/** A new workflow asks for its scope on tap; holding it edits the saved defaults. */
+export function newSlot(id: string, button: ButtonId): DeckSlot {
+  return { id, button, ...(workflow(button) ? { target: 'ask' as const, output: ['find-bugs', 'security-audit', 'dependency-check'].includes(button) ? 'drafts' as const : 'report' as const } : {}) };
+}
 export function initialLayout(): DeckLayout {
   return { version: 0, slots: [...(['needs', 'calendar', 'projects', 'mywork', 'agents', 'analytics'] as DeckKeyId[]).map(button => ({ id: button, button })), null, null, null] };
 }

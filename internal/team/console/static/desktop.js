@@ -120,7 +120,9 @@ async function resiliencePanel(compact = false) {
 
 async function membersView() {
   const members = await api('GET', '/members');
-  const content = membersPanels(members);
+  // The directory uses reported device presence only; it never probes a member's runner.
+  const devices = await api('GET', '/devices').catch(() => null);
+  const content = membersPanels(members, devices);
   if (can('members.manage') && state.desktop) content.append(h('aside', { class: 'member-tools' }, await invitationsPanel(members)));
   return content;
 }
@@ -257,9 +259,10 @@ function nativeApp() {
   return { SetupRunner: () => invoke('SetupRunner'), Service: action => invoke('Service', action), PendingInvitation: () => invoke('PendingInvitation'), Info: () => invoke('Info'), OpenExternal: address => invoke('OpenExternal', address) };
 }
 function runnerSetup() {
-  return h('section', { class: 'panel' }, h('h2', {}, 'Your runner on this computer'), h('p', { class: 'muted' }, state.device.runner.connected ? 'Connected to your own Werkbord. It keeps its normal execution policies and approvals.' : 'The free Werkbord app runs your agents with your credentials. Team communicates with it only on this computer.'),
-    h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => act(async () => { if (window.parent !== window) await nativeApp().SetupRunner(); else await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is connected.'; }) }, state.device.runner.connected ? 'Reconnect runner' : 'Connect existing runner'),
-      nativeApp() ? h('button', { class: 'plain', onclick: () => act(async () => { await nativeApp().SetupRunner(); if (window.parent === window) await deviceApi('POST', '/runner/connect'); state.info = 'Your runner is ready.'; }) }, window.parent === window ? 'Install / set up free runner' : 'Connect my Werkbord runner') : extLink('https://github.com/micho8cho93/werkbord/releases', 'Download free Werkbord')));
+  const runner = state.device.runner;
+  return h('section', { class: 'panel' }, h('h2', {}, 'Your runner on this computer'), h('p', { class: 'muted', role: 'status' }, runner.connected ? 'Connected to your own Werkbord. Runner setup is complete. It keeps its normal execution policies and approvals.' : runner.configured ? 'Your runner is already configured. Its connection is currently unavailable; reconnect without repeating setup.' : 'The free Werkbord app runs your agents with your credentials. Team communicates with it only on this computer.'),
+    h('div', { class: 'actions' }, h('button', { class: runner.connected ? 'plain' : 'primary', disabled: runner.connected, onclick: () => act(async () => { if (window.parent !== window) await nativeApp().SetupRunner(); else await deviceApi('POST', '/runner/connect'); state.info = 'Runner connection saved. Checking its reported status…'; }) }, runner.connected ? 'Runner connected' : runner.configured ? 'Reconnect runner' : 'Connect existing runner'),
+      !runner.connected && !runner.configured && window.parent === window ? (nativeApp() ? h('button', { class: 'plain', onclick: () => act(async () => { await nativeApp().SetupRunner(); await deviceApi('POST', '/runner/connect'); state.info = 'Runner setup saved. Checking its reported status…'; }) }, 'Install / set up free runner') : extLink('https://github.com/micho8cho93/werkbord/releases', 'Download free Werkbord')) : ''));
 }
 
 // Where a held ticket stands in the person's own Werkbord, once their runner is connected: the Team service on this

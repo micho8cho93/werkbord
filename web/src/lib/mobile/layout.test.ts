@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { initialLayout, place, rearrange, WORKFLOWS, workflow } from './layout';
+import { initialLayout, newSlot, place, rearrange, WORKFLOWS, workflow } from './layout';
 
 describe('configurable Control Deck', () => {
+  it('asks for a repository on tap and makes findings actionable without configuring a new button', () => {
+    expect(newSlot('bugs', 'find-bugs')).toEqual({id:'bugs',button:'find-bugs',target:'ask',output:'drafts'});
+    expect(newSlot('summary', 'sprint-summary')).toMatchObject({target:'ask',output:'report'});
+    expect(newSlot('projects', 'projects')).toEqual({id:'projects',button:'projects'});
+  });
   it('starts with the existing six positions and three empty sockets', () => {
     expect(initialLayout().slots.map(s => s?.button ?? null)).toEqual(['needs', 'calendar', 'projects', 'mywork', 'agents', 'analytics', null, null, null]);
   });

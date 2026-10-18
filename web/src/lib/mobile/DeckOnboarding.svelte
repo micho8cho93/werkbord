@@ -8,17 +8,18 @@
   <h2>{titles[step - 1]}</h2>
   <p class="muted">{step} of 6</p>
   {#if step === 1}
-    <p>Make the Control Deck yours. Choose shortcuts and workflows for the actions you use most.</p>
+    <p>Six navigation buttons are ready. Programme the bottom three positions with the shortcuts or workflows you use most.</p>
     <button class="btn primary" onclick={() => { onnext(2); onadd(); }}>Choose buttons</button>
   {:else if step === 2}
-    <p>Fill up to three empty positions. Choose at least one executable workflow; navigation buttons open pages. Later, use the pencil icon at the top to edit all nine positions.</p>
-    <div class="actions"><button class="btn" onclick={onadd}>{full ? 'Replace a choice' : 'Add a button'}</button><button class="btn primary" disabled={!hasWorkflow || busy} onclick={() => onnext(3)}>Continue</button></div>
+    <p>Choose up to three buttons, or leave positions empty. Navigation buttons open pages; cobalt workflow buttons run agents. Later, use the pencil icon to edit all nine positions.</p>
+    <div class="actions"><button class="btn" onclick={onadd}>{full ? 'Replace a choice' : 'Add a button'}</button><button class="btn primary" disabled={busy} onclick={() => onnext(hasWorkflow ? 3 : 6)}>Continue</button></div>
   {:else if step === 3}
     <p>Press and hold a workflow button to change its settings.</p>
     <p class="muted">{workflowName} is highlighted. With a keyboard, use Shift+F10.</p>
     <button class="btn" onclick={onconfigure}>Open workflow settings</button>
+    <button class="btn primary" onclick={() => onnext(4)}>Keep defaults</button>
   {:else if step === 4}
-    <p>{preview ? 'Interactive preview: tap the highlighted workflow to practise opening progress. No workflow will execute.' : 'Tap the highlighted workflow once to execute. Its progress indicator will appear above the deck.'}</p>
+    <p>{preview ? 'Interactive preview: tap the highlighted workflow to practise opening progress. No workflow will execute.' : 'Tap the highlighted workflow, choose a repository, then run. Its progress indicator will appear above the deck.'}</p>
     {#if workflowName !== 'Find Bugs'}<p class="muted">We recommend Find Bugs for your first run.</p><button class="btn" onclick={onrecommend}>Choose and configure Find Bugs</button>{/if}
     <button class="btn" onclick={onconfigure}>Change repository or settings</button>
     {#if !liveDemo && !preview}<p class="muted">Live execution is unavailable with the current repository, connection or agent defaults. Reconnect or check settings, or try the preview.</p><button class="btn" onclick={onpreview}>Try interactive preview</button>{/if}
@@ -28,7 +29,7 @@
     <p class="muted">Live work continues when you leave. Only reported stages and findings are shown.</p>
     <button class="btn" onclick={() => onnext(6)}>Inspect later</button>
   {:else}
-    <p>Tap to run. Hold to configure. Use the pencil icon at the top to edit your deck.</p>
+    <p>{hasWorkflow ? 'Tap to run. Hold to configure. Use the pencil icon at the top to edit your deck.' : 'Your shortcuts are ready. Tap a button to open its page. Use the pencil icon to edit your deck.'}</p>
     <p class="muted">The corner badge on Agents shows how many agents are running and disappears when none are running. Tap Agents to see their activity.</p>
     <p class="muted">Use the pencil to replace, remove or move buttons, then the checkmark to save.</p>
     <button class="btn primary" disabled={busy} onclick={() => void onfinish()}>{busy ? 'Saving…' : 'Finish onboarding'}</button>

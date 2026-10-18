@@ -15,7 +15,7 @@ async function request(token, method, route, body) {
   await request(owner,'POST','/api/onboarding/example',{projectId:project.id});
   const browser = await chromium.launch({headless:true});
   try {
-    for (const mode of ['live','clean','preview','skip']) {
+    for (const mode of ['navigation','live','clean','preview','skip']) {
       const code = await request(owner,'POST','/api/phones/codes',{});
       const phone = await request('','POST','/api/phones/enroll',{code:code.code,name:'Onboarding '+mode});
       const ctx = await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
@@ -42,15 +42,30 @@ async function request(token, method, route, body) {
         await guide().getByRole('button',{name:'Choose buttons'}).click();
         assert.equal(await dialog().getByRole('button',{name:'Needs you',exact:true}).count(),0);
         await dialog().getByRole('button',{name:'Reviews',exact:true}).click();
-        assert(await guide().getByRole('button',{name:'Continue',exact:true}).isDisabled(),'navigation alone cannot pass');
+        if (mode === 'navigation') {
+          for (const name of ['Git','Runners']) {
+            await guide().getByRole('button',{name:'Add a button',exact:true}).click();
+            await dialog().getByRole('button',{name,exact:true}).click();
+          }
+          await guide().getByRole('button',{name:'Continue',exact:true}).click();
+          await guide().getByRole('button',{name:'Finish onboarding',exact:true}).click();
+          await page.waitForFunction(() => !document.querySelector('[data-testid=edit-deck]').disabled);
+          await page.reload();
+          await page.waitForFunction(() => !document.querySelector('[data-testid=edit-deck]').disabled);
+          const saved = await request(phone.token,'GET','/api/deck');
+          assert.deepEqual(saved.slots.slice(6).map(s=>s.button),['reviews','git','runners']);
+          assert.equal(starts,0);
+          assert.equal(await guide().count(),0);
+          continue;
+        }
+        await page.waitForFunction(() => !document.querySelector('[aria-label="Control Deck onboarding"] .actions button:last-child').disabled);
         await guide().getByRole('button',{name:'Add a button',exact:true}).click();
         await dialog().getByRole('button',{name:/^Security Audit/}).click();
         await guide().getByRole('button',{name:'Continue',exact:true}).click();
         await page.reload();
         await guide().getByText('Press and hold a workflow button to change its settings.').waitFor();
         await socket(7).focus(); await page.keyboard.press('Shift+F10');
-        await dialog().getByRole('checkbox',{name:project.name,exact:true}).waitFor();
-        assert(await dialog().getByRole('checkbox',{name:project.name,exact:true}).isChecked(),'existing onboarding repository is preselected');
+        assert.equal(await dialog().getByRole('combobox',{name:'Repository target',exact:true}).inputValue(),'ask','new workflows ask on tap');
         await dialog().getByRole('button',{name:'Save configuration'}).click();
         assert.equal(starts,0,'saving never executes');
         if (mode === 'live' && process.env.BROWSER_ARTIFACT_DIR) {
@@ -68,6 +83,10 @@ async function request(token, method, route, body) {
         }
         if (mode === 'live' || mode === 'clean') {
           await socket(8).click();
+          await dialog().getByRole('heading',{name:'Run Find Bugs',exact:true}).waitFor();
+          assert.equal(starts,0,'tap opens the repository sheet without executing');
+          await dialog().getByRole('checkbox',{name:new RegExp('^'+project.name)}).check();
+          await dialog().getByRole('button',{name:'Run Find Bugs',exact:true}).click();
           await guide().getByRole('heading',{name:'Inspect execution'}).waitFor();
           assert.equal(starts,1);
           await ctx.setOffline(true); await ctx.setOffline(false); await page.reload();
@@ -91,6 +110,8 @@ async function request(token, method, route, body) {
           // Server refusal of the default provider is a real unavailable-execution path.
           await page.route('**/api/deck/workflows',route => route.fulfill({status:422,contentType:'application/json',body:JSON.stringify({error:{code:'model_unavailable',message:'Agent model unavailable'}})}));
           await socket(8).click();
+          await dialog().getByRole('checkbox',{name:new RegExp('^'+project.name)}).check();
+          await dialog().getByRole('button',{name:'Run Find Bugs',exact:true}).click();
           await guide().getByRole('button',{name:'Try interactive preview'}).click();
           await socket(8).click();
           await page.reload(); // preview identity survives browser reconnection
@@ -111,7 +132,7 @@ async function request(token, method, route, body) {
         assert.equal(await guide().count(),0,'returning users are not forced through onboarding');
         const saved = await request(phone.token,'GET','/api/deck');
         const savedWorkflow = saved.slots[mode === 'skip' ? 7 : 8];
-        assert.equal(savedWorkflow.button,mode === 'skip' ? 'security-audit' : 'find-bugs'); assert.deepEqual(savedWorkflow.projectIds,[project.id]);
+        assert.equal(savedWorkflow.button,mode === 'skip' ? 'security-audit' : 'find-bugs'); assert.equal(savedWorkflow.target,'ask'); assert.equal(savedWorkflow.projectIds,undefined);
         assert.equal(savedWorkflow.agent ?? '',''); assert.equal(savedWorkflow.model ?? '','');
         if (mode === 'skip') assert.equal(saved.slots[8],null,'unused slot remains empty');
         assert.equal(await page.getByText('All clear',{exact:true}).count(),0);
@@ -152,6 +173,6 @@ async function request(token, method, route, body) {
       assert.equal(saved.slots[6].button,'find-bugs'); assert.equal(saved.slots[7],null); assert.equal(saved.slots[8],null);
       assert.equal((await request(phone.token,'GET','/api/deck/history')).length,0,'missing repository preview never executes');
     } finally { await ctx.close(); await request(owner,'DELETE','/api/phones/'+phone.id); }
-    console.log('PASS onboarding: first use, mandatory workflow, three choices, configuration/defaults, live/preview/skip, reload and returning users');
+    console.log('PASS onboarding: first use, navigation-only choices, three programmable positions, configuration/defaults, live/preview/skip, reload and returning users');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode=1; });

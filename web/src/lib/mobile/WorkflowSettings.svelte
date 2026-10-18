@@ -7,7 +7,7 @@
   let { onboarding = false, slot, onclose, onsave, onrun, onpreview }: { onpreview?: () => void; onboarding?: boolean; slot: DeckSlot; onclose: () => void; onsave: (slot: DeckSlot) => Promise<void>; onrun?: (slot: DeckSlot) => Promise<void> } = $props();
   let agent = $state(untrack(() => slot.agent ?? ''));
   let model = $state(untrack(() => slot.model === 'default' ? '' : slot.model ?? ''));
-  let target = $state<NonNullable<DeckSlot['target']>>(untrack(() => onboarding ? 'selected' : slot.target ?? (slot.projectId ? 'selected' : 'current')));
+  let target = $state<NonNullable<DeckSlot['target']>>(untrack(() => slot.target ?? (slot.projectId ? 'selected' : 'current')));
   let projectIds = $state<string[]>(untrack(() => slot.projectIds ?? (slot.projectId ? [slot.projectId] : [])));
   let reasoning = $state(untrack(() => slot.reasoning ?? ''));
   let runner = $state(untrack(() => slot.runner ?? ''));
@@ -40,11 +40,11 @@
 
 <Sheet title="Configure {definition?.label ?? 'workflow'}" {onclose}>
   <form id="workflow-settings" onsubmit={save}>
-    {#if onboarding}<p>Choose the test repository from setup, or another repository you authorise for this demonstration. Keep Agent and Model on their defaults to use its existing execution settings. Saving does not run it.</p>{/if}
+    {#if onboarding}<p>By default, a tap asks which repository to use. You can also save repositories here. Agent and Model inherit your existing execution settings. Saving does not run it.</p>{/if}
     {#if !onboarding}<p>{definition?.description}</p>
     <p class="muted">Runs on Individual through your existing runner and permissions. Changes are reviewed through the task.</p>{/if}
     <label>Repository target <select class="select" bind:value={target} disabled={busy}>
-      <option value="selected">Selected repositories</option>{#if !onboarding}<option value="current">Current project (resolved when run)</option><option value="all">All accessible repositories</option><option value="ask">Ask every time</option>{/if}
+      <option value="ask">Ask every time</option><option value="selected">Selected repositories</option>{#if !onboarding}<option value="current">Current project (resolved when run)</option><option value="all">All accessible repositories</option>{/if}
     </select></label>
     {#if target === 'current'}<p class="muted">Current: {app.project(app.lastProjectId)?.name ?? 'Choose a project before running'}</p>{/if}
     {#if target === 'selected'}<fieldset><legend>Repositories</legend>{#each repositories as p (p.id)}<label class="check"><input type="checkbox" bind:group={projectIds} value={p.id} disabled={busy} />{p.name}</label>{/each}</fieldset>{/if}
@@ -68,7 +68,7 @@
     <label>Maximum repositories (0 = no additional limit) <input class="input" type="number" min="0" max="100" step="1" bind:value={maxRepositories} disabled={busy} /></label>{/if}
     {#if problem}<p class="error" role="alert">{problem}</p>{/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-    <p class="muted">{onboarding ? 'The introductory run produces a report. Full settings are available after onboarding. ' : ''}Saving configures this button. Tap it on the deck to start work. Hold it, press Shift+F10, or use Edit Deck to configure it again.</p>
+    <p class="muted">{onboarding ? 'Find Bugs saves verified findings as Backlog drafts for you to review. Full settings are available after onboarding. ' : ''}Saving configures this button. Tap it on the deck to start work. Hold it, press Shift+F10, or use Edit Deck to configure it again.</p>
   </form>
   {#snippet footer()}
     <button class="btn" type="button" onclick={onclose} disabled={busy}>Cancel</button>

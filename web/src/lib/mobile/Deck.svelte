@@ -19,7 +19,7 @@
   import WorkflowBanner from './WorkflowBanner.svelte';
   import { workflows } from './workflows.svelte';
   import { terminal, workflowRecovery } from './workflow-progress';
-  import { deckApi, targetLabel, initialLayout, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
+  import { deckApi, targetLabel, initialLayout, newSlot, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
 
   const counts = $derived(deckCounts(app.overview, app.needsYou));
   const keys = $derived(deckKeys(counts));
@@ -51,12 +51,11 @@
   const selectedWorkflow = $derived(layout.slots.find(s => s?.id === guideSlot) ?? layout.slots.slice(6).find(s => s && workflow(s.button)));
   const hasWorkflow = $derived(layout.slots.slice(6).some(s => s && workflow(s.button)));
   const exampleProject = $derived(app.projects.find(p => p.id === app.onboarding?.example?.projectId && p.repoPath));
-  const guideProject = $derived(app.project(selectedWorkflow?.projectIds?.[0] ?? ''));
+  const guideProject = $derived(app.project(selectedWorkflow?.projectIds?.[0] ?? '') ?? exampleProject ?? app.projects.find(p => p.kind !== 'work' && p.repoPath));
   const defaults = $derived(resolveFor({}, guideProject?.execution, app.globalExecution));
   const liveDemo = $derived(!!guideProject && app.connection === 'live' && eligibleRunners(app.runners, guideProject.id, selectedWorkflow?.runner || defaults.runner).length > 0 && executionAgents(app.agents, app.runners, guideProject.id, selectedWorkflow?.runner || defaults.runner).some(a => !(selectedWorkflow?.agent || defaults.agent) || a.id === (selectedWorkflow?.agent || defaults.agent)));
   function advance(step: number) { guide = step; try { localStorage.setItem(guideStorage, JSON.stringify({step, slot: guideSlot, preview})); } catch { /* the saved deck remains authoritative */ } }
   async function finishGuide() {
-    if (!hasWorkflow) { advance(2); return; }
     try {
       await persist(); markHere('phone');
       if (!seenHere('phone')) throw new Error('Enable browser storage to remember completed onboarding. Your deck is saved.');
@@ -71,7 +70,7 @@
     const empty = layout.slots.findIndex((s,i) => i >= 6 && !s);
     const index = empty >= 0 ? empty : layout.slots.findIndex(s => s?.id === selectedWorkflow?.id);
     if (index < 6) return;
-    const slot: DeckSlot = {id: crypto.randomUUID(), button: 'find-bugs', target: exampleProject ? 'selected' : 'ask', ...(exampleProject ? {projectIds: [exampleProject.id]} : {}), output: 'report'};
+    const slot = newSlot(crypto.randomUUID(), 'find-bugs');
     layout.slots = place(layout.slots,index,slot); guideSlot = slot.id; configuring = index;
   }
   $effect(() => {
@@ -124,13 +123,13 @@
   function choose(button: ButtonId) {
     if (library === null) return;
     const index = library;
-    const slot: DeckSlot = { id: crypto.randomUUID(), button };
+    const slot = newSlot(crypto.randomUUID(), button);
     layout.slots = place(layout.slots, index, slot);
     library = null;
     if (guide) {
-      if (workflow(button)) { guideSlot = slot.id; layout.slots[index] = {...slot, target: exampleProject ? 'selected' : 'ask', ...(exampleProject ? {projectIds: [exampleProject.id]} : {}), output: 'report'}; }
+      if (workflow(button)) guideSlot = slot.id;
       void persist().catch(() => {});
-    } else if (workflow(button)) configuring = index;
+    }
   }
   async function configure(slot: DeckSlot) {
     if (configuring === null) return;
@@ -163,13 +162,13 @@
   function clearPending() { pending = null; try { sessionStorage.removeItem(storageKey); } catch { /* server still deduplicates */ } }
   async function launch(slot: DeckSlot, override = false, targets?: string[], approved = false) {
     if (starting || app.connection !== 'live') return;
-    if (slot.target === 'ask' && !targets) { picking = slot; picked = []; once = override; return; }
-    if ((!slot.target || slot.target === 'current') && !slot.projectId && !app.lastProjectId) { configuring = layout.slots.findIndex(s => s?.id === slot.id); return; }
-    if (!approved && (slot.output === 'changes' || slot.approval === 'always')) { approving = {slot, override, targets}; return; }
     const tracked = workflows.executions.find(x => x.slotId === slot.id && !terminal(x.run));
     if (!override && tracked) { if (guide === 4) advance(5); workflows.open(tracked.taskId); return; }
     const run = latest(slot);
     if (!override && run && runStatus(run).active) { workflows.open(run.taskId); return; }
+    if (slot.target === 'ask' && !targets) { picking = slot; picked = []; once = override; return; }
+    if (!targets && (!slot.target || slot.target === 'current') && !slot.projectId && !app.lastProjectId) { picking = {...slot, target: 'ask'}; picked = []; once = true; return; }
+    if (!approved && (slot.output === 'changes' || slot.approval === 'always')) { approving = {slot, override, targets}; return; }
     if (pending) { error = 'Check the previous workflow start before starting another.'; return; }
     pending = { slotId: slot.id, requestId: crypto.randomUUID(), approved, currentProjectId: app.lastProjectId, ...(targets ? {projectIds: targets} : {}), ...(override ? {override: slot} : {}) };
     try { sessionStorage.setItem(storageKey, JSON.stringify(pending)); }
@@ -260,7 +259,7 @@
     <div class="grid" data-testid="deck-grid" aria-busy={!ready}>
       {#each layout.slots as slot, i (i)}
         <div class="position" class:drop-target={dragTo === i} class:guided={!!guide && guide >= 3 && slot?.id === selectedWorkflow?.id} data-deck-position={i}>
-          <Keycap key={keyFor(slot)} empty={!slot} {editing}
+          <Keycap key={keyFor(slot)} empty={!slot} {editing} workflow={!!slot && !!workflow(slot.button)}
             target={slot && workflow(slot.button) ? targetLabel(slot, app.projects, app.lastProjectId) : ''}
             disabled={!ready || saving || starting || (!!slot && !!workflow(slot.button) && app.connection !== 'live' && !(guide && (preview || guide === 3))) || (!!guide && (i < 6 || guide === 1 || guide === 5 || guide === 6))}
             onclick={guide && i >= 6 ? () => {
@@ -300,15 +299,17 @@
 
   {#if approving}
     <Sheet title="Approve workflow execution" onclose={() => approving = null}>
-      <p>{workflow(approving.slot.button)?.label} · {targetLabel(approving.slot, app.projects, app.lastProjectId)}</p>
+      <p>{workflow(approving.slot.button)?.label} · {approving.targets?.map(id => app.project(id)?.name ?? 'Unavailable').join(', ') || targetLabel(approving.slot, app.projects, app.lastProjectId)}</p>
       <p>{approving.slot.output === 'changes' ? 'Authorise proposing changes in task worktrees. The agent must request approval for its concrete changes before editing. Commits, pushes and destructive actions require separate approval.' : 'Authorise investigation and relevant tests for this invocation.'}</p>
       {#snippet footer()}<button class="btn" onclick={() => approving = null}>Cancel</button><button class="btn primary" onclick={() => { const a = approving!; approving = null; void launch(a.slot, a.override, a.targets, true); }}>Approve and run</button>{/snippet}
     </Sheet>
   {/if}
   {#if picking}
-    <Sheet title="Choose workflow repositories" onclose={() => picking = null}>
-      <div class="target-picker">{#each app.projects.filter(p => p.kind !== 'work' && p.repoPath) as p (p.id)}<label><input type="checkbox" value={p.id} bind:group={picked} />{p.name}</label>{/each}</div>
-      {#snippet footer()}<button class="btn" onclick={() => picking = null}>Cancel</button><button class="btn primary" disabled={!picked.length} onclick={() => { const slot = picking!; picking = null; void launch(slot, once, picked); }}>Run workflow</button>{/snippet}
+    <Sheet title="Run {workflow(picking.button)?.label ?? 'workflow'}" onclose={() => picking = null}>
+      <p>{workflow(picking.button)?.description}</p>
+      <p class="muted">Choose where to run this time. Hold the workflow button to change its defaults.</p>
+      <fieldset class="target-picker"><legend>Repositories</legend>{#each app.projects.filter(p => p.kind !== 'work' && p.repoPath) as p (p.id)}<label><input type="checkbox" value={p.id} bind:group={picked} /><span><strong>{p.name}</strong><small>{p.repoPath}</small></span></label>{:else}<p>Add a Git repository on your computer, then return here.</p>{/each}</fieldset>
+      {#snippet footer()}<button class="btn" onclick={() => picking = null}>Cancel</button><button class="btn primary" disabled={!picked.length || starting || app.connection !== 'live'} onclick={() => { const slot = picking!; picking = null; void launch(slot, once, picked); }}>Run {workflow(picking?.button ?? '')?.label ?? 'workflow'}</button>{/snippet}
     </Sheet>
   {/if}
 
@@ -319,8 +320,13 @@
   .preview { display: grid; gap: 8px; }
   dt { margin-top: 14px; font-weight: 600; }
   dd { margin: 4px 0 0; color: var(--text-2); }
-  .target-picker { display: grid; gap: 8px; }
-  .target-picker label { display: flex; gap: 8px; align-items: center; min-height: 44px; }
+  .target-picker { display: grid; gap: 0; border: 0; padding: 0; margin: 4px 0; min-width: 0; }
+  .target-picker legend { font-weight: 600; margin-bottom: 8px; }
+  .target-picker label { display: flex; gap: 12px; align-items: center; min-height: 60px; padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .target-picker input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
+  .target-picker span { min-width: 0; }
+  .target-picker strong { font-weight: 500; }
+  .target-picker small { display: block; color: var(--text-2); font: 11.5px/1.5 var(--mono); overflow-wrap: anywhere; margin-top: 3px; }
   .deck-page {
     --deck-edge-light: light-dark(var(--surface), color-mix(in srgb, var(--text) 9%, transparent));
     --deck-wall: light-dark(color-mix(in srgb, var(--text) 20%, var(--border)), color-mix(in srgb, var(--ground) 72%, var(--border)));
@@ -340,7 +346,6 @@
   .pending p { flex-basis: 100%; margin: 0; }
   .position { min-width: 0; }
   .drop-target { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 17px; }
-  @media (max-width: 359px) { .brand { gap: 4px; } .brand :global(svg) { height: 18px; width: auto; } .wm { font-size: 14px; } .top { gap: 4px; } .header-actions { gap: 4px; } }
   .top {
     display: flex;
     align-items: center;
@@ -454,6 +459,12 @@
 
   /* The narrowest phones keep nine keys in three columns by giving the keys the room: less housing, closer keys. */
   @media (max-width: 359px) {
+    .deck-page { padding-inline: 12px; }
+    .brand { gap: 4px; }
+    .brand :global(svg) { height: 18px; width: auto; }
+    .wm { font-size: 14px; }
+    .top { gap: 4px; }
+    .header-actions { gap: 4px; }
     .housing {
       padding: 16px;
       border-radius: 22px;

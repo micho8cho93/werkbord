@@ -8,7 +8,7 @@
   const navigation = deckKeys({ needsYou: 0, review: 0, running: 0, repoAttention: 0 });
 </script>
 <Sheet title="{slot ? 'Edit button' : 'Add button'} · position {position + 1}" {onclose}>
-  {#if onboarding}<p>Choose up to three buttons. Include at least one workflow. You can customise all nine positions later.</p>{/if}
+  {#if onboarding}<p>Programme the bottom three positions with navigation or workflows. You can customise all nine positions later.</p>{/if}
   {#if slot && onboarding}<button class="btn" onclick={onremove}>Remove choice</button>{/if}
   {#if slot && !onboarding}
     <div class="actions">

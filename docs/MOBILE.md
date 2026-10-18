@@ -28,7 +28,7 @@ refuses them with `403` regardless.
 
 ## The Control Deck
 
-A header (the mark and controller/runner status), icon-only Edit Deck (pencil), search, help and Settings controls, and nine positions. The Agents key shows the exact running count in a corner badge, hidden at zero; there is no separate agents activity row or deck title row. The first six navigation keys retain their original positions. The last three start empty.
+A header (the mark and controller/runner status), icon-only Edit Deck (pencil), search, help and Settings controls, and nine positions. The Agents key shows the exact running count in a corner badge, hidden at zero; there is no separate agents activity row or deck title row. The first six navigation keys retain their original positions. The last three start empty and can be programmed during first use with navigation buttons, workflows, or left empty. Workflow keys use a cobalt tint and keep their workflow label, while navigation keys retain their neutral material.
 All nine positions are configurable, including an entirely empty deck. Navigation buttons keep their existing routes.
 
 The header pencil opens editing and becomes a checkmark to save: tap an empty position for the library, tap a button to replace/remove it or choose Move to position,
@@ -45,7 +45,7 @@ The sheet selects a runner, agent/provider profile, model and supported reasonin
 catalogue. Empty values inherit project/controller defaults. It also selects report, draft-task or approved-change output,
 approval before sensitive actions (optionally before investigation too), and an optional maximum repository count. A scope
 over the limit is refused rather than silently truncated. Run Once With Different Settings uses an invocation override and
-leaves the saved slot unchanged. Asking for targets opens a compact repository picker.
+leaves the saved slot unchanged. New workflow keys ask for targets on tap by default. Asking for targets opens a bottom sheet with repository names and paths and an explicit Run action; opening it never starts work. Holding the key opens its saved settings.
 
 Find Bugs verifies credible findings and avoids existing tasks; its default output creates human-owned Backlog drafts with
 file references. Improve Tests finds coverage gaps and proposes tests. Security Audit uses available scanners and classifies
@@ -201,15 +201,12 @@ existing setup path. Once an enrolled phone (or narrow browser) opens its deck, 
 inline steps: introduce the actual six-key/three-empty deck, choose up to three extra buttons, hold a highlighted workflow to
 configure it, tap to run, open its progress indicator, and finish back on the deck.
 
-The onboarding library separates page navigation (Reviews, Git, Runners) from the six executable workflows. Continue requires
-at least one workflow; one choice is sufficient. The first six positions are preserved during this stage. The existing setup
-example repository is preselected when it is registered and accessible. Otherwise the person selects an authorised registered
-repository; a phone cannot register one. If none is registered, the configuration sheet offers a direct interactive preview. The concise configuration sheet teaches repository selection and inherited agent/model
-defaults. The introductory output is a report. Runner, output, approval and batch-limit controls remain available in full
+The onboarding library separates page navigation (Reviews, Git, Runners) from the six executable workflows. Navigation-only choices and empty positions are allowed; Continue goes straight to the final step when no workflow was chosen. The first six positions are preserved during this stage. New workflow buttons ask for an authorised registered repository on tap; a phone cannot register one. Holding a button can change this to a saved repository selection. If none is registered, the configuration sheet offers a direct interactive preview. The concise configuration sheet teaches repository selection and inherited agent/model
+defaults. Find Bugs, Security Audit and Dependency Check produce reports with human-owned draft findings by default. Runner, output, approval and batch-limit controls remain available in full
 configuration after onboarding. Saving never executes. Find Bugs is recommended; selecting it uses an empty socket or replaces
 the highlighted workflow if all three additions are occupied.
 
-A tap uses the real workflow API and ordinary authorised runner. Existing progress, stage evidence, agent output and Stop
+After the repository is selected, Run uses the real workflow API and ordinary authorised runner. Existing progress, stage evidence, agent output and Stop
 controls are reused. Missing output never implies a successful or clean scan. The Find Bugs brief asks for “No bugs found in
 this scan.” only after a completed scan with no credible findings; unavailable or incomplete investigation must be reported as
 such. Opening and closing execution details returns to the finish instruction. Inspection can be deferred and execution can be
@@ -226,8 +223,12 @@ the existing `werkbord-tour-phone-deck-v2` completion key. Returning users with 
 through the new guide. Editing or emptying the deck does not reset completion. Help's existing replay action can reset it.
 Clearing browser data resets local tour completion, while the controller still retains the authenticated phone's saved deck.
 
-`scripts/browser-deck-onboarding.cjs`, included in the phone/deck browser suites, covers first use, navigation-only rejection,
+`scripts/browser-deck-onboarding.cjs`, included in the phone/deck browser suites, covers first use, navigation-only completion,
 optional empty slots, three additions, setup repository/default configuration, live scripted-runner execution and Stop,
 refused execution plus preview, skipping, reconnection/reload, persisted layout/settings and returning users. These fixtures
 exercise the real process and API without paid model credentials; they do not establish provider sign-in, finding quality or
 physical-phone usability.
+
+### Workflow next actions (4.50)
+
+Find Bugs, Security Audit and Dependency Check buttons start with draft output. Saved findings appear in execution details under Next actions, with Review finding links to the human-owned tasks. Each execution retains its links even when a repeated scan deduplicates a finding to an existing task. Reviewing never starts a run. Report-only output remains available in settings.

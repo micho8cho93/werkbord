@@ -4,8 +4,8 @@
   import type { DeckKey } from './deck';
   import { KeyPress } from './press';
 
-  let { key, target = '', editing = false, empty = false, disabled = false, onclick, onconfigure, ondrag, ondrop }:
-    { key: DeckKey; target?: string; editing?: boolean; empty?: boolean; disabled?: boolean; onclick?: () => void; onconfigure?: () => void; ondrag?: (x: number, y: number) => void; ondrop?: (cancelled?: boolean) => void } = $props();
+  let { key, target = '', workflow = false, editing = false, empty = false, disabled = false, onclick, onconfigure, ondrag, ondrop }:
+    { key: DeckKey; target?: string; workflow?: boolean; editing?: boolean; empty?: boolean; disabled?: boolean; onclick?: () => void; onconfigure?: () => void; ondrag?: (x: number, y: number) => void; ondrop?: (cancelled?: boolean) => void } = $props();
   let pressed = $state(false);
   const gesture = new KeyPress(() => { pressed = false; onconfigure?.(); }, (x,y) => { if (editing) ondrag?.(x,y); });
   const release = () => { pressed = false; gesture.end(); };
@@ -21,13 +21,14 @@
     class="key-slot"
     class:editing
     class:empty
+    class:workflow
     {href}
     disabled={href ? undefined : disabled}
     data-key={empty ? undefined : key.id}
     data-tone={key.tone}
     data-lit={key.count > 0 || !!key.note ? 'on' : undefined}
     data-pressed={pressed ? 'on' : undefined}
-    aria-label={empty ? 'Empty slot. Add a button' : [key.label, target, key.note, editing ? 'Replace or remove' : ''].filter(Boolean).join(', ')}
+    aria-label={empty ? 'Empty slot. Add a button' : [key.label, workflow ? 'Workflow' : '', target, key.note, editing ? 'Replace or remove' : ''].filter(Boolean).join(', ')}
     title={onconfigure ? 'Hold or press Shift+F10 to configure. You can also use Edit Deck.' : undefined}
     onpointerdown={(e: PointerEvent) => { if (e.button !== 0 || disabled) return; pressed = true; gesture.start(e.clientX,e.clientY,!!onconfigure && !editing); if (editing) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
     onpointermove={(e: PointerEvent) => gesture.move(e.clientX,e.clientY)}
@@ -59,6 +60,8 @@
   .target { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11.5px/1.2 var(--mono); color: var(--text-2); }
   .key-slot.editing { touch-action: none; cursor: grab; }
   .key-slot:disabled { cursor: wait; }
+  .workflow .cap { background: linear-gradient(color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 12%, transparent)), var(--key-bg); border-color: color-mix(in srgb, var(--accent) 38%, var(--border)); }
+  .workflow .glyph, .workflow .name { color: var(--accent); }
   .empty .cap { background: var(--surface-2); box-shadow: inset 0 1px 3px color-mix(in srgb, var(--text) 12%, transparent); transform: none; border-style: dashed; }
   .key-slot {
     --lift: 4px;

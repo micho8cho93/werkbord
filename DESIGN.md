@@ -359,3 +359,9 @@ and desktop tours remain unchanged.
 The Agents key carries the exact live running count in its corner badge, hidden at zero. The separate agents activity row and
 Control Deck title/edit row are removed. The header pencil edits the deck and changes to a checkmark to save, with accessible
 labels and pressed state. Onboarding explains the pencil, checkmark and Agents badge.
+
+### Phone workflow and setup refinement (4.50)
+
+The first six Control Deck keys stay ready and the bottom three start empty. First use accepts navigation, workflows or empty positions. Workflow keys carry a cobalt-tinted face and a Workflow accessible label. New workflows ask for repositories on tap in a bottom sheet; hold opens saved settings. Find Bugs, Security Audit and Dependency Check default to human-owned draft findings. Execution details link each saved finding to its task under Next actions, including deduplicated findings from repeated scans.
+
+Onboarding checks readiness before presenting a setup action. Verified local runner, agent and repository steps become disabled status controls and leave the active path automatically. Team's connected runner has one disabled Runner connected control; configured but unavailable runners can reconnect without repeating installation. The members directory follows the demo's compact rows with two-letter initials, a tinted self avatar, role and reported device presence. Recent device presence is labelled as such and does not claim that an execution runner is available.

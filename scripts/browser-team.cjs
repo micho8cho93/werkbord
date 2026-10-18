@@ -241,6 +241,23 @@ async function api(method, path, data, credential = token) {
             if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, `team-${tab}-${size}.png`) });
         }
     }
+    // Match the demo's compact directory while keeping filtering and row management working.
+    const directoryMember = (await api('POST', '/members', {name:'Maya Chen',email:'maya@example.test'})).member;
+    await page.goto(base + '/?tab=members');
+    await page.locator('[data-member-id="'+directoryMember.id+'"] strong').waitFor();
+    assert.equal(await page.locator('[data-member-id="'+directoryMember.id+'"] .av').innerText(),'MC');
+    assert.equal(await page.locator('.member-row[data-self=true] .member-you').innerText(),'(you)');
+    const filter = page.getByRole('searchbox',{name:'Find a member'});
+    await filter.fill('maya');
+    assert.equal(await page.locator('.member-row:visible').count(),1);
+    await filter.fill('no-matching-member');
+    await page.getByText('No members found.',{exact:true}).waitFor();
+    await filter.fill('');
+    for (const [size,width,height] of [['desktop',1440,1000],['mobile',390,844]]) {
+        await page.setViewportSize({width,height});
+        assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+        if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({path:path.join(artifacts,'members-'+size+'.png')});
+    }
     assert.deepEqual(errors, []);
     console.log('PASS desktop/mobile layout, no JavaScript errors');
     await browser.close();

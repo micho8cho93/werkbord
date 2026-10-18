@@ -36,6 +36,17 @@
     {#if selected.stopRequested}<p role="status">{selected.run?.state === 'stopped' ? 'Cancellation confirmed. Completed results are preserved.' : terminal(selected.run) ? 'The run ended before cancellation was confirmed. Results are preserved.' : 'Stop requested. Cancellation is not confirmed until the runner reports it stopped.'}</p>{/if}
     {#if selected.error || selected.run?.reason}<p class="error" role="alert">{selected.error || selected.run?.reason}</p><p>{workflowRecovery(selected.error || selected.run?.reason || '')}</p>{/if}
     {#if selected.run?.state === 'failed' || selected.run?.state === 'stopped'}<p>Partial completion: inspect completed stages and saved output before starting more work.</p>{/if}
+    {#if selected.findings?.length}
+      <section aria-label="Actionable findings" class="findings">
+        <h3>Next actions</h3>
+        <p class="muted">Review each finding’s evidence and suggested fix in its task. New findings wait in Backlog for you to assign or schedule.</p>
+        <ul>{#each selected.findings as finding (finding.id)}
+          <li><strong>{finding.title}</strong><span class="muted">{finding.archivedAt ? 'Archived' : finding.state === 'backlog' ? 'Backlog draft' : finding.state === 'doing' ? 'In progress' : finding.state === 'review' ? 'In review' : 'Done'}</span><a class="btn workflow-action" href={taskHref(selected.projectId, finding.id)} onclick={() => workflows.selected = ''}>Review finding<small class="visually-hidden">: {finding.title}</small></a></li>
+        {/each}</ul>
+      </section>
+    {:else if selected.run?.state === 'completed' && selected.configuration?.output === 'drafts'}
+      <p class="muted">No actionable draft tasks were saved. Read the report for findings and any limits on the investigation.</p>
+    {/if}
     <p class="muted">{steps.filter(s => s.status === 'Completed').length} of {steps.length} stages reported complete. Investigation stages are agent-reported; stages without events stay pending.</p>
     <ol class="steps">
       {#each steps as step, i (step.name)}
@@ -57,6 +68,11 @@
 {/if}
 <style>
   .workflow-action { min-height: 44px; }
+  .findings h3 { font-size: 16px; margin: 0; }
+  .findings ul { list-style: none; padding: 0; margin: 0; }
+  .findings li { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+  .findings strong { flex: 1 1 100%; font-weight: 500; }
+  .findings a { margin-left: auto; }
   .repositories { display: flex; flex-wrap: wrap; gap: 8px; }
   .repositories .btn { min-height: 44px; }
   .steps { list-style: none; margin: 20px 0; padding: 0; }

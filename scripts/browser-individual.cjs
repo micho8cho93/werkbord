@@ -31,6 +31,10 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.goto(base + '/#token=' + token);
     await page.getByRole('heading', { name: 'Welcome to Werkbord', exact: true }).waitFor();
     await page.getByText('2 of 3 requirements verified', { exact: true }).waitFor();
+    const setupSteps = page.getByRole('list', {name:'Setup steps'});
+    assert(await setupSteps.getByRole('button',{name:/Local runner/}).isDisabled(),'verified runner does not need connecting again');
+    assert(await setupSteps.getByRole('button',{name:/Usable coding agent/}).isDisabled(),'detected agents do not repeat setup');
+    assert.match(await setupSteps.locator('[aria-current=step]').innerText(),/^3\. GitHub \(optional\)/);
     assert.equal(await page.getByRole('button', { name: 'Create your first task', exact: true }).count(), 0, 'a repository is required for local coding');
     await page.getByRole('list', { name: 'Setup steps' }).getByRole('button', { name: /GitHub \(optional\)/ }).waitFor();
     await page.getByRole('list', { name: 'Setup steps' }).getByRole('button', { name: /Phone \(optional\)/ }).waitFor();

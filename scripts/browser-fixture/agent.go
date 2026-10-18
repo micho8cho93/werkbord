@@ -69,6 +69,7 @@ func runFixtureAgent() error {
 			fmt.Println("WERKBORD_STAGE 5 completed")
 			fmt.Println("WERKBORD_STAGE 6 completed")
 			fmt.Println("Fixture findings report preserved")
+			fmt.Println(`WERKBORD_DRAFT {"key":"fixture-bug","title":"Review the reproducible fixture bug","description":"Reproduce the failure and validate the suggested fix with a focused test.","references":["fixture.go:12"]}`)
 		case "fail":
 			return fmt.Errorf("intentional fixture agent failure")
 		case "ask":

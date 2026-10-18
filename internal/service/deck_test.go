@@ -250,12 +250,44 @@ func TestDeckDraftFindingsAreScopedHumanOwnedAndIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.runs.collectDeckDrafts(ctx, r)
+	settings := &Settings{Deps: f.runs.Deps}
+	owner := "report-owner"
+	if err := f.runs.Store.Update(ctx, func(tx store.Tx) error {
+		return tx.Settings().Set(ctx, DeckOwnerKey(owner)+".history", []DeckExecution{{SlotID: "bugs", TaskID: f.task.ID, ProjectID: f.project.ID}}, f.runs.now())
+	}); err != nil {
+		t.Fatal(err)
+	}
+	history, err := settings.DeckHistory(ctx, owner)
+	if err != nil || len(history) != 1 || len(history[0].Findings) != 1 {
+		t.Fatalf("report findings: %+v %v", history, err)
+	}
+	other, err := settings.DeckHistory(ctx, "another-phone")
+	if err != nil || len(other) != 0 {
+		t.Fatalf("another owner's findings: %+v %v", other, err)
+	}
+	// A later execution of the same workflow links the existing finding too.
+	repeatedTask, err := f.tasks.CreateTask(ctx, NewTask{ProjectID: f.project.ID, Title: "Repeat scan"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.runs.Store.Update(ctx, func(tx store.Tx) error {
+		return tx.Settings().Set(ctx, "deck-task."+repeatedTask.ID, slot, f.runs.now())
+	}); err != nil {
+		t.Fatal(err)
+	}
+	repeatedRun := *r
+	repeatedRun.TaskID = repeatedTask.ID
+	f.runs.collectDeckDrafts(ctx, &repeatedRun)
+	var linked []string
+	if err := f.runs.Store.View(ctx, func(tx store.Tx) error { return tx.Settings().Get(ctx, "deck-findings."+repeatedTask.ID, &linked) }); err != nil || len(linked) != 1 || linked[0] != history[0].Findings[0].ID {
+		t.Fatalf("repeated report lost its deduplicated finding: %v %v", linked, err)
+	}
 	all, err := f.tasks.List(ctx, f.project.ID)
-	if err != nil || len(all) != 2 {
+	if err != nil || len(all) != 3 {
 		t.Fatalf("drafts: %d %v", len(all), err)
 	}
 	for _, task := range all {
-		if task.ID != f.task.ID && (task.State != domain.TaskBacklog || task.WorkMode != planning.ModeHuman || !strings.Contains(task.Description, "internal/api/server.go:12")) {
+		if task.ID != f.task.ID && task.ID != repeatedTask.ID && (task.State != domain.TaskBacklog || task.WorkMode != planning.ModeHuman || !strings.Contains(task.Description, "internal/api/server.go:12")) {
 			t.Fatalf("unsafe draft: %+v", task)
 		}
 	}

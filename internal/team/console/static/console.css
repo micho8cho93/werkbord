@@ -321,11 +321,17 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
 .member-directory > input::placeholder { color: var(--muted); opacity: 1; }
 .member-directory .section-head h2 { overflow-wrap: anywhere; }
 .member-directory .section-head .badge { flex: none; }
-.member-row { flex-wrap: nowrap; gap: 16px; padding: 18px 0; }
+.member-directory { min-width: 0; max-width: 960px; }
+.member-intro { margin: 0 0 20px; }
+.member-list { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.member-row { flex-wrap: nowrap; gap: 16px; padding: 18px 20px; }
+.member-row:last-child { border-bottom: 0; }
 .member-row[hidden] { display: none; }
-.member-row > .av { width: 36px; height: 36px; font-size: 14px; background: var(--s2); color: var(--text); box-shadow: none; }
+.member-row > .av { width: 36px; height: 36px; flex: none; border-radius: 50%; font-size: 12px; background: var(--s2); color: var(--text); box-shadow: none; }
+.member-row[data-self='true'] > .av { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); color: var(--accent); }
 .member-row .grow strong { font-weight: 500; font-size: 15px; }
 .member-row .grow > .muted { margin-top: 3px; }
+.member-email { overflow-wrap: anywhere; font-size: 12px; }
 .member-you { margin-left: 8px; }
 .member-role { font-family: var(--sans); font-size: 12px; color: var(--muted); }
 .member-manage { position: relative; margin: 0; flex: none; }

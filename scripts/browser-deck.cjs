@@ -62,6 +62,9 @@ async function request(token, method, route, body) {
         assert.equal(await done().getAttribute('aria-pressed'), 'true');
         await socket(6).click();
         await dialog().getByRole('button', { name: /^Find Bugs/ }).click();
+        assert.equal(await dialog().count(), 0, 'adding a workflow does not require configuration');
+        await page.getByRole('button', { name: 'Configure Find Bugs', exact: true }).click();
+        assert.equal(await dialog().getByRole('combobox', {name:'Repository target',exact:true}).inputValue(), 'ask');
         await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('selected');
         await dialog().getByRole('checkbox', { name: project.name, exact: true }).check();
         await dialog().getByRole('combobox', { name: 'Agent', exact: true }).selectOption('fixture');
@@ -140,6 +143,16 @@ async function request(token, method, route, body) {
         await banner.getByText('Cancelled', {exact:true}).waitFor();
         const stopped = await request(phone.token,'GET',`/api/projects/${project.id}/runs/${firstRun.id}`);
         assert.equal(stopped.state,'stopped');
+        await banner.getByRole('button', {name:'Open Find Bugs execution details'}).click();
+        await dialog().getByRole('button', {name:'Refresh state',exact:true}).click();
+        await dialog().getByRole('region',{name:'Actionable findings'}).getByRole('link',{name:/Review finding/}).waitFor();
+        const report = await request(phone.token,'GET','/api/deck/history');
+        assert.equal(report[0].findings.length,1);
+        assert.equal(report[0].findings[0].workMode,'human');
+        assert.equal(report[0].findings[0].state,'backlog');
+        await dialog().getByRole('link',{name:/Review finding/}).click();
+        await page.waitForURL('**/task/'+report[0].findings[0].id);
+        assert.equal(starts,1,'reviewing a finding does not execute it');
         await page.goto(base + '/#/deck'); await edit().waitFor();
 
         // A one-off picker changes this invocation without changing the saved target.
@@ -147,11 +160,11 @@ async function request(token, method, route, body) {
         await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('ask');
         await dialog().getByRole('combobox', { name: 'Output', exact: true }).selectOption('report');
         await dialog().getByRole('button', { name: 'Run Once With Different Settings', exact: true }).click();
-        await dialog().getByRole('heading', { name: 'Choose workflow repositories' }).waitFor();
+        await dialog().getByRole('heading', { name: 'Run Find Bugs' }).waitFor();
         assert.equal(starts, 1, 'picker does not launch before a repository is selected');
-        await dialog().getByRole('checkbox', { name: project.name, exact: true }).check();
+        await dialog().getByRole('checkbox', { name: new RegExp('^'+project.name) }).check();
         const oneOffResponse = page.waitForResponse(r => new URL(r.url()).pathname === '/api/deck/workflows' && r.request().method() === 'POST');
-        await dialog().getByRole('button', { name: 'Run workflow', exact: true }).click();
+        await dialog().getByRole('button', { name: 'Run Find Bugs', exact: true }).click();
         const response = await oneOffResponse; assert(response.ok());
         const oneOff = await response.json();
         assert.equal(oneOff.tasks.length, 1); assert.equal(oneOff.task.projectId, project.id);

@@ -35,11 +35,12 @@ type DeckLayout struct {
 	Slots   [9]*DeckSlot `json:"slots"`
 }
 type DeckExecution struct {
-	RequestID     string    `json:"requestId"`
-	SlotID        string    `json:"slotId"`
-	ProjectID     string    `json:"projectId"`
-	TaskID        string    `json:"taskId"`
-	Configuration *DeckSlot `json:"configuration,omitempty"`
+	RequestID     string         `json:"requestId"`
+	SlotID        string         `json:"slotId"`
+	ProjectID     string         `json:"projectId"`
+	TaskID        string         `json:"taskId"`
+	Configuration *DeckSlot      `json:"configuration,omitempty"`
+	Findings      []*domain.Task `json:"findings,omitempty"`
 }
 type Workflow struct {
 	ID          string `json:"id"`
@@ -153,7 +154,28 @@ func (s *Settings) DeckHistory(ctx context.Context, owner string) ([]DeckExecuti
 		if errors.Is(err, domain.ErrNotFound) {
 			return nil
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		for i := range out {
+			var ids []string
+			if err := tx.Settings().Get(ctx, "deck-findings."+out[i].TaskID, &ids); err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
+			for _, id := range ids {
+				task, err := tx.Tasks().Get(ctx, id)
+				if errors.Is(err, domain.ErrNotFound) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				if task.ProjectID == out[i].ProjectID {
+					out[i].Findings = append(out[i].Findings, task)
+				}
+			}
+		}
+		return nil
 	})
 	return out, err
 }
