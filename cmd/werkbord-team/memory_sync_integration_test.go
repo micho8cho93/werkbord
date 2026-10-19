@@ -84,10 +84,22 @@ func TestMemorySyncTwoControllersOfflineRestartReplayAndRevocation(t *testing.T)
 	ctx := context.Background()
 	team := newIntegrationTeam(t, "Shared memory")
 	a, b := newIntegrationLocal(t), newIntegrationLocal(t)
-	// The second controller enrolls with a distinct device identity in the same workspace.
+	// A second member keeps their own controller, private database and runner.
+	second, err := team.svc.AddMember(ctx, team.owner, "Second member", "", domain.RoleMember)
+	if err != nil {
+		t.Fatal(err)
+	}
+	memberB, err := team.svc.Authenticate(ctx, second.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = team.svc.AddProjectMember(ctx, team.owner, team.project.ID, memberB.Member.ID, domain.ProjectContributor); err != nil {
+		t.Fatal(err)
+	}
+	// The second controller enrolls with its member's distinct device identity.
 	keys, _ := pki.NewHostKeys()
 	pub := deviceid.Public{ID: deviceid.ID(keys.DeviceID()), Name: "Second controller", PublicKey: deviceid.EncodePublicKey(keys.PublicKey()), CreatedAt: time.Now()}
-	device, err := team.svc.RegisterDevice(ctx, team.member, service.DeviceInput{Device: pub, Proof: keys.Sign(deviceid.RegistrationStatement(team.owner.Workspace.ID, team.member.Member.ID, pub.ID, pub.Name, keys.PublicKey())), Capabilities: []domain.Capability{domain.CapabilityRunner}})
+	device, err := team.svc.RegisterDevice(ctx, memberB, service.DeviceInput{Device: pub, Proof: keys.Sign(deviceid.RegistrationStatement(team.owner.Workspace.ID, memberB.Member.ID, pub.ID, pub.Name, keys.PublicKey())), Capabilities: []domain.Capability{domain.CapabilityRunner}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +109,7 @@ func TestMemorySyncTwoControllersOfflineRestartReplayAndRevocation(t *testing.T)
 	}
 	ts := httptest.NewServer(server.Handler(team.db, team.svc, nil, "test"))
 	defer ts.Close()
-	hostB, err := hostclient.New(hostclient.Options{Bases: []string{ts.URL}, Token: credential, Signer: keys, WorkspaceID: team.owner.Workspace.ID, UserID: team.member.Member.ID})
+	hostB, err := hostclient.New(hostclient.Options{Bases: []string{ts.URL}, Token: credential, Signer: keys, WorkspaceID: team.owner.Workspace.ID, UserID: memberB.Member.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +122,7 @@ func TestMemorySyncTwoControllersOfflineRestartReplayAndRevocation(t *testing.T)
 		return connector.SyncMemory(ctx, team.host, ba, ga.WorkspaceID, team.member.Member.ID, team.device.ID)
 	}
 	syncB := func() error {
-		return connector.SyncMemory(ctx, hostB, bb, ga.WorkspaceID, team.member.Member.ID, device.ID)
+		return connector.SyncMemory(ctx, hostB, bb, ga.WorkspaceID, memberB.Member.ID, device.ID)
 	}
 	team.offline.Store(true)
 	if err = syncA(); err == nil {
@@ -156,6 +168,29 @@ func TestMemorySyncTwoControllersOfflineRestartReplayAndRevocation(t *testing.T)
 	if err != nil || len(page.Records) != 2 {
 		t.Fatalf("duplicated or missing knowledge: %+v %v", page, err)
 	}
+	// Publishing shares sanitized knowledge, never private storage or execution.
+	if a.dbPath == b.dbPath || a.mgr == b.mgr || a.adapter == b.adapter {
+		t.Fatal("members share an execution environment")
+	}
+	for _, local := range []struct {
+		l *integrationLocal
+		m *localdomain.Memory
+	}{{a, ma}, {b, mb}} {
+		private, err := local.l.memory.Memory.Get(ctx, local.m.Scope, local.m.ID)
+		if err != nil || !strings.Contains(private.Summary, "NEVER_EXPORT") {
+			t.Fatalf("private memory changed during publication: %+v %v", private, err)
+		}
+	}
+	if _, err = b.memory.Memory.Get(ctx, mb.Scope, ma.ID); err == nil {
+		t.Fatal("second controller can read first controller's private memory")
+	}
+	authors := map[string]bool{}
+	for _, r := range page.Records {
+		authors[r.AuthorID] = true
+	}
+	if !authors[team.member.Member.ID] || !authors[memberB.Member.ID] {
+		t.Fatal("lost member provenance", authors)
+	}
 	var record integration.SharedMemoryRecord
 	for _, r := range page.Records {
 		if r.Content.Source.ID == ma.ID {
@@ -168,6 +203,26 @@ func TestMemorySyncTwoControllersOfflineRestartReplayAndRevocation(t *testing.T)
 	}
 	_, err = team.svc.ChangeMemory(ctx, team.owner, record.ID, integration.MemoryCommand{Schema: integration.MemorySchema, Scope: scope, Version: approved.Version, Action: "publish"})
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The curator publishes both members' independently sourced knowledge.
+	for _, candidate := range page.Records {
+		if candidate.AuthorID != memberB.Member.ID {
+			continue
+		}
+		for _, action := range []string{"approve", "publish"} {
+			candidate, err = team.svc.ChangeMemory(ctx, team.owner, candidate.ID, integration.MemoryCommand{Schema: integration.MemorySchema, Scope: scope, Version: candidate.Version, Action: action})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	published, err := team.svc.ReadMemories(ctx, team.member, scope, "", true)
+	if err != nil || len(published.Records) != 2 {
+		t.Fatal("both members' knowledge was not published", published, err)
+	}
+	if err = syncB(); err != nil {
 		t.Fatal(err)
 	}
 	if err = syncA(); err != nil {

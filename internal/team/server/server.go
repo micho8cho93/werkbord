@@ -75,6 +75,10 @@ func RunWith(ctx context.Context, cfg config.Config, log *slog.Logger, version s
 			log.Warn("stopping the workspace's storage", "err", err)
 		}
 	}()
+	memoryCtx, stopMemory := context.WithCancel(ctx)
+	memoryDone := make(chan struct{})
+	go func() { defer close(memoryDone); runMemoryReconciliation(memoryCtx, svc, log) }()
+	defer func() { stopMemory(); <-memoryDone }()
 	db := st.DB()
 	nw, err := openNetwork(cfg, log, svc)
 	if err != nil {

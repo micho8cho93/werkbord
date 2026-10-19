@@ -52,7 +52,7 @@ func (s *Service) ReadMemories(ctx context.Context, a Actor, scope integration.S
 	}
 	err := s.db.View(AuthenticatedContext(ctx, a), func(tx store.Tx) error {
 		var err error
-		out, err = tx.ReadMemories(ctx, memoryPrincipal(a), scope, after, published)
+		out, err = tx.ReadMemories(ctx, memoryPrincipal(a), scope, after, published, s.stamp())
 		return err
 	})
 	return out, err

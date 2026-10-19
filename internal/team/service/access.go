@@ -71,7 +71,10 @@ func (s *Service) mutate(ctx context.Context, a Actor, projectID string, fn func
 			return err
 		}
 		_, err = tx.BumpRevision(ctx, a.Workspace.ID, projectID)
-		return err
+		if err != nil {
+			return err
+		}
+		return tx.InvalidateProjectMemory(ctx, a.Workspace.ID, projectID, s.stamp())
 	})
 	if err == nil {
 		s.hub.notify(projectID)

@@ -47,13 +47,13 @@ func TestSharedMemoryQueriesCommitAtomicallyAndKeepExactScope(t *testing.T) {
 		t.Fatalf("committed memory did not bump workspace revision: %d -> %d", before, got)
 	}
 	c.view(func(tx Tx) error {
-		page, err := tx.ReadMemories(ctx, principal, scope, "", false)
+		page, err := tx.ReadMemories(ctx, principal, scope, "", false, t0)
 		if err != nil || len(page.Records) != 1 || page.Records[0].ID != record.ID {
 			t.Fatalf("exact-scope read: %+v %v", page, err)
 		}
 		wrong := scope
 		wrong.ProjectID = "prj_hidden"
-		if _, err := tx.ReadMemories(ctx, principal, wrong, "", false); !errors.Is(err, domain.ErrNotFound) {
+		if _, err := tx.ReadMemories(ctx, principal, wrong, "", false, t0); !errors.Is(err, domain.ErrNotFound) {
 			t.Fatalf("inaccessible project was not hidden: %v", err)
 		}
 		return nil

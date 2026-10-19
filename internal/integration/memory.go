@@ -105,14 +105,62 @@ type MemorySource struct {
 	Revision string `json:"revision,omitempty"`
 }
 type SharedMemoryContent struct {
-	Kind           string       `json:"kind"` // observation, preference, convention, policy
-	Summary        string       `json:"summary"`
-	Classification string       `json:"classification"` // team or restricted
-	Verification   string       `json:"verification"`   // unverified, verified, stale, rejected
-	Source         MemorySource `json:"source"`
+	Kind           string         `json:"kind"` // observation, preference, convention, policy
+	Summary        string         `json:"summary"`
+	Classification string         `json:"classification"` // team or restricted
+	Verification   string         `json:"verification"`   // unverified, verified, stale, rejected
+	Source         MemorySource   `json:"source"`
+	Context        *MemoryContext `json:"context,omitempty"`
+}
+
+// MemoryContext identifies a comparable claim without semantic inference. Branch
+// context is never promoted to the target branch by a PR merge.
+type MemoryContext struct {
+	Claim       string `json:"claim"`
+	Branch      string `json:"branch,omitempty"`
+	TaskID      string `json:"taskId,omitempty"`
+	PullRequest int    `json:"pullRequest,omitempty"`
+}
+
+// MemoryFreshness is computed by Team at retrieval time, separately from the
+// immutable human verification/approval of the published statement.
+type MemoryFreshness struct {
+	Status                string    `json:"status"`
+	IntegrationState      string    `json:"integrationState"`
+	DuplicateOf           string    `json:"duplicateOf,omitempty"`
+	Conflict              bool      `json:"conflict"`
+	AuthoritativeRevision string    `json:"authoritativeRevision,omitempty"`
+	SourceRevision        string    `json:"sourceRevision,omitempty"`
+	TargetBranch          string    `json:"targetBranch,omitempty"`
+	PRState               string    `json:"prState,omitempty"`
+	TaskState             string    `json:"taskState,omitempty"`
+	ReviewState           string    `json:"reviewState,omitempty"`
+	EvidenceAt            time.Time `json:"evidenceAt,omitempty"`
 }
 
 func (c SharedMemoryContent) Validate() error {
+	if c.Context != nil {
+		x := c.Context
+		if x.Branch != "" {
+			if strings.HasPrefix(x.Branch, "-") || strings.HasSuffix(x.Branch, "/") || strings.HasSuffix(x.Branch, ".") || strings.HasSuffix(x.Branch, ".lock") || strings.Contains(x.Branch, "//") || strings.Contains(x.Branch, "@{") || x.Branch == "@" {
+				return errors.New("invalid memory branch")
+			}
+			for _, part := range strings.Split(x.Branch, "/") {
+				if strings.HasPrefix(part, ".") {
+					return errors.New("invalid memory branch")
+				}
+			}
+			for _, r := range x.Branch {
+				if unicode.IsControl(r) || unicode.In(r, unicode.Cf) || strings.ContainsRune("~^:?*[", r) {
+					return errors.New("invalid memory branch")
+				}
+			}
+		}
+		if !Identifier(x.Claim) || x.TaskID != "" && !Identifier(x.TaskID) || x.PullRequest < 0 || x.PullRequest > 1000000000 || len(x.Branch) > 200 || strings.ContainsAny(x.Branch, "\\\n\r\t ") || strings.Contains(x.Branch, "..") || strings.HasPrefix(x.Branch, "/") {
+			return errors.New("invalid memory context")
+		}
+	}
+
 	switch c.Kind {
 	case "observation", "preference", "convention", "policy":
 	default:
@@ -225,6 +273,7 @@ type MemoryApproval struct {
 	At       time.Time `json:"at"`
 }
 type SharedMemoryRecord struct {
+	Freshness      *MemoryFreshness    `json:"freshness,omitempty"`
 	Schema         string              `json:"schema"`
 	ID             string              `json:"id"`
 	Scope          SharedMemoryScope   `json:"scope"`
@@ -242,6 +291,22 @@ type SharedMemoryRecord struct {
 }
 
 func (r SharedMemoryRecord) Validate() error {
+	if f := r.Freshness; f != nil {
+		switch f.IntegrationState {
+		case "", "unknown", "branch_only", "entered_target":
+		default:
+			return errors.New("invalid integration state")
+		}
+		switch f.Status {
+		case "uncertain", "stale", "conflict", "source_matches", "deleted", "superseded":
+		default:
+			return errors.New("invalid freshness status")
+		}
+		if f.DuplicateOf != "" && !Identifier(f.DuplicateOf) || f.SourceRevision != "" && !memorySHA(f.SourceRevision) || f.AuthoritativeRevision != "" && !memorySHA(f.AuthoritativeRevision) {
+			return errors.New("invalid freshness reference")
+		}
+	}
+
 	if r.Schema != MemorySchema || !Identifier(r.ID) || !Identifier(r.AuthorID) || !Identifier(r.UpdatedBy) || r.AuthorDeviceID != "" && !Identifier(r.AuthorDeviceID) || r.Version < 1 || r.CreatedAt.IsZero() || r.UpdatedAt.Before(r.CreatedAt) {
 		return errors.New("invalid memory record identity, version, or timestamps")
 	}
@@ -268,6 +333,9 @@ func (r SharedMemoryRecord) Validate() error {
 		if r.Approval != nil || r.SupersededBy != "" {
 			return errors.New("invalid suggested memory record")
 		}
+		return nil
+	}
+	if r.State == "superseded" && r.Approval == nil && r.SupersededBy != "" && r.Version >= 2 {
 		return nil
 	}
 	if r.State != "approved" && r.State != "published" && r.State != "superseded" {

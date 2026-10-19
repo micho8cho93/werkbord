@@ -31,6 +31,8 @@ var publicRoutes = map[string]bool{
 // projectRoutes are scoped to one project: a person who is not on it must not be
 // able to tell it exists. Path parameters: {id} project, {tid} ticket.
 var projectRoutes = []string{
+	// Bounded memory metadata and retrieval; no execution, credentials or file access.
+	"POST /projects/{id}/memory/{mid}/resolve", "POST /projects/{id}/memory/evidence", "GET /projects/{id}/memory", "GET /projects/{id}/memory/{mid}", "GET /projects/{id}/memory/{mid}/history",
 	"GET /projects/{id}/analytics",                                                           // compact ticket and completion aggregates; requires both ticket and activity access
 	"PUT /projects/{id}/tickets/{tid}/progress", "GET /projects/{id}/tickets/{tid}/progress", // metadata observations only; no execution effects
 	"GET /projects/{id}", "PATCH /projects/{id}",

@@ -17,10 +17,17 @@ import (
 // again by each store operation in the very transaction that returns/changes data.
 type MemoryPrincipal struct{ WorkspaceID, MemberID, DeviceID string }
 type MemoryQueries interface {
+	InvalidateProjectMemory(context.Context, string, string, time.Time) error
+	ResolveMemory(context.Context, MemoryPrincipal, string, string, domain.MemoryResolution, time.Time) (integration.SharedMemoryRecord, error)
+	ReportMemoryEvidence(context.Context, MemoryPrincipal, domain.MemoryEvidence, time.Time) error
+	SearchMemories(context.Context, MemoryPrincipal, string, string, string, string, time.Time) (integration.MemoryPage, error)
+	ReconcileMemoryBatch(context.Context, time.Time) error
+	MemoryHistory(context.Context, MemoryPrincipal, string, string, time.Time) (MemoryHistory, error)
+
 	DeliverMemory(context.Context, MemoryPrincipal, integration.MemoryEvent, string, time.Time) (integration.MemoryReceipt, error)
 	ProposeMemory(context.Context, MemoryPrincipal, integration.MemoryProposal, string, time.Time) (integration.SharedMemoryRecord, error)
 	ChangeMemory(context.Context, MemoryPrincipal, string, integration.MemoryCommand, time.Time) (integration.SharedMemoryRecord, error)
-	ReadMemories(context.Context, MemoryPrincipal, integration.SharedMemoryScope, string, bool) (integration.MemoryPage, error)
+	ReadMemories(context.Context, MemoryPrincipal, integration.SharedMemoryScope, string, bool, time.Time) (integration.MemoryPage, error)
 }
 
 func memoryScopeKey(s integration.SharedMemoryScope) string {
@@ -162,6 +169,38 @@ func (t *sqlTx) ProposeMemory(ctx context.Context, a MemoryPrincipal, in integra
 	if !errors.Is(notFound(err, "memory"), domain.ErrNotFound) {
 		return out, err
 	}
+	// An exact update from the same provenance is one fact even when a client
+	// retries under a new key. Keep the alias digest so key reuse still conflicts.
+	err = t.q.QueryRowContext(ctx, `SELECT memory_id,digest FROM memory_proposal_aliases WHERE workspace_id=? AND author_id=? AND client_id=?`, a.WorkspaceID, a.MemberID, in.ClientID).Scan(&oldID, &oldDigest)
+	if err == nil {
+		if oldDigest != digest {
+			return out, domain.ErrConflict
+		}
+		return t.memory(ctx, a.WorkspaceID, oldID)
+	}
+	if !errors.Is(notFound(err, "memory"), domain.ErrNotFound) {
+		return out, err
+	}
+	if in.Content.Context != nil && in.Supersedes == "" {
+		content, _ := json.Marshal(in.Content)
+		err = t.q.QueryRowContext(ctx, `SELECT id FROM shared_memories WHERE workspace_id=? AND scope_key=? AND author_id=? AND json_extract(document,'$.authorDeviceId') IS ? AND json_extract(document,'$.content')=? AND json_extract(document,'$.state') NOT IN ('deleted','superseded') ORDER BY id LIMIT 1`, a.WorkspaceID, memoryScopeKey(in.Scope), a.MemberID, nullStr(a.DeviceID), string(content)).Scan(&oldID)
+		if err == nil {
+			var n int
+			if err = t.q.QueryRowContext(ctx, `SELECT count(*) FROM memory_proposal_aliases WHERE workspace_id=?`, a.WorkspaceID).Scan(&n); err != nil {
+				return out, err
+			}
+			if n >= 10000 {
+				return out, domain.ErrBusy
+			}
+			if _, err = t.q.ExecContext(ctx, `INSERT INTO memory_proposal_aliases VALUES(?,?,?,?,?)`, a.WorkspaceID, a.MemberID, in.ClientID, oldID, digest); err != nil {
+				return out, err
+			}
+			return t.memory(ctx, a.WorkspaceID, oldID)
+		}
+		if !errors.Is(notFound(err, "memory"), domain.ErrNotFound) {
+			return out, err
+		}
+	}
 	if err := t.memoryCapacity(ctx, a.WorkspaceID); err != nil {
 		return out, err
 	}
@@ -172,6 +211,9 @@ func (t *sqlTx) ProposeMemory(ctx context.Context, a MemoryPrincipal, in integra
 		}
 		if memoryScopeKey(old.Scope) != memoryScopeKey(in.Scope) {
 			return out, domain.ErrNotFound
+		}
+		if old.Content.Kind == "policy" && (in.Content.Kind != "policy" || in.Content.Source.Kind != "human") {
+			return out, domain.ErrForbidden
 		}
 		if old.State != "published" {
 			return out, domain.ErrConflict
@@ -193,6 +235,9 @@ func (t *sqlTx) ProposeMemory(ctx context.Context, a MemoryPrincipal, in integra
 		return out, err
 	}
 	_, err = t.q.ExecContext(ctx, `INSERT INTO shared_memory_revisions(workspace_id,memory_id,version,document) VALUES(?,?,1,?)`, a.WorkspaceID, id, string(doc))
+	if err == nil {
+		err = t.memoryRelationships(ctx, out)
+	}
 	return out, err
 }
 func (t *sqlTx) ChangeMemory(ctx context.Context, a MemoryPrincipal, id string, in integration.MemoryCommand, now time.Time) (integration.SharedMemoryRecord, error) {
@@ -219,6 +264,14 @@ func (t *sqlTx) ChangeMemory(ctx context.Context, a MemoryPrincipal, id string, 
 			return out, err
 		}
 	}
+	if r.Content.Kind == "policy" && (r.State == "approved" || r.State == "published") {
+		if err := t.memoryAccess(ctx, a, in.Scope, domain.PPMemoryPolicy); err != nil {
+			return out, err
+		}
+		if in.Action == "edit" && (in.Content.Kind != "policy" || in.Content.Source.Kind != "human") {
+			return out, domain.ErrForbidden
+		}
+	}
 	switch in.Action {
 	case "edit":
 		r.Content = *in.Content
@@ -231,6 +284,9 @@ func (t *sqlTx) ChangeMemory(ctx context.Context, a MemoryPrincipal, id string, 
 			return out, domain.ErrForbidden
 		}
 		if r.Content.Kind == "policy" {
+			if r.Content.Source.Kind != "human" {
+				return out, domain.ErrForbidden
+			}
 			if err := t.memoryAccess(ctx, a, in.Scope, domain.PPMemoryPolicy); err != nil {
 				return out, err
 			}
@@ -246,6 +302,9 @@ func (t *sqlTx) ChangeMemory(ctx context.Context, a MemoryPrincipal, id string, 
 		}
 		// Approval is for these exact contents. Publishing does not change them.
 		if r.Content.Kind == "policy" {
+			if r.Content.Source.Kind != "human" {
+				return out, domain.ErrForbidden
+			}
 			if err := t.memoryAccess(ctx, a, in.Scope, domain.PPMemoryPolicy); err != nil {
 				return out, err
 			}
@@ -260,6 +319,9 @@ func (t *sqlTx) ChangeMemory(ctx context.Context, a MemoryPrincipal, id string, 
 			}
 			if memoryScopeKey(old.Scope) != memoryScopeKey(r.Scope) {
 				return out, domain.ErrNotFound
+			}
+			if old.Content.Kind == "policy" && (r.Content.Kind != "policy" || r.Content.Source.Kind != "human") {
+				return out, domain.ErrForbidden
 			}
 			if old.State != "published" {
 				return out, domain.ErrConflict
@@ -285,9 +347,12 @@ func (t *sqlTx) ChangeMemory(ctx context.Context, a MemoryPrincipal, id string, 
 	r.UpdatedBy = a.MemberID
 	r.UpdatedAt = now
 	err = t.saveMemory(ctx, r, previous)
+	if err == nil && in.Action == "edit" {
+		err = t.memoryRelationships(ctx, r)
+	}
 	return r, err
 }
-func (t *sqlTx) ReadMemories(ctx context.Context, a MemoryPrincipal, s integration.SharedMemoryScope, after string, published bool) (integration.MemoryPage, error) {
+func (t *sqlTx) ReadMemories(ctx context.Context, a MemoryPrincipal, s integration.SharedMemoryScope, after string, published bool, now time.Time) (integration.MemoryPage, error) {
 	out := integration.MemoryPage{Schema: integration.MemorySchema, Records: []integration.SharedMemoryRecord{}}
 	if after != "" && !integration.Identifier(after) {
 		return out, domain.ErrInvalid
@@ -330,6 +395,11 @@ func (t *sqlTx) ReadMemories(ctx context.Context, a MemoryPrincipal, s integrati
 			}
 			break
 		}
+		f, e := t.memoryFreshness(ctx, r, now)
+		if e != nil {
+			return out, e
+		}
+		r.Freshness = &f
 		out.Records = append(out.Records, r)
 	}
 	return out, rows.Err()

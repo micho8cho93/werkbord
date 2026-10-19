@@ -77,7 +77,7 @@ func (t *sqlTx) DeliverMemory(ctx context.Context, a MemoryPrincipal, e integrat
 	var previous *integration.SharedMemoryRecord
 	if e.Previous != "" {
 		var previousID string
-		err = t.q.QueryRowContext(ctx, `SELECT id FROM shared_memories WHERE workspace_id=? AND author_id=? AND client_id=?`, a.WorkspaceID, a.MemberID, e.Previous).Scan(&previousID)
+		err = t.q.QueryRowContext(ctx, `SELECT id FROM shared_memories WHERE workspace_id=? AND author_id=? AND client_id=? UNION ALL SELECT memory_id FROM memory_proposal_aliases WHERE workspace_id=? AND author_id=? AND client_id=? LIMIT 1`, a.WorkspaceID, a.MemberID, e.Previous, a.WorkspaceID, a.MemberID, e.Previous).Scan(&previousID)
 		if err != nil {
 			return out, notFound(err, "memory")
 		}
@@ -86,6 +86,9 @@ func (t *sqlTx) DeliverMemory(ctx context.Context, a MemoryPrincipal, e integrat
 			return out, err
 		}
 		if r.AuthorDeviceID != a.DeviceID || memoryScopeKey(r.Scope) != memoryScopeKey(e.Proposal.Scope) {
+			return out, domain.ErrForbidden
+		}
+		if r.Content.Kind == "policy" && (r.State == "approved" || r.State == "published") {
 			return out, domain.ErrForbidden
 		}
 		previous = &r
@@ -156,6 +159,10 @@ func (t *sqlTx) DeliverMemory(ctx context.Context, a MemoryPrincipal, e integrat
 }
 
 func (t *sqlTx) withdrawProjection(ctx context.Context, a MemoryPrincipal, r integration.SharedMemoryRecord, now time.Time) (integration.SharedMemoryRecord, error) {
+	// Individual withdrawal cannot revoke a legitimately approved Team policy.
+	if r.Content.Kind == "policy" && (r.State == "approved" || r.State == "published") {
+		return r, domain.ErrForbidden
+	}
 	if r.State == "deleted" {
 		return r, nil
 	}
