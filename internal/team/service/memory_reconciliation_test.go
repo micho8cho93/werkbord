@@ -586,3 +586,47 @@ func TestMemoryTracksReviewActivityWithoutApprovingCode(t *testing.T) {
 		t.Fatal("requested changes were treated as approval", f)
 	}
 }
+
+func TestMemoryConflictingPRSnapshotsDoNotReopenClosedWork(t *testing.T) {
+	for _, taskState := range []domain.PRState{domain.PROpen, domain.PRClosed, domain.PRMerged} {
+		for _, sourceState := range []string{"open", "closed", "merged", "superseded"} {
+			t.Run(string(taskState)+"/"+sourceState, func(t *testing.T) {
+				tm, now := memoryGitProject(t)
+				sha := strings.Repeat("a", 40)
+				k := tm.working(tm.bo, "Storage reconciliation")
+				p := memoryProposal(tm.bo, tm.pid())
+				p.Content.Source = integration.MemorySource{Kind: "git", ID: "implementation", Revision: sha}
+				p.Content.Context = &integration.MemoryContext{Claim: "storage", Branch: k.Branch, TaskID: k.ID, PullRequest: 7}
+				r, err := tm.svc.ProposeMemory(bg, tm.bo, p)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = tm.svc.ReportGit(bg, tm.bo, tm.pid(), k.ID, GitReport{State: &BranchState{HeadSHA: sha}, PullRequest: &domain.PullRequest{Number: 7, URL: prURL, State: taskState, BaseBranch: "main"}}); err != nil {
+					t.Fatal(err)
+				}
+				*now = now.Add(time.Minute)
+				e := memoryEvidence(tm, *now, k.Branch, sha)
+				e.PullRequest, e.PRState, e.TargetBranch = 7, sourceState, "main"
+				e.AuthoritativeRevision = sha
+				if err = tm.svc.ReportMemoryEvidence(bg, tm.cy, e); err != nil {
+					t.Fatal(err)
+				}
+				f := readFreshness(t, tm, tm.bo, r.ID)
+				if string(taskState) != sourceState {
+					if f.Status != "conflict" || !f.Conflict || f.SourceRevision != "" || f.AuthoritativeRevision != "" || f.IntegrationState != "unknown" {
+						t.Fatalf("disagreement selected an authority: %+v", f)
+					}
+				} else if taskState == domain.PRClosed {
+					if f.Status != "stale" {
+						t.Fatal(f)
+					}
+				} else if f.Status != "source_matches" {
+					t.Fatal(f)
+				}
+				if f.PRState != string(taskState) {
+					t.Fatalf("source silently replaced task state: %+v", f)
+				}
+			})
+		}
+	}
+}

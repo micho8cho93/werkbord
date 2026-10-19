@@ -141,8 +141,10 @@ code in that target. Memory branch context is never rewritten to `main` by a
 merge. Target branch facts require their own source revision. Related ticket and
 review workflow states are returned separately; finishing a task does not prove
 that a reviewer approved the implementation. Closures and replacement PRs make
-old PR context stale. A merged ticket report contradicted by a later non-merged
-source report is a conflict.
+old PR context stale. Any disagreement between a ticket PR state and a source snapshot for that PR
+is a conflict, including an open source snapshot after a reported closure. Neither
+arrival order nor a matching commit can reopen closed work or establish a merge;
+conflicting responses expose no selected source or authoritative revision.
 
 ### Project retrieval and explicit resolution
 

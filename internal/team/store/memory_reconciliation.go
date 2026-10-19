@@ -314,10 +314,12 @@ func (t *sqlTx) memoryFreshness(ctx context.Context, r integration.SharedMemoryR
 	}
 	f.SourceRevision = revision
 	f.AuthoritativeRevision = authoritative
-	if taskPRState == "merged" && prState != "" && prState != "merged" {
+	// Independent task and source snapshots cannot silently overrule each other.
+	// A replacement PR is already handled as superseded above.
+	if taskPRState != "" && taskPRState != "superseded" && prState != "" && prState != taskPRState {
 		f.Conflict = true
 	}
-	if prState != "" && taskPRState != "superseded" && taskPRState != "merged" {
+	if prState != "" && taskPRState == "" {
 		f.PRState = prState
 		f.TargetBranch = base
 	}
