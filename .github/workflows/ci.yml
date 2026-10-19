@@ -62,7 +62,7 @@ jobs:
       - name: Disposable desktop/mobile browsers and Individual → Team workflow
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cd web && npx playwright install --with-deps chromium && cd ..
+          cd web && npx playwright install --with-deps chromium webkit && cd ..
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/team-desktop" make test-team-desktop-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/unified" make test-unified-desktop-browser

@@ -242,7 +242,7 @@ test-recommendations-browser: build web-shell
 	node scripts/browser-recommendations.cjs
 
 ## test-browser: disposable desktop/mobile browsers plus real-process Team handoff
-# Install Chromium once with: cd web && npx playwright install chromium
+# Install both browsers once with: cd web && npx playwright install chromium webkit (the Team comments suite also runs in WebKit)
 test-browser: build build-team
 	node scripts/test-browser.cjs
 

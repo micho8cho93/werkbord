@@ -1,7 +1,7 @@
 # Memory implementation audit: Phases 1–4
 
 Audited: 19 October 2026, on `main` at `e4a3791` (4.63.0-preview.1), against the code, not the documentation.
-Fixes from this audit ship as **4.64.1-preview.1** (4.64.0-preview.1 was tagged first; its release run failed in a browser test that GitHub's slower runner exposed, see defect 14). Scope: the nine memory commits `55da439..e4a3791` (180 files, +22,613 lines,
+Fixes from this audit ship as **4.64.2-preview.1**. Two earlier tags (4.64.0 and 4.64.1) stopped in the release job's browser step for reasons only GitHub's runners exposed (defects 14 and 17). Scope: the nine memory commits `55da439..e4a3791` (180 files, +22,613 lines,
 of which 8,297 are tests) and what they touch.
 
 The audit method was: read the implementation paths end to end; try to break each documented guarantee with a test that fails
@@ -85,6 +85,7 @@ re-run (the whole suite passes, section 6).
 | 14 | **Control Deck browser test depended on timing** (found when GitHub's release job ran it; it passed on this Mac). The test focused a key and pressed Shift+F10, but a key that is busy is disabled and cannot take focus, so on a slower machine nothing happened and the "Repository target" dialog never opened. Reproduced locally by running the suite under 12 busy loops | The tests wait until the key is enabled and focused (`focusSocket`) before pressing | passes under the same load; all browser suites also pass under load |
 | 15 | `TestAgentThatExitsCleanlyCompletes` checked that the session was dropped immediately after the state was saved; it failed on GitHub's Ubuntu race job (and earlier on macOS CI) | The test allows the last step five seconds | stable at 30 repetitions |
 | 16 | CI's `go test -race ./...` used Go's default ten-minute limit per package; `internal/service` took longer than that on a shared runner (190 s for `store/sqlite` and 385 s for Team service, against 27 s and 30 s here) | `-timeout 30m`; the scale measurements of this audit skip themselves under the race detector | pending the next CI run |
+| 17 | The Team comments browser suite also runs in WebKit, but both workflows installed only Chromium ("Executable doesn't exist … webkit-2248"), so the release job could not pass | Both workflows install `chromium webkit` | pending the next release run |
 
 ## 5. Security risks and mitigations
 
@@ -120,8 +121,8 @@ Everything below was run on this Mac (Apple silicon, macOS, Go 1.27.1, Node 22.1
 ### GitHub Actions, first attempt (4.64.0-preview.1)
 
 On GitHub's Ubuntu runners `make check`, the Nebula tests and the real database cluster tests passed in both CI and the release job.
-Three things failed and are fixed above: the Control Deck browser test (defect 14, which stopped the release before any download was
-assembled), a runner test (15) and the race job's ten-minute limit (16). The macOS CI job was cancelled when the Ubuntu job failed
+Four things failed and are fixed above: the Control Deck browser test (defect 14), a runner test (15), the race job's ten-minute limit (16),
+and the missing WebKit install (17); the first and the last each stopped a release before any download was assembled. The macOS CI job was cancelled when the Ubuntu job failed
 and has not yet reported on this change. Signing, notarization and the update feed run only after the browser step, so they have not
 run for any 4.64.x tag at the time of writing.
 
@@ -238,7 +239,7 @@ single SQLite writer measured was 31 ms (publication reconcile at 5,000 claims).
 
 ## 11. Assessment
 
-**Phases 1–4 are ready for wider testing as a preview (4.64.1-preview.1), on disposable Team workspaces and with sharing left
+**Phases 1–4 are ready for wider testing as a preview (4.64.2-preview.1), on disposable Team workspaces and with sharing left
 off unless a tester chooses it. They are not shown to be ready for production, and nothing here supports saying so.**
 
 What supports wider testing:
