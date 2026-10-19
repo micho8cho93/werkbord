@@ -146,6 +146,13 @@ func (l *Link) assistantMemory(ctx context.Context, base string, in BoardArgs) (
 		}
 		items = append(items, map[string]any{"relatedScopes": related, "id": r.ID, "kind": kind, "type": r.Content.Kind, "summary": summary, "verification": "verified", "confidence": confidence, "freshness": freshness, "updatedAt": r.UpdatedAt, "source": map[string]string{"type": "import", "reference": r.Content.Source.Kind + ":" + r.Content.Source.ID, "gitSha": r.Content.Source.Revision}, "scope": map[string]string{"projectId": r.Scope.ProjectID, "ownerId": r.Scope.WorkspaceID, "repository": r.Scope.Repository}})
 	}
+	if in.RequestType == "initiative" || in.RequestType == "changes" || in.RequestType == "next" {
+		initiativeItems, err := l.assistantInitiatives(ctx, base, in)
+		if err != nil {
+			return nil, err
+		}
+		items = append(initiativeItems, items...)
+	}
 	status := "empty"
 	if len(items) > 0 {
 		status = "available"

@@ -65,3 +65,40 @@ func TestAssistantMemoryProjectionAndRevokedMembership(t *testing.T) {
 		}
 	}
 }
+
+func TestAssistantInitiativeClosedProjection(t *testing.T) {
+	revoked := false
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/initiatives") {
+			if revoked {
+				w.WriteHeader(404)
+				return
+			}
+			_, _ = w.Write([]byte(`[{"initiative":{"id":"ini_auth","title":"Authentication Upgrade","objective":"Coordinate authentication","status":"active","projectIds":["p1","p2"]},"tickets":[{"id":"t1","projectId":"p1","key":"WB-1","status":"review","pullRequest":{"state":"open"},"credential":"SECRET"}],"done":0,"openPRs":1,"blockers":["WB-2 waits for WB-1"],"nextActions":["Prepare a coordinated review"],"private":"SECRET"}]`))
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/workspace") {
+			_, _ = w.Write([]byte(`{"id":"ws_1"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"records":[]}`))
+	}))
+	defer ts.Close()
+	l, err := New(ts.URL, writeKey(t, 0o600, key), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := BoardArgs{ProjectID: "p1", RequestType: "initiative", TokenBudget: 6000}
+	out, err := l.AssistantBoard(bg, "team:main", "retrieve_memory", args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(out)
+	if strings.Contains(string(raw), "SECRET") || !strings.Contains(string(raw), "Authentication Upgrade") || !strings.Contains(string(raw), `"projectId":"p2"`) {
+		t.Fatalf("bad projection: %s", raw)
+	}
+	revoked = true
+	if _, err = l.AssistantBoard(bg, "team:main", "retrieve_memory", args); err == nil {
+		t.Fatal("reused revoked initiative")
+	}
+}

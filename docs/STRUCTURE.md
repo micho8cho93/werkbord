@@ -152,6 +152,11 @@ it more general and stays free of Team's concepts.
 
 ## What Team has
 
+Team also coordinates cross-repository [Initiatives](INITIATIVES.md) under `internal/team/`: reference-only
+objectives, explicit dependencies, permission-checked current progress and advisory next actions. Sally reads
+them through the existing desktop Team bridge; no execution or credential boundary changes.
+
+
 A **workspace** with exactly one **owner**, **members**, **projects**, **project membership**, **roles** (Owner, Admin and
 Member), and a registry of **devices** with their own capabilities (runner, workspace host, connectivity host: independent of
 roles); and, on top of that, the collaborative workflow: **project roles** (owner, reviewer, member), **invite links**,

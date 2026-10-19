@@ -757,3 +757,8 @@ Claiming and starting preserve the same assignment interval, local task, reposit
 handoff asks the agent to commit, push and open a PR on that branch, and to leave merging to the reviewer. Reported agent
 completion does not submit, approve, merge or complete the Team ticket. The normal review and PR completion checks still apply.
 A read-only `GET .../handoff` supplies private refreshes without recording repeated handoff activity.
+
+## Cross-repository Initiatives
+
+[Initiatives](INITIATIVES.md) link existing projects, tickets and approved shared context around an objective,
+with permission-checked progress, blockers and Sally context. Work stays on each member’s Individual runner.

@@ -31,7 +31,7 @@ const KEY = (name) => 'werkbord-team-' + name + (BASE ? ':' + SLOT : '');
 // person's own Werkbord ("Open in Werkbord") is ever sent back to the shell.
 const FRAMED = window.parent !== window;
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'Members']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'Members']];
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
 const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'people']);
 
@@ -158,7 +158,7 @@ function navigation(counts) {
   return h('aside', { class: 'rail', 'aria-label': 'Werkbord Team navigation' },
     h('button', { class: 'brand-home', type: 'button', onclick: () => go('workspace'), 'aria-label': 'Werkbord Team workspace' }, brand()),
     h('div', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name),
-    h('nav', { class: 'rail-primary', 'aria-label': 'Werkbord Team' }, TABS.filter(([id]) => ['workspace', 'projects', 'reviews', 'members', 'analytics'].includes(id)).map(([id, label]) =>
+    h('nav', { class: 'rail-primary', 'aria-label': 'Werkbord Team' }, TABS.filter(([id]) => ['workspace', 'projects', 'initiatives', 'reviews', 'members', 'analytics'].includes(id)).map(([id, label]) =>
       h('button', { name: 'nav-' + id, type: 'button', 'aria-label': label, 'aria-description': counts[id] ? plural(counts[id], 'ticket') : null, 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, icon(id), h('span', { class: 'nav-label' }, label),
         badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'reviews' ? '' : 'quiet')))),
     projects.length ? h('nav', { class: 'project-links', 'aria-label': 'Projects' },
@@ -442,6 +442,7 @@ async function renderNow() {
     switch (state.tab) {
       case 'workspace': body = await workspaceView(); break;
       case 'projects': body = await projectsView(); break;
+      case 'initiatives': body = await initiativesView(); break;
       case 'mywork': body = await myWorkView(); break;
       case 'reviews': body = await reviewsView(); break;
       case 'members': body = await membersView(); break;
@@ -2033,3 +2034,72 @@ window.addEventListener('message', async event => {
       canReschedule: !current.archivedAt && ['in_progress', 'review'].includes(current.status) && (current.assigneeId === actor.member.id || board.can.includes('tickets.assign')) } }, event.origin);
   } catch (error) { event.source.postMessage({ type: 'werkbord.planning.result', id: m.id, ok: false, error: error.message }, event.origin); }
 });
+
+// Initiatives coordinate references; project boards remain the place to work.
+let initiativeEditor;
+let initiativeEditorIdentity;
+async function initiativesView() {
+  const [rows, initiativePeople] = await Promise.all([api('GET', '/initiatives'), api('GET', '/members')]);
+  const ownerNames = new Map(initiativePeople.map(m => [m.id, m.name]));
+  const identity = state.me.workspace.id + ':' + state.me.member.id;
+  if (initiativeEditorIdentity !== identity) { initiativeEditor = h('div'); initiativeEditorIdentity = identity; }
+  const editor = initiativeEditor;
+  if (editor.dataset.initiative && !rows.some(v => v.initiative.id === editor.dataset.initiative)) editor.replaceChildren();
+  const edit = async (original) => {
+    const i = original || { title: '', objective: '', status: 'active', projectIds: [], tickets: [], dependencies: [], memories: [], version: 0 };
+    const title = h('input', { name: 'initiative-title', value: i.title, required: true, maxlength: 200 });
+    const objective = h('textarea', { name: 'initiative-objective', required: true, maxlength: 20000 }, i.objective);
+    const status = h('select', { name: 'initiative-status', 'aria-label': 'Status' }, ['planned', 'active', 'paused', 'completed', 'archived'].map(s => h('option', { value: s, selected: s === i.status }, s)));
+    const people = await api('GET', '/members');
+    const owner = h('select', { name: 'initiative-owner', 'aria-label': 'Owner' }, people.map(m => h('option', { value: m.id, selected: m.id === (i.ownerId || state.me.member.id) }, m.name)));
+    const projects = new Set(i.projectIds), tickets = new Map(i.tickets.map(t => [t.ticketId, t]));
+    const choices = h('div', { class: 'stack' });
+    const dependencies = [...i.dependencies];
+    const memories = new Map(i.memories.map(m => [m.memoryId, m]));
+    const memoryChoices = h('div', { class: 'stack' });
+    const dependencyList = h('div');
+    const from = h('select', { 'aria-label': 'Prerequisite ticket' });
+    const to = h('select', { 'aria-label': 'Dependent ticket' });
+    const names = new Map();
+    const showDependencies = () => {
+      dependencyList.replaceChildren(...dependencies.map((d, n) => h('div', { class: 'row' }, h('span', { class: 'grow' }, (names.get(d.after.ticketId) || d.after.ticketId) + ' waits for ' + (names.get(d.before.ticketId) || d.before.ticketId)), h('button', { type: 'button', class: 'plain small', onclick: () => { dependencies.splice(n, 1); showDependencies(); } }, 'Remove dependency'))));
+    };
+    const available = await Promise.all(state.ov.projects.filter(p => !p.project.archived).map(async ({ project: p }) => ({ p, board: await api('GET', '/projects/' + p.id + '/board'), memory: await api('GET', '/projects/' + p.id + '/memory') })));
+    for (const { p, board, memory } of available) {
+      const selected = h('input', { type: 'checkbox', checked: projects.has(p.id), onchange: e => { if (e.target.checked) projects.add(p.id); else projects.delete(p.id); } });
+      choices.append(field(p.name, selected));
+      for (const m of memory.records.filter(m => m.state === 'published')) {
+        memoryChoices.append(field(p.name + ' · ' + m.content.summary, h('input', { type: 'checkbox', checked: memories.has(m.id), onchange: e => { if (e.target.checked) { memories.set(m.id, { projectId: p.id, memoryId: m.id }); projects.add(p.id); selected.checked = true; } else memories.delete(m.id); } })));
+      }
+      for (const k of board.tickets) {
+        names.set(k.id, k.key + ' · ' + k.title);
+        const ref = { projectId: p.id, ticketId: k.id };
+        choices.append(field(k.key + ' · ' + k.title, h('input', { type: 'checkbox', checked: tickets.has(k.id), onchange: e => { if (e.target.checked) { tickets.set(k.id, ref); projects.add(p.id); selected.checked = true; } else tickets.delete(k.id); } })));
+        for (const control of [from, to]) control.append(h('option', { value: k.id }, k.key + ' · ' + p.name));
+      }
+    }
+    showDependencies();
+    editor.dataset.initiative = i.id || '';
+    editor.replaceChildren(h('form', { class: 'panel stack', onsubmit: e => { e.preventDefault(); act(async () => {
+      const body = { title: title.value, objective: objective.value, status: status.value, ownerId: owner.value, projectIds: [...projects], tickets: [...tickets.values()], dependencies, memories: [...memories.values()], version: i.version };
+      await api(original ? 'PUT' : 'POST', '/initiatives' + (original ? '/' + i.id : ''), body);
+      editor.replaceChildren();
+      state.info = 'Initiative saved.';
+    }); } }, h('h2', {}, original ? 'Edit Initiative' : 'New Initiative'), field('Title', title), field('Objective', objective), field('Status', status), field('Owner', owner), h('h3', {}, 'Link existing projects and tickets'), choices, h('h3', {}, 'Shared context and decisions'), memoryChoices,
+    h('h3', {}, 'Dependencies'), h('p', { class: 'muted' }, 'Link both tickets above before adding a dependency.'), from, to,
+    h('button', { type: 'button', class: 'plain', onclick: () => { const before = tickets.get(from.value), after = tickets.get(to.value); if (before && after) { dependencies.push({ before, after }); showDependencies(); } } }, 'Add dependency'), dependencyList,
+    h('div', { class: 'actions' }, h('button', { class: 'primary', type: 'submit' }, 'Save Initiative'), h('button', { class: 'plain', type: 'button', onclick: () => editor.replaceChildren() }, 'Cancel'))));
+    title.focus();
+  };
+  return h('div', { class: 'stack' }, h('div', { class: 'section-head' }, h('p', { class: 'muted' }, 'Shared objectives across existing projects. Progress reflects stored ticket states and last-reported PR states.'), h('button', { class: 'primary', onclick: () => edit().catch(e => { state.error = e.message; render(); }) }, 'New Initiative')), editor,
+    rows.length ? rows.map(v => h('section', { class: 'panel stack' }, h('div', { class: 'section-head' }, h('h2', {}, v.initiative.title), h('span', { class: 'badge' }, v.initiative.status)), h('p', {}, v.initiative.objective), h('p', { class: 'muted small' }, 'Owner · ' + (ownerNames.get(v.initiative.ownerId) || 'Former member')),
+      h('div', { class: 'actions' }, v.projects.map(p => h('button', { class: 'link', onclick: () => openProject(p.id) }, p.name))),
+      h('p', {}, v.done + ' of ' + v.tickets.length + ' tickets done · ' + plural(v.openPRs, 'reported open PR')),
+      v.tickets.map(k => h('div', { class: 'row' }, h('button', { class: 'link grow', onclick: () => openTicket(k.projectId, k.id) }, k.key + ' · ' + k.title), h('span', { class: 'badge' }, statusName(k.status)), k.pullRequest ? extLink(k.pullRequest.url, 'PR · ' + k.pullRequest.state) : '', when(k.updatedAt))),
+      h('h3', {}, 'Blockers'), v.blockers.length ? h('ul', {}, v.blockers.map(b => h('li', {}, b))) : h('p', { class: 'muted' }, 'No blockers identified in current reports.'),
+      h('h3', {}, 'Next actions'), h('ul', {}, v.nextActions.map(a => h('li', {}, a))),
+      v.memories.length ? h('div', {}, h('h3', {}, 'Shared context and decisions'), v.memories.map(m => h('p', {}, m.content.summary + ' · ' + (m.freshness?.status || 'uncertain')))) : '',
+      h('details', {}, h('summary', {}, 'Activity and changes'), v.activity.map(a => h('p', {}, a.kind + ' · ' + a.ticketKey + ' · ', when(a.createdAt))), v.initiative.history.map(a => h('p', {}, 'Initiative ' + a.kind + ' · ', when(a.at)))),
+      h('p', { class: 'muted small' }, 'Updated ', when(v.initiative.updatedAt)),
+      v.initiative.ownerId === state.me.member.id || can('projects.manage') ? h('button', { class: 'plain', onclick: () => edit(v.initiative).catch(e => { state.error = e.message; render(); }) }, 'Edit Initiative') : '')) : h('p', { class: 'muted' }, 'No Initiatives to show. Create an Initiative to link work around a shared objective.'));
+}

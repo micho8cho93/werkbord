@@ -64,12 +64,16 @@ func integrationGit(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(raw))
 }
 func newIntegrationLocal(t *testing.T) *integrationLocal {
+	return newIntegrationLocalRepository(t, "git@github.com:acme/sync.git")
+}
+
+func newIntegrationLocalRepository(t *testing.T, remote string) *integrationLocal {
 	t.Helper()
 	ctx := context.Background()
 	dir := t.TempDir()
 	integrationGit(t, dir, "init", "-q", "-b", "main")
 	integrationGit(t, dir, "commit", "--allow-empty", "-qm", "initial")
-	integrationGit(t, dir, "remote", "add", "origin", "git@github.com:acme/sync.git")
+	integrationGit(t, dir, "remote", "add", "origin", remote)
 	dbPath := filepath.Join(t.TempDir(), "local.db")
 	db, err := localsqlite.Open(ctx, dbPath, nil)
 	if err != nil {
