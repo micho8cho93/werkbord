@@ -8,10 +8,10 @@ execution grant or the controller's owner credential.
 
 ## Choices and classification
 
-Individual → Settings → **Team Memory** lists sharing destinations, eligible
+Individual → Settings → **Individual memory** lists sharing destinations, eligible
 records, proposed statements, delivery states and acknowledged Team records. Add
 an exact local project, canonical repository, Team workspace ID and Team project
-ID. Those identities are visible in Team → Settings → **Team Memory sharing**.
+ID. Those identities are visible in Team → Settings → **Team memory**.
 The grant is initially Git metadata only. Each workspace/project has independent
 choices; enabling one does not enable another.
 
@@ -61,7 +61,7 @@ existing destination remains possible when its repository is unavailable.
    maintenance loop reconciles approved destinations even while Team is offline.
    Reading the publication journal also reconciles current durable source state.
 2. **Connect this workspace** creates a separate `memory-v1` local-access grant.
-   Paste it into that workspace's Team Memory connection disclosure. Team checks
+   Paste it into that workspace's Team memory connection disclosure. Team checks
    the grant's workspace binding before storing it sealed alongside that member
    device's existing enrollment material. Runner connection never enables memory.
    Reconnection to another workspace requires a separate grant and consent.

@@ -151,7 +151,7 @@ const Progress = defineComponent({
 
 const StatusSummary = defineComponent({
   name: 'StatusSummary',
-  description: 'Current task counts by Werkbord board column: Backlog, Doing, Review and Done. Use the exact counts from get_project_metrics and its observedAt timestamp.',
+  description: 'Current task counts by Werkbord board column: Backlog, In progress, Review and Done. Use the exact counts from get_project_metrics and its observedAt timestamp.',
   props: z.object({
     backlog: countValue,
     doing: countValue,
@@ -370,7 +370,7 @@ export const openUISystemPrompt = openUILibrary.prompt({
     'Creating or changing tasks, dates or schedules must use the existing Werkbord operation protocol. Every proposed change remains uncommitted until the person confirms it in the normal Werkbord confirmation card.',
     'DataTable filters, chart selections and calculations are local presentation state only. Do not claim that they changed board data or fetched a new snapshot.',
     'Retrieve board facts only with the available Werkbord read operations before visualising them. Use exactly their returned counts and records; do not make up missing values, estimates, completion rates, or history.',
-    'For current board status use get_project_metrics and its exact Backlog, Doing, Review, Done counts. For history use get_analytics and preserve its range, End snapshot, missingTaskHistory, truncated, and retentionRemoved coverage signals.',
+    'For current board status use get_project_metrics and its exact Backlog, In progress, Review, Done counts. For history use get_analytics and preserve its range, End snapshot, missingTaskHistory, truncated, and retentionRemoved coverage signals.',
     'get_analytics provider rows describe agent run attempts and outcomes. They do not attribute task completions: one task can have runs from multiple providers. Never chart a provider as having completed a task from those rows.',
     'Visualisations are static snapshots from the operation results, not live data. Include the exact observedAt or End timestamp in asOf on every metric, chart, table, timeline, and workflow.',
     'When a concise text answer is enough, answer in ordinary prose without generating an interface.',

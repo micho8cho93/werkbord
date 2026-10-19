@@ -138,12 +138,11 @@
         {/each}
       </ul>
     {/if}
+    <PhoneEnroll onenrolled={refresh} />
     {#if relay && !relay.enabled}
-      <p class="muted">Phones reach this computer through a relay in your own Cloudflare account, and it is not set up yet. Add its addresses to <code>config.json</code> as <code>relay.url</code> and <code>relay.connectorUrl</code>, then restart Werkbord. The steps are in <code>docs/RELAY.md</code>.</p>
+      <p class="muted">The phone relay is turned off in <code>config.json</code> (<code>relay.disabled</code>), so a phone can only reach this computer over your private network. Remove that setting and restart Werkbord to use the relay again.</p>
     {:else if relay && !relay.connected}
-      <p class="muted" role="status">Connecting to your relay…{relay.error ? ` ${relay.error}` : ''}</p>
-    {:else}
-      <PhoneEnroll onenrolled={refresh} />
+      <p class="muted" role="status" data-testid="relay-connecting">Reaching the relay… A code made now still works as soon as this computer is connected.{relay.error ? ` ${relay.error}` : ''}</p>
     {/if}
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}

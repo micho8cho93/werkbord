@@ -31,7 +31,7 @@
   let closed = $state<{ task: Task; was: TaskState } | null>(null);
   let reopened = $state('');
   let closing = $state(false);
-  const column = (s: TaskState) => ({ backlog: 'Backlog', doing: 'Doing', review: 'Review', done: 'Done' })[s];
+  const column = (s: TaskState) => ({ backlog: 'Backlog', doing: 'In progress', review: 'Review', done: 'Done' })[s];
 
   async function closeTask(): Promise<void> {
     const scope = app.scope(projectId);

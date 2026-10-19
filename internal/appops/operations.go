@@ -75,7 +75,7 @@ func operations() []*operation {
 		},
 		{
 			Spec: Spec{Name: "get_project_metrics", Title: "Project progress", Kind: KindRead, Permission: PermTicketsRead,
-				Description: "A current snapshot of a project's unarchived task counts in Backlog, Doing, Review and Done. This is board state as observed now, not a historical completion rate.",
+				Description: "A current snapshot of a project's unarchived task counts in Backlog, In progress, Review and Done. This is board state as observed now, not a historical completion rate.",
 				Input:       Object(map[string]*Schema{"projectId": projectID}, "projectId")},
 			run: opProjectMetrics,
 		},

@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -69,6 +70,18 @@ type Updater interface {
 type Probe struct {
 	Found   bool
 	Version string
+}
+
+// Alerter tells the person something happened while they are in another app: a system notification and a bounce of the Dock
+// icon. Nil where the system has no such thing (or, on a Mac, where the app is not an app bundle).
+type Alerter interface {
+	// Status is what the system allows this app: "granted", "denied" (turned off in System Settings), "unknown" (the person has
+	// not been asked yet: the first alert asks) or "unsupported".
+	Status() string
+	// Show posts one alert. Unless force, it does nothing while the app is in front. It reports whether the system took it.
+	Show(title, body string, urgent, force bool) bool
+	// OpenSettings opens the system's notification settings.
+	OpenSettings()
 }
 
 // DialogKind is how a native dialog looks.
@@ -118,6 +131,8 @@ type Options struct {
 	Ctx context.Context
 	// Updater replaces the app itself. Nil in a build that cannot (development, or no signing key).
 	Updater Updater
+	// Alerter shows the person what happened while they are elsewhere. Nil where the system cannot.
+	Alerter Alerter
 
 	// The workspaces. Registry lists them; Team, TeamInstaller and Grants are how the app reaches Team's service, Team's own
 	// installer and the person's Werkbord for the one grant a Team workspace is given. Invites holds an invitation the app
@@ -136,6 +151,9 @@ type Shell struct {
 	workspaceCalls workspaceCallCache
 	o              Options
 	updating       atomic.Bool
+
+	alertMu    sync.Mutex
+	alertTimes []time.Time
 }
 
 // New returns a shell.
@@ -180,6 +198,91 @@ type AppInfo struct {
 func (s *Shell) Info() AppInfo {
 	s.o.Log.Debug("page call", "method", "Info")
 	return AppInfo{Version: s.o.Version, Platform: s.o.Platform, Updater: s.o.Updater != nil && s.o.Updater.Active()}
+}
+
+// AlertStatus says whether the system lets this app show alerts: "granted", "denied", "unknown" or "unsupported". It reveals
+// nothing about the person's computer beyond that one permission.
+func (s *Shell) AlertStatus() string {
+	if s.o.Alerter == nil {
+		return "unsupported"
+	}
+	return s.o.Alerter.Status()
+}
+
+// alertWindow and alertMax bound what a page can have the app say: a page is the person's own Werkbord, but a flood of
+// notifications is a way to harm the person's attention, so it is short, plain and slow.
+const (
+	alertWindow = time.Minute
+	alertMax    = 12
+)
+
+// Alert shows a system notification and bounces the Dock icon, while the app is behind another one. The text is what the
+// person's own Werkbord says happened (a question, a failed run); it is trimmed to a notification's size and rate limited. It
+// is safe for a page to call: it opens nothing, runs nothing and reads nothing.
+func (s *Shell) Alert(title, body string, urgent bool) bool {
+	if s.o.Alerter == nil {
+		return false
+	}
+	title, body = alertText(title, 80), alertText(body, 200)
+	if title == "" || !s.alertAllowed(time.Now()) {
+		return false
+	}
+	return s.o.Alerter.Show(title, body, urgent, false)
+}
+
+// TestAlert shows one now, even with the app in front, so that the person sees what an alert is like and, the first time, the
+// system asks them to allow it. It is rate limited with Alert.
+func (s *Shell) TestAlert() bool {
+	if s.o.Alerter == nil || !s.alertAllowed(time.Now()) {
+		return false
+	}
+	return s.o.Alerter.Show("Werkbord alerts are on", "You will hear about questions, blocked and failed work while you are in another app.", false, true)
+}
+
+// OpenAlertSettings opens the system's notification settings, where a person who turned alerts off can turn them on.
+func (s *Shell) OpenAlertSettings() {
+	if s.o.Alerter != nil {
+		s.o.Alerter.OpenSettings()
+	}
+}
+
+func (s *Shell) alertAllowed(now time.Time) bool {
+	s.alertMu.Lock()
+	defer s.alertMu.Unlock()
+	kept := s.alertTimes[:0]
+	for _, t := range s.alertTimes {
+		if now.Sub(t) < alertWindow {
+			kept = append(kept, t)
+		}
+	}
+	s.alertTimes = kept
+	if len(kept) >= alertMax {
+		return false
+	}
+	s.alertTimes = append(s.alertTimes, now)
+	return true
+}
+
+// alertText is plain text of at most max characters: no control characters, runs of white space made one space.
+func alertText(v string, max int) string {
+	var b strings.Builder
+	space := false
+	for _, r := range v {
+		if r < ' ' || r == 0x7f || r == ' ' || r == 0xa0 {
+			space = b.Len() > 0
+			continue
+		}
+		if space {
+			b.WriteByte(' ')
+			space = false
+		}
+		b.WriteRune(r)
+	}
+	out := b.String()
+	if rs := []rune(out); len(rs) > max {
+		out = string(rs[:max-1]) + "…"
+	}
+	return out
 }
 
 // ChooseDirectory opens a native folder picker. It returns only the path the

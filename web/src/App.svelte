@@ -5,7 +5,7 @@
   import Assistant from './lib/assistant/Assistant.svelte';
   import AssistantButton from './lib/assistant/AssistantButton.svelte';
   import { assistant } from './lib/assistant/store.svelte';
-  import { embedded } from './lib/embed';
+  import { embedded, hosted } from './lib/embed';
   import NeedsInputBanner from './lib/NeedsInputBanner.svelte';
   import { isPhone } from './lib/phones/capability';
   import PhoneWelcome from './lib/phones/PhoneWelcome.svelte';
@@ -111,7 +111,7 @@
   let setupOffered = false;
   $effect(() => {
     if (!loaded && app.onboarding === null) return;
-    if (app.needsOnboarding && !isPhone() && !setupOffered && router.view !== 'onboarding') {
+    if (app.needsOnboarding && !isPhone() && !hosted && !setupOffered && router.view !== 'onboarding') {
       setupOffered = true;
       router.go({ view: 'onboarding', projectId: '', taskId: '' });
     }
@@ -198,7 +198,7 @@
     <div class="main-area">
       {#if inside && project}
         <ProjectHeader {project} />
-      {:else if router.view !== 'deck' || !deck}
+      {:else if (router.view !== 'deck' || !deck) && !(hosted && (router.view === 'settings' || router.view === 'help'))}
         <header class="ghead">
           <div class="gtitle">
             {#if deck}<PhoneBack />{:else if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
@@ -223,7 +223,7 @@
 
       {#if deck}<WorkflowMonitor />{/if}
       <PhoneWelcome />
-      <Tour surface="desktop" enabled={!deck && !isPhone() && !app.needsOnboarding && router.view !== 'onboarding'} />
+      <Tour surface="desktop" enabled={!deck && !isPhone() && !hosted && !app.needsOnboarding && router.view !== 'onboarding'} />
       {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}
       <!-- The Control Deck exposes Needs you through its configurable key. -->
       {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}
@@ -357,9 +357,10 @@
     outline-offset: 2px;
   }
 
+  /* The skip link moves focus here, and a click on empty space does too: a ring round the whole page helps no one. */
+  main:focus,
   main:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+    outline: none;
   }
 
   /* Desktop: the window is the app. A rail, and a main column whose views fit the viewport. */

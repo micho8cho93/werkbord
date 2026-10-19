@@ -4,7 +4,7 @@
   import { theme } from '../lib/theme.svelte';
   import { counts } from './aggregate';
   import { model, type Page } from './model.svelte';
-  import { activeKey, entries, listed, settingsPlace } from './nav';
+  import { activeKey, entries, listed } from './nav';
 
   // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), what spans every
   // workspace (My Work, Workspaces, Calendar), the open workspace's own places (its home, projects and so on), and last the
@@ -136,9 +136,7 @@
   <div class="group bottom">
     <div class="lbl" aria-hidden="true"></div>
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
-    {#if usable && !model.universal}
-      {@render item('Settings', 'settings', here === 'settings', () => model.visit(settingsPlace(kind)), 'settings')}
-    {/if}
+    {@render item('Settings', 'settings', model.page === 'settings', () => model.openSettings(), 'settings')}
     <button class="nav" type="button" onclick={() => theme.toggle()} title={theme.dark ? 'Use light theme' : 'Use dark theme'} aria-label={theme.dark ? 'Use light theme' : 'Use dark theme'}>
       <Icon name={theme.dark ? 'sun' : 'moon'} /><span class="label">{theme.dark ? 'Light theme' : 'Dark theme'}</span>
     </button>

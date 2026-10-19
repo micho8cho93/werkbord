@@ -50,7 +50,7 @@ describe('agentWorkable', () => {
 });
 
 describe('dropAction', () => {
-  it('starts an agent when a backlog card is dropped in Doing', () => {
+  it('starts an agent when a backlog card is dropped in In progress', () => {
     expect(dropAction(task(), undefined, 'doing', false)).toBe('start');
     expect(dropAction(task(), run({ state: 'failed' }), 'doing', false)).toBe('start');
   });
@@ -125,7 +125,7 @@ describe('firstNeedsYouColumn', () => {
     expect(firstNeedsYouColumn(tasks, { tsk_2: run({ id: 'run_2', taskId: 'tsk_2', state: 'completed' }) }, none)).toBe('review');
   });
 
-  it('prefers the earlier column: a waiting question in Doing comes before Review', () => {
+  it('prefers the earlier column: a waiting question in In progress comes before Review', () => {
     const tasks = [task({ state: 'review' }), task({ id: 'tsk_2', state: 'doing' })];
     const runs = { tsk_2: run({ id: 'run_2', taskId: 'tsk_2', state: 'waiting_for_user' }) };
     expect(firstNeedsYouColumn(tasks, runs, (r) => r.id === 'run_2')).toBe('doing');

@@ -40,9 +40,9 @@ describe('Werkbord visualization components', () => {
   });
 
   it('renders charts from recorded application values and explains empty data', () => {
-    const bars = html(BarChartBlock, { title: 'Tasks by state', categories: ['Backlog', 'Doing'], values: [2, 1], asOf });
+    const bars = html(BarChartBlock, { title: 'Tasks by state', categories: ['Backlog', 'In progress'], values: [2, 1], asOf });
     expect(bars).toContain('Backlog: 2');
-    expect(bars).toContain('Doing: 1');
+    expect(bars).toContain('In progress: 1');
     expect(bars).toContain('width:100%');
     expect(html(BarChartBlock, { title: 'Empty', categories: [], values: [], asOf })).toContain('No chart values');
     expect(bars).toContain('aria-pressed="false"');

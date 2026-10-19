@@ -4,6 +4,11 @@
   import { app } from './state.svelte';
   import { LOCAL_SURFACES, TOURS, markHere, tourDue, type TourSurface } from './setup/tours';
   import { tourHost } from './setup/tourhost.svelte';
+  import { embedded } from './embed';
+
+  // In the desktop window the Help button sits in the bottom right corner of the window, so a card that is not tied to anything
+  // there keeps clear of it.
+  const framed = embedded();
 
   /** `enabled` holds a tour back while something else has the person's attention, such as first-time setup. */
   let { surface, enabled = true }: { surface: TourSurface; enabled?: boolean } = $props();
@@ -64,7 +69,7 @@
 
 {#if open && step}
   {#if rect}<div class="ring" style="top:{rect.top - 4}px;left:{rect.left - 4}px;width:{rect.width + 8}px;height:{rect.height + 8}px" aria-hidden="true"></div>{/if}
-  <div bind:this={card} class="tour" class:anchored={!!rect} style={rect ? `top:${below}px;left:${left}px` : undefined} role="dialog" aria-label="Quick tour" aria-live="polite">
+  <div bind:this={card} class="tour" class:anchored={!!rect} class:framed style={rect ? `top:${below}px;left:${left}px` : undefined} role="dialog" aria-label="Quick tour" aria-live="polite">
     <p class="count">{index + 1} of {steps.length}</p>
     <h3>{step.title}</h3>
     <p class="body">{step.body}</p>
@@ -91,6 +96,7 @@
     box-shadow: 0 8px 28px rgb(0 0 0 / 0.18);
   }
   .tour:not(.anchored) { bottom: 16px; right: 16px; }
+  .tour.framed:not(.anchored) { bottom: 60px; }
   @media (max-width: 640px) { .tour:not(.anchored) { left: 12px; right: 12px; width: auto; bottom: calc(12px + env(safe-area-inset-bottom)); } }
   .ring { position: fixed; z-index: 59; border-radius: 8px; box-shadow: 0 0 0 2px var(--accent, currentColor); pointer-events: none; }
   .count { font-size: 12px; color: var(--text-2); margin: 0; }

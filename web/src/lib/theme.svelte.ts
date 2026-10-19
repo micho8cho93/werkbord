@@ -1,6 +1,8 @@
 // Light or dark. Unless the person picks one on this device, the operating system decides;
 // the choice is remembered per device (public/theme.js applies it before the first paint).
 
+import { isEmbedded } from '../../../internal/nativebridge/bridge.js';
+
 const KEY = 'werkbord.theme';
 type Choice = 'light' | 'dark' | '';
 
@@ -32,8 +34,11 @@ class Theme {
     this.set(this.dark ? 'light' : 'dark');
   }
 
-  set(choice: Choice): void {
+  /** fromShell: the window's sidebar chose it and told this page, which has nobody to tell. */
+  set(choice: Choice, fromShell = false): void {
     this.choice = choice;
+    // In the desktop window the theme is the window's: a choice made on this page is told to the sidebar, which tells the rest.
+    if (!fromShell && isEmbedded()) window.parent.postMessage({ type: 'werkbord.frame', event: 'theme', theme: choice }, '*');
     if (choice) document.documentElement.dataset.theme = choice;
     else delete document.documentElement.dataset.theme;
     try {

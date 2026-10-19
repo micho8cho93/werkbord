@@ -7,13 +7,13 @@ export const TASK_STATES: readonly TaskState[] = ['backlog', 'doing', 'review', 
 
 export const TASK_STATE_LABELS: Record<TaskState, string> = {
   backlog: 'Backlog',
-  doing: 'Doing',
+  doing: 'In progress',
   review: 'Review',
   done: 'Done',
 };
 
 /**
- * Execution state of a run. It is never a Kanban column: a task in Doing can have a
+ * Execution state of a run. It is never a Kanban column: a task in In progress can have a
  * run that is running, waiting for you, blocked or failed.
  */
 export type RunState = 'starting' | 'running' | 'waiting_for_user' | 'blocked' | 'completed' | 'failed' | 'stopped';

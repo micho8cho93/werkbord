@@ -29,7 +29,7 @@
     try {
       before = (await api.phones()).length;
       const made = await api.createPhoneCode();
-      if (!made.qrSvg) throw new Error('There is no way for a phone to reach this computer yet. The relay is not connected: check Settings → Phones.');
+      if (!made.qrSvg) throw new Error('There is no way for a phone to reach this computer: the phone relay is turned off and no private network is connected. Remove relay.disabled from config.json and restart Werkbord.');
       code = made;
       now = Date.now();
       stop();

@@ -92,7 +92,7 @@ describe('grouping', () => {
   });
 
   it('groups by status in board order and by mode', () => {
-    expect(groupTasks(tasks, labels, 'status').map((g) => g.title)).toEqual(['Backlog', 'Doing']);
+    expect(groupTasks(tasks, labels, 'status').map((g) => g.title)).toEqual(['Backlog', 'In progress']);
     expect(groupTasks(tasks, labels, 'mode').map((g) => [g.title, g.tasks.length])).toEqual([['Human', 1], ['Agent', 2]]);
   });
 });

@@ -1,3 +1,4 @@
+import { isEmbedded } from '../../../internal/nativebridge/bridge.js';
 import type { ControllerEvent } from './types';
 
 const ENABLED_KEY = 'devboard.notifications.enabled';
@@ -37,7 +38,10 @@ export function disableNotifications(): void {
 
 /** Dedupe replayed SSE events, and notify only on high-value state changes. */
 export function notifyEvent(ev: ControllerEvent, projectName: string, taskTitle: string, readyForReview = false): void {
-  if (!notificationsEnabled() || notificationPermission() !== 'granted' || !document.hidden) return;
+  // In the desktop window the window shows the alert (a system notification and a bounce of the Dock icon), when the person is in
+  // another app and has not turned alerts off: this page only says what happened. In a browser the browser's own permission rules.
+  const inWindow = isEmbedded();
+  if (!inWindow && (!notificationsEnabled() || notificationPermission() !== 'granted' || !document.hidden)) return;
   let message: { title: string; body: string } | undefined;
   switch (ev.type) {
     case 'agent.question':
@@ -75,6 +79,10 @@ export function notifyEvent(ev: ControllerEvent, projectName: string, taskTitle:
     localStorage.setItem(SEEN_KEY, JSON.stringify(seen.slice(-200)));
   } catch {
     // Without storage, rely on the controller's SSE replay behavior for this connection.
+  }
+  if (inWindow) {
+    window.parent.postMessage({ type: 'werkbord.frame', event: 'notify', key: `seq-${seq}`, title: message.title, body: message.body, urgent: ev.type === 'agent.question' }, '*');
+    return;
   }
   try {
     const notification = new Notification(message.title, { body: message.body, tag: `devboard-${seq}`, icon: '/icon-192.png' });

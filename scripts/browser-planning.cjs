@@ -21,6 +21,8 @@ async function drag(page, from, to) { const a=await from.boundingBox(), b=await 
 async function shift(page, item, delta) { await wait(async()=>await item.evaluate(el=>el.closest('[data-plan-item]')?.getAttribute('aria-busy') !== 'true'),'date gesture acknowledgement'); await item.scrollIntoViewIfNeeded(); await item.evaluate(el=>{const grid=el.closest('[data-plan-grid]');if(!grid)return;const r=el.getBoundingClientRect(),g=grid.getBoundingClientRect();if(r.right>g.right-100 || r.left<g.left+300)grid.scrollLeft+=(r.left+r.right)/2-(g.left+g.right+260)/2;}); const r=await item.boundingBox(); assert(r); await page.mouse.move(r.x+r.width/2,r.y+r.height/2); await page.mouse.down(); await page.mouse.move(r.x+r.width/2+delta,r.y+r.height/2,{steps:10}); await page.mouse.up(); }
 let browser, server, debugPage;
 (async()=>{
+  // First-visit tours are covered elsewhere and must not overlay the controls under test.
+  for (const surface of ['desktop', 'settings', 'analytics']) await personal('POST','/onboarding/tours/seen',{surface});
   const work = await personal('POST','/projects',{name:'Release planning',kind:'work'});
   let task = await personal('POST',`/projects/${work.id}/tasks`,{title:'Plan the launch',description:'Planning context',plan:{start:monday,end:add(monday,2)}});
   const tp = await team('POST','/projects',{name:'Analytics Platform',repository:'https://github.com/acme/analytics'});
@@ -69,8 +71,8 @@ let browser, server, debugPage;
     await page.getByText(/Release the ticket into Available/).waitFor(); assert.equal((await getTicket()).status,'review','refused drop preserves original status');
     const tabs=page.getByRole('navigation',{name:'Project sections'});
     assert.deepEqual((await tabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Board','Calendar','Git','Runs']);
-    assert.equal(await page.locator('.project-details summary').textContent(),'Project settings');
-    assert.equal(await page.locator('.project-people .project-person').count(),1);
+    await page.getByRole('button',{name:/^Project settings/}).waitFor();
+    assert.equal(await page.locator('.project-details, .project-people').count(),0,'the project header has no people list or details dropdown');
     await tabs.getByRole('button',{name:'Calendar',exact:true}).click();
     const te=page.locator(`[data-plan-item="${ticket.id}"]`).first(); await te.waitFor(); ticket=await getTicket();
     await drag(page,te,page.locator(`[data-plan-day="${add(ticket.plan.start,1)}"]`));

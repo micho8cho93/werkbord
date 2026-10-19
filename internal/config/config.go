@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"devboard/internal/domain"
@@ -126,7 +127,19 @@ type RelayConfig struct {
 	// ConnectorURL is the connector page's address, such as https://werkbord-connect.pages.dev. A QR code is a plain
 	// link to it.
 	ConnectorURL string `json:"connectorUrl,omitempty"`
+	// Disabled turns the relay off, built-in addresses included. Phones can then only reach this computer over a
+	// private network.
+	Disabled bool `json:"disabled,omitempty"`
 }
+
+// The relay and connector that ship with Werkbord, so adding a phone works with nothing to configure. They run on the
+// Cloudflare Workers Free plan and see only ciphertext (docs/RELAY.md). relay.url and relay.connectorUrl, or
+// WERKBORD_RELAY_URL and WERKBORD_CONNECTOR_URL, replace them with your own; relay.disabled (or WERKBORD_RELAY=off)
+// turns the relay off.
+const (
+	DefaultRelayURL     = "https://werkbord-relay.getwerkbord.workers.dev"
+	DefaultConnectorURL = "https://werkbord-connect.pages.dev"
+)
 
 // GitHubConfig is the user's choices for the GitHub integration.
 type GitHubConfig struct {
@@ -363,6 +376,7 @@ func load(dataDir string) (Config, error) {
 	if dataDir != "" {
 		c.DataDir = dataDir // the environment was read for everything else, but not for where the data is
 	}
+	c.Relay = c.Relay.withBuiltIn()
 	return c, nil
 }
 
@@ -400,6 +414,16 @@ func (c *Config) loadEnv() error {
 	set("NETWORK_CONTROL_URL", &c.Network.ControlURL)
 	set("RELAY_URL", &c.Relay.URL)
 	set("CONNECTOR_URL", &c.Relay.ConnectorURL)
+	if v, from := Env("RELAY"); v != "" {
+		switch strings.ToLower(v) {
+		case "off", "false", "0", "no":
+			c.Relay.Disabled = true
+		case "on", "true", "1", "yes":
+			c.Relay.Disabled = false
+		default:
+			return fmt.Errorf("%s=%q: want on or off", from, v)
+		}
+	}
 	if v, from := Env("NETWORK"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
@@ -637,7 +661,20 @@ func writeToken(path, token string) error {
 }
 
 // Enabled reports whether the relay is set up: both addresses are needed, one without the other cannot make a link.
-func (r RelayConfig) Enabled() bool { return r.URL != "" && r.ConnectorURL != "" }
+func (r RelayConfig) Enabled() bool { return !r.Disabled && r.URL != "" && r.ConnectorURL != "" }
+
+// withBuiltIn fills in the relay that ships with Werkbord when neither address is set and the relay is not turned off.
+// Setting only one address is left alone so validation can say they go together. A test binary never gets it: a unit
+// test must not connect to a real relay.
+func (r RelayConfig) withBuiltIn() RelayConfig { return r.builtIn(testing.Testing()) }
+
+func (r RelayConfig) builtIn(inTest bool) RelayConfig {
+	if r.Disabled || r.URL != "" || r.ConnectorURL != "" || inTest {
+		return r
+	}
+	r.URL, r.ConnectorURL = DefaultRelayURL, DefaultConnectorURL
+	return r
+}
 
 func (r RelayConfig) validate() error {
 	for _, f := range []struct{ name, v string }{{"relay.url", r.URL}, {"relay.connectorUrl", r.ConnectorURL}} {

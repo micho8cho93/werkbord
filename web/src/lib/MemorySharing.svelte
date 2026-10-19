@@ -40,12 +40,12 @@
     token = '';
     const result = await request<{token: string}>('POST', '/api/local-access', {name: 'Memory publication', scope: 'memory-v1', workspaceId: w});
     token = result.token;
-    notice = 'Paste this separate grant into that workspace’s Team Memory settings. Use Disconnect below to revoke the connection. Disable publication first and wait for withdrawals before disconnecting.';
+    notice = 'Paste this separate grant into that workspace’s Team memory settings. Use Disconnect below to revoke the connection. Disable publication first and wait for withdrawals before disconnecting.';
   }
 </script>
 
 <section class="pn sharing" aria-labelledby="sharing-title">
-  <h2 id="sharing-title">Team Memory sharing</h2>
+  <h2 id="sharing-title">Individual memory</h2>
   <p>Choose each project and destination explicitly. Eligible Git metadata contains only validated commit and pull request identities. Semantic implementation summaries and architectural decisions need a separate choice and a review of the exact text.</p>
   <p class="muted">Personal preferences, private sessions, transcripts, source code, credentials, environment variables and local paths are never exported automatically. Other knowledge stays private in Individual.</p>
   {#if error}<p class="error" role="alert">{error}</p>{/if}

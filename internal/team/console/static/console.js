@@ -30,10 +30,15 @@ const KEY = (name) => 'werkbord-team-' + name + (BASE ? ':' + SLOT : '');
 // navigation (the shell asks this page to go to a place with a query such as ?tab=board&project=…). Only a place in the
 // person's own Werkbord ("Open in Werkbord") is ever sent back to the shell.
 const FRAMED = window.parent !== window;
+// The window also frames this page only to show a section of Settings beside the workspace the person is in (it loads the page
+// with ?hosted=1): such a page is the section and nothing around it. Decided now, before the address is rewritten as the person
+// moves about.
+const HOSTED = FRAMED && new URLSearchParams(location.search).get('hosted') === '1';
 
 const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'Members']];
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
-const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'people']);
+const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'project-settings']);
+const SETTINGS_PARTS = new Set(['computer', 'phones', 'memory']);
 
 const state = {
   token: null, me: null, tab: 'workspace', projectId: null, ticketId: null, secret: null, error: '', info: '',
@@ -42,6 +47,7 @@ const state = {
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
   showArchived: false, newTicketOpen: false, repoSection: 'attention',
+  settingsPart: '', // which part of This computer's page a section of Settings shows: computer, phones or memory
   filter: { labels: [], mode: '', match: 'any' }, // the board's and the timeline's label and work-mode filter: a way of looking, never stored
   calendarMode: 'calendar', calendarAnchor: null,
   tlZoom: 'week', tlGroup: 'none', tlCollapsed: {},
@@ -62,7 +68,8 @@ try {
   state.token = sessionStorage.getItem(KEY('token'));
   state.projectId = sessionStorage.getItem(KEY('project'));
   const t = sessionStorage.getItem(KEY('tab'));
-  if (t && (TABS.some((x) => x[0] === t) || ADMIN_TABS.some((x) => x[0] === t) || t === 'people')) state.tab = t;
+  if (t && (TABS.some((x) => x[0] === t) || ADMIN_TABS.some((x) => x[0] === t) || t === 'project-settings')) state.tab = t === 'settings' && FRAMED && !HOSTED ? 'workspace' : t;
+  if (FRAMED && !HOSTED && ADMIN_TABS.some((x) => x[0] === state.tab)) state.tab = 'workspace'; // the window's Settings has these
 } catch (_) { /* storage can be unavailable; the sign-in form still works for the session */ }
 
 function remember() {
@@ -70,6 +77,7 @@ function remember() {
   const q = new URLSearchParams(); q.set("tab", state.tab);
   if (state.projectId) q.set("project", state.projectId);
   if (state.ticketId) q.set("ticket", state.ticketId);
+  if (state.tab === 'settings' && state.settingsPart) q.set("part", state.settingsPart);
   history.pushState(null, "", location.pathname + "?" + q.toString());
   reportPlace();
   try {
@@ -125,6 +133,7 @@ function icon(name) {
     moon: 'M13.5 10.5A6 6 0 0 1 5.5 2.5a6 6 0 1 0 8 8z',
     close: 'M4 4l8 8 M4 12l8-8',
     more: 'M3 7.5h.01 M8 7.5h.01 M13 7.5h.01',
+    defaults: 'M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7 M10.5 3a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3 M5.5 10a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3',
     settings: 'M6 1h4l.5 2 2 .8 1.8-.6 1.5 2.6-1.4 1.4v2.3l1.4 1.4-1.5 2.6-1.8-.6-2 .8-.5 2H6l-.5-2-2-.8-1.8.6L.2 11l1.4-1.4V7.3L.2 5.9l1.5-2.6 1.8.6 2-.8z M8 5a3 3 0 1 0 0 6a3 3 0 1 0 0-6',
   };
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -173,8 +182,9 @@ function navigation(counts) {
 }
 
 function settingsLayout(body) {
-  return h('div', { class: 'settings-layout' },
-    h('nav', { class: 'settings-sections', 'aria-label': 'Team administration' }, availableSettings().map(([id, label]) =>
+  // Shown by the window's Settings, which lists the sections itself: only the section is here.
+  return h('div', { class: 'settings-layout' + (HOSTED ? ' hosted' : '') },
+    HOSTED ? '' : h('nav', { class: 'settings-sections', 'aria-label': 'Team administration' }, availableSettings().map(([id, label]) =>
       h('button', { type: 'button', 'aria-current': state.tab === id ? 'page' : null, onclick: () => go(id) }, label))),
     h('div', { class: 'settings-content' }, body));
 }
@@ -390,9 +400,14 @@ function toast(message) {
 
 // ---- navigation ----
 
-function navTab() { return state.tab === 'people' ? 'projects' : state.tab; }
+function navTab() { return state.tab === 'project-settings' ? 'projects' : state.tab; }
 let focusMain = false;
-function go(tab) { focusMain = true; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.validationIssues = []; state.info = ''; remember(); return render(); }
+// In the window the Settings screen is the window's own: a link from this page to a section of it asks the window.
+function askForSettings(tab, part) {
+  const place = '?tab=' + tab + (tab === 'settings' && part ? '&part=' + part : '');
+  window.parent.postMessage({ type: 'werkbord.frame', event: 'settings', place }, '*');
+}
+function go(tab, part) { if (FRAMED && !HOSTED && ADMIN_TABS.some(([id]) => id === tab)) return askForSettings(tab, part); focusMain = true; if (tab === 'settings') state.settingsPart = SETTINGS_PARTS.has(part) ? part : state.settingsPart; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.validationIssues = []; state.info = ''; remember(); return render(); }
 function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; state.validationIssues = []; remember(); return render(); }
 function openTicket(projectId, ticketId) { const keepCalendar = state.projectId === projectId && ['calendar', 'timeline'].includes(state.tab); state.projectId = projectId; if (!keepCalendar) state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
 function openInRunner(it) { return act(async () => { state.handoff = await api('POST', itemPath(it) + '/handoff'); }); }
@@ -473,11 +488,11 @@ async function renderNow() {
   const projectScreen = PROJECT_TABS.has(state.tab) && !!state.data?.board;
   const title = projectScreen ? state.data.board.project.name : settingsTab() ? 'Settings' : TABS.find(([id]) => id === navTab())?.[1] || 'Projects';
   if (draggedTicket || document.querySelector('.pointer-dragging, .planning-dragging')) return;
-  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' || state.tab === 'timeline' ? ' is-board' : '') + (FRAMED ? ' framed' : '') },
+  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' || state.tab === 'timeline' ? ' is-board' : '') + (FRAMED ? ' framed' : '') + (HOSTED ? ' hosted' : '') },
     h('button', { class: 'skip-link', onclick: () => app.querySelector('#main-title').focus() }, 'Skip to content'),
     navigation(counts),
     h('main', { class: 'main-pane' },
-      projectScreen ? '' : h('header', { class: 'top page-head' }, h('h1', { id: 'main-title', tabindex: '-1' }, title),
+      projectScreen || (HOSTED && settingsTab()) ? '' : h('header', { class: 'top page-head' }, h('h1', { id: 'main-title', tabindex: '-1' }, title),
         state.tab === 'workspace' ? h('span', { class: 'workspace-context' }, state.me.workspace.name) : '', searchButton()),
       h('div', { class: 'main-content', 'data-scroll-key': 'main' },
         state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
@@ -676,7 +691,7 @@ async function workspaceView() {
         shortcut('My Work', mine, () => go('mywork')), shortcut('To review', toReview, () => go('reviews'), toReview ? 'warn' : ''),
         shortcut('Available to claim', ov.available, () => best ? openProject(best.project.id) : go('projects'))),
       h('section', {}, h('div', { class: 'section-head' }, h('h2', {}, 'Projects'), h('button', { class: 'link', onclick: () => go('projects') }, 'View all')), projects),
-      state.desktop && !state.device.runner.configured ? h('button', { class: 'plain', onclick: () => go('settings') }, 'Connect your runner') : ''));
+      state.desktop && !state.device.runner.configured ? h('button', { class: 'plain', onclick: () => go('settings', 'computer') }, 'Connect your runner') : ''));
 }
 
 function mergeBadge(it) {
@@ -796,7 +811,7 @@ async function loadProject() {
   if (state.tab === 'activity' || state.tab === 'board') {
     d.progressReports = (await Promise.all(board.tickets.filter(k => k.assigneeId).slice(0, 32).map(async k => ({ ticket: k, progress: await api('GET', '/projects/' + id + '/tickets/' + k.id + '/progress').catch(() => []) }))));
   }
-  if (state.tab === 'people') {
+  if (state.tab === 'project-settings') {
     d.people = board.people;
     d.invites = board.can.includes('invites.manage') ? await api('GET', '/projects/' + id + '/invites') : [];
     d.everyone = board.can.includes('members.manage') ? await api('GET', '/members') : [];
@@ -832,17 +847,10 @@ async function projectScopedView() {
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
   const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
-  const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
-  const settings = h('details', { class: 'project-details' }, h('summary', { class: 'plain small' }, 'Project settings'),
-    h('div', { class: 'project-detail-content' }, relationshipSettings(p), h('h3', {}, 'Details'),
-      p.description ? h('p', {}, p.description) : '',
-      p.repository ? h('p', {}, isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
-      h('p', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'),
-      h('button', { class: 'plain small', onclick: () => openProject(p.id, 'people') }, 'Manage project members and invitations'),
-      can('projects.manage') ? h('button', { class: 'danger small', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project') : ''));
-  const newTask = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New task (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new task' : 'New task') : '';
+  const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
+  const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': state.tab === 'project-settings' ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
+  const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '';
   const branches = [...new Set(d.board.tickets.filter(k => k.assigneeId === state.me.member.id && k.branch).map(k => k.branch))];
-  const memberList = h('div', { class: 'project-people', 'aria-label': 'Project members' }, d.board.people.map(person => h('span', { class: 'project-person', title: person.projectRole || person.role }, h('span', { class: 'person-initials', 'aria-hidden': 'true' }, person.name.split(/\s+/).map(x => x[0]).slice(0,2).join('')), person.name)));
   let view = content;
   if (['calendar', 'timeline'].includes(state.tab) && state.ticketId) {
     const k = d.ticket || d.board.tickets.find(k => k.id === state.ticketId);
@@ -850,12 +858,27 @@ async function projectScopedView() {
   }
   return h('div', { class: 'project-view' },
     h('div', { class: 'project-head' },
-      h('div', { class: 'project-meta' }, p.repository || 'Work project', branches.length ? ' · ' + branches.join(' · ') : ''),
-      h('div', { class: 'project-title-row' }, h('h1', { id: 'main-title', tabindex: '-1' }, p.name), h('div', { class: 'actions' }, searchButton(), settings, newTask)),
-      memberList,
+      h('div', { class: 'project-title-row' },
+        h('div', { class: 'project-where' },
+          h('h1', { id: 'main-title', tabindex: '-1' }, p.name),
+          h('div', { class: 'project-meta' }, p.repository || 'Work project', branches.length ? ' · ' + branches.join(' · ') : '')),
+        h('div', { class: 'actions' }, searchButton(), gear, newTicket)),
       FRAMED ? '' : h('label', { class: 'project-chooser' }, 'Project ', switcher)),
     tabs, state.newTicketOpen ? newTicketForm(d) : '', view);
 
+}
+
+// Everything about the project itself, in one place: what it is, who is on it, how it relates to other repositories, and archiving it.
+function projectSettingsTab(d) {
+  const p = d.board.project;
+  const details = h('section', { class: 'panel', 'aria-labelledby': 'project-details-h' }, h('h2', { id: 'project-details-h' }, 'Details'),
+    p.description ? h('p', {}, p.description) : h('p', { class: 'muted' }, 'No description.'),
+    p.repository ? h('p', {}, isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
+    h('p', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'));
+  const archive = can('projects.manage') ? h('section', { class: 'panel', 'aria-labelledby': 'project-archive-h' }, h('h2', { id: 'project-archive-h' }, p.archived ? 'Unarchive project' : 'Archive project'),
+    h('p', { class: 'muted' }, p.archived ? 'Put this project back among the active ones. Its tickets are as they were.' : 'An archived project leaves the sidebar and cannot take new tickets. Nothing is deleted: you can unarchive it.'),
+    h('button', { class: 'danger', onclick: () => (p.archived || confirm('Archive ' + p.name + '? It leaves the sidebar and takes no new tickets until you unarchive it.')) && act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project')) : '';
+  return h('div', { class: 'project-settings' }, details, peopleTab(d), h('section', { class: 'panel' }, relationshipSettings(p)), archive);
 }
 
 // A project's own sections, where the window's sidebar (which lists the project) does not: Board, Git, Activity, People.
@@ -1612,7 +1635,9 @@ function peopleTab(d) {
 function readLocation() {
  const q = new URLSearchParams(location.search);
  const tab = q.get('tab');
- state.tab = [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'people' ? tab : 'workspace';
+ state.tab = tab === 'people' ? 'project-settings' : [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'project-settings' ? tab : 'workspace';
+ if (FRAMED && !HOSTED && ADMIN_TABS.some(x => x[0] === state.tab)) state.tab = 'workspace'; // the window's own Settings shows these
+ state.settingsPart = SETTINGS_PARTS.has(q.get('part')) ? q.get('part') : '';
  state.projectId = q.get('project') || null;
  state.ticketId = q.get('ticket') || null;
  state.focusComment = state.ticketId && /^[A-Za-z0-9_-]{1,64}$/.test(q.get('comment') || '') ? q.get('comment') : '';

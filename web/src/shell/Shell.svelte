@@ -10,15 +10,22 @@
   import Workspaces from './Workspaces.svelte';
   import AddTeam from './AddTeam.svelte';
   import AssistantFrame from './AssistantFrame.svelte';
+  import SettingsNav from './SettingsNav.svelte';
+  import SettingsNative from './SettingsNative.svelte';
+  import HelpButton from './HelpButton.svelte';
   import { model, type Page } from './model.svelte';
   import { onApp } from './native';
 
   // The window: one sidebar (switching workspace, what spans every workspace, and the navigation of the workspace on show)
   // beside the workspace's own pages, which carry no navigation of their own here.
-  const pages: Page[] = ['workspace', 'mywork', 'calendar', 'inbox', 'workspaces'];
+  const pages: Page[] = ['workspace', 'mywork', 'calendar', 'inbox', 'workspaces', 'settings', 'help'];
   let mainEl: HTMLElement | undefined;
   // The person's own Werkbord cannot be shown (too old, or not running): say so instead of a blank frame.
   const problem = $derived(model.current === 'personal' && model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
+  // What a page that shows a workspace's page for Settings or Help needs: that workspace to be there to show.
+  const hostedWorkspace = $derived(model.page === 'settings' || model.page === 'help' ? model.shownWorkspace : undefined);
+  const hostedGone = $derived(!!hostedWorkspace && model.view?.items.find((i) => i.id === hostedWorkspace)?.state === 'unavailable');
+  const native = $derived(model.page === 'settings' ? model.settingsShown.where : undefined);
 
   function go(where: unknown): void {
     if (where === 'personal') void model.open('personal');
@@ -52,18 +59,26 @@
       <div class="message" role="status">{model.notice}<button class="btn" type="button" onclick={() => (model.notice = '')}>Dismiss</button></div>
     {/if}
     {#if !model.loaded}<p class="loading" role="status">Opening your workspaces…</p>{/if}
-    <main id="shell-main" tabindex="-1" bind:this={mainEl}>
-      <FrameHost shown={model.page === 'workspace' && !problem} />
-      {#if model.page === 'workspace' && problem}
-        <div class="page-area"><WorkspaceProblem /></div>
-      {:else if model.page !== 'workspace'}
-        <div class="page-area">
-          {#if model.page === 'mywork'}<MyWork overview={model.overview} />
-          {:else if model.page === 'calendar'}<Calendar overview={model.overview} />
-          {:else if model.page === 'inbox'}<Inbox overview={model.overview} />
-          {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
-        </div>
-      {/if}
+    <main id="shell-main" tabindex="-1" bind:this={mainEl} class:with-nav={model.page === 'settings'}>
+      {#if model.page === 'settings'}<SettingsNav />{/if}
+      <div class="stage">
+        <FrameHost shown={(model.page === 'workspace' && !problem) || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
+        {#if model.page === 'workspace' && problem}
+          <div class="page-area"><WorkspaceProblem /></div>
+        {:else if hostedGone}
+          <div class="page-area"><WorkspaceProblem /></div>
+        {:else if native && 'native' in native}
+          <div class="page-area"><SettingsNative section={native.native} /></div>
+        {:else if model.page !== 'workspace' && !hostedWorkspace}
+          <div class="page-area">
+            {#if model.page === 'mywork'}<MyWork overview={model.overview} />
+            {:else if model.page === 'calendar'}<Calendar overview={model.overview} />
+            {:else if model.page === 'inbox'}<Inbox overview={model.overview} />
+            {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
+          </div>
+        {/if}
+      </div>
+      <HelpButton />
     </main>
   </div>
   {#if model.switcher}<Switcher onadd={() => (model.addOpen = true)} />{/if}
@@ -93,9 +108,10 @@
     outline-offset: 2px;
   }
 
+  /* The skip link moves focus here, and a click on empty space does too: a ring round the whole page helps no one. */
+  main:focus,
   main:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+    outline: none;
   }
 
   .shell {
@@ -111,11 +127,25 @@
     flex-direction: column;
   }
   main {
+    position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     overflow: hidden;
+  }
+  /* Settings has its own list of sections beside the section on show; on a narrow window the list becomes a menu above it. */
+  @media (max-width: 899px) {
+    main.with-nav {
+      flex-direction: column;
+    }
+  }
+  .stage {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
   .page-area {
     flex: 1;

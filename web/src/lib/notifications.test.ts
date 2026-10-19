@@ -39,3 +39,21 @@ describe('browser notifications', () => {
     expect(shown.map((item) => item.title)).toEqual(['Repository needs attention']);
   });
 });
+
+describe('alerts inside the desktop window', () => {
+  it('tells the window what happened, whatever the page’s own permission or visibility, and shows nothing itself', () => {
+    const posted: unknown[] = [];
+    const parent = { postMessage: (m: unknown) => posted.push(m) };
+    vi.stubGlobal('document', { hidden: false });
+    vi.stubGlobal('window', { focus: vi.fn(), parent, postMessage: vi.fn() });
+    localStorage.removeItem('devboard.notifications.enabled');
+    notifyEvent(event('agent.output', 1), 'App', 'Task');
+    notifyEvent(event('agent.question', 2), 'App', 'Fix login');
+    notifyEvent(event('agent.failed', 3), 'App', 'Fix login');
+    expect(shown).toHaveLength(0);
+    expect(posted).toEqual([
+      { type: 'werkbord.frame', event: 'notify', key: 'seq-2', title: 'Needs you', body: 'App · Fix login', urgent: true },
+      { type: 'werkbord.frame', event: 'notify', key: 'seq-3', title: 'Agent failed', body: 'App · Fix login', urgent: false },
+    ]);
+  });
+});

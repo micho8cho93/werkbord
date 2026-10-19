@@ -119,7 +119,7 @@ export interface Group {
 }
 
 const STATE_ORDER: TaskState[] = ['backlog', 'doing', 'review', 'done'];
-const STATE_TITLE: Record<TaskState, string> = { backlog: 'Backlog', doing: 'Doing', review: 'Review', done: 'Done' };
+const STATE_TITLE: Record<TaskState, string> = { backlog: 'Backlog', doing: 'In progress', review: 'Review', done: 'Done' };
 
 /**
  * Groups tasks for the timeline's rows. By label, a task with several labels is listed under each (the

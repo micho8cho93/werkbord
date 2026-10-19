@@ -1,16 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { activeKey, entries, listed, runnersPlace, settingsPlace } from './nav';
+import { activeKey, entries, listed } from './nav';
 import { isPlace } from './frames';
 
 describe('the sidebar entries', () => {
   it('only ever ask a workspace for a place inside itself', () => {
     for (const kind of ['personal', 'team'] as const) {
       for (const e of entries(kind)) expect(isPlace(e.place)).toBe(true);
-      expect(isPlace(settingsPlace(kind))).toBe(true);
     }
     expect(entries('team').some(e => e.key === 'analytics' && e.place === '?tab=analytics')).toBe(true);
-    expect(isPlace(runnersPlace('personal') ?? '')).toBe(true);
-    expect(runnersPlace('team')).toBeUndefined();
   });
   it('lists each project once, in the order the workspace gave', () => {
     const a = { id: 'a', name: 'A', href: '#/p/a/board' };
@@ -24,7 +21,8 @@ describe('which entry the current place belongs to', () => {
   it('follows Individual’s addresses', () => {
     expect(activeKey('personal', '#/control')).toBe('home');
     expect(activeKey('personal', '#/projects')).toBe('projects');
-    expect(activeKey('personal', '#/settings?runners')).toBe('settings');
+    // Settings is the window's own screen, not an entry of a workspace.
+    expect(activeKey('personal', '#/settings?runners')).toBe('');
     expect(activeKey('personal', '#/p/prj_1/git/branch?x=1')).toBe('project:prj_1');
     expect(activeKey('personal', '#/p/prj_1/task/tsk_1')).toBe('project:prj_1');
     expect(activeKey('personal', '#/p/my%20repo/board')).toBe('project:my repo');
@@ -37,8 +35,8 @@ describe('which entry the current place belongs to', () => {
     expect(activeKey('team', '?tab=reviews')).toBe('reviews');
     expect(activeKey('team', '?tab=members')).toBe('members');
     expect(activeKey('team', '?tab=analytics')).toBe('analytics');
-    for (const tab of ['settings', 'labels', 'devices', 'hosts', 'connectivity', 'backups', 'license']) expect(activeKey('team', `?tab=${tab}`)).toBe('settings');
-    for (const tab of ['board', 'timeline', 'repository', 'activity', 'people']) expect(activeKey('team', `?tab=${tab}&project=tpj_1`)).toBe('project:tpj_1');
+    for (const tab of ['settings', 'labels', 'devices', 'hosts', 'connectivity', 'backups', 'license']) expect(activeKey('team', `?tab=${tab}`)).toBe('');
+    for (const tab of ['board', 'timeline', 'repository', 'activity', 'project-settings', 'people']) expect(activeKey('team', `?tab=${tab}&project=tpj_1`)).toBe('project:tpj_1');
     expect(activeKey('team', '?tab=board&project=tpj_1&ticket=t1')).toBe('project:tpj_1');
     expect(activeKey('team', '?tab=board')).toBe('');
     expect(activeKey('team', '?tab=mywork')).toBe('');

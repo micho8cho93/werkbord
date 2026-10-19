@@ -138,11 +138,36 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
  await side.getByRole('button', { name: 'Reviews', exact: true }).click(); await side.locator('[data-page=ws-reviews][aria-current=page]').waitFor();
  console.log('PASS Team: the same sidebar lists its places, theme follows the sidebar, no rail of its own');
- await side.locator('[data-page=settings]').click();
- await firstFrame.getByRole('button', { name: /^(Connect existing runner|Reconnect runner|Runner connected)$/ }).waitFor();
+ // The same Settings, with the same Appearance, from Individual and from Universal; the theme is the window's and the sidebar follows it.
+ const sections = page.getByTestId('settings-sections');
+ await switchTo('personal'); await side.locator('[data-page=settings]').click(); await sections.waitFor();
+ for (const label of ['Appearance', 'Alerts', 'Task defaults', 'Routing rules', 'Runners', 'Agents', 'This computer', 'Phones', 'GitHub', 'MCP services', 'Individual memory']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
+ assert.equal(await sections.getByRole('button', { name: 'Labels', exact: true }).count(), 0, 'Labels are Team\'s, not Individual\'s');
+ await sections.getByRole('button', { name: 'Appearance', exact: true }).click();
+ await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Dark', exact: true }).click();
+ assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'the sidebar follows the theme chosen in Settings');
+ await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Light', exact: true }).click();
+ assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
+ await sections.getByRole('button', { name: 'Phones', exact: true }).click();
+ await page.frameLocator('iframe[data-hosted="personal"]').getByRole('button', { name: 'Add a phone', exact: true }).waitFor();
+ assert.equal(await page.frameLocator('iframe[data-hosted="personal"]').locator('.sections').isVisible(), false, 'Individual\'s own list of sections is not shown inside the window\'s Settings');
+ await switchUniversal(); await side.locator('[data-page=settings]').click(); await sections.waitFor();
+ for (const owner of ['Individual', 'Northstar Studio']) await sections.locator('[data-owner="' + owner + '"]').waitFor();
+ await page.getByTestId('help-button').click(); await page.frameLocator('iframe[data-hosted="personal"]').getByRole('heading', { name: 'Find the next step' }).waitFor();
+ assert.equal(await page.getByTestId('help-button').count(), 0, 'Help does not offer itself while it is open');
+ console.log('PASS Settings and Help: one screen from Universal, Individual and Team; theme follows Settings');
+ // Settings is one screen of the window, whichever part of Werkbord it is opened from; Team's sections are shown by Team's own page.
+ await switchTo('team:main'); await side.locator('[data-page=settings]').click();
+ await sections.waitFor();
+ for (const label of ['Appearance', 'Alerts', 'Labels', 'This computer', 'Workspace Hosts', 'Phones', 'MCP clients', 'Team memory', 'Backups', 'License']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
+ for (const label of ['Task defaults', 'Routing rules', 'Individual memory', 'GitHub']) assert.equal(await sections.getByRole('button', { name: label, exact: true }).count(), 0, label + ' is Individual\'s, not Team\'s');
+ const hostedMain = page.frameLocator('iframe[data-hosted="team:main"]');
+ await sections.getByRole('button', { name: 'This computer', exact: true }).click();
+ assert.equal(await hostedMain.locator('.settings-sections').count(), 0, 'Team\'s own list of sections is not shown inside the window\'s Settings');
+ await hostedMain.getByRole('button', { name: /^(Connect existing runner|Reconnect runner|Runner connected)$/ }).waitFor();
  const runnerConnected = (await dev('GET', '/state')).runner.connected;
- if (runnerConnected) assert(await firstFrame.getByRole('button', { name: 'Runner connected', exact: true }).isDisabled(), 'connected runner setup cannot be repeated');
- else await firstFrame.getByRole('button', { name: /^(Connect existing runner|Reconnect runner)$/ }).click();
+ if (runnerConnected) assert(await hostedMain.getByRole('button', { name: 'Runner connected', exact: true }).isDisabled(), 'connected runner setup cannot be repeated');
+ else await hostedMain.getByRole('button', { name: /^(Connect existing runner|Reconnect runner)$/ }).click();
  await wait(async () => (await dev('GET', '/state')).runner.connected, 'explicit narrow grant connection');
  // Claimed before the runner was connected: the Team service on this computer copies it into Individual, and the ticket opens there.
  await wait(async () => ((await dev('GET', '/state')).sync?.tickets || []).some(t => t.ticketId === ticket.id && t.taskId), 'claimed ticket copied into Individual');
@@ -176,7 +201,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  console.log('PASS shell opening, Team ticket deep link and locally approved agent process');
  await switchUniversal(); await page.locator('[data-page=mywork]').click(); // leave the open ticket as it is; switch from a shell page
  await switchTo('personal'); await switchTo('team:' + slot);
- const secondFrame = page.frameLocator('iframe[data-workspace="team:' + slot + '"]'); await side.locator('[data-page=settings]').click();
+ const secondFrame = page.frameLocator('iframe[data-hosted="team:' + slot + '"]'); await side.locator('[data-page=settings]').click(); await page.locator('[data-section="team:' + slot + '/computer"]').click();
  assert.equal(await secondFrame.getByRole('button', { name: 'Make Workspace Host', exact: true }).count(), 0, 'member has no host authority');
  await secondFrame.locator('[name=offer-workspace-host]').check(); await secondFrame.locator('[name=computer-sleeps]').check(); await secondFrame.getByRole('button', { name: 'Save settings', exact: true }).click();
  await wait(async () => (await secondDev('GET', '/state')).settings.offerWorkspaceHost, 'volunteer persisted');

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { hosting, standing } from './aggregate';
   import { model } from './model.svelte';
-  import { runnersPlace } from './nav';
   import type { Item, Overview } from './types';
 
   // Every workspace on this computer, what this computer does for each, and where to manage it. Hosting is shown here as
@@ -89,7 +88,7 @@
             <button class="btn" type="button" onclick={() => model.open(i.id)}>{i.state === 'setup' ? 'Finish setting up' : 'Open'}</button>
           {/if}
           {#if i.kind === 'personal' && i.state === 'ready'}
-            <button class="btn" type="button" onclick={() => model.open(i.id, runnersPlace('personal'))} data-testid="manage-runners">Runners</button>
+            <button class="btn" type="button" onclick={() => model.openSettings('personal/runners')} data-testid="manage-runners">Runners</button>
           {/if}
           {#if i.kind === 'team' && i.state !== 'setup'}
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=hosts')} data-testid="manage-hosts">Hosts and devices</button>

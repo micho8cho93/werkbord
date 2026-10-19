@@ -5,9 +5,10 @@
 
 import { ask } from './native';
 import { surfaceUrl } from './frames';
+import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
 import type { Overview, Target, WorkspaceView } from './types';
 
-export type Page = 'workspace' | 'mywork' | 'calendar' | 'inbox' | 'workspaces';
+export type Page = 'workspace' | 'mywork' | 'calendar' | 'inbox' | 'workspaces' | 'settings' | 'help';
 
 /** Where the switcher opens: under the workspace name at the top of the sidebar, in the window's coordinates. */
 export interface Anchor {
@@ -45,6 +46,13 @@ export class Model {
   /** The workspace the Workspace page shows. */
   current = $state('personal');
   frames = $state<Record<string, OpenFrame>>({});
+  /**
+   * A page of a workspace shown for Settings or Help, in a frame of its own, so that showing a workspace's settings stops
+   * nothing in the workspace itself and leaves it where it was. Keyed by the workspace whose page it is.
+   */
+  hosted = $state<Record<string, OpenFrame>>({});
+  /** The section of Settings on show (an id from settings.ts); one this scope does not list falls back to the first. */
+  settingsSection = $state('');
   error = $state('');
   notice = $state('');
   busy = $state('');
@@ -95,6 +103,27 @@ export class Model {
   toggleSwitcher(): void {
     if (this.switcher) this.closeSwitcher(true);
     else this.openSwitcher();
+  }
+
+  /** Which part of Werkbord Settings is for: the whole of it, Individual, or the Team on show. */
+  get scope(): Scope {
+    return scopeOf(this.universal, this.current, this.view?.items.find((i) => i.id === this.current)?.kind);
+  }
+
+  get settingsGroups(): Group[] {
+    return groupsFor(this.scope, this.view?.items);
+  }
+
+  get settingsShown(): Section {
+    return pick(this.settingsGroups, this.settingsSection);
+  }
+
+  /** The workspace whose page is on screen now, in whichever frame shows it; undefined for the shell's own pages. */
+  get shownWorkspace(): string | undefined {
+    if (this.page === 'workspace') return this.current;
+    if (this.page === 'help') return 'personal';
+    if (this.page === 'settings') return frameOf(this.settingsShown);
+    return undefined;
   }
 
   /** Records where a workspace's page says it is. */
@@ -211,6 +240,10 @@ export class Model {
           delete this.places[id];
         }
       }
+      for (const id of Object.keys(this.hosted)) {
+        const item = view.items.find((i) => i.id === id);
+        if (!item || item.state === 'leaving' || item.state === 'unavailable' || item.state === 'setup') delete this.hosted[id];
+      }
       // Removed/revoked workspace content must disappear, including old aggregate rows.
       if (this.overview) this.overview.entries = this.accessibleEntries(this.overview);
       if (this.loaded && this.page === 'workspace' && !this.frames[this.current] && this.current !== 'personal') await this.open('personal');
@@ -266,8 +299,8 @@ export class Model {
   }
 
   /** Marks a frame's page as loaded; where it should go next, if anywhere, is returned. */
-  frameReady(id: string): string | undefined {
-    const f = this.frames[id];
+  frameReady(id: string, hosted = false): string | undefined {
+    const f = hosted ? this.hosted[id] : this.frames[id];
     if (!f) return undefined;
     f.ready = true;
     const p = f.pending;
@@ -275,8 +308,57 @@ export class Model {
     return p;
   }
 
+  /** Shows a workspace's page in a frame of its own at a place inside it: for Settings and Help. */
+  async host(id: string, place: string): Promise<void> {
+    const open = this.hosted[id];
+    if (open) {
+      open.pending = place;
+      return;
+    }
+    try {
+      const target = await ask((a) => a.LoadWorkspace(id));
+      // Another request may have made the frame while this one waited.
+      if (this.hosted[id]) this.hosted[id].pending = place;
+      else this.hosted[id] = { target, ready: false, pending: place };
+    } catch (e) {
+      this.error = (e as Error).message;
+    }
+  }
+
+  /** Settings, at a section if one is asked for. Whichever part of Werkbord the person is in, it is the same screen. */
+  openSettings(section?: string): void {
+    this.leaveAssistant();
+    if (section) this.settingsSection = section;
+    this.page = 'settings';
+    this.closeSwitcher();
+    const where = this.settingsShown.where;
+    if ('workspace' in where) void this.host(where.workspace, where.place);
+  }
+
+  /**
+   * A page of a workspace asks for Settings at a place inside it (a link to Phones, a notice that points at Devices): the shell
+   * shows its own Settings screen there, instead of the workspace growing a second one.
+   */
+  openSettingsAt(workspace: string, place: string): void {
+    if (this.view?.items.find((i) => i.id === workspace)?.kind === 'team') this.universal = false;
+    else if (workspace === 'personal') this.universal = false;
+    this.current = workspace;
+    const found = sectionForPlace(this.settingsGroups, workspace, place);
+    this.openSettings(found?.id);
+  }
+
+  /** Help: Individual's guides and shortcuts, shown wherever the person is. */
+  openHelp(): void {
+    this.leaveAssistant();
+    this.page = 'help';
+    this.closeSwitcher();
+    void this.host('personal', '#/help');
+  }
+
   /** Shows a page of the shell's own. */
   go(p: Page): void {
+    if (p === 'settings') return this.openSettings();
+    if (p === 'help') return this.openHelp();
     if (['mywork', 'calendar', 'inbox'].includes(p)) this.universal = true;
     this.leaveAssistant();
     this.page = p;

@@ -5,7 +5,7 @@
   let { props }: ComponentRenderProps<{ backlog?: number; doing?: number; review?: number; done?: number; asOf?: string }> = $props();
   const states = $derived([
     { name: 'Backlog', count: props.backlog ?? 0, state: 'backlog' },
-    { name: 'Doing', count: props.doing ?? 0, state: 'doing' },
+    { name: 'In progress', count: props.doing ?? 0, state: 'doing' },
     { name: 'Review', count: props.review ?? 0, state: 'review' },
     { name: 'Done', count: props.done ?? 0, state: 'done' },
   ]);

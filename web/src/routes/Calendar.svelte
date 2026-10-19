@@ -321,7 +321,7 @@
                 <span class="grip" aria-hidden="true"><Icon name="grip" /></span>
                 <button class="pbtn" aria-pressed={picked?.id === t.id} onclick={() => (picked = picked?.id === t.id ? null : t)}>
                   <span class="t">{t.title}</span>
-                  <span class="mm">{t.state === 'backlog' ? 'Backlog' : t.state === 'review' ? 'Review' : 'Doing'}{t.execution.priority && t.execution.priority !== 'normal' ? ` · ${t.execution.priority}` : ''}</span>
+                  <span class="mm">{t.state === 'backlog' ? 'Backlog' : t.state === 'review' ? 'Review' : 'In progress'}{t.execution.priority && t.execution.priority !== 'normal' ? ` · ${t.execution.priority}` : ''}</span>
                 </button>
               </li>
             {/each}

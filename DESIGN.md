@@ -197,7 +197,7 @@ heading (the provider chooser, New, Close) and the box.
   opener. Collapsed content and disabled actions never enter that cycle.
 
 - **One clock.** Every time of day is written by `lib/clock.svelte.ts`: 12-hour or 24-hour as the device's locale writes it, unless
-  the person picks one under Settings → Alerts and display (kept per device). The Calendar's hour column, its events, the run
+  the person picks one under Settings → Time format (in a browser, Settings → Alerts and display; kept per device). The Calendar's hour column, its events, the run
   history, the feed and the desktop Calendar all follow it; nothing hard-codes `HH:MM`.
 - **One disclosure.** Every `<details>` shows the same chevron, which turns down when it opens (`app.css`); the browser's own
   triangle is not used, because it disappears on a flex summary.

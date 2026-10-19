@@ -466,3 +466,34 @@ func TestRelayNeedsBothAddressesAndHttps(t *testing.T) {
 		t.Error("a relay with no connector cannot make a link")
 	}
 }
+
+func TestTheRelayThatShipsIsUsedUnlessYouSetOneOrTurnItOff(t *testing.T) {
+	own := RelayConfig{URL: "https://relay.example.workers.dev", ConnectorURL: "https://connect.example.pages.dev"}
+	for _, tc := range []struct {
+		name   string
+		in     RelayConfig
+		inTest bool
+		want   RelayConfig
+	}{
+		{"nothing set", RelayConfig{}, false, RelayConfig{URL: DefaultRelayURL, ConnectorURL: DefaultConnectorURL}},
+		{"your own is kept", own, false, own},
+		{"turned off", RelayConfig{Disabled: true}, false, RelayConfig{Disabled: true}},
+		{"half a pair is left for validation to refuse", RelayConfig{URL: own.URL}, false, RelayConfig{URL: own.URL}},
+		{"a test never gets it", RelayConfig{}, true, RelayConfig{}},
+	} {
+		if got := tc.in.builtIn(tc.inTest); got != tc.want {
+			t.Errorf("%s: %+v, want %+v", tc.name, got, tc.want)
+		}
+	}
+	if !(RelayConfig{URL: DefaultRelayURL, ConnectorURL: DefaultConnectorURL}).Enabled() {
+		t.Error("the built-in pair makes a relay")
+	}
+	if (RelayConfig{URL: DefaultRelayURL, ConnectorURL: DefaultConnectorURL, Disabled: true}).Enabled() {
+		t.Error("disabled wins over addresses")
+	}
+	c := Default()
+	c.Relay = RelayConfig{URL: DefaultRelayURL, ConnectorURL: DefaultConnectorURL}
+	if err := c.Validate(); err != nil {
+		t.Errorf("the built-in addresses must validate: %v", err)
+	}
+}

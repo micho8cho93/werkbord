@@ -1,12 +1,54 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handle, isPlace, surfaceUrl, type FrameRef, type Deps } from './frames';
+import { handle, hostedUrl, isPlace, surfaceUrl, type FrameRef, type Deps } from './frames';
 
 const individual = {} as Window, team = {} as Window, assistantWindow = {} as Window;
 const frames: FrameRef[] = [{ id: 'personal', origin: 'http://127.0.0.1:7420', window: individual }, { id: 'team:main', origin: 'http://127.0.0.1:7431', window: team }];
 // The assistant's own frame: a page of the person's own Werkbord, which is not one of the workspaces’ frames.
 const surface: FrameRef = { id: 'personal', surface: true, origin: 'http://127.0.0.1:7420', window: assistantWindow };
-const deps = (): Deps => ({ relay: vi.fn().mockResolvedValue('ok'), reply: vi.fn(), remember: vi.fn().mockResolvedValue(undefined), ready: vi.fn(), open: vi.fn(), assistant: vi.fn() });
+const deps = (): Deps => ({ relay: vi.fn().mockResolvedValue('ok'), reply: vi.fn(), remember: vi.fn().mockResolvedValue(undefined), ready: vi.fn(), open: vi.fn(), assistant: vi.fn(), theme: vi.fn(), notify: vi.fn(), settings: vi.fn() });
 const data = { type: 'werkbord.native.request', id: 'request1', method: 'Info', args: [] };
+
+const hosted: FrameRef = { id: 'personal', hosted: true, origin: 'http://127.0.0.1:7420', window: {} as Window };
+const say = (source: Window, origin: string, data: Record<string, unknown>) => ({ source, origin, data: { type: 'werkbord.frame', ...data } });
+
+describe('what a frame may say about the window', () => {
+  it('may say which theme the person chose, and nothing else about it', async () => {
+    const d = deps();
+    for (const theme of ['dark', 'light', '']) await handle(frames, say(individual, frames[0].origin, { event: 'theme', theme }), d);
+    for (const theme of ['blue', 1, null, undefined]) await handle(frames, say(individual, frames[0].origin, { event: 'theme', theme }), d);
+    expect(vi.mocked(d.theme).mock.calls).toEqual([['personal', 'dark'], ['personal', 'light'], ['personal', '']]);
+  });
+  it('lets Individual say something happened, in plain short words, and no one else', async () => {
+    const d = deps();
+    const alert = { event: 'notify', key: 'seq-12', title: 'Needs you', body: 'Shop · Fix login' };
+    await handle(frames, say(team, frames[1].origin, alert), d);
+    await handle([surface], say(assistantWindow, surface.origin, alert), d);
+    expect(d.notify).not.toHaveBeenCalled();
+    for (const bad of [{ ...alert, key: 'a b' }, { ...alert, title: '' }, { ...alert, title: 'x'.repeat(81) }, { ...alert, body: 7 }, { ...alert, key: undefined }]) await handle(frames, say(individual, frames[0].origin, bad), d);
+    expect(d.notify).not.toHaveBeenCalled();
+    await handle(frames, say(individual, frames[0].origin, { ...alert, title: 'Needs\u0007 you', urgent: true }), d);
+    expect(d.notify).toHaveBeenCalledExactlyOnceWith('personal', { key: 'seq-12', title: 'Needs you', body: 'Shop · Fix login', urgent: true });
+  });
+  it('lets a workspace’s page ask for Settings only at a place of its own settings', async () => {
+    const d = deps();
+    for (const place of ['#/control', '#/settings//x', 'https://evil.example', '?tab=settings']) await handle(frames, say(individual, frames[0].origin, { event: 'settings', place }), d);
+    for (const place of ['#/settings?phones', '?tab=//x', '#/settings']) await handle(frames, say(team, frames[1].origin, { event: 'settings', place }), d);
+    expect(d.settings).not.toHaveBeenCalled();
+    await handle(frames, say(individual, frames[0].origin, { event: 'settings', place: '#/settings?phones' }), d);
+    await handle(frames, say(team, frames[1].origin, { event: 'settings', place: '?tab=devices' }), d);
+    expect(vi.mocked(d.settings).mock.calls).toEqual([['personal', '#/settings?phones'], ['team:main', '?tab=devices']]);
+  });
+  it('does not take a frame that only shows Settings or Help for where the person is', async () => {
+    const d = deps();
+    const win = hosted.window as Window;
+    await handle([hosted], say(win, hosted.origin, { event: 'place', place: '#/settings?phones' }), d);
+    await handle([hosted], say(win, hosted.origin, { event: 'settings', place: '#/settings?phones' }), d);
+    expect(d.remember).not.toHaveBeenCalled();
+    expect(d.settings).not.toHaveBeenCalled();
+    await handle([hosted], say(win, hosted.origin, { event: 'theme', theme: 'dark' }), d);
+    expect(d.theme).toHaveBeenCalledOnce();
+  });
+});
 
 describe('frame authority', () => {
   it('rejects forged sources, origins and invalid calls without relay', async () => {
@@ -98,5 +140,12 @@ describe('where the assistant’s frame loads from', () => {
   it('is the person’s own Werkbord, asked to show the assistant alone, with the sign-in kept in the fragment', () => {
     expect(surfaceUrl('http://127.0.0.1:7420/#token=abc%2F1')).toBe('http://127.0.0.1:7420/?surface=assistant#token=abc%2F1');
     expect(surfaceUrl('http://127.0.0.1:7420/')).toBe('http://127.0.0.1:7420/?surface=assistant');
+  });
+});
+
+describe('where a frame that shows Settings loads from', () => {
+  it('is the same page, told it is not the workspace on show', () => {
+    expect(hostedUrl('http://127.0.0.1:7420/#token=x')).toBe('http://127.0.0.1:7420/?hosted=1#token=x');
+    expect(hostedUrl('http://127.0.0.1:7431/w/two/?tab=board')).toBe('http://127.0.0.1:7431/w/two/?tab=board&hosted=1');
   });
 });

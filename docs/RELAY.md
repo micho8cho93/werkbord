@@ -9,6 +9,18 @@ end-to-end crypto (`internal/relay/e2e`, and `relay/e2e/e2e.mjs` for the browser
 and the runner's keys (`internal/relay/tunnel`, `internal/relay/access`), and the **connector**, the static page a phone opens
 (`relay/connector`, [below](#the-connector-scan-and-go)).
 
+## Nothing to set up: the relay that ships
+
+A Werkbord install connects to a relay and connector built into the program (`config.DefaultRelayURL` and `DefaultConnectorURL`),
+so Settings → Phones → Add a phone works at once, on the Workers Free plan described below, with nothing to deploy or configure.
+The relay only forwards ciphertext. Your own replaces it: set `relay.url` and `relay.connectorUrl` in `config.json` (or
+`WERKBORD_RELAY_URL` and `WERKBORD_CONNECTOR_URL`), both or neither. `relay.disabled` in `config.json`, or `WERKBORD_RELAY=off`,
+turns the relay off, built-in addresses included. Test binaries never get the built-in pair, so a unit test cannot connect to it.
+A code made while the computer is still reaching the relay works as soon as it is connected.
+
+Moving to Workers Paid later changes none of this. It is the answer to the daily request cap when many people share one relay:
+every install that uses the built-in relay spends the same Cloudflare account's free quota.
+
 ## Free plan first
 
 This is built and tested for the **Workers Free** plan; moving to Workers Paid later changes nothing in the code.

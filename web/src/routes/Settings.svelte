@@ -15,6 +15,7 @@
   import RunnersPanel from '../lib/RunnersPanel.svelte';
   import AgentsCard from '../lib/setup/AgentsCard.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
+  import { embedded } from '../lib/embed';
   import { isPhone } from '../lib/phones/capability';
   import PhonesPanel from '../lib/phones/PhonesPanel.svelte';
   import { desktop } from '../lib/desktop.svelte';
@@ -25,16 +26,23 @@
   // Everything that is set once and changed rarely, one section at a time: each has its own
   // address (#/settings?runners), so the rail and other pages link straight to it.
 
+  // In the desktop window this page is shown by the window's own Settings, which lists these sections itself, owns Theme and Alerts,
+  // and asks this page for one section at a time: there is no list or heading of its own here. Opened in a browser or on a phone
+  // it is the whole of Settings, as it always was.
+  const framed = embedded();
+
   const GROUPS = [
-    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }] },
+    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
-    { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Team Memory' }] },
+    { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Individual memory' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
   // A phone's own settings are its sign-in and its display; the rest is changed at the computer.
   const PHONE_SECTIONS = ['phones', 'alerts'];
-  const shownGroups = GROUPS.map((g) => ({ ...g, sections: g.sections.filter((s) => !isPhone() || PHONE_SECTIONS.includes(s.id)) })).filter((g) => g.sections.length);
-  const SECTIONS = GROUPS.flatMap(g => [...g.sections]);
+  // The window has the theme and alerts of its own, and the time format is the one thing of "display" left here; in a browser it is all one section.
+  const own = (id: string) => (framed ? id !== 'alerts' : id !== 'time');
+  const shownGroups = GROUPS.map((g) => ({ ...g, sections: g.sections.filter((s) => own(s.id) && (!isPhone() || PHONE_SECTIONS.includes(s.id))) })).filter((g) => g.sections.length);
+  const SECTIONS = GROUPS.flatMap((g) => g.sections.filter((s) => own(s.id)));
   type SectionId = (typeof SECTIONS)[number]['id'];
   const section = $derived<SectionId>(SECTIONS.find((s) => s.id === router.query && (!isPhone() || PHONE_SECTIONS.includes(s.id)))?.id ?? (isPhone() ? 'phones' : 'defaults'));
   const href = (id: SectionId) => (id === 'defaults' ? globalHref('settings') : `${globalHref('settings')}?${id}`);
@@ -116,8 +124,8 @@
 <svelte:window onfocus={syncAlerts} />
 
 
-<div class="settings">
-  <Tour surface="settings" enabled={!isPhone()} />
+<div class="settings" class:framed>
+  <Tour surface="settings" enabled={!isPhone() && !framed} />
   <label class="mobile-section">
     <span>Settings section</span>
     <select aria-label="Settings section" value={section} onchange={(event) => { location.hash = href(event.currentTarget.value as SectionId); }}>
@@ -138,7 +146,7 @@
   </nav>
 
   <div class="content">
-    <p class="help-link"><Icon name="help" size={15} /><a href={globalHref('help')}>Help and keyboard shortcuts</a></p>
+    {#if !framed}<a class="btn help-link" href={globalHref('help')} aria-label="Help and keyboard shortcuts"><Icon name="help" size={15} />Help</a>{/if}
     {#if section === 'defaults'}
       <section class="pn">
         <div class="head">
@@ -173,6 +181,18 @@
       <MCPClientsPanel />
     {:else if section === 'agents'}
       <AgentsCard />
+    {:else if section === 'time'}
+      <section class="pn">
+        <div class="head">
+          <h3>Time format</h3>
+          <p class="muted">How times are written everywhere: {formatTime(app.now)} now. Follows your device unless you choose. Kept on this device.</p>
+        </div>
+        <div class="seg" role="group" aria-label="Clock">
+          <button aria-pressed={clock.choice === ''} onclick={() => clock.set('')}>Device</button>
+          <button aria-pressed={clock.choice === '12'} onclick={() => clock.set('12')}>12-hour</button>
+          <button aria-pressed={clock.choice === '24'} onclick={() => clock.set('24')}>24-hour</button>
+        </div>
+      </section>
     {:else if section === 'alerts'}
       <section class="pn">
         <div class="head">
@@ -276,6 +296,11 @@
   }
 
   .mobile-section { display: none; }
+
+  /* In the window: one section, no list of its own (the window's Settings has it). */
+  .settings.framed { display: block; height: auto; }
+  .settings.framed .sections, .settings.framed .mobile-section { display: none; }
+  .help-link { align-self: flex-start; gap: 6px; text-decoration: none; }
 
   .sections a {
     display: flex;

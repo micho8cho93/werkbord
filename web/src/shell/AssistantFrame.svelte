@@ -35,6 +35,9 @@
       reply: (_frame, message) => send(message),
       remember: async () => {},
       ready: () => {},
+      theme: () => {},
+      notify: () => {},
+      settings: () => {},
       open: (_id, target, place) => {
         // A card in the assistant leads to a place in the person's own Werkbord: show it, over the assistant, which closes.
         if (target === 'personal') {

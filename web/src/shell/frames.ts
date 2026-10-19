@@ -8,6 +8,8 @@ export interface FrameRef {
   id: string;
   /** The frame is the assistant's own, not a workspace's page: it may ask the app for things and say how the assistant stands, and nothing else. */
   surface?: boolean;
+  /** The frame shows a workspace's page for Settings or Help, beside the one the person is in: where it is says nothing about where they are. */
+  hosted?: boolean;
   /** The origin the app said the frame is loaded from. */
   origin: string;
   window: Window | null;
@@ -28,6 +30,30 @@ export interface Deps {
   open(id: string, target: string, place: string): void;
   /** Individual's assistant says whether it is open and whether something there needs the person. */
   assistant(id: string, state: { open: boolean; waiting: number; running: boolean }): void;
+  /** A page says the person chose a theme there. */
+  theme(id: string, choice: 'light' | 'dark' | ''): void;
+  /** Individual says something happened that the person asked to hear about while they are in another app. */
+  notify(id: string, alert: Alert): void;
+  /** A page asks for Settings at a place inside it, rather than showing settings of its own. */
+  settings(id: string, place: string): void;
+}
+
+export interface Alert {
+  /** What happened, once: a repeat of the same key is not told again. */
+  key: string;
+  title: string;
+  body: string;
+  /** Something is waiting for the person (a question): the app asks harder for their attention. */
+  urgent?: boolean;
+}
+
+const KEY = /^[A-Za-z0-9_.:-]{1,64}$/;
+/** Text for a system notification: plain, short, with nothing that could be taken for anything else. */
+function plain(v: unknown, max: number): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  // eslint-disable-next-line no-control-regex
+  const t = v.replace(/[\s\u0000-\u001f\u007f]+/g, ' ').trim();
+  return t && t.length <= max ? t : undefined;
 }
 
 const METHOD = /^[A-Za-z]{1,40}$/;
@@ -79,7 +105,16 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     // Werkbord or a validated Team ticket route.
     if (frame.surface && m.event !== 'assistant' && m.event !== 'open') return;
     if (m.event === 'ready') d.ready(frame.id);
-    else if (m.event === 'place' && isPlace(m.place)) await d.remember(frame.id, m.place).catch(() => {});
+    // Where a frame that only shows Settings or Help is says nothing about where the person is: it is never remembered.
+    else if (m.event === 'place' && isPlace(m.place) && !frame.hosted) await d.remember(frame.id, m.place).catch(() => {});
+    else if (m.event === 'theme' && (m.theme === 'light' || m.theme === 'dark' || m.theme === '') && !frame.surface) d.theme(frame.id, m.theme);
+    else if (m.event === 'notify' && frame.id === 'personal' && !frame.surface && typeof m.key === 'string' && KEY.test(m.key)) {
+      const title = plain(m.title, 80);
+      const body = plain(m.body, 200);
+      if (title && body !== undefined) d.notify(frame.id, { key: m.key, title, body, urgent: m.urgent === true });
+    }
+    // Individual's `#/settings…` and Team's `?tab=…` that lead to what Settings lists. Not from a frame that is itself showing Settings.
+    else if (m.event === 'settings' && isPlace(m.place) && !frame.hosted && !frame.surface && (frame.id === 'personal' ? String(m.place).startsWith('#/settings') : String(m.place).startsWith('?tab='))) d.settings(frame.id, m.place as string);
     else if (m.event === 'open' && isPlace(m.place) && typeof m.target === 'string' && m.target.startsWith('team:') && frame.surface && frame.id === 'personal' && String(m.place).startsWith('?')) d.open(frame.id, m.target, m.place as string);
     // A place inside the person's own Werkbord, from a Team page, or from the assistant's own frame (which is that Werkbord) when a card
     // there leads to a task, a branch or the Control Deck. Only a `#` place that passes isPlace: never an address, a token or a Team place.
@@ -96,5 +131,12 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
 export function surfaceUrl(workspaceUrl: string): string {
   const u = new URL(workspaceUrl);
   u.searchParams.set('surface', 'assistant');
+  return u.toString();
+}
+
+/** Where a frame that shows a workspace's page for Settings or Help loads from: the same page, told it is not the workspace on show. */
+export function hostedUrl(workspaceUrl: string): string {
+  const u = new URL(workspaceUrl);
+  u.searchParams.set('hosted', '1');
   return u.toString();
 }

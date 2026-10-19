@@ -51,8 +51,8 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
   {
     id: 'continue',
     title: 'Continue a run',
-    summary: 'A task keeps its run history and its current state. Open a Doing task to see the latest run and use the available reply, answer or run-again action.',
-    example: 'If a run finished without changes and the task remains in Doing, open the task and start another run when the task is ready.',
+    summary: 'A task keeps its run history and its current state. Open an In progress task to see the latest run and use the available reply, answer or run-again action.',
+    example: 'If a run finished without changes and the task remains In progress, open the task and start another run when the task is ready.',
     steps: [
       'Open the task from the Board or Runs and read the latest reported state.',
       'If it is waiting for a decision, answer the question in place. If it is still running, use the task message field to send a follow-up.',

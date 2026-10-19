@@ -112,7 +112,7 @@ async function api(method, path, data, credential = token) {
     console.log('PASS concurrent editors, stale-version rejection, intentional empty text, disclosure, keyboard focus, conflict recovery');
     // Independent drafts survive navigation without carrying into another project.
     await page.goto(base + `/?tab=board&project=${p.id}`);
-    await page.getByRole('button', { name: 'New task', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'New ticket', exact: true }).waitFor();
     await page.locator('body').press('n');
     await page.waitForFunction(() => document.activeElement?.name === 't-title');
     await page.locator('[name="t-title"]').fill('Alpha draft');
@@ -126,7 +126,7 @@ async function api(method, path, data, credential = token) {
     await page.getByRole('button', { name: 'Board', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
     console.log('PASS project-scoped drafts and round-trip navigation');
-    assert(await page.locator('.board').evaluate(e => e.clientHeight >= 300), 'New task form keeps the board reachable');
+    assert(await page.locator('.board').evaluate(e => e.clientHeight >= 300), 'New ticket form keeps the board reachable');
     // Actual reported commits are visible from Board details.
     await api('PUT', `/projects/${p.id}/tickets/${k.id}/git`, { commits: [{ sha: 'a'.repeat(40), subject: 'Verified browser commit', author: 'Ada', committedAt: new Date().toISOString() }], pullRequest: { number: 7, url: 'https://github.com/acme/shop/pull/7', state: 'open', draft: true, mergeable: 'conflicting', baseBranch: 'main', ahead: 8, behind: 3 } });
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();

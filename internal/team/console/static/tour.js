@@ -4,6 +4,8 @@
 'use strict';
 
 (() => {
+  // A page the window shows only as a section of Settings has no tour: the workspace beside it does.
+  try { if (window.parent !== window && new URLSearchParams(location.search).get('hosted') === '1') return; } catch (_) { /* a tour is optional */ }
   const BASE = (/^\/w\/[a-z0-9_]{1,24}(?=\/|$)/.exec(location.pathname) || [''])[0];
   const KEY = 'werkbord-team-tour' + (BASE ? ':' + BASE.slice(3) : '');
   const TIPS = [

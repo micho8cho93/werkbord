@@ -306,10 +306,10 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         for (let i = 0; i < 30; i++) await api('POST', `/api/projects/${p.id}/tasks`, { title: `Kanban scroll fixture ${i}` });
         await page.getByRole('link', { name: 'Kanban scroll fixture 9', exact: true }).waitFor();
         await require('./browser-kanban.cjs')(page, 4, artifacts, 'individual');
-        const dragTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Drag to Doing fixture' });
+        const dragTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Drag to In progress fixture' });
         await page.getByRole('link', { name: dragTask.title, exact: true }).waitFor();
-        await page.getByRole('link', { name: dragTask.title, exact: true }).locator('..').dragTo(page.getByRole('region', { name: 'Doing', exact: true }));
-        await page.getByRole('region', { name: 'Doing', exact: true }).getByRole('link', { name: dragTask.title, exact: true }).waitFor();
+        await page.getByRole('link', { name: dragTask.title, exact: true }).locator('..').dragTo(page.getByRole('region', { name: 'In progress', exact: true }));
+        await page.getByRole('region', { name: 'In progress', exact: true }).getByRole('link', { name: dragTask.title, exact: true }).waitFor();
         assert.equal((await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(t => t.id === dragTask.id).state, 'doing');
         const dragRun = (await api('GET', `/api/projects/${p.id}/runs`)).runs.find(r => r.taskId === dragTask.id);
         await sync([{ runId: dragRun.id, observations: [{ seq: 1, kind: 'ended', result: { state: 'stopped' } }] }]);
