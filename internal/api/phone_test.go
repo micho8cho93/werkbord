@@ -398,7 +398,7 @@ var reviewedPhoneRoutes = []string{
 	"GET /api/events", "GET /api/onboarding", "GET /api/settings", "GET /api/agents", "GET /api/agents/{}/options", "GET /api/runners", "GET /api/labels",
 	"GET /api/control-center", "GET /api/analytics", "GET /api/workspace/v1/summary",
 	"GET /api/projects", "GET /api/projects/{}", "GET /api/projects/{}/analytics", "GET /api/projects/{}/schedule", "GET /api/projects/{}/orchestration",
-	"GET /api/projects/{}/timeline", "GET /api/projects/{}/tasks", "GET /api/projects/{}/tasks/{}/runs", "GET /api/projects/{}/runs", "GET /api/projects/{}/activity",
+	"GET /api/projects/{}/timeline", "GET /api/projects/{}/recommendations", "GET /api/projects/{}/tasks", "GET /api/projects/{}/tasks/{}/runs", "GET /api/projects/{}/runs", "GET /api/projects/{}/activity",
 	"GET /api/projects/{}/runs/{}", "GET /api/projects/{}/runs/{}/events", "GET /api/projects/{}/questions", "GET /api/projects/{}/questions/{}",
 	"GET /api/projects/{}/worktrees/{}",
 	"GET /api/projects/{}/git", "GET /api/projects/{}/git/pull-requests", "GET /api/projects/{}/git/commits", "GET /api/projects/{}/git/compare",

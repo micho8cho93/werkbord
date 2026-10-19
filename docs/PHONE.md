@@ -67,6 +67,11 @@ fixed workflow buttons targeting a registered Individual repository. The dedicat
 runner selection, repository registration, general settings or arbitrary commands. Workflow starts use ordinary tasks/runs
 and the same agent permission checks. See [MOBILE.md](MOBILE.md).
 
+A phone also reads **suggested next steps** (`GET /api/projects/{}/recommendations`) for the Control Deck. The private network does
+not serve Individual memory (and a phone is never given it, wherever it connects from), so the answer there has the words of saved memory taken out (a constraint says that a saved policy
+applied, and which record, not what it said), and a phone's *Useful / Not useful / Dismiss* is kept on the phone only: the
+feedback route is not on its list. See [RECOMMENDATIONS.md](RECOMMENDATIONS.md).
+
 The list is fixed and reviewed (`internal/api/phone.go`); a test fails when it changes without the change being read.
 
 **How a phone is let in.** The QR code holds `<address>/#enroll=<code>`. The code is 256 random bits, used once, void after five

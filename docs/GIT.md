@@ -333,6 +333,10 @@ Request bodies with unknown fields are refused, so there is no flag to send that
 define (there is no `force`). A malformed input is 400, an unknown project, branch or worktree 404, a
 failing `git` 502 `git_failed` with Git's message, a `git` that takes too long 504.
 
+Suggested next steps ([RECOMMENDATIONS.md](RECOMMENDATIONS.md)) read this picture (the overview, and the pull requests as `…/git/pull-requests`
+reports them) and show at most two suggestions at the top of the overview. They change nothing: each opens one of these screens,
+where the actions above keep their own guards and confirmations.
+
 ## 9. Tests
 
 All of these use **real temporary Git repositories** (with real bare repositories as remotes and real

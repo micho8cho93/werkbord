@@ -26,6 +26,7 @@
   import BranchCard from './BranchCard.svelte';
   import Chips from './Chips.svelte';
   import HealthPanel from './HealthPanel.svelte';
+  import RecommendationList from '../recommend/RecommendationList.svelte';
   import ResultCard from './ResultCard.svelte';
   import { sheets } from './sheets.svelte';
   import type { GitStore } from './store.svelte';
@@ -115,6 +116,9 @@
     {/if}
 
     {#if section === 'overview'}
+    <!-- 1. Where the evidence points: at most two suggested next steps, each opening a screen that asks for itself. Silent when there are none. -->
+    <RecommendationList projectId={project.id} />
+
     <!-- 2. Branches needing attention: Werkbord's own first. -->
     <section class="g-section" aria-label="Branches needing attention">
       <header>

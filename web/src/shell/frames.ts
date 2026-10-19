@@ -75,12 +75,15 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     return;
   }
   if (m.type === 'werkbord.frame') {
-    // The assistant's frame is not a workspace's page: it has no place to remember and no workspace to open.
+    // The assistant's frame is not a workspace's page: it has no place to remember, and may open only a place in the person's own
+    // Werkbord or a validated Team ticket route.
     if (frame.surface && m.event !== 'assistant' && m.event !== 'open') return;
     if (m.event === 'ready') d.ready(frame.id);
     else if (m.event === 'place' && isPlace(m.place)) await d.remember(frame.id, m.place).catch(() => {});
     else if (m.event === 'open' && isPlace(m.place) && typeof m.target === 'string' && m.target.startsWith('team:') && frame.surface && frame.id === 'personal' && String(m.place).startsWith('?')) d.open(frame.id, m.target, m.place as string);
-    else if (m.event === 'open' && m.target === 'personal' && isPlace(m.place) && String(m.place).startsWith('#') && !frame.surface) d.open(frame.id, 'personal', m.place as string);
+    // A place inside the person's own Werkbord, from a Team page, or from the assistant's own frame (which is that Werkbord) when a card
+    // there leads to a task, a branch or the Control Deck. Only a `#` place that passes isPlace: never an address, a token or a Team place.
+    else if (m.event === 'open' && m.target === 'personal' && isPlace(m.place) && String(m.place).startsWith('#') && (!frame.surface || frame.id === 'personal')) d.open(frame.id, 'personal', m.place as string);
     // Only the assistant's own frame, which is the person's own Werkbord, says how the assistant stands. A count and two flags are
     // all that cross: never a word of the conversation.
     else if (m.event === 'assistant' && frame.surface && frame.id === 'personal' && typeof m.open === 'boolean' && typeof m.running === 'boolean' && Number.isInteger(m.waiting) && (m.waiting as number) >= 0 && (m.waiting as number) <= 99) {

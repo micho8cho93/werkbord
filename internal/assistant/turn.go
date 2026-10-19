@@ -474,6 +474,11 @@ func (t *turnRun) runCalls(ctx context.Context, calls []call) ([]callResult, err
 					tool.Sources = memory.Items
 				}
 			}
+			if c.Name == "recommend_next_actions" {
+				if set, ok := res.Data.(appops.Recommendations); ok {
+					tool.Recommendations = &set
+				}
+			}
 			t.publish(Event{Type: EventToolResult, Tool: tool})
 			results = append(results, callResult{ID: id, Name: c.Name, Status: "ok", Body: res.Data})
 		}

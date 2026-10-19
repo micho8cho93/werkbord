@@ -56,6 +56,13 @@ Reports and proposals do not authorise edits. Sensitive output requires explicit
 changes and subsequent commits, pushes or destructive operations still require human approval through the agent's existing
 question/permission flow. Workflow briefs do not add a sandbox or override provider runtime permissions.
 
+**Suggested next steps.** Below the keys the deck shows up to two suggestions for the current project (the same project a workflow
+runs against): a finished branch that should be reviewed, an agent waiting for an answer, a Find Bugs scan that is due. Each
+says what it rests on and which rule or policy shaped it, and the nine keys, their labels and their layout do not change. A
+suggestion that points at a workflow only **marks** that workflow's key with a dashed ring: the key is pressed by the person,
+with the approval sheet it already has. If the workflow is not on the deck, the ordinary Edit Deck library opens to add it. On
+a phone, *Useful / Not useful / Dismiss* is remembered on the phone only. See [RECOMMENDATIONS.md](RECOMMENDATIONS.md).
+
 Preferences are versioned JSON records in the existing controller settings store, scoped to the authenticated phone ID (or
 the local owner for a browser using the owner token). `GET/PUT /api/deck` reads/saves nine explicit positions, checks versions
 and rejects unknown fields and buttons. Phone callers cannot select another owner's record. Browser storage is not the layout's

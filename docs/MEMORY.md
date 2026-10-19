@@ -626,3 +626,13 @@ summarisation and sharing/Team sync remain outside this phase.
 closed automatic metadata allowlist, explicit project choices, reviewed semantic
 proposals, durable outbound journal and workspace-bound connector receipts.
 Private Individual memories remain local and functional without Team.
+
+## Suggestion feedback (Phase 3B)
+
+When a person marks a suggested next step *useful*, *not useful* or *dismisses* it, the controller keeps one bounded record per
+project, intent and variant ([RECOMMENDATIONS.md](RECOMMENDATIONS.md#feedback)): type `recommendation_feedback`, authority
+`inferred_preference`, state `needs_verification`, private, **not eligible for sharing**, with counters (at most 1,000) and at
+most eight hidden suggestion ids that expire after 14 days. It is an inference about how suggestions should be ordered. It
+is never a decision or a policy, cannot restrict or permit anything, is not part of the context given to the assistant, and
+reaches Team only if the person writes and reviews a statement of their own for publication. It appears in the project's memory
+list like any record; archiving or deleting it resets the preference.

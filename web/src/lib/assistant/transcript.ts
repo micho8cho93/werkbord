@@ -4,9 +4,11 @@
 
 import type { AssistantEvent, ErrorInfo, PendingAction, MemorySource } from './types';
 import { persistedOpenUIState, type OpenUIState } from './openui/state';
+import type { RecommendationSet } from '../recommend/types';
 
 export interface Step {
  sources?: MemorySource[];
+  recommendations?: RecommendationSet;
   id: string;
   name: string;
   status: 'running' | 'ok' | 'error' | 'waiting' | 'stopped';
@@ -153,6 +155,7 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
       s.status = e.tool.status === 'error' ? 'error' : e.tool.status === 'pending_confirmation' ? 'waiting' : 'ok';
       s.code = e.tool.code;
       if (e.tool.sources) s.sources = e.tool.sources;
+      if (e.tool.recommendations) s.recommendations = e.tool.recommendations;
       if (e.tool.detail) s.detail = e.tool.detail;
       break;
     }

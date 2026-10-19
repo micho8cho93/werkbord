@@ -42,12 +42,14 @@ type TaskPlanBackend interface {
 // Services is the set of domain services a Backend is made of.
 type Services struct {
 	Knowledge *service.Knowledge
-	Projects  *service.Projects
-	Tasks     *service.Tasks
-	Labels    *service.Labels
-	Runs      *service.Runs
-	Control   *service.ControlCenter
-	Analytics *service.Analytics
+	// Recommender works out suggested next steps. It reads, and returns ways to open existing screens; it starts nothing.
+	Recommender *service.Recommender
+	Projects    *service.Projects
+	Tasks       *service.Tasks
+	Labels      *service.Labels
+	Runs        *service.Runs
+	Control     *service.ControlCenter
+	Analytics   *service.Analytics
 	// Answer delivers an answer to the agent that asked: the runner manager's Answer, which is also what the app calls.
 	Answer func(ctx context.Context, questionID, answer string) (*domain.Question, error)
 }

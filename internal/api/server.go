@@ -29,6 +29,9 @@ type Options struct {
 	Distributed *service.Runners
 	Scheduler   *service.Scheduler
 	Memory      *service.Knowledge // private owner-only Individual memory; nil on network listeners
+	// Recommender works out suggested next steps. It is served on every listener; on one that does not serve memory it
+	// answers without the words of saved memory and does not record feedback.
+	Recommender *service.Recommender
 	Handoffs    *service.Handoffs
 	Projects    *service.Projects
 	Tasks       *service.Tasks
@@ -128,6 +131,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/projects/{pid}/memory/{id}", s.handleMemoryDelete)
 	mux.HandleFunc("GET /api/projects/{pid}/memory/{id}/sources", s.handleMemorySources)
 	mux.HandleFunc("GET /api/projects/{pid}/memory/context", s.handleMemoryContext)
+	mux.HandleFunc("GET /api/projects/{pid}/recommendations", s.handleRecommendations)
+	mux.HandleFunc("POST /api/projects/{pid}/recommendations/feedback", s.handleRecommendationFeedback)
 
 	mux.HandleFunc("GET /api/integration/v1/projects", s.handleIntegrationProjects)
 	mux.HandleFunc("POST /api/integration/v1/import", s.handleIntegrationImport)

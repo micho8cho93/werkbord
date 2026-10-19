@@ -29,7 +29,7 @@ import (
 //	off   no assistant at all (the "turned off" screen)
 //
 // Never built into the product: this is a script's main package.
-func newFixtureAssistant(mode string, dir string, db store.Store, deps service.Deps, projects *service.Projects, tasks *service.Tasks, runs *service.Runs, mgr *runner.Manager, knowledge *service.Knowledge) *assistant.Engine {
+func newFixtureAssistant(mode string, dir string, db store.Store, deps service.Deps, projects *service.Projects, tasks *service.Tasks, runs *service.Runs, mgr *runner.Manager, knowledge *service.Knowledge, recommender *service.Recommender) *assistant.Engine {
 	if mode == "" || mode == "off" {
 		return nil
 	}
@@ -40,7 +40,7 @@ func newFixtureAssistant(mode string, dir string, db store.Store, deps service.D
 			panic(err)
 		}
 	}
-	backend := appops.NewBackend(appops.Services{Knowledge: knowledge, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Control: &service.ControlCenter{Deps: deps}, Answer: mgr.Answer})
+	backend := appops.NewBackend(appops.Services{Knowledge: knowledge, Recommender: recommender, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Control: &service.ControlCenter{Deps: deps}, Answer: mgr.Answer})
 	confirmTTL := time.Duration(0)
 	if millis, err := strconv.Atoi(os.Getenv("WERKBORD_BROWSER_ASSISTANT_TTL_MS")); err == nil && millis > 0 {
 		confirmTTL = time.Duration(millis) * time.Millisecond
@@ -156,6 +156,10 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 		return say("```werkbord-call\n" + fmt.Sprintf(`{"id":"memory","name":"retrieve_memory","arguments":{"projectId":%q,"requestType":"architecture"}}`, firstProject(p)) + "\n```")
 	case afterResults && strings.Contains(p, `name="retrieve_memory"`):
 		return say("The documented decision favours transactions; see the memory source below. Suggested next step: review the current board.")
+	case strings.Contains(low, "what should i do next") && !afterResults:
+		return say("```werkbord-call\n" + fmt.Sprintf(`{"id":"rec","name":"recommend_next_actions","arguments":{"projectId":%q}}`, firstProject(p)) + "\n```")
+	case afterResults && strings.Contains(p, `name="recommend_next_actions"`):
+		return say("The first card matters most; each one opens a screen where you decide.")
 	case strings.Contains(low, "failed board action") && !afterResults:
 		return say("I'll read that board.\n```werkbord-call\n{\"id\":\"c1\",\"name\":\"list_tickets\",\"arguments\":{\"projectId\":\"prj_missing\"}}\n```")
 	case afterResults && strings.Contains(p, `status="error"`):

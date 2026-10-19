@@ -8,6 +8,8 @@
   import { lookedAt, progressLine, type ReplyItem } from './transcript';
   import { failure, operationFailureTitle } from './words';
   import { conversationMessage } from './openui/state';
+  import RecommendationCard from '../recommend/RecommendationCard.svelte';
+  import { recommendations } from '../recommend/store.svelte';
 
   let { reply }: { reply: ReplyItem } = $props();
   // The OpenUI renderer takes its form-state snapshot once; later edits are retained internally and saved separately.
@@ -21,6 +23,10 @@
   const parts = $derived(growingReplyParts(reply.text, reply.status === 'working', partsCache));
   const fail = $derived(reply.error ? failure(reply.error) : null);
   const memorySources = $derived(reply.steps.flatMap((s) => s.sources ?? []));
+  // The suggestions the rules returned this turn, as cards. They are the controller's answer, not the model's words about it.
+  const suggestions = $derived(
+    reply.steps.flatMap((s) => (s.recommendations ? s.recommendations.items.map((rec) => ({ rec, storedIn: s.recommendations!.feedbackStoredIn ?? 'memory' })) : [])).filter(({ rec }) => recommendations.given[rec.id] !== 'dismissed' && recommendations.given[rec.id] !== 'not_useful'),
+  );
   const failedSteps = $derived(reply.steps.filter((s) => s.status === 'error'));
 
   function openUIParsed(index: number, result: ParseResult | null): void {
@@ -80,6 +86,12 @@
   {/if}
 
   {#each reply.notices as n (n)}<p class="note">{n}</p>{/each}
+
+  {#if suggestions.length > 0}
+    <section class="suggestions" aria-label="Suggested next steps" data-testid="assistant-suggestions">
+      {#each suggestions as { rec, storedIn } (rec.id)}<RecommendationCard {rec} {storedIn} />{/each}
+    </section>
+  {/if}
 
   {#if memorySources.length > 0}
     <details class="looked memory-sources">
@@ -207,6 +219,10 @@
   .note {
     color: var(--text-2);
     font-size: 12.5px;
+  }
+  .suggestions {
+    display: grid;
+    gap: 10px;
   }
   .looked {
     font-size: 12.5px;

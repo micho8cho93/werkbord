@@ -69,6 +69,7 @@ var phoneRoutes = []phoneRoute{
 	{method: "GET", pattern: "/api/projects"},
 	{method: "GET", pattern: "/api/projects/{}"},
 	{method: "GET", pattern: "/api/projects/{}/analytics"},
+	{method: "GET", pattern: "/api/projects/{}/recommendations"},
 	{method: "GET", pattern: "/api/projects/{}/schedule"},
 	{method: "GET", pattern: "/api/projects/{}/orchestration"},
 	{method: "GET", pattern: "/api/projects/{}/timeline"},

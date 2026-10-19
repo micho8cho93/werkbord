@@ -63,6 +63,26 @@ type Imported struct {
 // SourcePrefix begins every provenance reference a synchronizing client sends.
 const SourcePrefix = "werkbord-source:v1:"
 
+// ParseSource reads the parts of a provenance reference a synchronizing client sent: the Team workspace, the Team project, the
+// ticket and the member. It reports false for anything else, so a task made by hand, by the deck or by an agent is never
+// taken for one that came from a Team workspace.
+func ParseSource(ref string) (workspace, project, ticket, member string, ok bool) {
+	rest, found := strings.CutPrefix(ref, SourcePrefix)
+	if !found || len(ref) > 2000 {
+		return "", "", "", "", false
+	}
+	parts := strings.Split(rest, ":")
+	if len(parts) != 4 {
+		return "", "", "", "", false
+	}
+	for _, p := range parts {
+		if p == "" || len(p) > 200 {
+			return "", "", "", "", false
+		}
+	}
+	return parts[0], parts[1], parts[2], parts[3], true
+}
+
 // MaxWaiting bounds the held tickets one source may report as waiting for a repository.
 const MaxWaiting = 64
 

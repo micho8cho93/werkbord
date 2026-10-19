@@ -232,6 +232,12 @@ function withoutExecution<T extends object>(body: T): T {
 }
 
 export const api = {
+  /** Suggested next steps for a project: the rules' answer, with its evidence. Reads only. */
+  recommendations: (project: string, focus = '') =>
+    request<import('./recommend/types').RecommendationSet>('GET', `${inProject(project)}/recommendations${focus ? `?focus=${enc(focus)}` : ''}`),
+  /** A verdict on one suggestion, kept as a private preference in the person's own memory. */
+  recommendationFeedback: (project: string, b: { recommendationId: string; intent: string; variant: string; verdict: import('./recommend/types').RecVerdict }) =>
+    request<{ feedback: unknown }>('POST', `${inProject(project)}/recommendations/feedback`, b),
   memories: (project: string, query: string, status: string) => request<{records:import('./memory').Memory[];bounded:boolean}>('GET', `${inProject(project)}/memory?${new URLSearchParams({q:query,status,limit:'100'})}`),
   saveMemory: (project: string, memory: import('./memory').ManualMemory) => request<import('./memory').Memory>('POST', `${inProject(project)}/memory`, memory),
   changeMemory: (memory: import('./memory').Memory, change: {pinned?:boolean;archive?:boolean}) => request<import('./memory').Memory>('PATCH', `${inProject(memory.scope.projectId)}/memory/${enc(memory.id)}?${new URLSearchParams({repository:memory.scope.repository ?? ''})}`, {version:memory.version,...change}),

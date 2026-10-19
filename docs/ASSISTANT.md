@@ -30,8 +30,10 @@ It can: list projects, tickets, schedules and blockers; show what an agent is wa
 a ticket; change a ticket's title, description, column, work mode, labels or planned dates; and answer an agent's
 question.
 
-It cannot, by construction, not by instruction: start, stop or configure a run, touch Git or a repository, change a
-setting, archive or delete anything, or give an agent permission to run a command. There is no operation for any of it
+It cannot, by construction, not by instruction: start, stop or configure a run, change Git or a repository, change a
+setting, archive or delete anything, or give an agent permission to run a command. (`recommend_next_actions` reads a bounded
+projection of repository state to work out suggestions: branch names and counts, never a path or a diff, and no operation
+changes anything.) There is no operation for any of it
 (`TestTheAssistantOffersNoRouteToRunsGitOrSettings`).
 
 | Operation | Does | Needs | Changes something |
@@ -47,6 +49,7 @@ setting, archive or delete anything, or give an agent permission to run a comman
 | `list_blockers` | blocked runs (and why), failed runs, tickets waiting on dependencies | `runs:read` | no |
 | `list_agent_questions` | what agents are waiting on | `questions:read` | no |
 | `list_runs`, `get_run_status` | runs and how they are doing | `runs:read` | no |
+| `recommend_next_actions` | at most two suggested next steps for a project, from fixed rules ([RECOMMENDATIONS.md](RECOMMENDATIONS.md)) | `memory:read`; evidence follows `tickets:read`, `runs:read`, `projects:read` | no |
 | `create_ticket` | adds a ticket to a project's Backlog | `tickets:create` | **proposes** |
 | `update_ticket` | changes a ticket | `tickets:update` | **proposes** |
 | `answer_question` | gives an agent the answer it asked for | `questions:answer` | **proposes** |
@@ -639,3 +642,24 @@ Replies expose a collapsed **Memory sources** disclosure with the exact retrieve
 verification, freshness and source references. It uses escaped UI text and does not add a permanent panel.
 These sources travel only with the session's ordinary tool-result events and existing bounded tab transcript;
 no new global source browser or controller transcript store is introduced.
+
+## Phase 3B: suggested next steps
+
+Salie can recommend what to do next from policies, permissions, the repository, pull requests, tasks and saved preferences.
+`recommend_next_actions` is a read operation that needs only `memory:read`; the evidence it gathers is limited by the principal's
+other grants (`tickets:read`, `runs:read`, `projects:read`), and a session limited to some projects gets no personal memory.
+The decision is made by fixed rules, not by the model, in a strict order: application restrictions, then Team policies and
+repository protection, then the person's explicit decisions, then verified Git and task evidence, then habits and feedback.
+Lower tiers can order what higher tiers allow and can never add what they removed. See [RECOMMENDATIONS.md](RECOMMENDATIONS.md).
+
+* The operation returns the rules' own answer. The engine carries it to the screen as `tool.recommendations`, and the reply
+  shows it as cards (what, why, the screen it opens, *Why this*, and *Useful / Not useful / Dismiss*), so the actions a person
+  sees are never the model's words. The model is told to offer only what the result contains, to explain it in a sentence or two,
+  to mention a standing restriction when it matters and to say when a source was unavailable.
+* A suggestion starts nothing: every action opens an existing screen (a task, a branch, the changes, the Control Deck) where the
+  existing confirmation applies. In the desktop app the assistant is a frame of its own, so a card asks the window to show the
+  place (`werkbord.frame` `open` with target `personal` and a `#` place that passes the same validation as every other place).
+* Team policies for a Team-linked project are read through the existing `retrieve_memory` desktop bridge, within the session's
+  project allow-list. Without the bridge, the pull request route is assumed, never a direct merge.
+* Feedback is recorded by the person pressing a button on a card (a REST call with the controller token), not by the model:
+  there is no assistant operation that writes memory.

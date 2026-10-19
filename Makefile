@@ -236,6 +236,11 @@ test-assistant-browser: build web-shell
 	node scripts/browser-assistant.cjs
 	node scripts/browser-shell-assistant.cjs
 
+## test-recommendations-browser: suggested next steps (docs/RECOMMENDATIONS.md) in the Git overview, on the phone's Control Deck and in the
+## assistant, against the real controller, rules, Git and memory, with a scripted provider (no account, no network)
+test-recommendations-browser: build web-shell
+	node scripts/browser-recommendations.cjs
+
 ## test-browser: disposable desktop/mobile browsers plus real-process Team handoff
 # Install Chromium once with: cd web && npx playwright install chromium
 test-browser: build build-team

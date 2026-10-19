@@ -17,6 +17,8 @@
   import WorkflowSettings from './WorkflowSettings.svelte';
   import DeckRuns from './DeckRuns.svelte';
   import WorkflowBanner from './WorkflowBanner.svelte';
+  import RecommendationList from '../recommend/RecommendationList.svelte';
+  import { suggestedWorkflow } from '../recommend/recommend';
   import { workflows } from './workflows.svelte';
   import { terminal, workflowRecovery } from './workflow-progress';
   import { deckApi, targetLabel, initialLayout, newSlot, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
@@ -78,6 +80,24 @@
     if (guide === 5 && workflows.selected) inspected = true;
     if (guide === 5 && inspected && !workflows.selected) { inspected = false; advance(6); }
   });
+  // Suggestions point at a workflow's button; they never press it. The button is marked, and the person presses it themselves.
+  let suggested = $state<string[]>([]);
+  let pointed = $state('');
+  function pointAt(button: string) {
+    const name = workflow(button)?.label ?? 'That workflow';
+    const index = layout.slots.findIndex(s => s?.button === button);
+    if (index >= 0) {
+      pointed = button;
+      announcement = `${name} is marked on the Deck. Press it to start it.`;
+      document.querySelector<HTMLElement>(`[data-deck-position="${index}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
+    const empty = layout.slots.findIndex((s, i) => i >= 6 && !s);
+    if (empty < 0) { announcement = `${name} is not on your Deck, and the Deck is full. Edit Deck to swap a button.`; return; }
+    // Adding a button is the ordinary Edit Deck flow: the person chooses it in the library and saves.
+    editing = true; library = empty;
+    announcement = `${name} is not on your Deck. Choose it to add it.`;
+  }
   let dragFrom: number | null = null;
   let dragTo = $state<number | null>(null);
 
@@ -98,6 +118,7 @@
   }
   onMount(() => {
     let disposed = false;
+    const arrived = suggestedWorkflow(location.hash);
     void (async () => {
       try {
         const owner = isPhone() ? (await api.phoneSelf()).id : 'owner';
@@ -106,6 +127,8 @@
         if (!disposed) {
           guideStorage = `werkbord.deck.onboarding.${owner}`;
           await load();
+          // Arrived from a suggestion elsewhere (the assistant, the Git screen): mark the workflow it named.
+          if (arrived) pointAt(arrived);
         }
       } catch (err) { if (!disposed) error = err instanceof Error ? err.message : String(err); }
     })();
@@ -258,7 +281,7 @@
   <section class="housing" aria-label="Control Deck">
     <div class="grid" data-testid="deck-grid" aria-busy={!ready}>
       {#each layout.slots as slot, i (i)}
-        <div class="position" class:drop-target={dragTo === i} class:guided={!!guide && guide >= 3 && slot?.id === selectedWorkflow?.id} data-deck-position={i}>
+        <div class="position" class:drop-target={dragTo === i} class:guided={!!guide && guide >= 3 && slot?.id === selectedWorkflow?.id} class:suggested={!guide && !!slot && (suggested.includes(slot.button) || pointed === slot.button)} data-deck-position={i}>
           <Keycap key={keyFor(slot)} empty={!slot} {editing} workflow={!!slot && !!workflow(slot.button)}
             target={slot && workflow(slot.button) ? targetLabel(slot, app.projects, app.lastProjectId) : ''}
             disabled={!ready || saving || starting || (!!slot && !!workflow(slot.button) && app.connection !== 'live' && !(guide && (preview || guide === 3))) || (!!guide && (i < 6 || guide === 1 || guide === 5 || guide === 6))}
@@ -276,6 +299,9 @@
       {/each}
     </div>
   </section>
+  {#if app.lastProjectId && !guide && !editing}
+    <RecommendationList projectId={app.lastProjectId} onworkflow={pointAt} onsuggest={ids => (suggested = ids)} />
+  {/if}
   {#if guide === 5 && preview}
     {#if inspected}
       <Sheet title="Interactive preview · execution details" onclose={() => { inspected = false; advance(6); }}>
@@ -317,6 +343,8 @@
 
 <style>
   .guided { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 17px; }
+  /* A suggested workflow's key is marked, not pressed. The ring is dashed so that it is not mistaken for the onboarding guide's. */
+  .suggested { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 17px; }
   .preview { display: grid; gap: 8px; }
   dt { margin-top: 14px; font-weight: 600; }
   dd { margin: 4px 0 0; color: var(--text-2); }

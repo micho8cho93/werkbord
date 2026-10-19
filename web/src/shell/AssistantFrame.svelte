@@ -36,6 +36,11 @@
       remember: async () => {},
       ready: () => {},
       open: (_id, target, place) => {
+        // A card in the assistant leads to a place in the person's own Werkbord: show it, over the assistant, which closes.
+        if (target === 'personal') {
+          void (model.current === 'personal' ? model.visit(place) : model.open('personal', place));
+          return;
+        }
         const connectedTeam = model.view?.items.some((item) => item.id === target && item.kind === 'team' && item.state === 'ready');
         if (connectedTeam) void model.open(target, place);
       },

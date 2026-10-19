@@ -70,8 +70,11 @@ type Event struct {
 // ToolEvent describes a call and, once run, how it went.
 type ToolEvent struct {
 	Sources []appops.MemorySource `json:"sources,omitempty"`
-	CallID  string                `json:"callId"`
-	Name    string                `json:"name"`
+	// Recommendations is the rules' own answer to recommend_next_actions, carried to the screen exactly as the operation
+	// returned it, so that what the person is offered is never what a model wrote.
+	Recommendations *appops.Recommendations `json:"recommendations,omitempty"`
+	CallID          string                  `json:"callId"`
+	Name            string                  `json:"name"`
 	// Status is ok, error or pending_confirmation (on a result).
 	Status string `json:"status,omitempty"`
 	// Code is the error code, on an error.

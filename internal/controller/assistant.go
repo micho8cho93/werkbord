@@ -60,7 +60,7 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 
 func newApplicationOperations(db store.Store, log *slog.Logger, svc assistantServices) *appops.Service {
 	services := appops.Services{Projects: svc.projects, Tasks: svc.tasks, Labels: svc.labels, Runs: svc.runs, Control: svc.control,
-		Knowledge: svc.knowledge, Analytics: &service.Analytics{Deps: service.Deps{Store: db}}}
+		Knowledge: svc.knowledge, Recommender: svc.recommender, Analytics: &service.Analytics{Deps: service.Deps{Store: db}}}
 	if svc.runner != nil {
 		// Answering a question reaches the agent through the runner it is on, as it does from the app.
 		services.Answer = svc.runner.Answer
@@ -94,6 +94,7 @@ func assistantProjects(a config.AssistantConfig) []string {
 
 // assistantServices are the controller's domain services the assistant's operations are made of.
 type assistantServices struct {
+	recommender *service.Recommender
 	knowledge   *service.Knowledge
 	projects    *service.Projects
 	tasks       *service.Tasks

@@ -63,12 +63,21 @@ describe('the assistant report', () => {
     const d = deps();
     await handle([surface], { source: assistantWindow, origin: surface.origin, data: { ...data, method: 'ChooseFiles' } }, d);
     expect(d.relay).toHaveBeenCalledExactlyOnceWith('personal', 'ChooseFiles', []);
-    for (const event of [{ event: 'ready' }, { event: 'place', place: '#/control' }, { event: 'open', target: 'personal', place: '#/control' }]) {
+    for (const event of [{ event: 'ready' }, { event: 'place', place: '#/control' }]) {
       await handle([surface], { source: assistantWindow, origin: surface.origin, data: { type: 'werkbord.frame', ...event } }, d);
     }
     expect(d.ready).not.toHaveBeenCalled();
     expect(d.remember).not.toHaveBeenCalled();
     expect(d.open).not.toHaveBeenCalled();
+  });
+  it('lets the assistant’s frame show a place in the person’s own Werkbord, and nothing but a place', async () => {
+    const d = deps();
+    for (const [target, place] of [['personal', 'https://evil.example'], ['personal', '?tab=board'], ['personal', '#/p/x?token=SECRET'], ['personal', '#//evil'], ['personal', '#/p/../x'], ['personal', '#/p/x?join=1'], ['other', '#/deck']]) {
+      await handle([surface], { source: assistantWindow, origin: surface.origin, data: { type: 'werkbord.frame', event: 'open', target, place } }, d);
+    }
+    expect(d.open).not.toHaveBeenCalled();
+    await handle([surface], { source: assistantWindow, origin: surface.origin, data: { type: 'werkbord.frame', event: 'open', target: 'personal', place: '#/p/prj_1/git/branch/local/devboard%2Ffix' } }, d);
+    expect(d.open).toHaveBeenCalledExactlyOnceWith('personal', 'personal', '#/p/prj_1/git/branch/local/devboard%2Ffix');
   });
   it('can open a validated ticket route in a Team workspace', async () => {
     const d = deps();

@@ -230,7 +230,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("api token: %w", err)
 	}
-	assistantSvc := assistantServices{knowledge: c.knowledge, projects: projects, tasks: tasks, labels: labels, runs: runs,
+	// Suggested next steps read the board, Git, GitHub and memory through the services the screens already use; they hold no
+	// way to push, merge, branch or start anything.
+	recommender := &service.Recommender{Deps: deps, Control: gitControl, Knowledge: c.knowledge, Runners: distributed}
+	assistantSvc := assistantServices{recommender: recommender, knowledge: c.knowledge, projects: projects, tasks: tasks, labels: labels, runs: runs,
 		control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner, connections: c.connections}
 	c.appOps = newApplicationOperations(c.db, c.log, assistantSvc)
 	mcpGrants, err := mcpgrant.Open(filepath.Join(c.cfg.DataDir, "mcp-clients.json"))
@@ -239,6 +242,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	apiOpts := api.Options{
 		Memory:       c.knowledge,
+		Recommender:  recommender,
 		EmbedOrigins: c.cfg.EmbedOrigins,
 		Distributed:  distributed,
 		Scheduler:    scheduler, Handoffs: handoffs,

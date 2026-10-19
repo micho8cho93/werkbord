@@ -119,7 +119,8 @@ func main() {
 	knowledge := &service.Knowledge{Memory: memory, Freshness: &service.MemoryFreshness{Deps: deps, Control: gc}}
 	knowledge.Watch(memoryWorkerCtx)
 	defer func() { stopMemory(); knowledge.Wait() }()
-	assistantEngine := newFixtureAssistant(os.Getenv("WERKBORD_BROWSER_ASSISTANT"), dir, db, deps, projects, tasks, runs, mgr, knowledge)
+	recommender := &service.Recommender{Deps: deps, Control: gc, Knowledge: knowledge, Runners: distributed}
+	assistantEngine := newFixtureAssistant(os.Getenv("WERKBORD_BROWSER_ASSISTANT"), dir, db, deps, projects, tasks, runs, mgr, knowledge, recommender)
 	if assistantEngine != nil {
 		defer func() {
 			stop, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -127,7 +128,7 @@ func main() {
 			_ = assistantEngine.Shutdown(stop)
 		}()
 	}
-	handler := api.New(api.Options{Memory: knowledge, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	handler := api.New(api.Options{Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

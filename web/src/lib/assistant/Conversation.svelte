@@ -4,6 +4,8 @@
   import Mark from '../Mark.svelte';
   import ConfirmCard from './ConfirmCard.svelte';
   import ReplyView from './ReplyView.svelte';
+  import RecommendationList from '../recommend/RecommendationList.svelte';
+  import { lastProject } from '../recommend/recommend';
   import { assistant } from './store.svelte';
   import { size } from './words';
 
@@ -83,6 +85,8 @@
               <button class="pill" type="button" onclick={() => assistant.send(s)}>{s}</button>
             {/each}
           </div>
+          <!-- What the rules would suggest for the project last worked on. Silent when there is nothing, and nothing here is asked of a model. -->
+          <div class="recs-open"><RecommendationList projectId={lastProject()} title="Suggested for you" /></div>
         </div>
       {/if}
       {#each items as it (it.id)}
@@ -204,6 +208,11 @@
     gap: 12px;
     padding: 24px 0 8px;
     text-align: center;
+  }
+  .recs-open {
+    width: min(100%, 36rem);
+    margin-top: 12px;
+    text-align: left;
   }
   .hi {
     font-family: var(--font);

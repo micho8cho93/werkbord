@@ -285,3 +285,16 @@ describe('memory source inspection', () => {
     expect(reply(t).text).toBe('');
   });
 });
+
+describe('suggested next steps', () => {
+  it('keeps the rules’ own answer with the read that returned it, and none of it becomes the model’s text', () => {
+    const t = fresh();
+    const recommendations = { projectId: 'prj_1', items: [{ id: 'rec_0123456789abcdef0123', title: 'Open a pull request' }], standing: [], withheld: [], boundary: 'x' } as unknown as import('../recommend/types').RecommendationSet;
+    apply(t, ev('turn_started'));
+    apply(t, ev('tool_call', { tool: { callId: 'rec', name: 'recommend_next_actions' } }));
+    apply(t, ev('tool_result', { tool: { callId: 'rec', name: 'recommend_next_actions', status: 'ok', recommendations } }));
+    expect(reply(t).steps[0].recommendations).toEqual(recommendations);
+    expect(reply(t).steps[0].status).toBe('ok');
+    expect(reply(t).text).toBe('');
+  });
+});

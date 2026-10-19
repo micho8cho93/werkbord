@@ -85,6 +85,8 @@ export interface MemorySource {
 
 export interface ToolEvent {
  sources?: MemorySource[];
+  /** The rules' own answer to recommend_next_actions, exactly as the controller returned it (never a model's wording). */
+  recommendations?: import('../recommend/types').RecommendationSet;
   callId: string;
   name: string;
   status?: 'ok' | 'error' | 'pending_confirmation';
