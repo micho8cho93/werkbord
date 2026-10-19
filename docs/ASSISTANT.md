@@ -590,3 +590,52 @@ this adapter.
 PDFs, images and other resources, and reading them (the resources library, stage 4); analytics on model usage and cost (5); the MCP
 server and external clients (6; it will use `appops.Service` with a principal of its own); native voice and communication
 integrations (7). The screen has no keyboard shortcut of its own yet, and keeps no history on purpose.
+
+## Phase 3A: Salie's memory context
+
+Salie uses the existing provider engine and operation boundary. `retrieve_memory` is a read-only,
+`memory:read` operation. It never proposes, edits, verifies or publishes a memory. Read-only assistant
+configurations receive this read permission too; Git, execution, settings and mutation restrictions stay in force.
+The operation is refused to non-assistant principals, even if they have a memory grant.
+
+For architecture decisions, recent changes, previous problems, merge policies and next-work questions,
+Salie identifies relevant projects through the permitted project catalog, then requests context for each
+relevant project. Inputs carry concise search keywords, an optional task ID and a request type
+(`architecture`, `changes`, `lessons`, `policy`, `next`, `general`). These are search hints, never authorisation.
+The server binds the actual principal and project; repository identities come from checked record scopes,
+not filesystem paths. Local memory stays bound to the controller's Individual owner. Restricted sessions
+cannot retrieve another project's memory, and do not receive personal memory. Unrestricted sessions can
+also include useful personal context on a keyword search or a next-work request. No transcript extraction
+or separate model engine is introduced.
+
+Individual retrieval reuses Knowledge's project, repository identity, run and evidence checks. Verified
+current policies and explicit decisions rank before facts and preferences, before the bounded result is
+selected. Superseded, duplicate, sensitive and unverified claims are excluded. Historical lessons are
+available only for a `lessons` request, must have verification evidence, and are labelled historical with
+low confidence. Each item carries its record ID, source reference, scope, verification, freshness and dates.
+
+Connected workspaces use the reviewed desktop `retrieve_memory` semantic operation. The controller
+holds no Team credential or Team API route. The native bridge calls the existing authenticated project
+memory search and exact workspace-scope published-memory read. Team rechecks membership, project
+membership, classification and every constituent project of cross-repository records on each read.
+The controller also checks every constituent project against the assistant session's own project allow-list. The projection contains no credentials, raw API objects or arbitrary data fields. Superseded, stale,
+conflicting, duplicate and unverified records are excluded; policies require approval. Verified records
+whose freshness is uncertain are explicitly low-confidence suggestions, never authoritative context.
+Disconnected or unreadable memory is reported as unavailable rather than as proof of no prior decision.
+
+The default context budget is 1,500, configurable per read from 512 to 6,000. This is a deliberately
+conservative upper bound of one token per serialised JSON byte, including provenance and framing,
+rather than a provider-specific tokenizer estimate. Oversized items are omitted and truncation is reported.
+The final combined projection is bounded again after personal context and request metadata are added.
+Empty, unavailable and truncated results remain distinguishable.
+
+Memory enters the model only through escaped operation results, never the system prompt. The shared
+provider guidance requires citations by record ID/source reference, separates documented evidence from
+suggestions, and asks for fresh retrieval each turn. These are response guidance; permissions, audit,
+confirmation and the provider runtime restrictions remain enforced independently of model behaviour.
+The same operation and result wrapper work with native Codex tools and Claude/Gemini/OpenCode text calls.
+
+Replies expose a collapsed **Memory sources** disclosure with the exact retrieved summaries, IDs,
+verification, freshness and source references. It uses escaped UI text and does not add a permanent panel.
+These sources travel only with the session's ordinary tool-result events and existing bounded tab transcript;
+no new global source browser or controller transcript store is introduced.

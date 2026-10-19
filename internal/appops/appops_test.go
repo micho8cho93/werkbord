@@ -221,7 +221,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 		return out
 	}
 	all := names(full)
-	if len(all) != 15 {
+	if len(all) != 16 {
 		t.Fatalf("the full catalog has %d operations: %v", len(all), all)
 	}
 	for _, s := range f.svc.Catalog(full) {
@@ -243,7 +243,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 	}
 	// The set is exactly this. Adding an operation, above all one that starts or stops a run, touches Git, a setting or
 	// a repository, or deletes, has to change this list, where a reviewer will see it.
-	want := "answer_question,create_ticket,get_analytics,get_overview,get_project_metrics,get_run_status,get_schedule,get_ticket,list_agent_questions,list_blockers,list_labels,list_projects,list_runs,list_tickets,update_ticket"
+	want := "answer_question,create_ticket,get_analytics,get_overview,get_project_metrics,get_run_status,get_schedule,get_ticket,list_agent_questions,list_blockers,list_labels,list_projects,list_runs,list_tickets,retrieve_memory,update_ticket"
 	if got := strings.Join(all, ","); got != want {
 		t.Errorf("the operations are\n%s\nwant\n%s", got, want)
 	}

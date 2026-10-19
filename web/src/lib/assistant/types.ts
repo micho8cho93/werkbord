@@ -78,7 +78,13 @@ export interface SessionView {
   attachments: AttachmentInfo[];
 }
 
+export interface MemorySource {
+ id: string; summary: string; kind: string; freshness: string; verification: string; updatedAt: string;
+ source: { reference: string };
+}
+
 export interface ToolEvent {
+ sources?: MemorySource[];
   callId: string;
   name: string;
   status?: 'ok' | 'error' | 'pending_confirmation';

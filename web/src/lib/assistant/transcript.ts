@@ -2,10 +2,11 @@
 // tests feed it the same events a server sends. The server keeps no transcript (internal/assistant), so this is what the
 // person sees and nothing more; it is rebuilt from the event stream after a reconnect, and kept for the life of the tab.
 
-import type { AssistantEvent, ErrorInfo, PendingAction } from './types';
+import type { AssistantEvent, ErrorInfo, PendingAction, MemorySource } from './types';
 import { persistedOpenUIState, type OpenUIState } from './openui/state';
 
 export interface Step {
+ sources?: MemorySource[];
   id: string;
   name: string;
   status: 'running' | 'ok' | 'error' | 'waiting' | 'stopped';
@@ -151,6 +152,7 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
       }
       s.status = e.tool.status === 'error' ? 'error' : e.tool.status === 'pending_confirmation' ? 'waiting' : 'ok';
       s.code = e.tool.code;
+      if (e.tool.sources) s.sources = e.tool.sources;
       if (e.tool.detail) s.detail = e.tool.detail;
       break;
     }

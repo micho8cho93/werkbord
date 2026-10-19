@@ -16,6 +16,10 @@ import (
 // BoardArgs is the entire semantic input surface offered to the desktop assistant. No URL, credential, repository,
 // execution setting or command can be supplied. Ticket creation uses Team's ordinary service and its current permissions.
 type BoardArgs struct {
+	Query        string `json:"query,omitempty"`
+	TaskID       string `json:"taskId,omitempty"`
+	RequestType  string `json:"requestType,omitempty"`
+	TokenBudget  int    `json:"tokenBudget,omitempty"`
 	ProjectID    string `json:"projectId"`
 	Title        string `json:"title"`
 	Description  string `json:"description"`
@@ -35,7 +39,14 @@ func DecodeBoardArgs(method string, raw json.RawMessage) (BoardArgs, error) {
 	if len(raw) > 64<<10 || d.Decode(&in) != nil || d.Decode(&extra) != io.EOF {
 		return in, errors.New("invalid workspace arguments")
 	}
+	if method != "retrieve_memory" && (in.Query != "" || in.TaskID != "" || in.RequestType != "" || in.TokenBudget != 0) {
+		return in, errors.New("unexpected memory arguments")
+	}
 	switch method {
+	case "retrieve_memory":
+		if !boardID.MatchString(in.ProjectID) || in.TaskID != "" && !boardID.MatchString(in.TaskID) || len(in.Query) > 800 || in.TokenBudget < 512 || in.TokenBudget > 6000 || in.Title != "" || in.Description != "" || in.WorkMode != "" || in.PlannedStart != "" || in.PlannedEnd != "" || in.Milestone {
+			return in, errors.New("invalid memory arguments")
+		}
 	case "list_projects", "get_overview":
 		if !bytes.Equal(bytes.TrimSpace(raw), []byte("{}")) {
 			return in, errors.New("this workspace read takes no arguments")
@@ -99,6 +110,8 @@ func (l *Link) AssistantBoard(ctx context.Context, id, method string, in BoardAr
 	}
 	base := "/w/" + slot + "/api/team/v1/projects"
 	switch method {
+	case "retrieve_memory":
+		return l.assistantMemory(ctx, base, in)
 	case "list_projects", "get_overview":
 		var ps []boardProject
 		if err := l.call(ctx, http.MethodGet, base, nil, &ps); err != nil {

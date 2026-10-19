@@ -169,7 +169,7 @@ func TestTheAssistantOffersNoRouteToRunsGitOrSettings(t *testing.T) {
 		}
 	}
 	sort.Strings(perms)
-	want := "analytics:read,connections:use,projects:read,questions:answer,questions:read,runs:read,schedule:read,tasks:propose_plan,tickets:create,tickets:read,tickets:update"
+	want := "analytics:read,connections:use,memory:read,projects:read,questions:answer,questions:read,runs:read,schedule:read,tasks:propose_plan,tickets:create,tickets:read,tickets:update"
 	if got := strings.Join(perms, ","); got != want {
 		t.Fatalf("the assistant's permissions are %s, reviewed as %s. Adding one is a decision about what a model may do; update this test and docs/ASSISTANT.md in the same change, and say why.", got, want)
 	}

@@ -498,3 +498,32 @@ func TestKnowledgeCorrectionsPreserveSensitivity(t *testing.T) {
 		t.Fatal("correction leaked private evidence", out, e)
 	}
 }
+
+func TestAssistantHistoricalLessonsStayAdvisoryAndOptIn(t *testing.T) {
+	_, k, p := knowledgeFixture(t)
+	old, err := k.SaveManual(context.Background(), p.ID, ManualMemory{Summary: "SQLite lesson: keep migrations transactional", Kind: "decision"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = k.Change(context.Background(), old.Scope, old.ID, old.Version, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	current, err := k.SaveManual(context.Background(), p.ID, ManualMemory{Summary: "SQLite policy: review every migration", Kind: "policy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := MemoryContextQuery{Scope: domain.MemoryScope{ProjectID: p.ID}, Query: domain.MemoryQuery{Text: "SQLite"}, TokenBudget: 6000, PrioritizeAuthority: true}
+	out, err := k.Retrieve(context.Background(), query)
+	if err != nil || len(out.Items) != 1 || out.Items[0].ID != current.ID {
+		t.Fatalf("ordinary context: %+v %v", out, err)
+	}
+	query.IncludeHistorical = true
+	out, err = k.Retrieve(context.Background(), query)
+	if err != nil || len(out.Items) != 2 || out.Items[0].ID != current.ID {
+		t.Fatalf("lesson context: %+v %v", out, err)
+	}
+	lesson := out.Items[1]
+	if lesson.ID != old.ID || lesson.Kind != "historical_lesson" || lesson.Confidence != "low" || lesson.Freshness != "historical" {
+		t.Fatalf("history promoted to authority: %+v", lesson)
+	}
+}

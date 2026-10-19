@@ -50,6 +50,7 @@ type Permission string
 // The permissions. There is deliberately none for starting or stopping a run, for settings, Git, repositories,
 // runners, or for deleting anything.
 const (
+	PermMemoryRead      Permission = "memory:read"
 	PermProjectsRead    Permission = "projects:read"
 	PermTicketsRead     Permission = "tickets:read"
 	PermAnalyticsRead   Permission = "analytics:read"
@@ -65,7 +66,7 @@ const (
 
 // AllPermissions is every permission there is.
 var AllPermissions = []Permission{
-	PermProjectsRead, PermTicketsRead, PermAnalyticsRead, PermTicketsCreate, PermTicketsUpdate, PermScheduleRead,
+	PermMemoryRead, PermProjectsRead, PermTicketsRead, PermAnalyticsRead, PermTicketsCreate, PermTicketsUpdate, PermScheduleRead,
 	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse, PermTaskPlan,
 }
 

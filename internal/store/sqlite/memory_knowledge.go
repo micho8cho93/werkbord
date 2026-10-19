@@ -143,6 +143,9 @@ func (r memoryRepo) KnowledgeList(ctx context.Context, s domain.MemoryScope, q d
 		order = `pinned DESC,(verified_at IS NOT NULL) DESC,(source_type='user') DESC,(SELECT bm25(memories_fts) FROM memories_fts WHERE memories_fts.rowid=memories.rowid AND memories_fts MATCH ?) ASC,updated_at DESC,id DESC`
 		args = append(args, match)
 	}
+	if q.PrioritizeAuthority {
+		order = `(verified_at IS NOT NULL) DESC,CASE authority WHEN 'approved_policy' THEN 4 WHEN 'explicit_decision' THEN 3 WHEN 'factual_observation' THEN 2 ELSE 1 END DESC,` + order
+	}
 	limit := q.Limit
 	if limit == 0 {
 		limit = 50

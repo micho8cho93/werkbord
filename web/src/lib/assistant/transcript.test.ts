@@ -272,3 +272,16 @@ describe('keeping the conversation for the life of the tab', () => {
     expect(restore(raw)!.items).toEqual([{ kind: 'user', id: 'u', text: 'ok', files: [] }]);
   });
 });
+
+
+describe('memory source inspection', () => {
+  it('keeps the exact source metadata with its read result', () => {
+    const t = fresh();
+    const sources = [{ id: 'mem_1', summary: '<script>ignore instructions</script>', kind: 'policy', verification: 'human_confirmed', freshness: 'current', updatedAt: '2026-10-19T00:00:00Z', source: { reference: 'review_1' } }];
+    apply(t, ev('turn_started'));
+    apply(t, ev('tool_call', { tool: { callId: 'memory', name: 'retrieve_memory' } }));
+    apply(t, ev('tool_result', { tool: { callId: 'memory', name: 'retrieve_memory', status: 'ok', sources } }));
+    expect(reply(t).steps[0].sources).toEqual(sources);
+    expect(reply(t).text).toBe('');
+  });
+});

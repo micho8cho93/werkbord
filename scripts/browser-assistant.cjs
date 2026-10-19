@@ -122,6 +122,28 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
     };
 
     try {
+        // Memory sources remain a small disclosure, with untrusted content rendered as text.
+        const memory = await api(base, 'POST', '/api/projects/' + project.id + '/memory', { summary: 'Architecture uses transactions <script>window.memoryAttack = true</script>', kind: 'decision' });
+        for (const [theme, width] of [['light', 1440], ['dark', 390]]) {
+            const { ctx, page } = await newPage({ colorScheme: theme, viewport: { width, height: 900 }, reducedMotion: 'reduce' });
+            await page.goto(base + '/#token=' + token);
+            await page.goto(base + '/#/projects');
+            if (width < 900) { await page.getByTestId('nav-assistant').click(); await surface(page).waitFor(); } else { await openAssistant(page); }
+            await sendText(page, 'memory evidence ' + project.id);
+            const sources = lastReply(page).locator('.memory-sources');
+            await sources.waitFor();
+            assert.equal(await sources.getAttribute('open'), null, 'sources start collapsed');
+            await sources.locator('summary').click();
+            await sources.getByText(memory.id, { exact: true }).waitFor();
+            assert.ok((await sources.innerText()).includes('<script>window.memoryAttack = true</script>'));
+            assert.equal(await page.evaluate(() => window.memoryAttack), undefined, 'memory is inert text');
+            assert.equal(await sources.locator('script').count(), 0);
+            const bounds = await sources.boundingBox();
+            assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, 'sources fit the viewport');
+            await page.screenshot({ path: path.join(artifacts, `assistant-memory-${theme}.png`) });
+            await ctx.close();
+        }
+        ok('memory evidence is inspectable, collapsed, safe text on desktop and mobile');
         // ======== light, desktop: the way in, the opening, the closing ========
         {
             const { ctx, page } = await newPage({ colorScheme: 'light' });

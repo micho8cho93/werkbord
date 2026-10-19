@@ -60,7 +60,7 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 
 func newApplicationOperations(db store.Store, log *slog.Logger, svc assistantServices) *appops.Service {
 	services := appops.Services{Projects: svc.projects, Tasks: svc.tasks, Labels: svc.labels, Runs: svc.runs, Control: svc.control,
-		Analytics: &service.Analytics{Deps: service.Deps{Store: db}}}
+		Knowledge: svc.knowledge, Analytics: &service.Analytics{Deps: service.Deps{Store: db}}}
 	if svc.runner != nil {
 		// Answering a question reaches the agent through the runner it is on, as it does from the app.
 		services.Answer = svc.runner.Answer
@@ -81,7 +81,7 @@ func assistantGrants(a config.AssistantConfig) []appops.Permission {
 		}
 		return grants
 	}
-	return []appops.Permission{appops.PermProjectsRead, appops.PermTicketsRead, appops.PermAnalyticsRead, appops.PermScheduleRead, appops.PermRunsRead, appops.PermQuestionsRead}
+	return []appops.Permission{appops.PermMemoryRead, appops.PermProjectsRead, appops.PermTicketsRead, appops.PermAnalyticsRead, appops.PermScheduleRead, appops.PermRunsRead, appops.PermQuestionsRead}
 }
 
 // assistantProjects is the projects it may see: nil for all of them, which is not the same as an empty list (none).
@@ -94,6 +94,7 @@ func assistantProjects(a config.AssistantConfig) []string {
 
 // assistantServices are the controller's domain services the assistant's operations are made of.
 type assistantServices struct {
+	knowledge   *service.Knowledge
 	projects    *service.Projects
 	tasks       *service.Tasks
 	labels      *service.Labels

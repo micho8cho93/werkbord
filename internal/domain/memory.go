@@ -117,7 +117,9 @@ type MemoryCursor struct {
 	ID        string    `json:"id"`
 }
 type MemoryQuery struct {
-	// IncludeCandidates is used only by bounded context retrieval, never list authorization.
+	// PrioritizeAuthority orders verified policies and decisions before preferences.
+	PrioritizeAuthority bool
+	// IncludeCandidates is used only by bounded context retrieval, never list authorisation.
 	IncludeCandidates bool
 	Text              string
 	Type              string

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatDateTime } from '../clock.svelte';
   import { Renderer, type ActionEvent, type ParseResult } from '@openuidev/svelte-lang';
   import { assistant } from './store.svelte';
   import Markdown from './Markdown.svelte';
@@ -19,6 +20,7 @@
   const looked = $derived(reply.status === 'done' ? lookedAt(reply) : []);
   const parts = $derived(growingReplyParts(reply.text, reply.status === 'working', partsCache));
   const fail = $derived(reply.error ? failure(reply.error) : null);
+  const memorySources = $derived(reply.steps.flatMap((s) => s.sources ?? []));
   const failedSteps = $derived(reply.steps.filter((s) => s.status === 'error'));
 
   function openUIParsed(index: number, result: ParseResult | null): void {
@@ -78,6 +80,18 @@
   {/if}
 
   {#each reply.notices as n (n)}<p class="note">{n}</p>{/each}
+
+  {#if memorySources.length > 0}
+    <details class="looked memory-sources">
+      <summary>Memory sources ({memorySources.length})</summary>
+      <ul>{#each memorySources as source, i (i)}
+        <li><strong>{source.id}</strong> · {source.kind.replaceAll('_', ' ')} · {source.verification.replaceAll('_', ' ')} · {source.freshness.replaceAll('_', ' ')}
+          <p>{source.summary}</p>
+          <p>{source.source.reference} · Updated {formatDateTime(source.updatedAt)}</p>
+        </li>
+      {/each}</ul>
+    </details>
+  {/if}
 
   {#if looked.length > 0}
     <details class="looked">
@@ -198,6 +212,9 @@
     font-size: 12.5px;
     color: var(--text-2);
   }
+  .memory-sources { overflow-wrap: anywhere; }
+  .memory-sources li + li { margin-top: 12px; }
+  .memory-sources p { margin: 4px 0; }
   .looked summary {
     cursor: pointer;
     width: fit-content;

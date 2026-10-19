@@ -69,8 +69,9 @@ type Event struct {
 
 // ToolEvent describes a call and, once run, how it went.
 type ToolEvent struct {
-	CallID string `json:"callId"`
-	Name   string `json:"name"`
+	Sources []appops.MemorySource `json:"sources,omitempty"`
+	CallID  string                `json:"callId"`
+	Name    string                `json:"name"`
 	// Status is ok, error or pending_confirmation (on a result).
 	Status string `json:"status,omitempty"`
 	// Code is the error code, on an error.

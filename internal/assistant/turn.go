@@ -468,7 +468,13 @@ func (t *turnRun) runCalls(ctx context.Context, calls []call) ([]callResult, err
 				"note": "Nothing has changed yet. The person has been asked to confirm. Tell them what you proposed.",
 			}})
 		default:
-			t.publish(Event{Type: EventToolResult, Tool: &ToolEvent{CallID: id, Name: c.Name, Status: "ok"}})
+			tool := &ToolEvent{CallID: id, Name: c.Name, Status: "ok"}
+			if c.Name == "retrieve_memory" {
+				if memory, ok := res.Data.(appops.MemoryContext); ok {
+					tool.Sources = memory.Items
+				}
+			}
+			t.publish(Event{Type: EventToolResult, Tool: tool})
 			results = append(results, callResult{ID: id, Name: c.Name, Status: "ok", Body: res.Data})
 		}
 	}

@@ -41,6 +41,7 @@ type TaskPlanBackend interface {
 
 // Services is the set of domain services a Backend is made of.
 type Services struct {
+	Knowledge *service.Knowledge
 	Projects  *service.Projects
 	Tasks     *service.Tasks
 	Labels    *service.Labels

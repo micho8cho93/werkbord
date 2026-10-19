@@ -230,7 +230,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("api token: %w", err)
 	}
-	assistantSvc := assistantServices{projects: projects, tasks: tasks, labels: labels, runs: runs,
+	assistantSvc := assistantServices{knowledge: c.knowledge, projects: projects, tasks: tasks, labels: labels, runs: runs,
 		control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner, connections: c.connections}
 	c.appOps = newApplicationOperations(c.db, c.log, assistantSvc)
 	mcpGrants, err := mcpgrant.Open(filepath.Join(c.cfg.DataDir, "mcp-clients.json"))
