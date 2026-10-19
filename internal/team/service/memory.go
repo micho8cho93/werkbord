@@ -57,3 +57,17 @@ func (s *Service) ReadMemories(ctx context.Context, a Actor, scope integration.S
 	})
 	return out, err
 }
+
+func (s *Service) DeliverMemory(ctx context.Context, a Actor, in integration.MemoryEvent) (integration.MemoryReceipt, error) {
+	var out integration.MemoryReceipt
+	if a.MCPGrantID != "" || a.Device == nil {
+		return out, domain.ErrForbidden
+	}
+	err := s.db.Update(AuthenticatedContext(ctx, a), func(tx store.Tx) error {
+		var e error
+		out, e = tx.DeliverMemory(ctx, memoryPrincipal(a), in, domain.NewID("mem"), s.stamp())
+		return e
+	})
+	s.changed(a.Workspace.ID, err)
+	return out, err
+}

@@ -57,6 +57,7 @@ var projectRoutes = []string{
 // workspaceRoutes act on the signed-in member's own workspace, whichever project.
 var workspaceRoutes = []string{
 	// Closed memory DTOs only; exact body scopes are authorized inside each transaction.
+	"POST /memory/delivery", // bounded signed projection events and durable receipts; no file/process access
 	"POST /memory/proposals", "POST /memory/query", "POST /memory/{mid}",
 	"GET /analytics", // read-only aggregate limited to projects with ticket and activity access
 	"PUT /license",   // installs only an owner-approved, vendor-signed offline entitlement

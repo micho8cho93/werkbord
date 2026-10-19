@@ -17,6 +17,7 @@ import (
 // again by each store operation in the very transaction that returns/changes data.
 type MemoryPrincipal struct{ WorkspaceID, MemberID, DeviceID string }
 type MemoryQueries interface {
+	DeliverMemory(context.Context, MemoryPrincipal, integration.MemoryEvent, string, time.Time) (integration.MemoryReceipt, error)
 	ProposeMemory(context.Context, MemoryPrincipal, integration.MemoryProposal, string, time.Time) (integration.SharedMemoryRecord, error)
 	ChangeMemory(context.Context, MemoryPrincipal, string, integration.MemoryCommand, time.Time) (integration.SharedMemoryRecord, error)
 	ReadMemories(context.Context, MemoryPrincipal, integration.SharedMemoryScope, string, bool) (integration.MemoryPage, error)
@@ -213,8 +214,10 @@ func (t *sqlTx) ChangeMemory(ctx context.Context, a MemoryPrincipal, id string, 
 	if r.Version != in.Version || r.State == "deleted" || r.State == "superseded" {
 		return out, domain.ErrConflict
 	}
-	if err := t.memoryCapacity(ctx, a.WorkspaceID); err != nil {
-		return out, err
+	if in.Action != "delete" {
+		if err := t.memoryCapacity(ctx, a.WorkspaceID); err != nil {
+			return out, err
+		}
 	}
 	switch in.Action {
 	case "edit":

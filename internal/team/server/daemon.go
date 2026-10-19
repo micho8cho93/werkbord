@@ -191,6 +191,7 @@ func (d *Daemon) Handler() http.Handler {
 	mux.HandleFunc("GET /api/device/v1/execution/detail", d.executionDetail)
 	mux.HandleFunc("POST /api/device/v1/execution/{action}", d.executionControl)
 	mux.HandleFunc("POST /api/device/v1/runner/connect", d.connectRunner)
+	mux.HandleFunc("POST /api/device/v1/memory/grant", d.acceptMemoryGrant)
 	mux.HandleFunc("POST /api/device/v1/runner/grant", d.acceptRunnerGrant)
 	mux.HandleFunc("POST /api/device/v1/senders/{id}/trust", d.trustSender)
 	mux.HandleFunc("POST /api/device/v1/senders/{id}/revoke", d.revokeSender)

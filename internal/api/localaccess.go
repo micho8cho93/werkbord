@@ -129,9 +129,9 @@ func (s *Server) scoped(entry localaccess.Entry, next http.Handler) http.Handler
 				ok = true
 				route = scopedRoute{method: "GET", pattern: r.URL.Path}
 			}
-			if r.Method == "GET" && r.URL.Path == "/api/memory/v1/shares" && entry.MemoryWorkspaceID != "" && r.URL.Query().Get("workspaceId") == entry.MemoryWorkspaceID {
+			if (r.Method == "GET" && (r.URL.Path == "/api/memory/v1/shares" || r.URL.Path == "/api/memory/v1/publication/events") || r.Method == "POST" && r.URL.Path == "/api/memory/v1/publication/events") && entry.MemoryWorkspaceID != "" && r.URL.Query().Get("workspaceId") == entry.MemoryWorkspaceID {
 				ok = true
-				route = scopedRoute{method: "GET", pattern: r.URL.Path}
+				route = scopedRoute{method: r.Method, pattern: r.URL.Path, fields: []string{"eventId", "sequence", "record"}}
 			}
 		}
 		if entry.Scope != "memory-v1" && entry.Scope != "" && entry.Scope != "integration-v1" && entry.Scope != "execution-local-v1" && entry.Scope != "execution-dispatch-v1" {

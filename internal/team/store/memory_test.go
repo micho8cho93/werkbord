@@ -83,3 +83,35 @@ func TestSharedMemoryQueriesCommitAtomicallyAndKeepExactScope(t *testing.T) {
 		t.Fatalf("stale memory version was accepted: %v", err)
 	}
 }
+
+func TestSharedMemoryQuotaCannotPreventWithdrawal(t *testing.T) {
+	c := newConv(t)
+	ctx := context.Background()
+	scope := integration.SharedMemoryScope{WorkspaceID: c.ws, Kind: "project", ProjectID: c.project}
+	p := integration.MemoryProposal{Schema: integration.MemorySchema, Scope: scope, ClientID: "quota_memory", Content: integration.SharedMemoryContent{Kind: "observation", Summary: "Withdrawable knowledge", Classification: "team", Verification: "verified", Source: integration.MemorySource{Kind: "human", ID: "review_one"}}}
+	author := MemoryPrincipal{WorkspaceID: c.ws, MemberID: c.bo}
+	owner := MemoryPrincipal{WorkspaceID: c.ws, MemberID: c.ada}
+	var r integration.SharedMemoryRecord
+	c.update(func(tx Tx) error {
+		var err error
+		r, err = tx.ProposeMemory(ctx, author, p, "memory_quota", t0)
+		return err
+	})
+	c.update(func(tx Tx) error {
+		_, err := tx.(*sqlTx).q.ExecContext(ctx, `WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<10000) INSERT INTO shared_memory_revisions(workspace_id,memory_id,version,document) SELECT workspace_id,id,100+x,document FROM shared_memories,n WHERE workspace_id=? AND id=?`, c.ws, r.ID)
+		return err
+	})
+	if err := c.db.Update(ctx, func(tx Tx) error {
+		_, e := tx.ChangeMemory(ctx, owner, r.ID, integration.MemoryCommand{Schema: p.Schema, Scope: scope, Version: r.Version, Action: "approve"}, t0.Add(time.Second))
+		return e
+	}); !errors.Is(err, domain.ErrBusy) {
+		t.Fatalf("quota not active: %v", err)
+	}
+	c.update(func(tx Tx) error {
+		out, err := tx.(*sqlTx).withdrawProjection(ctx, author, r, t0.Add(time.Second))
+		if err == nil && (out.State != "deleted" || out.Content.Summary != "") {
+			t.Fatalf("withdrawal retained content: %+v", out)
+		}
+		return err
+	})
+}

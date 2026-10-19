@@ -48,6 +48,9 @@ type integrationLocal struct {
 	adapter *fake.Adapter
 	bridge  *localwerkbord.Client
 	owner   string
+	memory  *localservice.Knowledge
+	db      *localsqlite.DB
+	dbPath  string
 }
 
 func integrationGit(t *testing.T, dir string, args ...string) string {
@@ -67,7 +70,8 @@ func newIntegrationLocal(t *testing.T) *integrationLocal {
 	integrationGit(t, dir, "init", "-q", "-b", "main")
 	integrationGit(t, dir, "commit", "--allow-empty", "-qm", "initial")
 	integrationGit(t, dir, "remote", "add", "origin", "git@github.com:acme/sync.git")
-	db, err := localsqlite.Open(ctx, filepath.Join(t.TempDir(), "local.db"), nil)
+	dbPath := filepath.Join(t.TempDir(), "local.db")
+	db, err := localsqlite.Open(ctx, dbPath, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +112,8 @@ func newIntegrationLocal(t *testing.T) *integrationLocal {
 		t.Fatal(err)
 	}
 	owner := "LOCAL_CONTROLLER_SECRET_NEVER_SHARE"
-	ts := httptest.NewServer(localapi.New(localapi.Options{Store: db, Events: bus, Memory: &localservice.Knowledge{Memory: memory}, Projects: projects, Tasks: tasks, Runs: runs, Settings: settings, Runner: mgr, Agents: registry, Git: git, Version: "test", AuthRequired: true, Token: owner, LocalAccess: grants}).Handler())
+	knowledge := &localservice.Knowledge{Memory: memory}
+	ts := httptest.NewServer(localapi.New(localapi.Options{Store: db, Events: bus, Memory: knowledge, Projects: projects, Tasks: tasks, Runs: runs, Settings: settings, Runner: mgr, Agents: registry, Git: git, Version: "test", AuthRequired: true, Token: owner, LocalAccess: grants}).Handler())
 	t.Cleanup(ts.Close)
 	token, err := localwerkbord.ConnectSync(ctx, ts.URL, owner)
 	if err != nil {
@@ -124,7 +129,7 @@ func newIntegrationLocal(t *testing.T) *integrationLocal {
 	if _, err := bridge.StartRun(ctx, p.ID, "tsk_x"); err == nil {
 		t.Fatal("metadata-only grant could launch a run")
 	}
-	return &integrationLocal{url: ts.URL, project: p.ID, tasks: tasks, runs: runs, mgr: mgr, adapter: adapter, bridge: bridge, owner: owner}
+	return &integrationLocal{url: ts.URL, project: p.ID, tasks: tasks, runs: runs, mgr: mgr, adapter: adapter, bridge: bridge, owner: owner, memory: knowledge, db: db, dbPath: dbPath}
 }
 
 func TestMemorySharingUsesSeparateApprovedGrantAndProposesOnly(t *testing.T) {
@@ -287,7 +292,7 @@ func newIntegrationTeam(t *testing.T, name string) *integrationTeam {
 			http.Error(rw, "no quorum", 503)
 			return
 		}
-		if strings.HasSuffix(r.URL.Path, "/progress") && r.Method == "PUT" && x.loseAck.Swap(false) {
+		if (strings.HasSuffix(r.URL.Path, "/progress") && r.Method == "PUT" || strings.HasSuffix(r.URL.Path, "/memory/delivery")) && x.loseAck.Swap(false) {
 			recorder := httptest.NewRecorder()
 			handler.ServeHTTP(recorder, r)
 			http.Error(rw, "answer lost", 503)

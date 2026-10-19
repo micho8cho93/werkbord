@@ -619,3 +619,10 @@ Earlier phase descriptions document the foundations as introduced; Phase 1C
 supersedes their statements that harvesting, a UI, a memory API and context
 retrieval do not exist. Embeddings, automatic prompt injection, model-assisted
 summarisation and sharing/Team sync remain outside this phase.
+
+## Selective Team publication (Phase 2B)
+
+[The synchronisation lifecycle and privacy limits](MEMORY_SYNC.md) describe the
+closed automatic metadata allowlist, explicit project choices, reviewed semantic
+proposals, durable outbound journal and workspace-bound connector receipts.
+Private Individual memories remain local and functional without Team.

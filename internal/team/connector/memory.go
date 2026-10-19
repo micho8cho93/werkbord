@@ -57,3 +57,49 @@ func ShareMemory(ctx context.Context, host Workspace, local MemoryLocal, workspa
 	}
 	return next, valid.More, nil
 }
+
+type MemoryJournal interface {
+	MemoryEvents(context.Context, string) (integration.MemoryEventPage, error)
+	AckMemory(context.Context, string, integration.MemoryReceipt) error
+}
+
+// SyncMemory retries the oldest unacknowledged events. Individual retains its
+// cursor until both the signed Host receipt and the local ack have committed.
+func SyncMemory(ctx context.Context, host Workspace, local MemoryJournal, w, member, device string) error {
+	me, err := host.Me(ctx)
+	if err != nil {
+		return err
+	}
+	if me.Workspace.ID != w || me.Member.ID != member {
+		return errors.New("memory connector identity mismatch")
+	}
+	page, err := local.MemoryEvents(ctx, w)
+	if err != nil {
+		return err
+	}
+	if page.Schema != integration.MemorySchema || len(page.Events)+len(page.Tracking) > integration.MaxMemoryBatch {
+		return errors.New("invalid memory journal page")
+	}
+	var last int64
+	for i, e := range append(page.Events, page.Tracking...) {
+		if e.Validate() != nil || e.Proposal.Scope.WorkspaceID != w || i < len(page.Events) && last != 0 && e.Sequence != last+1 {
+			return errors.New("invalid memory journal order")
+		}
+		last = e.Sequence
+		var ack integration.MemoryReceipt
+		var raw json.RawMessage
+		if err = host.Do(ctx, "POST", "/memory/delivery", e, &raw); err != nil {
+			return err
+		}
+		if err = integration.DecodeMemory(raw, &ack); err != nil {
+			return err
+		}
+		if ack.EventID != e.ID || ack.Sequence != e.Sequence || ack.Record.AuthorID != member || ack.Record.AuthorDeviceID != device || ack.Record.Validate() != nil {
+			return errors.New("invalid memory delivery receipt")
+		}
+		if err = local.AckMemory(ctx, w, ack); err != nil {
+			return err
+		}
+	}
+	return nil
+}

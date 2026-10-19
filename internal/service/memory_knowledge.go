@@ -281,6 +281,23 @@ func (s *Knowledge) Maintain(ctx context.Context) error {
 			return e
 		}
 	}
+	// Publication observes only approved local destinations and needs no Team connection.
+	// Journal pressure is reported without interrupting Individual extraction or pruning.
+	grants, grantErr := s.Memory.PublicationGrants(ctx)
+	if grantErr == nil {
+		seen := map[string]bool{}
+		for _, g := range grants {
+			if seen[g.WorkspaceID] {
+				continue
+			}
+			seen[g.WorkspaceID] = true
+			if _, e := s.Memory.ReconcilePublication(ctx, g.WorkspaceID); e != nil && first == nil {
+				first = e
+			}
+		}
+	} else if first == nil {
+		first = grantErr
+	}
 	_, err := s.Memory.Prune(ctx, 100)
 	if first != nil {
 		return first

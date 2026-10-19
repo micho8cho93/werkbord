@@ -211,6 +211,8 @@ func (d *Daemon) reconcileDevice(ctx context.Context) error {
 	d.mu.Lock()
 	d.runnerOK, d.lastRunnerCheck = runnerOK, time.Now()
 	d.mu.Unlock()
+	// Memory has its own grant and retries on the existing member connector cadence.
+	memoryErr := d.synchronizeMemory(ctx)
 	me, err := host.Me(ctx)
 	if err != nil {
 		return errors.New("your workspace is offline; keep a Workspace Host online to reconnect")
@@ -299,6 +301,14 @@ func (d *Daemon) reconcileDevice(ctx context.Context) error {
 		d.synchronize(ctx, host, bridge, mat, me.Member.ID)
 	} else {
 		d.setSync(syncView{})
+	}
+	if memoryErr != nil {
+		d.mu.Lock()
+		if d.sync.Problem != "" {
+			d.sync.Problem += "; "
+		}
+		d.sync.Problem += "Memory sharing: " + memoryErr.Error()
+		d.mu.Unlock()
 	}
 	if bridge != nil {
 		if err := d.coordinateSchedules(ctx, host, bridge, mat.Host.DeviceID()); err != nil {

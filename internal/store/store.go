@@ -278,6 +278,13 @@ type AssistantRepo interface {
 // MemoryRepo is private local persistence. Every record operation requires an
 // exact scope; no unscoped get/list/delete is provided. Writes require Update.
 type MemoryRepo interface {
+	PublicationGrants(context.Context, string) ([]domain.PublicationGrant, error)
+	SavePublicationGrant(context.Context, string, domain.PublicationGrant) error
+	Publications(context.Context, string, string) ([]domain.MemoryPublication, error)
+	SavePublication(context.Context, string, *domain.MemoryPublication) error
+	CancelPublicationEvent(context.Context, string, integration.MemoryEvent) error
+	PublicationEvents(context.Context, string, string) (integration.MemoryEventPage, error)
+	AckPublication(context.Context, string, string, integration.MemoryReceipt) error
 	ApproveShare(context.Context, string, integration.MemoryShare) error
 	Shares(context.Context, string, string, string, time.Time) (integration.MemoryShares, error)
 	RevokeShare(context.Context, string, string) error

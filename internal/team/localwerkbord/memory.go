@@ -42,3 +42,41 @@ func (c *Client) ApprovedMemory(ctx context.Context, workspace, after string) (i
 	}
 	return out, nil
 }
+
+// MemoryEvents and AckMemory expose only this workspace's durable projection journal.
+func (c *Client) MemoryEvents(ctx context.Context, w string) (integration.MemoryEventPage, error) {
+	var out integration.MemoryEventPage
+	if !integration.Identifier(w) {
+		return out, errors.New("invalid workspace")
+	}
+	var entry struct {
+		Scope     string `json:"scope"`
+		Workspace string `json:"memoryWorkspaceId"`
+	}
+	if err := c.do(ctx, "GET", "/api/local-access/self", nil, &entry); err != nil {
+		return out, err
+	}
+	if entry.Scope != "memory-v1" || entry.Workspace != w {
+		return out, errors.New("workspace-bound memory grant required")
+	}
+	var raw json.RawMessage
+	err := c.do(ctx, "GET", "/api/memory/v1/publication/events?workspaceId="+url.QueryEscape(w), nil, &raw)
+	if err != nil {
+		return out, err
+	}
+	if err = integration.DecodeMemory(raw, &out); err != nil {
+		return out, err
+	}
+	if out.Schema != integration.MemorySchema || len(out.Events)+len(out.Tracking) > integration.MaxMemoryBatch {
+		return out, errors.New("invalid event page")
+	}
+	for _, e := range append(out.Events, out.Tracking...) {
+		if e.Validate() != nil || e.Proposal.Scope.WorkspaceID != w {
+			return out, errors.New("invalid memory event")
+		}
+	}
+	return out, err
+}
+func (c *Client) AckMemory(ctx context.Context, w string, a integration.MemoryReceipt) error {
+	return c.do(ctx, "POST", "/api/memory/v1/publication/events?workspaceId="+url.QueryEscape(w), a, nil)
+}

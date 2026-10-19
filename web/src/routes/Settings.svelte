@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MemorySharing from '../lib/MemorySharing.svelte';
   import Tour from '../lib/Tour.svelte';
   import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
@@ -27,7 +28,7 @@
   const GROUPS = [
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
-    { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }] },
+    { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Team Memory' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
   // A phone's own settings are its sign-in and its display; the rest is changed at the computer.
@@ -165,6 +166,8 @@
       <PhonesPanel />
     {:else if section === 'github'}
       <GitHubCard />
+    {:else if section === 'memory'}
+      <MemorySharing />
     {:else if section === 'mcp'}
       <ConnectionsPanel />
       <MCPClientsPanel />

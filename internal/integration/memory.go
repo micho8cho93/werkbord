@@ -316,6 +316,20 @@ func DecodeMemory(raw []byte, out any) error {
 		return errors.New("trailing memory data")
 	}
 	switch v := out.(type) {
+	case *MemoryEventPage:
+		if v.Schema != MemorySchema || len(v.Events)+len(v.Tracking) > MaxMemoryBatch {
+			return errors.New("unsupported or oversized publication page")
+		}
+		for _, e := range append(v.Events, v.Tracking...) {
+			if err := e.Validate(); err != nil {
+				return err
+			}
+		}
+	case *MemoryReceipt:
+		if !Identifier(v.EventID) || v.Sequence < 1 {
+			return errors.New("invalid publication receipt")
+		}
+		return v.Record.Validate()
 	case *MemoryProposal:
 		return v.Validate()
 	case *MemoryCommand:

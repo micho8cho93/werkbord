@@ -1,0 +1,4 @@
+CREATE TABLE memory_publication_grants(owner_id TEXT NOT NULL,workspace_id TEXT NOT NULL,project_id TEXT NOT NULL,document TEXT NOT NULL,PRIMARY KEY(owner_id,workspace_id,project_id)) STRICT;
+CREATE TABLE memory_publication_streams(owner_id TEXT NOT NULL,workspace_id TEXT NOT NULL,sequence INTEGER NOT NULL DEFAULT 0,acked INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(owner_id,workspace_id)) STRICT;
+CREATE TABLE memory_publications(owner_id TEXT NOT NULL,workspace_id TEXT NOT NULL,project_id TEXT NOT NULL,memory_id TEXT NOT NULL,document TEXT NOT NULL,PRIMARY KEY(owner_id,workspace_id,project_id,memory_id)) STRICT;
+CREATE TABLE memory_publication_outbound(owner_id TEXT NOT NULL,workspace_id TEXT NOT NULL,sequence INTEGER NOT NULL,event_id TEXT NOT NULL,document TEXT NOT NULL,PRIMARY KEY(owner_id,workspace_id,sequence),UNIQUE(owner_id,event_id)) STRICT;

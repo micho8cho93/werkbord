@@ -91,7 +91,7 @@ type MemoryContent struct {
 	Details     json.RawMessage   `json:"details,omitempty"`
 	State       MemoryState       `json:"state"`
 	Sensitivity MemorySensitivity `json:"sensitivity"`
-	// Eligibility is metadata for a future explicit sharing approval. It never shares.
+	// Eligibility is descriptive only; publication still requires an exact local grant and an allowlisted projection.
 	Pinned          bool       `json:"pinned"`
 	SharingEligible bool       `json:"sharingEligible"`
 	VerifiedAt      *time.Time `json:"verifiedAt,omitempty"`

@@ -309,8 +309,8 @@ function syncPanel() {
 }
 
 async function settingsView() {
-  if (!state.desktop) return h('section', { class: 'panel' }, h('h2', {}, 'Device settings'), h('p', { class: 'muted' }, 'Manage this computer in the Team desktop app.'),
-    h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: signOut }, 'Sign out of workspace')));
+  if (!state.desktop) return h('div', {}, await memorySharingPanel(), h('section', { class: 'panel' }, h('h2', {}, 'Device settings'), h('p', { class: 'muted' }, 'Manage this computer in the Team desktop app.'),
+    h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: signOut }, 'Sign out of workspace'))));
   const s = state.device.settings;
   const form = h('select', { name: 'computer-kind' }, [['', 'Choose…'], ['desktop', 'Desktop / Mac mini'], ['laptop', 'Laptop'], ['server', 'Server / NAS']].map(([value, label]) => h('option', { value, selected: s.form === value || (!s.form && !value) }, label)));
   const policy = h('select', { name: 'remote-policy' }, [['ask', 'Ask each time'], ['off', 'Off'], ['auto', 'Allow from trusted devices']].map(([value, label]) => h('option', { value, selected: s.remoteStart === value }, label)));
@@ -319,7 +319,7 @@ async function settingsView() {
   const hostOffer = h('input', { name: 'offer-workspace-host', type: 'checkbox', checked: s.offerWorkspaceHost });
   const connectivityOffer = h('input', { name: 'offer-connectivity-host', type: 'checkbox', checked: s.offerConnectivityHost });
   const plan = await deviceApi('GET', '/removal');
-  return h('div', {}, runnerSetup(), syncPanel(), await phoneSettings(), h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } },
+  return h('div', {}, runnerSetup(), syncPanel(), await memorySharingPanel(), await phoneSettings(), h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } },
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Computer'), field('Type', form), field('Sleeps automatically', sleeps)),
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Hosting'), field('Workspace Host', hostOffer), field('Connectivity Host', connectivityOffer),
       h('p', { class: 'muted' }, 'Hosting starts after administrator approval; sleep pauses this computer’s work.'),
@@ -494,3 +494,56 @@ setInterval(async () => {
   await view.refresh();
   if (key === state.projectId + ':' + state.ticketId && !actionBusy) await render();
 }, 5000);
+
+// Sharing choices belong to the local controller; this surface holds only its
+// separately authorised workspace-bound journal grant and Team-owned records.
+async function memorySharingPanel() {
+  const projects = state.ov.projects.filter(p => p.member && !p.project.archived).map(p => p.project);
+  const box = h('section', { class: 'panel', 'aria-labelledby': 'memory-sharing-h' }, h('h2', { id: 'memory-sharing-h' }, 'Team Memory sharing'),
+    h('p', { class: 'muted' }, 'Only explicitly enabled local projects can propose validated Git metadata. Summaries and architectural decisions need a separate project choice and review. Personal preferences, sessions, transcripts, code, credentials, environment variables and paths are never shared automatically.'),
+    h('p', { class: 'muted' }, 'Choose projects, review local proposals, inspect delivery and revoke sharing in Individual → Settings → Team Memory. Copy the workspace and project identities below into that local setting.'),
+    h('p', { class: 'identity' }, state.me.workspace.id),
+    state.device?.sync?.problem ? h('p', { class: 'advice' }, state.device.sync.problem) : '',
+    projects.map(p => h('p', { class: 'identity' }, p.name + ' · ' + p.id + ' · ' + p.repository)));
+  if (state.desktop) {
+    const token = h('input', { type: 'password', name: 'memory-grant', autocomplete: 'off', required: true });
+    box.append(h('details', {}, h('summary', {}, 'Connect approved local publication'),
+      h('form', { onsubmit: e => { e.preventDefault(); act(async () => { await deviceApi('POST', '/memory/grant', { token: token.value }); token.value = ''; state.info = 'Memory publication connected. Only local project choices permit sharing.'; }); } },
+        field('Workspace-bound memory grant from Individual', token), h('button', { class: 'primary', type: 'submit' }, 'Connect memory publication'))));
+  }
+  const choose = h('select', { name: 'memory-project', 'aria-label': 'Memory project' }, h('option', { value: '' }, 'Choose a project'), projects.map(p => h('option', { value: p.id }, p.name)));
+  const results = h('div', { 'aria-live': 'polite' });
+  async function load() {
+    results.replaceChildren();
+    const p = projects.find(p => p.id === choose.value); if (!p) return;
+    let remote = p.repository;
+    if (remote.startsWith('git@') && !remote.includes('://')) remote = 'ssh://' + remote.replace(':', '/');
+    const address = new URL(remote);
+    let host = address.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const defaultPort = { 'https:': '443', 'ssh:': '22', 'git:': '9418' }[address.protocol];
+    if (address.port && address.port !== defaultPort) host = (host.includes(':') ? '[' + host + ']' : host) + ':' + address.port;
+    const repository = host + '/' + address.pathname.replace(/^\//, '').replace(/\/$/, '').replace(/\.git$/, '');
+    // The service validates the canonical repository binding before returning data.
+    const scope = { workspaceId: state.me.workspace.id, kind: 'repository', projectId: p.id, repository };
+    let after = '';
+    let count = 0;
+    do {
+      const page = await api('POST', '/memory/query', { schema: 'werkbord.memory/v1', scope, after, published: false });
+      for (const r of page.records) {
+        count++;
+        const command = action => act(async () => { await api('POST', '/memory/' + r.id, {schema: r.schema, scope: r.scope, version: r.version, action}); await load(); });
+        results.append(h('div', { class: 'row' }, h('div', { class: 'grow' }, h('p', {}, r.content.summary), h('p', { class: 'muted' }, r.state + ' · ' + r.content.source.kind)),
+          r.state === 'suggested' && r.authorId !== state.me.member.id ? h('button', { class: 'plain', onclick: () => command('approve') }, 'Approve reviewed memory') : '',
+          r.state === 'approved' ? h('button', { class: 'plain', onclick: () => command('publish') }, 'Publish approved memory') : '',
+          h('button', { class: 'danger', onclick: () => confirm('Revoke this shared memory? Copies already read, exported, backed up or used elsewhere cannot be erased.') && command('delete') }, 'Revoke')));
+      }
+      after = page.more ? page.next : '';
+    } while (after && count < 200);
+    if (!count) results.append(h('p', { class: 'muted' }, 'No shared memories for this project.'));
+    if (after) results.append(h('p', { class: 'muted' }, 'Showing the first 200 records. Narrow this project’s memory through its API to inspect further records.'));
+  }
+  choose.addEventListener('change', () => act(load));
+  box.append(field('Inspect proposed and published memories', choose), results,
+    h('p', { class: 'muted' }, 'Publication requires another authorised human’s approval. Revocation removes active access after acknowledgement; copies already read, exported, backed up or used elsewhere may remain. Offline withdrawals wait for reconnection.'));
+  return box;
+}

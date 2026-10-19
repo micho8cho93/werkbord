@@ -1,6 +1,8 @@
-# Werkbord Team shared memory (Phase 2A)
+# Werkbord Team shared memory
 
-Team memory is a separate shared coordination domain. Individual memory remains private on its owner’s Werkbord. Team stores only bounded, human reviewed statements and their coordination metadata in the Team workspace database. This feature does not make memories into instructions an agent can execute.
+Phase 2A defines the schema and policy below. [Phase 2B publication](MEMORY_SYNC.md) adds the durable selective connector, settings, corrections and explicit withdrawal lifecycle. The manual Phase 2A share endpoint remains compatible; its expiry rules apply only to that older manual path.
+
+Team memory is a separate shared coordination domain. Individual memory remains private on its owner’s Werkbord. Team stores only bounded statements, allowlisted metadata and their coordination metadata in the Team workspace database. This feature does not make memories into instructions an agent can execute.
 
 ## Scope and trust boundary
 
@@ -41,6 +43,6 @@ The schema lives in the data-only shared internal/integration package. It is a s
 
 Proposals contain schema, exact scope, content, optional supersedes, and clientId. Content contains only kind, bounded summary, classification, verification, and source (kind, stable id, optional source revision). Author and device identity are taken from authentication, never from the request. The server adds version, state, timestamps and approval identity/version. Delete clears the returned summary and leaves a tombstone. Updates write a versioned audit revision in the same transaction.
 
-A local owner approves a share through the authenticated loopback Individual controller API POST /api/memory/v1/shares with a proposal, reviewed=true, and an expiry. The owner asks the controller for a distinct grant using POST /api/local-access with scope=memory-v1 and the exact workspaceId. That credential can only call GET /api/memory/v1/shares?workspaceId=…; revoke it through the existing owner-only local access revocation endpoint. The Team-side ApprovedMemory bridge refuses any other grant, workspace or unsupported schema. A user-initiated connector call sends one bounded page and never approves or publishes the Team proposal. Continue a multi-page pass with the returned cursor; start each new synchronization pass at the first page. Repeated proposals are idempotent for the authenticated author and clientId.
+A local owner approves a share through the authenticated loopback Individual controller API POST /api/memory/v1/shares with a proposal, reviewed=true, and an expiry. The owner asks the controller for a distinct grant using POST /api/local-access with scope=memory-v1 and the exact workspaceId. That credential can read GET /api/memory/v1/shares?workspaceId=… and, in Phase 2B, read/acknowledge only its workspace-bound publication journal; revoke it through the existing owner-only local access revocation endpoint. The Team-side ApprovedMemory bridge refuses any other grant, workspace or unsupported schema. A user-initiated connector call sends one bounded page and never approves or publishes the Team proposal. Continue a multi-page pass with the returned cursor; start each new synchronization pass at the first page. Repeated proposals are idempotent for the authenticated author and clientId.
 
 The persistent Team migration is versioned with Team’s existing SQLite/rqlite schema. Replicated writes use the existing single transaction log; no separate memory service, Team version or release is introduced. See TEAM_SECURITY.md for the broader Team security model.

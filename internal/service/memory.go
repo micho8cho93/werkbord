@@ -15,7 +15,8 @@ import (
 
 // Memory is a private, in-process local service bound to one individual owner.
 // The caller supplies a stable local principal, not a display name or Team ID.
-// It is intentionally not wired to HTTP, MCP, agents, exports or the event bus.
+// Owner APIs use this service locally. Publication exposes only separately
+// authorised projections through the workspace-bound journal, never this store.
 type Memory struct {
 	deps   Deps
 	owner  string

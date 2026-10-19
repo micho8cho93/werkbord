@@ -48,3 +48,16 @@ func (s *Server) handleMemoryRead(w http.ResponseWriter, r *http.Request) {
 	out, err := s.opt.Service.ReadMemories(r.Context(), actorOf(r), in.Scope, in.After, in.Published)
 	s.respond(w, r, 200, out, err)
 }
+
+func (s *Server) handleMemoryDelivery(w http.ResponseWriter, r *http.Request) {
+	var in integration.MemoryEvent
+	if !s.decode(w, r, &in) {
+		return
+	}
+	if in.Validate() != nil {
+		s.fail(w, r, domain.ErrInvalid)
+		return
+	}
+	out, err := s.opt.Service.DeliverMemory(r.Context(), actorOf(r), in)
+	s.respond(w, r, 200, out, err)
+}
