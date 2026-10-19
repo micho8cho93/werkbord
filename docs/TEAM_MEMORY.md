@@ -231,3 +231,45 @@ sources, revoked members/devices and stale legacy/project retrieval.
 `internal/team/store/memory_reconciliation_test.go` verifies the bounded sweep and
 historical compaction. These run with the ordinary Team/integration tests and the
 repository's architecture boundary tests.
+
+## Phase 4A: scoped repository relationship graph
+
+Team reuses published memory and its existing cross-repository scope/index. An
+observation may carry the optional structured `content.relationship` defined in
+`docs/MEMORY.md`: canonical source/target project and repository IDs, relationship
+type, allowlisted evidence kind, full optional Git revisions, inference marker and
+last verified timestamp. No paths, manifests, credentials or arbitrary relationship
+payloads are published. The enclosing scope must be `cross_repository` and contain
+exactly those two endpoints. Single-project scopes cannot smuggle another
+repository into their content. Structured relationships must be observations;
+verified content requires a verification timestamp. Supersession uses existing
+memory lifecycle/version checks. Private local records are never exported wholesale.
+
+Explicit proposals use the existing memory propose → independent human approval
+→ publish APIs and classification rules. A person's approval of sharing alone
+never publishes a link. Manifest discovery runs in the member's Individual
+controller using only their permitted manifest bytes and registered identities;
+Team receives only separately reviewed, sanitised metadata. Team never opens a
+member's checkout, contacts a Git host or executes Git.
+
+`GET /api/team/v1/projects/{id}/relationships?depth=2` returns published approved
+relationships, evidence, current status and compatibility recommendations. Depth
+is bounded to 1–4, cycles are visited once and each project search uses existing
+bounded memory pagination within one authenticated storage transaction. It checks
+current read authority for **every constituent project**, canonical repository
+binding and restricted-read authority before an edge enters the traversal.
+Revoked credentials, inaccessible endpoints, removed/rebound repositories,
+archived projects and superseded/deleted records yield no edge, neighbour, hidden
+count or cursor. Hidden edges cannot act as intermediate vertices. MCP grants
+cannot access human memory endpoints. Existing quorum requirements apply.
+
+Verification and freshness remain distinct: a human-verified relationship can
+be `uncertain` when current source evidence is unavailable, or `stale` after
+revision/binding changes or after 24 hours. A relationship is never proof of
+compatibility failure, correctness, merge or deployment. Sally's approved-memory
+projection labels links as suggestions and preserves the constituent scopes for
+its additional assistant-grant checks. Project settings in the Team console
+provide an explicit load action for the visible approved links.
+
+Relationships do not extend repository permissions, local execution grants or
+Git synchronisation authority. They never trigger repository access or operations.

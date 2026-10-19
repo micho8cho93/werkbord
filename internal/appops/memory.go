@@ -13,12 +13,13 @@ import (
 // MemoryRequest carries semantic scope only. The model cannot choose an owner,
 // credential, endpoint, filesystem path or verification override.
 type MemoryRequest struct {
-	IncludePersonal bool   `json:"-"`
-	ProjectID       string `json:"projectId"`
-	Query           string `json:"query,omitempty"`
-	TaskID          string `json:"taskId,omitempty"`
-	RequestType     string `json:"requestType,omitempty"`
-	TokenBudget     int    `json:"tokenBudget,omitempty"`
+	AllowedProjects []string `json:"-"`
+	IncludePersonal bool     `json:"-"`
+	ProjectID       string   `json:"projectId"`
+	Query           string   `json:"query,omitempty"`
+	TaskID          string   `json:"taskId,omitempty"`
+	RequestType     string   `json:"requestType,omitempty"`
+	TokenBudget     int      `json:"tokenBudget,omitempty"`
 }
 
 // MemoryContext and MemorySource are read projections, exposed through operations only.
@@ -42,6 +43,7 @@ func opMemory(ctx context.Context, e *env, args map[string]any) (any, error) {
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return nil, errorf(CodeInvalidArguments, "invalid memory request")
 	}
+	in.AllowedProjects = e.p.Projects
 	in.IncludePersonal = e.p.Projects == nil && (in.Query != "" || in.RequestType == "next")
 	if in.TokenBudget == 0 {
 		in.TokenBudget = 1500
@@ -113,6 +115,12 @@ func (b servicesBackend) MemoryContext(ctx context.Context, in MemoryRequest) (s
 	out, err := b.s.Knowledge.Retrieve(ctx, service.MemoryContextQuery{PrioritizeAuthority: true, Scope: domain.MemoryScope{ProjectID: in.ProjectID}, Query: domain.MemoryQuery{Text: in.Query}, TokenBudget: in.TokenBudget, IncludeHistorical: in.RequestType == "lessons", TaskID: in.TaskID})
 	if err != nil {
 		return out, err
+	}
+	if relationships, e := b.s.Knowledge.RelationshipsScoped(ctx, in.ProjectID, 2, in.AllowedProjects); e == nil {
+		for _, edge := range relationships {
+			r := edge.Relationship
+			out.Items = append(out.Items, service.MemoryContextItem{ID: edge.ID, Kind: "suggestion", Type: "repository_relationship", Summary: r.Source.Repository + " → " + r.Target.Repository + " (" + r.Type + "). " + edge.Recommendation, Verification: edge.Status, Freshness: edge.Status, Confidence: "low", Scope: domain.MemoryScope{ProjectID: in.ProjectID}, RelatedScopes: []domain.MemoryScope{{ProjectID: r.Source.ProjectID, Repository: r.Source.Repository}, {ProjectID: r.Target.ProjectID, Repository: r.Target.Repository}}, Source: domain.MemoryProvenance{Type: domain.MemorySourceImport, Reference: r.Evidence, GitSHA: r.SourceRevision}, VerifiedAt: r.LastVerified})
+		}
 	}
 	if in.IncludePersonal {
 		personal, e := b.s.Knowledge.Retrieve(ctx, service.MemoryContextQuery{Scope: domain.MemoryScope{}, Query: domain.MemoryQuery{Text: in.Query}, TokenBudget: in.TokenBudget, PrioritizeAuthority: true})

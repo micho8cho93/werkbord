@@ -43,3 +43,14 @@ describe('browser credentials', () => {
     expect(replaceState).toHaveBeenCalledWith(null, '', '/#/');
   });
 });
+
+describe('relationship management', () => {
+  it('removes a versioned link when the controller returns an empty 204 response', async () => {
+    vi.stubGlobal('window', { localStorage: null });
+    const fetch = vi.fn().mockResolvedValue(new Response(null, {status:204}));
+    vi.stubGlobal('fetch', fetch);
+    const { api } = await import('./api');
+    await expect(api.deleteRelationship('project', 'link', 3)).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith('/api/projects/project/memory/link', expect.objectContaining({method:'DELETE', body:JSON.stringify({version:3})}));
+  });
+});

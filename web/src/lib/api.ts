@@ -160,6 +160,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     }
     throw new ApiError(res.status, code, message, question, issues);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
@@ -238,6 +239,10 @@ export const api = {
   /** A verdict on one suggestion, kept as a private preference in the person's own memory. */
   recommendationFeedback: (project: string, b: { recommendationId: string; intent: string; variant: string; verdict: import('./recommend/types').RecVerdict }) =>
     request<{ feedback: unknown }>('POST', `${inProject(project)}/recommendations/feedback`, b),
+  relationships: (project: string) => request<import('./ProjectRelationships.svelte').RelationshipResult[]>('GET', `${inProject(project)}/relationships`),
+  saveRelationship: (project: string, relationship: unknown) => request('POST', `${inProject(project)}/relationships`, {relationship, accept:true}),
+  acceptRelationship: (project: string, id: string, version: number) => request('POST', `${inProject(project)}/relationships/${enc(id)}/accept`, {version}),
+  deleteRelationship: (project: string, id: string, version: number) => request('DELETE', `${inProject(project)}/memory/${enc(id)}`, {version}),
   memories: (project: string, query: string, status: string) => request<{records:import('./memory').Memory[];bounded:boolean}>('GET', `${inProject(project)}/memory?${new URLSearchParams({q:query,status,limit:'100'})}`),
   saveMemory: (project: string, memory: import('./memory').ManualMemory) => request<import('./memory').Memory>('POST', `${inProject(project)}/memory`, memory),
   changeMemory: (memory: import('./memory').Memory, change: {pinned?:boolean;archive?:boolean}) => request<import('./memory').Memory>('PATCH', `${inProject(memory.scope.projectId)}/memory/${enc(memory.id)}?${new URLSearchParams({repository:memory.scope.repository ?? ''})}`, {version:memory.version,...change}),

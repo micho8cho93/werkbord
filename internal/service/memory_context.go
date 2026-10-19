@@ -115,6 +115,15 @@ func (s *Knowledge) Retrieve(ctx context.Context, in MemoryContextQuery) (Memory
 	if err != nil {
 		return out, err
 	}
+	// Graph records use the separate endpoint-checked projection. They cannot
+	// contribute to ordinary search summaries or truncation signals.
+	ordinary := records[:0]
+	for _, m := range records {
+		if m.Type != relationshipMemoryType {
+			ordinary = append(ordinary, m)
+		}
+	}
+	records = ordinary
 	if in.PrioritizeAuthority {
 		sort.SliceStable(records, func(i, j int) bool {
 			score := func(m domain.Memory) int {

@@ -804,6 +804,23 @@ async function loadProject() {
   return d;
 }
 
+function relationshipSettings(project) {
+  const body = h('div', {}, h('p', { class: 'muted' }, 'Load approved links visible to you. Links suggest compatibility checks; they do not prove breakage.'));
+  const button = h('button', { class: 'plain small', onclick: async () => {
+    button.disabled = true;
+    body.replaceChildren(h('p', { role: 'status' }, 'Loading relationships…'));
+    try {
+      const rows = await api('GET', '/projects/' + project.id + '/relationships');
+      body.replaceChildren(...(rows.length ? rows.map(row => h('div', {},
+        h('p', {}, row.relationship.source.repository + ' → ' + row.relationship.target.repository),
+        h('p', { class: 'muted' }, row.relationship.type.replaceAll('_', ' ') + ' · ' + row.status + ' · Evidence: ' + row.relationship.evidence),
+        h('p', {}, row.recommendation))) : [h('p', { class: 'muted' }, 'No visible approved relationships. Propose, approve and publish links through the project memory API.')]));
+    } catch (error) { body.replaceChildren(h('p', { role: 'alert' }, error.message)); }
+    finally { button.disabled = false; }
+  } }, 'Load relationships');
+  return h('section', { 'aria-label': 'Repository relationships' }, h('h3', {}, 'Repository relationships'), button, body);
+}
+
 async function projectScopedView() {
   const cur = currentProject();
   if (!cur) return h('div', { class: 'panel' }, h('h2', {}, 'No project yet'),
@@ -816,7 +833,7 @@ async function projectScopedView() {
   const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
   const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? peopleTab(d) : boardTab(d);
   const settings = h('details', { class: 'project-details' }, h('summary', { class: 'plain small' }, 'Project settings'),
-    h('div', { class: 'project-detail-content' }, h('h3', {}, 'Details'),
+    h('div', { class: 'project-detail-content' }, relationshipSettings(p), h('h3', {}, 'Details'),
       p.description ? h('p', {}, p.description) : '',
       p.repository ? h('p', {}, isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
       h('p', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'),

@@ -125,6 +125,10 @@ func (s *Server) Handler() http.Handler {
 	// are global on purpose: the project list, the agents installed on this
 	// computer, the event stream, and the Control Center.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/projects/{pid}/relationships", s.handleRelationships)
+	mux.HandleFunc("POST /api/projects/{pid}/relationships", s.handleRelationshipSave)
+	mux.HandleFunc("POST /api/projects/{pid}/relationships/{id}/accept", s.handleRelationshipAccept)
+	mux.HandleFunc("POST /api/projects/{pid}/relationships/discover", s.handleRelationshipDiscover)
 	mux.HandleFunc("GET /api/projects/{pid}/memory", s.handleMemoryList)
 	mux.HandleFunc("POST /api/projects/{pid}/memory", s.handleMemorySave)
 	mux.HandleFunc("PATCH /api/projects/{pid}/memory/{id}", s.handleMemoryChange)

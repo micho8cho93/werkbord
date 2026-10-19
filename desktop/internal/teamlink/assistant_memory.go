@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"devboard/internal/integration"
 )
 
 // Only this reviewed projection crosses the assistant bridge. Authentication and
@@ -28,9 +30,10 @@ type assistantMemoryRecord struct {
 		} `json:"targets"`
 	} `json:"scope"`
 	Content struct {
-		Kind         string `json:"kind"`
-		Summary      string `json:"summary"`
-		Verification string `json:"verification"`
+		Relationship *integration.RepositoryRelationship `json:"relationship"`
+		Kind         string                              `json:"kind"`
+		Summary      string                              `json:"summary"`
+		Verification string                              `json:"verification"`
 		Source       struct {
 			Kind     string `json:"kind"`
 			ID       string `json:"id"`
@@ -122,9 +125,18 @@ func (l *Link) assistantMemory(ctx context.Context, base string, in BoardArgs) (
 		if freshness != "source_matches" && freshness != "uncertain" {
 			continue
 		}
+		summary := r.Content.Summary
+		if relationship := r.Content.Relationship; relationship != nil {
+			summary = relationship.Source.Repository + " → " + relationship.Target.Repository + " (" + relationship.Type + "). " + integration.RelationshipRecommendation
+			status := integration.RelationshipStatus(*relationship, time.Now())
+			if status == "verified" && freshness == "uncertain" {
+				status = "uncertain"
+			}
+			freshness = status
+		}
 		kind := r.Content.Kind
 		confidence := "high"
-		if freshness == "uncertain" {
+		if freshness == "uncertain" || r.Content.Relationship != nil {
 			kind = "suggestion"
 			confidence = "low"
 		}
@@ -132,7 +144,7 @@ func (l *Link) assistantMemory(ctx context.Context, base string, in BoardArgs) (
 		for _, target := range r.Scope.Targets {
 			related = append(related, map[string]string{"projectId": target.ProjectID, "repository": target.Repository})
 		}
-		items = append(items, map[string]any{"relatedScopes": related, "id": r.ID, "kind": kind, "type": r.Content.Kind, "summary": r.Content.Summary, "verification": "verified", "confidence": confidence, "freshness": freshness, "updatedAt": r.UpdatedAt, "source": map[string]string{"type": "import", "reference": r.Content.Source.Kind + ":" + r.Content.Source.ID, "gitSha": r.Content.Source.Revision}, "scope": map[string]string{"projectId": r.Scope.ProjectID, "ownerId": r.Scope.WorkspaceID, "repository": r.Scope.Repository}})
+		items = append(items, map[string]any{"relatedScopes": related, "id": r.ID, "kind": kind, "type": r.Content.Kind, "summary": summary, "verification": "verified", "confidence": confidence, "freshness": freshness, "updatedAt": r.UpdatedAt, "source": map[string]string{"type": "import", "reference": r.Content.Source.Kind + ":" + r.Content.Source.ID, "gitSha": r.Content.Source.Revision}, "scope": map[string]string{"projectId": r.Scope.ProjectID, "ownerId": r.Scope.WorkspaceID, "repository": r.Scope.Repository}})
 	}
 	status := "empty"
 	if len(items) > 0 {

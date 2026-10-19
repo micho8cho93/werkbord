@@ -5,6 +5,7 @@
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
   import Icon from '../lib/Icon.svelte';
+  import ProjectRelationships from '../lib/ProjectRelationships.svelte';
   import ProjectMemory from '../lib/ProjectMemory.svelte';
   import { app } from '../lib/state.svelte';
   import type { ExecutionConfig, Project } from '../lib/types';
@@ -75,7 +76,7 @@
       saving = false;
     }
   }
-  let section = $state<'defaults' | 'capacity' | 'repository' | 'memory'>('defaults');
+  let section = $state<'defaults' | 'capacity' | 'repository' | 'memory' | 'relationships'>('defaults');
 </script>
 
 {#if isPhone()}
@@ -98,10 +99,13 @@
     <button class="btn" aria-pressed={section === 'defaults'} onclick={() => section = 'defaults'}><Icon name="defaults" />Task defaults</button>
     <button class="btn" aria-pressed={section === 'capacity'} onclick={() => section = 'capacity'}><Icon name="runner" />Capacity</button>
     <button class="btn" aria-pressed={section === 'repository'} onclick={() => section = 'repository'}><Icon name="git" />Repository</button>
+    <button class="btn" aria-pressed={section === 'relationships'} onclick={() => section = 'relationships'}>Relationships</button>
     <button class="btn" aria-pressed={section === 'memory'} onclick={() => section = 'memory'}>Memory</button>
   </nav>
   <div class="content">
-  {#if section === 'memory'}
+  {#if section === 'relationships'}
+    <ProjectRelationships projectId={project.id} />
+  {:else if section === 'memory'}
     <ProjectMemory projectId={project.id} />
   {:else if section === 'defaults'}
   <section class="pn">

@@ -636,3 +636,50 @@ most eight hidden suggestion ids that expire after 14 days. It is an inference a
 is never a decision or a policy, cannot restrict or permit anything, is not part of the context given to the assistant, and
 reaches Team only if the person writes and reviews a statement of their own for publication. It appears in the project's memory
 list like any record; archiving or deleting it resets the preference.
+
+## Phase 4A: repository relationships
+
+A code repository still corresponds to a project. Relationships are lightweight,
+versioned `repository_relationship` observation records in the existing private
+memory store, scoped to their source project. There is no graph database or new
+project registry. Each record's structured details contain:
+
+- `source` and `target`: project ID plus canonical credential-free repository
+  identity from the existing integration identity validator;
+- `type`: `package_dependency`, `api_consumer` (consumer → provider),
+  `shared_authentication`, `deployment_dependency`, or `manual_association`;
+- `evidence`: `manual`, `package.json`, or `go.mod`, and optional full
+  `sourceRevision` / `targetRevision` Git commit IDs;
+- `inferred` and `lastVerified`. Memory supplies ownership, sensitivity,
+  verification state, optimistic versions, deletion and optional supersession.
+
+The owner can add, verify and remove links in Project settings → Relationships.
+`GET /api/projects/{pid}/relationships?depth=2` traverses both incoming and
+outgoing links, with a visited set and depth 1–4. It returns evidence, status and
+an advisory compatibility recommendation. Both endpoints must still be registered
+under their saved canonical identities before any result enters traversal. A
+remote rename/replacement hides the old link until explicitly rebound; a display
+name change preserves identity. Missing/deleted repository bindings do not appear.
+A changed saved Git head or verification older than 24 hours makes a link stale;
+unknown or inferred links stay provisional until explicitly accepted.
+
+`POST /api/projects/{pid}/relationships` accepts `{relationship,accept}`.
+`POST /api/projects/{pid}/relationships/{id}/accept` takes `{version}` and
+rechecks both bindings. Removal uses the existing versioned memory DELETE.
+`POST /api/projects/{pid}/relationships/discover` takes `{source,manifest,content,
+revision}` from the owner's permitted manifest reader. Discovery parses bounded
+manifest bytes deterministically; it performs no filesystem/network/Git operations.
+It accepts only explicit credential-free Git URLs in npm dependencies,
+devDependencies and optionalDependencies, or explicit Git URL replacements in
+`go.mod`. Registry names, shorthand repository names, vanity module paths, relative
+paths and package names are insufficient identity evidence. Only a uniquely
+registered matching remote becomes a provisional package dependency; repeated
+identical observations deduplicate. This deliberately misses dependencies that
+cannot be established without guessing. No background scan of other machines or
+registry lookup is introduced.
+
+Sally's existing memory operation includes endpoint-checked relationships and
+rechecks its own project grants before presenting them. Links suggest checking
+compatibility or coordinating changes, never prove breakage and never authorise
+Git actions. Relationships remain private unless a person separately reviews a
+sanitised cross-repository Team memory proposal through the existing sharing API.

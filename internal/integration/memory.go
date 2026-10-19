@@ -105,12 +105,13 @@ type MemorySource struct {
 	Revision string `json:"revision,omitempty"`
 }
 type SharedMemoryContent struct {
-	Kind           string         `json:"kind"` // observation, preference, convention, policy
-	Summary        string         `json:"summary"`
-	Classification string         `json:"classification"` // team or restricted
-	Verification   string         `json:"verification"`   // unverified, verified, stale, rejected
-	Source         MemorySource   `json:"source"`
-	Context        *MemoryContext `json:"context,omitempty"`
+	Relationship   *RepositoryRelationship `json:"relationship,omitempty"`
+	Kind           string                  `json:"kind"` // observation, preference, convention, policy
+	Summary        string                  `json:"summary"`
+	Classification string                  `json:"classification"` // team or restricted
+	Verification   string                  `json:"verification"`   // unverified, verified, stale, rejected
+	Source         MemorySource            `json:"source"`
+	Context        *MemoryContext          `json:"context,omitempty"`
 }
 
 // MemoryContext identifies a comparable claim without semantic inference. Branch
@@ -139,6 +140,20 @@ type MemoryFreshness struct {
 }
 
 func (c SharedMemoryContent) Validate() error {
+	if c.Relationship != nil {
+		if err := c.Relationship.Validate(); err != nil {
+			return err
+		}
+		if c.Kind != "observation" {
+			return errors.New("relationships must be observations")
+		}
+		if c.Verification == "verified" && c.Relationship.LastVerified == nil {
+			return errors.New("relationship verification required")
+		}
+		if c.Relationship.LastVerified != nil && c.Verification != "verified" && c.Verification != "stale" {
+			return errors.New("unverified relationship has verification time")
+		}
+	}
 	if c.Context != nil {
 		x := c.Context
 		if x.Branch != "" {
@@ -229,6 +244,9 @@ func (p MemoryProposal) Validate() error {
 	if !Identifier(p.ClientID) || p.Supersedes != "" && !Identifier(p.Supersedes) {
 		return errors.New("invalid memory identity")
 	}
+	if p.Content.Relationship != nil && !p.Content.Relationship.MatchesScope(p.Scope) {
+		return errors.New("relationship scope mismatch")
+	}
 	if err := p.Scope.Validate(); err != nil {
 		return err
 	}
@@ -254,6 +272,9 @@ func (c MemoryCommand) Validate() error {
 	case "edit":
 		if c.Content == nil {
 			return errors.New("edit requires content")
+		}
+		if c.Content.Relationship != nil && !c.Content.Relationship.MatchesScope(c.Scope) {
+			return errors.New("relationship scope mismatch")
 		}
 		return c.Content.Validate()
 	case "approve", "publish", "delete":
@@ -309,6 +330,9 @@ func (r SharedMemoryRecord) Validate() error {
 
 	if r.Schema != MemorySchema || !Identifier(r.ID) || !Identifier(r.AuthorID) || !Identifier(r.UpdatedBy) || r.AuthorDeviceID != "" && !Identifier(r.AuthorDeviceID) || r.Version < 1 || r.CreatedAt.IsZero() || r.UpdatedAt.Before(r.CreatedAt) {
 		return errors.New("invalid memory record identity, version, or timestamps")
+	}
+	if r.Content.Relationship != nil && !r.Content.Relationship.MatchesScope(r.Scope) {
+		return errors.New("relationship scope mismatch")
 	}
 	if err := r.Scope.Validate(); err != nil {
 		return err
