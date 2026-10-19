@@ -463,6 +463,11 @@ func TestAgentThatExitsCleanlyCompletes(t *testing.T) {
 	if out := e.outputs(run.ID); len(out) != 1 || out[0].Text != "All done." {
 		t.Fatalf("output written just before the exit was lost: %+v", out)
 	}
+	// The run's state is saved before its session is dropped from the manager, so give the last step a moment.
+	deadline := time.Now().Add(5 * time.Second)
+	for e.mgr.LiveCount() != 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
 	if e.mgr.LiveCount() != 0 {
 		t.Fatal("still registered")
 	}

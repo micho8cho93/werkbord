@@ -1,7 +1,7 @@
 # Memory implementation audit: Phases 1–4
 
 Audited: 19 October 2026, on `main` at `e4a3791` (4.63.0-preview.1), against the code, not the documentation.
-Fixes from this audit ship as **4.64.0-preview.1**. Scope: the nine memory commits `55da439..e4a3791` (180 files, +22,613 lines,
+Fixes from this audit ship as **4.64.1-preview.1** (4.64.0-preview.1 was tagged first; its release run failed in a browser test that GitHub's slower runner exposed, see defect 14). Scope: the nine memory commits `55da439..e4a3791` (180 files, +22,613 lines,
 of which 8,297 are tests) and what they touch.
 
 The audit method was: read the implementation paths end to end; try to break each documented guarantee with a test that fails
@@ -82,6 +82,9 @@ re-run (the whole suite passes, section 6).
 | 11 | UX: Project Settings → Memory never said the memory is private and local; Salie's sources did not say whose memory an item was; a validation error ended with "Refresh the list before retrying" | Scope sentence added (with "do not save passwords or keys"); each source says **Your private memory** or **Team memory** (`origin`, set by the fetching layer, never by a stored record); the refresh hint only follows a conflict | `TestMemoryContext…`, `TestConnectedMemory…` assert origins |
 | 12 | **Release blockers outside memory (stale tests).** CI and the release workflow run `make test-browser`, `test-team-desktop-browser`, `test-unified-desktop-browser` and `test-rqlite`; four browser scripts predated two earlier Team/UI commits (claim before work `655e9c6`; "Needs you" → "Workspace" and "Workspaces and devices" → "Devices & Hosting" `c014304`) and failed (`browser-bridge.cjs`, `browser-analytics.cjs`: "WB-38 is Available; only a ticket in progress can be submitted for review"; `test-team-desktop-browser.cjs` and `test-unified-desktop-browser.cjs`: navigation labels, and the removed "Agent controls" button). A tag would not have published | Scripts updated to the current flow (start work after a claim; the private-agent panel and "Review and start agent"; current labels; Initiatives added to the checked tabs); `BROWSER_BRIDGE_ONLY=1` added | all four pass; see section 6 |
 | 13 | **Flaky Team tests** (pre-existing, found by running the replicated-store suite): `TestNothingSharedCarriesACredentialOrAMachine` treated a map key that is a random ticket ID as a field name and failed whenever the ID contained "ssh", "dir", "env" and so on (about 1 run in a hundred); `TestMemoryEvidenceMissedEventsOfflineAndReplay` assumed its memory was among the 50 checked by one worker tick, which is false on the shared cluster database | Generated-ID keys are skipped; the test ticks until its memory has been checked | the replicated-store suite passes |
+| 14 | **Control Deck browser test depended on timing** (found when GitHub's release job ran it; it passed on this Mac). The test focused a key and pressed Shift+F10, but a key that is busy is disabled and cannot take focus, so on a slower machine nothing happened and the "Repository target" dialog never opened. Reproduced locally by running the suite under 12 busy loops | The tests wait until the key is enabled and focused (`focusSocket`) before pressing | passes under the same load; all browser suites also pass under load |
+| 15 | `TestAgentThatExitsCleanlyCompletes` checked that the session was dropped immediately after the state was saved; it failed on GitHub's Ubuntu race job (and earlier on macOS CI) | The test allows the last step five seconds | stable at 30 repetitions |
+| 16 | CI's `go test -race ./...` used Go's default ten-minute limit per package; `internal/service` took longer than that on a shared runner (190 s for `store/sqlite` and 385 s for Team service, against 27 s and 30 s here) | `-timeout 30m`; the scale measurements of this audit skip themselves under the race detector | pending the next CI run |
 
 ## 5. Security risks and mitigations
 
@@ -98,7 +101,7 @@ re-run (the whole suite passes, section 6).
 
 ## 6. Test results
 
-Everything below was run on this Mac (Apple silicon, macOS, Go 1.27.1, Node 22.15) against 4.64.0-preview.1 plus these changes.
+Everything below was run on this Mac (Apple silicon, macOS, Go 1.27.1, Node 22.15) against the 4.64.x changes.
 
 | Suite | Result |
 | --- | --- |
@@ -113,6 +116,14 @@ Everything below was run on this Mac (Apple silicon, macOS, Go 1.27.1, Node 22.1
 | `make test-browser` (individual, phone, deck, controls, Team, comments, Initiatives, analytics, bridge) | 60 checks pass after defect 12 |
 | `make test-notarize-desktop`, `make desktop-check`, `make test-workflows` | pass |
 | `go test -race ./...` (whole module, rqlite skipped as CI does) | pass, no race reported |
+
+### GitHub Actions, first attempt (4.64.0-preview.1)
+
+On GitHub's Ubuntu runners `make check`, the Nebula tests and the real database cluster tests passed in both CI and the release job.
+Three things failed and are fixed above: the Control Deck browser test (defect 14, which stopped the release before any download was
+assembled), a runner test (15) and the race job's ten-minute limit (16). The macOS CI job was cancelled when the Ubuntu job failed
+and has not yet reported on this change. Signing, notarization and the update feed run only after the browser step, so they have not
+run for any 4.64.x tag at the time of writing.
 
 ### Tests added by this audit
 
@@ -227,7 +238,7 @@ single SQLite writer measured was 31 ms (publication reconcile at 5,000 claims).
 
 ## 11. Assessment
 
-**Phases 1–4 are ready for wider testing as a preview (4.64.0-preview.1), on disposable Team workspaces and with sharing left
+**Phases 1–4 are ready for wider testing as a preview (4.64.1-preview.1), on disposable Team workspaces and with sharing left
 off unless a tester chooses it. They are not shown to be ready for production, and nothing here supports saying so.**
 
 What supports wider testing:

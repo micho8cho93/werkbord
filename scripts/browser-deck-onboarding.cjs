@@ -26,6 +26,8 @@ async function request(token, method, route, body) {
       const guide = () => page.getByRole('region',{name:'Control Deck onboarding'});
       const dialog = () => page.getByRole('dialog');
       const socket = i => page.locator(`[data-deck-position="${i}"] .key-slot`);
+      // A busy key is disabled and a disabled key cannot take focus, so wait until it is enabled and focused before pressing anything.
+      const focusSocket = i => page.waitForFunction(i => { const el = document.querySelector(`[data-deck-position="${i}"] .key-slot`); if (!el || el.disabled) return false; el.focus(); return document.activeElement === el; }, i);
       try {
         await page.goto(base+'/#/deck');
         await guide().getByRole('heading',{name:'Make the Control Deck yours'}).waitFor();
@@ -64,7 +66,7 @@ async function request(token, method, route, body) {
         await guide().getByRole('button',{name:'Continue',exact:true}).click();
         await page.reload();
         await guide().getByText('Press and hold a workflow button to change its settings.').waitFor();
-        await socket(7).focus(); await page.keyboard.press('Shift+F10');
+        await focusSocket(7); await page.keyboard.press('Shift+F10');
         assert.equal(await dialog().getByRole('combobox',{name:'Repository target',exact:true}).inputValue(),'ask','new workflows ask on tap');
         await dialog().getByRole('button',{name:'Save configuration'}).click();
         assert.equal(starts,0,'saving never executes');

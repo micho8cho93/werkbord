@@ -56,7 +56,9 @@ jobs:
         env:
           # The tests that start real database clusters run in their own step, one package at a time, and not under the race detector.
           WERKBORD_SKIP_RQLITE: "1"
-        run: go test -race ./...
+        # The race detector makes the service and Team packages several times slower on a shared runner than on a laptop; the default
+        # ten-minute limit per package stopped internal/service while it was still making progress.
+        run: go test -race -timeout 30m ./...
       - name: Disposable desktop/mobile browsers and Individual → Team workflow
         if: matrix.os == 'ubuntu-latest'
         run: |

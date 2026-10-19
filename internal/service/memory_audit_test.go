@@ -148,7 +148,11 @@ func TestAuditPublicationReviewScreensStatementsAndDeletionWithdraws(t *testing.
 // observer conservatively invalidates (logged, because in practice only the
 // current HEAD observation carries a commit anchor).
 func TestAuditFreshnessAfterRapidCommits(t *testing.T) {
-	for _, packages := range []int{12, 60} {
+	sizes := []int{12, 60}
+	if raceEnabled {
+		sizes = sizes[:1] // 60 anchored facts is a scale measurement
+	}
+	for _, packages := range sizes {
 		t.Run(fmt.Sprintf("%d-anchors", packages), func(t *testing.T) {
 			f := newGC(t)
 			s := freshnessService(f)
@@ -203,6 +207,9 @@ func TestAuditFreshnessAfterRapidCommits(t *testing.T) {
 // Sharing maintenance runs on the five-second worker and takes the single SQLite
 // writer. Measure what an idle reconcile costs as unverified run claims pile up.
 func TestAuditPublicationReconcileCostWithManyUnverifiedClaims(t *testing.T) {
+	if raceEnabled {
+		t.Skip("a timing and scale measurement; the race detector distorts it and makes it slow")
+	}
 	f, s, g, scope := publicationFixture(t)
 	ctx := context.Background()
 	g.Semantic = true
@@ -300,6 +307,9 @@ func TestAuditDeletingAMemoryLeavesNoReadableCopy(t *testing.T) {
 // Idle cost of the two workers: what a quiet repository costs per reconcile (Git
 // processes plus one GitHub request) and per knowledge tick.
 func TestAuditIdleWorkerCost(t *testing.T) {
+	if raceEnabled {
+		t.Skip("a timing and scale measurement; the race detector distorts it and makes it slow")
+	}
 	f := newGC(t)
 	gh := &countingGH{}
 	f.gc.GitHub = gh
@@ -360,8 +370,8 @@ func TestAuditConfirmedManualFactSurvivesTheNextFreshnessPass(t *testing.T) {
 // above the observer's 2,048 ref ceiling. Measures one reconcile and confirms the
 // over-ceiling case is conservative rather than slow or silently "fresh".
 func TestAuditFreshnessOnLargeRepository(t *testing.T) {
-	if testing.Short() {
-		t.Skip("large repository")
+	if testing.Short() || raceEnabled {
+		t.Skip("a large repository is a timing and scale measurement; the race detector distorts it and makes it slow")
 	}
 	for _, refs := range []int{500, 3000} {
 		t.Run(fmt.Sprintf("%d-refs", refs), func(t *testing.T) {

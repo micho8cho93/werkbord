@@ -29,6 +29,8 @@ async function request(token, method, route, body) {
     let starts = 0;
     page.on('request', r => { if (new URL(r.url()).pathname === '/api/deck/workflows' && r.method() === 'POST') starts++; });
     const socket = i => page.locator(`[data-deck-position="${i}"] .key-slot`);
+    // A busy key is disabled and a disabled key cannot take focus, so wait until it is enabled and focused before pressing anything.
+    const focusSocket = i => page.waitForFunction(i => { const el = document.querySelector(`[data-deck-position="${i}"] .key-slot`); if (!el || el.disabled) return false; el.focus(); return document.activeElement === el; }, i);
     const dialog = () => page.getByRole('dialog');
     const edit = () => page.getByRole('button', { name: 'Edit Deck', exact: true });
     const done = () => page.getByRole('button', { name: 'Done', exact: true });
@@ -83,7 +85,7 @@ async function request(token, method, route, body) {
         await dialog().getByRole('heading', { name: 'Configure Find Bugs' }).waitFor();
         assert.equal(starts, 0, 'long press does not execute');
         await page.keyboard.press('Escape');
-        await socket(6).focus(); await page.keyboard.press('Shift+F10');
+        await focusSocket(6); await page.keyboard.press('Shift+F10');
         await dialog().getByRole('heading', { name: 'Configure Find Bugs' }).waitFor();
         await page.keyboard.press('Escape');
         assert.equal(starts, 0, 'keyboard configuration does not execute');
@@ -156,7 +158,7 @@ async function request(token, method, route, body) {
         await page.goto(base + '/#/deck'); await edit().waitFor();
 
         // A one-off picker changes this invocation without changing the saved target.
-        await socket(7).focus(); await page.keyboard.press('Shift+F10');
+        await focusSocket(7); await page.keyboard.press('Shift+F10');
         await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('ask');
         await dialog().getByRole('combobox', { name: 'Output', exact: true }).selectOption('report');
         await dialog().getByRole('button', { name: 'Run Once With Different Settings', exact: true }).click();
@@ -189,7 +191,7 @@ async function request(token, method, route, body) {
                     const r = await target.boundingBox(); assert(r.width >= 44 && r.height >= 44, '44px controls');
                 }
                 if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, `configured-deck-${width}-${colorScheme}.png`), fullPage: true, animations: 'disabled' });
-                await socket(7).focus(); await page.keyboard.press('Shift+F10');
+                await focusSocket(7); await page.keyboard.press('Shift+F10');
                 await dialog().getByRole('heading', { name: 'Configure Find Bugs' }).waitFor();
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `configuration ${width} ${colorScheme}`);
                 if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, `workflow-settings-${width}-${colorScheme}.png`), fullPage: true, animations: 'disabled' });
