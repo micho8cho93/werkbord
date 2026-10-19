@@ -32,6 +32,17 @@ const (
 type Permission string
 
 const (
+	PermMemoryRead           Permission = "memory.read"
+	PermMemoryPropose        Permission = "memory.propose"
+	PermMemoryPublish        Permission = "memory.publish"
+	PermMemoryEdit           Permission = "memory.edit"
+	PermMemoryApprove        Permission = "memory.approve"
+	PermMemoryDelete         Permission = "memory.delete"
+	PermMemoryPolicy         Permission = "memory.policy"
+	PermMemoryReadRestricted Permission = "memory.read_restricted"
+)
+
+const (
 	PermWorkspaceView        Permission = "workspace.view"
 	PermWorkspaceManage      Permission = "workspace.manage" // rename the workspace
 	PermMembersView          Permission = "members.view"
@@ -67,6 +78,7 @@ func AllPermissions() []Permission {
 		PermProjectsViewAll, PermProjectsCreate, PermProjectsManage, PermProjectMembersManage, PermLabelsManage,
 		PermAdminsManage, PermOwnership,
 		PermDevicesOwn, PermDevicesViewAll, PermDevicesManage,
+		PermMemoryRead, PermMemoryPropose, PermMemoryPublish, PermMemoryEdit, PermMemoryApprove, PermMemoryDelete, PermMemoryPolicy, PermMemoryReadRestricted,
 	}
 }
 
@@ -89,7 +101,7 @@ var rolePermissions = map[Role][]Permission{
 	RoleMember: {
 		PermWorkspaceView,
 		PermMembersView,
-		PermDevicesOwn,
+		PermDevicesOwn, PermMemoryRead, PermMemoryPropose,
 	},
 }
 

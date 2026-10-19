@@ -24,6 +24,17 @@ const (
 type ProjectPermission string
 
 const (
+	PPMemoryRead           ProjectPermission = "memory.read"
+	PPMemoryPropose        ProjectPermission = "memory.propose"
+	PPMemoryPublish        ProjectPermission = "memory.publish"
+	PPMemoryEdit           ProjectPermission = "memory.edit"
+	PPMemoryApprove        ProjectPermission = "memory.approve"
+	PPMemoryDelete         ProjectPermission = "memory.delete"
+	PPMemoryPolicy         ProjectPermission = "memory.policy"
+	PPMemoryReadRestricted ProjectPermission = "memory.read_restricted"
+)
+
+const (
 	PPTicketsView     ProjectPermission = "tickets.view"
 	PPTicketsCreate   ProjectPermission = "tickets.create"
 	PPTicketsEdit     ProjectPermission = "tickets.edit"   // edit any ticket's text, promote or demote it (a creator may edit their own)
@@ -51,16 +62,17 @@ func AllProjectPermissions() []ProjectPermission {
 		PPTicketsView, PPTicketsCreate, PPTicketsEdit, PPTicketsClaim, PPTicketsAssign, PPTicketsReview, PPTicketsReopen,
 		PPGitReport, PPGitReportAny, PPInvitesManage, PPMembersManage, PPActivityView, PPRepositoryView, PPHandoffOwnTasks,
 		PPCommentsPost, PPCommentsModerate,
+		PPMemoryRead, PPMemoryPropose, PPMemoryPublish, PPMemoryEdit, PPMemoryApprove, PPMemoryDelete, PPMemoryPolicy, PPMemoryReadRestricted,
 	}
 }
 
 var contributorPermissions = []ProjectPermission{
-	PPTicketsView, PPTicketsCreate, PPTicketsClaim, PPGitReport, PPActivityView, PPRepositoryView, PPHandoffOwnTasks, PPCommentsPost,
+	PPTicketsView, PPTicketsCreate, PPTicketsClaim, PPGitReport, PPActivityView, PPRepositoryView, PPHandoffOwnTasks, PPCommentsPost, PPMemoryRead, PPMemoryPropose,
 }
 
 var projectRolePermissions = map[ProjectRole][]ProjectPermission{
 	ProjectOwner:       AllProjectPermissions(),
-	ProjectReviewer:    append(append([]ProjectPermission(nil), contributorPermissions...), PPTicketsReview, PPGitReportAny),
+	ProjectReviewer:    append(append([]ProjectPermission(nil), contributorPermissions...), PPTicketsReview, PPGitReportAny, PPMemoryPublish, PPMemoryEdit, PPMemoryApprove, PPMemoryReadRestricted),
 	ProjectContributor: contributorPermissions,
 }
 

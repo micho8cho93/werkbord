@@ -3,6 +3,7 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"devboard/internal/deviceid/localidentity"
+	"devboard/internal/integration"
 	"devboard/internal/team/authproof"
 	"devboard/internal/team/server"
 	"devboard/internal/team/service"
@@ -94,6 +96,71 @@ func TestRemoteAuthenticationRequiresDeviceProofAndReplaySurvivesHandlerRestart(
 		if code := status(h, r); code != 401 {
 			t.Fatal("ambiguous authorization accepted", code)
 		}
+	}
+}
+
+func TestSignedMemoryMutationCannotBeReplayed(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "team.db"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := service.New(db)
+	created, err := svc.CreateWorkspace(ctx, "Memory gate", "Owner", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := svc.Authenticate(ctx, created.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := localidentity.New("memory device", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev, err := svc.RegisterDevice(ctx, owner, service.DeviceInput{Device: id.Public(), Proof: id.ProveRegistration(owner.Workspace.ID, owner.Member.ID)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := svc.IssueLocalDeviceCredential(ctx, owner.Workspace.ID, dev.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(integration.MemoryProposal{
+		Schema:   integration.MemorySchema,
+		Scope:    integration.SharedMemoryScope{WorkspaceID: owner.Workspace.ID, Kind: "workspace"},
+		Content:  integration.SharedMemoryContent{Kind: "observation", Summary: "Use explicit transactions", Classification: "team", Verification: "verified", Source: integration.MemorySource{Kind: "human", ID: "review_one"}},
+		ClientID: "memory_client_one",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	url := "http://10.128.0.1:7430/api/team/v1/memory/proposals"
+	req := func() *http.Request {
+		r := httptest.NewRequest("POST", url, bytes.NewReader(body))
+		r.RemoteAddr = "10.128.0.7:1234"
+		r.Header.Set("Authorization", "Bearer "+token)
+		return r
+	}
+	status := func(h http.Handler, r *http.Request) int {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	h := server.Handler(db, svc, nil, "memory")
+	signed := req()
+	if err := authproof.Sign(signed, body, id, owner.Workspace.ID, owner.Member.ID, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if code := status(h, signed); code != http.StatusCreated {
+		t.Fatal("signed memory proposal failed", code)
+	}
+	replay := req()
+	replay.Header = signed.Header.Clone()
+	h = server.Handler(db, service.New(db), nil, "memory-restart")
+	if code := status(h, replay); code != http.StatusUnauthorized {
+		t.Fatal("replayed signed memory mutation accepted", code)
 	}
 }
 

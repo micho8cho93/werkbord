@@ -187,3 +187,8 @@ and existing synchronization behavior remain unchanged.
 ### Automatic Individual review
 
 Individual moves completed tasks still in Doing to Review when there is commit evidence. The Team connector reports execution and Git observations; `internal/team/service/progress.go` deliberately keeps ticket board/review status separate. A Team ticket therefore stays in its current state until the member explicitly submits it for review, preserving reviewer selection and Team permissions.
+
+
+## Shared Team memory
+
+The werkbord.integration/v1 contract and grant remain metadata-only and do not include memory. Phase 2A uses a separate werkbord.memory/v1 schema and a separately revocable local grant limited to approved records for one workspace. The connector sends reviewed proposals over the existing device-signed Team API; approval and publication are human Team permissions. See [TEAM_MEMORY.md](TEAM_MEMORY.md).

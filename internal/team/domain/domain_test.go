@@ -19,8 +19,9 @@ func TestEachRoleHasExactlyItsPermissions(t *testing.T) {
 			PermWorkspaceView: true, PermWorkspaceManage: true, PermMembersView: true, PermMembersManage: true,
 			PermProjectsViewAll: true, PermProjectsCreate: true, PermProjectsManage: true, PermProjectMembersManage: true, PermLabelsManage: true,
 			PermDevicesOwn: true, PermDevicesViewAll: true, PermDevicesManage: true,
+			PermMemoryRead: true, PermMemoryPropose: true, PermMemoryPublish: true, PermMemoryEdit: true, PermMemoryApprove: true, PermMemoryDelete: true, PermMemoryPolicy: true, PermMemoryReadRestricted: true,
 		},
-		RoleMember: {PermWorkspaceView: true, PermMembersView: true, PermDevicesOwn: true},
+		RoleMember: {PermWorkspaceView: true, PermMembersView: true, PermDevicesOwn: true, PermMemoryRead: true, PermMemoryPropose: true},
 	}
 	for role, want := range tables {
 		for _, p := range AllPermissions() {

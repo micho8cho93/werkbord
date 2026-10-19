@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +23,7 @@ import (
 	localdomain "devboard/internal/domain"
 	"devboard/internal/events"
 	"devboard/internal/gitrepo"
+	"devboard/internal/integration"
 	"devboard/internal/localaccess"
 	"devboard/internal/runner"
 	localservice "devboard/internal/service"
@@ -82,6 +84,10 @@ func newIntegrationLocal(t *testing.T) *integrationLocal {
 	tasks := &localservice.Tasks{Deps: deps, Catalog: registry}
 	runs := &localservice.Runs{Deps: deps}
 	settings := &localservice.Settings{Deps: deps, Catalog: registry}
+	memory, err := localservice.NewMemory(deps, "individual", localdomain.MemoryLimits{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := settings.RegisterRunner(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +108,7 @@ func newIntegrationLocal(t *testing.T) *integrationLocal {
 		t.Fatal(err)
 	}
 	owner := "LOCAL_CONTROLLER_SECRET_NEVER_SHARE"
-	ts := httptest.NewServer(localapi.New(localapi.Options{Store: db, Events: bus, Projects: projects, Tasks: tasks, Runs: runs, Settings: settings, Runner: mgr, Agents: registry, Git: git, Version: "test", AuthRequired: true, Token: owner, LocalAccess: grants}).Handler())
+	ts := httptest.NewServer(localapi.New(localapi.Options{Store: db, Events: bus, Memory: &localservice.Knowledge{Memory: memory}, Projects: projects, Tasks: tasks, Runs: runs, Settings: settings, Runner: mgr, Agents: registry, Git: git, Version: "test", AuthRequired: true, Token: owner, LocalAccess: grants}).Handler())
 	t.Cleanup(ts.Close)
 	token, err := localwerkbord.ConnectSync(ctx, ts.URL, owner)
 	if err != nil {
@@ -119,6 +125,92 @@ func newIntegrationLocal(t *testing.T) *integrationLocal {
 		t.Fatal("metadata-only grant could launch a run")
 	}
 	return &integrationLocal{url: ts.URL, project: p.ID, tasks: tasks, runs: runs, mgr: mgr, adapter: adapter, bridge: bridge, owner: owner}
+}
+
+func TestMemorySharingUsesSeparateApprovedGrantAndProposesOnly(t *testing.T) {
+	ctx := context.Background()
+	local := newIntegrationLocal(t)
+	team := newIntegrationTeam(t, "Memory sync")
+	proposal := integration.MemoryProposal{
+		Schema:   integration.MemorySchema,
+		Scope:    integration.SharedMemoryScope{WorkspaceID: team.owner.Workspace.ID, Kind: "workspace"},
+		Content:  integration.SharedMemoryContent{Kind: "convention", Summary: "Use explicit transactions", Classification: "team", Verification: "verified", Source: integration.MemorySource{Kind: "human", ID: "review_one"}},
+		ClientID: "local_share_one",
+	}
+	localCall := func(method, path string, body any) (int, []byte) {
+		t.Helper()
+		var raw []byte
+		if body != nil {
+			var err error
+			raw, err = json.Marshal(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		req, err := http.NewRequestWithContext(ctx, method, local.url+path, strings.NewReader(string(raw)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+local.owner)
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		response, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.StatusCode, response
+	}
+	approval := struct {
+		Proposal  integration.MemoryProposal `json:"proposal"`
+		Reviewed  bool                       `json:"reviewed"`
+		ExpiresAt time.Time                  `json:"expiresAt"`
+	}{Proposal: proposal, Reviewed: true, ExpiresAt: time.Now().Add(24 * time.Hour).UTC()}
+	if code, raw := localCall(http.MethodPost, "/api/memory/v1/shares", approval); code != http.StatusCreated {
+		t.Fatalf("owner approval: %d %s", code, raw)
+	}
+	if code, raw := localCall(http.MethodPost, "/api/local-access", map[string]string{"name": "Team memory", "scope": "memory-v1", "workspaceId": team.owner.Workspace.ID}); code != http.StatusCreated {
+		t.Fatalf("separate grant: %d %s", code, raw)
+	} else {
+		var grant struct {
+			ID    string `json:"id"`
+			Token string `json:"token"`
+		}
+		if err := json.Unmarshal(raw, &grant); err != nil || grant.ID == "" || grant.Token == "" {
+			t.Fatalf("invalid memory grant response: %s %v", raw, err)
+		}
+		bridge, err := localwerkbord.New(local.url, grant.Token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		next, more, err := connector.ShareMemory(ctx, team.host, bridge, team.owner.Workspace.ID, "")
+		if err != nil || next == "" || more {
+			t.Fatalf("memory sync cursor=%q more=%v: %v", next, more, err)
+		}
+		page, err := team.svc.ReadMemories(ctx, team.member, proposal.Scope, "", false)
+		if err != nil || len(page.Records) != 1 || page.Records[0].State != "suggested" || page.Records[0].Content.Summary != proposal.Content.Summary {
+			t.Fatalf("Team memory proposal was not isolated as a suggestion: %+v %v", page, err)
+		}
+		shared, _ := json.Marshal(page)
+		if strings.Contains(string(shared), local.owner) || strings.Contains(string(shared), "wba_") {
+			t.Fatalf("memory synchronization exposed a local credential: %s", shared)
+		}
+		published, err := team.svc.ReadMemories(ctx, team.member, proposal.Scope, "", true)
+		if err != nil || len(published.Records) != 0 {
+			t.Fatalf("sharing grant published a Team memory: %+v %v", published, err)
+		}
+		if code, raw := localCall(http.MethodDelete, "/api/local-access/"+grant.ID, nil); code != http.StatusNoContent {
+			t.Fatalf("revoke memory grant: %d %s", code, raw)
+		}
+		if _, err := bridge.ApprovedMemory(ctx, team.owner.Workspace.ID, ""); err == nil {
+			t.Fatal("revoked local memory grant still reads shares")
+		}
+	}
 }
 
 type integrationTeam struct {

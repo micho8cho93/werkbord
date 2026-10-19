@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"devboard/internal/domain"
+	"devboard/internal/integration"
 )
 
 // Store is the root persistence handle owned by the controller.
@@ -277,6 +278,9 @@ type AssistantRepo interface {
 // MemoryRepo is private local persistence. Every record operation requires an
 // exact scope; no unscoped get/list/delete is provided. Writes require Update.
 type MemoryRepo interface {
+	ApproveShare(context.Context, string, integration.MemoryShare) error
+	Shares(context.Context, string, string, string, time.Time) (integration.MemoryShares, error)
+	RevokeShare(context.Context, string, string) error
 	RefreshGitObservation(context.Context, domain.MemoryScope, string, string, time.Time) error
 	RetireGitHeads(context.Context, domain.MemoryScope, string, time.Time) error
 	DeactivateRunEvidence(context.Context, string, string) error

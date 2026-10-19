@@ -84,3 +84,8 @@ The optional phone lane adds a distinct local read-only summary grant, with its 
 [security review](TEAM_PHONE_SECURITY.md). It uses a company-owned `werkbord-team phone-relay` and an explicitly configured
 connector. It never exposes the local device API, workspace writes or execution controls. Pairing and revocation are local
 member actions; workspace membership and project access continue to be checked by the Workspace Host.
+
+
+## Shared memory trust boundary
+
+Team shared memory uses a separate werkbord.memory/v1 contract and a versioned set of tables in the replicated workspace database. Its exact scopes, permissions, approval rules, local grant and prohibited data are documented in [TEAM_MEMORY.md](TEAM_MEMORY.md). The existing integration-v1 execution metadata grant is unchanged. Individual provides only a local owner reviewed, bounded, expiring projection through a separate revocable memory-v1 loopback grant; Team receives no controller token. Memory never grants execution authority.

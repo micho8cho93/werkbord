@@ -123,7 +123,18 @@ func (s *Server) scoped(entry localaccess.Entry, next http.Handler) http.Handler
 				}
 			}
 		}
-		if entry.Scope != "" && entry.Scope != "integration-v1" && entry.Scope != "execution-local-v1" && entry.Scope != "execution-dispatch-v1" {
+		if entry.Scope == "memory-v1" {
+			ok = false
+			if r.Method == "GET" && r.URL.Path == "/api/local-access/self" {
+				ok = true
+				route = scopedRoute{method: "GET", pattern: r.URL.Path}
+			}
+			if r.Method == "GET" && r.URL.Path == "/api/memory/v1/shares" && entry.MemoryWorkspaceID != "" && r.URL.Query().Get("workspaceId") == entry.MemoryWorkspaceID {
+				ok = true
+				route = scopedRoute{method: "GET", pattern: r.URL.Path}
+			}
+		}
+		if entry.Scope != "memory-v1" && entry.Scope != "" && entry.Scope != "integration-v1" && entry.Scope != "execution-local-v1" && entry.Scope != "execution-dispatch-v1" {
 			ok = false
 		}
 		if entry.Scope == "integration-v1" && !strings.HasPrefix(r.URL.Path, "/api/integration/v1/") && !(r.Method == "GET" && r.URL.Path == "/api/local-access/self") {
@@ -199,14 +210,29 @@ func (s *Server) handleLocalAccessCreate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req struct {
-		Name  string `json:"name"`
-		Scope string `json:"scope"`
+		Name        string `json:"name"`
+		Scope       string `json:"scope"`
+		WorkspaceID string `json:"workspaceId,omitempty"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	e, token, err := s.opt.LocalAccess.CreateScoped(req.Name, req.Scope)
+	var e localaccess.Entry
+	var token string
+	var err error
+	if req.Scope == "memory-v1" {
+		if !fromThisComputer(r) {
+			writeError(w, 403, "forbidden", "memory grants require local owner authorization")
+			return
+		}
+		e, token, err = s.opt.LocalAccess.CreateMemory(req.Name, req.WorkspaceID)
+	} else if req.WorkspaceID != "" {
+		writeError(w, 400, "invalid", "workspaceId is only for memory grants")
+		return
+	} else {
+		e, token, err = s.opt.LocalAccess.CreateScoped(req.Name, req.Scope)
+	}
 	if err != nil {
 		if err == localaccess.ErrTooMany {
 			writeError(w, http.StatusConflict, "conflict", err.Error())

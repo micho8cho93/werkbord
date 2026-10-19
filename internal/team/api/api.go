@@ -85,6 +85,9 @@ func (s *Server) Handler() http.Handler {
 	}
 
 	api := http.NewServeMux()
+	api.HandleFunc("POST /api/team/v1/memory/proposals", s.handleMemoryPropose)
+	api.HandleFunc("POST /api/team/v1/memory/query", s.handleMemoryRead)
+	api.HandleFunc("POST /api/team/v1/memory/{mid}", s.handleMemoryChange)
 	api.HandleFunc("PUT /api/team/v1/license", s.handleInstallLicense)
 	api.HandleFunc("GET /api/team/v1/me", s.handleMe)
 	api.HandleFunc("GET /api/team/v1/roles", s.handleRoles)

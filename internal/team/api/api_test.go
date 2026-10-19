@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -348,4 +349,51 @@ func TestAdminsAreAppointedOverHTTP(t *testing.T) {
 	if code, _, _ := boC.do("POST", v1+"/projects", `{"name":"Again"}`); code != 403 {
 		t.Fatalf("a demoted admin created a project: %d", code)
 	}
+}
+
+func TestSharedMemoryAPIStrictContractAndProjectIsolation(t *testing.T) {
+	ts := newServer(t)
+	owner := client{t: t, base: ts.URL, token: ownerToken}
+	added := owner.want(201, "POST", "/api/team/v1/members", `{"name":"Memory reader"}`)
+	member := client{t: t, base: ts.URL, token: added["token"].(string)}
+	memberID := added["member"].(map[string]any)["id"].(string)
+	code, _, raw := owner.do("POST", "/api/team/v1/projects", map[string]any{"name": "Memory", "repository": "https://github.com/acme/memory"})
+	if code != 201 {
+		t.Fatalf("project: %d %s", code, raw)
+	}
+	var project struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(raw, &project)
+	other := owner.want(201, "POST", "/api/team/v1/projects", map[string]any{"name": "Private other project"})
+	owner.want(204, "PUT", "/api/team/v1/projects/"+project.ID+"/members/"+memberID, map[string]any{"role": "member"})
+	ws := extractWorkspaceID(t, owner)
+	proposal := fmt.Sprintf("{\"schema\":\"werkbord.memory/v1\",\"scope\":{\"workspaceId\":%q,\"kind\":\"project\",\"projectId\":%q},\"content\":{\"kind\":\"convention\",\"summary\":\"Use transactions\",\"classification\":\"team\",\"verification\":\"verified\",\"source\":{\"kind\":\"human\",\"id\":\"review_one\"}},\"clientId\":\"client_one\"}", ws, project.ID)
+	created, record, body := member.do("POST", "/api/team/v1/memory/proposals", proposal)
+	if created != 201 {
+		t.Fatalf("proposal: %d %s", created, body)
+	}
+	member.want(403, "POST", "/api/team/v1/memory/"+record["id"].(string), map[string]any{"schema": "werkbord.memory/v1", "scope": map[string]any{"workspaceId": ws, "kind": "project", "projectId": project.ID}, "version": 1, "action": "publish"})
+	if code, _, _ := owner.do("POST", "/api/team/v1/memory/proposals", strings.TrimSuffix(proposal, "}")+`,"path":"/private"}`); code != 400 {
+		t.Fatalf("unknown field: %d", code)
+	}
+	if code, _, _ := owner.do("POST", "/api/team/v1/memory/proposals", strings.Replace(proposal, "werkbord.memory/v1", "werkbord.memory/v2", 1)); code != 400 {
+		t.Fatalf("unknown schema: %d", code)
+	}
+	query := map[string]any{"schema": "werkbord.memory/v1", "scope": map[string]any{"workspaceId": ws, "kind": "project", "projectId": project.ID}, "published": false}
+	if code, _, body := member.do("POST", "/api/team/v1/memory/query", query); code != 200 {
+		t.Fatalf("query: %d %s", code, body)
+	}
+	wrong := map[string]any{"schema": "werkbord.memory/v1", "scope": map[string]any{"workspaceId": ws, "kind": "project", "projectId": other["id"]}, "published": false}
+	if code, _, body := member.do("POST", "/api/team/v1/memory/query", wrong); code != 404 || strings.Contains(string(body), "Use transactions") {
+		t.Fatalf("inaccessible project was revealed: status=%d body=%s", code, body)
+	}
+}
+func extractWorkspaceID(t *testing.T, c client) string {
+	t.Helper()
+	_, body, raw := c.do("GET", "/api/team/v1/workspace", nil)
+	if body["id"] == nil {
+		t.Fatalf("workspace response: %s", raw)
+	}
+	return body["id"].(string)
 }

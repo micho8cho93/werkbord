@@ -45,11 +45,12 @@ var ErrTooMany = fmt.Errorf("localaccess: at most %d programs may have access; r
 
 // Entry is what is known about a program's access, and never its token.
 type Entry struct {
-	Scope      string     `json:"scope,omitempty"`
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+	MemoryWorkspaceID string     `json:"memoryWorkspaceId,omitempty"`
+	Scope             string     `json:"scope,omitempty"`
+	ID                string     `json:"id"`
+	Name              string     `json:"name"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	LastUsedAt        *time.Time `json:"lastUsedAt,omitempty"`
 }
 
 type record struct {
@@ -118,7 +119,24 @@ func (s *Store) Create(name string) (Entry, string, error) {
 
 // CreateScoped can restrict a grant to metadata exchange with no run control.
 func (s *Store) CreateScoped(name, scope string) (Entry, string, error) {
-	if scope != "" && scope != "integration-v1" && scope != "execution-local-v1" && scope != "execution-dispatch-v1" {
+	return s.create(name, scope, "")
+}
+
+// CreateMemory grants read access only to already approved records for this
+// exact workspace. It grants neither approval nor private memory retrieval.
+func (s *Store) CreateMemory(name, workspaceID string) (Entry, string, error) {
+	if len(workspaceID) == 0 || len(workspaceID) > 128 {
+		return Entry{}, "", errors.New("invalid memory workspace identity")
+	}
+	for _, r := range workspaceID {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+			return Entry{}, "", errors.New("invalid memory workspace identity")
+		}
+	}
+	return s.create(name, "memory-v1", workspaceID)
+}
+func (s *Store) create(name, scope, workspaceID string) (Entry, string, error) {
+	if scope != "" && scope != "integration-v1" && scope != "execution-local-v1" && scope != "execution-dispatch-v1" && !(scope == "memory-v1" && workspaceID != "") {
 		return Entry{}, "", errors.New("unsupported local access scope")
 	}
 	name, err := CleanName(name)
@@ -133,7 +151,7 @@ func (s *Store) CreateScoped(name, scope string) (Entry, string, error) {
 		}
 	}
 	token := TokenPrefix + hex.EncodeToString(tok[:])
-	e := Entry{ID: "la_" + hex.EncodeToString(id[:8]), Name: name, Scope: scope, CreatedAt: s.now().UTC().Truncate(time.Second)}
+	e := Entry{ID: "la_" + hex.EncodeToString(id[:8]), Name: name, Scope: scope, MemoryWorkspaceID: workspaceID, CreatedAt: s.now().UTC().Truncate(time.Second)}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
