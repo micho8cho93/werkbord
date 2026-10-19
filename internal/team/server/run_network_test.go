@@ -134,6 +134,11 @@ func get2(t *testing.T, url, token string) (string, int) {
 
 var hostnameRE = regexp.MustCompile(`(?i)\b[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)*\.(com|net|org|io|dev|app|cloud|co|ai|sh|xyz|info)\b`)
 
+// opaqueTokenRE matches a signed invitation, "v1.<payload>.<signature>". Both parts are random base64url, so a signature
+// that happens to begin "ai-" or "io-" reads as a domain suffix to hostnameRE. The payload is decoded and checked
+// separately, as the JSON the invitation holds, so the opaque form is not scanned for names.
+var opaqueTokenRE = regexp.MustCompile(`v1\.[A-Za-z0-9_-]{40,}\.[A-Za-z0-9_-]{20,}`)
+
 func TestNothingThatIsGeneratedNamesAServiceOutsideTheCustomersMachines(t *testing.T) {
 	h, created, _ := newFirstHost(t, "localhost")
 	h.serve()
@@ -170,7 +175,7 @@ func TestNothingThatIsGeneratedNamesAServiceOutsideTheCustomersMachines(t *testi
 	generated = append(generated, string(hb))
 
 	for i, text := range generated {
-		for _, m := range hostnameRE.FindAllString(text, -1) {
+		for _, m := range hostnameRE.FindAllString(opaqueTokenRE.ReplaceAllString(text, "<token>"), -1) {
 			t.Errorf("generated text %d names %q: nothing the workspace produces may depend on a name that is not the customer's own", i, m)
 		}
 		for _, banned := range []string{"werkbord.", "tailscale", "headscale", "defined.net", "github.com", "railway", "vercel", "supabase", "http://", "https://"} {

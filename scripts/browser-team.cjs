@@ -167,7 +167,7 @@ async function api(method, path, data, credential = token) {
     await page.locator('.ticket').getByRole('button', { name: 'Close', exact: true }).focus();
     await page.keyboard.press('Escape');
     await page.locator('.ticket').waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: 'Cancel new task', exact: true }).click();
+    await page.getByRole('button', { name: 'Cancel new ticket', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     const boardBounds = await page.locator('.board').boundingBox();
     assert.ok(boardBounds.width > 1000 && boardBounds.y + boardBounds.height > 940, 'the board fills available desktop width and height');
