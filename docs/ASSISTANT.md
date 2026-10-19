@@ -638,6 +638,13 @@ suggestions, and asks for fresh retrieval each turn. These are response guidance
 confirmation and the provider runtime restrictions remain enforced independently of model behaviour.
 The same operation and result wrapper work with native Codex tools and Claude/Gemini/OpenCode text calls.
 
+Every item carries an `origin`, set by the layer that fetched it and never by the stored record: `individual`
+(shown as **Your private memory**) or `team` (**Team memory**). A Team read is bounded to 10 seconds in total, so a
+Workspace Host that accepts the request and does not answer degrades that project's memory to "unavailable"
+instead of holding the turn for the transport's 20-second timeout per call. The memory and suggestion
+paragraphs of the system prompt (about 700 tokens) are sent only when the principal's catalog contains
+`retrieve_memory` or `recommend_next_actions`.
+
 Replies expose a collapsed **Memory sources** disclosure with the exact retrieved summaries, IDs,
 verification, freshness and source references. It uses escaped UI text and does not add a permanent panel.
 These sources travel only with the session's ordinary tool-result events and existing bounded tab transcript;

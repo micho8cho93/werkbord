@@ -36,6 +36,9 @@ type MemoryContextItem struct {
 	RelatedScopes []domain.MemoryScope    `json:"relatedScopes,omitempty"`
 	Scope         domain.MemoryScope      `json:"scope"`
 	Pinned        bool                    `json:"pinned"`
+	// Origin says whose memory this is: "individual" (private to this computer) or "team"
+	// (shared through a Team workspace). It is set by the layer that fetched the item.
+	Origin string `json:"origin,omitempty"`
 }
 type MemoryContext struct {
 	Context         map[string]string   `json:"context,omitempty"`

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/service"
@@ -122,9 +123,15 @@ func (b servicesBackend) MemoryContext(ctx context.Context, in MemoryRequest) (s
 			out.Items = append(out.Items, service.MemoryContextItem{ID: edge.ID, Kind: "suggestion", Type: "repository_relationship", Summary: r.Source.Repository + " → " + r.Target.Repository + " (" + r.Type + "). " + edge.Recommendation, Verification: edge.Status, Freshness: edge.Status, Confidence: "low", Scope: domain.MemoryScope{ProjectID: in.ProjectID}, RelatedScopes: []domain.MemoryScope{{ProjectID: r.Source.ProjectID, Repository: r.Source.Repository}, {ProjectID: r.Target.ProjectID, Repository: r.Target.Repository}}, Source: domain.MemoryProvenance{Type: domain.MemorySourceImport, Reference: r.Evidence, GitSHA: r.SourceRevision}, VerifiedAt: r.LastVerified})
 		}
 	}
+	for i := range out.Items {
+		out.Items[i].Origin = "individual"
+	}
 	if in.IncludePersonal {
 		personal, e := b.s.Knowledge.Retrieve(ctx, service.MemoryContextQuery{Scope: domain.MemoryScope{}, Query: domain.MemoryQuery{Text: in.Query}, TokenBudget: in.TokenBudget, PrioritizeAuthority: true})
 		if e == nil {
+			for i := range personal.Items {
+				personal.Items[i].Origin = "individual"
+			}
 			out.Items = append(out.Items, personal.Items...)
 			out.Truncated = out.Truncated || personal.Truncated
 		}
@@ -134,6 +141,10 @@ func (b servicesBackend) MemoryContext(ctx context.Context, in MemoryRequest) (s
 	}
 	return out, nil
 }
+
+// teamMemoryTimeout bounds a Team memory read. Team memory is advisory context, so a Workspace Host that accepts a
+// connection and then does not answer must not hold the assistant for the transport's own (much longer) timeout.
+var teamMemoryTimeout = 10 * time.Second
 
 func (b *workspaceBackend) MemoryContext(ctx context.Context, in MemoryRequest) (service.MemoryContext, error) {
 	w, pid, ok := b.locate(in.ProjectID)
@@ -148,13 +159,16 @@ func (b *workspaceBackend) MemoryContext(ctx context.Context, in MemoryRequest) 
 	}
 	in.ProjectID = pid
 	var out service.MemoryContext
-	if err := b.read(ctx, w, "retrieve_memory", in, &out); err != nil {
+	bounded, cancel := context.WithTimeout(ctx, teamMemoryTimeout)
+	defer cancel()
+	if err := b.read(bounded, w, "retrieve_memory", in, &out); err != nil {
 		if ctx.Err() != nil {
 			return out, ctx.Err()
 		}
 		return service.MemoryContext{Items: []service.MemoryContextItem{}, Status: "unavailable"}, nil
 	}
 	for i := range out.Items {
+		out.Items[i].Origin = "team"
 		if pid := out.Items[i].Scope.ProjectID; pid != "" {
 			out.Items[i].Scope.ProjectID = workspaceProjectID(w.ID, pid)
 		}

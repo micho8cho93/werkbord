@@ -354,8 +354,10 @@ Missing source commits, non-ancestor histories (force-push/rebase/reset), missin
 branches, truncated diffs, comparison-budget exhaustion and inaccessible or
 ambiguous repositories conservatively invalidate potentially dependent facts.
 Observations scoped to a repository or a Git project without a commit anchor
-also need verification;
-paths or a branch name alone cannot establish committed source evidence.
+also need verification, unless a person wrote and confirmed the statement
+themselves (source `user`): it names nothing in Git to compare, so it is left as
+confirmed until they correct or delete it. Paths or a branch name alone cannot
+establish committed source evidence.
 Unrelated path-linked facts remain current when complete Git evidence proves
 no overlap. Personal notes and unanchored preferences are independent
 of repository code. Work projects have no repository and are excluded.
@@ -457,7 +459,11 @@ next action and structured results are extracted from handoffs. The generated
 lifecycle prefix is removed from results; manually edited results are still
 unverified handoff evidence.
 These become `factual_observation` candidates in `needs_verification`, presented
-as **suggestions / unverified**. A reported decision is never an
+as **suggestions / unverified**. A claim that looks like a credential, token,
+connection string with a password or a local path (`integration.LooksSensitive`,
+the screen Team's wire validation uses too) is stored with sensitivity `secret`,
+so no retrieval, source listing for the assistant or publication path serves it.
+Saving such text by hand is refused. A reported decision is never an
 `explicit_decision`; a reported test never gains verification through repetition,
 completion, pinning or a successful CI check. Results are potential solutions,
 not a controller judgment that a solution worked. The extractor skips the
@@ -504,7 +510,11 @@ candidates with no applicable observations become historical in pages of at most
 records stay inspectable separately from the recommended current knowledge.
 
 Deleting a memory removes its excerpts and provenance from the evidence table,
-leaving only content-free source hashes and small bookkeeping fields. Those
+leaving only content-free source hashes and small bookkeeping fields. The
+controller's database is opened with `secure_delete`, and deleting or pruning
+memory merges the full-text index, so a deleted summary is no longer readable in the
+database file once the write-ahead log is checkpointed (tested by reading the
+file). Earlier consistent backups and the original run handoffs are separate copies. Those
 identities suppress recreation from replayed history. Original runs/Git objects
 are unaffected. A genuinely new run remains a new observation. Tombstones count
 against evidence limits rather than accumulating without bounds.
@@ -584,7 +594,9 @@ separately authorised and isolated from the deterministic path.
 ### Retention, limits and interruption recovery
 
 The worker starts with the controller, polls every five seconds and has one
-15-second maintenance deadline. It reads at most four runs and four repositories
+15-second maintenance deadline. An idle tick commits nothing, and a repository is
+observed by it at most once every 30 seconds (using Git only, never a GitHub
+request); pull-request metadata is read by the 30-second freshness worker. It reads at most four runs and four repositories
 per tick, maintains durable scan cursors, retires up to 100 obsolete observations per run
 and prunes at most 100 unpinned historical/superseded records older than the
 configured retention (180 days by default). Pinned history survives pruning;

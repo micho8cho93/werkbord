@@ -39,7 +39,7 @@ func Open(ctx context.Context, path string, log *slog.Logger) (*DB, error) {
 		return nil, err
 	}
 	pool, err := sqlitekit.Open(ctx, path, sqlitekit.Options{
-		Migrations: ms, Product: productName, BackupPrefix: backupPrefix, Log: log,
+		Migrations: ms, Product: productName, BackupPrefix: backupPrefix, Log: log, SecureDelete: true,
 	})
 	if err != nil {
 		return nil, err

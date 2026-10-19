@@ -13,6 +13,8 @@ async function api(base, credential, method, path, body) { const r = await fetch
     const p = await api(team, token, 'POST', '/api/team/v1/projects', { name: 'Bridge integration ' + Date.now(), repository: 'https://github.com/acme/bridge' });
     let k = await api(team, token, 'POST', `/api/team/v1/projects/${p.id}/tickets`, { title: '界'.repeat(200), description: '界'.repeat(12000), requirements: 'Context preserved', status: 'available' });
     k = await api(team, token, 'POST', `/api/team/v1/projects/${p.id}/tickets/${k.id}/claim`);
+    // A claim reserves the ticket; work is started explicitly (docs/TEAM.md, claim before work).
+    await api(team, token, 'POST', `/api/team/v1/projects/${p.id}/tickets/${k.id}/start-work`);
     await api(team, token, 'PUT', `/api/team/v1/projects/${p.id}/tickets/${k.id}/git`, { state: { baseBranch: 'main' } });
     const L = 'disposable-browser-credential';
     // Import: the ticket's handoff from Team becomes a task in the member's own Werkbord. Importing again reuses the task.

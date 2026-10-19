@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/service"
@@ -50,6 +51,11 @@ func TestMemoryContextPermissionScopeRelevanceAndBudget(t *testing.T) {
 	personalJSON, _ := json.Marshal(personalResult.Data)
 	if !strings.Contains(string(personalJSON), "PERSONAL") {
 		t.Fatal("permitted personal context was not retrieved")
+	}
+	for _, item := range personalResult.Data.(service.MemoryContext).Items {
+		if item.Origin != "individual" {
+			t.Fatalf("private memory not labelled as such: %+v", item)
+		}
 	}
 	args, _ := json.Marshal(map[string]any{"projectId": hidden.ID})
 	if _, err = f.svc.Call(bg, who, "retrieve_memory", args); CodeOf(err) != CodeNotFound {
@@ -98,9 +104,36 @@ func TestConnectedMemoryObeysEveryAssistantProjectGrant(t *testing.T) {
 	if len(out.Items) != 1 || out.Items[0].ID != "permitted" {
 		t.Fatalf("assistant project scope leaked: %+v", out)
 	}
+	if out.Items[0].Origin != "team" {
+		t.Fatalf("Team memory not labelled as Team: %+v", out.Items[0])
+	}
 	who.Projects = nil
 	out = f.mustCall(who, "retrieve_memory", map[string]any{"projectId": visible, "tokenBudget": 6000}).Data.(service.MemoryContext)
 	if len(out.Items) != 2 {
 		t.Fatalf("authorised cross-project source missing: %+v", out)
+	}
+}
+
+// A Workspace Host that accepts the request and never answers must cost the
+// assistant seconds, not the transport's timeout, and must not fail the turn.
+func TestAuditSlowTeamMemoryReadDegradesToUnavailable(t *testing.T) {
+	old := teamMemoryTimeout
+	teamMemoryTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { teamMemoryTimeout = old })
+	f := newFx(t)
+	who := f.session("ast_slow_team", PermMemoryRead)
+	visible := workspaceProjectID("team:main", "p1")
+	who.Projects = []string{visible}
+	f.svc.BindWorkspaces(who.SessionID, []Workspace{{ID: "team:main", Name: "Team"}}, func(ctx context.Context, _ Workspace, method string, _ any) (json.RawMessage, error) {
+		if method == "get_project" {
+			return json.Marshal(ProjectView{ID: "p1", Name: "Visible"})
+		}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	start := time.Now()
+	out := f.mustCall(who, "retrieve_memory", map[string]any{"projectId": visible}).Data.(service.MemoryContext)
+	if out.Status != "unavailable" || len(out.Items) != 0 || time.Since(start) > 2*time.Second {
+		t.Fatalf("slow Team read: %+v after %v", out, time.Since(start))
 	}
 }

@@ -208,11 +208,8 @@ func (c SharedMemoryContent) Validate() error {
 			return errors.New("summary must be plain text without control characters")
 		}
 	}
-	lower := strings.ToLower(c.Summary)
-	for _, s := range []string{"-----begin", "diff --git", "@@ ", "/users/", "/home/", "c:\\", "bearer ", "sk-", "ghp_", "github_pat_", "wba_", "wbt_", "api_key=", "api_key:", "password=", "<|im_start|>", "terminal transcript", "raw conversation"} {
-		if strings.Contains(lower, s) {
-			return errors.New("summary contains prohibited local or sensitive data")
-		}
+	if LooksSensitive(c.Summary) {
+		return errors.New("summary contains prohibited local or sensitive data")
 	}
 	return nil
 }

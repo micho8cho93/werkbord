@@ -97,7 +97,7 @@
     <details class="looked memory-sources">
       <summary>Memory sources ({memorySources.length})</summary>
       <ul>{#each memorySources as source, i (i)}
-        <li><strong>{source.id}</strong> · {source.kind.replaceAll('_', ' ')} · {source.verification.replaceAll('_', ' ')} · {source.freshness.replaceAll('_', ' ')}
+        <li><strong>{source.id}</strong> · {source.origin === 'team' ? 'Team memory' : source.origin === 'individual' ? 'Your private memory' : 'Memory'} · {source.kind.replaceAll('_', ' ')} · {source.verification.replaceAll('_', ' ')} · {source.freshness.replaceAll('_', ' ')}
           <p>{source.summary}</p>
           <p>{source.source.reference} · Updated {formatDateTime(source.updatedAt)}</p>
         </li>

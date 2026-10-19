@@ -108,6 +108,7 @@ let browser;
   const ticket = await coord('POST', `/projects/${tp.id}/tickets`, { title: 'Coordinate sample', status: 'available' });
   await coord('POST', `/projects/${tpOther.id}/tickets`, { title: 'Other project sample', status: 'available' });
   await coord('POST', `/projects/${tp.id}/tickets/${ticket.id}/claim`, {});
+  await coord('POST', `/projects/${tp.id}/tickets/${ticket.id}/start-work`, {});
   await coord('POST', `/projects/${tp.id}/tickets/${ticket.id}/submit`, {});
   await coord('POST', `/projects/${tp.id}/tickets/${ticket.id}/complete`, {});
   let expectedTeam;

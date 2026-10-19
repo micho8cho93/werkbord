@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -929,6 +930,11 @@ func TestNothingSharedCarriesACredentialOrAMachine(t *testing.T) {
 		var keys []string
 		collectKeys(raw, &keys)
 		for _, key := range keys {
+			// A map keyed by an identifier (ttk_…, 16 random characters) has that identifier as its field name, and a
+			// random identifier contains "ssh" or "dir" about once in a few hundred; only real names are checked.
+			if generatedIDKey.MatchString(key) {
+				continue
+			}
 			low := strings.ToLower(key)
 			for _, banned := range []string{"token", "secret", "password", "credential", "apikey", "api_key", "env", "environ", "path", "dir", "shell", "command", "cwd", "home", "hash", "ssh", "key_"} {
 				if strings.Contains(low, banned) {
@@ -949,6 +955,8 @@ func TestNothingSharedCarriesACredentialOrAMachine(t *testing.T) {
 		t.Fatal("a token leaked")
 	}
 }
+
+var generatedIDKey = regexp.MustCompile(`^[a-z]{2,5}_[a-z0-9]{12,}$`)
 
 func collectKeys(raw []byte, out *[]string) {
 	var v any

@@ -80,6 +80,8 @@ export interface SessionView {
 
 export interface MemorySource {
  id: string; summary: string; kind: string; freshness: string; verification: string; updatedAt: string;
+ /** Whose memory it is: private to this computer, or shared through a Team workspace. */
+ origin?: 'individual' | 'team';
  source: { reference: string };
 }
 

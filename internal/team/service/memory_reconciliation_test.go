@@ -182,10 +182,18 @@ func TestMemoryEvidenceMissedEventsOfflineAndReplay(t *testing.T) {
 	if f := readFreshness(t, tm, tm.bo, r.ID); f.Status != "uncertain" {
 		t.Fatal(f)
 	}
-	if err := tm.svc.ReconcileMemory(bg); err != nil {
-		t.Fatal(err)
+	// A tick checks the 50 least recently checked memories of the whole database. On a store shared with earlier tests
+	// (the replicated-cluster run) this one's memory may wait for a later tick, so tick until it has been checked.
+	var h store.MemoryHistory
+	var err error
+	for tick := 0; tick < 100; tick++ {
+		if err = tm.svc.ReconcileMemory(bg); err != nil {
+			t.Fatal(err)
+		}
+		if h, err = tm.svc.MemoryHistory(bg, tm.bo, tm.pid(), r.ID); err != nil || len(h.Freshness) > 0 {
+			break
+		}
 	}
-	h, err := tm.svc.MemoryHistory(bg, tm.bo, tm.pid(), r.ID)
 	if err != nil || len(h.Freshness) != 1 {
 		t.Fatalf("audit: %+v %v", h, err)
 	}

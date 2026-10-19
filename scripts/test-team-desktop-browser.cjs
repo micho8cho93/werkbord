@@ -36,8 +36,8 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  console.log('PASS signed license import, create, real host/database bootstrap and focused workspace');
  await shot(page,'desktop');await shot(page,'mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  const adminLabels=['This computer','MCP clients','Labels','Devices','Workspace Hosts','Connectivity','Backups','License'];
- for(const label of ['Needs you','Projects','Reviews','Members','Analytics',...adminLabels]){
-  const tabFor={ 'Needs you':'workspace', 'This computer':'settings', 'MCP clients':'mcp', 'Workspace Hosts':'hosts' }[label] || label.toLowerCase().replaceAll(' ','');
+ for(const label of ['Workspace','Projects','Initiatives','Reviews','Members','Analytics',...adminLabels]){
+  const tabFor={ 'Workspace':'workspace', 'This computer':'settings', 'MCP clients':'mcp', 'Workspace Hosts':'hosts' }[label] || label.toLowerCase().replaceAll(' ','');
   const nav=adminLabels.includes(label)?page.getByRole('navigation',{name:'Team administration',exact:true}):page.getByRole('navigation',{name:'Werkbord Team',exact:true});
   if(adminLabels.includes(label))await page.getByRole('navigation',{name:'Settings',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();
   const destination=nav.getByRole('button',{name:label,exact:true});await destination.click();await page.waitForFunction(expected=>state.tab===expected,tabFor);

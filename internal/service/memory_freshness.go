@@ -96,6 +96,13 @@ type memoryObservation struct {
 }
 
 func (s *MemoryFreshness) observe(ctx context.Context, scope domain.MemoryScope) memoryObservation {
+	return s.observeSource(ctx, scope, true)
+}
+
+// observeSource reads committed Git state and, only when pullRequests is set,
+// authenticated GitHub metadata. A GitHub read is a network request, so callers
+// that need only HEAD and refs (the knowledge worker's five-second tick) skip it.
+func (s *MemoryFreshness) observeSource(ctx context.Context, scope domain.MemoryScope, pullRequests bool) memoryObservation {
 	o := memoryObservation{revision: domain.MemoryRepositoryRevision{Refs: map[string]string{}, PullRequests: map[string]string{}}}
 	t, err := s.resolve(ctx, scope)
 	if err != nil {
@@ -134,6 +141,9 @@ func (s *MemoryFreshness) observe(ctx context.Context, scope domain.MemoryScope)
 			return o
 		}
 	}
+	if !pullRequests {
+		return o
+	}
 	ghCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	gh, err := s.Control.readPullRequests(ghCtx, t)
@@ -148,7 +158,16 @@ func (s *MemoryFreshness) observe(ctx context.Context, scope domain.MemoryScope)
 
 func memoryCodeDependent(m domain.Memory) bool {
 	p := m.Source
-	return p.GitSHA != "" || p.Branch != "" || len(p.Paths) > 0 || p.PullRequest != "" || p.RunID != "" || m.Authority == domain.MemoryObservation && (m.Scope.Repository != "" || m.Scope.ProjectID != "")
+	if p.GitSHA != "" || p.Branch != "" || len(p.Paths) > 0 || p.PullRequest != "" || p.RunID != "" {
+		return true
+	}
+	// A statement a person wrote and confirmed names no commit, branch, path, pull request or run, so there is
+	// nothing in Git to compare it with. Treating it as stale on the next pass (as for an unanchored report from an
+	// agent or import) would silently undo the confirmation they just gave. They correct or delete it themselves.
+	if p.Type == domain.MemorySourceUser {
+		return false
+	}
+	return m.Authority == domain.MemoryObservation && (m.Scope.Repository != "" || m.Scope.ProjectID != "")
 }
 
 type memoryDiff struct {

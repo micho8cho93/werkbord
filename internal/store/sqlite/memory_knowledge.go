@@ -104,23 +104,25 @@ func (r memoryRepo) KnowledgeList(ctx context.Context, s domain.MemoryScope, q d
 	if err := domain.ValidateMemoryQuery(q); err != nil {
 		return nil, err
 	}
+	from := `memories`
+	args := []any{}
 	where := `owner_id=? AND project_id=?`
-	args := []any{s.OwnerID, s.ProjectID}
+	whereArgs := []any{s.OwnerID, s.ProjectID}
 	if s.Repository != "" {
 		where += ` AND repository=?`
-		args = append(args, s.Repository)
+		whereArgs = append(whereArgs, s.Repository)
 	}
 	if q.Type != "" {
 		where += ` AND type=?`
-		args = append(args, q.Type)
+		whereArgs = append(whereArgs, q.Type)
 	}
 	if q.Authority != "" {
 		where += ` AND authority=?`
-		args = append(args, q.Authority)
+		whereArgs = append(whereArgs, q.Authority)
 	}
 	if q.State != "" {
 		where += ` AND state=?`
-		args = append(args, q.State)
+		whereArgs = append(whereArgs, q.State)
 	}
 	if retrieval {
 		if q.IncludeCandidates {
@@ -137,11 +139,12 @@ func (r memoryRepo) KnowledgeList(ctx context.Context, s domain.MemoryScope, q d
 			terms = append(terms, `"`+strings.ReplaceAll(term, `"`, `""`)+`"`)
 		}
 		match := strings.Join(terms, " AND ")
-		where += ` AND rowid IN (SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?)`
+		// One FTS scan supplies both the filter and the bm25 rank. (A correlated
+		// bm25 sub-select per row re-ran the MATCH for every candidate and took
+		// about two seconds at 50,000 records.) The expression is a bound literal.
+		from = `memories JOIN (SELECT rowid AS fts_rowid, bm25(memories_fts) AS fts_rank FROM memories_fts WHERE memories_fts MATCH ?) AS f ON f.fts_rowid=memories.rowid`
 		args = append(args, match)
-		// bm25 uses a bound literal FTS query, never caller SQL.
-		order = `pinned DESC,(verified_at IS NOT NULL) DESC,(source_type='user') DESC,(SELECT bm25(memories_fts) FROM memories_fts WHERE memories_fts.rowid=memories.rowid AND memories_fts MATCH ?) ASC,updated_at DESC,id DESC`
-		args = append(args, match)
+		order = `pinned DESC,(verified_at IS NOT NULL) DESC,(source_type='user') DESC,fts_rank ASC,updated_at DESC,id DESC`
 	}
 	if q.PrioritizeAuthority {
 		order = `(verified_at IS NOT NULL) DESC,CASE authority WHEN 'approved_policy' THEN 4 WHEN 'explicit_decision' THEN 3 WHEN 'factual_observation' THEN 2 ELSE 1 END DESC,` + order
@@ -150,8 +153,8 @@ func (r memoryRepo) KnowledgeList(ctx context.Context, s domain.MemoryScope, q d
 	if limit == 0 {
 		limit = 50
 	}
-	args = append(args, limit)
-	rows, err := r.q.QueryContext(ctx, `SELECT `+memoryCols+` FROM memories WHERE `+where+` ORDER BY `+order+` LIMIT ?`, args...)
+	args = append(append(args, whereArgs...), limit)
+	rows, err := r.q.QueryContext(ctx, `SELECT `+memoryCols+` FROM `+from+` WHERE `+where+` ORDER BY `+order+` LIMIT ?`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("knowledge search: %w", err)
 	}

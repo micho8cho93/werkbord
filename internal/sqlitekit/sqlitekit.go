@@ -38,6 +38,9 @@ type Options struct {
 	// nothing is migrated or backed up before an upgrade, and a committed write need not survive a
 	// power cut, because the copy is made again from the cluster.
 	Replica bool
+	// SecureDelete overwrites deleted content with zeros, so that text a person deleted
+	// (a memory, for instance) is not left readable in free pages of the database file.
+	SecureDelete bool
 }
 
 // Pool is the writer and the readers of one database.
@@ -66,6 +69,9 @@ func Open(ctx context.Context, path string, opt Options) (*Pool, error) {
 
 	wq := cloneValues(common)
 	wq.Add("_pragma", "journal_mode(WAL)")
+	if opt.SecureDelete {
+		wq.Add("_pragma", "secure_delete(ON)")
+	}
 	// FULL, not NORMAL: with NORMAL a committed transaction can be lost in a
 	// power cut, and records of worktrees (written before a directory is
 	// created, and after one is removed) would then disagree with the disk.

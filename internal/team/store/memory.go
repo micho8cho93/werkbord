@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -140,7 +141,8 @@ func (t *sqlTx) memoryCapacity(ctx context.Context, w string) error {
 		return err
 	}
 	if n >= 10000 {
-		return domain.ErrBusy
+		// Not transient: only compaction or a curator's deletions free revisions.
+		return fmt.Errorf("%w: this workspace has reached its limit of 10,000 stored memory revisions; a curator can delete memories that are no longer needed", domain.ErrBusy)
 	}
 	return nil
 }

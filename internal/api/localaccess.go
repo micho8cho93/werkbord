@@ -101,6 +101,16 @@ func scopedRouteFor(method, path string) (scopedRoute, bool) {
 	return scopedRoute{}, false
 }
 
+// memoryWorkspaceParam returns the one workspaceId a request names. Repeated
+// parameters are ambiguous (a handler and this gate could disagree on which wins),
+// so they name none and the request is refused.
+func memoryWorkspaceParam(r *http.Request) string {
+	if v := r.URL.Query()["workspaceId"]; len(v) == 1 {
+		return v[0]
+	}
+	return ""
+}
+
 // fromThisComputer reports whether a request came from a loopback address.
 func fromThisComputer(r *http.Request) bool {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -129,7 +139,7 @@ func (s *Server) scoped(entry localaccess.Entry, next http.Handler) http.Handler
 				ok = true
 				route = scopedRoute{method: "GET", pattern: r.URL.Path}
 			}
-			if (r.Method == "GET" && (r.URL.Path == "/api/memory/v1/shares" || r.URL.Path == "/api/memory/v1/publication/events") || r.Method == "POST" && r.URL.Path == "/api/memory/v1/publication/events") && entry.MemoryWorkspaceID != "" && r.URL.Query().Get("workspaceId") == entry.MemoryWorkspaceID {
+			if (r.Method == "GET" && (r.URL.Path == "/api/memory/v1/shares" || r.URL.Path == "/api/memory/v1/publication/events") || r.Method == "POST" && r.URL.Path == "/api/memory/v1/publication/events") && entry.MemoryWorkspaceID != "" && memoryWorkspaceParam(r) == entry.MemoryWorkspaceID {
 				ok = true
 				route = scopedRoute{method: r.Method, pattern: r.URL.Path, fields: []string{"eventId", "sequence", "record"}}
 			}

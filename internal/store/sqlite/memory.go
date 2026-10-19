@@ -191,7 +191,18 @@ func (r memoryRepo) Delete(ctx context.Context, s domain.MemoryScope, id string,
 	if err != nil {
 		return memoryDBError(err)
 	}
-	return r.cas(ctx, res, s, id)
+	if err := r.cas(ctx, res, s, id); err != nil {
+		return err
+	}
+	return r.purgeIndex(ctx)
+}
+
+// purgeIndex merges the full-text index after a deletion. FTS5 only marks a deleted
+// row in its segments; the words stay readable there until the segments are merged.
+// Together with secure_delete this leaves no readable copy of the deleted summary.
+func (r memoryRepo) purgeIndex(ctx context.Context) error {
+	_, err := r.q.ExecContext(ctx, `INSERT INTO memories_fts(memories_fts) VALUES('optimize')`)
+	return err
 }
 func (r memoryRepo) Usage(ctx context.Context, owner string) (domain.MemoryUsage, error) {
 	var u domain.MemoryUsage
@@ -215,5 +226,8 @@ func (r memoryRepo) Prune(ctx context.Context, owner string, before time.Time, l
 		return 0, memoryDBError(err)
 	}
 	n, err := res.RowsAffected()
+	if err == nil && n > 0 {
+		err = r.purgeIndex(ctx)
+	}
 	return int(n), err
 }

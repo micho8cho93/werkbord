@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { api } from './api';
+  import { api, ApiError } from './api';
   import { memoryLabel, verificationLabel } from './memory';
   import type { Memory, MemoryEvidence } from './memory';
 
@@ -11,6 +11,7 @@
   let loading = $state(true);
   let busy = $state(false);
   let error = $state('');
+  let conflict = $state(false);
   let message = $state('');
   let bounded = $state(false);
   let editing = $state<Memory | null>(null);
@@ -33,7 +34,7 @@
   });
   async function load(id = projectId) {
     const ticket = ++generation;
-    loading = true; error = '';
+    loading = true; error = ''; conflict = false;
     try {
       const page = await api.memories(id, query, status);
       if (ticket === generation && projectId === id) { records = page.records; bounded = page.bounded; }
@@ -48,11 +49,11 @@
   async function mutate(action: () => Promise<unknown>, success: string) {
     if (busy) return;
     const id = projectId;
-    busy = true; error = ''; message = '';
+    busy = true; error = ''; message = ''; conflict = false;
     try {
       await action();
       if (id === projectId) { message = success; showEditor = false; deleteId = ''; sourceId = ''; await load(id); }
-    } catch (e) { if (id === projectId) error = e instanceof Error ? e.message : String(e); }
+    } catch (e) { if (id === projectId) { error = e instanceof Error ? e.message : String(e); conflict = e instanceof ApiError && e.status === 409; } }
     finally { busy = false; }
   }
   async function inspect(memory: Memory) {
@@ -70,14 +71,14 @@
 
 <section class="pn memory" aria-labelledby="memory-title">
   <h3 id="memory-title">Memory</h3>
-  <p class="muted">Decisions, preferences and evidence saved for this project. Agent reports stay unverified until you confirm them. Saved policies remain context; they do not change agent permissions.</p>
+  <p class="muted">Private to you, on this computer: decisions, preferences and evidence saved for this project. Nothing here reaches your Team unless you choose to share it under Settings → Team Memory sharing. Agent reports stay unverified until you confirm them. Saved policies remain context; they do not change agent permissions. Do not save passwords or keys.</p>
   <form class="tools" onsubmit={(event) => { event.preventDefault(); void load(); }}>
     <label class="search">Search memories<input class="input" type="search" maxlength="256" bind:value={query} placeholder="Search words in a memory" /></label>
     <label>Status<select class="input" bind:value={status}><option value="">All records</option><option value="current">Current</option><option value="needs_verification">Unverified</option><option value="historical">History</option><option value="superseded">Superseded</option></select></label>
     <button class="btn" disabled={loading || busy}>Search</button>
     <button class="btn primary" type="button" disabled={busy} onclick={() => edit(null)}>Save a memory</button>
   </form>
-  {#if error}<p class="error" role="alert">{error} Refresh the list before retrying a change.</p>{/if}
+  {#if error}<p class="error" role="alert">{error}{conflict ? ' Refresh the list before retrying a change.' : ''}</p>{/if}
   {#if message}<p role="status">{message}</p>{/if}
   {#if showEditor}
     <form class="editor" onsubmit={(event) => { event.preventDefault(); save(); }}>

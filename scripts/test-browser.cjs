@@ -94,6 +94,13 @@ async function cleanup() {
     if (process.env.BROWSER_DECK_ONLY === '1') { run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
     if (process.env.BROWSER_PHONE_ONLY === '1') { run(process.execPath, ['scripts/browser-phone.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
     if (process.env.BROWSER_UX_ONLY === '1') { run(process.execPath, ['scripts/browser-workspace-ux.cjs'], testEnv); return; }
+    if (process.env.BROWSER_BRIDGE_ONLY === '1') {
+      // The other suites register the fixture's repository; on its own the bridge needs one project to import into.
+      const made = await fetch(individualURL + '/api/projects', { method: 'POST', headers: { Authorization: 'Bearer disposable-browser-credential', 'Content-Type': 'application/json' }, body: JSON.stringify({ path: repo }) });
+      if (!made.ok) throw Error('registering the fixture repository failed: ' + made.status);
+      run(process.execPath, ['scripts/browser-bridge.cjs'], testEnv);
+      return;
+    }
     if (process.env.BROWSER_ANALYTICS_ONLY === '1') {
       run(process.execPath, ['scripts/browser-analytics.cjs'], testEnv);
       return;

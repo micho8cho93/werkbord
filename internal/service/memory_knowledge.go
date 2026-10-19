@@ -20,7 +20,32 @@ import (
 type Knowledge struct {
 	Memory    *Memory
 	Freshness *MemoryFreshness
-	wg        sync.WaitGroup
+	// GitInterval is the least time between Git observations of one repository by
+	// the five-second worker (default 30 seconds, matching MemoryFreshness).
+	GitInterval time.Duration
+	wg          sync.WaitGroup
+	gitMu       sync.Mutex
+	gitSeen     map[string]time.Time
+}
+
+// gitDue reports whether the repository may be observed again, so an idle
+// repository costs no Git processes on most worker ticks.
+func (s *Knowledge) gitDue(scope domain.MemoryScope) bool {
+	interval := s.GitInterval
+	if interval == 0 {
+		interval = 30 * time.Second
+	}
+	key := scope.ProjectID + "\x00" + scope.Repository
+	s.gitMu.Lock()
+	defer s.gitMu.Unlock()
+	if last, ok := s.gitSeen[key]; ok && time.Since(last) < interval {
+		return false
+	}
+	if s.gitSeen == nil {
+		s.gitSeen = map[string]time.Time{}
+	}
+	s.gitSeen[key] = time.Now()
+	return true
 }
 
 func concise(s string) string {
@@ -48,6 +73,11 @@ func (s *Knowledge) observe(ctx context.Context, tx store.Tx, scope domain.Memor
 	c.Summary = concise(c.Summary)
 	if c.Summary == "" {
 		return nil
+	}
+	// Agent text and task titles can carry a pasted credential. It is kept as local
+	// evidence but classified secret, so retrieval and sharing never serve it.
+	if integration.LooksSensitive(c.Summary) {
+		c.Sensitivity = domain.MemorySecret
 	}
 	c, err = c.Normalized()
 	if err != nil {
@@ -164,7 +194,7 @@ func (s *Knowledge) ExtractGit(ctx context.Context, scope domain.MemoryScope) er
 	if err != nil {
 		return err
 	}
-	o := s.Freshness.observe(ctx, scope)
+	o := s.Freshness.observeSource(ctx, scope, false)
 	if o.problem != "" {
 		return domain.ErrConflict
 	}
@@ -230,8 +260,11 @@ func (s *Knowledge) Maintain(ctx context.Context) error {
 	if len(runs) == 4 {
 		nextRun = runs[len(runs)-1].ID
 	}
-	if e := s.Memory.deps.Store.Update(ctx, func(tx store.Tx) error { return tx.Settings().Set(ctx, runCursorKey, nextRun, s.Memory.deps.now()) }); e != nil {
-		return e
+	// An idle tick must not commit: each write is a durable (fsynced) transaction on the single writer.
+	if nextRun != runAfter {
+		if e := s.Memory.deps.Store.Update(ctx, func(tx store.Tx) error { return tx.Settings().Set(ctx, runCursorKey, nextRun, s.Memory.deps.now()) }); e != nil {
+			return e
+		}
 	}
 	// Registered snapshots bootstrap extraction even when no memory exists yet.
 	if s.Freshness != nil {
@@ -269,16 +302,18 @@ func (s *Knowledge) Maintain(ctx context.Context) error {
 				}
 				identity = v
 			}
-			if identity != "" && !ambiguous {
-				_ = s.ExtractGit(ctx, domain.MemoryScope{OwnerID: s.Memory.owner, ProjectID: repo.ProjectID, Repository: identity})
+			if scope := (domain.MemoryScope{OwnerID: s.Memory.owner, ProjectID: repo.ProjectID, Repository: identity}); identity != "" && !ambiguous && s.gitDue(scope) {
+				_ = s.ExtractGit(ctx, scope)
 			}
 		}
 		next := ""
 		if len(repos) == 4 {
 			next = repos[len(repos)-1].ProjectID
 		}
-		if e := s.Memory.deps.Store.Update(ctx, func(tx store.Tx) error { return tx.Settings().Set(ctx, key, next, s.Memory.deps.now()) }); e != nil {
-			return e
+		if next != after {
+			if e := s.Memory.deps.Store.Update(ctx, func(tx store.Tx) error { return tx.Settings().Set(ctx, key, next, s.Memory.deps.now()) }); e != nil {
+				return e
+			}
 		}
 	}
 	// Publication observes only approved local destinations and needs no Team connection.
@@ -342,6 +377,9 @@ type ManualMemory struct {
 }
 
 func (s *Knowledge) SaveManual(ctx context.Context, project string, in ManualMemory) (*domain.Memory, error) {
+	if integration.LooksSensitive(in.Summary) {
+		return nil, fmt.Errorf("%w: this looks like a credential, token or local path; memory is not a place to keep secrets", domain.ErrInvalid)
+	}
 	scope, err := s.Memory.scope(domain.MemoryScope{ProjectID: project, Repository: in.Repository})
 	if err != nil {
 		return nil, err
