@@ -24,4 +24,14 @@ describe('workflow key gestures', () => {
     expect(hold).not.toHaveBeenCalled(); expect(press.consumeClick()).toBe(true);
     press.start(0,0); press.end(); expect(press.consumeClick()).toBe(false);
   });
+  it('keeps the click of a finished tap when touch fires pointerleave after pointerup', () => {
+    vi.useFakeTimers(); const hold = vi.fn(); const press = new KeyPress(hold);
+    press.start(0,0); vi.advanceTimersByTime(80); press.end(); press.leave();
+    expect(press.consumeClick()).toBe(false); expect(hold).not.toHaveBeenCalled();
+  });
+  it('still abandons a press when the finger slides off the key', () => {
+    vi.useFakeTimers(); const hold = vi.fn(); const press = new KeyPress(hold);
+    press.start(0,0); press.leave(); vi.advanceTimersByTime(600);
+    expect(hold).not.toHaveBeenCalled(); expect(press.consumeClick()).toBe(true);
+  });
 });

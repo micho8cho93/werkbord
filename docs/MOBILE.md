@@ -38,7 +38,7 @@ the editing gear, a hold, the context menu or Shift+F10. Long presses and drags 
 The library offers Reviews, Git, Runners and six workflows: Find Bugs, Improve Tests, Security Audit, Dependency Check,
 Refactor Codebase and Sprint Summary. The original six navigation buttons can also be restored from it. Workflow configuration
 supports Current project (the last Individual project opened, resolved when tapped), Selected repositories, All accessible
-repositories, and Ask every time. The button displays the chosen scope. All targets are registered repositories authorised
+repositories, and Ask every time. The button shows only its icon and name; the chosen scope is in the configuration sheet and is still read out to screen readers. All targets are registered repositories authorised
 for the controller owner; a phone's existing owner grant does not give access to other users or Team execution.
 
 The sheet selects a runner, agent/provider profile, model and supported reasoning settings using the existing execution

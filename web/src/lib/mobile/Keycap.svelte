@@ -34,7 +34,7 @@
     onpointermove={(e: PointerEvent) => gesture.move(e.clientX,e.clientY)}
     onpointerup={() => { release(); if (editing) ondrop?.(); }}
     onpointercancel={() => { pressed = false; gesture.cancel(); ondrop?.(true); }}
-    onpointerleave={() => { if (!editing) { pressed = false; gesture.cancel(); } }}
+    onpointerleave={() => { if (!editing) { pressed = false; gesture.leave(); } }}
     onblur={release}
     oncontextmenu={(e: MouseEvent) => { if (onconfigure) { e.preventDefault(); gesture.cancel(); onconfigure(); } }}
     onclick={(e: MouseEvent) => { if (gesture.consumeClick()) { e.preventDefault(); return; } onclick?.(); }}
@@ -42,10 +42,9 @@
     onkeyup={release}
   >
     <span class="cap">
-      <span class="face" class:targeted={!!target}>
-        <span class="glyph"><Icon name={empty ? 'plus' : key.icon} size={target ? 20 : 26} /></span>
+      <span class="face">
+        <span class="glyph"><Icon name={empty ? 'plus' : key.icon} size={26} /></span>
         <span class="name">{empty ? 'Add button' : key.label}</span>
-        {#if target}<span class="target">{target}</span>{/if}
       </span>
       {#if key.count > 0}<span class="num" class:pend={key.tone === 'wait'} aria-hidden="true">{key.id !== 'agents' && key.count > 99 ? '99+' : key.count}</span>{/if}
     </span>
@@ -57,7 +56,6 @@
   /* The well: the dark socket the keycap stands in. It is the tray of the design system, pressed a little deeper. */
   .key-holder { position: relative; min-width: 0; }
   .configure { position: absolute; top: -10px; right: -10px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--text); cursor: pointer; }
-  .target { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11.5px/1.2 var(--mono); color: var(--text-2); }
   .key-slot.editing { touch-action: none; cursor: grab; }
   .key-slot:disabled { cursor: wait; }
   .workflow .cap { background: linear-gradient(color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 12%, transparent)), var(--key-bg); border-color: color-mix(in srgb, var(--accent) 38%, var(--border)); }
@@ -138,8 +136,6 @@
     max-width: 100%;
     padding: 0 4px;
   }
-
-  .face.targeted { gap: 4px; }
 
   .glyph {
     display: inline-flex;

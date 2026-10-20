@@ -18,5 +18,8 @@ export class KeyPress {
   }
   end() { clearTimeout(this.timer); this.active = false; }
   cancel() { this.end(); this.handled = true; }
+  /** The pointer left the key. On touch this also fires after a finished tap, just before its click, so only a press still
+   * in progress is abandoned; a completed tap must keep its click. */
+  leave() { if (this.active) this.cancel(); }
   consumeClick() { const handled = this.handled; this.handled = false; return handled; }
 }
