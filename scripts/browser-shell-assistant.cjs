@@ -169,6 +169,13 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await page.locator('iframe[data-workspace=personal]').isVisible(), false);
 
         // Open it from the sidebar. The first time, its frame is made; it covers the whole window.
+        const workspaceEl = page.locator('iframe[data-workspace="personal"]');
+        await workspaceEl.evaluate(el => { el.style.width = '800px'; el.hidden = false; });
+        const workspaceFrame = await (await workspaceEl.elementHandle()).contentFrame();
+        await workspaceFrame.waitForSelector('.shell.framed', { state: 'attached' });
+        assert.equal(await workspaceFrame.getByRole('navigation', { name: 'Primary', exact: true }).count(), 0, 'narrow embedded pages never render phone tabs');
+        assert.equal(await workspaceFrame.locator('.shell.framed').evaluate(el => el.getBoundingClientRect().height === window.innerHeight), true, 'narrow embedded pages fit the viewport');
+        await workspaceEl.evaluate(el => { el.style.width = ''; el.hidden = true; });
         const bb = await button.boundingBox();
         await button.click();
         await surfaceEl.waitFor({ state: 'attached' });
@@ -181,6 +188,8 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.deepEqual({ x: fb.x, y: fb.y, w: fb.width, h: fb.height }, { x: 0, y: 0, w: 1440, h: 900 }, 'the frame is the whole window');
         assert.equal(await surfaceEl.evaluate(el => getComputedStyle(el).visibility), 'visible');
         await assistantFrame.getByTestId('assistant').waitFor();
+        const surfaceBounds = await assistantFrame.getByTestId('assistant').boundingBox();
+        assert.deepEqual({ x: surfaceBounds.x, y: surfaceBounds.y, w: surfaceBounds.width, h: surfaceBounds.height }, { x: 0, y: 0, w: 1440, h: 900 }, 'the assistant content covers the whole frame without a phone navigation gap');
         const circles = samples.filter(s => s.circle);
         assert.ok(want.x < 260, 'the button is in the sidebar (' + want.x + ')');
         for (const c of circles) assert.ok(Math.abs(c.circle.x - want.x) < 2 && Math.abs(c.circle.y - want.y) < 2, `grows from the sidebar button (${want.x},${want.y}), not (${c.circle.x},${c.circle.y})`);

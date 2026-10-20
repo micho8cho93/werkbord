@@ -293,7 +293,7 @@
       </main>
     </div>
 
-    {#if !deck}
+    {#if !deck && !framed}
     <nav class="tabbar" aria-label="Primary">
       {#each phoneTabs as t (t.id)}
         <a href={t.href} class="tab" aria-current={t.current ? 'page' : undefined}>
@@ -371,8 +371,22 @@
     overflow: hidden;
   }
 
+  /* Embedded desktop panes keep the window layout even when Settings makes the frame narrow. */
   .shell.framed {
     grid-template-columns: minmax(0, 1fr);
+    height: 100dvh;
+    min-height: 0;
+    display: grid;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
+  .shell.framed .main-area {
+    display: flex;
+  }
+
+  .shell.framed main {
+    overflow-y: auto;
   }
 
   .rail-area {

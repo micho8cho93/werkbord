@@ -71,7 +71,7 @@
       surface?.style.setProperty('--vvt', `${vv.offsetTop}px`);
       // The phone's bottom bar stays under the assistant. With the on-screen keyboard up it is behind the keyboard, and the box
       // takes the room.
-      surface?.style.setProperty('--asst-nav', window.innerHeight - vv.height > 100 ? '0px' : 'calc(var(--tabbar-h) + env(safe-area-inset-bottom))');
+      surface?.style.setProperty('--asst-nav', !phone.on || window.innerHeight - vv.height > 100 ? '0px' : 'calc(var(--tabbar-h) + env(safe-area-inset-bottom))');
     };
     fit();
     vv.addEventListener('resize', fit);
