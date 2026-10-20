@@ -553,6 +553,90 @@ func TestAnAppBuiltFromSourceNeverReplacesItself(t *testing.T) {
 	}
 }
 
+// A preview follows the preview feed, which holds the newest release of any kind. /releases/latest (st.Latest) is the newest
+// STABLE one and is older than every preview, so it must not decide whether the feed is worth asking.
+func TestAPreviewAsksItsFeedWhateverTheNewestStableReleaseIs(t *testing.T) {
+	st := update.Status{Current: "v4.64.2-preview.1", Latest: "v4.24.6", Release: true} // not Available: 4.24.6 is older
+	u := &fakeUpdater{active: true, probe: Probe{Found: true, Version: "4.65.2"}}
+	ui := &fakeUI{}
+	s := New(Options{Launcher: &fakeLauncher{status: st}, UI: ui, Version: "v4.64.2-preview.1", Platform: "darwin", Updater: u})
+	if res := s.RequestUpdate(); !res.OK || u.probed != 1 || u.shown != 1 || len(ui.asked) != 0 {
+		t.Fatalf("result %+v, probed %d, shown %d, dialogs %+v", res, u.probed, u.shown, ui.asked)
+	}
+
+	// When the feed has nothing newer, it is up to date: the stable release being older is not an update.
+	u = &fakeUpdater{active: true, probe: Probe{}}
+	ui = &fakeUI{}
+	l := &fakeLauncher{status: st}
+	New(Options{Launcher: l, UI: ui, Version: "v4.64.2-preview.1", Platform: "darwin", Updater: u}).CheckForUpdates()
+	if u.probed != 1 || u.shown != 0 || l.applied != 0 || len(ui.asked) != 1 || ui.asked[0].Title != "Werkbord is up to date" {
+		t.Fatalf("probed %d, shown %d, applied %d, dialogs %+v", u.probed, u.shown, l.applied, ui.asked)
+	}
+}
+
+// A stable app still asks only when the stable release is newer than it: the stable feed is what it follows.
+func TestAStableAppStillAsksItsFeedOnlyWhenTheStableReleaseIsNewer(t *testing.T) {
+	u := &fakeUpdater{active: true, probe: Probe{Found: true}}
+	st := update.Status{Current: "v4.24.6", Latest: "v4.24.6", Release: true}
+	New(Options{Launcher: &fakeLauncher{status: st}, UI: &fakeUI{}, Version: "v4.24.6", Platform: "darwin", Updater: u}).CheckForUpdates()
+	if u.probed != 0 {
+		t.Fatal("a stable app asked the feed with no newer stable release")
+	}
+}
+
+// placedUpdater is a Sparkle that knows the app is on a disk image.
+type placedUpdater struct {
+	*fakeUpdater
+	problem string
+}
+
+func (p placedUpdater) InstallProblem() string { return p.problem }
+
+func TestAnUpdateThatCannotBeInstalledHereSaysWhatToDoInsteadOfOpeningTheUpdateWindow(t *testing.T) {
+	const why = "This copy is running from a disk image."
+	for name, fromMenu := range map[string]bool{"menu": true, "web app": false} {
+		t.Run(name, func(t *testing.T) {
+			f := &fakeUpdater{active: true, probe: Probe{Found: true, Version: "4.65.2"}}
+			u := placedUpdater{fakeUpdater: f, problem: why}
+			l := &fakeLauncher{status: available()}
+			ui := &fakeUI{}
+			s := New(Options{Launcher: l, UI: ui, Version: "v1.1.0", Platform: "darwin", Updater: u})
+			if fromMenu {
+				s.CheckForUpdates()
+			}
+			var res UpdateResult
+			if !fromMenu {
+				res = s.RequestUpdate()
+			}
+			if f.shown != 0 || l.applied != 0 || l.adopted != 0 {
+				t.Fatalf("the update window opened or something was installed from a disk image (shown %d, applied %d)", f.shown, l.applied)
+			}
+			if fromMenu {
+				// The menu says it in a dialog; the web app's button has no dialog of its own and gets the sentence back.
+				if len(ui.asked) != 1 || !strings.Contains(ui.asked[0].Message, why) || !strings.Contains(ui.asked[0].Message, "4.65.2") {
+					t.Fatalf("dialogs %+v", ui.asked)
+				}
+				return
+			}
+			if res.OK || !strings.Contains(res.Message, why) || len(ui.asked) != 0 {
+				t.Fatalf("result %+v, dialogs %+v", res, ui.asked)
+			}
+		})
+	}
+
+	// An app that can be replaced where it is gets the update window, as before.
+	f := &fakeUpdater{active: true, probe: Probe{Found: true, Version: "4.65.2"}}
+	newShellWithUpdater(t, &fakeLauncher{status: available()}, &fakeUI{}, f).CheckForUpdates()
+	if f.shown != 1 {
+		t.Fatal("an updater that did not report a problem lost its window")
+	}
+	f = &fakeUpdater{active: true, probe: Probe{Found: true, Version: "4.65.2"}}
+	New(Options{Launcher: &fakeLauncher{status: available()}, UI: &fakeUI{}, Version: "v1.1.0", Platform: "darwin", Updater: placedUpdater{fakeUpdater: f}}).CheckForUpdates()
+	if f.shown != 1 {
+		t.Fatal("an updater that reported no problem lost its window")
+	}
+}
+
 func TestTheProgramTheAppCarriesIsInstalledWithoutTheInternet(t *testing.T) {
 	// updates turned off, and a newer program waiting in the app: finishing it is local, so it is offered
 	l := &fakeLauncher{status: update.Status{Current: "v1.1.0", Release: true, Disabled: true}, pending: true, installed: "v1.1.0", bundled: "v1.2.0"}

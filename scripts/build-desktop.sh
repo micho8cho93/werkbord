@@ -51,7 +51,7 @@
 #
 # Test hooks, not reachable in release mode (the script stops if they are set there):
 #   SPARKLE_FEED_URL=…        where the app looks for updates (a local server, for scripts/test-desktop-update.sh); a release
-#                             always has the one address below, and is checked for it
+#                             always has the address scripts/desktop-feed-url.sh gives for its version, and is checked for it
 #   UPDATER_TEST=1            the build that installs a valid update without asking, so the real updater can be run unattended
 #   CODESIGN_TIMESTAMP=none   sign without contacting Apple's timestamp server (offline tests)
 #   CODESIGN=…, HDIUTIL=…     the programs it runs (tests substitute recorders; also XCRUN, SPCTL for the notarization)
@@ -118,9 +118,10 @@ case "$VERSION" in
 esac
 IDENTITY=${CODESIGN_IDENTITY:--}
 TIMESTAMP=${CODESIGN_TIMESTAMP:-}
-# Where the app looks for updates: the appcast every individual release uploads. /releases/latest/download/<file> follows the
-# release marked "latest", which only individual releases are (release.yml), so a Team release can never be the feed.
-FEED_URL=https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml
+# Where the app looks for updates (scripts/desktop-feed-url.sh): a stable app, the appcast of the release marked "latest", which
+# only individual releases are (release.yml), so a Team release can never be the feed; a preview app, the preview feed, because
+# every preview is a pre-release and "latest" never points at one. A build with no version (dev) takes the stable address.
+FEED_URL=$(scripts/desktop-feed-url.sh "$VERSION" 2>/dev/null) || FEED_URL=$(scripts/desktop-feed-url.sh 0.0.0)
 SPARKLE_KEY=${SPARKLE_PUBLIC_KEY:-}
 [ -n "$SPARKLE_KEY" ] || { [ -f desktop/build/darwin/sparkle-public-key ] && SPARKLE_KEY=$(tr -d '[:space:]' < desktop/build/darwin/sparkle-public-key); } || true
 [ "${SPARKLE:-}" != 0 ] || SPARKLE_KEY=""

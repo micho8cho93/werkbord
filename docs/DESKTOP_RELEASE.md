@@ -29,6 +29,34 @@ The preview has a versioned DMG, `Werkbord.dmg`, the signed update archive/feed
 and macOS controller archives. It never becomes latest or replaces the stable feed.
 Users open the DMG and drag Werkbord to Applications with macOS security enabled.
 
+### Preview update feed
+
+An installed preview updates itself from the **preview feed**, not the stable one: GitHub's `/releases/latest` never points at a
+pre-release, so a preview app that read the stable feed would see the last stable release (older than itself) and never be offered
+its next preview. The address is a function of the version (`scripts/desktop-feed-url.sh`):
+
+| Build | `SUFeedURL` |
+| --- | --- |
+| stable `X.Y.Z` | `https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml` |
+| preview `X.Y.Z-preview.N` | `https://github.com/micho8cho93/werkbord/releases/download/werkbord-preview-feed/appcast.xml` |
+
+`scripts/build-desktop.sh` writes it, and `scripts/check-desktop-updater.sh --release` (run on every built and every published app)
+refuses an app whose feed is not the one for its own `WerkbordBuildVersion`, so neither kind can be shipped on the other's feed.
+
+`release.yml` publishes the feed **last**. After `desktop-publish`, `macos-public-verify` and `desktop-feed-public-verify` pass, the
+`preview-feed` job (every desktop release, stable ones too, serialized by a concurrency group) runs `scripts/publish-preview-feed.sh`: it
+creates the `werkbord-preview-feed` release if it does not exist (pre-release, `--latest=false`), uploads the release's own
+`appcast.xml` over the feed's asset, never replacing a newer one with an older one, and then downloads the feed from its public address
+and runs `scripts/verify-appcast.sh` against it (one item, this release's version and archive, https, the archive's length, a valid
+EdDSA signature, a signed feed, and the feed being exactly this release's appcast). Anything wrong fails the job and is visible in the
+release run. The release itself is already public by then; only the preview feed is behind.
+
+An app older than this (up to 4.65.2-preview.1) looks at the stable address and cannot find a preview: install the first release
+that has the preview feed by hand from `Werkbord.dmg` (into Applications, not run from the disk image); updates are in the app after that.
+
+To check by hand: `scripts/test-preview-feed.sh` (the feed choice and the publication against a fake GitHub, part of `make check`),
+and `WERKBORD_FEED_URL=$(scripts/desktop-feed-url.sh 4.66.0-preview.1) scripts/verify-appcast.sh werkbord-v4.66.0-preview.1` for a published one.
+
 Preview build metadata is derived from the unified VERSION: for `4.28.5-preview.1`,
 CFBundleShortVersionString is `4.28.5`, CFBundleVersion is `4.28.5b1` (Apple's beta
 build notation), and WerkbordBuildVersion and both executables retain the complete
@@ -230,6 +258,16 @@ date" or "could not check"), which is harmless:
 gh release delete-asset werkbord-v1.2.1 appcast.xml -y
 ```
 
+The preview feed is a copy of a release's `appcast.xml`, so pull a bad **preview** the same way from the feed itself, not from the
+release (deleting the copy on `werkbord-v1.2.1` would not stop preview apps being offered it):
+
+```bash
+gh release delete-asset werkbord-preview-feed appcast.xml -y
+```
+
+(`scripts/publish-preview-feed.sh` never moves the feed backwards, so it will not put an older release back; to offer a known-good one
+meanwhile, `gh release download <good tag> -p appcast.xml` and `gh release upload werkbord-preview-feed appcast.xml --clobber`.)
+
 Then release a fixed version; its feed replaces the old one. (Sparkle never installs a version lower than the one running, so a
 bad update cannot be "rolled back" by publishing an older feed: publish a higher patch version with the fix.) The controller
 program is never part of this: it is replaced only by its own installer, which refuses to start while agents work, takes a
@@ -259,9 +297,10 @@ saving that does not change how Werkbord runs: the system maps only the slice it
 `debug/macho` where the program is copied (a slice keeps its own signature), not with `lipo`, which a person without the
 developer tools does not have.
 
-**One update archive and one feed per release, from the individual release only.** The feed is `releases/latest/download/appcast.xml`
+**One update archive and one feed per release, from the individual release only.** The stable feed is `releases/latest/download/appcast.xml`
 because only individual stable releases are marked "latest" (`release.yml`; a test pins it), so a Team release cannot become the
-feed, and each release's feed holds that release alone, so an older item can never be offered again.
+feed, and each release's feed holds that release alone, so an older item can never be offered again. Preview apps read the
+[preview feed](#preview-update-feed), for the same reasons and because no preview is ever latest.
 
 **The feed is published last.** A bad disk image is caught on a fresh Mac before any installed app can be told about it.
 

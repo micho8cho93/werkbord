@@ -12,7 +12,9 @@
 #   - have no schedule (SUEnableAutomaticChecks false) and send no profile of the computer (SUSendProfileInfo false);
 #   - not weaken App Transport Security beyond local networking (the controller's own loopback address).
 # A release must also:
-#   - look for updates at exactly https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml;
+#   - look for updates at exactly the address scripts/desktop-feed-url.sh gives for the app's own version
+#     (WerkbordBuildVersion): a stable app, https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml;
+#     a preview app, the preview feed https://github.com/micho8cho93/werkbord/releases/download/werkbord-preview-feed/appcast.xml;
 #   - hold exactly the public key committed in desktop/build/darwin/sparkle-public-key (SPARKLE_PUBLIC_KEY_FILE names
 #     another file, for tests: nothing in a release sets it);
 #   - install nothing unattended (SUAutomaticallyUpdate and SUAllowsAutomaticUpdates false);
@@ -74,8 +76,11 @@ case "$feed" in
 esac
 
 if [ -n "$release" ]; then
-  [ "$feed" = "https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml" ] ||
-    die "the feed is $feed; a release looks for updates at https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml (the newest individual release's appcast, which a Team release can never be)"
+  build=$(get WerkbordBuildVersion)
+  [ -n "$build" ] || die "Info.plist has no WerkbordBuildVersion: which feed this app belongs to cannot be told"
+  want_feed=$("$root/scripts/desktop-feed-url.sh" "$build") || die "WerkbordBuildVersion $build is not a version"
+  [ "$feed" = "$want_feed" ] ||
+    die "the feed is $feed; a release of $build looks for updates at $want_feed (a stable app: the newest individual release's appcast, which a Team release can never be; a preview app: the preview feed, because no preview is ever \"latest\")"
   committed=$(tr -d '[:space:]' < "${SPARKLE_PUBLIC_KEY_FILE:-$root/desktop/build/darwin/sparkle-public-key}" 2>/dev/null || true)
   [ -n "$committed" ] && [ "$key" = "$committed" ] || die "the app's update key is not the one committed in desktop/build/darwin/sparkle-public-key: an update signed with the real key would be refused"
   [ "$(get SUAutomaticallyUpdate)" = false ] || die "SUAutomaticallyUpdate is not false: nothing may be installed unattended"

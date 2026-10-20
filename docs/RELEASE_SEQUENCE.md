@@ -34,7 +34,8 @@ Preserve the existing release notes below that introduction. The publishing work
 reads the reserved display sequence from this table when assembling the draft.
 The original build version remains derived from the tag.
 Editing presentation must preserve tags, publication dates, prerelease status, assets
-and latest selection. Only stable unified Werkbord releases may become latest.
+and latest selection. Only stable unified Werkbord releases may become latest. The `werkbord-preview-feed` release (the update feed
+preview apps read, docs/DESKTOP.md) is not a product release and has no display number.
 
 The current release scope is macOS only; Linux and Windows publication is deferred.
 Stable unified releases are published only after the signed, notarized universal macOS app
@@ -93,3 +94,4 @@ is not proof that a release is installable.
 | Individual | `werkbord-v4.65.0-preview.1` | — | Unpublished; the Team browser suite still looked for "Cancel new task" after the Team button became "Cancel new ticket", and a Go network test read a random invitation signature beginning "ai-" as a domain name; superseded by 4.65.1-preview.1 |
 | Individual | `werkbord-v4.65.1-preview.1` | — | Unpublished; the Settings -> Phones browser step navigated before the app had taken its sign-in token and rewritten the address, so on a slower runner the phone list never appeared; superseded by 4.65.2-preview.1 |
 | Individual | `werkbord-v4.65.2-preview.1` | `0.14.0-preview.1` | Reserved public signed macOS preview; one Settings screen for Universal, Individual and Team, phones working with the built-in relay, native Mac alerts, a floating Help button, Individual board In progress column and the Team project header and board layout; Team production admission remains blocked |
+| Individual | `werkbord-v4.66.0-preview.1` | `0.15.0-preview.1` | Reserved public signed macOS preview; preview apps update themselves from their own update feed (the `werkbord-preview-feed` release), and a copy running from a disk image says how to move to Applications instead of failing to update; Team production admission remains blocked |

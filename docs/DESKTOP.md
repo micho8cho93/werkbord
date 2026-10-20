@@ -214,7 +214,8 @@ it; Help has none) do the same thing, which depends on what is behind:
 
 1. **The app already carries a newer program than the one installed** (the app was updated, and the controller could not move at the
    time because agents were working). A native question, then `install-release` from the app's own copy: no download, no network.
-2. **The app is older than the release.** Sparkle looks at the feed without showing anything; if it has the update, **its own window**
+2. **The app is older than the release** (a preview app asks its feed whatever the newest stable release is: see **The feed**).
+   Sparkle looks at the feed without showing anything; if it has the update, **its own window**
    opens (release notes, *Install Update*, *Remind Me Later*). That window is the one question. It downloads, verifies the
    signature, quits the app, replaces the bundle and relaunches. Nothing of the controller is touched by the swap: it is not the
    app's child, and the program in `~/.local/bin` is not inside the app. Then:
@@ -240,7 +241,37 @@ to do with updates.* A build from source, a development run (`make desktop-dev`)
 carry Sparkle and never ask. The feed's address cannot be changed in a release (it is checked in the finished app); the build
 that can, for tests, is refused by `--release`.
 
-**The feed.** `https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml`. GitHub resolves
+**Two feeds, one for each kind of app.** A stable app reads the stable feed and a preview app (its `WerkbordBuildVersion` has a
+`-preview.N` or other pre-release part) reads the preview feed. They are separate because GitHub's `/releases/latest` never points at a
+pre-release and every preview is one, so a preview app that looked at the stable address could never find its own next version
+(it would see the last stable release, older than itself, and say it is up to date). The address is chosen at build time by
+`scripts/desktop-feed-url.sh`, written into `Info.plist` as `SUFeedURL`, and checked in the finished app, so a stable app is never
+offered a preview and a preview app is never left on a feed that cannot move it.
+
+| App | Feed | What it holds |
+| --- | --- | --- |
+| stable (`4.24.6`) | `https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml` | the newest **stable** release |
+| preview (`4.65.2-preview.1`) | `https://github.com/micho8cho93/werkbord/releases/download/werkbord-preview-feed/appcast.xml` | the newest release of **any** kind, so a preview app is also carried to a stable release when that is newer |
+
+The preview feed is a release called `werkbord-preview-feed`: a pre-release, never latest (so it is never the stable feed and the
+controller's own check never sees it), holding one asset, `appcast.xml`. The last job of the release workflow (`preview-feed`, after
+the same public checks the stable feed waits for) replaces that asset with the release's own appcast, byte for byte, and then fetches
+it from the public address and checks it as an installed app will (`scripts/publish-preview-feed.sh`). It never moves the feed
+backwards. The banner and **Settings → This computer** come from the controller's check of the stable release and so say nothing
+about a newer preview: **Werkbord → Check for Updates…** is how a preview app looks, and it asks the preview feed.
+
+**Apps from before the preview feed** (up to 4.65.2-preview.1) look at the stable address and have no way to find a preview. They
+are updated once by hand: open the newest release's `Werkbord.dmg`, quit Werkbord, drag the new app into Applications, and from then
+on the app updates itself.
+
+**An app that cannot replace itself where it is.** Opened from the disk image (`/Volumes/Werkbord`) or from the temporary copy macOS
+makes of an app opened out of Downloads (App Translocation), an app cannot swap itself for the new one, and quitting and opening it
+again opens the same copy. It can still look: when the feed has an update, **Check for Updates…** says that one exists and what to do
+(quit, drag Werkbord into Applications, eject the disk image, open it from Applications) instead of opening a window that would fail.
+The test is the volume being read-only (or the translocated path), not its name (`desktop/internal/bundleplace`). It is also in the log
+at start.
+
+**The stable feed.** `https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml`. GitHub resolves
 `/releases/latest/download/<file>` through the release marked **latest**, and only an individual stable release is marked latest
 ([VERSIONING.md](VERSIONING.md)): a Team release never is, so it can never become the feed. Each release uploads its own
 `appcast.xml` (one item: that release; nothing older that could be offered again). The release workflow publishes it **last**,

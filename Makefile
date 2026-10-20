@@ -176,9 +176,10 @@ desktop-check: desktop-test
 test-notarize-desktop:
 	scripts/test-notarize-desktop.sh
 
-## test-workflows: the GitHub workflows are YAML, and their secrets, permissions and pins are as designed
+## test-workflows: the GitHub workflows are YAML, and their secrets, permissions and pins are as designed; and the preview update feed (which feed an app reads, how a release is published to it)
 test-workflows:
 	scripts/test-workflows.sh
+	scripts/test-preview-feed.sh
 
 ## test-desktop-update: the app updating itself, with the real Sparkle, two real builds and a feed on this computer (macOS; builds the app twice, so many minutes)
 test-desktop-update:

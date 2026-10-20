@@ -269,7 +269,7 @@ jobs:
 
           This is an evaluation preview. Team production admission remains blocked. Evaluate Team using disposable workspaces and backups; clean-Mac privileged service and Keychain lifecycle, dependency findings, independent-host networking/failover and replacement-host recovery still need production acceptance. See docs/TEAM_SECURITY_GATE.md at this tag for the complete review.
 
-          The preview is not marked latest and is not distributed through the stable update feed. Linux and Windows downloads are deferred.
+          The preview is not marked latest and is not distributed through the stable update feed. Preview apps update from the preview feed (the `werkbord-preview-feed` release), which this release replaces once its downloads and signed feed have been verified. Linux and Windows downloads are deferred.
           EOF
           fi
           gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord Individual — Release $sequence$qualifier" --notes-file release-notes.md --draft --prerelease="$prerelease" --latest=false --verify-tag
@@ -336,3 +336,26 @@ jobs:
         run: |
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --latest --verify-tag
           test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = "$GITHUB_REF_NAME"
+
+  # Preview apps cannot use the stable feed (GitHub's /releases/latest never points at a pre-release), so they read the
+  # werkbord-preview-feed release instead. Every verified release becomes its content, last, like the stable feed.
+  preview-feed:
+    needs: [plan, macos-public-verify, desktop-feed-public-verify]
+    if: github.event_name == 'push' && needs.plan.outputs.desktop == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: preview-feed
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - name: Publish this verified release's feed as the preview feed and check it at its public address
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/publish-preview-feed.sh "$GITHUB_REF_NAME"

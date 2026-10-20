@@ -225,6 +225,7 @@ release() {
   cp desktop/build/darwin/Info.plist "$a/Contents/Info.plist"; sed -i '' "s/@VERSION@/$1/" "$a/Contents/Info.plist"
   # what a release's Info.plist says about updating (scripts/check-desktop-updater.sh)
   PB=/usr/libexec/PlistBuddy; P="$a/Contents/Info.plist"
+  $PB -c "Add :WerkbordBuildVersion string $1" "$P" # which feed the app belongs to (a preview has its own)
   $PB -c "Add :SUFeedURL string ${FEED:-https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml}" "$P"
   $PB -c "Add :SUPublicEDKey string $SPARKLE_FIXTURE_KEY" "$P"
   for k in SUEnableAutomaticChecks SUSendProfileInfo SUAllowsAutomaticUpdates SUAutomaticallyUpdate; do $PB -c "Add :$k bool false" "$P"; done
@@ -313,6 +314,9 @@ verify "$WORK/otherzip"
 (FEED=https://example.com/appcast.xml; release "$WORK/wrongfeed" 1.2.3 1.2.3)
 verify "$WORK/wrongfeed"
 [ $RC -ne 0 ] && contains "$OUT" "feed is https://example.com/appcast.xml" || bad "an app that looks for updates somewhere else must fail" "$OUT"
+(FEED=https://github.com/micho8cho93/werkbord/releases/download/werkbord-preview-feed/appcast.xml; release "$WORK/previewfeed" 1.2.3 1.2.3)
+verify "$WORK/previewfeed"
+[ $RC -ne 0 ] && contains "$OUT" "a release of 1.2.3 looks for updates at https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml" || bad "a stable app on the preview feed (it would be offered previews) must fail" "$OUT"
 (FEED=http://127.0.0.1:9/appcast.xml; release "$WORK/testfeed" 1.2.3 1.2.3)
 verify "$WORK/testfeed"
 [ $RC -ne 0 ] && contains "$OUT" "a release uses the one https address" || bad "an app that looks for updates on a local server must fail" "$OUT"

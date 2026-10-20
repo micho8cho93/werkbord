@@ -245,6 +245,18 @@ func TestVersions(t *testing.T) {
 	}
 }
 
+func TestOnlyAReleaseWithAPreReleasePartIsAPreview(t *testing.T) {
+	for v, want := range map[string]bool{
+		"4.65.2-preview.1": true, "v4.65.2-preview.1": true, "v1.0.0-rc1": true,
+		"4.65.2": false, "v1.2.3": false, "dev": false, "": false,
+		"v0.6.0-4-g1234abc": false, "v1.0.0-preview.1-dirty": false, // a build from source is no preview, whatever it descends from
+	} {
+		if got := Prerelease(v); got != want {
+			t.Errorf("Prerelease(%q) = %v, want %v", v, got, want)
+		}
+	}
+}
+
 func TestProductTagsAreFoundAndOtherProductsAreNot(t *testing.T) {
 	// A release is named by its product's tag, but the program reports the bare version.
 	ts := releaseServer(t, "werkbord-v0.8.0", nil, "")

@@ -13,10 +13,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
+	"devboard/desktop/internal/bundleplace"
 	"devboard/desktop/internal/shell"
 )
 
@@ -29,6 +33,7 @@ type nativeUpdater struct {
 
 	mu      sync.Mutex
 	active  bool
+	problem string // why the app cannot replace itself where it runs (a disk image, say); "" when it can
 	token   int
 	waiting map[int]chan probeResult
 	busy    func() bool
@@ -45,7 +50,10 @@ var (
 	menuHandler func()
 )
 
-var _ shell.Updater = (*nativeUpdater)(nil)
+var (
+	_ shell.Updater = (*nativeUpdater)(nil)
+	_ shell.Placed  = (*nativeUpdater)(nil)
+)
 
 func newNativeUpdater(log *slog.Logger, allow func() bool) *nativeUpdater {
 	u := &nativeUpdater{log: log, allow: allow, waiting: map[int]chan probeResult{}}
@@ -60,9 +68,15 @@ func (u *nativeUpdater) start() {
 	rc := C.wbUpdaterStart((*C.char)(unsafe.Pointer(&buf[0])), C.int(len(buf)))
 	why := C.GoString((*C.char)(unsafe.Pointer(&buf[0])))
 	if rc == C.WBUpdaterStarted {
+		problem := runningPlaceProblem()
 		u.mu.Lock()
 		u.active = true
+		u.problem = problem
 		u.mu.Unlock()
+		if problem != "" {
+			u.log.Warn("the app can look for updates, but cannot replace itself where it is running", "why", problem)
+			return
+		}
 		u.log.Info("the app can update itself", "test_build", updaterTestBuild)
 		return
 	}
@@ -77,6 +91,25 @@ func (u *nativeUpdater) Active() bool {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return u.active
+}
+
+// InstallProblem is shell.Placed: why an update could be found and not installed here.
+func (u *nativeUpdater) InstallProblem() string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.problem
+}
+
+// runningPlaceProblem asks the system where this app is: on a volume that is mounted read-only (the disk image it was
+// opened from), or in the temporary copy macOS makes of an app opened out of Downloads, it cannot swap itself for the new one.
+func runningPlaceProblem() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	var st unix.Statfs_t
+	readOnly := unix.Statfs(exe, &st) == nil && st.Flags&unix.MNT_RDONLY != 0
+	return bundleplace.Problem(exe, readOnly)
 }
 
 func (u *nativeUpdater) GuardRelaunch(busy func() bool) {

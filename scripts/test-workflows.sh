@@ -84,7 +84,7 @@ if release
   check(perms({}, release) == { "contents" => "read" }, "release.yml defaults to contents: read")
 
   jobs = release["jobs"]
-  required = %w[plan release-build desktop-build desktop-draft desktop-publish macos-public-verify desktop-feed-public-verify stable-latest]
+  required = %w[plan release-build desktop-build desktop-draft desktop-publish macos-public-verify desktop-feed-public-verify stable-latest preview-feed]
   required.each { |name| check(jobs.key?(name), "release.yml has no job #{name}") }
 
   %w[linux-desktop-build windows-desktop-build linux-public-verify windows-public-verify].each { |name| check(!jobs.key?(name), "macOS-only release must not include #{name}") }
@@ -114,7 +114,7 @@ if release
   end
 
   writers = jobs.select { |_, job| (perms(job, release).is_a?(Hash) && perms(job, release).values.include?("write")) }.keys.sort
-  check(writers == %w[desktop-draft stable-latest desktop-publish].sort, "only the release publisher jobs can write: #{writers.inspect}")
+  check(writers == %w[desktop-draft stable-latest desktop-publish preview-feed].sort, "only the release publisher jobs can write: #{writers.inspect}")
   writers.each { |name| check(!mentions_secret?(jobs[name]) && !jobs[name].key?("environment"), "writable job #{name} must not hold release credentials") }
 
   release_build = jobs["release-build"]
@@ -160,6 +160,17 @@ if release
   check(needs(latest).sort == %w[plan desktop-feed-public-verify macos-public-verify].sort, "latest promotion waits for all public checks")
   check(JSON.generate(latest["steps"]).include?("--latest --verify-tag"), "only the final job promotes the verified stable release")
   check(latest["if"].to_s.include?("push") && latest["if"].to_s.include?("needs.plan.outputs.stable == 'true'"), "previews and manual dry runs never promote a release")
+
+  # Preview apps read the preview feed (scripts/desktop-feed-url.sh), because /releases/latest never points at a pre-release.
+  # It is published last, after the same public checks as the stable feed, by every desktop release, and only on a tag push.
+  preview = jobs["preview-feed"]
+  check(needs(preview).sort == %w[plan desktop-feed-public-verify macos-public-verify].sort, "the preview feed waits for all public checks, as latest promotion does")
+  check(preview["if"].to_s.include?("push") && preview["if"].to_s.include?("needs.plan.outputs.desktop == 'true'"), "the preview feed is published by tag pushes of desktop releases, never by a manual dry run")
+  preview_steps = JSON.generate(preview["steps"])
+  check(preview_steps.include?("scripts/publish-preview-feed.sh"), "the preview feed is published by scripts/publish-preview-feed.sh")
+  check(!preview_steps.include?("--latest") && !preview_steps.include?("release edit"), "the preview feed job never promotes a release to latest")
+  check(preview.dig("concurrency", "group") == "preview-feed" && preview.dig("concurrency", "cancel-in-progress") == false, "two releases cannot write the preview feed at once, and a running publication is never cancelled")
+  check(!JSON.generate(jobs["stable-latest"]).include?("preview-feed"), "the stable feed and the preview feed are separate jobs")
 
   # Every action is pinned to a full commit SHA, including artifact transport.
   jobs.each do |name, job|

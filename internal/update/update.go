@@ -488,6 +488,13 @@ func Release(v string) bool {
 
 var gitDescribeRE = regexp.MustCompile(`-\d+-g[0-9a-f]+`)
 
+// Prerelease reports whether v is a release version with a pre-release part (4.65.2-preview.1). A build that
+// is a preview follows the preview update feed (docs/DESKTOP_RELEASE.md), not the stable one /latest points at.
+func Prerelease(v string) bool {
+	m := semverRE.FindStringSubmatch(v)
+	return Release(v) && m[4] != ""
+}
+
 // Compare orders two versions: -1, 0 or 1. A pre-release is older than its release.
 // Versions that are not versions compare as equal.
 func Compare(a, b string) int {

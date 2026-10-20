@@ -21,13 +21,15 @@ KEY=$(head -c 32 /dev/urandom | base64)
 printf '%s' "$KEY" > "$WORK/committed-key"
 export SPARKLE_PUBLIC_KEY_FILE="$WORK/committed-key"
 FEED=https://github.com/micho8cho93/werkbord/releases/latest/download/appcast.xml
+PREVIEW_FEED=https://github.com/micho8cho93/werkbord/releases/download/werkbord-preview-feed/appcast.xml
 
-# app <name>: a bundle that has everything a release's does (its code need not be real: only the settings are read)
+# app <name> [<build version>]: a bundle that has everything a release's does (its code need not be real: only the settings are read)
 app() {
   a="$WORK/$1/Werkbord.app"; mkdir -p "$a/Contents/MacOS" "$a/Contents/Frameworks/Sparkle.framework/Versions/B/Resources"
   printf 'int main(void){return 0;}\n' > "$WORK/$1.c"; clang "$WORK/$1.c" -o "$a/Contents/MacOS/Werkbord"
   cp desktop/build/darwin/Info.plist "$a/Contents/Info.plist"; sed -i '' 's/@VERSION@/1.2.3/' "$a/Contents/Info.plist"
   P="$a/Contents/Info.plist"
+  $PB -c "Add :WerkbordBuildVersion string ${2:-1.2.3}" "$P"
   $PB -c "Add :SUFeedURL string $FEED" "$P"
   $PB -c "Add :SUPublicEDKey string $KEY" "$P"
   for k in SUEnableAutomaticChecks SUSendProfileInfo SUAllowsAutomaticUpdates SUAutomaticallyUpdate; do $PB -c "Add :$k bool false" "$P"; done
@@ -39,6 +41,23 @@ app good
 out=$(scripts/check-desktop-updater.sh --release "$WORK/good/Werkbord.app" 2>&1) || bad "an app with a release's update settings was rejected" "$out"
 ok "an app with the update settings a release must have passes --release"
 
+# the feed follows the app's own version: a preview looks at the preview feed (no preview is ever "latest"), a stable app at the stable one
+app preview 1.2.3-preview.1; $PB -c "Set :SUFeedURL $PREVIEW_FEED" "$WORK/preview/Werkbord.app/Contents/Info.plist"
+out=$(scripts/check-desktop-updater.sh --release "$WORK/preview/Werkbord.app" 2>&1) || bad "a preview app with the preview feed was rejected" "$out"
+ok "a preview app that looks at the preview feed passes --release"
+app previewstable 1.2.3-preview.1
+out=$(scripts/check-desktop-updater.sh --release "$WORK/previewstable/Werkbord.app" 2>&1) && bad "a preview app that looks at the stable feed was accepted: it would never find its next version" "$out"
+contains "$out" "looks for updates at $PREVIEW_FEED" || bad "the message does not name the preview feed" "$out"
+ok "--release rejects a preview app that looks at the stable feed"
+app stablepreview; $PB -c "Set :SUFeedURL $PREVIEW_FEED" "$WORK/stablepreview/Werkbord.app/Contents/Info.plist"
+out=$(scripts/check-desktop-updater.sh --release "$WORK/stablepreview/Werkbord.app" 2>&1) && bad "a stable app that looks at the preview feed was accepted: it would be offered previews" "$out"
+contains "$out" "looks for updates at $FEED" || bad "the message does not name the stable feed" "$out"
+ok "--release rejects a stable app that looks at the preview feed"
+app nobuild; $PB -c "Delete :WerkbordBuildVersion" "$WORK/nobuild/Werkbord.app/Contents/Info.plist"
+out=$(scripts/check-desktop-updater.sh --release "$WORK/nobuild/Werkbord.app" 2>&1) && bad "an app that does not say its version was accepted" "$out"
+contains "$out" "WerkbordBuildVersion" || bad "the message does not name WerkbordBuildVersion" "$out"
+ok "--release rejects an app that does not say which version (and so which feed) it is"
+
 # one thing wrong at a time
 wrong() { # <name> <what is wrong> <expected message> <how to break it: a shell command on $a / $P>
   app "$1"; a="$WORK/$1/Werkbord.app"; P="$a/Contents/Info.plist"
@@ -47,7 +66,7 @@ wrong() { # <name> <what is wrong> <expected message> <how to break it: a shell 
   contains "$out" "$3" || bad "$1: the message does not say \"$3\"" "$out"
   ok "--release rejects an app $2"
 }
-wrong feedelsewhere "that looks for updates somewhere else" "a release looks for updates at" '$PB -c "Set :SUFeedURL https://example.com/appcast.xml" "$P"'
+wrong feedelsewhere "that looks for updates somewhere else" "looks for updates at" '$PB -c "Set :SUFeedURL https://example.com/appcast.xml" "$P"'
 wrong feedhttp "whose feed is plain http" "not https" '$PB -c "Set :SUFeedURL http://example.com/appcast.xml" "$P"'
 wrong feedlocal "whose feed is a local server" "a release uses the one https address" '$PB -c "Set :SUFeedURL http://127.0.0.1:8000/appcast.xml" "$P"'
 wrong otherkey "that holds another public key than the committed one" "not the one committed" '$PB -c "Set :SUPublicEDKey $(head -c 32 /dev/urandom | base64)" "$P"'

@@ -66,6 +66,13 @@ type Updater interface {
 	GuardRelaunch(busy func() bool)
 }
 
+// Placed is optionally implemented by an Updater that knows where the app is running. InstallProblem is why the app cannot
+// replace itself there (it is running from a mounted disk image, say), in a sentence a person can act on, or "" if it can.
+// Looking at the feed and the program's own update do not depend on it; replacing the app does.
+type Placed interface {
+	InstallProblem() string
+}
+
 // Probe is what the feed said.
 type Probe struct {
 	Found   bool
@@ -548,13 +555,23 @@ func (s *Shell) update(fromMenu bool) UpdateResult {
 	// 2. A newer release than this app: the app is replaced by the updater, which has its own window with the release
 	// notes and its own question. That one question is the whole of the update: when the new app opens it moves the
 	// controller to the program it carries (internal/launcher), or says why not yet.
-	if u := s.o.Updater; u != nil && u.Active() && update.Release(s.o.Version) && update.Compare(s.o.Version, st.Latest) < 0 {
+	//
+	// A preview is asked whatever the newest stable release is: st.Latest is /releases/latest, which never points at a preview,
+	// so it says nothing about the preview feed the app was built to follow (docs/DESKTOP_RELEASE.md, "Preview update feed").
+	if u := s.o.Updater; u != nil && u.Active() && update.Release(s.o.Version) && (update.Prerelease(s.o.Version) || update.Compare(s.o.Version, st.Latest) < 0) {
 		p, err := u.Probe(s.o.Ctx)
 		switch {
 		case err != nil:
 			// The feed could not be read (the release is still being published, say): the program can still be updated.
 			s.o.Log.Warn("the app's update feed could not be read", "err", err)
 		case p.Found:
+			if why := installProblem(u); why != "" {
+				// Sparkle would open its window and then fail to swap the app. Say what to do instead.
+				s.o.Log.Warn("an update of the app exists, but this copy cannot replace itself where it is", "to", p.Version, "why", why)
+				msg := fmt.Sprintf("A newer Werkbord (%s) is available. %s", p.Version, why)
+				say(Info, "Move Werkbord to Applications to update it", msg)
+				return UpdateResult{Message: msg}
+			}
 			s.o.Log.Info("opening the update window", "from", s.o.Version, "to", p.Version)
 			u.Show()
 			return UpdateResult{OK: true, Message: "The update window is open."}
@@ -588,6 +605,14 @@ func (s *Shell) update(fromMenu bool) UpdateResult {
 	s.o.Log.Info("updated", "to", st.Latest)
 	s.o.UI.Reload()
 	return UpdateResult{OK: true, Message: lastLine(out)}
+}
+
+// installProblem is why u cannot replace the app where it runs, if it can say.
+func installProblem(u Updater) string {
+	if p, ok := u.(Placed); ok {
+		return p.InstallProblem()
+	}
+	return ""
 }
 
 // finish installs the program the app carries over the one installed, when the person agrees: the same installer, with the

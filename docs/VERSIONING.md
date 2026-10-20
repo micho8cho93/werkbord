@@ -92,7 +92,7 @@ new releases without changing their assets or latest selection:
   | `Werkbord_<version>_darwin_universal.dmg` and `….dmg.sha256` | the disk image people download: signed with a Developer ID, notarized by Apple, stapled; one image for Apple Silicon and Intel |
   | `Werkbord.dmg` | **the same file, byte for byte, with no version in its name**, so that `https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg` is always the newest app (the website's button, and a one-line `curl`) |
   | `Werkbord_<version>_darwin_universal.zip` and `….zip.sha256` | the archive the installed app updates itself from (the same app, zipped), signed with the update key |
-  | `appcast.xml` | the feed the installed app reads: one item (this release), signed with the update key. Published **last**, after the disk image has been checked on a fresh Mac; `…/releases/latest/download/appcast.xml` is the address apps use, and only individual releases are marked latest |
+  | `appcast.xml` | the feed the installed app reads: one item (this release), signed with the update key. Published **last**, after the disk image has been checked on a fresh Mac; `…/releases/latest/download/appcast.xml` is the address stable apps use, and only individual releases are marked latest. Preview apps use the preview feed (below) |
   | `Werkbord_<version>_linux_<arch>.deb` and `.tar.gz` plus `.sha256` | native Linux app and local Team service for amd64 and arm64 |
   | `Werkbord_<version>_windows_amd64_setup.exe` and `.zip` plus `.sha256` | machine-wide Windows app and local Team service; the installer and Werkbord executables are Authenticode-signed |
 
@@ -110,6 +110,15 @@ A tag with a `-` after the version (`werkbord-v4.1.0-rc1`) is a pre-release. Its
 as stable builds and publish a public evaluation app without admitting Team to production.
 Their Apple bundle metadata uses beta build notation derived from the unified VERSION;
 both executables and WerkbordBuildVersion preserve the complete preview version. An explicitly requested ad-hoc Mac preview may be attached as `Werkbord-preview.dmg` to a prerelease; it is never the stable `Werkbord.dmg` or an appcast update (see [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md#test-the-app-while-approval-is-pending)).
+
+### The preview update feed
+
+`werkbord-preview-feed` is the one release whose tag is not a version. It is a pre-release, never latest, holds a single asset
+(`appcast.xml`), and exists only so that preview apps have an address that works: `/releases/latest` never points at a pre-release,
+so it cannot be their feed. It is not a product release (nothing is built from it, the `werkbord-v*` workflow trigger does not match
+it, and `make tag` never creates it); the release workflow creates it on the first release after it was introduced and replaces its
+asset with each verified release's appcast, newest only (`scripts/publish-preview-feed.sh`, [DESKTOP.md](DESKTOP.md#updates)). Do not
+delete it, mark it latest, or tag by hand: a preview app would find no update, or the stable feed would change.
 
 ## History
 
