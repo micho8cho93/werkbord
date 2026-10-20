@@ -296,6 +296,8 @@ class AppState {
   }
 
   /** Whether the setup flow should be offered: nobody has finished or skipped it, and there is nothing to lose by it. */
+  onboardingPaused = $state(false);
+  onboardingIntroduced = $state(false);
   needsOnboarding = $derived(this.onboarding !== null && !this.onboarding.completedAt);
 
   /** A newer release to offer: there is one, and it is not the one the person put off. */

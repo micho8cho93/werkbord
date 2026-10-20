@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { setupRouteAllowed } from './lib/setup/readiness';
   import WorkflowMonitor from './lib/mobile/WorkflowMonitor.svelte';
   import Icon, { type IconName } from './lib/Icon.svelte';
   import Mark from './lib/Mark.svelte';
@@ -106,15 +107,16 @@
     trail.note();
   });
 
-  // First-time setup opens by itself, once, until it is finished or skipped. It is a page like any other: nothing is
-  // blocked behind it, and a computer that already has projects never sees it.
-  let setupOffered = false;
+  // Setup stays active until the completion review. Recovery and the example task remain reachable.
   $effect(() => {
-    if (!loaded && app.onboarding === null) return;
-    if (app.needsOnboarding && !isPhone() && !hosted && !setupOffered && router.view !== 'onboarding') {
-      setupOffered = true;
-      router.go({ view: 'onboarding', projectId: '', taskId: '' });
+    if (!app.needsOnboarding || isPhone() || hosted) return;
+    if (framed) window.parent.postMessage({ type: 'werkbord.frame', event: 'onboarding', required: true, paused: app.onboardingPaused }, '*');
+    if (!app.onboardingPaused && !setupRouteAllowed(router.view, router.taskId, app.onboarding?.example?.taskId)) {
+      router.go({ view: 'onboarding', projectId: '', taskId: '' }, true);
     }
+  });
+  $effect(() => {
+    if (framed && !hosted && app.onboarding && !app.needsOnboarding) window.parent.postMessage({ type: 'werkbord.frame', event: 'onboarding', required: false, paused: false }, '*');
   });
 
   // Being in a project makes it the current one and has its data ready, fetched the first time.
@@ -147,7 +149,7 @@
   function onKey(e: KeyboardEvent) {
     const el = e.target as HTMLElement | null;
     const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
-    if (typing) return;
+    if (typing || (app.needsOnboarding && !app.onboardingPaused && !isPhone())) return;
     if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
       if (assistant.mounted) return;
       e.preventDefault();
@@ -212,8 +214,8 @@
             {/if}
           </div>
           <div class="gacts">
-            {#if !framed}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
-            {#if !framed && !deck}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
+            {#if !framed && (!app.needsOnboarding || app.onboardingPaused)}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
+            {#if !framed && !deck && (!app.needsOnboarding || app.onboardingPaused)}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
             <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
               <Icon name="search" /><span class="wide">Jump to</span>
             </button>
@@ -228,6 +230,12 @@
       <!-- The Control Deck exposes Needs you through its configurable key. -->
       {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}
       <UpdateBanner />
+      {#if app.needsOnboarding && !isPhone() && !framed && router.view !== 'onboarding'}
+        <div class="setup-reminder" role="status">
+          <span><strong>Setup is unfinished.</strong> Finish connecting your tools to get the full Werkbord experience.</span>
+          <a class="btn primary" href={globalHref('onboarding')}>Resume setup</a>
+        </div>
+      {/if}
 
       <main id="main-content" tabindex="-1" bind:this={mainEl}>
         {#if phoneMoreLocation && !framed && !deck}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
@@ -332,10 +340,11 @@
   <!-- In the desktop window the assistant is the shell's own frame over the whole window (lib/assistant/AssistantSurface). -->
   {#if !framed}<Assistant />{/if}
   <!-- Outside the shell, which is inert while the assistant is open: the phone's two places stay reachable over it. -->
-  {#if deck}<PhoneNav />{/if}
+  {#if deck && router.view !== 'onboarding'}<PhoneNav />{/if}
 {/if}
 
 <style>
+  .setup-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
   .skip-main {
     position: fixed;
     z-index: 100;

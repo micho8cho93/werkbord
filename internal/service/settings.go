@@ -67,7 +67,7 @@ func (s *Settings) Levels(ctx context.Context, projectID string) (Levels, error)
 }
 
 // Onboarding returns how far first-time setup has got. A computer that already
-// has projects (it was set up before there was a setup flow) counts as done, so an
+// has projects and no setup record (it predates guided setup) counts as done, so an
 // upgrade never opens a wizard over someone's existing work.
 func (s *Settings) Onboarding(ctx context.Context) (domain.Onboarding, error) {
 	var ob domain.Onboarding
@@ -76,7 +76,7 @@ func (s *Settings) Onboarding(ctx context.Context) (domain.Onboarding, error) {
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
-		if ob.CompletedAt == nil {
+		if errors.Is(err, domain.ErrNotFound) {
 			ps, err := tx.Projects().List(ctx)
 			if err != nil {
 				return err

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { localReadiness, setupCurrent } from './readiness';
+import { localReadiness, setupCurrent, setupResolved, setupRouteAllowed } from './readiness';
 import type { Agent, Project, Runner } from '../types';
 
 const runner = { kind: 'local', online: true, disabled: false, capacity: 1 } as Runner;
@@ -22,10 +22,26 @@ it('does not count a planning project as a repository and selects a registered c
 });
 
 it('advances a selected setup step when detection verifies it and keeps completed requirements out of the path', () => {
-  const steps = [...localReadiness([runner], [agent], [repo], true).steps, { id: 'github', done: false }, { id: 'ticket', done: false }];
+  const steps = [...localReadiness([runner], [agent], [repo], true).steps, { id: 'github', done: false, optional: true }, { id: 'ticket', done: false }];
   for (const id of ['computer', 'agents', 'repository']) expect(setupCurrent(steps, {}, id)).toBe('github');
   expect(setupCurrent(steps, {github:'skipped'}, 'computer')).toBe('ticket');
-  expect(setupCurrent(steps, {}, 'ticket')).toBe('ticket');
+  expect(setupCurrent(steps, {}, 'ticket')).toBe('github');
   const disconnected = [...localReadiness([runner], [agent], [repo], false).steps, {id:'github',done:false}];
   expect(setupCurrent(disconnected, {}, 'computer')).toBe('computer');
+});
+
+it('ignores skips for required capabilities and locks future steps until optional choices are resolved', () => {
+  const steps = [{id:'agents', done:false}, {id:'github', done:false, optional:true}, {id:'review',done:false}];
+  expect(setupResolved(steps[0], {agents:'skipped'})).toBe(false);
+  expect(setupCurrent(steps, {agents:'skipped',github:'skipped'}, 'review')).toBe('agents');
+  steps[0].done = true;
+  expect(setupCurrent(steps, {}, 'review')).toBe('github');
+  expect(setupCurrent(steps, {github:'skipped'}, 'review')).toBe('review');
+});
+
+it('keeps recovery and the exact example task reachable, while blocking unrelated navigation', () => {
+  for (const view of ['settings', 'help', 'onboarding']) expect(setupRouteAllowed(view, '')).toBe(true);
+  expect(setupRouteAllowed('task', 'example', 'example')).toBe(true);
+  expect(setupRouteAllowed('task', 'other', 'example')).toBe(false);
+  for (const view of ['board', 'projects', 'control', 'analytics']) expect(setupRouteAllowed(view, '')).toBe(false);
 });

@@ -165,6 +165,7 @@ describe('startup', () => {
     const model = new Model();
     const open = vi.fn();
     native.app.OpenWorkspace = open;
+    native.app.LoadWorkspace = vi.fn().mockResolvedValue({ id: 'personal', kind: 'personal', url: 'http://127.0.0.1:7420/#token=t0k', origin: 'http://127.0.0.1:7420' });
     native.app.Workspaces = async () => ({ ...view([individual, team]), selected: team.id });
     native.app.Overview = async () => ({ entries: [], at: '' });
     try {
@@ -172,7 +173,7 @@ describe('startup', () => {
       expect(model.page).toBe('mywork');
       expect(model.universal).toBe(true);
       expect(open).not.toHaveBeenCalled();
-      expect(model.frames).toEqual({});
+      expect(Object.keys(model.frames)).toEqual(['personal']); // Background readiness check, without selecting it.
       await model.refresh();
       expect(model.page).toBe('mywork');
     } finally { model.stop(); }

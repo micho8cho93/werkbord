@@ -22,6 +22,7 @@ export interface MessageLike {
 }
 
 export interface Deps {
+  onboarding?(required: boolean, paused: boolean): void;
   relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   remember(id: string, place: string): Promise<void>;
   ready(id: string): void;
@@ -104,7 +105,8 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     // The assistant's frame is not a workspace's page: it has no place to remember, and may open only a place in the person's own
     // Werkbord or a validated Team ticket route.
     if (frame.surface && m.event !== 'assistant' && m.event !== 'open') return;
-    if (m.event === 'ready') d.ready(frame.id);
+    if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
+    else if (m.event === 'ready') d.ready(frame.id);
     // Where a frame that only shows Settings or Help is says nothing about where the person is: it is never remembered.
     else if (m.event === 'place' && isPlace(m.place) && !frame.hosted) await d.remember(frame.id, m.place).catch(() => {});
     else if (m.event === 'theme' && (m.theme === 'light' || m.theme === 'dark' || m.theme === '') && !frame.surface) d.theme(frame.id, m.theme);

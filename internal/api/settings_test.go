@@ -160,6 +160,10 @@ func TestRunnerIsListedAndOnboardingIsRemembered(t *testing.T) {
 	if code := do(t, "POST", rs.url+"/api/onboarding/reset", `{}`, &ob); code != 200 {
 		t.Fatalf("reset = %d", code)
 	}
+	var pending domain.Onboarding
+	if code := do(t, "GET", rs.url+"/api/onboarding", "", &pending); code != 200 || pending.CompletedAt != nil {
+		t.Fatalf("existing project must not complete reset setup: %d %+v", code, pending)
+	}
 	if code := do(t, "POST", rs.url+"/api/onboarding/complete", `{"skipped":["github","bogus"]}`, &ob); code != 400 {
 		t.Fatalf("an unknown step = %d", code)
 	}

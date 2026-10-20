@@ -42,6 +42,7 @@
 
   function onMessage(e: MessageEvent): void {
     void handle(refs(), e, {
+      onboarding: (required, paused) => { model.setupRequired = required; model.setupPaused = paused; },
       relay: (id, method, args) => ask((a) => a.Relay(id, method, args)),
       remember: (id, place) => {
         model.setPlace(id, place);

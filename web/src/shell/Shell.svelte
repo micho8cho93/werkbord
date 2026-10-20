@@ -27,6 +27,13 @@
   const hostedGone = $derived(!!hostedWorkspace && model.view?.items.find((i) => i.id === hostedWorkspace)?.state === 'unavailable');
   const native = $derived(model.page === 'settings' ? model.settingsShown.where : undefined);
 
+  $effect(() => {
+    if (!model.setupRequired || model.setupPaused || model.page === 'settings' || model.page === 'help') return;
+    // Individual guards its own routes, including the exact example task. Do not race its pause report against a place report.
+    if (model.page === 'workspace' && model.current === 'personal') return;
+    void model.open('personal', '#/onboarding');
+  });
+
   function go(where: unknown): void {
     if (where === 'personal') void model.open('personal');
     else if (where === 'switch') model.toggleSwitcher();
@@ -59,6 +66,9 @@
       <div class="message" role="status">{model.notice}<button class="btn" type="button" onclick={() => (model.notice = '')}>Dismiss</button></div>
     {/if}
     {#if !model.loaded}<p class="loading" role="status">Opening your workspaces…</p>{/if}
+    {#if model.setupRequired && !(model.page === 'workspace' && model.current === 'personal' && model.places.personal?.startsWith('#/onboarding'))}
+      <div class="message" role="status"><span><strong>Setup is unfinished.</strong> Finish connecting your tools to get the full Werkbord experience.</span><button class="btn primary" onclick={() => { model.setupPaused = false; void model.open('personal', '#/onboarding'); }}>Resume setup</button></div>
+    {/if}
     <main id="shell-main" tabindex="-1" bind:this={mainEl} class:with-nav={model.page === 'settings'}>
       {#if model.page === 'settings'}<SettingsNav />{/if}
       <div class="stage">

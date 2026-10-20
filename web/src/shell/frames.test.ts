@@ -149,3 +149,16 @@ describe('where a frame that shows Settings loads from', () => {
     expect(hostedUrl('http://127.0.0.1:7431/w/two/?tab=board')).toBe('http://127.0.0.1:7431/w/two/?tab=board&hosted=1');
   });
 });
+
+it('accepts setup status only from the ordinary Individual workspace with validated booleans', async () => {
+  const onboarding = vi.fn();
+  const d = {...deps(), onboarding};
+  const report = {event:'onboarding', required:true, paused:false};
+  await handle(frames, say(individual, frames[0].origin, report), d);
+  expect(onboarding).toHaveBeenCalledExactlyOnceWith(true, false);
+  onboarding.mockClear();
+  for (const [frame, data] of [[frames[1], report], [hosted, report], [surface, report], [frames[0], {...report, required:'true'}], [frames[0], {...report, paused:null}]] as const) {
+    await handle([frame], say(frame.window!, frame.origin, data), d);
+  }
+  expect(onboarding).not.toHaveBeenCalled();
+});

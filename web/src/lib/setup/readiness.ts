@@ -1,10 +1,23 @@
 import type { Agent, Project, Runner } from '../types';
 
-/** Detection wins over an earlier visit to a setup step. Completed steps remain visible as status. */
-export function setupCurrent(steps: readonly {id: string; done: boolean}[], states: Record<string, string>, chosen: string | null): string {
-  const selectable = (s: {id: string; done: boolean}) => !(['computer', 'agents', 'repository'].includes(s.id) && s.done);
-  if (chosen && steps.some(s => s.id === chosen && selectable(s))) return chosen;
-  return steps.find(s => !s.done && states[s.id] !== 'skipped')?.id ?? steps[steps.length - 1].id;
+export interface SetupStep { id: string; done: boolean; optional?: boolean }
+
+/** Only an explicit optional decision can replace verification; future steps stay locked. */
+export function setupResolved(step: SetupStep, states: Record<string, string>): boolean {
+  return step.done || (step.optional === true && states[step.id] === 'skipped');
+}
+
+export function setupCurrent(steps: readonly SetupStep[], states: Record<string, string>, chosen: string | null): string {
+  const frontier = steps.findIndex(s => !setupResolved(s, states));
+  const limit = frontier < 0 ? steps.length - 1 : frontier;
+  const index = steps.findIndex(s => s.id === chosen);
+  if (index >= 0 && index <= limit && !(['computer', 'agents', 'repository'].includes(steps[index].id) && steps[index].done)) return steps[index].id;
+  return steps[limit].id;
+}
+
+/** Recovery routes remain available while the setup gate protects ordinary navigation. */
+export function setupRouteAllowed(view: string, taskId: string, exampleTaskId?: string): boolean {
+  return ['onboarding', 'settings', 'help'].includes(view) || (view === 'task' && !!exampleTaskId && taskId === exampleTaskId);
 }
 
 /** Local coding readiness uses verified capabilities, never the mere existence of a project or runner. */

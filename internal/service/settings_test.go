@@ -121,15 +121,23 @@ func TestOnboardingIsRememberedAndNeverOpensOverExistingWork(t *testing.T) {
 		t.Fatalf("after reset = %+v", again)
 	}
 
-	// An existing installation has projects and no record: it is not asked to set up again.
+	// Explicitly resetting setup keeps it unfinished even with existing projects.
 	if _, err := f.projects.Register(bg, "/repos/old", "old"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.ResetOnboarding(bg); err != nil {
 		t.Fatal(err)
 	}
-	if ob, _ := s.Onboarding(bg); ob.CompletedAt == nil {
-		t.Fatal("setup would open over a computer that already has projects")
+	if ob, _ := s.Onboarding(bg); ob.CompletedAt != nil {
+		t.Fatal("reset setup was silently completed by an existing project")
+	}
+
+	legacy := newFixture(t)
+	if _, err := legacy.projects.Register(bg, "/repos/old", "old"); err != nil {
+		t.Fatal(err)
+	}
+	if ob, _ := (&Settings{Deps: legacy.deps}).Onboarding(bg); ob.CompletedAt == nil {
+		t.Fatal("setup would open over a legacy installation without a setup record")
 	}
 }
 

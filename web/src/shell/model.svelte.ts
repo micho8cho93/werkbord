@@ -65,6 +65,8 @@ export class Model {
   sidebarCollapsed = $state(readCollapsed());
   addOpen = $state(false);
   loaded = $state(false);
+  setupRequired = $state(false);
+  setupPaused = $state(false);
   /** How Individual's assistant stands, as it last said: open over everything, something waiting for the person, a reply on the way. */
   assistant = $state({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
@@ -137,6 +139,7 @@ export class Model {
    * is (in the window's coordinates, which are the frame's) so that it grows out of it and collapses back into it.
    */
   async toggleAssistant(rect: Anchor): Promise<void> {
+    if (this.setupRequired && !this.setupPaused) { await this.open('personal', '#/onboarding'); return; }
     if (this.assistantShown) {
       this.assistantAsk = { action: 'close', rect };
       return;
@@ -213,6 +216,13 @@ export class Model {
     this.universal = true;
     this.loaded = true;
     void this.refreshOverview();
+    // Load Individual in the background so first-use setup can identify itself before ordinary navigation.
+    if (this.view?.items.some(i => i.id === 'personal' && i.state === 'ready')) {
+      try {
+        const target = await ask(a => a.LoadWorkspace('personal'));
+        if (!this.frames.personal) this.frames.personal = { target, ready: false };
+      } catch { /* The workspace problem view provides recovery when opened. */ }
+    }
     this.timers.push(
       setInterval(() => !document.hidden && void this.refresh(), VIEW_EVERY),
       setInterval(() => !document.hidden && void this.refreshOverview(), OVERVIEW_EVERY),

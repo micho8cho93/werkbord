@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-planning-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser
 
 all: check build build-team
 
@@ -229,6 +229,10 @@ test-install-team:
 ## test-team-signed-release: native real sidecars, offline signature tools and licensed create/serve in an isolated prefix
 test-team-signed-release:
 	scripts/test-team-signed-release.sh
+
+## test-onboarding-browser: guided setup, persistence, recovery and the desktop window gate
+test-onboarding-browser: build web-shell
+	node scripts/browser-onboarding.cjs
 
 ## test-assistant-browser: the assistant's screen in a real browser (animation, streaming, confirmations, recovery, files, dictation,
 ## accessibility, a phone) and from the desktop window's sidebar, with the real engine and API and a scripted provider in place of

@@ -29,8 +29,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         }
     }
     await page.goto(base + '/#token=' + token);
+    await page.getByRole('button', { name: 'Start guided setup', exact: true }).click();
     await page.getByRole('heading', { name: 'Welcome to Werkbord', exact: true }).waitFor();
-    await page.getByText('2 of 3 requirements verified', { exact: true }).waitFor();
+    await page.getByText(/2 of 3 requirements verified/).waitFor();
     const setupSteps = page.getByRole('list', {name:'Setup steps'});
     assert(await setupSteps.getByRole('button',{name:/Local runner/}).isDisabled(),'verified runner does not need connecting again');
     assert(await setupSteps.getByRole('button',{name:/Usable coding agent/}).isDisabled(),'detected agents do not repeat setup');
@@ -47,7 +48,8 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
             await page.screenshot({ path: path.join(artifacts, `onboarding-${size}-${theme}.png`) });
         }
     }
-    await page.getByRole('button', { name: 'Finish later', exact: true }).click();
+    await page.getByRole('button', { name: 'Pause setup…', exact: true }).click();
+    await page.getByRole('button', { name: 'Pause and explore', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     console.log('PASS first-run setup and continue into empty project workflow, desktop/mobile');
     await api('POST', '/api/onboarding/complete', {});
@@ -115,13 +117,10 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     assert.equal(await page.getByRole('button', { name: 'Create your first task', exact: true }).count(), 0, 'failed readiness check cannot reuse a cached success');
     await page.unroute('**/api/runners');
     await page.getByRole('button', { name: 'Check again', exact: true }).click();
-    await page.getByText('3 of 3 requirements verified · ready to create a task', { exact: true }).waitFor();
-    await page.route('**/api/onboarding/complete', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'unavailable', message: 'Could not complete setup' } }) }));
-    await page.getByRole('button', { name: 'Create your first task', exact: true }).click();
-    await page.getByRole('alert').filter({ hasText: 'Could not complete setup' }).waitFor();
-    assert(await page.getByText('3 of 3 requirements verified · ready to create a task', { exact: true }).isVisible(), 'completion failure preserves verified requirements and permits retry');
-    await page.unroute('**/api/onboarding/complete');
-    await page.getByRole('button', { name: 'Create your first task', exact: true }).click();
+    await page.getByText(/3 of 3 requirements verified/).waitFor();
+    // Completion ordering, optional decisions and failures are exercised in browser-onboarding.cjs.
+    await page.goto(base + `/#/p/${p.id}/board`);
+    await page.getByRole('button', { name: 'New task', exact: true }).click();
     await page.getByRole('heading', { name: 'New task in ' + p.name, exact: true }).waitFor();
     // Sheet protects keyboard users even with disabled submit buttons and collapsed execution settings.
     const taskDialog = page.getByRole('dialog', { name: 'New task in ' + p.name, exact: true });
