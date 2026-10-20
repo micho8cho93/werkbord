@@ -54,8 +54,15 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const switchUniversal = async () => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="universal"]').click(); };
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
  const switchTo = async (id) => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
+ const assertUniversalStartup = async (window) => {
+   await wait(async () => await window.locator('iframe[data-workspace=personal]').count() === 1, 'background Individual setup check');
+   assert.equal(await window.locator('iframe[data-workspace]:visible').count(), 0, 'completed users start on Universal without displaying a workspace');
+   assert.equal(await window.locator('iframe[data-workspace=personal]').isVisible(), false, 'Individual checks setup in a hidden frame');
+   assert.equal(await window.locator('iframe[data-workspace^="team:"]').count(), 0, 'startup does not restore a Team workspace');
+ };
+
  await page.goto(origin + '/shell/shell/index.html'); await page.getByRole('heading', { name: 'My Work', exact: true }).waitFor();
- assert.equal(await page.locator('iframe[data-workspace]').count(), 0, 'startup opens Universal without restoring a workspace frame');
+ await assertUniversalStartup(page);
  const shellSkip = page.getByRole('link', { name: 'Skip to main content', exact: true }); await page.keyboard.press('Tab'); assert.equal(await shellSkip.evaluate(el => el === document.activeElement), true, 'shell skip link is first in the page focus order');
  assert((await shellSkip.boundingBox()).y >= 0, 'shell skip link is visible when focused'); await page.keyboard.press('Enter');
  assert.equal(await page.locator('#shell-main').evaluate(el => el === document.activeElement), true, 'shell skip link moves focus to its main work region');
@@ -316,7 +323,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.reload(); await page.getByRole('heading', { name: 'My Work', exact: true }).waitFor(); await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  await page.close(); assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'closing frontend leaves runner alive');
  const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'My Work', exact: true }).waitFor();
- assert.equal(await reopened.locator('iframe[data-workspace]').count(), 0, 'reopening also starts on Universal after Team was selected');
+ await assertUniversalStartup(reopened);
  await reopened.getByTestId('workspace-switcher').click(); await reopened.getByTestId('switcher-menu').locator('[data-workspace="team:main"]').click(); await reopened.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/stop`, {});
  // Leaving the second team removes only that membership and keeps Individual + first team.

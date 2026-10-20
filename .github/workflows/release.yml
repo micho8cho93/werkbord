@@ -85,6 +85,7 @@ jobs:
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/team-desktop" make test-team-desktop-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/unified" make test-unified-desktop-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/onboarding" make test-onboarding-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/assistant" make test-assistant-browser
       - name: Build the controller archives for the unified release
         run: make dist PRODUCT=werkbord PLATFORMS="darwin/arm64 darwin/amd64"
