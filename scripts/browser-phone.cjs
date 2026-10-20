@@ -326,8 +326,10 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         page.setDefaultTimeout(10000);
         page.on('pageerror', (e) => errors.push(e.message));
         await page.goto(base + '/#token=' + token);
+        // The app rewrites the address to "#/" once it has taken the token; on a slow runner that landed after the next goto.
+        await page.getByRole('link', { name: 'Workspace' }).first().waitFor();
         await page.goto(base + '/#/settings?phones');
-        const row = page.locator(`[data-phone="${ph.id}"]`);
+        const row =page.locator(`[data-phone="${ph.id}"]`);
         await row.waitFor();
         assert.match(await row.innerText(), /Desk iPad/);
         assert.match(await row.innerText(), /added .*last seen/);
