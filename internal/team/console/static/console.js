@@ -208,6 +208,7 @@ window.addEventListener('resize', () => {
 });
 function initial(name) { return h('span', { class: 'av', 'aria-hidden': 'true' }, (String(name || '?').trim()[0] || '?').toUpperCase()); }
 
+const HOST_OUTDATED = 'This workspace’s host runs an older Werkbord than this window and cannot do this yet. An administrator updates the host.';
 async function api(method, path, body, opts) {
   const credential = state.token;
   const res = await fetch(BASE + '/api/team/v1' + path, {
@@ -231,8 +232,13 @@ async function api(method, path, body, opts) {
   if (res.status === 401 && state.desktop) throw new Error('This device no longer has workspace access. Ask your administrator to approve a new invitation.');
   if (res.status === 401 && state.token && state.token === credential) { signOut(); throw new Error('Your token is not valid any more. Sign in again.'); }
   if (!res.ok) {
-    const err = new Error(data.error ? data.error.message : 'Werkbord Team could not complete this request. Check the current state before repeating an action.');
+    // A Workspace Host answers an address it has no route for with 404 "no such endpoint", the same words for a typo and for
+    // a feature that came after it. This window and its host are updated separately, so that answer almost always means the
+    // host is older than the window: say so, and let the screen explain what to do instead of printing the host's words.
+    const outdated = res.status === 404 && data.error && data.error.code === 'not_found' && /no such endpoint/i.test(data.error.message || '');
+    const err = new Error(outdated ? HOST_OUTDATED : data.error ? data.error.message : 'Werkbord Team could not complete this request. Check the current state before repeating an action.');
     err.status = res.status;
+    if (outdated) err.code = 'host_outdated';
     err.issues = data.issues || [];
     throw err;
   }
@@ -398,6 +404,20 @@ function toast(message) {
   setTimeout(() => t.remove(), 7000);
 }
 
+// ---- a host older than this window ----
+
+let hostVersion = '';
+const WHAT_THE_HOST_LACKS = { calendar: 'Calendar', timeline: 'Timeline', analytics: 'Analytics', mcp: 'MCP clients', plans: 'Plans', labels: 'Labels', initiatives: 'Initiatives', reviews: 'Reviews', overview: 'Overview' };
+async function hostOutdatedView() {
+  if (!hostVersion) hostVersion = await api('GET', '/health').then((r) => String(r.version || '').replace(/^v/, '').replace(/-\d+-g[0-9a-f]+$/, '')).catch(() => '');
+  const what = WHAT_THE_HOST_LACKS[state.tab] || ([...TABS, ...ADMIN_TABS].find(([id]) => id === state.tab) || [])[1] || 'This screen';
+  return h('section', { class: 'panel host-outdated', role: 'status' },
+    h('h2', {}, what + ' needs a newer Workspace Host'),
+    h('p', {}, 'This workspace’s host is running ', hostVersion ? 'Werkbord ' + hostVersion : 'an older Werkbord', ', which came before ' + what + '. Everything the host does know keeps working.'),
+    h('p', { class: 'muted' }, 'A host that holds a workspace is never replaced automatically. An administrator updates it in a planned maintenance window, after a verified backup.'),
+    h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: () => go('hosts') }, 'Open Workspace Hosts'), h('button', { class: 'plain', onclick: () => { hostVersion = ''; render(); } }, 'Check again')));
+}
+
 // ---- navigation ----
 
 function navTab() { return state.tab === 'project-settings' ? 'projects' : state.tab; }
@@ -427,12 +447,16 @@ function badgeOn(n, tone) { return n > 0 ? h('span', { class: 'count' + (tone ? 
 
 // ---- rendering ----
 
+let errorScope = '';
 let rendering = Promise.resolve();
 function render() { rendering = rendering.then(renderNow, renderNow); return rendering; }
 
 async function renderNow() {
   if (draggedTicket || document.querySelector('.pointer-dragging, .planning-dragging')) return;
   const requestedScope = screenScope();
+  // An error belongs to the screen it happened on. It does not follow the person to the next one.
+  if (state.error && errorScope && errorScope !== requestedScope) state.error = '';
+  errorScope = state.error ? errorScope || requestedScope : '';
   if (typeof desktopGate === 'function' && await desktopGate()) { closeSearch(false); app.classList.remove('signed-in'); return; }
   if (!state.token) { closeSearch(false); stopSync(); app.classList.remove('signed-in'); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
   try {
@@ -468,7 +492,8 @@ async function renderNow() {
     }
   } catch (e) {
     if (e instanceof TypeError) { setOnline(false); startSync(); return; }
-    state.error = e.message; body = h('p', { class: 'error' }, e.message);
+    // Said once, where the screen would be: not also in the banner above every other screen.
+    body = e.code === 'host_outdated' ? await hostOutdatedView() : h('p', { class: 'error', role: 'alert' }, e.message);
   }
   startSync();
   if (requestedScope !== screenScope() && requestedScope.split(":")[1]) return;
@@ -798,18 +823,19 @@ async function loadProject() {
   const d = { id, board, tab: state.tab };
   if (state.ticketId) {
     d.ticket = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId);
-    d.progress = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId + '/progress');
+    d.progress = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId + '/progress').catch(() => []);
     d.comments = await loadComments(id, state.ticketId);
   } else forgetOpenComment();
   if (state.tab === 'overview') d.mentions = await loadMentions(id);
   if (state.tab === 'timeline' || state.tab === 'calendar') {
-    d.timeline = await api('GET', '/projects/' + id + '/timeline');
+    // A host from before the Calendar cannot answer: the tab says so, and the project's other tabs stay one click away.
+    d.timeline = await api('GET', '/projects/' + id + '/timeline').catch((e) => { if (e.code === 'host_outdated') return null; throw e; });
     // Which tickets have a shared request for agent work: their dependencies gate its start. Only a marking, so it is optional.
     d.schedules = await api('GET', '/projects/' + id + '/schedules').catch(() => []);
   }
   if (state.tab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
   if (state.tab === 'activity' || state.tab === 'board') {
-    d.progressReports = (await Promise.all(board.tickets.filter(k => k.assigneeId).slice(0, 32).map(async k => ({ ticket: k, progress: await api('GET', '/projects/' + id + '/tickets/' + k.id + '/progress').catch(() => []) }))));
+    d.progressReports = await Promise.all(board.tickets.filter(k => k.assigneeId === state.me.member.id).map(async k => ({ ticket: k, progress: await api('GET', '/projects/' + id + '/tickets/' + k.id + '/progress').catch(() => []) })));
   }
   if (state.tab === 'project-settings') {
     d.people = board.people;
@@ -847,7 +873,8 @@ async function projectScopedView() {
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
   const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
-  const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
+  const calendarLacking = ['calendar', 'timeline'].includes(state.tab) && d.timeline === null ? await hostOutdatedView() : null;
+  const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
   const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': state.tab === 'project-settings' ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
   const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '';
   const branches = [...new Set(d.board.tickets.filter(k => k.assigneeId === state.me.member.id && k.branch).map(k => k.branch))];
@@ -938,7 +965,7 @@ async function myWorkView() {
   return h('div', {},
     h('div', { class: 'panel' }, h('h2', {}, 'Needs your attention'), attn,
       w.reviewsWaiting ? h('p', {}, h('button', { class: 'link', onclick: () => go('reviews') }, plural(w.reviewsWaiting, 'ticket') + ' waiting for a review you can do')) : ''),
-    h('div', { class: 'panel' }, h('h2', {}, 'Claimed · ready to start (' + (w.ready || []).length + ')'), list(w.ready || [], 'Claim a ticket from a project board to prepare your work.')),
+    (w.ready || []).length ? h('div', { class: 'panel' }, h('h2', {}, 'Claimed · ready to start (' + w.ready.length + ')'), list(w.ready, '')) : '',
     h('div', { class: 'panel' }, h('h2', {}, 'In progress (' + w.inProgress.length + ')'), list(w.inProgress, 'You are not working on a ticket. Claim one from a board.')),
     h('div', { class: 'panel' }, h('h2', {}, 'Submitted, waiting for review (' + w.submitted.length + ')'), list(w.submitted, 'Nothing of yours is waiting for a review.')),
     h('div', { class: 'panel' }, h('h2', {}, 'Your open pull requests (' + w.pullRequests.length + ')'),
@@ -1123,11 +1150,10 @@ let draggedTicket = null;
 const pendingTickets = new Set();
 function dropAction(d, k, to) {
   if (!k || k.archivedAt || pendingTickets.has(k.id) || k.status === to) return null;
-  const creator = k.creatorId === state.me.member.id || pcan('tickets.edit');
   const holder = k.assigneeId === state.me.member.id || pcan('tickets.assign');
-  if ((k.status === 'backlog' && to === 'available' || k.status === 'available' && !k.assigneeId && to === 'backlog') && creator) return ['move', { status: to }];
-  if (to === 'in_progress' && k.status === 'available' && k.assigneeId === state.me.member.id) return ['start-work'];
-
+  // Dropping an available ticket into In progress claims it, like the Claim button.
+  if (to === 'in_progress' && k.status === 'available' && !k.assigneeId && d.board.member && pcan('tickets.claim')) return ['claim'];
+  if (to === 'in_progress' && k.status === 'available' && k.assigneeId === state.me.member.id) return ['start-work']; // claimed before claiming moved a ticket
   if (k.status === 'in_progress' && to === 'available' && holder) return ['release'];
   if (k.status === 'review' && to === 'in_progress' && pcan('tickets.review') && k.assigneeId) return ['request-changes', { note: '' }];
   if (k.status === 'in_progress' && to === 'review' && holder) return ['submit', {}];
@@ -1215,10 +1241,31 @@ function canArchiveTicket(k) {
   return k.creatorId === state.me.member.id || pcan('tickets.edit');
 }
 
+// What the person holding a ticket sees of their own agent on the board. Everyone else sees only whether it is active.
+const AGENT_STATE = { queued: 'Agent starting', running: 'Agent running', needs_input: 'Agent needs your answer', blocked: 'Agent blocked', completed: 'Agent finished', failed: 'Agent failed', canceled: 'Agent stopped' };
+// Whether the owner's agent is working on a ticket: a yes or a no, drawn the same for everyone.
+function presence(active) {
+  return h('span', { class: 'presence' + (active ? ' on' : ''), title: active ? 'Their agent is working on it right now.' : 'Their agent is not working on it right now.' },
+    h('span', { class: 'dot', 'aria-hidden': 'true' }), active ? 'Active now' : 'Not active');
+}
+function ownAgentRun(d, k) {
+  const records = d.progressReports?.find(r => r.ticket.id === k.id)?.progress || (d.ticket && d.ticket.id === k.id ? d.progress || [] : []);
+  const progress = records.slice().sort((a, b) => Number(a.stale) - Number(b.stale) || new Date(b.reportedAt) - new Date(a.reportedAt))[0];
+  const run = progress && !progress.stale && progress.execution.runId ? progress.execution.state : '';
+  return { progress, run, running: ['queued', 'running', 'needs_input'].includes(run) };
+}
+// Opens the ticket at the agent controls with the policy to review already laid out: one more press starts it.
+function startAgent(k) {
+  focusMain = false; state.ticketId = k.id; state.agentFocus = k.id; state.handoff = null; remember();
+  return render();
+}
+
 function card(d, k) {
   const mine = k.assigneeId === state.me.member.id;
   const pr = k.pullRequest;
-  const progress = d.progressReports?.find(r => r.ticket.id === k.id)?.progress?.[0];
+  const agentWork = (k.workMode || 'agent') !== 'human';
+  const { progress, run, running } = mine ? ownAgentRun(d, k) : { progress: null, run: '', running: false };
+  const active = k.status === 'in_progress' && (mine ? running : !!(d.board.active || {})[k.id]);
   const flags = [];
   if (pr) {
     flags.push(h('span', { class: 'badge' + (pr.mergeable === 'conflicting' && pr.state === 'open' ? ' bad' : '') },
@@ -1226,30 +1273,39 @@ function card(d, k) {
     if (pr.state === 'open' && pr.behind > 0) flags.push(h('span', { class: 'badge warn' }, pr.behind + ' behind'));
   }
   if ((k.workMode || 'agent') !== 'agent') flags.push(h('span', { class: 'badge', title: (MODES.find((x) => x[0] === k.workMode) || [])[2] }, modeName(k.workMode)));
+  // In progress covers a claimed ticket nobody has started and one with an agent running, so say which, to its owner only.
+  const status = pendingTickets.has(k.id) ? 'Updating ticket…'
+    : k.status === 'in_progress' && mine ? (AGENT_STATE[run] || (agentWork ? 'Claimed · waiting to start' : 'Claimed · yours to do'))
+    : k.status === 'available' && k.assigneeId ? 'Claimed · ready to start' : statusName(k.status);
+  const canStartAgent = mine && state.desktop && agentWork && k.status === 'in_progress' && !running && run !== 'blocked' && !k.archivedAt;
+  const open = () => openTicket(d.id, k.id);
   return h('article', { class: 'card work-card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : ''), 'data-board-item': k.id, 'data-work-state': k.status, draggable: !pendingTickets.has(k.id), 'aria-busy': pendingTickets.has(k.id), ondragstart: e => { draggedTicket = k.id; e.dataTransfer.setData('text/plain', k.id); e.dataTransfer.effectAllowed = 'move'; }, ondragend: () => { draggedTicket = null; document.querySelectorAll('.drop-over').forEach(el => el.classList.remove('drop-over')); void render(); } },
     h('button', { type: 'button', 'data-drag-handle': '', draggable: false, 'aria-label': 'Move ticket: ' + k.title, title: 'Drag to a column, or use Left and Right arrows' }, icon('board')),
     h('div', { class: 'muted small' }, k.key),
     h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
-    h('p', { class: 'work-status' }, pendingTickets.has(k.id) ? 'Updating ticket…' : k.status === 'available' && k.assigneeId ? 'Claimed · ready to start' : statusName(k.status)),
-    progress?.execution.runId && mine ? h('p', { class: 'work-detail' }, (progress.stale ? 'Last reported: ' : 'Reported: ') + progress.execution.state.replaceAll('_', ' ') + ' · ' + ago(progress.reportedAt)) : '',
+    h('p', { class: 'work-status' }, status),
+    progress?.execution.runId ? h('p', { class: 'work-detail' }, (progress.stale ? 'Last reported ' : 'Reported ') + ago(progress.reportedAt)) : '',
     k.description ? h('p', { class: 'work-detail' }, k.description.length > 180 ? k.description.slice(0, 177) + '…' : k.description) : '',
     k.branch ? h('p', { class: 'work-detail' }, k.branch) : '',
     k.plan && (k.plan.start || k.plan.end) ? h('p', { class: 'work-detail' }, 'Planned ' + (k.plan.start || k.plan.end) + (k.plan.end && k.plan.end !== k.plan.start ? ' – ' + k.plan.end : '')) : '',
     labelsOf(k, d.board.labels).length ? h('div', { class: 'lbls', 'aria-label': 'Labels' }, labelsOf(k, d.board.labels).map(labelChip)) : '',
-    k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId), k.status === 'in_progress' ? ' · working on it' : '', k.claimedAt ? ' · claimed ' + ago(k.claimedAt) : '') : '',
+    k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId),
+      k.status === 'in_progress' && agentWork ? presence(active) : '') : '',
+    k.assigneeId && k.claimedAt ? h('p', { class: 'work-detail' }, 'Claimed ' + ago(k.claimedAt)) : '',
     flags.length ? h('div', { class: 'flags' }, flags) : '',
-    k.status === 'review' ? h('button', { class: 'plain small', onclick: () => openTicket(d.id, k.id) }, 'Review work') : '',
-    ['available', 'in_progress'].includes(k.status) && mine ? h('button', { class: 'plain small', onclick: () => openTicket(d.id, k.id) }, 'Open work') : '',
+    k.status === 'review' ? h('button', { class: 'plain small', onclick: open }, 'Review work') : '',
+    canStartAgent ? h('button', { class: 'primary small', 'data-start-agent': k.id, onclick: () => startAgent(k) }, run === 'completed' || run === 'failed' || run === 'canceled' ? 'Start agent again' : 'Start agent') : '',
+    ['available', 'in_progress'].includes(k.status) && mine ? h('button', { class: 'plain small', onclick: open }, 'Open work') : '',
     (k.status === 'available' && !k.assigneeId && d.board.member && pcan('tickets.claim'))
-      ? h('button', { class: 'primary small', onclick: () => act(async () => { await api('POST', projectPath(k) + '/claim'); state.ticketId = k.id; remember(); }) }, 'Claim') : '');
+      ? h('button', { class: 'primary small', onclick: () => act(() => api('POST', projectPath(k) + '/claim')) }, 'Claim') : '');
 }
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }
 
 // The planning side of a ticket: its labels, who does it, when it is planned for and what it waits for. For a new ticket
 // k is null. read() gives what the person chose, in the shape the API takes.
-function planFields(d, k) {
-  const sfx = k ? k.id : 'new';
+function planFields(d, k, scope) {
+  const sfx = (k ? k.id : 'new') + (scope ? '-' + scope : '');
   const b = d.board;
   const chosen = new Set(k ? k.labelIds || [] : []);
   const deps = new Set(k ? k.dependencies || [] : []);
@@ -1352,34 +1408,39 @@ function planFields(d, k) {
     }
     return issues.length === 0;
   };
+  const dates = h('fieldset', {}, h('legend', {}, 'Planned for ', h('span', { class: 'muted small' }, 'optional')),
+    h('div', { class: 'inline dates' }, field('Start date', start, startError), field('Due date', end, endError), h('label', { class: 'check' }, milestone, ' Milestone')));
   const node = h('div', { class: 'stack plan-fields' },
     h('fieldset', {}, h('legend', {}, 'Labels'),
       labelBoxes.length ? h('div', { class: 'label-menu' }, labelBoxes.map(({ l, box }) => h('label', { class: 'check' }, box, ' ', labelChip(l))))
         : h('p', { class: 'muted small' }, can('labels.manage') ? 'No labels yet. Make some under Settings → Labels.' : 'No labels yet. A workspace owner or admin makes them.')),
     field('Who does it', mode),
-    h('fieldset', {}, h('legend', {}, 'Planned for ', h('span', { class: 'muted small' }, 'optional')),
-      h('div', { class: 'inline dates' }, field('Start or date', start, startError), field('End', end, endError), h('label', { class: 'check' }, milestone, ' Milestone'))),
+    dates,
     depBoxes.length ? h('fieldset', {}, h('legend', {}, 'Depends on ', h('span', { class: 'muted small' }, 'must finish first')),
       h('div', { class: 'dep-list' }, depBoxes.map(({ t, box }) => h('label', { class: 'check' }, box, ' ', t.key + ' · ' + t.title)), dependencyError)) : '', summaryError);
-  return { node, read, validate };
+  return { node, read, validate, dates, summaryError, controls: [start, end, milestone] };
 }
 
 function newTicketForm(d) {
   const title = h('input', { name: 't-title', required: true, maxlength: 200 });
   const desc = h('textarea', { name: 't-desc', rows: 3, maxlength: 20000 });
   const reqs = h('textarea', { name: 't-reqs', rows: 3, maxlength: 20000, placeholder: 'Acceptance criteria, constraints, links, anything the person doing it needs to know' });
-  const ready = h('input', { name: 't-ready', type: 'checkbox' });
   const plan = planFields(d, null);
   return h('div', { class: 'panel' }, h('h2', {}, 'New ticket'),
     h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); if (!plan.validate()) return; act(async () => {
-        await api('POST', '/projects/' + state.projectId + '/tickets', { title: title.value, description: desc.value, requirements: reqs.value, status: ready.checked ? 'available' : 'backlog', ...plan.read() }); state.newTicketOpen = false;
-        title.value = ''; desc.value = ''; reqs.value = ''; ready.checked = false; }); } },
+        await api('POST', '/projects/' + state.projectId + '/tickets', { title: title.value, description: desc.value, requirements: reqs.value, status: 'available', ...plan.read() }); state.newTicketOpen = false;
+        title.value = ''; desc.value = ''; reqs.value = ''; }); } },
       field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node,
-      h('label', { class: 'check' }, ready, ' Ready to be claimed (otherwise it goes to the backlog)'),
+      h('p', { class: 'muted small' }, 'It starts in Available, where anyone on the project can claim it.'),
       h('button', { class: 'primary' }, 'Create ticket')));
 }
 
 // ---- one ticket ----
+
+// One idea on the ticket, in a box of its own.
+function tcard(title, ...content) {
+  return h('section', { class: 'tcard', 'aria-label': title || undefined }, title ? h('h3', {}, title) : '', ...content);
+}
 
 function ticketPanel(d, k) {
   const b = d.board, me = state.me.member.id;
@@ -1391,19 +1452,20 @@ function ticketPanel(d, k) {
   const run = (method, p, body) => () => act(() => api(method, path + p, body));
   const isCreator = k.creatorId === me;
   const canEditText = !k.archivedAt && (isCreator || pcan('tickets.edit')) && k.status !== 'done';
+  const active = k.status === 'in_progress' && (mine ? ownAgentRun(d, k).running : !!(b.active || {})[k.id]);
 
   if (!k.archivedAt) {
 
+  if (k.status === 'available' && !k.assigneeId && b.member && pcan('tickets.claim')) actions.push(h('button', { class: 'primary', onclick: run('POST', '/claim') }, 'Claim this ticket'));
+  // A ticket claimed before claiming moved it to In progress (a host that is not updated yet, or an old claim) still waits in Available.
   if (k.status === 'backlog' && (isCreator || pcan('tickets.edit'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'available' }) }, 'Make available'));
-  if (k.status === 'available' && !k.assigneeId) {
-    if (b.member && pcan('tickets.claim')) actions.push(h('button', { class: 'primary', onclick: run('POST', '/claim') }, 'Claim this ticket'));
-    if (isCreator || pcan('tickets.edit')) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'backlog' }) }, 'Move to backlog'));
-  }
+  if (k.status === 'available' && mine) actions.push(h('button', { class: agentWork && state.desktop ? 'plain' : 'primary', onclick: run('POST', '/start-work') }, 'Start work'));
   const individual = mine && agentWork && ['available', 'in_progress', 'review'].includes(k.status) && typeof individualActions === 'function' ? individualActions(k.projectId, k.id) : '';
   if (individual) actions.push(individual);
   if (['available', 'in_progress', 'review'].includes(k.status) && mine && agentWork && pcan('handoff.own'))
     actions.push(h('button', { class: individual ? 'plain' : 'primary', onclick: () => act(async () => { state.handoff = await api('POST', path + '/handoff'); }) }, 'Open in my runner'));
-  if (k.status === 'available' && mine) actions.push(h('button', { class: agentWork && state.desktop ? 'plain' : 'primary', onclick: run('POST', '/start-work') }, 'Start work'));
+  // Work with no agent (done by hand, or a person's to finish) is handed in from here; an agent's finished run does it by itself.
+  if (k.status === 'in_progress' && mine && (!agentWork || (k.workMode === 'hybrid'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/submit', {}) }, 'Submit for review'));
   if (['available', 'in_progress'].includes(k.status) && k.assigneeId && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Take it back'));
   if (k.status === 'review' && pcan('tickets.review')) {
     const note = h('input', { name: 'rc-note-' + k.id, placeholder: 'What should change? (optional)', maxlength: 1000 });
@@ -1413,7 +1475,7 @@ function ticketPanel(d, k) {
       h('span', { class: 'inline' }, note, h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/request-changes', { note: note.value })) }, 'Request changes')));
   }
   if (k.status === 'done' && pcan('tickets.reopen')) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'available' }) }, 'Reopen'));
-  if (pcan('tickets.assign') && ['backlog', 'available', 'in_progress'].includes(k.status)) {
+  if (pcan('tickets.assign') && ['available', 'in_progress'].includes(k.status)) {
     const who = b.people.filter((p) => p.projectRole && p.id !== k.assigneeId);
     if (who.length) {
       const pick = h('select', { name: 'assign-pick', 'aria-label': 'Assign to' }, who.map((p) => h('option', { value: p.id }, p.name)));
@@ -1425,9 +1487,10 @@ function ticketPanel(d, k) {
   if (canArchiveTicket(k)) actions.push(h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/archive', { version: k.version, archived: !k.archivedAt })) }, k.archivedAt ? 'Restore ticket' : 'Archive ticket'));
   if (!k.archivedAt) actions.push(h('p', { class: 'muted small' }, 'Archiving moves this ticket out of the active board; it does not delete it.' + (['in_progress', 'review'].includes(k.status) ? ' It does not stop an agent running in your Werkbord; stop that run there if needed.' : '')));
 
+  const owner = k.assigneeId ? (mine ? 'You' : personName(d, k.assigneeId)) : 'Nobody yet';
   const facts = h('dl', { class: 'facts' },
     h('dt', {}, 'Status'), h('dd', {}, (k.archivedAt ? 'Archived · ' : '') + statusLabel(b, k.status)),
-    h('dt', {}, 'Active owner'), h('dd', {}, k.assigneeId ? (mine ? 'You' : personName(d, k.assigneeId)) : 'Nobody'),
+    h('dt', {}, 'Owner'), h('dd', {}, owner, k.status === 'in_progress' && agentWork ? [' ', presence(active)] : ''),
     h('dt', {}, 'Created by'), h('dd', {}, personName(d, k.creatorId), ' ', when(k.createdAt)),
     k.claimedAt && k.assigneeId ? [h('dt', {}, 'Claimed'), h('dd', {}, when(k.claimedAt))] : '',
     k.submittedAt ? [h('dt', {}, 'Submitted'), h('dd', {}, when(k.submittedAt), k.reviewerId ? ' · reviewer ' + personName(d, k.reviewerId) : '')] : '',
@@ -1435,14 +1498,20 @@ function ticketPanel(d, k) {
     h('dt', {}, 'Updated'), h('dd', {}, when(k.updatedAt)),
     h('dt', {}, 'Who'), h('dd', {}, modeName(k.workMode)),
     labelsOf(k, b.labels).length ? [h('dt', {}, 'Labels'), h('dd', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip))] : '',
-    WerkbordTimeline.spanOf(k) ? [h('dt', {}, 'Planned'), h('dd', {}, (k.plan.milestone ? 'Milestone · ' : '') + WerkbordTimeline.spanTitle(WerkbordTimeline.spanOf(k), new Date().getFullYear()))] : '',
-    (k.dependencies || []).length ? [h('dt', {}, 'Waits for'), h('dd', {}, k.dependencies.map((id) => { const t = [...b.tickets, ...(b.archived || [])].find((x) => x.id === id); return t ? t.key + ' · ' + t.title : 'a ticket that is not here'; }).join(', '))] : '',
+    (k.dependencies || []).length ? [h('dt', {}, 'Waits for'), h('dd', {}, k.dependencies.map((id) => { const t = [...b.tickets, ...(b.archived || [])].find((x) => x.id === id); return t ? t.key + ' · ' + t.title : 'a ticket that is not here'; }).join(', '))] : '');
+
+  const git = h('dl', { class: 'facts' },
     h('dt', {}, 'Branch'), h('dd', {}, k.branch ? [h('code', {}, k.branch), ' ', copy(k.branch, 'Copy')] : h('span', { class: 'muted' }, 'chosen when someone claims it')),
     h('dt', {}, 'Pull request'), h('dd', {}, pr ? prLine(pr) : h('span', { class: 'muted' }, 'none reported')));
-
   const commits = k.commits && k.commits.length
     ? h('ul', { class: 'commits' }, k.commits.map((c) => h('li', {}, h('code', {}, c.sha.slice(0, 8)), ' ', c.subject, c.author ? h('span', { class: 'muted' }, ' · ' + c.author) : '')))
-    : h('p', { class: 'muted' }, 'No commits reported.');
+    : h('p', { class: 'muted small' }, 'No commits reported.');
+
+  // Only the owner sees what their agent does. Everyone else sees that the work is theirs and whether it is active.
+  const agentCard = mine && state.desktop && !k.archivedAt && ['available', 'in_progress', 'review'].includes(k.status) && agentWork ? ownExecutionPanel(k)
+    : k.assigneeId && agentWork ? tcard(mine ? '' : 'Agent', mine ? executionProgress(d.progress || []) : h('p', { class: 'muted' }, personName(d, k.assigneeId) + ' owns this work, and their agent is ' + (active ? 'active right now' : 'not active right now') + '. What it does, asks and writes stays private to them.'))
+    : !k.assigneeId && agentWork && !k.archivedAt && k.status === 'available' ? tcard('Agent', h('p', { class: 'muted' }, 'Claim this ticket to prepare your own agent. It moves to In progress, and you start the agent from there.'))
+    : '';
 
   return h('div', { class: 'panel ticket', 'data-scroll-key': 'ticket-' + k.id },
     h('div', { class: 'ticket-head' },
@@ -1451,16 +1520,39 @@ function ticketPanel(d, k) {
     h('div', { class: 'actions' }, actions.filter(a => a.classList.contains('primary') || ['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent))),
     actions.some(a => !a.classList.contains('primary') && !['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent)) ? h('details', { class: 'ticket-more' }, h('summary', {}, 'More actions'), h('div', { class: 'actions' }, actions.filter(a => !a.classList.contains('primary') && !['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent)))) : '',
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
-    mine && state.desktop && !k.archivedAt && ['available', 'in_progress', 'review'].includes(k.status) && agentWork ? ownExecutionPanel(k) : '',
-    !k.archivedAt ? teamSchedulePanel(k, b) : '',
-    h('div', { class: 'two' },
-      h('div', {},
-        h('h3', {}, 'Description'), h('p', { class: 'prose' }, k.description || '—'),
-        h('h3', {}, 'Requirements and context'), h('p', { class: 'prose' }, k.requirements || '—'),
-        canEditText ? editTicket(d, k, path) : ''),
-      h('div', {}, facts, mine ? executionProgress(d.progress || []) : h('p', { class: 'muted' }, k.assigneeId ? personName(d, k.assigneeId) + (k.status === 'available' ? ' has claimed this ticket. Agent choices, conversations and output are private to them.' : ' owns this work. Agent choices, conversations and output are private to them.') : 'Claim this ticket to prepare your own agent.'), h('h3', {}, 'Commits'), commits,
-        !k.archivedAt && k.assigneeId && (mine || pcan('git.report_any')) && ['available', 'in_progress', 'review'].includes(k.status) ? gitForm(k, path) : '')),
-    commentsSection(d, k));
+    h('div', { class: 'ticket-grid' },
+      h('div', { class: 'ticket-main' },
+        tcard('Description', h('p', { class: 'prose' }, k.description || '—'), canEditText ? editTicket(d, k, path) : ''),
+        tcard('Requirements and context', h('p', { class: 'prose' }, k.requirements || '—')),
+        agentCard,
+        tcard('', commentsSection(d, k)),
+        !k.archivedAt ? teamSchedulePanel(k, b) : ''),
+      h('div', { class: 'ticket-side' },
+        tcard('Status', facts),
+        datesCard(d, k, path, canEditText),
+        tcard('Branch and pull request', git, h('h4', {}, 'Commits'), commits,
+          !k.archivedAt && k.assigneeId && (mine || pcan('git.report_any')) && ['available', 'in_progress', 'review'].includes(k.status) ? gitForm(k, path) : ''))));
+}
+
+// When it is planned for. These dates are what the Calendar and the Timeline draw.
+function datesCard(d, k, path, canEdit) {
+  const plan = k.plan || {};
+  const fmt = (day) => day ? new Date(day + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const set = !!(plan.start || plan.end);
+  const view = h('dl', { class: 'facts' },
+    plan.milestone ? [h('dt', {}, 'Milestone'), h('dd', {}, fmt(plan.start || plan.end))]
+      : [h('dt', {}, 'Start'), h('dd', {}, plan.start ? fmt(plan.start) : h('span', { class: 'muted' }, 'not set')), h('dt', {}, 'Due'), h('dd', {}, plan.end ? fmt(plan.end) : h('span', { class: 'muted' }, 'not set'))]);
+  const toCalendar = h('button', { type: 'button', class: 'link small', onclick: () => openProject(d.id, 'calendar') }, 'See it on the Calendar');
+  if (!canEdit || k.archivedAt) return tcard('Dates', view, set ? toCalendar : h('p', { class: 'muted small' }, 'Not planned yet. The ticket’s creator or a project owner sets its dates.'));
+  const form = planFields(d, k, 'dates');
+  const draftId = k.id + '-dates';
+  const version = ticketVersion({ id: draftId, version: k.version });
+  return tcard('Dates',
+    version !== k.version ? h('div', { role: 'alert' }, h('p', { class: 'error' }, 'This ticket changed while you were editing its dates. Your dates are kept; load the latest version before trying again.'), h('button', { class: 'plain', type: 'button', onclick: () => { discardTicketDraft(draftId); render(); } }, 'Load latest dates')) : '',
+    h('form', { class: 'stack plan-fields dates-form', 'data-ticket-id': draftId, 'data-ticket-version': k.version,
+      onsubmit: (e) => { e.preventDefault(); if (!form.validate()) return; const { plan: next } = form.read(); act(() => api('PATCH', path, { plan: next, version }).then(() => { discardTicketDraft(draftId); toast('Dates saved for ' + k.key + '.'); })); } },
+      form.dates, form.summaryError, changedSubmit('Save dates', form.controls)),
+    h('p', { class: 'muted small' }, 'The Calendar and the Timeline draw these dates. ', set ? toCalendar : ''));
 }
 
 function executionProgress(records) {
@@ -1479,7 +1571,7 @@ function executionProgress(records) {
   });
   return h('section', { 'aria-label': 'Werkbord execution' }, h('h3', {}, 'Werkbord execution'),
     rows.length ? rows : h('p', { class: 'muted' }, 'No execution reported. The owner can enable their connector to synchronize this ticket.'),
-    rows.length ? h('p', { class: 'muted small' }, 'Execution completion leaves ticket review and approval to the team.') : '');
+    rows.length ? h('p', { class: 'muted small' }, 'Completed agent-only work moves to Review. Human and hybrid work wait for their owner to submit them. Reviewing and marking work done stays with the team.') : '');
 }
 
 function statusLabel(b, s) { const c = b.statuses.find((x) => x.status === s); return c ? c.label : s; }
@@ -1969,9 +2061,9 @@ document.addEventListener('focusout', () => timelineTooltip.hidden = true);
 function dropRefusal(d, k, to) {
   if (d.board.project.archived) return 'Unarchive this project before moving tickets.';
   if (to === 'done' && k.status === 'review') return d.board.completion[k.id] || 'You need review permission to complete this ticket.';
-  if (to === 'review') return k.status !== 'in_progress' ? 'Claim this ticket and move it into Doing before submitting it for review.' : 'Only its owner or a project owner can submit this ticket for review.';
-  if (to === 'in_progress') return !d.board.member ? 'Join this project before claiming a ticket.' : k.status === 'available' && !k.assigneeId ? 'Claim this ticket first, then start work from its details.' : k.status === 'available' ? 'Only the member who claimed this ticket can start work.' : 'Make this ticket available, or request changes from Review, before starting work.';
-  if (to === 'backlog' && ['in_progress', 'review'].includes(k.status)) return 'Release the ticket into Available before moving it to Backlog.';
+  if (to === 'review') return k.status !== 'in_progress' ? 'Claim this ticket first. When its agent finishes, it moves to Review by itself.' : 'Only its owner or a project owner can submit this ticket for review.';
+  if (to === 'in_progress') return !d.board.member ? 'Join this project before claiming a ticket.' : k.status === 'available' ? 'You need permission to claim tickets on this project.' : k.status === 'review' ? 'Only a reviewer can send a ticket in Review back for changes.' : 'Reopen this ticket first.';
+  if (to === 'available' && k.status === 'in_progress') return 'Only its owner or a project owner can release it.';
   return 'This move needs the ticket’s normal workflow action or your project owner’s permission. Open the ticket to see the available actions.';
 }
 function performBoardDrop(d, k, to) {

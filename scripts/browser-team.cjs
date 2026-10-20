@@ -35,8 +35,7 @@ async function api(method, path, data, credential = token) {
     const q = await api('POST', '/projects', { name: 'Beta ' + Date.now(), repository: 'https://github.com/acme/shop-b' });
     let k = await api('POST', `/projects/${p.id}/tickets`, { title: 'Concurrent ticket', description: 'Original description', requirements: 'Original context', status: 'available' });
     k = await api('POST', `/projects/${p.id}/tickets/${k.id}/claim`);
-    assert.equal(k.status, 'available');
-    k = await api('POST', `/projects/${p.id}/tickets/${k.id}/start-work`);
+    assert.equal(k.status, 'in_progress', 'claiming puts a ticket in progress, waiting to be started');
     await page.goto(base + '/#token=' + token);
     const primary = page.getByRole('navigation', { name: 'Werkbord Team', exact: true });
     assert.equal(await page.getByRole('navigation', { name: 'Team administration' }).count(), 0, 'administration is only shown inside Settings');
@@ -179,14 +178,15 @@ async function api(method, path, data, credential = token) {
     await page.waitForFunction(id => state.tab === 'repository' && state.projectId === id && state.data?.id === id, p.id);
     await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Board', exact: true }).click();
     console.log('PASS N / Escape shortcuts, viewport-sized board and project switching that keeps the Git section');
-    for (let i = 0; i < 30; i++) await api('POST', `/projects/${p.id}/tickets`, { title: `Kanban scroll fixture ${i}`, status: 'backlog' });
-    await page.getByRole('region', { name: 'Backlog', exact: true }).getByRole('button', { name: 'Kanban scroll fixture 29', exact: true }).waitFor();
-    await require('./browser-kanban.cjs')(page, 5, artifacts, 'team');
-    let dragged = await api('POST', `/projects/${p.id}/tickets`, { title: 'Team drag fixture', description: 'Keep this context', status: 'backlog' });
+    for (let i = 0; i < 30; i++) await api('POST', `/projects/${p.id}/tickets`, { title: `Kanban scroll fixture ${i}`, status: 'available' });
+    await page.getByRole('region', { name: 'Available', exact: true }).getByRole('button', { name: 'Kanban scroll fixture 29', exact: true }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'Backlog', exact: true }).count(), 0, 'the board starts at Available: there is no Backlog column');
+    assert.equal(await page.locator('[aria-label="Kanban board"] > section').first().getAttribute('data-board-column'), 'available');
+    await require('./browser-kanban.cjs')(page, 4, artifacts, 'team');
+    let dragged = await api('POST', `/projects/${p.id}/tickets`, { title: 'Team drag fixture', description: 'Keep this context', status: 'available' });
     await page.getByRole('button', { name: dragged.title, exact: true }).waitFor();
-    await api('POST', `/projects/${p.id}/tickets/${dragged.id}/move`, {status:'available'});
-    await api('POST', `/projects/${p.id}/tickets/${dragged.id}/claim`);
-    const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/start-work'));
+    // Dragging an available ticket into In progress claims it.
+    const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/claim'));
     await page.getByRole('button', { name: dragged.title, exact: true }).locator('..').dragTo(page.getByRole('region', { name: 'In Progress', exact: true }));
     assert.equal((await assignResponse).status(), 200);
     await page.getByRole('region', { name: 'In Progress', exact: true }).getByRole('button', { name: dragged.title, exact: true }).waitFor();
@@ -212,9 +212,73 @@ async function api(method, path, data, credential = token) {
     await page.getByRole('button', { name: 'Archive ticket', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Back to board', exact: true }).click();
-    console.log('PASS Team drag-to-start, archive, restore, Archive Done and retained details');
+    console.log('PASS Team drag-to-claim, archive, restore, Archive Done and retained details');
+    // A Workspace Host older than this window has no route for Calendar, Analytics or MCP clients and answers 404 "no such
+    // endpoint" to each. The screen says so once, in its own place, and the words do not follow the person to other screens.
+    {
+        const old = { status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_found', message: 'no such endpoint' } }) };
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await page.route(/\/api\/team\/v1\/(projects\/[^/]+\/timeline|analytics|mcp\/(operations|grants))/, route => route.fulfill(old));
+        await page.route(/\/api\/team\/v1\/health/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', version: 'v3.10.1-3-ge9a067f' }) }));
+        await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Calendar', exact: true }).click();
+        await page.getByRole('heading', { name: 'Calendar needs a newer Workspace Host' }).waitFor();
+        assert.equal(await page.getByText('no such endpoint').count(), 0, 'the host\'s raw words are not shown');
+        assert.equal(await page.getByRole('heading', { name: /needs a newer Workspace Host/ }).count(), 1, 'said once');
+        assert.equal(await page.getByRole('alert').filter({ hasText: /host|endpoint/i }).count(), 0, 'not also as a banner above the screen');
+        await page.getByText('Werkbord 3.10.1', { exact: false }).first().waitFor();
+        await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: /^Board(?: \d+)?$/ }).click();
+        await page.locator('[data-board]').waitFor();
+        assert.equal(await page.getByText(/older Werkbord|no such endpoint/i).count(), 0, 'the notice does not follow the person to the Board');
+        await page.getByRole('navigation', { name: 'Werkbord Team', exact: true }).getByRole('button', { name: 'Analytics', exact: true }).click();
+        await page.getByRole('heading', { name: 'Analytics needs a newer Workspace Host' }).waitFor();
+        await page.getByRole('navigation', { name: 'Settings', exact: true }).getByRole('button', { name: 'Settings', exact: true }).click();
+        await page.getByRole('navigation', { name: 'Team administration' }).getByRole('button', { name: 'MCP clients', exact: true }).click();
+        await page.getByRole('heading', { name: 'MCP clients needs a newer Workspace Host' }).waitFor();
+        assert.equal(await page.getByRole('heading', { name: /needs a newer Workspace Host/ }).count(), 1);
+        await page.getByRole('navigation', { name: 'Werkbord Team', exact: true }).getByRole('button', { name: 'Projects', exact: true }).click();
+        await page.getByRole('heading', { name: /^Projects/ }).first().waitFor();
+        assert.equal(await page.getByText(/older Werkbord|no such endpoint/i).count(), 0, 'nor to Projects');
+        await page.unroute(/\/api\/team\/v1\/(projects\/[^/]+\/timeline|analytics|mcp\/(operations|grants))/);
+        await page.unroute(/\/api\/team\/v1\/health/);
+        await page.getByRole('button', { name: 'Open project ' + p.name, exact: true }).click();
+        await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: /^Board(?: \d+)?$/ }).click();
+        await page.locator('[data-board]').waitFor();
+        // An action that failed says so on its own screen only; moving between a project's tabs leaves the message behind.
+        await page.evaluate(() => { state.error = 'That did not work.'; return render(); });
+        await page.getByRole('alert').filter({ hasText: 'That did not work.' }).waitFor();
+        await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: /^Git/ }).click();
+        await page.locator('[name="project-tab-repository"][aria-current="page"]').waitFor();
+        assert.equal(await page.getByText('That did not work.').count(), 0, 'a failed action\'s message does not follow the person to the next tab');
+        await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: /^Board(?: \d+)?$/ }).click();
+        await page.locator('[data-board]').waitFor();
+        console.log('PASS an older Workspace Host gets one clear notice per screen that does not follow the person around');
+    }
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
+    await page.locator('.ticket-grid').waitFor();
+    await page.getByRole('button', { name: 'Load latest version', exact: true }).click();
+    await page.locator(`[name="e-title-${k.id}"]`).fill('Keep this unsaved title');
+    const dates = await page.evaluate(() => {
+        const monday = new Date(); monday.setHours(12, 0, 0, 0); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+        const day = d => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+        const start = day(monday); monday.setDate(monday.getDate() + 2); return { start, end: day(monday) };
+    });
+    await page.locator(`[name="p-start-${k.id}-dates"]`).fill(dates.start);
+    await page.locator(`[name="p-end-${k.id}-dates"]`).fill(dates.end);
+    await page.getByRole('button', { name: 'Save dates', exact: true }).click();
+    await page.getByText('Dates saved for ' + k.key + '.', { exact: true }).waitFor();
+    assert.equal(await page.locator(`[name="e-title-${k.id}"]`).inputValue(), 'Keep this unsaved title', 'saving dates keeps the text draft');
+    assert.equal((await api('GET', `/projects/${p.id}/tickets/${k.id}`)).plan.end, dates.end);
+    await page.getByRole('button', { name: 'Load latest version', exact: true }).click();
+    await page.getByText('Edit this ticket', { exact: true }).click();
+    await page.getByRole('button', { name: 'See it on the Calendar', exact: true }).click();
+    await page.locator('.team-calendar').waitFor();
+    assert.equal(await page.locator('.calendar-event').filter({ hasText: 'Other client title' }).count(), 3, 'the start and due dates span the calendar');
+    await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: /^Board(?: \d+)?$/ }).click();
+    await page.getByRole('button', { name: 'Other client title', exact: true }).click();
+    await page.locator('.ticket-grid').waitFor();
+    console.log('PASS start/due dates, calendar range and independent date/text drafts');
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.ticket-grid')).gridTemplateColumns.split(' ').length === 2);
     if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, 'desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(200);

@@ -160,7 +160,7 @@ them through the existing desktop Team bridge; no execution or credential bounda
 A **workspace** with exactly one **owner**, **members**, **projects**, **project membership**, **roles** (Owner, Admin and
 Member), and a registry of **devices** with their own capabilities (runner, workspace host, connectivity host: independent of
 roles); and, on top of that, the collaborative workflow: **project roles** (owner, reviewer, member), **invite links**,
-a shared **board** (Backlog, Available, In Progress, Review, Done), **tickets** that members claim atomically, **Git
+a shared **board** (Available, In Progress, Review, Done), **tickets** that members claim atomically, **Git
 metadata** members' own Werkbords report (branch, commits, pull request), **repository awareness** (behind, conflicting,
 stale, overlapping branches), an **activity** history, and a ticket's **handoff**, the context a member takes into their own
 Werkbord. One console (Workspace, Projects, Board, My Work, Reviews, Repository, Activity) is kept current by a

@@ -1,5 +1,5 @@
 // Configurable deck integration against the disposable controller and real runner fixture.
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { chromium, webkit } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -16,8 +16,8 @@ async function request(token, method, route, body) {
     if (!project) project = await request(owner, 'POST', '/api/projects', { path: fs.realpathSync(process.env.WERKBORD_BROWSER_REPO), name: 'Deck fixture' });
     const code = await request(owner, 'POST', '/api/phones/codes', {});
     const phone = await request('', 'POST', '/api/phones/enroll', { code: code.code, name: 'Deck integration fixture' });
-    const browser = await chromium.launch({ headless: true });
-    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const browser = await (process.env.BROWSER_ENGINE === 'webkit' ? webkit : chromium).launch({ headless: true });
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
     const errors = [];
     await ctx.addInitScript(token => {
         localStorage.setItem('devboard.token', token);
@@ -76,7 +76,8 @@ async function request(token, method, route, body) {
         await edit().waitFor();
         await page.reload(); await edit().waitFor();
         await page.waitForFunction(() => document.querySelector('[data-deck-position="6"] [data-key="find-bugs"]'));
-        assert((await socket(6).innerText()).includes(project.name), 'workflow shows its repository target');
+        assert.equal((await socket(6).innerText()).trim(), 'Find Bugs', 'workflow keys show only their name and icon');
+        assert((await socket(6).getAttribute('aria-label')).includes(project.name), 'repository scope stays accessible');
 
         // Holding configures, releasing never launches. Escape restores keyboard focus.
         const box = await socket(6).boundingBox();
@@ -107,8 +108,8 @@ async function request(token, method, route, body) {
         assert.equal(await socket(8).getAttribute('data-key'), null);
         await page.waitForFunction(() => document.querySelector('[data-deck-position="7"] [data-key="find-bugs"]'));
 
-        // A genuine tap starts one ordinary run and stays on the deck.
-        await socket(7).click();
+        // Touch browsers emit pointerleave after pointerup, before click. The tap must survive it.
+        await socket(7).tap();
         const executions = page.getByRole('region', { name: 'Workflow executions' });
         const banner = page.getByTestId('workflow-banner');
         await executions.getByRole('link', { name: 'Find Bugs', exact: true }).waitFor();
@@ -131,8 +132,18 @@ async function request(token, method, route, body) {
         await socket(7).click(); await dialog().getByRole('heading', {name:'Find Bugs execution'}).waitFor();
         assert.equal(starts, 1, 'tapping an active workflow does not duplicate the job');
         await page.keyboard.press('Escape');
-        await page.locator('[data-key="agents"]').click();
+        await page.locator('[data-key="agents"]').tap();
+        await page.waitForURL('**/#/agents');
         await banner.getByRole('button', {name:'Open Find Bugs execution details'}).waitFor();
+        // Safari coverage focuses on real touch launch, hold/configuration and navigation.
+        // Chromium continues through disconnected execution and result review below.
+        if (process.env.BROWSER_ENGINE === 'webkit') {
+            await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${firstRun.id}/stop`, {});
+            await banner.getByText('Cancelled', {exact:true}).waitFor();
+            assert.deepEqual(errors, []);
+            console.log('PASS WebKit touch workflow launch, navigation, hold/keyboard configuration and deck persistence');
+            return;
+        }
         await ctx.setOffline(true);
         // The authorised process progresses while its browser is disconnected.
         await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${firstRun.id}/input`, {text:'workflow-report'});

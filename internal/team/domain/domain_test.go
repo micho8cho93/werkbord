@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -179,5 +180,22 @@ func TestCleanDescription(t *testing.T) {
 	}
 	if _, err := CleanDescription("a\x00"); err == nil {
 		t.Error("a control character was accepted")
+	}
+}
+
+func TestTheBoardStartsAtAvailableAndBacklogMeansAvailable(t *testing.T) {
+	got := TicketStatuses()
+	want := []TicketStatus{TicketAvailable, TicketInProgress, TicketReview, TicketDone}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("columns %v, want %v", got, want)
+	}
+	if st, err := ParseTicketStatus("backlog"); err != nil || st != TicketAvailable {
+		t.Fatalf("an older client's backlog is %q, %v", st, err)
+	}
+	if _, err := ParseTicketStatus("someday"); err == nil {
+		t.Fatal("an unknown status was accepted")
+	}
+	if TicketAvailable.CanTransitionTo(TicketBacklog) || TicketInProgress.CanTransitionTo(TicketBacklog) {
+		t.Fatal("a ticket can be put back in a backlog that is no column")
 	}
 }

@@ -73,8 +73,9 @@ func TestMyWorkShowsWhatTheMemberIsDoingAcrossProjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(w.Ready) != 2 || len(w.InProgress) != 1 || len(w.Submitted) != 1 {
-		t.Fatalf("in progress %d, submitted %d", len(w.InProgress), len(w.Submitted))
+	// A claimed or given ticket is In Progress at once, whether or not its agent has started.
+	if len(w.Ready) != 0 || len(w.InProgress) != 3 || len(w.Submitted) != 1 {
+		t.Fatalf("ready %d, in progress %d, submitted %d", len(w.Ready), len(w.InProgress), len(w.Submitted))
 	}
 	byKey := map[string]WorkItem{}
 	for _, it := range append(append(append([]WorkItem{}, w.Ready...), w.InProgress...), w.Submitted...) {
@@ -340,7 +341,6 @@ func TestReviewsAcrossProjectsStayWithinWhatTheViewerCanSee(t *testing.T) {
 
 func TestTheOverviewShowsWhatIsAvailableAndWhoIsOnWhat(t *testing.T) {
 	tm := newTeam(t)
-	tm.ticket(tm.owner, "Idea", domain.TicketBacklog)
 	tm.ticket(tm.owner, "Open 1", domain.TicketAvailable)
 	tm.ticket(tm.owner, "Open 2", domain.TicketAvailable)
 	k := tm.working(tm.bo, "Bo's")
@@ -360,7 +360,7 @@ func TestTheOverviewShowsWhatIsAvailableAndWhoIsOnWhat(t *testing.T) {
 		t.Fatalf("%+v", o)
 	}
 	ps := o.Projects[0]
-	if ps.Counts["backlog"] != 1 || ps.Counts["available"] != 2 || ps.Counts["in_progress"] != 1 || ps.Counts["review"] != 1 || ps.Counts["done"] != 0 ||
+	if ps.Counts["backlog"] != 0 || ps.Counts["available"] != 2 || ps.Counts["in_progress"] != 1 || ps.Counts["review"] != 1 || ps.Counts["done"] != 0 ||
 		ps.People != 4 || ps.ToReview != 1 || ps.Mine != 0 || ps.Problems != 1 || ps.Role != domain.ProjectReviewer || !ps.Member {
 		t.Fatalf("%+v", ps)
 	}
@@ -431,7 +431,7 @@ func TestWorkspaceSyncReportsEveryImportantEvent(t *testing.T) {
 		}
 	}
 	want := []domain.ActivityKind{
-		domain.ActTicketCreated, domain.ActTicketClaimed, domain.ActPullRequestMade, domain.ActTicketReleased, domain.ActTicketReassigned, domain.ActTicketReassigned, domain.ActTicketMoved,
+		domain.ActTicketCreated, domain.ActTicketClaimed, domain.ActPullRequestMade, domain.ActTicketReleased, domain.ActTicketReassigned, domain.ActTicketReassigned,
 		domain.ActWorkSubmitted, domain.ActReviewRequested, domain.ActPullRequestMerged, domain.ActTicketCompleted,
 	}
 	if fmt.Sprint(kinds) != fmt.Sprint(want) {
@@ -495,7 +495,7 @@ func TestAReconnectingClientCatchesUpAndASevereGapSaysReload(t *testing.T) {
 	start, _ := tm.svc.WaitForWorkspaceChange(bg, tm.bo, 0, -1, 0)
 	var keys []string
 	for i := 0; i < MaxSyncEvents+20; i++ {
-		keys = append(keys, tm.ticket(tm.cy, fmt.Sprintf("T%d", i), domain.TicketBacklog).Key)
+		keys = append(keys, tm.ticket(tm.cy, fmt.Sprintf("T%d", i), domain.TicketAvailable).Key)
 	}
 	res, err := tm.svc.WaitForWorkspaceChange(bg, tm.bo, start.Revision, start.Cursor, 0)
 	if err != nil {
@@ -535,7 +535,7 @@ func TestEventsAreOnlyThoseOfProjectsTheClientCanSee(t *testing.T) {
 	}
 	// The owner sees both.
 	ostart, _ := tm.svc.WaitForWorkspaceChange(bg, tm.owner, 0, -1, 0)
-	tm.ticket(tm.owner, "Third", domain.TicketBacklog)
+	tm.ticket(tm.owner, "Third", domain.TicketAvailable)
 	if _, err := tm.svc.CreateTicket(bg, tm.owner, secret.ID, TicketInput{Title: "Fourth"}); err != nil {
 		t.Fatal(err)
 	}
@@ -709,8 +709,9 @@ func TestRacingTransitionsHaveExactlyOneWinner(t *testing.T) {
 					return err
 				}},
 			},
+			// Either order is legal: released and left free, or released and then claimed by Cy. Never held while free.
 			final: func(k domain.Ticket) bool {
-				return k.Status == domain.TicketAvailable
+				return (k.Status == domain.TicketAvailable && k.AssigneeID == "") || (k.Status == domain.TicketInProgress && k.AssigneeID != "")
 			},
 		},
 	}

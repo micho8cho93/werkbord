@@ -156,12 +156,11 @@ func (t *sqlTx) Tickets(ctx context.Context, workspaceID, projectID string) ([]d
 	return out, nil
 }
 
-// ClaimTicket takes an available ticket for a member. It is one guarded UPDATE:
-// it changes the row only if the ticket is still available and held by nobody, so
-// of any number of simultaneous claims exactly one affects a row. It reports
-// whether this call was the one.
+// ClaimTicket takes an available ticket for a member and puts it In Progress: claimed, waiting to be started. It is one
+// guarded UPDATE: it changes the row only if the ticket is still available and held by nobody, so of any number of
+// simultaneous claims exactly one affects a row. It reports whether this call was the one.
 func (t *sqlTx) ClaimTicket(ctx context.Context, workspaceID, projectID, id, memberID, branch string, now time.Time) (bool, error) {
-	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET assignee_id = ?, branch = CASE WHEN branch = '' THEN ? ELSE branch END,
+	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET status = 'in_progress', assignee_id = ?, branch = CASE WHEN branch = '' THEN ? ELSE branch END,
 		claimed_at = ?, submitted_at = NULL, completed_at = NULL, reviewer_id = NULL, version = version + 1, updated_at = ?
 		WHERE workspace_id = ? AND project_id = ? AND id = ? AND status = 'available' AND assignee_id IS NULL AND archived_at IS NULL`,
 		memberID, branch, ms(now), ms(now), workspaceID, projectID, id)

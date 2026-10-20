@@ -71,10 +71,10 @@ func TestCollaborativeWorkflowOverHTTP(t *testing.T) {
 	board := owner.want(200, "GET", p+"/board", nil)
 	tickets := board["tickets"].([]any)
 	got := tickets[0].(map[string]any)
-	if got["status"] != "available" || got["assigneeId"] == "" || str(got, "branch") != "wb-1-authentication-error" {
+	if got["status"] != "in_progress" || got["assigneeId"] == "" || str(got, "branch") != "wb-1-authentication-error" {
 		t.Fatalf("%v", got)
 	}
-	if len(board["statuses"].([]any)) != 5 || board["role"] != "owner" {
+	if len(board["statuses"].([]any)) != 4 || board["statuses"].([]any)[0].(map[string]any)["status"] != "available" || board["role"] != "owner" {
 		t.Fatalf("%v", board)
 	}
 

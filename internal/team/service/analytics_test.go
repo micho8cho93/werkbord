@@ -35,7 +35,7 @@ func TestCoordinationAnalyticsAggregation(t *testing.T) {
 
 func TestCoordinationAnalyticsPermissionsAndReadOnly(t *testing.T) {
 	tm := newTeam(t)
-	visible := tm.ticket(tm.owner, "private title", domain.TicketBacklog)
+	visible := tm.ticket(tm.owner, "private title", domain.TicketAvailable)
 	secret := tm.world.project(tm.owner, "Secret")
 	_, err := tm.svc.CreateTicket(bg, tm.owner, secret.ID, TicketInput{Title: "secret task"})
 	if err != nil {

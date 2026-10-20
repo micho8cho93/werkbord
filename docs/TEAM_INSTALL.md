@@ -2,7 +2,7 @@
 
 For ordinary use, install the unified Werkbord desktop app, which carries Team's native installer and service for macOS, Linux and Windows. It activates only when explicitly requested. Individual remains free, and each workspace retains backend-authoritative offline licensing. See [unified distribution](ARCHITECTURE.md#distribution-licensing-and-updates).
 
-Werkbord is one release with one version. The app is signed and notarized like everything else in it, and the Team service refuses to install unless the app was signed by the release's Apple Developer team. Joined devices and Workspace Hosts defer native service replacement until administrator maintenance; installing a newer app does not move their databases.
+Werkbord is one release with one version. The app is signed and notarized like everything else in it, and the Team service refuses to install unless the app was signed by the release's Apple Developer team. Joined devices and Workspace Hosts defer native service replacement until administrator maintenance; installing a newer app does not move their databases. Until the host is updated, a window newer than it works with what the host knows: a screen the host has no route for (Calendar, Analytics, MCP clients, comments and dates all came after Team 3.x) says "needs a newer Workspace Host" with the host's version, in place of the host's own "no such endpoint", and the rest of the window keeps working.
 
 Team requires no Tailscale account. Customers operate their own hosts, remote-access connectivity, backups and runners. Production admission is recorded in [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md); do not treat an ad-hoc preview as a signed release.
 

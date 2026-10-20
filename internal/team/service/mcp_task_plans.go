@@ -367,7 +367,7 @@ func prepareTeamMCPTaskPlan(ctx context.Context, tx store.Tx, s *Service, a Acto
 		key := change.TaskID
 		if create {
 			key = change.TempID
-			status := domain.TicketBacklog
+			status := domain.TicketAvailable
 			mode := planning.ModeAgent
 			now := s.stamp()
 			ticket = domain.Ticket{ID: ids[change.TempID], ProjectID: plan.ProjectID, Status: status, CreatorID: a.Member.ID,

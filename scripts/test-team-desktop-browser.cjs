@@ -92,7 +92,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await dev('second','PUT','/settings',{...joined.settings,form:'desktop'});
  const project=await team('POST','/projects',{name:'Customer portal',repository:'https://github.com/acme/shop'});
  const ticket=await team('POST',`/projects/${project.id}/tickets`,{title:'Improve the sign-in experience',description:'Keep the session clear and accessible.',requirements:'All states readable',status:'available'});
- const reserved=await team('POST',`/projects/${project.id}/tickets/${ticket.id}/claim`,{});assert.equal(reserved.status,'available');assert(reserved.assigneeId);console.log('PASS claim reserves the ticket in Available');
+ const reserved=await team('POST',`/projects/${project.id}/tickets/${ticket.id}/claim`,{});assert.equal(reserved.status,'in_progress');assert(reserved.assigneeId);console.log('PASS claim puts the ticket in progress, waiting to be started');
  await page.keyboard.press('Meta+k');const search=page.getByRole('combobox',{name:'Search projects, tickets and sections'});await search.fill(ticket.key);await page.getByRole('dialog').getByRole('option').filter({hasText:ticket.title}).waitFor();await search.press('Enter');await page.waitForFunction(id=>state.ticketId===id&&!!document.querySelector('.ticket'),ticket.id);await page.keyboard.press('Escape');
  await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await page.reload();await page.getByRole('button',{name:'Switch to light mode',exact:true}).waitFor();await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
  console.log('PASS Cmd K through the enrolled device API and persistent desktop theme selection');
@@ -109,16 +109,15 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  console.log('PASS signed cross-device handoff to the actual narrow individual bridge; task opened with no run start');
  // Phase 2: authenticated local controls, effective policy, one-shot launch,
  // privileged question answer and shared scheduling through the owner controller.
- await page.goto(m.first+`/?tab=board&project=${project.id}&ticket=${ticket.id}`);
- await page.getByRole('button',{name:'Review and start agent',exact:true}).waitFor();
- await wait(async()=>{const error=page.locator('.error');if(await error.count())throw Error(await error.innerText());return await page.getByRole('button',{name:'Review and start agent',exact:true}).count();},'local execution controls');
- await page.getByRole('button',{name:'Review and start agent',exact:true}).click();
- assert(await page.getByRole('button',{name:'Review and start agent',exact:true}).isDisabled(),'a current preview cannot be repeated');
+ await page.goto(m.first+`/?tab=board&project=${project.id}`);
+ await page.locator(`[data-start-agent="${ticket.id}"]`).click();
+ await page.getByRole('heading',{name:'Effective policy',exact:true}).waitFor();
+ assert(await page.getByRole('button',{name:'Review and start agent',exact:true}).isDisabled(),'Start agent on the card opens a policy preview without launching');
  await page.getByRole('heading',{name:'Effective policy',exact:true}).waitFor();
  await shot(page,'agent-policy');await shot(page,'agent-policy-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  let approvals=0;const countApprovals=request=>{if(request.method()==='POST'&&request.url().endsWith('/execution/approve'))approvals++;};page.on('request',countApprovals);
  await page.route('**/api/device/v1/execution/start',route=>route.fulfill({status:503,json:{error:{message:'Fixture start temporarily unavailable'}}}));
- await page.getByRole('button',{name:'Start agent',exact:true}).click();
+ await page.getByRole('region',{name:'Your private agent',exact:true}).getByRole('button',{name:'Start agent',exact:true}).click();
  await page.getByText('Fixture start temporarily unavailable',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Start my approved run',exact:true}).waitFor();
  await page.unrouteAll({behavior:'wait'});
@@ -166,11 +165,11 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  const colleague=await team('POST','/members',{name:'Bo',role:'member'});
  await team('PUT',`/projects/${project.id}/members/${colleague.member.id}`,{role:'member'});
  const privateTicket=await team('POST',`/projects/${project.id}/tickets`,{title:'Bo’s private work',status:'available'});
- const assigned=await team('POST',`/projects/${project.id}/tickets/${privateTicket.id}/assign`,{memberId:colleague.member.id});assert.equal(assigned.status,'available');
+ const assigned=await team('POST',`/projects/${project.id}/tickets/${privateTicket.id}/assign`,{memberId:colleague.member.id});assert.equal(assigned.status,'in_progress');
  await assert.rejects(()=>dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${privateTicket.id}`),/only the current holder/);
  await assert.rejects(()=>dev('first','POST','/execution/input',{projectId:project.id,ticketId:privateTicket.id,runId:running.id,text:'Continue'}),/only the current holder/);
  await page.goto(m.first+`/?tab=board&project=${project.id}&ticket=${privateTicket.id}`);
- await page.locator('.ticket').getByText(/Bo has claimed this ticket/).waitFor();
+ await page.locator('.ticket').getByText(/Bo owns this work, and their agent is (not )?active/).waitFor();
  assert.equal(await page.getByRole('region',{name:'Your private agent',exact:true}).count(),0);
  assert.equal(await page.getByRole('button',{name:'Start work',exact:true}).count(),0);
  assert.equal(await page.getByRole('button',{name:'Claim this ticket',exact:true}).count(),0);

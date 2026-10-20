@@ -172,7 +172,7 @@ func TestCreatingTickets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if k.Status != domain.TicketBacklog || k.CreatorID != tm.bo.Member.ID || k.Number != 1 || k.Key != "WB-1" || k.Title != "Authentication error" || k.Version != 1 || k.AssigneeID != "" {
+	if k.Status != domain.TicketAvailable || k.CreatorID != tm.bo.Member.ID || k.Number != 1 || k.Key != "WB-1" || k.Title != "Authentication error" || k.Version != 1 || k.AssigneeID != "" {
 		t.Fatalf("%+v", k)
 	}
 	if k2 := tm.ticket(tm.cy, "Second", domain.TicketAvailable); k2.Number != 2 || k2.Status != domain.TicketAvailable {
@@ -214,7 +214,7 @@ func (tm *team) project2Named(name string) domain.Project { return tm.world.proj
 
 func TestEditingATicket(t *testing.T) {
 	tm := newTeam(t)
-	k := tm.ticket(tm.bo, "Mine", domain.TicketBacklog)
+	k := tm.ticket(tm.bo, "Mine", domain.TicketAvailable)
 	title := "Better title"
 	// The creator edits their own; a stale version is refused.
 	stale := k.Version + 5
@@ -238,14 +238,14 @@ func TestEditingATicket(t *testing.T) {
 
 // ---- claiming ----
 
-func TestClaimingATicketReservesItUntilTheHolderStartsWork(t *testing.T) {
+func TestClaimingATicketMovesItToInProgressWaitingToBeStarted(t *testing.T) {
 	tm := newTeam(t)
 	k := tm.ticket(tm.owner, "Authentication error", domain.TicketAvailable)
 	got, err := tm.svc.ClaimTicket(bg, tm.bo, tm.pid(), k.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != domain.TicketAvailable || got.AssigneeID != tm.bo.Member.ID || got.Branch != "wb-1-authentication-error" || got.ClaimedAt == nil {
+	if got.Status != domain.TicketInProgress || got.AssigneeID != tm.bo.Member.ID || got.Branch != "wb-1-authentication-error" || got.ClaimedAt == nil {
 		t.Fatalf("%+v", got)
 	}
 	// Someone else cannot claim it, and is told who has it.
@@ -258,7 +258,10 @@ func TestClaimingATicketReservesItUntilTheHolderStartsWork(t *testing.T) {
 	_, err = tm.svc.ClaimTicket(bg, tm.bo, tm.pid(), k.ID)
 	wantErr(t, err, domain.ErrConflict)
 	// Only available tickets can be claimed.
-	b := tm.ticket(tm.owner, "Backlog one", domain.TicketBacklog)
+	b := tm.working(tm.bo, "Already in review")
+	if _, err = tm.svc.SubmitTicket(bg, tm.bo, tm.pid(), b.ID, SubmitInput{}); err != nil {
+		t.Fatal(err)
+	}
 	_, err = tm.svc.ClaimTicket(bg, tm.cy, tm.pid(), b.ID)
 	wantErr(t, err, domain.ErrConflict)
 	// The workspace owner can see everything but, not being on a project, cannot hold its tickets.
@@ -315,7 +318,7 @@ func TestConcurrentClaimsGiveTheTicketToExactlyOneMember(t *testing.T) {
 			t.Fatalf("round %d: %d winners (%v), %d losers", round, len(winners), winners, losers)
 		}
 		final, _ := tm.svc.GetTicket(bg, tm.owner, tm.pid(), k.ID)
-		if final.AssigneeID != winners[0] || final.Status != domain.TicketAvailable || final.Version != k.Version+1 {
+		if final.AssigneeID != winners[0] || final.Status != domain.TicketInProgress || final.Version != k.Version+1 {
 			t.Fatalf("the board disagrees with the winner: %+v vs %v", final, winners)
 		}
 	}
@@ -377,16 +380,16 @@ func TestReleaseAndReassign(t *testing.T) {
 		t.Fatalf("%+v %v", got, err)
 	}
 
-	// Assign an available ticket: it starts. Reassign one in progress: only the owner changes.
+	// Assign an available ticket: it goes in progress with its new owner. Reassign one in progress: only the owner changes.
 	_, err = tm.svc.AssignTicket(bg, tm.bo, tm.pid(), k.ID, tm.cy.Member.ID)
 	wantErr(t, err, domain.ErrForbidden)
 	got, err = tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, tm.bo.Member.ID)
-	if err != nil || got.AssigneeID != tm.bo.Member.ID || got.Status != domain.TicketAvailable {
+	if err != nil || got.AssigneeID != tm.bo.Member.ID || got.Status != domain.TicketInProgress {
 		t.Fatalf("%+v %v", got, err)
 	}
 	branch := got.Branch
 	got, err = tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, tm.cy.Member.ID)
-	if err != nil || got.AssigneeID != tm.cy.Member.ID || got.Status != domain.TicketAvailable || got.Branch != branch {
+	if err != nil || got.AssigneeID != tm.cy.Member.ID || got.Status != domain.TicketInProgress || got.Branch != branch {
 		t.Fatalf("%+v %v", got, err)
 	}
 	_, err = tm.svc.AssignTicket(bg, tm.owner, tm.pid(), k.ID, tm.cy.Member.ID)
@@ -405,8 +408,8 @@ func TestReleaseAndReassign(t *testing.T) {
 	wantErr(t, err, domain.ErrConflict)
 
 	// The history says who did what.
-	want := []domain.ActivityKind{domain.ActTicketCreated, domain.ActTicketClaimed, domain.ActTicketMoved, domain.ActTicketReleased, domain.ActTicketClaimed, domain.ActTicketReleased,
-		domain.ActTicketReassigned, domain.ActTicketReassigned, domain.ActTicketMoved, domain.ActWorkSubmitted, domain.ActReviewRequested}
+	want := []domain.ActivityKind{domain.ActTicketCreated, domain.ActTicketClaimed, domain.ActTicketReleased, domain.ActTicketClaimed, domain.ActTicketReleased,
+		domain.ActTicketReassigned, domain.ActTicketReassigned, domain.ActWorkSubmitted, domain.ActReviewRequested}
 	if got := tm.activityKinds(); fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("activity:\n got %v\nwant %v", got, want)
 	}
@@ -443,16 +446,14 @@ func TestTheWorkflowAllowsOnlyTheMovesItDefines(t *testing.T) {
 
 func TestTheWholeLifecycleAndItsGuards(t *testing.T) {
 	tm := newTeam(t)
+	// A ticket starts as available, and so does one an older client asks to put in the backlog, which is no column now.
 	k := tm.ticket(tm.owner, "Authentication error", domain.TicketBacklog)
-
-	// Backlog → available needs the creator or tickets.edit.
-	_, err := tm.svc.MoveTicket(bg, tm.bo, tm.pid(), k.ID, domain.TicketAvailable)
-	wantErr(t, err, domain.ErrForbidden)
-	if k, err = tm.svc.MoveTicket(bg, tm.owner, tm.pid(), k.ID, domain.TicketAvailable); err != nil || k.Status != domain.TicketAvailable {
-		t.Fatalf("%+v %v", k, err)
+	if k.Status != domain.TicketAvailable {
+		t.Fatalf("a new ticket is %s, not available", k.Status)
 	}
+	var err error
 	// Moves that have a proper call are refused as direct moves.
-	for _, to := range []domain.TicketStatus{domain.TicketInProgress, domain.TicketReview, domain.TicketDone} {
+	for _, to := range []domain.TicketStatus{domain.TicketAvailable, domain.TicketInProgress, domain.TicketReview, domain.TicketDone} {
 		_, err = tm.svc.MoveTicket(bg, tm.owner, tm.pid(), k.ID, to)
 		wantErr(t, err, domain.ErrInvalid)
 	}
@@ -522,7 +523,7 @@ func TestTheWholeLifecycleAndItsGuards(t *testing.T) {
 		t.Fatalf("%+v %v", k, err)
 	}
 
-	want := []domain.ActivityKind{domain.ActTicketCreated, domain.ActTicketMoved, domain.ActTicketClaimed, domain.ActTicketMoved,
+	want := []domain.ActivityKind{domain.ActTicketCreated, domain.ActTicketClaimed,
 		domain.ActPullRequestMade, domain.ActWorkSubmitted, domain.ActReviewRequested, domain.ActChangesRequested,
 		domain.ActWorkSubmitted, domain.ActReviewRequested, domain.ActPullRequestMerged, domain.ActTicketCompleted, domain.ActTicketReopened}
 	if got := tm.activityKinds(); fmt.Sprint(got) != fmt.Sprint(want) {
@@ -1212,7 +1213,7 @@ func TestMembersLearnOfEachOthersChanges(t *testing.T) {
 	// Each project has its own revision.
 	p2 := tm.project2()
 	b2, _ := tm.svc.Board(bg, tm.owner, p2.ID)
-	tm.ticket(tm.cy, "Again", domain.TicketBacklog)
+	tm.ticket(tm.cy, "Again", domain.TicketAvailable)
 	if b2again, _ := tm.svc.Board(bg, tm.owner, p2.ID); b2again.Revision != b2.Revision {
 		t.Fatal("another project's change moved this revision")
 	}
@@ -1257,8 +1258,8 @@ func TestReservedWorkHasOneOwnerAndStartingPreservesExecutionFence(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if claimed.Status != domain.TicketAvailable || !claimed.Claimed() {
-		t.Fatalf("claim started work: %+v", claimed)
+	if claimed.Status != domain.TicketInProgress || !claimed.Claimed() {
+		t.Fatalf("a claim is not in progress: %+v", claimed)
 	}
 	before := ScheduleContext(tm.bo.Workspace.ID, tm.project, claimed)
 	for _, actor := range []Actor{tm.owner, tm.cy} {
@@ -1266,8 +1267,8 @@ func TestReservedWorkHasOneOwnerAndStartingPreservesExecutionFence(t *testing.T)
 		wantErr(t, err, domain.ErrForbidden)
 	}
 	work, err := tm.svc.MyWork(bg, tm.bo)
-	if err != nil || len(work.Ready) != 1 || len(work.InProgress) != 0 || len(work.Submitted) != 0 {
-		t.Fatalf("reservation is not ready work: %+v %v", work, err)
+	if err != nil || len(work.Ready) != 0 || len(work.InProgress) != 1 || len(work.Submitted) != 0 {
+		t.Fatalf("a claim is not work in progress: %+v %v", work, err)
 	}
 	// Private refreshes must not manufacture shared activity or start work.
 	activity := len(tm.activityKinds())

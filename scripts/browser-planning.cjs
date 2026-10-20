@@ -18,7 +18,7 @@ const today = new Date().toISOString().slice(0,10);
 const monday = add(today, -((new Date(today + 'T12:00Z').getUTCDay()+6)%7));
 const wait = async (check, label) => { for (let n=0;n<100;n++) { if(await check())return; await new Promise(r=>setTimeout(r,100)); } throw Error('Timed out: '+label); };
 async function drag(page, from, to) { const a=await from.boundingBox(), b=await to.boundingBox(); assert(a && b,'drag targets'); await page.mouse.move(a.x+a.width/2,a.y+Math.min(a.height/2,20)); await page.mouse.down(); await page.mouse.move(b.x+b.width/2,b.y+Math.min(b.height/2,60),{steps:12}); await page.mouse.up(); }
-async function shift(page, item, delta) { await wait(async()=>await item.evaluate(el=>el.closest('[data-plan-item]')?.getAttribute('aria-busy') !== 'true'),'date gesture acknowledgement'); await item.scrollIntoViewIfNeeded(); await item.evaluate(el=>{const grid=el.closest('[data-plan-grid]');if(!grid)return;const r=el.getBoundingClientRect(),g=grid.getBoundingClientRect();if(r.right>g.right-100 || r.left<g.left+300)grid.scrollLeft+=(r.left+r.right)/2-(g.left+g.right+260)/2;}); const r=await item.boundingBox(); assert(r); await page.mouse.move(r.x+r.width/2,r.y+r.height/2); await page.mouse.down(); await page.mouse.move(r.x+r.width/2+delta,r.y+r.height/2,{steps:10}); await page.mouse.up(); }
+async function shift(page, item, delta) { await wait(async()=>await item.evaluate(el=>el.closest('[data-plan-item]')?.getAttribute('aria-busy') !== 'true'),'date gesture acknowledgement'); await wait(async()=>{try{await item.scrollIntoViewIfNeeded({timeout:1000});return true;}catch(error){if(!/not attached|detached|not stable/i.test(String(error)))throw error;return false;}},'date handle attached after refresh'); await item.evaluate(el=>{const grid=el.closest('[data-plan-grid]');if(!grid)return;const r=el.getBoundingClientRect(),g=grid.getBoundingClientRect();if(r.right>g.right-100 || r.left<g.left+300)grid.scrollLeft+=(r.left+r.right)/2-(g.left+g.right+260)/2;}); const r=await item.boundingBox(); assert(r); await page.mouse.move(r.x+r.width/2,r.y+r.height/2); await page.mouse.down(); await page.mouse.move(r.x+r.width/2+delta,r.y+r.height/2,{steps:10}); await page.mouse.up(); }
 let browser, server, debugPage;
 (async()=>{
   // First-visit tours are covered elsewhere and must not overlay the controls under test.
@@ -27,12 +27,13 @@ let browser, server, debugPage;
   let task = await personal('POST',`/projects/${work.id}/tasks`,{title:'Plan the launch',description:'Planning context',plan:{start:monday,end:add(monday,2)}});
   const tp = await team('POST','/projects',{name:'Analytics Platform',repository:'https://github.com/acme/analytics'});
   let ticket = await team('POST',`/projects/${tp.id}/tickets`,{title:'Coordinate launch',description:'Team planning context',status:'available',plan:{start:monday,end:add(monday,2)}});
+  await personal('POST', '/onboarding/complete', {});
   const getTask=async()=> (await personal('GET',`/projects/${work.id}/tasks`)).tasks.find(t=>t.id===task.id);
   const getTicket=()=>team('GET',`/projects/${tp.id}/tickets/${ticket.id}`);
   for (const engine of ['chromium','webkit']) {
     browser = await (engine==='webkit'?webkit:chromium).launch({headless:true});
     const page=await browser.newPage({viewport:{width:1440,height:1000}}); page.setDefaultTimeout(10000);
-    const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+    debugPage=page; const errors=[]; page.on('pageerror',e=>errors.push(e.message));
     await page.addInitScript(({token,teamToken})=>{localStorage.setItem('devboard.token',token);sessionStorage.setItem('werkbord-team-token',teamToken);},{token,teamToken});
     task=await getTask(); if(task.state!=='backlog') task=await personal('PATCH',`/projects/${work.id}/tasks/${task.id}`,{version:task.version,state:'backlog'});
     await page.goto(`${personalURL}/#/p/${work.id}/board`);
@@ -67,8 +68,8 @@ let browser, server, debugPage;
     await wait(async()=> (await getTicket()).status==='review','Team submit');
     await page.locator(`[data-board-item="${ticket.id}"][data-work-state=review]`).waitFor();
     await wait(()=>page.locator(`[data-board-item="${ticket.id}"] [data-drag-handle]`).isEnabled(),'Team submit acknowledgement');
-    await drag(page,page.locator(`[data-board-item="${ticket.id}"] .title`),page.locator('[data-board-column=backlog]'));
-    await page.getByText(/Release the ticket into Available/).waitFor(); assert.equal((await getTicket()).status,'review','refused drop preserves original status');
+    await drag(page,page.locator(`[data-board-item="${ticket.id}"] .title`),page.locator('[data-board-column=available]'));
+    await page.getByText(/This move needs the ticket’s normal workflow action/).waitFor(); assert.equal((await getTicket()).status,'review','refused drop preserves original status');
     const tabs=page.getByRole('navigation',{name:'Project sections'});
     assert.deepEqual((await tabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Board','Calendar','Git','Runs']);
     await page.getByRole('button',{name:/^Project settings/}).waitFor();
@@ -160,7 +161,7 @@ let browser, server, debugPage;
     window.go={main:{App:{Workspaces:async()=>({items,selected:'personal',problems:[],team:{state:'ready'},teamInstaller:false,invitation:false}),OpenWorkspace:load,LoadWorkspace:load,Overview:async()=>fetch('/fixture-overview').then(r=>r.json()),RememberPlace:async()=>{},Relay:async()=>({version:'fixture',platform:'darwin'}),Info:async()=>({version:'fixture',platform:'darwin'})}}};window.runtime={EventsOn:()=>()=>{}};
   },{items,personalURL,teamURL,token,teamToken});
   await page.goto('http://127.0.0.1:'+server.address().port+'/shell/index.html');
-  const side=page.getByRole('navigation',{name:'Werkbord',exact:true});await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
+  const side=page.getByRole('navigation',{name:'Werkbord',exact:true});await page.getByTestId('workspace-switcher').click();await page.locator('[role=menuitem][data-workspace=personal]').click();await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
   const addTop=await side.getByRole('button',{name:'Add project',exact:true}).boundingBox(),analyticTop=await side.getByRole('button',{name:'Analytics',exact:true}).boundingBox();assert(analyticTop.y>addTop.y && analyticTop.y-addTop.y<50,'Analytics follows Add project');
   await page.getByTestId('workspace-switcher').click();await page.locator('[data-workspace=universal]').click();await side.getByRole('button',{name:'Calendar',exact:true}).click();
   await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();

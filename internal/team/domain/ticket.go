@@ -23,16 +23,18 @@ const (
 type TicketStatus string
 
 const (
-	TicketBacklog    TicketStatus = "backlog"     // an idea; not ready to be picked up
-	TicketAvailable  TicketStatus = "available"   // ready; may be reserved by one member before work starts
-	TicketInProgress TicketStatus = "in_progress" // one member holds it and is working on it
+	// TicketBacklog is no column any more: Available is where every ticket starts. It stays as a name so a row or a client
+	// from before that (4.68) still reads, and ParseTicketStatus turns it into Available.
+	TicketBacklog    TicketStatus = "backlog"
+	TicketAvailable  TicketStatus = "available"   // nobody holds it; any member of the project may claim it
+	TicketInProgress TicketStatus = "in_progress" // one member holds it: claimed, waiting to be started, or being worked on
 	TicketReview     TicketStatus = "review"      // the work is submitted and waits for a reviewer
 	TicketDone       TicketStatus = "done"
 )
 
-// TicketStatuses lists the board's columns in order.
+// TicketStatuses lists the board's columns in order. Available comes first.
 func TicketStatuses() []TicketStatus {
-	return []TicketStatus{TicketBacklog, TicketAvailable, TicketInProgress, TicketReview, TicketDone}
+	return []TicketStatus{TicketAvailable, TicketInProgress, TicketReview, TicketDone}
 }
 
 // Valid reports whether s is a board column.
@@ -62,11 +64,15 @@ func (s TicketStatus) Label() string {
 	return string(s)
 }
 
-// ParseTicketStatus validates a status received from outside.
+// ParseTicketStatus validates a status received from outside. "backlog" is what older clients and plans still send for a
+// ticket that is not started; there is no such column now, so it means Available.
 func ParseTicketStatus(s string) (TicketStatus, error) {
 	st := TicketStatus(s)
+	if st == TicketBacklog {
+		return TicketAvailable, nil
+	}
 	if !st.Valid() {
-		return "", invalid("unknown ticket status %q (statuses: backlog, available, in_progress, review, done)", s)
+		return "", invalid("unknown ticket status %q (statuses: available, in_progress, review, done)", s)
 	}
 	return st, nil
 }
@@ -75,8 +81,8 @@ func ParseTicketStatus(s string) (TicketStatus, error) {
 // written down. How each move happens (claim, release, submit, ...) is the
 // service's; whether it may happen at all is decided here.
 var ticketTransitions = map[TicketStatus][]TicketStatus{
-	TicketBacklog:    {TicketAvailable, TicketInProgress},             // promote it; or the project owner assigns it straight away
-	TicketAvailable:  {TicketBacklog, TicketInProgress},               // put it back; claim or assign it
+	TicketBacklog:    {TicketAvailable, TicketInProgress},             // a row from before 4.68: make it available, or assign it
+	TicketAvailable:  {TicketInProgress},                              // claim it, or the project owner assigns it
 	TicketInProgress: {TicketAvailable, TicketReview},                 // release it; submit the work
 	TicketReview:     {TicketInProgress, TicketAvailable, TicketDone}, // send it back (to the board, if its owner left); complete it
 	TicketDone:       {TicketAvailable},                               // reopen it
@@ -95,7 +101,8 @@ func (s TicketStatus) CanTransitionTo(next TicketStatus) bool {
 // Held reports whether a ticket in this status has an owner who is working on it.
 func (s TicketStatus) Held() bool { return s == TicketInProgress || s == TicketReview }
 
-// Claimed reports a current ownership interval, including work reserved in Available.
+// Claimed reports a current ownership interval. Claiming now moves a ticket straight to In Progress; an Available ticket
+// that still has an owner is from before that, and counts too.
 func (k Ticket) Claimed() bool {
 	return k.AssigneeID != "" && (k.Status == TicketAvailable || k.Status.Held())
 }

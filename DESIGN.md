@@ -124,7 +124,7 @@ the existing `?tab=…` addresses still work. Host resilience lives under Settin
 The workspace's Needs you view shows Working now beside Needs you and Projects. Lists use spacing and dividers;
 cards are reserved for movable board tickets and focused ticket details. Team page titles are 24px,
 ticket titles 15px. The board fills the available width and height, with each column scrolling internally.
-The five Kanban columns stay side by side at every width, scrolling horizontally when they no longer fit. Below 900px, primary navigation
+The four Kanban columns stay side by side at every width, scrolling horizontally when they no longer fit. Below 900px, primary navigation
 becomes a sticky scrolling row with an always-visible Settings button; the document scrolls, and actionable
 attention appears before the working list. N opens a new ticket and Escape closes ticket details.
 
@@ -329,7 +329,7 @@ opens that workspace; they do not choose the startup surface.
 The initial deck keeps Needs you, Calendar, Projects, My Work, Agents and Analytics, with three empty sockets. An icon-only pencil in the header enters editing; its checkmark saves the deck. Every position can be replaced, removed or moved, including by keyboard through Move to
 position. Empty sockets remain empty. Preserve the keycap materials, themes and reduced-motion behaviour.
 
-Workflow keys show their name, icon and repository target (or reported run state). Tap executes a configured workflow; hold,
+Workflow keys show their name and icon; repository scope remains in their accessible label and configuration. Tap executes a configured workflow; hold,
 Shift+F10, context menu and the editing settings control configure it. Configuration never starts work. Workflows target
 Individual repositories; ordinary task views provide output, questions, review and cancellation. Phone preferences live in the
 controller per enrolled phone. The redundant attention strip is removed; Needs you retains its live count and destination.
@@ -368,9 +368,12 @@ Onboarding checks readiness before presenting a setup action. Verified local run
 
 ### Team claims and private agent work (4.52)
 
-Claim reserves a ticket in Available. My tickets filters the project board by current owner; All tickets shows the shared
-board. Cards name the owner and relative claim time. Start work records active manual/research work; agent dispatch moves
-its owner's ticket to In Progress. Private controls load directly on an owned ticket, use actual controller model/reasoning
+Claim moves a ticket from Available to In progress, where it waits for its owner to start work. My tickets filters the project board by current owner; All tickets shows the shared
+board. Cards name the owner and relative claim time. Only the owner sees agent controls and execution detail. Teammates see ownership and an active/inactive indicator. A successful agent-only run moves its ticket to Review; human and hybrid work wait for explicit submission. Private controls load directly on an owned ticket, use actual controller model/reasoning
 choices, surface questions before configuration, and refresh conversation/activity automatically. Advanced device and long
 approval choices stay in a disclosure. Teammate views show coordination and Git/review facts; conversations and controls stay
 with the owner. Preserve local policy review, assignment fencing, working branches and the existing PR/review gates.
+
+### Team ticket layout (4.68)
+
+Tickets use a main column for description, requirements, private agent work and comments, with a side column for status, start and due dates, and Git facts. Thin token-coloured borders separate these sections. Narrow panels stack in reading order. Dates have a visible save action and appear as planned ranges in Calendar; comment composers offer @mentions with in-app notifications. Missing host routes have one screen-local explanation and an upgrade destination; errors clear when leaving their screen.

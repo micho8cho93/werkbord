@@ -46,7 +46,7 @@ The console (the page Team serves at its address) is organised around one questi
 | --- | --- | --- |
 | **Workspace** | What needs me? What is everyone doing? | Working now, your unread mentions, actionable attention, shortcuts to your work and reviews, and each project's active work. The tab is named **Needs you**. |
 | **Projects** | Which projects are there, and who is on them? | The projects, creating one, each project's **People & invites**. |
-| **Board** | What work is there in this project? | The shared board: Backlog, Available, In Progress, Review, Done, and a ticket's details, actions and **comments**. A project switcher keeps the Board, Git and Activity sections on one project. |
+| **Board** | What work is there in this project? | The shared board: Available, In Progress, Review, Done, and a ticket's details, actions and **comments**. A project switcher keeps the Board, Git and Activity sections on one project. |
 | **Timeline** | When is the work planned, and what waits for what? | The project's tickets as date bars and milestones, grouped by label, status or who does the work, with dependencies as arrows and a list of conflicts. It only shows: nothing is ever rescheduled. See [PLANNING.md](PLANNING.md). |
 | **My Work** | What am I doing, and what waits for me? | What needs your attention (changes requested, a pull request with conflicts, behind its base, ready to submit, stale), your tickets in progress and in review with their Git links, your open pull requests, and the state of your own branches. **Open in my runner** is on every ticket you hold. |
 | **Reviews** | What needs a decision? | Tickets in review, those asked of you first: author, branch, pull request, commits, mergeability, and links to the pull request, branch and comparison on the Git host. Record that you merged, mark done, or request changes. Team does not reproduce a code-review interface; the diff is on the Git host. |
@@ -181,12 +181,16 @@ on their own computer. Nothing in this section gives one member any reach into a
 ```
         ticket created
               │
-         ┌────▼────┐   promote   ┌───────────┐  claim / assign  ┌─────────────┐  submit  ┌────────┐ complete ┌──────┐
-         │ Backlog │ ──────────▶ │ Available │ ───────────────▶ │ In Progress │ ───────▶ │ Review │ ───────▶ │ Done │
-         └─────────┘ ◀────────── └───────────┘ ◀─────────────── └─────────────┘ ◀─────── └────────┘          └──────┘
-                       put back                    release                      request changes                  │
-                                                                                                      reopen ◀───┘ (back to Available)
+        ┌─────▼─────┐  claim / assign  ┌─────────────┐  submit, or the agent finishes  ┌────────┐ complete ┌──────┐
+        │ Available │ ───────────────▶ │ In Progress │ ──────────────────────────────▶ │ Review │ ───────▶ │ Done │
+        └───────────┘ ◀─────────────── └─────────────┘ ◀────────────────────────────── └────────┘          └──────┘
+                          release                          request changes                                   │
+                                                                                                    reopen ◀─┘ (back to Available)
 ```
+
+There is no Backlog column: every ticket starts as Available, and claiming one puts it straight into In Progress, claimed
+and waiting for its owner to start it. A host from before 4.68 had a Backlog, and a claim that waited in Available; upgrading
+moves those rows (migration `0026`) and nothing else, so an approved execution stays approved.
 
 The recommended Git flow around it (nothing forces a developer through it, and **Team never merges**):
 
@@ -234,18 +238,20 @@ creator, or `tickets.edit`); defining the labels is `labels.manage`. Human work 
 work, and nothing here moves a ticket or a date: `GET /projects/{id}/timeline` only reports what contradicts itself. A project
 without a repository runs the whole workflow with no Git report.
 
+The ticket panel lays each of these out as a box of its own: Description, Requirements and context, the agent (yours; for anyone else
+who owns it and whether it is active), **Comments** (type `@` to mention someone on the project), and a side rail with Status, **Dates** (start,
+due or a milestone, edited in place by whoever may edit the ticket; the Calendar and the Timeline draw them), and branch and pull request.
+
 The legal moves are written once, in `domain.TicketStatus.CanTransitionTo`:
 
 | From | To | How | Who |
 | --- | --- | --- | --- |
-| Backlog | Available | `move` | creator, or `tickets.edit` |
-| Available, unassigned | Backlog | `move` | creator, or `tickets.edit` |
-| Available | Available, assigned | `claim` (yourself) | any project member |
-| Backlog / Available | Available, assigned | `assign` (a member of the project) | `tickets.assign` |
-| Available, assigned | In Progress | `start-work`, or starting your own agent | the holder |
-| Available, assigned / In Progress | Available, unassigned | `release` | the holder, or `tickets.assign` |
+| Available | In Progress | `claim` (yourself) | any project member |
+| Available | In Progress | `assign` (a member of the project) | `tickets.assign` |
+| In Progress | Available, unassigned | `release` | the holder, or `tickets.assign` |
 | In Progress | In Progress | `assign` to someone else (**reassign**: same branch, new owner) | `tickets.assign` |
 | In Progress | Review | `submit` (optionally with a pull request and a named reviewer) | the holder, or `tickets.assign` |
+| In Progress | Review | the holder's own agent finishes a run (reported as progress) | automatic, for agent work only |
 | Review | In Progress | `request-changes` (with a note) | `tickets.review` |
 | Review | Done | `complete` | `tickets.review` |
 | Done | Available | `move` (**reopen**; clears the owner, branch and pull request) | `tickets.reopen` |
@@ -254,7 +260,7 @@ Anything else is refused with a `409` that says what the ticket is and what it c
 
 - **Claiming is atomic.** `claim` is one guarded `UPDATE ... WHERE status = 'available' AND assignee_id IS NULL`, so of any
   number of simultaneous claims exactly one succeeds and the rest get `409 "WB-1 was already claimed by Bo"`. The database
-  also refuses, by `CHECK`, a ticket that is in progress with nobody on it or in the backlog with somebody on it. Available tickets can be claimed while the owner prepares work.
+  also refuses, by `CHECK`, a ticket that is in progress with nobody on it.
 - **Edits are version-checked.** Every write bumps `version`; `PATCH` with a stale `version` is a `409`.
 - **A reviewer cannot sign off their own work** (a project owner can, so someone working alone can finish their ticket).
 - **Team will not call a ticket Done while its pull request is open.** Merge or close it on your Git host, record that
@@ -659,10 +665,10 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `GET /search?q=text` | any member | bounded project/ticket lookup; workspace and project membership apply before limiting results |
 | `GET /sync?since=N&after=E&wait=S` | any member | workspace long poll with events; see [Staying in step](#staying-in-step). `429` when you hold too many |
 | `GET /projects/{id}/sync?since=N&wait=S` | on the project | the same for one project: `{revision, changed}` |
-| `POST /projects/{id}/tickets` `{title, description?, requirements?, status?}` | `tickets.create` | `status` is `backlog` (default) or `available` |
+| `POST /projects/{id}/tickets` `{title, description?, requirements?, status?}` | `tickets.create` | `status` is `available`, which is also the default (`backlog`, from an older client, means the same) |
 | `GET /projects/{id}/tickets/{tid}` | `tickets.view` | with commits |
 | `PATCH /projects/{id}/tickets/{tid}` `{title?, description?, requirements?, version?}` | creator, or `tickets.edit` | stale `version` → 409 |
-| `POST …/tickets/{tid}/move` `{status}` | creator or `tickets.edit`; `tickets.reopen` | backlog ⇄ available; done → available |
+| `POST …/tickets/{tid}/move` `{status}` | `tickets.reopen` | done → available |
 | `POST …/tickets/{tid}/claim` | `tickets.claim`, on the project | atomic; 409 names who has it |
 | `POST …/tickets/{tid}/release` | the holder, or `tickets.assign` | |
 | `POST …/tickets/{tid}/assign` `{memberId}` | `tickets.assign` | assign or reassign |
@@ -745,17 +751,23 @@ In the desktop app, connecting your Individual runner synchronizes every project
 
 ### Preparing and running your own Team work
 
-A claim reserves a ticket in Available and records its owner and claim time; it does not imply work has started.
-The project board's **My tickets** filter shows your assignments in their shared columns. **Start work** moves your
-claim to In Progress for research or manual work. Starting your agent does the same after local dispatch succeeds.
-Agent controls load directly on your claimed ticket in the desktop app, with your controller's available agents,
-models and reasoning levels. Exact execution policy approval still happens locally. Questions, messages, activity,
-stop/restart and handoff results stay on your own controller and refresh in your ticket. Other members see ownership,
-claim time, shared status and the branch/PR facts used for review; their ticket view has no execution controls or conversation.
+A claim puts the ticket In Progress and records its owner and claim time; it does not mean an agent is running, and the
+card says "Claimed · waiting to start" until one is. The project board's **My tickets** filter shows your assignments in
+their shared columns. **Start agent** is on your own card in In Progress, and in the ticket: from the card it opens the
+ticket with the effective policy laid out, and one more press starts the run. Agent controls load directly on your claimed
+ticket in the desktop app, with your controller's available agents, models and reasoning levels. Exact execution policy
+approval still happens locally. Questions, messages, activity, stop/restart and handoff results stay on your own
+controller and refresh in your ticket. When your agent finishes a run, the ticket moves to Review by itself (agent work
+only: a person finishes human and hybrid work and submits it), and reviewing and marking it done stay the team's.
+
+What the rest of the team sees of your agent is one yes-or-no, **active now** or **not active**, on the ticket and its card:
+`Board.active` names the tickets in progress whose owner's agent has a queued, running or waiting run reported within the last
+two minutes. `GET …/tickets/{tid}/progress` (what each of your devices reported) answers the owner alone and is empty for
+everyone else, the workspace owner included: what an agent does, asks and writes is nobody else's.
 
 Claiming and starting preserve the same assignment interval, local task, repository and working branch. The existing
-handoff asks the agent to commit, push and open a PR on that branch, and to leave merging to the reviewer. Reported agent
-completion does not submit, approve, merge or complete the Team ticket. The normal review and PR completion checks still apply.
+handoff asks the agent to commit, push and open a PR on that branch, and to leave merging to the reviewer. Reported agent-only
+completion submits the ticket for review; it does not approve, merge or mark it done. The normal review and PR completion checks still apply.
 A read-only `GET .../handoff` supplies private refreshes without recording repeated handoff activity.
 
 ## Cross-repository Initiatives

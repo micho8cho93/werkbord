@@ -13,9 +13,9 @@ import (
 
 // The ticket workflow:
 //
-//	backlog ⇄ available (claim/assign) ──start-work──▶ in_progress ──submit──▶ review ──complete──▶ done
-//	                 ▲                         │   ▲                 │
-//	                 └──────── release ────────┘   └─ request changes┘        done ──reopen──▶ available
+//	available ──claim/assign──▶ in_progress ──submit/agent completes──▶ review ──complete──▶ done
+//	    ▲                          │   ▲                               │
+//	    └──────── release ──────────┘   └────── request changes ─────────┘     done ──reopen──▶ available
 //
 // (A ticket in review whose owner has left the project goes back to available when it is sent back.)
 //
@@ -40,6 +40,9 @@ type Board struct {
 	Completion map[string]string `json:"completion"`
 	// Labels are the workspace's shared labels, which any ticket here may carry.
 	Labels []domain.Label `json:"labels"`
+	// Active names the tickets in progress whose owner's agent is working on them right now. It is all the team sees of
+	// anyone's agent; what it does stays with its owner.
+	Active map[string]bool `json:"active"`
 }
 
 type statusColumn struct {
@@ -84,6 +87,9 @@ func (s *Service) Board(ctx context.Context, a Actor, projectID string) (Board, 
 		if b.Labels, err = tx.Labels(ctx, a.Workspace.ID); err != nil {
 			return err
 		}
+		if b.Active, err = s.activeAgents(ctx, tx, a, x, b.Tickets); err != nil {
+			return err
+		}
 		b.People, err = people(ctx, tx, a.Workspace.ID, projectID)
 		return err
 	})
@@ -108,7 +114,7 @@ type TicketInput struct {
 	Title        string
 	Description  string
 	Requirements string
-	// Status is backlog (the default) or available.
+	// Status is available, which is also the default. "backlog" from an older client means the same.
 	Status domain.TicketStatus
 	// WorkMode is who is expected to do it; empty means agent work. LabelIDs, Plan and Dependencies are optional.
 	WorkMode     planning.ExecutionMode
@@ -132,11 +138,10 @@ func (s *Service) CreateTicket(ctx context.Context, a Actor, projectID string, i
 		return domain.Ticket{}, err
 	}
 	switch in.Status {
-	case "":
-		in.Status = domain.TicketBacklog
-	case domain.TicketBacklog, domain.TicketAvailable:
+	case "", domain.TicketBacklog, domain.TicketAvailable:
+		in.Status = domain.TicketAvailable
 	default:
-		return domain.Ticket{}, fmt.Errorf("%w: a new ticket starts in the backlog or as available, not %q", domain.ErrInvalid, in.Status)
+		return domain.Ticket{}, fmt.Errorf("%w: a new ticket starts as available, not %q", domain.ErrInvalid, in.Status)
 	}
 	var k domain.Ticket
 	err = s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
@@ -299,8 +304,7 @@ func transition(k *domain.Ticket, next domain.TicketStatus) error {
 	return nil
 }
 
-// MoveTicket moves a ticket between the states that need no owner: promoting a
-// backlog ticket to available, putting it back, and reopening a finished one.
+// MoveTicket moves a ticket between the states that need no owner, which today is reopening a finished one.
 // Claiming, releasing, submitting and completing have their own calls.
 func (s *Service) MoveTicket(ctx context.Context, a Actor, projectID, ticketID string, to domain.TicketStatus) (domain.Ticket, error) {
 	var k domain.Ticket
@@ -314,15 +318,13 @@ func (s *Service) MoveTicket(ctx context.Context, a Actor, projectID, ticketID s
 			if err := x.require(domain.PPTicketsReopen, "reopen tickets"); err != nil {
 				return err
 			}
-		case (from == domain.TicketBacklog && to == domain.TicketAvailable) || (from == domain.TicketAvailable && to == domain.TicketBacklog):
+		case from == domain.TicketBacklog && to == domain.TicketAvailable:
+			// A row from before 4.68, which has no column now. Whoever could edit it may make it available.
 			if k.CreatorID != a.Member.ID && !x.can(domain.PPTicketsEdit) {
 				return forbidden("move a ticket someone else created")
 			}
 		default:
 			return fmt.Errorf("%w: %s cannot be moved from %s to %s directly; use claim, release, submit, request changes or complete", domain.ErrInvalid, k.Key, from.Label(), to.Label())
-		}
-		if from == domain.TicketAvailable && k.AssigneeID != "" {
-			return fmt.Errorf("%w: release the claim before moving this ticket to backlog", domain.ErrConflict)
 		}
 		if err := transition(&k, to); err != nil {
 			return err
@@ -349,8 +351,8 @@ func (s *Service) MoveTicket(ctx context.Context, a Actor, projectID, ticketID s
 	return k, err
 }
 
-// ClaimTicket reserves Available work for the actor without starting it.
-// Concurrent claims have one winner; conflicts name the current owner.
+// ClaimTicket gives Available work to the actor and moves it to In Progress, waiting for them to start it (their agent, or
+// by hand). Concurrent claims have one winner; conflicts name the current owner.
 func (s *Service) ClaimTicket(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
 	var k domain.Ticket
 	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) error {
@@ -382,8 +384,9 @@ func (s *Service) ClaimTicket(ctx context.Context, a Actor, projectID, ticketID 
 	return k, err
 }
 
-// StartWork records intentional work, including research or a member's own agent.
-// It never chooses a runner or starts a process. The claim and Git branch survive.
+// StartWork is kept for clients from before a claim moved a ticket to In Progress: it moves a ticket still sitting in
+// Available with its owner there, and does nothing for one already In Progress. It never chooses a runner or starts a
+// process. The claim and Git branch survive.
 func (s *Service) StartWork(ctx context.Context, a Actor, projectID, ticketID string) (domain.Ticket, error) {
 	var k domain.Ticket
 	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
@@ -464,7 +467,8 @@ func (s *Service) ReleaseTicket(ctx context.Context, a Actor, projectID, ticketI
 }
 
 // AssignTicket gives a ticket to a member of the project, or hands it from one
-// member to another. It needs tickets.assign. An unclaimed ticket stays Available; one in progress keeps its branch and its history, and only its owner changes.
+// member to another. It needs tickets.assign. An unclaimed ticket goes In Progress with its new owner, as if they had claimed it;
+// one in progress keeps its branch and its history, and only its owner changes.
 func (s *Service) AssignTicket(ctx context.Context, a Actor, projectID, ticketID, memberID string) (domain.Ticket, error) {
 	var k domain.Ticket
 	err := s.mutate(ctx, a, projectID, func(tx store.Tx, x access) (err error) {
@@ -490,7 +494,7 @@ func (s *Service) AssignTicket(ctx context.Context, a Actor, projectID, ticketID
 			if prev == memberID {
 				return fmt.Errorf("%w: ticket already assigned", domain.ErrConflict)
 			}
-			k.Status = domain.TicketAvailable
+			k.Status = domain.TicketInProgress
 			now := s.stamp()
 			k.ClaimedAt = &now
 			if k.Branch == "" {

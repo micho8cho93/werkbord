@@ -394,13 +394,17 @@ func TestConnectorClaimExecutionRecoveryConflictAndRevocation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	records, err := team.svc.TicketProgress(ctx, team.owner, team.project.ID, team.ticket.ID)
+	records, err := team.svc.TicketProgress(ctx, team.member, team.project.ID, team.ticket.ID)
 	if err != nil || len(records) != 1 || records[0].Execution.State != "completed" {
 		t.Fatalf("progress %v %v", records, err)
 	}
 	ticket, _ := team.svc.GetTicket(ctx, team.member, team.project.ID, team.ticket.ID)
-	if ticket.Status != domain.TicketInProgress {
-		t.Fatal("run completion completed ticket")
+	if ticket.Status != domain.TicketReview {
+		t.Fatal("run completion did not submit the agent ticket for review")
+	}
+	private, err := team.svc.TicketProgress(ctx, team.owner, team.project.ID, team.ticket.ID)
+	if err != nil || len(private) != 0 {
+		t.Fatalf("workspace owner saw another member's execution: %v %v", private, err)
 	}
 	b, _ := json.Marshal(records)
 	if strings.Contains(string(b), secret) || strings.Contains(string(b), local.owner) || strings.Contains(string(b), "prompt") {

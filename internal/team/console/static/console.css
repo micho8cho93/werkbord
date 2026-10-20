@@ -182,9 +182,9 @@ summary { cursor: pointer; color: var(--accent); font-weight: 500; font-size: 13
 .project-bar select { width: auto; min-width: 12rem; font-family: var(--sans); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text); }
 .project-head p { font-size: 13px; }
 
-/* The board: five inset columns; ticket details open over the board. */
+/* The board: four inset columns; ticket details open over the board. */
 .tboard { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; min-width: 0; margin-bottom: 16px; }
-.board { display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 12px; align-items: stretch; min-width: 0; min-height: 0; overflow-x: auto; padding-bottom: 6px; overscroll-behavior-x: contain; }
+.board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 12px; align-items: stretch; min-width: 0; min-height: 0; overflow-x: auto; padding-bottom: 6px; overscroll-behavior-x: contain; }
 .col { background: var(--s2); border-radius: 8px; padding: 12px; min-height: 0; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .col h3 { font-size: 14px; font-weight: 600; margin: 2px 2px 0; display: flex; gap: 8px; align-items: center; }
 .col h3 .badge { margin-left: auto; }
@@ -276,7 +276,7 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
   .project-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 899px) {
-  .board { height: max(360px, calc(100dvh - 280px)); grid-template-columns: repeat(5, minmax(min(80vw, 320px), 1fr)); scroll-snap-type: x proximity; }
+  .board { height: max(360px, calc(100dvh - 280px)); grid-template-columns: repeat(4, minmax(min(80vw, 320px), 1fr)); scroll-snap-type: x proximity; }
   .col { scroll-snap-align: start; }
 }
 
@@ -728,10 +728,49 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
   .framed .board-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   .framed .board-view > :not(.tboard) { flex: none; }
   .framed .tboard { flex: 1; min-height: 0; margin: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-  .framed .board { height: auto; grid-template-columns: repeat(5, minmax(210px, 1fr)); scroll-snap-type: none; }
+  .framed .board { height: auto; grid-template-columns: repeat(4, minmax(210px, 1fr)); scroll-snap-type: none; }
   .framed header.page-head { padding: 24px 24px 16px; }
   .framed .project-title-row .actions { width: auto; }
 }
 
 /* In the window, the Help button is in the bottom right corner of the window: the tour card keeps clear of it. */
 .app-shell.framed ~ .team-tour, body:has(.app-shell.framed) .team-tour { bottom: 60px; }
+
+/* ---- one ticket, as boxes: each idea in a thin border of its own ---- */
+.ticket { container: ticket / inline-size; }
+.ticket-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 14px; align-items: start; }
+.ticket-main, .ticket-side { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.tcard, .ticket-main > .handoff, .ticket-side > .handoff { margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 0; }
+.ticket-main > .handoff, .ticket-side > .handoff { background: color-mix(in srgb, var(--accent) 5%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.tcard > h3:first-child, .ticket-main > .handoff > h3:first-child { margin-top: 0; }
+.tcard h3, .ticket-main > .handoff h3 { font-size: 11.5px; }
+.tcard h4 { font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.tcard .facts { margin-top: 0; }
+.tcard .comments { margin: 0; padding: 0; border: 0; }
+.tcard details { margin-top: 12px; }
+.dates-form { margin-top: 12px; }
+.dates-form fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.dates-form legend { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.dates-form .dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.dates-form .dates input[type='checkbox'] { min-width: 0; }
+.dates-form .dates input[type='date'] { min-width: 0; width: 100%; }
+.dates-form .dates label.check { grid-column: 1 / -1; flex-direction: row; justify-content: flex-start; align-items: center; width: auto; }
+.tcard > .muted.small { margin: 10px 0 0; }
+.card .owner + .work-detail { margin: 0; }
+@container ticket (min-width: 720px) {
+  .ticket-grid { grid-template-columns: minmax(0, 1fr) minmax(250px, 330px); gap: 14px; }
+}
+@media (min-width: 900px) {
+  .with-ticket .ticket { width: min(880px, calc(100vw - 280px)); }
+  .calendar-with-ticket .ticket { width: min(880px, 100vw); }
+}
+
+/* Whether someone's agent is working on a ticket: all the team is told of it. */
+.presence { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.presence .dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--muted); box-sizing: border-box; }
+.presence.on { color: var(--text); }
+.presence.on .dot { background: var(--ok, #3aa55d); border-color: var(--ok, #3aa55d); }
+.card .owner { flex-wrap: wrap; }
+.work-card button[data-start-agent] { justify-self: start; }
+.host-outdated { max-width: 62ch; padding: 20px 22px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.host-outdated p { margin: 0 0 10px; }

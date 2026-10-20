@@ -441,6 +441,13 @@ function ownExecutionPanel(k) {
   const interaction = h('select', { name: 'interaction-' + k.id, onchange: e => change('interaction', e.target.value) }, [['interactive', 'Ask me when needed'], ['autonomous', 'Investigate independently'], ['autonomous_stop_if_blocked', 'Stop if blocked']].map(([value, label]) => h('option', { value, selected: value === selection.interaction }, label)));
   const preapprove = h('input', { type: 'checkbox', name: 'preapprove-' + k.id, checked: !!selection.preapprove, onchange: e => change('preapprove', e.target.checked) });
   const request = () => ({ ...selection, digest: view.preview?.digest || '' });
+  // Start agent on the board's card opens this with the policy already laid out, so one more press starts it.
+  if (state.agentFocus === k.id) {
+    state.agentFocus = '';
+    if (!view.preview && !view.approval && !view.error && selection.agentId && selection.runnerId && !view.detail.runs.some(r => ['starting', 'running', 'waiting_for_user', 'blocked'].includes(r.state))) {
+      setTimeout(() => act(async () => { view.preview = await deviceApi('POST', '/execution/preview', request()); view.approval = null; }).then(() => document.querySelector('[aria-label="Your private agent"]')?.scrollIntoView({ block: 'start' })), 0);
+    }
+  }
   const control = (action, run, question, option, reply) => act(async () => { await deviceApi('POST', '/execution/' + action, { projectId: k.projectId, ticketId: k.id, runId: run, questionId: question || '', option: option || '', reply: reply || '' }); await refresh(); });
   const questions = view.detail.questions.filter(q => q.state === 'pending').map(q => {
     const answer = h('input', { name: 'agent-reply-' + q.id, maxlength: 2000, 'aria-label': 'Your answer' });
@@ -458,7 +465,7 @@ function ownExecutionPanel(k) {
     h('div', { class: 'execution-output', 'data-scroll-key': 'agent-output-' + k.id }, (view.detail.activity.events || []).filter(e => e.type === 'agent.output').map(e => h('div', { class: 'execution-message' }, h('strong', {}, e.payload.stream), h('pre', { class: 'prose' }, e.payload.text))),
       !(view.detail.activity.events || []).some(e => e.type === 'agent.output') ? h('p', { class: 'muted' }, 'No agent output yet.') : ''),
     currentRun && ['running', 'waiting_for_user'].includes(currentRun.state) ? h('form', { class: 'actions', onsubmit: e => { e.preventDefault(); act(async () => { await deviceApi('POST', '/execution/input', { projectId: k.projectId, ticketId: k.id, runId: currentRun.id, text: message.value }); message.value = ''; delete message.dataset.dirty; await refresh(); }); } }, message, h('button', { class: 'plain' }, 'Send message')) : '') : '';
-  return h('section', { class: 'handoff', 'aria-label': 'Your private agent' }, h('h3', {}, 'Your private agent'), h('p', { class: 'muted' }, 'Your choices, conversation and output stay on this computer. Starting an agent moves the shared ticket to In Progress.'), questions,
+  return h('section', { class: 'handoff', 'aria-label': 'Your private agent' }, h('h3', {}, 'Your private agent'), h('p', { class: 'muted' }, 'Your choices, conversation and output stay on this computer. The ticket is already In Progress while it is yours. ' + (k.workMode === 'hybrid' ? 'When the agent finishes, complete your own steps and submit it for review.' : 'It moves to Review by itself when your agent finishes.')), questions,
     view.error ? h('p', { class: 'error', role: 'alert' }, view.error + ' Showing the last loaded details; refresh to reconnect.') : '',
     h('div', { class: 'agent-choices' }, field('Runner on this computer', runner), field('Agent', agent), field('Model', model), modelList, field('Reasoning', reasoning), field('Conversation policy', interaction)), view.detail.optionsError ? h('p', { class: 'muted' }, view.detail.optionsError) : '',
 
