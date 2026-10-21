@@ -1,11 +1,12 @@
 <script lang="ts">
+  import { surface, visibility } from '../motion';
   import { formatDateTime } from '../clock.svelte';
   import { Renderer, type ActionEvent, type ParseResult } from '@openuidev/svelte-lang';
   import { assistant } from './store.svelte';
   import Markdown from './Markdown.svelte';
   import { openUILibrary } from './openui/library';
   import { emptyReplyPartsCache, growingReplyParts } from './openui/reply';
-  import { lookedAt, progressLine, type ReplyItem } from './transcript';
+  import { lookedAt, progressLine, stepLabel, type ReplyItem } from './transcript';
   import { failure, operationFailureTitle } from './words';
   import { conversationMessage } from './openui/state';
   import RecommendationCard from '../recommend/RecommendationCard.svelte';
@@ -18,7 +19,8 @@
   const partsCache = emptyReplyPartsCache();
   let openUIResults = $state<Record<number, { ready: boolean; hasRoot: boolean; invalid: boolean }>>({});
   let actionProblem = $state('');
-  const line = $derived(reply.status === 'working' ? progressLine(reply) : '');
+  const line = $derived(reply.status === 'working' ? (assistant.stopping ? 'Stopping…' : progressLine(reply)) : '');
+  let activityOpen = $state(false);
   const looked = $derived(reply.status === 'done' ? lookedAt(reply) : []);
   const parts = $derived(growingReplyParts(reply.text, reply.status === 'working', partsCache));
   const fail = $derived(reply.error ? failure(reply.error) : null);
@@ -57,7 +59,7 @@
     {#if part.kind === 'text'}
       {#if part.text.trim() !== ''}<Markdown text={part.text} streaming={reply.status === 'working'} />{/if}
     {:else}
-      <section class="openui" aria-label="Generated interface">
+      <section class="openui" in:surface={{ duration: reply.status === 'working' ? 180 : 0 }} aria-label="Generated interface">
         <Renderer
           response={part.text}
           library={openUILibrary}
@@ -82,7 +84,10 @@
   {/each}
 
   {#if line}
-    <p class="progress"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>{line}</span></p>
+    <div class="activity" use:visibility>
+      <button class="progress" type="button" aria-expanded={activityOpen} onclick={() => activityOpen = !activityOpen}><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>{line}</span></button>
+      {#if activityOpen}<ul class="activity-steps" in:surface={{ duration: 140, y: 0 }}>{#each reply.steps as step (step.id)}<li>{stepLabel(step.name)} · {step.status === 'ok' ? 'Completed' : step.status === 'error' ? 'Failed' : step.status === 'running' ? 'Running' : step.status === 'stopped' ? 'Stopped' : 'Waiting'}</li>{:else}<li>Waiting for reported activity.</li>{/each}</ul>{/if}
+    </div>
   {/if}
 
   {#each reply.notices as n (n)}<p class="note">{n}</p>{/each}
@@ -192,13 +197,18 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+  .activity-steps { margin: 8px 0 0; padding-left: 18px; color: var(--text-2); font-size: 12.5px; }
   .progress {
+    border: 0; padding: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; min-height: 24px;
+
     display: flex;
     align-items: center;
     gap: 8px;
     color: var(--text-2);
     font-size: 13px;
   }
+  .progress:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  @media (pointer: coarse) { .progress { min-height: 44px; } }
   .dots {
     display: inline-flex;
     gap: 3px;

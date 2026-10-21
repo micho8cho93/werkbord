@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { acknowledge, surface } from '../motion';
   import { api } from '../api';
   import { dismissEnrollment, enrollment } from './enroll.svelte';
 
@@ -25,7 +26,7 @@
 </script>
 
 {#if enrollment.state === 'done'}
-  <div class="welcome" role="status" data-testid="phone-welcome">
+  <div class="welcome" use:acknowledge={{ value: enrollment.state, success: true, fresh: true }} in:surface={{ duration: 180, y: 0 }} role="status" data-testid="phone-welcome">
     {#if editing}
       <form onsubmit={save}>
         <label for="phone-name">Name of this phone</label>

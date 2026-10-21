@@ -32,6 +32,7 @@
   let loading = $state(true);
   let error = $state('');
   let requestId = 0;
+  let chartScope = $state('');
   let mounted = true;
   onMount(() => {
     const timer = setInterval(() => { if (!document.hidden) void load(); }, 15000);
@@ -47,10 +48,11 @@
 
   async function load() {
     const id = ++requestId;
+    const requestedScope = `${scope.project}/${scope.days}/${scope.provider}/${scope.runner}`;
     loading = true; error = '';
     try {
       const next = await api.analytics(scope.project, scope.days, scope.provider);
-      if (mounted && id === requestId) report = next;
+      if (mounted && id === requestId) { report = next; chartScope = requestedScope; }
     } catch (e) {
       if (mounted && id === requestId) error = e instanceof Error ? e.message : 'Could not load analytics.';
     } finally {
@@ -106,26 +108,26 @@
       </dl>
       <p class="muted">Duration includes waiting, from creation to the first recorded move to Done. Average: {analyticsDuration(report.averageTaskSeconds)}.</p>
       <section aria-labelledby="throughput-title"><h2 id="throughput-title">Created and completed over time</h2>
-        {#if hasThroughput}<AnalyticsDaily days={report.days} {series} />
+        {#if hasThroughput}<AnalyticsDaily days={report.days} {series} scope={chartScope} />
           <details><summary>Daily values</summary><div class="table-scroll"><table><thead><tr><th>UTC date</th><th>Created</th><th>Moved to Done</th></tr></thead><tbody>{#each report.days as day (day.date)}<tr><td class="mm">{day.date}</td><td class="mm">{day.created}</td><td class="mm">{day.completed}</td></tr>{/each}</tbody></table></div></details>
         {:else}<p class="empty">No task activity in this period. Try a longer time range or another project.</p>{/if}
       </section>
-      <details class="disclosure"><summary>Work categories</summary><p class="muted">Current labels; tasks with multiple labels appear in each category.</p><AnalyticsBars label="Task activity by category" rows={report.categories.map(c => ({ label: c.name, value: c.completed, detail: `${c.created} created · ${c.completed} moved to Done`, tone: 'var(--ok)' }))} />{#if !report.categories.length}<p class="muted">No task activity matches these categories.</p>{/if}</details>
+      <details class="disclosure"><summary>Work categories</summary><p class="muted">Current labels; tasks with multiple labels appear in each category.</p><AnalyticsBars scope={`${chartScope}/${measure}/${scope.runner}`} label="Task activity by category" rows={report.categories.map(c => ({ label: c.name, value: c.completed, detail: `${c.created} created · ${c.completed} moved to Done`, tone: 'var(--ok)' }))} />{#if !report.categories.length}<p class="muted">No task activity matches these categories.</p>{/if}</details>
     {:else if view === 'Execution'}
       <dl class="statistics"><div><dt>Run attempts</dt><dd>{totals.attempts}</dd></div><div><dt>Retries</dt><dd>{totals.retries}</dd></div><div><dt>Failed runs</dt><dd>{totals.outcomes.failed ?? 0}</dd></div><div><dt>Waiting for you</dt><dd>{totals.outcomes.waiting_for_user ?? 0}</dd></div></dl>
       <p class="muted">Latest outcomes of runs started in the selected period. A normal exit does not verify task completion.</p>
-      <section><h2>Run outcomes</h2>{#if totals.attempts}<AnalyticsBars rows={outcomeBars} label="Run outcomes by count" />{:else}<p class="empty">No runs match these filters. Try another provider, runner or time range.</p>{/if}</section>
+      <section><h2>Run outcomes</h2>{#if totals.attempts}<AnalyticsBars scope={`${chartScope}/${measure}/${scope.runner}`} rows={outcomeBars} label="Run outcomes by count" />{:else}<p class="empty">No runs match these filters. Try another provider, runner or time range.</p>{/if}</section>
       <details class="disclosure"><summary>Current task state</summary><p class="muted">Across the selected project and provider, regardless of runner or run start date.</p><dl class="facts"><div><dt>Currently blocked</dt><dd>{report.blocked}</dd></div><div><dt>Currently stopped</dt><dd>{report.stopped}</dd></div></dl></details>
     {:else if view === 'Usage'}
       <dl class="statistics"><div><dt>Input tokens</dt><dd>{measuredNumber(totals.inputTokens)}</dd></div><div><dt>Output tokens</dt><dd>{measuredNumber(totals.outputTokens)}</dd></div><div><dt>Reported API cost</dt><dd>{measuredCost(totals.actualCostUsd)}</dd></div><div><dt>Usage-limit notices</dt><dd>{totals.limitEvents}</dd></div></dl>
       <p class="muted">Measured usage from runs started in this period. Missing reports remain unknown; subscription charges and remaining quota are unknown.</p>
-      <section><h2>{measure === 'tokens' ? 'Token usage and reporting coverage' : 'Reported and estimated API cost'}</h2>{#if totals.attempts}<AnalyticsBars rows={usageBars} label={measure === 'tokens' ? 'Token usage' : 'API cost in USD'} />{:else}<p class="empty">No execution evidence matches these filters. Try another provider, runner or time range.</p>{/if}</section>
+      <section><h2>{measure === 'tokens' ? 'Token usage and reporting coverage' : 'Reported and estimated API cost'}</h2>{#if totals.attempts}<AnalyticsBars scope={`${chartScope}/${measure}/${scope.runner}`} rows={usageBars} label={measure === 'tokens' ? 'Token usage' : 'API cost in USD'} />{:else}<p class="empty">No execution evidence matches these filters. Try another provider, runner or time range.</p>{/if}</section>
       <details class="disclosure"><summary>Reporting details</summary><p class="muted">{totals.partialRuns} partial reports across {totals.attempts} runs. Cached tokens may overlap input tokens. API cost and estimated equivalents are separate measures and are not added together.</p></details>
     {:else}
       <dl class="statistics"><div><dt>Accepted</dt><dd>{report.accepted}</dd></div><div><dt>Rejected</dt><dd>{report.rejected}</dd></div><div><dt>Controller-verified merges</dt><dd>{report.verifiedMerges}</dd></div><div><dt>Normal session ends</dt><dd>{report.normalSessionCompletions}</dd></div></dl>
       <p class="muted">Assessments, board decisions, session ends and verified merges are separate signals, each with its own count.</p>
-      <div class="breakdowns"><section><h2>Recorded assessments</h2><AnalyticsBars label="Accepted and rejected work" rows={[{ label: 'Accepted', value: report.accepted, tone: 'var(--ok)' }, { label: 'Rejected', value: report.rejected, tone: 'var(--danger)' }]} />{#if !report.accepted && !report.rejected}<p class="muted">No assessments recorded for runs in this period.</p>{/if}</section>
-      <section><h2>Completion signals</h2><AnalyticsBars label="Separate completion signals" rows={[{ label: 'Moved to Done', value: report.completed, tone: 'var(--ok)' }, { label: 'Controller-verified merges', value: report.verifiedMerges, tone: 'var(--text-2)' }, { label: 'Normal session ends', value: report.normalSessionCompletions }]} /></section></div>
+      <div class="breakdowns"><section><h2>Recorded assessments</h2><AnalyticsBars scope={`${chartScope}/${measure}/${scope.runner}`} label="Accepted and rejected work" rows={[{ label: 'Accepted', value: report.accepted, tone: 'var(--ok)' }, { label: 'Rejected', value: report.rejected, tone: 'var(--danger)' }]} />{#if !report.accepted && !report.rejected}<p class="muted">No assessments recorded for runs in this period.</p>{/if}</section>
+      <section><h2>Completion signals</h2><AnalyticsBars scope={`${chartScope}/${measure}/${scope.runner}`} label="Separate completion signals" rows={[{ label: 'Moved to Done', value: report.completed, tone: 'var(--ok)' }, { label: 'Controller-verified merges', value: report.verifiedMerges, tone: 'var(--text-2)' }, { label: 'Normal session ends', value: report.normalSessionCompletions }]} /></section></div>
       <details class="disclosure"><summary>Completion evidence</summary>
         <dl class="facts">
           <div><dt>Agent-reported task completion</dt><dd>{report.agentReportedCompletion ?? 'Not recorded'}</dd></div>

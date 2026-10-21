@@ -1,6 +1,7 @@
 <script lang="ts">
   import { outcomeTitle, outcomeTone, safeURL, shortSha } from '../gitui';
   import type { GitActionResult } from '../types';
+  import { acknowledge } from '../motion';
 
   // What an action did, with its two sides apart: what changed on THIS computer, and what
   // the REMOTE confirmed. A local change is never presented as something done on a remote,
@@ -10,7 +11,7 @@
   const tone = $derived(outcomeTone(result.outcome));
 </script>
 
-<div class="g-notice" data-tone={tone === 'ok' ? 'ok' : tone === 'neutral' ? 'neutral' : 'bad'} role="status">
+<div class="g-notice" use:acknowledge={{ value: result, success: result.ok && tone === 'ok', fresh: true }} data-tone={tone === 'ok' ? 'ok' : tone === 'neutral' ? 'neutral' : 'bad'} role="status">
   <strong>{outcomeTitle(result.outcome)}</strong>
   <p class="g-wrap">{result.message}</p>
 

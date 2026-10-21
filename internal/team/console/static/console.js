@@ -312,6 +312,8 @@ function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many || one + 
 const drafts = new Map();
 const draftVersions = new Map();
 let renderedScope = '';
+let motionResync = true;
+let motionFilter = '';
 function screenScope() { return [state.tab, state.projectId || '', state.ticketId || ''].join(':'); }
 function touched(e) {
  const el = e.target;
@@ -370,6 +372,7 @@ const toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
 document.body.prepend(banner);
 document.body.append(toasts);
 function setOnline(on) {
+  if (on && !state.online) motionResync = true;
   state.online = on; banner.hidden = on;
   if (!on) {
     app.querySelectorAll('.member-presence').forEach(el => { el.textContent = 'Runner connection unknown'; });
@@ -513,6 +516,12 @@ async function renderNow() {
   const projectScreen = PROJECT_TABS.has(state.tab) && !!state.data?.board;
   const title = projectScreen ? state.data.board.project.name : settingsTab() ? 'Settings' : TABS.find(([id]) => id === navTab())?.[1] || 'Projects';
   if (draggedTicket || document.querySelector('.pointer-dragging, .planning-dragging')) return;
+  const motion = window.WerkbordMotion;
+  const motionBefore = motion?.snapshot(app, '[data-board-item], [data-plan-item]');
+  const chartsBefore = motion?.chartSnapshot(app);
+  const nextMotionFilter = JSON.stringify([state.filter, state.showArchived, state.ownTickets, state.calendarMode, state.calendarAnchor, state.tlZoom, state.tlGroup, state.tlCollapsed]);
+  const animateSaved = renderedScope === screenScope() && state.online && !motionResync && motionFilter === nextMotionFilter;
+  motionFilter = nextMotionFilter;
   app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' || state.tab === 'timeline' ? ' is-board' : '') + (FRAMED ? ' framed' : '') + (HOSTED ? ' hosted' : '') },
     h('button', { class: 'skip-link', onclick: () => app.querySelector('#main-title').focus() }, 'Skip to content'),
     navigation(counts),
@@ -524,6 +533,9 @@ async function renderNow() {
         state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
         secretBox(), settingsTab() ? settingsLayout(body) : body))));
   restore(app, keep, previousScope === screenScope());
+  if (animateSaved) motion?.layout(app, motionBefore, '[data-board-item], [data-plan-item]', true);
+  motion?.charts(app, renderedScope === screenScope() ? chartsBefore : undefined);
+  motionResync = false;
   revealComment();
   noteMentions(ov.mentions || 0);
   revealActiveNavigation();
@@ -2023,7 +2035,7 @@ async function analyticsView() {
   const comparison = rows => {
     const max = Math.max(1, ...rows.map(row => row[1]));
     return h('div', { class: 'analytics-comparison' }, rows.map(([label, value, detail, tone]) => {
-      const fill = h('span', {}); fill.style.width = value / max * 100 + '%'; fill.style.background = tone || 'var(--accent)';
+      const fill = h('span', { 'data-chart-key': 'comparison:' + label, 'data-chart-value': value / max, 'data-chart-scope': scopedKey + '/' + analyticsState.view + '/' + analyticsState.metric }); fill.style.width = value / max * 100 + '%'; fill.style.background = tone || 'var(--accent)';
       return h('div', {}, h('div', { class: 'analytics-caption' }, h('span', {}, label), h('strong', {}, String(value))), h('div', { class: 'analytics-track', 'aria-hidden': 'true' }, fill), detail ? h('p', { class: 'muted small' }, detail) : '');
     }));
   };
@@ -2032,8 +2044,8 @@ async function analyticsView() {
     extras = select('Activity chart series', analyticsState.series, [['both', 'Created and completed'], ['created', 'Created'], ['completed', 'Completed']], value => analyticsState.series = value);
     const max = Math.max(1, ...r.days.flatMap(d => analyticsState.series === 'both' ? [d.created, d.completed] : [d[analyticsState.series]]));
     const chart = h('div', { class: 'analytics-chart', role: 'img', 'aria-label': 'Daily ticket counts; exact values are in Daily values below.' }, r.days.map((d, i) => {
-      const created = h('span', { class: 'analytics-created', hidden: analyticsState.series === 'completed' }); created.style.height = d.created / max * 100 + '%';
-      const done = h('span', { class: 'analytics-done', hidden: analyticsState.series === 'created' }); done.style.height = d.completed / max * 100 + '%';
+      const created = h('span', { 'data-chart-key': d.date + ':created', 'data-chart-value': d.created / max, 'data-chart-axis': 'y', 'data-chart-scope': scopedKey + '/' + analyticsState.series, class: 'analytics-created', hidden: analyticsState.series === 'completed' }); created.style.height = d.created / max * 100 + '%';
+      const done = h('span', { 'data-chart-key': d.date + ':done', 'data-chart-value': d.completed / max, 'data-chart-axis': 'y', 'data-chart-scope': scopedKey + '/' + analyticsState.series, class: 'analytics-done', hidden: analyticsState.series === 'created' }); done.style.height = d.completed / max * 100 + '%';
       return h('div', { class: 'analytics-day', title: d.date + ': ' + d.created + ' created, ' + d.completed + ' completed' }, h('div', { class: 'analytics-bars' }, created, done), h('span', {}, i % Math.ceil(r.days.length / 6) === 0 || i === r.days.length - 1 ? d.date.slice(5) : ''));
     }));
     body = [stats([['Tickets created', r.created], ['Completed tickets', r.completed], ['Median duration', duration(r.medianTicketSeconds)], ['Duration samples', r.durationSamples]]),

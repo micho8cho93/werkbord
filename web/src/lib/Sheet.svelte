@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
+  import { surface } from './motion';
 
   // A bottom sheet on a phone, a centred dialog on a wide screen. Every action that changes
   // something outside the app (a merge, a push, a new task) is confirmed in one of these, with
@@ -72,8 +73,8 @@
 
 <svelte:window onkeydown={onkey} onfocusin={onfocus} />
 
-<div class="backdrop" class:side role="presentation" onclick={onclose}></div>
-<div class="sheet" class:side role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel} style:--w={width}>
+<div class="backdrop" class:side transition:surface={{ y: 0, duration: 140 }} role="presentation" onclick={onclose}></div>
+<div class="sheet" class:side transition:surface={{ x: side ? 20 : 0, y: side ? 0 : 16 }} role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel} style:--w={width}>
   <header>
     <h2>{title}</h2>
     <button class="btn quiet small icon" onclick={onclose} aria-label="Close"><Icon name="close" /></button>
@@ -166,14 +167,9 @@
       transform: translateX(-50%);
       border-radius: 10px;
       border-bottom: 1px solid var(--border);
-      animation: rise 0.18s var(--ease);
+
     }
   }
 
-  @keyframes rise {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -6px);
-    }
-  }
+
 </style>

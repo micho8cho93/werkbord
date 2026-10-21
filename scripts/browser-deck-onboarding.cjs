@@ -57,6 +57,7 @@ async function request(token, method, route, body) {
           const saved = await request(phone.token,'GET','/api/deck');
           assert.deepEqual(saved.slots.slice(6).map(s=>s.button),['reviews','git','runners']);
           assert.equal(starts,0);
+          await guide().waitFor({state:'detached'});
           assert.equal(await guide().count(),0);
           continue;
         }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { layout } from '../lib/motion';
   import { readDraft, writeDraft, uncertainMutation } from '../lib/recovery';
   import { ApiError, api } from '../lib/api';
   import { agentWorkable, dropAction } from '../lib/board';
@@ -122,7 +123,9 @@
     if (pendingTasks[task.id]) return;
     pendingTasks[task.id] = true;
     try {
-      scope.upsertTask(await api.moveTask(task, state));
+      const saved = await api.moveTask(task, state);
+      scope.upsertTask(saved);
+      if (phone.on && state !== phoneShown) app.notify(`Moved to ${TASK_STATE_LABELS[state]}.`, 6000, { label: `View in ${TASK_STATE_LABELS[state]}`, run: () => { phoneColumn = state; } });
     } catch (err) {
       if (err instanceof ApiError && err.code === 'conflict') {
         app.notify('This task changed on another device. The board has been refreshed.');
@@ -204,8 +207,13 @@
       const task = scope.activeTasks.find(t => t.id === id);
       if (task) performDrop(task, state);
     };
+    const oncolumn = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId: string; state: TaskState }>).detail;
+      if (detail.projectId === project.id && TASK_STATES.includes(detail.state)) phoneColumn = detail.state;
+    };
+    document.addEventListener('werkbord-board-column', oncolumn);
     document.addEventListener('werkbord-board-drop', ondrop);
-    return () => document.removeEventListener('werkbord-board-drop', ondrop);
+    return () => { document.removeEventListener('werkbord-board-drop', ondrop); document.removeEventListener('werkbord-board-column', oncolumn); };
   });
 
   function onDrop(e: DragEvent, state: TaskState) {
@@ -324,7 +332,7 @@
     <div class="phone-columns"><Segmented options={phoneColumns} value={phoneShown} onchange={(id: TaskState) => (phoneColumn = id)} label="Board column" /></div>
   {/if}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scrollable board needs keyboard focus for horizontal panning.) -->
-  <div class="cols" role="region" aria-label="Kanban board" data-board tabindex="0">
+  <div class="cols" use:layout={{ revision: scope.activeTasks.map(t => `${t.id}:${t.version}`).join('|'), enabled: scope.loaded && app.connection === 'live', selector: '[data-board-item]', entries: true }} role="region" aria-label="Kanban board" data-board tabindex="0">
     {#each columns as col (col.state)}
       {@const hint = dropHint(col.state)}
       <section

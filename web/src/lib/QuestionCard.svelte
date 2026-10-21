@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { acknowledge, surface } from './motion';
   import { readDraft, writeDraft, uncertainMutation } from './recovery';
   import { api } from './api';
   import { timeAgo } from './format';
@@ -44,6 +45,7 @@
   let sending = $state('');
   let busy = $state(false);
   let error = $state('');
+  let receipt = $state('');
 
   const choices = $derived(choicesOf(question));
   const typed = $derived(takesText(question));
@@ -63,6 +65,7 @@
     persist();
     try {
       const settled = await answerWith(question, value);
+      if (settled.state === 'answered') receipt = answeredNotice(settled, value);
       onSettled(settled);
       if (settled.state === 'answered') notify(answeredNotice(settled, value));
       text = '';
@@ -96,7 +99,8 @@
 
 <svelte:window onpagehide={persist} />
 
-<div class="ask" data-kind={question.kind} role="group" aria-label="{kindLabel(question.kind)}: {question.prompt}">
+<div class="ask" transition:surface|global={{ y: 0, duration: 140 }} use:acknowledge={{ value: receipt, success: !!receipt }} data-kind={question.kind} role="group" aria-label="{kindLabel(question.kind)}: {question.prompt}">
+  {#if receipt}<p role="status">{receipt}</p>{:else}
   {#if showMeta}
     <div class="meta">
       <span class="kind">Needs you · {kindNoun(question.kind)}</span>
@@ -174,6 +178,7 @@
     <button class="btn recovery" disabled={disabled || busy} onclick={() => answer(uncertain)}>Retry same answer</button>
   {/if}
   {#if !draftStored}<p role="status">This browser cannot keep your answer through reload. Copy it before reloading.</p>{/if}
+  {/if}
 </div>
 
 <style>

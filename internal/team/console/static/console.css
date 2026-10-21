@@ -782,3 +782,8 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
 .mcp-config { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
 
 .completion-blocker { flex-basis: 100%; overflow-wrap: anywhere; }
+
+/* Chart motion uses the same baseline as the reported data. */
+.analytics-created, .analytics-done { transform-origin: center bottom; }
+.analytics-track > span { transform-origin: left center; }
+:root[data-motion-paused] * { animation-play-state: paused !important; }

@@ -191,6 +191,21 @@ describe('sending', () => {
     expect(srv.called('POST', '/cancel')).toHaveLength(1);
   });
 
+  it('keeps Stop pending until the terminal event and prevents duplicate requests', async () => {
+    const a = await page();
+    const s = await talk(a);
+    await Promise.all([a.cancel(), a.cancel()]);
+    expect(srv.called('POST', '/cancel')).toHaveLength(1);
+    expect(a.stopping).toBe(true);
+    expect(a.running).toBe(true);
+    srv.emit(s.id, { type: 'turn_started' });
+    srv.emit(s.id, { type: 'delta', text: 'Partial reply remains.', attempt: 1 });
+    srv.emit(s.id, { type: 'turn_cancelled', state: 'idle' });
+    await srv.until(() => !a.running);
+    expect(a.stopping).toBe(false);
+    expect(replyOf(a).text).toBe('Partial reply remains.');
+  });
+
   it('tries the last message again after a failure, without a second bubble', async () => {
     const a = await page();
     const s = await talk(a, 'plan next week');

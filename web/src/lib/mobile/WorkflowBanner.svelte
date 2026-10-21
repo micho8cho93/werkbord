@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { acknowledge, surface } from '../motion';
   import { app } from '../state.svelte';
   import Icon from '../Icon.svelte';
   import { workflow } from './layout';
@@ -18,7 +19,7 @@
   const visible = $derived(workflows.executions.filter(x => !workflows.dismissed.includes(x.taskId) && (!terminal(x.run) || !!x.error || x.requestId === workflows.executions[0]?.requestId)));
 </script>
 {#if workflows.starting || visible.length || workflows.error}
-  <section bind:this={node} style:top={`${headerHeight}px`} class="workflow-banner" aria-label="Workflow progress" data-testid="workflow-banner">
+  <section in:surface={{ duration: workflows.starting ? 180 : 0 }} bind:this={node} style:top={`${headerHeight}px`} class="workflow-banner" aria-label="Workflow progress" data-testid="workflow-banner">
     {#if workflows.starting}<p role="status">{workflows.starting.name} · Starting workflow…</p>{/if}
     {#if workflows.error}<p role="alert">Execution history could not be loaded. {workflows.error}</p><button class="btn" onclick={() => void workflows.refresh()}>Retry loading</button>{/if}
     {#if app.connection !== 'live'}<p role="status">Connection interrupted. The runner may still be working. Progress will refresh when reconnected.</p>{/if}
@@ -29,7 +30,7 @@
     {#each visible as x (x.taskId)}
       {@const steps = workflowSteps(x.run, x.events, x.configuration)}
       {@const current = steps.find(s => s.status === 'Running' || s.status === 'Failed' || s.status === 'Waiting for approval')}
-      <div class="execution">
+      <div class="execution" use:acknowledge={{ value: x.run?.state, success: x.caughtUp && x.run?.state === 'completed' }}>
         <button class="open" onclick={() => workflows.open(x.taskId)} aria-label="Open {workflow(x.configuration?.button ?? '')?.label ?? 'workflow'} execution details">
           <strong>{workflow(x.configuration?.button ?? '')?.label ?? 'Workflow'}</strong>
           <span role="status">{workflowStatus(x.run)}{x.stopRequested && !terminal(x.run) ? ' · Stop requested; awaiting runner confirmation' : ''}</span>

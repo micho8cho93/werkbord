@@ -1,6 +1,7 @@
 <script lang="ts">
   // Draws a reply as elements, never as HTML (see markdown.ts for why).
   import { blocks, emptyMarkdownBlockCache, growingBlocks, type Inline } from './markdown';
+  import StreamText from './StreamText.svelte';
 
   let { text, streaming = false }: { text: string; streaming?: boolean } = $props();
   const cache = emptyMarkdownBlockCache();
@@ -9,7 +10,7 @@
 
 {#snippet spans(list: Inline[])}
   {#each list as n, i (i)}
-    {#if n.t === 'text'}{n.v}{:else if n.t === 'code'}<code>{n.v}</code>{:else if n.t === 'b'}<strong>{@render spans(n.c)}</strong>{:else}<em>{@render spans(n.c)}</em>{/if}
+    {#if n.t === 'text'}<StreamText text={n.v} live={streaming} />{:else if n.t === 'code'}<code><StreamText text={n.v} live={streaming} /></code>{:else if n.t === 'b'}<strong>{@render spans(n.c)}</strong>{:else}<em>{@render spans(n.c)}</em>{/if}
   {/each}
 {/snippet}
 
@@ -28,7 +29,7 @@
     {:else}
       <!-- A code block can scroll sideways, so the keyboard must be able to reach it. -->
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-      <pre class="well" tabindex="0" aria-label="Code"><code>{b.text}</code></pre>
+      <pre class="well" tabindex="0" aria-label="Code"><code><StreamText text={b.text} live={streaming} /></code></pre>
     {/if}
   {/each}
 </div>

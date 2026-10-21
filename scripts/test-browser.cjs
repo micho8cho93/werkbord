@@ -63,7 +63,7 @@ async function cleanup() {
     run('go', ['build', '-o', fixture, './scripts/browser-fixture'], {}, true);
     const shellURL = 'http://127.0.0.1:' + await port();
     const individualURL = 'http://127.0.0.1:' + await port();
-    const individual = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(individualURL).host, WERKBORD_BROWSER_EXECUTION: '1', WERKBORD_BROWSER_SHELL_ORIGIN: shellURL });
+    const individual = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(individualURL).host, WERKBORD_BROWSER_EXECUTION: '1', WERKBORD_BROWSER_ASSISTANT: process.env.BROWSER_MOTION_ONLY === '1' ? '1' : '', WERKBORD_BROWSER_SHELL_ORIGIN: shellURL });
     await ready(individual, individualURL + '/api/health');
     const teamURL = 'http://127.0.0.1:' + await port();
     // A workspace needs a signed license (Team always checks one), so the suite makes its own issuer, signs a license with it, and
@@ -95,6 +95,7 @@ async function cleanup() {
     if (process.env.BROWSER_COMMENTS_ONLY === '1') { run(process.execPath, ['scripts/browser-team-comments.cjs'], testEnv); return; }
     if (process.env.BROWSER_DECK_ONLY === '1') { run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
     if (process.env.BROWSER_PHONE_ONLY === '1') { run(process.execPath, ['scripts/browser-phone.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
+    if (process.env.BROWSER_MOTION_ONLY === '1') { run(process.execPath, ['scripts/browser-motion.cjs'], testEnv); return; }
     if (process.env.BROWSER_UX_ONLY === '1') { run(process.execPath, ['scripts/browser-workspace-ux.cjs'], testEnv); return; }
     if (process.env.BROWSER_BRIDGE_ONLY === '1') {
       // The other suites register the fixture's repository; on its own the bridge needs one project to import into.

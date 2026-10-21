@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { surface } from '../motion';
   import { onDestroy, onMount, tick } from 'svelte';
   import Icon from '../Icon.svelte';
   import { desktop } from '../desktop.svelte';
@@ -267,7 +268,7 @@
   {#if assistant.staged.some((s) => s.state !== 'asking')}
     <ul class="files" aria-label="Attached files">
       {#each assistant.staged.filter((s) => s.state !== 'asking') as f (f.key)}
-        <li class="file" data-state={f.state}>
+        <li class="file" in:surface={{ duration: 120, y: 0 }} data-state={f.state}>
           <Icon name="attach" size={13} />
           <span class="fn">{f.name}</span>
           <span class="sz">
@@ -327,7 +328,7 @@
       <Icon name={listening ? 'check' : 'mic'} size={18} />
     </button>
     {#if assistant.running}
-      <button class="go stop" type="button" aria-label="Stop the reply" title="Stop" onclick={() => assistant.cancel()}><Icon name="stop" size={16} /></button>
+      <button class="go stop" type="button" aria-label={assistant.stopping ? 'Stop requested; waiting for confirmation' : 'Stop the reply'} title={assistant.stopping ? 'Stopping…' : 'Stop'} disabled={assistant.stopping} onclick={() => assistant.cancel()}><Icon name="stop" size={16} /></button>
     {:else if listening}
       <button class="go" type="submit" aria-label="Finish dictating and send" title="Finish and send" disabled={!canFinishAndSend} data-testid="assistant-send"><Icon name="send" size={18} /></button>
     {:else}

@@ -113,8 +113,8 @@
       0 calc(var(--lift) + 3px) 7px -1px color-mix(in srgb, var(--text) 32%, transparent);
     transform: translateY(calc(var(--lift) * -1));
     transition:
-      transform 0.16s var(--ease),
-      box-shadow 0.16s var(--ease);
+      transform 0.14s var(--ease),
+      box-shadow 0.14s var(--ease);
   }
 
   @media (max-width: 359px) {
@@ -179,7 +179,7 @@
   .key-slot[data-pressed='on'] .cap,
   .key-slot:active .cap {
     transform: translateY(0);
-    transition-duration: 0.05s;
+    transition-duration: 0.08s;
     box-shadow:
       inset 0 1px 3px color-mix(in srgb, var(--text) 22%, transparent),
       inset 0 0 0 1px color-mix(in srgb, var(--text) 5%, transparent),

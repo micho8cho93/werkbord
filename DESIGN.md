@@ -164,6 +164,8 @@ heading (the provider chooser, New, Close) and the box.
 
 ## Interaction rules
 
+Motion preserves the current icons and geometry and acknowledges observed state. Salie fades only newly appended text; boards preserve card continuity; charts reveal proportions without delaying their labels or exact values. Initial loads and reconnects establish a baseline rather than replaying accomplishments. All spatial effects respect reduced motion. See [MOTION.md](docs/MOTION.md) for timing, interaction and verification details.
+
 - **Vocabulary.** Needs you names attention; Questions is its question filter. Calendar contains Calendar and Timeline
   presentations. A repository project's Calendar schedules agent execution ("Not scheduled to run"); work projects
   show planned work. Timeline plans work dates and milestones ("Not planned yet"). Team Calendar combines planned

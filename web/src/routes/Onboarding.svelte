@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { acknowledge, milestone, surface } from '../lib/motion';
   import Sheet from '../lib/Sheet.svelte';
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
@@ -171,7 +172,7 @@
       if (!phonePaired) skipped.push('network');
       if (!githubDone) skipped.push('github');
       app.onboarding = await api.completeOnboarding(skipped);
-      completed = true;
+      completed = true; milestone();
     } catch (err) { error = err instanceof Error ? err.message : String(err); }
     finally { finishing = false; }
   }
@@ -227,7 +228,7 @@
   </header>
 
   {#if completed}
-    <section class="step-intro" aria-labelledby="setup-complete">
+    <section class="step-intro" use:acknowledge={{ value: completed, success: completed, fresh: true }} in:surface={{ duration: 180 }} aria-labelledby="setup-complete">
       <h2 id="setup-complete">You’re ready to use Werkbord</h2>
       <p>Your runner, coding agent and repository are ready. Create tasks on your board, follow agent work and review changes before merging.</p>
       <p class="muted">Anything you left for later is listed below. You can return to setup from Settings → This computer.</p>

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
+  import { phone } from '../lib/mobile/phone.svelte';
+  import { acknowledge, surface } from '../lib/motion';
   import { MediaQuery } from 'svelte/reactivity';
   import { ApiError, api } from '../lib/api';
   import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
@@ -171,7 +173,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   async function move(state: TaskState) {
     if (!task || busy || state === task.state) return;
     const t = await act(() => api.moveTask(task, state));
-    if (t) scope.upsertTask(t);
+    if (t) {
+      scope.upsertTask(t);
+      if (phone.on) app.notify(`Moved to ${TASK_STATE_LABELS[t.state]}.`, 6000, { label: `View in ${TASK_STATE_LABELS[t.state]}`, run: () => { document.dispatchEvent(new CustomEvent('werkbord-board-column', { detail: { projectId: project.id, state: t.state } })); close(); } });
+    }
     else await scope.load().catch((err) => app.handleError(err));
   }
 
@@ -389,14 +394,14 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 <svelte:window onkeydown={onWindowKey} />
 
 <a class="scrim" href={boardHref} aria-hidden="true" tabindex="-1"></a>
-<section class="panel" aria-labelledby={task ? 'task-title' : undefined} aria-label={task ? undefined : 'Task'}>
+<section class="panel" transition:surface={{ x: 20, y: 0 }} aria-labelledby={task ? 'task-title' : undefined} aria-label={task ? undefined : 'Task'}>
   {#if !task}
     <header class="head">
       <a class="btn quiet small icon" href={boardHref} aria-label="Close panel"><Icon name="close" /></a>
     </header>
     <p class="empty">{scope.loaded ? 'This task was not found in this project.' : 'Loading…'}</p>
   {:else}
-    <header class="head">
+    <header class="head" use:acknowledge={{ value: task.state, success: task.state === 'done' }}>
       <div class="skips">
         <button class="skip" onclick={() => skipTo(scroller)}>Skip to activity</button>
         <button class="skip" onclick={() => skipTo(detailsEl)}>Skip to task details</button>
@@ -695,15 +700,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     background: var(--bg);
     border-left: 1px solid var(--border);
     box-shadow: var(--win-sh);
-    animation: slide 0.22s var(--ease);
   }
 
-  @keyframes slide {
-    from {
-      transform: translateX(24px);
-      opacity: 0;
-    }
-  }
 
   .facts-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 24px; border-bottom: 1px solid var(--border); flex: none; }
   .facts-tabs button[aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }

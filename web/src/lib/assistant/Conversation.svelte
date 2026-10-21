@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { reducedMotion, surface } from '../motion';
   import Icon from '../Icon.svelte';
   import Mark from '../Mark.svelte';
   import ConfirmCard from './ConfirmCard.svelte';
@@ -26,36 +27,56 @@
     return last.kind === 'reply' ? `${items.length}:${last.text.length}:${last.steps.length}:${last.status}:${bar}` : `${items.length}:${last.kind === 'confirm' ? last.state : ''}:${bar}`;
   });
 
+  let followingFrame = 0;
+  let jumpFrame = 0;
+  function selecting() {
+    const selection = document.getSelection();
+    return !!selection && !selection.isCollapsed && !!scroller && (scroller.contains(selection.anchorNode) || scroller.contains(selection.focusNode) || selection.containsNode(scroller, true));
+  }
   function onScroll() {
-    if (!scroller) return;
-    stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+    if (!scroller || jumpFrame) return;
+    stuck = !selecting() && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
     if (stuck) behind = false;
   }
-  function toEnd() {
-    if (!scroller) return;
-    scroller.scrollTop = scroller.scrollHeight;
-    stuck = true;
-    behind = false;
+  function interruptFollow() {
+    cancelAnimationFrame(jumpFrame); jumpFrame = 0;
+    cancelAnimationFrame(followingFrame); followingFrame = 0;
+    stuck = false;
   }
-  // Follow the reply as it arrives, unless the person scrolled up to read: then say there is more below.
-  $effect(() => {
-    void tail;
-    void tick().then(() => (stuck ? toEnd() : (behind = true)));
-  });
-  // Whatever makes the conversation taller (a reply settling, a card, the bar that answers several changes) keeps the end in view for
-  // someone who is following it; someone who scrolled up to read is left where they are.
+  function toEnd() {
+    if (!scroller || selecting()) return;
+    scroller.scrollTop = scroller.scrollHeight;
+    stuck = true; behind = false;
+  }
+  function follow() {
+    if (followingFrame) return;
+    followingFrame = requestAnimationFrame(() => {
+      followingFrame = 0;
+      if (stuck && !selecting() && !jumpFrame) toEnd(); else behind = true;
+    });
+  }
+  function jumpToEnd() {
+    if (!scroller) return;
+    if (reducedMotion()) { toEnd(); return; }
+    cancelAnimationFrame(jumpFrame);
+    const start = scroller.scrollTop, at = performance.now();
+    const frame = (now: number) => {
+      if (!scroller) return;
+      const p = Math.min(1, (now-at)/180);
+      scroller.scrollTop = start + (scroller.scrollHeight-scroller.clientHeight-start) * (1-Math.pow(1-p, 3));
+      if (p < 1) jumpFrame = requestAnimationFrame(frame);
+      else { jumpFrame = 0; toEnd(); }
+    };
+    jumpFrame = requestAnimationFrame(frame);
+  }
+  $effect(() => { void tail; void tick().then(follow); });
   $effect(() => {
     if (!col || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => {
-      if (stuck) toEnd();
-    });
-    ro.observe(col);
+    const ro = new ResizeObserver(() => { if (stuck) follow(); }); ro.observe(col);
     return () => ro.disconnect();
   });
-  // Opening the screen on a conversation that is already there starts at its end.
-  $effect(() => {
-    if (assistant.phase === 'opening') void tick().then(toEnd);
-  });
+  $effect(() => { if (assistant.phase === 'opening') void tick().then(toEnd); });
+  $effect(() => () => { cancelAnimationFrame(followingFrame); cancelAnimationFrame(jumpFrame); });
 
   const suggestions = ['What needs me today?', 'What is blocked right now?', 'What is planned for this week?'];
   const kinds = $derived(assistant.providers);
@@ -73,7 +94,7 @@
 {#if linkNote}<p class="linknote" role="status">{linkNote}</p>{/if}
 
 {#if assistant.status === 'ready' || assistant.hasConversation}
-  <div class="scroll" bind:this={scroller} onscroll={onScroll} role="log" aria-label="Conversation" aria-live="off" tabindex="-1" data-testid="assistant-log">
+  <div class="scroll" bind:this={scroller} onscroll={onScroll} onwheel={(e) => { if (e.deltaY < 0) interruptFollow(); }} ontouchmove={interruptFollow} role="log" aria-label="Conversation" aria-live="off" tabindex="-1" data-testid="assistant-log">
     <div class="col" bind:this={col}>
       {#if items.length === 0}
         <div class="hello" data-testid="assistant-empty">
@@ -91,7 +112,7 @@
       {/if}
       {#each items as it (it.id)}
         {#if it.kind === 'user'}
-          <div class="user">
+          <div class="user" in:surface={{ duration: assistant.running ? 160 : 0 }}>
             <p class="bubble">{it.text}</p>
             {#if it.files.length}
               <ul class="sent">{#each it.files as f (f.name)}<li><Icon name="attach" size={12} /> {f.name} <span>{size(f.bytes)}</span></li>{/each}</ul>
@@ -100,7 +121,7 @@
         {:else if it.kind === 'reply'}
           <ReplyView reply={it} />
         {:else if it.kind === 'confirm'}
-          <ConfirmCard item={it} />
+          <ConfirmCard item={it} motion={assistant.running} />
         {:else}
           <p class="notice">{it.text}</p>
         {/if}
@@ -129,7 +150,7 @@
     </div>
   </div>
   {#if behind}
-    <button class="latest btn small" type="button" onclick={toEnd}><Icon name="down" size={12} /> Latest</button>
+    <button class="latest btn small" type="button" in:surface={{ duration: 120, y: 0 }} onclick={jumpToEnd}><Icon name="down" size={12} /> New response below</button>
   {/if}
 {:else}
   <div class="state" role="status" data-testid="assistant-state" data-status={assistant.status}>

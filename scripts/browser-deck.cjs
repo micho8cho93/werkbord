@@ -64,6 +64,7 @@ async function request(token, method, route, body) {
         assert.equal(await done().getAttribute('aria-pressed'), 'true');
         await socket(6).click();
         await dialog().getByRole('button', { name: /^Find Bugs/ }).click();
+        await dialog().waitFor({ state: 'detached' });
         assert.equal(await dialog().count(), 0, 'adding a workflow does not require configuration');
         await page.getByRole('button', { name: 'Configure Find Bugs', exact: true }).click();
         assert.equal(await dialog().getByRole('combobox', {name:'Repository target',exact:true}).inputValue(), 'ask');

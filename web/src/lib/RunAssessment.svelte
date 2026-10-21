@@ -2,6 +2,7 @@
   import { api } from './api';
   import { app } from './state.svelte';
   import type { Run } from './types';
+  import { acknowledge } from './motion';
 
   let { run }: { run: Run } = $props();
   let error = $state('');
@@ -25,7 +26,7 @@
   }
 </script>
 
-<div class="assessment" role="group" aria-label="Your assessment of this run" aria-describedby="assess-help-{run.id}">
+<div class="assessment" use:acknowledge={{ value: run.usage?.acceptance, success: !!run.usage?.acceptance }} role="group" aria-label="Your assessment of this run" aria-describedby="assess-help-{run.id}">
   <span role="status">{busy ? 'Saving assessment…' : 'Your assessment: '}<strong>{!busy ? (run.usage?.acceptance === 'accepted' ? 'Accepted' : run.usage?.acceptance === 'rejected' ? 'Rejected' : 'Not recorded') : ''}</strong></span>
   <button class="btn small" aria-pressed={run.usage?.acceptance === 'accepted'} disabled={busy || run.usage?.acceptance === 'accepted'} onclick={() => assess('accepted')}>Accept work</button>
   <button class="btn small" aria-pressed={run.usage?.acceptance === 'rejected'} disabled={busy || run.usage?.acceptance === 'rejected'} onclick={() => assess('rejected')}>Reject work</button>

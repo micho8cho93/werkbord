@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { layout, surface } from '../motion';
   import { sinceShort } from '../board';
   import { agentLabel } from '../execution';
   import { oneLine } from '../format';
@@ -13,11 +14,11 @@
   const loaded = $derived(app.overview !== null);
 </script>
 
-<div class="reviews">
+<div class="reviews" use:layout={{ revision: reviews.map(r => `${r.task.id}:${r.task.version}`).join('|'), enabled: loaded && app.connection === 'live', entries: true }}>
   {#if !loaded}
     <p class="note" role="status">Looking…</p>
   {:else if reviews.length === 0}
-    <div class="clear card">
+    <div class="clear card" in:surface={{ duration: 160, y: 0 }}>
       <span class="dot" data-tone="ok" aria-hidden="true"></span>
       <div>
         <p class="clear-title">Nothing is waiting for review.</p>
@@ -30,7 +31,7 @@
         {@const run = r.lastRun}
         {@const result = run?.handoff?.results || run?.handoff?.summary || ''}
         {@const files = run?.handoff?.filesChanged?.length ?? 0}
-        <li class="card review" data-testid="review">
+        <li class="card review" data-motion-key={r.task.id} data-testid="review">
           <p class="kind"><span class="dot" data-tone="ok" aria-hidden="true"></span><b>Ready for review</b><span class="mm">{r.projectName} · {sinceShort(r.task.updatedAt, app.now)}</span></p>
           <a class="title" href={taskHref(r.task.projectId, r.task.id)}>{r.task.title}</a>
           {#if run}

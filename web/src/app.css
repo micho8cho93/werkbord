@@ -899,3 +899,12 @@ html.asst-open body {
     gap: 16px;
   }
 }
+
+/* Motion observes visibility; it never pauses the underlying work. */
+:root[data-motion-paused] *, [data-motion-offscreen] * {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .go svg { animation: control-arrive 100ms ease-out; }
+}
+@keyframes control-arrive { from { opacity: .35; } to { opacity: 1; } }

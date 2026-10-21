@@ -52,7 +52,7 @@
 </script>
 
 {#if item.kind === 'review'}
-  <li class="card row" data-kind={item.kind}>
+  <li class="card row" data-kind={item.kind} data-motion-key={item.key}>
     <span class="dot" data-tone="ok"></span>
     <div class="row-what">
       <a class="row-title" {href}>{item.title}</a>
@@ -61,7 +61,7 @@
     <a class="btn small" {href}>Review</a>
   </li>
 {:else}
-  <li class="card item" data-kind={item.kind}>
+  <li class="card item" data-kind={item.kind} data-motion-key={item.key}>
     <p class="kind">
       <span class="dot" data-tone={tone} class:ring={tone === 'idle'}></span>
       <b>{item.kind === 'risk' && item.finding ? severityLabel(item.finding.severity) : KIND_LABEL[item.kind]}</b>

@@ -277,3 +277,8 @@ test-unified-desktop-browser: web web-embed web-shell rqlite
 .PHONY: test-unified-installer
 test-unified-installer: desktop-package
 	scripts/test-unified-installer.sh
+
+## test-motion-browser: confirmed state, real streaming, chart inspection and reduced motion on disposable data
+.PHONY: test-motion-browser
+test-motion-browser: web web-embed web-shell
+	BROWSER_MOTION_ONLY=1 node scripts/test-browser.cjs

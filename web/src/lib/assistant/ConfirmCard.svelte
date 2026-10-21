@@ -4,10 +4,11 @@
   import type { ConfirmItem } from './transcript';
   import { clock, operationTitle } from './words';
   import { taskHref } from '../router.svelte';
+  import { acknowledge, surface } from '../motion';
 
   // A change the assistant prepared. Nothing has happened: the words below were written by Werkbord from the exact arguments
   // that will be used, not by the model, and only the button here carries the change out.
-  let { item }: { item: ConfirmItem } = $props();
+  let { item, motion = false }: { item: ConfirmItem; motion?: boolean } = $props();
   const until = $derived(Date.parse(item.expiresAt));
   const taskArgs = $derived(item.operation === 'create_ticket' ? item.args : undefined);
   const taskTitle = $derived(typeof taskArgs?.title === 'string' ? taskArgs.title : 'New task');
@@ -26,7 +27,7 @@
   }
 </script>
 
-<section class="card confirm" data-state={item.state} aria-label="{operationTitle(item.operation)}: {item.state === 'waiting' ? 'waiting for you' : item.state}">
+<section class="card confirm" data-state={item.state} use:acknowledge={{ value: item.state, success: item.state === 'confirmed' }} in:surface={{ duration: motion ? 180 : 0 }} aria-label="{operationTitle(item.operation)}: {item.state === 'waiting' ? 'waiting for you' : item.state}">
   <div class="lab">{operationTitle(item.operation)} <span class="status"><span class="status-dot" aria-hidden="true"></span>{item.state === 'waiting' ? 'Needs you' : item.state === 'working' ? 'Working' : item.state === 'confirmed' ? 'Done' : item.state === 'declined' ? 'Declined' : item.state === 'expired' ? 'Expired' : item.state === 'failed' ? 'Failed' : 'Closed'}</span></div>
   {#if taskArgs}
     <h3 class="task-title">{taskTitle}</h3>

@@ -108,6 +108,7 @@ export class AssistantStore {
 
   // ---- the conversation ----
   session = $state<SessionView | null>(null);
+  stopping = $state(false);
   transcript = $state<Transcript>(emptyTranscript());
   link = $state<Link>('idle');
   draft = $state('');
@@ -300,6 +301,7 @@ export class AssistantStore {
   /** Takes in what the server says about the conversation, and brings the transcript in line with it. */
   private adopt(v: SessionView): void {
     this.session = v;
+    if (!v.running) this.stopping = false;
     // A server that was restarted counts events from the start again; the transcript must count with it.
     reconcileSeq(this.transcript, v.lastEvent);
     adoptPending(this.transcript, v.pending ?? []);
@@ -409,6 +411,7 @@ export class AssistantStore {
     if (this.session && e.type === 'turn_started') this.session.running = true;
     if (this.session && (e.type === 'turn_completed' || e.type === 'turn_failed' || e.type === 'turn_cancelled')) {
       this.session.running = false;
+      this.stopping = false;
       this.session.lastError = e.type === 'turn_failed' ? e.error?.code : '';
       if (e.state) this.session.state = e.state;
     }
@@ -421,6 +424,7 @@ export class AssistantStore {
     this.conn?.stop();
     this.conn = null;
     this.session = null;
+    this.stopping = false;
     this.transcript.lastSeq = 0;
     for (const it of this.transcript.items) {
       if (it.kind === 'confirm' && (it.state === 'waiting' || it.state === 'working')) it.state = 'gone';
@@ -514,10 +518,13 @@ export class AssistantStore {
   }
 
   async cancel(): Promise<void> {
-    if (!this.session) return;
+    if (!this.session || !this.running || this.stopping) return;
+    this.stopping = true;
     try {
       await assistantApi.cancel(this.session.id);
+      // Remain pending until a terminal event or reconciled session confirms it.
     } catch (e) {
+      this.stopping = false;
       this.problem = explain(e);
     }
   }
@@ -728,6 +735,7 @@ export class AssistantStore {
       }
     }
     this.session = null;
+    this.stopping = false;
     this.transcript = emptyTranscript();
     this.staged = [];
     this.draft = '';

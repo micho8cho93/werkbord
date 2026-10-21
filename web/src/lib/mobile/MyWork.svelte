@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { layout } from '../motion';
   import { app } from '../state.svelte';
   import Segmented from './Segmented.svelte';
   import { upcomingNote, workGroups, type WorkTab } from './work';
@@ -27,7 +28,7 @@
   };
 </script>
 
-<div class="work">
+<div class="work" use:layout={{ revision: tasksOf().map(t => `${t.id}:${t.version}`).join('|'), enabled: ready && app.connection === 'live', entries: true }}>
   <Segmented options={tabs} value={current} onchange={(id: WorkTab) => (tab = id)} label="My Work" />
 
   {#if !ready}
@@ -48,7 +49,7 @@
     <p class="note">{empty[current]}</p>
   {:else}
     <ul>
-      {#each rows as r (r.task.id)}<li><WorkRow task={r.task} note={r.note} /></li>{/each}
+      {#each rows as r (r.task.id)}<li data-motion-key={r.task.id}><WorkRow task={r.task} note={r.note} /></li>{/each}
     </ul>
   {/if}
 {/snippet}

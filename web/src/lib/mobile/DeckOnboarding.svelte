@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { collapse } from '../motion';
   let { step, hasWorkflow, full, workflowName, liveDemo, preview, busy, onnext, onadd, onconfigure, onrecommend, onpreview, onfinish }:
     { step: number; hasWorkflow: boolean; full: boolean; workflowName: string; liveDemo: boolean; preview: boolean; busy: boolean;
       onnext: (step: number) => void; onadd: () => void; onconfigure: () => void; onrecommend: () => void; onpreview: () => void; onfinish: () => Promise<void> } = $props();
   const titles = ['Make the Control Deck yours', 'Choose your buttons', 'Hold to configure', 'Try a workflow', 'Inspect execution', 'Your deck is ready'];
 </script>
-<section class="guide" aria-label="Control Deck onboarding" aria-busy={busy}>
+<section class="guide" out:collapse|global aria-label="Control Deck onboarding" aria-busy={busy}>
   <h2>{titles[step - 1]}</h2>
   <p class="muted">{step} of 6</p>
   {#if step === 1}

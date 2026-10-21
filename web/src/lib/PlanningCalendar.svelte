@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { layout } from './motion';
   import { tick } from 'svelte';
   import { addDays, visibleDays } from './calendar';
   import { daysBetween, localToday, PX_PER_DAY, ticks, viewRange, type Zoom } from './timeline';
@@ -50,7 +51,7 @@
     return () => el.removeEventListener('wheel', wheel);
   });
 </script>
-<section class="planning-calendar" bind:this={surface} data-plan-surface aria-label={timeline ? 'Planning timeline' : 'Week calendar'}>
+<section class="planning-calendar" use:layout={{ revision: rows.map(r => `${r.id}:${r.start}:${r.end}`).join('|'), enabled: true, selector: '[data-plan-item]' }} bind:this={surface} data-plan-surface aria-label={timeline ? 'Planning timeline' : 'Week calendar'}>
   <div class="tools">
     <button class="btn small" onclick={() => anchor = addDays(anchor, timeline ? -(zoom === 'quarter' ? 90 : zoom === 'month' ? 30 : zoom === 'day' ? 1 : 7) : -7)} aria-label="Previous period">Previous</button>
     <button class="btn small" onclick={() => { anchor = localToday(Date.now()); centre(); }}>Today</button>

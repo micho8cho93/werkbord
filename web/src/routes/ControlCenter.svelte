@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { layout } from '../lib/motion';
   import { attentionItems, segmentCount, SEGMENTS } from '../lib/attention';
   import AttentionCard from '../lib/attention/AttentionCard.svelte';
   import { matchesScheduledExecution } from '../lib/control';
@@ -98,7 +99,7 @@
 <svelte:window onfocus={syncAlerts} />
 
 
-<div class="cc">
+<div class="cc" use:layout={{ revision: items.map(i => i.key).join('|'), enabled: app.overview !== null && app.connection === 'live', entries: true }}>
   <div class="bar">
     <p class="summary mm">{summary}{projectFilter ? '' : ' · all projects'}</p>
     <div class="seg segs" role="group" aria-label="What to show">

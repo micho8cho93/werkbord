@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { acknowledge, layout as animateLayout, milestone } from '../motion';
   import { onMount } from 'svelte';
   import { ApiError, api } from '../api';
   import { isPhone } from '../phones/capability';
@@ -31,6 +32,7 @@
   let layout = $state<DeckLayout>(initialLayout());
   let ready = $state(false);
   let saving = $state(false);
+  let savedRevision = $state(0);
   let editing = $state(false);
   let error = $state('');
   let announcement = $state('');
@@ -61,7 +63,7 @@
     try {
       await persist(); markHere('phone');
       if (!seenHere('phone')) throw new Error('Enable browser storage to remember completed onboarding. Your deck is saved.');
-      localStorage.removeItem(guideStorage); guide = 0;
+      localStorage.removeItem(guideStorage); guide = 0; milestone();
     } catch (err) { error = err instanceof Error ? err.message : String(err); }
   }
   function addGuideButton() { const empty = layout.slots.findIndex((s,i) => i >= 6 && !s); library = empty >= 0 ? empty : 6; }
@@ -138,7 +140,7 @@
   });
   async function persist(next = layout) {
     saving = true; error = '';
-    try { layout = await deckApi.save(next); announcement = 'Deck saved'; }
+    try { layout = await deckApi.save(next); announcement = 'Deck saved'; savedRevision++; }
     catch (err) { error = err instanceof Error ? err.message : String(err); throw err; }
     finally { saving = false; }
   }
@@ -243,7 +245,7 @@
       </p>
     </div>
     <nav class="header-actions" aria-label="Deck tools">
-      <button class="btn icon" class:editing type="button" disabled={!ready || saving || starting || !!guide}
+      <button class="btn icon" use:acknowledge={{ value: savedRevision, success: savedRevision > 0 }} class:editing type="button" disabled={!ready || saving || starting || !!guide}
         aria-label={saving ? 'Saving…' : editing ? 'Done' : 'Edit Deck'} title={saving ? 'Saving…' : editing ? 'Save deck' : 'Edit Deck'} aria-pressed={editing}
         onclick={() => { if (editing) void done(); else { editing = true; announcement = 'Editing deck'; } }} data-testid="edit-deck"><Icon name={editing ? 'check' : 'edit'} /></button>
       <button class="btn icon" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to" title="Jump to"><Icon name="search" /></button>
@@ -279,9 +281,9 @@
   <span class="visually-hidden" role="status" aria-live="polite">{announcement}</span>
 
   <section class="housing" aria-label="Control Deck">
-    <div class="grid" data-testid="deck-grid" aria-busy={!ready}>
+    <div class="grid" use:animateLayout={{ revision: layout.slots.map(s => s?.id ?? 'empty').join('|'), enabled: ready, entries: true }} data-testid="deck-grid" aria-busy={!ready}>
       {#each layout.slots as slot, i (i)}
-        <div class="position" class:drop-target={dragTo === i} class:guided={!!guide && guide >= 3 && slot?.id === selectedWorkflow?.id} class:suggested={!guide && !!slot && (suggested.includes(slot.button) || pointed === slot.button)} data-deck-position={i}>
+        <div class="position" class:drop-target={dragTo === i} class:guided={!!guide && guide >= 3 && slot?.id === selectedWorkflow?.id} class:suggested={!guide && !!slot && (suggested.includes(slot.button) || pointed === slot.button)} data-deck-position={i} data-motion-key={slot?.id}>
           <Keycap key={keyFor(slot)} empty={!slot} {editing} workflow={!!slot && !!workflow(slot.button)}
             target={slot && workflow(slot.button) ? targetLabel(slot, app.projects, app.lastProjectId) : ''}
             disabled={!ready || saving || starting || (!!slot && !!workflow(slot.button) && app.connection !== 'live' && !(guide && (preview || guide === 3))) || (!!guide && (i < 6 || guide === 1 || guide === 5 || guide === 6))}

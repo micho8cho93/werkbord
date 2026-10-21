@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { layout } from '../lib/motion';
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { resolveFor } from '../lib/execution';
@@ -156,7 +157,7 @@
   const names: Partial<Record<GroupBy, string>> = { none: 'Nothing', status: 'Status' } as Partial<Record<GroupBy, string>>;
 </script>
 
-<div class="view" bind:this={surface} data-plan-surface role="region" aria-label="Project timeline" onmouseover={showHover} onmouseout={() => hover = null} onfocusin={showHover} onfocusout={() => hover = null}>
+<div class="view" use:layout={{ revision: signature, enabled: scope.loaded && app.connection === 'live', selector: '[data-plan-item]' }} bind:this={surface} data-plan-surface role="region" aria-label="Project timeline" onmouseover={showHover} onmouseout={() => hover = null} onfocusin={showHover} onfocusout={() => hover = null}>
   <div class="bar">
     <div class="tools" role="group" aria-label="Timeline view">
       <div class="seg" role="group" aria-label="Zoom">
