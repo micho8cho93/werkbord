@@ -96,7 +96,7 @@ func Verify(raw []byte, key ed25519.PublicKey, now time.Time) (Claims, error) {
 		return c, errors.New("the license contains extra data")
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(d.Signature)
-	if err != nil || !ed25519.Verify(key, SigningBytes(d.Claims), sig) {
+	if err != nil || !verifyIssuerSignature(trustedIssuers(key), SigningBytes(d.Claims), sig) {
 		return c, errors.New("the license signature is not valid")
 	}
 	claimsDecoder := json.NewDecoder(bytes.NewReader(d.Claims))

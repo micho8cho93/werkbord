@@ -2,6 +2,16 @@
 
 Team has no vendor runtime licensing request. It verifies a document using the public Ed25519 issuer key embedded at build time, stores the signed document with replicated workspace data, and enforces it during mutations. No private vendor key ships in Team.
 
+From **4.69.2-preview.1**, public builds trust the replacement public issuer
+`ChctbT2EmgTYU37lb0e1_KkzSO9GR32pkRdcTR-UoYU` and retain the previous public issuer
+`rhJg3oK5JB8QrUn-Lflsrl0qPmxdOEgDCAwknqFBgXw`. Configuring either public release
+issuer at build time selects this fixed pair. Other issuers, including local test
+issuers, continue to trust only their configured key. Existing signed licenses
+retain their original seat and date enforcement. New licenses signed by the
+replacement issuer require this version or newer; restarting an older DMG does
+not add trust for a new issuer. The replacement private key is kept by the offline
+issuer, outside the repository, CI and distributed app.
+
 Schema 2 claims use the exact field order emitted by `license.CanonicalClaims`:
 
 ```json
@@ -21,7 +31,7 @@ go run ./cmd/werkbord-team/vendor license \
   --input claims.json --out new-license.json < /secure/license-issuer.pem
 ```
 
-Output is a new owner-only file; it never overwrites an existing license. Secure files may be unlocked from a hardware/offline store before this command. Key generation, custodian authorization, backups and signing-machine hygiene are operator responsibilities. Use a separate key for release manifests. Build customers with `LICENSE_ISSUER_PUBLIC_KEY=<32-byte raw URL base64 public key>`; only that public value is embedded. No production issuer has been invented or provisioned by this security gate.
+Output is a new owner-only file; it never overwrites an existing license. Secure files may be unlocked from a hardware/offline store before this command. Key generation, custodian authorization, backups and signing-machine hygiene are operator responsibilities. Use a separate key for release manifests. Build customers with `LICENSE_ISSUER_PUBLIC_KEY=<32-byte raw URL base64 public key>`; only public verification values enter the app. The October 2026 replacement public issuer is recorded above; its private key remains in operator custody.
 
 Supply a valid document via `WERKBORD_TEAM_LICENSE_FILE` before CLI workspace creation, or import it through the Team app before creation. All production create/serve/daemon entry points install enforcement. For an existing 2.x database, the first licensed mutation records the verified initial document transactionally and rejects a license below the current member count.
 
