@@ -33,6 +33,10 @@ go run ./cmd/werkbord-team/vendor license \
 
 Output is a new owner-only file; it never overwrites an existing license. Secure files may be unlocked from a hardware/offline store before this command. Key generation, custodian authorization, backups and signing-machine hygiene are operator responsibilities. Use a separate key for release manifests. Build customers with `LICENSE_ISSUER_PUBLIC_KEY=<32-byte raw URL base64 public key>`; only public verification values enter the app. The October 2026 replacement public issuer is recorded above; its private key remains in operator custody.
 
+The proposed managed issuance register, independent backups and restore procedure
+are documented in [LICENSE_OPERATIONS.md](LICENSE_OPERATIONS.md). The raw vendor
+command alone does not provide those operator controls.
+
 Supply a valid document via `WERKBORD_TEAM_LICENSE_FILE` before CLI workspace creation, or import it through the Team app before creation. All production create/serve/daemon entry points install enforcement. For an existing 2.x database, the first licensed mutation records the verified initial document transactionally and rejects a license below the current member count.
 
 Seats count live workspace members including owner/admin; one person's additional devices/hosts use no extra seat. Direct member creation, project invitation redemption and device enrollment finalize through the same guarded insertion. Concurrent hosts cannot oversubscribe the seat limit. Renew or increase it locally as the workspace owner:
