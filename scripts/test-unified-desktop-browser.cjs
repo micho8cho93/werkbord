@@ -201,7 +201,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await switchTo('team:main');
  await switchUniversal(); await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: new RegExp(ticket.key + ' Improve sign-in') }).click(); current = 'team:main';
  await firstFrame.getByRole('button', { name: 'Review and start agent', exact: true }).click();
- await firstFrame.getByRole('button', { name: 'Start agent', exact: true }).click();
+ await firstFrame.getByRole('region', { name: 'Your private agent', exact: true }).getByRole('button', { name: 'Start agent', exact: true }).click();
  await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  const projects = (await api(individualURL, full, 'GET', '/api/projects')).projects; const localProject = projects.find(p => p.name === 'Customer portal');
  let active; await wait(async () => { const runs = (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs`)).runs; active = runs.find(r => ['running', 'waiting_for_user'].includes(r.state)); return !!active; }, 'agent process running');
