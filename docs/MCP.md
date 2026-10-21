@@ -6,8 +6,23 @@ starts a run, changes execution settings, reaches a member's computer, or accept
 
 ## Individual
 
-Open **Settings → Connections → External MCP clients**. Create a client credential by selecting its projects and exact
+Open **Settings → Connections → MCP services → Connect a client to Werkbord**. Create a client credential by selecting its projects and exact
 operations. The credential is shown once. Revoke it from the same section at any time. Werkbord stores only its digest.
+
+After creating a credential, use **Copy connection settings**. Werkbord generates a portable `mcpServers` entry with
+the address and authentication filled in. Choose the stdio option for clients that require a local process. The generated
+configuration includes the credential: store it in the client's private configuration, then hide it in Werkbord. Nothing
+is installed in another app automatically. Clients differ in their import UI; URL-based screens need the endpoint and
+an `Authorization` header with `Bearer <credential>`.
+
+If the client runs on another computer, replace the address with a reachable private controller address ending in `/mcp`.
+`localhost` always means the client's own computer. A paired phone's relay address is not a general-purpose MCP endpoint.
+Reconnect the client and ask it to list projects to check the connection.
+
+For the reverse direction, **Connect Werkbord to a service** accepts a single-server `mcpServers` JSON configuration.
+Import fills in the form without connecting or executing anything. Review it, save, test and discover, then enable the
+connection and its assistant/coding access. Configurations with environment secrets or unsupported settings require
+manual entry so settings are not silently dropped. **Help → Setting up an MCP server** explains both directions.
 
 The Streamable HTTP endpoint is the controller's address followed by `/mcp`, for example:
 

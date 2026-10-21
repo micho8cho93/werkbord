@@ -774,3 +774,11 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
 .work-card button[data-start-agent] { justify-self: start; }
 .host-outdated { max-width: 62ch; padding: 20px 22px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .host-outdated p { margin: 0 0 10px; }
+
+.ticket-context { padding-block: 12px; border-top: 1px solid var(--line); }
+.ticket-context summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.ticket-grid, .ticket-main, .ticket-side { min-width: 0; }
+
+.mcp-config { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
+
+.completion-blocker { flex-basis: 100%; overflow-wrap: anywhere; }

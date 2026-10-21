@@ -34,7 +34,6 @@
   import { agentCards } from './lib/mobile/agents';
   import { phone } from './lib/mobile/phone.svelte';
   import { phoneSubtitle } from './lib/mobile/subtitle';
-  import { trail } from './lib/mobile/trail.svelte';
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import Board from './routes/Board.svelte';
@@ -99,12 +98,6 @@
     if (project && inProject(v) && v !== 'task' && !sectionApplies(v, project.kind)) {
       router.go({ view: 'board', projectId: project.id, taskId: '' }, true);
     }
-  });
-
-  // Where the person has been, so that Back goes there.
-  $effect(() => {
-    void [router.view, router.projectId, router.taskId, router.sub];
-    trail.note();
   });
 
   // Setup stays active until the completion review. Recovery and the example task remain reachable.

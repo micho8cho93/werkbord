@@ -19,6 +19,21 @@ export interface HelpArticle {
 
 export const HELP_ARTICLES: readonly HelpArticle[] = [
   {
+    id: 'mcp', title: 'Setting up an MCP server',
+    summary: 'MCP lets a client use tools from a server. Connect Werkbord to an external server, or connect any compatible client to Werkbord’s built-in board server.',
+    example: 'A notes service supplies an MCP URL for Werkbord to use. A separate planning client instead connects to Werkbord to read selected projects and propose changes.',
+    steps: [
+      'Open Settings → Connections → MCP services. To use another service, paste its single-server MCP JSON configuration or choose Add connection and enter its URL or local executable. Use the authentication method documented by that service.',
+      'Review the imported fields and save. Test and discover checks the server and lists its tools; OAuth opens sign-in if required. Then enable the connection and choose Assistant or Coding agents. Review each tool’s permission before use.',
+      'To let another client use Werkbord, go to Connect a client to Werkbord on the same page. Give it a name and select only the projects and operations it needs. Create its credential and copy the generated connection settings while they are visible.',
+      'For a client on another computer, use a reachable private controller address ending in /mcp. For stdio-only clients, select the local process option and install the werkbord command on that client’s computer. Paste the generated settings into your client and reconnect it.',
+      'Ask the client to list projects to verify the connection. Individual board changes wait in Pending changes for your approval. Team task plans wait in Plans; direct Team ticket writes follow the issued permissions. Credentials are specific to their Individual controller or Team workspace.',
+    ],
+    recovery: 'If connection fails, check which side is the client, the server address, network access, and authentication. localhost means the computer running the client. Environment references name variables available to the controller process; they are not secret values. Never paste credentials into a chat. If you lose a new credential, revoke it and create another.',
+    searchTerms: ['mcp', 'server', 'client', 'integration', 'stdio', 'streamable http', 'bearer', 'oauth', 'configuration'],
+    destination: { kind: 'settings', section: 'mcp' }, linkLabel: 'Open MCP setup',
+  },
+  {
     id: 'answer',
     title: 'Answer an agent',
     summary: 'Workspace collects questions and other interruptions. Open the task to see its project and the exact request before choosing.',
@@ -42,6 +57,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
       'Open the task in Review and choose Review changes to inspect its branch or pull request evidence.',
       'Accept work or Reject work records your assessment. It does not merge the branch or move the task.',
       'Merge… shows Werkbord’s repository check. Confirm only when the displayed evidence is current and the proposed merge is what you want.',
+      'When your review is finished, Mark done moves the task to Done. This changes its board status; it does not merge a branch. The next-step button also moves tasks from Backlog to In progress and then to Review.',
     ],
     recovery: 'If evidence changes or Werkbord refuses the merge, return to the task and inspect the latest Git state. A successful local merge moves the task to Done and offers Undo for the task move.',
     searchTerms: ['review', 'merge', 'verdict', 'accept', 'reject', 'reported tests', 'verified tests', 'branch', 'pull request'],

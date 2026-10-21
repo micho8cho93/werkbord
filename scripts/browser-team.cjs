@@ -154,6 +154,7 @@ async function api(method, path, data, credential = token) {
     await api('POST', `/projects/${p.id}/tickets/${k.id}/submit`, {});
     await page.getByRole('button', { name: 'Mark done', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Mark done', exact: true }).isDisabled(), true);
+    await page.locator('.ticket .completion-blocker').getByText(/pull request is still open/).waitFor();
     await page.getByRole('button', { name: 'Reviews', exact: true }).click();
     await page.getByText(/pull request is still open/).first().waitFor();
     assert.equal(await page.getByRole('button', { name: 'Mark done', exact: true }).first().isDisabled(), true);
@@ -202,7 +203,13 @@ async function api(method, path, data, credential = token) {
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
     await page.getByRole('button', { name: 'Back to board', exact: true }).click();
     await api('POST', `/projects/${p.id}/tickets/${dragged.id}/submit`, {});
-    await api('POST', `/projects/${p.id}/tickets/${dragged.id}/complete`, {});
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: dragged.title, exact: true }).click();
+    await page.locator('.ticket').getByRole('button', { name: 'Mark done', exact: true }).click();
+    await page.locator('.ticket').getByRole('button', { name: 'Reopen', exact: true }).waitFor();
+    assert.equal((await api('GET', `/projects/${p.id}/tickets/${dragged.id}`)).status, 'done');
+    await page.locator('.ticket').getByRole('button', { name: 'Close', exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Archive Done tickets', exact: true }).click();
     await page.getByRole('button', { name: /^Archive \(/ }).click();
     await page.locator('.archive-list').getByRole('button', { name: new RegExp(dragged.title + '$') }).click();

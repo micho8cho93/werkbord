@@ -6,7 +6,7 @@
   import { forgetHere } from '../lib/setup/tours';
   import { helpHref, searchHelp } from '../lib/help';
 
-  let query = $state('');
+  let query = $derived(new URLSearchParams(router.query).get('article') === 'mcp' ? 'mcp' : '');
   const projectId = $derived(router.projectId || app.lastProjectId);
   const project = $derived(app.project(projectId));
   const articles = $derived(searchHelp(query));

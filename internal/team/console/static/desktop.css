@@ -55,3 +55,14 @@ input, textarea { caret-color: var(--accent); }
 @media (max-width: 600px) { .agent-choices { grid-template-columns: minmax(0, 1fr); } }
 
 .board-tools [aria-pressed='true'] { background: var(--s2); box-shadow: var(--press-sh); color: var(--accent); }
+
+/* Grid children must shrink before long agent output can wrap. */
+.execution-output, .execution-activity, .execution-message { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.execution-message pre { min-width: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .execution-activity .inline { flex-wrap: wrap; }
+  .execution-activity input { min-width: 0; width: 100%; }
+}
+
+.handoff { min-width: 0; max-width: 100%; }
+.handoff pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }

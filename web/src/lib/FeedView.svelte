@@ -101,6 +101,8 @@
 
 <style>
   .feed {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
     list-style: none;
     margin: 0;
     padding: 0;
@@ -112,6 +114,8 @@
     display: flex;
     justify-content: center;
   }
+
+  .feed > li { min-width: 0; max-width: 100%; }
 
   .text {
     white-space: pre-wrap;

@@ -54,3 +54,13 @@ describe('relationship management', () => {
     expect(fetch).toHaveBeenCalledWith('/api/projects/project/memory/link', expect.objectContaining({method:'DELETE', body:JSON.stringify({version:3})}));
   });
 });
+
+
+describe('fresh MCP setup', () => {
+  it('normalises empty server lists before rendering setup', async () => {
+    vi.stubGlobal('window', { localStorage: { getItem: () => null } });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ connections: null, operations: null, grants: null, proposals: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    const { api } = await import('./api');
+    for (const read of [api.mcpConnections, api.mcpOperations, api.mcpClientGrants, api.mcpProposals]) expect(await read()).toEqual([]);
+  });
+});

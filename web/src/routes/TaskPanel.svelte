@@ -169,7 +169,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   }
 
   async function move(state: TaskState) {
-    if (!task || state === task.state) return;
+    if (!task || busy || state === task.state) return;
     const t = await act(() => api.moveTask(task, state));
     if (t) scope.upsertTask(t);
     else await scope.load().catch((err) => app.handleError(err));
@@ -378,6 +378,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     if (project.kind === 'work' && factsSection === 'history') factsSection = 'details';
   });
   const planSpan = $derived(task ? spanOf(task) : null);
+  const hasPlanning = $derived(!!planSpan || dependencies.length > 0);
+  const nextState = $derived(task?.state === 'backlog' ? 'doing' : task?.state === 'doing' ? 'review' : task?.state === 'review' ? 'done' : 'backlog');
+  const nextStateLabel = $derived(task?.state === 'backlog' ? 'Move to In progress' : task?.state === 'doing' ? 'Submit for review' : task?.state === 'review' ? 'Mark done' : 'Reopen task');
+  $effect(() => { if (!hasPlanning && factsSection === 'details') factsSection = agentWork ? 'run' : project.kind === 'work' ? 'details' : 'history'; });
   let factsOpen = $state(false);
   const narrow = new MediaQuery('(max-width: 1280px)');
 </script>
@@ -424,6 +428,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       {/if}
       {#if !task.archivedAt}
         <div class="task-actions" aria-label="Task actions">
+          <button class="btn primary" disabled={busy} onclick={() => move(nextState)}>{nextStateLabel}</button>
           <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
           <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
         </div>
@@ -505,9 +510,9 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
     <div class="facts-tabs" role="group" aria-label="Task detail views" onfocusin={(event) => (event.target as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' })}>
       {#if narrow.current}<button class="btn small quiet" aria-pressed={!factsOpen} onclick={() => factsOpen = false}>Activity</button>{/if}
-      {#each agentWork ? ['details', 'run', 'schedule', 'history'] : project.kind === 'work' ? ['details'] : ['details', 'history'] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Details' : 'Schedule'}</button>{/each}
+      {#each [...(hasPlanning ? ['details'] : []), ...(agentWork ? ['run', 'schedule', 'history'] : project.kind === 'work' ? [] : ['history'])] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Planning' : 'Schedule'}</button>{/each}
     </div>
-    <div class="body" class:facts-open={factsOpen}>
+    <div class="body" class:facts-open={factsOpen && (hasPlanning || agentWork || project.kind !== 'work')} class:no-facts={!hasPlanning && !agentWork && project.kind === 'work'}>
       <!-- The run: what needs you, what happened, and what to say next. -->
       <div class="main">
         <ConnectionBanner />
@@ -657,9 +662,9 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       </div>
 
       <!-- The facts about the task. -->
-      <aside class="side" aria-label="About this task" tabindex="-1" bind:this={detailsEl}>
+      {#if hasPlanning || agentWork || project.kind !== 'work'}<aside class="side" aria-label="About this task" tabindex="-1" bind:this={detailsEl}>
         {@render facts()}
-      </aside>
+      </aside>{/if}
     </div>
   {/if}
 </section>
@@ -677,6 +682,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   }
 
   .panel {
+    min-width: 0;
+    max-width: 100vw;
     position: fixed;
     z-index: 21;
     top: 0;
@@ -702,6 +709,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   .facts-tabs button[aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }
   .scroll, .side { overflow-x: hidden; scrollbar-gutter: stable; }
   .head {
+    min-width: 0;
+    overflow-wrap: anywhere;
     flex: none;
     padding: 12px 20px 14px 24px;
     border-bottom: 1px solid var(--border);
@@ -841,6 +850,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
   }
+
+  .body.no-facts { grid-template-columns: minmax(0, 1fr); }
 
   .main {
     position: relative;
@@ -1161,6 +1172,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
     .head {
       padding: 8px 16px 12px;
+      max-height: 45dvh;
+      overflow-y: auto;
     }
 
     /* Back, the column and Stop do not fit one row at 375px: the top controls wrap rather than clip. */
@@ -1174,8 +1187,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
     /* Back and the column lead; the optional Stop action stays with those top controls. */
     .spacer {
-      flex-basis: 100%;
-      height: 0;
+      flex: 1;
     }
 
     .top .btn:not(.icon) {
@@ -1183,7 +1195,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     }
 
     .task-actions { justify-content: flex-start; }
-    .task-actions .btn { flex: 1 1 0; min-height: 44px; }
+    .task-actions { flex-wrap: wrap; }
+    .task-actions .btn { flex: 1 1 auto; min-height: 44px; white-space: normal; }
     .facts-tabs {
       flex-wrap: nowrap;
       overflow-x: auto;

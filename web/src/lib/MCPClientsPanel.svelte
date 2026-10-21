@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from './api';
+  import { clientConfig } from './mcp-setup';
   import { app } from './state.svelte';
   import type { MCPBoardOperation, MCPClientGrant, MCPProposal, MCPTaskPlan, MCPTaskPlanChange } from './types';
 
@@ -12,6 +13,13 @@
   let selectedProjects = $state<string[]>([]);
   let selectedOperations = $state<string[]>([]);
   let oneTimeToken = $state('');
+  let stdio = $state(false);
+  let connectionURL = $state(`${window.location.origin}/mcp`);
+  const config = $derived.by(() => { try { return clientConfig(connectionURL, oneTimeToken, stdio); } catch { return ''; } });
+  async function copyConfig() {
+    try { await navigator.clipboard.writeText(config); notice = 'Connection settings copied. Paste them into your MCP client and reconnect it.'; }
+    catch { notice = 'Select and copy the connection settings below.'; }
+  }
   let busy = $state(false);
   let loading = $state(true);
   let error = $state('');
@@ -135,20 +143,27 @@
 
 <section class="pn">
   <div class="head">
-    <h3>External MCP clients</h3>
+    <h3>Connect a client to Werkbord</h3>
     <p class="muted">Give an external agent its own credential, limited to selected projects and board operations. It cannot start runs, change execution settings, or approve its own changes.</p>
   </div>
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if notice}<p class="ok" role="status">{notice}</p>{/if}
 
+  <p class="note">Werkbord’s MCP server is already built in. Name your client, choose its projects and operations, then create and copy its connection settings. Any compatible MCP client can connect. <a href="#/help?article=mcp">How MCP setup works</a></p>
   {#if oneTimeToken}
     <div class="issued" role="group" aria-label="New MCP client credential">
       <strong>Copy this credential now</strong>
       <p class="note">It is shown once. Store it in the MCP client's environment as <code>WERKBORD_MCP_TOKEN</code>.</p>
       <code class="token">{oneTimeToken}</code>
       <button class="btn small" onclick={copyToken}>Copy credential</button>
-      <p class="note">Streamable HTTP endpoint: <code>{endpoint}</code></p>
+      <label>Address reachable from your client<input class="input" type="url" bind:value={connectionURL} /></label>
+      <p class="note">Default: {endpoint}. For a client on another computer, enter this controller’s reachable private address ending in /mcp. A phone’s relay address may only work in its paired browser.</p>
+      <label class="check"><input type="checkbox" bind:checked={stdio} /><span>My client needs a local process (stdio)</span></label>
+      {#if stdio}<p class="note">Install the werkbord command on the client’s computer. It bridges to the address above.</p>{/if}
+      {#if config}<pre class="config">{config}</pre><button class="btn primary" type="button" onclick={copyConfig}>Copy connection settings</button>{:else}<p class="error">Enter a valid HTTP or HTTPS address without embedded credentials.</p>{/if}
+      <p class="note">Paste the settings into your client’s MCP configuration. For a URL-based setup screen, use the address above and an Authorization header with Bearer followed by this credential. Reconnect the client and ask it to list your projects.</p>
+      <button class="btn small" onclick={() => { oneTimeToken = ''; notice = 'Credential hidden. Revoke and replace it if you did not save it.'; }}>I’ve saved it — hide credential</button>
     </div>
   {/if}
 
@@ -245,6 +260,9 @@
 </section>
 
 <style>
+  .config { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; min-width: 0; padding: 12px; background: var(--surface-2); }
+  .issued label { max-width: 100%; display: grid; gap: 6px; }
+  .issued label.check { display: flex; }
   h4 { margin:0; font-size:14px; font-weight:600; }
   .grant-form { display:grid; gap:14px; padding:16px 0; margin:12px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
   .grant-form > label { display:grid; gap:5px; font-size:12px; color:var(--text-2); }

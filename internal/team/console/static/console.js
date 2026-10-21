@@ -1006,6 +1006,26 @@ function workItem(it, extra) {
 
 const teamMCPPlanDrafts = new Map();
 let teamMCPIssuedToken = '';
+let teamMCPUseStdio = false;
+let teamMCPEndpoint = '';
+function teamMCPSetup(endpoint) {
+  const address = h('input', { type: 'url', value: teamMCPEndpoint || endpoint, 'aria-label': 'MCP server address', onchange: e => { teamMCPEndpoint = e.currentTarget.value; render(); } });
+  let config;
+  try {
+    const url = new URL(teamMCPEndpoint || endpoint);
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw Error('Enter an HTTP or HTTPS address without embedded credentials.');
+    config = JSON.stringify({ mcpServers: { 'werkbord-team': teamMCPUseStdio
+      ? { command: 'werkbord-team', args: ['mcp', '--url', url.href], env: { WERKBORD_TEAM_MCP_TOKEN: teamMCPIssuedToken } }
+      : { url: url.href, headers: { Authorization: 'Bearer ' + teamMCPIssuedToken } } } }, null, 2);
+  } catch { config = ''; }
+  return h('div', { class: 'stack' }, field('Address reachable from your client', address),
+    h('p', { class: 'muted' }, 'For a client on another computer, use this workspace’s private host address ending in /mcp. localhost means the client’s own computer.'),
+    h('label', { class: 'check-row' }, h('input', { type: 'checkbox', checked: teamMCPUseStdio, onchange: e => { teamMCPUseStdio = e.currentTarget.checked; render(); } }), 'My client needs a local process (stdio)'),
+    teamMCPUseStdio ? h('p', { class: 'muted' }, 'Install werkbord-team on the client’s computer to bridge to this workspace.') : '',
+    config ? [h('pre', { class: 'mcp-config' }, config), copy(config, 'Copy connection settings')] : h('p', { class: 'error' }, 'Enter a valid HTTP or HTTPS server address.'),
+    h('p', { class: 'muted' }, 'Paste these settings into your MCP client and reconnect it. For URL-based setup, enter this address and an Authorization header with Bearer followed by your credential. Ask the client to list projects to check the connection.'),
+    h('button', { class: 'plain', onclick: () => { teamMCPIssuedToken = ''; render(); } }, 'I’ve saved it — hide credential'));
+}
 let teamMCPPlanCounter = 0;
 
 function discardMCPPlanDraft(id) {
@@ -1098,9 +1118,10 @@ async function mcpClientsView() {
     h('button', { class: 'primary', disabled: !projects.length }, 'Create scoped client'));
   return h('div', {},
     h('section', { class: 'panel' }, h('h2', {}, 'MCP clients'),
+      h('details', {}, h('summary', {}, 'Setting up an MCP server: how does this work?'), h('p', {}, 'This workspace already has an MCP server. Any compatible client can use it; no specific integration is required. Name your client and choose its projects and operations below. Create a credential, then copy the generated connection settings into your client. Task plans wait for your decision in Plans; create and update ticket permissions allow direct changes. If a connection fails, check the address, private network access and credential. A credential belongs to this workspace only.')),
       h('p', { class: 'muted' }, 'Create a separate revocable credential scoped to chosen projects and operations. Team stores only its hash. External clients can propose task batches, but only a member can edit or approve them.'),
       h('p', { class: 'muted' }, 'Streamable HTTP endpoint: ', h('code', {}, endpoint)),
-      teamMCPIssuedToken ? h('div', { class: 'invite-result' }, h('strong', {}, 'Copy this credential now'), h('p', { class: 'muted' }, 'It is shown once. Keep it in the MCP client’s secret environment as WERKBORD_TEAM_MCP_TOKEN.'), h('code', {}, teamMCPIssuedToken), copy(teamMCPIssuedToken, 'Copy credential')) : '',
+      teamMCPIssuedToken ? h('div', { class: 'invite-result' }, h('strong', {}, 'Copy this credential now'), h('p', { class: 'muted' }, 'It is shown once. Keep it in the MCP client’s secret environment as WERKBORD_TEAM_MCP_TOKEN.'), h('code', {}, teamMCPIssuedToken), copy(teamMCPIssuedToken, 'Copy credential'), teamMCPSetup(endpoint)) : '',
       form),
     h('section', { class: 'panel' }, h('h2', {}, 'Issued credentials'), grants.length ? grants.map(g => h('div', { class: 'row mcp-grant-row' },
       h('div', { class: 'grow' }, h('strong', {}, g.name), h('p', { class: 'muted' }, (g.projects || []).length + ' projects · ' + (g.operations || []).join(', '), g.revokedAt ? ' · revoked' : '')),
@@ -1465,12 +1486,12 @@ function ticketPanel(d, k) {
   if (['available', 'in_progress', 'review'].includes(k.status) && mine && agentWork && pcan('handoff.own'))
     actions.push(h('button', { class: individual ? 'plain' : 'primary', onclick: () => act(async () => { state.handoff = await api('POST', path + '/handoff'); }) }, 'Open in my runner'));
   // Work with no agent (done by hand, or a person's to finish) is handed in from here; an agent's finished run does it by itself.
-  if (k.status === 'in_progress' && mine && (!agentWork || (k.workMode === 'hybrid'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/submit', {}) }, 'Submit for review'));
+  if (k.status === 'in_progress' && mine && (!agentWork || k.workMode === 'hybrid' || !active)) actions.push(h('button', { class: 'primary', onclick: run('POST', '/submit', {}) }, 'Submit for review'));
   if (['available', 'in_progress'].includes(k.status) && k.assigneeId && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Take it back'));
   if (k.status === 'review' && pcan('tickets.review')) {
     const note = h('input', { name: 'rc-note-' + k.id, placeholder: 'What should change? (optional)', maxlength: 1000 });
     const blocker = b.completion[k.id];
-    if (blocker) actions.push(h('p', { class: 'muted' }, blocker));
+    if (blocker) actions.push(h('p', { class: 'muted completion-blocker', role: 'status' }, blocker));
     actions.push(h('button', { class: 'primary', disabled: !!blocker, onclick: run('POST', '/complete') }, 'Mark done'),
       h('span', { class: 'inline' }, note, h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/request-changes', { note: note.value })) }, 'Request changes')));
   }
@@ -1487,6 +1508,7 @@ function ticketPanel(d, k) {
   if (canArchiveTicket(k)) actions.push(h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/archive', { version: k.version, archived: !k.archivedAt })) }, k.archivedAt ? 'Restore ticket' : 'Archive ticket'));
   if (!k.archivedAt) actions.push(h('p', { class: 'muted small' }, 'Archiving moves this ticket out of the active board; it does not delete it.' + (['in_progress', 'review'].includes(k.status) ? ' It does not stop an agent running in your Werkbord; stop that run there if needed.' : '')));
 
+  const mainAction = a => a.classList.contains('primary') || a.classList.contains('completion-blocker') || ['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent);
   const owner = k.assigneeId ? (mine ? 'You' : personName(d, k.assigneeId)) : 'Nobody yet';
   const facts = h('dl', { class: 'facts' },
     h('dt', {}, 'Status'), h('dd', {}, (k.archivedAt ? 'Archived · ' : '') + statusLabel(b, k.status)),
@@ -1517,13 +1539,13 @@ function ticketPanel(d, k) {
     h('div', { class: 'ticket-head' },
       h('h2', {}, k.key + ' · ' + k.title),
       h('button', { class: 'plain', onclick: () => { state.ticketId = null; state.handoff = null; remember(); render(); } }, 'Close')),
-    h('div', { class: 'actions' }, actions.filter(a => a.classList.contains('primary') || ['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent))),
-    actions.some(a => !a.classList.contains('primary') && !['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent)) ? h('details', { class: 'ticket-more' }, h('summary', {}, 'More actions'), h('div', { class: 'actions' }, actions.filter(a => !a.classList.contains('primary') && !['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent)))) : '',
+    h('div', { class: 'actions' }, actions.filter(mainAction)),
+    actions.some(a => !mainAction(a)) ? h('details', { class: 'ticket-more' }, h('summary', {}, 'More actions'), h('div', { class: 'actions' }, actions.filter(a => !mainAction(a)))) : '',
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
     h('div', { class: 'ticket-grid' },
       h('div', { class: 'ticket-main' },
         tcard('Description', h('p', { class: 'prose' }, k.description || '—'), canEditText ? editTicket(d, k, path) : ''),
-        tcard('Requirements and context', h('p', { class: 'prose' }, k.requirements || '—')),
+        k.requirements ? h('details', { class: 'ticket-context' }, h('summary', {}, 'Requirements and context'), h('p', { class: 'prose' }, k.requirements)) : '',
         agentCard,
         tcard('', commentsSection(d, k)),
         !k.archivedAt ? teamSchedulePanel(k, b) : ''),

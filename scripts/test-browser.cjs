@@ -86,6 +86,8 @@ async function cleanup() {
     const team = serve(teamBinary, ['serve'], teamEnv);
     await ready(team, teamURL + '/api/team/v1/health');
     const testEnv = { PLANNING_SHELL_URL: shellURL, PERSONAL_BROWSER_URL: individualURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
+    if (process.env.BROWSER_INDIVIDUAL_ONLY === '1') { run(process.execPath, ['scripts/browser-individual.cjs'], testEnv); return; }
+    if (process.env.BROWSER_MCP_ONLY === '1') { run(process.execPath, ['scripts/browser-mcp-setup.cjs'], testEnv); return; }
     if (process.env.BROWSER_PLANNING_ONLY === '1') { run(process.execPath, ['scripts/browser-planning.cjs'], testEnv); return; }
     if (process.env.BROWSER_CONTROLS_ONLY === '1') { run(process.execPath, ['scripts/browser-controls.cjs'], testEnv); return; }
     if (process.env.BROWSER_INITIATIVES_ONLY === '1') { run(process.execPath, ['scripts/browser-initiatives.cjs'], testEnv); return; }
@@ -121,5 +123,6 @@ async function cleanup() {
     testEnv.WERKBORD_BROWSER_REPO = analyticsRepo;
     run(process.execPath, ['scripts/browser-analytics.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-bridge.cjs'], testEnv);
+    run(process.execPath, ['scripts/browser-mcp-setup.cjs'], testEnv);
     console.log('PASS disposable Individual + Team browser/integration suite');
 })().catch(e => { console.error(e.message); process.exitCode = 1; }).finally(cleanup);

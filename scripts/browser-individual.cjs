@@ -215,7 +215,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         const reply = await sync();
         const job = reply.jobs.find(j => j.run.id === run.id);
         const handoff = '<devboard-handoff>' + JSON.stringify({ summary: 'Readable browser handoff', objective: 'Improve the board', results: 'Preserved the run history', tests: ['Browser flow passed'], nextAction: 'Review the work' }) + '</devboard-handoff>';
-        await sync([{ runId: run.id, observations: [{ seq: 1, kind: 'accepted' }, { seq: 2, kind: 'started', branch: 'devboard/' + remote.id + '/' + run.id, baseCommit: 'a'.repeat(40) }, { seq: 3, kind: 'event', event: { Kind: 'output', Stream: 'assistant', Text: handoff } }] }]);
+        await sync([{ runId: run.id, observations: [{ seq: 1, kind: 'accepted' }, { seq: 2, kind: 'started', branch: 'devboard/' + remote.id + '/' + run.id, baseCommit: 'a'.repeat(40) }, { seq: 3, kind: 'event', event: { Kind: 'output', Stream: 'assistant', Text: handoff + '\n' + 'long-agent-output/path/'.repeat(200) } }] }]);
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
         assert.equal(await page.locator('.text').filter({ hasText: '<devboard-handoff>' }).count(), 0);
         // A lost SSE connection must qualify cached states and preserve a draft on reconnect.
@@ -276,11 +276,13 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
         await page.setViewportSize({ width: 390, height: 844 });
         const sections = page.getByRole('group', { name: 'Task detail views', exact: true });
-        await sections.getByRole('button', { name: 'Details', exact: true }).click();
-        await page.getByRole('heading', { name: 'Planning', exact: true }).waitFor();
+        assert.equal(await sections.getByRole('button', { name: 'Planning', exact: true }).count(), 0, 'unplanned tasks have no empty planning tab');
+        await sections.getByRole('button', { name: /^Runs \(/ }).click();
+        await page.getByRole('heading', { name: 'Runs', exact: true }).waitFor();
         await sections.getByRole('button', { name: 'Activity', exact: true }).click();
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
+        assert.equal(await page.locator('.feed').evaluate(el => el.scrollWidth > el.clientWidth + 2), false, 'long agent messages fit the phone conversation');
         await page.screenshot({ path: path.join(artifacts, 'individual-task-mobile.png') });
         await page.setViewportSize({ width: 1440, height: 1000 });
         await page.waitForTimeout(400);

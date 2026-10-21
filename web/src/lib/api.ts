@@ -257,13 +257,13 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
  saveHandoff: (run: Run, handoff: Handoff) => request<Run>('PUT', `${inProject(run.projectId)}/runs/${enc(run.id)}/handoff`, {version: run.version, handoff}),
  continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, withoutExecution({runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})})),
  health: () => request<Health>('GET', '/api/health'),
-  mcpConnections: () => request<{connections:MCPConnection[]}>('GET', '/api/connections').then(r=>r.connections),
-  mcpOperations: () => request<{operations:MCPBoardOperation[]}>('GET', '/api/mcp/operations').then(r=>r.operations),
-  mcpClientGrants: () => request<{grants:MCPClientGrant[]}>('GET', '/api/mcp/grants').then(r=>r.grants),
+  mcpConnections: () => request<{connections:MCPConnection[] | null}>('GET', '/api/connections').then(r=>r.connections ?? []),
+  mcpOperations: () => request<{operations:MCPBoardOperation[] | null}>('GET', '/api/mcp/operations').then(r=>r.operations ?? []),
+  mcpClientGrants: () => request<{grants:MCPClientGrant[] | null}>('GET', '/api/mcp/grants').then(r=>r.grants ?? []),
   createMCPClientGrant: (grant:{name:string; projects:string[]; operations:string[]}) =>
     request<{grant:MCPClientGrant; token:string}>('POST', '/api/mcp/grants', grant),
   revokeMCPClientGrant: (id:string) => requestNoContent('DELETE', `/api/mcp/grants/${enc(id)}`),
-  mcpProposals: () => request<{proposals:MCPProposal[]}>('GET', '/api/mcp/proposals').then(r=>r.proposals),
+  mcpProposals: () => request<{proposals:MCPProposal[] | null}>('GET', '/api/mcp/proposals').then(r=>r.proposals ?? []),
   replaceMCPTaskPlan: (grantId:string, actionId:string, plan:MCPTaskPlan) =>
     request<MCPProposal>('PUT', `/api/mcp/proposals/${enc(grantId)}/${enc(actionId)}`, plan),
   resolveMCPProposal: (grantId:string, actionId:string, approve:boolean) =>

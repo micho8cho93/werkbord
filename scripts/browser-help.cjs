@@ -23,7 +23,7 @@ const projects = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
     await page.getByRole('link', { name: 'Help', exact: true }).waitFor();
     await page.getByRole('link', { name: 'Help', exact: true }).click();
     await page.getByRole('heading', { name: 'Find the next step' }).waitFor();
-    assert.equal(await page.locator('.guides > li').count(), 8, 'desktop Help lists all bundled guides');
+    assert.equal(await page.locator('.guides > li').count(), 9, 'desktop Help lists all bundled guides');
 
     const search = page.getByRole('searchbox', { name: 'Search Help and shortcuts' });
     await search.fill('Ctrl+K');

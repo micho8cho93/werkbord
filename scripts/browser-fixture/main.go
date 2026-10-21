@@ -17,10 +17,14 @@ import (
 	"devboard/internal/agent"
 	"devboard/internal/agent/fake"
 	"devboard/internal/api"
+	"devboard/internal/appops"
+	"devboard/internal/connections"
 	"devboard/internal/domain"
 	"devboard/internal/events"
 	"devboard/internal/gitrepo"
 	"devboard/internal/localaccess"
+	"devboard/internal/mcpaccess"
+	"devboard/internal/mcpgrant"
 	"devboard/internal/netprivate"
 	"devboard/internal/phoneaccess"
 	"devboard/internal/runner"
@@ -128,7 +132,13 @@ func main() {
 			_ = assistantEngine.Shutdown(stop)
 		}()
 	}
-	handler := api.New(api.Options{Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	grants, err := mcpgrant.Open(filepath.Join(dir, "mcp-grants.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	ops := appops.New(appops.Config{Backend: appops.NewBackend(appops.Services{Projects: projects, Tasks: tasks}), Store: db})
+	mcpServer := mcpaccess.New(grants, ops, projects, tasks)
+	handler := api.New(api.Options{MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advance, parentHref, parentTitle, phoneParent, titleOf } from './nav';
+import { parentHref, parentTitle, phoneParent, titleOf } from './nav';
 
 describe('phoneParent', () => {
   it('puts the keys’ pages under the deck and the deck under nothing', () => {
@@ -36,30 +36,5 @@ describe('titleOf', () => {
     expect(titleOf('repositories')).toBe('Git');
     expect(titleOf('schedule')).toBe('Calendar');
     expect(titleOf('board')).toBe('');
-  });
-});
-
-describe('advance', () => {
-  it('goes on, and goes back when the page before is the one it arrives at', () => {
-    let t = ['#/deck'];
-    t = advance(t, '#/mywork');
-    t = advance(t, '#/p/a/task/b');
-    expect(t).toEqual(['#/deck', '#/mywork', '#/p/a/task/b']);
-    t = advance(t, '#/mywork');
-    expect(t).toEqual(['#/deck', '#/mywork']);
-  });
-
-  it('keeps one entry for the same page twice', () => {
-    expect(advance(['#/deck'], '#/deck')).toEqual(['#/deck']);
-  });
-
-  it('replaces the current entry when an address is settled', () => {
-    expect(advance(['#/deck', '#/p//board'], '#/p/a/board', true)).toEqual(['#/deck', '#/p/a/board']);
-  });
-
-  it('is bounded', () => {
-    let t = ['#/0'];
-    for (let i = 1; i < 60; i++) t = advance(t, `#/${i}`);
-    expect(t.length).toBeLessThanOrEqual(30);
   });
 });

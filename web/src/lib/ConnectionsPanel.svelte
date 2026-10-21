@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from './api';
+  import { importConnection } from './mcp-setup';
   import type { MCPConnection, MCPContextPolicy } from './types';
 
   type Draft = {
@@ -17,6 +18,12 @@
   };
 
   const emptyDraft = (): Draft => ({ name: '', transport: 'stdio', command: '', args: '', url: '', environment: '', authMode: 'none', authEnv: '', bearerToken: '' });
+  let importText = $state('');
+  function importSettings() {
+    try { draft = { ...emptyDraft(), ...importConnection(importText) }; editing = true; importText = ''; error = ''; }
+    catch (err) { error = err instanceof Error ? err.message : String(err); }
+  }
+
   let connections = $state<MCPConnection[]>([]);
   let loading = $state(true);
   let editing = $state(false);
@@ -135,12 +142,20 @@
 
 <section class="pn">
   <div class="head">
-    <h3>MCP connections</h3>
+    <h3>Connect Werkbord to a service</h3>
     <p class="muted">Connect services the assistant or coding agents can use through Werkbord. Credentials stay with the controller and are never passed to an agent. New connections start disabled.</p>
   </div>
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if notice}<p class="ok" role="status">{notice}</p>{/if}
+
+  <details class="setup-help">
+    <summary>Have an MCP configuration? Paste it here</summary>
+    <p class="note">Copy one server’s JSON configuration from its documentation. Werkbord fills in the fields for you; review them before saving. Nothing runs until you test or enable the connection.</p>
+    <label class="import-field"><span>MCP configuration</span><textarea class="input mono" rows="5" bind:value={importText} spellcheck="false" placeholder={'{"mcpServers":{"my-service":{"url":"https://service.example/mcp"}}}'}></textarea></label>
+    <button class="btn" type="button" disabled={!importText.trim()} onclick={importSettings}>Fill in connection</button>
+  </details>
+  <p class="note">For a hosted server, choose Remote service and enter its MCP URL. For a server installed on this computer, choose Local process and enter its executable and arguments. <a href="#/help?article=mcp">MCP setup help</a></p>
 
   {#if editing}
     <form class="editor" onsubmit={save}>
@@ -256,6 +271,10 @@
 
 <style>
   h4 { margin: 0; font-size: 14px; font-weight: 600; }
+  .setup-help { margin-block: 12px; }
+  .setup-help summary { cursor: pointer; min-height: 44px; }
+  .import-field { display: grid; gap: 6px; margin-bottom: 10px; }
+  .import-field textarea { width: 100%; }
   .editor { display:grid; gap:12px; padding:14px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
   .editor label { display:grid; gap:5px; font-size:12px; color:var(--text-2); }
   .editor .input, .editor .select { width:100%; min-width:0; }

@@ -6,7 +6,7 @@ describe('bundled Help discovery', () => {
     expect(searchHelp('Ctrl+K').map((article) => article.id)).toContain('keyboard');
     expect(searchHelp('awaiting acknowledgment').map((article) => article.id)).toContain('answer');
     expect(searchHelp('assistant conversation from yesterday')).toEqual([]);
-    expect(searchHelp('')).toHaveLength(8);
+    expect(searchHelp('')).toHaveLength(9);
   });
 
   it('keeps review verdicts distinct from merge and reported tests distinct from verified tests', () => {

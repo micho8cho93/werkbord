@@ -200,6 +200,30 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
     }
     console.log('PASS phone board: one column at a time');
 
+    // A task advances with one tap; Back ignores intermediate pages and follows the tree.
+    {
+        const { ctx, page } = await phone(390, 844);
+        const task = await ensure('Phone workflow regression', {});
+        await page.goto(base + `/#/p/${project.id}/task/${task.id}`);
+        await page.getByRole('button', { name: 'Move to In progress', exact: true }).click();
+        await page.getByRole('button', { name: 'Submit for review', exact: true }).click();
+        await page.getByRole('button', { name: 'Mark done', exact: true }).click();
+        await page.getByRole('button', { name: 'Reopen task', exact: true }).waitFor();
+        const saved = (await api('GET', `/api/projects/${project.id}/tasks`)).tasks.find(t => t.id === task.id);
+        assert.equal(saved.state, 'done', 'completion is persisted');
+        await noOverflow(page, 'completed task');
+        await page.screenshot({ path: path.join(artifacts, 'phone-task-done.png') });
+        await page.goto(base + '/#/settings');
+        await page.goto(base + '/#/mywork');
+        await page.getByTestId('phone-back').click();
+        await page.waitForURL('**/#/deck');
+        await page.goto(base + `/#/p/${project.id}/board`);
+        await page.getByTestId('phone-back').click();
+        await page.waitForURL('**/#/projects');
+        await ctx.close();
+    }
+    console.log('PASS phone task progression and parent navigation');
+
     // ---- a phone scans a code and is signed in, with a credential of its own; revoking signs it out ----
     {
         const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';

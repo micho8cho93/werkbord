@@ -30,6 +30,7 @@
   // and asks this page for one section at a time: there is no list or heading of its own here. Opened in a browser or on a phone
   // it is the whole of Settings, as it always was.
   const framed = embedded();
+  let mcpDirection = $state<'service' | 'client'>('service');
 
   const GROUPS = [
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
@@ -177,8 +178,12 @@
     {:else if section === 'memory'}
       <MemorySharing />
     {:else if section === 'mcp'}
-      <ConnectionsPanel />
-      <MCPClientsPanel />
+      <div class="mcp-direction" role="group" aria-label="MCP connection direction">
+        <button class="btn" aria-pressed={mcpDirection === 'service'} onclick={() => mcpDirection = 'service'}>Use a service in Werkbord</button>
+        <button class="btn" aria-pressed={mcpDirection === 'client'} onclick={() => mcpDirection = 'client'}>Let a client use Werkbord</button>
+      </div>
+      <div hidden={mcpDirection !== 'service'}><ConnectionsPanel /></div>
+      <div hidden={mcpDirection !== 'client'}><MCPClientsPanel /></div>
     {:else if section === 'agents'}
       <AgentsCard />
     {:else if section === 'time'}
@@ -276,6 +281,9 @@
 </div>
 
 <style>
+  .mcp-direction { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .mcp-direction button { white-space: normal; min-height: 44px; }
+  .mcp-direction [aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }
   .section-group + .section-group { margin-top: 20px; }
   .section-group h2 { margin: 0 12px 6px; font-size: 12px; font-weight: 500; color: var(--text-2); }
   .section-links { display: flex; flex-direction: column; gap: 2px; }
