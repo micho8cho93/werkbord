@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { ApiError, api } from '../api';
+  import TransferStatus from '../TransferStatus.svelte';
+  import { visibility } from '../motion';
   import { timeAgo } from '../format';
   import { changesHref, commitsHref } from '../gitroute';
   import {
@@ -54,17 +57,25 @@
 
   let fetching = $state(false);
   let fetchError = $state('');
+  let fetched = $state(false);
+  let fetchFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+  onDestroy(() => clearTimeout(fetchFeedbackTimer));
 
   async function fetchRemote() {
     fetching = true;
+    fetched = false;
+    clearTimeout(fetchFeedbackTimer);
     fetchError = '';
     try {
-      store.lastResult = await api.git.fetch(project.id);
+      const result = await api.git.fetch(project.id);
+      store.lastResult = result;
+      fetched = result.ok && result.outcome === 'done';
       await store.reloadAll();
     } catch (err) {
       fetchError = err instanceof ApiError ? err.message : String(err);
     } finally {
       fetching = false;
+      if (fetched) fetchFeedbackTimer = setTimeout(() => fetched = false, 720);
     }
   }
 
@@ -251,8 +262,9 @@
           <button class="btn small" onclick={() => store.reloadAll()} disabled={store.loading} title="Look at the repository again. This does not use the network.">
             {store.loading ? 'Refreshing…' : 'Refresh'}
           </button>
-          <button class="btn small" onclick={fetchRemote} disabled={fetching || !o.remote.remotes.length} title="Fetch from the remote to update what is known about it. Changes no branch of yours.">
-            {fetching ? 'Fetching…' : 'Fetch'}
+          <button class="btn small transfer-button fetch-button" data-transfer-state={fetching ? 'pending' : fetched ? 'done' : undefined} use:visibility onclick={fetchRemote} disabled={fetching || !o.remote.remotes.length} title="Fetch from the remote to update what is known about it. Changes no branch of yours.">
+            {#if fetching || fetched}<TransferStatus state={fetching ? 'pending' : 'done'} direction="down" />{/if}
+            <span>{fetching ? 'Fetching…' : fetched ? 'Fetched' : 'Fetch'}</span>
           </button>
         </div>
       </header>

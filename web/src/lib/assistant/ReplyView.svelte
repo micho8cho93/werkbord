@@ -1,5 +1,7 @@
 <script lang="ts">
   import { surface, visibility } from '../motion';
+  import Mark from '../Mark.svelte';
+  import { MARK_MOTIONS } from '../mark-motion';
   import { formatDateTime } from '../clock.svelte';
   import { Renderer, type ActionEvent, type ParseResult } from '@openuidev/svelte-lang';
   import { assistant } from './store.svelte';
@@ -21,6 +23,7 @@
   let actionProblem = $state('');
   const line = $derived(reply.status === 'working' ? (assistant.stopping ? 'Stopping…' : progressLine(reply)) : '');
   let activityOpen = $state(false);
+  const markMotion = $derived(MARK_MOTIONS[Math.max(0, assistant.transcript.items.filter(item => item.kind === 'reply').findIndex(item => item.id === reply.id)) % MARK_MOTIONS.length]);
   const looked = $derived(reply.status === 'done' ? lookedAt(reply) : []);
   const parts = $derived(growingReplyParts(reply.text, reply.status === 'working', partsCache));
   const fail = $derived(reply.error ? failure(reply.error) : null);
@@ -84,8 +87,8 @@
   {/each}
 
   {#if line}
-    <div class="activity" use:visibility>
-      <button class="progress" type="button" aria-expanded={activityOpen} onclick={() => activityOpen = !activityOpen}><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>{line}</span></button>
+    <div class="activity" use:visibility out:surface={{ duration: 120, y: 0 }}>
+      <button class="progress" type="button" aria-expanded={activityOpen} onclick={() => activityOpen = !activityOpen}><Mark height={24} activity={reply.status === 'working' && !assistant.stopping ? markMotion : undefined} /><span>{line}</span></button>
       {#if activityOpen}<ul class="activity-steps" in:surface={{ duration: 140, y: 0 }}>{#each reply.steps as step (step.id)}<li>{stepLabel(step.name)} · {step.status === 'ok' ? 'Completed' : step.status === 'error' ? 'Failed' : step.status === 'running' ? 'Running' : step.status === 'stopped' ? 'Stopped' : 'Waiting'}</li>{:else}<li>Waiting for reported activity.</li>{/each}</ul>{/if}
     </div>
   {/if}
@@ -209,23 +212,6 @@
   }
   .progress:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   @media (pointer: coarse) { .progress { min-height: 44px; } }
-  .dots {
-    display: inline-flex;
-    gap: 3px;
-  }
-  .dots i {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--text-2);
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-  .dots i:nth-child(2) {
-    animation-delay: 0.15s;
-  }
-  .dots i:nth-child(3) {
-    animation-delay: 0.3s;
-  }
   .note {
     color: var(--text-2);
     font-size: 12.5px;

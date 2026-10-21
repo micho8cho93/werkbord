@@ -164,7 +164,7 @@ heading (the provider chooser, New, Close) and the box.
 
 ## Interaction rules
 
-Motion preserves the current icons and geometry and acknowledges observed state. Salie fades only newly appended text; boards preserve card continuity; charts reveal proportions without delaying their labels or exact values. Initial loads and reconnects establish a baseline rather than replaying accomplishments. All spatial effects respect reduced motion. See [MOTION.md](docs/MOTION.md) for timing, interaction and verification details.
+Motion preserves the current icons and layout and acknowledges observed state. Salie’s activity mark uses the six approved pixel studies; Git and attachment transfers use bounded directional and indeterminate feedback, with success reserved for reported results. Salie fades only newly appended text; boards preserve card continuity; charts reveal proportions without delaying their labels or exact values. Initial loads and reconnects establish a baseline rather than replaying accomplishments. All spatial effects respect reduced motion. See [MOTION.md](docs/MOTION.md) for timing, interaction and verification details.
 
 - **Vocabulary.** Needs you names attention; Questions is its question filter. Calendar contains Calendar and Timeline
   presentations. A repository project's Calendar schedules agent execution ("Not scheduled to run"); work projects

@@ -680,8 +680,15 @@ export class AssistantStore {
     }
     const id = this.session!.id;
     for (const s of todo) {
+      // Removing a queued file must not cause it to be uploaded later. A new session also ends this batch.
+      if (!this.staged.includes(s) || this.session?.id !== id) continue;
       try {
         const info = await assistantApi.attach(id, s.file!, s.name, true);
+        if (!this.staged.includes(s) || this.session?.id !== id) {
+          // Removal is not cancellation of an in-flight request. Release a late accepted file explicitly.
+          try { await assistantApi.detach(id, info.id); } catch { /* Otherwise its existing retention applies. */ }
+          continue;
+        }
         s.id = info.id;
         s.expiresAt = Date.parse(info.expiresAt);
         s.file = undefined; // the page does not keep it either

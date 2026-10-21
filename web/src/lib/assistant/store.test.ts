@@ -433,6 +433,32 @@ describe('files', () => {
     expect(a.staged).toHaveLength(0);
   });
 
+  it('skips removed queued uploads and releases an in-flight upload accepted after removal', async () => {
+    const a = await page();
+    a.show();
+    await srv.until(() => a.status === 'ready');
+    await a.stageFiles([text('first.md'), text('second.md')]);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => release = resolve);
+    let uploading = false;
+    vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+      if (init?.method === 'POST' && String(input).endsWith('/attachments')) {
+        uploading = true;
+        await gate;
+      }
+      return srv.fetch(input, init);
+    });
+    const batch = a.allowFiles();
+    await srv.until(() => uploading);
+    for (const file of [...a.staged]) await a.removeFile(file.key);
+    release();
+    await batch;
+    expect(srv.called('POST', '/attachments')).toHaveLength(1);
+    expect(srv.called('DELETE', '/attachments')).toHaveLength(1);
+    expect(srv.attachments).toHaveLength(0);
+    expect(a.staged).toHaveLength(0);
+  });
+
   it('are refused before they go anywhere if too big, empty, not text, or too many', async () => {
     const a = await page();
     a.show();

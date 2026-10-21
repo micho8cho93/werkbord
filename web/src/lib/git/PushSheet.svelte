@@ -1,5 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import TransferStatus from '../TransferStatus.svelte';
+  import { visibility } from '../motion';
   import { ApiError, api } from '../api';
   import { shortSha, upstreamLabel } from '../gitui';
   import type { GitActionResult } from '../types';
@@ -61,7 +63,7 @@
       <button class="btn primary" onclick={() => sheets.close()}>Done</button>
     {:else}
       <button class="btn" onclick={() => sheets.close()}>Cancel</button>
-      <button class="btn primary" disabled={!branch || busy} onclick={push}>{busy ? 'Pushing…' : `Push to ${remote}`}</button>
+      <button class="btn primary transfer-button push-button" data-transfer-state={busy ? 'pending' : undefined} use:visibility disabled={!branch || busy} onclick={push}>{#if busy}<TransferStatus state="pending" direction="up" />{/if}<span>{busy ? 'Pushing…' : `Push to ${remote}`}</span></button>
     {/if}
   {/snippet}
 </Sheet>

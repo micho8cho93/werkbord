@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { surface } from '../motion';
   import { onDestroy, onMount, tick } from 'svelte';
   import Icon from '../Icon.svelte';
   import { desktop } from '../desktop.svelte';
   import { chooseFiles } from './nativefiles';
   import { detect, Dictation, disclosure, joinSpoken, recognisesLocally, type DictationPhase } from './dictation';
   import { assistant } from './store.svelte';
-  import { clock, retentionNote, size } from './words';
+  import { retentionNote, size } from './words';
+  import AttachmentChip from './AttachmentChip.svelte';
 
   // The box at the bottom: words, files, dictation, and the one button that sends or stops.
 
@@ -268,16 +268,18 @@
   {#if assistant.staged.some((s) => s.state !== 'asking')}
     <ul class="files" aria-label="Attached files">
       {#each assistant.staged.filter((s) => s.state !== 'asking') as f (f.key)}
-        <li class="file" in:surface={{ duration: 120, y: 0 }} data-state={f.state}>
-          <Icon name="attach" size={13} />
-          <span class="fn">{f.name}</span>
-          <span class="sz">
-            {#if f.state === 'uploading'}adding…{:else if f.state === 'error'}{f.error}{:else if f.state === 'expired'}kept too long, removed{:else}{size(f.bytes)}{f.expiresAt ? ` · until ${clock(f.expiresAt)}` : ''}{/if}
-          </span>
-          <button class="x" type="button" onclick={() => assistant.removeFile(f.key)} aria-label="Remove {f.name}"><Icon name="close" size={12} /></button>
-        </li>
+        <AttachmentChip file={f} onremove={() => assistant.removeFile(f.key)} />
       {/each}
     </ul>
+    <p class="caption" role="status">
+      {#if assistant.staged.some(file => file.state === 'uploading')}
+        Adding files…
+      {:else if assistant.staged.some(file => file.state === 'error')}
+        The draft is kept. Remove the failed file or attach it again.
+      {:else if assistant.readyFiles.length > 0}
+        Files ready for your next message.
+      {/if}
+    </p>
   {/if}
 
   {#if listening}
@@ -473,47 +475,8 @@
     padding: 0;
     list-style: none;
   }
-  .file {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    max-width: 100%;
-    min-height: 30px;
-    padding: 0 4px 0 10px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-    font-size: 12.5px;
-  }
-  .file[data-state='error'] .sz,
-  .file[data-state='expired'] .sz {
-    color: var(--danger-text);
-  }
-  .fn {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .sz {
-    color: var(--text-2);
-    font-size: 12px;
-    white-space: nowrap;
-  }
-  .x {
-    display: inline-grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    border: 0;
-    border-radius: 50%;
-    background: none;
-    color: var(--text-2);
-  }
-  .x:hover {
-    background: var(--surface-2);
-    color: var(--text);
-  }
+  .sz { color: var(--text-2); font-size: 12px; }
+  .fn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .caption {
     display: flex;
     align-items: center;

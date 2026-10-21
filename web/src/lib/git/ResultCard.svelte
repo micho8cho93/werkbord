@@ -2,6 +2,7 @@
   import { outcomeTitle, outcomeTone, safeURL, shortSha } from '../gitui';
   import type { GitActionResult } from '../types';
   import { acknowledge } from '../motion';
+  import TransferStatus from '../TransferStatus.svelte';
 
   // What an action did, with its two sides apart: what changed on THIS computer, and what
   // the REMOTE confirmed. A local change is never presented as something done on a remote,
@@ -9,10 +10,14 @@
 
   let { result }: { result: GitActionResult } = $props();
   const tone = $derived(outcomeTone(result.outcome));
+  const confirmed = $derived(result.ok && tone === 'ok' && (!result.remote || result.remote.verified));
 </script>
 
-<div class="g-notice" use:acknowledge={{ value: result, success: result.ok && tone === 'ok', fresh: true }} data-tone={tone === 'ok' ? 'ok' : tone === 'neutral' ? 'neutral' : 'bad'} role="status">
-  <strong>{outcomeTitle(result.outcome)}</strong>
+<div class="g-notice" use:acknowledge={{ value: result, success: confirmed, fresh: true }} data-tone={tone} role="status">
+  <div class="result-heading">
+    {#if confirmed}<TransferStatus state="done" />{:else}<span class="result-dot" aria-hidden="true"></span>{/if}
+    <strong>{outcomeTitle(result.outcome)}</strong>
+  </div>
   <p class="g-wrap">{result.message}</p>
 
   {#if result.blockers?.length}
@@ -72,6 +77,10 @@
 </div>
 
 <style>
+  .result-heading { display: flex; align-items: center; gap: 8px; }
+  .result-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+  [data-tone='ask'] .result-dot { background: var(--warn); }
+  [data-tone='neutral'] .result-dot { background: var(--text-2); }
   .sides {
     display: grid;
     gap: 8px;
@@ -87,7 +96,7 @@
   }
 
   .unconfirmed {
-    color: var(--warn);
+    color: var(--warn-text);
   }
 
   pre {

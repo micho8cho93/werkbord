@@ -25,11 +25,15 @@
 </script>
 
 <script lang="ts">
-  let { height = 22, label = '' }: { height?: number; label?: string } = $props();
+  import { markActivity } from './mark-animation';
+  import type { MarkMotion } from './mark-motion';
+  let { height = 22, label = '', activity }: { height?: number; label?: string; activity?: MarkMotion } = $props();
 </script>
 
 <svg
   class="mark"
+  data-activity={activity}
+  use:markActivity={activity}
   viewBox="0 0 130 94"
   height={height}
   width={(height * 130) / 94}
@@ -44,5 +48,6 @@
   .mark {
     display: block;
     flex: none;
+    overflow: visible;
   }
 </style>

@@ -901,10 +901,25 @@ html.asst-open body {
 }
 
 /* Motion observes visibility; it never pauses the underlying work. */
-:root[data-motion-paused] *, [data-motion-offscreen] * {
+:root[data-motion-paused] *, :root[data-motion-paused] *::before, :root[data-motion-paused] *::after,
+[data-motion-offscreen], [data-motion-offscreen] *, [data-motion-offscreen]::after, [data-motion-offscreen] *::after {
   animation-play-state: paused !important;
 }
 @media (prefers-reduced-motion: no-preference) {
   .go svg { animation: control-arrive 100ms ease-out; }
 }
 @keyframes control-arrive { from { opacity: .35; } to { opacity: 1; } }
+
+/* Fixed-footprint transfer feedback; operation and success text remain available without motion. */
+.transfer-button { position: relative; overflow: hidden; justify-content: center; }
+.transfer-button.fetch-button { min-inline-size: 8.4em; }
+.transfer-button.push-button { min-inline-size: 11em; }
+.transfer-button[data-transfer-state='pending'], .transfer-button.primary[data-transfer-state='pending'] { background: var(--surface-2); color: var(--text); border-color: var(--accent); opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .transfer-button[data-transfer-state='pending']::after {
+    content: ''; position: absolute; left: 5px; right: 5px; bottom: 2px; height: 2px;
+    background: linear-gradient(90deg, transparent 0 34%, var(--accent) 34% 66%, transparent 66%);
+    background-size: 300% 100%; animation: transfer-current 1.2s linear infinite;
+  }
+}
+@keyframes transfer-current { from { background-position: 100% 0; } to { background-position: 0 0; } }
