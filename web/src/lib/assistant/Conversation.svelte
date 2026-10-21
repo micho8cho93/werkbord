@@ -29,13 +29,20 @@
 
   let followingFrame = 0;
   let jumpFrame = 0;
+  let lastScrollTop = 0;
   function selecting() {
     const selection = document.getSelection();
     return !!selection && !selection.isCollapsed && !!scroller && (scroller.contains(selection.anchorNode) || scroller.contains(selection.focusNode) || selection.containsNode(scroller, true));
   }
   function onScroll() {
     if (!scroller || jumpFrame) return;
-    stuck = !selecting() && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+    const top = scroller.scrollTop;
+    const atEnd = scroller.scrollHeight - top - scroller.clientHeight < 80;
+    // A queued scroll event can arrive after more cards have increased the height.
+    // Leave the bottom only when the reader moves upwards, not when content grows.
+    if (selecting() || (!atEnd && top < lastScrollTop)) stuck = false;
+    else if (atEnd) stuck = true;
+    lastScrollTop = top;
     if (stuck) behind = false;
   }
   function interruptFollow() {
@@ -46,6 +53,7 @@
   function toEnd() {
     if (!scroller || selecting()) return;
     scroller.scrollTop = scroller.scrollHeight;
+    lastScrollTop = scroller.scrollTop;
     stuck = true; behind = false;
   }
   function follow() {

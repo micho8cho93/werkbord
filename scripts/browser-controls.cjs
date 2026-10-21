@@ -69,12 +69,15 @@ let browser;
  await edit.getByRole('textbox',{name:'Title',exact:true}).fill(t.title+' changed');
  assert(await edit.getByRole('button',{name:'Save',exact:true}).isEnabled());
  await page.keyboard.press('Escape');
+ await edit.waitFor({ state: 'detached' });
  await page.setViewportSize({width:390,height:844}); await page.goto(individual+`/#/p/${p.id}/board`);
  await page.getByRole('button',{name:'Switch project, current: '+p.name,exact:true}).waitFor();
  await page.locator('.head.deck').waitFor();
  await page.getByRole('button',{name:'Jump to',exact:true}).waitFor({state:'hidden'});
  await page.getByRole('button',{name:'Switch project, current: '+p.name,exact:true}).click();
- await page.getByRole('dialog').waitFor(); await page.keyboard.press('Escape');
+ const jump = page.getByRole('dialog', { name: 'Jump to', exact: true });
+ await jump.waitFor(); await page.keyboard.press('Escape');
+ await jump.waitFor({ state: 'detached' });
  console.log('PASS one task edit entry and one working phone project switcher');
  // Presentation fixtures cover connected/disconnected/legacy/offline directory states.
  // Real profile storage, ordinary-member visibility, revocation and freshness are covered by Go tests.

@@ -302,6 +302,9 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    await bar.click(); const editor=page.getByRole('dialog',{name:'Edit task'}); await editor.locator('input[maxlength="200"]').waitFor();
    await editor.locator('input[maxlength="200"]').fill('Edited in Universal '+workspace); await editor.getByRole('button',{name:'Save changes',exact:true}).click();
    await wait(async()=> (await read()).title==='Edited in Universal '+workspace,'Universal '+workspace+' editor saves');
+   // Persistence is acknowledged before the sheet's exit transition removes its DOM.
+   // Require both the saved title above and actual editor removal, without assuming they share a frame.
+   await editor.waitFor({ state: 'detached' });
    assert(await side.getByRole('button',{name:'Calendar',exact:true}).isVisible()); assert.equal(await editor.count(),0,'editor closes after acknowledged save');
  }
  // Scheduled events retain their time of day and still carry a shared request, distinct from planned dates.

@@ -293,7 +293,14 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Three changes waiting: one press answers them all, each with its own request, in order.
         const all = assistantFrame.getByTestId('assistant-confirm-all');
         assert.match(await all.innerText(), /3 changes are waiting/);
-        await sleep(500); // let the view settle at the bottom, where the bar is
+        const reply = assistantFrame.locator('article.reply').last();
+        await reply.getByText('Reply finished.', { exact: true }).waitFor();
+        await reply.locator('.activity').waitFor({ state: 'detached' });
+        await indFrame.waitForFunction(() => {
+            const bar = document.querySelector('[data-testid="assistant-confirm-all"]');
+            const log = bar?.closest('[role=log]');
+            return log && bar.getBoundingClientRect().bottom <= log.getBoundingClientRect().bottom + 1;
+        });
         const geo = await all.evaluate(el => { const r = el.getBoundingClientRect(), sc = el.closest('[role=log]'), box = sc.getBoundingClientRect(); return { barBottom: r.bottom, boxBottom: box.bottom, top: sc.scrollTop, height: sc.scrollHeight, client: sc.clientHeight }; });
         assert.ok(geo.barBottom <= geo.boxBottom + 1, 'the bar is fully in view, not hidden behind the box: ' + JSON.stringify(geo));
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-confirm-all.png') });
