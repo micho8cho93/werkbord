@@ -324,6 +324,13 @@ func TestTeamDesktopBrowserFixture(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "license.json"), doc, 0600); err != nil {
 		t.Fatal(err)
 	}
+	perpetual, err := license.Issue(license.Claims{Schema: license.Schema, Product: "werkbord-team", Edition: license.EditionTeam, ID: "lic_fixture_perpetual", Customer: "Browser test", Seats: 10, IssuedAt: time.Now().Add(-time.Hour)}, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "perpetual-license.json"), perpetual, 0600); err != nil {
+		t.Fatal(err)
+	}
 	makeDaemon := func() *Daemon {
 		cfg := storageCfg(t)
 		cfg.RunNode = false

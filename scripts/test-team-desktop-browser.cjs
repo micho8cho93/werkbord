@@ -46,6 +46,15 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
   if(['Devices','Workspace Hosts'].includes(label))assert(await page.getByRole('button',{name:'Remove host',exact:true}).isDisabled(),'final Host removal must be disabled');
   if(label==='Workspace Hosts')await page.getByText(/^Your workspace currently has one host\. Add two more hosts for fault tolerance\./).waitFor();
   if(['Devices','Workspace Hosts','Connectivity'].includes(label))await shot(page,label.toLowerCase().replaceAll(' ','-'));
+  if(label==='License'){
+   await page.getByText(/10 seats · expires/).waitFor();
+   await page.locator('input[type=file]').setInputFiles(path.join(temp,'perpetual-license.json'));
+   await page.getByRole('button',{name:'Activate license',exact:true}).click();
+   await page.getByText('10 seats · no runtime expiry',{exact:true}).waitFor();
+   assert.equal(await page.getByText(/Invalid Date/).count(),0,'perpetual renewal has no invented expiry');
+   await shot(page,'license-perpetual');
+   console.log('PASS dated license display and signed perpetual renewal without an invalid expiry');
+  }
   if(label==='Analytics'){
    await page.getByText('No ticket activity in this period. Try a longer time range or another project.',{exact:true}).waitFor();
    await shot(page,'analytics');await shot(page,'analytics-mobile',390,844);await page.setViewportSize({width:1440,height:1000});

@@ -237,9 +237,9 @@ async function backupsView() {
 }
 
 function licenseView() {
-  if (!state.desktop) return h('section', { class: 'panel' }, h('h2', {}, 'Team license'), h('p', { class: 'muted' }, 'Open the separately installed Werkbord Team app to manage this computer’s license.'));
+  if (!state.desktop) return h('section', { class: 'panel' }, h('h2', {}, 'Team license'), h('p', { class: 'muted' }, 'Open Werkbord on this computer to manage its Team license.'));
   const l = state.device.license;
-  return h('section', { class: 'panel' }, h('h2', {}, 'Werkbord Team license'), l ? [h('p', { class: 'ok' }, 'Active for ' + l.customer), h('p', { class: 'muted' }, l.seats + ' seats · expires ' + new Date(l.expiresAt).toLocaleDateString())] : h('p', { class: 'muted' }, state.me.member.role === 'owner' ? state.device.licenseError : 'This workspace’s owner manages the Team license.'),
+  return h('section', { class: 'panel' }, h('h2', {}, 'Werkbord Team license'), l ? [h('p', { class: 'ok' }, 'Active for ' + l.customer), h('p', { class: 'muted' }, l.seats + ' seats · ' + (l.expiresAt ? 'expires ' + new Date(l.expiresAt).toLocaleDateString() : 'no runtime expiry'))] : h('p', { class: 'muted' }, state.me.member.role === 'owner' ? state.device.licenseError : 'This workspace’s owner manages the Team license.'),
     state.me.member.role === 'owner' ? licenseImport() : h('p', { class: 'muted' }, 'The workspace owner manages its license.'));
 }
 
