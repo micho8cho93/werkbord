@@ -17,7 +17,9 @@ project and issuer public information; it contains no administrative or signing 
 
 The browser signs in using Supabase Auth, then verifies a TOTP authenticator.
 The QR image is normalised from the SDK's SVG data URL; manual setup and copying
-the setup key remain available. Passwords, authenticator secrets and session
+the setup key remain available. Retrying an interrupted setup removes only
+unverified TOTP factors, preserving verified authenticators. Passwords,
+authenticator secrets and session
 tokens are not persisted by the console. Ordinary form drafts persist only in the
 browser tab. Do not send passwords, MFA codes or recovery passphrases in chat.
 

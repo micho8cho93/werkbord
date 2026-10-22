@@ -9,7 +9,8 @@ export function qrImageURL(value){
   const metadata=value.slice(0,comma),payload=value.slice(comma+1);
   svg=metadata.includes(';base64')?atob(payload):payload.trimStart().startsWith('<')?payload:decodeURIComponent(payload);
  }
- if(!svg.trimStart().startsWith('<svg'))throw Error('The authenticator QR image is invalid. Use the manual setup key.');
+ const root=svg.replace(/^(?:\s*(?:<\?xml[^?]*\?>|<!--[\s\S]*?-->))*\s*/, '');
+ if(!root.startsWith('<svg'))throw Error('The authenticator QR image is invalid. Use the manual setup key.');
  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
 }
 
