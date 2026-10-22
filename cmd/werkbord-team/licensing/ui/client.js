@@ -3,7 +3,7 @@ import {qrImageURL,encryptRegister,decryptRegister} from './operator-tools.js';
 
 const root=document.querySelector('#app');
 const hosted=location.protocol==='https:';
-const boot=await fetch(hosted?'./config.json':'/api/config',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('The operator configuration could not be loaded. Refresh or contact the operator.');return r.json();});
+const boot=await fetch(hosted?'./config.json':'/api/config',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('The operator configuration could not be loaded. Refresh or contact the operator.');return r.json();}).catch(error=>{root.innerHTML='<main class="auth"><h1>Unable to connect to licensing</h1><p role="alert">The operator configuration could not be loaded. Check your connection and reload the console.</p><button id="retry-connection">Reload console</button></main>';document.querySelector('#retry-connection').onclick=()=>location.reload();throw error;});
 const {config}=boot;
 if(location.hash.includes('access_token'))history.replaceState(null,'',location.pathname);
 const db=createClient(config.supabaseURL,config.publishableKey,{auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
