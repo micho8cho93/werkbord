@@ -2,7 +2,8 @@
 
 The operator requested production issuance, a complete record of licenses,
 expansion/replacement, commercial closure and ongoing issuance without a fixed
-batch limit. Michel is the sole operator with a written recovery procedure.
+batch limit. Michel is the initial operator and recovery custodian, with a written
+procedure for recovery and for authorising additional operators later.
 
 On 2026-10-22 the operator clarified that revocation means closing/replacing an
 entitlement when a customer upgrades or ends their Team license. Customer licensing

@@ -1,7 +1,8 @@
 # License issuance and recovery operations
 
-The product owner, Michel, is the sole operator. The vendor console and register
-are implemented; **production activation and publication remain on hold** until
+The product owner, Michel, is the initial operator and recovery custodian.
+Additional operators can be authorised using the procedure below. The vendor
+console and register are implemented; **production activation and publication remain on hold** until
 operator enrolment and independent recovery checks below are completed.
 
 ## What runs where
@@ -35,9 +36,11 @@ files and files signed by an unconfigured historical issuer.
 
 ## Initial activation
 
-1. Configure Michel's chosen email in the private operator allow-list. It is
-   deliberately empty until that email is supplied. Do not grant general
-   authenticated-user access or use user-editable metadata for authorisation.
+1. Confirm Michel's chosen email is enabled in the private operator allow-list.
+   The initial production address has been configured. A new recovery destination
+   starts with an empty allow-list and needs its operators configured. Do not
+   grant general authenticated-user access or use user-editable metadata for
+   authorisation.
 2. Open the console, create the operator account with that email, confirm the
    email, sign in and enrol the authenticator. Store independent recovery access
    for the email account, Supabase organisation and authenticator.
@@ -60,6 +63,49 @@ files and files signed by an unconfigured historical issuer.
 
 The standalone operator bundle on the Desktop contains the executable, public
 configuration, launch/protection commands and these instructions.
+
+## Add or disable operators
+
+Operator access is managed in the dedicated licensing project's Supabase SQL
+Editor, using the project owner's administrative access. There is no operator
+management screen in the local console yet. The allow-list supports multiple
+email addresses; adding another does not replace Michel's access. Keep the
+approved addresses and dated access changes in the independent recovery notes.
+
+To add an operator, replace the example address, run the following against
+`werkbord-licensing` (`czereygxndotenlqndbj`), and check the returned row:
+
+```sql
+insert into licensing_private.operator_emails(email, enabled)
+values (lower('operator@example.com'), true)
+on conflict (email) do update set enabled = excluded.enabled
+returning email, enabled;
+```
+
+The person then creates their own console account, confirms that email and
+enrols their own authenticator. Do not share passwords, MFA factors or the
+Supabase project owner's administrative account. Each enabled operator has the
+same register permissions, including issuance requests, expansion, closure,
+imports and backup access. This does not grant Supabase dashboard access or
+provide the issuer private key: signing still requires a separately authorised,
+locally unlocked signer. Michel remains responsible for key recovery.
+
+To disable an operator without removing their historical identity:
+
+```sql
+update licensing_private.operator_emails
+set enabled = false
+where email = lower('operator@example.com')
+returning email, enabled;
+```
+
+The backend checks this setting on every register operation, including signing
+completion, so the next request is refused even with an existing session. Keep
+at least one independently recoverable operator enabled. Re-enabling uses the
+same add statement; changing an address requires authorising the new address,
+verifying its account/MFA access, then disabling the old address. Operator
+allow-lists and Auth enrolment are configured separately from register snapshots
+during recovery; reapply the approved list before restoring license records.
 
 ## Issue, expand, close and deliver
 
