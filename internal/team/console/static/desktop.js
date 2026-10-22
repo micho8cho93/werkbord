@@ -7,6 +7,8 @@ let invitationLink = '';
 let activeRequest = null;
 let runnerStatus = null;
 let requestRefresh = null;
+// Keep the selected file outside the rendered form: live refreshes replace its DOM.
+let selectedLicenseFile = null;
 
 async function deviceApi(method, path, body) {
   const res = await fetch(BASE + '/api/device/v1' + path, { method, headers: { Authorization: 'Bearer ' + state.token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
@@ -87,8 +89,44 @@ function desktopConnecting(serviceRunning = true) {
 }
 
 function licenseImport() {
-  const file = h('input', { type: 'file', accept: '.json,.werkbord-license,application/json', required: true, name: 'license-file' });
-  return h('form', { onsubmit: e => { e.preventDefault(); act(async () => { if (!file.files.length) throw new Error('Choose your license file.'); if (file.files[0].size > 16384) throw new Error('This license file is too large.'); const document = await file.files[0].text(); try { JSON.parse(document); } catch (_) { throw new Error('Choose a valid Werkbord Team license file.'); } await deviceApi('POST', '/license', { document }); state.device = await deviceApi('GET', '/state'); state.info = 'Your Team license is active.'; }); } }, field('License file', file), h('button', { class: 'primary' }, 'Activate license'));
+  const selected = h('p', { class: 'muted license-selection', role: 'status' });
+  const activate = h('button', { class: 'primary', type: 'submit' }, 'Activate license');
+  const update = () => {
+    selected.textContent = selectedLicenseFile ? 'Selected: ' + selectedLicenseFile.name : 'No license file selected.';
+    activate.disabled = !selectedLicenseFile;
+    const transfer = new DataTransfer();
+    if (selectedLicenseFile) transfer.items.add(selectedLicenseFile);
+    file.files = transfer.files;
+  };
+  const choose = files => {
+    if (actionBusy || !files?.length) return;
+    selectedLicenseFile = files.length === 1 ? files[0] : null;
+    state.error = files.length > 1 ? 'Choose one license file at a time.' : selectedLicenseFile.size > 16384 ? 'This license file is too large. Choose a license file up to 16 KiB.' : '';
+    if (state.error) selectedLicenseFile = null;
+    update();
+    render();
+  };
+  const file = h('input', { type: 'file', accept: '.json,.werkbord-license,application/json', name: 'license-file', 'aria-describedby': 'license-file-help', onchange: e => choose(e.currentTarget.files) });
+  update();
+  return h('form', { class: 'license-import',
+    ondragover: e => {
+      if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = actionBusy ? 'none' : 'copy';
+      if (!actionBusy) e.currentTarget.classList.add('license-drop-over');
+    },
+    ondragleave: e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('license-drop-over'); },
+    ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('license-drop-over'); choose(e.dataTransfer?.files); },
+    onsubmit: e => { e.preventDefault(); act(async () => {
+      const licenseFile = selectedLicenseFile;
+      if (!licenseFile) throw new Error('Choose or drop your license file.');
+      const document = await licenseFile.text();
+      try { JSON.parse(document); } catch (_) { throw new Error('Choose a valid Werkbord Team license JSON file.'); }
+      await deviceApi('POST', '/license', { document });
+      selectedLicenseFile = null;
+      state.device = await deviceApi('GET', '/state');
+      state.info = 'Your Team license is active.';
+    }); }
+  }, field('License file', file, h('span', { id: 'license-file-help', class: 'muted' }, 'Drop your license here or choose a file.')), selected, activate);
 }
 
 function alwaysOnHelp() {

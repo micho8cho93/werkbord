@@ -1,7 +1,7 @@
 // Real Team device APIs/database + a disposable individual controller. No OS service or privileged tunnel is installed.
 const fs=require('node:fs'), os=require('node:os'), path=require('node:path'), cp=require('node:child_process'), net=require('node:net'), assert=require('node:assert/strict');
 const {once}=require('node:events');
-const {chromium}=require('../web/node_modules/playwright');
+const {chromium,webkit}=require('../web/node_modules/playwright');
 const root=path.resolve(__dirname,'..'), temp=fs.mkdtempSync(path.join(os.tmpdir(),'team-desktop-browser-'));
 const artifacts=process.env.BROWSER_ARTIFACT_DIR||path.join(temp,'screenshots');fs.mkdirSync(artifacts,{recursive:true});
 const children=[]; let browser;
@@ -12,6 +12,19 @@ async function port(){const s=net.createServer();s.listen(0,'127.0.0.1');await o
 async function wait(fn,label){for(let n=0;n<900;n++){for(const c of children)if(c.exitCode!==null)throw Error(c.diagnostics);if(await fn())return;await delay(100);}throw Error('Timed out: '+label);}
 async function http(base,token,method,url,body){const r=await fetch(base+url,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});if(r.status===204)return null;const d=await r.json();if(!r.ok)throw Error(r.status+': '+JSON.stringify(d));return d;}
 async function shot(page,name,width=1440,height=1000){await page.setViewportSize({width,height});await page.evaluate(()=>document.fonts.ready);if(!process.env.BROWSER_SKIP_SCREENSHOTS)await page.screenshot({path:path.join(artifacts,name+'.png'),fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'horizontal overflow: '+name);}
+async function dropLicense(page, files) {
+ const transfer = await page.evaluateHandle(files => {
+  const transfer = new DataTransfer();
+  for (const file of files) transfer.items.add(new File([file.document], file.name, { type: 'application/json' }));
+  return transfer;
+ }, files);
+ try {
+  const form = page.locator('.license-import');
+  await form.dispatchEvent('dragover', { dataTransfer: transfer });
+  assert(await form.evaluate(el => el.classList.contains('license-drop-over')), 'the license form accepts file drops');
+  await form.dispatchEvent('drop', { dataTransfer: transfer });
+ } finally { await transfer.dispose(); }
+}
 (async()=>{
  const individual=path.join(temp,'personal');run('go',['build','-o',individual,'./scripts/browser-fixture']);
  const individualURL='http://127.0.0.1:'+await port();const full='disposable-browser-credential';
@@ -23,11 +36,47 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await wait(()=>fs.existsSync(path.join(temp,'ready.json')),'fixture');const m=JSON.parse(fs.readFileSync(path.join(temp,'ready.json')));
  const dev=(which,method,url,body)=>http(m[which],m[which+'Key'],method,'/api/device/v1'+url,body);
  const team=(method,url,body)=>http(m.first,m.firstKey,method,'/api/team/v1'+url,body);
- browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(90000);
+ browser=await (process.env.BROWSER_ENGINE==='webkit'?webkit:chromium).launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(90000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(m.first+'/#token='+encodeURIComponent(m.firstKey));await page.getByRole('button',{name:'Create Team',exact:true}).waitFor();
  await shot(page,'onboarding');await shot(page,'onboarding-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
- await page.getByRole('button',{name:'Create Team',exact:true}).click();await page.locator('input[type=file]').setInputFiles(path.join(temp,'license.json'));await page.getByRole('button',{name:'Activate license',exact:true}).click();
+ await page.getByRole('button',{name:'Create Team',exact:true}).click();
+ const activate = () => page.getByRole('button', { name: 'Activate license', exact: true });
+ assert(await activate().isDisabled(), 'activation waits for a selected license');
+ const imports = [];
+ page.on('request', r => { if (r.method() === 'POST' && r.url().endsWith('/api/device/v1/license')) imports.push(r.postDataJSON().document); });
+ await dropLicense(page, [{ name: 'one.json', document: '{}' }, { name: 'two.json', document: '{}' }]);
+ await page.getByRole('alert').filter({ hasText: 'Choose one license file at a time.' }).waitFor();
+ assert(await activate().isDisabled());
+ await dropLicense(page, [{ name: 'large.json', document: ' '.repeat(16385) }]);
+ await page.getByRole('alert').filter({ hasText: 'This license file is too large.' }).waitFor();
+ assert(await activate().isDisabled());
+ await dropLicense(page, [{ name: 'broken.json', document: 'not JSON' }]);
+ await activate().click();
+ await page.getByRole('alert').filter({ hasText: 'Choose a valid Werkbord Team license JSON file.' }).waitFor();
+ assert.equal(imports.length, 0, 'invalid JSON and oversized files never reach the service');
+ await dropLicense(page, [{ name: 'unsigned.json', document: '{"claims":{},"signature":"invalid"}' }]);
+ await activate().click();
+ await page.getByRole('alert').filter({ hasText: 'the license signature is not valid' }).waitFor();
+ await page.getByRole('status').filter({ hasText: 'Selected: unsigned.json' }).waitFor();
+ assert(await activate().isEnabled(), 'a failed activation keeps the selected file available');
+ await page.locator('input[type=file]').setInputFiles(path.join(temp,'license.json'));
+ await page.evaluate(() => render());
+ await page.getByRole('status').filter({ hasText: 'Selected: license.json' }).waitFor();
+ assert(await activate().isEnabled(), 'picker selection survives a redraw');
+ assert.equal(await page.locator('input[type=file]').evaluate(el => el.files[0]?.name), 'license.json', 'the native input also retains its filename');
+ assert.equal(await page.getByRole('alert').count(), 0, 'choosing another file clears the previous activation error');
+ const original = fs.readFileSync(path.join(temp, 'license.json'), 'utf8');
+ const dropped = { name: 'werkbord-team-license.json', document: original };
+ await dropLicense(page, [dropped]);
+ await page.evaluate(() => render());
+ await page.getByRole('status').filter({ hasText: 'Selected: werkbord-team-license.json' }).waitFor();
+ await shot(page, 'license-selected'); await shot(page, 'license-selected-mobile', 390, 844); await page.setViewportSize({ width: 1440, height: 1000 });
+ await activate().click();
+ await page.getByRole('heading', { name: 'Create your workspace', exact: true }).waitFor();
+ assert.equal(imports.at(-1), original, 'drop import preserves the exact signed JSON bytes');
+ assert.equal(await page.evaluate(() => selectedLicenseFile), null, 'successful activation releases the staged file');
+ console.log('PASS license drop, picker/redraw retention, input errors, signature rejection and exact signed-byte activation');
  await page.locator('[name=setup-team]').fill('Northstar Studio');await page.locator('[name=setup-owner]').fill('Ada');await page.getByRole('button',{name:'Create workspace',exact:true}).click();
  await page.waitForFunction(()=>state.me&&state.desktop&&state.device.enrolled,{},{timeout:90000});
  let storage;await wait(async()=>{storage=await team('GET','/storage');return storage.writable;},'workspace accepting changes');await page.reload();await page.waitForFunction(()=>state.me&&state.desktop);
@@ -36,7 +85,8 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  console.log('PASS signed license import, create, real host/database bootstrap and focused workspace');
  await shot(page,'desktop');await shot(page,'mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  const adminLabels=['This computer','MCP clients','Labels','Devices','Workspace Hosts','Connectivity','Backups','License'];
- for(const label of ['Workspace','Projects','Initiatives','Reviews','Members','Analytics',...adminLabels]){
+ const destinations = process.env.BROWSER_LICENSE_ONLY ? ['License'] : ['Workspace','Projects','Initiatives','Reviews','Members','Analytics',...adminLabels];
+ for(const label of destinations){
   const tabFor={ 'Workspace':'workspace', 'This computer':'settings', 'MCP clients':'mcp', 'Workspace Hosts':'hosts' }[label] || label.toLowerCase().replaceAll(' ','');
   const nav=adminLabels.includes(label)?page.getByRole('navigation',{name:'Team administration',exact:true}):page.getByRole('navigation',{name:'Werkbord Team',exact:true});
   if(adminLabels.includes(label))await page.getByRole('navigation',{name:'Settings',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();
@@ -75,6 +125,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
    await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
   }
  }
+ if (process.env.BROWSER_LICENSE_ONLY) { assert.deepEqual(errors, []); console.log('PASS license onboarding and renewal with no page errors'); return; }
  const plan=await dev('first','GET','/removal');assert.equal(plan.canRemoveData,false);
  let ds;await wait(async()=>{ds=await team('GET','/devices');return ds[0]?.capabilities.includes('runner');},'automatic local runner registration');assert.equal(ds.length,1);assert(ds[0].capabilities.includes('runner'));assert(ds[0].capabilities.includes('workspace_host'));
  const owner=(await team('GET','/me')).member;
