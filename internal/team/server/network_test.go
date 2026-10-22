@@ -44,6 +44,39 @@ func freeTCPPort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
+// Hold the listeners together until every port has been chosen. Closing each
+// listener before choosing the next lets the kernel immediately reuse its port.
+func freeTCPPorts(t *testing.T, count int) []int {
+	t.Helper()
+	ports := make([]int, 0, count)
+	listeners := make([]net.Listener, 0, count)
+	defer func() {
+		for _, listener := range listeners {
+			_ = listener.Close()
+		}
+	}()
+	for range count {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		listeners = append(listeners, listener)
+		ports = append(ports, listener.Addr().(*net.TCPAddr).Port)
+	}
+	return ports
+}
+
+func TestNetworkFixtureChoosesDistinctTCPPorts(t *testing.T) {
+	ports := freeTCPPorts(t, 16)
+	seen := make(map[int]bool)
+	for _, port := range ports {
+		if seen[port] {
+			t.Fatalf("fixture reused TCP port %d", port)
+		}
+		seen[port] = true
+	}
+}
+
 func freeUDPPort(t *testing.T) int {
 	t.Helper()
 	c, err := net.ListenPacket("udp4", "127.0.0.1:0")
@@ -73,8 +106,9 @@ func newFirstHost(t *testing.T, endpoints ...string) (*host, service.Created, Ne
 	t.Helper()
 	cfg := config.Default()
 	cfg.DataDir = t.TempDir()
-	cfg.Addr = "127.0.0.1:" + strconv.Itoa(freeTCPPort(t))
-	cfg.BootstrapAddr = "127.0.0.1:" + strconv.Itoa(freeTCPPort(t))
+	ports := freeTCPPorts(t, 2)
+	cfg.Addr = "127.0.0.1:" + strconv.Itoa(ports[0])
+	cfg.BootstrapAddr = "127.0.0.1:" + strconv.Itoa(ports[1])
 	cfg.NetworkPort = freeUDPPort(t)
 	cfg.Endpoints = endpoints
 	cfg.RunNode = false // a test has no right to create a network interface
