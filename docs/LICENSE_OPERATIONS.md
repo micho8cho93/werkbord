@@ -1,193 +1,196 @@
 # License issuance and recovery operations
 
-Status: **proposed process; publication on hold**. The release run for
-`werkbord-v4.69.2-preview.1` was cancelled on 2026-10-21 before publication. This
-document does not grant Team production admission or change customer runtime
-licensing. The product owner is the sole issuance and recovery operator.
+The product owner, Michel, is the sole operator. The vendor console and register
+are implemented; **production activation and publication remain on hold** until
+operator enrolment and independent recovery checks below are completed.
 
-## What we are protecting
+## What runs where
 
-Customers import ordinary signed Team licenses into the public app. They do not
-need a license server, vendor account or test application. The operator needs to
-retain the ability to issue licenses and explain exactly what was issued.
+The operator console is `cmd/werkbord-team/licensing`, built with
+`make build-licensing`. It is never packaged in customer apps. It listens only on
+`http://127.0.0.1:7439` and uses the dedicated Supabase project
+`werkbord-licensing` (`czereygxndotenlqndbj`, EU West, organisation `micho8cho93`).
+The existing waitlist project is separate. Local `config.json` contains only the
+project URL, publishable API key and pinned public issuer information.
 
-Keep three things separate:
+The browser signs in using Supabase Auth, then verifies a TOTP authenticator.
+Database operations check the configured operator email, email confirmation,
+MFA assurance and the current server-side session. Other accounts and deleted
+sessions cannot access the register. Customer apps do not contact this service.
 
-| Item | Contents | Where it belongs |
-| --- | --- | --- |
-| Issuer key | The private signing key, public key, issuer ID and fingerprint | Protected operator storage; private material encrypted at rest and unlocked only for signing |
-| Issuance register | Customer reference, request reference, license terms, lifecycle events and artifact hashes | Owner-only local operator store, with versioned encrypted backups |
-| Customer artifact | The original signed license JSON | Immutable operator archive plus the copy delivered to that customer |
+The issuer private key stays on the operator's Mac, encrypted using the standard
+age passphrase format. Unlock it privately in Terminal when starting the console.
+The signing session lasts thirty minutes or until locked/terminated. The browser
+and Supabase receive signed files, not private signing material. Passwords and
+recovery passphrases must never be put in chat, flags, environment variables or
+logs. Ordinary form drafts persist in this browser tab; credentials do not.
 
-No private key, customer register or recovery password goes into the source
-repository, GitHub Actions, a public release or a customer app. Release builds
-receive public verification keys only. The Apple, Sparkle, license and archive
-manifest signing keys have separate purposes and remain separate.
-
-The current replacement license issuer has public-key SHA-256 fingerprint
+The active production public key is
+`ChctbT2EmgTYU37lb0e1_KkzSO9GR32pkRdcTR-UoYU`, fingerprint
 `b66484e825f6148e826f46e48f7134d7d00bb2ea139a700182dca1ef5ddd502b`.
-This is SHA-256 of the decoded 32-byte Ed25519 public key. See
-[TEAM_LICENSE.md](TEAM_LICENSE.md) for the current and retained public issuers.
-The previous public issuer is verification-only: its private key has not been
-located. A local test issuer must never be selected for public issuance.
+Fingerprint means SHA-256 of the decoded 32-byte Ed25519 public key. The previous
+public issuer remains trusted by customer builds, but the new operator's issuance,
+import and recovery tools currently pin the replacement issuer. They refuse test
+files and files signed by an unconfigured historical issuer.
 
-## One managed issuance path
+## Initial activation
 
-The existing `vendor license` command signs a document and refuses to overwrite
-its output. It does **not** provide the register and recovery controls described
-below. A managed operator command is still needed; until it exists, this is a
-design, not a claim that those controls have been implemented.
+1. Configure Michel's chosen email in the private operator allow-list. It is
+   deliberately empty until that email is supplied. Do not grant general
+   authenticated-user access or use user-editable metadata for authorisation.
+2. Open the console, create the operator account with that email, confirm the
+   email, sign in and enrol the authenticator. Store independent recovery access
+   for the email account, Supabase organisation and authenticator.
+3. Protect the recovered production key using `protect-key` below. Use a strong,
+   unique passphrase and retain independent access to it in a password manager.
+4. Copy the encrypted key to independent storage and run `key-check` on that
+   retrieved copy. Do not remove the existing plaintext primary until both the
+   encrypted primary and independent copy have been verified.
+5. Import only `team-license-01.json` through `team-license-10.json` from the
+   prepared Desktop folder. Supply their provenance. Imports preserve the exact
+   bytes and IDs; duplicate imports return their original records. No payment or
+   customer delivery is assumed.
+6. Download an encrypted register backup, copy it independently, verify it with
+   `backup-check`, and complete an actual restore drill into an empty recovery
+   destination. Preserve dated verification receipts.
+7. Select production hosting/backup arrangements and record their costs. The
+   project was provisioned at a quoted $0/month on the Free tier. Free projects
+   may pause after inactivity and do not provide downloadable managed database
+   backups. A created free project alone is not production admission.
 
-Each issue, renewal or seat change follows this sequence:
+The standalone operator bundle on the Desktop contains the executable, public
+configuration, launch/protection commands and these instructions.
 
-1. Record the request before signing. Require a stable request reference, a
-   customer reference, approved seats and runtime/support terms. An order line
-   can supply the request reference later; manually issued licenses use an
-   explicit manual reference. Do not infer that a manually issued license was
-   paid for.
-2. Validate the request and select the active issuer by its pinned fingerprint.
-   Reserve a unique license ID and a pending register entry under an exclusive
-   operation lock. Retrying the same request returns its original result;
-   changed terms under the same reference are refused.
-3. Unlock the encrypted signing key into the signer's standard input. Private
-   bytes and recovery passwords are never command-line arguments, environment
-   values or log output. No temporary plaintext key file is needed for routine
-   issuance.
-4. Sign canonical claims and verify the result against the pinned public key.
-   Save the exact original signed bytes using a new owner-only file, flush them
-   to disk, and complete the register entry with the file hash. Never overwrite
-   a previously issued artifact or replace its terms in place.
-5. Back up the completed register and artifacts. Once the snapshot is checked,
-   the file is ready for delivery. Record actual delivery separately: time,
-   channel and customer reference. A failed delivery is retried using the same
-   bytes and license ID; it does not issue another license.
+## Issue, expand, close and deliver
 
-The managed command must reconcile a pending entry after interruption. If its
-artifact exists and verifies with the expected claims and hash, finish that
-entry. Otherwise stop for repair. Do not silently invent another license ID or
-forget a file that may already have been delivered.
+**New license** records the customer, seats, optional runtime/support dates,
+request reference, reason and optional order reference. Leaving runtime expiry
+blank makes a perpetual runtime license. A support end date does not stop the
+runtime. There is no pre-generated batch limit or fixed issuance quota in this
+tool; hosting resources and storage still require capacity management.
 
-## Register and artifact rules
+The register reserves one operation and its terms before signing. The local
+signer fetches those approved terms using the current operator session and signs
+them. A separate server-side verifier checks the signature and claims before the
+register atomically archives the exact file and finalises the operation.
 
-Use a local SQLite register for transactions and uniqueness, and immutable
-artifact directories named by license ID. This needs no hosted database or
-customer runtime service. Take SQLite backups with its backup interface; do not
-copy a live database file without its transaction state.
+A request reference is an idempotency key: repeat matching requests retrieve the
+same operation; different terms under the same reference are refused. After a
+network error, refresh and inspect **Prepared requests** and the history before
+starting another issue. **Sign request** retries the reserved issue. **Cancel
+request** retains its audit history and releases the pending operation; it cannot
+cancel a completed signed issue.
 
-Every record needs:
+For a customer upgrading from three seats to ten, open their entitlement and use
+**Expand seats**. The new file is revision two of the same entitlement; revision
+one remains archived and appears as **Replaced**. You do not close the entitlement
+first. Existing dates are retained unless extended; an expired date must be
+extended before a new signed expansion can be issued. Seat reductions and changing
+the customer are deliberately excluded from expansion.
 
-- Stable request reference, unique license ID, customer reference and operator.
-- Edition, seats, issue time, optional runtime expiry and optional support end.
-- Issuer ID and public-key fingerprint, exact artifact hash and archive path.
-- Status events with timestamps: prepared, issued, delivered, replaced or
-  commercially cancelled. Changes append events rather than rewrite history.
-- Order/payment reference when one exists; an explicit missing/manual value
-  otherwise. A renewal or change links to the license it supersedes.
+Use **Close license** when the customer ends the entitlement. Record the reason.
+Closure prevents further expansion and preserves every original file and event.
+It is a commercial register status, **not remote revocation**: old offline files
+retain their original validity. The operator has chosen to keep customer
+licensing offline. Do not claim that closing or replacing a file remotely disables
+it, or that it stops an old public DMG using an already valid license.
 
-The register enforces unique license IDs and request references. It does not
-contain the signing key. Preserve the original JSON exactly, including its
-signed claim encoding. A CSV export may help bookkeeping, but it is not the
-authoritative register and is never edited and imported over issued history.
+Download the exact archived file and send it through the authorised customer
+channel. **Record delivery** is a separate explicit action; downloading a file
+does not prove delivery and the console does not send messages or take payments.
+Back up completed issuance before delivery. The customer imports the replacement
+through the normal Team license interface. Its seat limit must cover live members,
+including the owner. Devices do not consume additional seats.
 
-Commercial cancellation is a register event, **not remote revocation**. An
-already issued offline license remains valid according to its signed terms.
-Seat reductions or replacements likewise do not remotely destroy old files.
-See the offline limitations in [TEAM_LICENSE.md](TEAM_LICENSE.md).
+## Encrypt and check the issuer
 
-## Two backup schedules
+All commands take file paths and public configuration as arguments. Passphrases
+are entered privately at the Terminal prompt. Paths below are examples; use the
+actual secure operator and independent storage locations.
 
-### Key recovery pack
+```sh
+werkbord-licensing protect-key --config config.json \
+  --input issuer-private.pem --out issuer-private.pem.age
 
-Create this when an issuer is provisioned or rotated. Include its private and
-public keys, issuer metadata, fingerprint and these recovery instructions.
-Encrypt the pack before it leaves the operator's storage. Keep an independent
-copy that can be recovered without the issuing Mac. A password-manager copy and
-a disconnected external-drive copy are the preferred layout; the operator's
-available destinations are still being confirmed.
+werkbord-licensing key-check --config config.json \
+  --key-file /independent-storage/issuer-private.pem.age
 
-Store the recovery password in the password manager or another independent
-recovery channel, never beside the external-drive archive. Confirm that access
-to the password manager itself can be recovered without this Mac. The primary
-private key should also be encrypted at rest, with an interactive unlock for
-each issuance session. Retire the current clear PEM only after the encrypted
-primary and independent recovery copy have both been tested.
+werkbord-licensing serve --config config.json \
+  --key-file issuer-private.pem.age
+```
 
-The Mac already has GnuPG. Its passphrase-based encryption can create a portable
-encrypted pack without introducing a custom encryption format. Use its
-interactive password entry and disable symmetric passphrase caching during the
-recovery test. Do not place a production recovery password in a shell command,
-script, environment variable, chat or adjacent password file.
+`protect-key` never overwrites an existing output, verifies encryption before
+saving, uses owner-only output permissions and leaves the original untouched.
+`key-check` decrypts the selected copy, verifies the complete pinned fingerprint,
+and signs/verifies a domain-separated recovery challenge. Its JSON receipt
+contains no private key or usable customer license. Save the receipt with the
+backup inventory, not with the recovery passphrase.
 
-### Register and artifact snapshots
+## Register backups and restoration
 
-Create an encrypted, timestamped snapshot after each issuance batch and before
-customer delivery. Include the consistent register backup, all referenced
-original license files, public issuer registry and a manifest of file hashes.
-This routine snapshot contains **no private signing key**.
+**Back up register** exports a transactionally consistent snapshot containing
+issuer metadata, entitlements, operations, original signed files and audit events.
+The local console verifies artifact hashes/signatures and encrypts the snapshot
+using age before downloading it. It contains no private signing key. Retain dated
+generations and copy them outside the issuing Mac. Keep the passphrase independent
+of the stored encrypted archive. A same-Mac download is only a staging copy.
 
-Never overwrite the last good generation. Record the snapshot hash, which
-issuance records it contains, its independent storage location and the time it
-was verified. A snapshot still on the issuing Mac is a staging copy, not the
-independent backup.
+```sh
+werkbord-licensing backup-check --config config.json \
+  --input /independent-storage/werkbord-register-TIMESTAMP.json.age
+```
 
-## Written recovery procedure
+`backup-check` decrypts in memory, verifies all original files, their metadata,
+unique request identities, revision continuity and event references. Its receipt
+records the encrypted file hash, artifact count, date and result. A successful
+schema/crypto test is not proof that the file was stored independently.
 
-Run this once before publication, after changing key protection or backup
-destinations, and periodically thereafter. Record the date, source snapshot,
-fingerprint, record count, result and operator. Do not record the password.
+For a lost-Mac or service recovery:
 
-1. Retrieve the encrypted recovery pack from the independent destination. Use a
-   fresh protected recovery directory and an empty GnuPG home so a cached local
-   unlock cannot make the test appear to succeed.
-2. Enter the recovery password through GnuPG's interactive prompt. Restore the
-   issuer metadata and derive the public key from the restored private key.
-   Compare the complete fingerprint with the separately recorded expected
-   fingerprint. Stop on any mismatch.
-3. Sign and verify a fixed, domain-separated recovery challenge. This proves the
-   restored private key works without creating a usable customer license or
-   signing an archive with a license key.
-4. Retrieve and restore the register snapshot and original artifacts. Check the
-   database, every manifest hash, every license signature and all unique IDs.
-   Reconcile pending issuance entries and inspect missing backup generations
-   before any new issuance.
-5. Confirm that retrying an existing request returns its archived artifact and
-   cannot create another license. Do not send any files during this drill.
-6. Record the successful drill, remove the temporary recovery directory, and
-   retain the encrypted originals. A failed drill blocks issuance and
-   publication until corrected.
+1. Fence the former writer and retrieve the executable/source, public issuer
+   fingerprint, encrypted key, register archive and recovery credentials from
+   independent locations. Suspected theft/key compromise requires a separate
+   issuer rotation decision; restoring a backup does not resolve compromise.
+2. Provision an empty recovery Supabase project and apply the checked-in
+   migrations. Configure the authorised operator email and Auth settings; use
+   a new public configuration for the destination project. Do not repurpose or
+   overwrite a live register.
+3. Verify the retrieved key using `key-check` and the snapshot using
+   `backup-check`. Both must pass before resuming issuance.
+4. Sign into the empty console. Under **Back up register**, select **Restore a
+   backup into this empty register**. Choose the encrypted archive and enter
+   its passphrase. Local and server verification precede atomic restoration.
+   A nonempty destination is refused. Original IDs, bytes, request references
+   and events are retained; a restoration receipt is appended.
+5. Retrieve a known historical artifact and compare its hash with the original
+   archive. Verify that its completed request reference still identifies that
+   original operation. Reconcile pending operations; never invent new IDs to
+   conceal an uncertain outcome. Preserve the drill receipt and recovery date.
+6. Only then resume signing and customer delivery. End the temporary recovery
+   session and retain the encrypted source backups.
 
-For an actual lost-Mac recovery, fence the former operator store before resuming
-issuance from the restored one. Keep one authoritative writer. If theft or key
-compromise is suspected, stop issuance and plan an issuer rotation; restoring a
-backup does not resolve compromise. Retain the public verification keys needed
-for previously issued licenses.
+The console restore transfer currently supports encrypted snapshots up to 10 MiB.
+Before exceeding that operational size, use a consistent Postgres dump/restore
+process that preserves the schema and exact artifact text, and test its recovery.
+This is a recovery transport limit, not an issuance quota. No Storage bucket is
+used; original files live in the database and are included in its snapshots.
 
-## Current batch and publication conditions
+## Validation and production gate
 
-The ten licenses prepared on 2026-10-21 have been inventoried with exact file
-hashes, unique IDs, customer labels, terms and issuer fingerprint. Original
-signed files have been copied into owner-only issuer storage. They are marked
-**prepared**, with no payment or customer delivery assumed. The inventory is a
-migration seed, not yet the transactional register described above.
+Automated tests cover the Go signer, encrypted recovery, historical signature
+verification, tampering, cross-origin/host request denial, canonical TypeScript
+verification, transaction/idempotency rules, expansion, closure, cancellations,
+MFA/nonoperator/deleted-session denial and restore refusal on nonempty history.
+Database fixtures are rolled back. Browser interaction checks use synthetic data
+and do not establish a completed real operator login or customer delivery.
 
-Before resuming publication, finish and review these concrete items:
-
-- The sole operator's issuance and recovery instructions are agreed.
-- The managed issuance/register path is implemented and the existing ten files
-  are imported without reissuing or changing their signed bytes.
-- The primary private key is encrypted, an independent key recovery copy is
-  stored, and access to its recovery password is confirmed.
-- A consistent register/artifact snapshot is stored independently.
-- A recovery drill from the independent copies passes and its receipt is saved.
-- Duplicate requests, interrupted issuance, altered backup data and a wrong
-  restored key are refused by the operator tools.
-
-The public build must still pass its own signing, notarization and license
-verification checks. Completing this operator process does not waive the other
-Team production-admission requirements in
+Production activation still requires the actual operator enrolment, protection of
+the existing primary key, independently stored key/register backups, a real
+restore drill and suitable hosting arrangements. Public DMG publication also
+retains its own signing, notarisation and Team admission requirements in
 [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md).
 
-## References
-
-- [GnuPG operation commands](https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html): passphrase encryption and disabling its symmetric passphrase cache.
-- [NIST SP 800-57 Part 1 Rev. 5](https://nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-57pt1r5.pdf), Appendix B.3.1: private signing-key backup is an explicit custody decision, and recovery needs strong protection. Preserving issuance for installed apps with a pinned issuer is the reason for this controlled recovery copy; this document is not a claim of NIST compliance.
+References: [age format and library](https://pkg.go.dev/filippo.io/age),
+[Supabase backups](https://supabase.com/docs/guides/platform/backups),
+[Supabase production availability](https://supabase.com/docs/guides/deployment/going-into-prod#availability),
+[Team license protocol](TEAM_LICENSE.md).

@@ -14,3 +14,7 @@
 /.impeccable/
 
 /output/playwright/
+/cmd/werkbord-team/licensing/ui/node_modules/
+/supabase/.temp/
+/supabase/.branches/
+/.playwright-cli/

@@ -1,0 +1,1 @@
+{"name":"werkbord-licensing-ui","private":true,"type":"module","scripts":{"build":"esbuild client.js --bundle --minify --format=esm --target=es2022 --supported:template-literal=false --outfile=../operator/assets/client.js"},"dependencies":{"@supabase/supabase-js":"2.118.0"},"devDependencies":{"esbuild":"0.28.2"}}
