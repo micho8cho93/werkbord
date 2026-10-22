@@ -42,6 +42,10 @@ reset role;
 set local role authenticated;
 do $$ declare ent public.licensing_entitlements; op jsonb; begin
  select * into ent from public.licensing_entitlements where customer='Fixture customer';
+ begin
+  perform public.licensing_prepare('fixture-shorten-perpetual','expand',ent.id,1,null,10,now()+interval '1 year',null,'Attempt to shorten perpetual terms',null);
+  raise exception 'Perpetual runtime was shortened';
+ exception when raise_exception then if sqlerrm='Perpetual runtime was shortened' then raise; end if; end;
  op:=public.licensing_prepare('fixture-expand','expand',ent.id,1,null,10,null,null,'Customer requested ten seats',null);
  if op->'claims'->>'seats'<>'10' or op->'claims'->>'customer'<>'Fixture customer' then raise exception 'Expansion lost the customer or seat allowance'; end if;
  begin

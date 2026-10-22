@@ -54,6 +54,17 @@ def mentions_secret?(obj); JSON.generate(obj).include?("secrets."); end
 def perms(job, workflow); job["permissions"] || workflow["permissions"]; end
 def needs(job); Array(job["needs"]); end
 
+# GitHub Pages requires its deployment environment for OIDC. Allow only the
+# pinned deploy action, with no checkout, shell, repository writes or secrets.
+def public_pages_deployment?(job)
+  job["permissions"] == { "pages" => "write", "id-token" => "write" } &&
+    job["environment"].is_a?(Hash) && job["environment"]["name"] == "github-pages" &&
+    job["steps"].is_a?(Array) && job["steps"].length == 1 &&
+    job["steps"][0].keys.sort == ["id", "name", "uses"] &&
+    uses_of(job) == ["actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e"] &&
+    !job.key?("env") && !mentions_secret?(job)
+end
+
 workflows.each do |path, workflow|
   next unless workflow
   names = trigger_names(workflow)
@@ -68,7 +79,7 @@ workflows.each do |path, workflow|
     writable = permissions.is_a?(Hash) && permissions.values.include?("write")
     if writable
       check(!mentions_secret?(job), "#{path}: writable job #{name} mentions a secret")
-      check(!job.key?("environment"), "#{path}: writable job #{name} uses an environment with secrets")
+      check(!job.key?("environment") || public_pages_deployment?(job), "#{path}: writable job #{name} uses an environment with secrets")
     end
   end
 end

@@ -1,0 +1,14 @@
+import {mkdir,copyFile,writeFile,readFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const here=path.dirname(fileURLToPath(import.meta.url));
+const assets=path.resolve(here,'../operator/assets'),out=path.resolve(here,'../../../../dist/licensing');
+await mkdir(out,{recursive:true});
+for(const name of ['client.js','style.css','favicon.svg','geist.woff2','GEIST-LICENSE.txt'])await copyFile(path.join(assets,name),path.join(out,name));
+let html=await readFile(path.join(assets,'index.html'),'utf8');
+const csp="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src https://czereygxndotenlqndbj.supabase.co; base-uri 'none'; form-action 'self'; upgrade-insecure-requests";
+html=html.replace('<title>',`<meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer"><title>`);
+await writeFile(path.join(out,'index.html'),html);
+await copyFile(path.join(here,'hosted-config.json'),path.join(out,'config.json'));
+await writeFile(path.join(out,'.nojekyll'),'');
+console.log('Static operator console: '+out+' (public configuration only)');

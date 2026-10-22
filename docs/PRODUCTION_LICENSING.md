@@ -10,8 +10,8 @@ entitlement when a customer upgrades or ends their Team license. Customer licens
 remains offline. There is no new vendor validation interval or automatic remote
 revocation requirement. Previously signed files retain their original validity.
 
-The implemented system is a dedicated local operator console, a separately
-protected local signer and a Supabase transaction-backed register. Customers,
+The implemented system is a hosted operator console on GitHub Pages, a protected
+Supabase signer and a transaction-backed register, with an optional local signer. Customers,
 immutable signed revisions, stable request references, reasons, actual delivery
 records and lifecycle events are retained. A three-to-ten-seat expansion creates
 revision two of the same entitlement and preserves revision one as replaced.
@@ -20,8 +20,10 @@ Closing the entitlement is a separate action for a customer's shutdown.
 The dedicated project is `werkbord-licensing` in the authorised `micho8cho93`
 organisation, separate from the waitlist. MFA, configured operator identity and
 live-session checks guard every operation. Browser clients cannot write history
-or complete issuance directly. The private signing key is never sent to Supabase,
-bundled in the browser, linked into the customer service or shipped in the DMG.
+or complete issuance directly. The hosted key is held as a backend-only Supabase Edge Function secret. It is
+never bundled in the browser, linked into the customer service or shipped in the DMG.
+This intentionally replaces the original local-only signing custody policy.
+The operator URL is https://micho8cho93.github.io/werkbord/.
 
 The managed path includes signature verification, idempotent retries, pending
 operation recovery/cancellation, encrypted exports, key and snapshot checks, and
@@ -33,4 +35,5 @@ size/hosting considerations and test evidence are in
 until the real operator login/MFA enrolment, primary-key encryption, independent
 backups, restoration drill and hosting arrangements have been verified. The ten
 prepared files remain migration inputs until the authorised operator imports them;
-no payment or delivery is assumed. Public release publication remains on hold.
+no payment or delivery is assumed. Public preview publication is authorised for
+evaluation; stable Team admission remains governed by its existing release gate.

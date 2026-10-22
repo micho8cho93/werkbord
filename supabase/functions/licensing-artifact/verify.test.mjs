@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync,sign,createHash} from 'node:crypto';
-import {verifyDocument,verifySnapshot} from './verify.ts';
+import {verifyDocument,verifySnapshot,signDocument} from './verify.ts';
 
 const {privateKey,publicKey}=generateKeyPairSync('ed25519');
 const rawKey=publicKey.export({format:'jwk'}).x;
@@ -27,4 +27,13 @@ function snapshot(){const doc=document();return {schema:1,product:'werkbord-lice
 test('complete snapshot verifies and altered history is refused',async()=>{
  assert.equal(await verifySnapshot(snapshot(),rawKey),1);
  for(const change of [s=>s.artifacts[0].sha256='0'.repeat(64),s=>s.artifacts[0].claims={...claims,seats:10},s=>s.operations=[],s=>s.artifacts=[],s=>s.events[0].operation_id='missing',s=>s.operations.push({...s.operations[0]})]){const s=snapshot();change(s);await assert.rejects(verifySnapshot(s,rawKey));}
+});
+
+test('hosted signer is deterministic, matches Go canonical terms and rejects an untrusted issuer',async()=>{
+ const der=new Uint8Array(privateKey.export({format:'der',type:'pkcs8'}));
+ const signed=await signDocument({...claims},der,rawKey);
+ assert.equal(signed,document());assert.equal(await signDocument({...claims},der,rawKey),signed);
+ await assert.rejects(signDocument(claims,der),/production issuer/);
+ await assert.rejects(signDocument({...claims,customer:'é'.repeat(129)},der,rawKey),/UTF-8/);
+ await assert.rejects(signDocument({...claims,customer:'broken\ud800'},der,rawKey),/UTF-8/);
 });

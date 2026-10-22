@@ -1,0 +1,10 @@
+{
+  "config": {
+    "supabaseURL": "https://czereygxndotenlqndbj.supabase.co",
+    "publishableKey": "sb_publishable_MtthIEEGhpbJG6Bnm7m06w_MZm57LwS",
+    "issuerPublicKey": "ChctbT2EmgTYU37lb0e1_KkzSO9GR32pkRdcTR-UoYU",
+    "issuerFingerprint": "b66484e825f6148e826f46e48f7134d7d00bb2ea139a700182dca1ef5ddd502b"
+  },
+  "signingUnlocked": true,
+  "signingMode": "cloud"
+}

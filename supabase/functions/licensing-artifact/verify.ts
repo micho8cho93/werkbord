@@ -2,12 +2,29 @@
 export const issuer = { publicKey:"ChctbT2EmgTYU37lb0e1_KkzSO9GR32pkRdcTR-UoYU", fingerprint:"b66484e825f6148e826f46e48f7134d7d00bb2ea139a700182dca1ef5ddd502b" };
 function b64(s:string):Uint8Array {if(!/^[A-Za-z0-9_-]+$/.test(s))throw Error("Invalid signature encoding");return Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")),c=>c.charCodeAt(0));}
 function json(v:unknown):string{return JSON.stringify(v).replace(/[<>&\u2028\u2029]/g,c=>"\\u"+c.charCodeAt(0).toString(16).padStart(4,"0"));}
+export function canonicalClaims(c:Record<string,unknown>):string{
+ const ordered:Record<string,unknown>={schema:c.schema,product:c.product,id:c.id,customer:c.customer,edition:c.edition,seats:c.seats,issuedAt:c.issuedAt};
+ if(c.expiresAt!==undefined)ordered.expiresAt=c.expiresAt;if(c.supportEndsAt!==undefined)ordered.supportEndsAt=c.supportEndsAt;
+ if(Object.keys(c).length!==Object.keys(ordered).length)throw Error("Unexpected reserved license terms");
+ return json(ordered);
+}
+export async function signDocument(claims:Record<string,unknown>,pkcs8:Uint8Array,publicKey=issuer.publicKey):Promise<string>{
+ const canonical=canonicalClaims(claims);
+ const key=await crypto.subtle.importKey("pkcs8",pkcs8 as BufferSource,{name:"Ed25519"},false,["sign"]);
+ const signature=new Uint8Array(await crypto.subtle.sign("Ed25519",key,new TextEncoder().encode("werkbord-team/license/v2\0"+canonical)));
+ const encoded=btoa(String.fromCharCode(...signature)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");
+ const document=`{"claims":${canonical},"signature":"${encoded}"}\n`;
+ await verifyDocument(document,publicKey);
+ return document;
+}
 export async function verifyDocument(document:string,publicKey=issuer.publicKey):Promise<Record<string,unknown>>{
  if(new TextEncoder().encode(document).length>16384)throw Error("License file is too large");
  const parsed=JSON.parse(document),c=parsed.claims;
  if(!c||Object.keys(parsed).sort().join(",")!=="claims,signature")throw Error("Choose a signed license file");
  const allowed=["schema","product","id","customer","edition","seats","issuedAt","expiresAt","supportEndsAt"];
  if(Object.keys(c).some(k=>!allowed.includes(k))||c.schema!==2||c.product!=="werkbord-team"||c.edition!=="team"||typeof c.id!=="string"||c.id.length<1||c.id.length>128||typeof c.customer!=="string"||c.customer.length<1||c.customer.length>256||!Number.isInteger(c.seats)||c.seats<1||c.seats>1000000)throw Error("Invalid Team license claims");
+ const encoder=new TextEncoder(),decoder=new TextDecoder();
+ if(encoder.encode(c.id).length>128||encoder.encode(c.customer).length>256||decoder.decode(encoder.encode(c.id))!==c.id||decoder.decode(encoder.encode(c.customer))!==c.customer)throw Error("License names must fit the customer app's UTF-8 limits");
  function date(v:unknown):number{if(typeof v!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(v)||!Number.isFinite(Date.parse(v))||new Date(v).toISOString().replace(".000Z","Z")!==v)throw Error("Invalid license date");return Date.parse(v);}
  const start=date(c.issuedAt);
  if(c.expiresAt!==undefined&&date(c.expiresAt)<=start)throw Error("Invalid expiry");

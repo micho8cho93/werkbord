@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {qrImageURL,encryptRegister,decryptRegister} from './operator-tools.js';
+const svg='<svg xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M0 0h20v20H0z"/></svg>';
+test('authenticator QR normalises SDK data URLs once, including SVG colour fragments',()=>{
+ for(const value of [svg,'data:image/svg+xml;utf-8,'+svg,'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),'data:image/svg+xml;base64,'+btoa(svg)]){
+  const out=qrImageURL(value);assert.equal(decodeURIComponent(out.slice(out.indexOf(',')+1)),svg);assert.equal(new URL(out).hash,'');
+ }
+ assert.throws(()=>qrImageURL('https://example.invalid/qr.svg'));
+ assert.throws(()=>qrImageURL('data:text/html,<script>bad</script>'));
+});
+test('browser encrypted register backups retain age compatibility and detect wrong passwords/tampering',async()=>{
+ const snapshot={schema:1,product:'werkbord-licensing-register',exportedAt:new Date().toISOString(),issuers:[{public_key:'ChctbT2EmgTYU37lb0e1_KkzSO9GR32pkRdcTR-UoYU',fingerprint:'b66484e825f6148e826f46e48f7134d7d00bb2ea139a700182dca1ef5ddd502b',can_issue:true}],entitlements:[],operations:[],artifacts:[],events:[]};
+ const password='fixture backup password only',encrypted=await encryptRegister(snapshot,password);
+ assert.match(new TextDecoder().decode(encrypted.slice(0,60)),/^age-encryption.org\/v1\n/);
+ assert.deepEqual(await decryptRegister(encrypted,password),snapshot);
+ await assert.rejects(decryptRegister(encrypted,'wrong fixture password'));
+ encrypted[encrypted.length-1]^=1;await assert.rejects(decryptRegister(encrypted,password));
+ await assert.rejects(encryptRegister(snapshot,'short'));
+ const excessive=new TextEncoder().encode('age-encryption.org/v1\n-> scrypt abcd 30\n');await assert.rejects(decryptRegister(excessive,password),/work factor/);
+});

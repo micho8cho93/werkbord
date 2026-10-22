@@ -92,6 +92,8 @@ test: web/node_modules
 	cd web && $(NPM) test
 	node --test scripts/seed-browser-fixture.test.cjs scripts/team-mentions.test.cjs
 	node --experimental-strip-types --test supabase/functions/licensing-artifact/verify.test.mjs
+	node --experimental-strip-types --test supabase/functions/licensing-artifact/handler.test.mjs
+	cd cmd/werkbord-team/licensing/ui && $(NPM) ci && $(NPM) test && $(NPM) run build
 	node --test relay/e2e/e2e.test.mjs relay/connector/test/lanes.test.mjs
 	cd relay/connector && node build.mjs && node --check dist/sw.js && node --check dist/connect/connect.js
 
