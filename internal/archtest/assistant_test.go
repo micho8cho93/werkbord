@@ -169,11 +169,11 @@ func TestTheAssistantOffersNoRouteToRunsGitOrSettings(t *testing.T) {
 		}
 	}
 	sort.Strings(perms)
-	want := "analytics:read,connections:use,memory:read,projects:read,questions:answer,questions:read,runs:read,schedule:read,tasks:propose_plan,tickets:create,tickets:read,tickets:update"
+	want := "analytics:read,connections:use,memory:read,personal:propose,personal:read,projects:read,questions:answer,questions:read,runs:read,schedule:read,tasks:propose_plan,tickets:create,tickets:read,tickets:update"
 	if got := strings.Join(perms, ","); got != want {
 		t.Fatalf("the assistant's permissions are %s, reviewed as %s. Adding one is a decision about what a model may do; update this test and docs/ASSISTANT.md in the same change, and say why.", got, want)
 	}
-	for _, f := range []string{"backend.go", "operations.go"} {
+	for _, f := range []string{"backend.go", "operations.go", "personal.go", "personal_lifecycle.go"} {
 		src, _ := os.ReadFile(filepath.Join(moduleRoot(t), "internal", "appops", f))
 		for _, w := range []string{"Runner.", ".Start(", ".Stop(", ".Finish(", "Git.", "gitrepo", "SetExecution", "Settings.", "Worktrees.", "Archived:", "Orchestration:", "Execution:"} {
 			for _, line := range strings.Split(string(src), "\n") {

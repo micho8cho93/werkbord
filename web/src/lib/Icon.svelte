@@ -12,6 +12,7 @@
     | 'analytics'
     | 'projects'
     | 'folder'
+    | 'database'
     | 'runner'
     | 'settings'
     | 'edit'
@@ -90,6 +91,8 @@
     <rect x="2" y="2" width="5" height="5" rx="1" /><rect x="9" y="2" width="5" height="5" rx="1" /><rect x="2" y="9" width="5" height="5" rx="1" /><rect x="9" y="9" width="5" height="5" rx="1" />
   {:else if name === 'folder'}
     <path d="M2 4.5A1 1 0 0 1 3 3.5h3L7.5 5H13a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
+  {:else if name === 'database'}
+    <ellipse cx="8" cy="4" rx="5.5" ry="2" /><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2" />
   {:else if name === 'runner'}
     <rect x="2" y="2.5" width="12" height="8.5" rx="1" /><path d="M5.5 13.5h5M8 11v2.5" />
   {:else if name === 'settings' || name === 'defaults'}

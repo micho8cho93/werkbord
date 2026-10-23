@@ -53,6 +53,11 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const teamTickets = [], workspaceRequests = new Map();
     const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/board` }] : [], work: [], attention: [], schedule: [], at: new Date().toISOString() });
     const calls = {
+        PersonalWorkspaceCall: async (method, path, body) => {
+            const res = await fetch(ind + path, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: body === null ? undefined : JSON.stringify(body) });
+            const raw = await res.text(); return {status: res.status, body: raw ? JSON.parse(raw) : null};
+        },
+        PersonalTeamProjects: () => ({projects: [], at: new Date().toISOString()}),
         Info: () => ({ version: 'fixture', platform: 'darwin' }),
         Workspaces: () => ({ items, selected: 'personal', problems: null, team: { state: 'ready' }, teamInstaller: false, invitation: false }),
         Overview: () => ({ entries: items.map(i => ({ workspace: entry(i.id, i.kind, i.name), summary: summary(entry(i.id, i.kind, i.name)) })), at: new Date().toISOString() }),
@@ -81,12 +86,12 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const server = http.createServer((req, res) => {
         const url = new URL(req.url, shellOrigin);
         if (req.method === 'POST' && url.pathname === '/fixture/call') {
-            let body = ''; req.on('data', d => body += d); req.on('end', () => {
+            let body = ''; req.on('data', d => body += d); req.on('end', async () => {
                 const { Method, Args } = JSON.parse(body || '{}');
                 const f = calls[Method];
                 res.setHeader('Content-Type', 'application/json');
                 if (!f) { res.statusCode = 404; return res.end(JSON.stringify({ error: 'no ' + Method })); }
-                try { res.end(JSON.stringify(f(...(Args || [])) ?? null)); }
+                try { res.end(JSON.stringify(await f(...(Args || [])) ?? null)); }
                 catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) })); }
             });
             return;
@@ -340,6 +345,34 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await personal.getByTestId('assistant-button').count(), 0);
         assert.equal(await personal.getByTestId('assistant').count(), 0);
         ok('the workspace’s own page carries no second assistant');
+
+        // Personal workspaces use the same Salie frame, carrying only the saved ID.
+        await personal.locator('body').evaluate(() => location.hash = '#/personal');
+        await personal.getByRole('button', { name: 'Create with Salie', exact: true }).click();
+        const draftBox = assistantFrame.getByRole('textbox', { name: 'Message to the assistant' });
+        await draftBox.waitFor();
+        assert.match(await draftBox.inputValue(), /weekly to-do/);
+        await draftBox.fill('Create a weekly to-do list with deadlines and priorities in Universal and Individual and team:design.');
+        await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
+        let preview = assistantFrame.locator('.confirm[data-state="waiting"]').filter({ has: assistantFrame.getByRole('heading', { name: 'Weekly to-dos', exact: true }) });
+        await preview.getByRole('button', { name: 'Confirm', exact: true }).click();
+        await assistantFrame.getByRole('link', { name: 'Open saved workspace', exact: true }).last().click();
+        await page.getByRole('heading', { name: 'Weekly to-dos', exact: true }).waitFor();
+        const saved = (await api(ind, 'GET', '/api/personal/v1/workspaces')).items[0];
+        const cid = saved.collectionIds[0];
+        const task = await api(ind, 'POST', `/api/personal/v1/collections/${cid}/records`, { values: { title: 'Keep shell task', priority: 'Urgent', done: false } });
+        await page.getByRole('button', { name: 'Customize with Salie', exact: true }).click();
+        await draftBox.waitFor();
+        assert.match(await draftBox.inputValue(), new RegExp(saved.id));
+        await draftBox.fill(`Reopen ${saved.id}. Add a section for urgent tasks and move progress to the top.`);
+        await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
+        preview = assistantFrame.locator('.confirm[data-state="waiting"]').filter({ has: assistantFrame.getByRole('heading', { name: 'Weekly to-dos', exact: true }) });
+        await preview.getByRole('region', { name: 'Urgent tasks', exact: true }).getByText('Keep shell task', { exact: true }).waitFor();
+        await preview.getByRole('button', { name: 'Confirm', exact: true }).click();
+        await assistantFrame.getByRole('link', { name: 'Open saved workspace', exact: true }).last().click();
+        await page.getByRole('region', { name: 'Urgent tasks', exact: true }).getByText('Keep shell task', { exact: true }).waitFor();
+        assert.deepEqual(await api(ind, 'GET', `/api/personal/v1/collections/${cid}/records/${task.id}`), task);
+        ok('desktop Create/Customize with Salie use the saved ID and revision; approved links reopen the shell-managed interface with task data intact');
         await ctx.close();
 
         // Reduced motion applies here as well.

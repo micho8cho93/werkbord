@@ -233,14 +233,21 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// Suggested next steps read the board, Git, GitHub and memory through the services the screens already use; they hold no
 	// way to push, merge, branch or start anything.
 	recommender := &service.Recommender{Deps: deps, Control: gitControl, Knowledge: c.knowledge, Runners: distributed}
-	assistantSvc := assistantServices{recommender: recommender, knowledge: c.knowledge, projects: projects, tasks: tasks, labels: labels, runs: runs,
+	personal := &service.Personal{Deps: deps}
+	assistantSvc := assistantServices{personal: personal, recommender: recommender, knowledge: c.knowledge, projects: projects, tasks: tasks, labels: labels, runs: runs,
 		control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner, connections: c.connections}
+	// Match the personal owner API: a tokenless controller cannot expose private
+	// definitions through assistant tools as an alternate path.
+	if !c.cfg.AuthRequired() {
+		assistantSvc.personal = nil
+	}
 	c.appOps = newApplicationOperations(c.db, c.log, assistantSvc)
 	mcpGrants, err := mcpgrant.Open(filepath.Join(c.cfg.DataDir, "mcp-clients.json"))
 	if err != nil {
 		return fmt.Errorf("MCP client grants: %w", err)
 	}
 	apiOpts := api.Options{
+		Personal:     personal,
 		Memory:       c.knowledge,
 		Recommender:  recommender,
 		EmbedOrigins: c.cfg.EmbedOrigins,
@@ -277,6 +284,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
 	privateOpts.Memory = nil
+	privateOpts.Personal = nil
 	privateOpts.AuthRequired, privateOpts.Token = true, token
 	privateOpts.Assistant = nil       // the assistant is not served on the private network
 	privateOpts.Connections = nil     // upstream credentials and broker controls stay on this computer

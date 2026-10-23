@@ -139,6 +139,8 @@ export interface Overview {
 
 /** The app's page-callable surface, as the shell uses it. */
 export interface App {
+  PersonalWorkspaceCall(method: string, path: string, body: unknown): Promise<{status: number; body: unknown}>;
+  PersonalTeamProjects(workspaceId: string, teamId: string): Promise<{projects: {id: string; name: string}[]; at: string}>;
   Workspaces(): Promise<WorkspaceView>;
   OpenWorkspace(id: string): Promise<Target>;
   LoadWorkspace(id: string): Promise<Target>;

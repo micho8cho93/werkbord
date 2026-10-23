@@ -26,6 +26,7 @@ import (
 
 // Options configures a Server.
 type Options struct {
+	Personal    *service.Personal // owner-only loopback persistence; nil on network listeners
 	Distributed *service.Runners
 	Scheduler   *service.Scheduler
 	Memory      *service.Knowledge // private owner-only Individual memory; nil on network listeners
@@ -117,6 +118,7 @@ func New(opt Options) *Server {
 // Handler returns the root handler with middleware applied.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	s.personalRoutes(mux)
 
 	// Everything that belongs to a project is reached through that project: the
 	// project in the path is checked against the thing asked for, and a mismatch

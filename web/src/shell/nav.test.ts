@@ -43,3 +43,22 @@ describe('which entry the current place belongs to', () => {
     expect(activeKey('team', '#/control')).toBe('');
   });
 });
+
+import { generatedEntries, generatedWorkspaceID } from './nav';
+import { todoWorkspace } from '../lib/personal/example';
+import type { Workspace } from '../lib/personal/schema';
+it('uses one stable personal ID across all assigned contexts, without duplicates or implicit Team access', () => {
+  const workspace = {...todoWorkspace('pcl_abcdefghijklmnop'), id: 'pws_abcdefghijklmnop', revision: 1, createdAt: '', updatedAt: '', visibility: {universal: true, individual: true, teamWorkspaceIds: ['team:main']}} as Workspace;
+  const all = [workspace, {...workspace}];
+  expect(generatedEntries(all, true, 'personal')).toEqual([workspace]);
+  expect(generatedEntries(all, false, 'personal')).toEqual([workspace]);
+  expect(generatedEntries(all, false, 'team:main')).toEqual([workspace]);
+  expect(generatedEntries(all, false, 'team:other')).toEqual([]);
+});
+
+it('opens approved workspace links, including revision reload hints, as shell pages', () => {
+  const id = 'pws_abcdefghijklmnop';
+  expect(generatedWorkspaceID(`#/personal?id=${id}`)).toBe(id);
+  expect(generatedWorkspaceID(`#/personal?id=${id}&revision=3`)).toBe(id);
+  for(const place of [`#/personal?id=${id}&revision=0`, `#/personal?id=${id}&url=evil`, '#/personal?id=../bad']) expect(generatedWorkspaceID(place)).toBeUndefined();
+});

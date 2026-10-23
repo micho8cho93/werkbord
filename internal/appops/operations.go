@@ -186,9 +186,10 @@ func operations() []*operation {
 
 // Changed is what a mutation reports once the person has confirmed it and it has been carried out.
 type Changed struct {
-	Message  string        `json:"message"`
-	Ticket   *TicketView   `json:"ticket,omitempty"`
-	Question *QuestionView `json:"question,omitempty"`
+	Workspace *domain.PersonalWorkspace `json:"workspace,omitempty"`
+	Message   string                    `json:"message"`
+	Ticket    *TicketView               `json:"ticket,omitempty"`
+	Question  *QuestionView             `json:"question,omitempty"`
 }
 
 // Outcome is the short account kept with the action.

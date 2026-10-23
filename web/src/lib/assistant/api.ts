@@ -22,8 +22,8 @@ export const assistantApi = {
   /** Changes provider, model or reasoning level between messages. Another provider starts a fresh conversation. */
   configure: (id: string, b: { provider?: string; model?: string; reasoning?: string }) => request<SessionView>('PATCH', `${base}/sessions/${enc(id)}`, b),
   remove: (id: string) => requestNoContent('DELETE', `${base}/sessions/${enc(id)}`),
-  send: (id: string, text: string, attachments: string[], openuiPrompt?: string) =>
-    request<{ turnId: string }>('POST', `${base}/sessions/${enc(id)}/messages`, { text, attachments, ...(openuiPrompt ? { openuiPrompt } : {}) }),
+  send: (id: string, text: string, attachments: string[], openuiPrompt?: string, personalEditing?: {workspaceId: string; revision: number}) =>
+    request<{ turnId: string }>('POST', `${base}/sessions/${enc(id)}/messages`, { text, attachments, ...(openuiPrompt ? { openuiPrompt } : {}), ...(personalEditing ? { personalEditing } : {}) }),
   cancel: (id: string) => request<{ cancelled: boolean }>('POST', `${base}/sessions/${enc(id)}/cancel`, {}),
   resolve: (id: string, actionId: string, decision: 'approve' | 'decline') =>
     request<AssistantResolveResponse>('POST', `${base}/sessions/${enc(id)}/actions/${enc(actionId)}`, { decision }),

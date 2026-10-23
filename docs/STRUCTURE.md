@@ -271,7 +271,7 @@ The assistant has its own (`internal/archtest/assistant_test.go`, [ASSISTANT.md]
 21. no provider is ever run with its safety checks off (`--dangerously…`, `bypassPermissions`, a writable sandbox, MCP
     configuration, extra directories), and the flags that turn its tools off are still there;
 22. the assistant's permissions are the reviewed list: none of them is about starting or stopping a run, Git, a setting,
-    a repository, or deleting.
+    a repository, or deleting core data. Owner-only personal workspace deletion is a reviewed personal proposal, with mandatory human confirmation and transactional collection-dependency checks (see PERSONAL_WORKSPACES.md).
 
 The gate also fixes the production license/authentication wiring in architecture tests and restricts the native Keychain wrapper to reviewed Security/memory calls. Typed local license-file/public-key configuration is permitted; no online license/vendor URL is introduced. Runner operations stay the reviewed semantic bridge, never a general remote administration API.
 

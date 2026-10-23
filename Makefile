@@ -292,3 +292,12 @@ test-unified-installer: desktop-package
 .PHONY: test-motion-browser
 test-motion-browser: web web-embed web-shell
 	BROWSER_MOTION_ONLY=1 node scripts/test-browser.cjs
+
+.PHONY: test-personal-browser
+## test-personal-browser: personal workspace rendering, Salie, shell navigation and safe lifecycle recovery
+# Browser fixtures use disposable databases and never operate on the installed controller.
+test-personal-browser: web web-shell
+	node scripts/browser-personal.cjs
+	node scripts/browser-personal-assistant.cjs
+	node --experimental-strip-types scripts/browser-personal-navigation.cjs
+	node scripts/browser-personal-lifecycle.cjs

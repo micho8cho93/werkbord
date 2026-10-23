@@ -31,6 +31,7 @@ type Store interface {
 
 // Tx exposes the repositories bound to one transaction.
 type Tx interface {
+	Personal() PersonalRepo
 	// Savepoint rolls back only fn on failure, retaining other work in this transaction.
 	Savepoint(context.Context, func() error) error
 	Projects() ProjectRepo

@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import PersonalLibrary from '../lib/personal/PersonalLibrary.svelte';
+  import { shellPersonalAPI } from './personal';
+  import GeneratedWorkspace from './GeneratedWorkspace.svelte';
   import Sidebar from './Sidebar.svelte';
   import Switcher from './Switcher.svelte';
   import FrameHost from './FrameHost.svelte';
@@ -84,6 +87,8 @@
             {#if model.page === 'mywork'}<MyWork overview={model.overview} />
             {:else if model.page === 'calendar'}<Calendar overview={model.overview} />
             {:else if model.page === 'inbox'}<Inbox overview={model.overview} />
+            {:else if model.page === 'personal-library'}<PersonalLibrary api={shellPersonalAPI} onopen={async w => { await model.refreshGenerated(); model.openGenerated(w.id, true); }} />
+            {:else if model.page === 'generated'}<GeneratedWorkspace id={model.generatedID} />
             {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
           </div>
         {/if}

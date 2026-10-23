@@ -22,6 +22,8 @@ export interface MessageLike {
 }
 
 export interface Deps {
+  /** The local Individual page may open Salie with a bounded personal workspace ID. */
+  personalAssistant?(workspaceId: string, revision?: number): void;
   onboarding?(required: boolean, paused: boolean): void;
   relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   remember(id: string, place: string): Promise<void>;
@@ -106,6 +108,11 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     // Werkbord or a validated Team ticket route.
     if (frame.surface && m.event !== 'assistant' && m.event !== 'open') return;
     if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
+    else if (m.event === 'personal_workspace_assistant' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.workspaceId === 'string' && (m.workspaceId === '' || /^pws_[a-z2-7]{16}$/.test(m.workspaceId))) {
+      if (m.revision !== undefined && (!Number.isSafeInteger(m.revision) || (m.revision as number) < 1 || !m.workspaceId)) return;
+      if (m.revision === undefined) d.personalAssistant?.(m.workspaceId);
+      else d.personalAssistant?.(m.workspaceId, m.revision as number);
+    }
     else if (m.event === 'ready') d.ready(frame.id);
     // Where a frame that only shows Settings or Help is says nothing about where the person is: it is never remembered.
     else if (m.event === 'place' && isPlace(m.place) && !frame.hosted) await d.remember(frame.id, m.place).catch(() => {});

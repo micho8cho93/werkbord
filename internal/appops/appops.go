@@ -33,6 +33,7 @@ import (
 	"unicode/utf8"
 
 	"devboard/internal/domain"
+	"devboard/internal/service"
 	"devboard/internal/store"
 )
 
@@ -50,6 +51,8 @@ type Permission string
 // The permissions. There is deliberately none for starting or stopping a run, for settings, Git, repositories,
 // runners, or for deleting anything.
 const (
+	PermPersonalRead    Permission = "personal:read"
+	PermPersonalWrite   Permission = "personal:propose"
 	PermMemoryRead      Permission = "memory:read"
 	PermProjectsRead    Permission = "projects:read"
 	PermTicketsRead     Permission = "tickets:read"
@@ -67,7 +70,7 @@ const (
 // AllPermissions is every permission there is.
 var AllPermissions = []Permission{
 	PermMemoryRead, PermProjectsRead, PermTicketsRead, PermAnalyticsRead, PermTicketsCreate, PermTicketsUpdate, PermScheduleRead,
-	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse, PermTaskPlan,
+	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse, PermTaskPlan, PermPersonalRead, PermPersonalWrite,
 }
 
 // Principal is who is calling: one assistant session, or later one MCP client.
@@ -221,10 +224,11 @@ func classify(log *slog.Logger, op string, err error) *Error {
 
 // Config is what a Service needs.
 type Config struct {
-	Backend Backend
-	Store   store.Store
-	Log     *slog.Logger
-	Now     func() time.Time
+	Backend  Backend
+	Personal *service.Personal
+	Store    store.Store
+	Log      *slog.Logger
+	Now      func() time.Time
 	// Injected supplies application-owned tools provided by another domain service. It is evaluated for each
 	// catalog, call, and proposal resolution so revocation and schema changes take effect immediately.
 	Injected func(Principal) []InjectedOperation
@@ -284,7 +288,7 @@ func New(cfg Config) *Service {
 	if s.ttl <= 0 {
 		s.ttl = defaultConfirmTTL
 	}
-	for _, op := range operations() {
+	for _, op := range append(operations(), personalOperations(cfg.Personal)...) {
 		if _, dup := s.ops[op.Name]; dup {
 			panic("appops: two operations are called " + op.Name)
 		}
@@ -311,6 +315,9 @@ func (s *Service) Catalog(p Principal) []Spec {
 func (s *Service) operationsFor(p Principal) map[string]*operation {
 	out := make(map[string]*operation, len(s.ops))
 	for name, op := range s.ops {
+		if (op.Permission == PermPersonalRead || op.Permission == PermPersonalWrite) && (p.Via != "assistant" || p.Projects != nil) {
+			continue
+		}
 		if op.MCPOnly && p.Via != "mcp" {
 			continue
 		}

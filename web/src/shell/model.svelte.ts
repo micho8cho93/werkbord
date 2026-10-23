@@ -3,12 +3,15 @@
 // another workspace and back stops nothing in it. The model never starts, stops, approves or revokes anything in any
 // workspace: those are asked of the app, by name, one at a time, in dialogs the person answers.
 
+import { shellPersonalAPI } from './personal';
+import { generatedEntries } from './nav';
+import type { Workspace } from '../lib/personal/schema';
 import { ask } from './native';
 import { surfaceUrl } from './frames';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
 import type { Overview, Target, WorkspaceView } from './types';
 
-export type Page = 'workspace' | 'mywork' | 'calendar' | 'inbox' | 'workspaces' | 'settings' | 'help';
+export type Page = 'workspace' | 'mywork' | 'calendar' | 'inbox' | 'workspaces' | 'settings' | 'help' | 'generated' | 'personal-library';
 
 /** Where the switcher opens: under the workspace name at the top of the sidebar, in the window's coordinates. */
 export interface Anchor {
@@ -43,6 +46,38 @@ export class Model {
   overview = $state<Overview | null>(null);
   page = $state<Page>('mywork');
   universal = $state(true);
+  generated = $state<Workspace[]>([]);
+  generatedID = $state('');
+  generatedError = $state('');
+  get visibleGenerated(): Workspace[] { return generatedEntries(this.generated, this.universal, this.current); }
+  openGenerated(id: string, fromLibrary = false): void {
+    if (!(fromLibrary ? this.generated : this.visibleGenerated).some(w => w.id === id)) return;
+    this.leaveAssistant(); this.generatedID = id; this.page = 'generated'; this.closeSwitcher();
+  }
+  async followGenerated(id: string): Promise<void> {
+    await this.refreshGenerated();
+    const w = this.generated.find(w => w.id === id);
+    if (!w) { this.error = 'This saved workspace is unavailable.'; return; }
+    if (!this.visibleGenerated.some(w => w.id === id)) {
+      if (w.visibility.universal) this.universal = true;
+      else if (w.visibility.individual) { this.universal = false; this.current = 'personal'; }
+      else {
+        const team = this.view?.items.find(i => i.kind === 'team' && w.visibility.teamWorkspaceIds?.includes(i.id));
+        if (!team) { this.error = 'None of this workspace’s display locations are available.'; return; }
+        this.universal = false; this.current = team.id;
+      }
+    }
+    this.openGenerated(id);
+  }
+  async refreshGenerated(): Promise<void> {
+    try { this.generated = await shellPersonalAPI.workspaces(); this.generatedError = ''; }
+    catch (e) { this.generated = []; this.generatedError = (e as Error).message; }
+  }
+  async customizeGenerated(id = '', revision?: number): Promise<void> {
+    const rect = this.assistantButton?.getBoundingClientRect();
+    await this.toggleAssistant(rect ?? {x: 24, y: 24, width: 0, height: 0}, id, revision);
+  }
+
   /** The workspace the Workspace page shows. */
   current = $state('personal');
   frames = $state<Record<string, OpenFrame>>({});
@@ -70,7 +105,7 @@ export class Model {
   /** How Individual's assistant stands, as it last said: open over everything, something waiting for the person, a reply on the way. */
   assistant = $state({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
-  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor } | null>(null);
+  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor; personalWorkspace?: string; personalRevision?: number } | null>(null);
   /** The sidebar's Assistant button: the assistant opens out of it, and focus comes back to it. */
   assistantButton: HTMLElement | undefined;
   /**
@@ -138,9 +173,9 @@ export class Model {
    * nothing underneath is touched: whatever was showing is still there, covered, when it closes. The frame is told where the button
    * is (in the window's coordinates, which are the frame's) so that it grows out of it and collapses back into it.
    */
-  async toggleAssistant(rect: Anchor): Promise<void> {
+  async toggleAssistant(rect: Anchor, personalWorkspace?: string, personalRevision?: number): Promise<void> {
     if (this.setupRequired && !this.setupPaused) { await this.open('personal', '#/onboarding'); return; }
-    if (this.assistantShown) {
+    if (this.assistantShown && personalWorkspace === undefined) {
       this.assistantAsk = { action: 'close', rect };
       return;
     }
@@ -162,7 +197,7 @@ export class Model {
       this.assistantOpening = false;
       if (!this.assistant.open) this.assistantShown = false;
     }, 5000);
-    this.assistantAsk = { action: 'open', rect };
+    this.assistantAsk = { action: 'open', rect, ...(personalWorkspace === undefined ? {} : { personalWorkspace, ...(personalRevision === undefined ? {} : { personalRevision }) }) };
   }
 
   /** The assistant's page says how it stands. When it has closed, the frame is put away and focus goes back to the button. */
@@ -178,6 +213,7 @@ export class Model {
     // Before the opening that was asked for begins, the page has only said that it is closed.
     if (this.assistantOpening) return;
     this.assistantShown = false;
+    if (was) void this.refreshGenerated();
     if (was) queueMicrotask(() => this.assistantButton?.focus({ preventScroll: true }));
   }
 
@@ -216,6 +252,7 @@ export class Model {
     this.universal = true;
     this.loaded = true;
     void this.refreshOverview();
+    void this.refreshGenerated();
     // Load Individual in the background so first-use setup can identify itself before ordinary navigation.
     if (this.view?.items.some(i => i.id === 'personal' && i.state === 'ready')) {
       try {
@@ -226,6 +263,7 @@ export class Model {
     this.timers.push(
       setInterval(() => !document.hidden && void this.refresh(), VIEW_EVERY),
       setInterval(() => !document.hidden && void this.refreshOverview(), OVERVIEW_EVERY),
+      setInterval(() => !document.hidden && !this.assistantShown && void this.refreshGenerated(), VIEW_EVERY),
     );
     // An invitation the app was opened with is waiting: the add dialog hands it to the workspace it sets up.
     if (this.view?.invitation) this.addOpen = true;

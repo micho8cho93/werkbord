@@ -45,7 +45,7 @@ func newFixtureAssistant(mode string, dir string, db store.Store, deps service.D
 	if millis, err := strconv.Atoi(os.Getenv("WERKBORD_BROWSER_ASSISTANT_TTL_MS")); err == nil && millis > 0 {
 		confirmTTL = time.Duration(millis) * time.Millisecond
 	}
-	ops := appops.New(appops.Config{Backend: backend, Store: db, ConfirmTTL: confirmTTL})
+	ops := appops.New(appops.Config{Backend: backend, Store: db, Personal: &service.Personal{Deps: deps}, ConfirmTTL: confirmTTL})
 	var grants []appops.Permission
 	if mode == "readonly" {
 		grants = []appops.Permission{appops.PermProjectsRead, appops.PermTicketsRead, appops.PermAnalyticsRead, appops.PermScheduleRead, appops.PermRunsRead, appops.PermQuestionsRead}
@@ -138,6 +138,23 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 		return provider.Result{Text: all, Ref: ref, Usage: provider.Usage{InputTokens: 10, OutputTokens: 5}}, nil
 	}
 	p := t.Prompt
+	s.mu.Lock()
+	if !strings.Contains(p, "<werkbord-results>") {
+		if strings.Contains(strings.ToLower(p), "delete my weekly planner but keep the tasks") {
+			s.intent[ref] = "personal_keep_data"
+		}
+		if strings.Contains(strings.ToLower(p), "delete the content calendar and all of its associated personal records") {
+			s.intent[ref] = "personal_delete_data"
+		}
+	}
+	deletionMode := strings.TrimPrefix(s.intent[ref], "personal_")
+	if deletionMode != "keep_data" && deletionMode != "delete_data" {
+		deletionMode = ""
+	}
+	s.mu.Unlock()
+	if reply, ok := personalFixtureReply(p, deletionMode); ok {
+		return say(reply)
+	}
 	low := strings.ToLower(p)
 	afterResults := strings.Contains(p, "<werkbord-results>")
 	s.mu.Lock()

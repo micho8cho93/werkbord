@@ -105,6 +105,9 @@ export const surface: boolean = (() => {
 
 export interface AssistantRequest {
   action: 'open' | 'close' | 'toggle';
+  /** Only an opaque personal workspace ID (or empty for creation), never model text. */
+  personalWorkspace?: string;
+  personalRevision?: number;
   /** Where the button is, in this page's coordinates. */
   origin?: { x: number; y: number };
 }
@@ -113,11 +116,14 @@ const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFi
 
 /** Parses a message from the shell. Only the parent window is believed, and only what is exactly this shape. */
 export function parseAssistantRequest(data: unknown): AssistantRequest | null {
-  const m = data as { type?: unknown; action?: unknown; origin?: { x?: unknown; y?: unknown } } | null;
+  const m = data as { type?: unknown; action?: unknown; personalWorkspace?: unknown; personalRevision?: unknown; origin?: { x?: unknown; y?: unknown } } | null;
   if (!m || m.type !== 'werkbord.assistant') return null;
   if (m.action !== 'open' && m.action !== 'close' && m.action !== 'toggle') return null;
+  if (m.personalWorkspace !== undefined && (m.action !== 'open' || typeof m.personalWorkspace !== 'string' || (m.personalWorkspace !== '' && !/^pws_[a-z2-7]{16}$/.test(m.personalWorkspace)))) return null;
+  if (m.personalRevision !== undefined && (!m.personalWorkspace || !Number.isSafeInteger(m.personalRevision) || (m.personalRevision as number) < 1)) return null;
   const o = m.origin;
-  return { action: m.action, origin: o && finite(o.x) && finite(o.y) ? { x: o.x, y: o.y } : undefined };
+  const context = m.personalWorkspace === undefined ? {} : { personalWorkspace: m.personalWorkspace as string };
+  return { ...context, ...(m.personalRevision === undefined ? {} : { personalRevision: m.personalRevision as number }), action: m.action, origin: o && finite(o.x) && finite(o.y) ? { x: o.x, y: o.y } : undefined };
 }
 
 /** Calls handler when the shell that framed this page asks the assistant to open or close. */

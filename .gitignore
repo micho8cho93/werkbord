@@ -13,7 +13,7 @@
 /desktop/frontend/dist/shell/
 /.impeccable/
 
-/output/playwright/
+/output/
 /cmd/werkbord-team/licensing/ui/node_modules/
 /supabase/.temp/
 /supabase/.branches/

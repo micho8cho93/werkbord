@@ -69,3 +69,16 @@ export function listed(projects: Project[] | undefined): Project[] {
   const seen = new Set<string>();
   return (projects ?? []).filter((p) => !seen.has(p.id) && !!seen.add(p.id));
 }
+
+/** Display associations never confer Team permissions. One ID produces one row in a context. */
+export function generatedEntries(workspaces: import('../lib/personal/schema').Workspace[], universal: boolean, context: string) {
+  const seen = new Set<string>();
+  return workspaces.filter(w => !seen.has(w.id) && !!seen.add(w.id) && (universal
+    ? w.visibility.universal
+    : context === 'personal' ? w.visibility.individual : w.visibility.teamWorkspaceIds?.includes(context)));
+}
+
+/** Salie's saved-workspace links may include their approved revision as a reload hint. */
+export function generatedWorkspaceID(place: string): string | undefined {
+  return /^#\/personal\?id=(pws_[a-z2-7]{16})(?:&revision=[1-9][0-9]{0,15})?$/.exec(place)?.[1];
+}

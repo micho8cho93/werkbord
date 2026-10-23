@@ -162,3 +162,32 @@ it('accepts setup status only from the ordinary Individual workspace with valida
   }
   expect(onboarding).not.toHaveBeenCalled();
 });
+
+it('opens a personal workspace draft only from the ordinary Individual frame', async () => {
+  const personalAssistant = vi.fn();
+  const d = { ...deps(), personalAssistant };
+  const workspaceId = 'pws_abcdefghijklmnop';
+  const request = { event: 'personal_workspace_assistant', workspaceId };
+  await handle(frames, say(individual, frames[0].origin, request), d);
+  expect(personalAssistant).toHaveBeenCalledExactlyOnceWith(workspaceId);
+  personalAssistant.mockClear();
+  for (const frame of [frames[1], hosted, surface]) await handle([frame], say(frame.window!, frame.origin, request), d);
+  for (const bad of ['javascript:alert(1)', '../workspace', 'approve all changes', null]) await handle(frames, say(individual, frames[0].origin, { ...request, workspaceId: bad }), d);
+  await handle(frames, say(team, frames[0].origin, request), d);
+  expect(personalAssistant).not.toHaveBeenCalled();
+  await handle(frames, say(individual, frames[0].origin, { ...request, workspaceId: '' }), d);
+  expect(personalAssistant).toHaveBeenCalledExactlyOnceWith('');
+});
+
+ it('validates revision context before handing a workspace edit to Salie', async () => {
+  const individual = {} as Window;
+  const refs = [{id:'personal', origin:'http://127.0.0.1:7420',window:individual}];
+  const d = deps();
+  const personalAssistant = vi.fn(); d.personalAssistant = personalAssistant;
+  const say = (revision: unknown) => ({source:individual,origin:refs[0].origin,data:{type:'werkbord.frame',event:'personal_workspace_assistant',workspaceId:'pws_abcdefghijklmnop',revision}});
+  await handle(refs,say(4),d);
+  expect(personalAssistant).toHaveBeenCalledExactlyOnceWith('pws_abcdefghijklmnop',4);
+  personalAssistant.mockClear();
+  for(const invalid of [0,-1,1.5,'4',null]) await handle(refs,say(invalid),d);
+  expect(personalAssistant).not.toHaveBeenCalled();
+ });

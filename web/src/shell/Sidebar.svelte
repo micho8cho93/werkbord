@@ -70,7 +70,7 @@
 </script>
 
 {#snippet item(title: string, icon: IconName, current: boolean, go: () => void, id: string, count = 0)}
-  <button class="nav" type="button" aria-current={current ? 'page' : undefined} onclick={go} {title} data-page={id}>
+  <button class="nav" type="button" aria-current={current ? 'page' : undefined} onclick={go} {title} aria-label={id.startsWith('generated-') ? title : undefined} data-page={id}>
     <Icon name={icon} /><span class="label">{title}</span>
     {#if count}<span class="num" aria-label="{count} waiting for you">{count}</span>{/if}
   </button>
@@ -133,6 +133,14 @@
   </div>
 
   {/if}
+  <div class="group generated">
+    {@render item('Create with Salie', 'plus', false, () => { void model.customizeGenerated(); }, 'create-generated')}
+    {#each model.visibleGenerated as workspace (workspace.id)}
+      {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
+    {/each}
+    {@render item('Personal data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}
+    {#if model.generatedError}<button class="nav" title={model.generatedError} aria-label="Saved workspaces unavailable. Retry" onclick={() => model.refreshGenerated()}><Icon name="reply" /><span class="label">Retry saved workspaces</span></button>{/if}
+  </div>
   <div class="group bottom">
     <div class="lbl" aria-hidden="true"></div>
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
@@ -233,6 +241,8 @@
     flex-direction: column;
     gap: 2px;
   }
+  .generated { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+  .generated :global(svg) { flex: none; }
   .bottom {
     margin-top: auto;
   }

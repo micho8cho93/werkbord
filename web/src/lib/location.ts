@@ -14,7 +14,7 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics' | PhoneView;
+export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics' | 'personal' | PhoneView;
 /**
  * The pages only the phone has: the Control Deck that opens it and the screens its keys lead to. They are global (they look across
  * every project), they are not in GLOBAL_VIEWS (the desktop navigation does not list them), and an address that names one on a wide
@@ -25,7 +25,7 @@ export const PHONE_VIEWS: readonly PhoneView[] = ['deck', 'mywork', 'schedule', 
 export type ProjectSection = 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'analytics' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
-export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | PhoneView>; label: string; short: string }[] = [
+export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | 'personal' | PhoneView>; label: string; short: string }[] = [
   { id: 'control', label: 'Workspace', short: 'Workspace' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'analytics', label: 'Analytics', short: 'Analytics' },
@@ -33,8 +33,8 @@ export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | Pho
   { id: 'help', label: 'Help', short: 'Help' },
 ];
 
-/** A page that is not in the navigation: first-time setup, which opens by itself and is left by finishing it. */
-const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding'];
+/** Direct-only pages: first-time setup and saved personal workspaces. */
+const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding', 'personal'];
 
 export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] = [
   { id: 'overview', label: 'Overview' },

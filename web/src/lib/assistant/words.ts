@@ -78,6 +78,10 @@ export function clock(ms: number): string {
 /** What a proposed change's operation is, in plain words. */
 export function operationTitle(op: string): string {
   switch (op) {
+    case 'propose_personal_workspace':
+      return 'Save personal workspace';
+    case 'propose_delete_personal_workspace':
+      return 'Delete personal workspace';
     case 'create_ticket':
       return 'New task';
     case 'update_ticket':

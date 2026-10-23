@@ -110,6 +110,17 @@ describe('the assistant’s frame', () => {
     expect(focus).toHaveBeenCalled();
   });
 
+  it('opens an editable personal workspace draft in the existing assistant frame', async () => {
+    const model = new Model();
+    native.app.LoadWorkspace = async () => personalTarget;
+    const id = 'pws_abcdefghijklmnop';
+    await model.toggleAssistant(button, id);
+    expect(model.assistantAsk).toEqual({ action: 'open', rect: button, personalWorkspace: id });
+    model.setAssistant({ open: true, waiting: 0, running: false });
+    await model.toggleAssistant(button, '');
+    expect(model.assistantAsk).toEqual({ action: 'open', rect: button, personalWorkspace: '' });
+  });
+
   it('asks an open assistant to close, from the button, rather than opening it again', async () => {
     const model = new Model();
     native.app.LoadWorkspace = async () => personalTarget;
@@ -178,4 +189,48 @@ describe('startup', () => {
       expect(model.page).toBe('mywork');
     } finally { model.stop(); }
   });
+});
+
+import { todoWorkspace } from '../lib/personal/example';
+import type { Workspace } from '../lib/personal/schema';
+describe('generated workspace navigation', () => {
+  it('retains context, routes, pending navigation and both underlying frames', async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    const target = {id: 'personal', kind: 'personal' as const, url: 'http://127.0.0.1:7420', origin: 'http://127.0.0.1:7420'};
+    model.frames = {personal: {target, ready: true}, [team.id]: {target: {...target, id: team.id, kind: 'team'}, ready: true}};
+    model.places = {personal: '#/p/one/board', [team.id]: '?tab=reviews'};
+    const workspace = {...todoWorkspace('pcl_abcdefghijklmnop'), id: 'pws_abcdefghijklmnop', revision: 3, createdAt: '', updatedAt: '', visibility: {universal: true, individual: true, teamWorkspaceIds: [team.id]}} as Workspace;
+    model.generated = [workspace];
+    const before = JSON.stringify(model.frames);
+    model.universal = false; model.current = team.id;
+    model.openGenerated(workspace.id);
+    expect(model.page).toBe('generated');
+    expect(model.current).toBe(team.id);
+    expect(model.shownWorkspace).toBeUndefined();
+    expect(JSON.stringify(model.frames)).toBe(before);
+    expect(model.places).toEqual({personal: '#/p/one/board', [team.id]: '?tab=reviews'});
+    model.go('workspace');
+    expect(model.shownWorkspace).toBe(team.id);
+    model.universal = true; model.openGenerated(workspace.id);
+    expect(model.universal).toBe(true);
+    expect(model.generatedID).toBe(workspace.id);
+    native.app.LoadWorkspace = async () => target;
+    await model.customizeGenerated(workspace.id, workspace.revision);
+    expect(model.assistantAsk).toMatchObject({personalWorkspace: workspace.id, personalRevision: 3});
+  });
+});
+
+
+it('reopens a hidden saved workspace from the library without creating a display location', () => {
+  const model = new Model();
+  const saved = {id: 'pws_abcdefghijklmnop', revision: 1, name: 'Hidden planner', icon: 'calendar' as const, createdAt: '2026-10-23T12:00:00Z', updatedAt: '2026-10-23T12:00:00Z', uiSchemaVersion: 1 as const, collectionIds: [], visibility: {universal:false, individual:false, teamWorkspaceIds:[]}, definition: {views:[], layout:{type:'heading' as const,text:'Hidden'}}};
+  model.generated = [saved];
+  model.openGenerated(saved.id);
+  expect(model.page).toBe('mywork');
+  model.openGenerated(saved.id, true);
+  expect(model.page).toBe('generated');
+  expect(model.generatedID).toBe(saved.id);
+  expect(model.visibleGenerated).toEqual([]);
+  expect(model.generated[0].visibility).toEqual(saved.visibility);
 });

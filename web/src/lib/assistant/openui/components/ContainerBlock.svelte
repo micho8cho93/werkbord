@@ -5,7 +5,7 @@
   let {
     props,
     renderNode,
-  }: ComponentRenderProps<{ children?: unknown[]; direction?: 'vertical' | 'horizontal' | 'grid'; gap?: 'small' | 'medium' | 'large'; columns?: 2 | 3 }> & {
+  }: ComponentRenderProps<{ children?: unknown[]; direction?: 'vertical' | 'horizontal' | 'grid'; gap?: 'small' | 'medium' | 'large'; columns?: 2 | 3 | 4 }> & {
     renderNode: Snippet<[unknown]>;
   } = $props();
 </script>
@@ -24,7 +24,7 @@
   }
 
   .container[data-gap='small'] { gap: 7px; }
-  .container[data-gap='large'] { gap: 18px; }
+  .container[data-gap='large'] { gap: 24px; }
   .container[data-direction='horizontal'] {
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
@@ -35,8 +35,10 @@
   }
   .container[data-direction='grid'][data-columns='3'] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
+  .container[data-direction='grid'][data-columns='4'] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
   @media (max-width: 520px) {
     .container[data-direction='horizontal'] { grid-auto-flow: row; grid-auto-columns: auto; }
-    .container[data-direction='grid'] { grid-template-columns: 1fr; }
+    .container[data-direction='grid'], .container[data-direction='grid'][data-columns] { grid-template-columns: 1fr; }
   }
 </style>
