@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialLayout, newSlot, place, rearrange, WORKFLOWS, workflow } from './layout';
+import { initialLayout, isWorkspaceButton, newSlot, place, rearrange, WORKFLOWS, workflow } from './layout';
 
 describe('configurable Control Deck', () => {
   it('asks for a repository on tap and makes findings actionable without configuring a new button', () => {
@@ -37,5 +37,22 @@ describe('configurable Control Deck', () => {
     expect(WORKFLOWS.map(w => w.label)).toEqual(['Find Bugs', 'Improve Tests', 'Security Audit', 'Dependency Check', 'Refactor Codebase', 'Sprint Summary']);
     expect(workflow('git')).toBeUndefined();
     expect(workflow('sprint-summary')?.description).toContain('14 days');
+  });
+});
+
+describe('a generated workspace on the Control Deck', () => {
+  const id = 'pws_abcdefghij234567';
+  it('is a plain button named by the workspace, with no workflow settings', () => {
+    expect(isWorkspaceButton(id)).toBe(true);
+    expect(workflow(id)).toBeUndefined();
+    expect(newSlot('slot', id)).toEqual({ id: 'slot', button: id });
+  });
+  it('refuses anything that is not a workspace identifier', () => {
+    for (const bad of ['pws_', 'pws_ABCDEFGHIJ234567', 'pcl_abcdefghij234567', 'pws_abcdefghij23456', 'find-bugs', '']) expect(isWorkspaceButton(bad)).toBe(false);
+  });
+  it('takes any empty position and survives rearranging', () => {
+    const placed = place(initialLayout().slots, 7, newSlot('slot', id));
+    expect(placed[7]?.button).toBe(id);
+    expect(rearrange(placed, 7, 6)[6]?.button).toBe(id);
   });
 });

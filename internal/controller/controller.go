@@ -284,7 +284,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
 	privateOpts.Memory = nil
-	privateOpts.Personal = nil
+	// Personal data is served here to an enrolled phone and to no one else, and only on the routes a phone has been
+	// reviewed for (api/phone.go): the owner's token never opens it from the network (api.personalReady).
+	privateOpts.PersonalPhonesOnly = true
 	privateOpts.AuthRequired, privateOpts.Token = true, token
 	privateOpts.Assistant = nil       // the assistant is not served on the private network
 	privateOpts.Connections = nil     // upstream credentials and broker controls stay on this computer

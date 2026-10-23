@@ -16,13 +16,27 @@ import (
 	"unicode/utf8"
 
 	"devboard/internal/domain"
+	"devboard/internal/phoneaccess"
 )
 
 const personalMaxBody = 64 << 10
 
 func (s *Server) personalReady(w http.ResponseWriter, r *http.Request) bool {
+	// An enrolled phone has already been held to the routes it was reviewed for (phone.go) by the time it is here: it opens
+	// the workspaces and works with their records, and nothing else about them.
+	if _, ok := r.Context().Value(phoneKey{}).(phoneaccess.Entry); ok && s.opt.AuthRequired {
+		if s.opt.Personal == nil {
+			writeError(w, 503, "unavailable", "personal workspaces are unavailable on this listener")
+			return false
+		}
+		return true
+	}
 	want := s.currentToken()
 	got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if s.opt.PersonalPhonesOnly {
+		writeError(w, 403, "forbidden", "personal workspaces are served on this address to enrolled phones only")
+		return false
+	}
 	if !s.opt.AuthRequired || !fromThisComputer(r) || want == "" || subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
 		writeError(w, 403, "forbidden", "personal workspaces require the local controller owner token")
 		return false

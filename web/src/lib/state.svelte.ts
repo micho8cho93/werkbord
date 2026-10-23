@@ -62,6 +62,16 @@ const EVENT_TYPES = [
   'git.worktree_cleaned',
   'git.pull_request_created',
   'git.health_changed',
+  // A generated personal workspace, its collections or its records changed, on any device. They carry only an ID and a revision.
+  'personal.workspace.created',
+  'personal.workspace.updated',
+  'personal.workspace.deleted',
+  'personal.collection.created',
+  'personal.collection.updated',
+  'personal.collection.deleted',
+  'personal.record.created',
+  'personal.record.updated',
+  'personal.record.deleted',
 ];
 
 /** Events after which the Control Center's overview may be out of date. Agent output is not one of them. */
@@ -136,6 +146,8 @@ class AppState {
   /** The time, updated every second while the page is visible, for elapsed times. */
   now = $state(Date.now());
   analyticsRevision = $state(0);
+  /** Bumped by every change to a generated personal workspace or its data, whichever device made it: what lists them reloads. */
+  personalRevision = $state(0);
 
   /** One scope per project visited. */
   readonly scopes = new SvelteMap<string, ProjectScope>();
@@ -471,6 +483,7 @@ class AppState {
 
   private apply(ev: ControllerEvent): void {
     if (ev.type !== 'agent.output') this.analyticsRevision++;
+    if (ev.type.startsWith('personal.')) this.personalRevision++;
     if (ev.runId) this.listeners.get(ev.runId)?.forEach((fn) => fn(ev));
 
     const info = ev.taskId && ev.projectId ? this.taskInfo(ev.taskId, ev.projectId) : undefined;

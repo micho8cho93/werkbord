@@ -172,7 +172,9 @@ func TestPersonalAPIRequiresLocalOwnerAndExplicitWiring(t *testing.T) {
 	}
 	phone := newPhoned(t)
 	ptok, _ := phone.enrolled(t, "phone")
-	if code, _ := call(t, "GET", phone.url+"/api/personal/v1/workspaces", ptok, ""); code != 403 {
+	// A phone is served personal data only where the service is wired (the private listener does, see the controller) and
+	// only on the routes it was reviewed for; on an unwired listener it gets nothing.
+	if code, _ := call(t, "GET", phone.url+"/api/personal/v1/workspaces", ptok, ""); code != 503 {
 		t.Fatal(code)
 	}
 	ts := newTestServer(t, personalAPIOptions)

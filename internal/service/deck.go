@@ -86,7 +86,10 @@ func navigationButton(id string) bool {
 	case "needs", "calendar", "projects", "mywork", "agents", "analytics", "reviews", "git", "runners":
 		return true
 	}
-	return false
+	// A generated personal workspace's button names the workspace and nothing else, so it opens that workspace's page like a
+	// navigation key does. Whether the workspace still exists is for the deck to show, not to enforce: it can be deleted at
+	// the computer while a phone's deck still names it.
+	return domain.ValidPersonalID(id, domain.PrefixPersonalWorkspace)
 }
 
 func (s *Settings) Deck(ctx context.Context, owner string) (DeckLayout, error) {

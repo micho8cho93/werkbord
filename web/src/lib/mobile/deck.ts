@@ -48,6 +48,9 @@ export function deckKeys(c: DeckCounts): DeckKey[] {
   ];
 }
 
+/** Where a generated personal workspace's button, and its row on the deck, goes. */
+export const workspaceHref = (id: string): string => `#/personal?id=${id}`;
+
 /** The counts the keys show, from what the controller reports about every project. */
 export function deckCounts(overview: Overview | null, needsYou: number): DeckCounts {
   const projects = overview?.projects ?? [];

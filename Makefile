@@ -300,4 +300,5 @@ test-personal-browser: web web-shell
 	node scripts/browser-personal.cjs
 	node scripts/browser-personal-assistant.cjs
 	node --experimental-strip-types scripts/browser-personal-navigation.cjs
+	node scripts/browser-personal-phone.cjs
 	node scripts/browser-personal-lifecycle.cjs

@@ -8,7 +8,11 @@
   import Mark from '../Mark.svelte';
   import { globalHref, taskHref } from '../location';
   import { app } from '../state.svelte';
-  import { activeRunners, connectionWord, deckCounts, deckKeys, type DeckKey } from './deck';
+  import { activeRunners, connectionWord, deckCounts, deckKeys, workspaceHref, type DeckKey } from './deck';
+  import { assistant } from '../assistant/store.svelte';
+  import { personalAPI } from '../personal/api';
+  import { personalWorkspaceDraft } from '../personal/conversation';
+  import type { Workspace } from '../personal/schema';
   import Keycap from './Keycap.svelte';
   import { markHere, seenHere, tourDue } from '../setup/tours';
   import { eligibleRunners, executionAgents, resolveFor } from '../execution';
@@ -22,7 +26,7 @@
   import { suggestedWorkflow } from '../recommend/recommend';
   import { workflows } from './workflows.svelte';
   import { terminal, workflowRecovery } from './workflow-progress';
-  import { deckApi, targetLabel, initialLayout, newSlot, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
+  import { deckApi, isWorkspaceButton, targetLabel, initialLayout, newSlot, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
 
   const counts = $derived(deckCounts(app.overview, app.needsYou));
   const keys = $derived(deckKeys(counts));
@@ -30,6 +34,20 @@
   const runners = $derived(activeRunners(app.runners));
   const loaded = $derived(app.overview !== null);
   let layout = $state<DeckLayout>(initialLayout());
+  // The generated workspaces, whichever device made them: they are the controller's, so a change anywhere reloads this list.
+  let workspaces = $state<Workspace[]>([]);
+  let workspacesLoaded = $state(false);
+  $effect(() => {
+    void app.personalRevision;
+    let live = true;
+    personalAPI.workspaces().then((list) => { if (live) { workspaces = list; workspacesLoaded = true; } }, () => { /* not served here: the deck shows no workspaces */ });
+    return () => { live = false; };
+  });
+  function createWithSalie() {
+    assistant.personalEditing = undefined;
+    assistant.draft = personalWorkspaceDraft('');
+    assistant.show();
+  }
   let ready = $state(false);
   let saving = $state(false);
   let savedRevision = $state(0);
@@ -179,6 +197,11 @@
   }
   function keyFor(slot: DeckSlot | null): DeckKey {
     if (!slot) return { id: 'empty', label: 'Add button', icon: 'plus', href: '', count: 0, tone: 'plain', note: '' };
+    if (isWorkspaceButton(slot.button)) {
+      const made = workspaces.find((w) => w.id === slot.button);
+      if (made) return { id: slot.id, label: made.name, icon: made.icon, href: guide ? '' : workspaceHref(made.id), count: 0, tone: 'plain', note: '' };
+      return { id: slot.id, label: workspacesLoaded ? 'Removed workspace' : 'Workspace', icon: 'folder', href: '', count: 0, tone: 'plain', note: workspacesLoaded ? 'No longer saved. Edit the deck to remove this button.' : '' };
+    }
     const w = workflow(slot.button);
     if (!w) { const key = keys.find(k => k.id === slot.button)!; return guide ? {...key, href: ''} : key; }
     const run = latest(slot);
@@ -301,6 +324,16 @@
       {/each}
     </div>
   </section>
+  {#if workspacesLoaded && !guide}
+    <section class="workspaces" aria-label="Workspaces" data-testid="deck-workspaces">
+      <h2>Workspaces</h2>
+      {#each workspaces as made (made.id)}
+        <a class="workspace-row" href={workspaceHref(made.id)} data-workspace-id={made.id}><Icon name={made.icon} size={18} /><span>{made.name}</span></a>
+      {/each}
+      <button class="btn" type="button" onclick={createWithSalie} data-testid="deck-create-workspace"><Icon name="plus" size={16} />Create with Salie</button>
+      {#if workspaces.length}<p class="muted">To put one on a button, use Edit Deck.</p>{/if}
+    </section>
+  {/if}
   {#if app.lastProjectId && !guide && !editing}
     <RecommendationList projectId={app.lastProjectId} onworkflow={pointAt} onsuggest={ids => (suggested = ids)} />
   {/if}
@@ -316,7 +349,7 @@
   {/if}
   <DeckRuns {history} />
   {#if library !== null}
-    <DeckLibrary onboarding={!!guide} position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose}
+    <DeckLibrary onboarding={!!guide} {workspaces} position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose}
       onremove={() => { if (library !== null) layout.slots = place(layout.slots,library,null); library = null; if (guide) void persist().catch(() => {}); }}
       onmove={to => { if (library !== null) move(library,to); }}
       onconfigure={() => { configuring = library; library = null; }} />
@@ -344,6 +377,13 @@
 </div>
 
 <style>
+  .workspaces { display: grid; gap: 8px; margin-top: 8px; }
+  .workspaces h2 { margin: 0; font: 600 11.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-2); }
+  .workspace-row { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); text-decoration: none; }
+  .workspace-row span { min-width: 0; overflow-wrap: anywhere; }
+  .workspace-row :global(svg) { flex: none; color: var(--text-2); }
+  .workspaces .btn { justify-self: start; min-height: 44px; }
+  .workspaces .muted { margin: 0; color: var(--text-2); font-size: 12px; }
   .guided { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 17px; }
   /* A suggested workflow's key is marked, not pressed. The ring is dashed so that it is not mistaken for the onboarding guide's. */
   .suggested { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 17px; }

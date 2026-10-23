@@ -411,9 +411,10 @@ Execution calls the same `DeleteWorkspaceReviewed` service as the UI and checks
 the fingerprint again. Natural-language text, generated screens and stored text
 cannot approve an action. The engine tests use scripted providers, not live LLMs.
 
-Personal routes still require the loopback controller's explicit owner bearer
-credential and auth-enabled listener. Phone, scoped local-access and MCP callers
-receive no new authority. The shell transport allows only finite resource and
+Personal routes require the loopback controller's explicit owner bearer
+credential and auth-enabled listener, with one reviewed exception: an enrolled
+phone, on the routes listed in “Phone and the Control Deck” below. Scoped
+local-access and MCP callers receive no new authority. The shell transport allows only finite resource and
 lifecycle paths/methods; generated components and ordinary frames cannot invoke
 it. It never accepts arbitrary HTTP destinations. No Team package or shared
 execution behaviour was added. Team display associations grant no membership or
@@ -475,3 +476,49 @@ per-collection backup restore, deleted-definition trash and history paging beyon
 the newest 100 revisions. The library and renderer have defensive 10,000-item
 screen limits. The existing frontend build may warn about bundle chunk sizes;
 code splitting is outside this phase.
+
+## Phone and the Control Deck
+
+There is one copy of every generated workspace and its records: the controller's database. The computer and a phone
+are two views of it, so a workspace made on either one is the other's with no step in between.
+
+### What a phone can do
+
+An enrolled phone (docs/PHONE.md) opens generated workspaces and works with their **records**: it reads workspaces and
+collections, and adds, changes and deletes records, exactly as a view's operations allow. Its reviewed routes are the
+`/api/personal/v1` entries in `internal/api/phone.go` (listed again in the test that fails when the list changes). It
+cannot create, rename, replace or delete a workspace or a collection, read definition history, roll back, preview a
+deletion or use the data library's usage view. Those stay at the computer. Creating or editing a workspace from a phone
+goes through Salie and its fixed confirmation card, as on the computer; the Assistant is already available to phones.
+
+The service is wired on the private network's listener (which the relay also uses) with `PersonalPhonesOnly`: only an
+enrolled phone, on those routes, is served personal data there. The controller's own token still never opens it from the
+network. On a phone the page has Back, no workspace-management menu and no data library, and a table is read as
+labelled cards instead of a wide table. A tokenless controller still serves no personal data.
+
+### The Control Deck
+
+A generated workspace can be a Control Deck button. Its `button` is the workspace's ID (`pws_` and 16 base32
+characters), validated as a navigation button: it has no execution settings, and the controller does not check that the
+workspace still exists, because it can be deleted at the computer. A button whose workspace is gone says “Removed
+workspace” and can be removed in Edit Deck. Each phone has its own deck.
+
+Buttons are added from the deck's Add button library (“Your workspaces”) or from a workspace's page (“Add to Control
+Deck”). Separately, the deck lists **every** generated workspace under “Workspaces” and has **Create with Salie**, so a
+workspace is on a phone without being placed on a button. Pinning is a shortcut, not a requirement.
+
+### Staying in step
+
+Workspace, collection and record changes emit `personal.*` invalidation events (an ID and a revision, never content).
+The app subscribes to them: the phone's deck list and an open workspace page reload when either device changes
+something, and the open page does not read over a save that is still going. The desktop shell polls its list every few
+seconds. A deleted workspace leaves both lists on the next change.
+
+### Where Create with Salie is offered
+
+Not in the Universal sidebar (a workspace is made for Individual or a Team context, not for everything). In Individual
+and Team contexts it is the first entry of the generated group, with the workspaces listed beneath it.
+
+Verified by `scripts/browser-personal-phone.cjs` (Chromium and WebKit, phone-sized touch browser, real enrolled-phone
+credential): deck listing, live updates both ways, record work, Back, no owner-only controls, card tables, deck button,
+refusals, deletion at the computer, and a workspace made with Salie on the phone.

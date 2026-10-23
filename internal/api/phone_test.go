@@ -20,6 +20,7 @@ import (
 
 	"devboard/internal/netprivate"
 	"devboard/internal/phoneaccess"
+	"devboard/internal/service"
 )
 
 // A controller that requires its token, with a store of phones.
@@ -410,6 +411,9 @@ var reviewedPhoneRoutes = []string{
 	"POST /api/projects/{}/git/fetch", "POST /api/projects/{}/git/push", "POST /api/projects/{}/git/merge/plan", "POST /api/projects/{}/git/merge",
 	"POST /api/projects/{}/git/branches/delete-plan", "POST /api/projects/{}/git/branches/delete", "POST /api/projects/{}/git/worktrees/clean-plan",
 	"POST /api/projects/{}/git/worktrees/clean", "POST /api/projects/{}/git/pull-requests", "POST /api/projects/{}/git/health/refresh", "POST /api/projects/{}/git/health/findings/{}/dismiss", "POST /api/projects/{}/git/health/findings/{}/reopen",
+	"GET /api/personal/v1/capabilities", "GET /api/personal/v1/workspaces", "GET /api/personal/v1/workspaces/{}", "GET /api/personal/v1/collections", "GET /api/personal/v1/collections/{}",
+	"GET /api/personal/v1/collections/{}/records", "GET /api/personal/v1/collections/{}/records/{}", "POST /api/personal/v1/collections/{}/records",
+	"PUT /api/personal/v1/collections/{}/records/{}", "DELETE /api/personal/v1/collections/{}/records/{}",
 	"GET /api/assistant/providers", "GET /api/assistant/sessions", "POST /api/assistant/sessions", "GET /api/assistant/sessions/{}", "PATCH /api/assistant/sessions/{}",
 	"DELETE /api/assistant/sessions/{}", "POST /api/assistant/sessions/{}/messages", "POST /api/assistant/sessions/{}/attachments", "DELETE /api/assistant/sessions/{}/attachments/{}",
 	"POST /api/assistant/sessions/{}/cancel", "GET /api/assistant/sessions/{}/events", "POST /api/assistant/sessions/{}/actions/{}",
@@ -521,24 +525,33 @@ func TestAPhoneCannotDoTheOwnersThings(t *testing.T) {
 	tok, _ := p.enrolled(t, "A")
 	pid := p.project.ID
 	for name, c := range map[string]struct{ method, path, body string }{
-		"change the settings":         {"PUT", "/api/settings/execution", `{}`},
-		"register a repository":       {"POST", "/api/projects", `{"path":"/tmp"}`},
-		"list the computer's folders": {"GET", "/api/folders", ""},
-		"change a project's agents":   {"PUT", "/api/projects/" + pid + "/execution", `{}`},
-		"pair a runner":               {"POST", "/api/runners/pair", `{}`},
-		"revoke a runner":             {"POST", "/api/runners/r1/revoke", `{}`},
-		"read the routing rules":      {"GET", "/api/routing-rules", ""},
-		"turn the network off":        {"POST", "/api/network/disable", `{}`},
-		"make an enrollment code":     {"POST", "/api/phones/codes", `{}`},
-		"list phones":                 {"GET", "/api/phones", ""},
-		"revoke another phone":        {"DELETE", "/api/phones/ph_other", ""},
-		"mint a program's access":     {"POST", "/api/local-access", `{"name":"x"}`},
-		"see program access":          {"GET", "/api/local-access", ""},
-		"manage MCP clients":          {"POST", "/api/mcp/grants", `{}`},
-		"use the connections":         {"GET", "/api/connections", ""},
-		"approve an execution":        {"POST", "/api/execution/v1/approvals", `{}`},
-		"sign in to GitHub":           {"POST", "/api/github/login", `{}`},
-		"read the doctor":             {"GET", "/api/doctor", ""},
+		"change the settings":          {"PUT", "/api/settings/execution", `{}`},
+		"register a repository":        {"POST", "/api/projects", `{"path":"/tmp"}`},
+		"list the computer's folders":  {"GET", "/api/folders", ""},
+		"change a project's agents":    {"PUT", "/api/projects/" + pid + "/execution", `{}`},
+		"pair a runner":                {"POST", "/api/runners/pair", `{}`},
+		"revoke a runner":              {"POST", "/api/runners/r1/revoke", `{}`},
+		"read the routing rules":       {"GET", "/api/routing-rules", ""},
+		"turn the network off":         {"POST", "/api/network/disable", `{}`},
+		"make an enrollment code":      {"POST", "/api/phones/codes", `{}`},
+		"list phones":                  {"GET", "/api/phones", ""},
+		"revoke another phone":         {"DELETE", "/api/phones/ph_other", ""},
+		"mint a program's access":      {"POST", "/api/local-access", `{"name":"x"}`},
+		"see program access":           {"GET", "/api/local-access", ""},
+		"manage MCP clients":           {"POST", "/api/mcp/grants", `{}`},
+		"use the connections":          {"GET", "/api/connections", ""},
+		"approve an execution":         {"POST", "/api/execution/v1/approvals", `{}`},
+		"sign in to GitHub":            {"POST", "/api/github/login", `{}`},
+		"read the doctor":              {"GET", "/api/doctor", ""},
+		"create a generated workspace": {"POST", "/api/personal/v1/workspaces", `{}`},
+		"change a generated workspace": {"PUT", "/api/personal/v1/workspaces/pws_x", `{}`},
+		"delete a generated workspace": {"DELETE", "/api/personal/v1/workspaces/pws_x", `{}`},
+		"preview deleting a workspace": {"POST", "/api/personal/v1/workspaces/pws_x/deletion-preview", `{}`},
+		"roll a workspace back":        {"POST", "/api/personal/v1/workspaces/pws_x/rollback", `{}`},
+		"read a workspace's history":   {"GET", "/api/personal/v1/workspaces/pws_x/history", ""},
+		"create a data collection":     {"POST", "/api/personal/v1/collections", `{}`},
+		"change a data collection":     {"PUT", "/api/personal/v1/collections/pcl_x", `{}`},
+		"delete a data collection":     {"DELETE", "/api/personal/v1/collections/pcl_x", `{}`},
 	} {
 		if status, b := call(t, c.method, p.url+c.path, tok, c.body); status != 403 {
 			t.Errorf("a phone could %s: %s %s = %d %s", name, c.method, c.path, status, b)
@@ -685,4 +698,49 @@ func TestAPhoneAndTheOwnerCanRenameAPhone(t *testing.T) {
 		t.Fatalf("renaming what is not there: %d", status)
 	}
 	_, _ = other, id
+}
+
+// A workspace made at the computer (or confirmed in the Assistant) is the phone's to open, and its records the phone's to
+// work with; what the workspace is stays the owner's.
+func TestAPhoneOpensAGeneratedWorkspaceAndWorksWithItsRecords(t *testing.T) {
+	p := newPhoned(t, func(o *Options) { o.Personal = &service.Personal{Deps: service.Deps{Store: o.Store}} })
+	tok, _ := p.enrolled(t, "A")
+	base := p.url + "/api/personal/v1"
+	var c struct{ ID string }
+	if status, b := call(t, "POST", base+"/collections", ownerToken, personalAPICollection); status != 201 {
+		t.Fatalf("collection: %d %s", status, b)
+	} else {
+		_ = json.Unmarshal(b, &c)
+	}
+	var w struct{ ID string }
+	if status, b := call(t, "POST", base+"/workspaces", ownerToken, personalAPIWorkspace(c.ID)); status != 201 {
+		t.Fatalf("workspace: %d %s", status, b)
+	} else {
+		_ = json.Unmarshal(b, &w)
+	}
+	for _, path := range []string{"/workspaces", "/workspaces/" + w.ID, "/collections", "/collections/" + c.ID, "/collections/" + c.ID + "/records", "/capabilities"} {
+		if status, b := call(t, "GET", base+path, tok, ""); status != 200 {
+			t.Errorf("a phone could not read %s: %d %s", path, status, b)
+		}
+	}
+	var r struct {
+		ID       string
+		Revision int
+	}
+	records := base + "/collections/" + c.ID + "/records"
+	if status, b := call(t, "POST", records, tok, `{"values":{"title":"From the phone"}}`); status != 201 {
+		t.Fatalf("a phone could not add a record: %d %s", status, b)
+	} else {
+		_ = json.Unmarshal(b, &r)
+	}
+	if status, b := call(t, "PUT", records+"/"+r.ID, tok, `{"revision":1,"values":{"title":"Ticked off"}}`); status != 200 {
+		t.Fatalf("a phone could not change a record: %d %s", status, b)
+	}
+	// What the phone wrote is what the computer reads: there is one copy of the data.
+	if status, b := call(t, "GET", records, ownerToken, ""); status != 200 || !strings.Contains(string(b), "Ticked off") {
+		t.Fatalf("the owner does not see the phone's record: %d %s", status, b)
+	}
+	if status, b := call(t, "DELETE", records+"/"+r.ID, tok, `{"revision":2}`); status != 204 && status != 200 {
+		t.Fatalf("a phone could not delete a record: %d %s", status, b)
+	}
 }

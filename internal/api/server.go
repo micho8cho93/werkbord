@@ -89,6 +89,9 @@ type Options struct {
 	// AssistantPhonesOnly serves the assistant to enrolled phones and to nobody else: for the private network's
 	// listener, where the controller's own token has never reached it.
 	AssistantPhonesOnly bool
+	// PersonalPhonesOnly serves the personal workspaces' data to enrolled phones (on the routes they are reviewed for) and
+	// to nobody else: for the private network's listener, where the controller's own token never opens it.
+	PersonalPhonesOnly bool
 }
 
 // Server holds the HTTP handlers.

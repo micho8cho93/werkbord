@@ -52,7 +52,7 @@
           {#each field.type === 'boolean' ? ['true', 'false'] : field.options ?? [] as option (option)}<option value={option}>{option === 'true' ? 'Yes' : option === 'false' ? 'No' : option}</option>{/each}
         </select></label>
       {/each}
-      {#if view.kind !== 'table'}<label for={`${uid}-sort`}>Sort by<select id={`${uid}-sort`} bind:value={sortKey}><option value="">Record order</option>{#each fields as field (field.key)}<option value={field.key}>{field.name}</option>{/each}</select></label>{/if}
+      <label class:phone-only={view.kind === 'table'} for={`${uid}-sort`}>Sort by<select id={`${uid}-sort`} bind:value={sortKey}><option value="">Record order</option>{#each fields as field (field.key)}<option value={field.key}>{field.name}</option>{/each}</select></label>
     </div>
     <p class="count">{visible.length} of {records.length} records</p>
     {#if editing}
@@ -69,17 +69,23 @@
         <thead><tr>{#each fields as field (field.key)}<th scope="col" aria-sort={sortKey === field.key ? ascending ? 'ascending' : 'descending' : 'none'}><button type="button" onclick={() => sort(field.key)}>{field.name}<Icon name="down" size={12} /></button></th>{/each}{#if editable || view.operations?.includes('delete')}<th scope="col">Actions</th>{/if}</tr></thead>
         <tbody>{#each visible as record (record.id)}<tr>{#each fields as field (field.key)}<td>{display(record.values[field.key])}</td>{/each}{#if editable || view.operations?.includes('delete')}<td>{@render actions(record)}</td>{/if}</tr>{/each}</tbody>
       </table></div>
+      <!-- On a phone a table is read as cards: one record to a card, every field labelled. -->
+      {@render recordList('table-cards')}
     {:else}
-      <ul class="records">{#each visible as record (record.id)}<li>
-        {#if view.kind === 'checklist'}<label class="done-target"><input class="done" type="checkbox" checked={record.values[view.checkedField!] === true} disabled={!editable || session.busy} aria-label={`Complete ${title(record)}`} onchange={(e) => session.mutate(view.id, 'update', record.id, { [view.checkedField!]: e.currentTarget.checked })} /></label>{/if}
-        <div class="record-content"><strong class:completed={view.kind === 'checklist' && record.values[view.checkedField!] === true}>{title(record)}</strong><dl>{#each fields.slice(1).filter(f => f.key !== view.checkedField) as field (field.key)}<div><dt>{field.name}</dt><dd>{display(record.values[field.key])}</dd></div>{/each}</dl></div>
-        {@render actions(record)}
-      </li>{/each}</ul>
+      {@render recordList('')}
     {/if}
   {/if}
 </section>
 
 {#snippet emptyNode()}{/snippet}
+
+{#snippet recordList(cls: string)}
+  <ul class="records {cls}">{#each visible as record (record.id)}<li>
+        {#if view.kind === 'checklist'}<label class="done-target"><input class="done" type="checkbox" checked={record.values[view.checkedField!] === true} disabled={!editable || session.busy} aria-label={`Complete ${title(record)}`} onchange={(e) => session.mutate(view.id, 'update', record.id, { [view.checkedField!]: e.currentTarget.checked })} /></label>{/if}
+        <div class="record-content"><strong class:completed={view.kind === 'checklist' && record.values[view.checkedField!] === true}>{title(record)}</strong><dl>{#each fields.slice(1).filter(f => f.key !== view.checkedField) as field (field.key)}<div><dt>{field.name}</dt><dd>{display(record.values[field.key])}</dd></div>{/each}</dl></div>
+        {@render actions(record)}
+      </li>{/each}</ul>
+{/snippet}
 
 {#snippet actions(record: PersonalRecord)}
   <div class="record-actions">
@@ -115,6 +121,7 @@
   dt::after { content: ':'; }
   dd { margin: 0; overflow-wrap: anywhere; }
   .record-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .table-cards, .filters label.phone-only { display: none; }
   .table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; text-align: left; }
   th, td { min-width: 110px; padding: 9px 10px; border-bottom: 1px solid var(--border); max-width: 320px; overflow-wrap: anywhere; }
@@ -127,5 +134,5 @@
   .complete { color: var(--ok-text); }
   .status-summary { display: grid; gap: 8px; }
   @media (pointer: coarse), (max-width: 600px) { .filters input, .filters select { font-size: 16px; } }
-  @media (max-width: 600px) { .filters input, select, button, th button { min-height: 44px; } .records li { flex-wrap: wrap; } .record-content { flex-basis: calc(100% - 56px); } .record-actions { margin-left: auto; } }
+  @media (max-width: 600px) { .table-scroll { display: none; } .table-cards { display: block; } .filters label.phone-only { display: grid; } .filters input, select, button, th button { min-height: 44px; } .records li { flex-wrap: wrap; } .record-content { flex-basis: calc(100% - 56px); } .record-actions { margin-left: auto; } }
 </style>

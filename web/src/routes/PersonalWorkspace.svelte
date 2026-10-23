@@ -2,6 +2,11 @@
   import WorkspaceManagement from '../lib/personal/WorkspaceManagement.svelte';
   import PersonalLibrary from '../lib/personal/PersonalLibrary.svelte';
   import { onDestroy, untrack } from 'svelte';
+  import PhoneBack from '../lib/mobile/PhoneBack.svelte';
+  import { phone } from '../lib/mobile/phone.svelte';
+  import { deckApi, isWorkspaceButton, newSlot, place } from '../lib/mobile/layout';
+  import { isPhone } from '../lib/phones/capability';
+  import { app } from '../lib/state.svelte';
   import { embedded } from '../lib/embed';
   import { personalWorkspaceDraft } from '../lib/personal/conversation';
   import { assistant } from '../lib/assistant/store.svelte';
@@ -21,6 +26,52 @@
   let exampleCollectionId = '';
   let alive = true;
   onDestroy(() => { alive = false; });
+  // A phone works with the workspace's records. What a workspace is (its name, history, deletion, the data library's
+  // housekeeping) is the owner's at the computer, so the phone is not shown those controls (api/phone.go).
+  const restricted = isPhone();
+  // Another device changed a workspace or its data: show it without a reload. Our own saves also come back as events,
+  // so changes are coalesced and never read over a save that is still going.
+  let seenChange = app.personalRevision;
+  $effect(() => {
+    const change = app.personalRevision;
+    if (change === seenChange) return;
+    seenChange = change;
+    const timer = setTimeout(() => {
+      const current = session;
+      if (!id || !current || current.busy || loading) return;
+      void current.load(id).catch(() => { if (alive) attempt++; });
+    }, 400);
+    return () => clearTimeout(timer);
+  });
+  // The Control Deck button for this workspace. The deck belongs to whoever is signed in here: a phone has its own.
+  let onDeck = $state<boolean | null>(null);
+  let deckNotice = $state('');
+  $effect(() => {
+    const target = id; void app.personalRevision;
+    onDeck = null; deckNotice = '';
+    if (!isWorkspaceButton(target)) return;
+    let live = true;
+    deckApi.load().then((layout) => { if (live) onDeck = layout.slots.some((slot) => slot?.button === target); }, () => { /* the deck is not offered */ });
+    return () => { live = false; };
+  });
+  async function toggleDeck() {
+    if (!isWorkspaceButton(id) || onDeck === null) return;
+    deckNotice = '';
+    try {
+      const layout = await deckApi.load();
+      const at = layout.slots.findIndex((slot) => slot?.button === id);
+      let slots = layout.slots;
+      if (at >= 0) slots = place(slots, at, null);
+      else {
+        const free = slots.findIndex((slot) => !slot);
+        if (free < 0) { deckNotice = 'Your Control Deck is full. Remove a button first.'; return; }
+        slots = place(slots, free, newSlot(crypto.randomUUID(), id));
+      }
+      await deckApi.save({ ...layout, slots });
+      onDeck = at < 0;
+      deckNotice = at < 0 ? 'Added to the Control Deck.' : 'Removed from the Control Deck.';
+    } catch (err) { deckNotice = err instanceof Error ? err.message : 'The Control Deck could not be saved. Try again.'; }
+  }
   const message = (err: unknown) => err instanceof z.ZodError
     ? 'This saved workspace contains an unsupported or malformed definition. Correct it, then reload. Your collection records are safe.'
     : err instanceof Error ? err.message : 'This workspace could not be loaded. Try again.';
@@ -61,10 +112,12 @@
 </script>
 
 <div class="personal-page">
+  {#if phone.on}<div class="phone-top"><PhoneBack /></div>{/if}
   {#if notice}<p role="status">{notice}</p>{/if}
-  <button class="btn" onclick={() => library = !library}>{library ? 'Back to workspace' : 'Personal data library'}</button>
+  {#if !restricted}<button class="btn" onclick={() => library = !library}>{library ? 'Back to workspace' : 'Personal data library'}</button>{/if}
   {#if library}<PersonalLibrary api={personalAPI} onopen={w => { library = false; location.hash = `#/personal?id=${w.id}`; }} />{:else}
-  <header><div><h1>{session?.workspace?.name ?? 'Personal workspace'}</h1><p>Saved on this computer</p></div><button class="btn primary" disabled={loading || session?.busy} onclick={editWithSalie}>{id ? 'Edit with Salie' : 'Create with Salie'}</button>{#if id}<button class="btn" disabled={loading || session?.busy} onclick={() => attempt++}>Reload workspace</button>{/if}{#if session?.workspace && !session.busy}<WorkspaceManagement workspace={session.workspace} api={personalAPI} onupdated={w => { session!.workspace = w; attempt++; }} onlibrary={() => library = true} ondeleted={preview => { notice = preview.collections.some(c => !c.delete) ? 'Workspace deleted. Preserved personal records are in the data library.' : 'Workspace and its exclusively owned personal data deleted.'; session = null; library = true; }} />{/if}</header>
+  <header><div><h1>{session?.workspace?.name ?? 'Personal workspace'}</h1><p>{restricted ? 'Saved on your computer' : 'Saved on this computer'}</p></div><button class="btn primary" disabled={loading || session?.busy} onclick={editWithSalie}>{id ? 'Edit with Salie' : 'Create with Salie'}</button>{#if id}<button class="btn" disabled={loading || session?.busy} onclick={() => attempt++}>Reload workspace</button>{/if}{#if onDeck !== null}<button class="btn" onclick={toggleDeck} data-testid="workspace-deck-button">{onDeck ? 'Remove from Control Deck' : 'Add to Control Deck'}</button>{/if}{#if session?.workspace && !session.busy && !restricted}<WorkspaceManagement workspace={session.workspace} api={personalAPI} onupdated={w => { session!.workspace = w; attempt++; }} onlibrary={() => library = true} ondeleted={preview => { notice = preview.collections.some(c => !c.delete) ? 'Workspace deleted. Preserved personal records are in the data library.' : 'Workspace and its exclusively owned personal data deleted.'; session = null; library = true; }} />{/if}</header>
+  {#if deckNotice}<p role="status" class="hint">{deckNotice}</p>{/if}
   {#if loading}<p role="status">Loading workspace…</p>
   {:else if problem}<section class="recovery" role="alert"><h2>Workspace unavailable</h2><p>{problem}</p><p>Your saved collection records have not been changed.</p><button class="btn" onclick={() => id ? attempt++ : installExample()}>Try again</button></section>
   {:else if session}
@@ -84,5 +137,6 @@
   h2 { margin: 0; font-size: 18px; }
   .example, .recovery { display: grid; justify-items: start; gap: 14px; max-width: 65ch; padding: 24px 0; }
   .example p, .recovery p { margin: 0; color: var(--text-2); line-height: 1.6; }
-  @media (max-width: 600px) { .personal-page { padding: 16px; } button { min-height: 44px; } }
+  .phone-top { margin: -6px 0 4px; }
+  @media (max-width: 600px) { .personal-page { padding: 16px; } button { min-height: 44px; } header { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } header > :first-child, header > :global(.primary), header > :global(section) { grid-column: 1 / -1; } header > :global(.btn) { width: 100%; justify-content: center; } }
 </style>

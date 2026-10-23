@@ -9,7 +9,7 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 function run(cmd, args) { const r = cp.spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: 180000 }); if (r.status !== 0) throw Error(r.stderr || r.stdout); return r.stdout; }
 function spawn(cmd, args, env = {}, cwd = root) { const p = cp.spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] }); p.diagnostics = ''; p.stdout.on('data', d => p.diagnostics += d); p.stderr.on('data', d => p.diagnostics += d); children.push(p); return p; }
 async function port() { const s = net.createServer(); s.listen(0, '127.0.0.1'); await once(s, 'listening'); const p = s.address().port; await new Promise(r => s.close(r)); return p; }
-async function wait(fn, label) { for (let i = 0; i < 900; i++) { for (const c of children) if (c.exitCode !== null) throw Error(c.diagnostics); if (await fn()) return; await delay(100); } throw Error('Timed out: ' + label); }
+async function wait(fn, label, tenths = 900) { for (let i = 0; i < tenths; i++) { for (const c of children) if (c.exitCode !== null) throw Error(c.diagnostics); if (await fn()) return; await delay(100); } throw Error('Timed out: ' + label); }
 async function api(base, token, method, url, body) { const r = await fetch(base + url, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }); if (r.status === 204) return null; const d = await r.json(); if (!r.ok) throw Error(r.status + ' ' + JSON.stringify(d)); return d; }
 (async () => {
  const origin = 'http://127.0.0.1:' + await port(), individualURL = 'http://127.0.0.1:' + await port();
@@ -34,7 +34,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await secondDev('POST', '/join', { link: invite.link, name: 'Ada member', deviceName: 'Shared Mac' });
  await wait(async () => { const s = await secondDev('GET', '/state'); if (s.error) throw Error(s.error); return (await otherTeam('GET', '/enrollments')).length > 0; }, 'enrollment request');
  const enrollment = (await otherTeam('GET', '/enrollments'))[0]; await otherTeam('POST', '/enrollments/' + enrollment.id + '/approve', {});
- await wait(async () => (await secondDev('GET', '/state')).connected, 'second workspace joined on same device');
+ // Joining a second Team over the private network took longer than 90s on a loaded CI runner (4.72.0-preview.1), so it gets five minutes.
+ await wait(async () => (await secondDev('GET', '/state')).connected, 'second workspace joined on same device', 3000);
  spawn('go', ['test', '-run', '^TestWorkspaceShellBrowserFixture$', '-count=1', '-timeout', '12m', './internal/shell'], env, path.join(root, 'desktop'));
  await wait(() => fs.existsSync(path.join(temp, 'shell-ready')), 'Go desktop shell');
  const repo = path.join(temp, 'repo'); fs.mkdirSync(repo); run('git', ['-C', repo, 'init', '-b', 'main']); run('git', ['-C', repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture']); run('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/acme/shop']);

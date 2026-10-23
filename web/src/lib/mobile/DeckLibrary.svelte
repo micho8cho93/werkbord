@@ -3,8 +3,9 @@
   import Icon from '../Icon.svelte';
   import { deckKeys, type DeckKeyId } from './deck';
   import { WORKFLOWS, type ButtonId, type DeckSlot } from './layout';
-  let { onboarding = false, position, slot, onclose, onchoose, onremove, onmove, onconfigure }:
-    { onboarding?: boolean; position: number; slot: DeckSlot | null; onclose: () => void; onchoose: (id: ButtonId) => void; onremove: () => void; onmove: (to: number) => void; onconfigure: () => void } = $props();
+  import type { Workspace } from '../personal/schema';
+  let { onboarding = false, workspaces = [], position, slot, onclose, onchoose, onremove, onmove, onconfigure }:
+    { onboarding?: boolean; workspaces?: Workspace[]; position: number; slot: DeckSlot | null; onclose: () => void; onchoose: (id: ButtonId) => void; onremove: () => void; onmove: (to: number) => void; onconfigure: () => void } = $props();
   const navigation = deckKeys({ needsYou: 0, review: 0, running: 0, repoAttention: 0 });
 </script>
 <Sheet title="{slot ? 'Edit button' : 'Add button'} · position {position + 1}" {onclose}>
@@ -28,6 +29,15 @@
       <button type="button" onclick={() => onchoose(key.id as DeckKeyId)}><Icon name={key.icon} size={20} /><span>{key.label}</span></button>
     {/each}
   </div>
+  {#if workspaces.length && !onboarding}
+    <h3>Your workspaces</h3>
+    <p class="muted">Open a workspace you made with Salie. These buttons do not start agents.</p>
+    <div class="library">
+      {#each workspaces as w (w.id)}
+        <button type="button" onclick={() => onchoose(w.id as ButtonId)}><Icon name={w.icon} size={20} /><span>{w.name}</span></button>
+      {/each}
+    </div>
+  {/if}
   <h3>Agent workflows</h3>
   <p class="muted">Execute work on a repository using your runner and agent.</p>
   <div class="library">

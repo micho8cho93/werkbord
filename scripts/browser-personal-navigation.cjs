@@ -139,7 +139,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     try {
         await page.goto(shellOrigin + '/shell/shell/index.html');
         await generated.waitFor();
-        await ordered(['assistant', 'mywork', 'inbox', 'calendar', 'create-generated', 'generated-' + savedWorkspace.id, 'personal-library', ...footer]);
+        await ordered(['assistant', 'mywork', 'inbox', 'calendar', 'generated-' + savedWorkspace.id, 'personal-library', ...footer]);
         await openSaved();
         assert.equal(await generated.getAttribute('aria-current'), 'page');
         assert.equal(await generated.getAttribute('aria-label'), spec.name);
