@@ -11,7 +11,7 @@
 </script>
 <Sheet title="{slot ? 'Edit button' : 'Add button'} · position {position + 1}" {onclose}>
   {#if onboarding}<p>Programme the bottom three positions with navigation or workflows. You can customise all nine positions later.</p>{/if}
-  {#if slot && onboarding}<button class="btn" onclick={onremove}>Remove choice</button>{/if}
+  {#if slot && onboarding}<button class="btn danger" onclick={onremove}>Remove choice</button>{/if}
   {#if slot && !onboarding}
     <div class="actions">
       {#if WORKFLOWS.some(w => w.id === slot.button)}<button class="btn" onclick={onconfigure}><Icon name="settings" />Configure workflow</button>{/if}
@@ -27,7 +27,7 @@
     <h3>Your workspaces</h3>
     <p class="muted">Open a workspace you made with Salie, on this phone or at the computer. These buttons do not start agents.</p>
     <div class="library" data-testid="deck-workspaces">
-      <button type="button" onclick={oncreate} data-testid="deck-create-workspace"><Icon name="plus" size={20} /><span>Create with Salie<small>Describe a workspace and Salie builds it. Add it to a button afterwards.</small></span></button>
+      <button type="button" onclick={oncreate} data-testid="deck-create-workspace"><Icon name="create" size={20} /><span>Create with Salie<small>Describe a workspace and Salie builds it. Add it to a button afterwards.</small></span></button>
       {#each workspaces as w (w.id)}
         <button type="button" onclick={() => onchoose(w.id as ButtonId)} data-workspace-id={w.id}><WorkspaceIcon icon={w.icon} name={w.name} size={20} /><span>{w.name}</span></button>
       {/each}

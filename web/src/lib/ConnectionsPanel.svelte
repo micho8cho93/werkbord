@@ -255,8 +255,8 @@
                 {#each c.resources ?? [] as resource (resource.uri)}
                   <li>
                     <div><strong>{resource.title || resource.name}</strong><span class="mono uri">{resource.uri}</span>{#if resource.description}<p>{resource.description}</p>{/if}</div>
-                    <button class="btn small" disabled={!c.enabled || !c.assistantEnabled} onclick={() => readResource(c,resource.uri,'assistant')}>Read for assistant</button>
-                    <button class="btn small" disabled={!c.enabled || !c.codingEnabled} onclick={() => readResource(c,resource.uri,'coding')}>Read for coding</button>
+                    <button class="btn small open" disabled={!c.enabled || !c.assistantEnabled} onclick={() => readResource(c,resource.uri,'assistant')}>Read for assistant</button>
+                    <button class="btn small open" disabled={!c.enabled || !c.codingEnabled} onclick={() => readResource(c,resource.uri,'coding')}>Read for coding</button>
                   </li>
                 {/each}
               </ul>

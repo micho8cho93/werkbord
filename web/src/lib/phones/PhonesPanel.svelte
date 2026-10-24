@@ -106,7 +106,7 @@
   {#if self}
     <div class="phone" data-testid="phone-self">
       <div class="who"><strong>{self.name}</strong><span class="muted small">added {formatDateTime(self.createdAt)}</span></div>
-      <button class="btn small" onclick={signOut}>Sign out this phone</button>
+      <button class="btn small warn" onclick={signOut}>Sign out this phone</button>
     </div>
   {:else}
     {#if phones === null && !error}
@@ -131,7 +131,7 @@
               </div>
               <div class="acts">
                 <button class="btn small quiet" onclick={() => ((editing = p.id), (draft = p.name))}>Rename</button>
-                <button class="btn small" disabled={busy === p.id} onclick={() => revoke(p)}>Revoke</button>
+                <button class="btn small danger" disabled={busy === p.id} onclick={() => revoke(p)}>Revoke</button>
               </div>
             {/if}
           </li>

@@ -158,7 +158,7 @@
     </div>
   </div>
   {#if behind}
-    <button class="latest btn small" type="button" in:surface={{ duration: 120, y: 0 }} onclick={jumpToEnd}><Icon name="down" size={12} /> New response below</button>
+    <button class="latest btn small add" type="button" in:surface={{ duration: 120, y: 0 }} onclick={jumpToEnd}><Icon name="down" size={12} /> New response below</button>
   {/if}
 {:else}
   <div class="state" role="status" data-testid="assistant-state" data-status={assistant.status}>
@@ -168,7 +168,7 @@
       <h2 class="t">Cannot reach Werkbord</h2>
       <p>Werkbord on this computer is not answering. If it was restarted, this is usually over in a few seconds.</p>
       {#if assistant.problem}<p class="muted">{assistant.problem}</p>{/if}
-      <button class="btn" type="button" onclick={() => assistant.prepare(true)}>Try again</button>
+      <button class="btn quiet" type="button" onclick={() => assistant.prepare(true)}>Try again</button>
     {:else if assistant.status === 'unauthorized'}
       <h2 class="t">This device is not signed in</h2>
       <p>Open Werkbord again from its link, then come back.</p>

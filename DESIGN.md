@@ -66,7 +66,31 @@ checks the tokens and `scripts/measure-legibility.cjs` every rendered screen ([d
 The pixel mark (`lib/Mark.svelte`): three slanted bars, eight rows, one flat shade per row; ink, cobalt, amber.
 It uses the light ramps on paper and the dark ramps on ink (`light-dark()`). The app icon and favicon are
 always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs generated from them). Icons
-(`lib/Icon.svelte`) are drawn on a 16px grid, 1.4px stroke, round caps. No emoji, no glyph icons.
+(`lib/Icon.svelte`) are [Lucide](https://lucide.dev/) icons (ISC; the notice is in `web/public/licenses/LUCIDE.txt`),
+drawn with one 1.6px line at every size. Each meaning has its own icon and no icon is used for two meanings
+(`lib/app-icons.ts`; the Team console uses the same set). The icons the app draws are chosen apart from the 152 a generated
+workspace can take (`internal/domain/personal_icon_catalog.json`), so a workspace in the sidebar is never mistaken for a page
+of the app; `app-icons.test.ts` enforces both. No emoji, no glyph icons.
+
+### Button tones
+
+A row of buttons should read as a row of different things before a word is read. Every tone is the same raised button with one
+quiet difference: the colour of its edge and label, a faint glow of that colour when pointed at, and for going somewhere an
+underline. A lone button needs none.
+
+| Class | Leans toward | Examples |
+| --- | --- | --- |
+| *(none)* | change or manage | Edit, Settings, Rename |
+| `primary` | the one thing a place is for (filled) | Save, Edit with Salie |
+| `add` | bring something new in (accent edge) | Add record, New icon, Add to Control Deck |
+| `open` | go somewhere or look (accent label, underlined) | Open, Data library, Review |
+| `ok` | approve, confirm, finish (green) | Merge, Restore, Keep, Start Team service |
+| `warn` | stop or pause, can be undone (amber) | Stop Team service, Remove file, Skip |
+| `danger` | remove for good (red edge and label) | Delete, Revoke |
+| `quiet` | housekeeping, no relief until touched | Reload, Retry, Copy |
+
+The tones are defined once in `app.css` and mirrored in the Team console's `console.css`. Use them where several buttons stand
+together (a page header, a card's actions, a menu); the label decides the tone, not the position.
 
 ## Layout
 

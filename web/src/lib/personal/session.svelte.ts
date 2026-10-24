@@ -1,7 +1,7 @@
 import { getContext } from 'svelte';
 import { ApiError } from '../api';
 import { personalAPI, type PersonalAPI } from './api';
-import { validateWorkspace, type Collection, type PersonalRecord, type Values, type Workspace } from './schema';
+import { validateWorkspace, viewWritableFields, type Collection, type PersonalRecord, type ShortcutTarget, type Values, type Workspace } from './schema';
 
 export const WORKSPACE_CONTEXT = Symbol('personal-workspace');
 export function workspaceSession(): WorkspaceSession { return getContext(WORKSPACE_CONTEXT); }
@@ -13,8 +13,22 @@ export class WorkspaceSession {
   busy = $state(false);
   problem = $state('');
   notice = $state('');
+  /** The record the last create or update saved: how a view learns the ID of the record it has just made. */
+  lastSaved: PersonalRecord | null = null;
+  /**
+   * Opens a place in the app for a shortcut. The window the workspace is shown in provides it; where there is none the
+   * shortcut says so instead of doing nothing. A shortcut names a place, never an address.
+   */
+  navigate?: (target: ShortcutTarget) => void;
+  /** The places `navigate` can open here: a window offers the ones it has. */
+  navigable: ShortcutTarget[] = [];
 
   constructor(readonly api: PersonalAPI = personalAPI) {}
+
+  /** Resolves once no save is running (or after a few seconds): a drag that ends just after another change is not lost. */
+  async idle(): Promise<void> {
+    for (let waited = 0; this.busy && waited < 4000; waited += 25) await new Promise((resolve) => setTimeout(resolve, 25));
+  }
 
   async load(id: string) {
     const workspace = await this.api.workspace(id);
@@ -32,7 +46,7 @@ export class WorkspaceSession {
     this.problem = ''; this.notice = '';
     const view = this.workspace?.definition.views.find(v => v.id === viewID);
     if (!view?.operations?.includes(operation)) { this.problem = 'This view does not allow that record operation.'; return false; }
-    const editable = [...view.fields, ...(view.checkedField ? [view.checkedField] : [])];
+    const editable = viewWritableFields(view);
     if ([...Object.keys(patch), ...clear].some(key => !editable.includes(key))) { this.problem = 'This field is not permitted in this view.'; return false; }
     const records = this.records[view.collectionId] ?? [];
     const record = records.find(r => r.id === id);
@@ -50,6 +64,7 @@ export class WorkspaceSession {
           ? await this.api.create(view.collectionId, values)
           : await this.api.update(view.collectionId, record!.id, record!.revision, values);
         this.records[view.collectionId] = operation === 'create' ? [...records, saved] : records.map(r => r.id === saved.id ? saved : r);
+        this.lastSaved = saved;
       }
       this.notice = operation === 'delete' ? 'Record deleted.' : 'Saved.';
       return true;

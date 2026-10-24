@@ -135,7 +135,7 @@
       <strong><span class="status"><span class="status-dot" aria-hidden="true"></span>Failed</span>{fail.title}</strong>
       <p>{fail.detail}</p>
       <div class="acts">
-        {#if fail.action === 'retry'}<button class="btn small" type="button" onclick={() => assistant.retry()}>Try again</button>{/if}
+        {#if fail.action === 'retry'}<button class="btn small quiet" type="button" onclick={() => assistant.retry()}>Try again</button>{/if}
         {#if fail.action === 'model'}
           <button class="btn small" type="button" onclick={() => (assistant.pickerOpen = true)}>Choose another model</button>
           <button class="btn small quiet" type="button" onclick={() => assistant.retry()}>Try again</button>

@@ -148,7 +148,7 @@
   {:else if task.state === 'review'}
     <div class="acts">
       <a class="btn small primary" href={branch && !run?.remote ? branchHref(task.projectId, branch.scope, branch.name) : href}>{branch && !run?.remote ? 'Review changes' : 'Review result'}</a>
-      {#if mergeable}<button class="btn small" onclick={() => onmerge(task)}><Icon name="merge" size={14} />Merge…</button>{/if}
+      {#if mergeable}<button class="btn small ok" onclick={() => onmerge(task)}><Icon name="merge" size={14} />Merge…</button>{/if}
     </div>
   {:else if task.state === 'doing' && run?.state === 'completed'}
     <div class="acts">

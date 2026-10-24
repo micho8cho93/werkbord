@@ -97,7 +97,7 @@
         </div>
       {/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
-      <div class="done"><button type="button" class="btn small" onclick={() => (open = false)}>Done</button></div>
+      <div class="done"><button type="button" class="btn small ok" onclick={() => (open = false)}>Done</button></div>
     </div>
   {/if}
 </div>

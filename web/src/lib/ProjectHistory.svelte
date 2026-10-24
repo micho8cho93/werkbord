@@ -36,7 +36,7 @@
     <button aria-pressed={filter === 'archived'} onclick={() => filter = 'archived'}>Archived</button>
     <button aria-pressed={filter === 'deleted'} onclick={() => filter = 'deleted'}>Deleted</button>
   </div>
-  {#if error}<p class="error" role="alert">{error}</p><button class="btn" onclick={load}>Retry</button>{/if}
+  {#if error}<p class="error" role="alert">{error}</p><button class="btn quiet" onclick={load}>Retry</button>{/if}
   {#if message}<p role="status">{message}</p>{/if}
   {#if loading}<p class="muted" role="status">Loading project history…</p>
   {:else}
@@ -47,7 +47,7 @@
         {#if p.lifecycle?.length}<details><summary>Activity ({p.lifecycle.length})</summary>{#each p.lifecycle as entry, i (i)}<p class="muted">{entry.state === 'active' ? 'Restored' : entry.state === 'deleted' ? 'Deleted' : 'Archived'} · {new Date(entry.at).toLocaleString()}</p>{/each}</details>{/if}
         <div class="actions">
           {#if p.archivedAt || p.deletedAt}<button class="btn" disabled={!!busy} onclick={() => restore(p)}>{busy === p.id ? 'Restoring…' : 'Restore project'}</button>
-          {:else}<a class="btn" href={projectHref(p.id, 'overview')}>Open project</a>{/if}
+          {:else}<a class="btn open" href={projectHref(p.id, 'overview')}>Open project</a>{/if}
         </div>
       </li>
     {:else}<li class="muted">No {filter === 'all' ? '' : filter + ' '}projects yet.</li>{/each}</ul>

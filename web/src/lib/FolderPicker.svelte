@@ -40,7 +40,7 @@
       </div>
       <label class="field">Find a folder<input class="input" type="search" bind:value={filter} placeholder="Filter folders" /></label>
     {/if}
-    {#if error}<p class="error" role="alert">{error}</p><button class="btn" onclick={() => browse()}>Open home folder</button>{/if}
+    {#if error}<p class="error" role="alert">{error}</p><button class="btn open" onclick={() => browse()}>Open home folder</button>{/if}
     <ul class="folders" aria-busy={busy}>
       {#each shown as f (f.path)}
         <li><button disabled={busy} onclick={() => browse(f.path)}><Icon name={f.repository ? 'git' : 'folder'} /><span>{f.name}</span>{#if f.repository}<span class="chip">Git</span>{/if}<Icon name="right" /></button></li>

@@ -40,9 +40,9 @@
       {#if teamState?.state === 'not_installed' || teamState?.state === 'outdated'}
         <button class="btn primary" type="button" onclick={() => model.activateTeam()} disabled={!!model.busy}>{teamState.state === 'outdated' ? 'Update Team' : 'Set up Team'}</button>
       {:else if teamState?.state === 'stopped'}
-        <button class="btn" type="button" onclick={() => model.teamService('start')} disabled={!!model.busy}>{model.busy === 'Starting Team service…' ? model.busy : 'Start Team service'}</button>
+        <button class="btn ok" type="button" onclick={() => model.teamService('start')} disabled={!!model.busy}>{model.busy === 'Starting Team service…' ? model.busy : 'Start Team service'}</button>
       {:else if teamState?.state === 'ready'}
-        <button class="btn" type="button" onclick={() => model.teamService('stop')} disabled={!!model.busy}>{model.busy === 'Stopping Team service…' ? model.busy : 'Stop Team service'}</button>
+        <button class="btn warn" type="button" onclick={() => model.teamService('stop')} disabled={!!model.busy}>{model.busy === 'Stopping Team service…' ? model.busy : 'Stop Team service'}</button>
       {/if}
     </div>
   </section>
@@ -85,7 +85,7 @@
 
         <div class="actions">
           {#if i.state === 'setup' || i.state === 'connecting' || i.state === 'ready' || i.state === 'offline'}
-            <button class="btn" type="button" onclick={() => model.open(i.id)}>{i.state === 'setup' ? 'Finish setting up' : 'Open'}</button>
+            <button class="btn open" type="button" onclick={() => model.open(i.id)}>{i.state === 'setup' ? 'Finish setting up' : 'Open'}</button>
           {/if}
           {#if i.kind === 'personal' && i.state === 'ready'}
             <button class="btn" type="button" onclick={() => model.openSettings('personal/runners')} data-testid="manage-runners">Runners</button>
@@ -94,9 +94,9 @@
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=hosts')} data-testid="manage-hosts">Hosts and devices</button>
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=connectivity')}>Connectivity</button>
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=backups')}>Backups</button>
-            <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=settings')}>Settings and leaving</button>
+            <button class="btn warn" type="button" onclick={() => model.open(i.id, '?tab=settings')}>Settings and leaving</button>
             {#if i.state !== 'leaving' && !roles.includes('runner')}
-              <button class="btn" type="button" onclick={() => model.connectRunner(i.id)} disabled={!!model.busy} data-testid="connect-runner">Connect my Individual runner</button>
+              <button class="btn add" type="button" onclick={() => model.connectRunner(i.id)} disabled={!!model.busy} data-testid="connect-runner">Connect my Individual runner</button>
             {/if}
           {/if}
           {#if i.kind === 'team' && (i.state === 'setup' || i.state === 'leaving' || (i.state === 'connecting' && !i.role))}
@@ -107,7 +107,7 @@
     {/each}
   </ul>
 
-  <p class="foot"><button class="btn" type="button" onclick={() => (model.addOpen = true)} data-testid="add-team-page">Add a Team…</button></p>
+  <p class="foot"><button class="btn add" type="button" onclick={() => (model.addOpen = true)} data-testid="add-team-page">Add a Team…</button></p>
 </section>
 
 <style>

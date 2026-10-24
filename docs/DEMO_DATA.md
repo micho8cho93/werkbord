@@ -5,14 +5,20 @@
 Run `python3 scripts/seed-demo-workspaces.py --apply` against the running local
 installation to add:
 
-- Individual: **Demo · Focus planner** (weekly commitments and rituals) and
-  **Demo · Reading journal** (fictional reading shelf and practical notes).
-- Team: **Demo · Launch room** (deliverables, readiness and decisions) and
-  **Demo · Research hub** (fictional interviews and findings), displayed in the
-  first local Team workspace (`team:main`).
-- Ten library collections containing 97 sample records, including two unattached
+- Individual: **Demo · Focus planner** (a board, a chart, a calendar, weekly notes
+  written in the document editor and small rituals), **Demo · Reading journal**
+  (nested, linked reading notes beside the shelf) and **Demo · Developer cockpit**
+  (shortcuts to the app's pages, a sprint board, copyable commands and runbook pages).
+- Team: **Demo · Launch room** (launch documents, a deliverables board, due dates, a
+  catalogue of launch material and a decision log) and **Demo · Research hub**
+  (linked research notes, an interview question bank and the evidence), displayed in
+  the first local Team workspace (`team:main`).
+- Library collections with their sample records, including two unattached
   collections (**Kitchen experiments** and **Team risk register**) to inspect or
   reuse through the Data library.
+- `scripts/demo-assets/` holds a sample PDF, picture and Markdown note
+  (`generate.py` rewrites them). In **Demo · Launch room → Launch material**, open an
+  entry and attach one to read it in the viewer. The file stays on this computer.
 - Six fictional Team members with `(Demo)` names and reserved example email
   addresses, also added to existing active `Demo ·` projects with the Member role.
 
@@ -29,7 +35,13 @@ receipt and a final manifest of sample IDs and counts. Both local services must
 be available and Team backup must succeed. Writes use the existing authenticated
 loopback APIs; the script never edits database rows directly.
 
-Re-running preserves existing sample workspaces, members and record edits. Missing
+Re-running preserves existing sample workspaces, members and record edits. Pass
+`--replace` to bring workspaces made by an earlier version of the script up to date:
+the same workspace (same ID, icon and display places) gets the new definition, the
+earlier definition stays in its revision history and can be restored, and the earlier
+sample collections remain, untouched, in the Data library. Run the script after the
+app has been updated, because an older controller does not know the newer view kinds.
+`--skip-team`, `--port` and `--db-name` allow a disposable controller. Missing
 sample records are added using their stable title/participant/dish as identity;
 renaming one of those identifiers means the original sample can be added again.
 An incompatible existing sample collection schema stops the script. `--date

@@ -20,7 +20,7 @@ func seedPersonal(t *testing.T, db *DB) (*domain.PersonalCollection, *domain.Per
 		return domain.PersonalMeta{ID: domain.NewID(prefix), CreatedAt: at, UpdatedAt: at}
 	}
 	c := &domain.PersonalCollection{PersonalMeta: meta(domain.PrefixPersonalCollection), PersonalCollectionSpec: domain.PersonalCollectionSpec{Name: "Campaign", SchemaVersion: 1, Fields: []domain.PersonalField{{Key: "title", Name: "Title", Type: "text"}}}}
-	w := &domain.PersonalWorkspace{PersonalMeta: meta(domain.PrefixPersonalWorkspace), PersonalWorkspaceSpec: domain.PersonalWorkspaceSpec{Name: "Campaign", Icon: "board", UISchemaVersion: 1, CollectionIDs: []string{c.ID}, Visibility: domain.PersonalVisibility{Individual: true}, Definition: domain.PersonalUI{Layout: domain.PersonalNode{Type: "heading", Text: "Campaign"}}}}
+	w := &domain.PersonalWorkspace{PersonalMeta: meta(domain.PrefixPersonalWorkspace), PersonalWorkspaceSpec: domain.PersonalWorkspaceSpec{Name: "Campaign", Icon: "lucide-kanban", UISchemaVersion: 1, CollectionIDs: []string{c.ID}, Visibility: domain.PersonalVisibility{Individual: true}, Definition: domain.PersonalUI{Layout: domain.PersonalNode{Type: "heading", Text: "Campaign"}}}}
 	r := &domain.PersonalRecord{PersonalMeta: meta(domain.PrefixPersonalRecord), CollectionID: c.ID, Values: map[string]json.RawMessage{"title": json.RawMessage(`"Durable"`)}}
 	if err := db.Update(context.Background(), func(tx store.Tx) error {
 		if e := tx.Personal().CreateCollection(ctx, c); e != nil {

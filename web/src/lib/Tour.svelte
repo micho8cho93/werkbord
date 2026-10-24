@@ -74,7 +74,7 @@
     <h3>{step.title}</h3>
     <p class="body">{step.body}</p>
     <div class="row">
-      <button class="btn" onclick={close}>Skip tour</button>
+      <button class="btn warn" onclick={close}>Skip tour</button>
       <span class="grow"></span>
       {#if index > 0}<button class="btn" onclick={() => (index -= 1)}>Back</button>{/if}
       <button class="btn primary" data-primary onclick={() => (last ? close() : (index += 1))}>{last ? 'Done' : 'Next'}</button>

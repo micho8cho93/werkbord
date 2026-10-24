@@ -58,7 +58,7 @@
     {/if}
 
     {#if compact}
-      <a class="btn small" href={`${projectHref(project.id, 'git')}?health`}>View findings ({h.findings.length})</a>
+      <a class="btn small open" href={`${projectHref(project.id, 'git')}?health`}>View findings ({h.findings.length})</a>
     {:else}
     {#if split.needs.length}
       <ul class="g-list">

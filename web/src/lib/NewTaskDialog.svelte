@@ -156,7 +156,7 @@
     {#if uncertainSave}<p role="status">Save status is unknown. Your brief is kept in this tab; check the Board before creating another task.</p><a class="btn" href={`#/p/${project.id}/board`} onclick={close}>Check Board</a>{/if}
     {#if uncertainStart && !error}<p role="status">Start status is unknown. Open the saved task to check Runs before starting again.</p>{/if}
     {#if !draftStored}<p role="status">This browser cannot keep the brief through reload. Copy it before closing or reloading.</p>{/if}
-    {#if saved}<button class="btn" type="button" onclick={() => { if (saved) { router.go({ view: 'task', projectId: project.id, taskId: saved.id }); cleared = true; writeDraft(draftKey, null); } close(); }}>View saved task</button>{/if}
+    {#if saved}<button class="btn open" type="button" onclick={() => { if (saved) { router.go({ view: 'task', projectId: project.id, taskId: saved.id }); cleared = true; writeDraft(draftKey, null); } close(); }}>View saved task</button>{/if}
   </form>
 
   {#snippet footer()}

@@ -1,34 +1,36 @@
-// Generated workspace glyphs use a separate, closed grammar from app/action icons.
-export const legacyWorkspaceIcons = ['overview', 'board', 'calendar', 'timeline', 'activity', 'analytics', 'projects', 'folder', 'check', 'people'] as const;
-const maskLimit = 0x1ffffff;
+import catalogue from '../../../../internal/domain/personal_icon_catalog.json';
 
-export function generatedWorkspaceIcon(icon: string): boolean {
+// Names only: SVG and components come from the bundled, approved Lucide registry.
+export const legacyWorkspaceIcons = ['overview', 'board', 'calendar', 'timeline', 'activity', 'analytics', 'projects', 'folder', 'check', 'people'] as const;
+export const workspaceIcons = catalogue.map(icon => `lucide-${icon.name}`);
+export function libraryWorkspaceIcon(icon: string): boolean { return workspaceIcons.includes(icon); }
+export function legacyWorkspaceGlyph(icon: string): boolean {
   if (!/^workspace-[01][0-9a-f]{6}$/.test(icon)) return false;
   const count = parseInt(icon.slice(10), 16).toString(2).replaceAll('0', '').length;
   return count >= 8 && count <= 17;
 }
 export function validWorkspaceIcon(icon: string): boolean {
-  return icon === 'auto' || generatedWorkspaceIcon(icon) || legacyWorkspaceIcons.some(value => value === icon);
+  return icon === 'auto' || libraryWorkspaceIcon(icon) || legacyWorkspaceGlyph(icon) || legacyWorkspaceIcons.some(value => value === icon);
 }
-
-/** Must match domain.PersonalIconCandidate: FNV-1a over UTF-8, including the separator. */
-export function workspaceIconCandidate(name: string, previous: string, attempt = 0): string {
-  let hash = 2166136261;
-  for (const byte of new TextEncoder().encode(`${name}\0${previous}`)) hash = Math.imul(hash ^ byte, 16777619) >>> 0;
-  return `workspace-${((hash + Math.imul(attempt, 0x9e3779b9)) & maskLimit).toString(16).padStart(7, '0')}`;
+function words(text: string): Set<string> {
+  return new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).map(word => word.replace(/s$/, '')));
+}
+/** Must match domain.PersonalIconCandidates. Equal scores retain catalogue order. */
+export function workspaceIconCandidates(name: string, context = ''): string[] {
+  const title = words(name), detail = words(context);
+  return catalogue.map(icon => {
+    let score = 0;
+    for (const word of words(`${icon.keywords.join(' ')} ${icon.name.replaceAll('-', ' ')}`)) {
+      if (title.has(word)) score += 10;
+      if (detail.has(word)) score++;
+    }
+    return {icon: `lucide-${icon.name}`, score};
+  }).sort((a, b) => b.score - a.score).map(choice => choice.icon);
 }
 export function displayWorkspaceIcon(icon: string, name: string): string {
-  if (generatedWorkspaceIcon(icon)) return icon;
-  for (let attempt = 0; ; attempt++) {
-    const candidate = workspaceIconCandidate(name, icon, attempt);
-    if (generatedWorkspaceIcon(candidate)) return candidate;
-  }
+  return libraryWorkspaceIcon(icon) ? icon : workspaceIconCandidates(name)[0];
 }
-export function newWorkspaceIcon(): string {
-  const random = crypto.getRandomValues(new Uint32Array(1))[0];
-  return displayWorkspaceIcon('auto', String(random));
-}
-export function workspaceIconCells(icon: string, name: string): number[] {
-  const mask = parseInt(displayWorkspaceIcon(icon, name).slice(10), 16);
-  return Array.from({ length: 25 }, (_, i) => i).filter(i => (mask & (1 << i)) !== 0);
+export function newWorkspaceIcon(name: string, used: Iterable<string>, context = ''): string | undefined {
+  const occupied = new Set(used);
+  return workspaceIconCandidates(name, context).find(icon => !occupied.has(icon));
 }

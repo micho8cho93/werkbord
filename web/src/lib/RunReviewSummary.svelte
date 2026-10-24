@@ -30,7 +30,7 @@
     {:else}
       <p class="muted">{lookupFailed ? 'Git evidence could not be checked. Open full evidence for details.' : git.loading || git.githubLoading ? 'Checking available review evidence…' : run.remote ? 'Changes remain on the runner. No pull request is available here.' : 'No local diff or pull request is available here.'}</p>
     {/if}
-    {#if canMerge}<button class="btn" onclick={() => sheets.open({ kind: 'merge', branch: branch!.name, onmerged })}><Icon name="merge" size={14} />Merge…</button>{/if}
+    {#if canMerge}<button class="btn ok" onclick={() => sheets.open({ kind: 'merge', branch: branch!.name, onmerged })}><Icon name="merge" size={14} />Merge…</button>{/if}
   </div>
   <p class="summary">
     {#if branch}<span>Local branch <code>{branch.name}</code> · {branch.vsTarget.ahead} commit{branch.vsTarget.ahead === 1 ? '' : 's'} ahead</span>

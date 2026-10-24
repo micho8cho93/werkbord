@@ -58,7 +58,7 @@
       <a class="row-title" {href}>{item.title}</a>
       <p class="mm">{KIND_LABEL.review}{showProject ? ` · ${item.projectName}` : ''}{agent ? ` · ${agent}` : ''}</p>
     </div>
-    <a class="btn small" {href}>Review</a>
+    <a class="btn small open" {href}>Review</a>
   </li>
 {:else}
   <li class="card item" data-kind={item.kind} data-motion-key={item.key}>
@@ -87,15 +87,15 @@
       {#if item.run.reason}<p class="well">{oneLine(item.run.reason, 240)}</p>{/if}
       <div class="acts">
         <button class="btn small" disabled={!!busy} onclick={runAgain}><Icon name="play" size={12} />{busy === 'again' ? 'Starting…' : 'Run again'}</button>
-        <a class="btn small" {href}>Open task</a>
+        <a class="btn small open" {href}>Open task</a>
       </div>
     {:else if item.kind === 'schedule' && item.schedule}
       <p class="well"><strong>{schedulingLabels[item.schedule.decision.state]}</strong> · {item.schedule.decision.reason}</p>
-      <div class="acts"><a class="btn small" {href}>Open task</a></div>
+      <div class="acts"><a class="btn small open" {href}>Open task</a></div>
     {:else if item.kind === 'risk' && item.finding}
       <p class="expl">{item.finding.explanation}</p>
       <p class="next"><span class="mm">Next</span> {item.finding.action.label}</p>
-      <div class="acts"><a class="btn small" href={overviewHref(item.projectId)} onclick={() => app.enter(item.projectId)}>Open Git</a></div>
+      <div class="acts"><a class="btn small open" href={overviewHref(item.projectId)} onclick={() => app.enter(item.projectId)}>Open Git</a></div>
     {/if}
   </li>
 {/if}

@@ -93,7 +93,7 @@ const ok = text => console.log('PASS ' + text);
   await page.getByRole('button',{name:'Save changes',exact:true}).click();
   await page.getByRole('heading',{name:'Weekly planner',exact:true}).waitFor();
   workspace = await api(base,'GET',`/workspaces/${wid}`);
-  assert.match(workspace.icon,/^workspace-[01][0-9a-f]{6}$/); assert.equal(workspace.revision,2);
+  assert.match(workspace.icon,/^lucide-[a-z0-9-]+$/); assert.equal(workspace.revision,2);
   await manage('Definition history');
   await page.getByRole('button',{name:'Review revision',exact:true}).click();
   await page.getByRole('button',{name:'Restore this definition',exact:true}).click();

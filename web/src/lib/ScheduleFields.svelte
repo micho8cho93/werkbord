@@ -257,7 +257,7 @@
   <button class="btn primary" disabled={busy}
     >{busy ? "Saving…" : "Save schedule and dependencies"}</button
   >
-<button type="button" class="btn" disabled={busy} onclick={() => { if (confirm("Allow one more scheduled run? This rearms the schedule; it does not start an agent now.")) void save(true); }}>Allow one more run</button>
+<button type="button" class="btn ok" disabled={busy} onclick={() => { if (confirm("Allow one more scheduled run? This rearms the schedule; it does not start an agent now.")) void save(true); }}>Allow one more run</button>
 </form>
 
 <style>

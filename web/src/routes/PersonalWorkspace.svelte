@@ -15,6 +15,8 @@
   import { WorkspaceSession } from '../lib/personal/session.svelte';
   import { personalAPI } from '../lib/personal/api';
   import { todoCollection, todoWorkspace } from '../lib/personal/example';
+  import { pageAddresses } from '../lib/personal/shortcuts';
+  import type { ShortcutTarget } from '../lib/personal/schema';
   let { id = '' }: { id?: string } = $props();
   let library = $state(false);
   let notice = $state('');
@@ -83,6 +85,9 @@
     loading = Boolean(target);
     if (!target) return;
     const next = new WorkspaceSession();
+    // A shortcut here opens one of the app's own pages, by the address the page has.
+    next.navigable = (Object.keys(pageAddresses) as ShortcutTarget[]);
+    next.navigate = (target) => { const address = pageAddresses[target]; if (address) location.hash = address; };
     untrack(() => { void next.load(target).then(() => {
       if (active) session = next;
     }).catch(err => {
@@ -114,16 +119,16 @@
 <div class="personal-page">
   {#if phone.on}<div class="phone-top"><PhoneBack /></div>{/if}
   {#if notice}<p role="status">{notice}</p>{/if}
-  {#if !restricted}<button class="btn" onclick={() => library = !library}>{library ? 'Back to workspace' : 'Data library'}</button>{/if}
+  {#if !restricted}<button class="btn open" onclick={() => library = !library}>{library ? 'Back to workspace' : 'Data library'}</button>{/if}
   {#if library}<PersonalLibrary api={personalAPI} onopen={w => { library = false; location.hash = `#/personal?id=${w.id}`; }} />{:else}
-  <header><div><h1>{session?.workspace?.name ?? 'Personal workspace'}</h1><p>{restricted ? 'Saved on your computer' : 'Saved on this computer'}</p></div><button class="btn primary" disabled={loading || session?.busy} onclick={editWithSalie}>{id ? 'Edit with Salie' : 'Create with Salie'}</button>{#if id}<button class="btn" disabled={loading || session?.busy} onclick={() => attempt++}>Reload workspace</button>{/if}{#if onDeck !== null}<button class="btn" onclick={toggleDeck} data-testid="workspace-deck-button">{onDeck ? 'Remove from Control Deck' : 'Add to Control Deck'}</button>{/if}{#if session?.workspace && !session.busy && !restricted}<WorkspaceManagement workspace={session.workspace} api={personalAPI} onupdated={w => { session!.workspace = w; attempt++; }} onlibrary={() => library = true} ondeleted={preview => { notice = preview.collections.some(c => !c.delete) ? 'Workspace deleted. Preserved personal records are in the data library.' : 'Workspace and its exclusively owned personal data deleted.'; session = null; library = true; }} />{/if}</header>
+  <header><div><h1>{session?.workspace?.name ?? 'Personal workspace'}</h1><p>{restricted ? 'Saved on your computer' : 'Saved on this computer'}</p></div><div class="head-actions"><button class="btn primary" disabled={loading || session?.busy} onclick={editWithSalie}>{id ? 'Edit with Salie' : 'Create with Salie'}</button>{#if id}<button class="btn quiet" disabled={loading || session?.busy} onclick={() => attempt++}>Reload workspace</button>{/if}{#if onDeck !== null}<button class="btn {onDeck ? 'warn' : 'add'}" onclick={toggleDeck} data-testid="workspace-deck-button">{onDeck ? 'Remove from Control Deck' : 'Add to Control Deck'}</button>{/if}{#if session?.workspace && !session.busy && !restricted}<WorkspaceManagement workspace={session.workspace} api={personalAPI} onupdated={w => { session!.workspace = w; attempt++; }} onlibrary={() => library = true} ondeleted={preview => { notice = preview.collections.some(c => !c.delete) ? 'Workspace deleted. Preserved personal records are in the data library.' : 'Workspace and its exclusively owned personal data deleted.'; session = null; library = true; }} />{/if}</div></header>
   {#if deckNotice}<p role="status" class="hint">{deckNotice}</p>{/if}
   {#if loading}<p role="status">Loading workspace…</p>
-  {:else if problem}<section class="recovery" role="alert"><h2>Workspace unavailable</h2><p>{problem}</p><p>Your saved collection records have not been changed.</p><button class="btn" onclick={() => id ? attempt++ : installExample()}>Try again</button></section>
+  {:else if problem}<section class="recovery" role="alert"><h2>Workspace unavailable</h2><p>{problem}</p><p>Your saved collection records have not been changed.</p><button class="btn quiet" onclick={() => id ? attempt++ : installExample()}>Try again</button></section>
   {:else if session}
     <svelte:boundary>
       <WorkspaceRenderer {session} />
-      {#snippet failed(error, reset)}<section class="recovery" role="alert"><h2>Interface unavailable</h2><p>This definition could not be rendered. Your records are safe.</p><!-- The boundary only exposes a plain recovery message. --><button class="btn" onclick={() => { void error; reset(); attempt++; }}>Reload workspace</button></section>{/snippet}
+      {#snippet failed(error, reset)}<section class="recovery" role="alert"><h2>Interface unavailable</h2><p>This definition could not be rendered. Your records are safe.</p><!-- The boundary only exposes a plain recovery message. --><button class="btn quiet" onclick={() => { void error; reset(); attempt++; }}>Reload workspace</button></section>{/snippet}
     </svelte:boundary>
   {:else}<section class="example"><h2>A personal to-do workspace</h2><p>Save a ready-made checklist, editable table, progress display and priority chart. All views share one personal collection. No model is needed.</p><button class="btn primary" disabled={loading} onclick={installExample}>Save to-do example</button><p class="hint">Keep the resulting workspace URL to reopen it after restarting Werkbord.</p></section>{/if}
   {/if}
@@ -131,12 +136,13 @@
 
 <style>
   .personal-page { width: 100%; max-width: 1120px; margin: 0 auto; padding: 24px; min-width: 0; }
-  header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px 20px; margin-bottom: 20px; }
+  .head-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
   h1 { margin: 0; font-size: 24px; font-weight: 600; overflow-wrap: anywhere; }
   header p, .hint { margin: 6px 0 0; color: var(--text-2); font-size: 12px; }
   h2 { margin: 0; font-size: 18px; }
   .example, .recovery { display: grid; justify-items: start; gap: 14px; max-width: 65ch; padding: 24px 0; }
   .example p, .recovery p { margin: 0; color: var(--text-2); line-height: 1.6; }
   .phone-top { margin: -6px 0 4px; }
-  @media (max-width: 600px) { .personal-page { padding: 16px; } button { min-height: 44px; } header { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } header > :first-child, header > :global(.primary), header > :global(section) { grid-column: 1 / -1; } header > :global(.btn) { width: 100%; justify-content: center; } }
+  @media (max-width: 600px) { .personal-page { padding: 16px; } button { min-height: 44px; } header { display: grid; } .head-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: stretch; } .head-actions > :global(.primary), .head-actions > :global(section) { grid-column: 1 / -1; } .head-actions > :global(.btn) { width: 100%; justify-content: center; } }
 </style>

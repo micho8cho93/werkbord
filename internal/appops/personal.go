@@ -13,7 +13,7 @@ import (
 func personalWorkspaceInput() *Schema {
 	field := Object(map[string]*Schema{
 		"key": Str("Stable field key.", 64), "name": Str("Field label.", 120),
-		"type":     Enum("Value type.", "text", "number", "boolean", "date", "datetime", "select", "multiselect"),
+		"type":     Enum("Value type. text: short text up to 16,000 bytes. longtext: a document, note or snippet body written in Markdown, up to 48,000 bytes; use it for anything a person writes at length. url: an http or https web address. select: one choice. multiselect: several choices, shown as tags.", "text", "longtext", "url", "number", "boolean", "date", "datetime", "select", "multiselect"),
 		"required": Bool("Required value; new fields on saved collections must be optional."),
 		"options":  List("Selection options.", Str("Option.", 120), 100),
 	}, "key", "name", "type")
@@ -24,16 +24,16 @@ func personalWorkspaceInput() *Schema {
 	}, "id", "revision", "spec")
 	view := Object(map[string]*Schema{
 		"id": Str("Stable view ID.", 64), "name": Str("View name.", 120),
-		"kind":         Enum("Registered collection view.", "table", "list", "checklist", "progress", "status", "chart"),
+		"kind":         Enum("Registered collection view. table, list: records. checklist, progress, status: a boolean field. chart: counts by a select field. board: Kanban columns by a select field (groupBy), cards drag between columns. calendar: records placed by a date field (dateField). document: a rich text editor (headings, bold, italic, lists, task lists, quotes, code, links) over a collection of documents; fields[0] is the title, bodyField the long text. pages: Notion-style nested pages (parentField) with tags, search and [[links]] between pages. snippets: a library of code and command snippets with copy buttons; groupBy may name a select field such as language. files: a catalogue for PDFs, images and other material viewed from this computer; fields[0] names each item.", "table", "list", "checklist", "progress", "status", "chart", "board", "calendar", "document", "pages", "snippets", "files"),
 		"collectionId": Str("Collection alias on creation; exact saved ID on edit.", 80),
 		"fields":       List("Visible field keys.", Str("Key.", 64), 64),
-		"groupBy":      Str("Select field for chart.", 64), "dateField": Str("Date field for calendar.", 64), "checkedField": Str("Boolean field for checklist/progress/status.", 64),
+		"groupBy":      Str("Select field for chart, board columns, or snippet categories.", 64), "bodyField": Str("Long text field a document, page or snippet is written in (document, pages, snippets; optional notes for files). Not the title field.", 64), "parentField": Str("Text field of a pages view that keeps each page's parent page ID. Pages only.", 64), "dateField": Str("Date field for calendar.", 64), "checkedField": Str("Boolean field for checklist/progress/status.", 64),
 		"operations": List("Personal record controls; summary views are read-only.", Enum("Control.", "create", "update", "delete"), 3),
 		"filters":    List("Saved equality filters, all must match.", Object(map[string]*Schema{"field": Str("Field key.", 64), "value": Str("Text, select, date, or canonical number/boolean value.", 16000)}, "field", "value"), 16),
 	}, "id", "name", "kind", "collectionId", "fields")
 	var node func(int) *Schema
 	node = func(depth int) *Schema {
-		props := map[string]*Schema{"type": Enum("Registered layout node.", "stack", "grid", "card", "text", "heading", "view"), "text": Str("Literal text; never instructions or source code.", 2000), "viewId": Str("Bound view ID.", 64), "columns": Int("Grid columns.", 2, 4)}
+		props := map[string]*Schema{"type": Enum("Registered layout node. shortcut opens a place in the app (target) and is for building launchers, developer cockpits and hubs.", "stack", "grid", "card", "text", "heading", "view", "shortcut"), "target": Enum("Shortcut destination: home, projects, analytics, calendar, data-library, settings, assistant.", "home", "projects", "analytics", "calendar", "data-library", "settings", "assistant"), "text": Str("Literal text, or a shortcut's label; never instructions or source code.", 2000), "viewId": Str("Bound view ID.", 64), "columns": Int("Grid columns.", 2, 4)}
 		if depth < 8 {
 			props["children"] = List("Child nodes.", node(depth+1), 128)
 		}
@@ -41,7 +41,7 @@ func personalWorkspaceInput() *Schema {
 	}
 	workspace := Object(map[string]*Schema{
 		"name":            Str("Short workspace name. Reuse an existing workspace rather than creating duplicates.", 120),
-		"icon":            Str("Use auto on creation or to request a new unique workspace glyph. On edits preserve the exact saved workspace-XXXXXXX token unless a new icon is requested. Legacy icon names are compatibility hints only.", 32),
+		"icon":            Str("Use auto on creation or to request a new icon. The controller chooses a fitting, unused Lucide icon from the workspace name and views. On edits preserve the exact saved lucide-* identifier unless a new icon is requested. Older icon tokens remain readable for compatibility.", 32),
 		"uiSchemaVersion": Int("Always 1.", 1, 1),
 		"definition":      Object(map[string]*Schema{"views": List("Bound views.", view, 32), "layout": node(1)}, "views", "layout"),
 		"visibility":      Object(map[string]*Schema{"universal": Bool("Show in Universal."), "individual": Bool("Show in Individual."), "teamWorkspaceIds": List("Selected context IDs, display only; grants no Team access.", Str("Context ID supplied by person.", 125), 64)}, "universal", "individual"),

@@ -75,7 +75,7 @@
       {/if}
     </span>
     <span class="buttons">
-      <a class="btn small" {href}>Review</a>
+      <a class="btn small open" {href}>Review</a>
       {#each quick as a (a.id)}
         <button class="btn small" class:danger={a.danger} onclick={() => act(a)}>{a.label}</button>
       {/each}

@@ -137,7 +137,15 @@ textarea { resize: vertical; line-height: 1.45; }
 button.primary, button.plain, button.danger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 0 14px; border-radius: 5px; border: 1px solid var(--line); background: var(--btn-bg); box-shadow: var(--btn-sh); color: var(--text); font: inherit; font-weight: 500; font-size: 13px; white-space: nowrap; cursor: pointer; transition: transform .12s cubic-bezier(.16,1,.3,1), box-shadow .12s; }
 button.primary:active:not(:disabled), button.plain:active:not(:disabled), button.danger:active:not(:disabled) { transform: translateY(1px); box-shadow: var(--press-sh); }
 button.primary { background: var(--pri-bg); border-color: var(--pri-bd); box-shadow: var(--pri-sh); color: var(--accent-text); }
-button.danger { color: var(--danger-text); }
+/* What a button leans toward: the same raised button with one quiet difference (see the Individual app's app.css for the vocabulary). */
+button.add, button.open, button.ok, button.warn, button.danger { border-color: color-mix(in srgb, var(--tone) 42%, var(--line)); color: var(--tone-text, var(--tone)); }
+button.add:hover:not(:disabled), button.open:hover:not(:disabled), button.ok:hover:not(:disabled), button.warn:hover:not(:disabled), button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--tone) 9%, var(--panel)); box-shadow: var(--btn-sh), 0 0 0 3px color-mix(in srgb, var(--tone) 16%, transparent); }
+button.add { --tone: var(--accent); }
+button.open { --tone: var(--accent); border-color: var(--line); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: 4px; }
+button.open:hover:not(:disabled) { text-decoration-color: var(--accent); }
+button.ok { --tone: var(--ok); --tone-text: var(--ok-text); }
+button.warn { --tone: var(--warn); --tone-text: var(--warn-text); }
+button.danger { --tone: var(--danger); --tone-text: var(--danger-text); }
 button.small { min-height: 28px; padding: 0 10px; font-size: 12px; }
 a.link, button.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-align: left; }
 button:disabled { opacity: .45; cursor: not-allowed; }

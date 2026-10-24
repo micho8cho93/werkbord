@@ -50,8 +50,11 @@ contain only the entity ID and revision, never definitions, values, or names.
 
 A collection is `{name, schemaVersion: 1, fields: [...]}`. Each field has a stable
 `key`, display `name`, `type`, optional `required` (default false), and selection
-`options` where applicable. Types are `text`, `number`, `boolean`, `date`
+`options` where applicable. Types are `text`, `longtext`, `url`, `number`, `boolean`, `date`
 (`YYYY-MM-DD`), `datetime` (RFC3339), `select`, and `multiselect` (unique strings).
+`longtext` is written text up to 48,000 bytes (line breaks and tabs, no other control
+characters); `url` is an `http` or `https` address with a host, no credentials and no
+spaces, up to 2,000 bytes. See *Productivity views* below.
 Only declared keys and correctly typed, non-null values are accepted. Required
 means present; an empty text value is permitted. Optional values are omitted.
 There are no implicit coercions or defaults. Text is plain data and must be
@@ -71,7 +74,12 @@ Destructive schema evolution needs a separate, explicit migration design.
 | `table`, `list` | none |
 | `board` | `groupBy`, a select field |
 | `calendar` | `dateField`, a date or datetime field |
-| `checklist` | `checkedField`, a boolean field |
+| `checklist`, `progress`, `status` | `checkedField`, a boolean field |
+| `chart` | `groupBy`, a select field with at most 20 choices |
+| `document`, `pages`, `snippets` | `bodyField`, a long text field; `fields[0]` is a text title |
+| `pages` | also `parentField`, a text field holding the parent page's record ID |
+| `snippets` | optionally `groupBy`, a select field |
+| `files` | optionally `bodyField` for notes and `groupBy`; `fields[0]` is a text name |
 
 Layout nodes form a closed tree:
 
@@ -81,12 +89,14 @@ Layout nodes form a closed tree:
 | `grid` | `columns` (2–4), nonempty `children` |
 | `heading`, `text` | nonempty plain `text` |
 | `view` | `viewId`, referencing one declared view |
+| `shortcut` | `target`, one of `home`, `projects`, `analytics`, `calendar`, `data-library`, `settings`, `assistant`; optional `text` label up to 80 bytes |
 | `binding` | `bindingId`, referencing one declared read binding |
 
 No arbitrary properties, expressions, JavaScript, CSS, HTML nodes, SVG, URLs,
 SQL, actions or executable components exist in this grammar. Markup-like content
-inside text is inert text. `icon` must be one of the approved subset of
-`web/src/lib/Icon.svelte`; a parity test prevents references to missing icons.
+inside text is inert text. `icon` is `auto` or a bundled `lucide-*` identifier
+from `internal/domain/personal_icon_catalog.json`; parity tests check the browser
+renderer. Legacy built-in names and pixel tokens remain readable for compatibility.
 
 Read bindings are `{id, kind, projectId}`. The initial finite registry permits
 only `individual.project` and `individual.tasks`: read-only references to
@@ -143,10 +153,11 @@ Unknown fields, duplicate keys (including case variants), trailing values,
 malformed queries, invalid IDs and invalid layouts return 400. The usual error
 envelope is `{error: {code, message}}`. Missing credentials return 401, rejected
 scope/location 403, missing entities 404, unavailable listener 503, and wrong
-content type 415. Request bodies over 64 KiB return 413.
+content type 415. Request bodies over 128 KiB return 413.
 
-Other limits: 32 KiB per specification/value object; 120 bytes per name/option;
-64 fields per collection; 100 choices per select; 16,000 bytes per text value;
+Other limits: 32 KiB per specification; 64 KiB per record's values (migration 0028 raised
+the stored bound from 32 KiB so a document fits); 120 bytes per name/option;
+64 fields per collection; 100 choices per select; 16,000 bytes per text value, 48,000 per long text;
 32 collection references and views per workspace; 16 read bindings; 64 display
 locations; layout depth 8, 128 total nodes, and 2,000 bytes per text node. Queries
 are parameterized and indexed; list responses contain at most 100 bounded items.
@@ -238,13 +249,17 @@ for the operations, permissions, confirmation preview and rollback workflow.
 of current saved definitions) and durable creation deduplication. The Phase 1
 statement about no history describes that phase only.
 
-**Create with Salie** starts a conversation from the personal workspace screen;
-**Edit with Salie** includes the exact saved workspace ID in the editable message.
+**Create with Salie** starts a conversation from the personal workspace screen. Its message
+is a general statement, not a suggestion of something to build: it says a new generative
+workspace is about to be made, that what the person writes after it is the type of workspace
+they want and the style it should have, and that Salie should ask where it appears. The
+person's own description follows it. **Edit with Salie** includes the exact saved workspace ID in the editable message.
 The model must retrieve SQLite state, then propose a record-free change. Creation
 saves empty collections and the workspace in one transaction; edits use workspace
 and collection revisions and never replace records. Supported generated views
-match the Phase 2 renderer: table, list, checklist, progress, status and chart.
-Board/calendar and external read bindings remain unsupported by the renderer and
+match the renderer: table, list, checklist, progress, status, chart and, since 4.78, board,
+calendar, document, pages, snippets and files (see *Productivity views*).
+External read bindings remain unsupported by the renderer and
 cannot be proposed. Saved equality filters add `{field, value}` entries to views;
 all filters must match a correctly typed existing value. Missing values never
 match a filter. Filters do not alter records.
@@ -534,16 +549,80 @@ Verified by `scripts/browser-personal-phone.cjs` (Chromium and WebKit, phone-siz
 credential): deck listing, live updates both ways, record work, Back, no owner-only controls, card tables, deck button,
 refusals, deletion at the computer, and a workspace made with Salie on the phone and put on a button.
 
+## Productivity views
+
+Generated workspaces are not only tables. Salie chooses view kinds for what the person wants to
+do, and every one is drawn by a registered Svelte component from the same closed grammar:
+
+| Kind | What it is | Saved as |
+| --- | --- | --- |
+| `document` | A word processor over a collection of documents: headings, bold, italic, strikethrough, inline code, bulleted, numbered and task lists, quotes, code blocks, dividers, links, undo and keyboard shortcuts. Typing `# `, `- `, `1. `, `> `, ` ``` `, `**bold**` or `[[Page]]` formats as in a Markdown editor. It saves a moment after typing stops and says honestly when it could not. | the `bodyField`, as Markdown |
+| `pages` | Notion-style nested pages: a tree (`parentField`), search, tags (any select or multiselect shown), `[[Page title]]` links with a "Linked from" list, a prompt to write a page that does not exist, *Move under* (never under itself or a descendant), and *Add a sub-page*. Deleting a page moves its sub-pages up one level. | as `document`, plus the parent's record ID |
+| `snippets` | A library of commands, queries, templates and runbooks with copy buttons, search, and a category filter from `groupBy`. | the `bodyField`, exactly (tabs and lines kept) |
+| `files` | A catalogue of PDFs, pictures, video, audio, Markdown and text, with a viewer. | the entry (name, tags, notes); **not the file** |
+| `board` | Kanban columns from a select field. Cards move by dragging or by keyboard-reachable buttons, and are added to a column in place. | the `groupBy` field |
+| `calendar` | A month of records placed by a date or datetime field. Drag an entry to another day (the time of day is kept), or add one to the selected day; the selected day's entries are always listed under the grid, so nothing depends on dragging. | the `dateField` |
+
+A view writes the fields it lists and the fields its kind binds (`groupBy`, `dateField`,
+`bodyField`, `parentField`, `checkedField`); it never writes any other field. Document-style
+views need the `update` operation to save, and the editor is read-only without it. A
+`shortcut` opens one of a fixed list of places in the window the workspace is shown in; the
+window offers the places it has and says "Not available from here" for the rest. A shortcut
+never carries an address.
+
+**Documents are data, never markup.** The text is Markdown, parsed by `markdown-it` with raw
+HTML off and images off, into a ProseMirror schema that lists every node and mark a document
+can contain (`web/src/lib/personal/editor/markdown.ts`). Anything else, including `<script>`,
+event handlers, `javascript:` and `data:` links and pictures, is shown as the plain text it
+is. Links open only for `http`, `https` and `mailto` addresses, with `rel="noopener noreferrer"`.
+A page written by a person, Salie or another device cannot run anything or fetch anything.
+`markdown.test.ts` and `browser-personal-productivity.cjs` cover this.
+
+**Files stay on the device.** The files view keeps what a person attaches in this app's own
+browser storage (IndexedDB, keyed by workspace and entry), never in the controller, never
+sent anywhere, and never shown to Salie. The entry travels with the workspace; the file does
+not, so on another device the entry says "No file on this device" and can be attached again.
+Accepted: PDF, pictures, video, audio, Markdown and text up to 150 MB. HTML is shown as text,
+not run. The Individual controller's Content-Security-Policy allows `blob:` for images, media
+and frames (`httpkit.WithLocalFiles`) so a file opened from this computer can be shown; scripts,
+styles and connections are unchanged, and Team's policy is not widened.
+
+The editor is loaded the first time a document view opens (a 440 KB chunk), not with the app.
+
 ## Workspace icon identity
 
-Generated interfaces use dedicated 5×5 glyphs, separate from navigation and action
-icons. Salie requests `icon: "auto"`; the controller assigns an unused
-`workspace-XXXXXXX` token before the fixed approval preview. Editing preserves the
-saved token unless a new icon is requested. Confirmation rechecks availability
+Generated interfaces use 152 locally bundled [Lucide](https://lucide.dev/) icons,
+free under the ISC licence (with the upstream Feather notice included in
+`web/public/licenses/LUCIDE.txt`). The approved catalogue and keyword metadata live
+in `internal/domain/personal_icon_catalog.json`; the browser imports only these
+registered Svelte components. No CDN, external request or model call is required.
+
+Salie requests `icon: "auto"`; the controller ranks matches to the workspace name,
+then view names/kinds, and assigns the best available `lucide-*` identifier before
+the fixed approval preview. All live workspaces reserve their icons, including
+hidden definitions and every Individual, Team and Universal display location.
+Deleting a workspace releases its icon. Editing preserves the
+saved identifier unless a new icon is requested. Confirmation rechecks availability
 in the write transaction and rejects a stale colliding proposal rather than
 changing the approved icon. A partial unique SQLite index also enforces this.
 
 The sidebar, header, approval preview, phone deck and workspace settings share
-one safe renderer. Its token defines only 25 occupied/unoccupied cells; it cannot
-carry SVG, markup, URLs or executable content. Older built-in icon values remain
-readable as stable dedicated glyphs, and new assignments avoid those glyphs too.
+one safe Lucide renderer. Saved identifiers cannot carry SVG, markup, URLs or
+executable content. **New icon** previews another fitting, unused option; the
+transaction checks again when saving. If the finite catalogue is full, a new
+assignment reports a conflict instead of reusing a live icon.
+
+Migration 0027 adds a unique index for library identifiers. Opening the database
+upgrades existing built-in/pixel identities in one transaction, reserving named
+library icons first. Changed identities receive a new definition revision/history
+entry; schemas, records, ownership and previous history stay intact. Reopening
+does not reassign library icons. A full catalogue leaves remaining legacy
+identities readable rather than blocking database startup; old history also uses
+a semantic library fallback when displayed. New assignments still refuse reuse.
+
+Verify the full icon flow with `node scripts/browser-personal-icons.cjs` after
+`make web web-embed web-shell`. It checks the four demo identities, hidden and
+cross-location uniqueness, duplicate refusal, exact settings persistence, three
+window widths, dark appearance and the absence of external icon requests. The
+existing personal navigation, lifecycle and phone browser suites cover the other
+shared renderer surfaces and saved-data recovery.

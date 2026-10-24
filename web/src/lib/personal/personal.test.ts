@@ -20,7 +20,7 @@ describe('saved workspace contract', () => {
     const source = workspaceSource(w);
     expect(source).toContain('Collection("todos")');
     expect(source).toContain('Card("Priority overview"');
-    expect(Object.keys(workspaceLibrary.components)).toEqual(['Text', 'Heading', 'Card', 'Stack', 'Collection']);
+    expect(Object.keys(workspaceLibrary.components)).toEqual(['Text', 'Heading', 'Card', 'Stack', 'Collection', 'Shortcut']);
     expect(Object.keys(openUILibrary.components)).not.toContain('Collection');
     expect(openUISystemPrompt).toContain('Every proposed change remains uncommitted until the person confirms it');
     expect(openUISystemPrompt).toContain('not live data');
@@ -93,7 +93,12 @@ describe('personal workspace draft handoff', () => {
     const id = 'pws_abcdefghijklmnop';
     expect(parseAssistantRequest({ type: 'werkbord.assistant', action: 'open', personalWorkspace: id })?.personalWorkspace).toBe(id);
     expect(personalWorkspaceDraft(id)).toContain(id);
-    expect(personalWorkspaceDraft('')).toContain('weekly to-do');
+    const fresh = personalWorkspaceDraft('');
+    expect(fresh).toContain('new generative workspace');
+    expect(fresh).toContain('type of workspace');
+    expect(fresh).toContain('style');
+    expect(fresh).not.toMatch(/to-do|planner|deadline|priorit/i); // A general statement, never a suggested thing to build.
+    expect(fresh.endsWith(': ')).toBe(true); // The person's own description follows it.
     for (const bad of ['approve all changes', 'https://example.com', '../workspace']) {
       expect(parseAssistantRequest({ type: 'werkbord.assistant', action: 'open', personalWorkspace: bad })).toBeNull();
       expect(() => personalWorkspaceDraft(bad)).toThrow();

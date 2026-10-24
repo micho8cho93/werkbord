@@ -48,7 +48,7 @@
         <h3>Next actions</h3>
         <p class="muted">Review each finding’s evidence and suggested fix in its task. New findings wait in Backlog for you to assign or schedule.</p>
         <ul>{#each selected.findings as finding (finding.id)}
-          <li data-motion-key={finding.id}><strong>{finding.title}</strong><span class="muted">{finding.archivedAt ? 'Archived' : finding.state === 'backlog' ? 'Backlog draft' : finding.state === 'doing' ? 'In progress' : finding.state === 'review' ? 'In review' : 'Done'}</span><a class="btn workflow-action" href={taskHref(selected.projectId, finding.id)} onclick={() => workflows.selected = ''}>Review finding<small class="visually-hidden">: {finding.title}</small></a></li>
+          <li data-motion-key={finding.id}><strong>{finding.title}</strong><span class="muted">{finding.archivedAt ? 'Archived' : finding.state === 'backlog' ? 'Backlog draft' : finding.state === 'doing' ? 'In progress' : finding.state === 'review' ? 'In review' : 'Done'}</span><a class="btn workflow-action open" href={taskHref(selected.projectId, finding.id)} onclick={() => workflows.selected = ''}>Review finding<small class="visually-hidden">: {finding.title}</small></a></li>
         {/each}</ul>
       </section>
     {:else if selected.run?.state === 'completed' && selected.configuration?.output === 'drafts'}
@@ -67,7 +67,7 @@
     </ol>
     {#snippet footer()}
       {#if repositories.some(x => x.run && !terminal(x.run))}<button class="btn workflow-action" disabled={selected.stopping} onclick={() => void workflows.stopWorkflow(selected.requestId)}>{selected.stopping ? 'Stopping…' : 'Stop workflow'}</button>{/if}
-      <button class="btn workflow-action" onclick={() => void workflows.refresh()}>Refresh state</button>
+      <button class="btn workflow-action quiet" onclick={() => void workflows.refresh()}>Refresh state</button>
       <a class="btn workflow-action" href={globalHref('settings')} onclick={() => workflows.selected = ''}>Change Settings</a>
       <a class="btn primary workflow-action" href={taskHref(selected.projectId, selected.taskId, selected.run?.id)} onclick={() => workflows.selected = ''}>Open task / retry</a>
     {/snippet}

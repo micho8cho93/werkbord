@@ -36,7 +36,7 @@
 <SetupCard title="Connect your phone" {status} {summary}>
   {#if !relay && unreachable}
     <p class="muted" role="status">The relay could not be checked just now ({unreachable}).</p>
-    <div class="row"><button class="btn" onclick={refresh}>Try again</button></div>
+    <div class="row"><button class="btn quiet" onclick={refresh}>Try again</button></div>
   {:else if !relay}
     <p class="muted">Checking…</p>
   {:else if !relay.enabled}

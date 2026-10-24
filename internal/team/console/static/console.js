@@ -114,31 +114,37 @@ function fieldValue(el) { return el.type === 'checkbox' ? el.checked : el.value;
 function brand() {
   return h('div', { class: 'brand' }, h('img', { src: teamTheme.dark ? 'mark-dark.svg' : 'mark.svg', alt: '', width: 30, height: 22 }), h('span', { class: 'wm' }, 'werkbord'), h('span', { class: 'prod' }, 'team'));
 }
-// The same small stroke vocabulary as the individual app, kept within Team.
+// The same icons as the individual app (Lucide, ISC licence: see LICENSE-LUCIDE.txt), one for each meaning and never the same twice.
+// Each is a list of [tag, attributes] drawn on Lucide's 24-unit grid, in a line that stays the same weight at every size.
 function icon(name) {
-  const paths = {
-    workspace: 'M2 2h5v5H2z M9 2h5v5H9z M2 9h5v5H2z M9 9h5v5H9z',
-    projects: 'M1.5 4V2.5h5l1.5 2h6.5v9H1.5z',
-    board: 'M2 2h12v12H2z M6 2v12 M10 2v12',
-    timeline: 'M2 3h6v2.5H2z M5 6.8h9v2.5H5z M3 10.6h6v2.5H3z',
-    plans: 'M3 3h10 M3 8h10 M3 13h10 M1 3h.01 M1 8h.01 M1 13h.01',
-    mywork: 'M5 3H2v11h12V3h-3 M5 2h6v3H5z M5 9l2 2 4-4',
-    reviews: 'M3 2h10v12H3z M5 8l2 2 4-4',
-    repository: 'M5 2v7a3 3 0 0 0 6 0V7 M3 2a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M9 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M3 13a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M5 9v2',
-    activity: 'M1 8h3l2-5 4 10 2-5h3',
-    analytics: 'M2 2v12h12 M5 11V8 M8 11V5 M11 11V3',
-    members: 'M6 7a2.5 2.5 0 1 0 0-5a2.5 2.5 0 1 0 0 5 M1 14v-1a5 5 0 0 1 10 0v1 M11 2a2.5 2.5 0 0 1 0 5 M12 9a4 4 0 0 1 3 4v1',
-    search: 'M7 2a5 5 0 1 0 0 10a5 5 0 1 0 0-10 M11 11l4 4',
-    sun: 'M8 4.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7 M8 0v2 M8 14v2 M0 8h2 M14 8h2 M2.3 2.3l1.4 1.4 M12.3 12.3l1.4 1.4 M2.3 13.7l1.4-1.4 M12.3 3.7l1.4-1.4',
-    moon: 'M13.5 10.5A6 6 0 0 1 5.5 2.5a6 6 0 1 0 8 8z',
-    close: 'M4 4l8 8 M4 12l8-8',
-    more: 'M3 7.5h.01 M8 7.5h.01 M13 7.5h.01',
-    defaults: 'M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7 M10.5 3a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3 M5.5 10a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3',
-    settings: 'M6 1h4l.5 2 2 .8 1.8-.6 1.5 2.6-1.4 1.4v2.3l1.4 1.4-1.5 2.6-1.8-.6-2 .8-.5 2H6l-.5-2-2-.8-1.8.6L.2 11l1.4-1.4V7.3L.2 5.9l1.5-2.6 1.8.6 2-.8z M8 5a3 3 0 1 0 0 6a3 3 0 1 0 0-6',
+  const shapes = {
+    workspace: [['rect',{width:'7',height:'7',x:'3',y:'3',rx:'1'}],['rect',{width:'7',height:'7',x:'14',y:'3',rx:'1'}],['rect',{width:'7',height:'7',x:'14',y:'14',rx:'1'}],['rect',{width:'7',height:'7',x:'3',y:'14',rx:'1'}]],
+    projects: [['path',{d:'M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z'}],['path',{d:'M8 10v4'}],['path',{d:'M12 10v2'}],['path',{d:'M16 10v6'}]],
+    board: [['rect',{width:'18',height:'18',x:'3',y:'3',rx:'2'}],['path',{d:'M8 7v7'}],['path',{d:'M12 7v4'}],['path',{d:'M16 7v9'}]],
+    timeline: [['path',{d:'M10 6h8'}],['path',{d:'M12 16h6'}],['path',{d:'M3 3v16a2 2 0 0 0 2 2h16'}],['path',{d:'M8 11h7'}]],
+    plans: [['path',{d:'M13 5h8'}],['path',{d:'M13 12h8'}],['path',{d:'M13 19h8'}],['path',{d:'m3 17 2 2 4-4'}],['rect',{x:'3',y:'4',width:'6',height:'6',rx:'1'}]],
+    mywork: [['rect',{width:'8',height:'4',x:'8',y:'2',rx:'1',ry:'1'}],['path',{d:'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'}],['path',{d:'m9 14 2 2 4-4'}]],
+    reviews: [['circle',{cx:'18',cy:'18',r:'3'}],['circle',{cx:'6',cy:'6',r:'3'}],['path',{d:'M6 21V9a9 9 0 0 0 9 9'}]],
+    repository: [['circle',{cx:'12',cy:'18',r:'3'}],['circle',{cx:'6',cy:'6',r:'3'}],['circle',{cx:'18',cy:'6',r:'3'}],['path',{d:'M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9'}],['path',{d:'M12 12v3'}]],
+    activity: [['path',{d:'M19.07 4.93A10 10 0 0 0 6.99 3.34'}],['path',{d:'M4 6h.01'}],['path',{d:'M2.29 9.62A10 10 0 1 0 21.31 8.35'}],['path',{d:'M16.24 7.76A6 6 0 1 0 8.23 16.67'}],['path',{d:'M12 18h.01'}],['path',{d:'M17.99 11.66A6 6 0 0 1 15.77 16.67'}],['circle',{cx:'12',cy:'12',r:'2'}],['path',{d:'m13.41 10.59 5.66-5.66'}]],
+    analytics: [['path',{d:'M3 3v16a2 2 0 0 0 2 2h16'}],['path',{d:'M18 17V9'}],['path',{d:'M13 17V5'}],['path',{d:'M8 17v-3'}]],
+    members: [['path',{d:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'}],['path',{d:'M16 3.128a4 4 0 0 1 0 7.744'}],['path',{d:'M22 21v-2a4 4 0 0 0-3-3.87'}],['circle',{cx:'9',cy:'7',r:'4'}]],
+    search: [['path',{d:'m21 21-4.34-4.34'}],['circle',{cx:'11',cy:'11',r:'8'}]],
+    sun: [['circle',{cx:'12',cy:'12',r:'4'}],['path',{d:'M12 2v2'}],['path',{d:'M12 20v2'}],['path',{d:'m4.93 4.93 1.41 1.41'}],['path',{d:'m17.66 17.66 1.41 1.41'}],['path',{d:'M2 12h2'}],['path',{d:'M20 12h2'}],['path',{d:'m6.34 17.66-1.41 1.41'}],['path',{d:'m19.07 4.93-1.41 1.41'}]],
+    moon: [['path',{d:'M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401'}]],
+    close: [['path',{d:'M18 6 6 18'}],['path',{d:'m6 6 12 12'}]],
+    more: [['circle',{cx:'12',cy:'12',r:'1'}],['circle',{cx:'19',cy:'12',r:'1'}],['circle',{cx:'5',cy:'12',r:'1'}]],
+    defaults: [['path',{d:'M10 5H3'}],['path',{d:'M12 19H3'}],['path',{d:'M14 3v4'}],['path',{d:'M16 17v4'}],['path',{d:'M21 12h-9'}],['path',{d:'M21 19h-5'}],['path',{d:'M21 5h-7'}],['path',{d:'M8 10v4'}],['path',{d:'M8 12H3'}]],
+    settings: [['path',{d:'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915'}],['circle',{cx:'12',cy:'12',r:'3'}]],
   };
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  for (const [key, value] of Object.entries({ viewBox: '0 0 16 16', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
-  const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', paths[name] || paths.projects); svg.append(path);
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.1', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
+  for (const [tag, attributes] of shapes[name] || shapes.projects) {
+    const shape = document.createElementNS(ns, tag);
+    for (const [key, value] of Object.entries(attributes)) shape.setAttribute(key, value);
+    svg.append(shape);
+  }
   return svg;
 }
 
@@ -424,7 +430,7 @@ async function hostOutdatedView() {
     h('h2', {}, what + ' needs a newer Workspace Host'),
     h('p', {}, 'This workspace’s host is running ', hostVersion ? 'Werkbord ' + hostVersion : 'an older Werkbord', ', which came before ' + what + '. Everything the host does know keeps working.'),
     h('p', { class: 'muted' }, 'A host that holds a workspace is never replaced automatically. An administrator updates it in a planned maintenance window, after a verified backup.'),
-    h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: () => go('hosts') }, 'Open Workspace Hosts'), h('button', { class: 'plain', onclick: () => { hostVersion = ''; render(); } }, 'Check again')));
+    h('div', { class: 'actions' }, h('button', { class: 'plain open', onclick: () => go('hosts') }, 'Open Workspace Hosts'), h('button', { class: 'plain', onclick: () => { hostVersion = ''; render(); } }, 'Check again')));
 }
 
 // ---- navigation ----
@@ -729,7 +735,7 @@ async function workspaceView() {
   if (show('review') && toReview) cards.push(h('article', { class: 'cc-card tone-info' },
     h('p', { class: 'cc-kind' }, h('span', { class: 'cc-dot' }), h('b', {}, 'To review')),
     h('p', { class: 'cc-title' }, plural(toReview, 'ticket') + ' waiting for a review you can do'),
-    h('div', { class: 'cc-acts' }, h('button', { type: 'button', class: 'plain small', onclick: () => go('reviews') }, 'Open Reviews'))));
+    h('div', { class: 'cc-acts' }, h('button', { type: 'button', class: 'plain open small', onclick: () => go('reviews') }, 'Open Reviews'))));
   if (show('mentions') && mentions && mentions.notifications.length) cards.push(h('article', { class: 'cc-card mentions-block', 'aria-label': 'Mentions' },
     h('p', { class: 'cc-kind' }, h('span', { class: 'cc-dot' }), h('b', {}, 'Mentions'), unread ? h('span', { class: 'cc-badge', title: 'Unread mentions' }, unread + ' unread') : ''), mentionRows(mentions)));
 
@@ -752,7 +758,7 @@ async function workspaceView() {
       h('section', { class: 'cc-panel', 'aria-label': 'Your queue' }, h('div', { class: 'cc-ph' }, 'Your queue'),
         shortcut('My Work', mine, () => go('mywork')), shortcut('To review', toReview, () => go('reviews'), toReview ? 'warn' : ''),
         shortcut('Available to claim', ov.available, () => best ? openProject(best.project.id) : go('projects'))),
-      state.desktop && !state.device.runner.configured ? h('button', { class: 'plain', onclick: () => go('settings', 'computer') }, 'Connect your runner') : '')));
+      state.desktop && !state.device.runner.configured ? h('button', { class: 'plain add', onclick: () => go('settings', 'computer') }, 'Connect your runner') : '')));
 }
 
 function mergeBadge(it) {
@@ -777,7 +783,7 @@ function membersPanels(members) {
       : c.phonesUnknown ? 'Phone connection unknown' : c.phonesPaired ? 'Phone disconnected · access paired' : 'No phone paired';
     const actions = [];
     if (!state.desktop && (m.id === state.me.member.id || can('members.manage'))) actions.push(
-      h('button', { class: 'plain', type: 'button', onclick: () => act(async () => {
+      h('button', { class: 'plain add', type: 'button', onclick: () => act(async () => {
         const r = await api('POST', '/members/' + m.id + '/token'); const self = r.member.id === state.me.member.id;
         if (self) { stopSync(); state.token = r.token; try { sessionStorage.setItem(KEY('token'), r.token); } catch (_) {} }
         state.secret = { kind: 'token', name: r.member.name, self, token: r.token };
@@ -993,7 +999,7 @@ async function myWorkView() {
         h('span', { class: 'badge ' + (a.level === 'problem' ? 'bad' : a.level === 'warning' ? 'warn' : '') }, a.level === 'info' ? 'next' : a.level),
         h('div', { class: 'grow' }, a.message),
         a.kind === 'review_requested' || a.kind === 'ready_to_complete'
-          ? h('button', { class: 'plain small', onclick: () => go('reviews') }, 'Open Reviews')
+          ? h('button', { class: 'plain open small', onclick: () => go('reviews') }, 'Open Reviews')
           : h('button', { class: 'plain small', onclick: () => openTicket(a.projectId, a.ticketId) }, 'Open ' + a.ticketKey)))
     : h('p', { class: 'muted' }, 'Nothing is waiting for you.');
   const list = (items, empty) => items.length ? items.map((it) => workItem(it)) : h('p', { class: 'muted' }, empty);
@@ -1034,7 +1040,7 @@ function workItem(it, extra) {
       ? (() => {
           const individual = typeof individualActions === 'function' ? individualActions(it.project.id, k.id, true) : '';
           return h('div', { class: 'actions' }, individual, h('button', { class: (individual ? 'plain' : 'primary') + ' small', onclick: () => openInRunner(it) }, 'Open in my runner'),
-            h('button', { class: 'plain small', onclick: () => openTicket(it.project.id, k.id) }, 'Open ticket'));
+            h('button', { class: 'plain open small', onclick: () => openTicket(it.project.id, k.id) }, 'Open ticket'));
         })()
       : ''];
   return h('article', { class: 'card item' + (mine ? ' mine' : '') },
@@ -1125,14 +1131,14 @@ function mcpPlanProposalView(proposal) {
       field('Dependencies · task IDs or temporary IDs, separated by commas', dependencies),
       field('Source reference', h('input', { name: 'mcp-source-' + proposal.id + '-' + taskKey, value: task.sourceRef || '', maxlength: 2000, oninput: e => edit({ sourceRef: e.currentTarget.value }) })),
       field('Requirements', h('textarea', { name: 'mcp-requirements-' + proposal.id + '-' + taskKey, rows: 2, maxlength: 20000, oninput: e => edit({ requirements: e.currentTarget.value }) }, task.requirements || '')),
-      h('button', { type: 'button', class: 'plain small', onclick: () => removeTeamMCPPlanTask(proposal.id, taskKey) }, 'Remove task'));
+      h('button', { type: 'button', class: 'plain danger small', onclick: () => removeTeamMCPPlanTask(proposal.id, taskKey) }, 'Remove task'));
   });
   const warnings = proposal.warnings?.length ? h('ul', { class: 'mcp-plan-warnings' }, proposal.warnings.map(w => h('li', { class: 'severity-' + w.severity }, h('strong', {}, w.severity), ' · ', w.message))) : '';
   return h('article', { class: 'panel mcp-plan-proposal' },
     h('div', { class: 'row' }, h('div', { class: 'grow' }, h('h3', {}, proposal.client || 'External client'), h('p', { class: 'muted' }, title + ' · ' + draft.tasks.length + ' proposed changes · ' + proposal.id)), h('span', { class: 'badge warn' }, 'Pending')),
     proposal.validationError ? h('p', { class: 'advice', role: 'alert' }, proposal.validationError) : '', warnings,
     h('div', { class: 'mcp-plan-task-list' }, items),
-    h('button', { class: 'plain small', disabled: draft.tasks.length >= 50, onclick: () => addTeamMCPPlanTask(proposal.id) }, 'Add task'),
+    h('button', { class: 'plain add small', disabled: draft.tasks.length >= 50, onclick: () => addTeamMCPPlanTask(proposal.id) }, 'Add task'),
     unsaved ? h('p', { class: 'muted small' }, 'Save your edits before approving.') : '',
     h('div', { class: 'actions' },
       h('button', { class: 'plain', onclick: () => act(async () => { await api('PUT', '/mcp/proposals/' + proposal.id, draft); discardMCPPlanDraft(proposal.id); state.info = 'Plan saved and checked again.'; }) }, 'Save edited plan'),
@@ -1293,7 +1299,7 @@ function boardTab(d) {
 function archiveTab(d) {
   const rows = (d.board.archived || []).slice().reverse().map(k => h('div', { class: 'row', 'data-search': (k.title + ' ' + k.description + ' ' + k.key).toLowerCase() },
     h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openTicket(d.id, k.id) }, k.key + ' · ' + k.title), h('p', { class: 'muted' }, statusName(k.status) + ' · Archived ' + ago(k.archivedAt))),
-    canArchiveTicket(k) ? h('button', { class: 'plain small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: false })) }, 'Restore') : ''));
+    canArchiveTicket(k) ? h('button', { class: 'plain ok small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: false })) }, 'Restore') : ''));
   const list = h('div', { class: 'archive-list' }, rows.length ? rows : h('p', { class: 'muted' }, 'No archived work yet. Archive Done tickets or archive a ticket to keep it here.'));
   const search = h('input', { name: 'archive-search', type: 'search', placeholder: 'Search title, ticket key or details', oninput: e => { for (const row of list.querySelectorAll('[data-search]')) row.hidden = !row.dataset.search.includes(e.target.value.toLowerCase()); } });
   return h('section', { class: 'panel archive-panel' }, h('h2', {}, 'Archived work'), field('Search archive', search), list);
@@ -1355,9 +1361,9 @@ function card(d, k) {
       k.status === 'in_progress' && agentWork ? presence(active) : '') : '',
     k.assigneeId && k.claimedAt ? h('p', { class: 'work-detail' }, 'Claimed ' + ago(k.claimedAt)) : '',
     flags.length ? h('div', { class: 'flags' }, flags) : '',
-    k.status === 'review' ? h('button', { class: 'plain small', onclick: open }, 'Review work') : '',
+    k.status === 'review' ? h('button', { class: 'plain open small', onclick: open }, 'Review work') : '',
     canStartAgent ? h('button', { class: 'primary small', 'data-start-agent': k.id, onclick: () => startAgent(k) }, run === 'completed' || run === 'failed' || run === 'canceled' ? 'Start agent again' : 'Start agent') : '',
-    ['available', 'in_progress'].includes(k.status) && mine ? h('button', { class: 'plain small', onclick: open }, 'Open work') : '',
+    ['available', 'in_progress'].includes(k.status) && mine ? h('button', { class: 'plain open small', onclick: open }, 'Open work') : '',
     (k.status === 'available' && !k.assigneeId && d.board.member && pcan('tickets.claim'))
       ? h('button', { class: 'primary small', onclick: () => act(() => api('POST', projectPath(k) + '/claim')) }, 'Claim') : '',
     k.status === 'done' && !k.archivedAt && canArchiveTicket(k)
@@ -1531,7 +1537,7 @@ function ticketPanel(d, k) {
 
   if (k.status === 'available' && !k.assigneeId && b.member && pcan('tickets.claim')) actions.push(h('button', { class: 'primary', onclick: run('POST', '/claim') }, 'Claim this ticket'));
   // A ticket claimed before claiming moved it to In progress (a host that is not updated yet, or an old claim) still waits in Available.
-  if (k.status === 'backlog' && (isCreator || pcan('tickets.edit'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'available' }) }, 'Make available'));
+  if (k.status === 'backlog' && (isCreator || pcan('tickets.edit'))) actions.push(h('button', { class: 'plain ok', onclick: run('POST', '/move', { status: 'available' }) }, 'Make available'));
   if (k.status === 'available' && mine) actions.push(h('button', { class: agentWork && state.desktop ? 'plain' : 'primary', onclick: run('POST', '/start-work') }, 'Start work'));
   const individual = mine && agentWork && ['available', 'in_progress', 'review'].includes(k.status) && typeof individualActions === 'function' ? individualActions(k.projectId, k.id) : '';
   if (individual) actions.push(individual);
@@ -1547,7 +1553,7 @@ function ticketPanel(d, k) {
     actions.push(h('button', { class: 'primary', disabled: !!blocker, onclick: run('POST', '/complete') }, 'Mark done'),
       h('span', { class: 'inline' }, note, h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/request-changes', { note: note.value })) }, 'Request changes')));
   }
-  if (k.status === 'done' && pcan('tickets.reopen')) actions.push(h('button', { class: 'plain', onclick: run('POST', '/move', { status: 'available' }) }, 'Reopen'));
+  if (k.status === 'done' && pcan('tickets.reopen')) actions.push(h('button', { class: 'plain ok', onclick: run('POST', '/move', { status: 'available' }) }, 'Reopen'));
   if (pcan('tickets.assign') && ['available', 'in_progress'].includes(k.status)) {
     const who = b.people.filter((p) => p.projectRole && p.id !== k.assigneeId);
     if (who.length) {
@@ -1692,7 +1698,7 @@ function gitForm(k, path) {
       changedSubmit('Save', [branch, url, num, stateSel, mergeSel, behind])),
     k.status === 'in_progress' && pr.url ? h('button', { class: 'primary', onclick: () => act(() => api('POST', path + '/submit', {})) }, 'Submit for review') : '',
     k.status === 'in_progress' && !pr.url ? h('p', { class: 'muted' }, 'To submit for review: record the pull request above, or submit without one below.') : '',
-    k.status === 'in_progress' && !pr.url ? h('button', { class: 'plain', onclick: () => act(() => api('POST', path + '/submit', {})) }, 'Submit for review without a pull request') : '');
+    k.status === 'in_progress' && !pr.url ? h('button', { class: 'plain ok', onclick: () => act(() => api('POST', path + '/submit', {})) }, 'Submit for review without a pull request') : '');
 }
 
 function handoffBox(hf) {
@@ -2257,7 +2263,7 @@ async function initiativesView() {
     const to = h('select', { 'aria-label': 'Dependent ticket' });
     const names = new Map();
     const showDependencies = () => {
-      dependencyList.replaceChildren(...dependencies.map((d, n) => h('div', { class: 'row' }, h('span', { class: 'grow' }, (names.get(d.after.ticketId) || d.after.ticketId) + ' waits for ' + (names.get(d.before.ticketId) || d.before.ticketId)), h('button', { type: 'button', class: 'plain small', onclick: () => { dependencies.splice(n, 1); showDependencies(); } }, 'Remove dependency'))));
+      dependencyList.replaceChildren(...dependencies.map((d, n) => h('div', { class: 'row' }, h('span', { class: 'grow' }, (names.get(d.after.ticketId) || d.after.ticketId) + ' waits for ' + (names.get(d.before.ticketId) || d.before.ticketId)), h('button', { type: 'button', class: 'plain danger small', onclick: () => { dependencies.splice(n, 1); showDependencies(); } }, 'Remove dependency'))));
     };
     const available = await Promise.all(state.ov.projects.filter(p => !p.project.archived).map(async ({ project: p }) => ({ p, board: await api('GET', '/projects/' + p.id + '/board'), memory: await api('GET', '/projects/' + p.id + '/memory') })));
     for (const { p, board, memory } of available) {
@@ -2282,7 +2288,7 @@ async function initiativesView() {
       state.info = 'Initiative saved.';
     }); } }, h('h2', {}, original ? 'Edit Initiative' : 'New Initiative'), field('Title', title), field('Objective', objective), field('Status', status), field('Owner', owner), h('h3', {}, 'Link existing projects and tickets'), choices, h('h3', {}, 'Shared context and decisions'), memoryChoices,
     h('h3', {}, 'Dependencies'), h('p', { class: 'muted' }, 'Link both tickets above before adding a dependency.'), from, to,
-    h('button', { type: 'button', class: 'plain', onclick: () => { const before = tickets.get(from.value), after = tickets.get(to.value); if (before && after) { dependencies.push({ before, after }); showDependencies(); } } }, 'Add dependency'), dependencyList,
+    h('button', { type: 'button', class: 'plain add', onclick: () => { const before = tickets.get(from.value), after = tickets.get(to.value); if (before && after) { dependencies.push({ before, after }); showDependencies(); } } }, 'Add dependency'), dependencyList,
     h('div', { class: 'actions' }, h('button', { class: 'primary', type: 'submit' }, 'Save Initiative'), h('button', { class: 'plain', type: 'button', onclick: () => editor.replaceChildren() }, 'Cancel'))));
     title.focus();
   };

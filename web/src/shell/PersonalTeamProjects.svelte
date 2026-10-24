@@ -36,12 +36,12 @@
 <section aria-label="Team projects, read-only" class="team-projects">
   {#if !available}<p role="status">Team access is unavailable. Reconnect or check your membership.</p>
   {:else if loading}<p role="status">Checking Team project access…</p>
-  {:else if problem}<p role="status">{problem} <button class="btn" onclick={refresh}>Retry</button></p>
+  {:else if problem}<p role="status">{problem} <button class="btn quiet" onclick={refresh}>Retry</button></p>
   {:else if data && fresh}
     <p class="hint">Read-only · Checked {new Date(data.at).toLocaleTimeString()}</p>
     {#if data.projects.length}<ul>{#each data.projects as project (project.id)}<li>{project.name}</li>{/each}</ul>
     {:else}<p>No projects are available to your Team membership.</p>{/if}
-  {:else}<p role="status">This Team snapshot is stale. Refresh before relying on it. <button class="btn" onclick={refresh}>Refresh</button></p>{/if}
+  {:else}<p role="status">This Team snapshot is stale. Refresh before relying on it. <button class="btn quiet" onclick={refresh}>Refresh</button></p>{/if}
 </section>
 <style>
   .team-projects { padding: 8px 0; font-size: 13px; }

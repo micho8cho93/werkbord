@@ -20,7 +20,8 @@ import (
 	"devboard/internal/service"
 )
 
-const personalMaxBody = 64 << 10
+// A record can hold a long document (domain.PersonalMaxRecordBytes), and JSON escaping can double what it takes on the wire.
+const personalMaxBody = 128 << 10
 
 func (s *Server) personalReady(w http.ResponseWriter, r *http.Request) bool {
 	// An enrolled phone has already been held to the routes it was reviewed for (phone.go) by the time it is here: it opens
@@ -94,7 +95,7 @@ func (s *Server) personalRoutes(mux *http.ServeMux) {
 			s.fail(w, r, domain.ErrInvalid)
 			return
 		}
-		writeJSON(w, 200, map[string]any{"uiSchemaVersion": domain.PersonalSchemaVersion, "collectionSchemaVersion": 1, "icons": domain.PersonalIcons(), "readBindingKinds": []string{"individual.project", "individual.tasks"}, "maxDocumentBytes": domain.PersonalMaxDocumentBytes, "maxBodyBytes": personalMaxBody, "maxPageSize": domain.PersonalMaxPage})
+		writeJSON(w, 200, map[string]any{"uiSchemaVersion": domain.PersonalSchemaVersion, "collectionSchemaVersion": 1, "icons": domain.PersonalIcons(), "readBindingKinds": []string{"individual.project", "individual.tasks"}, "maxDocumentBytes": domain.PersonalMaxDocumentBytes, "maxRecordBytes": domain.PersonalMaxRecordBytes, "maxLongTextBytes": domain.PersonalMaxLongTextBytes, "viewKinds": domain.PersonalViewKinds(), "shortcutTargets": domain.PersonalShortcutTargets(), "maxBodyBytes": personalMaxBody, "maxPageSize": domain.PersonalMaxPage})
 	})
 }
 
@@ -215,7 +216,7 @@ func personalDecode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	if err != nil {
 		var size *http.MaxBytesError
 		if errors.As(err, &size) {
-			writeError(w, 413, "too_large", "request exceeds 64 KiB")
+			writeError(w, 413, "too_large", "request exceeds 128 KiB")
 		} else {
 			writeError(w, 400, "invalid", "cannot read JSON")
 		}

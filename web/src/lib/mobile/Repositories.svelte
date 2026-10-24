@@ -62,7 +62,7 @@
                 <p class="mm">{f.projectName ?? app.project(f.projectId)?.name ?? ''}</p>
                 <p class="expl">{f.explanation}</p>
                 <p class="next"><span class="mm">Next</span> {f.action.label}</p>
-                <a class="btn small" href={projectHref(f.projectId, 'git')} onclick={() => app.enter(f.projectId)}>Open Git<Icon name="right" size={14} /></a>
+                <a class="btn small open" href={projectHref(f.projectId, 'git')} onclick={() => app.enter(f.projectId)}>Open Git<Icon name="right" size={14} /></a>
               </li>
             {/each}
           </ul>

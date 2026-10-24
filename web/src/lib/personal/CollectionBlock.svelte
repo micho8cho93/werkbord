@@ -4,8 +4,15 @@
   import ProgressBlock from '../assistant/openui/components/ProgressBlock.svelte';
   import BarChartBlock from '../assistant/openui/components/BarChartBlock.svelte';
   import RecordEditor from './RecordEditor.svelte';
+  import BoardView from './views/BoardView.svelte';
+  import CalendarView from './views/CalendarView.svelte';
+  import DocumentView from './views/DocumentView.svelte';
+  import FilesView from './views/FilesView.svelte';
+  import PagesView from './views/PagesView.svelte';
+  import SnippetsView from './views/SnippetsView.svelte';
+  import { excerpt } from './views/shared';
   import { workspaceSession } from './session.svelte';
-  import { matchesSavedFilters, type PersonalRecord } from './schema';
+  import { matchesSavedFilters, type Field, type PersonalRecord } from './schema';
   let { props }: ComponentRenderProps<{ viewId: string }> = $props();
   const session = workspaceSession();
   const uid = $props.id();
@@ -35,6 +42,13 @@
   async function remove(id: string) { if (await session.mutate(view.id, 'delete', id)) deleting = null; }
 </script>
 
+{#if view.kind === 'document'}<DocumentView {view} {collection} />
+{:else if view.kind === 'pages'}<PagesView {view} {collection} />
+{:else if view.kind === 'snippets'}<SnippetsView {view} {collection} />
+{:else if view.kind === 'files'}<FilesView {view} {collection} />
+{:else if view.kind === 'board'}<BoardView {view} {collection} />
+{:else if view.kind === 'calendar'}<CalendarView {view} {collection} />
+{:else}
 <section class="collection" aria-label={view.name}>
   {#if view.kind === 'progress'}
     <ProgressBlock renderNode={emptyNode} props={{ label: view.name, value: completed, total: records.length }} />
@@ -43,7 +57,7 @@
   {:else if view.kind === 'chart'}
     <BarChartBlock renderNode={emptyNode} props={{ title: view.name, categories, values: categories.map(option => records.filter(r => r.values[view.groupBy!] === option).length), note: `${records.length} records. Unassigned: ${records.filter(r => r.values[view.groupBy!] === undefined).length}.` }} />
   {:else}
-    <div class="view-heading"><h3>{view.name}</h3>{#if view.operations?.includes('create')}<button class="btn" disabled={session.busy || editing !== null} onclick={() => editing = 'new'}><Icon name="plus" size={14} />Add record</button>{/if}</div>
+    <div class="view-heading"><h3>{view.name}</h3>{#if view.operations?.includes('create')}<button class="btn add" disabled={session.busy || editing !== null} onclick={() => editing = 'new'}><Icon name="plus" size={14} />Add record</button>{/if}</div>
     <div class="filters">
       <label class="search" for={`${uid}-search`}>Filter records<input id={`${uid}-search`} type="search" bind:value={search} placeholder="Search this view" /></label>
       {#each fields.filter(f => f.type === 'select' || f.type === 'boolean') as field (field.key)}
@@ -59,7 +73,7 @@
       {#key editing === 'new' ? 'new' : editing.id}<RecordEditor {collection} {view} record={editing === 'new' ? undefined : editing} onclose={() => editing = null} />{/key}
     {/if}
     {#if deleting}
-      <div class="delete-confirm" role="group" aria-label="Delete record"><p>Delete “{title(records.find(r => r.id === deleting)!)}”?</p><button class="btn danger" disabled={session.busy} onclick={() => remove(deleting!)}>Delete record</button><button class="btn" disabled={session.busy} onclick={() => deleting = null}>Keep record</button></div>
+      <div class="delete-confirm" role="group" aria-label="Delete record"><p>Delete “{title(records.find(r => r.id === deleting)!)}”?</p><button class="btn danger" disabled={session.busy} onclick={() => remove(deleting!)}>Delete record</button><button class="btn ok" disabled={session.busy} onclick={() => deleting = null}>Keep record</button></div>
     {/if}
     {#if visible.length === 0}<p class="empty">{records.length ? 'No records match these filters.' : 'No records yet. Add your first record to get started.'}</p>
     {:else if view.kind === 'table'}
@@ -67,7 +81,7 @@
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div class="table-scroll" role="region" aria-label={`${view.name} table`} tabindex="0"><table>
         <thead><tr>{#each fields as field (field.key)}<th scope="col" aria-sort={sortKey === field.key ? ascending ? 'ascending' : 'descending' : 'none'}><button type="button" onclick={() => sort(field.key)}>{field.name}<Icon name="down" size={12} /></button></th>{/each}{#if editable || view.operations?.includes('delete')}<th scope="col">Actions</th>{/if}</tr></thead>
-        <tbody>{#each visible as record (record.id)}<tr>{#each fields as field (field.key)}<td>{display(record.values[field.key])}</td>{/each}{#if editable || view.operations?.includes('delete')}<td>{@render actions(record)}</td>{/if}</tr>{/each}</tbody>
+        <tbody>{#each visible as record (record.id)}<tr>{#each fields as field (field.key)}<td>{@render cell(field, record.values[field.key])}</td>{/each}{#if editable || view.operations?.includes('delete')}<td>{@render actions(record)}</td>{/if}</tr>{/each}</tbody>
       </table></div>
       <!-- On a phone a table is read as cards: one record to a card, every field labelled. -->
       {@render recordList('table-cards')}
@@ -76,13 +90,20 @@
     {/if}
   {/if}
 </section>
+{/if}
 
 {#snippet emptyNode()}{/snippet}
+
+{#snippet cell(field: Field, value: unknown)}
+  {#if field.type === 'url' && typeof value === 'string'}<a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
+  {:else if field.type === 'longtext' && typeof value === 'string'}{excerpt(value, 160) || '—'}
+  {:else}{display(value)}{/if}
+{/snippet}
 
 {#snippet recordList(cls: string)}
   <ul class="records {cls}">{#each visible as record (record.id)}<li>
         {#if view.kind === 'checklist'}<label class="done-target"><input class="done" type="checkbox" checked={record.values[view.checkedField!] === true} disabled={!editable || session.busy} aria-label={`Complete ${title(record)}`} onchange={(e) => session.mutate(view.id, 'update', record.id, { [view.checkedField!]: e.currentTarget.checked })} /></label>{/if}
-        <div class="record-content"><strong class:completed={view.kind === 'checklist' && record.values[view.checkedField!] === true}>{title(record)}</strong><dl>{#each fields.slice(1).filter(f => f.key !== view.checkedField) as field (field.key)}<div><dt>{field.name}</dt><dd>{display(record.values[field.key])}</dd></div>{/each}</dl></div>
+        <div class="record-content"><strong class:completed={view.kind === 'checklist' && record.values[view.checkedField!] === true}>{title(record)}</strong><dl>{#each fields.slice(1).filter(f => f.key !== view.checkedField) as field (field.key)}<div><dt>{field.name}</dt><dd>{@render cell(field, record.values[field.key])}</dd></div>{/each}</dl></div>
         {@render actions(record)}
       </li>{/each}</ul>
 {/snippet}
@@ -90,7 +111,7 @@
 {#snippet actions(record: PersonalRecord)}
   <div class="record-actions">
     {#if editable}<button class="btn" disabled={session.busy || editing !== null} aria-label={`Edit ${title(record)}`} onclick={() => { deleting = null; editing = record; }}>Edit</button>{/if}
-    {#if view.operations?.includes('delete')}<button class="btn" disabled={session.busy || editing !== null} aria-label={`Delete ${title(record)}`} onclick={() => deleting = record.id}>Delete</button>{/if}
+    {#if view.operations?.includes('delete')}<button class="btn danger" disabled={session.busy || editing !== null} aria-label={`Delete ${title(record)}`} onclick={() => deleting = record.id}>Delete</button>{/if}
   </div>
 {/snippet}
 
@@ -124,6 +145,7 @@
   .table-cards, .filters label.phone-only { display: none; }
   .table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; text-align: left; }
+  td a, dd a { color: var(--accent); }
   th, td { min-width: 110px; padding: 9px 10px; border-bottom: 1px solid var(--border); max-width: 320px; overflow-wrap: anywhere; }
   th { background: var(--surface-2); border-bottom: 2px solid var(--border); }
   tbody tr:last-child td { border-bottom: 0; }

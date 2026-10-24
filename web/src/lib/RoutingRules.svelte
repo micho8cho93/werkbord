@@ -30,10 +30,10 @@
         <label>Reasoning level<input class="input" disabled={!rule.agent} bind:value={rule.reasoning} placeholder="Keep defaults unless set" /></label>
         <label>Minimum logical CPU cores<input class="input" type="number" min="0" max="1024" bind:value={rule.minCpu} /><span class="hint">Only use runners reporting at least this many logical cores.</span></label>
         <label>Minimum available RAM (GB)<input class="input" type="number" min="0" step="0.5" value={(rule.minRamBytes ?? 0)/1024**3} oninput={e=>rule.minRamBytes=Math.round(Number(e.currentTarget.value)*1024**3)} /></label>
-        <button class="btn small" onclick={()=>rules=rules.filter((_,n)=>n!==i)}>Remove rule</button>
+        <button class="btn small danger" onclick={()=>rules=rules.filter((_,n)=>n!==i)}>Remove rule</button>
       </div>
     {/each}
-    <div class="actions"><button class="btn" disabled={saving || rules.length>=50} onclick={()=>rules=[...rules,{name:'',contains:'',retry:false,agent:'',model:'',reasoning:'',minCpu:0,minRamBytes:0}]}>Add rule</button><button class="btn primary" disabled={saving} onclick={save}>{saving?'Saving…':'Save rules'}</button>{#if saved}<span role="status">Saved</span>{/if}</div>
+    <div class="actions"><button class="btn add" disabled={saving || rules.length>=50} onclick={()=>rules=[...rules,{name:'',contains:'',retry:false,agent:'',model:'',reasoning:'',minCpu:0,minRamBytes:0}]}>Add rule</button><button class="btn primary" disabled={saving} onclick={save}>{saving?'Saving…':'Save rules'}</button>{#if saved}<span role="status">Saved</span>{/if}</div>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </div>
 </section>

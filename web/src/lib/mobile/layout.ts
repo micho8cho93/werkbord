@@ -6,10 +6,10 @@ import type { IconName } from '../Icon.svelte';
 export const WORKFLOWS = [
   { id: 'find-bugs', label: 'Find Bugs', icon: 'search', description: 'Report reproducible bugs and suggested fixes. Leaves files unchanged.' },
   { id: 'improve-tests', label: 'Improve Tests', icon: 'check', description: 'Find coverage gaps, propose tests and validate approved changes.' },
-  { id: 'security-audit', label: 'Security Audit', icon: 'control', description: 'Report security risks and remediation. Leaves files unchanged.' },
-  { id: 'dependency-check', label: 'Dependency Check', icon: 'branch', description: 'Report dependency risks and recommended updates. Does not update packages.' },
-  { id: 'refactor-codebase', label: 'Refactor Codebase', icon: 'git', description: 'Propose targeted refactors and validate approved changes.' },
-  { id: 'sprint-summary', label: 'Sprint Summary', icon: 'runs', description: 'Summarise tasks, blockers, agent activity and Git activity from the last 14 days.' },
+  { id: 'security-audit', label: 'Security Audit', icon: 'security', description: 'Report security risks and remediation. Leaves files unchanged.' },
+  { id: 'dependency-check', label: 'Dependency Check', icon: 'dependencies', description: 'Report dependency risks and recommended updates. Does not update packages.' },
+  { id: 'refactor-codebase', label: 'Refactor Codebase', icon: 'refactor', description: 'Propose targeted refactors and validate approved changes.' },
+  { id: 'sprint-summary', label: 'Sprint Summary', icon: 'summary', description: 'Summarise tasks, blockers, agent activity and Git activity from the last 14 days.' },
 ] as const satisfies readonly { id: string; label: string; icon: IconName; description: string }[];
 export type WorkflowId = typeof WORKFLOWS[number]['id'];
 /** A generated personal workspace's button: the workspace's own ID. It opens that workspace's page, like a navigation key. */

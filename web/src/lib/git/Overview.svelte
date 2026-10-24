@@ -101,7 +101,7 @@
 {#if store.error && !o}
   <div class="card g-card pad">
     <p class="error" role="alert">{store.error}</p>
-    <button class="btn" onclick={() => store.load()}>Try again</button>
+    <button class="btn quiet" onclick={() => store.load()}>Try again</button>
   </div>
 {:else if !o}
   <p class="empty">Loading the repository…</p>

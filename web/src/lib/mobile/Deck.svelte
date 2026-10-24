@@ -292,12 +292,12 @@
       onrecommend={recommendBugs} onpreview={() => { preview = true; advance(4); }} onfinish={finishGuide} />
   {/if}
   {#if editing}<p class="edit-hint">Tap to replace or remove. Drag to swap positions, or use Move to position in the button menu.</p>{/if}
-  {#if error}<p class="error" role="alert">{error} {workflowRecovery(error)}</p><button class="btn small" onclick={load} disabled={saving || starting}>Reload saved deck</button>{/if}
+  {#if error}<p class="error" role="alert">{error} {workflowRecovery(error)}</p><button class="btn small quiet" onclick={load} disabled={saving || starting}>Reload saved deck</button>{/if}
   {#if pending}
     <div class="pending" role="status">
       <p>{starting ? 'Starting workflow…' : 'A workflow start needs checking. Its task may already exist.'}</p>
       {#if !starting}
-        <button class="btn small" disabled={app.connection !== 'live'} onclick={() => void executePending()}>Retry same start</button>
+        <button class="btn small quiet" disabled={app.connection !== 'live'} onclick={() => void executePending()}>Retry same start</button>
         {#if history.find(h => h.requestId === pending?.requestId)}
           {@const h = history.find(h => h.requestId === pending?.requestId)!}
           <a class="btn small" href={taskHref(h.projectId,h.taskId)} data-workspace="individual" onclick={clearPending}>Check saved task</a>
@@ -336,7 +336,7 @@
       <Sheet title="Interactive preview · execution details" onclose={() => { inspected = false; advance(6); }}>
         <p>Preview only. No agent is running and no repository has been scanned.</p>
         <dl><dt>Repository</dt><dd>{guideProject?.name ?? 'Select a repository in workflow settings'}</dd><dt>Current stage</dt><dd>Waiting to run (preview)</dd><dt>Completed stages</dt><dd>None — preview only</dd><dt>Agent activity</dt><dd>No live activity. A real run shows reported output here.</dd><dt>Findings or results</dt><dd>No scan results. A real scan reports credible findings, or “No bugs found in this scan.”</dd></dl>
-        <button class="btn" onclick={() => { inspected = false; advance(6); }}>Stop preview</button>
+        <button class="btn warn" onclick={() => { inspected = false; advance(6); }}>Stop preview</button>
         {#snippet footer()}<button class="btn primary" onclick={() => { inspected = false; advance(6); }}>Return to Control Deck</button>{/snippet}
       </Sheet>
     {/if}

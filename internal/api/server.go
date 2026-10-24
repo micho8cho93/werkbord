@@ -357,7 +357,7 @@ func (s *Server) Handler() http.Handler {
 	h = s.checkOrigin(h)
 	h = s.checkHost(h)
 	// The desktop app shows this web app in a frame beside a person's other workspaces: its window may, and nothing else.
-	h = httpkit.SecurityHeadersFramed(httpkit.FramedCSP(httpkit.DefaultCSP, s.opt.EmbedOrigins), h)
+	h = httpkit.SecurityHeadersFramed(httpkit.FramedCSP(httpkit.WithLocalFiles(httpkit.DefaultCSP), s.opt.EmbedOrigins), h)
 	h = httpkit.LogRequests(s.log, h)
 	h = httpkit.RecoverPanics(s.log, h)
 	return h

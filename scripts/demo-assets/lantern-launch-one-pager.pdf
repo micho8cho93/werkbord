@@ -1,0 +1,50 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 841 >>
+stream
+BT
+/F1 22 Tf 1 0 0 1 56 760 Tm (Lantern: launch one-pager) Tj
+/F1 11 Tf 1 0 0 1 56 723 Tm ([Demo] A fictional product, invented for sample data.) Tj
+/F1 13 Tf 1 0 0 1 56 705 Tm () Tj
+/F1 14 Tf 1 0 0 1 56 683 Tm (What it is) Tj
+/F1 11 Tf 1 0 0 1 56 660 Tm (Lantern keeps a small team's next step in view: one calm board, one place for notes.) Tj
+/F1 13 Tf 1 0 0 1 56 642 Tm () Tj
+/F1 14 Tf 1 0 0 1 56 620 Tm (Who it is for) Tj
+/F1 11 Tf 1 0 0 1 56 597 Tm (Independent builders and small studios who want fewer tools and clearer handoffs.) Tj
+/F1 13 Tf 1 0 0 1 56 579 Tm () Tj
+/F1 14 Tf 1 0 0 1 56 557 Tm (Launch week) Tj
+/F1 11 Tf 1 0 0 1 56 534 Tm (Monday: announce.  Wednesday: walkthrough session.  Friday: first review of feedback.) Tj
+/F1 13 Tf 1 0 0 1 56 516 Tm () Tj
+/F1 10 Tf 1 0 0 1 56 494 Tm (Contact: hello@demo.example.test) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000000321 00000 n 
+0000001213 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+1288
+%%EOF

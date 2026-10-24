@@ -105,7 +105,7 @@
             <button class="btn quiet" aria-expanded={sourceId === memory.id} disabled={busy} onclick={() => inspect(memory)}>Sources</button>
             <button class="btn quiet" disabled={busy} onclick={() => deleteId = memory.id}>Delete</button>
           </div>
-          {#if deleteId === memory.id}<div class="confirm"><p>Delete this memory and its saved source excerpts? Run and Git history will remain.</p><div class="actions"><button class="btn danger" disabled={busy} onclick={() => mutate(() => api.deleteMemory(memory), 'Memory deleted.')}>Delete memory</button><button class="btn" disabled={busy} onclick={() => deleteId = ''}>Keep memory</button></div></div>{/if}
+          {#if deleteId === memory.id}<div class="confirm"><p>Delete this memory and its saved source excerpts? Run and Git history will remain.</p><div class="actions"><button class="btn danger" disabled={busy} onclick={() => mutate(() => api.deleteMemory(memory), 'Memory deleted.')}>Delete memory</button><button class="btn ok" disabled={busy} onclick={() => deleteId = ''}>Keep memory</button></div></div>{/if}
           {#if sourceId === memory.id}
             <div class="sources">
               <p class="muted small">Original source: <span class="mono">{memory.source.reference}</span></p>

@@ -194,7 +194,7 @@
     {:else if dialog === 'pause'}
       <p>Your progress will be kept, but setup will remain unfinished. Agent work needs a ready runner, a signed-in coding agent and a Git repository.</p>
       <p>A reminder stays visible while you explore. The next time you open Werkbord, setup resumes.</p>
-      <div class="actions"><button class="btn primary big" onclick={() => (dialog = null)}>Continue setup</button><button class="btn big" onclick={() => { app.onboardingPaused = true; dialog = null; router.go({ view: 'projects', projectId: '', taskId: '' }); }}>Pause and explore</button></div>
+      <div class="actions"><button class="btn primary big" onclick={() => (dialog = null)}>Continue setup</button><button class="btn big warn" onclick={() => { app.onboardingPaused = true; dialog = null; router.go({ view: 'projects', projectId: '', taskId: '' }); }}>Pause and explore</button></div>
     {:else if dialog === 'github'}
       <p>Without a GitHub connection, you can work in local repositories. GitHub repository discovery, pull requests, checks and publishing the example page will need a connection later.</p>
       <p>You can connect it under Settings → GitHub whenever you are ready.</p>

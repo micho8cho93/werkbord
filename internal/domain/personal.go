@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -13,6 +14,11 @@ import (
 const (
 	PersonalSchemaVersion    = 1
 	PersonalMaxDocumentBytes = 32 << 10
+	// A record holding a long text (a note, a page, a snippet) may be larger than a definition. Both stay far below what the
+	// desktop bridge and the phone relay carry, so a whole page of records always loads in one answer.
+	PersonalMaxRecordBytes   = 64 << 10
+	PersonalMaxLongTextBytes = 48000
+	PersonalMaxURLBytes      = 2000
 	PersonalMaxPage          = 100
 	PrefixPersonalWorkspace  = "pws"
 	PrefixPersonalCollection = "pcl"
@@ -67,6 +73,10 @@ type PersonalView struct {
 	GroupBy      string   `json:"groupBy,omitempty"`
 	DateField    string   `json:"dateField,omitempty"`
 	CheckedField string   `json:"checkedField,omitempty"`
+	// BodyField is the long text a document, page or snippet is written in; ParentField is the text field a page keeps
+	// its parent page's record ID in. Both belong to the document-style kinds only.
+	BodyField   string `json:"bodyField,omitempty"`
+	ParentField string `json:"parentField,omitempty"`
 	// Empty means read-only. These are personal-record operations, never appops.
 	Operations []string         `json:"operations,omitempty"`
 	Filters    []PersonalFilter `json:"filters,omitempty"`
@@ -80,12 +90,14 @@ type PersonalFilter struct {
 // This is data, not OpenUI conversation source. There are no arbitrary props,
 // expressions, markup, style, actions, URLs or executable components.
 type PersonalNode struct {
-	Type      string         `json:"type"`
-	Text      string         `json:"text,omitempty"`
-	ViewID    string         `json:"viewId,omitempty"`
-	BindingID string         `json:"bindingId,omitempty"`
-	Columns   int            `json:"columns,omitempty"`
-	Children  []PersonalNode `json:"children,omitempty"`
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	ViewID    string `json:"viewId,omitempty"`
+	BindingID string `json:"bindingId,omitempty"`
+	// Target is a shortcut's destination: one of PersonalShortcutTargets, never an address.
+	Target   string         `json:"target,omitempty"`
+	Columns  int            `json:"columns,omitempty"`
+	Children []PersonalNode `json:"children,omitempty"`
 }
 type PersonalCollection struct {
 	PersonalMeta
@@ -126,14 +138,56 @@ func personalInvalid(message string) error { return fmt.Errorf("%w: %s", ErrInva
 func personalText(s string, max int) bool {
 	return utf8.ValidString(s) && strings.TrimSpace(s) != "" && len(s) <= max && !strings.ContainsRune(s, 0)
 }
-func personalSize(v any) bool {
+func personalSize(v any) bool { return personalSizeWithin(v, PersonalMaxDocumentBytes) }
+func personalSizeWithin(v any, limit int) bool {
 	b, e := json.Marshal(v)
-	return e == nil && len(b) <= PersonalMaxDocumentBytes
+	return e == nil && len(b) <= limit
 }
 
-// PersonalIcons are legacy request hints. Saved interfaces render them as dedicated glyphs.
+// personalLongText accepts what people write in a document: text with line breaks and tabs, but no other control characters.
+func personalLongText(s string) bool {
+	if !utf8.ValidString(s) || len(s) > PersonalMaxLongTextBytes {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x20 && r != '\n' && r != '\r' && r != '\t' || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+// personalURL accepts a web address a person can open: http or https, with a host, no credentials, no spaces.
+func personalURL(s string) bool {
+	if len(s) == 0 || len(s) > PersonalMaxURLBytes || !utf8.ValidString(s) {
+		return false
+	}
+	for _, r := range s {
+		if r <= 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil
+}
+
+// PersonalShortcutTargets are the places a shortcut can open. They are names the window resolves itself, not addresses.
+func PersonalShortcutTargets() []string {
+	return []string{"home", "projects", "analytics", "calendar", "data-library", "settings", "assistant"}
+}
+
+// PersonalViewKinds lists every kind of view a workspace can show.
+func PersonalViewKinds() []string {
+	return []string{"table", "list", "checklist", "progress", "status", "chart", "board", "calendar", "document", "pages", "snippets", "files"}
+}
+
+// PersonalIcons is the finite set of locally bundled Lucide identifiers.
 func PersonalIcons() []string {
-	return []string{"overview", "board", "calendar", "timeline", "activity", "analytics", "projects", "folder", "check", "people"}
+	icons := make([]string, len(personalIconCatalogue))
+	for i, icon := range personalIconCatalogue {
+		icons[i] = "lucide-" + icon.Name
+	}
+	return icons
 }
 func inPersonalList(s string, values []string) bool {
 	for _, v := range values {
@@ -160,7 +214,7 @@ func ValidatePersonalCollection(s PersonalCollectionSpec) error {
 		}
 		seen[f.Key] = true
 		switch f.Type {
-		case "text", "number", "boolean", "date", "datetime":
+		case "text", "longtext", "url", "number", "boolean", "date", "datetime":
 			if len(f.Options) != 0 {
 				return personalInvalid("options require a selection field")
 			}
@@ -214,7 +268,7 @@ func ValidatePersonalEvolution(old, next PersonalCollectionSpec) error {
 	return nil
 }
 func ValidatePersonalValues(schema PersonalCollectionSpec, values map[string]json.RawMessage) error {
-	if values == nil || !personalSize(values) {
+	if values == nil || !personalSizeWithin(values, PersonalMaxRecordBytes) {
 		return personalInvalid("values must be a bounded object")
 	}
 	fields := map[string]PersonalField{}
@@ -240,6 +294,12 @@ func ValidatePersonalValues(schema PersonalCollectionSpec, values map[string]jso
 		case "text":
 			v, ok := value.(string)
 			valid = ok && utf8.ValidString(v) && len(v) <= 16000 && !strings.ContainsRune(v, 0)
+		case "longtext":
+			v, ok := value.(string)
+			valid = ok && personalLongText(v)
+		case "url":
+			v, ok := value.(string)
+			valid = ok && personalURL(v)
 		case "number":
 			v, ok := value.(float64)
 			valid = ok && !math.IsInf(v, 0) && !math.IsNaN(v)
@@ -340,8 +400,8 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 				raw = json.RawMessage(filter.Value)
 			}
 			f.Required = false
-			if f.Type == "multiselect" {
-				return personalInvalid("multiselect equality filters are unsupported")
+			if f.Type == "multiselect" || f.Type == "longtext" {
+				return personalInvalid("equality filters are unsupported for this field type")
 			}
 			if err := ValidatePersonalValues(PersonalCollectionSpec{Fields: []PersonalField{f}}, map[string]json.RawMessage{f.Key: raw}); err != nil {
 				return err
@@ -354,9 +414,11 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 			}
 			ops[op] = true
 		}
+		// A view also writes the fields its kind binds (the column a card moves between, the body a document is written in).
+		bound := map[string]bool{v.CheckedField: true, v.GroupBy: true, v.DateField: true, v.BodyField: true, v.ParentField: true}
 		if ops["create"] {
 			for key, f := range fields {
-				if f.Required && !seen[key] && key != v.CheckedField {
+				if f.Required && !seen[key] && !bound[key] {
 					return personalInvalid("create view must include required fields")
 				}
 			}
@@ -364,6 +426,12 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 		if inPersonalList(v.Kind, []string{"progress", "status", "chart"}) && len(v.Operations) != 0 {
 			return personalInvalid("summary views are read-only")
 		}
+		// Only the document-style kinds are written in a body; only pages have a parent.
+		document := inPersonalList(v.Kind, []string{"document", "pages", "snippets", "files"})
+		if !document && (v.BodyField != "" || v.ParentField != "") || v.Kind != "pages" && v.ParentField != "" {
+			return personalInvalid("unexpected document binding")
+		}
+		textual := func(key string, types ...string) bool { return inPersonalList(fields[key].Type, types) }
 		switch v.Kind {
 		case "table", "list":
 			if v.GroupBy != "" || v.DateField != "" || v.CheckedField != "" {
@@ -385,6 +453,26 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 			if fields[v.GroupBy].Type != "select" || v.DateField != "" || v.CheckedField != "" || len(fields[v.GroupBy].Options) > 20 {
 				return personalInvalid("chart needs a select field with at most 20 choices")
 			}
+		case "document", "pages", "snippets":
+			// The first field is the title; the body is the long text it is written in.
+			if !textual(v.Fields[0], "text") || !textual(v.BodyField, "longtext") || v.BodyField == v.Fields[0] || v.DateField != "" || v.CheckedField != "" {
+				return personalInvalid(v.Kind + " needs a text title as its first field and a long text body")
+			}
+			if v.Kind == "snippets" {
+				if v.GroupBy != "" && fields[v.GroupBy].Type != "select" {
+					return personalInvalid("snippets group by a select field")
+				}
+			} else if v.GroupBy != "" {
+				return personalInvalid("unexpected view binding")
+			}
+			if v.ParentField != "" && (!textual(v.ParentField, "text") || v.ParentField == v.Fields[0] || v.ParentField == v.BodyField) {
+				return personalInvalid("a page's parent is kept in a separate text field")
+			}
+		case "files":
+			// A file catalogue: the first field names each file; notes are optional. The files themselves stay on the device.
+			if !textual(v.Fields[0], "text") || v.BodyField != "" && !textual(v.BodyField, "longtext") || v.GroupBy != "" && fields[v.GroupBy].Type != "select" || v.DateField != "" || v.CheckedField != "" {
+				return personalInvalid("files need a text name as their first field")
+			}
 		default:
 			return personalInvalid("unknown view kind")
 		}
@@ -397,24 +485,28 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 			return personalInvalid("layout is too deep or large")
 		}
 		switch n.Type {
+		case "shortcut":
+			if !inPersonalList(n.Target, PersonalShortcutTargets()) || n.Text != "" && !personalText(n.Text, 80) || n.ViewID != "" || n.BindingID != "" || n.Columns != 0 || len(n.Children) != 0 {
+				return personalInvalid("invalid shortcut")
+			}
 		case "stack", "grid":
-			if n.Text != "" || n.ViewID != "" || n.BindingID != "" || len(n.Children) < 1 || n.Type == "stack" && n.Columns != 0 || n.Type == "grid" && (n.Columns < 2 || n.Columns > 4) {
+			if n.Target != "" || n.Text != "" || n.ViewID != "" || n.BindingID != "" || len(n.Children) < 1 || n.Type == "stack" && n.Columns != 0 || n.Type == "grid" && (n.Columns < 2 || n.Columns > 4) {
 				return personalInvalid("invalid container")
 			}
 		case "card":
-			if !personalText(n.Text, 160) || n.ViewID != "" || n.BindingID != "" || n.Columns != 0 || len(n.Children) < 1 {
+			if n.Target != "" || !personalText(n.Text, 160) || n.ViewID != "" || n.BindingID != "" || n.Columns != 0 || len(n.Children) < 1 {
 				return personalInvalid("invalid card")
 			}
 		case "text", "heading":
-			if !personalText(n.Text, 2000) || n.ViewID != "" || n.BindingID != "" || n.Columns != 0 || len(n.Children) != 0 {
+			if n.Target != "" || !personalText(n.Text, 2000) || n.ViewID != "" || n.BindingID != "" || n.Columns != 0 || len(n.Children) != 0 {
 				return personalInvalid("invalid text node")
 			}
 		case "view":
-			if !views[n.ViewID] || n.BindingID != "" || n.Text != "" || n.Columns != 0 || len(n.Children) != 0 {
+			if n.Target != "" || !views[n.ViewID] || n.BindingID != "" || n.Text != "" || n.Columns != 0 || len(n.Children) != 0 {
 				return personalInvalid("invalid view node")
 			}
 		case "binding":
-			if !bindings[n.BindingID] || n.ViewID != "" || n.Text != "" || n.Columns != 0 || len(n.Children) != 0 {
+			if n.Target != "" || !bindings[n.BindingID] || n.ViewID != "" || n.Text != "" || n.Columns != 0 || len(n.Children) != 0 {
 				return personalInvalid("invalid binding node")
 			}
 		default:

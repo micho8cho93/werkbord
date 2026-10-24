@@ -74,14 +74,14 @@
                 <div class="note">
                   <p class="summary">{p.receipt?.record.content.summary || p.summary || 'Implementation summary or architectural decision'}</p>
                   <div class="note-foot"><span class="tag">{stateWord(p.state)}</span>
-                    {#if p.state === 'awaiting_approval'}<button class="btn small" disabled={busy} onclick={() => { review = p; summary = ''; }}>Review text</button>{/if}
+                    {#if p.state === 'awaiting_approval'}<button class="btn small open" disabled={busy} onclick={() => { review = p; summary = ''; }}>Review text</button>{/if}
                     {#if !['private', 'revoked', 'revocation_pending', 'deleted', 'superseded'].includes(p.state)}<button class="btn small danger" disabled={busy} onclick={() => void revoke(p)}>Revoke</button>{/if}
                   </div>
                 </div>
               {/each}
             </div>
           {:else}<p class="muted">No notes from this project yet.</p>{/if}
-          <div class="actions"><button class="btn" disabled={busy} onclick={() => void act(() => grantToken(g.workspaceId))}>Connect this workspace</button></div>
+          <div class="actions"><button class="btn add" disabled={busy} onclick={() => void act(() => grantToken(g.workspaceId))}>Connect this workspace</button></div>
           <details><summary>Identifiers</summary><p class="muted identity">{g.workspaceId} · {g.projectId}</p></details>
         </li>
       {:else}<li class="muted">No project is shared yet. Add one below.</li>{/each}
@@ -89,7 +89,7 @@
         <li class="card-row">
           <header><h3 class="title">Connection</h3><span class="tag">Memory publication</span></header>
           <p class="muted identity">{entry.memoryWorkspaceId}</p>
-          <div class="actions"><button class="btn" disabled={busy} onclick={() => void act(() => requestNoContent('DELETE', '/api/local-access/' + encodeURIComponent(entry.id)))}>Disconnect</button></div>
+          <div class="actions"><button class="btn warn" disabled={busy} onclick={() => void act(() => requestNoContent('DELETE', '/api/local-access/' + encodeURIComponent(entry.id)))}>Disconnect</button></div>
         </li>
       {/each}
     </ul>
@@ -111,7 +111,7 @@
         <button class="btn primary" disabled={busy}>Turn on sharing</button>
       </form>
     </details>
-    <div class="actions"><button class="btn" disabled={busy} onclick={() => void act(async () => {})}>Refresh status</button></div>
+    <div class="actions"><button class="btn quiet" disabled={busy} onclick={() => void act(async () => {})}>Refresh status</button></div>
   {/if}
 </section>
 

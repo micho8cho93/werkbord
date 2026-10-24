@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { displayWorkspaceIcon, workspaceIconCells } from './icons';
+  import { displayWorkspaceIcon } from './icons';
+  import { workspaceIconComponents } from './icon-components';
   let { icon = 'auto', name = '', size = 16 }: { icon?: string; name?: string; size?: number } = $props();
-  const cells = $derived(workspaceIconCells(icon, name));
+  const identifier = $derived(displayWorkspaceIcon(icon, name));
+  const Glyph = $derived(workspaceIconComponents[identifier as keyof typeof workspaceIconComponents]);
 </script>
 
-<svg class="workspace-icon" width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" data-workspace-icon={displayWorkspaceIcon(icon, name)}>
-  {#each cells as cell (cell)}<rect x={1.5 + cell % 5 * 2.6} y={1.5 + Math.floor(cell / 5) * 2.6} width="2" height="2" rx="0.35" />{/each}
-</svg>
+<span class="workspace-icon" aria-hidden="true">
+  <Glyph {size} strokeWidth={2.1} data-workspace-icon={identifier} />
+</span>
 
 <style>
-  .workspace-icon { display: inline-block; flex: none; vertical-align: middle; }
+  .workspace-icon { display: inline-flex; flex: none; vertical-align: middle; }
 </style>

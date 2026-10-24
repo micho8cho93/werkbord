@@ -98,7 +98,7 @@
         : 'This is when an agent is set to start. It does not change the planned dates.'}
     </p>
     {#snippet footer()}
-      <a class="btn" href={taskHref(shown!.projectId, shown!.taskId)} onclick={() => (shown = null)}>Open task</a>
+      <a class="btn open" href={taskHref(shown!.projectId, shown!.taskId)} onclick={() => (shown = null)}>Open task</a>
       {#if editable && modeOf(editable) !== undefined}<button class="btn primary" type="button" onclick={edit}>Edit dates</button>{/if}
     {/snippet}
   </Sheet>

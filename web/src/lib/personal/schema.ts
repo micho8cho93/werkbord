@@ -2,26 +2,34 @@ import { z } from 'zod/v4';
 import { validWorkspaceIcon } from './icons';
 
 const key = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
+/** Must match domain.PersonalViewKinds, PersonalShortcutTargets and the size bounds. */
+export const viewKinds = ['table', 'list', 'checklist', 'progress', 'status', 'chart', 'board', 'calendar', 'document', 'pages', 'snippets', 'files'] as const;
+export const shortcutTargets = ['home', 'projects', 'analytics', 'calendar', 'data-library', 'settings', 'assistant'] as const;
+export type ShortcutTarget = (typeof shortcutTargets)[number];
+/** Kinds written in a long text body. */
+export const documentKinds = ['document', 'pages', 'snippets', 'files'] as const;
+export const maxLongTextBytes = 48000;
+export const maxURLBytes = 2000;
 export const collectionID = z.string().regex(/^pcl_[a-z2-7]{16}$/);
 export const workspaceID = z.string().regex(/^pws_[a-z2-7]{16}$/);
 export const recordID = z.string().regex(/^prec_[a-z2-7]{16}$/);
 const text = (max: number) => z.string().trim().min(1).max(max).refine(v => !v.includes('\0'));
 const meta = { id: z.string(), revision: z.number().int().positive(), createdAt: z.iso.datetime({ offset: true }), updatedAt: z.iso.datetime({ offset: true }) };
 export const fieldSchema = z.strictObject({
-  key, name: text(120), type: z.enum(['text', 'number', 'boolean', 'date', 'datetime', 'select', 'multiselect']),
+  key, name: text(120), type: z.enum(['text', 'longtext', 'url', 'number', 'boolean', 'date', 'datetime', 'select', 'multiselect']),
   required: z.boolean().default(false), options: z.array(text(120)).max(100).optional(),
 });
 export const collectionSpecSchema = z.strictObject({ name: text(120), schemaVersion: z.literal(1), fields: z.array(fieldSchema).min(1).max(64) });
 export const collectionSchema = collectionSpecSchema.extend({ ...meta, id: collectionID });
 export const viewSchema = z.strictObject({
-  id: key, name: text(120), kind: z.enum(['table', 'list', 'checklist', 'progress', 'status', 'chart', 'board', 'calendar']),
+  id: key, name: text(120), kind: z.enum(viewKinds),
   collectionId: collectionID, fields: z.array(key).min(1).max(64),
-  checkedField: key.optional(), groupBy: key.optional(), dateField: key.optional(),
+  checkedField: key.optional(), groupBy: key.optional(), dateField: key.optional(), bodyField: key.optional(), parentField: key.optional(),
   operations: z.array(z.enum(['create', 'update', 'delete'])).max(3).optional(),
   filters: z.array(z.strictObject({ field: key, value: z.string().max(16000) })).max(16).optional(),
 });
 export type View = z.infer<typeof viewSchema>;
-export interface Layout { type: 'stack' | 'grid' | 'card' | 'text' | 'heading' | 'view' | 'binding'; text?: string; viewId?: string; bindingId?: string; columns?: number; children?: Layout[] }
+export interface Layout { type: 'stack' | 'grid' | 'card' | 'text' | 'heading' | 'view' | 'binding' | 'shortcut'; text?: string; viewId?: string; bindingId?: string; target?: ShortcutTarget; columns?: number; children?: Layout[] }
 const nodeSchema: z.ZodType<Layout> = z.lazy(() => z.union([
   z.strictObject({ type: z.literal('stack'), children: z.array(nodeSchema).min(1).max(128) }),
   z.strictObject({ type: z.literal('grid'), columns: z.number().int().min(2).max(4), children: z.array(nodeSchema).min(1).max(128) }),
@@ -29,6 +37,7 @@ const nodeSchema: z.ZodType<Layout> = z.lazy(() => z.union([
   z.strictObject({ type: z.enum(['text', 'heading']), text: text(2000) }),
   z.strictObject({ type: z.literal('view'), viewId: key }),
   z.strictObject({ type: z.literal('binding'), bindingId: key }),
+  z.strictObject({ type: z.literal('shortcut'), target: z.enum(shortcutTargets), text: text(80).optional() }),
 ]));
 export const workspaceSpecSchema = z.strictObject({
   name: text(120), icon: z.string().max(32).refine(validWorkspaceIcon, 'Invalid workspace icon'),
@@ -45,6 +54,13 @@ export type Field = z.infer<typeof fieldSchema>;
 export type Values = Record<string, string | number | boolean | string[]>;
 export const recordSchema = z.strictObject({ ...meta, id: recordID, collectionId: collectionID, values: z.record(key, z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])) });
 export type PersonalRecord = z.infer<typeof recordSchema>;
+
+/** The fields a view's kind binds, besides the ones it lists: what a card moves between, what a document is written in. */
+export function viewBoundFields(view: View): string[] {
+  return [view.checkedField, view.groupBy, view.dateField, view.bodyField, view.parentField].filter((key): key is string => !!key);
+}
+/** Every field a view may write: the ones it shows and the ones its kind binds. */
+export function viewWritableFields(view: View): string[] { return [...view.fields, ...viewBoundFields(view)]; }
 
 function unique(values: string[]): boolean { return new Set(values).size === values.length; }
 function invalid(): never { throw new Error('This saved workspace uses an unsupported component or data binding. Its records are safe. Reload after correcting its definition.'); }
@@ -76,26 +92,40 @@ export function validateWorkspace(raw: unknown, collections: Collection[]): Work
     const c = collections.find(c => c.id === v.collectionId);
     for (const f of v.filters ?? []) {
       const field = c?.fields.find(field => field.key === f.field);
-      if (!field || field.type === 'multiselect') invalid();
+      if (!field || field.type === 'multiselect' || field.type === 'longtext') invalid();
     }
     if (!ids.includes(v.collectionId) || !c || !unique(v.fields) || !unique(v.operations ?? [])) invalid();
     if (!v.fields.every(key => c.fields.some(f => f.key === key))) invalid();
     const field = (key?: string) => c.fields.find(f => f.key === key);
+    const document = (documentKinds as readonly string[]).includes(v.kind);
+    if (!document && (v.bodyField || v.parentField) || v.kind !== 'pages' && v.parentField) invalid();
     if (['checklist', 'progress', 'status'].includes(v.kind)) {
       if (field(v.checkedField)?.type !== 'boolean' || v.groupBy || v.dateField) invalid();
     } else if (v.kind === 'chart') {
       if (field(v.groupBy)?.type !== 'select' || (field(v.groupBy)?.options?.length ?? 0) > 20 || v.checkedField || v.dateField) invalid();
     } else if (v.kind === 'table' || v.kind === 'list') {
       if (v.checkedField || v.groupBy || v.dateField) invalid();
-    } else invalid(); // Board/calendar are stored in Phase 1, but not supported by this renderer yet.
+    } else if (v.kind === 'board') {
+      if (field(v.groupBy)?.type !== 'select' || v.dateField || v.checkedField) invalid();
+    } else if (v.kind === 'calendar') {
+      if (!['date', 'datetime'].includes(field(v.dateField)?.type ?? '') || v.groupBy || v.checkedField) invalid();
+    } else if (v.kind === 'document' || v.kind === 'pages' || v.kind === 'snippets') {
+      // The first field is the title; the body is the long text it is written in.
+      if (field(v.fields[0])?.type !== 'text' || field(v.bodyField)?.type !== 'longtext' || v.bodyField === v.fields[0] || v.dateField || v.checkedField) invalid();
+      if (v.kind === 'snippets' ? v.groupBy && field(v.groupBy)?.type !== 'select' : v.groupBy) invalid();
+      if (v.parentField && (field(v.parentField)?.type !== 'text' || v.parentField === v.fields[0] || v.parentField === v.bodyField)) invalid();
+    } else if (v.kind === 'files') {
+      if (field(v.fields[0])?.type !== 'text' || v.bodyField && field(v.bodyField)?.type !== 'longtext' || v.groupBy && field(v.groupBy)?.type !== 'select' || v.dateField || v.checkedField) invalid();
+    } else invalid();
     if (['progress', 'status', 'chart'].includes(v.kind) && v.operations?.length) invalid();
-    if (v.operations?.includes('create') && c.fields.some(f => f.required && !v.fields.includes(f.key) && f.key !== v.checkedField)) invalid();
+    if (v.operations?.includes('create') && c.fields.some(f => f.required && !v.fields.includes(f.key) && !viewBoundFields(v).includes(f.key))) invalid();
   }
   count = 0;
   function walk(n: Layout, depth: number) {
     if (depth > 8 || ++count > 128) invalid();
     if (n.type === 'view' && !w.definition.views.some(v => v.id === n.viewId)) invalid();
     if (n.type === 'binding') invalid(); // No external resolver or additional authority in Phase 2.
+    if (n.type === 'shortcut' && (n.children?.length ?? 0) > 0) invalid();
     for (const child of n.children ?? []) walk(child, depth + 1);
   }
   walk(w.definition.layout, 1);

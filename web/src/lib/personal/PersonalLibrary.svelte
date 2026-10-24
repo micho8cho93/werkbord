@@ -39,7 +39,7 @@
   }
 </script>
 <div class="library">
-  <header><h1>Data library</h1><button class="btn" disabled={busy} onclick={() => attempt++}>Reload library</button></header>
+  <header><h1>Data library</h1><button class="btn quiet" disabled={busy} onclick={() => attempt++}>Reload library</button></header>
   <p class="intro">Everything your workspaces keep, stored on this computer. Collections left behind by a deleted workspace stay here to inspect or reuse.</p>
   {#if notice}<p role="status">{notice}</p>{/if}
   {#if problem}<p role="alert">{problem}</p>{/if}
@@ -47,7 +47,7 @@
     {#if workspaces.length}
       <section class="pn" aria-label="Saved workspaces">
         <h2 class="band">Saved workspaces</h2>
-        <ul class="card-list">{#each workspaces as w (w.id)}<li class="card-row"><header><h3 class="title">{w.name}</h3></header><div class="actions"><button class="btn" onclick={() => onopen(w)}>Open</button></div></li>{/each}</ul>
+        <ul class="card-list">{#each workspaces as w (w.id)}<li class="card-row"><header><h3 class="title">{w.name}</h3></header><div class="actions"><button class="btn open" onclick={() => onopen(w)}>Open</button></div></li>{/each}</ul>
       </section>
     {/if}
     <section class="pn" aria-label="Personal collections">

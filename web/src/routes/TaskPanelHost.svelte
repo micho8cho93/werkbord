@@ -54,7 +54,7 @@
         {#if retryError}<p class="error" role="alert">{retryError}</p>{/if}
         <div class="row">
           <button class="btn primary" disabled={retrying} onclick={() => retry(reset)}>{retrying ? 'Refreshing task…' : 'Refresh task'}</button>
-          <a class="btn" href={boardHref}>Back to the board</a>
+          <a class="btn open" href={boardHref}>Back to the board</a>
         </div>
       </div>
     </section>

@@ -180,12 +180,12 @@ func TestPersonalIdentifiersAndIcons(t *testing.T) {
 			t.Fatal(id)
 		}
 	}
-	b, err := os.ReadFile("../../web/src/lib/Icon.svelte")
+	b, err := os.ReadFile("../../web/src/lib/personal/icon-components.ts")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, icon := range PersonalIcons() {
-		if !strings.Contains(string(b), "| '"+icon+"'") {
+		if !strings.Contains(string(b), "'"+icon+"':") {
 			t.Fatalf("unregistered icon %s", icon)
 		}
 	}
@@ -194,9 +194,10 @@ func TestPersonalIdentifiersAndIcons(t *testing.T) {
 func TestPersonalDocumentSizeLimits(t *testing.T) {
 	schema := PersonalCollectionSpec{Name: "Large", SchemaVersion: 1, Fields: []PersonalField{
 		{Key: "a", Name: "A", Type: "text"}, {Key: "b", Name: "B", Type: "text"}, {Key: "c", Name: "C", Type: "text"},
+		{Key: "d", Name: "D", Type: "text"}, {Key: "e", Name: "E", Type: "text"},
 	}}
-	value, _ := json.Marshal(strings.Repeat("x", 12000))
-	if err := ValidatePersonalValues(schema, map[string]json.RawMessage{"a": value, "b": value, "c": value}); !errors.Is(err, ErrInvalid) {
+	value, _ := json.Marshal(strings.Repeat("x", 15000))
+	if err := ValidatePersonalValues(schema, map[string]json.RawMessage{"a": value, "b": value, "c": value, "d": value, "e": value}); !errors.Is(err, ErrInvalid) {
 		t.Fatal("oversized value object accepted", err)
 	}
 	s := personalTestWorkspace()

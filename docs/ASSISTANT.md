@@ -683,7 +683,7 @@ operations are available only on authenticated controllers to unrestricted owner
 assistant sessions, never MCP or project-restricted sessions. Tokenless controllers
 do not expose personal tools, matching the personal owner API. Read-only assistants receive only the read grant.
 
-Ask “create a weekly to-do list with deadlines and priorities”, then choose
+Describe the workspace you want (for example “a notebook with nested pages and tags” or “a board for my sprint”), then choose
 Universal, Individual, selected Team context IDs, or a combination. Salie proposes
 a short name, an existing registry icon, registered layout/view components and
 empty personal collection schemas. The fixed confirmation card previews the exact

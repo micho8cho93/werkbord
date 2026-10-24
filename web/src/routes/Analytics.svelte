@@ -94,7 +94,7 @@
     {#if view === 'Usage'}<label class="pick"><span>Measure</span><select bind:value={measure} aria-label="Usage measure"><option value="tokens">Tokens</option><option value="cost">API cost</option></select></label>{/if}
     {#if loading}<span class="muted" role="status">Updating…</span>{/if}
   </div>
-  {#if error}<p role="alert" class="error">{error} <button class="btn small" onclick={() => void load()}>Try again</button></p>
+  {#if error}<p role="alert" class="error">{error} <button class="btn small quiet" onclick={() => void load()}>Try again</button></p>
   {:else if loading && !report}<p class="empty" role="status">Loading analytics…</p>
   {:else if report}
     <p class="muted stamp">As of {new Date(report.end).toLocaleString()} · {report.projectId ? projectName(report.projectId) : 'All projects'} · {Math.round((Date.parse(report.end) - Date.parse(report.start)) / 86400000)} days{loading ? ' · showing the previous snapshot while updating' : ''}</p>

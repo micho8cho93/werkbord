@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import WorkspaceIcon from './WorkspaceIcon.svelte';
-  import { newWorkspaceIcon } from './icons';
+  import { displayWorkspaceIcon, newWorkspaceIcon } from './icons';
   import { workspaceSpecSchema, type Workspace } from './schema';
   import type { PersonalAPI, Deletion } from './api';
   let { workspace, api, teams = [], context = '', onupdated, ondeleted, onlibrary }: {
@@ -40,6 +40,17 @@
       await onupdated(await api.updateWorkspace(workspace.id, workspace.revision, spec)); panel = '';
     });
   }
+  async function chooseIcon() {
+    await act(async () => {
+      const workspaces = await api.workspaces();
+      const used = workspaces.map(w => displayWorkspaceIcon(w.icon, w.name));
+      used.push(displayWorkspaceIcon(icon, name));
+      const hints = workspace.definition.views.map(v => `${v.name} ${v.kind}`).join(' ');
+      const next = newWorkspaceIcon(name, used, hints);
+      if (!next) throw new Error('All available workspace icons are in use.');
+      icon = next;
+    });
+  }
   function workspaceSpec(w: Workspace) { const {id, revision, createdAt, updatedAt, ...spec} = w; void id; void revision; void createdAt; void updatedAt; return spec; }
   async function deletion(mode: 'keep_data' | 'delete_data') {
     confirmed = false;
@@ -52,18 +63,18 @@
 </script>
 <details class="overflow" bind:open><summary class="btn" aria-label="Manage workspace" title="Manage workspace"><Icon name="more" /></summary><div class="menu">
   <button class="btn" onclick={settings} disabled={busy}>Name, icon & locations</button>
-  {#if context && currentAssigned}<button class="btn" onclick={() => { open = false; void save(true); }} disabled={busy}>Remove from this location</button>{/if}
-  <button class="btn" onclick={revisions} disabled={busy}>Definition history</button>
-  <button class="btn" onclick={onlibrary}>Data library</button>
-  <button class="btn" onclick={() => { open = false; panel = 'delete'; preview = null; problem = ''; }} disabled={busy}>Delete workspace…</button>
+  {#if context && currentAssigned}<button class="btn danger" onclick={() => { open = false; void save(true); }} disabled={busy}>Remove from this location</button>{/if}
+  <button class="btn open" onclick={revisions} disabled={busy}>Definition history</button>
+  <button class="btn open" onclick={onlibrary}>Data library</button>
+  <button class="btn danger" onclick={() => { open = false; panel = 'delete'; preview = null; problem = ''; }} disabled={busy}>Delete workspace…</button>
 </div></details>
 {#if panel || problem}<section class="management" aria-label="Workspace management" aria-busy={busy}>
   {#if problem}<p role="alert">{problem}</p>{/if}
   {#if panel === 'settings'}
     <form onsubmit={e => { e.preventDefault(); void save(); }}>
       <label>Name <input class="input" bind:value={name} required maxlength="120" disabled={busy} /></label>
-      <div class="icon-choice"><WorkspaceIcon {icon} name={name} size={24} /><span>Workspace icon</span><button class="btn" type="button" disabled={busy} onclick={() => icon = newWorkspaceIcon()}>New icon</button></div>
-      <p>Each workspace has its own icon, distinct from the app’s navigation and action icons.</p>
+      <div class="icon-choice"><WorkspaceIcon {icon} name={name} size={24} /><span>Workspace icon</span><button class="btn add" type="button" disabled={busy} onclick={chooseIcon}>New icon</button></div>
+      <p>A Lucide icon matched to this workspace. New icon picks the closest available match that another workspace is not using.</p>
       <fieldset disabled={busy}><legend>Show in</legend>
         <label><input type="checkbox" bind:checked={universal} /> Universal</label><label><input type="checkbox" bind:checked={individual} /> Individual</label>
         {#each teams as team (team.id)}<label><input type="checkbox" bind:group={selectedTeams} value={team.id} /> {team.name}</label>{/each}
@@ -74,7 +85,7 @@
     </form>
   {:else if panel === 'delete'}
     <h2>Delete “{workspace.name}”</h2>
-    <div class="actions"><button class="btn" disabled={busy} onclick={() => deletion('keep_data')}>Delete workspace only</button><button class="btn" disabled={busy} onclick={() => deletion('delete_data')}>Delete workspace and its data</button></div>
+    <div class="actions"><button class="btn danger" disabled={busy} onclick={() => deletion('keep_data')}>Delete workspace only</button><button class="btn danger" disabled={busy} onclick={() => deletion('delete_data')}>Delete workspace and its data</button></div>
     <p>Deleting only the workspace keeps all personal collections in the data library for recovery and reuse.</p>
     {#if preview}
       <h3>{preview.mode === 'keep_data' ? 'Keep personal records' : 'Review personal data deletion'}</h3>
@@ -85,13 +96,13 @@
       </div>{/each}
       <p>Existing board tasks, projects, Git information, Team records and shared memory are unaffected. Retained collections remain in the data library.</p>
       <label><input type="checkbox" bind:checked={confirmed} disabled={busy} /> I confirm this deletion and the personal data choices above.</label>
-      <button class="btn" disabled={busy || !confirmed} onclick={() => act(async () => { if (preview) await ondeleted(await api.deleteWorkspace(preview)); })}>Confirm deletion</button>
+      <button class="btn ok" disabled={busy || !confirmed} onclick={() => act(async () => { if (preview) await ondeleted(await api.deleteWorkspace(preview)); })}>Confirm deletion</button>
     {/if}
   {:else if panel === 'history'}
     <h2>Definition history</h2><p>Restore a saved interface as a new revision. Personal records and collection schemas stay current.</p>
     <label>Saved revision <select class="select" bind:value={target} disabled={busy} onchange={() => historical = null}>{#each history.filter(h => h.revision < workspace.revision) as h (h.revision)}<option value={h.revision}>Revision {h.revision} · {new Date(h.updatedAt).toLocaleString()}</option>{/each}</select></label>
-    {#if !target}<p>No earlier revisions.</p>{:else}<button class="btn" disabled={busy} onclick={() => act(async () => { historical = (await api.snapshot(workspace.id, target)).workspace; })}>Review revision</button>{/if}
-    {#if historical}<p>Restore revision {historical.revision}: “{historical.name}”, icon {historical.icon}, {historical.definition.views.length} views. Its saved display locations will also be restored.</p><button class="btn" disabled={busy} onclick={() => act(async () => { await onupdated(await api.rollback(workspace.id, workspace.revision, historical!.revision)); panel = ''; })}>Restore this definition</button>{/if}
+    {#if !target}<p>No earlier revisions.</p>{:else}<button class="btn open" disabled={busy} onclick={() => act(async () => { historical = (await api.snapshot(workspace.id, target)).workspace; })}>Review revision</button>{/if}
+    {#if historical}<p>Restore revision {historical.revision}: “{historical.name}”, icon {historical.icon}, {historical.definition.views.length} views. Its saved display locations will also be restored.</p><button class="btn ok" disabled={busy} onclick={() => act(async () => { await onupdated(await api.rollback(workspace.id, workspace.revision, historical!.revision)); panel = ''; })}>Restore this definition</button>{/if}
     <p>The latest 100 revisions are listed.</p>
   {/if}
   <button class="btn" disabled={busy} onclick={() => { panel = ''; problem = ''; }}>Cancel</button>

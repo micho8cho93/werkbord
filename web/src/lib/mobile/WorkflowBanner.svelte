@@ -21,7 +21,7 @@
 {#if workflows.starting || visible.length || workflows.error}
   <section in:surface={{ duration: workflows.starting ? 180 : 0 }} bind:this={node} style:top={`${headerHeight}px`} class="workflow-banner" aria-label="Workflow progress" data-testid="workflow-banner">
     {#if workflows.starting}<p role="status">{workflows.starting.name} · Starting workflow…</p>{/if}
-    {#if workflows.error}<p role="alert">Execution history could not be loaded. {workflows.error}</p><button class="btn" onclick={() => void workflows.refresh()}>Retry loading</button>{/if}
+    {#if workflows.error}<p role="alert">Execution history could not be loaded. {workflows.error}</p><button class="btn quiet" onclick={() => void workflows.refresh()}>Retry loading</button>{/if}
     {#if app.connection !== 'live'}<p role="status">Connection interrupted. The runner may still be working. Progress will refresh when reconnected.</p>{/if}
     {#each [...new Set(visible.map(x => x.requestId))] as requestId (requestId)}
       {@const active = visible.filter(x => x.requestId === requestId && !terminal(x.run))}

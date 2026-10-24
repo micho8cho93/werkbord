@@ -138,9 +138,9 @@ func TestPersonalFailedAndInvalidUpdatesKeepPreviousDefinition(t *testing.T) {
 			ch := editChange(current)
 			switch kind {
 			case "unregistered-view":
-				ch.Workspace.Definition.Views[0].Kind = "calendar"
+				// Board and calendar are registered now; a kind nothing draws is still refused.
+				ch.Workspace.Definition.Views[0].Kind = "gallery"
 				ch.Workspace.Definition.Views[0].CheckedField = ""
-				ch.Workspace.Definition.Views[0].DateField = "deadline"
 			case "script":
 				ch.Workspace.Definition.Layout = domain.PersonalNode{Type: "javascript", Text: "fetch('https://example.com')"}
 			case "destructive":
@@ -305,7 +305,7 @@ func TestPersonalCanEditWorkspaceSavedBeforeAssistantSupport(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := result.Data.(*Changed).Workspace
-	if after.ID != w.ID || after.Revision != 2 || !domain.GeneratedPersonalIcon(after.Icon) || !reflect.DeepEqual(after.CollectionIDs, w.CollectionIDs) {
+	if after.ID != w.ID || after.Revision != 2 || !domain.LibraryPersonalIcon(after.Icon) || !reflect.DeepEqual(after.CollectionIDs, w.CollectionIDs) {
 		t.Fatal(after)
 	}
 }

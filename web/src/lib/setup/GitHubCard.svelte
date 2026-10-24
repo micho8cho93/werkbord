@@ -96,7 +96,7 @@
 <SetupCard title="GitHub" {status} {summary}>
   {#if !gh && unreachable}
     <p class="muted" role="status">GitHub could not be checked just now ({unreachable}). It is optional: everything local works without it.</p>
-    <div class="row"><button class="btn" onclick={refresh}>Try again</button></div>
+    <div class="row"><button class="btn quiet" onclick={refresh}>Try again</button></div>
   {:else if !gh}
     <p class="muted">Checking…</p>
   {:else if gh.state === 'signed_in'}
@@ -132,7 +132,7 @@
     <p class="muted">{gh.message}</p>
   {:else if gh.state === 'error'}
     <p class="error" role="alert">{gh.message}</p>
-    <div class="row"><button class="btn" onclick={refresh}>Try again</button></div>
+    <div class="row"><button class="btn quiet" onclick={refresh}>Try again</button></div>
   {:else}
     <p>
       Connect your GitHub account to pick repositories, and to see branches, pull requests and checks. Optional: everything local works

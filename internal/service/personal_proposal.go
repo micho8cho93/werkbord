@@ -66,7 +66,7 @@ func (s *Personal) PrepareChange(ctx context.Context, change domain.PersonalChan
 	return change, err
 }
 func (s *Personal) checkChange(ctx context.Context, tx store.Tx, ch domain.PersonalChange) error {
-	if !domain.GeneratedPersonalIcon(ch.Workspace.Icon) {
+	if !domain.LibraryPersonalIcon(ch.Workspace.Icon) {
 		return fmt.Errorf("%w: ask Salie for a fresh workspace icon preview", domain.ErrConflict)
 	}
 	if err := preparePersonalIcon(ctx, tx, ch.WorkspaceID, &ch.Workspace); err != nil {
@@ -76,9 +76,8 @@ func (s *Personal) checkChange(ctx context.Context, tx store.Tx, ch domain.Perso
 		return domain.ErrInvalid
 	}
 	for _, view := range ch.Workspace.Definition.Views {
-		switch view.Kind {
-		case "table", "list", "checklist", "progress", "status", "chart":
-		default:
+		// Every kind the renderer draws: the proposal can be nothing the person's window cannot show.
+		if !slices.Contains(domain.PersonalViewKinds(), view.Kind) {
 			return fmt.Errorf("%w: view is not registered in the personal renderer", domain.ErrInvalid)
 		}
 	}

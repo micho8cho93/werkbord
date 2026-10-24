@@ -351,7 +351,11 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await personal.getByRole('button', { name: 'Create with Salie', exact: true }).click();
         const draftBox = assistantFrame.getByRole('textbox', { name: 'Message to the assistant' });
         await draftBox.waitFor();
-        assert.match(await draftBox.inputValue(), /weekly to-do/);
+        // A general statement that a new generative workspace is coming, then the person's own description: no thing to build is suggested.
+        const opening = await draftBox.inputValue();
+        assert.match(opening, /new generative workspace/);
+        assert.match(opening, /type of workspace I want and the style/);
+        assert.doesNotMatch(opening, /to-do|planner|deadline|priorit/i);
         await draftBox.fill('Create a weekly to-do list with deadlines and priorities in Universal and Individual and team:design.');
         await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
         let preview = assistantFrame.locator('.confirm[data-state="waiting"]').filter({ has: assistantFrame.getByRole('heading', { name: 'Weekly to-dos', exact: true }) });

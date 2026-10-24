@@ -108,7 +108,7 @@
       <p class="muted">Looking for your repositories…</p>
     {:else if error}
       <p class="error" role="alert">{error}</p>
-      <div class="row"><button class="btn small" onclick={load}>Try again</button></div>
+      <div class="row"><button class="btn small quiet" onclick={load}>Try again</button></div>
     {:else if list}
       <div class="tools">
         <label class="visually-hidden" for="repo-filter">Filter repositories</label>

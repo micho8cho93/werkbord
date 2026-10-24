@@ -417,7 +417,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         </label>
         <span class="spacer"></span>
         {#if task.archivedAt}
-          <span class="chip">Archived</span><button class="btn small" disabled={busy} onclick={() => archive(false)}>Restore task</button>
+          <span class="chip">Archived</span><button class="btn small ok" disabled={busy} onclick={() => archive(false)}>Restore task</button>
         {:else}
           {#if latest && runStatus(latest).active}<button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>{/if}
         {/if}
@@ -534,7 +534,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
               {#if viewingLatest && status.active}
                 <span class="run-acts">
                   {#if (run.state === 'waiting_for_user' && run.waiting === 'idle') || run.state === 'blocked'}
-                    <button class="btn small" disabled={busy} onclick={finish}><Icon name="check" size={14} />Finish</button>
+                    <button class="btn small ok" disabled={busy} onclick={finish}><Icon name="check" size={14} />Finish</button>
                   {/if}
 
                 </span>

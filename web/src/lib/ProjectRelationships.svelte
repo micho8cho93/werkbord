@@ -54,7 +54,7 @@
           {#if item.relationship.lastVerified}<p class="muted">Last verified: {new Date(item.relationship.lastVerified).toLocaleString()}</p>{/if}
           {#if item.relationship.source.projectId===projectId}
             <button class="btn" disabled={busy} onclick={() => change(() => api.acceptRelationship(projectId,item.id,item.version))}>Verify relationship</button>
-            <button class="btn" disabled={busy} onclick={() => change(() => api.deleteRelationship(projectId,item.id,item.version))}>Remove link</button>
+            <button class="btn danger" disabled={busy} onclick={() => change(() => api.deleteRelationship(projectId,item.id,item.version))}>Remove link</button>
           {/if}
         </li>
       {/each}

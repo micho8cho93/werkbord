@@ -200,9 +200,9 @@
                 <details class="branch-action-group">
                   <summary>Task and history</summary>
                   <div class="branch-action-options">
-                    {#if branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId)}>Open task</a>{/if}
-                    {#if branch.devboard.runId && branch.devboard.taskId}<a class="btn" href={taskHref(project.id, branch.devboard.taskId, branch.devboard.runId)}>Open run</a>{/if}
-                    {#if branch.scope === 'local'}<a class="btn" href={commitsHref(project.id, 'local', branch.name)}>History</a>{/if}
+                    {#if branch.devboard.taskId}<a class="btn open" href={taskHref(project.id, branch.devboard.taskId)}>Open task</a>{/if}
+                    {#if branch.devboard.runId && branch.devboard.taskId}<a class="btn open" href={taskHref(project.id, branch.devboard.taskId, branch.devboard.runId)}>Open run</a>{/if}
+                    {#if branch.scope === 'local'}<a class="btn open" href={commitsHref(project.id, 'local', branch.name)}>History</a>{/if}
                   </div>
                 </details>
               {/if}

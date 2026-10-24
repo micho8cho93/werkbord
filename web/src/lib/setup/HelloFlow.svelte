@@ -195,7 +195,7 @@
     {:else}
       <p role="status" aria-live="polite">{stageText(stage, run)}</p>
       <div class="row">
-        {#if runLink}<a class="btn" href={runLink}>Open the ticket</a>{/if}
+        {#if runLink}<a class="btn open" href={runLink}>Open the ticket</a>{/if}
         {#if stage === 'not-started' || stage === 'failed'}<button class="btn primary" disabled={busy} onclick={retry}>{stage === 'failed' ? 'Try again' : 'Start the assistant'}</button>{/if}
         {#if stage === 'failed'}<button class="btn quiet" disabled={busy} onclick={useTemplate}>Use the template instead</button>{/if}
         {#if stage === 'review' || stage === 'done'}<button class="btn primary" onclick={() => onstep?.('publish')}>Next</button>{/if}
@@ -219,13 +219,13 @@
     {:else if phase === 'live'}
       <p>Your page is live: <a href={pageUrl} target="_blank" rel="noopener noreferrer">{pageUrl}</a></p>
       <p class="muted">That was a repository, a ticket, an assistant, a push and a GitHub Actions deploy, all from here.{repoUrl ? '' : ''}</p>
-      <div class="row">{#if repoUrl}<a class="btn" href={repoUrl} target="_blank" rel="noopener noreferrer">Open the repository</a>{/if}<button class="btn primary" onclick={() => ondone?.()}>Continue</button></div>
+      <div class="row">{#if repoUrl}<a class="btn open" href={repoUrl} target="_blank" rel="noopener noreferrer">Open the repository</a>{/if}<button class="btn primary" onclick={() => ondone?.()}>Continue</button></div>
     {:else if phase === 'nopages'}
       <p>Your code is on GitHub{repoUrl ? '' : ''}, but GitHub Pages is not turned on for this repository, so there is no page to open (private repositories need a paid plan).</p>
-      <div class="row">{#if repoUrl}<a class="btn" href={repoUrl} target="_blank" rel="noopener noreferrer">Open the repository</a>{/if}<button class="btn primary" onclick={() => ondone?.()}>Continue</button></div>
+      <div class="row">{#if repoUrl}<a class="btn open" href={repoUrl} target="_blank" rel="noopener noreferrer">Open the repository</a>{/if}<button class="btn primary" onclick={() => ondone?.()}>Continue</button></div>
     {:else if phase === 'waiting' || phase === 'slow'}
       <p role="status" aria-live="polite">{phase === 'waiting' ? 'Pushed. GitHub is building the page; this usually takes under a minute.' : 'Still building. You can wait, or look at the deploy on GitHub.'}</p>
-      {#if phase === 'slow'}<div class="row">{#if repoUrl}<a class="btn" href="{repoUrl}/actions" target="_blank" rel="noopener noreferrer">Open the Actions tab</a>{/if}<button class="btn primary" onclick={watchPage}>Check again</button></div>{/if}
+      {#if phase === 'slow'}<div class="row">{#if repoUrl}<a class="btn open" href="{repoUrl}/actions" target="_blank" rel="noopener noreferrer">Open the Actions tab</a>{/if}<button class="btn primary" onclick={watchPage}>Check again</button></div>{/if}
     {:else if pushNeeded}
       <p>The page is in <strong>{target?.name}</strong> on this computer. Push it to {repoName || 'GitHub'} to publish.</p>
       <div class="row"><button class="btn primary" disabled={busy} onclick={push}>{phase === 'pushing' ? 'Pushing…' : 'Push to GitHub'}</button></div>

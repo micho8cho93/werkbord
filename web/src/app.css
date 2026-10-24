@@ -391,8 +391,89 @@ a.btn.primary {
   color: var(--text);
 }
 
+/*
+ * What a button leans toward. Every tone is the same raised button with one quiet difference, so a row of buttons reads as
+ * a row of different things before a word is read: the colour of the edge and the label, a faint glow when pointed at,
+ * and for going somewhere an underline. Use them where several buttons stand together; a lone button needs none.
+ *
+ *   (none)   change or manage something: Edit, Settings, Rename
+ *   primary  the one thing this place is for: filled
+ *   add      bring something new in: accent edge and label
+ *   open     go somewhere or look at something: accent label, underlined
+ *   ok       approve, confirm, finish: green edge and label
+ *   warn     stop or pause, and can be undone: amber edge and label
+ *   danger   remove for good: red edge and label
+ *   quiet    housekeeping: reload, copy, sort; no relief until touched
+ */
+.btn {
+  --tone: var(--text-2);
+}
+
+.btn.add,
+.btn.open,
+.btn.ok,
+.btn.warn,
 .btn.danger {
-  color: var(--danger-text);
+  border-color: color-mix(in srgb, var(--tone) 42%, var(--border));
+  color: var(--tone-text, var(--tone));
+}
+
+.btn.add:hover:not(:disabled),
+.btn.open:hover:not(:disabled),
+.btn.ok:hover:not(:disabled),
+.btn.warn:hover:not(:disabled),
+.btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tone) 9%, var(--surface));
+  box-shadow:
+    var(--btn-sh),
+    0 0 0 3px color-mix(in srgb, var(--tone) 16%, transparent);
+}
+
+.btn.add:active:not(:disabled),
+.btn.open:active:not(:disabled),
+.btn.ok:active:not(:disabled),
+.btn.warn:active:not(:disabled),
+.btn.danger:active:not(:disabled) {
+  box-shadow: var(--press-sh);
+}
+
+.btn.add {
+  --tone: var(--accent);
+}
+
+.btn.open {
+  --tone: var(--accent);
+  border-color: var(--border);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+.btn.open:hover:not(:disabled) {
+  text-decoration-color: var(--accent);
+}
+
+.btn.ok {
+  --tone: var(--ok);
+  --tone-text: var(--ok-text);
+}
+
+.btn.warn {
+  --tone: var(--warn);
+  --tone-text: var(--warn-text);
+}
+
+.btn.danger {
+  --tone: var(--danger);
+  --tone-text: var(--danger-text);
+}
+
+.btn.add svg,
+.btn.ok svg,
+.btn.warn svg,
+.btn.danger svg {
+  color: var(--tone);
 }
 
 .btn.danger.armed,

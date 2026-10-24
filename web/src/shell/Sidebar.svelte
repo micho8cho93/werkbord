@@ -133,7 +133,7 @@
 
   {/if}
   <div class="group generated">
-    {#if !model.universal}{@render item('Create with Salie', 'plus', false, () => { void model.customizeGenerated(); }, 'create-generated')}{/if}
+    {#if !model.universal}{@render item('Create with Salie', 'create', false, () => { void model.customizeGenerated(); }, 'create-generated')}{/if}
     {#each model.visibleGenerated as workspace (workspace.id)}
       {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
     {/each}

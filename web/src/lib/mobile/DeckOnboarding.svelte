@@ -17,14 +17,14 @@
   {:else if step === 3}
     <p>Press and hold a workflow button to change its settings.</p>
     <p class="muted">{workflowName} is highlighted. With a keyboard, use Shift+F10.</p>
-    <button class="btn" onclick={onconfigure}>Open workflow settings</button>
+    <button class="btn open" onclick={onconfigure}>Open workflow settings</button>
     <button class="btn primary" onclick={() => onnext(4)}>Keep defaults</button>
   {:else if step === 4}
     <p>{preview ? 'Interactive preview: tap the highlighted workflow to practise opening progress. No workflow will execute.' : 'Tap the highlighted workflow, choose a repository, then run. Its progress indicator will appear above the deck.'}</p>
     {#if workflowName !== 'Find Bugs'}<p class="muted">We recommend Find Bugs for your first run.</p><button class="btn" onclick={onrecommend}>Choose and configure Find Bugs</button>{/if}
     <button class="btn" onclick={onconfigure}>Change repository or settings</button>
     {#if !liveDemo && !preview}<p class="muted">Live execution is unavailable with the current repository, connection or agent defaults. Reconnect or check settings, or try the preview.</p><button class="btn" onclick={onpreview}>Try interactive preview</button>{/if}
-    <button class="btn" onclick={() => onnext(6)}>Skip execution for now</button>
+    <button class="btn warn" onclick={() => onnext(6)}>Skip execution for now</button>
   {:else if step === 5}
     <p>Tap the {preview ? 'interactive preview' : 'progress indicator above'} to inspect the current stage, completed stages, agent activity, repository, results and Stop control.</p>
     <p class="muted">Live work continues when you leave. Only reported stages and findings are shown.</p>

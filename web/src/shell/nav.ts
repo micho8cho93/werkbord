@@ -82,3 +82,11 @@ export function generatedEntries(workspaces: import('../lib/personal/schema').Wo
 export function generatedWorkspaceID(place: string): string | undefined {
   return /^#\/personal\?id=(pws_[a-z2-7]{16})(?:&revision=[1-9][0-9]{0,15})?$/.exec(place)?.[1];
 }
+
+/** The place inside a workspace that a shortcut to one of its own pages opens. */
+export function shellPlace(kind: Kind, target: 'home' | 'projects' | 'analytics'): string {
+  const fixed = entries(kind);
+  if (target === 'home') return fixed[0].place;
+  if (target === 'projects') return fixed[1].place;
+  return kind === 'personal' ? '#/analytics' : '?tab=analytics';
+}

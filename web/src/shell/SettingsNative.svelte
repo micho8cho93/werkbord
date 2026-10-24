@@ -48,13 +48,13 @@
             {alerts.enabled ? 'Turn alerts off' : 'Turn alerts on'}
           </button>
           <span class="note"><span class="dot" data-tone={alerts.enabled && !denied ? 'ok' : 'neutral'}></span> {alerts.enabled ? 'On' : 'Off'}</span>
-          <button class="btn" type="button" onclick={test}>Show a test alert</button>
+          <button class="btn open" type="button" onclick={test}>Show a test alert</button>
         </div>
         {#if denied}
           <p class="note" role="status" data-testid="alerts-denied">
             macOS is not letting Werkbord show alerts. Turn them on for Werkbord in System Settings, under Notifications.
           </p>
-          <div class="row"><button class="btn" type="button" onclick={() => alerts.openSystemSettings()}>Open Notification settings</button></div>
+          <div class="row"><button class="btn open" type="button" onclick={() => alerts.openSystemSettings()}>Open Notification settings</button></div>
         {:else if tested === 'shown'}
           <p class="note" role="status">The alert was sent. If you did not see it, check Focus is not on.</p>
         {:else if tested === 'failed'}

@@ -147,9 +147,10 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const style = await generated.locator('.label').evaluate(el => {const s=getComputedStyle(el);return {whiteSpace:s.whiteSpace,ellipsis:s.textOverflow,clipped:el.scrollWidth>el.clientWidth,lines:el.getBoundingClientRect().height/parseFloat(s.lineHeight)}});
         assert.equal(style.whiteSpace,'nowrap'); assert.equal(style.ellipsis,'ellipsis'); assert.ok(style.clipped);
         assert.equal(await generated.locator('svg[data-workspace-icon]').getAttribute('data-workspace-icon'), savedWorkspace.icon);
-        assert.ok(await generated.locator('svg rect').count() >= 8);
+        assert.match(savedWorkspace.icon, /^lucide-[a-z0-9-]+$/);
+        assert.ok(await generated.locator('svg path, svg circle, svg rect, svg line').count() > 0);
         await page.screenshot({path:path.join(artifacts,'universal.png')});
-        ok('Universal ordering, dedicated workspace glyph, one line, ellipsis, full accessible name and active state');
+        ok('Universal ordering, bundled Lucide workspace icon, one line, ellipsis, full accessible name and active state');
 
         await switchTo(page,'personal');
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();
@@ -241,12 +242,12 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.getByRole('button',{name:'Save changes',exact:true}).click();
         await side.getByRole('button',{name:'My planning',exact:true}).waitFor();
         const updated=await api(ind,'GET','/api/personal/v1/workspaces/'+savedWorkspace.id);
-        assert.equal(updated.name,'My planning');assert.match(updated.icon,/^workspace-[01][0-9a-f]{6}$/);assert.notEqual(updated.icon,savedWorkspace.icon);assert.equal(updated.revision,2);
+        assert.equal(updated.name,'My planning');assert.match(updated.icon,/^lucide-[a-z0-9-]+$/);assert.notEqual(updated.icon,savedWorkspace.icon);assert.equal(updated.revision,2);
         assert.deepEqual(updated.visibility,spec.visibility);
         const unchanged=await api(ind,'GET','/api/personal/v1/collections/'+collection.id+'/records/'+record.id);
         assert.deepEqual(unchanged,persisted);
         assert.equal(await page.locator('iframe[data-workspace]').count(),2);
-        ok('management changes name and dedicated workspace glyph with optimistic revisions, preserving records and all locations');
+        ok('management changes name and fitting unused Lucide icon with optimistic revisions, preserving records and all locations');
         await switchTo(page,'team:main'); await openSaved();
         await page.getByLabel('Manage workspace',{exact:true}).click();
         await page.getByRole('button',{name:'Remove from this location',exact:true}).click();

@@ -31,7 +31,7 @@ func (p *Individual) PersonalWorkspaceCall(ctx context.Context, method, path str
 	var out PersonalResponse
 	lifecycle := personalLifecyclePath.FindStringSubmatch(path)
 	contexts := path == displayContextsPath
-	if (!personalPath.MatchString(path) && lifecycle == nil && !contexts) || len(body) > 64<<10 {
+	if (!personalPath.MatchString(path) && lifecycle == nil && !contexts) || len(body) > 128<<10 {
 		return out, errors.New("invalid personal workspace request")
 	}
 	if contexts && (method != "PUT" || !json.Valid(body)) {
@@ -81,8 +81,8 @@ func (p *Individual) PersonalWorkspaceCall(ctx context.Context, method, path str
 		return out, errors.New("Cannot reach your saved workspaces on this computer")
 	}
 	defer res.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(res.Body, 4<<20+1))
-	if err != nil || len(raw) > 4<<20 {
+	raw, err := io.ReadAll(io.LimitReader(res.Body, 24<<20+1))
+	if err != nil || len(raw) > 24<<20 {
 		return out, errors.New("personal workspace response is too large or unavailable")
 	}
 	if len(raw) == 0 {

@@ -156,7 +156,7 @@
       <strong>Copy this credential now</strong>
       <p class="note">It is shown once. Store it in the MCP client's environment as <code>WERKBORD_MCP_TOKEN</code>.</p>
       <code class="token">{oneTimeToken}</code>
-      <button class="btn small" onclick={copyToken}>Copy credential</button>
+      <button class="btn small quiet" onclick={copyToken}>Copy credential</button>
       <label>Address reachable from your client<input class="input" type="url" bind:value={connectionURL} /></label>
       <p class="note">Default: {endpoint}. For a client on another computer, enter this controller’s reachable private address ending in /mcp. A phone’s relay address may only work in its paired browser.</p>
       <label class="check"><input type="checkbox" bind:checked={stdio} /><span>My client needs a local process (stdio)</span></label>
@@ -231,11 +231,11 @@
                       </div>
                       <label><span>Dependencies <small>Task IDs or temporary IDs, separated by commas</small></span><input class="input mono" value={dependenciesText(task)} oninput={(event) => editTask(item, index, { dependencies: parseDependencies(event.currentTarget.value) })} /></label>
                       <label><span>Source reference</span><input class="input" value={task.sourceRef ?? ''} maxlength="2000" oninput={(event) => editTask(item, index, { sourceRef: event.currentTarget.value })} /></label>
-                      <button class="btn small" disabled={busy} onclick={() => removePlanTask(item, index)}>Remove task</button>
+                      <button class="btn small danger" disabled={busy} onclick={() => removePlanTask(item, index)}>Remove task</button>
                     </fieldset>
                   {/each}
                 </div>
-                <div class="row plan-actions"><button class="btn small" disabled={busy || !plan?.tasks.length} onclick={() => savePlan(item)}>Save edited plan</button><button class="btn small" disabled={busy || (plan?.tasks.length ?? 0) >= 50} onclick={() => addPlanTask(item)}>Add task</button><small>Saving replaces the pending proposal and reruns validation.</small></div>
+                <div class="row plan-actions"><button class="btn small" disabled={busy || !plan?.tasks.length} onclick={() => savePlan(item)}>Save edited plan</button><button class="btn small add" disabled={busy || (plan?.tasks.length ?? 0) >= 50} onclick={() => addPlanTask(item)}>Add task</button><small>Saving replaces the pending proposal and reruns validation.</small></div>
                 {#if hasUnsavedEdits}<small class="note">Save your edits before approving.</small>{/if}
               </div>
             {/if}

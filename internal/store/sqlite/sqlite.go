@@ -44,7 +44,12 @@ func Open(ctx context.Context, path string, log *slog.Logger) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DB{pool: pool, writer: pool.Writer, reader: pool.Reader, log: log}, nil
+	db := &DB{pool: pool, writer: pool.Writer, reader: pool.Reader, log: log}
+	if err := db.upgradePersonalIcons(ctx); err != nil {
+		_ = pool.Close()
+		return nil, err
+	}
+	return db, nil
 }
 
 // SchemaVersion reports the applied migration version.
