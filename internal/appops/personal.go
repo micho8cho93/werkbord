@@ -41,7 +41,7 @@ func personalWorkspaceInput() *Schema {
 	}
 	workspace := Object(map[string]*Schema{
 		"name":            Str("Short workspace name. Reuse an existing workspace rather than creating duplicates.", 120),
-		"icon":            Enum("Existing Werkbord icon.", domain.PersonalIcons()...),
+		"icon":            Str("Use auto on creation or to request a new unique workspace glyph. On edits preserve the exact saved workspace-XXXXXXX token unless a new icon is requested. Legacy icon names are compatibility hints only.", 32),
 		"uiSchemaVersion": Int("Always 1.", 1, 1),
 		"definition":      Object(map[string]*Schema{"views": List("Bound views.", view, 32), "layout": node(1)}, "views", "layout"),
 		"visibility":      Object(map[string]*Schema{"universal": Bool("Show in Universal."), "individual": Bool("Show in Individual."), "teamWorkspaceIds": List("Selected context IDs, display only; grants no Team access.", Str("Context ID supplied by person.", 125), 64)}, "universal", "individual"),
@@ -126,8 +126,14 @@ func personalOperations(personal *service.Personal) []*operation {
 				if err := input.Validate(args); err != nil {
 					return err
 				}
-				_, err := decodePersonalChange(args)
-				return err
+				ch, err := decodePersonalChange(args)
+				if err != nil {
+					return err
+				}
+				if !domain.ValidPersonalIcon(ch.Workspace.Icon) {
+					return fmt.Errorf("%w: invalid workspace icon", domain.ErrInvalid)
+				}
+				return nil
 			},
 			plan: func(ctx context.Context, e *env, args map[string]any) (*plan, error) {
 				if !e.p.Can(PermPersonalRead) {

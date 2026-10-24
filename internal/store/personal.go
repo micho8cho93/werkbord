@@ -10,6 +10,7 @@ import (
 // collection; replacements and deletions compare revisions. Workspace references
 // restrict collection deletion, but never cascade into personal records.
 type PersonalRepo interface {
+	WorkspaceIcons(context.Context) ([]domain.PersonalWorkspaceIcon, error)
 	CollectionUsage(context.Context, string) (*domain.PersonalCollectionUsage, error)
 	DeleteCollectionRecords(context.Context, string) error
 	WorkspaceHistory(context.Context, string) ([]domain.PersonalMeta, error)

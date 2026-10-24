@@ -57,10 +57,21 @@ func (s *Personal) PrepareChange(ctx context.Context, change domain.PersonalChan
 			}
 		}
 	}
-	err := s.Store.View(ctx, func(tx store.Tx) error { return s.checkChange(ctx, tx, change) })
+	err := s.Store.View(ctx, func(tx store.Tx) error {
+		if err := preparePersonalIcon(ctx, tx, change.WorkspaceID, &change.Workspace); err != nil {
+			return err
+		}
+		return s.checkChange(ctx, tx, change)
+	})
 	return change, err
 }
 func (s *Personal) checkChange(ctx context.Context, tx store.Tx, ch domain.PersonalChange) error {
+	if !domain.GeneratedPersonalIcon(ch.Workspace.Icon) {
+		return fmt.Errorf("%w: ask Salie for a fresh workspace icon preview", domain.ErrConflict)
+	}
+	if err := preparePersonalIcon(ctx, tx, ch.WorkspaceID, &ch.Workspace); err != nil {
+		return err
+	}
 	if len(ch.Collections) > 32 {
 		return domain.ErrInvalid
 	}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { z } from 'zod/v4';
-  import Icon from '../Icon.svelte';
+  import WorkspaceIcon from './WorkspaceIcon.svelte';
   import WorkspaceRenderer from './WorkspaceRenderer.svelte';
   import { WorkspaceSession } from './session.svelte';
   import { personalAPI } from './api';
@@ -59,7 +59,7 @@
 <section class="workspace-preview" aria-label="Proposed workspace">
   {#if problem}<p role="alert">{problem}</p>
   {:else if preview?.workspace && proposal.success}
-    <h3><Icon name={preview.workspace.icon} size={18} />{preview.workspace.name}</h3>
+    <h3><WorkspaceIcon icon={preview.workspace.icon} name={preview.workspace.name} size={18} />{preview.workspace.name}</h3>
     {#if previous}<p>Editing {previous.name} · revision {proposal.data.revision} · {previous.id}</p>{:else}<p>New workspace · {proposal.data.collections.some(c => c.revision > 0) ? 'reuses saved personal data' : 'collections start empty'}</p>{/if}
     <p>Show in: {[preview.workspace.visibility.universal ? 'Universal' : '', preview.workspace.visibility.individual ? 'Individual' : '', ...(preview.workspace.visibility.teamWorkspaceIds ?? [])].filter(Boolean).join(', ')}</p>
     {#if previous}<details><summary>Previous definition and locations</summary><pre>{JSON.stringify(previous, null, 2)}</pre></details>{/if}

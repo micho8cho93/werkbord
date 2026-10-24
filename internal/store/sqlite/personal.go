@@ -297,3 +297,21 @@ func (r personalRepo) WorkspaceHistory(ctx context.Context, id string) ([]domain
 	}
 	return out, rows.Err()
 }
+
+// WorkspaceIcons reads only the small identity projection, never full definitions or records.
+func (r personalRepo) WorkspaceIcons(ctx context.Context) ([]domain.PersonalWorkspaceIcon, error) {
+	rows, err := r.q.QueryContext(ctx, `SELECT id, json_extract(document,'$.name'), json_extract(document,'$.icon') FROM personal_workspaces ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.PersonalWorkspaceIcon{}
+	for rows.Next() {
+		var icon domain.PersonalWorkspaceIcon
+		if err := rows.Scan(&icon.ID, &icon.Name, &icon.Icon); err != nil {
+			return nil, err
+		}
+		out = append(out, icon)
+	}
+	return out, rows.Err()
+}

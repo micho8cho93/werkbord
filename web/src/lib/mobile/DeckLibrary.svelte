@@ -1,6 +1,7 @@
 <script lang="ts">
   import Sheet from '../Sheet.svelte';
   import Icon from '../Icon.svelte';
+  import WorkspaceIcon from '../personal/WorkspaceIcon.svelte';
   import { deckKeys, type DeckKeyId } from './deck';
   import { WORKFLOWS, type ButtonId, type DeckSlot } from './layout';
   import type { Workspace } from '../personal/schema';
@@ -34,7 +35,7 @@
     <p class="muted">Open a workspace you made with Salie. These buttons do not start agents.</p>
     <div class="library">
       {#each workspaces as w (w.id)}
-        <button type="button" onclick={() => onchoose(w.id as ButtonId)}><Icon name={w.icon} size={20} /><span>{w.name}</span></button>
+        <button type="button" onclick={() => onchoose(w.id as ButtonId)}><WorkspaceIcon icon={w.icon} name={w.name} size={20} /><span>{w.name}</span></button>
       {/each}
     </div>
   {/if}

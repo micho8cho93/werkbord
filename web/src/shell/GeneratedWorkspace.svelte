@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import Icon from '../lib/Icon.svelte';
+  import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
   import WorkspaceRenderer from '../lib/personal/WorkspaceRenderer.svelte';
   import { WorkspaceSession } from '../lib/personal/session.svelte';
   import WorkspaceManagement from '../lib/personal/WorkspaceManagement.svelte';
@@ -39,7 +39,7 @@
 </script>
 <div class="personal-page" data-personal-workspace={id}>
   <header>
-    <div class="title"><Icon name={saved?.icon ?? 'overview'} size={20} /><h1>{saved?.name ?? 'Personal workspace'}</h1></div>
+    <div class="title"><WorkspaceIcon icon={saved?.icon} name={saved?.name} size={20} /><h1>{saved?.name ?? 'Personal workspace'}</h1></div>
     <button class="btn" disabled={!saved || loading || session?.busy} onclick={() => model.customizeGenerated(id, saved?.revision)}>Customize with Salie</button>
     <button class="btn" disabled={loading || session?.busy} onclick={() => attempt++}>Reload workspace</button>
     {#if saved && !session?.busy}<WorkspaceManagement workspace={saved} api={shellPersonalAPI} teams={knownTeams} context={model.universal ? 'universal' : model.current} onupdated={updated} onlibrary={() => model.go('personal-library')} ondeleted={async preview => {

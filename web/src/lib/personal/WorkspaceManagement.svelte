@@ -1,5 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
+  import WorkspaceIcon from './WorkspaceIcon.svelte';
+  import { newWorkspaceIcon } from './icons';
   import { workspaceSpecSchema, type Workspace } from './schema';
   import type { PersonalAPI, Deletion } from './api';
   let { workspace, api, teams = [], context = '', onupdated, ondeleted, onlibrary }: {
@@ -60,7 +62,8 @@
   {#if panel === 'settings'}
     <form onsubmit={e => { e.preventDefault(); void save(); }}>
       <label>Name <input class="input" bind:value={name} required maxlength="120" disabled={busy} /></label>
-      <label>Icon <select class="select" aria-label="Icon" bind:value={icon} disabled={busy}>{#each workspaceSpecSchema.shape.icon.options as option (option)}<option value={option}>{option}</option>{/each}</select></label>
+      <div class="icon-choice"><WorkspaceIcon {icon} name={name} size={24} /><span>Workspace icon</span><button class="btn" type="button" disabled={busy} onclick={() => icon = newWorkspaceIcon()}>New icon</button></div>
+      <p>Each workspace has its own icon, distinct from the app’s navigation and action icons.</p>
       <fieldset disabled={busy}><legend>Show in</legend>
         <label><input type="checkbox" bind:checked={universal} /> Universal</label><label><input type="checkbox" bind:checked={individual} /> Individual</label>
         {#each teams as team (team.id)}<label><input type="checkbox" bind:group={selectedTeams} value={team.id} /> {team.name}</label>{/each}
@@ -94,6 +97,7 @@
   <button class="btn" disabled={busy} onclick={() => { panel = ''; problem = ''; }}>Cancel</button>
 </section>{/if}
 <style>
+  .icon-choice { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
   .overflow { position: relative; } summary { cursor: pointer; list-style: none; } summary::before { content: none; } summary::-webkit-details-marker { display: none; }
   .menu { position: absolute; z-index: 5; right: 0; top: 100%; display: grid; gap: 4px; width: min(270px, 80vw); padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .management { flex-basis: 100%; display: grid; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); }

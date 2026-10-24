@@ -19,7 +19,7 @@
   async function recover(c: Collection, save: boolean) {
     if (busy) return; busy = true; problem = '';
     try {
-      const spec = {name: c.name, icon: 'folder' as const, uiSchemaVersion: 1 as const, collectionIds: [c.id], readBindings: [], visibility: {universal: true, individual: true, teamWorkspaceIds: []}, definition: {views: [{id: 'records', name: c.name, kind: 'table' as const, collectionId: c.id, fields: c.fields.map(f => f.key), operations: ['create' as const, 'update' as const, 'delete' as const]}], layout: {type: 'view' as const, viewId: 'records'}}};
+      const spec = {name: c.name, icon: 'auto' as const, uiSchemaVersion: 1 as const, collectionIds: [c.id], readBindings: [], visibility: {universal: true, individual: true, teamWorkspaceIds: []}, definition: {views: [{id: 'records', name: c.name, kind: 'table' as const, collectionId: c.id, fields: c.fields.map(f => f.key), operations: ['create' as const, 'update' as const, 'delete' as const]}], layout: {type: 'view' as const, viewId: 'records'}}};
       if (save) {
         const workspace = await api.createWorkspace(spec);
         notice = 'Recovered records in a new personal workspace.';

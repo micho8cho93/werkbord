@@ -138,6 +138,9 @@ func (s *Personal) RollbackWorkspace(ctx context.Context, id string, revision, t
 		if err != nil {
 			return err
 		}
+		if err = preparePersonalIcon(ctx, tx, id, &old.PersonalWorkspaceSpec); err != nil {
+			return err
+		}
 		if err = s.validateWorkspace(ctx, tx, old.PersonalWorkspaceSpec); err != nil {
 			return err
 		}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon, { type IconName } from '../lib/Icon.svelte';
+  import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
   import Mark from '../lib/Mark.svelte';
   import { counts } from './aggregate';
   import { model, type Page } from './model.svelte';
@@ -68,9 +69,9 @@
   }
 </script>
 
-{#snippet item(title: string, icon: IconName, current: boolean, go: () => void, id: string, count = 0)}
+{#snippet item(title: string, icon: IconName | string, current: boolean, go: () => void, id: string, count = 0)}
   <button class="nav" type="button" aria-current={current ? 'page' : undefined} onclick={go} {title} aria-label={id.startsWith('generated-') ? title : undefined} data-page={id}>
-    <Icon name={icon} /><span class="label">{title}</span>
+    {#if id.startsWith('generated-')}<WorkspaceIcon {icon} name={title} />{:else}<Icon name={icon as IconName} />{/if}<span class="label">{title}</span>
     {#if count}<span class="num" aria-label="{count} waiting for you">{count}</span>{/if}
   </button>
 {/snippet}

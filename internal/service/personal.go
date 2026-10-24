@@ -71,6 +71,10 @@ func (s *Personal) validateWorkspace(ctx context.Context, tx store.Tx, spec doma
 func (s *Personal) CreateWorkspace(ctx context.Context, spec domain.PersonalWorkspaceSpec) (*domain.PersonalWorkspace, error) {
 	w := &domain.PersonalWorkspace{PersonalMeta: s.meta(domain.PrefixPersonalWorkspace), PersonalWorkspaceSpec: spec}
 	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
+		if err := preparePersonalIcon(ctx, tx, "", &spec); err != nil {
+			return err
+		}
+		w.PersonalWorkspaceSpec = spec
 		if err := s.validateWorkspace(ctx, tx, spec); err != nil {
 			return err
 		}
@@ -93,6 +97,9 @@ func (s *Personal) UpdateWorkspace(ctx context.Context, id string, revision int6
 			return err
 		}
 		if err = personalRevision(w.Revision, revision); err != nil {
+			return err
+		}
+		if err = preparePersonalIcon(ctx, tx, id, &spec); err != nil {
 			return err
 		}
 		if err = s.validateWorkspace(ctx, tx, spec); err != nil {

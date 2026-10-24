@@ -15,7 +15,7 @@ export const todoCollection = {
 export function todoWorkspace(collectionId: string): WorkspaceSpec {
   const fields = ['title', 'done', 'due', 'priority', 'notes'];
   return {
-    name: 'Personal to-dos', icon: 'check', uiSchemaVersion: 1,
+    name: 'Personal to-dos', icon: 'auto', uiSchemaVersion: 1,
     visibility: { universal: true, individual: true }, collectionIds: [collectionId], readBindings: [],
     definition: {
       views: [

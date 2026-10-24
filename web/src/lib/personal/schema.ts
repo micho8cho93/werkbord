@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { validWorkspaceIcon } from './icons';
 
 const key = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
 export const collectionID = z.string().regex(/^pcl_[a-z2-7]{16}$/);
@@ -30,7 +31,7 @@ const nodeSchema: z.ZodType<Layout> = z.lazy(() => z.union([
   z.strictObject({ type: z.literal('binding'), bindingId: key }),
 ]));
 export const workspaceSpecSchema = z.strictObject({
-  name: text(120), icon: z.enum(['overview', 'board', 'calendar', 'timeline', 'activity', 'analytics', 'projects', 'folder', 'check', 'people']),
+  name: text(120), icon: z.string().max(32).refine(validWorkspaceIcon, 'Invalid workspace icon'),
   uiSchemaVersion: z.literal(1), definition: z.strictObject({ views: z.array(viewSchema).max(32), layout: nodeSchema }),
   visibility: z.strictObject({ universal: z.boolean(), individual: z.boolean(), teamWorkspaceIds: z.array(z.string()).max(64).nullish() }),
   collectionIds: z.array(collectionID).max(32).nullable(),

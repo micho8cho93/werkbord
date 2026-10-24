@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import Icon from '../Icon.svelte';
+  import WorkspaceIcon from '../personal/WorkspaceIcon.svelte';
   import type { DeckKey } from './deck';
   import { KeyPress } from './press';
 
@@ -43,7 +44,7 @@
   >
     <span class="cap">
       <span class="face">
-        <span class="glyph"><Icon name={empty ? 'plus' : key.icon} size={26} /></span>
+        <span class="glyph">{#if !empty && key.workspaceIcon}<WorkspaceIcon icon={key.workspaceIcon} name={key.label} size={26} />{:else}<Icon name={empty ? 'plus' : key.icon} size={26} />{/if}</span>
         <span class="name">{empty ? 'Add button' : key.label}</span>
       </span>
       {#if key.count > 0}<span class="num" class:pend={key.tone === 'wait'} aria-hidden="true">{key.id !== 'agents' && key.count > 99 ? '99+' : key.count}</span>{/if}

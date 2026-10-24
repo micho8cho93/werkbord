@@ -16,7 +16,7 @@ export function createPersonalAPI(call: PersonalRequest) {
     async workspaces() {
       const items = []; let after = '';
       do {
-        const page = z.strictObject({ items: z.array(workspaceSchema.extend({ icon: workspaceSchema.shape.icon.catch('overview') })).max(100).nullable(), nextAfter: workspaceID.optional() }).parse(await request('GET', `${base}/workspaces?limit=100${after ? `&after=${after}` : ''}`));
+        const page = z.strictObject({ items: z.array(workspaceSchema.extend({ icon: workspaceSchema.shape.icon.catch('auto') })).max(100).nullable(), nextAfter: workspaceID.optional() }).parse(await request('GET', `${base}/workspaces?limit=100${after ? `&after=${after}` : ''}`));
         items.push(...(page.items ?? []));
         if (page.nextAfter && page.nextAfter <= after) throw new Error('Invalid workspace page.');
         after = page.nextAfter ?? '';

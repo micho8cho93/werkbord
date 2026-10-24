@@ -522,3 +522,17 @@ and Team contexts it is the first entry of the generated group, with the workspa
 Verified by `scripts/browser-personal-phone.cjs` (Chromium and WebKit, phone-sized touch browser, real enrolled-phone
 credential): deck listing, live updates both ways, record work, Back, no owner-only controls, card tables, deck button,
 refusals, deletion at the computer, and a workspace made with Salie on the phone.
+
+## Workspace icon identity
+
+Generated interfaces use dedicated 5×5 glyphs, separate from navigation and action
+icons. Salie requests `icon: "auto"`; the controller assigns an unused
+`workspace-XXXXXXX` token before the fixed approval preview. Editing preserves the
+saved token unless a new icon is requested. Confirmation rechecks availability
+in the write transaction and rejects a stale colliding proposal rather than
+changing the approved icon. A partial unique SQLite index also enforces this.
+
+The sidebar, header, approval preview, phone deck and workspace settings share
+one safe renderer. Its token defines only 25 occupied/unoccupied cells; it cannot
+carry SVG, markup, URLs or executable content. Older built-in icon values remain
+readable as stable dedicated glyphs, and new assignments avoid those glyphs too.

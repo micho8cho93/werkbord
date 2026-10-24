@@ -5,6 +5,7 @@
   import { isPhone } from '../phones/capability';
   import { runStatus } from '../format';
   import Icon from '../Icon.svelte';
+  import WorkspaceIcon from '../personal/WorkspaceIcon.svelte';
   import Mark from '../Mark.svelte';
   import { globalHref, taskHref } from '../location';
   import { app } from '../state.svelte';
@@ -199,7 +200,7 @@
     if (!slot) return { id: 'empty', label: 'Add button', icon: 'plus', href: '', count: 0, tone: 'plain', note: '' };
     if (isWorkspaceButton(slot.button)) {
       const made = workspaces.find((w) => w.id === slot.button);
-      if (made) return { id: slot.id, label: made.name, icon: made.icon, href: guide ? '' : workspaceHref(made.id), count: 0, tone: 'plain', note: '' };
+      if (made) return { id: slot.id, label: made.name, icon: 'folder', workspaceIcon: made.icon, href: guide ? '' : workspaceHref(made.id), count: 0, tone: 'plain', note: '' };
       return { id: slot.id, label: workspacesLoaded ? 'Removed workspace' : 'Workspace', icon: 'folder', href: '', count: 0, tone: 'plain', note: workspacesLoaded ? 'No longer saved. Edit the deck to remove this button.' : '' };
     }
     const w = workflow(slot.button);
@@ -328,7 +329,7 @@
     <section class="workspaces" aria-label="Workspaces" data-testid="deck-workspaces">
       <h2>Workspaces</h2>
       {#each workspaces as made (made.id)}
-        <a class="workspace-row" href={workspaceHref(made.id)} data-workspace-id={made.id}><Icon name={made.icon} size={18} /><span>{made.name}</span></a>
+        <a class="workspace-row" href={workspaceHref(made.id)} data-workspace-id={made.id}><WorkspaceIcon icon={made.icon} name={made.name} size={18} /><span>{made.name}</span></a>
       {/each}
       <button class="btn" type="button" onclick={createWithSalie} data-testid="deck-create-workspace"><Icon name="plus" size={16} />Create with Salie</button>
       {#if workspaces.length}<p class="muted">To put one on a button, use Edit Deck.</p>{/if}

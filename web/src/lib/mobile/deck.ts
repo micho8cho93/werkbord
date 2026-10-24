@@ -13,6 +13,7 @@ export interface DeckKey {
   id: string;
   label: string;
   icon: IconName;
+  workspaceIcon?: string;
   href: string;
   /** What the key counts, when it counts anything. Zero is not shown. */
   count: number;

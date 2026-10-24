@@ -305,7 +305,7 @@ func TestPersonalCanEditWorkspaceSavedBeforeAssistantSupport(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := result.Data.(*Changed).Workspace
-	if after.ID != w.ID || after.Revision != 2 || after.Icon != "calendar" || !reflect.DeepEqual(after.CollectionIDs, w.CollectionIDs) {
+	if after.ID != w.ID || after.Revision != 2 || !domain.GeneratedPersonalIcon(after.Icon) || !reflect.DeepEqual(after.CollectionIDs, w.CollectionIDs) {
 		t.Fatal(after)
 	}
 }

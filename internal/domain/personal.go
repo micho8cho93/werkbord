@@ -131,7 +131,7 @@ func personalSize(v any) bool {
 	return e == nil && len(b) <= PersonalMaxDocumentBytes
 }
 
-// PersonalIcons is an approved subset of Icon.svelte, never client supplied SVG.
+// PersonalIcons are legacy request hints. Saved interfaces render them as dedicated glyphs.
 func PersonalIcons() []string {
 	return []string{"overview", "board", "calendar", "timeline", "activity", "analytics", "projects", "folder", "check", "people"}
 }
@@ -278,7 +278,7 @@ func ValidatePersonalValues(schema PersonalCollectionSpec, values map[string]jso
 // ValidatePersonalWorkspace checks the complete closed grammar and all bindings
 // against the collections fetched in the same controller transaction.
 func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]PersonalCollectionSpec) error {
-	if !personalText(s.Name, 120) || !inPersonalList(s.Icon, PersonalIcons()) || s.UISchemaVersion != PersonalSchemaVersion || !personalSize(s) {
+	if !personalText(s.Name, 120) || !ValidPersonalIcon(s.Icon) || s.UISchemaVersion != PersonalSchemaVersion || !personalSize(s) {
 		return personalInvalid("invalid workspace name, icon, version or size")
 	}
 	if len(s.Visibility.TeamWorkspaceIDs) > 64 || len(s.CollectionIDs) > 32 || len(s.ReadBindings) > 16 || len(s.Definition.Views) > 32 {
