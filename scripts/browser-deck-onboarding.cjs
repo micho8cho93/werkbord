@@ -79,8 +79,8 @@ async function request(token, method, route, body) {
         if (mode !== 'skip') {
         await guide().getByRole('button',{name:'Choose and configure Find Bugs'}).click();
         await dialog().getByRole('heading',{name:'Configure Find Bugs'}).waitFor();
-        assert.equal(await dialog().getByRole('combobox',{name:'Agent',exact:true}).inputValue(),'');
-        assert.equal(await dialog().getByRole('combobox',{name:'Model',exact:true}).inputValue(),'');
+        assert.equal(await dialog().getByRole('combobox',{name:'Model selection',exact:true}).inputValue(),'','a new workflow inherits the project defaults');
+        assert.equal(await dialog().getByRole('combobox',{name:'Agent',exact:true}).count(),0,'no agent is chosen until model selection is manual');
         await dialog().getByRole('button',{name:'Save configuration'}).click();
         assert.equal(await page.locator('[data-deck-position] [data-key]').count(),9,'at most three additions');
         }

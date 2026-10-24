@@ -70,6 +70,7 @@ async function request(token, method, route, body) {
         assert.equal(await dialog().getByRole('combobox', {name:'Repository target',exact:true}).inputValue(), 'ask');
         await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('selected');
         await dialog().getByRole('checkbox', { name: project.name, exact: true }).check();
+        await dialog().getByRole('combobox', { name: 'Model selection', exact: true }).selectOption('manual');
         await dialog().getByRole('combobox', { name: 'Agent', exact: true }).selectOption('fixture');
         await dialog().getByRole('button', { name: 'Save configuration', exact: true }).click();
         assert.equal(starts, 0, 'configuration never executes');
