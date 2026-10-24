@@ -14,6 +14,7 @@ import (
 	"devboard/internal/assistant/provider/opencode"
 	"devboard/internal/config"
 	"devboard/internal/connections"
+	"devboard/internal/domain"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
@@ -23,18 +24,9 @@ import (
 // already on this computer, with their existing sign-in: no account or model of its own. What
 // it can do to the board is only what appops offers, through the same domain services the app uses.
 func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assistantServices) (*assistant.Engine, error) {
-	cl, cx := cfg.Agents[config.AgentClaudeCode], cfg.Agents[config.AgentCodex]
-	gm, oc := cfg.Agents[config.AgentGeminiCLI], cfg.Agents[config.AgentOpenCode]
-	reg := provider.NewRegistry()
-	for _, p := range []provider.Provider{
-		claudeprov.New(claudeprov.Config{Command: cl.Command, Model: cl.Model, Models: providerModels(cl.Models), Reasoning: cl.Reasoning}),
-		codexprov.New(codexprov.Config{Command: cx.Command, Model: cx.Model, Models: providerModels(cx.Models)}),
-		gemini.New(gemini.Config{Command: gm.Command, Models: providerModels(gm.Models), Reasoning: gm.Reasoning}),
-		opencode.New(opencode.Config{Command: oc.Command, Models: providerModels(oc.Models), Reasoning: oc.Reasoning}),
-	} {
-		if err := reg.Register(p); err != nil {
-			return nil, err
-		}
+	reg, err := newAssistantProviders(cfg)
+	if err != nil {
+		return nil, err
 	}
 	ops := svc.ops
 	if ops == nil {
@@ -43,7 +35,7 @@ func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assis
 
 	a := cfg.Assistant
 	eng := assistant.New(assistant.Config{
-		Providers: reg, Ops: ops, Store: db, Log: log,
+		Providers: reg, Ops: ops, Store: db, Log: log, Selection: svc.selection,
 		WorkDir:        filepath.Join(cfg.DataDir, "assistant"),
 		Grants:         assistantGrants(a),
 		Projects:       assistantProjects(a),
@@ -95,6 +87,7 @@ func assistantProjects(a config.AssistantConfig) []string {
 
 // assistantServices are the controller's domain services the assistant's operations are made of.
 type assistantServices struct {
+	selection   domain.SelectionResolver
 	personal    *service.Personal
 	recommender *service.Recommender
 	knowledge   *service.Knowledge
@@ -129,4 +122,21 @@ func auditRetention(a config.AssistantConfig) time.Duration {
 		return 0
 	}
 	return time.Duration(a.AuditRetentionDays) * 24 * time.Hour
+}
+
+func newAssistantProviders(cfg config.Config) (*provider.Registry, error) {
+	cl, cx := cfg.Agents[config.AgentClaudeCode], cfg.Agents[config.AgentCodex]
+	gm, oc := cfg.Agents[config.AgentGeminiCLI], cfg.Agents[config.AgentOpenCode]
+	reg := provider.NewRegistry()
+	for _, p := range []provider.Provider{
+		claudeprov.New(claudeprov.Config{Command: cl.Command, Model: cl.Model, Models: providerModels(cl.Models), Reasoning: cl.Reasoning}),
+		codexprov.New(codexprov.Config{Command: cx.Command, Model: cx.Model, Models: providerModels(cx.Models)}),
+		gemini.New(gemini.Config{Command: gm.Command, Models: providerModels(gm.Models), Reasoning: gm.Reasoning}),
+		opencode.New(opencode.Config{Command: oc.Command, Models: providerModels(oc.Models), Reasoning: oc.Reasoning}),
+	} {
+		if err := reg.Register(p); err != nil {
+			return nil, err
+		}
+	}
+	return reg, nil
 }

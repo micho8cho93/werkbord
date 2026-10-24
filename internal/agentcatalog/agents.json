@@ -1,0 +1,231 @@
+[
+  {
+    "id": "cursor",
+    "name": "Cursor",
+    "command": "cursor-agent",
+    "args": [
+      "acp"
+    ],
+    "docsUrl": "https://cursor.com/docs/cli/acp",
+    "setup": "Install Cursor and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "github-copilot-cli",
+    "name": "Copilot",
+    "command": "copilot",
+    "args": [
+      "--acp"
+    ],
+    "docsUrl": "https://github.com/features/copilot/cli/",
+    "setup": "Install Copilot and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "cline",
+    "name": "Cline",
+    "command": "cline",
+    "args": [
+      "--acp"
+    ],
+    "docsUrl": "https://cline.bot/cli",
+    "setup": "Install Cline and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "kilo",
+    "name": "Kilo",
+    "command": "kilo",
+    "args": [
+      "acp"
+    ],
+    "docsUrl": "https://kilo.ai/",
+    "setup": "Install Kilo and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "amp-acp",
+    "name": "Amp",
+    "command": "amp-acp",
+    "args": [],
+    "docsUrl": "https://github.com/tao12345666333/amp-acp",
+    "setup": "Install Amp and sign in in your terminal. Install its separate ACP adapter as well. Set an executable path in config.json if it is not on PATH.",
+    "adapter": true
+  },
+  {
+    "id": "auggie",
+    "name": "Auggie CLI",
+    "command": "auggie",
+    "args": [
+      "--acp"
+    ],
+    "docsUrl": "https://www.augmentcode.com/",
+    "setup": "Install Auggie CLI and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "factory-droid",
+    "name": "Factory Droid",
+    "command": "droid",
+    "args": [
+      "exec",
+      "--output-format",
+      "acp-daemon"
+    ],
+    "docsUrl": "https://factory.ai/product/cli",
+    "setup": "Install Factory Droid and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "goose",
+    "name": "goose",
+    "command": "goose",
+    "args": [
+      "acp"
+    ],
+    "docsUrl": "https://block.github.io/goose/",
+    "setup": "Install goose and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "kimi",
+    "name": "Kimi CLI",
+    "command": "kimi",
+    "args": [
+      "acp"
+    ],
+    "docsUrl": "https://moonshotai.github.io/kimi-cli/",
+    "setup": "Install Kimi CLI and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "qwen-code",
+    "name": "Qwen Code",
+    "command": "qwen",
+    "args": [
+      "--acp",
+      "--experimental-skills"
+    ],
+    "docsUrl": "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
+    "setup": "Install Qwen Code and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "mistral-vibe",
+    "name": "Mistral Vibe",
+    "command": "vibe-acp",
+    "args": [],
+    "docsUrl": "https://mistral.ai/products/vibe",
+    "setup": "Install Mistral Vibe and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "junie",
+    "name": "Junie",
+    "command": "junie",
+    "args": [
+      "--acp=true"
+    ],
+    "docsUrl": "https://junie.jetbrains.com",
+    "setup": "Install Junie and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "qoder",
+    "name": "Qoder CLI",
+    "command": "qodercli",
+    "args": [
+      "--acp"
+    ],
+    "docsUrl": "https://qoder.com",
+    "setup": "Install Qoder CLI and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "pi-acp",
+    "name": "pi ACP",
+    "command": "pi-acp",
+    "args": [],
+    "docsUrl": "https://github.com/svkozak/pi-acp",
+    "setup": "Install pi ACP and sign in in your terminal. Install its separate ACP adapter as well. Set an executable path in config.json if it is not on PATH.",
+    "adapter": true
+  },
+  {
+    "id": "antigravity-acp",
+    "name": "Google Antigravity",
+    "command": "agy_acp_server.par",
+    "args": [],
+    "docsUrl": "https://antigravity.google/docs/ide/extensions",
+    "setup": "Install Google Antigravity and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "devin",
+    "name": "Devin",
+    "command": "devin",
+    "args": [
+      "acp"
+    ],
+    "docsUrl": "https://docs.devin.ai/cli",
+    "setup": "Install Devin and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "codebuddy-code",
+    "name": "Codebuddy Code",
+    "command": "codebuddy",
+    "args": [
+      "--acp"
+    ],
+    "docsUrl": "https://www.codebuddy.cn/cli/",
+    "setup": "Install Codebuddy Code and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "cortex-code",
+    "name": "Cortex Code",
+    "command": "cortex",
+    "args": [
+      "acp",
+      "serve"
+    ],
+    "docsUrl": "https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code",
+    "setup": "Install Cortex Code and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "grok-build",
+    "name": "Grok Build",
+    "command": "grok",
+    "args": [
+      "agent",
+      "stdio"
+    ],
+    "docsUrl": "https://x.ai/cli",
+    "setup": "Install Grok Build and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "minimax-code",
+    "name": "MiniMax Code",
+    "command": "mcode",
+    "args": [
+      "acp"
+    ],
+    "docsUrl": "https://agent.minimax.io",
+    "setup": "Install MiniMax Code and sign in in your terminal. Set an executable path in config.json if it is not on PATH.",
+    "adapter": false
+  },
+  {
+    "id": "kiro",
+    "name": "Kiro CLI",
+    "command": "kiro-cli",
+    "args": [
+      "acp",
+      "--agent-engine=v3"
+    ],
+    "docsUrl": "https://kiro.dev/docs/cli/v3/acp-migration/",
+    "setup": "Install Kiro CLI, sign in with kiro-cli login and use the V3 ACP engine.",
+    "adapter": false
+  }
+]

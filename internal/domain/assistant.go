@@ -46,8 +46,10 @@ func (s AssistantSessionState) Valid() bool {
 
 // AssistantSession is the minimum needed to continue a conversation and to recover after a restart.
 type AssistantSession struct {
-	ID       string `json:"id"`
-	Provider string `json:"provider"`
+	Mode      SelectionMode      `json:"mode,omitempty"`
+	Selection *SelectionDecision `json:"selection,omitempty"`
+	ID        string             `json:"id"`
+	Provider  string             `json:"provider"`
 	// Model and Reasoning are what the person chose. Empty means the provider's own default.
 	Model     string `json:"model,omitempty"`
 	Reasoning string `json:"reasoning,omitempty"`

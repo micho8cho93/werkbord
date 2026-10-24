@@ -40,11 +40,12 @@ const (
 // Event is one thing that happened. Seq is per session and only ever grows, so a client that was disconnected resumes
 // from the last one it saw.
 type Event struct {
-	Seq       int64     `json:"seq"`
-	SessionID string    `json:"sessionId"`
-	TurnID    string    `json:"turnId,omitempty"`
-	Type      EventType `json:"type"`
-	At        time.Time `json:"at"`
+	Selection *domain.SelectionDecision `json:"selection,omitempty"`
+	Seq       int64                     `json:"seq"`
+	SessionID string                    `json:"sessionId"`
+	TurnID    string                    `json:"turnId,omitempty"`
+	Type      EventType                 `json:"type"`
+	At        time.Time                 `json:"at"`
 	// ProviderAt is when a provider's visible text delta reached the engine. Comparing it with At separates provider
 	// latency from controller delivery and browser rendering without changing model/provider selection.
 	ProviderAt time.Time `json:"providerAt,omitempty"`

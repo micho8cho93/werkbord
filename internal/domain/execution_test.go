@@ -154,3 +154,18 @@ func TestAgentOptionsAlwaysStartWithTheAgentDefault(t *testing.T) {
 		t.Error("HasReasoning is wrong")
 	}
 }
+
+func TestSelectionModesOverrideLowerManualChoicesAndPreserveLegacyPins(t *testing.T) {
+	legacy := ExecutionConfig{Agent: "codex", Model: "model-a", Reasoning: "low"}
+	r := ResolveExecution(lv(SourceTask, ExecutionConfig{Mode: SelectionIntelligence}), lv(SourceGlobal, legacy))
+	if r.SelectionMode() != SelectionIntelligence || r.Agent != "" || r.Model != "" || r.Reasoning != "" {
+		t.Fatalf("automatic override leaked manual settings: %+v", r)
+	}
+	r = ResolveExecution(lv(SourceTask, legacy), lv(SourceGlobal, ExecutionConfig{Mode: SelectionLowestCost}))
+	if r.SelectionMode() != SelectionManual || r.Model != "model-a" {
+		t.Fatalf("legacy explicit choice changed: %+v", r)
+	}
+	if err := (ExecutionConfig{Mode: SelectionLowestCost, Agent: "codex"}).Validate(); err == nil {
+		t.Fatal("automatic and pinned choices conflict")
+	}
+}

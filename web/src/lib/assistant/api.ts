@@ -17,10 +17,10 @@ export const assistantApi = {
   workspaces: (id: string, workspaces: { id: string; name: string }[]) => request<unknown>('POST', `${base}/sessions/${enc(id)}/workspaces`, { workspaces }),
   workspacePending: (id: string, requestId: string) => request<{ pending: boolean; request?: { id: string; proposalId?: string; workspaceId: string; method: string; args: unknown } }>('GET', `${base}/sessions/${enc(id)}/workspace-requests/${enc(requestId)}`),
   workspaceAnswer: (id: string, requestId: string, data: unknown, error = '', code = '') => request<unknown>('POST', `${base}/sessions/${enc(id)}/workspace-requests/${enc(requestId)}`, { data, error, code }),
-  create: (b: { provider: string; model?: string; reasoning?: string }) => request<SessionView>('POST', `${base}/sessions`, b),
+  create: (b: { provider: string; mode?: import('../selection').SelectionMode; model?: string; reasoning?: string }) => request<SessionView>('POST', `${base}/sessions`, b),
   get: (id: string) => request<SessionView>('GET', `${base}/sessions/${enc(id)}`),
   /** Changes provider, model or reasoning level between messages. Another provider starts a fresh conversation. */
-  configure: (id: string, b: { provider?: string; model?: string; reasoning?: string }) => request<SessionView>('PATCH', `${base}/sessions/${enc(id)}`, b),
+  configure: (id: string, b: { provider?: string; mode?: import('../selection').SelectionMode; model?: string; reasoning?: string }) => request<SessionView>('PATCH', `${base}/sessions/${enc(id)}`, b),
   remove: (id: string) => requestNoContent('DELETE', `${base}/sessions/${enc(id)}`),
   send: (id: string, text: string, attachments: string[], openuiPrompt?: string, personalEditing?: {workspaceId: string; revision: number}) =>
     request<{ turnId: string }>('POST', `${base}/sessions/${enc(id)}/messages`, { text, attachments, ...(openuiPrompt ? { openuiPrompt } : {}), ...(personalEditing ? { personalEditing } : {}) }),

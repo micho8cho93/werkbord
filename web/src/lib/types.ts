@@ -35,6 +35,7 @@ export type Priority = 'low' | 'normal' | 'high';
  * sets either must set the agent too.
  */
 export interface ExecutionConfig {
+ mode?: import('./selection').SelectionMode;
  runner?: string;
   agent?: string;
   model?: string;
@@ -271,6 +272,7 @@ export interface AgentOption {
   default?: boolean;
   /** On a model: the reasoning levels it supports, when the agent says. */
   reasoning?: string[];
+  reasoningKnown?: boolean;
 }
 
 /** What can be chosen for an agent. The first of each list is always "Agent default". */

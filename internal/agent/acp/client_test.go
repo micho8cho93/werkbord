@@ -189,3 +189,26 @@ streamedTurnDone:
 	default:
 	}
 }
+
+func TestDiscoveryUsesAProtocolSessionWithoutPromptsOrExecutionCapabilities(t *testing.T) {
+	command := filepath.Join(t.TempDir(), "agent")
+	build := exec.Command("go", "build", "-o", command, "./testdata/fake")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v %s", err, output)
+	}
+	caps := filepath.Join(t.TempDir(), "caps")
+	t.Setenv("ACP_TEST_CAPS_FILE", caps)
+	t.Setenv("ACP_TEST_OPTIONS_FILE", filepath.Join(t.TempDir(), "options"))
+	adapter := New(Config{ID: "catalogue-agent", Name: "Catalogue agent", Command: command, SessionOptions: true, DiscoverOptions: true})
+	options := adapter.Options(context.Background())
+	if len(options.Models) != 2 || options.Models[1].ID != "new/model" || !options.Models[1].ReasoningKnown || len(options.Models[1].Reasoning) != 1 || options.Models[1].Reasoning[0] != "high" || options.ModelsSource != domain.OptionsFromAgent || !options.HasReasoning("high") {
+		t.Fatalf("discovery: %+v", options)
+	}
+	data, err := os.ReadFile(caps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"terminal":true`) || strings.Contains(string(data), `"readTextFile":true`) || strings.Contains(string(data), `"writeTextFile":true`) {
+		t.Fatalf("probe advertised execution: %s", data)
+	}
+}

@@ -15,6 +15,7 @@ import (
 	"devboard/internal/appops"
 	"devboard/internal/assistant"
 	"devboard/internal/assistant/provider"
+	"devboard/internal/domain"
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
@@ -50,7 +51,9 @@ func newFixtureAssistant(mode string, dir string, db store.Store, deps service.D
 	if mode == "readonly" {
 		grants = []appops.Permission{appops.PermProjectsRead, appops.PermTicketsRead, appops.PermAnalyticsRead, appops.PermScheduleRead, appops.PermRunsRead, appops.PermQuestionsRead}
 	}
-	eng := assistant.New(assistant.Config{Providers: reg, Ops: ops, Store: db, WorkDir: filepath.Join(dir, "assistant"), AttachmentRetention: 30 * time.Minute, Grants: grants})
+	eng := assistant.New(assistant.Config{Selection: func(_ context.Context, in domain.SelectionRequest) (domain.SelectionDecision, error) {
+		return domain.SelectionDecision{Agent: "claude-code", Model: "sonnet", Reasoning: "high", Mode: in.Mode, Method: "local_rules", Reason: "Disposable browser fixture selection"}, nil
+	}, Providers: reg, Ops: ops, Store: db, WorkDir: filepath.Join(dir, "assistant"), AttachmentRetention: 30 * time.Minute, Grants: grants})
 	if err := eng.Recover(context.Background()); err != nil {
 		panic(err)
 	}

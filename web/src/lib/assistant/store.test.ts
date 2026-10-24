@@ -100,7 +100,7 @@ describe('the screen opening and closing', () => {
     a.show();
     await srv.until(() => a.status === 'ready');
     expect(srv.called('GET', '/providers')).toHaveLength(1);
-    expect(a.choice).toEqual({ provider: 'claude-code', model: '', reasoning: '' });
+    expect(a.choice).toEqual({ provider: 'claude-code', model: '', reasoning: '', mode:'lowest_cost' });
   });
 });
 
@@ -149,7 +149,7 @@ describe('sending', () => {
     const a = await page();
     await talk(a, 'hello');
     const created = srv.called('POST', '/sessions').find((c) => !c.path.includes('/messages'))!;
-    expect(created.body).toEqual({ provider: 'claude-code' });
+    expect(created.body).toEqual({ provider: 'claude-code', mode:'lowest_cost' });
     const sent = srv.called('POST', '/messages')[0].body as { text: string; attachments: string[]; openuiPrompt?: string };
     expect(sent).toMatchObject({ text: 'hello', attachments: [] });
     expect(sent.openuiPrompt).toContain('## Inline Mode');
@@ -381,7 +381,7 @@ describe('choosing the provider, model and level', () => {
     await srv.until(() => a.status === 'ready');
     await a.configure({ provider: 'codex', model: 'gpt-a' });
     await a.send('hi');
-    expect(srv.called('POST', '/sessions')[0].body).toEqual({ provider: 'codex', model: 'gpt-a' });
+    expect(srv.called('POST', '/sessions')[0].body).toEqual({ provider: 'codex', model: 'gpt-a', mode:'manual' });
   });
 
   it('remembers the choice on this device for the next conversation', async () => {

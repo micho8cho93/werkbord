@@ -288,7 +288,7 @@ export class AssistantStore {
   }
 
   private choiceOf(s: SessionView): Choice {
-    return { provider: s.provider, model: s.model ?? '', reasoning: s.reasoning ?? '' };
+    return { ...(s.mode?{mode:s.mode}:{}), provider: s.provider, model: s.model ?? '', reasoning: s.reasoning ?? '' };
   }
 
   // ---- the conversation ----
@@ -416,7 +416,7 @@ export class AssistantStore {
       return false;
     }
     if (r === 'ignored') return false;
-    if (this.session && e.type === 'turn_started') this.session.running = true;
+    if (this.session && e.type === 'turn_started') { this.session.running = true; if (e.selection) { this.session.selection=e.selection; this.session.provider=e.selection.agent; this.session.model=e.selection.model; this.session.reasoning=e.selection.reasoning; this.choice=this.choiceOf(this.session); } }
     if (this.session && (e.type === 'turn_completed' || e.type === 'turn_failed' || e.type === 'turn_cancelled')) {
       this.session.running = false;
       this.stopping = false;
@@ -452,7 +452,7 @@ export class AssistantStore {
       return false;
     }
     try {
-      const v = await assistantApi.create({ provider: this.choice.provider, model: this.choice.model || undefined, reasoning: this.choice.reasoning || undefined });
+      const v = await assistantApi.create({ mode:this.choice.mode, provider: this.choice.provider, model: !this.choice.mode || this.choice.mode==='manual' ? this.choice.model || undefined : undefined, reasoning: !this.choice.mode || this.choice.mode==='manual' ? this.choice.reasoning || undefined : undefined });
       this.transcript.lastSeq = 0;
       this.adopt(v);
       this.connect(v.id);
@@ -606,6 +606,8 @@ export class AssistantStore {
     const prev = this.choice;
     const switched = patch.provider !== undefined && patch.provider !== prev.provider;
     const next: Choice = { ...prev, ...patch };
+    if (patch.mode===undefined && (patch.provider!==undefined || patch.model!==undefined || patch.reasoning!==undefined)) { if(prev.mode)next.mode='manual'; }
+    if (next.mode && next.mode !== 'manual') { next.model=''; next.reasoning=''; }
     if (switched) {
       next.model = patch.model ?? '';
       next.reasoning = patch.reasoning ?? '';
@@ -617,7 +619,7 @@ export class AssistantStore {
     const names = (id: string) => this.providers.find((p) => p.id === id)?.name ?? id;
     const hadFiles = this.readyFiles.length > 0;
     try {
-      const v = await assistantApi.configure(this.session.id, { provider: switched ? next.provider : undefined, model: next.model, reasoning: next.reasoning });
+      const v = await assistantApi.configure(this.session.id, { mode:next.mode, provider: switched ? next.provider : undefined, model: next.model, reasoning: next.reasoning });
       this.adopt(v);
       if (switched) {
         // Files authorized for the first provider were dropped by the controller; they leave the screen too.

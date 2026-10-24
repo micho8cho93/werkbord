@@ -12,6 +12,7 @@ import (
 
 	"devboard/internal/appops"
 	"devboard/internal/assistant"
+	"devboard/internal/domain"
 )
 
 // The assistant API. It belongs to the person at this computer and nobody else: it takes the controller's own token
@@ -79,15 +80,16 @@ func (s *Server) handleAssistantCreateSession(w http.ResponseWriter, r *http.Req
 		return
 	}
 	var req struct {
-		Provider  string `json:"provider"`
-		Model     string `json:"model"`
-		Reasoning string `json:"reasoning"`
+		Mode      domain.SelectionMode `json:"mode"`
+		Provider  string               `json:"provider"`
+		Model     string               `json:"model"`
+		Reasoning string               `json:"reasoning"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	v, err := s.opt.Assistant.CreateSession(r.Context(), assistant.CreateRequest{Provider: req.Provider, Model: req.Model, Reasoning: req.Reasoning})
+	v, err := s.opt.Assistant.CreateSession(r.Context(), assistant.CreateRequest{Mode: req.Mode, Provider: req.Provider, Model: req.Model, Reasoning: req.Reasoning})
 	if err != nil {
 		s.assistantFail(w, r, err)
 		return
@@ -112,9 +114,10 @@ func (s *Server) handleAssistantConfigure(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req struct {
-		Provider  *string `json:"provider"`
-		Model     *string `json:"model"`
-		Reasoning *string `json:"reasoning"`
+		Mode      *domain.SelectionMode `json:"mode"`
+		Provider  *string               `json:"provider"`
+		Model     *string               `json:"model"`
+		Reasoning *string               `json:"reasoning"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
@@ -136,7 +139,11 @@ func (s *Server) handleAssistantConfigure(w http.ResponseWriter, r *http.Request
 	if req.Reasoning != nil {
 		reasoning = *req.Reasoning
 	}
-	v, err := s.opt.Assistant.Configure(r.Context(), cur.ID, providerID, model, reasoning)
+	mode := domain.SelectionManual
+	if req.Mode != nil {
+		mode = *req.Mode
+	}
+	v, err := s.opt.Assistant.Configure(r.Context(), cur.ID, providerID, model, reasoning, mode)
 	if err != nil {
 		s.assistantFail(w, r, err)
 		return

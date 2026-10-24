@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"devboard/internal/agentcatalog"
 	"devboard/internal/domain"
 	"devboard/internal/httpkit"
 )
@@ -224,6 +225,12 @@ func (c Config) validateAgents() error {
 		}
 		if a.Model != "" && !domain.ValidModelName(a.Model) {
 			return fmt.Errorf("agents.%s.model: %q is not a usable model name", id, a.Model)
+		}
+		if agentcatalog.Known(id) {
+			if a.PermissionMode != "" || a.ApprovalPolicy != "" || a.Sandbox != "" {
+				return fmt.Errorf("agents.%s: runtime permission settings are managed by the ACP agent", id)
+			}
+			continue
 		}
 		switch id {
 		case AgentClaudeCode:

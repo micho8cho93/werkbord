@@ -32,6 +32,8 @@ type Config struct {
 	Models                     []domain.AgentOption
 	Reasoning                  []string
 	ListModels                 bool
+	Guidance                   string
+	DiscoverOptions            bool
 }
 
 type Adapter struct {
@@ -80,6 +82,9 @@ func (a *Adapter) Detect(ctx context.Context) domain.Agent {
 }
 
 func (a *Adapter) guidance() string {
+	if a.cfg.Guidance != "" {
+		return a.cfg.Guidance + " " + a.cfg.DocsURL
+	}
 	if a.cfg.ID == "gemini-cli" {
 		return "Install Gemini CLI and complete sign-in from a terminal. Werkbord reuses its existing configuration: " + a.cfg.DocsURL
 	}
@@ -118,6 +123,28 @@ func (a *Adapter) Options(ctx context.Context) domain.AgentOptions {
 		o.ReasoningSource = domain.OptionsConfigured
 	} else {
 		o.ReasoningSource = domain.OptionsFromAgent
+	}
+	if a.cfg.DiscoverOptions {
+		if discovered, err := a.discover(ctx); err == nil {
+			for i := range o.Models {
+				o.Models[i].ReasoningKnown = true
+				for _, model := range discovered.Models {
+					if o.Models[i].ID == model.ID {
+						o.Models[i].Reasoning = append([]string(nil), model.Reasoning...)
+					}
+				}
+			}
+			if len(discovered.Models) > 0 && len(a.cfg.Models) == 0 {
+				o.Models = discovered.Models
+				o.ModelsSource = domain.OptionsFromAgent
+			}
+			if len(a.cfg.Reasoning) == 0 {
+				o.Reasoning = discovered.Reasoning
+				o.ReasoningSource = domain.OptionsFromAgent
+			}
+		} else {
+			o.Note = "Model discovery unavailable: " + clip(err.Error(), 180) + ". Agent default remains available."
+		}
 	}
 	o = o.WithAgentDefault()
 	a.options, a.optAt = cloneOptions(o), time.Now()
@@ -242,13 +269,13 @@ func (a *Adapter) Start(ctx context.Context, req agentapi.StartRequest) (agentap
 	}
 	if a.cfg.SessionOptions {
 		if model != "" {
-			if err := setOption(startCtx, conn, sessionID, options, "model", model); err != nil {
+			if err := setOption(startCtx, conn, sessionID, &options, "model", model); err != nil {
 				s.stopFailedStart()
 				return nil, fmt.Errorf("%s does not support model %q: %w", a.cfg.Name, model, err)
 			}
 		}
 		if req.Reasoning != "" && req.Reasoning != domain.AgentDefault {
-			if err := setOption(startCtx, conn, sessionID, options, "effort", req.Reasoning); err != nil {
+			if err := setOption(startCtx, conn, sessionID, &options, "effort", req.Reasoning); err != nil {
 				s.stopFailedStart()
 				return nil, fmt.Errorf("%s does not support reasoning level %q: %w", a.cfg.Name, req.Reasoning, err)
 			}
@@ -264,10 +291,20 @@ func (a *Adapter) Start(ctx context.Context, req agentapi.StartRequest) (agentap
 	return s, nil
 }
 
-func setOption(ctx context.Context, c *acp.ClientSideConnection, sessionID acp.SessionId, options []acp.SessionConfigOption, id, value string) error {
+func setOption(ctx context.Context, c *acp.ClientSideConnection, sessionID acp.SessionId, options *[]acp.SessionConfigOption, id, value string) error {
 	found := false
-	for _, option := range options {
-		if option.Select != nil && string(option.Select.Id) == id {
+	for _, option := range *options {
+		v := option.Select
+		if v == nil {
+			continue
+		}
+		category := string(v.Id)
+		if v.Category != nil {
+			category = string(*v.Category)
+		}
+		matches := string(v.Id) == id || category == id || id == "effort" && (category == "thought_level" || category == "reasoning" || category == "reasoning_effort" || strings.Contains(strings.ToLower(string(v.Id)), "reasoning"))
+		if matches {
+			id = string(v.Id)
 			found = true
 			break
 		}
@@ -275,7 +312,10 @@ func setOption(ctx context.Context, c *acp.ClientSideConnection, sessionID acp.S
 	if !found {
 		return fmt.Errorf("ACP session did not advertise a %s choice", id)
 	}
-	_, err := c.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{ValueId: &acp.SetSessionConfigOptionValueId{SessionId: sessionID, ConfigId: acp.SessionConfigId(id), Value: acp.SessionConfigValueId(value)}})
+	response, err := c.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{ValueId: &acp.SetSessionConfigOptionValueId{SessionId: sessionID, ConfigId: acp.SessionConfigId(id), Value: acp.SessionConfigValueId(value)}})
+	if err == nil {
+		*options = response.ConfigOptions
+	}
 	return err
 }
 

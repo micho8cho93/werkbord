@@ -369,6 +369,7 @@ func (s *Server) handleStartRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
+		Mode         domain.SelectionMode    `json:"mode"`
 		RunnerID     string                  `json:"runnerId"`
 		AgentID      string                  `json:"agentId"`   // for this run only; the task's, project's and global choice otherwise
 		Model        string                  `json:"model"`     // ditto; belongs to agentId
@@ -386,7 +387,7 @@ func (s *Server) handleStartRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	run, err := s.opt.Runner.Start(r.Context(), runner.StartInput{
-		RunnerID: req.RunnerID, TaskID: r.PathValue("id"), AgentID: req.AgentID, Model: req.Model, Reasoning: req.Reasoning,
+		Mode: req.Mode, RunnerID: req.RunnerID, TaskID: r.PathValue("id"), AgentID: req.AgentID, Model: req.Model, Reasoning: req.Reasoning,
 		Instructions: req.Instructions, Resume: req.Resume, Policy: req.Policy,
 	})
 	if err != nil {

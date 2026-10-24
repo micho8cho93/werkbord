@@ -92,7 +92,7 @@ func (e *Engine) workDir() string {
 func (e *Engine) runTurn(ctx context.Context, prov provider.Provider, s *domain.AssistantSession, run *activeTurn, text, openUIPrompt string) {
 	defer e.wg.Done()
 	t := &turnRun{personalEditing: run.personalEditing, e: e, h: e.hub(s.ID), prov: prov, turnID: run.id, p: e.principal(s), sess: *s}
-	t.publish(Event{Type: EventTurnStarted})
+	t.publish(Event{Type: EventTurnStarted, Selection: s.Selection})
 
 	tctx, stop := context.WithTimeoutCause(ctx, e.cfg.TurnTimeout, errTurnTimeout)
 	var usage Usage

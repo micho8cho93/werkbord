@@ -35,6 +35,7 @@ import (
 
 // Config is what an Engine needs.
 type Config struct {
+	Selection domain.SelectionResolver
 	Providers *provider.Registry
 	Ops       *appops.Service
 	Store     store.Store
@@ -79,11 +80,12 @@ const (
 
 // Engine runs the conversations.
 type Engine struct {
-	cfg   Config
-	log   *slog.Logger
-	st    store.Store
-	ops   *appops.Service
-	provs *provider.Registry
+	selectionMu sync.Mutex
+	cfg         Config
+	log         *slog.Logger
+	st          store.Store
+	ops         *appops.Service
+	provs       *provider.Registry
 
 	base       context.Context
 	cancelBase context.CancelCauseFunc
@@ -223,6 +225,7 @@ func checkChoice(model, reasoning string) error {
 
 // CreateRequest starts a conversation.
 type CreateRequest struct {
+	Mode      domain.SelectionMode
 	Provider  string
 	Model     string
 	Reasoning string
@@ -245,6 +248,12 @@ type SessionView struct {
 // CreateSession starts a conversation with a provider. It fails at once, with what to do about it, if the provider is
 // not installed or not signed in.
 func (e *Engine) CreateSession(ctx context.Context, req CreateRequest) (*SessionView, error) {
+	if req.Mode != "" && !req.Mode.Valid() {
+		return nil, fmt.Errorf("%w: unknown selection mode", domain.ErrInvalid)
+	}
+	if req.Mode != "" && req.Mode != domain.SelectionManual && (req.Model != "" || req.Reasoning != "") {
+		return nil, fmt.Errorf("%w: automatic mode cannot pin a model", domain.ErrInvalid)
+	}
 	prov, ok := e.provs.Get(req.Provider)
 	if !ok {
 		return nil, fmt.Errorf("%w: there is no assistant provider %q", domain.ErrInvalid, clipText(req.Provider, 40))
@@ -252,14 +261,16 @@ func (e *Engine) CreateSession(ctx context.Context, req CreateRequest) (*Session
 	if err := checkChoice(req.Model, req.Reasoning); err != nil {
 		return nil, err
 	}
-	if info := prov.Detect(ctx); !info.Available {
-		return nil, unavailable(info)
+	if req.Mode == "" || req.Mode == domain.SelectionManual {
+		if info := prov.Detect(ctx); !info.Available {
+			return nil, unavailable(info)
+		}
 	}
 	if err := checkReasoning(ctx, prov, req.Model, req.Reasoning); err != nil {
 		return nil, err
 	}
 	now := e.now()
-	s := &domain.AssistantSession{ID: domain.NewID(domain.PrefixAssistantSession), Provider: req.Provider, Model: req.Model, Reasoning: req.Reasoning,
+	s := &domain.AssistantSession{ID: domain.NewID(domain.PrefixAssistantSession), Mode: req.Mode, Provider: req.Provider, Model: req.Model, Reasoning: req.Reasoning,
 		State: domain.AssistantIdle, CreatedAt: now, UpdatedAt: now, ReportedAt: now}
 	var tooMany bool
 	err := e.st.Update(ctx, func(tx store.Tx) error {
@@ -363,7 +374,7 @@ func (e *Engine) Sessions(ctx context.Context) ([]SessionView, error) {
 // model chooses another here, or moves to the other provider. Moving to another provider starts a fresh conversation
 // with it (each provider keeps its own), which the assistant is told; changes waiting for confirmation are unaffected.
 // Because a model belongs to its provider, the model and level must be given again when the provider changes.
-func (e *Engine) Configure(ctx context.Context, id, providerID, model, reasoning string) (*SessionView, error) {
+func (e *Engine) Configure(ctx context.Context, id, providerID, model, reasoning string, modes ...domain.SelectionMode) (*SessionView, error) {
 	if err := checkChoice(model, reasoning); err != nil {
 		return nil, err
 	}
@@ -374,6 +385,19 @@ func (e *Engine) Configure(ctx context.Context, id, providerID, model, reasoning
 	prov, ok := e.provs.Get(providerID)
 	if !ok {
 		return nil, fmt.Errorf("%w: there is no assistant provider %q", domain.ErrInvalid, clipText(providerID, 40))
+	}
+	mode := domain.SelectionManual
+	if len(modes) > 0 {
+		mode = modes[0]
+	}
+	if !mode.Valid() {
+		return nil, fmt.Errorf("%w: unknown selection mode", domain.ErrInvalid)
+	}
+	if mode != domain.SelectionManual {
+		if cur.Turns > 0 || cur.ProviderRef != "" {
+			return nil, fmt.Errorf("%w: start a new conversation to change automatic selection", domain.ErrConflict)
+		}
+		model, reasoning = "", ""
 	}
 	switched := providerID != cur.Provider
 	if switched {
@@ -392,6 +416,8 @@ func (e *Engine) Configure(ctx context.Context, id, providerID, model, reasoning
 	}
 	s, err := e.update(ctx, id, func(s *domain.AssistantSession) {
 		s.Model, s.Reasoning = model, reasoning
+		s.Mode = mode
+		s.Selection = nil
 		if switched {
 			s.Provider, s.ProviderRef, s.LastError = providerID, "", ""
 		}
@@ -569,6 +595,24 @@ func (e *Engine) SendMessageWithPersonalContext(ctx context.Context, sessionID, 
 			return "", fmt.Errorf("%w: workspace revision changed; reopen Customize with Salie", domain.ErrConflict)
 		}
 		editing = &PersonalEditingContext{WorkspaceID: editing.WorkspaceID, Revision: editing.Revision}
+	}
+	if e.cfg.Selection != nil && s.Mode != "" && s.Mode != domain.SelectionManual && s.Selection == nil {
+		e.selectionMu.Lock()
+		s, err = e.loadSession(ctx, sessionID)
+		if err == nil && s.Selection == nil {
+			var decision domain.SelectionDecision
+			decision, err = e.cfg.Selection(ctx, domain.SelectionRequest{Mode: s.Mode, Text: text, Purpose: "assistant"})
+			if err == nil {
+				s, err = e.update(ctx, s.ID, func(v *domain.AssistantSession) {
+					v.Provider, v.Model, v.Reasoning = decision.Agent, decision.Model, decision.Reasoning
+					v.Selection = &decision
+				})
+			}
+		}
+		e.selectionMu.Unlock()
+		if err != nil {
+			return "", err
+		}
 	}
 	prov, ok := e.provs.Get(s.Provider)
 	if !ok {

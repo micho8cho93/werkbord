@@ -96,5 +96,9 @@ func (m *Manager) startRemote(ctx context.Context, in StartInput, task *domain.T
 		}
 	}
 	job := &runnerwire.Job{WorkBranch: task.WorkBranch, RemoteURL: remote, TargetBranch: target, ExpectedCommit: task.Orchestration.TargetCommit, AllowClone: selected.AllowClone, PreviousBranch: previous, PreviousCommit: previousCommit, PreviousPublished: published}
-	return m.opt.Runs.Create(ctx, service.NewRun{TaskID: task.ID, AgentID: resolved.Agent, Prompt: buildPrompt(task, in.Instructions, false), Policy: resolved.Policy(), Model: resolved.Model, Reasoning: resolved.Reasoning, ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey, EnforceGates: m.opt.Scheduler != nil, Manual: manual, RunnerID: selected.ID, Remote: true, Claim: m.opt.Distributed.Claim(selected, job)})
+	run, err := m.opt.Runs.Create(ctx, service.NewRun{TaskID: task.ID, AgentID: resolved.Agent, Prompt: buildPrompt(task, in.Instructions, false), Policy: resolved.Policy(), Model: resolved.Model, Reasoning: resolved.Reasoning, ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey, EnforceGates: m.opt.Scheduler != nil, Manual: manual, RunnerID: selected.ID, Remote: true, Claim: m.opt.Distributed.Claim(selected, job)})
+	if err == nil {
+		m.recordSelection(run, resolved.Selection)
+	}
+	return run, err
 }

@@ -227,7 +227,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       api.startRun(
         project.id,
         task.id,
-        { runnerId: c.runner, agentId: c.agent ?? '', model: c.model, reasoning: c.reasoning, interaction: c.interaction },
+        { mode:c.mode, runnerId: c.runner, agentId: c.agent ?? '', model: c.model, reasoning: c.reasoning, interaction: c.interaction },
         instructions.trim(),
         resume,
       ),
@@ -596,14 +596,14 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
             <details class="start" bind:this={startSection}>
               <summary>{latest ? 'Set up another run' : 'Set up a run'}</summary>
               {#if available.length === 0 && !startBusy}
-                <p class="error">No coding agent is ready. {app.agents.map((a) => `${a.name}: ${a.detail ?? 'unavailable'}`).join(' · ')}</p>
-                {#each app.agents.filter((a) => a.guidance) as a (a.id)}<p class="note">{a.name}: {a.guidance}</p>{/each}
-                <p class="note"><a href={globalHref('settings')}>Open Settings</a> to set up an agent.</p>
+                <p class="error">No coding agent is ready.</p>
+
+                <p class="note"><a href="{globalHref('settings')}?agents">Open Settings → Agents</a> to set up an agent.</p>
               {:else}
                 <p class="note">
                   The agent works in its own Git worktree on a new branch; your checkout is not touched. This run uses
                   <strong>{summaryLine(resolveFor(task.execution, project.execution, app.globalExecution, compact(runChoice)), app.agents, app.agentOptions) ||
-                    `${agentLabel(app.agents, startAgent)} with its own defaults`}</strong>{#if !runChoice.agent && effective.agent}<span> (chosen by {sourceLabel(effective.sources.agent)})</span>{/if}.
+                    'Lowest cost, selected when the run starts'}</strong>{#if !runChoice.agent && effective.agent}<span> (chosen by {sourceLabel(effective.sources.agent)})</span>{/if}.
                 </p>
                 <ExecutionFields bind:value={runChoice} inherited={effective} idPrefix="run" showPriority={false} dense />
                 <label class="field">

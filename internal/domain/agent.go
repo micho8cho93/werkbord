@@ -46,6 +46,8 @@ type AgentOption struct {
 	// Reasoning, on a model, lists the reasoning levels it supports when the
 	// agent says (an empty list means "all the agent's levels, or unknown").
 	Reasoning []string `json:"reasoning,omitempty"`
+	// ReasoningKnown distinguishes a reported lack of controls from unknown model-specific support.
+	ReasoningKnown bool `json:"reasoningKnown,omitempty"`
 }
 
 // OptionsSource says where an agent's list of options came from.

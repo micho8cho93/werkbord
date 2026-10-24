@@ -3,6 +3,8 @@
   import SetupCard from './SetupCard.svelte';
 
   let busy = $state(false);
+ let selected=$state('');
+ const selectedAgent=$derived(app.agents.find(a=>a.id===selected) ?? app.agents.find(a=>a.available) ?? app.agents[0]);
 
   async function recheck() {
     busy = true;
@@ -14,7 +16,7 @@
 
   const ready = $derived(app.agents.filter((a) => a.available));
   const status = $derived(ready.length > 0 ? 'done' : 'todo');
-  const summary = $derived(ready.length > 0 ? `${ready.map((a) => a.name).join(', ')} ready` : 'None ready yet');
+  const summary = $derived(ready.length > 0 ? `${ready.length} agent${ready.length===1?'':'s'} ready` : 'None ready yet');
 
   /** The words for what is wrong with an agent that is not ready. */
   function agentStatus(a: (typeof app.agents)[number]): string {
@@ -29,8 +31,10 @@
     Werkbord runs the agents you already have, signed in with your own account. It never asks for an API key and never installs an
     agent without you.
   </p>
-  <ul class="agents">
-    {#each app.agents as a (a.id)}
+  <label for="setup-agent">Coding agent</label>
+ <select id="setup-agent" class="select" value={selectedAgent?.id ?? ''} onchange={e=>selected=e.currentTarget.value}>{#each app.agents as a(a.id)}<option value={a.id}>{a.name}{a.available?' · ready':''}</option>{/each}</select>
+ <ul class="agents">
+    {#each selectedAgent ? [selectedAgent] : [] as a (a.id)}
       <li class="agent" data-ready={a.available}>
         <span class="what">
           <strong>{a.name}</strong>

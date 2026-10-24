@@ -17,18 +17,19 @@ import (
 // Deck preferences belong to a controller owner or one enrolled phone. They never
 // grant access to settings, runners, repositories or another product.
 type DeckSlot struct {
-	ID              string   `json:"id"`
-	Button          string   `json:"button"`
-	ProjectID       string   `json:"projectId,omitempty"`
-	Agent           string   `json:"agent,omitempty"`
-	Model           string   `json:"model,omitempty"`
-	Reasoning       string   `json:"reasoning,omitempty"`
-	Runner          string   `json:"runner,omitempty"`
-	Target          string   `json:"target,omitempty"`
-	ProjectIDs      []string `json:"projectIds,omitempty"`
-	Output          string   `json:"output,omitempty"`
-	Approval        string   `json:"approval,omitempty"`
-	MaxRepositories int      `json:"maxRepositories,omitempty"`
+	Mode            domain.SelectionMode `json:"mode,omitempty"`
+	ID              string               `json:"id"`
+	Button          string               `json:"button"`
+	ProjectID       string               `json:"projectId,omitempty"`
+	Agent           string               `json:"agent,omitempty"`
+	Model           string               `json:"model,omitempty"`
+	Reasoning       string               `json:"reasoning,omitempty"`
+	Runner          string               `json:"runner,omitempty"`
+	Target          string               `json:"target,omitempty"`
+	ProjectIDs      []string             `json:"projectIds,omitempty"`
+	Output          string               `json:"output,omitempty"`
+	Approval        string               `json:"approval,omitempty"`
+	MaxRepositories int                  `json:"maxRepositories,omitempty"`
 }
 type DeckLayout struct {
 	Version int64        `json:"version"`
@@ -203,7 +204,7 @@ type deckInvocation struct {
 
 func (s *Settings) validateDeckSlot(ctx context.Context, slot DeckSlot) error {
 	if navigationButton(slot.Button) {
-		if slot.ProjectID != "" || slot.Agent != "" || slot.Model != "" || slot.Reasoning != "" || slot.Runner != "" || slot.Target != "" || len(slot.ProjectIDs) > 0 || slot.Output != "" || slot.Approval != "" || slot.MaxRepositories != 0 {
+		if slot.Mode != "" || slot.ProjectID != "" || slot.Agent != "" || slot.Model != "" || slot.Reasoning != "" || slot.Runner != "" || slot.Target != "" || len(slot.ProjectIDs) > 0 || slot.Output != "" || slot.Approval != "" || slot.MaxRepositories != 0 {
 			return invalid("navigation buttons have no execution settings")
 		}
 		return nil
@@ -235,7 +236,7 @@ func (s *Settings) validateDeckSlot(ctx context.Context, slot DeckSlot) error {
 	if slot.Output == "changes" && slot.Button != "improve-tests" && slot.Button != "refactor-codebase" {
 		return invalid("this workflow produces findings, not code changes")
 	}
-	if err := validateExecution(ctx, s.Catalog, domain.ExecutionConfig{Runner: slot.Runner, Agent: slot.Agent, Model: slot.Model, Reasoning: slot.Reasoning}); err != nil {
+	if err := validateExecution(ctx, s.Catalog, domain.ExecutionConfig{Mode: slot.Mode, Runner: slot.Runner, Agent: slot.Agent, Model: slot.Model, Reasoning: slot.Reasoning}); err != nil {
 		return err
 	}
 	if s.Catalog != nil && slot.Agent != "" {
@@ -394,8 +395,8 @@ func (s *Settings) PrepareDeckTasks(ctx context.Context, tasks *Tasks, owner, sl
 			if e != nil {
 				return e
 			}
-			resolved := lv.Resolve(domain.ExecutionConfig{Runner: slot.Runner, Agent: slot.Agent, Model: slot.Model, Reasoning: slot.Reasoning, Interaction: domain.InteractionInteractive}, domain.ExecutionConfig{})
-			execution := domain.ExecutionConfig{Runner: resolved.Runner, Agent: resolved.Agent, Model: resolved.Model, Reasoning: resolved.Reasoning, Interaction: domain.InteractionInteractive}
+			resolved := lv.Resolve(domain.ExecutionConfig{Mode: slot.Mode, Runner: slot.Runner, Agent: slot.Agent, Model: slot.Model, Reasoning: slot.Reasoning, Interaction: domain.InteractionInteractive}, domain.ExecutionConfig{})
+			execution := domain.ExecutionConfig{Mode: resolved.Mode, Runner: resolved.Runner, Agent: resolved.Agent, Model: resolved.Model, Reasoning: resolved.Reasoning, Interaction: domain.InteractionInteractive}
 			// Keep an inherited agent default explicit so later settings cannot replace it.
 			if execution.Agent != "" {
 				if execution.Model == "" {

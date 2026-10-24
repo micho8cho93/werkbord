@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
+ import { SELECTION_MODES, modeLabel, type SelectionMode } from '../selection';
   import { modelName, reasoningLevels, withModel } from './choice';
   import { assistant } from './store.svelte';
 
@@ -12,6 +13,8 @@
   const choice = $derived(assistant.choice);
   const current = $derived(assistant.provider);
   const busy = $derived(assistant.running);
+ const mode=$derived(choice?.mode ?? 'manual');
+ async function choose(patch:Parameters<typeof assistant.configure>[0],close=true){await assistant.configure(patch);if(close)assistant.pickerOpen=false;}
   const levels = $derived(choice ? reasoningLevels(current, choice.model) : []);
   const models = $derived(current?.models.models ?? []);
   const known = $derived(!choice?.model || models.some((m) => m.id === choice.model));
@@ -41,9 +44,9 @@
 {#if choice}
   <div class="picker">
     <button bind:this={button} class="trigger" type="button" aria-haspopup="dialog" aria-expanded={assistant.pickerOpen} onclick={() => (assistant.pickerOpen = !assistant.pickerOpen)} data-testid="assistant-picker">
-      <span class="name">{current?.name ?? choice.provider}</span>
+      <span class="name">{mode==='manual'?(current?.name ?? choice.provider):modeLabel(mode)}</span>
       <span class="sep" aria-hidden="true">·</span>
-      <span class="model">{modelName(current, choice.model)}</span>
+      <span class="model">{mode==='manual'||assistant.session?.selection?modelName(current, choice.model):'Choose at conversation start'}</span>
       {#if choice.reasoning}<span class="sep" aria-hidden="true">·</span><span class="model">{choice.reasoning}</span>{/if}
       <Icon name="down" size={12} />
       <span class="visually-hidden">Change provider, model or reasoning level</span>
@@ -51,18 +54,20 @@
 
     {#if assistant.pickerOpen}
       <div bind:this={panel} class="card panel" role="dialog" aria-label="Provider, model and reasoning level" data-testid="assistant-picker-panel">
+        <label class="field"><span class="lab">Model selection</span>
+         <select class="select" aria-label="Model selection" value={mode} disabled={busy} onchange={e=>choose({mode:e.currentTarget.value as SelectionMode},e.currentTarget.value!=='manual')}>
+          {#each SELECTION_MODES as option (option.value)}<option value={option.value} disabled={option.value!=='manual'&&assistant.hasConversation&&option.value!==mode}>{option.label}</option>{/each}
+         </select><span class="hint">{SELECTION_MODES.find(x=>x.value===mode)?.description}</span>
+        </label>
+        {#if mode !== 'manual'}
+         <p class="hint">Uses eligible agents enabled in Settings → Agents. Automatic selection stays fixed for this conversation.</p>
+         {#if assistant.session?.selection}<p class="hint">{assistant.session.selection.reason} ({assistant.session.selection.method==='classifier'?'AI classifier':'Local rules fallback'})</p>{/if}
+        {:else}
         <div class="field">
-          <span class="lab" id="asst-prov">Provider</span>
-          <div class="seg" role="group" aria-labelledby="asst-prov">
-            {#each assistant.providers as p (p.id)}
-              <button type="button" aria-pressed={p.id === choice.provider} disabled={busy || (!p.available && p.id !== choice.provider)} title={p.available ? '' : (p.detail ?? 'Not ready')} onclick={() => assistant.configure({ provider: p.id })}>
-                {p.name}
-              </button>
-            {/each}
-          </div>
-          {#each assistant.providers.filter((p) => !p.available) as p (p.id)}
-            <p class="hint">{p.name}: {p.detail ?? 'not ready'}. {p.guidance ?? ''}</p>
-          {/each}
+          <label class="lab" for="asst-prov">Agent</label>
+          <select id="asst-prov" class="select" disabled={busy} value={choice.provider} onchange={e=>choose({provider:e.currentTarget.value},false)}>
+           {#each assistant.providers.filter(p=>p.available||p.id===choice.provider) as p(p.id)}<option value={p.id} disabled={!p.available}>{p.name}</option>{/each}
+          </select>
           {#if current && assistant.session && assistant.session.provider !== choice.provider}
             <p class="hint">Another provider starts a fresh conversation with it.</p>
           {:else if assistant.hasConversation}
@@ -76,7 +81,7 @@
           <span class="lab">Model</span>
           <select class="select" aria-label="Model" disabled={busy} value={known ? choice.model : '__other'} onchange={(e) => {
             const v = e.currentTarget.value;
-            if (v !== '__other') void assistant.configure(withModel(current, choice, v));
+            if (v !== '__other') void choose(withModel(current, choice, v));
           }}>
             <option value="">Default{models.find((m) => m.default) ? ` (${models.find((m) => m.default)?.name})` : ''}</option>
             {#each models as m (m.id)}<option value={m.id}>{m.name}</option>{/each}
@@ -86,7 +91,7 @@
         </label>
 
         {#if current?.models.custom}
-          <form class="field" onsubmit={(e) => { e.preventDefault(); const v = custom.trim(); if (v) { void assistant.configure(withModel(current, choice, v)); custom = ''; } }}>
+          <form class="field" onsubmit={(e) => { e.preventDefault(); const v = custom.trim(); if (v) { void choose(withModel(current, choice, v)); custom = ''; } }}>
             <label class="lab" for="asst-custom">Another model name</label>
             <div class="row">
               <input id="asst-custom" class="input" bind:value={custom} disabled={busy} placeholder="a model your plan has" autocomplete="off" autocapitalize="off" spellcheck="false" />
@@ -98,13 +103,14 @@
         {#if levels.length > 0}
           <label class="field">
             <span class="lab">Reasoning level</span>
-            <select class="select" aria-label="Reasoning level" disabled={busy} value={choice.reasoning} onchange={(e) => assistant.configure({ reasoning: e.currentTarget.value })}>
+            <select class="select" aria-label="Reasoning level" disabled={busy} value={choice.reasoning} onchange={(e) => choose({ reasoning: e.currentTarget.value })}>
               <option value="">Default</option>
               {#each levels as l (l)}<option value={l}>{l}</option>{/each}
             </select>
           </label>
         {/if}
 
+        {/if}
         {#if busy}<p class="hint">You can change this when the reply has finished.</p>{/if}
       </div>
     {/if}
@@ -177,13 +183,7 @@
     display: flex;
     gap: 8px;
   }
-  .seg {
-    flex-wrap: wrap;
-  }
-  .seg button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
+
   @media (max-width: 899px) {
     .panel {
       position: fixed;

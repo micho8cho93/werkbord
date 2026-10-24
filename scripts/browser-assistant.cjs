@@ -96,7 +96,9 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
     const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) });
     const errors = [];
     async function newPage(opts = {}) {
-        const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...opts });
+        const { automatic = false, ...browserOptions } = opts;
+        const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...browserOptions });
+        if (!automatic) await ctx.addInitScript(() => { if (!localStorage.getItem('werkbord.assistant.choice')) localStorage.setItem('werkbord.assistant.choice', JSON.stringify({provider:'claude-code',model:'',reasoning:'',mode:'manual'})); });
         const page = await ctx.newPage();
         page.setDefaultTimeout(12000);
         current = page;
@@ -567,6 +569,29 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await ctx.close();
         }
 
+        // Automatic mode resolves on the first message and remains fixed on follow-ups.
+        {
+            const {ctx,page}=await newPage({automatic:true});
+            await page.goto(base+'/#token='+token);
+            await page.goto(base+'/#/projects');
+            await openAssistant(page);
+            assert.match(await page.getByTestId('assistant-picker').innerText(),/Lowest cost/);
+            await page.getByTestId('assistant-picker').click();
+            const panel=page.getByTestId('assistant-picker-panel');
+            await panel.getByLabel('Model selection',{exact:true}).selectOption('max_reasoning');
+            await panel.waitFor({state:'hidden'});
+            await sendText(page,'hello automatic selection');
+            await page.waitForFunction(()=>[...document.querySelectorAll('article.reply')].at(-1)?.dataset.status==='done');
+            assert.match(await page.getByTestId('assistant-picker').innerText(),/Max reasoning/);
+            const first=(await api(base,'GET','/api/assistant/sessions')).sessions.find(s=>s.mode==='max_reasoning');
+            assert.equal(first.selection.model,'sonnet');
+            await sendText(page,'a complex follow-up question');
+            await page.waitForFunction(()=>[...document.querySelectorAll('article.reply')].at(-1)?.dataset.status==='done');
+            const after=await api(base,'GET','/api/assistant/sessions/'+first.id);
+            assert.deepEqual(after.selection,first.selection);
+            await ctx.close();ok('automatic choice collapses after selection and remains fixed across messages');
+        }
+
         // ======== choosing the provider, model and level ========
         {
             const { ctx, page } = await newPage();
@@ -580,8 +605,12 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const panel = page.getByTestId('assistant-picker-panel');
             await panel.waitFor();
             await panel.getByLabel('Model', { exact: true }).selectOption('sonnet');
+            await panel.waitFor({state:'hidden'});
+            await page.getByTestId('assistant-picker').click();
             await panel.getByLabel('Reasoning level').selectOption('high');
             await page.waitForFunction(() => /Sonnet/.test(document.querySelector('[data-testid="assistant-picker"]').innerText));
+            await panel.waitFor({state:'hidden'});
+            await page.getByTestId('assistant-picker').click();
             await page.keyboard.press('Escape');
             assert.equal(await surface(page).count(), 1, 'Escape closes the chooser first, not the whole screen');
             await page.getByRole('button', { name: 'Try again' }).click();
@@ -590,7 +619,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             ok('a model the plan cannot use is replaced from the screen, mid-conversation, and the message goes through');
 
             await page.getByTestId('assistant-picker').click();
-            await panel.getByRole('button', { name: 'Codex' }).click();
+            await panel.getByLabel('Agent', {exact:true}).selectOption('codex');
             await page.locator('.notice').filter({ hasText: 'Now using Codex' }).waitFor();
             assert.match(await page.locator('.notice').last().innerText(), /does not remember what came before/);
             assert.match(await page.getByTestId('assistant-picker').innerText(), /Codex/);

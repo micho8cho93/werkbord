@@ -64,6 +64,8 @@ export interface PendingAction {
 }
 
 export interface SessionView {
+ mode?: import('../selection').SelectionMode;
+ selection?: import('../selection').SelectionDecision;
   id: string;
   provider: string;
   model?: string;
@@ -118,6 +120,7 @@ export type EventType =
   | 'gap';
 
 export interface AssistantEvent {
+ selection?: import('../selection').SelectionDecision;
   workspace?: { id: string; proposalId?: string; workspaceId: string; method: string; args: unknown };
   seq: number;
   sessionId: string;

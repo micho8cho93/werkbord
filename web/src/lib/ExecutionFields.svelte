@@ -14,7 +14,8 @@
     validModelName,
     type Resolved,
   } from './execution';
-  import { isPhone } from './phones/capability';
+  import { SELECTION_MODES, effectiveMode, type SelectionMode } from './selection';
+ import { isPhone } from './phones/capability';
   import { INTERACTION_OPTIONS, PERMISSIONS_NOTE, interactionLabel } from './policy';
   import { router } from './router.svelte';
   import { app } from './state.svelte';
@@ -46,6 +47,8 @@
   } = $props();
 
   const hasBelow = $derived(inherited !== undefined);
+ const mode = $derived(value.mode ?? (value.agent ? 'manual' : inherited ? effectiveMode(inherited) : 'lowest_cost'));
+ function chooseMode(e: Event) { const mode=(e.currentTarget as HTMLSelectElement).value as SelectionMode | ''; value=compact({...value,mode:mode||undefined,agent:'',model:'',reasoning:''}); }
   // The agent whose models and reasoning levels are offered: this level's own, else the one it would inherit.
   const agentForOptions = $derived(value.agent || inherited?.agent || '');
   const environment = $derived(eligibleRunners(app.runners, router.projectId, value.runner || inherited?.runner, true));
@@ -137,10 +140,19 @@
     <p class="hint">A specific runner keeps the task queued when unavailable. Automatic uses eligible machines with automatic routing enabled.</p>
   </div>
   <div class="field">
+    <label for="{idPrefix}-mode">Model selection</label>
+    <select id="{idPrefix}-mode" class="select" {disabled} value={value.mode ?? (value.agent ? 'manual' : '')} onchange={chooseMode}>
+      <option value="">{hasBelow ? 'Same as project / defaults' : 'Lowest cost (default)'}</option>
+      {#each SELECTION_MODES as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
+    </select>
+    <p class="hint">{SELECTION_MODES.find(x=>x.value===mode)?.description} Selection stays fixed for each run.</p>
+  </div>
+  {#if mode === 'manual'}
+  <div class="field">
     <label for="{idPrefix}-agent">Agent</label>
     <select id="{idPrefix}-agent" class="select" {disabled} value={value.agent ?? ''} onchange={chooseAgent}>
       <option value="">
-        {#if hasBelow && inherited?.agent}{sameAs(agentLabel(app.agents, inherited.agent), inherited.sources.agent)}{:else}Automatic: the first agent that works{/if}
+        {#if hasBelow && inherited?.agent}{sameAs(agentLabel(app.agents, inherited.agent), inherited.sources.agent)}{:else}First available agent{/if}
       </option>
       {#each usable as a (a.id)}
         <option value={a.id}>{a.name}{a.version ? ` ${a.version}` : ''}</option>
@@ -154,6 +166,7 @@
     {/if}
   </div>
 
+  {/if}
   <div class="field">
     <label for="{idPrefix}-interaction">Interaction</label>
     <select id="{idPrefix}-interaction" class="select" {disabled} value={value.interaction ?? ''} onchange={chooseInteraction}>
@@ -247,6 +260,7 @@
     {/if}
   {/snippet}
 
+  {#if mode === 'manual'}
   {#if dense}
     {@render modelFields()}
   {:else}
@@ -261,6 +275,7 @@
     {@render modelFields()}
   </details>
   {/if}
+{/if}
 </div>
 {/if}
 

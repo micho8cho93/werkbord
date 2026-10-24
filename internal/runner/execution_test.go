@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -236,5 +237,27 @@ func TestAResumedRunKeepsItsModelAndReasoningAcrossARestart(t *testing.T) {
 	}
 	if req := e.session().Req; req.Model != "m1" || req.Reasoning != "high" || req.ResumeRef != "sess-1" {
 		t.Fatalf("resume request = %+v", req)
+	}
+}
+
+func TestAutomaticSelectionReachesRunAndNeverReplacesManualOverrides(t *testing.T) {
+	e := newEnv(t)
+	calls := 0
+	e.mgr.opt.Selection = func(_ context.Context, in domain.SelectionRequest) (domain.SelectionDecision, error) {
+		calls++
+		if in.Text == "" || in.Purpose != "coding" {
+			t.Fatalf("missing task context: %+v", in)
+		}
+		return domain.SelectionDecision{Agent: "fake", Model: "selected-model", Reasoning: "high", Mode: in.Mode, Method: "local_rules", Reason: "test"}, nil
+	}
+	r := e.startAuto(e.task("Automatic"))
+	if r.Model != "selected-model" || r.Reasoning != "high" || e.session().Req.Model != "selected-model" || calls != 1 {
+		t.Fatalf("selection did not reach execution: %+v calls=%d", r, calls)
+	}
+	e.finish(r)
+	manual := e.taskExec("Manual", domain.ExecutionConfig{Agent: "fake", Model: "pinned"})
+	r = e.startAuto(manual)
+	if r.Model != "pinned" || calls != 1 {
+		t.Fatalf("manual selection reclassified: %+v calls=%d", r, calls)
 	}
 }

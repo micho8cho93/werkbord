@@ -13,7 +13,7 @@ const codex = prov('codex', 'Codex', {}, [{ id: 'gpt-a', name: 'GPT A', default:
 
 describe('choosing what answers', () => {
   it('starts with the first provider that is ready', () => {
-    expect(pickChoice([prov('x', 'X', { available: false }), claude, codex], null)).toEqual({ provider: 'claude-code', model: '', reasoning: '' });
+    expect(pickChoice([prov('x', 'X', { available: false }), claude, codex], null)).toEqual({ provider: 'claude-code', model: '', reasoning: '', mode: 'lowest_cost' });
   });
   it('keeps what the person chose last time when it still works', () => {
     expect(pickChoice([claude, codex], { provider: 'codex', model: 'gpt-b', reasoning: 'high' })).toEqual({ provider: 'codex', model: 'gpt-b', reasoning: 'high' });

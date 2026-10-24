@@ -113,7 +113,7 @@
       const r = await api.continueRun(
         current,
         {
-          runnerId:c.runner, agentId: c.agent,
+          mode:c.mode, runnerId:c.runner, agentId: c.agent,
           model: c.model,
           reasoning: c.reasoning,
           interaction: c.interaction,

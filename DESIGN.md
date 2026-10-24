@@ -421,3 +421,7 @@ with the owner. Preserve local policy review, assignment fencing, working branch
 ### Team ticket layout (4.68)
 
 Tickets use a main column for description, requirements, private agent work and comments, with a side column for status, start and due dates, and Git facts. Thin token-coloured borders separate these sections. Narrow panels stack in reading order. Dates have a visible save action and appear as planned ranges in Calendar; comment composers offer @mentions with in-app notifications. Missing host routes have one screen-local explanation and an upgrade destination; errors clear when leaving their screen.
+
+### Agent catalogue and model objectives (4.81)
+
+Settings → Agents owns the complete searchable CLI catalogue, inclusion toggles, billing declarations and optional model estimates. Setup and everyday agent/model choices use collapsing selects, and the selected value remains visible. Task defaults, project/task/run overrides, workflows and Salie share Lowest cost, Max reasoning, Highest intelligence and Manual. Automatic modes hide manual model controls, explain that selection is fixed for a conversation or run, and expose the resolved choice and classifier/rules source. Preserve explicit saved choices as Manual. Mobile activity lists installed agents and active sessions rather than the integration catalogue.

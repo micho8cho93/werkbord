@@ -32,6 +32,7 @@ import (
 
 // Options configures a Manager. Everything without a default is required.
 type Options struct {
+	Selection      domain.SelectionResolver
 	RefreshRemotes func(context.Context, string) error
 	Maintenance    func(context.Context) error
 	Distributed    *service.Runners
@@ -128,6 +129,7 @@ func bg() context.Context { return context.Background() }
 // StartInput says which task to run, and what, if anything, is different about
 // this run from the task's own settings.
 type StartInput struct {
+	Mode                domain.SelectionMode
 	Authorization       *integration.ExecutionDispatch
 	authorizationPolicy map[string]string
 	TaskID              string
@@ -174,7 +176,7 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	}
 	defer m.wg.Done()
 	if in.Authorization != nil {
-		if in.TaskID != "" || in.AgentID != "" || in.RunnerID != "" || in.Policy != nil || in.Model != "" || in.Reasoning != "" || in.Instructions != "" || in.Resume || in.ParentRunID != "" || in.ScheduleKey != "" {
+		if in.Mode != "" || in.TaskID != "" || in.AgentID != "" || in.RunnerID != "" || in.Policy != nil || in.Model != "" || in.Reasoning != "" || in.Instructions != "" || in.Resume || in.ParentRunID != "" || in.ScheduleKey != "" {
 			return nil, domain.ErrForbidden
 		}
 		a, err := m.opt.Tasks.ExecutionApproval(ctx, *in.Authorization)
@@ -257,6 +259,19 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	}
 	if why := domain.AgentRefusal(project.Project, *task); why != "" {
 		return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, why)
+	}
+	if in.Resume && in.AgentID == "" {
+		prior, e := m.opt.Runs.ListByTask(ctx, task.ID)
+		if e != nil {
+			return nil, e
+		}
+		for _, r := range prior {
+			if r.SessionRef != "" {
+				in.AgentID, in.Model, in.Reasoning, in.RunnerID = r.AgentID, r.Model, r.Reasoning, r.RunnerID
+				in.Mode = domain.SelectionManual
+				break
+			}
+		}
 	}
 	resolved, err := m.resolve(ctx, task, in)
 	if err != nil {
@@ -380,6 +395,7 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 		return nil, err
 	}
 
+	m.recordSelection(run, resolved.Selection)
 	// 4. Launch.
 	sess, err := adapter.Start(ctx, agent.StartRequest{
 		RunID: run.ID, WorkDir: ws.wt.Path, Prompt: prompt, ResumeRef: resumeRef, Policy: policy,
@@ -772,7 +788,7 @@ func orDefault(s string) string {
 // start asks for, then the task's overrides, the project's defaults and the
 // global defaults. The first to set a field wins.
 func (m *Manager) resolve(ctx context.Context, task *domain.Task, in StartInput) (domain.Resolved, error) {
-	run := domain.ExecutionConfig{Runner: in.RunnerID, Agent: in.AgentID, Model: in.Model, Reasoning: in.Reasoning}
+	run := domain.ExecutionConfig{Mode: in.Mode, Runner: in.RunnerID, Agent: in.AgentID, Model: in.Model, Reasoning: in.Reasoning}
 	if in.Policy != nil {
 		run.Interaction = in.Policy.Normalized().Interaction
 	}
@@ -787,7 +803,18 @@ func (m *Manager) resolve(ctx context.Context, task *domain.Task, in StartInput)
 			return domain.Resolved{}, err
 		}
 	}
-	return lv.Resolve(task.Execution, run), nil
+	resolved := lv.Resolve(task.Execution, run)
+	if m.opt.Selection != nil && resolved.SelectionMode() != domain.SelectionManual && !in.Resume {
+		decision, err := m.opt.Selection(ctx, domain.SelectionRequest{Mode: resolved.SelectionMode(), Text: task.Title + "\n" + task.Description, Purpose: "coding", Runner: resolved.Runner, TaskID: task.ID, ProjectID: task.ProjectID})
+		if err != nil {
+			return resolved, err
+		}
+		resolved.Selection = &decision
+		resolved.Agent, resolved.Model, resolved.Reasoning = decision.Agent, decision.Model, decision.Reasoning
+		resolved.Runner = decision.Runner
+		resolved.Sources.Agent, resolved.Sources.Model, resolved.Sources.Reasoning = domain.SourceRun, domain.SourceRun, domain.SourceRun
+	}
+	return resolved, nil
 }
 
 // chooseAgent returns the adapter for a resolved configuration: the agent that
@@ -835,4 +862,19 @@ func (m *Manager) ExecutionPolicy(id string) (map[string]string, error) {
 		return p.ExecutionPolicy(), nil
 	}
 	return map[string]string{"permissions": "runtime configured; agent permission prompts remain required"}, nil
+}
+
+// The selected model and reasoning are on the run; its event history explains the objective and fallback.
+func (m *Manager) recordSelection(run *domain.Run, choice *domain.SelectionDecision) {
+	if choice == nil {
+		return
+	}
+	text := "Model selection: " + string(choice.Mode) + " · " + choice.Agent + " · " + choice.Model
+	if choice.Reasoning != "" {
+		text += " · " + choice.Reasoning
+	}
+	text += " (" + choice.Method + "). " + choice.Reason
+	if err := m.opt.Runs.AppendOutput(bg(), run.ID, []service.OutputItem{{Stream: domain.StreamSystem, Text: text}}); err != nil {
+		m.log().Warn("record selection explanation", "run", run.ID, "err", err)
+	}
 }

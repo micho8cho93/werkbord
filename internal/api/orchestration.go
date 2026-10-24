@@ -98,6 +98,7 @@ func (s *Server) handleContinue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
+		Mode            domain.SelectionMode    `json:"mode"`
 		RunnerID        string                  `json:"runnerId"`
 		AgentID         string                  `json:"agentId"`
 		Model           string                  `json:"model"`
@@ -116,7 +117,7 @@ func (s *Server) handleContinue(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, e)
 		return
 	}
-	run, e := s.opt.Runner.Start(r.Context(), runner.StartInput{RunnerID: in.RunnerID, TaskID: parent.TaskID, AgentID: in.AgentID, Model: in.Model, Reasoning: in.Reasoning, ParentRunID: parent.ID, Purpose: in.Purpose, Instructions: in.Instructions, SelectedContext: in.SelectedContext, Policy: in.Policy})
+	run, e := s.opt.Runner.Start(r.Context(), runner.StartInput{Mode: in.Mode, RunnerID: in.RunnerID, TaskID: parent.TaskID, AgentID: in.AgentID, Model: in.Model, Reasoning: in.Reasoning, ParentRunID: parent.ID, Purpose: in.Purpose, Instructions: in.Instructions, SelectedContext: in.SelectedContext, Policy: in.Policy})
 	if e != nil {
 		s.fail(w, r, e)
 		return

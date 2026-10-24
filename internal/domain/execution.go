@@ -50,6 +50,7 @@ const AgentDefault = "default"
 // This is what stops a task that switches from Claude Code to Codex from being
 // handed a project default of "opus".
 type ExecutionConfig struct {
+	Mode SelectionMode `json:"mode,omitempty"`
 	// Runner is "automatic", a runner ID, or empty to inherit. No implicit fallback.
 	Runner string `json:"runner,omitempty"`
 	// Agent is the adapter ID ("claude-code", "codex").
@@ -96,6 +97,12 @@ func (c ExecutionConfig) IsZero() bool { return c == ExecutionConfig{} }
 // the last word on a model.
 func (c ExecutionConfig) Validate() error {
 	c = c.Normalized()
+	if c.Mode != "" && !c.Mode.Valid() {
+		return fmt.Errorf("%w: unknown selection mode", ErrInvalid)
+	}
+	if c.Mode != "" && c.Mode != SelectionManual && (c.Agent != "" || c.Model != "" || c.Reasoning != "") {
+		return fmt.Errorf("%w: automatic selection cannot pin an agent, model or reasoning level", ErrInvalid)
+	}
 	if c.Runner != "" && c.Runner != "automatic" && (!strings.HasPrefix(c.Runner, "rnr_") || len(c.Runner) > 100) {
 		return fmt.Errorf("%w: invalid runner ID", ErrInvalid)
 	}
@@ -135,7 +142,9 @@ const (
 
 // Resolved is the outcome of resolving the hierarchy: what a run will use.
 type Resolved struct {
-	Runner string `json:"runner"`
+	Selection *SelectionDecision `json:"selection,omitempty"`
+	Mode      SelectionMode      `json:"mode,omitempty"`
+	Runner    string             `json:"runner"`
 	// Agent is empty when no level chose one; the controller then uses the first
 	// agent that can be used.
 	Agent string `json:"agent"`
@@ -185,7 +194,8 @@ func ResolveExecution(levels ...Level) Resolved {
 		}
 	}
 	for _, l := range levels {
-		if l.Config.Agent != "" {
+		if l.Config.Mode != "" || l.Config.Agent != "" {
+			r.Mode = l.Config.Mode
 			r.Agent, r.Sources.Agent = l.Config.Agent, l.Source
 			break
 		}
@@ -203,7 +213,7 @@ func ResolveExecution(levels ...Level) Resolved {
 		}
 	}
 	for _, l := range levels {
-		if l.Config.Agent != r.Agent {
+		if (r.Mode != "" && r.Mode != SelectionManual) || l.Config.Agent != r.Agent {
 			continue // another agent's model means nothing here
 		}
 		if l.Config.Model != "" {
@@ -215,7 +225,7 @@ func ResolveExecution(levels ...Level) Resolved {
 		}
 	}
 	for _, l := range levels {
-		if l.Config.Agent != r.Agent {
+		if (r.Mode != "" && r.Mode != SelectionManual) || l.Config.Agent != r.Agent {
 			continue
 		}
 		if l.Config.Reasoning != "" {

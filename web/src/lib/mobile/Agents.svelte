@@ -7,7 +7,7 @@
 
   // Each agent as a card: whether it is working, waiting for you or idle, and what it is doing, with the controls of its session (open,
   // reply, stop). It reads the controller's own overview and changes nothing except a stop the person confirms.
-  const cards = $derived(agentCards(app.agents, app.overview));
+  const cards = $derived(agentCards(app.agents.filter(a=>a.installed || a.available), app.overview));
   const failed = $derived(agentSessions(app.overview).failed);
   const loaded = $derived(app.overview !== null);
   const stale = $derived(app.connection !== 'live');
@@ -30,7 +30,7 @@
     {#if stale}<p class="note" role="status">Live updates are not connected. These are the last reported states.</p>{/if}
     <Segmented options={filters} value={filter} onchange={(id: AgentFilter) => (filter = id)} label="Show agents" />
     {#if cards.length === 0}
-      <p class="note">No agents were found. Install one (Claude Code or Codex) on the computer that runs Werkbord.</p>
+      <p class="note">No installed agents were found. Open Settings → Agents for supported CLIs and setup instructions.</p>
     {:else if shown.length === 0}
       <p class="note">No agent is {filter === 'waiting' ? 'waiting for you' : filter}.</p>
     {/if}

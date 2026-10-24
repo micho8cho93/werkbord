@@ -37,6 +37,12 @@ func TestPersonalLibraryIconUpgradePreservesRecordsAndHistory(t *testing.T) {
 	if _, err := db.writer.ExecContext(ctx, `DROP INDEX personal_workspace_library_icon_unique`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.writer.ExecContext(ctx, `ALTER TABLE assistant_sessions DROP COLUMN selection_mode`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.writer.ExecContext(ctx, `ALTER TABLE assistant_sessions DROP COLUMN selection_json`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.writer.ExecContext(ctx, `DELETE FROM schema_migrations WHERE version>=27`); err != nil {
 		t.Fatal(err)
 	}

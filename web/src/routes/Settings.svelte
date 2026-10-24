@@ -14,7 +14,7 @@
   import { globalHref, router } from '../lib/router.svelte';
   import RoutingRules from '../lib/RoutingRules.svelte';
   import RunnersPanel from '../lib/RunnersPanel.svelte';
-  import AgentsCard from '../lib/setup/AgentsCard.svelte';
+  import AgentSettings from '../lib/AgentSettings.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import { embedded } from '../lib/embed';
   import { isPhone } from '../lib/phones/capability';
@@ -154,12 +154,12 @@
         <div class="head">
           <h3>Defaults for every task</h3>
           <p class="muted">
-            What a task uses unless its project or the task says otherwise. Leave it alone and the agent picks its own model and reasoning.
+            What a task uses unless its project or the task says otherwise. Unconfigured tasks use Lowest cost. Existing explicit agent and model choices remain manual.
           </p>
         </div>
         <ExecutionFields bind:value={draft} idPrefix="global" columns />
         {#if app.agents.length > 0}
-          <p class="note">New tasks get: <strong>{summaryLine(effective, app.agents, app.agentOptions) || 'the first agent that works, with its own defaults'}</strong></p>
+          <p class="note">New tasks get: <strong>{summaryLine(effective, app.agents, app.agentOptions) || 'Lowest cost, selected when the run starts'}</strong></p>
         {/if}
         {#if error}<p class="error" role="alert">{error}</p>{/if}
         <div class="row">
@@ -188,7 +188,7 @@
       <div hidden={mcpDirection !== 'service'}><ConnectionsPanel /></div>
       <div hidden={mcpDirection !== 'client'}><MCPClientsPanel /></div>
     {:else if section === 'agents'}
-      <AgentsCard />
+      <AgentSettings />
     {:else if section === 'time'}
       <section class="pn">
         <div class="head">

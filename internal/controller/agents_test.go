@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"devboard/internal/agentcatalog"
 	"devboard/internal/config"
 	"devboard/internal/domain"
 )
@@ -174,7 +175,7 @@ func TestAgentSessionEndToEndAcrossARestart(t *testing.T) {
 	for _, found := range agents.Agents {
 		byID[found.ID] = found
 	}
-	if len(byID) != 4 || !byID["claude-code"].Available || byID["claude-code"].Version != "9.9.9" {
+	if len(byID) != 4+len(agentcatalog.Entries()) || !byID["claude-code"].Available || byID["claude-code"].Version != "9.9.9" {
 		t.Fatalf("agents = %+v", agents.Agents)
 	}
 	for _, id := range []string{"codex", "gemini-cli", "opencode"} {

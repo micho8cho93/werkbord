@@ -754,3 +754,9 @@ collection by its exact saved ID, revision and unchanged schema. No records are
 copied, reset or generated. Definition rollback keeps current collection schemas
 and records. See [Personal workspaces](PERSONAL_WORKSPACES.md#phase-5--management-deletion-and-recovery)
 for ownership, retention, backup limitations and the full endpoint contract.
+
+## Model selection objectives
+
+Salie offers Lowest cost (the default for new unconfigured conversations), Max reasoning, Highest intelligence and Manual in one collapsing picker. The first message supplies the task for classification. An automatic decision is persisted and stays fixed across follow-ups and controller restarts; a manual override remains explicit. The selected provider, model, reasoning and classifier/rules source are visible from the picker. Existing explicit choices remain manual.
+
+Settings → Agents controls the eligible agents and explicit metered fallback permission. The classifier uses an isolated supported CLI provider with no application operations, under the same billing policy. New coding-only ACP integrations are not automatically Salie providers: see [CLI agents and automatic model selection](AGENT_INTEGRATIONS.md) for capabilities, billing estimates, fallback behaviour and verification limits.

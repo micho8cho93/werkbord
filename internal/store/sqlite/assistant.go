@@ -16,13 +16,17 @@ type assistantRepo struct{ q queryer }
 
 var _ store.AssistantRepo = assistantRepo{}
 
-const sessionCols = `id, provider, model, reasoning, provider_ref, state, turns, last_error, reported_at, version, created_at, updated_at`
+const sessionCols = `id, provider, model, reasoning, provider_ref, state, turns, last_error, reported_at, version, created_at, updated_at, selection_mode, selection_json`
 
 func scanSession(s interface{ Scan(...any) error }) (*domain.AssistantSession, error) {
 	var a domain.AssistantSession
 	var created, updated, reported int64
+	var selection string
 	if err := s.Scan(&a.ID, &a.Provider, &a.Model, &a.Reasoning, &a.ProviderRef, &a.State, &a.Turns, &a.LastError,
-		&reported, &a.Version, &created, &updated); err != nil {
+		&reported, &a.Version, &created, &updated, &a.Mode, &selection); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(selection), &a.Selection); err != nil {
 		return nil, err
 	}
 	a.CreatedAt, a.UpdatedAt, a.ReportedAt = fromMS(created), fromMS(updated), fromMS(reported)
@@ -33,9 +37,9 @@ func (r assistantRepo) CreateSession(ctx context.Context, s *domain.AssistantSes
 	if s.Version == 0 {
 		s.Version = 1
 	}
-	_, err := r.q.ExecContext(ctx, `INSERT INTO assistant_sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := r.q.ExecContext(ctx, `INSERT INTO assistant_sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		s.ID, s.Provider, s.Model, s.Reasoning, s.ProviderRef, string(s.State), s.Turns, s.LastError, ms(s.ReportedAt), s.Version,
-		ms(s.CreatedAt), ms(s.UpdatedAt))
+		ms(s.CreatedAt), ms(s.UpdatedAt), s.Mode, selectionJSON(s.Selection))
 	return err
 }
 
@@ -49,8 +53,8 @@ func (r assistantRepo) GetSession(ctx context.Context, id string) (*domain.Assis
 
 func (r assistantRepo) UpdateSession(ctx context.Context, s *domain.AssistantSession) error {
 	res, err := r.q.ExecContext(ctx, `UPDATE assistant_sessions SET provider = ?, model = ?, reasoning = ?, provider_ref = ?,
-		state = ?, turns = ?, last_error = ?, reported_at = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?`,
-		s.Provider, s.Model, s.Reasoning, s.ProviderRef, string(s.State), s.Turns, s.LastError, ms(s.ReportedAt), ms(s.UpdatedAt), s.ID, s.Version)
+		state = ?, turns = ?, last_error = ?, reported_at = ?, version = version + 1, updated_at = ?, selection_mode = ?, selection_json = ? WHERE id = ? AND version = ?`,
+		s.Provider, s.Model, s.Reasoning, s.ProviderRef, string(s.State), s.Turns, s.LastError, ms(s.ReportedAt), ms(s.UpdatedAt), s.Mode, selectionJSON(s.Selection), s.ID, s.Version)
 	if err != nil {
 		return err
 	}
@@ -341,3 +345,5 @@ func (r assistantRepo) PruneAudit(ctx context.Context, before, at time.Time) (in
 		pruned = assistant_audit_checkpoint.pruned + excluded.pruned, updated_at = excluded.updated_at`, through.Int64, hash, n, ms(at))
 	return n, err
 }
+
+func selectionJSON(s *domain.SelectionDecision) string { b, _ := json.Marshal(s); return string(b) }

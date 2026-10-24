@@ -123,7 +123,7 @@
     </div>
     <ExecutionFields bind:value={draft} inherited={below} idPrefix="project" columns />
     <p class="muted small">
-      Tasks here get: <strong>{summaryLine(effective, app.agents, app.agentOptions) || 'the first agent that works, with its own defaults'}</strong>
+      Tasks here get: <strong>{summaryLine(effective, app.agents, app.agentOptions) || 'Lowest cost, selected when the run starts'}</strong>
     </p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <div class="row">

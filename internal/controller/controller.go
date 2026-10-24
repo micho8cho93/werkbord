@@ -15,10 +15,12 @@ import (
 	"time"
 
 	"devboard/internal/agent"
+	"devboard/internal/agent/acp"
 	"devboard/internal/agent/claude"
 	"devboard/internal/agent/codex"
 	"devboard/internal/agent/gemini"
 	"devboard/internal/agent/opencode"
+	"devboard/internal/agentcatalog"
 	"devboard/internal/api"
 	"devboard/internal/appops"
 	"devboard/internal/assistant"
@@ -183,7 +185,9 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	catalog := service.ExecutionCatalog{Local: agents, Runners: distributed}
 	settings.Catalog, projects.Catalog, tasks.Catalog = catalog, catalog, catalog
 	scheduler.Runners = distributed
+	selector := newModelSelector(c.cfg, agents, settings, distributed)
 	c.runner = runner.New(runner.Options{
+		Selection: selector.Resolve,
 		RefreshRemotes: func(ctx context.Context, id string) error {
 			p, e := projects.Get(ctx, id)
 			if e != nil {
@@ -295,6 +299,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// domain services, by way of application operations (internal/appops). It is served on the loopback listener only.
 	if !c.cfg.Assistant.Disabled {
 		assistantSvc.ops = c.appOps
+		assistantSvc.selection = selector.Resolve
 		if c.assistant, err = newAssistant(c.cfg, c.db, c.log, assistantSvc); err != nil {
 			return fmt.Errorf("assistant: %w", err)
 		}
@@ -530,6 +535,17 @@ func NewAgents(cfg config.Config) (*agent.Registry, error) {
 		gemini.New(gemini.Config{Command: gm.Command, Model: gm.Model, Models: choices(gm.Models), Reasoning: gm.Reasoning}),
 		opencode.New(opencode.Config{Command: oc.Command, Model: oc.Model, Models: choices(oc.Models), Reasoning: oc.Reasoning}),
 	} {
+		if err := r.Register(a); err != nil {
+			return nil, err
+		}
+	}
+	for _, entry := range agentcatalog.Entries() {
+		c := cfg.Agents[entry.ID]
+		command := c.Command
+		if command == "" {
+			command = entry.Command
+		}
+		a := acp.New(acp.Config{ID: entry.ID, Name: entry.Name, Command: command, Args: entry.Args, DocsURL: entry.DocsURL, Guidance: entry.Setup, SessionOptions: true, DiscoverOptions: true, Model: c.Model, Models: choices(c.Models), Reasoning: c.Reasoning})
 		if err := r.Register(a); err != nil {
 			return nil, err
 		}

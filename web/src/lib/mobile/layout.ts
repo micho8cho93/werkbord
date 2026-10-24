@@ -16,7 +16,7 @@ export type WorkflowId = typeof WORKFLOWS[number]['id'];
 export type WorkspaceButtonId = `pws_${string}`;
 export const isWorkspaceButton = (id: string): id is WorkspaceButtonId => /^pws_[a-z2-7]{16}$/.test(id);
 export type ButtonId = DeckKeyId | WorkflowId | WorkspaceButtonId;
-export interface DeckSlot { id: string; button: ButtonId; projectId?: string; agent?: string; model?: string; reasoning?: string; runner?: string; target?: 'current' | 'selected' | 'all' | 'ask'; projectIds?: string[]; output?: 'report' | 'drafts' | 'changes'; approval?: 'always' | 'changes'; maxRepositories?: number }
+export interface DeckSlot { mode?: import('../selection').SelectionMode; id: string; button: ButtonId; projectId?: string; agent?: string; model?: string; reasoning?: string; runner?: string; target?: 'current' | 'selected' | 'all' | 'ask'; projectIds?: string[]; output?: 'report' | 'drafts' | 'changes'; approval?: 'always' | 'changes'; maxRepositories?: number }
 export interface DeckStart { approved?: boolean; currentProjectId?: string; projectIds?: string[]; override?: DeckSlot }
 export function targetLabel(slot: DeckSlot, projects: readonly {id: string; name: string}[], current: string): string {
  const names = (ids: string[]) => ids.map(id => projects.find(p => p.id === id)?.name ?? 'Unavailable').join(', ');

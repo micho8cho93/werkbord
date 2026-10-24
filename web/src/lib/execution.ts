@@ -20,6 +20,7 @@ export interface Level {
 }
 
 export interface Resolved {
+ mode?: import('./selection').SelectionMode;
   runner: string;
   /** Empty when no level chose one: the controller then uses the first agent that can be used. */
   agent: string;
@@ -48,8 +49,9 @@ export function resolveExecution(...levels: Level[]): Resolved {
   };
   for (const l of levels) { if (l.config.runner) { r.runner = l.config.runner; break; } }
   for (const l of levels) {
-    if (l.config.agent) {
-      r.agent = l.config.agent;
+    if (l.config.mode || l.config.agent) {
+      if (l.config.mode) r.mode = l.config.mode;
+      r.agent = l.config.agent ?? '';
       r.sources.agent = l.source;
       break;
     }
@@ -69,7 +71,7 @@ export function resolveExecution(...levels: Level[]): Resolved {
     }
   }
   for (const l of levels) {
-    if ((l.config.agent ?? '') !== r.agent) continue;
+    if ((r.mode && r.mode !== 'manual') || (l.config.agent ?? '') !== r.agent) continue;
     if (l.config.model) {
       r.sources.model = l.source;
       if (l.config.model !== AGENT_DEFAULT) r.model = l.config.model;
@@ -77,7 +79,7 @@ export function resolveExecution(...levels: Level[]): Resolved {
     }
   }
   for (const l of levels) {
-    if ((l.config.agent ?? '') !== r.agent) continue;
+    if ((r.mode && r.mode !== 'manual') || (l.config.agent ?? '') !== r.agent) continue;
     if (l.config.reasoning) {
       r.sources.reasoning = l.source;
       if (l.config.reasoning !== AGENT_DEFAULT) r.reasoning = l.config.reasoning;
@@ -139,6 +141,7 @@ export interface Summary {
  */
 export function summaryLine(r: Resolved, agents: readonly Agent[], options: ReadonlyMap<string, AgentOptions>): string {
   const parts: string[] = [];
+ if (r.mode && r.mode !== 'manual') parts.push({lowest_cost:'Lowest cost',max_reasoning:'Max reasoning',highest_intelligence:'Highest intelligence'}[r.mode]);
   if (r.agent) parts.push(agentLabel(agents, r.agent));
   if (r.model) parts.push(optionLabel(options.get(r.agent)?.models, r.model));
   if (r.reasoning) parts.push(optionLabel(options.get(r.agent)?.reasoning, r.reasoning));
@@ -147,7 +150,7 @@ export function summaryLine(r: Resolved, agents: readonly Agent[], options: Read
 
 /** Whether a task's own overrides are worth a mention on its card. */
 export function hasOverrides(c: ExecutionConfig | undefined): boolean {
-  return !!c && !!(c.runner || c.agent || c.model || c.reasoning || c.interaction || c.priority);
+  return !!c && !!(c.mode || c.runner || c.agent || c.model || c.reasoning || c.interaction || c.priority);
 }
 
 /** What the model picker offers for an agent: its list, and whether a name may be typed. */
@@ -162,13 +165,14 @@ export function modelChoices(options: AgentOptions | undefined): { list: AgentOp
 export function reasoningChoices(options: AgentOptions | undefined, model: string): AgentOption[] {
   const all = options?.reasoning ?? [{ id: AGENT_DEFAULT, name: 'Agent default' }];
   const m = options?.models.find((x) => x.id === model);
-  if (!m?.reasoning?.length) return all;
-  return all.filter((o) => o.id === AGENT_DEFAULT || m.reasoning!.includes(o.id));
+  if (!m?.reasoning?.length && !m?.reasoningKnown) return all;
+  return all.filter((o) => o.id === AGENT_DEFAULT || (m.reasoning ?? []).includes(o.id));
 }
 
 /** A config with empty fields removed, as it is stored: nothing set means inherit. */
 export function compact(c: ExecutionConfig): ExecutionConfig {
   const out: ExecutionConfig = {};
+ if (c.mode) out.mode = c.mode;
  if (c.runner) out.runner=c.runner;
   if (c.agent) out.agent = c.agent;
   // A model and a reasoning level belong to an agent; without one they cannot be kept.

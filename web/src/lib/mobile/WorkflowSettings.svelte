@@ -1,11 +1,13 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+ import { SELECTION_MODES, type SelectionMode } from '../selection';
   import Sheet from '../Sheet.svelte';
   import { app } from '../state.svelte';
   import { eligibleRunners, executionAgents, modelChoices, reasoningChoices, resolveFor, validModelName } from '../execution';
   import { workflow, type DeckSlot } from './layout';
   let { onboarding = false, slot, onclose, onsave, onrun, onpreview }: { onpreview?: () => void; onboarding?: boolean; slot: DeckSlot; onclose: () => void; onsave: (slot: DeckSlot) => Promise<void>; onrun?: (slot: DeckSlot) => Promise<void> } = $props();
-  let agent = $state(untrack(() => slot.agent ?? ''));
+  let mode=$state<SelectionMode|''>(untrack(()=>slot.mode ?? (slot.agent?'manual':'')));
+ let agent = $state(untrack(() => slot.agent ?? ''));
   let model = $state(untrack(() => slot.model === 'default' ? '' : slot.model ?? ''));
   let target = $state<NonNullable<DeckSlot['target']>>(untrack(() => slot.target ?? (slot.projectId ? 'selected' : 'current')));
   let projectIds = $state<string[]>(untrack(() => slot.projectIds ?? (slot.projectId ? [slot.projectId] : [])));
@@ -32,7 +34,7 @@
   async function submit(once: boolean) {
     if (problem || busy || (target === 'selected' && !projectIds.length)) return;
     busy = true; error = '';
-    try { const next: DeckSlot = { id: slot.id, button: slot.button, target, ...(target === 'selected' ? {projectIds} : {}), agent, model: agent ? model.trim() : '', reasoning: agent ? reasoning : '', runner, output, approval, maxRepositories }; if (once && onrun) await onrun(next); else await onsave(next); }
+    try { const next: DeckSlot = { id: slot.id, button: slot.button, target, ...(target === 'selected' ? {projectIds} : {}), mode:mode||undefined, agent:mode==='manual'?agent:'', model:mode==='manual'&&agent ? model.trim() : '', reasoning:mode==='manual'&&agent ? reasoning : '', runner, output, approval, maxRepositories }; if (once && onrun) await onrun(next); else await onsave(next); }
     catch (err) { error = err instanceof Error ? err.message : String(err); }
     finally { busy = false; }
   }
@@ -50,6 +52,8 @@
     {#if target === 'selected'}<fieldset><legend>Repositories</legend>{#each repositories as p (p.id)}<label class="check"><input type="checkbox" bind:group={projectIds} value={p.id} disabled={busy} />{p.name}</label>{/each}</fieldset>{/if}
     {#if !onboarding}<label>Runner <select class="select" bind:value={runner} disabled={busy}><option value="">Project / controller default</option><option value="automatic">Automatic</option>{#each app.runners.filter(r => !r.disabled) as r (r.id)}<option value={r.id}>{r.name}{r.online ? '' : ' (offline)'}</option>{/each}</select></label>{/if}
     {#if !repositories.length}<p class="muted">Add a Git repository on your computer first, then return here.</p>{#if onboarding && onpreview}<button class="btn" type="button" onclick={onpreview}>Continue with interactive preview</button>{/if}{/if}
+    <label>Model selection <select class="select" bind:value={mode} disabled={busy}><option value="">Same as project / defaults</option>{#each SELECTION_MODES as option (option.value)}<option value={option.value}>{option.label}</option>{/each}</select></label>
+    {#if mode==='manual'}
     <label>Agent <select class="select" bind:value={agent} disabled={busy} onchange={() => { model = ''; reasoning = ''; custom = false; }}>
       <option value="">Project / controller default{inherited.agent ? ` (${inherited.agent})` : ''}</option>
       {#each agents as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
@@ -63,6 +67,7 @@
     </select></label>
     {#if custom && agent}<label>Model name <input class="input" bind:value={model} disabled={busy} maxlength="100" autocomplete="off" autocapitalize="off" spellcheck="false" /></label>{/if}
     {#if reasoningChoices(options, model).length > 1}<label>Reasoning <select class="select" bind:value={reasoning} disabled={busy || !agent}><option value="">Inherit execution default</option>{#each reasoningChoices(options, model) as r (r.id)}<option value={r.id}>{r.name}</option>{/each}</select></label>{/if}
+    {/if}
     {#if !onboarding}<label>Output <select class="select" bind:value={output} disabled={busy}><option value="report">Report</option><option value="drafts">Draft tasks in Backlog</option>{#if slot.button === 'improve-tests' || slot.button === 'refactor-codebase'}<option value="changes">Propose, then implement approved changes</option>{/if}</select></label>
     <label>Approval <select class="select" bind:value={approval} disabled={busy}><option value="changes">Before changes and sensitive actions</option><option value="always">Before investigation as well</option></select></label>
     <label>Maximum repositories (0 = no additional limit) <input class="input" type="number" min="0" max="100" step="1" bind:value={maxRepositories} disabled={busy} /></label>{/if}

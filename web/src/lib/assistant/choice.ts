@@ -1,9 +1,11 @@
 // Which provider, model and reasoning level a conversation uses, and what can be chosen. The assistant borrows the person's own
 // signed-in Claude Code, Codex, Gemini CLI or OpenCode; nothing here asks for a key or an account.
 
-import type { ProviderInfo, ProviderModel } from './types';
+import { modeLabel, type SelectionMode } from '../selection';
+ import type { ProviderInfo, ProviderModel } from './types';
 
 export interface Choice {
+ mode?: SelectionMode;
   provider: string;
   /** Empty is the provider's own default. */
   model: string;
@@ -33,7 +35,7 @@ export function pickChoice(providers: ProviderInfo[], saved: Partial<Choice> | n
   if (model && !modelOf(p, model) && !p.models.custom) model = '';
   let reasoning = same ? (saved?.reasoning ?? '') : '';
   if (reasoning && !reasoningLevels(p, model).includes(reasoning)) reasoning = '';
-  return { provider: p.id, model, reasoning };
+  return { provider: p.id, model, reasoning, ...(saved ? (saved.mode ? {mode:saved.mode} : {}) : {mode:'lowest_cost' as SelectionMode}) };
 }
 
 /** A model's name for the person: its display name, "Default" for none, the id for one typed in. */
@@ -54,6 +56,7 @@ export function withModel(p: ProviderInfo | undefined, c: Choice, model: string)
 
 /** A one-line account of the choice, for the header. */
 export function summary(p: ProviderInfo | undefined, c: Choice): string {
+  if (c.mode && c.mode !== 'manual') return modeLabel(c.mode);
   if (!p) return '';
   const bits = [p.name, modelName(p, c.model)];
   if (c.reasoning) bits.push(c.reasoning);

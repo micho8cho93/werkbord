@@ -217,6 +217,7 @@ export interface NewTaskOptions {
 
 /** What may differ for one run only: the task's, the project's and the global choices apply to the rest. */
 export interface RunChoice {
+ mode?: import('./selection').SelectionMode;
  runnerId?: string;
   agentId?: string;
   model?: string;
@@ -255,7 +256,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
  setOrchestrationSettings: (projectId: string, concurrencyLimit: number) => request<{concurrencyLimit: number}>('PUT', `${inProject(projectId)}/orchestration`, {concurrencyLimit}),
  generateHandoff: (projectId: string, runId: string) => request<Run>('POST', `${inProject(projectId)}/runs/${enc(runId)}/handoff`),
  saveHandoff: (run: Run, handoff: Handoff) => request<Run>('PUT', `${inProject(run.projectId)}/runs/${enc(run.id)}/handoff`, {version: run.version, handoff}),
- continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, withoutExecution({runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})})),
+ continueRun: (run: Run, choice: RunChoice, purpose: string, instructions: string, selectedContext: string) => request<Run>('POST', `${inProject(run.projectId)}/runs/${enc(run.id)}/continue`, withoutExecution({mode:choice.mode, runnerId: choice.runnerId, agentId: choice.agentId, model: choice.model, reasoning: choice.reasoning, purpose, instructions, selectedContext, ...(choice.interaction ? {policy: {interaction:choice.interaction}} : {})})),
  health: () => request<Health>('GET', '/api/health'),
   mcpConnections: () => request<{connections:MCPConnection[] | null}>('GET', '/api/connections').then(r=>r.connections ?? []),
   mcpOperations: () => request<{operations:MCPBoardOperation[] | null}>('GET', '/api/mcp/operations').then(r=>r.operations ?? []),
@@ -376,6 +377,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
 
   startRun: (projectId: string, taskId: string, choice: RunChoice = {}, instructions = '', resume = false) =>
     request<Run>('POST', `${inProject(projectId)}/tasks/${enc(taskId)}/runs`, withoutExecution({
+      ...(choice.mode ? { mode:choice.mode } : {}),
       ...(choice.runnerId ? { runnerId:choice.runnerId } : {}),
       ...(choice.agentId ? { agentId: choice.agentId } : {}),
       ...(choice.model ? { model: choice.model } : {}),
