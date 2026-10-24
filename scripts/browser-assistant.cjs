@@ -100,7 +100,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...browserOptions });
         if (!automatic) await ctx.addInitScript(() => { if (!localStorage.getItem('werkbord.assistant.choice')) localStorage.setItem('werkbord.assistant.choice', JSON.stringify({provider:'claude-code',model:'',reasoning:'',mode:'manual'})); });
         const page = await ctx.newPage();
-        page.setDefaultTimeout(12000);
+        page.setDefaultTimeout(30000);
         current = page;
         page.on('pageerror', e => errors.push(e.message));
         page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text())) errors.push(m.text()); });

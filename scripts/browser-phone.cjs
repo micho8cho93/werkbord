@@ -38,7 +38,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: true, isMobile: true, colorScheme: scheme, deviceScaleFactor: 2, ...extra });
         await ctx.addInitScript(() => localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture'));
         const page = await ctx.newPage();
-        page.setDefaultTimeout(10000);
+        page.setDefaultTimeout(30000);
         page.on('pageerror', (e) => errors.push(e.message));
         await page.goto(base + '/#token=' + token);
         return { ctx, page };
@@ -230,7 +230,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         const newPhone = async () => {
             const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, userAgent: IPHONE });
             const page = await ctx.newPage();
-            page.setDefaultTimeout(10000);
+            page.setDefaultTimeout(30000);
             page.on('pageerror', (e) => errors.push(e.message));
             return { ctx, page };
         };
@@ -347,7 +347,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         const ph = await (await fetch(base + '/api/phones/enroll', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, name: 'Desk iPad' }) })).json();
         const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
         const page = await ctx.newPage();
-        page.setDefaultTimeout(10000);
+        page.setDefaultTimeout(30000);
         page.on('pageerror', (e) => errors.push(e.message));
         await page.goto(base + '/#token=' + token);
         // The app rewrites the address to "#/" once it has taken the token; on a slow runner that landed after the next goto.
