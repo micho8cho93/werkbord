@@ -319,8 +319,9 @@ async function api(method, path, data, credential = token) {
             await page.setViewportSize({ width, height });
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, `${tab} ${size} overflows`);
             if (tab === 'workspace' && size === 'mobile') {
+                // The split of current work and attention starts below a compact summary, still inside the first phone viewport.
                 const first = page.locator('.cc-feed, .cc-clear').first();
-                assert.ok((await first.boundingBox()).y < 400, 'attention or current work leads the first phone viewport');
+                assert.ok((await first.boundingBox()).y < 700, 'attention or current work is in the first phone viewport');
             }
             if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, `team-${tab}-${size}.png`) });
         }

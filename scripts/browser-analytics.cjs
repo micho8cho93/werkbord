@@ -107,6 +107,8 @@ let browser;
   await page.route('**/api/analytics?*', async route => {
     const response = await route.fetch();
     const snapshot = await response.json();
+    // The page opens on All projects, so earlier suites' projects are in the snapshot: this check is about the fixture's own.
+    snapshot.executions = snapshot.executions.filter(row => row.projectId === project.id);
     assert.equal(snapshot.executions.length, 1);
     snapshot.executions[0].attempts = 10;
     snapshot.executions[0].outcomes = {completed: 10};
