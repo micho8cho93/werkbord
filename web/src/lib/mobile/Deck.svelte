@@ -5,8 +5,7 @@
   import { isPhone } from '../phones/capability';
   import { runStatus } from '../format';
   import Icon from '../Icon.svelte';
-  import WorkspaceIcon from '../personal/WorkspaceIcon.svelte';
-  import Mark from '../Mark.svelte';
+    import Mark from '../Mark.svelte';
   import { globalHref, taskHref } from '../location';
   import { app } from '../state.svelte';
   import { activeRunners, connectionWord, deckCounts, deckKeys, workspaceHref, type DeckKey } from './deck';
@@ -44,7 +43,11 @@
     personalAPI.workspaces().then((list) => { if (live) { workspaces = list; workspacesLoaded = true; } }, () => { /* not served here: the deck shows no workspaces */ });
     return () => { live = false; };
   });
+  // Tapping an empty position starts Edit Deck itself; going to Salie from there changes nothing yet, so the deck goes back to normal.
+  let openedEditing = false;
   function createWithSalie() {
+    if (openedEditing) editing = false;
+    openedEditing = false;
     assistant.personalEditing = undefined;
     assistant.draft = personalWorkspaceDraft('');
     assistant.show();
@@ -318,23 +321,13 @@
               if (guide === 3) configureGuide();
               else if (guide === 4 && preview) advance(5);
               else if (guide === 4) void launch(slot);
-            } : !slot || editing ? () => { if (guide) { if (guide === 2 && i >= 6) library = i; } else { editing = true; library = i; } } : slot && workflow(slot.button) ? () => void launch(slot) : undefined}
+            } : !slot || editing ? () => { if (guide) { if (guide === 2 && i >= 6) library = i; } else { openedEditing = !editing; editing = true; library = i; } } : slot && workflow(slot.button) ? () => void launch(slot) : undefined}
             onconfigure={slot && workflow(slot.button) ? () => { if (guide) guideSlot = slot.id; configuring = i; } : undefined}
             ondrag={(x,y) => dragging(i,x,y)} ondrop={drop} />
         </div>
       {/each}
     </div>
   </section>
-  {#if workspacesLoaded && !guide}
-    <section class="workspaces" aria-label="Workspaces" data-testid="deck-workspaces">
-      <h2>Workspaces</h2>
-      {#each workspaces as made (made.id)}
-        <a class="workspace-row" href={workspaceHref(made.id)} data-workspace-id={made.id}><WorkspaceIcon icon={made.icon} name={made.name} size={18} /><span>{made.name}</span></a>
-      {/each}
-      <button class="btn" type="button" onclick={createWithSalie} data-testid="deck-create-workspace"><Icon name="plus" size={16} />Create with Salie</button>
-      {#if workspaces.length}<p class="muted">To put one on a button, use Edit Deck.</p>{/if}
-    </section>
-  {/if}
   {#if app.lastProjectId && !guide && !editing}
     <RecommendationList projectId={app.lastProjectId} onworkflow={pointAt} onsuggest={ids => (suggested = ids)} />
   {/if}
@@ -350,7 +343,7 @@
   {/if}
   <DeckRuns {history} />
   {#if library !== null}
-    <DeckLibrary onboarding={!!guide} {workspaces} position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose}
+    <DeckLibrary onboarding={!!guide} {workspaces} position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose} oncreate={() => { library = null; createWithSalie(); }}
       onremove={() => { if (library !== null) layout.slots = place(layout.slots,library,null); library = null; if (guide) void persist().catch(() => {}); }}
       onmove={to => { if (library !== null) move(library,to); }}
       onconfigure={() => { configuring = library; library = null; }} />
@@ -378,13 +371,6 @@
 </div>
 
 <style>
-  .workspaces { display: grid; gap: 8px; margin-top: 8px; }
-  .workspaces h2 { margin: 0; font: 600 11.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-2); }
-  .workspace-row { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); text-decoration: none; }
-  .workspace-row span { min-width: 0; overflow-wrap: anywhere; }
-  .workspace-row :global(svg) { flex: none; color: var(--text-2); }
-  .workspaces .btn { justify-self: start; min-height: 44px; }
-  .workspaces .muted { margin: 0; color: var(--text-2); font-size: 12px; }
   .guided { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 17px; }
   /* A suggested workflow's key is marked, not pressed. The ring is dashed so that it is not mistaken for the onboarding guide's. */
   .suggested { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 17px; }

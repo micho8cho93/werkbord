@@ -99,19 +99,25 @@ const workspace = (name, collectionId) => {
   try {
     // 1. It is on the phone's deck without any step on the phone.
     await page.goto(base + '/#/deck');
+    // The workspaces are in the Add button sheet with Create with Salie, not under the deck.
     const section = page.getByTestId('deck-workspaces');
-    await section.getByRole('link', { name: 'Made at the computer' }).waitFor();
+    await page.getByRole('button', { name: 'Empty slot. Add a button' }).first().click();
+    await section.getByRole('button', { name: 'Made at the computer' }).waitFor();
+    await section.getByRole('button', { name: /^Create with Salie/ }).waitFor();
     assert.equal(await overflow(), 0, 'the deck must not scroll sideways');
-    await shot('deck-with-workspace');
-    ok('a workspace made at the computer is listed on the phone deck automatically');
+    await delay(500); await shot('add-button-with-workspace');
+    ok('a workspace made at the computer is in the phone’s Add button list, with Create with Salie');
 
     // 2. Another one made while the phone is looking appears without a reload.
     const second = await call(owner, 'POST', personal + '/workspaces', workspace('Made while you watched', tasks.id));
-    await section.getByRole('link', { name: 'Made while you watched' }).waitFor();
+    await section.getByRole('button', { name: 'Made while you watched' }).waitFor();
     ok('a workspace made later shows up live, with no reload');
+    await page.getByRole('button', { name: 'Close' }).click();
+    await section.waitFor({ state: 'detached' });
+    assert.equal(await page.locator('.workspace-row').count(), 0, 'the list is not under the deck');
 
     // 3. Opening it: Back, records, no owner-only controls.
-    await section.getByRole('link', { name: 'Made at the computer' }).click();
+    await page.goto(base + '/#/personal?id=' + first.id);
     await page.getByRole('heading', { name: 'Made at the computer', level: 1 }).waitFor();
     await page.getByTestId('phone-back').waitFor();
     assert.equal(await page.getByRole('button', { name: 'Data library' }).count(), 0, 'the data library is the owner’s');
@@ -175,12 +181,13 @@ const workspace = (name, collectionId) => {
     await page.getByTestId('phone-back').click();
     await page.locator('[data-key]').filter({ hasText: 'Made at the computer' }).waitFor();
     await removeWorkspace(first.id);
-    await section.locator(`[data-workspace-id="${first.id}"]`).waitFor({ state: 'detached' });
     await page.locator('[data-key]').filter({ hasText: 'Removed workspace' }).waitFor();
     ok('a workspace deleted at the computer leaves the phone’s list and its button says so');
     // 11. Made with Salie on the phone: confirmed on the phone, then it is the computer's too, and on the deck at once.
     await removeWorkspace(second.id); // the fixture's model only proposes a workspace when there is none yet
-    await section.locator(`[data-workspace-id="${second.id}"]`).waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Empty slot. Add a button' }).first().click();
+    await section.waitFor();
+    await section.locator(`[data-workspace-id="${first.id}"], [data-workspace-id="${second.id}"]`).waitFor({ state: 'detached' });
     await page.getByTestId('deck-create-workspace').click();
     const box = page.getByRole('textbox', { name: 'Message to the assistant' });
     await box.waitFor();
@@ -195,8 +202,14 @@ const workspace = (name, collectionId) => {
     const made = (await call(owner, 'GET', personal + '/workspaces')).items.find(w => w.name === 'Weekly to-dos');
     assert.ok(made, 'the computer reads the workspace the phone confirmed');
     await page.getByTestId('nav-deck').click(); // on a phone the Control Deck tab closes the Assistant
+    await page.getByRole('button', { name: 'Empty slot. Add a button' }).first().click();
     await section.locator(`[data-workspace-id="${made.id}"]`).waitFor();
-    ok('a workspace made with Salie on the phone is saved once confirmed, and is listed on the deck and for the computer');
+    ok('a workspace made with Salie on the phone is saved once confirmed, and is in the Add button list and for the computer');
+    await section.locator(`[data-workspace-id="${made.id}"]`).click();
+    await page.getByTestId('edit-deck').click();
+    await page.locator('[data-key]').filter({ hasText: 'Weekly to-dos' }).waitFor();
+    assert.ok((await call(phoneToken, 'GET', '/api/deck')).slots.some(s => s && s.button === made.id), 'the button is saved');
+    ok('the new workspace can be put on a button straight from that list');
     assert.deepEqual(errors, [], 'no browser exceptions');
   } catch (err) {
     await shot('failure').catch(() => {});

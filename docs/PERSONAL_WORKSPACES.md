@@ -503,14 +503,16 @@ characters), validated as a navigation button: it has no execution settings, and
 workspace still exists, because it can be deleted at the computer. A button whose workspace is gone says “Removed
 workspace” and can be removed in Edit Deck. Each phone has its own deck.
 
-Buttons are added from the deck's Add button library (“Your workspaces”) or from a workspace's page (“Add to Control
-Deck”). Separately, the deck lists **every** generated workspace under “Workspaces” and has **Create with Salie**, so a
-workspace is on a phone without being placed on a button. Pinning is a shortcut, not a requirement.
+Buttons are added from the deck's Add button sheet or from a workspace's page (“Add to Control Deck”). The sheet's first
+section, “Your workspaces”, starts with **Create with Salie** and then lists **every** generated workspace, whichever
+device made it; choosing one puts it on that position. Nothing is listed under the deck itself. Create with Salie opens
+the Assistant on the phone, and once the workspace is confirmed it is in that list at once (and is the computer's too),
+ready to be put on a button or removed from one later.
 
 ### Staying in step
 
 Workspace, collection and record changes emit `personal.*` invalidation events (an ID and a revision, never content).
-The app subscribes to them: the phone's deck list and an open workspace page reload when either device changes
+The app subscribes to them: the phone's Add button list and an open workspace page reload when either device changes
 something, and the open page does not read over a save that is still going. The desktop shell polls its list every few
 seconds. A deleted workspace leaves both lists on the next change.
 
@@ -521,7 +523,7 @@ and Team contexts it is the first entry of the generated group, with the workspa
 
 Verified by `scripts/browser-personal-phone.cjs` (Chromium and WebKit, phone-sized touch browser, real enrolled-phone
 credential): deck listing, live updates both ways, record work, Back, no owner-only controls, card tables, deck button,
-refusals, deletion at the computer, and a workspace made with Salie on the phone.
+refusals, deletion at the computer, and a workspace made with Salie on the phone and put on a button.
 
 ## Workspace icon identity
 
