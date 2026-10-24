@@ -33,6 +33,7 @@ import (
 // Options configures a Manager. Everything without a default is required.
 type Options struct {
 	RefreshRemotes func(context.Context, string) error
+	Maintenance    func(context.Context) error
 	Distributed    *service.Runners
 	Scheduler      *service.Scheduler
 	Handoffs       *service.Handoffs

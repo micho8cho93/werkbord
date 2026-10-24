@@ -1,0 +1,925 @@
+[
+  {
+    "name": "Sales CRM",
+    "prompt": "Create Sales CRM in Individual with Leads, Pipeline, Follow Ups, Potential Revenue.",
+    "change": {
+      "workspace": {
+        "name": "Sales CRM",
+        "icon": "auto",
+        "uiSchemaVersion": 1,
+        "visibility": {
+          "universal": false,
+          "individual": true,
+          "teamWorkspaceIds": []
+        },
+        "collectionIds": [
+          "records"
+        ],
+        "readBindings": [],
+        "definition": {
+          "views": [
+            {
+              "id": "leads",
+              "name": "Leads",
+              "kind": "table",
+              "collectionId": "records",
+              "fields": [
+                "name",
+                "stage",
+                "revenue",
+                "probability",
+                "weighted",
+                "follow_up"
+              ],
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ],
+              "actions": [
+                {
+                  "id": "contact",
+                  "name": "Mark contacted",
+                  "steps": [
+                    {
+                      "operation": "update",
+                      "values": {
+                        "stage": "Contacted"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "summary",
+                  "name": "Summarise pipeline",
+                  "prompt": "Summarise the active sales pipeline and recommend follow-ups.",
+                  "steps": []
+                }
+              ]
+            },
+            {
+              "id": "pipeline",
+              "name": "Pipeline",
+              "kind": "board",
+              "collectionId": "records",
+              "fields": [
+                "name",
+                "revenue"
+              ],
+              "groupBy": "stage",
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ]
+            },
+            {
+              "id": "follow_ups",
+              "name": "Follow Ups",
+              "kind": "calendar",
+              "collectionId": "records",
+              "fields": [
+                "name",
+                "stage"
+              ],
+              "dateField": "follow_up"
+            },
+            {
+              "id": "potential_revenue",
+              "name": "Potential Revenue",
+              "kind": "metric",
+              "collectionId": "records",
+              "fields": [
+                "revenue"
+              ],
+              "metric": {
+                "operation": "sum",
+                "field": "revenue"
+              }
+            }
+          ],
+          "layout": {
+            "type": "stack",
+            "children": [
+              {
+                "type": "view",
+                "viewId": "leads"
+              },
+              {
+                "type": "view",
+                "viewId": "pipeline"
+              },
+              {
+                "type": "view",
+                "viewId": "follow_ups"
+              },
+              {
+                "type": "view",
+                "viewId": "potential_revenue"
+              }
+            ]
+          }
+        }
+      },
+      "collections": [
+        {
+          "id": "records",
+          "revision": 0,
+          "spec": {
+            "name": "Sales CRM records",
+            "schemaVersion": 1,
+            "fields": [
+              {
+                "key": "name",
+                "name": "Name",
+                "type": "text",
+                "required": true
+              },
+              {
+                "key": "stage",
+                "name": "Stage",
+                "type": "select",
+                "options": [
+                  "New",
+                  "Contacted",
+                  "Won"
+                ]
+              },
+              {
+                "key": "revenue",
+                "name": "Revenue",
+                "type": "number",
+                "min": 0
+              },
+              {
+                "key": "probability",
+                "name": "Probability",
+                "type": "number",
+                "min": 0,
+                "max": 1
+              },
+              {
+                "key": "weighted",
+                "name": "Weighted",
+                "type": "number",
+                "formula": {
+                  "op": "multiply",
+                  "args": [
+                    {
+                      "op": "field",
+                      "field": "revenue"
+                    },
+                    {
+                      "op": "field",
+                      "field": "probability"
+                    }
+                  ]
+                }
+              },
+              {
+                "key": "follow_up",
+                "name": "Follow Up",
+                "type": "date"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "values": {
+      "name": "Illustrative lead",
+      "stage": "New",
+      "revenue": 1200,
+      "probability": 0.5,
+      "follow_up": "2026-11-01"
+    }
+  },
+  {
+    "name": "Marketing Calendar",
+    "prompt": "Create Marketing Calendar in Individual with Campaigns, Schedule, Performance, Content Plan.",
+    "change": {
+      "workspace": {
+        "name": "Marketing Calendar",
+        "icon": "auto",
+        "uiSchemaVersion": 1,
+        "visibility": {
+          "universal": false,
+          "individual": true,
+          "teamWorkspaceIds": []
+        },
+        "collectionIds": [
+          "records"
+        ],
+        "readBindings": [],
+        "definition": {
+          "views": [
+            {
+              "id": "campaigns",
+              "name": "Campaigns",
+              "kind": "form",
+              "collectionId": "records",
+              "fields": [
+                "title",
+                "status",
+                "publish",
+                "impressions",
+                "clicks",
+                "plan"
+              ],
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ]
+            },
+            {
+              "id": "schedule",
+              "name": "Schedule",
+              "kind": "calendar",
+              "collectionId": "records",
+              "fields": [
+                "title",
+                "status"
+              ],
+              "dateField": "publish",
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ]
+            },
+            {
+              "id": "performance",
+              "name": "Performance",
+              "kind": "metric",
+              "collectionId": "records",
+              "fields": [
+                "ctr"
+              ],
+              "metric": {
+                "operation": "average",
+                "field": "ctr"
+              }
+            },
+            {
+              "id": "content_plan",
+              "name": "Content Plan",
+              "kind": "document",
+              "collectionId": "records",
+              "fields": [
+                "title",
+                "status"
+              ],
+              "bodyField": "plan",
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ]
+            }
+          ],
+          "layout": {
+            "type": "stack",
+            "children": [
+              {
+                "type": "view",
+                "viewId": "campaigns"
+              },
+              {
+                "type": "view",
+                "viewId": "schedule"
+              },
+              {
+                "type": "view",
+                "viewId": "performance"
+              },
+              {
+                "type": "view",
+                "viewId": "content_plan"
+              }
+            ]
+          }
+        }
+      },
+      "collections": [
+        {
+          "id": "records",
+          "revision": 0,
+          "spec": {
+            "name": "Marketing Calendar records",
+            "schemaVersion": 1,
+            "fields": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "text",
+                "required": true
+              },
+              {
+                "key": "status",
+                "name": "Status",
+                "type": "select",
+                "options": [
+                  "Planned",
+                  "Published"
+                ]
+              },
+              {
+                "key": "publish",
+                "name": "Publish",
+                "type": "date"
+              },
+              {
+                "key": "impressions",
+                "name": "Impressions",
+                "type": "number",
+                "min": 0
+              },
+              {
+                "key": "clicks",
+                "name": "Clicks",
+                "type": "number",
+                "min": 0
+              },
+              {
+                "key": "ctr",
+                "name": "Ctr",
+                "type": "number",
+                "formula": {
+                  "op": "divide",
+                  "args": [
+                    {
+                      "op": "field",
+                      "field": "clicks"
+                    },
+                    {
+                      "op": "field",
+                      "field": "impressions"
+                    }
+                  ]
+                }
+              },
+              {
+                "key": "plan",
+                "name": "Plan",
+                "type": "longtext"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "values": {
+      "title": "Illustrative campaign",
+      "status": "Planned",
+      "publish": "2026-11-01",
+      "impressions": 1000,
+      "clicks": 25,
+      "plan": "Campaign notes"
+    }
+  },
+  {
+    "name": "Product Launch Center",
+    "prompt": "Create Product Launch Center in Individual with Milestones, Readiness, Launch Deadline, Launch Timeline, Budget.",
+    "change": {
+      "workspace": {
+        "name": "Product Launch Center",
+        "icon": "auto",
+        "uiSchemaVersion": 1,
+        "visibility": {
+          "universal": false,
+          "individual": true,
+          "teamWorkspaceIds": []
+        },
+        "collectionIds": [
+          "records"
+        ],
+        "readBindings": [],
+        "definition": {
+          "views": [
+            {
+              "id": "milestones",
+              "name": "Milestones",
+              "kind": "checklist",
+              "collectionId": "records",
+              "fields": [
+                "title",
+                "due"
+              ],
+              "checkedField": "done",
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ]
+            },
+            {
+              "id": "readiness",
+              "name": "Readiness",
+              "kind": "progress",
+              "collectionId": "records",
+              "fields": [
+                "title"
+              ],
+              "checkedField": "done"
+            },
+            {
+              "id": "launch_deadline",
+              "name": "Launch Deadline",
+              "kind": "countdown",
+              "collectionId": "records",
+              "fields": [
+                "title"
+              ],
+              "dateField": "due"
+            },
+            {
+              "id": "launch_timeline",
+              "name": "Launch Timeline",
+              "kind": "timeline",
+              "collectionId": "records",
+              "fields": [
+                "title"
+              ],
+              "dateField": "start",
+              "endDateField": "due"
+            },
+            {
+              "id": "budget",
+              "name": "Budget",
+              "kind": "metric",
+              "collectionId": "records",
+              "fields": [
+                "budget"
+              ],
+              "metric": {
+                "operation": "sum",
+                "field": "budget"
+              }
+            }
+          ],
+          "layout": {
+            "type": "stack",
+            "children": [
+              {
+                "type": "view",
+                "viewId": "milestones"
+              },
+              {
+                "type": "view",
+                "viewId": "readiness"
+              },
+              {
+                "type": "view",
+                "viewId": "launch_deadline"
+              },
+              {
+                "type": "view",
+                "viewId": "launch_timeline"
+              },
+              {
+                "type": "view",
+                "viewId": "budget"
+              }
+            ]
+          }
+        }
+      },
+      "collections": [
+        {
+          "id": "records",
+          "revision": 0,
+          "spec": {
+            "name": "Product Launch Center records",
+            "schemaVersion": 1,
+            "fields": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "text",
+                "required": true
+              },
+              {
+                "key": "done",
+                "name": "Done",
+                "type": "boolean"
+              },
+              {
+                "key": "start",
+                "name": "Start",
+                "type": "date"
+              },
+              {
+                "key": "due",
+                "name": "Due",
+                "type": "date"
+              },
+              {
+                "key": "budget",
+                "name": "Budget",
+                "type": "number",
+                "min": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "values": {
+      "title": "Illustrative launch milestone",
+      "done": false,
+      "start": "2026-10-24",
+      "due": "2026-11-14",
+      "budget": 800
+    }
+  },
+  {
+    "name": "Engineering Decision Log",
+    "prompt": "Create Engineering Decision Log in Individual with Decisions, Documentation, Relationships.",
+    "change": {
+      "workspace": {
+        "name": "Engineering Decision Log",
+        "icon": "auto",
+        "uiSchemaVersion": 1,
+        "visibility": {
+          "universal": false,
+          "individual": true,
+          "teamWorkspaceIds": []
+        },
+        "collectionIds": [
+          "records"
+        ],
+        "readBindings": [],
+        "definition": {
+          "views": [
+            {
+              "id": "decisions",
+              "name": "Decisions",
+              "kind": "table",
+              "collectionId": "records",
+              "fields": [
+                "title",
+                "status",
+                "impact",
+                "confidence",
+                "score"
+              ],
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ],
+              "actions": [
+                {
+                  "id": "accept",
+                  "name": "Accept decision",
+                  "when": [
+                    {
+                      "field": "status",
+                      "value": "Proposed"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "operation": "update",
+                      "values": {
+                        "status": "Accepted"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "documentation",
+              "name": "Documentation",
+              "kind": "pages",
+              "collectionId": "records",
+              "fields": [
+                "title",
+                "status"
+              ],
+              "bodyField": "body",
+              "parentField": "parent",
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ]
+            },
+            {
+              "id": "relationships",
+              "name": "Relationships",
+              "kind": "hierarchy",
+              "collectionId": "records",
+              "fields": [
+                "title"
+              ],
+              "parentField": "parent"
+            }
+          ],
+          "layout": {
+            "type": "stack",
+            "children": [
+              {
+                "type": "view",
+                "viewId": "decisions"
+              },
+              {
+                "type": "view",
+                "viewId": "documentation"
+              },
+              {
+                "type": "view",
+                "viewId": "relationships"
+              }
+            ]
+          }
+        }
+      },
+      "collections": [
+        {
+          "id": "records",
+          "revision": 0,
+          "spec": {
+            "name": "Engineering Decision Log records",
+            "schemaVersion": 1,
+            "fields": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "text",
+                "required": true
+              },
+              {
+                "key": "status",
+                "name": "Status",
+                "type": "select",
+                "options": [
+                  "Proposed",
+                  "Accepted"
+                ]
+              },
+              {
+                "key": "impact",
+                "name": "Impact",
+                "type": "number",
+                "min": 1,
+                "max": 5,
+                "input": "rating"
+              },
+              {
+                "key": "confidence",
+                "name": "Confidence",
+                "type": "number",
+                "min": 1,
+                "max": 5,
+                "input": "slider"
+              },
+              {
+                "key": "score",
+                "name": "Score",
+                "type": "number",
+                "formula": {
+                  "op": "multiply",
+                  "args": [
+                    {
+                      "op": "field",
+                      "field": "impact"
+                    },
+                    {
+                      "op": "field",
+                      "field": "confidence"
+                    }
+                  ]
+                }
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "type": "longtext"
+              },
+              {
+                "key": "parent",
+                "name": "Parent",
+                "type": "text"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "values": {
+      "title": "Illustrative architecture choice",
+      "status": "Proposed",
+      "impact": 4,
+      "confidence": 3,
+      "body": "Alternatives and scoring rationale"
+    }
+  },
+  {
+    "name": "Personal Productivity Dashboard",
+    "prompt": "Create Personal Productivity Dashboard in Individual with Tasks, Calendar, Progress, Notes, Reminders.",
+    "change": {
+      "workspace": {
+        "name": "Personal Productivity Dashboard",
+        "icon": "auto",
+        "uiSchemaVersion": 1,
+        "visibility": {
+          "universal": false,
+          "individual": true,
+          "teamWorkspaceIds": []
+        },
+        "collectionIds": [
+          "records"
+        ],
+        "readBindings": [],
+        "definition": {
+          "views": [
+            {
+              "id": "tasks",
+              "name": "Tasks",
+              "kind": "checklist",
+              "collectionId": "records",
+              "fields": [
+                "title",
+                "due",
+                "reminder"
+              ],
+              "checkedField": "done",
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ],
+              "actions": [
+                {
+                  "id": "dismiss",
+                  "name": "Dismiss reminder",
+                  "steps": [
+                    {
+                      "operation": "update",
+                      "values": {
+                        "reminder": false
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "calendar",
+              "name": "Calendar",
+              "kind": "calendar",
+              "collectionId": "records",
+              "fields": [
+                "title"
+              ],
+              "dateField": "due"
+            },
+            {
+              "id": "progress",
+              "name": "Progress",
+              "kind": "progress",
+              "collectionId": "records",
+              "fields": [
+                "title"
+              ],
+              "checkedField": "done"
+            },
+            {
+              "id": "notes",
+              "name": "Notes",
+              "kind": "document",
+              "collectionId": "records",
+              "fields": [
+                "title"
+              ],
+              "bodyField": "notes",
+              "operations": [
+                "create",
+                "update",
+                "delete"
+              ]
+            },
+            {
+              "id": "reminders",
+              "name": "Reminders",
+              "kind": "list",
+              "collectionId": "records",
+              "fields": [
+                "title",
+                "due"
+              ],
+              "visibleWhen": [
+                {
+                  "field": "reminder",
+                  "value": "true"
+                }
+              ],
+              "filters": [
+                {
+                  "field": "reminder",
+                  "value": "true"
+                }
+              ]
+            }
+          ],
+          "layout": {
+            "type": "stack",
+            "children": [
+              {
+                "type": "view",
+                "viewId": "tasks"
+              },
+              {
+                "type": "view",
+                "viewId": "calendar"
+              },
+              {
+                "type": "view",
+                "viewId": "progress"
+              },
+              {
+                "type": "view",
+                "viewId": "notes"
+              },
+              {
+                "type": "view",
+                "viewId": "reminders"
+              }
+            ]
+          }
+        }
+      },
+      "collections": [
+        {
+          "id": "records",
+          "revision": 0,
+          "spec": {
+            "name": "Personal Productivity Dashboard records",
+            "schemaVersion": 1,
+            "fields": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "text",
+                "required": true
+              },
+              {
+                "key": "done",
+                "name": "Done",
+                "type": "boolean"
+              },
+              {
+                "key": "due",
+                "name": "Due",
+                "type": "date"
+              },
+              {
+                "key": "reminder",
+                "name": "Reminder",
+                "type": "boolean"
+              },
+              {
+                "key": "last_reminded",
+                "name": "Last Reminded",
+                "type": "datetime"
+              },
+              {
+                "key": "notes",
+                "name": "Notes",
+                "type": "longtext"
+              }
+            ],
+            "rules": [
+              {
+                "id": "daily_reminder",
+                "when": [
+                  {
+                    "field": "done",
+                    "value": "false"
+                  }
+                ],
+                "set": {
+                  "reminder": true
+                },
+                "schedule": {
+                  "dateField": "due",
+                  "lastRunField": "last_reminded",
+                  "everyDays": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "values": {
+      "title": "Illustrative recurring task",
+      "done": false,
+      "due": "2026-10-24",
+      "notes": "Personal notes"
+    }
+  }
+]

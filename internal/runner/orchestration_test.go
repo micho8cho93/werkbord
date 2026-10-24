@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -391,5 +392,33 @@ func TestSchedulerBlocksRepositoryOperationAndStalePinnedTarget(t *testing.T) {
 	git(t, e.repo, "commit", "-qm", "target changed")
 	if err := e.mgr.opt.Scheduler.CheckStart(ctx, task.ID, task.Orchestration.Key); !errors.Is(err, domain.ErrConflict) || !strings.Contains(err.Error(), "stale target") {
 		t.Fatalf("pin: %v", err)
+	}
+}
+
+func TestPersonalScheduledRuleRunsInExistingLoopWithoutFrontend(t *testing.T) {
+	e := newEnv(t)
+	personal := &service.Personal{Deps: e.runs.Deps}
+	c, err := personal.CreateCollection(ctx, domain.PersonalCollectionSpec{Name: "Reminder", SchemaVersion: 1, Fields: []domain.PersonalField{{Key: "due", Name: "Due", Type: "date"}, {Key: "last", Name: "Last", Type: "datetime"}, {Key: "reminded", Name: "Reminded", Type: "boolean"}}, Rules: []domain.PersonalRule{{ID: "daily", Set: map[string]json.RawMessage{"reminded": json.RawMessage(`true`)}, Schedule: &domain.PersonalRuleSchedule{DateField: "due", LastRunField: "last", EveryDays: 1}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := personal.CreateRecord(ctx, c.ID, map[string]json.RawMessage{"due": json.RawMessage(`"2026-01-01"`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.mgr.opt.Maintenance = personal.Maintain
+	background, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan struct{})
+	go func() { defer close(done); e.mgr.ScheduleLoop(background) }()
+	eventually(t, "personal reminder", func() bool {
+		saved, err := personal.GetRecord(ctx, c.ID, record.ID)
+		return err == nil && string(saved.Values["reminded"]) == "true"
+	})
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("personal maintenance did not stop with controller")
 	}
 }

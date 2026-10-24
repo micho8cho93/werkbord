@@ -27,6 +27,7 @@
     loading = true; problem = ''; session = null;
     const next = new WorkspaceSession(shellPersonalAPI);
     // The window opens the places a shortcut names; each is one of the window's own, never an address from the workspace.
+    next.assist = (prompt) => {void model.customizeGenerated(id, next.workspace?.revision, prompt);};
     next.navigable = ['home', 'projects', 'analytics', 'calendar', 'data-library', 'settings', 'assistant'];
     next.navigate = (place: ShortcutTarget) => {
       if (place === 'calendar') model.go('calendar');

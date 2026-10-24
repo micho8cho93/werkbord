@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { setContext } from 'svelte';
+  import { onMount, setContext } from 'svelte';
   import { Renderer } from '@openuidev/svelte-lang';
   import { WORKSPACE_CONTEXT, type WorkspaceSession } from './session.svelte';
   import { workspaceLibrary, workspaceSource } from './library';
@@ -9,6 +9,7 @@
   setContext(WORKSPACE_CONTEXT, session);
   const source = $derived(session.workspace ? workspaceSource(session.workspace) : '');
   let invalid = $state(false);
+  onMount(() => {const timer = setInterval(() => {void session.refreshRecords();}, 60000); return () => clearInterval(timer);});
 </script>
 
 {#if session.workspace}

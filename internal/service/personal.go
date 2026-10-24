@@ -4,17 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"devboard/internal/domain"
 	"devboard/internal/store"
 )
 
 // Personal is private local owner data. Only the authenticated loopback owner
-// API and owner assistant proposals wire this service. It is absent from MCP and the
-// desktop/Team bridges; a display location grants no access to another product.
+// API, finite desktop transport and owner assistant wire this service. It is absent
+// from MCP and Team services; a display location grants no access to another product.
 type Personal struct {
 	Deps
-	contexts displayContexts
+	contexts              displayContexts
+	maintenanceMu         sync.Mutex
+	maintenanceAfter      map[string]string
+	maintenanceCollection string
 }
 
 func personalIDCheck(id, prefix string) error {
@@ -238,9 +242,11 @@ func (s *Personal) CreateRecord(ctx context.Context, collection string, values m
 		if err != nil {
 			return err
 		}
+		values = domain.PersonalApplyRules(c.PersonalCollectionSpec, values, s.now(), false)
 		if err = domain.ValidatePersonalValues(c.PersonalCollectionSpec, values); err != nil {
 			return err
 		}
+		v.Values = values
 		if err = tx.Personal().CreateRecord(ctx, v); err != nil {
 			return err
 		}
@@ -266,6 +272,7 @@ func (s *Personal) UpdateRecord(ctx context.Context, collection, id string, revi
 		if err != nil {
 			return err
 		}
+		values = domain.PersonalApplyRules(c.PersonalCollectionSpec, values, s.now(), false)
 		if err = domain.ValidatePersonalValues(c.PersonalCollectionSpec, values); err != nil {
 			return err
 		}
@@ -285,6 +292,13 @@ func (s *Personal) GetRecord(ctx context.Context, collection, id string) (*domai
 	err := s.Store.View(ctx, func(tx store.Tx) error {
 		var err error
 		v, err = tx.Personal().GetRecord(ctx, collection, id)
+		if err != nil {
+			return err
+		}
+		c, err := tx.Personal().GetCollection(ctx, collection)
+		if err == nil {
+			v.Values = domain.PersonalCalculatedValues(c.PersonalCollectionSpec, v.Values)
+		}
 		return err
 	})
 	return v, err
@@ -298,11 +312,14 @@ func (s *Personal) ListRecords(ctx context.Context, collection string, q domain.
 	}
 	var out []domain.PersonalRecord
 	err := s.Store.View(ctx, func(tx store.Tx) error {
-		if _, err := tx.Personal().GetCollection(ctx, collection); err != nil {
+		c, err := tx.Personal().GetCollection(ctx, collection)
+		if err != nil {
 			return err
 		}
-		var err error
 		out, err = tx.Personal().ListRecords(ctx, collection, q)
+		for i := range out {
+			out[i].Values = domain.PersonalCalculatedValues(c.PersonalCollectionSpec, out[i].Values)
+		}
 		return err
 	})
 	return out, err

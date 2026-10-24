@@ -83,9 +83,9 @@ export class Model {
     try { this.generated = await shellPersonalAPI.workspaces(); this.generatedError = ''; }
     catch (e) { this.generated = []; this.generatedError = (e as Error).message; }
   }
-  async customizeGenerated(id = '', revision?: number): Promise<void> {
+  async customizeGenerated(id = '', revision?: number, prompt?: string): Promise<void> {
     const rect = this.assistantButton?.getBoundingClientRect();
-    await this.toggleAssistant(rect ?? {x: 24, y: 24, width: 0, height: 0}, id, revision);
+    await this.toggleAssistant(rect ?? {x: 24, y: 24, width: 0, height: 0}, id, revision, prompt);
   }
 
   /** The workspace the Workspace page shows. */
@@ -117,7 +117,7 @@ export class Model {
   /** How Individual's assistant stands, as it last said: open over everything, something waiting for the person, a reply on the way. */
   assistant = $state({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
-  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor; personalWorkspace?: string; personalRevision?: number } | null>(null);
+  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor; personalWorkspace?: string; personalRevision?: number; personalPrompt?: string } | null>(null);
   /** The floating Salie button: the assistant opens out of it, and focus comes back to it. */
   assistantButton: HTMLElement | undefined;
   /**
@@ -185,7 +185,7 @@ export class Model {
    * nothing underneath is touched: whatever was showing is still there, covered, when it closes. The frame is told where the button
    * is (in the window's coordinates, which are the frame's) so that it grows out of it and collapses back into it.
    */
-  async toggleAssistant(rect: Anchor, personalWorkspace?: string, personalRevision?: number): Promise<void> {
+  async toggleAssistant(rect: Anchor, personalWorkspace?: string, personalRevision?: number, personalPrompt?: string): Promise<void> {
     if (this.setupRequired && !this.setupPaused) { await this.open('personal', '#/onboarding'); return; }
     if (this.assistantShown && personalWorkspace === undefined) {
       this.assistantAsk = { action: 'close', rect };
@@ -209,7 +209,7 @@ export class Model {
       this.assistantOpening = false;
       if (!this.assistant.open) this.assistantShown = false;
     }, 5000);
-    this.assistantAsk = { action: 'open', rect, ...(personalWorkspace === undefined ? {} : { personalWorkspace, ...(personalRevision === undefined ? {} : { personalRevision }) }) };
+    this.assistantAsk = { action: 'open', rect, ...(personalPrompt === undefined ? {} : {personalPrompt}), ...(personalWorkspace === undefined ? {} : { personalWorkspace, ...(personalRevision === undefined ? {} : { personalRevision }) }) };
   }
 
   /** The assistant's page says how it stands. When it has closed, the frame is put away and focus goes back to the button. */

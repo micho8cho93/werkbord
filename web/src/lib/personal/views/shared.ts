@@ -34,7 +34,7 @@ export function newRecordValues(collection: Collection, view: View, given: Value
     values[field.key] = field.type === 'select' ? (field.options?.[0] ?? '')
       : field.type === 'multiselect' ? []
       : field.type === 'boolean' ? false
-      : field.type === 'number' ? 0
+      : field.type === 'number' ? (field.min ?? 0)
       : field.type === 'date' ? localDate()
       : field.type === 'datetime' ? new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
       : field.type === 'url' ? 'https://example.com'

@@ -1,5 +1,11 @@
 # Personal Generative Workspaces
 
+The additive composable engine (4.80) extends the historical phase contracts below.
+See [engine architecture, capabilities and validation](PERSONAL_WORKSPACE_ENGINE.md)
+for calculations, forms, atomic actions, record rules, contextual Sally operations
+and rendered Individual read bindings. Those contracts supersede earlier statements
+that formulas, actions and external binding rendering are unavailable.
+
 The current implementation includes Phases 1–5. The Phase 5 lifecycle contract
 below supersedes historical phase-specific restrictions described later in this
 file. Personal workspaces remain private, local Individual data in every display

@@ -149,6 +149,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	c.knowledge = &service.Knowledge{Memory: memory, Freshness: c.freshness}
 	c.knowledge.Watch(healthCtx)
 
+	personal := &service.Personal{Deps: deps}
 	scheduler := &service.Scheduler{Deps: deps, Git: git}
 	handoffs := &service.Handoffs{Deps: deps, Git: git}
 	runs.Handoffs = handoffs
@@ -205,7 +206,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 			}
 			return nil
 		},
-		Distributed: distributed, Scheduler: scheduler, Handoffs: handoffs, RepositoryLock: gitControl.LockExecution,
+		Maintenance: personal.Maintain, Distributed: distributed, Scheduler: scheduler, Handoffs: handoffs, RepositoryLock: gitControl.LockExecution,
 		Runs: runs, Tasks: tasks, Projects: projects, Settings: settings, Worktrees: worktrees, Git: git, Agents: agents,
 		Log: c.log, WorktreeRoot: worktreeRoot,
 	})
@@ -233,7 +234,6 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// Suggested next steps read the board, Git, GitHub and memory through the services the screens already use; they hold no
 	// way to push, merge, branch or start anything.
 	recommender := &service.Recommender{Deps: deps, Control: gitControl, Knowledge: c.knowledge, Runners: distributed}
-	personal := &service.Personal{Deps: deps}
 	assistantSvc := assistantServices{personal: personal, recommender: recommender, knowledge: c.knowledge, projects: projects, tasks: tasks, labels: labels, runs: runs,
 		control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner, connections: c.connections}
 	// Match the personal owner API: a tokenless controller cannot expose private

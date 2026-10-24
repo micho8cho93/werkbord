@@ -53,8 +53,8 @@ type PersonalVisibility struct {
 	TeamWorkspaceIDs []string `json:"teamWorkspaceIds"`
 }
 
-// Bindings declare approved reads outside personal collections. Phase 1 stores
-// references only; no resolver, network capability, credential or write is granted.
+// Bindings declare finite local owner reads outside personal collections.
+// The resolver rechecks the declared project; display locations grant no authority.
 type PersonalReadBinding struct {
 	ID        string `json:"id"`
 	Kind      string `json:"kind"` // individual.project or individual.tasks
@@ -78,8 +78,12 @@ type PersonalView struct {
 	BodyField   string `json:"bodyField,omitempty"`
 	ParentField string `json:"parentField,omitempty"`
 	// Empty means read-only. These are personal-record operations, never appops.
-	Operations []string         `json:"operations,omitempty"`
-	Filters    []PersonalFilter `json:"filters,omitempty"`
+	Operations   []string         `json:"operations,omitempty"`
+	Filters      []PersonalFilter `json:"filters,omitempty"`
+	Metric       *PersonalMetric  `json:"metric,omitempty"`
+	Actions      []PersonalAction `json:"actions,omitempty"`
+	VisibleWhen  []PersonalFilter `json:"visibleWhen,omitempty"`
+	EndDateField string           `json:"endDateField,omitempty"`
 }
 
 type PersonalFilter struct {
@@ -88,7 +92,7 @@ type PersonalFilter struct {
 }
 
 // This is data, not OpenUI conversation source. There are no arbitrary props,
-// expressions, markup, style, actions, URLs or executable components.
+// arbitrary expressions, markup, style, URLs or executable components.
 type PersonalNode struct {
 	Type      string `json:"type"`
 	Text      string `json:"text,omitempty"`
@@ -107,13 +111,18 @@ type PersonalCollectionSpec struct {
 	Name          string          `json:"name"`
 	SchemaVersion int             `json:"schemaVersion"`
 	Fields        []PersonalField `json:"fields"`
+	Rules         []PersonalRule  `json:"rules,omitempty"`
 }
 type PersonalField struct {
-	Key      string   `json:"key"`
-	Name     string   `json:"name"`
-	Type     string   `json:"type"`
-	Required bool     `json:"required"`
-	Options  []string `json:"options,omitempty"`
+	Key      string           `json:"key"`
+	Name     string           `json:"name"`
+	Type     string           `json:"type"`
+	Required bool             `json:"required"`
+	Options  []string         `json:"options,omitempty"`
+	Formula  *PersonalFormula `json:"formula,omitempty"`
+	Min      *float64         `json:"min,omitempty"`
+	Max      *float64         `json:"max,omitempty"`
+	Input    string           `json:"input,omitempty"`
 }
 type PersonalRecord struct {
 	PersonalMeta
@@ -178,7 +187,7 @@ func PersonalShortcutTargets() []string {
 
 // PersonalViewKinds lists every kind of view a workspace can show.
 func PersonalViewKinds() []string {
-	return []string{"table", "list", "checklist", "progress", "status", "chart", "board", "calendar", "document", "pages", "snippets", "files"}
+	return []string{"table", "list", "checklist", "progress", "status", "chart", "board", "calendar", "document", "pages", "snippets", "files", "form", "metric", "countdown", "timeline", "hierarchy"}
 }
 
 // PersonalIcons is the finite set of locally bundled Lucide identifiers.
@@ -233,7 +242,7 @@ func ValidatePersonalCollection(s PersonalCollectionSpec) error {
 			return personalInvalid("unknown field type")
 		}
 	}
-	return nil
+	return validatePersonalCapabilities(s)
 }
 
 // Evolution never invalidates a saved record or a view. Required fields may be
@@ -251,7 +260,7 @@ func ValidatePersonalEvolution(old, next PersonalCollectionSpec) error {
 	for _, f := range old.Fields {
 		previous[f.Key] = true
 		n, ok := fields[f.Key]
-		if !ok || f.Type != n.Type || !f.Required && n.Required {
+		if !ok || f.Type != n.Type || !f.Required && n.Required || (f.Formula == nil) != (n.Formula == nil) || !samePersonalBounds(f, n) {
 			return personalInvalid("incompatible collection schema change")
 		}
 		for _, o := range f.Options {
@@ -274,7 +283,7 @@ func ValidatePersonalValues(schema PersonalCollectionSpec, values map[string]jso
 	fields := map[string]PersonalField{}
 	for _, f := range schema.Fields {
 		fields[f.Key] = f
-		if f.Required {
+		if f.Required && f.Formula == nil {
 			if _, ok := values[f.Key]; !ok {
 				return personalInvalid("missing required field: " + f.Key)
 			}
@@ -302,7 +311,7 @@ func ValidatePersonalValues(schema PersonalCollectionSpec, values map[string]jso
 			valid = ok && personalURL(v)
 		case "number":
 			v, ok := value.(float64)
-			valid = ok && !math.IsInf(v, 0) && !math.IsNaN(v)
+			valid = ok && !math.IsInf(v, 0) && !math.IsNaN(v) && (f.Min == nil || v >= *f.Min) && (f.Max == nil || v <= *f.Max)
 		case "boolean":
 			_, valid = value.(bool)
 		case "date":
@@ -423,17 +432,17 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 				}
 			}
 		}
-		if inPersonalList(v.Kind, []string{"progress", "status", "chart"}) && len(v.Operations) != 0 {
+		if inPersonalList(v.Kind, []string{"progress", "status", "chart", "metric", "countdown", "timeline", "hierarchy"}) && len(v.Operations) != 0 {
 			return personalInvalid("summary views are read-only")
 		}
 		// Only the document-style kinds are written in a body; only pages have a parent.
-		document := inPersonalList(v.Kind, []string{"document", "pages", "snippets", "files"})
-		if !document && (v.BodyField != "" || v.ParentField != "") || v.Kind != "pages" && v.ParentField != "" {
+		document := inPersonalList(v.Kind, []string{"document", "pages", "snippets", "files", "hierarchy"})
+		if !document && (v.BodyField != "" || v.ParentField != "") || v.Kind != "pages" && v.Kind != "hierarchy" && v.ParentField != "" {
 			return personalInvalid("unexpected document binding")
 		}
 		textual := func(key string, types ...string) bool { return inPersonalList(fields[key].Type, types) }
 		switch v.Kind {
-		case "table", "list":
+		case "table", "list", "form", "metric":
 			if v.GroupBy != "" || v.DateField != "" || v.CheckedField != "" {
 				return personalInvalid("unexpected view binding")
 			}
@@ -441,7 +450,7 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 			if fields[v.GroupBy].Type != "select" || v.DateField != "" || v.CheckedField != "" {
 				return personalInvalid("board needs a select group field")
 			}
-		case "calendar":
+		case "calendar", "countdown", "timeline":
 			if fields[v.DateField].Type != "date" && fields[v.DateField].Type != "datetime" || v.GroupBy != "" || v.CheckedField != "" {
 				return personalInvalid("calendar needs a date field")
 			}
@@ -468,6 +477,10 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 			if v.ParentField != "" && (!textual(v.ParentField, "text") || v.ParentField == v.Fields[0] || v.ParentField == v.BodyField) {
 				return personalInvalid("a page's parent is kept in a separate text field")
 			}
+		case "hierarchy":
+			if !textual(v.ParentField, "text") || v.GroupBy != "" || v.DateField != "" || v.CheckedField != "" {
+				return personalInvalid("hierarchy needs a text parent field")
+			}
 		case "files":
 			// A file catalogue: the first field names each file; notes are optional. The files themselves stay on the device.
 			if !textual(v.Fields[0], "text") || v.BodyField != "" && !textual(v.BodyField, "longtext") || v.GroupBy != "" && fields[v.GroupBy].Type != "select" || v.DateField != "" || v.CheckedField != "" {
@@ -476,6 +489,9 @@ func ValidatePersonalWorkspace(s PersonalWorkspaceSpec, collections map[string]P
 		default:
 			return personalInvalid("unknown view kind")
 		}
+	}
+	if err := validatePersonalViewCapabilities(s, collections); err != nil {
+		return err
 	}
 	count := 0
 	var walk func(PersonalNode, int) error

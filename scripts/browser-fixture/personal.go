@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"regexp"
 	"strings"
 
@@ -12,7 +13,7 @@ func personalFixtureCall(name string, args any) string {
 	raw, _ := json.Marshal(map[string]any{"id": "personal", "name": name, "arguments": args})
 	return "```werkbord-call\n" + string(raw) + "\n```"
 }
-func personalFixtureReply(prompt, deletionMode string) (string, bool) {
+func personalFixtureReply(prompt, deletionMode, appName string) (string, bool) {
 	// A model change may include the old transcript. Follow only the current
 	// result envelope or the last user request, as a real provider must.
 	if i := strings.LastIndex(prompt, "<werkbord-results>"); i >= 0 {
@@ -26,6 +27,25 @@ func personalFixtureReply(prompt, deletionMode string) (string, bool) {
 		return "Review the workspace preview and confirm to save it.", true
 	}
 	if strings.Contains(prompt, `name="list_personal_workspaces"`) {
+		if appName != "" {
+			raw, err := os.ReadFile("internal/assistant/testdata/personal_apps.json")
+			if err != nil {
+				return "Fixture unavailable.", true
+			}
+			var apps []struct {
+				Name   string
+				Change domain.PersonalChange
+			}
+			if json.Unmarshal(raw, &apps) != nil {
+				return "Invalid fixture.", true
+			}
+			for _, app := range apps {
+				if app.Name == appName {
+					return personalFixtureCall("propose_personal_workspace", app.Change), true
+				}
+			}
+		}
+
 		if strings.Contains(prompt, `"pws_`) {
 			return "Your workspace is already saved. Open it to request a design change.", true
 		}
@@ -66,7 +86,7 @@ func personalFixtureReply(prompt, deletionMode string) (string, bool) {
 		}
 		return personalFixtureCall("get_personal_workspace", map[string]any{"workspaceId": id}), true
 	}
-	if strings.Contains(low, "weekly to-do") {
+	if appName != "" || strings.Contains(low, "weekly to-do") {
 		return personalFixtureCall("list_personal_workspaces", map[string]any{}), true
 	}
 	return "", false

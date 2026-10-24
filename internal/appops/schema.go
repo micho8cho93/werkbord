@@ -385,6 +385,13 @@ func numberKeyword(m map[string]any, name string) (float64, bool) {
 }
 
 func (s *Schema) validate(v any, at string) error {
+	if len(s.Raw) != 0 {
+		raw, err := s.ValidateDefinition()
+		if err != nil {
+			return err
+		}
+		return validateJSONSchema(raw, v, at, 0)
+	}
 	switch s.Type {
 	case "object":
 		m, ok := v.(map[string]any)

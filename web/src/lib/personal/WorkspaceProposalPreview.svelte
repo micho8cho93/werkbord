@@ -66,10 +66,11 @@
     <details><summary>Review fields and record controls</summary>
       {#each proposal.data.collections as c (c.id)}
         <h4>{c.spec.name}</h4>
-        <ul>{#each c.spec.fields as field (field.key)}<li>{field.name} ({field.key}) · {field.type}{field.required ? ' · required' : ' · optional'}{field.options?.length ? ` · ${field.options.join(', ')}` : ''}</li>{/each}</ul>
+        <ul>{#each c.spec.fields as field (field.key)}<li>{field.name} ({field.key}) · {field.type}{field.required ? ' · required' : ' · optional'}{field.formula ? ' · calculated (read only)' : ''}{field.options?.length ? ` · ${field.options.join(', ')}` : ''}</li>{/each}</ul>
       {/each}
       {#each proposal.data.workspace.definition.views as view (view.id)}<p>{view.name}: {view.operations?.join(', ') || 'read only'}{view.filters?.length ? ` · ${view.filters.map(f => `${f.field} = ${f.value}`).join(', ')}` : ''}</p>{/each}
     </details>
+    <details><summary>Review calculations, actions, rules and data bindings</summary><pre>{JSON.stringify({collections: proposal.data.collections.map(c => ({name:c.spec.name,fields:c.spec.fields,rules:c.spec.rules ?? []})),views:proposal.data.workspace.definition.views,readBindings:proposal.data.workspace.readBindings ?? []},null,2)}</pre></details>
     <p>Preview only. Confirm below to save this definition. Existing records keep their IDs and values.</p>
     <svelte:boundary>
       {#key preview}<WorkspaceRenderer session={preview} />{/key}

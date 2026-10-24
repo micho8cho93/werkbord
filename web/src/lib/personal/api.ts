@@ -13,6 +13,11 @@ export type PersonalRequest = (method: string, path: string, body?: unknown) => 
 export function createPersonalAPI(call: PersonalRequest) {
   const request = call;
   return {
+    executeAction: async (wid: string, view: string, action: string, body: {workspaceRevision:number;collectionRevision:number;confirmed:boolean;records:{id:string;revision:number}[]}) => {
+      const key = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
+      return z.strictObject({saved:z.array(recordSchema),deleted:z.array(recordID)}).parse(await request('POST', `${base}/workspaces/${workspaceID.parse(wid)}/views/${key.parse(view)}/actions/${key.parse(action)}`, body));
+    },
+    binding: async (wid: string, id: string) => z.strictObject({id:z.string(),name:z.string(),total:z.number().int().nonnegative(),unresolved:z.number().int().nonnegative(),tasks:z.array(z.strictObject({id:z.string(),title:z.string(),state:z.string()})).max(100)}).parse(await request('GET', `${base}/workspaces/${workspaceID.parse(wid)}/bindings/${z.string().regex(/^[a-z][a-z0-9_]{0,63}$/).parse(id)}`)),
     async workspaces() {
       const items = []; let after = '';
       do {

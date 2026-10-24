@@ -25,7 +25,7 @@ func personalDraftID(prefix, key string) string {
 }
 
 // PrepareChange assigns stable IDs to new collection aliases before the preview
-// is stored. Existing IDs and read bindings can never be replaced by an edit.
+// is stored. Edits preserve collection IDs; read binding changes are reviewed and revalidated.
 func (s *Personal) PrepareChange(ctx context.Context, change domain.PersonalChange) (domain.PersonalChange, error) {
 	if change.WorkspaceID == "" {
 		// Planning does not mutate the caller's draft slices.
@@ -97,10 +97,10 @@ func (s *Personal) checkChange(ctx context.Context, tx store.Tx, ch domain.Perso
 	if len(schemas) != len(ch.Workspace.CollectionIDs) {
 		return fmt.Errorf("%w: include every bound collection schema", domain.ErrInvalid)
 	}
-	// Phase 2 has no renderer for external read bindings yet. Never generate an
-	// unsupported interface or use a personal proposal to grant project access.
-	if len(ch.Workspace.ReadBindings) != 0 {
-		return fmt.Errorf("%w: external read bindings are not supported by this renderer", domain.ErrInvalid)
+	for _, b := range ch.Workspace.ReadBindings {
+		if _, err := tx.Projects().Get(ctx, b.ProjectID); err != nil {
+			return err
+		}
 	}
 	if ch.WorkspaceID == "" {
 		if ch.Revision != 0 {
@@ -138,7 +138,7 @@ func (s *Personal) checkChange(ctx context.Context, tx store.Tx, ch domain.Perso
 		if err = personalRevision(old.Revision, ch.Revision); err != nil {
 			return err
 		}
-		if !slices.Equal(old.CollectionIDs, ch.Workspace.CollectionIDs) || !slices.Equal(old.ReadBindings, ch.Workspace.ReadBindings) {
+		if !slices.Equal(old.CollectionIDs, ch.Workspace.CollectionIDs) {
 			return fmt.Errorf("%w: preserve saved collection IDs, order and data bindings", domain.ErrInvalid)
 		}
 		for _, c := range ch.Collections {

@@ -26,7 +26,7 @@
       {@const value = record.values[field.key]}
       <div class="prop" class:wide={field.type === 'multiselect'}>
         <label for={`${uid}-${field.key}`} class="name">{field.name}</label>
-        {#if !editable}
+        {#if !editable || field.formula}
           {#if field.type === 'url' && typeof value === 'string'}<a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
           {:else if field.type === 'multiselect' && Array.isArray(value)}<span class="chips">{#each value as option (option)}<span class="chip">{option}</span>{/each}</span>
           {:else}<span class="value">{display(value) || '—'}</span>{/if}
@@ -49,7 +49,7 @@
         {:else if field.type === 'datetime'}
           <input id={`${uid}-${field.key}`} type="datetime-local" value={toLocalInput(value)} disabled={session.busy} onchange={(e) => save(field.key, fromLocalInput(e.currentTarget.value))} />
         {:else if field.type === 'number'}
-          <input id={`${uid}-${field.key}`} type="number" step="any" value={typeof value === 'number' ? value : ''} disabled={session.busy} onchange={(e) => save(field.key, e.currentTarget.value === '' ? undefined : Number(e.currentTarget.value))} />
+          <input id={`${uid}-${field.key}`} type={field.input === 'slider' ? 'range' : 'number'} min={field.min} max={field.max} step={field.input ? '1' : 'any'} value={typeof value === 'number' ? value : ''} disabled={session.busy} onchange={(e) => save(field.key, e.currentTarget.value === '' ? undefined : Number(e.currentTarget.value))} />
         {:else}
           <input id={`${uid}-${field.key}`} type={field.type === 'url' ? 'url' : 'text'} maxlength={field.type === 'url' ? 2000 : 16000} placeholder={field.type === 'url' ? 'https://' : ''} value={typeof value === 'string' ? value : ''} disabled={session.busy} onchange={(e) => save(field.key, e.currentTarget.value.trim())} />
           {#if field.type === 'url' && typeof value === 'string' && value}<a class="open" href={value} target="_blank" rel="noopener noreferrer" aria-label={`Open ${field.name}`}>Open</a>{/if}

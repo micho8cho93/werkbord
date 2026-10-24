@@ -76,6 +76,7 @@
       send({
         type: 'werkbord.assistant',
         action: request.action,
+        ...(request.personalPrompt === undefined ? {} : {personalPrompt:request.personalPrompt}),
         ...(request.personalWorkspace === undefined ? {} : { personalWorkspace: request.personalWorkspace, ...(request.personalRevision === undefined ? {} : { personalRevision: request.personalRevision }) }),
         origin: { x: request.rect.x + request.rect.width / 2, y: request.rect.y + request.rect.height / 2 },
       });

@@ -140,6 +140,12 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 	p := t.Prompt
 	s.mu.Lock()
 	if !strings.Contains(p, "<werkbord-results>") {
+		for _, name := range []string{"Sales CRM", "Marketing Calendar", "Product Launch Center", "Engineering Decision Log", "Personal Productivity Dashboard"} {
+			if strings.Contains(p, "Create "+name) {
+				s.intent[ref] = "personal_app:" + name
+			}
+		}
+
 		if strings.Contains(strings.ToLower(p), "delete my weekly planner but keep the tasks") {
 			s.intent[ref] = "personal_keep_data"
 		}
@@ -151,8 +157,12 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 	if deletionMode != "keep_data" && deletionMode != "delete_data" {
 		deletionMode = ""
 	}
+	appName := ""
+	if strings.HasPrefix(s.intent[ref], "personal_app:") {
+		appName = strings.TrimPrefix(s.intent[ref], "personal_app:")
+	}
 	s.mu.Unlock()
-	if reply, ok := personalFixtureReply(p, deletionMode); ok {
+	if reply, ok := personalFixtureReply(p, deletionMode, appName); ok {
 		return say(reply)
 	}
 	low := strings.ToLower(p)

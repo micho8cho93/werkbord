@@ -20,7 +20,7 @@ describe('saved workspace contract', () => {
     const source = workspaceSource(w);
     expect(source).toContain('Collection("todos")');
     expect(source).toContain('Card("Priority overview"');
-    expect(Object.keys(workspaceLibrary.components)).toEqual(['Text', 'Heading', 'Card', 'Stack', 'Collection', 'Shortcut']);
+    expect(Object.keys(workspaceLibrary.components)).toEqual(['Text', 'Heading', 'Card', 'Stack', 'Collection', 'Shortcut', 'Binding']);
     expect(Object.keys(openUILibrary.components)).not.toContain('Collection');
     expect(openUISystemPrompt).toContain('Every proposed change remains uncommitted until the person confirms it');
     expect(openUISystemPrompt).toContain('not live data');

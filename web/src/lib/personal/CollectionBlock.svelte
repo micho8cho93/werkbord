@@ -3,6 +3,9 @@
   import Icon from '../Icon.svelte';
   import ProgressBlock from '../assistant/openui/components/ProgressBlock.svelte';
   import BarChartBlock from '../assistant/openui/components/BarChartBlock.svelte';
+  import ActionBar from './ActionBar.svelte';
+  import ProjectionView from './views/ProjectionView.svelte';
+  import { calculatedValues } from './runtime';
   import RecordEditor from './RecordEditor.svelte';
   import BoardView from './views/BoardView.svelte';
   import CalendarView from './views/CalendarView.svelte';
@@ -19,7 +22,7 @@
   const view = $derived(session.workspace!.definition.views.find(v => v.id === props.viewId)!);
   const collection = $derived(session.collections.find(c => c.id === view.collectionId)!);
   const fields = $derived(view.fields.map(key => collection.fields.find(f => f.key === key)!));
-  const records = $derived((session.records[view.collectionId] ?? []).filter(r => matchesSavedFilters(r.values, view.filters)));
+  const records = $derived((session.records[view.collectionId] ?? []).map(r => ({...r, values:calculatedValues(collection,r.values)})).filter(r => matchesSavedFilters(r.values, view.filters)));
   const completed = $derived(records.filter(r => r.values[view.checkedField ?? ''] === true).length);
   const editable = $derived(view.operations?.includes('update') ?? false);
   let search = $state('');
@@ -27,6 +30,7 @@
   let sortKey = $state('');
   let ascending = $state(true);
   let editing = $state<PersonalRecord | 'new' | null>(null);
+  let formGeneration = $state(0);
   let deleting = $state<string | null>(null);
   const display = (value: unknown) => value === undefined ? '—' : Array.isArray(value) ? value.join(', ') : typeof value === 'boolean' ? value ? 'Yes' : 'No' : String(value);
   const visible = $derived(records.filter(r => fields.some(f => display(r.values[f.key]).toLocaleLowerCase().includes(search.toLocaleLowerCase())) && Object.entries(filters).every(([key, value]) => !value || String(r.values[key]) === value)).sort((a, b) => {
@@ -42,7 +46,11 @@
   async function remove(id: string) { if (await session.mutate(view.id, 'delete', id)) deleting = null; }
 </script>
 
-{#if view.kind === 'document'}<DocumentView {view} {collection} />
+{#if !view.visibleWhen?.length || records.some(r => matchesSavedFilters(r.values,view.visibleWhen))}
+<ActionBar {view} records={visible} />
+{#if ['metric','countdown','timeline','hierarchy'].includes(view.kind)}<ProjectionView {view} {records} />
+{:else if view.kind === 'form'}<section class="collection form-view" aria-label={view.name}><h3>{view.name}</h3>{#key formGeneration}<RecordEditor {view} {collection} onclose={() => formGeneration++} />{/key}</section>
+{:else if view.kind === 'document'}<DocumentView {view} {collection} />
 {:else if view.kind === 'pages'}<PagesView {view} {collection} />
 {:else if view.kind === 'snippets'}<SnippetsView {view} {collection} />
 {:else if view.kind === 'files'}<FilesView {view} {collection} />
@@ -91,6 +99,7 @@
   {/if}
 </section>
 {/if}
+{/if}
 
 {#snippet emptyNode()}{/snippet}
 
@@ -119,6 +128,7 @@
   .collection { display: grid; gap: 14px; min-width: 0; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); }
   /* Inside a Card the card is already the panel: no second frame. */
   :global(.card) .collection { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+  .form-view :global(.record-editor) { border: 0; padding: 0; background: none; }
   .view-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
   h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
   .filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }

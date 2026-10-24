@@ -19,6 +19,8 @@ type PersonalResponse struct {
 
 var personalPath = regexp.MustCompile(`^/api/personal/v1/(workspaces(?:/pws_[a-z2-7]{16})?|collections(?:/pcl_[a-z2-7]{16}(?:/records(?:/prec_[a-z2-7]{16})?)?)?)(?:\?limit=100(?:&after=(?:pws|pcl|prec)_[a-z2-7]{16})?)?$`)
 
+var personalRuntimePath = regexp.MustCompile(`^/api/personal/v1/workspaces/pws_[a-z2-7]{16}/(?:views/[a-z][a-z0-9_]{0,63}/actions/[a-z][a-z0-9_]{0,63}|bindings/[a-z][a-z0-9_]{0,63})$`)
+
 var personalLifecyclePath = regexp.MustCompile(`^/api/personal/v1/(?:workspaces/pws_[a-z2-7]{16}/(?:deletion-preview|rollback|history|revisions/[1-9][0-9]{0,9})|collections/pcl_[a-z2-7]{16}/usage)$`)
 
 // displayContextsPath is where the shell tells the controller which Teams are connected, so that a phone's assistant can offer
@@ -31,7 +33,8 @@ func (p *Individual) PersonalWorkspaceCall(ctx context.Context, method, path str
 	var out PersonalResponse
 	lifecycle := personalLifecyclePath.FindStringSubmatch(path)
 	contexts := path == displayContextsPath
-	if (!personalPath.MatchString(path) && lifecycle == nil && !contexts) || len(body) > 128<<10 {
+	runtime := personalRuntimePath.MatchString(path)
+	if (!personalPath.MatchString(path) && lifecycle == nil && !contexts && !runtime) || len(body) > 128<<10 {
 		return out, errors.New("invalid personal workspace request")
 	}
 	if contexts && (method != "PUT" || !json.Valid(body)) {
@@ -44,11 +47,20 @@ func (p *Individual) PersonalWorkspaceCall(ctx context.Context, method, path str
 			return out, errors.New("reads take no body")
 		}
 	case "POST", "PUT", "DELETE":
-		if strings.Contains(path, "?") || !json.Valid(body) || lifecycle == nil && !contexts && (method == "POST") == entity {
+		if strings.Contains(path, "?") || !json.Valid(body) || lifecycle == nil && !contexts && !runtime && (method == "POST") == entity {
 			return out, errors.New("invalid personal workspace operation")
 		}
 	default:
 		return out, errors.New("unsupported personal workspace operation")
+	}
+	if runtime {
+		want := "GET"
+		if strings.Contains(path, "/actions/") {
+			want = "POST"
+		}
+		if method != want {
+			return out, errors.New("unsupported personal runtime operation")
+		}
 	}
 	if lifecycle != nil {
 		want := "GET"

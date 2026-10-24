@@ -50,6 +50,8 @@ func (s *Server) personalReady(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 func (s *Server) personalRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /api/personal/v1/workspaces/{id}/views/{view}/actions/{action}", s.handlePersonalAction)
+	mux.HandleFunc("GET /api/personal/v1/workspaces/{id}/bindings/{binding}", s.handlePersonalBinding)
 	mux.HandleFunc("POST /api/personal/v1/workspaces/{id}/deletion-preview", s.handlePersonalLifecycle)
 	mux.HandleFunc("GET /api/personal/v1/workspaces/{id}/history", s.handlePersonalLifecycle)
 	mux.HandleFunc("GET /api/personal/v1/workspaces/{id}/revisions/{revision}", s.handlePersonalLifecycle)

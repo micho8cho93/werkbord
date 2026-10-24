@@ -4,6 +4,7 @@ import TextBlock from '../assistant/openui/components/TextBlock.svelte';
 import HeadingBlock from '../assistant/openui/components/HeadingBlock.svelte';
 import CardBlock from '../assistant/openui/components/CardBlock.svelte';
 import ContainerBlock from '../assistant/openui/components/ContainerBlock.svelte';
+import BindingBlock from './BindingBlock.svelte';
 import CollectionBlock from './CollectionBlock.svelte';
 import ShortcutBlock from './ShortcutBlock.svelte';
 import type { Layout, Workspace } from './schema';
@@ -18,6 +19,7 @@ export const workspaceLibrary = createLibrary({
     defineComponent({ description: 'Approved saved workspace component.', name: 'Stack', props: z.object({ children: z.array(z.unknown()), direction: z.enum(['vertical', 'grid']), gap: z.literal('large'), columns: z.union([z.literal(2), z.literal(3), z.literal(4)]) }), component: ContainerBlock }),
     defineComponent({ description: 'Approved saved workspace component.', name: 'Collection', props: z.object({ viewId: z.string() }), component: CollectionBlock }),
     defineComponent({ description: 'Approved saved workspace component.', name: 'Shortcut', props: z.object({ target: z.string(), label: z.string() }), component: ShortcutBlock }),
+    defineComponent({description:'Declared read-only owner project data.',name:'Binding',props:z.object({bindingId:z.string()}),component:BindingBlock}),
   ], root: 'Stack',
 });
 
@@ -34,6 +36,7 @@ export function workspaceSource(workspace: Workspace): string {
       : n.type === 'heading' ? `Heading(${quote(n.text)})`
       : n.type === 'card' ? `Card(${quote(n.text)},${content})`
       : n.type === 'view' ? `Collection(${quote(n.viewId)})`
+      : n.type === 'binding' ? `Binding(${quote(n.bindingId)})`
       : n.type === 'shortcut' ? `Shortcut(${quote(n.target)},${quote(n.text ?? '')})`
       : n.type === 'stack' || n.type === 'grid' ? `Stack(${content},"${n.type === 'grid' ? 'grid' : 'vertical'}","large",${n.columns ?? 2})`
       : (() => { throw new Error('Unsupported saved component.'); })();

@@ -80,3 +80,32 @@ func TestPersonalLifecycleTransportFiniteMethods(t *testing.T) {
 		t.Fatal(calls)
 	}
 }
+
+func TestPersonalRuntimeTransportAllowsOnlyFiniteActionAndBindingMethods(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("Authorization") != "Bearer owner-only" {
+			t.Error("lost owner credential")
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+	p := NewIndividual(func(context.Context) (Access, error) { return Access{Base: server.URL, Token: "owner-only"}, nil })
+	action := "/api/personal/v1/workspaces/pws_abcdefghijklmnop/views/leads/actions/contact"
+	binding := "/api/personal/v1/workspaces/pws_abcdefghijklmnop/bindings/tickets"
+	if _, err := p.PersonalWorkspaceCall(bg, "POST", action, json.RawMessage(`{"confirmed":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.PersonalWorkspaceCall(bg, "GET", binding, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct{ method, path string }{{"GET", action}, {"DELETE", action}, {"POST", binding}, {"PUT", binding}, {"POST", action + "?token=x"}, {"POST", action + "/../run"}, {"POST", action + "-invalid"}} {
+		if _, err := p.PersonalWorkspaceCall(bg, test.method, test.path, json.RawMessage(`{}`)); err == nil {
+			t.Fatal("accepted arbitrary transport", test)
+		}
+	}
+	if calls != 2 {
+		t.Fatal(calls)
+	}
+}

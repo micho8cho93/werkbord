@@ -8,7 +8,7 @@
 
 import { tick } from 'svelte';
 import { ApiError } from '../api';
-import { personalWorkspaceDraft } from '../personal/conversation';
+import { contextualWorkspaceDraft, personalWorkspaceDraft } from '../personal/conversation';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { assistantApi } from './api';
 import { openUISystemPrompt } from './openui/library';
@@ -185,7 +185,7 @@ export class AssistantStore {
       if (req.action === 'close') this.hide();
       else if (req.action === 'open') {
         if (req.personalWorkspace !== undefined) {
-          this.draft = personalWorkspaceDraft(req.personalWorkspace);
+          this.draft = req.personalPrompt ? contextualWorkspaceDraft(req.personalWorkspace, req.personalPrompt) : personalWorkspaceDraft(req.personalWorkspace);
           this.personalEditing = req.personalWorkspace && req.personalRevision ? {workspaceId: req.personalWorkspace, revision: req.personalRevision} : undefined;
         }
         this.show(req.origin, null);

@@ -8,7 +8,7 @@
   import { isPhone } from '../lib/phones/capability';
   import { app } from '../lib/state.svelte';
   import { embedded } from '../lib/embed';
-  import { personalWorkspaceDraft } from '../lib/personal/conversation';
+  import { contextualWorkspaceDraft, personalWorkspaceDraft } from '../lib/personal/conversation';
   import { assistant } from '../lib/assistant/store.svelte';
   import { z } from 'zod/v4';
   import WorkspaceRenderer from '../lib/personal/WorkspaceRenderer.svelte';
@@ -86,6 +86,7 @@
     if (!target) return;
     const next = new WorkspaceSession();
     // A shortcut here opens one of the app's own pages, by the address the page has.
+    if (!embedded()) next.assist = (prompt) => {assistant.draft = contextualWorkspaceDraft(target,prompt); assistant.show();};
     next.navigable = (Object.keys(pageAddresses) as ShortcutTarget[]);
     next.navigate = (target) => { const address = pageAddresses[target]; if (address) location.hash = address; };
     untrack(() => { void next.load(target).then(() => {

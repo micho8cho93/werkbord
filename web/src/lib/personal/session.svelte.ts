@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import { getContext } from 'svelte';
 import { ApiError } from '../api';
 import { personalAPI, type PersonalAPI } from './api';
@@ -15,10 +16,12 @@ export class WorkspaceSession {
   notice = $state('');
   /** The record the last create or update saved: how a view learns the ID of the record it has just made. */
   lastSaved: PersonalRecord | null = null;
+  private mutationGeneration = 0;
   /**
    * Opens a place in the app for a shortcut. The window the workspace is shown in provides it; where there is none the
    * shortcut says so instead of doing nothing. A shortcut names a place, never an address.
    */
+  assist?: (prompt: string) => void;
   navigate?: (target: ShortcutTarget) => void;
   /** The places `navigate` can open here: a window offers the ones it has. */
   navigable: ShortcutTarget[] = [];
@@ -40,6 +43,40 @@ export class WorkspaceSession {
     this.workspace = validated;
   }
 
+  /** Poll only while mounted; do not replace records if an intervening save changed them. */
+  async refreshRecords(): Promise<void> {
+    if (this.busy || this.readOnly || !this.workspace) return;
+    const before = this.mutationGeneration;
+    try {
+      const entries = await Promise.all(this.collections.map(async c => [c.id, await this.api.records(c.id)] as const));
+      if (!this.busy && this.mutationGeneration === before) this.records = Object.fromEntries(entries);
+    } catch { /* Keep saved data and open drafts; explicit Reload surfaces access errors. */ }
+  }
+
+  async action(viewID: string, actionID: string, selected: string[], confirmed = false): Promise<boolean> {
+    if (this.busy || this.readOnly || !this.workspace) return false;
+    const view = this.workspace.definition.views.find(v => v.id === viewID);
+    const action = view?.actions?.find(a => a.id === actionID);
+    const collection = this.collections.find(c => c.id === view?.collectionId);
+    if (!view || !action || !collection || action.prompt || !confirmed) return false;
+    this.problem = ''; this.notice = ''; this.busy = true; this.mutationGeneration++;
+    try {
+      const records = selected.map(id => {
+        const r = this.records[collection.id]?.find(r => r.id === id);
+        if (!r) throw new Error('A selected record is unavailable. Reload the workspace.');
+        return {id: r.id, revision: r.revision};
+      });
+      const result = await this.api.executeAction(this.workspace.id, viewID, actionID, {workspaceRevision:this.workspace.revision,collectionRevision:collection.revision,records,confirmed:true});
+      const changed = new SvelteSet([...result.saved.map(r => r.id), ...result.deleted]);
+      this.records[collection.id] = [...(this.records[collection.id] ?? []).filter(r => !changed.has(r.id)), ...result.saved];
+      this.notice = `${action.name} completed.`;
+      return true;
+    } catch (err) {
+      this.problem = `${err instanceof Error ? err.message : 'Action failed.'} Your selection is still here. Reload to check the saved state before retrying.`;
+      return false;
+    } finally {this.busy = false;}
+  }
+
   /** Fixed operations, scoped to a validated view and its explicitly permitted personal fields. */
   async mutate(viewID: string, operation: 'create' | 'update' | 'delete', id?: string, patch: Values = {}, clear: string[] = []): Promise<boolean> {
     if (this.busy || this.readOnly) return false;
@@ -51,7 +88,7 @@ export class WorkspaceSession {
     const records = this.records[view.collectionId] ?? [];
     const record = records.find(r => r.id === id);
     if (operation !== 'create' && !record) { this.problem = 'This record is no longer available. Reload the workspace.'; return false; }
-    this.busy = true;
+    this.busy = true; this.mutationGeneration++;
     try {
       if (operation === 'delete') {
         await this.api.remove(view.collectionId, record!.id, record!.revision);

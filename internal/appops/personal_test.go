@@ -372,3 +372,46 @@ func TestPersonalDeletionProposalRequiresConfirmationAndAllowsRetentionReuse(t *
 		t.Fatal(err)
 	}
 }
+
+func TestPersonalRecordAnalysisIsBoundedAndViewScoped(t *testing.T) {
+	f, personal, p := personalFixture(t)
+	w := createPersonal(t, f, p)
+	cid := w.CollectionIDs[0]
+	spec, _ := personal.GetCollection(bg, cid)
+	spec.Fields = append(spec.Fields, domain.PersonalField{Key: "body", Name: "Body", Type: "longtext"})
+	if _, err := personal.UpdateCollection(bg, cid, spec.Revision, spec.PersonalCollectionSpec); err != nil {
+		t.Fatal(err)
+	}
+	ws := w.PersonalWorkspaceSpec
+	ws.Definition.Views[0].Fields = append(ws.Definition.Views[0].Fields, "body")
+	w, err := personal.UpdateWorkspace(bg, w.ID, w.Revision, ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := personal.CreateRecord(bg, cid, map[string]json.RawMessage{"title": json.RawMessage(`"Report"`), "body": json.RawMessage(`"` + strings.Repeat("x", 47000) + `"`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := map[string]any{"workspaceId": w.ID, "viewId": "tasks"}
+	result := f.mustCall(p, "read_personal_records", args)
+	raw, err := json.Marshal(result.Data)
+	if err != nil || len(raw) > maxResultBytes {
+		t.Fatal("record analysis exceeded result limit", len(raw), err)
+	}
+	if strings.Contains(string(raw), strings.Repeat("x", 1000)) || !strings.Contains(string(raw), "omittedFields") {
+		t.Fatal("unbounded body")
+	}
+	chunk := f.mustCall(p, "read_personal_record_field", map[string]any{"workspaceId": w.ID, "viewId": "tasks", "recordId": record.ID, "field": "body"})
+	data := chunk.Data.(map[string]any)
+	if len(data["text"].(string)) != 2000 || data["complete"] != false {
+		t.Fatal(data)
+	}
+	for _, restricted := range []Principal{{ID: "mcp", Via: "mcp", Grants: AllPermissions}, {ID: "scoped", Via: "assistant", Grants: AllPermissions, Projects: []string{}}} {
+		if _, err := f.call(restricted, "read_personal_records", args); err == nil {
+			t.Fatal("personal reads leaked to scoped principal")
+		}
+	}
+	if _, err := f.call(p, "read_personal_record_field", map[string]any{"workspaceId": w.ID, "viewId": "progress", "recordId": record.ID, "field": "body"}); err == nil {
+		t.Fatal("read a field outside view")
+	}
+}
