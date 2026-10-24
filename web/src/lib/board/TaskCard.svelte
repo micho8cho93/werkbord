@@ -81,6 +81,18 @@
 
   let busy = $state('');
 
+  async function archive() {
+    if (busy || pending) return;
+    busy = 'archive';
+    try {
+      scope.upsertTask(await api.archiveTask(task, true));
+      app.notify('Task archived. Its details are kept in Archive.');
+    } catch (err) {
+      app.handleError(err);
+      await scope.load().catch(e => app.handleError(e));
+    } finally { busy = ''; }
+  }
+
   async function answer(value: string) {
     if (!question || busy) return;
     busy = value;
@@ -162,8 +174,9 @@
     <div class="acts"><button class="btn small" disabled={pending} onclick={() => onstart(task)} aria-label="Run an agent again on “{task.title}”"><Icon name="play" size={12} />Run again</button></div>
   {/if}
 
-
-
+  {#if task.state === 'done'}
+    <div class="acts"><button class="btn small open" disabled={!!busy || pending} onclick={archive}>{busy === 'archive' ? 'Archiving…' : 'Archive'}</button></div>
+  {/if}
   <!-- The agent chip says something only when an agent was chosen or has run: "any agent" is every card's default. -->
   {#if (agentWork && (run || effective.agent)) || effective.priority !== 'normal'}
     <div class="mt">

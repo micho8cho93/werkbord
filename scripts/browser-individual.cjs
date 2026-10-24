@@ -298,7 +298,8 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         finished = await api('PATCH', `/api/projects/${p.id}/tasks/${finished.id}`, { version: finished.version, state: 'done' });
         await page.goto(base + `/#/p/${p.id}/board`);
         if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
-        await page.getByRole('button', { name: 'Archive Done tasks', exact: true }).click();
+        assert.equal(await page.getByRole('button', { name: 'Archive Done tasks', exact: true }).count(), 0);
+        await page.locator('[data-board-item="' + finished.id + '"]').getByRole('button', { name: 'Archive', exact: true }).click();
         await page.getByRole('button', { name: /^Archive/ }).click();
         await page.getByRole('link', { name: finished.title, exact: true }).waitFor();
         await page.getByRole('button', { name: 'Restore', exact: true }).click();
@@ -314,7 +315,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal((await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(t => t.id === dragTask.id).state, 'doing');
         const dragRun = (await api('GET', `/api/projects/${p.id}/runs`)).runs.find(r => r.taskId === dragTask.id);
         await sync([{ runId: dragRun.id, observations: [{ seq: 1, kind: 'ended', result: { state: 'stopped' } }] }]);
-        console.log('PASS Archive Done preserves details, restore to Done, backlog drop persists Doing while remote start is queued');
+        console.log('PASS per-card Archive preserves details, restore to Done, backlog drop persists Doing while remote start is queued');
         // Save succeeds, two launch attempts fail, then a lost launch response is recovered.
         await page.getByRole('button', { name: 'New task', exact: true }).click();
         await page.setViewportSize({ width: 390, height: 844 });

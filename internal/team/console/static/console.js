@@ -667,6 +667,7 @@ function startSync() {
         if (rev === null) { rev = r.revision; cursor = r.cursor; if (wasOffline) { missed = false; await render(); } continue; }
         if (r.changed || wasOffline) {
           rev = r.revision; cursor = r.cursor; missed = false;
+          analyticsState.report = null;
           if (r.reset || r.truncated) toast('You were away for a while, so everything was reloaded.');
           else announce(r.events || []);
           await render();
@@ -751,8 +752,9 @@ async function workspaceView() {
     : h('div', { class: 'empty-state' }, h('p', { class: 'muted' }, 'No work in progress.'), h('button', { class: 'plain small', onclick: () => best ? openProject(best.project.id) : go('projects') }, best ? 'Open board' : can('projects.create') ? 'Create a project' : 'Join a project'));
   const shortcut = (label, count, click, tone) => h('button', { type: 'button', class: 'cc-shortcut', onclick: click }, label, h('span', { class: 'badge' + (tone ? ' ' + tone : '') }, String(count)));
 
-  return h('div', { class: 'cc' }, bar, h('div', { class: 'cc-split' },
-    h('section', { class: 'cc-pane', 'aria-label': 'Workspace' }, feed),
+  const totals = [['Available', ov.available], ['In progress', sum(ov.projects, p => p.counts.in_progress || 0)], ['To review', toReview], ['Your tickets', mine]];
+  return h('div', { class: 'cc' }, h('dl', { class: 'workspace-statistics' }, totals.map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value))))), bar, h('div', { class: 'cc-split' },
+    h('section', { class: 'cc-pane', 'aria-label': 'Workspace' }, h('h2', {}, 'Needs you'), feed),
     h('aside', { class: 'cc-pane cc-side', 'aria-label': 'What is going on' },
       h('section', { class: 'cc-panel', id: 'working-now', 'aria-label': 'Working now' }, h('div', { class: 'cc-ph' }, 'Working now', h('span', { class: 'cc-chip' }, String(ov.working.length))), working),
       h('section', { class: 'cc-panel', 'aria-label': 'Your queue' }, h('div', { class: 'cc-ph' }, 'Your queue'),
@@ -840,16 +842,20 @@ function projectHistoryPanel() {
 
 async function projectsView() {
   const projects = state.ov.projects.filter(({ project }) => !project.archived);
-  const rows = projects.map((p) => h('div', { class: 'row' },
-    h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.project.id, 'board') }, p.project.name),
-      p.project.description ? h('div', { class: 'muted' }, p.project.description) : '',
-      p.project.repository ? h('div', { class: 'muted' }, p.project.repository) : ''),
-    p.project.archived ? h('span', { class: 'badge' }, 'archived') : '',
-    h('span', { class: 'badge' }, p.member ? p.role : 'not on it')));
-  const panels = [projectHistoryPanel(), h('div', { class: 'panel' }, h('h2', {}, 'Projects (' + projects.length + ')'),
-    rows.length ? rows : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet.' : 'You are not on any project yet. Ask for an invite code.'))];
+  const rows = projects.map(p => h('article', { class: 'project-card' },
+    h('header', {}, h('button', { class: 'link project-card-title', onclick: () => openProject(p.project.id, 'board') }, p.project.name),
+      h('span', { class: 'badge' }, p.member ? p.role : 'not a member')),
+    p.project.repository ? h('p', { class: 'project-card-repository' }, icon('repository'), p.project.repository) : '',
+    p.project.description ? h('p', { class: 'project-card-description' }, p.project.description) : '',
+    h('dl', { class: 'project-card-counts' }, ['available', 'in_progress', 'review', 'done'].map(status => h('div', {}, h('dt', {}, statusName(status)), h('dd', {}, String(p.counts[status] || 0))))),
+    h('footer', { class: 'actions' }, h('button', { class: 'plain open small', onclick: () => openProject(p.project.id, 'board') }, 'Open board'),
+      p.toReview ? h('span', { class: 'badge warn' }, plural(p.toReview, 'review') + ' for you') : '')));
+  const list = h('section', { class: 'projects-list', 'aria-label': 'Active projects' },
+    h('h2', {}, 'Projects', h('span', { class: 'badge' }, String(projects.length))),
+    rows.length ? h('div', { class: 'project-cards' }, rows) : h('p', { class: 'empty-state muted' }, can('projects.view_all') ? 'No projects yet.' : 'You are not on any project yet. Ask for an invite code.'));
+  const panels = [];
   const code = h('input', { name: 'join-code', required: true, maxlength: 200, autocomplete: 'off', placeholder: 'wbi_…' });
-  panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Join a project with a code'),
+  panels.push(h('details', { class: 'panel project-tool' }, h('summary', {}, 'Join a project with a code'),
     h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => {
         const j = await api('POST', '/invites/join', { code: code.value.trim() });
         code.value = ''; state.projectId = j.project.id; state.tab = 'board'; state.data = null; remember(); state.info = 'You joined ' + j.project.name + '.'; }); } },
@@ -858,12 +864,12 @@ async function projectsView() {
     const name = h('input', { name: 'p-name', required: true, maxlength: 80 });
     const desc = h('input', { name: 'p-desc', maxlength: 2000 });
     const repo = h('input', { name: 'p-repo', placeholder: 'https://github.com/owner/repo (optional)', maxlength: 2048 });
-    panels.push(h('div', { class: 'panel' }, h('h2', {}, 'New project'),
+    panels.unshift(h('details', { class: 'panel project-tool', open: !projects.length }, h('summary', {}, 'New project'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => { const p = await api('POST', '/projects', { name: name.value, description: desc.value, repository: repo.value });
           name.value = ''; desc.value = ''; repo.value = ''; state.projectId = p.id; state.tab = 'board'; state.data = null; remember(); }); } },
         field('Name', name), field('Description (optional)', desc), field('Repository', repo), h('button', { class: 'primary' }, 'Create'))));
   }
-  return h('div', { class: 'project-grid' }, panels[0], h('div', { class: 'project-forms' }, panels.slice(1)));
+  return h('div', { class: 'projects-page' }, list, h('aside', { class: 'project-tools', 'aria-label': 'Manage projects' }, panels, h('details', { class: 'project-history' }, h('summary', {}, 'Project history'), projectHistoryPanel())));
 }
 
 // ---- one project: board, repository, activity, people ----
@@ -938,8 +944,8 @@ async function projectScopedView() {
     h('div', { class: 'project-head' },
       h('div', { class: 'project-title-row' },
         h('div', { class: 'project-where' },
-          h('h1', { id: 'main-title', tabindex: '-1' }, p.name),
-          h('div', { class: 'project-meta' }, p.repository || 'Work project')),
+          p.repository ? h('div', { class: 'project-meta' }, icon('repository'), isHTTPS(p.repository) ? extLink(p.repository, p.repository) : p.repository) : '',
+          h('h1', { id: 'main-title', tabindex: '-1' }, p.name)),
         h('div', { class: 'actions' }, searchButton(), gear, newTicket)),
       FRAMED ? '' : h('label', { class: 'project-chooser' }, 'Project ', switcher)),
     tabs, state.newTicketOpen ? newTicketForm(d) : '', view);
@@ -1188,10 +1194,11 @@ async function reviewsView() {
   const q = await api('GET', '/reviews');
   const toReview = q.items.filter((i) => i.canReview && !i.mine);
   const waiting = q.items.filter((i) => i.mine || !i.canReview);
-  return h('div', {},
-    h('div', { class: 'panel' }, h('h2', {}, 'To review (' + toReview.length + ')'),
-      toReview.length ? toReview.map(reviewItem) : h('p', { class: 'muted' }, 'Nothing is waiting for you to review.')),
-    waiting.length ? h('div', { class: 'panel' }, h('h2', {}, 'Yours, waiting for a reviewer (' + waiting.length + ')'), waiting.map(reviewItem)) : '');
+  return h('div', { class: 'reviews-grid' },
+    h('section', { class: 'review-column', 'aria-label': 'To review' }, h('h2', {}, 'To review', h('span', { class: 'badge' }, String(toReview.length))),
+      toReview.length ? toReview.map(reviewItem) : h('p', { class: 'empty-state muted' }, 'Nothing is waiting for you to review.')),
+    h('section', { class: 'review-column', 'aria-label': 'Waiting for review' }, h('h2', {}, 'Waiting for review', h('span', { class: 'badge' }, String(waiting.length))),
+      waiting.length ? waiting.map(reviewItem) : h('p', { class: 'empty-state muted' }, 'No submitted work is waiting for a reviewer.')));
 }
 
 function reviewItem(it) {
@@ -1300,7 +1307,7 @@ function archiveTab(d) {
   const rows = (d.board.archived || []).slice().reverse().map(k => h('div', { class: 'row', 'data-search': (k.title + ' ' + k.description + ' ' + k.key).toLowerCase() },
     h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openTicket(d.id, k.id) }, k.key + ' · ' + k.title), h('p', { class: 'muted' }, statusName(k.status) + ' · Archived ' + ago(k.archivedAt))),
     canArchiveTicket(k) ? h('button', { class: 'plain ok small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: false })) }, 'Restore') : ''));
-  const list = h('div', { class: 'archive-list' }, rows.length ? rows : h('p', { class: 'muted' }, 'No archived work yet. Archive Done tickets or archive a ticket to keep it here.'));
+  const list = h('div', { class: 'archive-list' }, rows.length ? rows : h('p', { class: 'muted' }, 'No archived work yet. Use Archive on a Done card or in a ticket’s details to keep it here.'));
   const search = h('input', { name: 'archive-search', type: 'search', placeholder: 'Search title, ticket key or details', oninput: e => { for (const row of list.querySelectorAll('[data-search]')) row.hidden = !row.dataset.search.includes(e.target.value.toLowerCase()); } });
   return h('section', { class: 'panel archive-panel' }, h('h2', {}, 'Archived work'), field('Search archive', search), list);
 }
@@ -1367,7 +1374,7 @@ function card(d, k) {
     (k.status === 'available' && !k.assigneeId && d.board.member && pcan('tickets.claim'))
       ? h('button', { class: 'primary small', onclick: () => act(() => api('POST', projectPath(k) + '/claim')) }, 'Claim') : '',
     k.status === 'done' && !k.archivedAt && canArchiveTicket(k)
-      ? h('button', { class: 'plain small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: true })) }, 'Archive') : '');
+      ? h('button', { class: 'plain open small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: true })) }, 'Archive') : '');
 }
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }
@@ -2074,13 +2081,38 @@ async function analyticsView() {
       chooseView(next).then(() => document.getElementById('analytics-tab-' + next)?.focus());
     },
   }, view)));
-  const project = h('select', { 'aria-label': 'Analytics project', onchange: e => { scope.project = e.target.value; } },
-    h('option', { value: '', selected: !scope.project }, 'All projects you can read'), (r.projects || []).map(x => h('option', { value: x.id, selected: scope.project === x.id }, x.name)));
-  const range = h('select', { 'aria-label': 'Analytics time range', onchange: e => { scope.days = Number(e.target.value); } },
+  const project = h('select', { 'aria-label': 'Analytics project', onchange: e => { scope.project = scope.appliedProject = e.target.value; analyticsState.report = null; render(); } },
+    h('option', { value: '', selected: !scope.project }, 'All projects'), (r.projects || []).map(x => h('option', { value: x.id, selected: scope.project === x.id }, x.name)));
+  const range = h('select', { 'aria-label': 'Analytics time range', onchange: e => { scope.days = scope.appliedDays = Number(e.target.value); analyticsState.report = null; render(); } },
     [7, 30, 90].map(n => h('option', { value: String(n), selected: scope.days === n }, 'Last ' + n + ' days')));
   const select = (label, value, choices, change) => h('label', {}, label + ' ', h('select', { 'aria-label': label, onchange: e => { change(e.target.value); render(); } }, choices.map(([id, name]) => h('option', { value: id, selected: id === value }, name))));
   const duration = seconds => seconds == null ? 'No samples' : seconds < 60 ? Math.round(seconds) + 's' : seconds < 3600 ? (seconds / 60).toFixed(1) + 'm' : seconds < 86400 ? (seconds / 3600).toFixed(1) + 'h' : (seconds / 86400).toFixed(1) + 'd';
-  const stats = rows => h('dl', { class: 'analytics-statistics' }, rows.map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value)))));
+  const tones = ['var(--accent)', 'var(--ok)', 'var(--block)', 'var(--warn)'];
+  const svgChart = (label, shapes, box = '0 0 480 180') => {
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+    for (const [key, value] of Object.entries({ viewBox: box, role: 'img', 'aria-label': label, class: 'analytics-line' })) svg.setAttribute(key, value);
+    for (const [tag, attributes] of shapes) {
+      const el = document.createElementNS(ns, tag);
+      for (const [key, value] of Object.entries(attributes)) el.setAttribute(key, String(value));
+      svg.append(el);
+    }
+    return svg;
+  };
+  const linePoints = (values, width = 456, height = 148) => {
+    const peak = Math.max(1, ...values);
+    return values.map((value, i) => (12 + i / Math.max(1, values.length - 1) * width) + ',' + (160 - value / peak * height)).join(' ');
+  };
+  const stats = rows => h('dl', { class: 'analytics-statistics' }, rows.map(([label, value], i) => {
+    const tile = h('div', {}, h('dt', {}, label), h('dd', {}, String(value)));
+    tile.style.setProperty('--tone', tones[i % tones.length]);
+    if (analyticsState.view === 'Activity' && i < 2 && r.days.length) tile.append(svgChart(label + ' per day', [['polyline', { points: linePoints(r.days.map(day => i ? day.completed : day.created)), fill: 'none', stroke: tones[i], 'stroke-width': 3, 'vector-effect': 'non-scaling-stroke' }]]));
+    return tile;
+  }));
+  const panel = (title, caption, tone, span, body) => {
+    const el = h('section', { class: 'analytics-panel' }, h('header', {}, h('span', { class: 'analytics-swatch', 'aria-hidden': 'true' }), h('div', {}, h('h2', {}, title), h('p', {}, caption))), h('div', { class: 'analytics-panel-body' }, body));
+    el.style.setProperty('--tone', tone); el.style.setProperty('--span', span);
+    return el;
+  };
   const table = (head, rows) => h('div', { class: 'scroll', role: 'region', 'aria-label': head.join(', '), tabindex: '0' }, h('table', {}, h('thead', {}, h('tr', {}, head.map(label => h('th', {}, label)))), h('tbody', {}, rows.map(row => h('tr', {}, row.map(cell => h('td', {}, String(cell))))))));
   const comparison = rows => {
     const max = Math.max(1, ...rows.map(row => row[1]));
@@ -2098,31 +2130,54 @@ async function analyticsView() {
       const done = h('span', { 'data-chart-key': d.date + ':done', 'data-chart-value': d.completed / max, 'data-chart-axis': 'y', 'data-chart-scope': scopedKey + '/' + analyticsState.series, class: 'analytics-done', hidden: analyticsState.series === 'created' }); done.style.height = d.completed / max * 100 + '%';
       return h('div', { class: 'analytics-day', title: d.date + ': ' + d.created + ' created, ' + d.completed + ' completed' }, h('div', { class: 'analytics-bars' }, created, done), h('span', {}, i % Math.ceil(r.days.length / 6) === 0 || i === r.days.length - 1 ? d.date.slice(5) : ''));
     }));
-    body = [stats([['Tickets created', r.created], ['Completed tickets', r.completed], ['Median duration', duration(r.medianTicketSeconds)], ['Duration samples', r.durationSamples]]),
+    let created = 0, completed = 0;
+    const totals = r.days.map(day => ({ created: created += day.created, completed: completed += day.completed }));
+    const peak = Math.max(1, ...totals.flatMap(day => [day.created, day.completed]));
+    const cumulativePoints = key => totals.map((day, i) => (12 + i / Math.max(1, totals.length - 1) * 456) + ',' + (160 - day[key] / peak * 148)).join(' ');
+    const lines = ['created', 'completed'].filter(key => analyticsState.series === 'both' || analyticsState.series === key).map(key => ['polyline', { points: cumulativePoints(key), fill: 'none', stroke: key === 'created' ? 'var(--accent)' : 'var(--ok)', 'stroke-width': 2.5, 'vector-effect': 'non-scaling-stroke' }]);
+    const ring = h('div', { class: 'analytics-ring', role: 'img', 'aria-label': r.created ? Math.round(r.completed / r.created * 100) + '% Done against created' : 'No tickets created' }, h('div', {}, h('strong', {}, r.created ? Math.round(r.completed / r.created * 100) + '%' : '—'), h('span', {}, 'Done / created')));
+    ring.style.setProperty('--share', Math.min(1, r.created ? r.completed / r.created : 0));
+    const heatPeak = Math.max(1, ...r.days.map(day => day.created + day.completed));
+    const firstWeekday = r.days.length ? (new Date(r.days[0].date + 'T00:00:00Z').getUTCDay() + 6) % 7 : 0;
+    const heat = h('div', { class: 'analytics-heat', role: 'group', 'aria-label': 'Activity for each UTC day' },
+      h('div', { class: 'analytics-heat-head', 'aria-hidden': 'true' }, ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => h('span', {}, day))),
+      h('div', { class: 'analytics-heat-grid' }, r.days.map((day, i) => {
+        const count = day.created + day.completed;
+        const cell = h('span', { title: day.date + ': ' + count + ' ticket events', 'aria-label': day.date + ': ' + count + ' ticket events' }, day.date.slice(8));
+        cell.style.gridColumn = String((i + firstWeekday) % 7 + 1);
+        cell.style.setProperty('--intensity', count ? Math.round(12 + count / heatPeak * 28) + '%' : '0%');
+        return cell;
+      })));
+    const legend = h('p', { class: 'analytics-legend muted small' }, h('span', {}, h('span', { class: 'analytics-key analytics-created' }), ' Created'), h('span', {}, h('span', { class: 'analytics-key analytics-done' }), ' Done'));
+    body = [stats([['Tickets created', r.created], ['Moved to Done', r.completed], ['Median ticket duration', duration(r.medianTicketSeconds)], ['Duration samples', r.durationSamples]]),
       h('p', { class: 'muted small' }, 'Duration includes waiting, from creation to first completion. Average: ' + duration(r.averageTicketSeconds) + '.'),
-      h('section', {}, h('h2', {}, 'Created and completed over time'), r.days.some(d => d.created || d.completed)
-        ? [h('p', { class: 'analytics-legend muted small' }, h('span', {}, h('span', { class: 'analytics-key analytics-created' }), ' Created'), h('span', {}, h('span', { class: 'analytics-key analytics-done' }), ' Completed'), h('span', {}, 'UTC days · peak ' + max + ' tickets')), chart,
-          ]
-        : h('p', { class: 'muted' }, 'No ticket activity in this period. Try a longer time range or another project.'))];
+      r.days.some(day => day.created || day.completed) ? h('div', { class: 'analytics-board' },
+        panel('Created and completed over time', 'Tickets per day, by UTC day', 'var(--accent)', 7, [legend, h('div', { class: 'analytics-daily-scroll' }, chart)]),
+        panel('Progress so far', 'Running totals within this period', 'var(--ok)', 5, [svgChart('Cumulative tickets created and moved to Done', lines), h('p', { class: 'muted small' }, r.created + ' created · ' + r.completed + ' moved to Done')]),
+        panel('Done against created', 'Tickets moved to Done for each one created', 'var(--ok)', 3, [ring, h('p', { class: 'muted small analytics-tail' }, r.completed + ' done · ' + r.created + ' created' + (r.completed > r.created ? '. Some were created before this period.' : '.'))]),
+        panel('Busiest days', 'Created plus moved to Done, a square for each day', 'var(--block)', 5, heat),
+        panel('Work categories', 'Current labels; a ticket with several appears in each', 'var(--warn)', 4, r.categories.length ? comparison(r.categories.map(c => [c.name, c.completed, c.created + ' created · ' + c.completed + ' completed', 'var(--warn)'])) : h('p', { class: 'muted' }, 'No ticket activity matches these categories.')))
+        : h('p', { class: 'empty-state muted' }, 'No ticket activity in this period. Try a longer time range or another project.')];
   } else if (analyticsState.view === 'Categories') {
     const categoryId = analyticsState.category === '__unlabelled' ? '' : analyticsState.category;
     extras = [select('Category measure', analyticsState.metric, [['completed', 'Completed'], ['created', 'Created']], value => analyticsState.metric = value),
       select('Work category', analyticsState.category, [['', 'All categories'], ...r.categories.map(c => [c.labelId || '__unlabelled', c.name]), ...(analyticsState.category && !r.categories.some(c => c.labelId === categoryId) ? [[analyticsState.category, 'Selected category (not in this snapshot)']] : [])], value => analyticsState.category = value)];
     const categories = r.categories.filter(c => !analyticsState.category || c.labelId === categoryId).sort((a, b) => b[analyticsState.metric] - a[analyticsState.metric]);
-    body = [h('section', {}, h('h2', {}, 'Work by category'), h('p', { class: 'muted small' }, 'Current ticket labels. Tickets with multiple labels appear in each category; category totals are not unique ticket counts.'),
+    body = [h('div', { class: 'analytics-board' }, panel('Work by category', 'Current labels; category totals are not unique ticket counts', 'var(--warn)', 12,
       categories.length ? comparison(categories.map(c => [c.name, c[analyticsState.metric], c.created + ' created · ' + c.completed + ' completed', analyticsState.metric === 'completed' ? 'var(--ok)' : 'var(--accent)']))
-        : h('p', { class: 'muted' }, 'No ticket activity matches this category. Try another category, project or time range.')),
+        : h('p', { class: 'muted' }, 'No ticket activity matches this category. Try another category, project or time range.'))),
       h('details', {}, h('summary', {}, 'Category values'), table(['Current label', 'Created', 'Completed'], categories.map(c => [c.name, c.created, c.completed])))];
   } else {
     body = [stats([['Completed tickets', r.completed], ['Human completion decisions', r.humanCompletionDecisions], ['Median duration', duration(r.medianTicketSeconds)], ['Duration samples', r.durationSamples]]),
-      h('section', {}, h('h2', {}, 'Recorded completion signals'), comparison([['Completed tickets', r.completed, 'First recorded completion in the selected period', 'var(--ok)'], ['Human completion decisions', r.humanCompletionDecisions, 'Reopened tickets count once', 'var(--accent)']]),
-        h('p', { class: 'muted small' }, 'These are separate coordination signals, not steps of a funnel or verification of correctness.')),
+      h('div', { class: 'analytics-board' },
+        panel('Recorded completion signals', 'Separate coordination signals, rather than steps of a funnel', 'var(--ok)', 7, comparison([['Completed tickets', r.completed, 'First recorded completion in the selected period', 'var(--ok)'], ['Human completion decisions', r.humanCompletionDecisions, 'Reopened tickets count once', 'var(--accent)']])),
+        panel('Completion duration', 'From creation to first completion, including waiting', 'var(--block)', 5, h('dl', { class: 'analytics-facts' }, [['Median', duration(r.medianTicketSeconds)], ['Average', duration(r.averageTicketSeconds)], ['Samples', r.durationSamples]].map(([name, value]) => h('div', {}, h('dt', {}, name), h('dd', {}, String(value))))))),
       h('details', { class: 'analytics-disclosure' }, h('summary', {}, 'Coordination details'), h('p', {}, 'Team records coordination only. Execution history, agent usage and verified local merges live in Individual analytics.'))];
   }
   return h('div', { class: 'coordination-analytics' }, tabs,
     h('div', { id: 'analytics-panel', role: 'tabpanel', 'aria-labelledby': 'analytics-tab-' + analyticsState.view, tabindex: '0' },
-      h('div', { class: 'analytics-filters' }, h('label', {}, 'Project ', project), h('label', {}, 'Time range ', range), extras, h('button', { type: 'button', class: 'plain', onclick: () => { scope.appliedProject = scope.project; scope.appliedDays = scope.days; analyticsState.report = null; render(); } }, 'Apply / refresh')),
-      h('p', { class: 'muted small' }, 'As of ' + new Date(r.end).toLocaleString() + ' · ' + ((r.projects || []).find(p => p.id === scope.appliedProject)?.name || 'All projects you can read') + ' · ' + scope.appliedDays + ' days. Project and time range take effect with Apply / refresh.'),
+      h('div', { class: 'analytics-filters' }, h('label', {}, 'Project ', project), h('label', {}, 'Time range ', range), extras),
+      h('p', { class: 'muted small' }, 'As of ' + new Date(r.end).toLocaleString() + ' · ' + ((r.projects || []).find(p => p.id === scope.appliedProject)?.name || 'All projects you can read') + ' · ' + scope.appliedDays + ' days.'),
       r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Partial history: the bounded read omitted records or projects. Counts may be lower than the full history.') : '', body));
 }
 

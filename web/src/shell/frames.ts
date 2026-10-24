@@ -3,6 +3,8 @@
 // window of a frame the shell itself made, from the origin the app said that frame would be at; and it can only ask the app to
 // do something (the app then decides, by the kind of workspace the frame is) or say where in itself the person is.
 
+import { isSaliePlacements, type SaliePlacements } from '../lib/salie-placement';
+
 export interface FrameRef {
   /** The workspace the frame shows: the app's identity for it, never anything the page says. */
   id: string;
@@ -25,6 +27,7 @@ export interface Deps {
   /** The local Individual page may open Salie with a bounded personal workspace ID. */
   personalAssistant?(workspaceId: string, revision?: number): void;
   onboarding?(required: boolean, paused: boolean): void;
+  saliePlacement?(value?: SaliePlacements): SaliePlacements;
   relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   remember(id: string, place: string): Promise<void>;
   ready(id: string): void;
@@ -107,7 +110,13 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     // The assistant's frame is not a workspace's page: it has no place to remember, and may open only a place in the person's own
     // Werkbord or a validated Team ticket route.
     if (frame.surface && m.event !== 'assistant' && m.event !== 'open') return;
-    if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
+    if (m.event === 'salie_placement' && frame.id === 'personal' && !frame.hosted && !frame.surface && d.saliePlacement) {
+      if (m.action !== 'get' && m.action !== 'set') return;
+      if (m.action === 'set' && !isSaliePlacements(m.value)) return;
+      const value = d.saliePlacement(m.action === 'set' ? m.value as SaliePlacements : undefined);
+      d.reply(frame, { type: 'werkbord.salie-placement', value });
+    }
+    else if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
     else if (m.event === 'personal_workspace_assistant' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.workspaceId === 'string' && (m.workspaceId === '' || /^pws_[a-z2-7]{16}$/.test(m.workspaceId))) {
       if (m.revision !== undefined && (!Number.isSafeInteger(m.revision) || (m.revision as number) < 1 || !m.workspaceId)) return;
       if (m.revision === undefined) d.personalAssistant?.(m.workspaceId);

@@ -150,10 +150,11 @@ let browser;
   assert(allCreated >= 2, 'all-project coordination snapshot includes both fixture projects');
   await tpPage.getByLabel('Analytics project').selectOption(tp.id);
   await tpPage.getByLabel('Analytics time range').selectOption('7');
-  assert.equal(Number(await createdStat.innerText()), allCreated, 'pending filters do not change the snapshot');
-  await tpPage.getByRole('button', { name: 'Apply / refresh' }).click();
+  assert.equal(await tpPage.getByRole('button', { name: 'Apply / refresh' }).count(), 0, 'filters apply automatically');
   await tpPage.waitForFunction(() => document.querySelector('.analytics-statistics dd')?.textContent === '1');
   assert.equal(await createdStat.innerText(), '1', 'applied project filter');
+  await coord('POST', `/projects/${tp.id}/tickets`, {title:'Live coordination analytics'});
+  await tpPage.waitForFunction(() => document.querySelector('.analytics-statistics dd')?.textContent === '2');
   for (const [width, height, name] of [[1440, 1000, 'analytics-team-desktop'], [390, 844, 'analytics-team-mobile']]) {
     await tpPage.setViewportSize({ width, height }); await tpPage.evaluate(() => document.fonts.ready);
     assert(await tpPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ' page overflow');

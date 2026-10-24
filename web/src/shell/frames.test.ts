@@ -12,6 +12,23 @@ const hosted: FrameRef = { id: 'personal', hosted: true, origin: 'http://127.0.0
 const say = (source: Window, origin: string, data: Record<string, unknown>) => ({ source, origin, data: { type: 'werkbord.frame', ...data } });
 
 describe('what a frame may say about the window', () => {
+  it('lets only the main Individual frame read or change validated Salie placement preferences', async () => {
+    const value = { universal: 'both', workspace: 'sidebar' } as const;
+    const placement = vi.fn().mockReturnValue(value);
+    const d = { ...deps(), saliePlacement: placement };
+    const request = { event: 'salie_placement', action: 'set', value };
+    for (const frame of [frames[1], hosted, surface]) await handle([frame], say(frame.window!, frame.origin, request), d);
+    await handle(frames, say(individual, 'https://other.example', request), d);
+    for (const bad of [null, {}, { universal: 'none', workspace: 'sidebar' }, { universal: 'both', workspace: 1 }]) {
+      await handle(frames, say(individual, frames[0].origin, { ...request, value: bad }), d);
+    }
+    expect(placement).not.toHaveBeenCalled();
+    await handle(frames, say(individual, frames[0].origin, { event: 'salie_placement', action: 'get' }), d);
+    expect(placement).toHaveBeenLastCalledWith(undefined);
+    await handle(frames, say(individual, frames[0].origin, request), d);
+    expect(placement).toHaveBeenLastCalledWith(value);
+    expect(d.reply).toHaveBeenLastCalledWith(frames[0], { type: 'werkbord.salie-placement', value });
+  });
   it('may say which theme the person chose, and nothing else about it', async () => {
     const d = deps();
     for (const theme of ['dark', 'light', '']) await handle(frames, say(individual, frames[0].origin, { event: 'theme', theme }), d);

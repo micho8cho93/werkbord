@@ -122,7 +122,7 @@
 
   .places-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .places-heading h2 { margin: 0; }
-  .shelf { max-height: min(28vh, 240px); overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; flex: none; }
+  .shelf { max-height: min(28vh, 240px); overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; margin: -6px; padding: 6px; list-style: none; flex: none; }
   .tile {
     --kind: var(--accent);
     position: relative;

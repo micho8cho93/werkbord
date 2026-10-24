@@ -10,6 +10,7 @@
   import WorkspaceProblem from './WorkspaceProblem.svelte';
   import Calendar from './Calendar.svelte';
   import FloatingSalie from './FloatingSalie.svelte';
+  import { salie } from './salie.svelte';
   import Hub from './Hub.svelte';
   import Workspaces from './Workspaces.svelte';
   import AddTeam from './AddTeam.svelte';
@@ -62,7 +63,7 @@
 <!-- While the assistant is over the window, what is under it is not reachable by keyboard or screen reader either. -->
 <div class="shell" inert={model.assistantShown}>
   <Sidebar />
-  <FloatingSalie />
+  {#if salie.placements[model.universal ? 'universal' : 'workspace'] !== 'sidebar'}<FloatingSalie />{/if}
   <div class="content">
     {#if model.error}
       <div class="message error" role="alert">{model.error}<button class="btn" type="button" onclick={() => (model.error = '')}>Dismiss</button></div>

@@ -119,9 +119,18 @@ let browser, shellServer;
  assert.deepEqual((await teamTabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Board','Calendar','Git','Runs']);
  await page.locator('[data-board-item="'+tk.id+'"] .title').dragTo(page.locator('[data-board-column=in_progress]'));
  await wait(async()=> (await coord('GET',`/projects/${tp.id}/tickets/${tk.id}`)).status==='in_progress','Team native claim drag');
+ await page.locator('[data-board-item="'+tk.id+'"][data-work-state=in_progress]').waitFor();
  await page.locator('[data-board-item="'+tk.id+'"] [data-drag-handle]').focus(); await page.keyboard.press('ArrowRight');
  await wait(async()=> (await coord('GET',`/projects/${tp.id}/tickets/${tk.id}`)).status==='review','Team keyboard submit');
  await capture('team-board');
+ assert.equal(await page.locator('.project-meta').count(), 0, 'a project without a repository has no identity subtitle');
+ for (const [tab, name] of [['projects','team-projects'],['workspace','team-workspace'],['reviews','team-reviews']]) {
+  await page.goto(`${team}/?tab=${tab}`);
+  await page.locator(tab === 'projects' ? '.project-cards' : tab === 'workspace' ? '.cc-split' : '.reviews-grid').waitFor();
+  await capture(name);
+ }
+ await page.goto(`${team}/?tab=board&project=${tp.id}`);
+ await page.locator('[data-board-item="'+tk.id+'"]').waitFor();
  await teamTabs.getByRole('button',{name:'Calendar',exact:true}).click();
  await page.getByText(/Planned work/).first().waitFor();
  await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
@@ -131,28 +140,67 @@ let browser, shellServer;
  await page.getByText(/Execution reported by members/).waitFor();
  await teamTabs.getByRole('button',{name:'Git',exact:true}).click();
  console.log('PASS Team native claim drag, keyboard submit, integrated Calendar/Timeline and coordinated Runs');
+ // Archiving a Done card preserves the record and leaves other completed work on the board.
+ let doneA=await personal('POST',`/projects/${work.id}/tasks`,{title:'Archive this completed task',description:'Keep this completion evidence'});
+ let doneB=await personal('POST',`/projects/${work.id}/tasks`,{title:'Keep this completed task'});
+ for(const task of [doneA,doneB]) await personal('PATCH',`/projects/${work.id}/tasks/${task.id}`,{version:task.version,state:'done'});
+ await page.goto(`${individual}/#/p/${work.id}/board`);
+ await page.locator(`[data-board-item="${doneA.id}"]`).getByRole('button',{name:'Archive',exact:true}).click();
+ await wait(async()=>!!(await personal('GET',`/projects/${work.id}/tasks`)).tasks.find(task=>task.id===doneA.id).archivedAt,'Individual card archive');
+ await page.locator(`[data-board-item="${doneB.id}"]`).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Archive Done tasks',exact:true}).count(),0);
+ assert.equal((await personal('GET',`/projects/${work.id}/tasks`)).tasks.find(task=>task.id===doneA.id).description,'Keep this completion evidence');
+ await coord('POST',`/projects/${tp.id}/tickets/${tk.id}/complete`,{});
+ await page.goto(`${team}/?tab=board&project=${tp.id}`);
+ await page.locator(`[data-board-item="${tk.id}"]`).getByRole('button',{name:'Archive',exact:true}).click();
+ await wait(async()=>!!(await coord('GET',`/projects/${tp.id}/tickets/${tk.id}`)).archivedAt,'Team card archive');
+ assert.equal(await page.getByRole('button',{name:'Archive Done tickets',exact:true}).count(),0);
+ const linked=await coord('POST','/projects',{name:'Linked repository project',repository:'https://github.com/example/workspace-layout'});
+ await coord('POST',`/projects/${linked.id}/tickets`,{title:'Keep ticket branches out of the project header'});
+ await page.goto(`${team}/?tab=board&project=${linked.id}`);
+ await page.locator('.project-meta').waitFor();
+ assert.equal((await page.locator('.project-where').innerText()).trim(),'https://github.com/example/workspace-layout\nLinked repository project');
+ console.log('PASS individual Done-card archive preserves details and other Done cards; Team archive and repository-only project identity');
+
  // Real Individual summary feeds aggregate planning; shell alone has only neutral workspace DTOs.
  const summary = await personal('GET','/workspace/v1/summary');
  assert(summary.planned.some(p=>p.id===planned.id),'summary carries planned dates for unexecuted tasks');
  const shellRoot = path.resolve(__dirname,'../desktop/frontend/dist/shell');
- shellServer = http.createServer((req,res)=> { const file=path.join(shellRoot,decodeURIComponent(req.url.split('?')[0])); if (!file.startsWith(shellRoot) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {res.writeHead(404);res.end();return;} res.setHeader('Content-Type', file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'application/octet-stream'); res.end(fs.readFileSync(file)); });
- await new Promise(resolve=>shellServer.listen(0,'127.0.0.1',resolve));
+ shellServer = http.createServer((req,res)=> {
+  if (req.method === 'POST' && req.url === '/fixture/personal') {
+   let raw=''; req.on('data', part=>raw+=part); req.on('end', async()=> {
+    try { const {method,route,body}=JSON.parse(raw); const response=await fetch(individual+route,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body===null?undefined:JSON.stringify(body)}); const value=await response.text(); res.setHeader('Content-Type','application/json'); res.end(JSON.stringify({status:response.status,body:value?JSON.parse(value):null})); }
+    catch(error) { res.statusCode=500;res.end(JSON.stringify({error:error.message})); }
+   }); return;
+  }
+  const file=path.join(shellRoot,decodeURIComponent(req.url.split('?')[0])); if (!file.startsWith(shellRoot) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {res.writeHead(404);res.end();return;} res.setHeader('Content-Type', file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'application/octet-stream'); res.end(fs.readFileSync(file)); });
+ await new Promise(resolve=>shellServer.listen(Number(new URL(process.env.PLANNING_SHELL_URL).port),'127.0.0.1',resolve));
  const shellPage = await browser.newPage({viewport:{width:1440,height:1000}}); shellPage.on('pageerror',e=>errors.push(e.message));
  const items = [{id:'personal',kind:'personal',name:'Individual',state:'ready',source:'Werkbord'},{id:'team:main',kind:'team',name:'Workspace coordination',state:'ready',source:'Fixture'}];
- await shellPage.addInitScript(({items,summary,individual,team})=> {
+ await shellPage.addInitScript(({items,summary,individual,team,teamToken})=> {
+  try { localStorage.setItem('devboard.token','disposable-browser-credential'); sessionStorage.setItem('werkbord-team-token',teamToken); } catch (_) { /* Initial about:blank frames have no storage. */ }
   if(window.parent!==window)return;
   window.runtime={EventsOn:()=>()=>{}};
-  window.go={main:{App:{Workspaces:async()=>({items,selected:'personal',problems:[],team:{state:'ready'},teamInstaller:false,invitation:false}), OpenWorkspace:async id=>({id,kind:id==='personal'?'personal':'team',url:id==='personal'?individual:team,origin:id==='personal'?individual:team}), Overview:async()=>({entries:[{workspace:items[0],summary},{workspace:items[1],summary:{...summary,workspace:items[1],work:[],planned:[],schedule:[],attention:[],projects:[]}}],at:new Date().toISOString()}), RememberPlace:async()=>{}}}};
- },{items,summary,individual,team});
+  window.go={main:{App:{Workspaces:async()=>({items,selected:'personal',problems:[],team:{state:'ready'},teamInstaller:false,invitation:false}), OpenWorkspace:async id=>({id,kind:id==='personal'?'personal':'team',url:id==='personal'?individual:team,origin:id==='personal'?individual:team}), Overview:async()=>({entries:[{workspace:items[0],summary},{workspace:items[1],summary:{...summary,workspace:items[1],work:[],planned:[],schedule:[],attention:[],projects:[]}}],at:new Date().toISOString()}), RememberPlace:async()=>{}, PersonalWorkspaceCall:async(method,route,body)=>(await fetch('/fixture/personal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,route,body})})).json()}}};
+ },{items,summary,individual,team,teamToken});
  await shellPage.goto(`http://127.0.0.1:${shellServer.address().port}/shell/index.html`);
  const side=shellPage.getByRole('navigation',{name:'Werkbord',exact:true});
  await shellPage.getByTestId('workspace-switcher').click();
  await shellPage.locator('[data-workspace=personal]').click();
  await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
+ await shellPage.getByTestId('sidebar-salie').waitFor();
+ assert.equal(await shellPage.getByTestId('salie-button').count(),0,'Individual defaults to sidebar Salie');
  assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);
  await shellPage.getByTestId('workspace-switcher').click();
  await shellPage.locator('[data-workspace=universal]').click();
  await shellPage.getByRole('heading',{name:'Universal',exact:true}).waitFor();
+ await shellPage.getByTestId('salie-button').waitFor();
+ assert.equal(await shellPage.getByTestId('sidebar-salie').count(),0,'Universal defaults to floating Salie');
+ const bottom=side.locator('.bottom [data-page]');
+ assert.deepEqual(await bottom.evaluateAll(nodes=>nodes.map(el=>el.dataset.page)),['workspaces','personal-library','settings']);
+ await shellPage.getByTestId('hub-workspace-personal').hover();
+ const hoverFits=await shellPage.getByTestId('hub-workspace-personal').evaluate(el=>{const card=el.getBoundingClientRect(),shelf=el.closest('.shelf').getBoundingClientRect();return card.top-3>=shelf.top && card.bottom+3<=shelf.bottom;});
+ assert(hoverFits,'hover lift and outline fit inside the shelf');
  assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);
  assert.equal(await side.getByRole('button',{name:'Projects',exact:true}).count(),0);
  assert.equal(await side.getByRole('button',{name:'Calendar',exact:true}).count(),0);
@@ -171,6 +219,53 @@ let browser, shellServer;
   await shellPage.waitForTimeout(350);
   await shellPage.screenshot({path:path.join(artifacts,'universal-'+destination.toLowerCase().replaceAll(' ','-')+'-desktop.png')});
  }
+
+ // Library and placement controls use the built shell and real personal storage.
+ for(let i=0;i<6;i++) {
+  const collection=await personal('POST','/personal/v1/collections',{name:'Library collection '+i,schemaVersion:1,fields:[{key:'title',name:'Title',type:'text',required:true}]});
+  await personal('POST','/personal/v1/workspaces',{name:'Saved workspace '+i,icon:'auto',uiSchemaVersion:1,collectionIds:[collection.id],readBindings:[],visibility:{universal:true,individual:true,teamWorkspaceIds:[]},definition:{views:[{id:'records',name:'Records',kind:'table',collectionId:collection.id,fields:['title'],operations:['create','update','delete']}],layout:{type:'view',viewId:'records'}}});
+ }
+ await side.getByRole('button',{name:'Data library',exact:true}).click();
+ const saved=shellPage.getByRole('region',{name:'Saved workspaces',exact:true}), collections=shellPage.getByRole('region',{name:'Personal collections',exact:true});
+ await saved.locator('.card-row').first().waitFor();
+ assert.equal(await saved.locator('.card-row').count(),4); assert.equal(await collections.locator('.card-row').count(),4);
+ const [savedBox,collectionBox]=await Promise.all([saved.boundingBox(),collections.boundingBox()]);
+ assert(Math.abs(savedBox.y-collectionBox.y)<2 && collectionBox.x>savedBox.x,'library lists sit side by side');
+ await collections.getByRole('button',{name:'Show all 6 collections'}).click(); assert.equal(await collections.locator('.card-row').count(),6);
+ await collections.getByRole('button',{name:'Show fewer collections'}).click(); assert.equal(await collections.locator('.card-row').count(),4);
+ for(const [width,height,suffix] of [[1440,1000,'desktop'],[390,844,'narrow']]) {
+  await shellPage.setViewportSize({width,height}); await shellPage.screenshot({path:path.join(artifacts,'data-library-'+suffix+'.png'),fullPage:true});
+  assert(await shellPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'library fits window');
+ }
+ await shellPage.setViewportSize({width:1440,height:1000});
+ await side.getByRole('button',{name:'Settings',exact:true}).click();
+ const universalPlacement=shellPage.getByRole('group',{name:'Salie placement in Universal',exact:true});
+ const workspacePlacement=shellPage.getByRole('group',{name:'Salie placement in Individual and Team',exact:true});
+ await universalPlacement.getByRole('button',{name:'Both',exact:true}).click();
+ await shellPage.getByTestId('sidebar-salie').waitFor(); await shellPage.getByTestId('salie-button').waitFor();
+ await workspacePlacement.getByRole('button',{name:'Floating',exact:true}).click();
+ await shellPage.reload();
+ await shellPage.getByTestId('sidebar-salie').waitFor(); await shellPage.getByTestId('salie-button').waitFor();
+ await shellPage.getByTestId('workspace-switcher').click(); await shellPage.locator('[data-workspace=personal]').click();
+ await shellPage.getByTestId('salie-button').waitFor(); assert.equal(await shellPage.getByTestId('sidebar-salie').count(),0);
+ console.log('PASS library previews/expansion, Universal sidebar order, unclipped hover and persisted per-surface Salie placements');
+
+ // New-user setup offers the same preference without prompting existing users.
+ await personal('POST','/onboarding/reset',{});
+ await personal('POST','/onboarding/variant',{variant:'local'});
+ for(const step of ['github','ticket','assistant','publish','phone']) await personal('POST','/onboarding/step',{step,state:'skipped'});
+ await shellPage.reload();
+ await shellPage.getByTestId('workspace-switcher').click(); await shellPage.locator('[data-workspace=personal]').click();
+ const onboarding=shellPage.frameLocator('iframe[data-workspace=personal]');
+ await onboarding.getByRole('heading',{name:'Welcome to Werkbord',exact:true}).waitFor().catch(async error=>{await shellPage.screenshot({path:path.join(artifacts,'onboarding-failure.png')}); console.log('Onboarding frame:',(await onboarding.locator('body').innerText()).slice(0,4000));throw error;});
+ if(await onboarding.getByRole('button',{name:'Start guided setup',exact:true}).isVisible()) await onboarding.getByRole('button',{name:'Start guided setup',exact:true}).click();
+ const onboardingPlacement=onboarding.getByRole('group',{name:'Salie placement in Individual and Team',exact:true});
+ await onboardingPlacement.getByRole('button',{name:'Sidebar',exact:true}).click();
+ await shellPage.getByTestId('sidebar-salie').waitFor();
+ assert.equal(await shellPage.getByTestId('salie-button').count(),0,'onboarding changes the shell placement immediately');
+ assert.equal(await onboardingPlacement.getByRole('button',{name:'Sidebar',exact:true}).getAttribute('aria-pressed'),'true');
+ await shellPage.screenshot({path:path.join(artifacts,'salie-onboarding-desktop.png')});
+ console.log('PASS onboarding reads and updates the same saved Salie placement as Settings');
 
  assert.deepEqual(errors,[]);
  console.log('PASS Universal peer selector, scoped sidebar and aggregated planning timeline');

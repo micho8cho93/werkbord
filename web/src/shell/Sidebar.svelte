@@ -2,14 +2,15 @@
   import Icon, { type IconName } from '../lib/Icon.svelte';
   import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
   import Mark from '../lib/Mark.svelte';
+  import AssistantGlyph from '../lib/AssistantGlyph.svelte';
+  import { salie } from './salie.svelte';
   import { counts } from './aggregate';
   import { model } from './model.svelte';
   import { activeKey, entries, listed } from './nav';
 
   // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), the open workspace's own
   // places (its home, projects and so on) with Create with Salie and the workspaces Salie has made, and last, pinned to the
-  // bottom whatever else is shown, the things about this computer: Devices & Hosting, the Data library and Settings. Universal
-  // is a hub of its own and lists only Devices & Hosting and Settings; its page carries the rest. Salie is the floating button.
+  // bottom whatever else is shown, the things about this computer: Devices & Hosting, the Data library and Settings.
   const active = $derived(model.view?.items.find((i) => i.id === model.current));
   const kind = $derived(active?.kind ?? 'personal');
   const name = $derived(model.universal ? 'Universal' : kind === 'personal' ? 'Individual' : active?.name ?? 'Individual');
@@ -42,6 +43,13 @@
   });
 
   let switchButton: HTMLButtonElement | undefined = $state();
+  let salieButton: HTMLButtonElement | undefined = $state();
+  const sidebarSalie = $derived(salie.placements[model.universal ? 'universal' : 'workspace'] !== 'floating');
+  $effect(() => {
+    const button = salieButton;
+    model.assistantSidebarButton = button;
+    return () => { if (model.assistantSidebarButton === button) model.assistantSidebarButton = undefined; };
+  });
   $effect(() => {
     model.switcherButton = switchButton;
   });
@@ -66,6 +74,16 @@
   </button>
 
   <div class="top">
+  {#if sidebarSalie}
+    <button bind:this={salieButton} class="nav salie-nav" type="button" title="Salie" aria-haspopup="dialog" aria-expanded={model.assistant.open} disabled={model.view?.items.find(i => i.id === 'personal')?.state === 'unavailable'} onclick={() => {
+      model.assistantButton = salieButton;
+      const rect = salieButton?.getBoundingClientRect();
+      if (rect) void model.toggleAssistant(rect);
+    }} data-testid="sidebar-salie">
+      <AssistantGlyph /><span class="label">Salie</span>
+      {#if model.assistant.waiting}<span class="num" aria-label="{model.assistant.waiting} waiting for you">{model.assistant.waiting}</span>{:else if model.assistant.running}<span class="salie-working" role="status" aria-label="Salie is working"></span>{/if}
+    </button>
+  {/if}
   {#if !model.universal}
   <div class="group" aria-label={name}>
     <div class="lbl" title={name}>{name}</div>
@@ -102,12 +120,14 @@
   </div>
   <div class="group bottom">
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
-    {#if !model.universal}{@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}{/if}
+    {@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}
     {@render item('Settings', 'settings', model.page === 'settings', () => model.openSettings(), 'settings')}
   </div>
 </nav>
 
 <style>
+  .salie-nav { flex: none; }
+  .salie-working { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-left: auto; flex: none; }
   .side {
     display: flex;
     flex-direction: column;

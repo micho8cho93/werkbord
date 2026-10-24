@@ -132,12 +132,12 @@ workspace shelf contains Individual, Teams, saved workspaces made by Salie and t
 Create with Salie action beside the shelf heading. Needs you and Calendar sit in separate panels below it. At wide widths,
 the shelf and panel bodies scroll internally; below 1000px the panels stack and the page scrolls.
 
-Universal's sidebar starts collapsed on every entry. It contains the workspace switcher, Devices & Hosting and Settings;
+Universal's sidebar starts collapsed on every entry. It contains the workspace switcher, Devices & Hosting, Data library and Settings;
 the hub carries workspace navigation, generated workspaces and the Data library. Individual's workspace destinations are
 Workspace and Projects, with Analytics immediately below Add project. Each Team workspace lists Workspace, Projects,
 Reviews, Members and Analytics. In Individual and Team, workspace destinations, Create with Salie and generated workspaces
 share a scrollable upper group; Devices & Hosting → Data library → Settings stay pinned at the bottom independently of
-that scroll. Salie floats over the shell. Theme controls live in Settings → Appearance. Universal has no workspace-specific
+that scroll. Salie defaults to a floating button in Universal and a sidebar button in Individual and Team. Settings → Appearance and the final onboarding review offer separate placement choices for Universal and Individual/Team: Sidebar, Floating or Both. These preferences are stored per device. Theme controls live in Settings → Appearance. Universal has no workspace-specific
 Settings or project list. Project sections belong above the project's content, not in the workspace sidebar. The window
 uses its own 208px sidebar, collapsing to 48px; the intermediate-width label control reveals the names without changing
 the route. Workspace and Data library content can widen to 1800px; Devices & Hosting uses an auto-fill card grid.
@@ -425,3 +425,12 @@ Tickets use a main column for description, requirements, private agent work and 
 ### Agent catalogue and model objectives (4.81)
 
 Settings → Agents owns the complete searchable CLI catalogue, inclusion toggles, billing declarations and optional model estimates. Setup and everyday agent/model choices use collapsing selects, and the selected value remains visible. Task defaults, project/task/run overrides, workflows and Salie share Lowest cost, Max reasoning, Highest intelligence and Manual. Automatic modes hide manual model controls, explain that selection is fixed for a conversation or run, and expose the resolved choice and classifier/rules source. Preserve explicit saved choices as Manual. Mobile activity lists installed agents and active sessions rather than the integration catalogue.
+
+
+### Team layout and assistant placement (4.82)
+
+Team Analytics follows Individual’s coloured statistic tiles and twelve-column chart panels using coordination data: daily throughput, cumulative progress, Done against created, activity by day and categories. Filters apply on selection. Reviews places To review beside Waiting for review; Projects leads with compact workload cards and keeps create/join controls in disclosures beside them. Workspace groups Needs you and Working now beneath compact counts. Narrow windows stack these groups in reading order.
+
+Data library places Saved workspaces beside Personal collections, showing four entries per list initially with independent Show all / Show fewer controls. Collection inspection stays below both lists. Universal keeps Devices & Hosting → Data library → Settings pinned in its sidebar, and workspace tiles reserve room for hover lift and focus outlines.
+
+Project identity in Team contains only the repository, when present, above the project title; ticket branches belong in ticket and Git views. Individual and Team preserve saved work modes without a Human / Agent / Hybrid selector in create/edit forms. Done cards carry their own Archive action, and the bulk Archive Done button is removed. Archive preserves details and supports restoration.

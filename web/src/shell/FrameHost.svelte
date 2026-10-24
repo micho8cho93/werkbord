@@ -9,6 +9,7 @@
   import { model } from './model.svelte';
   import { alerts } from './alerts.svelte';
   import { theme } from '../lib/theme.svelte';
+  import { salie } from './salie.svelte';
 
   let { shown }: { shown: boolean } = $props();
 
@@ -44,6 +45,7 @@
   function onMessage(e: MessageEvent): void {
     void handle(refs(), e, {
       onboarding: (required, paused) => { model.setupRequired = required; model.setupPaused = paused; },
+      saliePlacement: value => { if (value) salie.set(value); return { ...salie.placements }; },
       relay: (id, method, args) => ask((a) => a.Relay(id, method, args)),
       remember: (id, place) => {
         model.setPlace(id, place);
@@ -75,6 +77,12 @@
       settings: (id, place) => model.openSettingsAt(id, place),
     });
   }
+
+  // Onboarding and Settings edit the same per-device placement preference.
+  $effect(() => {
+    const value = { ...salie.placements };
+    if (model.frames.personal?.ready) sendTo('personal', false, { type: 'werkbord.salie-placement', value });
+  });
 
   // Changing the theme in the sidebar changes it in every workspace that is open.
   $effect(() => {

@@ -118,8 +118,14 @@ export class Model {
   assistant = $state({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
   assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor; personalWorkspace?: string; personalRevision?: number; personalPrompt?: string } | null>(null);
-  /** The floating Salie button: the assistant opens out of it, and focus comes back to it. */
-  assistantButton: HTMLElement | undefined;
+  /** The launcher used most recently; preference changes can remove either launcher. */
+  private lastAssistantButton: HTMLElement | undefined;
+  assistantSidebarButton: HTMLElement | undefined;
+  assistantFloatingButton: HTMLElement | undefined;
+  get assistantButton(): HTMLElement | undefined {
+    return [this.lastAssistantButton, this.assistantFloatingButton, this.assistantSidebarButton].find(button => button && button.isConnected !== false);
+  }
+  set assistantButton(button: HTMLElement | undefined) { this.lastAssistantButton = button; }
   /**
    * The assistant's own frame: a page of Individual that is nothing but the assistant, as large as the window. It is made the first
    * time the assistant is opened and then kept, so that closing it stops nothing. It is not a workspace, and it is not in `frames`.

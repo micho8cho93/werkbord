@@ -3,6 +3,8 @@
   import { theme } from '../lib/theme.svelte';
   import { alerts } from './alerts.svelte';
   import { model } from './model.svelte';
+  import SaliePlacement from '../lib/SaliePlacement.svelte';
+  import { salie } from './salie.svelte';
 
   // The settings that are about this window and this person, not about any one workspace: how it looks and what it tells you
   // while you are in another app. They are the same wherever Settings is opened from.
@@ -30,6 +32,13 @@
         <button type="button" aria-pressed={theme.choice === 'light'} onclick={() => theme.set('light')}>Light</button>
         <button type="button" aria-pressed={theme.choice === 'dark'} onclick={() => theme.set('dark')}>Dark</button>
       </div>
+    </section>
+    <section class="pn" aria-labelledby="salie-placement-h">
+      <div class="head">
+        <h3 id="salie-placement-h">Salie button</h3>
+        <p class="muted">Choose where to open Salie. The floating button can be dragged to a convenient spot.</p>
+      </div>
+      <SaliePlacement value={salie.placements} onchange={value => salie.set(value)} />
     </section>
   {:else}
     <section class="pn" aria-labelledby="alerts-h">

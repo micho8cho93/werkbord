@@ -51,11 +51,13 @@
   );
 
   $effect(() => {
-    model.assistantButton = button;
-    return () => { if (model.assistantButton === button) model.assistantButton = undefined; };
+    const anchor = button;
+    model.assistantFloatingButton = anchor;
+    return () => { if (model.assistantFloatingButton === anchor) model.assistantFloatingButton = undefined; };
   });
 
   function open(): void {
+    model.assistantButton = button;
     const r = button?.getBoundingClientRect();
     if (r) void model.toggleAssistant({ x: r.left, y: r.top, width: r.width, height: r.height });
   }

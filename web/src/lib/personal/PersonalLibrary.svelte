@@ -8,6 +8,9 @@
   let collections = $state<Collection[]>([]); let workspaces = $state<Workspace[]>([]); let usages = $state<Record<string, Usage>>({});
   let session = $state<WorkspaceSession | null>(null);
   let busy = $state(false); let problem = $state(''); let notice = $state(''); let attempt = $state(0);
+  let allWorkspaces = $state(false); let allCollections = $state(false);
+  const recentWorkspaces = $derived([...workspaces].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name)));
+  const recentCollections = $derived([...collections].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name)));
   $effect(() => {
     void attempt; let active = true; busy = true; problem = ''; session = null;
     untrack(() => { void Promise.all([api.collections(), api.workspaces()]).then(async ([cs, ws]) => {
@@ -44,24 +47,26 @@
   {#if notice}<p role="status">{notice}</p>{/if}
   {#if problem}<p role="alert">{problem}</p>{/if}
   {#if busy}<p role="status">Loading personal data…</p>{:else}
-    {#if workspaces.length}
+    <div class="library-columns">
       <section class="pn" aria-label="Saved workspaces">
-        <h2 class="band">Saved workspaces</h2>
-        <ul class="card-list">{#each workspaces as w (w.id)}<li class="card-row"><header><h3 class="title">{w.name}</h3></header><div class="actions"><button class="btn open" onclick={() => onopen(w)}>Open</button></div></li>{/each}</ul>
+        <h2 class="band">Saved workspaces <span class="total">{workspaces.length}</span></h2>
+        <ul class="card-list" id="library-workspaces">{#each recentWorkspaces.slice(0, allWorkspaces ? undefined : 4) as w (w.id)}<li class="card-row workspace-row"><header><h3 class="title">{w.name}</h3></header><div class="actions"><button class="btn open" onclick={() => onopen(w)}>Open</button></div></li>{:else}<li class="muted">No workspaces are saved.</li>{/each}</ul>
+        {#if workspaces.length > 4}<button class="btn quiet more" aria-controls="library-workspaces" aria-expanded={allWorkspaces} onclick={() => allWorkspaces = !allWorkspaces}>{allWorkspaces ? 'Show fewer workspaces' : `Show all ${workspaces.length} workspaces`}</button>{/if}
       </section>
-    {/if}
     <section class="pn" aria-label="Personal collections">
-      <h2 class="band">Personal collections</h2>
-      <ul class="card-list">
-        {#each collections as c (c.id)}
+      <h2 class="band">Personal collections <span class="total">{collections.length}</span></h2>
+      <ul class="card-list" id="library-collections">
+        {#each recentCollections.slice(0, allCollections ? undefined : 4) as c (c.id)}
           <li class="card-row" aria-label={c.name}>
-            <header><h3 class="title">{c.name}</h3><span class="tag">{usages[c.id]?.referenceCount === 0 ? 'Retained data — no workspace' : `${usages[c.id]?.referenceCount} workspace references`}</span></header>
+            <header><h3 class="title">{c.name}</h3><span class="tag">{usages[c.id]?.referenceCount === 0 ? 'Retained data — no workspace' : `${usages[c.id]?.referenceCount ?? 'Unknown'} workspace ${usages[c.id]?.referenceCount === 1 ? 'reference' : 'references'}`}</span></header>
             <p class="count">{usages[c.id]?.recordCount ?? 'Unknown'} records</p>
             <div class="actions"><button class="btn" onclick={() => recover(c, false)}>Inspect records</button><button class="btn" onclick={() => recover(c, true)}>Use in new workspace</button></div>
           </li>
         {:else}<li class="muted">No personal collections are saved.</li>{/each}
       </ul>
+      {#if collections.length > 4}<button class="btn quiet more" aria-controls="library-collections" aria-expanded={allCollections} onclick={() => allCollections = !allCollections}>{allCollections ? 'Show fewer collections' : `Show all ${collections.length} collections`}</button>{/if}
     </section>
+    </div>
   {/if}
   {#if session}<section class="pn" aria-label="Collection records"><h2 class="band">Collection records</h2><WorkspaceRenderer {session} /></section>{/if}
 </div>
@@ -72,5 +77,14 @@
   h1 { font-size: 20px; margin: 0; }
   p { margin: 0; color: var(--text-2); line-height: 1.6; max-width: 72ch; }
   .count { font-size: 13px; }
+  .library-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .library-columns > section { min-width: 0; }
+  .band { display: flex; align-items: center; gap: 12px; }
+  .total { margin-left: auto; color: var(--text-2); font-family: var(--mono); }
+  .more { margin-top: 16px; }
+  .title { overflow-wrap: anywhere; }
+  .workspace-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .workspace-row .actions { border: 0; padding: 0; }
+  @media (max-width: 1000px) { .library-columns { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 600px) { .library { padding: 16px; } button { min-height: 44px; } }
 </style>
