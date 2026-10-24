@@ -393,13 +393,13 @@ a.btn.primary {
 
 /*
  * What a button leans toward. Every tone is the same raised button with one quiet difference, so a row of buttons reads as
- * a row of different things before a word is read: the colour of the edge and the label, a faint glow when pointed at,
- * and for going somewhere an underline. Use them where several buttons stand together; a lone button needs none.
+ * a row of different things before a word is read: the colour of the edge and the label, and a faint glow when pointed at.
+ * No tone underlines its label. Use them where several buttons stand together; a lone button needs none.
  *
  *   (none)   change or manage something: Edit, Settings, Rename
  *   primary  the one thing this place is for: filled
  *   add      bring something new in: accent edge and label
- *   open     go somewhere or look at something: accent label, underlined
+ *   open     go somewhere or look at something: accent label
  *   ok       approve, confirm, finish: green edge and label
  *   warn     stop or pause, and can be undone: amber edge and label
  *   danger   remove for good: red edge and label
@@ -443,15 +443,7 @@ a.btn.primary {
 
 .btn.open {
   --tone: var(--accent);
-  border-color: var(--border);
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 4px;
-}
-
-.btn.open:hover:not(:disabled) {
-  text-decoration-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
 }
 
 .btn.ok {

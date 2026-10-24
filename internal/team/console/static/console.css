@@ -141,8 +141,7 @@ button.primary { background: var(--pri-bg); border-color: var(--pri-bd); box-sha
 button.add, button.open, button.ok, button.warn, button.danger { border-color: color-mix(in srgb, var(--tone) 42%, var(--line)); color: var(--tone-text, var(--tone)); }
 button.add:hover:not(:disabled), button.open:hover:not(:disabled), button.ok:hover:not(:disabled), button.warn:hover:not(:disabled), button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--tone) 9%, var(--panel)); box-shadow: var(--btn-sh), 0 0 0 3px color-mix(in srgb, var(--tone) 16%, transparent); }
 button.add { --tone: var(--accent); }
-button.open { --tone: var(--accent); border-color: var(--line); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: 4px; }
-button.open:hover:not(:disabled) { text-decoration-color: var(--accent); }
+button.open { --tone: var(--accent); border-color: color-mix(in srgb, var(--accent) 24%, var(--line)); }
 button.ok { --tone: var(--ok); --tone-text: var(--ok-text); }
 button.warn { --tone: var(--warn); --tone-text: var(--warn-text); }
 button.danger { --tone: var(--danger); --tone-text: var(--danger-text); }

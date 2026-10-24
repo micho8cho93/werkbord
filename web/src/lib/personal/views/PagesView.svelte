@@ -215,7 +215,7 @@
   .main { display: grid; gap: 12px; min-width: 0; align-content: start; }
   .list-toggle { display: none; justify-self: start; }
   .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--text-2); font-size: 12.5px; }
-  .crumbs button { padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .crumbs button { padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; cursor: pointer; text-decoration: none; }
   .crumbs button:hover { color: var(--accent); }
   .here { color: var(--text); font-weight: 600; }
   .parent { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }

@@ -5,7 +5,7 @@
   import { daysBetween, localToday, PX_PER_DAY, ticks, viewRange, type Zoom } from './timeline';
   import { listenDates, type DateDrop } from './planningGestures';
   export interface CalendarRow { id: string; title: string; project: string; start: string; end: string; href?: string; detail?: string; status?: string; kind?: 'planned' | 'scheduled'; milestone?: boolean; }
-  let { rows, timeline = false, onopen, onmove }: { rows: CalendarRow[]; timeline?: boolean; onopen?: (id: string) => void; onmove?: (drop: DateDrop) => Promise<void> } = $props();
+  let { rows, timeline = false, dense = false, onopen, onmove }: { rows: CalendarRow[]; timeline?: boolean; dense?: boolean; onopen?: (id: string) => void; onmove?: (drop: DateDrop) => Promise<void> } = $props();
   let surface = $state<HTMLElement>();
   let scroll = $state<HTMLElement>();
   let anchor = $state(localToday(Date.now()));
@@ -51,7 +51,7 @@
     return () => el.removeEventListener('wheel', wheel);
   });
 </script>
-<section class="planning-calendar" use:layout={{ revision: rows.map(r => `${r.id}:${r.start}:${r.end}`).join('|'), enabled: true, selector: '[data-plan-item]' }} bind:this={surface} data-plan-surface aria-label={timeline ? 'Planning timeline' : 'Week calendar'}>
+<section class="planning-calendar" class:dense use:layout={{ revision: rows.map(r => `${r.id}:${r.start}:${r.end}`).join('|'), enabled: true, selector: '[data-plan-item]' }} bind:this={surface} data-plan-surface aria-label={timeline ? 'Planning timeline' : 'Week calendar'}>
   <div class="tools">
     <button class="btn small" onclick={() => anchor = addDays(anchor, timeline ? -(zoom === 'quarter' ? 90 : zoom === 'month' ? 30 : zoom === 'day' ? 1 : 7) : -7)} aria-label="Previous period">Previous</button>
     <button class="btn small" onclick={() => { anchor = localToday(Date.now()); centre(); }}>Today</button>
@@ -89,6 +89,10 @@
 </section>
 <style>
   .planning-calendar { padding: 16px 24px; height: 100%; min-height: 0; display: flex; flex-direction: column; }
+  .dense { padding: 0; }
+  .dense .week { grid-template-columns: repeat(7, minmax(104px, 1fr)); }
+  .dense .day { padding: 8px 6px; }
+  .dense .event { padding: 7px 8px; }
   .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .tools strong { font-size: 13px; margin-left: 8px; }
   .guide { color: var(--text-2); font-size: 12px; margin: 10px 0 14px; }
@@ -124,5 +128,6 @@
   .range { position: absolute; top: 8px; bottom: 8px; padding: 4px 12px; overflow: hidden; white-space: nowrap; }
   .range-title { display: block; overflow: hidden; text-overflow: ellipsis; }
   .range .status { margin: 3px 0 0; font-weight: 400; }
+  @media (max-width: 1000px) { .dense .week { grid-template-columns: repeat(7, minmax(150px, 1fr)); } }
   @media (max-width: 899px) { .planning-calendar { padding: 16px; min-height: 480px; } .tools button { min-height: 44px; } }
 </style>

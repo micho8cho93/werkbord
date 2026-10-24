@@ -16,6 +16,8 @@ let browser;
 (async () => {
   const token = 'disposable-browser-credential';
   const individual = (method, url, body) => api(personal, token, method, '/api' + url, body);
+  await individual('POST', '/onboarding/complete', {});
+  await individual('POST', '/onboarding/tours/seen', {surface: 'analytics'});
   const project = await individual('POST', '/projects', { name: 'Analytics fixture', path: process.env.WERKBORD_BROWSER_REPO });
   const task = await individual('POST', `/projects/${project.id}/tasks`, { title: 'Analytics sample' });
   const run = await individual('POST', `/projects/${project.id}/tasks/${task.id}/runs`, { agentId: 'fixture' });
@@ -68,6 +70,7 @@ let browser;
   await page.getByRole('heading', { name: 'Run outcomes' }).waitFor();
   await page.getByLabel('Analytics runner').waitFor();
   await page.getByText('Breakdown', { exact: true }).click();
+  await page.emulateMedia({reducedMotion: 'reduce'});
   for (const [width, height, name] of [[1440, 1000, 'analytics-desktop'], [390, 844, 'analytics-mobile']]) {
     await page.setViewportSize({ width, height }); await page.evaluate(() => document.fonts.ready);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ' page overflow');
@@ -99,6 +102,24 @@ let browser;
   assert.equal(await page.getByRole('tab', { name: 'Execution', exact: true }).getAttribute('aria-selected'), 'true');
   assert.equal(await page.getByRole('tab', { name: 'Execution', exact: true }).evaluate(el => el === document.activeElement), true);
 
+
+  // A partial reporting snapshot must use all attempts as its denominator, even when no measure has full coverage.
+  await page.route('**/api/analytics?*', async route => {
+    const response = await route.fetch();
+    const snapshot = await response.json();
+    assert.equal(snapshot.executions.length, 1);
+    snapshot.executions[0].attempts = 10;
+    snapshot.executions[0].outcomes = {completed: 10};
+    await route.fulfill({response, json: snapshot});
+  });
+  await page.getByRole('tab', {name: 'Usage', exact:true}).click();
+  const coverageChart = page.getByRole('group', {name: 'Runs that reported each measure', exact:true});
+  await coverageChart.getByText('1 of 10 runs', {exact:true}).first().waitFor();
+  const inputCoverage = coverageChart.locator('.row').filter({hasText: 'Input tokens'});
+  const fraction = await inputCoverage.evaluate(el => el.querySelector('.fill').getBoundingClientRect().width / el.querySelector('.track').getBoundingClientRect().width);
+  assert.ok(fraction > 0.08 && fraction < 0.12, '1 of 10 runs fills 10% of the coverage track: ' + fraction);
+  await page.screenshot({path:path.join(artifacts, 'analytics-partial-coverage.png'), fullPage:true});
+  await page.unroute('**/api/analytics?*');
 
   const coord = (method, url, body) => api(team, teamToken, method, '/api/team/v1' + url, body);
   const tp = await coord('POST', '/projects', { name: 'Analytics coordination' });

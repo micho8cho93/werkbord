@@ -798,7 +798,7 @@
   }
 
   .ut:hover {
-    text-decoration: underline;
+    color: var(--accent);
   }
 
   @media (max-width: 899px) {

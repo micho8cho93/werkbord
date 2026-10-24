@@ -52,6 +52,19 @@ export function attentionGroups(o: Overview): { id: string; label: string; rows:
   ].filter(g => g.rows.length > 0);
 }
 
+/** How much waits in each kind of workspace, so the two can be told apart at a glance: actions for the person, and operational warnings. */
+export function tallyByKind(groups: ReturnType<typeof attentionGroups>): { kind: 'personal' | 'team'; label: string; actions: number; warnings: number }[] {
+  return (['personal', 'team'] as const).map((kind) => {
+    const rows = groups.flatMap((g) => g.rows.map((r) => ({ r, id: g.id }))).filter((x) => x.r.workspace.kind === kind);
+    return {
+      kind,
+      label: kind === 'personal' ? 'Individual' : 'Team',
+      actions: rows.filter((x) => x.id !== 'warnings').length,
+      warnings: rows.filter((x) => x.id === 'warnings').length,
+    };
+  });
+}
+
 export function attentionAction(a: Attention): string {
   return ({ needs_input: 'Answer', idle: 'Review turn', blocked: 'Resolve blocker', failed: 'Inspect failure', review: 'Review changes', changes_requested: 'Review feedback', conflict: 'Inspect conflict', repository: 'Review changes', host: 'Inspect warning', runner: 'Inspect runner' } as Record<string, string>)[a.kind] ?? 'Open details';
 }

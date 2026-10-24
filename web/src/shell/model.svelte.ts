@@ -108,6 +108,8 @@ export class Model {
   /** Where each open workspace says it is, as a place inside it: what the sidebar marks as current. */
   places = $state<Record<string, string>>({});
   sidebarCollapsed = $state(readCollapsed());
+  /** Universal is its own hub, so its sidebar starts folded to icons each time it is entered; this is whether the person opened it. */
+  universalSidebarOpen = $state(false);
   addOpen = $state(false);
   loaded = $state(false);
   setupRequired = $state(false);
@@ -116,7 +118,7 @@ export class Model {
   assistant = $state({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
   assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor; personalWorkspace?: string; personalRevision?: number } | null>(null);
-  /** The sidebar's Assistant button: the assistant opens out of it, and focus comes back to it. */
+  /** The floating Salie button: the assistant opens out of it, and focus comes back to it. */
   assistantButton: HTMLElement | undefined;
   /**
    * The assistant's own frame: a page of Individual that is nothing but the assistant, as large as the window. It is made the first
@@ -247,6 +249,10 @@ export class Model {
   }
 
   toggleSidebar(): void {
+    if (this.universal) {
+      this.universalSidebarOpen = !this.universalSidebarOpen;
+      return;
+    }
     this.sidebarCollapsed = !this.sidebarCollapsed;
     try {
       localStorage.setItem(COLLAPSED_KEY, this.sidebarCollapsed ? 'collapsed' : 'expanded');
@@ -255,7 +261,7 @@ export class Model {
     }
   }
 
-  /** Starts every window on Universal → Workspaces; workspace places remain available when explicitly opened. */
+  /** Starts every window on the Universal hub; workspace places remain available when explicitly opened. */
   async start(): Promise<void> {
     await this.refresh();
     this.page = 'inbox';
@@ -418,6 +424,7 @@ export class Model {
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
     if (['calendar', 'inbox'].includes(p)) this.universal = true;
+    if (p === 'inbox') this.universalSidebarOpen = false;
     this.leaveAssistant();
     this.page = p;
     this.closeSwitcher();

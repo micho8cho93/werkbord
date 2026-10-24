@@ -65,25 +65,26 @@ checks the tokens and `scripts/measure-legibility.cjs` every rendered screen ([d
 
 The pixel mark (`lib/Mark.svelte`): three slanted bars, eight rows, one flat shade per row; ink, cobalt, amber.
 It uses the light ramps on paper and the dark ramps on ink (`light-dark()`). The app icon and favicon are
-always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs generated from them). Icons
-(`lib/Icon.svelte`) are [Lucide](https://lucide.dev/) icons (ISC; the notice is in `web/public/licenses/LUCIDE.txt`),
-drawn with one 1.6px line at every size. Each meaning has its own icon and no icon is used for two meanings
+always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs generated from them). Interface icons
+(`lib/Icon.svelte`) use [Lucide](https://lucide.dev/) (ISC; the notice is in `web/public/licenses/LUCIDE.txt`),
+drawn with one 1.6px line at every size, except Salie’s restored original two-sparkle mark
+(`lib/AssistantGlyph.svelte`). Each meaning has its own icon and no icon is used for two meanings
 (`lib/app-icons.ts`; the Team console uses the same set). The icons the app draws are chosen apart from the 152 a generated
 workspace can take (`internal/domain/personal_icon_catalog.json`), so a workspace in the sidebar is never mistaken for a page
-of the app; `app-icons.test.ts` enforces both. No emoji, no glyph icons.
+of the app; `app-icons.test.ts` enforces both. No emoji or font-glyph icons; Salie’s hand-drawn SVG is the named exception to Lucide.
 
 ### Button tones
 
 A row of buttons should read as a row of different things before a word is read. Every tone is the same raised button with one
-quiet difference: the colour of its edge and label, a faint glow of that colour when pointed at, and for going somewhere an
-underline. A lone button needs none.
+quiet difference: the colour of its edge and label, and a faint glow of that colour when pointed at. No button underlines its
+label. A lone button needs none.
 
 | Class | Leans toward | Examples |
 | --- | --- | --- |
 | *(none)* | change or manage | Edit, Settings, Rename |
 | `primary` | the one thing a place is for (filled) | Save, Edit with Salie |
 | `add` | bring something new in (accent edge) | Add record, New icon, Add to Control Deck |
-| `open` | go somewhere or look (accent label, underlined) | Open, Data library, Review |
+| `open` | go somewhere or look (accent label) | Open, Data library, Review |
 | `ok` | approve, confirm, finish (green) | Merge, Restore, Keep, Start Team service |
 | `warn` | stop or pause, can be undone (amber) | Stop Team service, Remove file, Skip |
 | `danger` | remove for good (red edge and label) | Delete, Revoke |
@@ -126,13 +127,20 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
 
 ### The window's workspace selector
 
-Universal is a peer choice beside Individual and each Team workspace. Its sidebar destinations are Salie,
-My Work, Workspaces and Calendar, in that order. Workspaces spans attention from all workspaces. Individual's workspace
-destinations are Workspace and Projects, with Analytics immediately below Add project. Each Team workspace lists
-Workspace, Projects, Reviews, Members and Analytics. The shell keeps Salie, Devices & Hosting, relevant workspace Settings
-separate from these destinations. Theme controls live in Settings → Appearance. Universal has no workspace-specific Settings or project list. Project sections belong above
-the project's content, not in the workspace sidebar. The window uses its own 208px sidebar, collapsing to 48px;
-the intermediate-width label control reveals the names without changing the route.
+Universal is a peer choice beside Individual and each Team workspace, and the default full-width desktop hub. Its
+workspace shelf contains Individual, Teams, saved workspaces made by Salie and the Data library, with a plus-marked
+Create with Salie action beside the shelf heading. Needs you and Calendar sit in separate panels below it. At wide widths,
+the shelf and panel bodies scroll internally; below 1000px the panels stack and the page scrolls.
+
+Universal's sidebar starts collapsed on every entry. It contains the workspace switcher, Devices & Hosting and Settings;
+the hub carries workspace navigation, generated workspaces and the Data library. Individual's workspace destinations are
+Workspace and Projects, with Analytics immediately below Add project. Each Team workspace lists Workspace, Projects,
+Reviews, Members and Analytics. In Individual and Team, workspace destinations, Create with Salie and generated workspaces
+share a scrollable upper group; Devices & Hosting → Data library → Settings stay pinned at the bottom independently of
+that scroll. Salie floats over the shell. Theme controls live in Settings → Appearance. Universal has no workspace-specific
+Settings or project list. Project sections belong above the project's content, not in the workspace sidebar. The window
+uses its own 208px sidebar, collapsing to 48px; the intermediate-width label control reveals the names without changing
+the route. Workspace and Data library content can widen to 1800px; Devices & Hosting uses an auto-fill card grid.
 
 ### Team console
 
@@ -165,16 +173,21 @@ metadata; it does not inspect or change a member's repository, execute agents or
 
 ## The assistant surface (4.11)
 
-A full-window conversation, opened from the Assistant button (the top of the rail; the sidebar in the desktop window; an icon in the
-heading on a phone). It is the quietest screen in the product: paper, one column of at most 46rem, no history list, no chrome beyond a
-heading (the provider chooser, New, Close) and the box.
+A full-window conversation, opened from the Assistant button at the top of the standalone Individual rail or through the
+phone's existing Assistant navigation. In the desktop shell, Salie's original two-sparkle mark sits on a raised 52px circular
+floating button, initially at the bottom centre. Drag it with a pointer, or use Alt + arrows while it has focus (16px steps;
+Shift makes them 48px); Alt + Home resets it. Its position is stored relative to the available viewport and clamped inside a
+12px margin when the window changes size. Standalone Individual and phone navigation retain their existing controls.
+The conversation is the quietest screen in the product: paper, one column of at most 46rem, no history list, no chrome beyond
+a heading (the provider chooser, New, Close) and the box.
 
 - **Movement.** A circle grows from the button's centre until it covers the window (950ms, `cubic-bezier(.72, 0, .18, 1)`), with a cobalt
   light along its edge that fades as it arrives,
-  while the background moves from `--surface` (the sidebar) to `--bg` (paper): `#FFFFFF → #F5F5F2`, `#141415 → #0B0B0C`. The content
+  while the background moves from `--surface` to `--bg` (paper): `#FFFFFF → #F5F5F2`, `#141415 → #0B0B0C`. The content
   arrives from 540ms in, in a short sequence from the heading to the composer. Closing runs it backwards, 30% faster, into the button.
   It can be turned round in either direction half way. In the desktop app a dedicated transparent frame covers the entire viewport,
-  including the sidebar, while the workspace beneath keeps its state. Under *reduce motion* it
+  including the sidebar, while the workspace beneath keeps its state. Its reveal and collapse use the floating button's
+  current origin. Under *reduce motion* it
   is simply there or gone: the movement is a Web Animation, so the page checks the setting itself and the global CSS rule that
   switches off transitions is not what it relies on.
 - **Reading.** A reply is plain text on paper, 15px/1.55, no bubble; what you said is a tray (`--surface-2`) at the right. Progress is
@@ -253,9 +266,6 @@ Motion preserves the current icons and layout and acknowledges observed state. S
   agent and a registered Git repository. A planning project does not count as a repository. One primary action advances
   the missing requirement or opens task creation; planning remains available separately. Phone access and GitHub are
   optional connections, collapsed initially, and skipped connections stay labelled as skipped.
-- The window's My Work view separates reported running, queued and starting states. Idle turns and unanswered questions
-  have different labels. Source timestamps say when the state was recorded; they do not claim agent activity. Offline
-  or stale reports retain their last state with availability unknown. Pending requests remain awaiting acknowledgement.
 - The window's Needs you view orders urgent problems, actions and operational warnings. Each row preserves its workspace,
   project and detail, and names its next action. Individual questions expand in place with context before choices; answering uses the owning Werkbord and stays disabled for stale or offline reports. Team rows open the owning workspace. Saved answers remain unconfirmed until the runner confirms delivery. Only the first urgent or actionable item has primary emphasis.
 - In the window's Needs you view, a collapsed question row says what the agent asked. When expanded, its row changes to
@@ -311,9 +321,7 @@ Motion preserves the current icons and layout and acknowledges observed state. S
 Needs you's All, Questions and Review choices are native filter buttons in a labelled group, with pressed state.
 Tab and Space/Enter activate them; they do not announce a tab widget or imply arrow-key tab navigation.
 Count scope is unchanged. The attention-card Review action follows the same 44px phone/coarse-pointer height
-floor as its answer actions. In the desktop shell, reported execution text wraps within the My Work status cell;
-the dot remains compact and supplementary. Reported state, timestamps, stale availability and acknowledgement
-remain visible. These refinements do not establish physical-device or screen-reader usability; see the final audit
+floor as its answer actions. These refinements do not establish physical-device or screen-reader usability; see the final audit
 and the unconducted five-developer formative test guide for evidence limits.
 Git branch headlines that call work ready for review use `--warn-text` for readable status words; `--warn` remains
 appropriate for the accompanying border/dot. Final legibility checks include Git subsections and branch, commit and
@@ -338,17 +346,27 @@ Individual analytics uses Activity, Execution, Usage and Completion tabs. Activi
 Done over UTC days; Execution compares run outcomes; Usage compares measured tokens or API costs with reporting coverage;
 Completion keeps recorded assessments and separate completion signals visible. Each tab retains its own project and
 period filters. Provider filters belong to execution, usage and completion; runner filters apply to execution and usage.
-Activity's series choice and Usage's measure choice change the chart, rather than the underlying report scope. Exact daily
-values, execution breakdowns and complementary evidence remain in disclosures. Unknown measurements remain distinct
-from reported zero, and cost estimates are separate from reported costs.
+Activity's series choice and Usage's measure choice change the chart, rather than the underlying report scope. Individual's
+charts occupy separate panels with coloured top edges, tinted headers and identifying swatches. Activity pairs bounded
+animated daily bars with cumulative lines and areas, a daily heatmap and a Done / created ratio ring. The band between the
+cumulative totals shows their difference within the selected period, never an outstanding backlog. Done / created compares
+period counts, not the completion rate of the same task cohort; work created earlier can make it exceed 100%.
+
+Execution has an outcome donut, normal-exit and retry rings, and provider and runner comparisons. A normal exit remains
+separate from verified completion. Usage pairs token or cost comparisons with reporting coverage, whose full scale is all
+attempts in the filtered period, and retains provider and runner comparisons. Completion shows an assessment ring beside
+accepted/rejected counts and separate completion-signal comparisons; these are separate evidence counts, not stages of one
+cohort. Exact daily values are available by pointer and keyboard, with execution breakdowns and complementary evidence
+in disclosures. Unknown measurements remain distinct from reported zero, and cost estimates are separate from reported
+costs. Chart reveals keep labels and exact values available immediately and respect reduced motion.
 
 Team analytics uses Activity, Categories and Completion tabs, each with its own project and period. Category comparisons
 use current labels and explain that tickets may appear in multiple categories. Team exposes coordination evidence only.
 Project and period filters keep the console's explicit Apply / refresh snapshot behaviour. Both tab bars support arrows,
 Home and End, show selected state and retain visible labels at narrow widths.
 
-Every desktop window opens on Universal → My Work. Stored workspace locations remain available when a person explicitly
-opens that workspace; they do not choose the startup surface.
+Every desktop window opens on the Universal hub with its sidebar collapsed. Stored workspace locations remain available
+when a person explicitly opens that workspace; they do not choose the startup surface.
 
 ### Configurable phone Control Deck (4.46)
 

@@ -38,11 +38,10 @@ import GitCommitHorizontal from '@lucide/svelte/icons/git-commit-horizontal';
 import ExternalLink from '@lucide/svelte/icons/external-link';
 import GripVertical from '@lucide/svelte/icons/grip-vertical';
 import Users from '@lucide/svelte/icons/users';
-import BotMessageSquare from '@lucide/svelte/icons/bot-message-square';
+import AssistantGlyph from './AssistantGlyph.svelte';
 import Paperclip from '@lucide/svelte/icons/paperclip';
 import Mic from '@lucide/svelte/icons/mic';
 import ArrowUp from '@lucide/svelte/icons/arrow-up';
-import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 import ShieldHalf from '@lucide/svelte/icons/shield-half';
 import PackageSearch from '@lucide/svelte/icons/package-search';
 import FileDiff from '@lucide/svelte/icons/file-diff';
@@ -86,11 +85,10 @@ export const appIconComponents = {
   link: ExternalLink,
   grip: GripVertical,
   people: Users,
-  assistant: BotMessageSquare,
+  assistant: AssistantGlyph,
   attach: Paperclip,
   mic: Mic,
   send: ArrowUp,
-  create: LayoutTemplate,
   security: ShieldHalf,
   dependencies: PackageSearch,
   refactor: FileDiff,
@@ -137,11 +135,10 @@ export const appIconSources: Record<AppIconName, string> = {
   link: 'external-link',
   grip: 'grip-vertical',
   people: 'users',
-  assistant: 'bot-message-square',
+  assistant: 'werkbord-sparkles',
   attach: 'paperclip',
   mic: 'mic',
   send: 'arrow-up',
-  create: 'layout-template',
   security: 'shield-half',
   dependencies: 'package-search',
   refactor: 'file-diff',

@@ -163,14 +163,14 @@ let browser, server, debugPage;
   await page.goto('http://127.0.0.1:'+server.address().port+'/shell/index.html');
   const side=page.getByRole('navigation',{name:'Werkbord',exact:true});await page.getByTestId('workspace-switcher').click();await page.locator('[role=menuitem][data-workspace=personal]').click();await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
   const addTop=await side.getByRole('button',{name:'Add project',exact:true}).boundingBox(),analyticTop=await side.getByRole('button',{name:'Analytics',exact:true}).boundingBox();assert(analyticTop.y>addTop.y && analyticTop.y-addTop.y<50,'Analytics follows Add project');
-  await page.getByTestId('workspace-switcher').click();await page.locator('[data-workspace=universal]').click();await side.getByRole('button',{name:'Calendar',exact:true}).click();
+  await page.getByTestId('workspace-switcher').click();await page.locator('[data-workspace=universal]').click();await page.getByRole('heading',{name:'Universal',exact:true}).waitFor();
   await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
   for (const [workspace,id,getter] of [['personal',task.id,getTask]]) {
     const row=page.locator(`[data-plan-item="${workspace}/${id}/plan"]`);await row.waitFor();let before=await getter();
     await shift(page,row,56);await wait(async()=> (await getter()).plan.start===add(before.plan.start,1),'Universal '+workspace+' move');
     before=await getter();await shift(page,row.locator('[data-plan-edge=end]'),56);await wait(async()=> (await getter()).plan.end===add(before.plan.end,1),'Universal '+workspace+' resize');
     await row.click();const panel=page.getByRole('dialog',{name:'Edit task'});await panel.locator('input[maxlength="200"]').waitFor();await panel.locator('input[maxlength="200"]').fill('Universal '+workspace);await panel.getByRole('button',{name:'Save changes',exact:true}).click();
-    await wait(async()=> (await getter()).title==='Universal '+workspace,'Universal edit persists');assert.equal(await side.getByRole('button',{name:'Calendar',exact:true}).getAttribute('aria-current'),'page','Universal stays visible');
+    await wait(async()=> (await getter()).title==='Universal '+workspace,'Universal edit persists');assert.equal(await page.getByRole('heading',{name:'Universal',exact:true}).count(),1,'Universal stays visible');
   }
   await page.getByRole('button',{name:'Day',exact:true}).click();await page.getByRole('button',{name:'Quarter',exact:true}).click();
   await page.screenshot({path:path.join(artifacts,'universal-planning-desktop.png')});await page.setViewportSize({width:900,height:800});await page.screenshot({path:path.join(artifacts,'universal-planning-window.png')});

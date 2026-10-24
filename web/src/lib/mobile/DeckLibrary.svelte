@@ -27,7 +27,7 @@
     <h3>Your workspaces</h3>
     <p class="muted">Open a workspace you made with Salie, on this phone or at the computer. These buttons do not start agents.</p>
     <div class="library" data-testid="deck-workspaces">
-      <button type="button" onclick={oncreate} data-testid="deck-create-workspace"><Icon name="create" size={20} /><span>Create with Salie<small>Describe a workspace and Salie builds it. Add it to a button afterwards.</small></span></button>
+      <button type="button" onclick={oncreate} data-testid="deck-create-workspace"><Icon name="plus" size={20} /><span>Create with Salie<small>Describe a workspace and Salie builds it. Add it to a button afterwards.</small></span></button>
       {#each workspaces as w (w.id)}
         <button type="button" onclick={() => onchoose(w.id as ButtonId)} data-workspace-id={w.id}><WorkspaceIcon icon={w.icon} name={w.name} size={20} /><span>{w.name}</span></button>
       {/each}

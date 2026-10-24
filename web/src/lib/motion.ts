@@ -112,3 +112,41 @@ export function collapse(node: HTMLElement): TransitionConfig {
   const style = getComputedStyle(node);
   return { duration: reducedMotion() ? 0 : 180, easing: cubicOut, css: t => `height:${height*t}px;min-height:0;opacity:${t};overflow:hidden;padding-top:${parseFloat(style.paddingTop)*t}px;padding-bottom:${parseFloat(style.paddingBottom)*t}px` };
 }
+
+/** Runs `show` once, the first time the node is on screen, so a chart plays its entrance when it is looked at, not when it is built. */
+function onceVisible(node: Element, show: () => void) {
+  if (typeof IntersectionObserver !== 'function') { show(); return { destroy() {} }; }
+  const observer = new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) { show(); observer.disconnect(); } });
+  observer.observe(node);
+  return { destroy() { observer.disconnect(); } };
+}
+
+/** A line draws itself from its first point to its last. */
+export function chartDraw(node: SVGGeometryElement, options: { delay?: number; duration?: number } = {}) {
+  const watch = onceVisible(node, () => {
+    const length = node.getTotalLength?.() ?? 0;
+    if (!length) return;
+    const animation = animate(node, [{ strokeDasharray: `${length} ${length}`, strokeDashoffset: length }, { strokeDasharray: `${length} ${length}`, strokeDashoffset: 0 }], options.duration ?? 900);
+    animation?.effect?.updateTiming({ delay: options.delay ?? 0, fill: 'backwards' });
+  });
+  return { destroy: watch.destroy };
+}
+
+/** A shape grows out of one edge (an area from its baseline, a bar from its foot), one after another when given a delay. */
+export function chartGrow(node: SVGElement | HTMLElement, options: { from?: 'bottom' | 'left'; delay?: number; duration?: number } = {}) {
+  const horizontal = options.from === 'left';
+  const watch = onceVisible(node, () => {
+    const animation = animate(node, [{ transformOrigin: horizontal ? 'left center' : 'center bottom', transform: horizontal ? 'scaleX(0)' : 'scaleY(0)', opacity: 0.2 }, { transformOrigin: horizontal ? 'left center' : 'center bottom', transform: 'none', opacity: 1 }], options.duration ?? 560);
+    animation?.effect?.updateTiming({ delay: options.delay ?? 0, fill: 'backwards' });
+  });
+  return { destroy: watch.destroy };
+}
+
+/** A ring segment sweeps round from where it starts to where it ends. */
+export function chartSweep(node: SVGCircleElement, options: { length: number; circumference: number; delay?: number }) {
+  const watch = onceVisible(node, () => {
+    const animation = animate(node, [{ strokeDasharray: `0 ${options.circumference}` }, { strokeDasharray: `${options.length} ${options.circumference - options.length}` }], 760);
+    animation?.effect?.updateTiming({ delay: options.delay ?? 0, fill: 'backwards' });
+  });
+  return { destroy: watch.destroy };
+}

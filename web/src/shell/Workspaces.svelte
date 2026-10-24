@@ -112,9 +112,7 @@
 
 <style>
   .page {
-    padding: 28px clamp(16px, 4vw, 48px);
-    max-width: 960px;
-    margin: 0 auto;
+    padding: 24px clamp(16px, 2.5vw, 40px);
     overflow-y: auto;
     height: 100%;
   }
@@ -151,7 +149,9 @@
     margin: 0;
     padding: 0;
     display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
     gap: 12px;
+    align-items: start;
   }
   .card {
     padding: 14px 16px;

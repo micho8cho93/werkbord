@@ -1,18 +1,25 @@
 <script lang="ts">
+  import { niceAxis } from './analytics';
   import { chartBar } from './motion';
   const readoutId = $props.id();
   let { days, series, scope = '' }: { days: { date: string; created: number; completed: number }[]; series: string; scope?: string } = $props();
+  const H = 230, L = 34, R = 8, T = 14, B = 26;
   let selected = $state('');
   let pinned = $state(false);
   let container = $state<HTMLElement>();
+  let width = $state(640);
   const day = $derived(days.find(d => d.date === selected));
-  const max = $derived(Math.max(1, ...days.flatMap(d => series === 'created' ? [d.created] : series === 'completed' ? [d.completed] : [d.created, d.completed])));
-  const step = $derived(640 / Math.max(1, days.length));
+  const axis = $derived(niceAxis(Math.max(1, ...days.flatMap(d => series === 'created' ? [d.created] : series === 'completed' ? [d.completed] : [d.created, d.completed]))));
+  const step = $derived((width - L - R) / Math.max(1, days.length));
+  const base = H - B;
+  const h = (v: number) => (v / axis.top) * (base - T);
+  const barW = $derived(Math.max(2, step * (series === 'both' ? .36 : .72) - 1));
+  const peak = $derived(Math.max(0, ...days.flatMap(d => series === 'created' ? [d.created] : series === 'completed' ? [d.completed] : [d.created, d.completed])));
   function inspect(event: PointerEvent | MouseEvent) {
     const svg = container?.querySelector('svg');
     if (!svg) return;
     const bounds = svg.getBoundingClientRect();
-    const index = Math.floor(((event.clientX-bounds.left)/bounds.width*700-40)/step);
+    const index = Math.floor((event.clientX - bounds.left - L) / step);
     selected = days[Math.max(0, Math.min(days.length-1, index))]?.date ?? '';
   }
   function key(event: KeyboardEvent) {
@@ -25,36 +32,39 @@
   }
 </script>
 <svelte:window onpointerdown={(event) => { if (container && event.target instanceof Node && !container.contains(event.target)) { selected = ''; pinned = false; } }} />
-<div class="daily" bind:this={container} role="slider" aria-valuemin="0" aria-valuemax={Math.max(0, days.length-1)} aria-valuenow={Math.max(0, days.findIndex(d => d.date === selected))} aria-valuetext={day ? `${day.date}: ${day.created} created, ${day.completed} moved to Done` : days[0]?.date ?? 'No dates'} tabindex="0" aria-label="Daily activity chart. Use Left and Right arrows to inspect dates, or Escape to clear." aria-describedby={day ? readoutId : undefined} onkeydown={key} onpointermove={(event) => { if (event.pointerType === 'mouse' && !pinned) inspect(event); }} onpointerleave={() => { if (!pinned) selected = ''; }} onclick={(event) => { inspect(event); pinned = true; }}>
-  <div class="legend"><span class="key created"></span>Created <span class="key completed"></span>Moved to Done <span class="unit">UTC days · peak {max} tasks</span></div>
-  <svg viewBox="0 0 700 210" role="img" aria-label="Daily task counts. Hover a day, or use the arrow keys, to read it.">
-    {#each (max > 1 && max % 2 === 0 ? [0, 0.5, 1] : [0, 1]) as ratio (ratio)}
-      <line x1="40" x2="680" y1={170 - ratio * 144} y2={170 - ratio * 144} stroke="var(--border)" />
-      <text x="30" y={174 - ratio * 144} text-anchor="end">{Math.round(max * ratio)}</text>
+<div class="daily" bind:this={container} bind:clientWidth={width} role="slider" aria-valuemin="0" aria-valuemax={Math.max(0, days.length-1)} aria-valuenow={Math.max(0, days.findIndex(d => d.date === selected))} aria-valuetext={day ? `${day.date}: ${day.created} created, ${day.completed} moved to Done` : days[0]?.date ?? 'No dates'} tabindex="0" aria-label="Daily activity chart. Use Left and Right arrows to inspect dates, or Escape to clear." aria-describedby={day ? readoutId : undefined} onkeydown={key} onpointermove={(event) => { if (event.pointerType === 'mouse' && !pinned) inspect(event); }} onpointerleave={() => { if (!pinned) selected = ''; }} onclick={(event) => { inspect(event); pinned = true; }}>
+  <div class="legend"><span class="key created"></span>Created <span class="key completed"></span>Moved to Done <span class="unit">UTC days · peak {peak} {peak === 1 ? 'task' : 'tasks'}</span></div>
+  <svg {width} height={H} viewBox="0 0 {width} {H}" role="img" aria-label="Daily task counts. Hover a day, or use the arrow keys, to read it.">
+    <defs>
+      <linearGradient id="{readoutId}-c" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" /><stop offset="1" stop-color="color-mix(in srgb, var(--accent) 62%, var(--surface))" /></linearGradient>
+      <linearGradient id="{readoutId}-d" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--ok)" /><stop offset="1" stop-color="color-mix(in srgb, var(--ok) 62%, var(--surface))" /></linearGradient>
+    </defs>
+    {#each axis.ticks as t (t)}
+      <line x1={L} x2={width - R} y1={base - h(t)} y2={base - h(t)} stroke="var(--border)" stroke-dasharray={t === 0 ? undefined : '2 4'} />
+      <text x={L - 8} y={base - h(t) + 4} text-anchor="end">{t}</text>
     {/each}
-    {#each days as day, i (day.date)}
-      <g><title>{day.date}: {day.created} created, {day.completed} moved to Done</title>
-        {#if series !== 'completed'}<rect use:chartBar={{ value: day.created / max, vertical: true, scope: `${scope}/${series}` }} x={40 + i * step + step * .12} y={170 - day.created / max * 144} width={step * (series === 'both' ? .34 : .76)} height={day.created / max * 144} fill="var(--accent)" />{/if}
-        {#if series !== 'created'}<rect use:chartBar={{ value: day.completed / max, vertical: true, scope: `${scope}/${series}` }} x={40 + i * step + step * (series === 'both' ? .52 : .12)} y={170 - day.completed / max * 144} width={step * (series === 'both' ? .34 : .76)} height={day.completed / max * 144} fill="var(--ok)" />{/if}
-        {#if i % Math.max(1, Math.ceil(days.length / 6)) === 0 || i === days.length - 1}<text x={40 + (i + .5) * step} y="196" text-anchor="middle">{day.date.slice(5)}</text>{/if}
+    {#if day}<rect class="focus" x={L + days.indexOf(day) * step} y={T} width={step} height={base - T} />{/if}
+    {#each days as d, i (d.date)}
+      <g><title>{d.date}: {d.created} created, {d.completed} moved to Done</title>
+        {#if series !== 'completed'}<rect use:chartBar={{ value: d.created / axis.top, vertical: true, scope: `${scope}/${series}` }} x={L + i * step + (series === 'both' ? step * .12 : step * .14)} y={base - h(d.created)} width={barW} height={h(d.created)} rx={Math.min(3, barW / 2)} fill="url(#{readoutId}-c)" />{/if}
+        {#if series !== 'created'}<rect use:chartBar={{ value: d.completed / axis.top, vertical: true, scope: `${scope}/${series}` }} x={L + i * step + (series === 'both' ? step * .52 : step * .14)} y={base - h(d.completed)} width={barW} height={h(d.completed)} rx={Math.min(3, barW / 2)} fill="url(#{readoutId}-d)" />{/if}
+        {#if i === days.length - 1 || (i % Math.max(1, Math.ceil(days.length / Math.max(2, Math.floor((width - L - R) / 56)))) === 0 && (days.length - 1 - i) * step >= 56)}<text x={L + (i + .5) * step} y={H - 7} text-anchor="middle">{d.date.slice(5)}</text>{/if}
       </g>
     {/each}
   </svg>
   {#if day}<output class="readout" id={readoutId}>{day.date} · {day.created} created · {day.completed} moved to Done</output>{/if}
-  <div class="mobile-dates"><span>{days[0]?.date.slice(5)}</span><span>{days[Math.floor(days.length / 2)]?.date.slice(5)}</span><span>{days[days.length - 1]?.date.slice(5)}</span></div>
 </div>
 <style>
   .daily { min-width: 0; position: relative; }
   .daily:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   rect { transform-box: fill-box; transform-origin: center bottom; }
+  .focus { fill: color-mix(in srgb, var(--text) 7%, transparent); }
   .readout { position: absolute; top: 24px; right: 0; z-index: 1; max-width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); box-shadow: var(--card-sh); font-size: 12px; pointer-events: none; animation: chart-readout 120ms ease-out; }
   @keyframes chart-readout { from { opacity: 0; } }
-  .mobile-dates { display: none; }
-  svg { display: block; width: 100%; min-height: 160px; max-height: 260px; }
-  text { fill: var(--text-2); font: 12px var(--mono); }
-  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
-  .key { width: 10px; height: 10px; }
+  svg { display: block; max-width: 100%; overflow: visible; }
+  text { fill: var(--text-2); font: 11.5px var(--mono); }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--text-2); }
+  .key { width: 10px; height: 10px; border-radius: 3px; }
   .created { background: var(--accent); } .completed { background: var(--ok); }
   .unit { margin-left: auto; }
-  @media (max-width: 600px) { text { display: none; } .mobile-dates { display: flex; justify-content: space-between; color: var(--text-2); font: 12px var(--mono); } }
 </style>

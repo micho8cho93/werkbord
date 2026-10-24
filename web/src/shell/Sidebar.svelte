@@ -3,14 +3,13 @@
   import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
   import Mark from '../lib/Mark.svelte';
   import { counts } from './aggregate';
-  import { model, type Page } from './model.svelte';
+  import { model } from './model.svelte';
   import { activeKey, entries, listed } from './nav';
 
-  // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), what spans every
-  // workspace (Workspaces, Calendar), the open workspace's own places (its home, projects and so on), and last the
-  // things about this computer (Devices & Hosting, Settings of the workspace open). The workspaces' own
-  // pages carry no navigation of their own in this window.
-  const everywhereShown = $derived(model.universal);
+  // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), the open workspace's own
+  // places (its home, projects and so on) with Create with Salie and the workspaces Salie has made, and last, pinned to the
+  // bottom whatever else is shown, the things about this computer: Devices & Hosting, the Data library and Settings. Universal
+  // is a hub of its own and lists only Devices & Hosting and Settings; its page carries the rest. Salie is the floating button.
   const active = $derived(model.view?.items.find((i) => i.id === model.current));
   const kind = $derived(active?.kind ?? 'personal');
   const name = $derived(model.universal ? 'Universal' : kind === 'personal' ? 'Individual' : active?.name ?? 'Individual');
@@ -21,11 +20,6 @@
   const here = $derived(model.page === 'workspace' ? activeKey(kind, model.places[model.current]) : '');
   const needs = $derived(model.overview ? counts(model.overview).needsYou : 0);
   const reviews = $derived(kind === 'team' ? (summary?.attention.filter((a) => a.kind === 'review').length ?? 0) : 0);
-
-  const everywhere: { id: Page; title: string; icon: IconName }[] = [
-    { id: 'inbox', title: 'Workspaces', icon: 'control' },
-    { id: 'calendar', title: 'Calendar', icon: 'calendar' },
-  ];
 
   // A narrow window keeps room for the workspace's pages (they change to a phone layout under about 900px): the sidebar
   // folds to icons.
@@ -39,33 +33,19 @@
   // At intermediate window widths the rail starts with icons to leave room for work, but the
   // person can reveal the labels and project list without needing to guess what an icon means.
   let labelsOpen = $state(false);
-  const collapsed = $derived(narrow ? !labelsOpen : model.sidebarCollapsed);
+  const collapsed = $derived(model.universal ? !model.universalSidebarOpen : narrow ? !labelsOpen : model.sidebarCollapsed);
   const sidebarToggleLabel = $derived(collapsed ? (narrow ? 'Show sidebar labels' : 'Expand sidebar') : (narrow ? 'Hide sidebar labels' : 'Collapse sidebar'));
+
+  // Each time Universal is entered its sidebar starts folded: the page is the hub, the sidebar only switches and reaches the machine.
+  $effect(() => {
+    if (model.universal) model.universalSidebarOpen = false;
+  });
 
   let switchButton: HTMLButtonElement | undefined = $state();
   $effect(() => {
     model.switcherButton = switchButton;
   });
 
-  // Individual's assistant: the button it opens out of, and whether Werkbord can be reached.
-  let assistantButton: HTMLButtonElement | undefined = $state();
-  $effect(() => {
-    model.assistantButton = assistantButton;
-  });
-  const assistantReachable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state !== 'unavailable');
-  const assistantLabel = $derived(
-    !assistantReachable
-      ? 'Salie, unavailable: Cannot reach Werkbord'
-      : model.assistant.waiting > 0
-        ? `Salie, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'change is' : 'changes are'} waiting for you`
-        : model.assistant.running
-          ? 'Salie, working'
-          : 'Salie',
-  );
-  function askAssistant() {
-    const r = assistantButton?.getBoundingClientRect();
-    if (r) void model.toggleAssistant({ x: r.left, y: r.top, width: r.width, height: r.height });
-  }
 </script>
 
 {#snippet item(title: string, icon: IconName | string, current: boolean, go: () => void, id: string, count = 0)}
@@ -76,7 +56,7 @@
 {/snippet}
 
 <nav class="side" class:collapsed aria-label="Werkbord">
-  <button class="toggle" type="button" onclick={() => { if (narrow) labelsOpen = !labelsOpen; else model.toggleSidebar(); }} aria-label={sidebarToggleLabel} title={sidebarToggleLabel} aria-expanded={!collapsed} data-testid="sidebar-label-toggle">
+  <button class="toggle" type="button" onclick={() => { if (model.universal || !narrow) model.toggleSidebar(); else labelsOpen = !labelsOpen; }} aria-label={sidebarToggleLabel} title={sidebarToggleLabel} aria-expanded={!collapsed} data-testid="sidebar-label-toggle">
     <Icon name={collapsed ? 'right' : 'left'} size={14} />
   </button>
 
@@ -85,33 +65,13 @@
     <span class="mode"><span class="mode-name">{name}</span><Icon name="down" size={14} /></span>
   </button>
 
-  <div class="group ask">
-    <button bind:this={assistantButton} class="nav assistant" type="button" aria-haspopup="dialog" aria-expanded={model.assistant.open} aria-label={assistantLabel} title={assistantReachable ? 'Salie' : 'Cannot reach Werkbord'} disabled={!assistantReachable} onclick={askAssistant} data-page="assistant">
-      <span class="aico"><Icon name="assistant" /></span><span class="label">Salie</span>
-      {#if model.assistant.waiting > 0}
-        <span class="num" aria-hidden="true">{model.assistant.waiting}</span>
-      {:else if model.assistant.running}
-        <span class="live" aria-hidden="true"></span>
-      {/if}
-    </button>
-  </div>
-
-  {#if everywhereShown}
-  <div class="group">
-
-    {#each everywhere as p (p.id)}
-      {@render item(p.title, p.icon, model.page === p.id, () => model.go(p.id), p.id, p.id === 'inbox' ? needs : 0)}
-    {/each}
-  </div>
-
-  {/if}
-
+  <div class="top">
   {#if !model.universal}
   <div class="group" aria-label={name}>
     <div class="lbl" title={name}>{name}</div>
     {#if usable}
       {#each entries(kind) as e (e.key)}
-        {@render item(e.title, e.icon, here === e.key, () => model.visit(e.place), 'ws-' + e.key, e.key === 'reviews' ? reviews : !everywhereShown && e.key === 'home' ? needs : 0)}
+        {@render item(e.title, e.icon, here === e.key, () => model.visit(e.place), 'ws-' + e.key, e.key === 'reviews' ? reviews : e.key === 'home' ? needs : 0)}
         {#if e.key === 'projects'}
           {#each projects as p (p.id)}
             <button class="nav proj" type="button" aria-current={here === `project:${p.id}` ? 'page' : undefined} onclick={() => model.visit(p.href)} title={p.name} data-project={p.id}>
@@ -126,25 +86,24 @@
           {/if}
         {/if}
       {/each}
-    {:else if !everywhereShown}
+    {:else}
       {@render item('Workspace', 'control', model.page === 'inbox', () => model.go('inbox'), 'inbox', needs)}
     {/if}
   </div>
 
-  {/if}
   <div class="group generated">
-    {#if !model.universal}{@render item('Create with Salie', 'create', false, () => { void model.customizeGenerated(); }, 'create-generated')}{/if}
+    {@render item('Create with Salie', 'plus', false, () => { void model.customizeGenerated(); }, 'create-generated')}
     {#each model.visibleGenerated as workspace (workspace.id)}
       {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
     {/each}
-    {@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}
     {#if model.generatedError}<button class="nav" title={model.generatedError} aria-label="Saved workspaces unavailable. Retry" onclick={() => model.refreshGenerated()}><Icon name="reply" /><span class="label">Retry saved workspaces</span></button>{/if}
   </div>
+  {/if}
+  </div>
   <div class="group bottom">
-    <div class="lbl" aria-hidden="true"></div>
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
+    {#if !model.universal}{@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}{/if}
     {@render item('Settings', 'settings', model.page === 'settings', () => model.openSettings(), 'settings')}
-
   </div>
 </nav>
 
@@ -159,8 +118,17 @@
     padding: 10px 8px;
     background: var(--surface);
     border-right: 1px solid var(--border);
-    overflow-y: auto;
+    overflow: hidden;
+  }
+  /* What can grow (the workspace's places, the workspaces Salie made) scrolls on its own, so the bottom group never moves. */
+  .top {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
     overflow-x: hidden;
+    overflow-y: auto;
   }
   .side.collapsed {
     width: 48px;
@@ -241,37 +209,10 @@
   .generated { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
   .generated :global(svg) { flex: none; }
   .bottom {
-    margin-top: auto;
-  }
-  .ask {
-    padding: 6px 0 0;
-  }
-  .nav.assistant {
-    position: relative;
-    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-    background: var(--bg);
-    color: var(--text);
-    font-weight: 500;
-  }
-  .assistant:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .aico {
-    display: inline-flex;
-    color: var(--accent);
-  }
-  .live {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
-    animation: pulse 1.4s ease-in-out infinite;
-  }
-  .collapsed .live {
-    position: absolute;
-    top: 3px;
-    right: 3px;
+    flex: none;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
   }
   .lbl {
     min-height: 14px;

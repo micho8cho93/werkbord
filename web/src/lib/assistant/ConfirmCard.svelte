@@ -138,6 +138,7 @@
     color: var(--danger-text);
     align-items: flex-start;
   }
-  .task-link { width: fit-content; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .task-link { width: fit-content; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--accent); text-decoration: none; cursor: pointer; }
+  .task-link:hover { text-decoration: none; filter: brightness(1.15); }
   .task-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 </style>

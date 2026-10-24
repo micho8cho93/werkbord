@@ -17,6 +17,8 @@ const coord = (method, route, body) => call(team, teamToken, method, '/api/team/
 const wait = async (fn, label) => { for (let i=0; i<100; i++) { if (await fn()) return; await new Promise(r=>setTimeout(r,100)); } throw Error('Timed out: ' + label); };
 let browser, shellServer;
 (async () => {
+ await personal('POST', '/onboarding/complete', {});
+ for (const surface of ['desktop','settings','analytics']) await personal('POST', '/onboarding/tours/seen', {surface});
  browser = await chromium.launch({ headless: true });
  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
  page.setDefaultTimeout(15000);
@@ -71,7 +73,7 @@ let browser, shellServer;
  await page.getByRole('tooltip').waitFor();
  await capture('individual-timeline');
  await page.goto(`${individual}/#/analytics`);
- await page.getByRole('heading',{name:'Reported usage',exact:true}).waitFor();
+ await page.getByRole('heading',{name:'Created and completed over time',exact:true}).waitFor();
  assert.equal(await page.getByLabel('Analytics project').inputValue(),'');
  assert.equal(await page.getByRole('button',{name:/Apply|refresh/i}).count(),0);
  await page.getByLabel('Analytics project').selectOption(work.id);
@@ -144,14 +146,16 @@ let browser, shellServer;
  },{items,summary,individual,team});
  await shellPage.goto(`http://127.0.0.1:${shellServer.address().port}/shell/index.html`);
  const side=shellPage.getByRole('navigation',{name:'Werkbord',exact:true});
+ await shellPage.getByTestId('workspace-switcher').click();
+ await shellPage.locator('[data-workspace=personal]').click();
  await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
  assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);
  await shellPage.getByTestId('workspace-switcher').click();
  await shellPage.locator('[data-workspace=universal]').click();
- await side.getByRole('button',{name:'Workspaces',exact:true}).waitFor();
+ await shellPage.getByRole('heading',{name:'Universal',exact:true}).waitFor();
  assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);
  assert.equal(await side.getByRole('button',{name:'Projects',exact:true}).count(),0);
- await side.getByRole('button',{name:'Calendar',exact:true}).click();
+ assert.equal(await side.getByRole('button',{name:'Calendar',exact:true}).count(),0);
  try { await shellPage.getByRole('button').filter({hasText:'Plan the venue opening'}).waitFor(); } catch (error) { await shellPage.screenshot({path:path.join(artifacts,'universal-failure.png')}); console.log('Shell:', (await shellPage.locator('body').innerText()).slice(0,3000), 'errors:', errors); throw error; }
  await shellPage.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
  await shellPage.getByRole('region',{name:'Planning timeline'}).waitFor();
@@ -163,7 +167,7 @@ let browser, shellServer;
  await shellPage.screenshot({path:path.join(artifacts,'universal-switcher-desktop.png')});
  await shellPage.keyboard.press('Escape');
  for (const destination of ['Workspaces','Calendar']) {
-  if (destination === 'Workspaces') await side.locator('[data-page=inbox]').click(); else await side.getByRole('button',{name:destination,exact:true}).click();
+  await shellPage.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:destination === 'Calendar' ? 'Calendar' : 'Timeline',exact:true}).click();
   await shellPage.waitForTimeout(350);
   await shellPage.screenshot({path:path.join(artifacts,'universal-'+destination.toLowerCase().replaceAll(' ','-')+'-desktop.png')});
  }

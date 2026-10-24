@@ -71,7 +71,7 @@
   {/if}
 </div>
 <style>
-  .personal-page { width: 100%; max-width: 1120px; margin: 0 auto; padding: 24px; min-width: 0; }
+  .personal-page { width: 100%; max-width: 1800px; margin: 0 auto; padding: 24px clamp(16px, 2.5vw, 40px); min-width: 0; }
   header, .title { display: flex; align-items: center; gap: 10px; }
   header { flex-wrap: wrap; margin-bottom: 20px; }
   .title { min-width: 0; margin-right: auto; }

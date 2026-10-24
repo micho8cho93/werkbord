@@ -58,12 +58,14 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const setTheme = async theme => {
    const size = page.viewportSize();
    await page.setViewportSize({ width: 1440, height: 1000 });
+   const universal = (await page.getByTestId('workspace-switcher').getAttribute('aria-label')).includes('Showing Universal');
    const active = side.locator('[aria-current=page]').first();
-   const place = await active.getAttribute('data-page'), project = await active.getAttribute('data-project');
+   const place = await active.count() ? await active.getAttribute('data-page') : null, project = await active.count() ? await active.getAttribute('data-project') : null;
    await side.locator('[data-page=settings]').click();
    await page.getByTestId('settings-sections').getByRole('button', { name: 'Appearance', exact: true }).click();
    await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true }).click();
-   if (project) await side.locator('[data-project="' + project + '"]').click();
+   if (universal) await switchUniversal();
+   else if (project) await side.locator('[data-project="' + project + '"]').click();
    else if (place && place !== 'settings') await side.locator('[data-page="' + place + '"]').click();
    if (size) await page.setViewportSize(size);
  };
@@ -89,11 +91,12 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').getByText('Live', { exact: true }).count(), 0, 'no live status indicator in Individual');
  console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
- // Cross-workspace navigation is shown in Universal mode, not while an individual workspace is open.
+ // Universal carries cross-workspace destinations on its hub and keeps the shared sidebar minimal.
  await switchUniversal();
- for (const page_ of ['inbox', 'calendar']) await side.locator('[data-page=' + page_ + ']').waitFor();
- await side.locator('[data-page="inbox"]').waitFor(); // the accessible name also includes its waiting-item count
- console.log('PASS Universal: cross-workspace destinations appear in the shared sidebar');
+ await page.getByRole('heading', {name:'Universal',exact:true}).waitFor();
+ await page.getByRole('group', {name:'Calendar presentation'}).waitFor();
+ assert.equal(await side.locator('[data-page=inbox], [data-page=calendar], [data-page=personal-library]').count(), 0);
+ console.log('PASS Universal: workspaces and Calendar live on the hub, with a minimal sidebar');
  await switchTo('personal');
  // At intermediate widths the icon rail has a keyboard- and pointer-discoverable way to reveal names.
  await page.setViewportSize({ width: 1024, height: 768 });
@@ -235,7 +238,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const importedTask = (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/tasks`)).tasks.find(t => t.id === active.taskId);
  assert(importedTask, 'the execution belongs to an imported local task');
  await switchUniversal();
- await switchUniversal(); await page.locator('[data-page=inbox]').click();
+ await switchUniversal(); await page.getByRole('heading',{name:'Universal',exact:true}).waitFor();
  const idleAction = page.getByRole('button', { name: 'Review turn: ' + importedTask.title + ' is waiting for your next message', exact: true });
  await idleAction.waitFor();
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/input`, { text: 'ask' });
@@ -282,7 +285,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await capture('workspaces');
  console.log('PASS inline Individual answer, no focused choice, stale disabling, reconnect, delivery and responsive Workspaces attention');
  await page.setViewportSize({ width: 480, height: 844 });
- await page.locator('[data-page=calendar]').click();
+ await page.getByRole('heading',{name:'Universal',exact:true}).waitFor();
  const calendarEvent = page.getByRole('button', { name: /Review the customer portal navigation/ }).first(); await calendarEvent.waitFor();
  await page.screenshot({ path: path.join(artifacts, 'calendar-mobile.png'), fullPage: true }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
  const eventWidth = await calendarEvent.evaluate(e => e.getBoundingClientRect().width); assert(eventWidth > 100, 'Calendar keeps a readable event target');
@@ -309,7 +312,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    // Persistence is acknowledged before the sheet's exit transition removes its DOM.
    // Require both the saved title above and actual editor removal, without assuming they share a frame.
    await editor.waitFor({ state: 'detached' });
-   assert(await side.getByRole('button',{name:'Calendar',exact:true}).isVisible()); assert.equal(await editor.count(),0,'editor closes after acknowledged save');
+   assert(await page.getByRole('heading',{name:'Universal',exact:true}).isVisible()); assert.equal(await editor.count(),0,'editor closes after acknowledged save');
  }
  // Scheduled events retain their time of day and still carry a shared request, distinct from planned dates.
  const beforeSchedule=(await team('GET',`/projects/${project.id}/schedules`)).find(s=>s.ticketId===scheduled.id);

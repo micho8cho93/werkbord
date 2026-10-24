@@ -66,7 +66,7 @@
   {#if session}<section class="pn" aria-label="Collection records"><h2 class="band">Collection records</h2><WorkspaceRenderer {session} /></section>{/if}
 </div>
 <style>
-  .library { display: grid; gap: 20px; max-width: 1120px; margin-inline: auto; padding: 24px; }
+  .library { display: grid; gap: 20px; max-width: 1800px; margin-inline: auto; padding: 24px clamp(16px, 2.5vw, 40px); }
   header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
   .card-row > header { justify-content: flex-start; }
   h1 { font-size: 20px; margin: 0; }

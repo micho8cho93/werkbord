@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import Icon from '../lib/Icon.svelte';
   import PersonalLibrary from '../lib/personal/PersonalLibrary.svelte';
   import { shellPersonalAPI } from './personal';
   import GeneratedWorkspace from './GeneratedWorkspace.svelte';
@@ -8,7 +9,8 @@
   import FrameHost from './FrameHost.svelte';
   import WorkspaceProblem from './WorkspaceProblem.svelte';
   import Calendar from './Calendar.svelte';
-  import Inbox from './Inbox.svelte';
+  import FloatingSalie from './FloatingSalie.svelte';
+  import Hub from './Hub.svelte';
   import Workspaces from './Workspaces.svelte';
   import AddTeam from './AddTeam.svelte';
   import AssistantFrame from './AssistantFrame.svelte';
@@ -60,6 +62,7 @@
 <!-- While the assistant is over the window, what is under it is not reachable by keyboard or screen reader either. -->
 <div class="shell" inert={model.assistantShown}>
   <Sidebar />
+  <FloatingSalie />
   <div class="content">
     {#if model.error}
       <div class="message error" role="alert">{model.error}<button class="btn" type="button" onclick={() => (model.error = '')}>Dismiss</button></div>
@@ -74,6 +77,9 @@
     <main id="shell-main" tabindex="-1" bind:this={mainEl} class:with-nav={model.page === 'settings'}>
       {#if model.page === 'settings'}<SettingsNav />{/if}
       <div class="stage">
+        {#if model.universal && ['workspaces', 'personal-library', 'generated', 'calendar'].includes(model.page)}
+          <div class="crumb"><button class="btn small quiet" type="button" onclick={() => model.go('inbox')} data-testid="back-to-universal"><Icon name="left" size={14} />Universal</button></div>
+        {/if}
         <FrameHost shown={(model.page === 'workspace' && !problem) || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
         {#if model.page === 'workspace' && problem}
           <div class="page-area"><WorkspaceProblem /></div>
@@ -84,7 +90,7 @@
         {:else if model.page !== 'workspace' && !hostedWorkspace}
           <div class="page-area">
             {#if model.page === 'calendar'}<Calendar overview={model.overview} />
-            {:else if model.page === 'inbox'}<Inbox overview={model.overview} />
+            {:else if model.page === 'inbox'}<Hub overview={model.overview} />
             {:else if model.page === 'personal-library'}<PersonalLibrary api={shellPersonalAPI} onopen={async w => { await model.refreshGenerated(); model.openGenerated(w.id, true); }} />
             {:else if model.page === 'generated'}<GeneratedWorkspace id={model.generatedID} />
             {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
@@ -160,6 +166,7 @@
     display: flex;
     flex-direction: column;
   }
+  .crumb { flex: none; padding: 10px clamp(16px, 2.5vw, 40px) 0; }
   .page-area {
     flex: 1;
     min-height: 0;

@@ -129,32 +129,44 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     page.setDefaultTimeout(15000); page.on('pageerror', e => errors.push(e.message));
     const side = page.getByRole('navigation', {name: 'Werkbord', exact: true});
     const generated = side.locator('[data-page="generated-' + savedWorkspace.id + '"]');
-    const openSaved = async () => { await generated.click(); await page.locator('.saved-workspace').waitFor(); await page.getByText('Shared across every location', {exact:true}).first().waitFor(); };
+    const openSaved = async () => { if (await generated.count()) await generated.click(); else { const back = page.getByTestId('back-to-universal'); if (await back.count()) await back.click(); await page.getByTestId('hub-generated-' + savedWorkspace.id).click(); } await page.locator('.saved-workspace').waitFor(); await page.getByText('Shared across every location', {exact:true}).first().waitFor(); };
     const ordered = async expected => {
         const actual = await side.locator('button.nav').evaluateAll(els => els.map(e => e.dataset.page || (e.dataset.project ? 'project' : 'theme')));
         assert.deepEqual(actual, expected);
-        assert.equal(await generated.count(), 1);
     };
-    const footer = ['workspaces', 'settings'];
+    const footer = ['workspaces', 'personal-library', 'settings'];
     try {
         await page.goto(shellOrigin + '/shell/shell/index.html');
-        await generated.waitFor();
-        await ordered(['assistant', 'inbox', 'calendar', 'generated-' + savedWorkspace.id, 'personal-library', ...footer]);
-        await openSaved();
-        assert.equal(await generated.getAttribute('aria-current'), 'page');
-        assert.equal(await generated.getAttribute('aria-label'), spec.name);
-        assert.equal(await generated.getAttribute('title'), spec.name);
-        const style = await generated.locator('.label').evaluate(el => {const s=getComputedStyle(el);return {whiteSpace:s.whiteSpace,ellipsis:s.textOverflow,clipped:el.scrollWidth>el.clientWidth,lines:el.getBoundingClientRect().height/parseFloat(s.lineHeight)}});
-        assert.equal(style.whiteSpace,'nowrap'); assert.equal(style.ellipsis,'ellipsis'); assert.ok(style.clipped);
-        assert.equal(await generated.locator('svg[data-workspace-icon]').getAttribute('data-workspace-icon'), savedWorkspace.icon);
-        assert.match(savedWorkspace.icon, /^lucide-[a-z0-9-]+$/);
-        assert.ok(await generated.locator('svg path, svg circle, svg rect, svg line').count() > 0);
+        await page.getByTestId('hub-generated-' + savedWorkspace.id).waitFor();
+        await ordered(['workspaces', 'settings']);
+        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 48);
+        await page.screenshot({path:path.join(artifacts,'universal-default.png')});
+        await page.getByTestId('sidebar-label-toggle').click();
+        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 208);
+        await page.getByTestId('hub-library').click();
+        await page.getByRole('heading', {name: 'Data library', exact: true}).waitFor();
+        await page.getByTestId('back-to-universal').click();
+        await page.getByTestId('hub-generated-' + savedWorkspace.id).waitFor();
         await page.screenshot({path:path.join(artifacts,'universal.png')});
-        ok('Universal ordering, bundled Lucide workspace icon, one line, ellipsis, full accessible name and active state');
+        // Universal re-entry folds even at intermediate widths, regardless of a previous label expansion.
+        await page.setViewportSize({width: 1000, height: 800});
+        await page.getByTestId('sidebar-label-toggle').click();
+        await switchTo(page,'personal'); await switchTo(page,'universal');
+        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 48);
+        await page.screenshot({path:path.join(artifacts,'universal-window.png')});
+        await page.setViewportSize({width: 390, height: 844});
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        await page.screenshot({path:path.join(artifacts,'universal-narrow.png'), fullPage:true});
+        await page.setViewportSize({width:1440,height:900});
+        ok('Universal starts folded, keeps only machine destinations and reaches saved workspaces, calendar and the library on its page');
 
         await switchTo(page,'personal');
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();
-        await ordered(['assistant','ws-home','ws-projects','project','add-project','ws-analytics','create-generated', 'generated-' + savedWorkspace.id,'personal-library',...footer]);
+        await ordered(['ws-home','ws-projects','project','add-project','ws-analytics','create-generated', 'generated-' + savedWorkspace.id,...footer]);
+        await openSaved();
+        assert.equal(await generated.getAttribute('aria-current'), 'page');
+        assert.equal(await generated.getAttribute('aria-label'), spec.name);
+        assert.equal(await generated.locator('svg[data-workspace-icon]').getAttribute('data-workspace-icon'), savedWorkspace.icon);
         await side.locator('[data-page=ws-analytics]').click();
         await page.frameLocator('iframe[data-workspace=personal]').getByRole('heading',{name:'Analytics',exact:true}).waitFor();
         const individualHandle = await page.locator('iframe[data-workspace=personal]').elementHandle();
@@ -171,7 +183,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const teamFrame = page.frameLocator('iframe[data-workspace="team:main"]');
         await teamFrame.locator('#draft').fill('My unfinished Team draft');
         await side.locator('[data-page=ws-analytics]').click();
-        await ordered(['assistant','ws-home','ws-projects','ws-reviews','ws-members','ws-analytics','create-generated', 'generated-'+savedWorkspace.id,'personal-library',...footer]);
+        await ordered(['ws-home','ws-projects','ws-reviews','ws-members','ws-analytics','create-generated', 'generated-'+savedWorkspace.id,...footer]);
         const teamHandle = await page.locator('iframe[data-workspace="team:main"]').elementHandle();
         await openSaved();
         await page.getByText('Team projects · Northstar · read-only',{exact:true}).click();
@@ -240,7 +252,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.getByLabel('Name',{exact:true}).fill('My planning');
         await page.getByRole('button',{name:'New icon',exact:true}).click();
         await page.getByRole('button',{name:'Save changes',exact:true}).click();
-        await side.getByRole('button',{name:'My planning',exact:true}).waitFor();
+        await page.getByRole('heading',{name:'My planning',exact:true}).waitFor();
         const updated=await api(ind,'GET','/api/personal/v1/workspaces/'+savedWorkspace.id);
         assert.equal(updated.name,'My planning');assert.match(updated.icon,/^lucide-[a-z0-9-]+$/);assert.notEqual(updated.icon,savedWorkspace.icon);assert.equal(updated.revision,2);
         assert.deepEqual(updated.visibility,spec.visibility);
@@ -259,7 +271,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.getByRole('button',{name:'Name, icon & locations',exact:true}).click();
         await page.getByRole('checkbox',{name:'Northstar',exact:true}).check();
         await page.getByRole('button',{name:'Save changes',exact:true}).click();
-        await side.getByRole('button',{name:'My planning',exact:true}).waitFor();
+        await page.getByRole('heading',{name:'My planning',exact:true}).waitFor();
         await switchTo(page,'team:main'); await openSaved();
         assert.equal(await generated.count(),1);
         await page.getByLabel('Manage workspace',{exact:true}).click();

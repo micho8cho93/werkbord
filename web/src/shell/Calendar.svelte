@@ -9,7 +9,8 @@
   import { model } from './model.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
   import type { Overview } from './types';
-  let { overview }: { overview: Overview | null } = $props();
+  // `embedded` is the Universal hub's panel: it fills the panel and leaves the title to the hub.
+  let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
   let timeline = $state(false);
   const rows = $derived((overview?.entries ?? []).flatMap(e => [
     ...(e.summary?.planned ?? []).map(p => ({ ...p, id: e.workspace.id + '/' + p.id + '/plan', project: e.workspace.name + ' · ' + p.project, workspace: e.workspace.id, kind: 'planned' as const, status: e.summary?.work.find(w => w.id === p.id)?.status })),
@@ -57,10 +58,10 @@
     finally { busy = false; }
   }
 </script>
-<section class="page" aria-labelledby="cal-h">
+<section class="page" class:embedded aria-labelledby="cal-h">
   <header><h1 id="cal-h">Calendar</h1><p class="lede">Scheduled and planned work across all projects</p>
   <div class="seg" role="group" aria-label="Calendar presentation"><button aria-pressed={!timeline} onclick={() => timeline = false}>Calendar</button><button aria-pressed={timeline} onclick={() => timeline = true}>Timeline</button></div></header>
-  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {timeline} onopen={id => void open(id)} onmove={move} />{/if}
+  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {timeline} dense={embedded} onopen={id => void open(id)} onmove={move} />{/if}
   {#each silent as e (e.workspace.id)}<p class="note"><WorkspaceTag workspace={e.workspace} /> {standing(e)}: its schedule cannot be shown now.</p>{/each}
 </section>
 {#if editing}
@@ -90,5 +91,8 @@
   .page { padding: 24px; height: 100%; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
   h1 { margin: 0; } .lede, .note, .empty { color: var(--text-2); } .lede { margin: 4px 0 16px; }
   header { margin-bottom: 12px; }
+  .embedded { padding: 0; overflow: hidden; }
+  .embedded header { display: flex; align-items: center; justify-content: flex-end; margin: 0 0 8px; }
+  .embedded h1, .embedded .lede { display: none; }
   @media (max-width: 720px) { .page { padding: 16px; } }
 </style>

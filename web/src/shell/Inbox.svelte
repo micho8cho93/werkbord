@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { attentionAction, attentionGroups, standing, recordedTime } from './aggregate';
+  import { attentionAction, attentionGroups, standing, recordedTime, tallyByKind } from './aggregate';
   import { model } from './model.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
   import type { Overview, OverviewEntry } from './types';
@@ -33,31 +33,22 @@
 
   // What waits for the person or that they should know about, from every workspace: an agent's question, work that is blocked
   // or failed, a review someone asked for, and warnings about the machines a Team depends on. Worst first.
-  let { overview }: { overview: Overview | null } = $props();
+  // `embedded` is the Universal hub's panel: no title or tally of its own (the hub shows them), no page padding.
+  let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
 
   const groups = $derived(overview ? attentionGroups(overview) : []);
   const silent = $derived(overview ? overview.entries.filter((e) => e.error || e.workspace.state !== 'ready' || !e.summary) : []);
   const word: Record<string, string> = { critical: 'Urgent', warning: 'Needs you', info: 'For your information' };
-  // How much waits in each kind of workspace, so the two can be told apart at a glance: actions for the person, and
-  // operational warnings about the machines behind them.
-  const tally = $derived((['personal', 'team'] as const).map((kind) => {
-    const rows = groups.flatMap((g) => g.rows.map((r) => ({ r, id: g.id }))).filter((x) => x.r.workspace.kind === kind);
-    return {
-      kind,
-      label: kind === 'personal' ? 'Individual' : 'Team',
-      actions: rows.filter((x) => x.id !== 'warnings').length,
-      warnings: rows.filter((x) => x.id === 'warnings').length,
-    };
-  }));
+  const tally = $derived(tallyByKind(groups));
 </script>
 
-<section class="page" aria-labelledby="inbox-h">
+<section class="page" class:embedded aria-labelledby="inbox-h">
   <header>
     <h1 id="inbox-h">Workspaces</h1>
     <p class="lede">Questions, blockers, reviews and warnings from all your workspaces</p>
   </header>
 
-  {#if overview}
+  {#if overview && !embedded}
     <ul class="tally" aria-label="Waiting by kind of workspace">
       {#each tally as t (t.kind)}
         <li data-kind={t.kind} data-testid="tally-{t.kind}">
@@ -117,11 +108,15 @@
   .answer { padding: 0 14px 16px 36px; }
   .page {
     padding: 28px clamp(16px, 4vw, 48px);
-    max-width: 960px;
     margin: 0 auto;
     overflow-y: auto;
     height: 100%;
   }
+  .page.embedded { padding: 0; max-width: none; margin: 0; height: auto; overflow: visible; }
+  .embedded header { display: none; }
+  .embedded .group { margin-top: 14px; }
+  .embedded .group:first-of-type { margin-top: 0; }
+  .embedded ul { border-color: var(--border); box-shadow: none; }
   h1 {
     margin: 0;
   }
