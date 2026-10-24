@@ -40,7 +40,7 @@
     const last = index === TIPS.length - 1;
     const row = el('div', { class: 'tour-row' }, el('button', { type: 'button', class: 'plain', onclick: close }, 'Skip tour'), el('span', { class: 'tour-grow' }));
     if (index > 0) row.append(el('button', { type: 'button', class: 'plain', onclick: () => { index -= 1; show(); } }, 'Back'));
-    const next = el('button', { type: 'button', 'data-primary': '', onclick: () => { if (last) close(); else { index += 1; show(); } } }, last ? 'Done' : 'Next');
+    const next = el('button', { type: 'button', class: 'primary', onclick: () => { if (last) close(); else { index += 1; show(); } } }, last ? 'Done' : 'Next');
     row.append(next);
     card = el('div', { class: 'team-tour', role: 'dialog', 'aria-label': 'Quick tour', 'aria-live': 'polite' },
       el('p', { class: 'tour-count' }, (index + 1) + ' of ' + TIPS.length), el('h2', {}, title), el('p', { class: 'tour-body' }, body), row);

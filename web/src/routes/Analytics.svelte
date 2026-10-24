@@ -109,7 +109,6 @@
       <p class="muted">Duration includes waiting, from creation to the first recorded move to Done. Average: {analyticsDuration(report.averageTaskSeconds)}.</p>
       <section aria-labelledby="throughput-title"><h2 id="throughput-title">Created and completed over time</h2>
         {#if hasThroughput}<AnalyticsDaily days={report.days} {series} scope={chartScope} />
-          <details><summary>Daily values</summary><div class="table-scroll"><table><thead><tr><th>UTC date</th><th>Created</th><th>Moved to Done</th></tr></thead><tbody>{#each report.days as day (day.date)}<tr><td class="mm">{day.date}</td><td class="mm">{day.created}</td><td class="mm">{day.completed}</td></tr>{/each}</tbody></table></div></details>
         {:else}<p class="empty">No task activity in this period. Try a longer time range or another project.</p>{/if}
       </section>
       <details class="disclosure"><summary>Work categories</summary><p class="muted">Current labels; tasks with multiple labels appear in each category.</p><AnalyticsBars scope={`${chartScope}/${measure}/${scope.runner}`} label="Task activity by category" rows={report.categories.map(c => ({ label: c.name, value: c.completed, detail: `${c.created} created · ${c.completed} moved to Done`, tone: 'var(--ok)' }))} />{#if !report.categories.length}<p class="muted">No task activity matches these categories.</p>{/if}</details>
@@ -155,36 +154,42 @@
 </div>
 
 <style>
-  .analytics { padding: 0 24px 32px; height: 100%; overflow: auto; }
-  .tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
-  .tabs button { flex-shrink: 0; background: none; border: none; border-bottom: 2px solid transparent; padding: 16px 0 12px; color: var(--text-2); font: inherit; font-weight: 500; cursor: pointer; min-height: 44px; }
+  .analytics { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 32px; height: 100%; overflow: auto; }
+  /* The views are a segmented control; the filters and the figures each sit in a panel of their own. */
+  .tabs { display: inline-flex; align-self: flex-start; max-width: 100%; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); box-shadow: var(--tray-sh); overflow-x: auto; }
+  .tabs button { flex: none; height: 30px; padding: 0 14px; border: 0; border-radius: 4px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
   .tabs button:hover { color: var(--text); }
-  .tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--text); }
-  .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .stamp { margin: 12px 0; }
+  .tabs button[aria-selected="true"] { background: var(--btn-bg); box-shadow: var(--btn-sh); color: var(--text); }
+  #analytics-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-tray); background: var(--surface); box-shadow: var(--card-sh); }
+  .stamp { margin: 0; }
   .muted, small { color: var(--text-2); font-size: 12px; line-height: 1.6; }
+  p { margin: 0; }
   .error { color: var(--danger-text); }
   .notice { background: var(--surface-2); padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); }
-  .statistics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; border-block: 1px solid var(--border); padding: 16px 0; margin: 20px 0 8px; }
+  .statistics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; }
+  .statistics > div { padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-tray); background: var(--surface); box-shadow: var(--card-sh); min-width: 0; }
   dt { color: var(--text-2); font-size: 12px; }
   dd { margin: 6px 0 0; font-family: var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-  .statistics dd { font-size: 20px; }
-  section { margin-top: 28px; min-width: 0; }
-  h2 { font-size: 14px; font-weight: 600; margin: 0 0 20px; }
+  .statistics dd { font-size: 22px; }
+  /* A section is a panel: a title, then what it shows, inside a border of its own. */
+  section { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-tray); background: var(--surface); box-shadow: var(--card-sh); }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 16px; }
   .table-scroll { overflow-x: auto; }
   .execution-table { min-width: 900px; }
-  details { margin-top: 16px; }
+  details { margin: 0; }
   summary { cursor: pointer; font-size: 13px; min-height: 24px; }
-  .breakdowns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
-  .disclosure { min-width: 0; padding-block: 16px; border-top: 1px solid var(--border); }
-  .disclosure[open] > summary { margin-bottom: 16px; }
+  .breakdowns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .disclosure { min-width: 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-tray); background: var(--surface); box-shadow: var(--card-sh); }
+  .disclosure[open] > summary { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
   .facts { margin: 0; }
   .facts div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--border); padding: 7px 0; }
+  .facts div:last-child { border-bottom: 0; }
   .facts dd { margin: 0; font-size: 12px; text-align: right; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
   th { color: var(--text-2); font-weight: 500; }
   td, th { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
   td small { display: block; white-space: nowrap; }
   @media (max-width: 1100px) { .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 899px) { .analytics { height: auto; overflow: visible; padding: 0 16px 24px; } .breakdowns { grid-template-columns: 1fr; gap: 0; } .facts div { flex-wrap: wrap; } .filters .pick { flex: 1 1 140px; min-width: 0; } .filters select { min-width: 0; max-width: 100%; } summary { min-height: 44px; } }
+  @media (max-width: 899px) { .analytics { height: auto; overflow: visible; padding: 16px 16px 24px; } .breakdowns { grid-template-columns: 1fr; } .facts div { flex-wrap: wrap; } .filters .pick { flex: 1 1 140px; min-width: 0; } .filters select { min-width: 0; max-width: 100%; } summary { min-height: 44px; } }
 </style>

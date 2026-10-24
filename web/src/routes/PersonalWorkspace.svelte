@@ -114,7 +114,7 @@
 <div class="personal-page">
   {#if phone.on}<div class="phone-top"><PhoneBack /></div>{/if}
   {#if notice}<p role="status">{notice}</p>{/if}
-  {#if !restricted}<button class="btn" onclick={() => library = !library}>{library ? 'Back to workspace' : 'Personal data library'}</button>{/if}
+  {#if !restricted}<button class="btn" onclick={() => library = !library}>{library ? 'Back to workspace' : 'Data library'}</button>{/if}
   {#if library}<PersonalLibrary api={personalAPI} onopen={w => { library = false; location.hash = `#/personal?id=${w.id}`; }} />{:else}
   <header><div><h1>{session?.workspace?.name ?? 'Personal workspace'}</h1><p>{restricted ? 'Saved on your computer' : 'Saved on this computer'}</p></div><button class="btn primary" disabled={loading || session?.busy} onclick={editWithSalie}>{id ? 'Edit with Salie' : 'Create with Salie'}</button>{#if id}<button class="btn" disabled={loading || session?.busy} onclick={() => attempt++}>Reload workspace</button>{/if}{#if onDeck !== null}<button class="btn" onclick={toggleDeck} data-testid="workspace-deck-button">{onDeck ? 'Remove from Control Deck' : 'Add to Control Deck'}</button>{/if}{#if session?.workspace && !session.busy && !restricted}<WorkspaceManagement workspace={session.workspace} api={personalAPI} onupdated={w => { session!.workspace = w; attempt++; }} onlibrary={() => library = true} ondeleted={preview => { notice = preview.collections.some(c => !c.delete) ? 'Workspace deleted. Preserved personal records are in the data library.' : 'Workspace and its exclusively owned personal data deleted.'; session = null; library = true; }} />{/if}</header>
   {#if deckNotice}<p role="status" class="hint">{deckNotice}</p>{/if}

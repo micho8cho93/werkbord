@@ -77,7 +77,7 @@ describe('the assistant’s frame', () => {
     expect(model.assistantAsk).toEqual({ action: 'open', rect: button });
     // It is not one of the workspaces’ frames, and nothing the person was looking at is changed.
     expect(model.frames).toEqual({});
-    expect(model.page).toBe('mywork');
+    expect(model.page).toBe('inbox');
     expect(model.current).toBe('personal');
   });
 
@@ -165,7 +165,7 @@ describe('the assistant’s frame', () => {
     await model.toggleAssistant(button);
     model.setAssistant({ open: true, waiting: 0, running: false });
     model.assistantAsk = null;
-    model.go('mywork');
+    model.go('inbox');
     expect(model.assistantAsk).toMatchObject({ action: 'close' });
   });
 });
@@ -181,12 +181,12 @@ describe('startup', () => {
     native.app.Overview = async () => ({ entries: [], at: '' });
     try {
       await model.start();
-      expect(model.page).toBe('mywork');
+      expect(model.page).toBe('inbox');
       expect(model.universal).toBe(true);
       expect(open).not.toHaveBeenCalled();
       expect(Object.keys(model.frames)).toEqual(['personal']); // Background readiness check, without selecting it.
       await model.refresh();
-      expect(model.page).toBe('mywork');
+      expect(model.page).toBe('inbox');
     } finally { model.stop(); }
   });
 });
@@ -227,7 +227,7 @@ it('reopens a hidden saved workspace from the library without creating a display
   const saved = {id: 'pws_abcdefghijklmnop', revision: 1, name: 'Hidden planner', icon: 'calendar' as const, createdAt: '2026-10-23T12:00:00Z', updatedAt: '2026-10-23T12:00:00Z', uiSchemaVersion: 1 as const, collectionIds: [], visibility: {universal:false, individual:false, teamWorkspaceIds:[]}, definition: {views:[], layout:{type:'heading' as const,text:'Hidden'}}};
   model.generated = [saved];
   model.openGenerated(saved.id);
-  expect(model.page).toBe('mywork');
+  expect(model.page).toBe('inbox');
   model.openGenerated(saved.id, true);
   expect(model.page).toBe('generated');
   expect(model.generatedID).toBe(saved.id);

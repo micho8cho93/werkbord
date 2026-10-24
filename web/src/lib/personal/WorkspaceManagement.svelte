@@ -54,7 +54,7 @@
   <button class="btn" onclick={settings} disabled={busy}>Name, icon & locations</button>
   {#if context && currentAssigned}<button class="btn" onclick={() => { open = false; void save(true); }} disabled={busy}>Remove from this location</button>{/if}
   <button class="btn" onclick={revisions} disabled={busy}>Definition history</button>
-  <button class="btn" onclick={onlibrary}>Personal data library</button>
+  <button class="btn" onclick={onlibrary}>Data library</button>
   <button class="btn" onclick={() => { open = false; panel = 'delete'; preview = null; problem = ''; }} disabled={busy}>Delete workspace…</button>
 </div></details>
 {#if panel || problem}<section class="management" aria-label="Workspace management" aria-busy={busy}>
@@ -83,7 +83,7 @@
         {#if !c.delete && preview.mode === 'delete_data'}<p>Protected: this collection is shared or is not owned by this workspace.</p>{/if}
         {#if c.referenceCount > 1}<p>Used by: {c.workspaces.map(w => w.name).join(', ')}{c.referenceCount > 20 ? ' (first 20 shown)' : ''}.</p>{/if}
       </div>{/each}
-      <p>Existing board tasks, projects, Git information, Team records and shared memory are unaffected. Retained collections remain in the personal data library.</p>
+      <p>Existing board tasks, projects, Git information, Team records and shared memory are unaffected. Retained collections remain in the data library.</p>
       <label><input type="checkbox" bind:checked={confirmed} disabled={busy} /> I confirm this deletion and the personal data choices above.</label>
       <button class="btn" disabled={busy || !confirmed} onclick={() => act(async () => { if (preview) await ondeleted(await api.deleteWorkspace(preview)); })}>Confirm deletion</button>
     {/if}

@@ -78,7 +78,7 @@ export function chartBar(node: SVGRectElement | HTMLElement, initial: { value: n
   const show = () => {
     if (visible) return;
     visible = true;
-    if (initial.entrance !== false) run(0, initial.value, initial.vertical ? 480 : 420);
+    if (initial.entrance !== false) run(0, initial.value, 320);
   };
   function run(from: number, to: number, duration: number) {
     const axis = previous.vertical ? 'Y' : 'X';
@@ -89,7 +89,8 @@ export function chartBar(node: SVGRectElement | HTMLElement, initial: { value: n
   observer.observe(node);
   return {
     update(next: typeof initial) {
-      if (visible && next.value !== previous.value && next.scope !== previous.scope) run(previous.value, next.value, 280);
+      // A new set of figures settles in with a short fade: bars that stretch from one length to another read as noise.
+      if (visible && next.value !== previous.value && next.scope !== previous.scope) animate(node, [{ opacity: 0.35 }, { opacity: 1 }], 200);
       previous = next;
     },
     destroy() { observer.disconnect(); },

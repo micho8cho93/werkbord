@@ -27,7 +27,7 @@
 <svelte:window onpointerdown={(event) => { if (container && event.target instanceof Node && !container.contains(event.target)) { selected = ''; pinned = false; } }} />
 <div class="daily" bind:this={container} role="slider" aria-valuemin="0" aria-valuemax={Math.max(0, days.length-1)} aria-valuenow={Math.max(0, days.findIndex(d => d.date === selected))} aria-valuetext={day ? `${day.date}: ${day.created} created, ${day.completed} moved to Done` : days[0]?.date ?? 'No dates'} tabindex="0" aria-label="Daily activity chart. Use Left and Right arrows to inspect dates, or Escape to clear." aria-describedby={day ? readoutId : undefined} onkeydown={key} onpointermove={(event) => { if (event.pointerType === 'mouse' && !pinned) inspect(event); }} onpointerleave={() => { if (!pinned) selected = ''; }} onclick={(event) => { inspect(event); pinned = true; }}>
   <div class="legend"><span class="key created"></span>Created <span class="key completed"></span>Moved to Done <span class="unit">UTC days · peak {max} tasks</span></div>
-  <svg viewBox="0 0 700 210" role="img" aria-label="Daily task counts. Exact values are in Daily values below.">
+  <svg viewBox="0 0 700 210" role="img" aria-label="Daily task counts. Hover a day, or use the arrow keys, to read it.">
     {#each (max > 1 && max % 2 === 0 ? [0, 0.5, 1] : [0, 1]) as ratio (ratio)}
       <line x1="40" x2="680" y1={170 - ratio * 144} y2={170 - ratio * 144} stroke="var(--border)" />
       <text x="30" y={174 - ratio * 144} text-anchor="end">{Math.round(max * ratio)}</text>

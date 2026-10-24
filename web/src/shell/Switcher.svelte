@@ -72,7 +72,7 @@
 
 <div class="scrim" onclick={() => model.closeSwitcher()} role="presentation"></div>
 <div class="menu" role="menu" aria-label="Switch workspace" tabindex="-1" bind:this={menu} onkeydown={onkey} style:left="{pos.left}px" style:top="{pos.top}px" data-testid="switcher-menu">
-  <button class="item" type="button" role="menuitem" aria-current={model.universal} onclick={() => model.go('mywork')} data-workspace="universal">
+  <button class="item" type="button" role="menuitem" aria-current={model.universal} onclick={() => model.go('inbox')} data-workspace="universal">
     <span class="check" aria-hidden="true">{#if model.universal}<Icon name="check" size={14} />{/if}</span>
     <span class="text"><span class="name">Universal</span><span class="sub">All your workspaces</span></span>
   </button>

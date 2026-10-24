@@ -131,7 +131,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         page.setDefaultTimeout(15000);
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');
-        await page.getByRole('heading', { name: 'My Work', exact: true }).waitFor();
+        await page.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor();
         await page.getByTestId('workspace-switcher').click();
         await page.getByTestId('switcher-menu').locator('[data-workspace=personal]').click();
         await page.locator('iframe[data-workspace=personal]').waitFor();
@@ -242,8 +242,8 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // And the window under it can be used again.
         await page.getByTestId('workspace-switcher').click();
         await page.getByTestId('switcher-menu').locator('[data-workspace="universal"]').click();
-        await side.getByRole('button', { name: 'My Work' }).click();
-        await page.locator('[data-page=mywork][aria-current=page]').waitFor();
+        await side.getByRole('button', { name: 'Calendar' }).click();
+        await page.locator('[data-page=calendar][aria-current=page]').waitFor();
         await page.getByTestId('workspace-switcher').click();
         await page.getByTestId('switcher-menu').locator('[data-workspace="team:main"]').click();
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });

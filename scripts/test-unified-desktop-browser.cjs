@@ -75,7 +75,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    assert.equal(await window.locator('iframe[data-workspace^="team:"]').count(), 0, 'startup does not restore a Team workspace');
  };
 
- await page.goto(origin + '/shell/shell/index.html'); await page.getByRole('heading', { name: 'My Work', exact: true }).waitFor();
+ await page.goto(origin + '/shell/shell/index.html'); await page.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor();
  await assertUniversalStartup(page);
  const shellSkip = page.getByRole('link', { name: 'Skip to main content', exact: true }); await page.keyboard.press('Tab'); assert.equal(await shellSkip.evaluate(el => el === document.activeElement), true, 'shell skip link is first in the page focus order');
  assert((await shellSkip.boundingBox()).y >= 0, 'shell skip link is visible when focused'); await page.keyboard.press('Enter');
@@ -91,7 +91,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
  // Cross-workspace navigation is shown in Universal mode, not while an individual workspace is open.
  await switchUniversal();
- for (const entry of ['My Work', 'Calendar']) await side.getByRole('button', { name: entry, exact: true }).waitFor();
+ for (const entry of ['Workspaces', 'Calendar']) await side.getByRole('button', { name: entry, exact: true }).waitFor();
  await side.locator('[data-page="inbox"]').waitFor(); // the accessible name also includes its waiting-item count
  console.log('PASS Universal: cross-workspace destinations appear in the shared sidebar');
  await switchTo('personal');
@@ -133,10 +133,10 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    return await route.continue();
  } catch (e) { if (!/already handled|closed/i.test(String(e))) throw e; } });
  await wait(async () => (await side.locator('[data-page=ws-home]').innerText()).includes('1'), 'Workspace retains its count');
- assert.equal(await side.locator('[data-page=mywork], [data-page=calendar]').count(), 0, 'workspace mode keeps cross-workspace destinations out of the sidebar');
- for (const destination of ['mywork', 'calendar', 'inbox']) {
+ assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 0, 'workspace mode keeps cross-workspace destinations out of the sidebar');
+ for (const destination of ['calendar', 'inbox']) {
    await page.evaluate(destination => window.__shellGo(destination), destination);
-   await page.getByRole('heading', { name: destination === 'mywork' ? 'My Work' : destination === 'calendar' ? 'Calendar' : 'Workspaces', exact: true }).waitFor();
+   await page.getByRole('heading', { name: destination === 'calendar' ? 'Calendar' : 'Workspaces', exact: true }).waitFor();
  }
  await page.unrouteAll({ behavior: 'ignoreErrors' });
  await switcher();
@@ -338,9 +338,9 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.setViewportSize({ width: 1440, height: 1000 });
  console.log('PASS workspaces and devices page in desktop/mobile shell');
  console.log('PASS persistent frames, member restrictions, hosting offer and background run through switching');
- await page.reload(); await page.getByRole('heading', { name: 'My Work', exact: true }).waitFor(); await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
+ await page.reload(); await page.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor(); await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  await page.close(); assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'closing frontend leaves runner alive');
- const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'My Work', exact: true }).waitFor();
+ const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor();
  await assertUniversalStartup(reopened);
  await reopened.getByTestId('workspace-switcher').click(); await reopened.getByTestId('switcher-menu').locator('[data-workspace="team:main"]').click(); await reopened.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/stop`, {});

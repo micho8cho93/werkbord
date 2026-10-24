@@ -24,7 +24,6 @@ func buildMenu(sh *shell.Shell, ui *wailsUI, withShell bool) *menu.Menu {
 			return func(*menu.CallbackData) { ui.Emit("shell:go", where) }
 		}
 		ws.AddText("Universal", keys.CmdOrCtrl("1"), go2("personal"))
-		ws.AddText("My Work", keys.CmdOrCtrl("2"), go2("mywork"))
 		ws.AddText("Workspaces", keys.CmdOrCtrl("4"), go2("inbox"))
 		ws.AddText("Calendar", keys.CmdOrCtrl("3"), go2("calendar"))
 		ws.AddSeparator()

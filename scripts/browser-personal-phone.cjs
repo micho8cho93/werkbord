@@ -114,7 +114,7 @@ const workspace = (name, collectionId) => {
     await section.getByRole('link', { name: 'Made at the computer' }).click();
     await page.getByRole('heading', { name: 'Made at the computer', level: 1 }).waitFor();
     await page.getByTestId('phone-back').waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Personal data library' }).count(), 0, 'the data library is the owner’s');
+    assert.equal(await page.getByRole('button', { name: 'Data library' }).count(), 0, 'the data library is the owner’s');
     assert.equal(await page.getByText('Manage workspace').count() + await page.getByLabel('Manage workspace').count(), 0, 'no workspace management on a phone');
     assert.equal(await page.getByText('Saved on your computer').count(), 1);
     ok('the workspace opens on the phone with Back and without owner-only controls');

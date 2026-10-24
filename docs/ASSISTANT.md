@@ -748,7 +748,7 @@ Both recheck live revisions, record changes, ownership and workspace dependencie
 inside the deletion transaction. Shared/unowned collections are explicitly kept.
 A changed plan requires a fresh review and confirmation.
 
-Retained data stays discoverable in the Personal data library and through
+Retained data stays discoverable in the Data library and through
 `list_personal_collections`. A future creation proposal may reuse a retained
 collection by its exact saved ID, revision and unchanged schema. No records are
 copied, reset or generated. Definition rollback keeps current collection schemas

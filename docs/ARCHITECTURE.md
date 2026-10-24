@@ -995,7 +995,7 @@ Team backend imports. Team continues serving its existing console, including
 The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name with the open
 workspace under it (**werkbord / Individual ▾**, **werkbord / <workspace> ▾**), which opens the switcher (Individual,
 each enrolled Team workspace, and Add a Team; ⌘⇧K opens the same menu); **Everywhere**, what spans every workspace
-(My Work, Calendar and Needs you); the open workspace's own places, listed under its name (Individual: Needs you,
+(Workspaces, which gathers what needs you from every workspace with Individual in blue and each Team in violet, and Calendar); the open workspace's own places, listed under its name (Individual: Needs you,
 Projects and each project, Add project; Team: Workspace, Projects and each project, Reviews, Members); and last Workspaces
 and devices, the Settings of the workspace that is open, and the theme. Choosing a place asks the workspace to show it
 (`werkbord.navigate`, a place inside the page); the workspace says where it is (`werkbord.frame`/`place`) and the sidebar
@@ -1032,7 +1032,7 @@ showing a blank page and offers **Update Team** (Workspaces and devices), which 
 authorization, unless it belongs to a workspace (that takes coordinated administrator maintenance). What decides is whether
 the service answers, never a table of version numbers.
 
-My Work, Calendar and Needs you read a bounded neutral summary from each
+Workspaces (Needs you) and Calendar read a bounded neutral summary from each
 accessible service. Links open the relevant workspace and project in the same
 window. Shared reviews/PRs, member management, agent controls on Team
 tickets and all existing project views remain in their workspace's existing

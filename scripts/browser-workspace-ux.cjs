@@ -148,7 +148,8 @@ let browser, shellServer;
  assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);
  await shellPage.getByTestId('workspace-switcher').click();
  await shellPage.locator('[data-workspace=universal]').click();
- await side.getByRole('button',{name:'My Work',exact:true}).waitFor();
+ await side.getByRole('button',{name:'Workspaces',exact:true}).waitFor();
+ assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);
  assert.equal(await side.getByRole('button',{name:'Projects',exact:true}).count(),0);
  await side.getByRole('button',{name:'Calendar',exact:true}).click();
  try { await shellPage.getByRole('button').filter({hasText:'Plan the venue opening'}).waitFor(); } catch (error) { await shellPage.screenshot({path:path.join(artifacts,'universal-failure.png')}); console.log('Shell:', (await shellPage.locator('body').innerText()).slice(0,3000), 'errors:', errors); throw error; }
@@ -161,7 +162,7 @@ let browser, shellServer;
  await shellPage.getByTestId('workspace-switcher').click();
  await shellPage.screenshot({path:path.join(artifacts,'universal-switcher-desktop.png')});
  await shellPage.keyboard.press('Escape');
- for (const destination of ['My Work','Workspaces','Calendar']) {
+ for (const destination of ['Workspaces','Calendar']) {
   if (destination === 'Workspaces') await side.locator('[data-page=inbox]').click(); else await side.getByRole('button',{name:destination,exact:true}).click();
   await shellPage.waitForTimeout(350);
   await shellPage.screenshot({path:path.join(artifacts,'universal-'+destination.toLowerCase().replaceAll(' ','-')+'-desktop.png')});

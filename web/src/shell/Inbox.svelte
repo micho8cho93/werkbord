@@ -38,6 +38,17 @@
   const groups = $derived(overview ? attentionGroups(overview) : []);
   const silent = $derived(overview ? overview.entries.filter((e) => e.error || e.workspace.state !== 'ready' || !e.summary) : []);
   const word: Record<string, string> = { critical: 'Urgent', warning: 'Needs you', info: 'For your information' };
+  // How much waits in each kind of workspace, so the two can be told apart at a glance: actions for the person, and
+  // operational warnings about the machines behind them.
+  const tally = $derived((['personal', 'team'] as const).map((kind) => {
+    const rows = groups.flatMap((g) => g.rows.map((r) => ({ r, id: g.id }))).filter((x) => x.r.workspace.kind === kind);
+    return {
+      kind,
+      label: kind === 'personal' ? 'Individual' : 'Team',
+      actions: rows.filter((x) => x.id !== 'warnings').length,
+      warnings: rows.filter((x) => x.id === 'warnings').length,
+    };
+  }));
 </script>
 
 <section class="page" aria-labelledby="inbox-h">
@@ -45,6 +56,19 @@
     <h1 id="inbox-h">Workspaces</h1>
     <p class="lede">Questions, blockers, reviews and warnings from all your workspaces</p>
   </header>
+
+  {#if overview}
+    <ul class="tally" aria-label="Waiting by kind of workspace">
+      {#each tally as t (t.kind)}
+        <li data-kind={t.kind} data-testid="tally-{t.kind}">
+          <span class="swatch" aria-hidden="true"></span>
+          <span class="who">{t.label}</span>
+          <span class="n">{t.actions}</span><span class="cap">{t.actions === 1 ? 'action needed' : 'actions needed'}</span>
+          <span class="n">{t.warnings}</span><span class="cap">{t.warnings === 1 ? 'warning' : 'warnings'}</span>
+        </li>
+      {/each}
+    </ul>
+  {/if}
 
   {#each silent as e (e.workspace.id)}
     <p class="alert" role="status"><WorkspaceTag workspace={e.workspace} /> <strong>Current status unavailable.</strong> {standing(e)} Any displayed items are last reported; open the workspace to reconnect.</p>
@@ -63,7 +87,7 @@
     {#each group.rows as r, i (r.workspace.id + r.item.id)}
       {@const answering = expanded[r.item.id] && r.workspace.kind === 'personal' && r.item.kind === 'needs_input' && r.item.question}
       <li>
-        <div class="row" data-severity={r.item.severity} data-testid="attention-item">
+        <div class="row" data-severity={r.item.severity} data-kind={r.workspace.kind} data-testid="attention-item">
           <span class="sev" title={word[r.item.severity]} aria-label={word[r.item.severity]}></span>
           <span class="text">
             <span class="title">{answering ? 'Answering this question' : r.item.title}</span>
@@ -124,6 +148,8 @@
     border-top: 1px solid var(--border);
   }
   .row {
+    --kind: var(--accent);
+    box-shadow: inset 4px 0 0 var(--kind);
     display: grid;
     grid-template-columns: 10px minmax(0, 1fr) auto;
     gap: 12px;
@@ -132,6 +158,36 @@
     padding: 14px;
     font-size: 13px;
   }
+  .row[data-kind='team'] { --kind: var(--block); }
+  .tally {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+    margin: 0 0 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .tally li {
+    --kind: var(--accent);
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto auto;
+    align-items: baseline;
+    gap: 4px 6px;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--kind) 45%, var(--border));
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--kind) 8%, var(--surface));
+    box-shadow: var(--card-sh);
+    font-size: 12px;
+  }
+  .tally li + li { border-top: 1px solid color-mix(in srgb, var(--kind) 45%, var(--border)); }
+  .tally li[data-kind='team'] { --kind: var(--block); }
+  .swatch { align-self: center; width: 10px; height: 10px; border-radius: 3px; background: var(--kind); }
+  .who { font-weight: 600; font-size: 13px; }
+  .n { font-family: var(--mono); font-size: 15px; font-weight: 600; text-align: right; }
+  .cap { color: var(--text-2); margin-right: 6px; }
   .action { min-height: 44px; white-space: nowrap; }
   .sev {
     width: 8px;

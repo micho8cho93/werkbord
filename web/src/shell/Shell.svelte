@@ -7,7 +7,6 @@
   import Switcher from './Switcher.svelte';
   import FrameHost from './FrameHost.svelte';
   import WorkspaceProblem from './WorkspaceProblem.svelte';
-  import MyWork from './MyWork.svelte';
   import Calendar from './Calendar.svelte';
   import Inbox from './Inbox.svelte';
   import Workspaces from './Workspaces.svelte';
@@ -21,7 +20,7 @@
 
   // The window: one sidebar (switching workspace, what spans every workspace, and the navigation of the workspace on show)
   // beside the workspace's own pages, which carry no navigation of their own here.
-  const pages: Page[] = ['workspace', 'mywork', 'calendar', 'inbox', 'workspaces', 'settings', 'help'];
+  const pages: Page[] = ['workspace', 'calendar', 'inbox', 'workspaces', 'settings', 'help'];
   let mainEl: HTMLElement | undefined;
   // The person's own Werkbord cannot be shown (too old, or not running): say so instead of a blank frame.
   const problem = $derived(model.current === 'personal' && model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
@@ -84,8 +83,7 @@
           <div class="page-area"><SettingsNative section={native.native} /></div>
         {:else if model.page !== 'workspace' && !hostedWorkspace}
           <div class="page-area">
-            {#if model.page === 'mywork'}<MyWork overview={model.overview} />
-            {:else if model.page === 'calendar'}<Calendar overview={model.overview} />
+            {#if model.page === 'calendar'}<Calendar overview={model.overview} />
             {:else if model.page === 'inbox'}<Inbox overview={model.overview} />
             {:else if model.page === 'personal-library'}<PersonalLibrary api={shellPersonalAPI} onopen={async w => { await model.refreshGenerated(); model.openGenerated(w.id, true); }} />
             {:else if model.page === 'generated'}<GeneratedWorkspace id={model.generatedID} />

@@ -27,7 +27,7 @@
       {#if !c.delete && preview.mode === 'delete_data'}<p>Protected because it is shared or is not owned by this workspace.</p>{/if}
       {#if c.referenceCount > 1}<p>Used by: {c.workspaces.map(w => w.name).join(', ')}{c.referenceCount > 20 ? ' (first 20 shown)' : ''}.</p>{/if}
     </div>{/each}
-    <p>Retained collections remain in the Personal data library for recovery and reuse. Existing board tasks, projects, Git information, Team records and shared memory are unaffected.</p>
+    <p>Retained collections remain in the Data library for recovery and reuse. Existing board tasks, projects, Git information, Team records and shared memory are unaffected.</p>
     <p>Confirm below to authorise this exact deletion. A change to data or dependencies requires a new review.</p>
   {:else}<p role="status">Checking personal data and workspace dependencies…</p>{/if}
 </section>

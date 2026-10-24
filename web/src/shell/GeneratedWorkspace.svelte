@@ -33,7 +33,7 @@
     session!.workspace = workspace;
     await model.refreshGenerated();
     if (!model.visibleGenerated.some(w => w.id === id)) {
-      if (model.universal) model.go('mywork'); else await model.open(model.current);
+      if (model.universal) model.go('inbox'); else await model.open(model.current);
     }
   }
 </script>
@@ -44,7 +44,7 @@
     <button class="btn" disabled={loading || session?.busy} onclick={() => attempt++}>Reload workspace</button>
     {#if saved && !session?.busy}<WorkspaceManagement workspace={saved} api={shellPersonalAPI} teams={knownTeams} context={model.universal ? 'universal' : model.current} onupdated={updated} onlibrary={() => model.go('personal-library')} ondeleted={async preview => {
       await model.refreshGenerated();
-      model.notice = preview.collections.some(c => !c.delete) ? 'Workspace deleted. Preserved personal collections are available in the Personal data library.' : 'Workspace and its exclusively owned personal data deleted.';
+      model.notice = preview.collections.some(c => !c.delete) ? 'Workspace deleted. Preserved personal collections are available in the Data library.' : 'Workspace and its exclusively owned personal data deleted.';
       model.go('personal-library');
     }} />{/if}
   </header>

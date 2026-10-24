@@ -439,8 +439,6 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
   .board-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   .board-view > :not(.tboard) { flex: none; }
   .tboard { flex: 1; min-height: 0; margin: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-  .project-view:has([name='t-title']) > .panel { flex: none; }
-  .project-view:has([name='t-title']) .tboard { min-height: 320px; }
 }
 @media (min-width: 1800px) {
   .app-shell { grid-template-columns: 248px minmax(0, 1fr); }
@@ -630,7 +628,6 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
 .calendar-event small { display: block; color: var(--muted); margin-top: 4px; }
 .calendar-switch { margin-bottom: 12px; }
 .overview-counts { display: flex; flex-wrap: wrap; gap: 24px; }
-.run-report { margin-top: 24px; }
 .timeline-tooltip { position: fixed; z-index: 80; max-width: 320px; padding: 8px 12px; color: var(--text); background: var(--panel); box-shadow: var(--card-sh); border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; pointer-events: none; font-size: 12px; }
 .timeline-tooltip[hidden] { display: none; }
 @media (max-width: 899px) { .tl-chart { --names-w: 220px; } }

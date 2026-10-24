@@ -7,7 +7,7 @@
   import { activeKey, entries, listed } from './nav';
 
   // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), what spans every
-  // workspace (My Work, Workspaces, Calendar), the open workspace's own places (its home, projects and so on), and last the
+  // workspace (Workspaces, Calendar), the open workspace's own places (its home, projects and so on), and last the
   // things about this computer (Devices & Hosting, Settings of the workspace open). The workspaces' own
   // pages carry no navigation of their own in this window.
   const everywhereShown = $derived(model.universal);
@@ -23,7 +23,6 @@
   const reviews = $derived(kind === 'team' ? (summary?.attention.filter((a) => a.kind === 'review').length ?? 0) : 0);
 
   const everywhere: { id: Page; title: string; icon: IconName }[] = [
-    { id: 'mywork', title: 'My Work', icon: 'check' },
     { id: 'inbox', title: 'Workspaces', icon: 'control' },
     { id: 'calendar', title: 'Calendar', icon: 'calendar' },
   ];
@@ -138,7 +137,7 @@
     {#each model.visibleGenerated as workspace (workspace.id)}
       {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
     {/each}
-    {@render item('Personal data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}
+    {@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}
     {#if model.generatedError}<button class="nav" title={model.generatedError} aria-label="Saved workspaces unavailable. Retry" onclick={() => model.refreshGenerated()}><Icon name="reply" /><span class="label">Retry saved workspaces</span></button>{/if}
   </div>
   <div class="group bottom">

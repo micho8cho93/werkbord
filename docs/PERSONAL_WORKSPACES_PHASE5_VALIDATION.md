@@ -15,7 +15,7 @@ The pre-existing working-tree version remains `4.72.0-preview.1`.
   fingerprint binds approval to live records, schemas, ownership and dependencies.
   UI and Salie invoke the same transactional service. Failed or stale changes
   preserve the workspace and collection integrity.
-- A Personal data library with hidden-workspace reopening, retained collection
+- A Data library with hidden-workspace reopening, retained collection
   inspection and recovery into a new editable workspace using the same record IDs.
   Salie can discover and reuse retained schemas without copying or replacing data.
 - Definition rollback creates a fresh revision and preserves current records and

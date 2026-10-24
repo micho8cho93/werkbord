@@ -39,7 +39,7 @@
   }
 </script>
 <div class="library">
-  <header><h1>Personal data library</h1><button class="btn" disabled={busy} onclick={() => attempt++}>Reload library</button></header>
+  <header><h1>Data library</h1><button class="btn" disabled={busy} onclick={() => attempt++}>Reload library</button></header>
   <p>Collections kept after deleting a workspace remain here. Inspect their records or use them in a new workspace. All data stays on this computer.</p>
   {#if notice}<p role="status">{notice}</p>{/if}
   {#if problem}<p role="alert">{problem}</p>{/if}

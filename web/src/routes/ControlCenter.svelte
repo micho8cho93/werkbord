@@ -3,15 +3,13 @@
   import { attentionItems, segmentCount, SEGMENTS } from '../lib/attention';
   import AttentionCard from '../lib/attention/AttentionCard.svelte';
   import { matchesScheduledExecution } from '../lib/control';
-  import ControlInfrastructure from '../lib/ControlInfrastructure.svelte';
   import WaitingRepository from '../lib/WaitingRepository.svelte';
   import { agentName, cardActivity, oneLine, runElapsed, runReportStale } from '../lib/format';
   import { formatDateTime } from '../lib/clock.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
   import Icon from '../lib/Icon.svelte';
   import { disableNotifications, enableNotifications, notificationPermission, notificationsEnabled } from '../lib/notifications';
-  import { activitySummary, attentionCount } from '../lib/projects';
-  import { projectHref, taskHref } from '../lib/router.svelte';
+  import { taskHref } from '../lib/router.svelte';
   import { schedulingLabels } from '../lib/scheduling';
   import { app } from '../lib/state.svelte';
   import type { SchedulingDecision } from '../lib/types';
@@ -67,7 +65,6 @@
       return a.task.createdAt.localeCompare(b.task.createdAt);
     }),
   );
-  const projects = $derived((app.overview?.projects ?? []).filter((p) => !projectFilter || p.projectId === projectFilter));
   const agentIds = $derived([...new Set([...(app.overview?.usage ?? []).map((u) => u.agentId), ...app.agents.map((a) => a.id)])].sort());
 
   /** One line on how things stand, as the phone heading says it. */
@@ -223,27 +220,6 @@
           </ul>
         </section>
       {/if}
-
-      {#if projects.length}
-        <section class="pn">
-          <div class="ph">Projects<span class="chip">{projects.length}</span></div>
-          <ul class="rows">
-            {#each projects as p (p.projectId)}
-              {@const n = attentionCount(p)}
-              <li>
-                <a class="prow" href={projectHref(p.projectId, 'overview')} onclick={() => app.enter(p.projectId)}>
-                  <span class="sq"></span>
-                  <span class="pname">{p.name}</span>
-                  <span class="mm psub">{activitySummary(p) || 'quiet'}</span>
-                  {#if n}<span class="num pend">{n}</span>{/if}
-                </a>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
-      <ControlInfrastructure project={projectFilter} runner={runnerFilter} agent={agentFilter} />
     </aside>
   </div>
 </div>
@@ -337,46 +313,6 @@
     gap: 2px;
   }
 
-  .prow {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 36px;
-    padding: 0 6px;
-    border-radius: var(--radius-sm);
-    color: var(--text);
-    text-decoration: none;
-    font-size: 13px;
-  }
-
-  .prow:hover {
-    background: var(--surface-2);
-  }
-
-  .sq {
-    width: 7px;
-    height: 7px;
-    flex: none;
-    background: var(--text);
-  }
-
-  .pname {
-    font-weight: 500;
-    flex: none;
-    max-width: 45%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .psub {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .run {
     display: grid;
     gap: 2px;
@@ -448,10 +384,6 @@
   }
 
   @media (max-width: 899px), (pointer: coarse) {
-    .prow {
-      min-height: 44px;
-    }
-
     .filters .btn.small {
       min-height: 44px;
     }

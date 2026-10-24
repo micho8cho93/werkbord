@@ -11,7 +11,7 @@ import { surfaceUrl } from './frames';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
 import type { Overview, Target, WorkspaceView } from './types';
 
-export type Page = 'workspace' | 'mywork' | 'calendar' | 'inbox' | 'workspaces' | 'settings' | 'help' | 'generated' | 'personal-library';
+export type Page = 'workspace' | 'calendar' | 'inbox' | 'workspaces' | 'settings' | 'help' | 'generated' | 'personal-library';
 
 /** Where the switcher opens: under the workspace name at the top of the sidebar, in the window's coordinates. */
 export interface Anchor {
@@ -44,7 +44,7 @@ const OVERVIEW_EVERY = 10000;
 export class Model {
   view = $state<WorkspaceView | null>(null);
   overview = $state<Overview | null>(null);
-  page = $state<Page>('mywork');
+  page = $state<Page>('inbox');
   universal = $state(true);
   generated = $state<Workspace[]>([]);
   generatedID = $state('');
@@ -245,10 +245,10 @@ export class Model {
     }
   }
 
-  /** Starts every window on Universal → My Work; workspace places remain available when explicitly opened. */
+  /** Starts every window on Universal → Workspaces; workspace places remain available when explicitly opened. */
   async start(): Promise<void> {
     await this.refresh();
-    this.page = 'mywork';
+    this.page = 'inbox';
     this.universal = true;
     this.loaded = true;
     void this.refreshOverview();
@@ -407,11 +407,11 @@ export class Model {
   go(p: Page): void {
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
-    if (['mywork', 'calendar', 'inbox'].includes(p)) this.universal = true;
+    if (['calendar', 'inbox'].includes(p)) this.universal = true;
     this.leaveAssistant();
     this.page = p;
     this.closeSwitcher();
-    if (p === 'mywork' || p === 'calendar' || p === 'inbox' || p === 'workspaces') void this.refreshOverview();
+    if (p === 'calendar' || p === 'inbox' || p === 'workspaces') void this.refreshOverview();
   }
 
   /** Adds a Team: gives the person a place to create one or join one, and opens it. */

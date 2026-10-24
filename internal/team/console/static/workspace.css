@@ -1,0 +1,133 @@
+/*
+ * The Team console in the shape of the Individual app: the same page frame (a bar, a column of cards and a side column), the
+ * same raised and inset surfaces, and a ticket made in a dialog. Loaded after the other sheets, so it is the last word.
+ */
+
+:root {
+  --block: #7b4fc0;
+  --radius-sm: 5px;
+  --radius-tray: 9px;
+}
+:root[data-theme='dark'] { --block: #b595f2; }
+
+/* ---- a segmented control, as Individual's ---- */
+.seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--s2); box-shadow: var(--tray-sh); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font: inherit; font-weight: 500; font-size: 13px; white-space: nowrap; cursor: pointer; flex: none; }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed='true'] { background: var(--btn-bg); box-shadow: var(--btn-sh); color: var(--text); }
+.seg .n { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+/* ---- the Workspace page ---- */
+.cc { display: grid; gap: 20px; }
+.cc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.cc-split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.cc-pane { min-width: 0; display: grid; gap: 20px; align-content: start; }
+.cc-feed { display: grid; gap: 12px; max-width: 52rem; }
+.cc-card { display: grid; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); }
+.cc-card.tone-warning { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); box-shadow: var(--card-sh), 0 0 0 3px var(--amber-ring); }
+.cc-card.tone-problem { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.cc-kind { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.cc-kind b { font-weight: 500; color: var(--text); }
+.cc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.cc-card.tone-warning .cc-dot { background: var(--amber); }
+.cc-card.tone-problem .cc-dot { background: var(--danger); }
+.cc-card.tone-info .cc-dot, .cc-dot.ok { background: var(--ok); }
+.cc-title { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
+button.cc-title:hover { text-decoration: underline; }
+.cc-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.cc-badge { margin-left: auto; letter-spacing: 0; text-transform: none; color: var(--warn-text); }
+.cc-clear { display: flex; gap: 14px; align-items: flex-start; max-width: 52rem; padding: 20px; border-radius: var(--radius-tray); background: var(--s2); box-shadow: var(--tray-sh); }
+.cc-clear .cc-dot { margin-top: 6px; }
+.cc-clear-title { margin: 0 0 2px; font-weight: 600; font-size: 15px; }
+
+/* A panel: a titled group of facts or work, raised from the page. */
+.cc-side { gap: 16px; }
+.cc-panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); }
+.cc-ph { display: flex; align-items: center; gap: 8px; min-height: 22px; font-weight: 600; font-size: 13px; }
+.cc-chip { margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--s2); color: var(--muted); font: 500 11.5px/20px var(--mono); text-align: center; }
+.cc-run { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.cc-run:first-of-type { padding-top: 0; border-top: 0; }
+.cc-run .link { color: var(--text); font-weight: 500; font-size: 13.5px; }
+.cc-run .link:hover { color: var(--accent); }
+.cc-run p { margin: 0; }
+.cc-run-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.cc-run-meta time { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.cc-shortcut { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--btn-bg); box-shadow: var(--btn-sh); color: var(--text); font: inherit; font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; }
+.cc-shortcut:hover { background: var(--btn-bg-hover, var(--btn-bg)); }
+@media (max-width: 899px) { .cc-split { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- a project's head: its name, and the repository it is connected to ---- */
+.project-meta { max-width: 100%; }
+
+/* ---- a ticket is made in a dialog over the page ---- */
+.ticket-dialog { width: min(640px, calc(100vw - 24px)); max-height: min(780px, calc(100dvh - 24px)); margin: auto; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: 0 24px 64px -20px rgba(0, 0, 0, .5); overflow: hidden; }
+.ticket-dialog[open] { display: flex; flex-direction: column; }
+.ticket-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.dlg-form { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0; min-height: 0; flex: 1; }
+.dlg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); flex: none; }
+.dlg-head h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }
+.dlg-head p { margin: 4px 0 0; }
+.dlg-body { display: grid; gap: 14px; align-content: start; padding: 16px 20px; overflow-y: auto; min-height: 0; flex: 1; background: var(--s2); }
+.dlg-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--line); flex: none; }
+/* Each part of the form is a bordered card with its heading, so it is plain where one ends and the next begins. */
+.dlg-section, .ticket-dialog .plan-fields fieldset { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); }
+.dlg-section > h3, .ticket-dialog .plan-fields legend { margin: 0; padding: 0; font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.ticket-dialog .plan-fields { display: grid; gap: 14px; }
+.ticket-dialog .plan-fields fieldset { display: grid; gap: 10px; }
+.ticket-dialog .plan-fields legend { float: left; width: 100%; margin-bottom: 4px; }
+.ticket-dialog .plan-fields legend + * { clear: both; }
+.ticket-dialog .label-menu { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.ticket-dialog .dep-list { max-height: 180px; padding: 4px; border-radius: var(--radius-sm); background: var(--s2); box-shadow: var(--tray-sh); }
+.ticket-dialog .dlg-section label { flex: none; }
+.ticket-dialog .dlg-body > .error { margin: 0; }
+
+/* ---- Runs ---- */
+.runs-view { display: grid; gap: 16px; max-width: 56rem; }
+.runs-intro h2 { margin: 0 0 6px; font-size: 16px; }
+.runs-intro p { margin: 0; max-width: 72ch; }
+.run-list { display: grid; gap: 12px; }
+.run-card { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); min-width: 0; }
+.run-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.run-card-title { display: grid; gap: 4px; min-width: 0; }
+.run-card-title .link { color: var(--text); font-size: 15px; font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
+.run-card-title .link:hover { color: var(--accent); }
+.run-key { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.run-card .execution-progress { display: grid; gap: 10px; }
+.run-card .execution-progress p { margin: 0; }
+.run-card .execution-progress + .execution-progress { margin-top: 0; padding: 12px 0 0; border-top: 1px solid var(--line); }
+.run-state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.run-device { margin-left: auto; }
+.run-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0; }
+.run-fact { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--s2); box-shadow: var(--tray-sh); min-width: 0; }
+.run-fact dt { margin: 0 0 4px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.run-fact dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+
+/* ---- Analytics: a segmented control, a bar of filters, tiles for the figures and a panel for each chart ---- */
+.coordination-analytics { display: grid; gap: 16px; }
+.coordination-analytics .analytics-tabs { display: inline-flex; gap: 0; margin: 0; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--s2); box-shadow: var(--tray-sh); justify-self: start; max-width: 100%; }
+.coordination-analytics .analytics-tabs button { min-height: 0; height: 28px; padding: 0 14px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 13px; }
+.coordination-analytics .analytics-tabs button:hover { background: transparent; color: var(--text); }
+.coordination-analytics .analytics-tabs button[aria-selected='true'] { background: var(--btn-bg); box-shadow: var(--btn-sh); color: var(--text); border: 0; }
+#analytics-panel { display: grid; gap: 16px; min-width: 0; }
+#analytics-panel > p { margin: 0; }
+.coordination-analytics .analytics-filters { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); }
+.coordination-analytics .analytics-filters label { flex: 0 1 auto; display: inline-flex; font-size: 12.5px; color: var(--muted); }
+.coordination-analytics .analytics-filters select { width: auto; min-width: 9rem; }
+.coordination-analytics .analytics-statistics { gap: 12px; padding: 0; border: 0; margin: 0; }
+.coordination-analytics .analytics-statistics > div { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); min-width: 0; }
+.coordination-analytics .analytics-statistics dd { font-size: 22px; }
+#analytics-panel > section, .coordination-analytics details { margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); min-width: 0; }
+.coordination-analytics details[open] > summary { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.coordination-analytics h2 { margin: 0 0 14px; font-size: 14px; }
+.analytics-chart { overflow-x: auto; }
+/* The bars settle in with a short fade rather than growing one by one. */
+.analytics-created, .analytics-done { transform-origin: center bottom; }
+@media (max-width: 899px) { .coordination-analytics .analytics-statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* The dates in a ticket's dialog sit on one line, with the milestone box beside them. */
+.ticket-dialog .plan-fields .dates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+.ticket-dialog .plan-fields .dates label { flex: 1 1 9rem; }
+.ticket-dialog .plan-fields .dates label.check { flex: none; min-height: 34px; }
+.ticket-dialog .plan-fields legend .muted { text-transform: none; letter-spacing: 0; font-family: var(--sans); }
+.run-card > section { display: grid; gap: 10px; }
+.run-card > section > h3 { margin: 0; font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }

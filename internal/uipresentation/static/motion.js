@@ -92,8 +92,8 @@
       if (!entry.isIntersecting) return;
       const node = entry.target, value = Number(node.dataset.chartValue), previous = before?.get(node.dataset.chartKey);
       const vertical = node.dataset.chartAxis === 'y';
-      const from = previous ? (value > 0 ? previous.value/value : 0) : 0;
-      animate(node, [{ transform: `scale${vertical ? 'Y' : 'X'}(${from})` }, { transform: 'none' }], previous ? 280 : vertical ? 480 : 420);
+      if (previous) animate(node, [{ opacity: 0.35 }, { opacity: 1 }], 200);
+      else animate(node, [{ transform: `scale${vertical ? 'Y' : 'X'}(0)` }, { transform: 'none' }], 320);
       chartsObserver.unobserve(node);
     }));
     root.querySelectorAll('[data-chart-key]').forEach(node => {

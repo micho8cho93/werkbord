@@ -28,7 +28,7 @@ at 1. Every saved workspace definition also has a revision-history entry; collec
 
 A workspace contains `name`, approved `icon`, `uiSchemaVersion: 1`, `definition`,
 `visibility`, `collectionIds`, and `readBindings`. Visibility is an object with
-`universal`, `individual`, and `teamWorkspaceIds`. Zero or more locations may be selected. A workspace with no locations remains accessible in the Personal data library. Location identifiers are bounded opaque strings; the shell's
+`universal`, `individual`, and `teamWorkspaceIds`. Zero or more locations may be selected. A workspace with no locations remains accessible in the Data library. Location identifiers are bounded opaque strings; the shell's
 `team:<slot>` identifiers are accepted alongside workspace IDs. They are never
 resolved by the controller, checked for membership, or used as destinations.
 They grant neither sharing nor read access to a Team. Phase 2 must resolve the
@@ -342,7 +342,7 @@ definition history and the two deletion choices. Desktop additionally offers
 **Remove from this location**, which changes only the current association.
 Universal and Individual are independent booleans; Team associations are opaque
 registry IDs. Removing the last location is valid and never removes a definition,
-collection or record. The **Personal data library** is always available in the
+collection or record. The **Data library** is always available in the
 shell, and on the local personal-workspace screen, even after the last generated
 workspace has been deleted. It lists saved interfaces including hidden ones,
 collection record counts and workspace usage, read-only record inspection, and

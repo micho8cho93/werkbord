@@ -112,20 +112,31 @@ async function api(method, path, data, credential = token) {
     // Independent drafts survive navigation without carrying into another project.
     await page.goto(base + `/?tab=board&project=${p.id}`);
     await page.getByRole('button', { name: 'New ticket', exact: true }).waitFor();
-    await page.locator('body').press('n');
-    await page.waitForFunction(() => document.activeElement?.name === 't-title');
+    // A ticket is made in a dialog over the board; closing it keeps what was typed, and each project keeps its own draft.
+    const openDraft = async () => { await page.locator('body').press('n'); await page.getByRole('dialog', { name: 'New ticket' }).waitFor(); await page.waitForFunction(() => document.activeElement?.name === 't-title'); };
+    const closeDraft = async () => { await page.keyboard.press('Escape'); await page.getByRole('dialog', { name: 'New ticket' }).waitFor({ state: 'detached' }); };
+    await openDraft();
     await page.locator('[name="t-title"]').fill('Alpha draft');
+    await closeDraft();
     await page.locator('[name="project-switch"]').selectOption(q.id);
-    await page.locator('[name="t-title"]').waitFor();
+    await page.locator('#main-title', { hasText: q.name }).waitFor();
+    await openDraft();
     await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === '');
     await page.locator('[name="t-title"]').fill('Beta draft');
+    await closeDraft();
     await page.locator('[name="project-switch"]').selectOption(p.id);
+    await page.locator('#main-title', { hasText: p.name }).waitFor();
+    await openDraft();
     await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
+    await closeDraft();
     await page.getByRole('button', { name: 'Runs', exact: true }).click();
     await page.getByRole('button', { name: 'Board', exact: true }).click();
+    await page.locator('.board').waitFor();
+    await openDraft();
     await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
+    await closeDraft();
     console.log('PASS project-scoped drafts and round-trip navigation');
-    assert(await page.locator('.board').evaluate(e => e.clientHeight >= 300), 'New ticket form keeps the board reachable');
+    assert(await page.locator('.board').evaluate(e => e.clientHeight >= 300), 'the board keeps its height: a new ticket never opens in the page');
     // Actual reported commits are visible from Board details.
     await api('PUT', `/projects/${p.id}/tickets/${k.id}/git`, { commits: [{ sha: 'a'.repeat(40), subject: 'Verified browser commit', author: 'Ada', committedAt: new Date().toISOString() }], pullRequest: { number: 7, url: 'https://github.com/acme/shop/pull/7', state: 'open', draft: true, mergeable: 'conflicting', baseBranch: 'main', ahead: 8, behind: 3 } });
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
@@ -161,13 +172,11 @@ async function api(method, path, data, credential = token) {
     console.log('PASS consistent open-PR completion restriction in Board and Reviews');
     await page.getByRole('button', { name: 'Open project ' + p.name, exact: true }).click();
     await page.getByRole('button', { name: 'Board', exact: true }).click();
-    await page.locator('[name="t-title"]').waitFor();
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
     // Drag, close and restore retain the ticket's reports and use the server's rules.
     await page.locator('.ticket').getByRole('button', { name: 'Close', exact: true }).focus();
     await page.keyboard.press('Escape');
     await page.locator('.ticket').waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: 'Cancel new ticket', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     const boardBounds = await page.locator('.board').boundingBox();
     assert.ok(boardBounds.width > 1000 && boardBounds.y + boardBounds.height > 940, 'the board fills available desktop width and height');
@@ -310,8 +319,8 @@ async function api(method, path, data, credential = token) {
             await page.setViewportSize({ width, height });
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false, `${tab} ${size} overflows`);
             if (tab === 'workspace' && size === 'mobile') {
-                const first = await page.locator('.workspace-layout.has-attention').count() ? page.locator('.overview-attention') : page.locator('#working-now');
-                assert.ok((await first.boundingBox()).y < 250, 'attention or current work leads the first phone viewport');
+                const first = page.locator('.cc-feed, .cc-clear').first();
+                assert.ok((await first.boundingBox()).y < 400, 'attention or current work leads the first phone viewport');
             }
             if (!process.env.BROWSER_SKIP_SCREENSHOTS) await page.screenshot({ path: path.join(artifacts, `team-${tab}-${size}.png`) });
         }

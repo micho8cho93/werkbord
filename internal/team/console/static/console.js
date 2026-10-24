@@ -46,9 +46,9 @@ const state = {
   ov: null,       // the workspace overview: the projects, and the counts the navigation shows
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
-  showArchived: false, newTicketOpen: false, repoSection: 'attention',
+  showArchived: false, newTicketOpen: false, repoSection: 'attention', wsSegment: 'all',
   settingsPart: '', // which part of This computer's page a section of Settings shows: computer, phones or memory
-  filter: { labels: [], mode: '', match: 'any' }, // the board's and the timeline's label and work-mode filter: a way of looking, never stored
+  filter: { labels: [], match: 'any' }, // the board's and the timeline's label filter: a way of looking, never stored
   calendarMode: 'calendar', calendarAnchor: null,
   tlZoom: 'week', tlGroup: 'none', tlCollapsed: {},
   online: true,   // whether the live connection to the server is up
@@ -342,7 +342,14 @@ function disclosures(root) {
   return [label + ':' + n, el];
  });
 }
-function captureDrafts() { if (renderedScope) drafts.set(renderedScope, snapshot(app)); }
+function captureDrafts() {
+ if (!renderedScope) return;
+ const next = snapshot(app), before = drafts.get(renderedScope);
+ // A ticket being made lives in a dialog that Escape puts away without losing what was typed, so a draft whose fields are
+ // not on the page now is kept until the ticket is created or the dialog is cancelled.
+ if (before) for (const [name, v] of Object.entries(before.fields)) if (/^t-(title|desc|reqs)$|^p-.+-new$/.test(name) && !(name in next.fields) && !app.querySelector('[name="' + name + '"]')) next.fields[name] = v;
+ drafts.set(renderedScope, next);
+}
 function restore(root, keep, focus) {
  if (!keep) return;
  for (const el of root.querySelectorAll('[name]')) {
@@ -531,6 +538,7 @@ async function renderNow() {
         state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
         state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
         secretBox(), settingsTab() ? settingsLayout(body) : body))));
+  for (const dlg of app.querySelectorAll('dialog.ticket-dialog')) if (!dlg.open) dlg.showModal();
   restore(app, keep, previousScope === screenScope());
   if (animateSaved) motion?.layout(app, motionBefore, '[data-board-item], [data-plan-item]', true);
   motion?.charts(app, renderedScope === screenScope() ? chartsBefore : undefined);
@@ -692,43 +700,59 @@ function announce(events) {
 
 function statusName(st) { return { backlog: 'Backlog', available: 'Available', in_progress: 'In progress', review: 'In review', done: 'Done' }[st] || st; }
 
+// The Workspace page is laid out as Individual's is: a bar to choose what to look at, what needs the person as cards in a column, and
+// what is going on beside it. Projects are listed by the window's sidebar, so they are not repeated here.
+const ACTION_WORDS = { changes_requested: 'Changes requested', conflict: 'Conflict', behind: 'Behind', submit: 'Ready to submit', review_requested: 'Review requested', ready_to_complete: 'Ready to complete', merged: 'Merged', closed: 'Closed', stale: 'Stale' };
+
 async function workspaceView() {
   const ov = state.ov, me = state.me.member.id;
   const [w, mentions] = await Promise.all([api('GET', '/my-work'), loadMentions()]);
   const mine = sum(ov.projects, (p) => p.mine), toReview = sum(ov.projects, (p) => p.toReview);
   const best = ov.projects.filter((p) => !p.project.archived).sort((a, b) => (b.counts.available || 0) - (a.counts.available || 0))[0];
+  const unread = mentions ? mentions.unread : 0;
+  const projectName = (id) => (ov.projects.find((x) => x.project.id === id) || { project: { name: '' } }).project.name;
+
+  const segments = [['all', 'All', w.needsAction.length + (toReview ? 1 : 0) + (mentions && mentions.notifications.length ? 1 : 0)], ['needs', 'Needs you', w.needsAction.length], ['review', 'To review', toReview], ['mentions', 'Mentions', unread]];
+  if (!segments.some(([id, , n]) => id === state.wsSegment && (id === 'all' || n > 0))) state.wsSegment = 'all';
+  const show = (id) => state.wsSegment === 'all' || state.wsSegment === id;
+  const shownSegments = segments.filter(([id, , n]) => id === 'all' || n > 0);
+  const bar = shownSegments.length < 2 ? '' : h('div', { class: 'cc-bar' }, h('div', { class: 'seg', role: 'group', 'aria-label': 'What to show' },
+    shownSegments.map(([id, label, n]) => h('button', { type: 'button', name: 'ws-segment-' + id, 'aria-pressed': String(state.wsSegment === id), 'aria-label': label + ': ' + plural(n, 'item'), onclick: () => { state.wsSegment = id; render(); } }, label, h('span', { class: 'n', 'aria-hidden': 'true' }, String(n))))));
+
+  const cards = [];
+  if (show('needs')) for (const a of w.needsAction) {
+    cards.push(h('article', { class: 'cc-card tone-' + a.level },
+      h('p', { class: 'cc-kind' }, h('span', { class: 'cc-dot' }), h('b', {}, ACTION_WORDS[a.kind] || a.kind.replaceAll('_', ' ')), h('span', {}, projectName(a.projectId))),
+      h('button', { type: 'button', class: 'link cc-title', onclick: () => openTicket(a.projectId, a.ticketId) }, a.message),
+      h('div', { class: 'cc-acts' }, h('button', { type: 'button', class: 'plain small', onclick: () => openTicket(a.projectId, a.ticketId) }, 'Open ' + a.ticketKey))));
+  }
+  if (show('review') && toReview) cards.push(h('article', { class: 'cc-card tone-info' },
+    h('p', { class: 'cc-kind' }, h('span', { class: 'cc-dot' }), h('b', {}, 'To review')),
+    h('p', { class: 'cc-title' }, plural(toReview, 'ticket') + ' waiting for a review you can do'),
+    h('div', { class: 'cc-acts' }, h('button', { type: 'button', class: 'plain small', onclick: () => go('reviews') }, 'Open Reviews'))));
+  if (show('mentions') && mentions && mentions.notifications.length) cards.push(h('article', { class: 'cc-card mentions-block', 'aria-label': 'Mentions' },
+    h('p', { class: 'cc-kind' }, h('span', { class: 'cc-dot' }), h('b', {}, 'Mentions'), unread ? h('span', { class: 'cc-badge', title: 'Unread mentions' }, unread + ' unread') : ''), mentionRows(mentions)));
+
+  const feed = cards.length ? h('div', { class: 'cc-feed' }, cards)
+    : h('div', { class: 'cc-clear' }, h('span', { class: 'cc-dot ok' }), h('div', {}, h('p', { class: 'cc-clear-title' }, 'Nothing needs you.'),
+        h('p', { class: 'muted' }, 'Review requests, conflicts and mentions appear here the moment they happen.')));
 
   const working = ov.working.length
-    ? ov.working.map((it) => h('div', { class: 'row' },
-        h('div', { class: 'grow' },
-          h('button', { class: 'link', onclick: () => openTicket(it.project.id, it.ticket.id) }, it.ticket.key + ' · ' + it.ticket.title),
-          h('div', { class: 'muted' }, it.project.name + ' · ' + (it.ticket.assigneeId === me ? 'You' : it.author || 'a former member'))),
-        h('span', { class: 'badge' }, statusName(it.ticket.status)),
-        mergeBadge(it),
-        when(it.ticket.updatedAt)))
-    : h('div', { class: 'empty-state' }, h('p', { class: 'muted' }, 'No work in progress.'), h('button', { class: 'plain', onclick: () => best ? openProject(best.project.id) : go('projects') }, best ? 'Open board' : can('projects.create') ? 'Create a project' : 'Join a project'));
+    ? ov.working.map((it) => h('div', { class: 'cc-run' },
+        h('button', { type: 'button', class: 'link', onclick: () => openTicket(it.project.id, it.ticket.id) }, it.ticket.key + ' · ' + it.ticket.title),
+        h('p', { class: 'muted small' }, it.project.name + ' · ' + (it.ticket.assigneeId === me ? 'You' : it.author || 'a former member')),
+        h('div', { class: 'cc-run-meta' }, h('span', { class: 'badge' }, statusName(it.ticket.status)), mergeBadge(it), when(it.ticket.updatedAt))))
+    : h('div', { class: 'empty-state' }, h('p', { class: 'muted' }, 'No work in progress.'), h('button', { class: 'plain small', onclick: () => best ? openProject(best.project.id) : go('projects') }, best ? 'Open board' : can('projects.create') ? 'Create a project' : 'Join a project'));
+  const shortcut = (label, count, click, tone) => h('button', { type: 'button', class: 'cc-shortcut', onclick: click }, label, h('span', { class: 'badge' + (tone ? ' ' + tone : '') }, String(count)));
 
-  const projects = ov.projects.length
-    ? ov.projects.map((p) => h('div', { class: 'row' },
-        h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.project.id, 'board') }, p.project.name), p.project.archived ? ' (archived)' : '',
-          h('div', { class: 'muted' }, ['available', 'in_progress', 'review'].filter(st => p.counts[st]).map(st => p.counts[st] + ' ' + statusName(st).toLowerCase()).join(' · ') || 'No active tickets')),
-        p.toReview ? h('span', { class: 'badge warn' }, p.toReview + ' to review') : '',
-        p.problems ? h('span', { class: 'badge bad' }, plural(p.problems, 'problem')) : ''))
-    : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet. Create one under Projects.' : 'You are not on any project yet. Ask for an invite code.');
-
-  const attention = w.needsAction.map(a => h('div', { class: 'row attn ' + a.level },
-    h('div', { class: 'grow' }, a.message), h('button', { class: 'plain small', onclick: () => openTicket(a.projectId, a.ticketId) }, 'Open ' + a.ticketKey)));
-  const shortcut = (label, count, click, tone) => h('button', { class: 'overview-shortcut', onclick: click }, label, h('span', { class: 'badge' + (tone ? ' ' + tone : '') }, String(count)));
-  const heard = mentions && mentions.notifications.length
-    ? h('div', { class: 'mentions-block', 'aria-label': 'Mentions' }, h('div', { class: 'section-head' }, h('h3', {}, 'Mentions'), h('span', { class: 'badge warn', title: 'Unread mentions' }, String(mentions.unread))), mentionRows(mentions)) : '';
-  return h('div', { class: 'workspace-layout' + (attention.length || toReview || heard ? ' has-attention' : '') },
-    h('section', { class: 'work-feed', id: 'working-now', 'aria-label': 'Working now' }, h('div', { class: 'section-head' }, h('h2', {}, 'Working now'), h('span', { class: 'badge' }, String(ov.working.length))), working),
-    h('aside', { class: 'workspace-side', 'aria-label': 'Workspace summary' },
-      h('section', { class: 'overview-attention' }, h('h2', {}, 'Needs you'), heard, attention.length ? attention : heard ? '' : h('p', { class: 'muted' }, 'All caught up.'),
+  return h('div', { class: 'cc' }, bar, h('div', { class: 'cc-split' },
+    h('section', { class: 'cc-pane', 'aria-label': 'Workspace' }, feed),
+    h('aside', { class: 'cc-pane cc-side', 'aria-label': 'What is going on' },
+      h('section', { class: 'cc-panel', id: 'working-now', 'aria-label': 'Working now' }, h('div', { class: 'cc-ph' }, 'Working now', h('span', { class: 'cc-chip' }, String(ov.working.length))), working),
+      h('section', { class: 'cc-panel', 'aria-label': 'Your queue' }, h('div', { class: 'cc-ph' }, 'Your queue'),
         shortcut('My Work', mine, () => go('mywork')), shortcut('To review', toReview, () => go('reviews'), toReview ? 'warn' : ''),
         shortcut('Available to claim', ov.available, () => best ? openProject(best.project.id) : go('projects'))),
-      h('section', {}, h('div', { class: 'section-head' }, h('h2', {}, 'Projects'), h('button', { class: 'link', onclick: () => go('projects') }, 'View all')), projects),
-      state.desktop && !state.device.runner.configured ? h('button', { class: 'plain', onclick: () => go('settings', 'computer') }, 'Connect your runner') : ''));
+      state.desktop && !state.device.runner.configured ? h('button', { class: 'plain', onclick: () => go('settings', 'computer') }, 'Connect your runner') : '')));
 }
 
 function mergeBadge(it) {
@@ -898,8 +922,7 @@ async function projectScopedView() {
   const calendarLacking = ['calendar', 'timeline'].includes(state.tab) && d.timeline === null ? await hostOutdatedView() : null;
   const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
   const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': state.tab === 'project-settings' ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
-  const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = !state.newTicketOpen; render(); } }, state.newTicketOpen ? 'Cancel new ticket' : 'New ticket') : '';
-  const branches = [...new Set(d.board.tickets.filter(k => k.assigneeId === state.me.member.id && k.branch).map(k => k.branch))];
+  const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = true; render(); } }, 'New ticket') : '';
   let view = content;
   if (['calendar', 'timeline'].includes(state.tab) && state.ticketId) {
     const k = d.ticket || d.board.tickets.find(k => k.id === state.ticketId);
@@ -910,7 +933,7 @@ async function projectScopedView() {
       h('div', { class: 'project-title-row' },
         h('div', { class: 'project-where' },
           h('h1', { id: 'main-title', tabindex: '-1' }, p.name),
-          h('div', { class: 'project-meta' }, p.repository || 'Work project', branches.length ? ' · ' + branches.join(' · ') : '')),
+          h('div', { class: 'project-meta' }, p.repository || 'Work project')),
         h('div', { class: 'actions' }, searchButton(), gear, newTicket)),
       FRAMED ? '' : h('label', { class: 'project-chooser' }, 'Project ', switcher)),
     tabs, state.newTicketOpen ? newTicketForm(d) : '', view);
@@ -1208,12 +1231,11 @@ function dropAction(d, k, to) {
 function matchesFilter(k) {
   const f = state.filter;
   if (state.ownTickets && k.assigneeId !== state.me.member.id) return false;
-  if (f.mode && (k.workMode || 'agent') !== f.mode) return false;
   if (!f.labels.length) return true;
   const have = new Set(k.labelIds || []);
   return f.match === 'all' ? f.labels.every((id) => have.has(id)) : f.labels.some((id) => have.has(id));
 }
-function filterActive() { return state.filter.labels.length > 0 || state.filter.mode !== ''; }
+function filterActive() { return state.filter.labels.length > 0; }
 
 function labelChip(l) {
   const chip = h('span', { class: 'lbl', title: l.name }, l.name);
@@ -1223,15 +1245,11 @@ function labelChip(l) {
   return chip;
 }
 function labelsOf(k, labels) { const by = new Map((labels || []).map((l) => [l.id, l])); return (k.labelIds || []).map((id) => by.get(id)).filter(Boolean); }
-const MODES = [['human', 'Human', 'A person does it. No agent is asked to.'], ['agent', 'Agent', 'An agent does it, through its owner’s own Werkbord.'], ['hybrid', 'Hybrid', 'An agent may start on it and a person finishes it.']];
-const modeName = (m) => (MODES.find((x) => x[0] === (m || 'agent')) || [])[1] || m;
 
-// The label and work-mode filter shared by the board and the timeline. It narrows what is shown and changes nothing.
+// The label filter shared by the board and the timeline. It narrows what is shown and changes nothing.
 function filterBar(d) {
   const labels = d.board.labels || [];
   const refresh = () => render();
-  const mode = h('select', { name: 'filter-mode', 'aria-label': 'Filter by who does the work', onchange: (e) => { state.filter.mode = e.target.value; refresh(); } },
-    h('option', { value: '' }, 'Anyone'), MODES.map(([id, name]) => h('option', { value: id, selected: state.filter.mode === id }, name)));
   const picker = labels.length ? h('details', { class: 'label-filter' }, h('summary', {}, state.filter.labels.length ? plural(state.filter.labels.length, 'label') : 'Labels'),
     h('div', { class: 'label-menu' }, labels.map((l) => h('label', { class: 'check' },
       h('input', { type: 'checkbox', checked: state.filter.labels.includes(l.id), onchange: (e) => { state.filter.labels = e.target.checked ? [...state.filter.labels, l.id] : state.filter.labels.filter((x) => x !== l.id); refresh(); } }), ' ', labelChip(l))),
@@ -1239,8 +1257,8 @@ function filterBar(d) {
         h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.filter.match === 'all', onclick: () => { state.filter.match = 'all'; refresh(); } }, 'All')) : '')) : '';
   // A label deleted meanwhile cannot hide every ticket.
   state.filter.labels = state.filter.labels.filter((id) => labels.some((l) => l.id === id));
-  return h('div', { class: 'filter-bar', role: 'group', 'aria-label': 'Filter by label and who does the work' }, picker, h('label', { class: 'inline' }, 'Who ', mode),
-    filterActive() ? h('button', { class: 'plain small', type: 'button', onclick: () => { state.filter = { labels: [], mode: '', match: 'any' }; refresh(); } }, 'Clear filter') : '');
+  return h('div', { class: 'filter-bar', role: 'group', 'aria-label': 'Filter by label' }, picker,
+    filterActive() ? h('button', { class: 'plain small', type: 'button', onclick: () => { state.filter = { labels: [], match: 'any' }; refresh(); } }, 'Clear filter') : '');
 }
 
 function boardTab(d) {
@@ -1260,7 +1278,7 @@ function boardTab(d) {
       ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('drop-over'); const k = b.tickets.find(t => t.id === draggedTicket || t.id === e.dataTransfer?.getData('text/plain')); draggedTicket = null; if (k) performBoardDrop(d, k, s.status); }
     },
       h('h3', {}, s.label, ' ', h('span', { class: 'badge' }, String(items.length))),
-      h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.length ? items.map((k) => card(d, k)) : h('p', { class: 'muted small' }, 'No tickets' + (state.filter.labels.length || state.filter.mode ? ' match the filters.' : ' here yet.'))));
+      h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.length ? items.map((k) => card(d, k)) : h('p', { class: 'muted small' }, 'No tickets' + (state.filter.labels.length ? ' match the filters.' : ' here yet.'))));
   });
   let open = null;
   if (state.ticketId) {
@@ -1315,7 +1333,6 @@ function card(d, k) {
       'PR' + (pr.number ? ' #' + pr.number : '') + ' ' + pr.state + (pr.state === 'open' && pr.mergeable === 'conflicting' ? ' · conflicts' : '')));
     if (pr.state === 'open' && pr.behind > 0) flags.push(h('span', { class: 'badge warn' }, pr.behind + ' behind'));
   }
-  if ((k.workMode || 'agent') !== 'agent') flags.push(h('span', { class: 'badge', title: (MODES.find((x) => x[0] === k.workMode) || [])[2] }, modeName(k.workMode)));
   // In progress covers a claimed ticket nobody has started and one with an agent running, so say which, to its owner only.
   const status = pendingTickets.has(k.id) ? 'Updating ticket…'
     : k.status === 'in_progress' && mine ? (AGENT_STATE[run] || (agentWork ? 'Claimed · waiting to start' : 'Claimed · yours to do'))
@@ -1345,7 +1362,7 @@ function card(d, k) {
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }
 
-// The planning side of a ticket: its labels, who does it, when it is planned for and what it waits for. For a new ticket
+// The planning side of a ticket: its labels, when it is planned for and what it waits for. For a new ticket
 // k is null. read() gives what the person chose, in the shape the API takes.
 function planFields(d, k, scope) {
   const sfx = (k ? k.id : 'new') + (scope ? '-' + scope : '');
@@ -1353,8 +1370,6 @@ function planFields(d, k, scope) {
   const chosen = new Set(k ? k.labelIds || [] : []);
   const deps = new Set(k ? k.dependencies || [] : []);
   const labelBoxes = (b.labels || []).map((l) => ({ l, box: h('input', { type: 'checkbox', name: 'p-label_' + l.id + '-' + sfx, checked: chosen.has(l.id) }) }));
-  const mode = h('select', { name: 'p-mode-' + sfx, 'aria-label': 'Who does it' },
-    MODES.map(([id, name, hint]) => h('option', { value: id, title: hint, selected: id === (k ? k.workMode || 'agent' : (b.project.repository ? 'agent' : 'human')) }, name)));
   const plan = (k && k.plan) || {};
   const start = h('input', { type: 'date', name: 'p-start-' + sfx, value: plan.start || '' });
   const end = h('input', { type: 'date', name: 'p-end-' + sfx, value: plan.end || '' });
@@ -1379,8 +1394,10 @@ function planFields(d, k, scope) {
   applyIssues(savedIssues);
   const clearIssues = () => { state.validationIssues = []; state.error = ''; applyIssues([]); };
   for (const control of [start, end, milestone, ...depBoxes.map((x) => x.box)]) control.addEventListener('input', clearIssues);
+  // Who does the work is no longer asked: a new ticket follows its project (an agent where there is a repository), and an
+  // edit leaves what the ticket already has.
   const read = () => ({
-    workMode: mode.value,
+    ...(k ? {} : { workMode: b.project.repository ? 'agent' : 'human' }),
     labelIds: labelBoxes.filter((x) => x.box.checked).map((x) => x.l.id),
     plan: milestone.checked ? { start: start.value || end.value, milestone: true } : { start: start.value, end: end.value },
     dependencies: depBoxes.filter((x) => x.box.checked).map((x) => x.t.id),
@@ -1457,25 +1474,34 @@ function planFields(d, k, scope) {
     h('fieldset', {}, h('legend', {}, 'Labels'),
       labelBoxes.length ? h('div', { class: 'label-menu' }, labelBoxes.map(({ l, box }) => h('label', { class: 'check' }, box, ' ', labelChip(l))))
         : h('p', { class: 'muted small' }, can('labels.manage') ? 'No labels yet. Make some under Settings → Labels.' : 'No labels yet. A workspace owner or admin makes them.')),
-    field('Who does it', mode),
     dates,
     depBoxes.length ? h('fieldset', {}, h('legend', {}, 'Depends on ', h('span', { class: 'muted small' }, 'must finish first')),
       h('div', { class: 'dep-list' }, depBoxes.map(({ t, box }) => h('label', { class: 'check' }, box, ' ', t.key + ' · ' + t.title)), dependencyError)) : '', summaryError);
   return { node, read, validate, dates, summaryError, controls: [start, end, milestone] };
 }
 
+// A ticket is made in a dialog over the page, not in the page: the board stays where it was, and Escape or Cancel puts it away.
 function newTicketForm(d) {
-  const title = h('input', { name: 't-title', required: true, maxlength: 200 });
+  const title = h('input', { name: 't-title', required: true, maxlength: 200, autocomplete: 'off' });
   const desc = h('textarea', { name: 't-desc', rows: 3, maxlength: 20000 });
   const reqs = h('textarea', { name: 't-reqs', rows: 3, maxlength: 20000, placeholder: 'Acceptance criteria, constraints, links, anything the person doing it needs to know' });
   const plan = planFields(d, null);
-  return h('div', { class: 'panel' }, h('h2', {}, 'New ticket'),
-    h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); if (!plan.validate()) return; act(async () => {
+  const close = () => { state.newTicketOpen = false; render(); };
+  const cancel = () => { title.value = ''; desc.value = ''; reqs.value = ''; close(); };
+  const section = (heading, ...content) => h('section', { class: 'dlg-section' }, h('h3', {}, heading), ...content);
+  const dialog = h('dialog', { class: 'ticket-dialog', 'aria-labelledby': 'new-ticket-h', oncancel: (e) => { e.preventDefault(); close(); },
+      onclick: (e) => { if (e.target === dialog) close(); } },
+    h('form', { class: 'dlg-form', onsubmit: (e) => { e.preventDefault(); if (!plan.validate()) return; act(async () => {
         await api('POST', '/projects/' + state.projectId + '/tickets', { title: title.value, description: desc.value, requirements: reqs.value, status: 'available', ...plan.read() }); state.newTicketOpen = false;
         title.value = ''; desc.value = ''; reqs.value = ''; }); } },
-      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node,
-      h('p', { class: 'muted small' }, 'It starts in Available, where anyone on the project can claim it.'),
-      h('button', { class: 'primary' }, 'Create ticket')));
+      h('header', { class: 'dlg-head' }, h('div', {}, h('h2', { id: 'new-ticket-h' }, 'New ticket'), h('p', { class: 'muted small' }, 'It starts in Available, where anyone on the project can claim it.')),
+        h('button', { type: 'button', class: 'plain icon-button', 'aria-label': 'Close', title: 'Close', onclick: cancel }, icon('close'))),
+      h('div', { class: 'dlg-body' },
+        state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
+        section('Ticket', field('Title', title), field('Description', desc), field('Requirements and context', reqs)),
+        plan.node),
+      h('footer', { class: 'dlg-foot' }, h('button', { type: 'button', class: 'plain', onclick: cancel }, 'Cancel'), h('button', { class: 'primary' }, 'Create ticket'))));
+  return dialog;
 }
 
 // ---- one ticket ----
@@ -1540,7 +1566,6 @@ function ticketPanel(d, k) {
     k.submittedAt ? [h('dt', {}, 'Submitted'), h('dd', {}, when(k.submittedAt), k.reviewerId ? ' · reviewer ' + personName(d, k.reviewerId) : '')] : '',
     k.completedAt ? [h('dt', {}, 'Completed'), h('dd', {}, when(k.completedAt))] : '',
     h('dt', {}, 'Updated'), h('dd', {}, when(k.updatedAt)),
-    h('dt', {}, 'Who'), h('dd', {}, modeName(k.workMode)),
     labelsOf(k, b.labels).length ? [h('dt', {}, 'Labels'), h('dd', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip))] : '',
     (k.dependencies || []).length ? [h('dt', {}, 'Waits for'), h('dd', {}, k.dependencies.map((id) => { const t = [...b.tickets, ...(b.archived || [])].find((x) => x.id === id); return t ? t.key + ' · ' + t.title : 'a ticket that is not here'; }).join(', '))] : '');
 
@@ -1599,23 +1624,24 @@ function datesCard(d, k, path, canEdit) {
     h('p', { class: 'muted small' }, 'The Calendar and the Timeline draw these dates. ', set ? toCalendar : ''));
 }
 
-function executionProgress(records) {
+function executionProgress(records, note = true) {
   const labels = { queued: 'Queued', running: 'Running', needs_input: 'Waiting for an answer', blocked: 'Blocked', completed: 'Completed', failed: 'Failed', canceled: 'Cancelled' };
   const rows = records.map(p => {
     const e = p.execution;
+    const fact = (label, value) => h('div', { class: 'run-fact' }, h('dt', {}, label), h('dd', {}, value));
     return h('div', { class: 'execution-progress' },
-      records.length > 1 ? h('p', { class: 'muted small' }, 'Device ', h('code', { title: p.deviceId }, p.deviceId.slice(-12))) : '',
-      h('p', {}, h('span', { class: 'badge' + (p.stale || ['needs_input', 'blocked'].includes(e.state) ? ' warn' : e.state === 'failed' ? ' bad' : '') }, labels[e.state] || 'Unknown'), ' · Reported ', when(p.reportedAt)),
+      h('div', { class: 'run-state' }, h('span', { class: 'badge' + (p.stale || ['needs_input', 'blocked'].includes(e.state) ? ' warn' : e.state === 'failed' ? ' bad' : '') }, labels[e.state] || 'Unknown'), h('span', { class: 'muted small' }, 'Reported ', when(p.reportedAt)),
+        records.length > 1 ? h('span', { class: 'muted small run-device' }, 'Device ', h('code', { title: p.deviceId }, p.deviceId.slice(-12))) : ''),
       p.stale ? h('p', { class: 'muted' }, 'Update overdue. Runner availability is unknown until the connector reconnects.') : h('p', { class: 'muted' }, e.runnerOnline ? (e.runnerAvailable ? 'Runner online · capacity available' : 'Runner online · no spare capacity') : 'Runner offline'),
-      h('dl', { class: 'facts' },
-        e.startedAt ? [h('dt', {}, 'Run started'), h('dd', {}, when(e.startedAt))] : '',
-        e.completedAt ? [h('dt', {}, 'Run finished'), h('dd', {}, when(e.completedAt))] : '',
-        h('dt', {}, p.stale ? 'Last handoff report' : 'Handoff'), h('dd', {}, e.handoffAvailable ? (p.stale ? 'Was available in the owner’s Werkbord' : 'Available in the owner’s Werkbord') : (p.stale ? 'Was not available' : 'Not available'))),
+      h('dl', { class: 'run-facts' },
+        e.startedAt ? fact('Run started', when(e.startedAt)) : '',
+        e.completedAt ? fact('Run finished', when(e.completedAt)) : '',
+        fact(p.stale ? 'Last handoff report' : 'Handoff', e.handoffAvailable ? (p.stale ? 'Was available in the owner’s Werkbord' : 'Available in the owner’s Werkbord') : (p.stale ? 'Was not available' : 'Not available'))),
       p.gitUnavailable ? h('p', { class: 'muted small' }, 'Git metadata is unavailable; previously reported Git facts are retained.') : '');
   });
   return h('section', { 'aria-label': 'Werkbord execution' }, h('h3', {}, 'Werkbord execution'),
     rows.length ? rows : h('p', { class: 'muted' }, 'No execution reported. The owner can enable their connector to synchronize this ticket.'),
-    rows.length ? h('p', { class: 'muted small' }, 'Completed agent-only work moves to Review. Human and hybrid work wait for their owner to submit them. Reviewing and marking work done stays with the team.') : '');
+    rows.length && note ? h('p', { class: 'muted small' }, 'Completed agent-only work moves to Review. Human and hybrid work wait for their owner to submit them. Reviewing and marking work done stays with the team.') : '');
 }
 
 function statusLabel(b, s) { const c = b.statuses.find((x) => x.status === s); return c ? c.label : s; }
@@ -1715,15 +1741,19 @@ function repositoryTab(d) {
 
 // ---- activity ----
 
+// Runs: what each member's own Werkbord reports for the work they hold, one card to a ticket.
 function activityTab(d) {
   const reports = d.progressReports || [];
-  return h('section', { class: 'panel' }, h('h2', {}, 'Runs'),
-    h('p', { class: 'muted' }, 'Execution reported by members’ own Werkbords. Team does not run agents; raw output and full run history stay with each owner.'),
-    reports.length ? reports.map(r => h('section', { class: 'run-report' }, h('h3', {}, r.ticket.title), r.ticket.assigneeId === state.me.member.id ? executionProgress(r.progress) : h('p', { class: 'muted' }, statusName(r.ticket.status) + ' · owned by ' + personName(d, r.ticket.assigneeId)))) : h('p', { class: 'muted' }, 'No execution has been reported for this project.'));
+  return h('section', { class: 'runs-view', 'aria-label': 'Runs' },
+    h('header', { class: 'runs-intro' }, h('h2', {}, 'Runs'),
+      h('p', { class: 'muted' }, 'Execution reported by members’ own Werkbords. Team does not run agents; raw output and full run history stay with each owner. Completed agent-only work moves to Review; reviewing and marking work done stays with the team.')),
+    reports.length ? h('div', { class: 'run-list' }, reports.map(r => h('article', { class: 'run-card' },
+      h('header', { class: 'run-card-head' },
+        h('div', { class: 'run-card-title' }, h('span', { class: 'run-key' }, r.ticket.key), h('button', { type: 'button', class: 'link', onclick: () => openTicket(d.id, r.ticket.id) }, r.ticket.title)),
+        h('span', { class: 'badge' }, statusName(r.ticket.status))),
+      r.ticket.assigneeId === state.me.member.id ? executionProgress(r.progress, false) : h('p', { class: 'muted' }, 'Owned by ' + personName(d, r.ticket.assigneeId)))))
+      : h('div', { class: 'cc-clear' }, h('span', { class: 'cc-dot' }), h('div', {}, h('p', { class: 'cc-clear-title' }, 'No runs yet.'), h('p', { class: 'muted' }, 'No execution has been reported for this project.'))));
 }
-
-// ---- people and invites ----
-
 function peopleTab(d) {
   const pid = d.id, manage = pcan('members.manage');
   const rows = d.people.map((p) => {
@@ -1945,7 +1975,7 @@ function timelineTab(d) {
   const tools = h('div', { class: 'actions board-tools tl-tools' },
     h('div', { class: 'inline', role: 'group', 'aria-label': 'Zoom' }, ['day', 'week', 'month', 'quarter'].map((z) => h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.tlZoom === z, onclick: () => { state.tlZoom = z; render(); } }, z[0].toUpperCase() + z.slice(1)))),
     h('label', { class: 'inline' }, 'Group ', h('select', { name: 'tl-group', 'aria-label': 'Group work by', onchange: (e) => { state.tlGroup = e.target.value; render(); } },
-      [['none', 'Nothing'], ['label', 'Label'], ['status', 'Status'], ['mode', 'Who does it']].map(([id, name]) => h('option', { value: id, selected: state.tlGroup === id }, name)))),
+      [['none', 'Nothing'], ['label', 'Label'], ['status', 'Status']].map(([id, name]) => h('option', { value: id, selected: state.tlGroup === id }, name)))),
     h('button', { type: 'button', class: 'plain small', onclick: () => { centerTimeline(); } }, 'Today'),
     filterBar(d));
 
@@ -2001,7 +2031,7 @@ function timelineTab(d) {
 
   const unplanned = undated.length ? h('section', { class: 'tl-undated', 'aria-label': 'Not planned yet' }, h('h3', {}, 'Not planned yet ', h('span', { class: 'badge' }, String(undated.length))),
     undated.map((k) => h('div', { class: 'row' }, h('div', { class: 'grow' }, h('button', { type: 'button', class: 'link', onclick: open(k) }, k.key + ' · ' + k.title)),
-      h('span', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip)), (k.workMode || 'agent') !== 'agent' ? h('span', { class: 'badge' }, modeName(k.workMode)) : ''))) : '';
+      h('span', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip))))) : '';
 
   const gating = links.some(gates) ? h('p', { class: 'muted small tl-legend' }, 'Heavier arrows gate an agent start: the ticket has a shared request, and it waits for the work the arrow comes from.') : '';
   return h('div', { class: 'timeline-view', 'data-plan-surface': '' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline', 'data-today-x': todayX, 'data-plan-grid': '', 'data-plan-px': px, onwheel: e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); const scales = ['day', 'week', 'month', 'quarter']; state.tlZoom = scales[Math.max(0, Math.min(3, scales.indexOf(state.tlZoom) + (e.deltaY > 0 ? 1 : -1)))]; render(); } }, chart), gating, unplanned);
@@ -2053,7 +2083,7 @@ async function analyticsView() {
   if (analyticsState.view === 'Activity') {
     extras = select('Activity chart series', analyticsState.series, [['both', 'Created and completed'], ['created', 'Created'], ['completed', 'Completed']], value => analyticsState.series = value);
     const max = Math.max(1, ...r.days.flatMap(d => analyticsState.series === 'both' ? [d.created, d.completed] : [d[analyticsState.series]]));
-    const chart = h('div', { class: 'analytics-chart', role: 'img', 'aria-label': 'Daily ticket counts; exact values are in Daily values below.' }, r.days.map((d, i) => {
+    const chart = h('div', { class: 'analytics-chart', role: 'img', 'aria-label': 'Daily ticket counts. Hover a day to read it.' }, r.days.map((d, i) => {
       const created = h('span', { 'data-chart-key': d.date + ':created', 'data-chart-value': d.created / max, 'data-chart-axis': 'y', 'data-chart-scope': scopedKey + '/' + analyticsState.series, class: 'analytics-created', hidden: analyticsState.series === 'completed' }); created.style.height = d.created / max * 100 + '%';
       const done = h('span', { 'data-chart-key': d.date + ':done', 'data-chart-value': d.completed / max, 'data-chart-axis': 'y', 'data-chart-scope': scopedKey + '/' + analyticsState.series, class: 'analytics-done', hidden: analyticsState.series === 'created' }); done.style.height = d.completed / max * 100 + '%';
       return h('div', { class: 'analytics-day', title: d.date + ': ' + d.created + ' created, ' + d.completed + ' completed' }, h('div', { class: 'analytics-bars' }, created, done), h('span', {}, i % Math.ceil(r.days.length / 6) === 0 || i === r.days.length - 1 ? d.date.slice(5) : ''));
@@ -2062,7 +2092,7 @@ async function analyticsView() {
       h('p', { class: 'muted small' }, 'Duration includes waiting, from creation to first completion. Average: ' + duration(r.averageTicketSeconds) + '.'),
       h('section', {}, h('h2', {}, 'Created and completed over time'), r.days.some(d => d.created || d.completed)
         ? [h('p', { class: 'analytics-legend muted small' }, h('span', {}, h('span', { class: 'analytics-key analytics-created' }), ' Created'), h('span', {}, h('span', { class: 'analytics-key analytics-done' }), ' Completed'), h('span', {}, 'UTC days · peak ' + max + ' tickets')), chart,
-          h('details', {}, h('summary', {}, 'Daily values'), table(['UTC date', 'Created', 'Completed'], r.days.map(d => [d.date, d.created, d.completed])))]
+          ]
         : h('p', { class: 'muted' }, 'No ticket activity in this period. Try a longer time range or another project.'))];
   } else if (analyticsState.view === 'Categories') {
     const categoryId = analyticsState.category === '__unlabelled' ? '' : analyticsState.category;
