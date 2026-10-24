@@ -1,5 +1,44 @@
 # Local demo data
 
+## Generated workspaces, data library and members
+
+Run `python3 scripts/seed-demo-workspaces.py --apply` against the running local
+installation to add:
+
+- Individual: **Demo · Focus planner** (weekly commitments and rituals) and
+  **Demo · Reading journal** (fictional reading shelf and practical notes).
+- Team: **Demo · Launch room** (deliverables, readiness and decisions) and
+  **Demo · Research hub** (fictional interviews and findings), displayed in the
+  first local Team workspace (`team:main`).
+- Ten library collections containing 97 sample records, including two unattached
+  collections (**Kitchen experiments** and **Team risk register**) to inspect or
+  reuse through the Data library.
+- Six fictional Team members with `(Demo)` names and reserved example email
+  addresses, also added to existing active `Demo ·` projects with the Member role.
+
+Generated workspaces displayed in Team remain **private local Individual data**.
+They use the same Data library as the Individual workspaces; displaying a workspace
+in Team does not share its records with other members. The demo member directory
+entries are stored in the actual signed-in Team workspace. No invitations are sent
+and their returned sign-in tokens are discarded.
+
+The script backs up Individual's database and requests a Team storage backup
+before adding data. The private `backups/before-demo-workspaces-<timestamp>` folder
+contains the Individual snapshot, prior directory/library metadata, Team backup
+receipt and a final manifest of sample IDs and counts. Both local services must
+be available and Team backup must succeed. Writes use the existing authenticated
+loopback APIs; the script never edits database rows directly.
+
+Re-running preserves existing sample workspaces, members and record edits. Missing
+sample records are added using their stable title/participant/dish as identity;
+renaming one of those identifiers means the original sample can be added again.
+An incompatible existing sample collection schema stops the script. `--date
+YYYY-MM-DD` sets the planning date anchor; `--data-dir` and `--team-key` override
+the default Mac paths. Existing unrelated data is preserved. No agents, automatic
+schedules, devices, network connections or Team services are created.
+
+## Project boards and simulated history
+
 `scripts/seed-demo-data.py --apply` adds marked sample projects to the existing
 local Individual controller and the signed-in local Team workspace. Use Python
 with SQLite 3.37 or newer. It reads credentials from private local files and
