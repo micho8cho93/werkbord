@@ -91,7 +91,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
  // Cross-workspace navigation is shown in Universal mode, not while an individual workspace is open.
  await switchUniversal();
- for (const entry of ['Workspaces', 'Calendar']) await side.getByRole('button', { name: entry, exact: true }).waitFor();
+ for (const page_ of ['inbox', 'calendar']) await side.locator('[data-page=' + page_ + ']').waitFor();
  await side.locator('[data-page="inbox"]').waitFor(); // the accessible name also includes its waiting-item count
  console.log('PASS Universal: cross-workspace destinations appear in the shared sidebar');
  await switchTo('personal');
@@ -150,6 +150,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await setTheme('dark'); const chosen = await page.locator('html').getAttribute('data-theme'); assert(chosen === 'light' || chosen === 'dark');
  await wait(async () => (await themeOf('personal')) === chosen, 'theme reaches Individual');
  await switchTo('team:main'); const firstFrame = page.frameLocator('iframe[data-workspace="team:main"]');
+ // The window no longer lists a person's tickets across workspaces: a ticket is opened from its project in the Team's own sidebar.
+ const openTeamTicket = async () => { await switchTo('team:main'); await side.locator('[data-project="' + project.id + '"]').click(); await firstFrame.getByRole('button', { name: ticket.title, exact: true }).first().click(); };
  await wait(async () => (await themeOf('team:main')) === chosen, 'theme reaches Team');
  assert.equal(await firstFrame.locator('aside.rail').count(), 0, 'Team shows no rail of its own in the window');
  for (const entry of ['Workspace', 'Projects', 'Reviews', 'Members', 'Settings']) await side.getByRole('button', { name: entry, exact: true }).first().waitFor();
@@ -193,7 +195,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await wait(async () => (await dev('GET', '/state')).runner.connected, 'explicit narrow grant connection');
  // Claimed before the runner was connected: the Team service on this computer copies it into Individual, and the ticket opens there.
  await wait(async () => ((await dev('GET', '/state')).sync?.tickets || []).some(t => t.ticketId === ticket.id && t.taskId), 'claimed ticket copied into Individual');
- await switchUniversal(); await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: new RegExp(ticket.key + ' Improve sign-in') }).click(); current = 'team:main';
+ await openTeamTicket();
  const teamTicket = firstFrame.locator('.ticket');
  await teamTicket.getByRole('heading', { name: new RegExp(ticket.key + ' · Improve sign-in') }).waitFor();
  await teamTicket.getByTestId('open-in-individual').click({ timeout: 5000 });
@@ -214,14 +216,14 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal((await api(individualURL, 'disposable-browser-credential', 'GET', '/api/integration/waiting')).items.length, 0);
  console.log('PASS waiting for a repository in Individual, wrong folder refused, linking imports the ticket');
  await switchTo('team:main');
- await switchUniversal(); await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: new RegExp(ticket.key + ' Improve sign-in') }).click(); current = 'team:main';
+ await openTeamTicket();
  await firstFrame.getByRole('button', { name: 'Review and start agent', exact: true }).click();
  await firstFrame.getByRole('region', { name: 'Your private agent', exact: true }).getByRole('button', { name: 'Start agent', exact: true }).click();
  await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  const projects = (await api(individualURL, full, 'GET', '/api/projects')).projects; const localProject = projects.find(p => p.name === 'Customer portal');
  let active; await wait(async () => { const runs = (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs`)).runs; active = runs.find(r => ['running', 'waiting_for_user'].includes(r.state)); return !!active; }, 'agent process running');
  console.log('PASS shell opening, Team ticket deep link and locally approved agent process');
- await switchUniversal(); await page.locator('[data-page=mywork]').click(); // leave the open ticket as it is; switch from a shell page
+ await switchUniversal(); // leave the open ticket as it is; switch from a shell page
  await switchTo('personal'); await switchTo('team:' + slot);
  const secondFrame = page.frameLocator('iframe[data-hosted="team:' + slot + '"]'); await side.locator('[data-page=settings]').click(); await page.locator('[data-section="team:' + slot + '/computer"]').click();
  assert.equal(await secondFrame.getByRole('button', { name: 'Make Workspace Host', exact: true }).count(), 0, 'member has no host authority');
@@ -232,16 +234,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const artifacts = process.env.BROWSER_ARTIFACT_DIR || path.join(root, '.impeccable/review'); fs.mkdirSync(artifacts, { recursive: true });
  const importedTask = (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/tasks`)).tasks.find(t => t.id === active.taskId);
  assert(importedTask, 'the execution belongs to an imported local task');
- await switchUniversal(); await page.locator('[data-page=mywork]').click(); await page.getByRole('button', { name: /Review the customer portal/ }).waitFor();
- const individualWork = page.getByTestId('work-item').filter({ hasText: importedTask.title });
- await individualWork.getByText('Reported: Waiting for your next message', { exact: true }).waitFor();
- await page.setViewportSize({ width: 1440, height: 900 });
- const reportBounds = await individualWork.locator('.badge').evaluate(el => {
-   const range = document.createRange(); range.selectNodeContents(el);
-   const text = range.getBoundingClientRect(), cell = el.closest('.report').getBoundingClientRect();
-   return { textRight: text.right, cellRight: cell.right, textLeft: text.left, cellLeft: cell.left };
- });
- assert(reportBounds.textRight <= reportBounds.cellRight + 1 && reportBounds.textLeft >= reportBounds.cellLeft - 1, 'reported execution text stays inside its My Work cell');
+ await switchUniversal();
  await switchUniversal(); await page.locator('[data-page=inbox]').click();
  const idleAction = page.getByRole('button', { name: 'Review turn: ' + importedTask.title + ' is waiting for your next message', exact: true });
  await idleAction.waitFor();
@@ -286,12 +279,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await inline.getByRole('button', { name: 'No', exact: true }).click();
  await wait(async () => (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).waiting === 'idle', 'inline answer reaches the runner');
  assert.equal(await inline.count(), 0, 'settled question closes its editor');
- await page.locator('[data-page=mywork]').click();
- await individualWork.getByText('Reported: Waiting for your next message', { exact: true }).waitFor();
- assert(await individualWork.getByText(/^State recorded /).isVisible(), 'source state timestamp is visible');
- await capture('mywork');
- console.log('PASS inline Individual answer, no focused choice, stale disabling, reconnect, delivery and responsive attention/My Work');
- assert(await page.getByTestId('work-item').filter({ hasText: ticket.key + ' ' + ticket.title }).locator('.state').isVisible(), 'Team status visible at native minimum');
+ await capture('workspaces');
+ console.log('PASS inline Individual answer, no focused choice, stale disabling, reconnect, delivery and responsive Workspaces attention');
  await page.setViewportSize({ width: 480, height: 844 });
  await page.locator('[data-page=calendar]').click();
  const calendarEvent = page.getByRole('button', { name: /Review the customer portal navigation/ }).first(); await calendarEvent.waitFor();
