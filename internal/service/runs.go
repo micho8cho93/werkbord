@@ -92,6 +92,13 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 			return err
 		}
 		r.ProjectID = task.ProjectID
+		project, err := tx.Projects().Get(ctx, task.ProjectID)
+		if err != nil {
+			return err
+		}
+		if project.Inactive() {
+			return fmt.Errorf("%w: restore this project before starting work", domain.ErrConflict)
+		}
 		if task.ArchivedAt != nil {
 			return fmt.Errorf("%w: restore this task before starting a run", domain.ErrConflict)
 		}

@@ -73,6 +73,7 @@
 
 <div class="layout">
   <section class="pn">
+    <a class="btn" href="#/settings?history">Project history</a>
     <div class="ph">Projects<span class="chip">{app.projects.length}</span></div>
     {#if app.projects.length}
       <ul class="list">

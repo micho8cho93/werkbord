@@ -106,6 +106,9 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	ps, err := s.opt.Projects.List(r.Context())
+	if r.URL.Query().Get("history") == "1" {
+		ps, err = s.opt.Projects.History(r.Context())
+	}
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -555,4 +558,20 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 		agents = s.opt.Agents.Detect(r.Context())
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": agents})
+}
+
+func (s *Server) handleProjectLifecycle(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		State string `json:"state"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	p, err := s.opt.Projects.SetLifecycle(r.Context(), r.PathValue("pid"), req.State)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
 }

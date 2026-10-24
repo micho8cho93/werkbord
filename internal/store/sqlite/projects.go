@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -11,7 +12,7 @@ import (
 
 type projectRepo struct{ q queryer }
 
-const projectCols = `id, name, repo_path, created_at, updated_at, execution, kind`
+const projectCols = `id, name, repo_path, created_at, updated_at, execution, kind, archived_at, deleted_at`
 
 // workPathPrefix starts the placeholder a work project keeps in repo_path (see migration 0013).
 const workPathPrefix = "work:"
@@ -20,8 +21,17 @@ func scanProject(s interface{ Scan(...any) error }) (*domain.Project, error) {
 	var p domain.Project
 	var created, updated int64
 	var execution string
-	if err := s.Scan(&p.ID, &p.Name, &p.RepoPath, &created, &updated, &execution, &p.Kind); err != nil {
+	var archived, deleted sql.NullInt64
+	if err := s.Scan(&p.ID, &p.Name, &p.RepoPath, &created, &updated, &execution, &p.Kind, &archived, &deleted); err != nil {
 		return nil, err
+	}
+	if archived.Valid {
+		t := fromMS(archived.Int64)
+		p.ArchivedAt = &t
+	}
+	if deleted.Valid {
+		t := fromMS(deleted.Int64)
+		p.DeletedAt = &t
 	}
 	if p.Kind == domain.ProjectWork {
 		p.RepoPath = "" // the stored placeholder is not a path
@@ -54,7 +64,7 @@ func (r projectRepo) Create(ctx context.Context, p *domain.Project) error {
 		path = workPathPrefix + p.ID
 	}
 	_, err = r.q.ExecContext(ctx,
-		`INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
 		p.ID, p.Name, path, ms(p.CreatedAt), ms(p.UpdatedAt), execution, kind)
 	if isUniqueViolation(err) {
 		return fmt.Errorf("project with path %s: %w", p.RepoPath, domain.ErrDuplicate)
@@ -73,7 +83,13 @@ func (r projectRepo) GetByPath(ctx context.Context, repoPath string) (*domain.Pr
 }
 
 func (r projectRepo) List(ctx context.Context) ([]domain.Project, error) {
-	rows, err := r.q.QueryContext(ctx, `SELECT `+projectCols+` FROM projects ORDER BY name COLLATE NOCASE, created_at`)
+	return r.list(ctx, " WHERE archived_at IS NULL AND deleted_at IS NULL")
+}
+func (r projectRepo) ListHistory(ctx context.Context) ([]domain.Project, error) {
+	return r.list(ctx, "")
+}
+func (r projectRepo) list(ctx context.Context, where string) ([]domain.Project, error) {
+	rows, err := r.q.QueryContext(ctx, `SELECT `+projectCols+` FROM projects`+where+` ORDER BY name COLLATE NOCASE, created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -183,4 +199,25 @@ func (r gitRepoRepo) ListBounded(ctx context.Context, limit int) ([]domain.GitRe
 		out = append(out, *g)
 	}
 	return out, rows.Err()
+}
+
+func (r projectRepo) SetLifecycle(ctx context.Context, id, state string, at time.Time) error {
+	var archived, deleted any
+	switch state {
+	case "active":
+	case "archived":
+		archived = ms(at)
+	case "deleted":
+		deleted = ms(at)
+	default:
+		return domain.ErrInvalid
+	}
+	res, err := r.q.ExecContext(ctx, `UPDATE projects SET archived_at = ?, deleted_at = ?, updated_at = ? WHERE id = ?`, archived, deleted, ms(at), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }

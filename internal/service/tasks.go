@@ -114,6 +114,9 @@ func (s *Tasks) CreateTask(ctx context.Context, in NewTask) (*domain.Task, error
 		if err != nil {
 			return err
 		}
+		if project.Inactive() {
+			return fmt.Errorf("%w: restore this project from Project history before adding tasks", domain.ErrConflict)
+		}
 		if !project.HasRepository() && (in.SourceRef != "" || in.WorkBranch != "" || in.BaseBranch != "") {
 			return fmt.Errorf("%w: a work project has no repository, so a task there has no branch or source to track", domain.ErrInvalid)
 		}
@@ -194,6 +197,13 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 		var err error
 		if t, err = tx.Tasks().Get(ctx, id); err != nil {
 			return err
+		}
+		project, err := tx.Projects().Get(ctx, t.ProjectID)
+		if err != nil {
+			return err
+		}
+		if project.Inactive() {
+			return fmt.Errorf("%w: restore this project before editing tasks", domain.ErrConflict)
 		}
 		if t.Version != patch.Version {
 			return fmt.Errorf("task %s is at version %d, not %d: %w", id, t.Version, patch.Version, domain.ErrConflict)

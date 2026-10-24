@@ -11,7 +11,7 @@ type EventType string
 const (
 	EventProjectRegistered EventType = "project.registered"
 	EventProjectInspected  EventType = "project.inspected"
-	EventProjectUpdated    EventType = "project.updated"  // its execution defaults changed; payload: the project
+	EventProjectUpdated    EventType = "project.updated"  // its defaults or lifecycle changed; payload: the project or lifecycle record
 	EventSettingsUpdated   EventType = "settings.updated" // a global setting changed; payload: {key}
 	EventLabelCreated      EventType = "label.created"    // payload: the label. Labels belong to no project, so these carry no project ID
 	EventLabelUpdated      EventType = "label.updated"    // payload: the label

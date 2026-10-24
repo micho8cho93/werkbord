@@ -91,6 +91,8 @@ func (t Task) Mode() planning.ExecutionMode {
 // disagree.
 func AgentRefusal(p Project, t Task) string {
 	switch {
+	case p.Inactive():
+		return "Restore this project from Project history before starting work"
 	case !p.HasRepository():
 		return "This is a work project with no Git repository, so no agent can work on it"
 	case !t.Mode().AllowsAgent():

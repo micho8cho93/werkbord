@@ -106,7 +106,7 @@ Universal is a peer choice beside Individual and each Team workspace. Its sideba
 My Work, Workspaces and Calendar, in that order. Workspaces spans attention from all workspaces. Individual's workspace
 destinations are Workspace and Projects, with Analytics immediately below Add project. Each Team workspace lists
 Workspace, Projects, Reviews, Members and Analytics. The shell keeps Salie, Devices & Hosting, relevant workspace Settings
-and theme controls separate from these destinations. Universal has no workspace-specific Settings or project list. Project sections belong above
+separate from these destinations. Theme controls live in Settings → Appearance. Universal has no workspace-specific Settings or project list. Project sections belong above
 the project's content, not in the workspace sidebar. The window uses its own 208px sidebar, collapsing to 48px;
 the intermediate-width label control reveals the names without changing the route.
 
@@ -131,7 +131,7 @@ attention appears before the working list. N opens a new ticket and Escape close
 ⌘/Ctrl K and the heading's Search button open a focused jump list of sections, projects and tickets. Its input keeps
 focus through live updates; arrows select and Enter opens. Escape restores the original focus and unsent edits.
 Members is an organization directory: initials, names, email and roles, with filtering and management in row menus.
-Light/dark sits beside Settings (an icon on phones), with Team's own per-device preference, independent of the
+Light/dark lives in Settings, with Team's own per-device preference, independent of the
 individual app. `theme.js` resolves it before styles load and keeps the mark and browser chrome in step.
 
 Team Runs shows the latest member-supplied execution report per ticket/device for at most 32 assigned tickets per project read. These are

@@ -74,6 +74,9 @@ func loadLevels(ctx context.Context, tx store.Tx, projectID string) (Levels, err
 		if err != nil {
 			return lv, err
 		}
+		if p.Inactive() {
+			return lv, fmt.Errorf("%w: restore this project from Project history before starting work", domain.ErrConflict)
+		}
 		lv.Project = p.Execution
 	}
 	return lv, nil

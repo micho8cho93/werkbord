@@ -87,3 +87,24 @@ func TestTeamClearDonePreservesDetailsAndDoesNotHideOpenWork(t *testing.T) {
 		t.Fatalf("repeat = %d, %v", n, err)
 	}
 }
+
+func TestProjectArchiveAndRestoreLeaveAnActivityTrail(t *testing.T) {
+	tm := newTeam(t)
+	k := tm.working(tm.bo, "Keep the project context")
+	archived := true
+	if _, err := tm.svc.UpdateProject(bg, tm.owner, tm.pid(), ProjectPatch{Archived: &archived}); err != nil {
+		t.Fatal(err)
+	}
+	archived = false
+	if _, err := tm.svc.UpdateProject(bg, tm.owner, tm.pid(), ProjectPatch{Archived: &archived}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := tm.svc.GetTicket(bg, tm.owner, tm.pid(), k.ID)
+	if err != nil || got.Title != k.Title || got.AssigneeID != k.AssigneeID {
+		t.Fatalf("lost context: %+v %v", got, err)
+	}
+	kinds := tm.activityKinds()
+	if kinds[len(kinds)-2] != domain.ActProjectArchived || kinds[len(kinds)-1] != domain.ActProjectRestored {
+		t.Fatalf("missing lifecycle trail: %v", kinds)
+	}
+}

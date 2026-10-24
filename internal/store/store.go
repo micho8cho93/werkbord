@@ -70,6 +70,8 @@ type ProjectRepo interface {
 	Get(ctx context.Context, id string) (*domain.Project, error)
 	GetByPath(ctx context.Context, repoPath string) (*domain.Project, error)
 	List(ctx context.Context) ([]domain.Project, error)
+	ListHistory(ctx context.Context) ([]domain.Project, error)
+	SetLifecycle(ctx context.Context, id, state string, at time.Time) error
 	// SetExecution replaces the project's default execution configuration.
 	SetExecution(ctx context.Context, id string, cfg domain.ExecutionConfig, at time.Time) error
 }
@@ -218,6 +220,7 @@ type HealthRepo interface {
 
 // EventRepo is the sequenced event log; terminal transcript retention is bounded.
 type EventRepo interface {
+	ListProjectLifecycle(ctx context.Context) ([]domain.Event, error)
 	ListAfterProject(ctx context.Context, projectID string, after int64, limit int) ([]domain.Event, error)
 	// ReplayFloor is the latest event removed by retention. Older clients resnapshot.
 	ReplayFloor(ctx context.Context) (int64, error)

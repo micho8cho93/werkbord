@@ -140,9 +140,11 @@ func buildSummary(in summaryInputs) workspace.Summary {
 	}
 	titles := map[string]string{}
 	projectNames := map[string]string{}
+	archivedProjects := map[string]bool{}
 	if in.Overview != nil {
 		for _, p := range in.Overview.Projects {
 			if p.Project.Archived {
+				archivedProjects[p.Project.ID] = true
 				continue
 			}
 			projectNames[p.Project.ID] = p.Project.Name
@@ -154,7 +156,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 		add := func(items []service.WorkItem) {
 			for _, w := range items {
 				k := w.Ticket
-				if seen[k.ID] {
+				if seen[k.ID] || w.Project.Archived || archivedProjects[k.ProjectID] {
 					continue
 				}
 				seen[k.ID] = true
@@ -167,6 +169,9 @@ func buildSummary(in summaryInputs) workspace.Summary {
 		add(in.MyWork.InProgress)
 		add(in.MyWork.Submitted)
 		for _, a := range in.MyWork.NeedsAction {
+			if archivedProjects[a.ProjectID] {
+				continue
+			}
 			kind := workspace.AttentionOther
 			switch a.Kind {
 			case "changes_requested":
@@ -189,7 +194,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 	}
 	if in.Reviews != nil {
 		for _, r := range in.Reviews.Items {
-			if r.Mine || (!r.CanReview && !r.RequestedOfMe) {
+			if r.Project.Archived || archivedProjects[r.Ticket.ProjectID] || r.Mine || (!r.CanReview && !r.RequestedOfMe) {
 				continue
 			}
 			sev := workspace.SeverityInfo
@@ -202,6 +207,9 @@ func buildSummary(in summaryInputs) workspace.Summary {
 		}
 	}
 	for pid, list := range in.Schedules {
+		if archivedProjects[pid] {
+			continue
+		}
 		for _, s := range list {
 			if s.MemberID != in.MemberID || s.Terminal() {
 				continue

@@ -6,7 +6,6 @@
   import { attentionCount } from '../projects';
   import { globalHref, hrefOf, router, switchedTo } from '../router.svelte';
   import { app } from '../state.svelte';
-  import { theme } from '../theme.svelte';
 
   // The rail is the map of everything: what needs you, every project, every machine. One click
   // reaches any of them; nothing here hides behind a menu. (Inside the desktop app the window's own sidebar does this
@@ -84,9 +83,7 @@
       <Icon name="settings" />Settings
     </a>
     <div class="row">
-      <button class="btn quiet small icon" type="button" onclick={() => theme.toggle()} aria-label={theme.dark ? 'Switch to light' : 'Switch to dark'} title={theme.dark ? 'Light' : 'Dark'}>
-        <Icon name={theme.dark ? 'sun' : 'moon'} />
-      </button>
+
     </div>
   </div>
 </aside>

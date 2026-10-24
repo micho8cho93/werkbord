@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProjectHistory from '../lib/ProjectHistory.svelte';
   import MemorySharing from '../lib/MemorySharing.svelte';
   import Tour from '../lib/Tour.svelte';
   import { onMount, untrack } from 'svelte';
@@ -33,7 +34,7 @@
   let mcpDirection = $state<'service' | 'client'>('service');
 
   const GROUPS = [
-    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
+    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'history', label: 'Project history' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
     { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Individual memory' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
@@ -167,6 +168,8 @@
           {#if saved && !dirty}<span class="ok" role="status">Saved</span>{/if}
         </div>
       </section>
+    {:else if section === 'history'}
+      <ProjectHistory />
     {:else if section === 'runners'}
       <RunnersPanel />
     {:else if section === 'routing'}

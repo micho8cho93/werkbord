@@ -349,11 +349,12 @@ function syncPanel() {
 // This computer, its phones and its memory are three sections of Settings: the window lists them, and shows one of them at a time
 // (a hosted page). Opened on its own in a browser, this page keeps all three together.
 async function settingsView() {
-  const only = HOSTED ? (state.settingsPart === 'phones' || state.settingsPart === 'memory' ? state.settingsPart : 'computer') : '';
+  const only = HOSTED ? (['phones', 'memory', 'history'].includes(state.settingsPart) ? state.settingsPart : 'computer') : '';
   const has = (part) => !only || only === part;
+  if (only === 'history') return projectHistoryPanel();
   if (only === 'phones') return h('div', {}, state.desktop ? await phoneSettings() : h('section', { class: 'panel' }, h('h2', {}, 'Phone access'), h('p', { class: 'muted' }, 'Phones are paired in the Team desktop app.')));
   if (only === 'memory') return h('div', {}, await memorySharingPanel());
-  if (!state.desktop) return h('div', {}, has('memory') ? await memorySharingPanel() : '', h('section', { class: 'panel' }, h('h2', {}, 'Device settings'), h('p', { class: 'muted' }, 'Manage this computer in the Team desktop app.'),
+  if (!state.desktop) return h('div', {}, has('memory') ? await memorySharingPanel() : '', h('section', { class: 'panel' }, h('h2', {}, 'Device settings'), themeButton(), h('p', { class: 'muted' }, 'Manage this computer in the Team desktop app.'),
     h('div', { class: 'actions' }, h('button', { class: 'plain', onclick: signOut }, 'Sign out of workspace'))));
   const s = state.device.settings;
   const form = h('select', { name: 'computer-kind' }, [['', 'Choose…'], ['desktop', 'Desktop / Mac mini'], ['laptop', 'Laptop'], ['server', 'Server / NAS']].map(([value, label]) => h('option', { value, selected: s.form === value || (!s.form && !value) }, label)));
@@ -363,7 +364,7 @@ async function settingsView() {
   const hostOffer = h('input', { name: 'offer-workspace-host', type: 'checkbox', checked: s.offerWorkspaceHost });
   const connectivityOffer = h('input', { name: 'offer-connectivity-host', type: 'checkbox', checked: s.offerConnectivityHost });
   const plan = await deviceApi('GET', '/removal');
-  return h('div', {}, runnerSetup(), syncPanel(), !only ? await memorySharingPanel() : '', !only ? await phoneSettings() : '', h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } },
+  return h('div', {}, runnerSetup(), syncPanel(), !only ? await memorySharingPanel() : '', !only ? await phoneSettings() : '', h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), !HOSTED ? themeButton() : '', h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } },
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Computer'), field('Type', form), field('Sleeps automatically', sleeps)),
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Hosting'), field('Workspace Host', hostOffer), field('Connectivity Host', connectivityOffer),
       h('p', { class: 'muted' }, 'Hosting starts after administrator approval; sleep pauses this computer’s work.'),

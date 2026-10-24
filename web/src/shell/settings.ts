@@ -40,7 +40,7 @@ const here = (workspace: string, place: string): Where => ({ workspace, place })
 function personal(): Group[] {
   const at = (id: string, label: string, query: string): Section => ({ id: `personal/${id}`, label, where: here(PERSONAL, `#/settings${query}`) });
   return [
-    { label: 'Work', sections: [at('defaults', 'Task defaults', ''), at('routing', 'Routing rules', '?routing'), at('time', 'Time format', '?time')] },
+    { label: 'Work', sections: [at('defaults', 'Task defaults', ''), at('history', 'Project history', '?history'), at('routing', 'Routing rules', '?routing'), at('time', 'Time format', '?time')] },
     { label: 'Machines', sections: [at('runners', 'Runners', '?runners'), at('agents', 'Agents', '?agents'), at('computer', 'This computer', '?computer')] },
     { label: 'Connections', sections: [at('phones', 'Phones', '?phones'), at('github', 'GitHub', '?github'), at('mcp', 'MCP services', '?mcp'), at('memory', 'Individual memory', '?memory')] },
   ];
@@ -50,7 +50,7 @@ function personal(): Group[] {
 function team(id: string): Group[] {
   const at = (key: string, label: string, query: string): Section => ({ id: `${id}/${key}`, label, where: here(id, `?tab=${query}`) });
   return [
-    { label: 'Work', sections: [at('labels', 'Labels', 'labels')] },
+    { label: 'Work', sections: [at('labels', 'Labels', 'labels'), at('history', 'Project history', 'projects')] },
     {
       label: 'Machines',
       sections: [at('computer', 'This computer', 'settings&part=computer'), at('devices', 'Devices', 'devices'), at('hosts', 'Workspace Hosts', 'hosts'), at('connectivity', 'Connectivity', 'connectivity')],

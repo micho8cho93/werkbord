@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"devboard/internal/domain"
 	"devboard/internal/gitrepo"
@@ -49,7 +51,13 @@ func (s *Projects) lock(ctx context.Context, projectID string) (unlock func(), e
 }
 
 // ProjectDetail is a project with its latest repository snapshot.
+type ProjectLifecycleEntry struct {
+	State string    `json:"state"`
+	At    time.Time `json:"at"`
+}
+
 type ProjectDetail struct {
+	Lifecycle []ProjectLifecycleEntry `json:"lifecycle,omitempty"`
 	domain.Project
 	Repository *domain.GitRepository `json:"repository,omitempty"`
 }
@@ -100,6 +108,9 @@ func (s *Projects) register(ctx context.Context, path, name, repository string) 
 
 	err = s.update(ctx, func(tx store.Tx, em *emitter) error {
 		if existing, err := tx.Projects().GetByPath(ctx, p.RepoPath); err == nil {
+			if existing.Inactive() {
+				return fmt.Errorf("%w: this repository belongs to %q; restore it from Settings → Project history to recover its tasks and memory", domain.ErrDuplicate, existing.Name)
+			}
 			return fmt.Errorf("%s is already registered as %q: %w", p.RepoPath, existing.Name, domain.ErrDuplicate)
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
@@ -227,9 +238,45 @@ func (s *Projects) Get(ctx context.Context, id string) (*ProjectDetail, error) {
 
 // List returns all projects with their repository snapshots.
 func (s *Projects) List(ctx context.Context) ([]ProjectDetail, error) {
+	return s.list(ctx, false)
+}
+
+func (s *Projects) History(ctx context.Context) ([]ProjectDetail, error) {
+	out, err := s.list(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+	err = s.Store.View(ctx, func(tx store.Tx) error {
+		events, err := tx.Events().ListProjectLifecycle(ctx)
+		if err != nil {
+			return err
+		}
+		byID := map[string]int{}
+		for i, p := range out {
+			byID[p.ID] = i
+		}
+		for _, e := range events {
+			var payload struct {
+				State string `json:"lifecycle"`
+			}
+			if err := json.Unmarshal(e.Payload, &payload); err != nil {
+				return err
+			}
+			if i, ok := byID[e.ProjectID]; ok {
+				out[i].Lifecycle = append(out[i].Lifecycle, ProjectLifecycleEntry{State: payload.State, At: e.CreatedAt})
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+func (s *Projects) list(ctx context.Context, history bool) ([]ProjectDetail, error) {
 	var out []ProjectDetail
 	err := s.Store.View(ctx, func(tx store.Tx) error {
 		ps, err := tx.Projects().List(ctx)
+		if history {
+			ps, err = tx.Projects().ListHistory(ctx)
+		}
 		if err != nil {
 			return err
 		}
@@ -265,6 +312,53 @@ func (s *Projects) SetExecution(ctx context.Context, id string, cfg domain.Execu
 			return err
 		}
 		ev := newEvent(domain.EventProjectUpdated, p)
+		ev.ProjectID = id
+		return em.emit(ev)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, id)
+}
+
+// SetLifecycle hides a project without removing its repository or any history.
+func (s *Projects) SetLifecycle(ctx context.Context, id, state string) (*ProjectDetail, error) {
+	if state != "active" && state != "archived" && state != "deleted" {
+		return nil, domain.ErrInvalid
+	}
+	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
+		p, err := tx.Projects().Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		if state != "active" {
+			runs, err := tx.Runs().ListActive(ctx)
+			if err != nil {
+				return err
+			}
+			for _, r := range runs {
+				if r.ProjectID == id {
+					return fmt.Errorf("%w: stop active runs before archiving or deleting this project", domain.ErrConflict)
+				}
+			}
+			tasks, err := tx.Tasks().ListByProject(ctx, id)
+			if err != nil {
+				return err
+			}
+			for _, t := range tasks {
+				if t.Orchestration.Enabled {
+					return fmt.Errorf("%w: disable automatic schedules before archiving or deleting this project", domain.ErrConflict)
+				}
+			}
+		}
+		if err := tx.Projects().SetLifecycle(ctx, id, state, s.now()); err != nil {
+			return err
+		}
+		p, err = tx.Projects().Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		ev := newEvent(domain.EventProjectUpdated, map[string]any{"project": p, "lifecycle": state})
 		ev.ProjectID = id
 		return em.emit(ev)
 	})

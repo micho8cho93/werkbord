@@ -24,8 +24,10 @@ func (k ProjectKind) Valid() bool { return k == ProjectRepository || k == Projec
 // Project is a registered local Git repository, or a work project with no repository at all. The
 // repository itself is never copied; RepoPath points at the user's existing checkout.
 type Project struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	DeletedAt  *time.Time `json:"deletedAt,omitempty"`
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
 	// Kind is ProjectRepository or ProjectWork. A work project has an empty RepoPath.
 	Kind     ProjectKind `json:"kind"`
 	RepoPath string      `json:"repoPath"`
@@ -36,6 +38,9 @@ type Project struct {
 	CreatedAt time.Time       `json:"createdAt"`
 	UpdatedAt time.Time       `json:"updatedAt"`
 }
+
+// Inactive projects retain their identity, tasks and memory for recovery.
+func (p Project) Inactive() bool { return p.ArchivedAt != nil || p.DeletedAt != nil }
 
 // HasRepository reports whether the project is backed by a Git repository. Everything that reads or
 // changes a repository (inspection, worktrees, health, Git actions, agent runs) asks this first.

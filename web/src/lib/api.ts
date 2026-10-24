@@ -287,7 +287,9 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   getSettings: () => request<{ execution: ExecutionConfig }>('GET', '/api/settings').then((r) => r.execution ?? {}),
   setGlobalExecution: (execution: ExecutionConfig) =>
     request<{ execution: ExecutionConfig }>('PUT', '/api/settings/execution', execution).then((r) => r.execution ?? {}),
-  setProjectExecution: (projectId: string, execution: ExecutionConfig) =>
+  projectHistory: () => request<{projects: Project[]}>('GET', '/api/projects?history=1').then(r => r.projects),
+ setProjectLifecycle: (id: string, state: 'active' | 'archived' | 'deleted') => request<Project>('PUT', `${inProject(id)}/lifecycle`, {state}),
+ setProjectExecution: (projectId: string, execution: ExecutionConfig) =>
     request<Project>('PUT', `${inProject(projectId)}/execution`, execution),
   pairRunner: (projects: string[], allowClone: boolean) => request<import('./types').Pairing>('POST', '/api/runners/pair', {projects, allowClone}),
   saveRunner: (runner: Runner) => request<Runner>('PUT', `/api/runners/${enc(runner.id)}`, {name: runner.name, capacity: runner.capacity, automatic: runner.automatic, disabled: runner.disabled, projects: runner.projects, allowClone: runner.allowClone}).then(normalizeRunner),

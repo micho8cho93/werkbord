@@ -192,3 +192,12 @@ func TestTheListingTellsAnEmptySlotFromATeamOnItsWayAndPointsOnlyAtItself(t *tes
 		t.Fatalf("an unauthenticated listing: %d", rec.Code)
 	}
 }
+
+func TestArchivedProjectWorkStaysOutOfUniversalSummary(t *testing.T) {
+	old := ticketItem("ttk_old", "tpj_old", "WB-1", "Archived work", domain.TicketInProgress)
+	old.Project.Archived = true
+	got := buildSummary(summaryInputs{Slot: "main", Now: time.Now(), MyWork: &service.MyWork{InProgress: []service.WorkItem{old}}, Overview: &service.Overview{Projects: []service.ProjectSummary{{Project: domain.Project{ID: "tpj_old", Name: "Old", Archived: true}}}}})
+	if len(got.Work) != 0 || len(got.Projects) != 0 {
+		t.Fatalf("archived project in current work: %+v", got)
+	}
+}

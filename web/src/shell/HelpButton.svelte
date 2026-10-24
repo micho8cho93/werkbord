@@ -21,9 +21,12 @@
     bottom: 16px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 0;
+    overflow: hidden;
+    transition: width 180ms ease-out, padding 180ms ease-out;
+    width: 32px;
     height: 32px;
-    padding: 0 12px 0 10px;
+    padding: 0 8px;
     border: 1px solid var(--border);
     border-radius: 16px;
     background: var(--surface);
@@ -34,7 +37,11 @@
     font-weight: 500;
     cursor: pointer;
   }
-  .help:hover {
+  .help span { max-width: 0; opacity: 0; white-space: nowrap; transition: max-width 180ms ease-out, opacity 180ms ease-out; }
+ .help:hover, .help:focus-visible { width: 78px; gap: 6px; }
+ .help:hover span, .help:focus-visible span { max-width: 40px; opacity: 1; }
+ @media (prefers-reduced-motion: reduce) { .help, .help span { transition: none; } }
+ .help:hover {
     background: var(--surface-2);
   }
   .help:focus-visible {
@@ -43,5 +50,6 @@
   }
   .help :global(svg) {
     color: var(--text-2);
+    flex-shrink: 0;
   }
 </style>

@@ -128,6 +128,9 @@ func scheduleRead(ctx context.Context, tx store.Tx, projectID string) (scheduleS
 	if x.project, err = tx.Projects().Get(ctx, projectID); err != nil {
 		return x, err
 	}
+	if x.project.Inactive() {
+		return x, fmt.Errorf("%w: restore this project before scheduling work", domain.ErrConflict)
+	}
 	if x.tasks, err = tx.Tasks().ListByProject(ctx, projectID); err != nil {
 		return x, err
 	}

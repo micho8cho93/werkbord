@@ -108,8 +108,8 @@ async function dropLicense(page, files) {
   if(label==='Analytics'){
    await page.getByText('No ticket activity in this period. Try a longer time range or another project.',{exact:true}).waitFor();
    await shot(page,'analytics');await shot(page,'analytics-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
-   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await shot(page,'analytics-dark');
-   await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
+   await page.evaluate(() => teamTheme.set('dark'));await shot(page,'analytics-dark');
+   await page.evaluate(() => teamTheme.set('light'));
   }
   if(label==='This computer'){
    await page.waitForFunction(()=>state.device?.runner.connected);

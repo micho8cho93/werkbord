@@ -74,6 +74,9 @@ export interface GitRepository {
 }
 
 export interface Project {
+ archivedAt?: string;
+ lifecycle?: {state: string; at: string}[];
+ deletedAt?: string;
   id: string;
   name: string;
   /** A work project has no Git repository. Absent on an older controller: a repository project. */

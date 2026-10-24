@@ -492,6 +492,15 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, id string, patch P
 			}
 		}
 		if patch.Archived != nil {
+			if p.Archived != *patch.Archived {
+				kind := domain.ActProjectArchived
+				if !*patch.Archived {
+					kind = domain.ActProjectRestored
+				}
+				if err := tx.AddActivity(ctx, a.Workspace.ID, domain.Activity{ProjectID: id, ActorID: a.Member.ID, Kind: kind, Detail: p.Name, CreatedAt: s.stamp()}); err != nil {
+					return err
+				}
+			}
 			p.Archived = *patch.Archived
 		}
 		p.UpdatedAt = s.stamp()

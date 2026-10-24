@@ -203,6 +203,20 @@ func (h *GitHealth) setDirty(projectID string, v bool) {
 // the result. It reads Git and Werkbord's records, runs the rules and keeps the
 // findings' lives (see domain.ReconcileHealth). It is the explicit refresh.
 func (h *GitHealth) Refresh(ctx context.Context, projectID string) (*domain.HealthReport, error) {
+	// Registration and lifecycle events also concern projects without active repositories.
+	// Refuse these before recording an unreadable-repository finding.
+	if err := h.Store.View(ctx, func(tx store.Tx) error {
+		p, err := tx.Projects().Get(ctx, projectID)
+		if err != nil {
+			return err
+		}
+		if !p.HasRepository() || p.Inactive() {
+			return fmt.Errorf("%w: this project has no active repository to inspect", domain.ErrInvalid)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 	unlock, err := h.lock(ctx, projectID)
 	if err != nil {
 		return nil, err

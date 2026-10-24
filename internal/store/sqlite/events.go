@@ -143,3 +143,8 @@ func (r eventRepo) Prune(ctx context.Context, now time.Time) (int, error) {
 	}
 	return len(ids), (settingsRepo{q: r.q}).Set(ctx, "events:replay-floor", floor, now)
 }
+
+// Lifecycle history has no run ID and is not pruned with terminal transcripts.
+func (r eventRepo) ListProjectLifecycle(ctx context.Context) ([]domain.Event, error) {
+	return r.list(ctx, `SELECT seq, type, project_id, task_id, run_id, payload, created_at FROM events WHERE type = 'project.updated' AND json_valid(payload) AND json_extract(payload, '$.lifecycle') IS NOT NULL ORDER BY seq DESC LIMIT 1000`)
+}

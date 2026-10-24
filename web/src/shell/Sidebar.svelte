@@ -1,14 +1,13 @@
 <script lang="ts">
   import Icon, { type IconName } from '../lib/Icon.svelte';
   import Mark from '../lib/Mark.svelte';
-  import { theme } from '../lib/theme.svelte';
   import { counts } from './aggregate';
   import { model, type Page } from './model.svelte';
   import { activeKey, entries, listed } from './nav';
 
   // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), what spans every
   // workspace (My Work, Workspaces, Calendar), the open workspace's own places (its home, projects and so on), and last the
-  // things about this computer (Devices & Hosting, Settings of the workspace open, the theme). The workspaces' own
+  // things about this computer (Devices & Hosting, Settings of the workspace open). The workspaces' own
   // pages carry no navigation of their own in this window.
   const everywhereShown = $derived(model.universal);
   const active = $derived(model.view?.items.find((i) => i.id === model.current));
@@ -145,9 +144,7 @@
     <div class="lbl" aria-hidden="true"></div>
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
     {@render item('Settings', 'settings', model.page === 'settings', () => model.openSettings(), 'settings')}
-    <button class="nav" type="button" onclick={() => theme.toggle()} title={theme.dark ? 'Use light theme' : 'Use dark theme'} aria-label={theme.dark ? 'Use light theme' : 'Use dark theme'}>
-      <Icon name={theme.dark ? 'sun' : 'moon'} /><span class="label">{theme.dark ? 'Light theme' : 'Dark theme'}</span>
-    </button>
+
   </div>
 </nav>
 

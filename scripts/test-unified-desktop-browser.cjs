@@ -55,6 +55,19 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const switchUniversal = async () => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="universal"]').click(); };
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
  const switchTo = async (id) => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
+ const setTheme = async theme => {
+   const size = page.viewportSize();
+   await page.setViewportSize({ width: 1440, height: 1000 });
+   const active = side.locator('[aria-current=page]').first();
+   const place = await active.getAttribute('data-page'), project = await active.getAttribute('data-project');
+   await side.locator('[data-page=settings]').click();
+   await page.getByTestId('settings-sections').getByRole('button', { name: 'Appearance', exact: true }).click();
+   await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true }).click();
+   if (project) await side.locator('[data-project="' + project + '"]').click();
+   else if (place && place !== 'settings') await side.locator('[data-page="' + place + '"]').click();
+   if (size) await page.setViewportSize(size);
+ };
+
  const assertUniversalStartup = async (window) => {
    await wait(async () => await window.locator('iframe[data-workspace=personal]').count() === 1, 'background Individual setup check');
    assert.equal(await window.locator('iframe[data-workspace]:visible').count(), 0, 'completed users start on Universal without displaying a workspace');
@@ -131,9 +144,10 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await restoredSwitcher.locator('[data-workspace="team:main"]').waitFor();
  await restoredSwitcher.locator('[data-workspace="personal"]').click();
  await page.locator('iframe[data-workspace="personal"]').waitFor({ state: 'visible' });
- // The theme is chosen in the sidebar and reaches the workspace that is open.
+ // The theme is chosen in Settings and reaches the workspace that is open.
+ assert.equal(await side.getByRole('button', { name: /(light|dark) theme/i }).count(), 0);
  const themeOf = id => page.frameLocator('iframe[data-workspace="' + id + '"]').locator('html').getAttribute('data-theme');
- await side.getByRole('button', { name: /(light|dark) theme/i }).click(); const chosen = await page.locator('html').getAttribute('data-theme'); assert(chosen === 'light' || chosen === 'dark');
+ await setTheme('dark'); const chosen = await page.locator('html').getAttribute('data-theme'); assert(chosen === 'light' || chosen === 'dark');
  await wait(async () => (await themeOf('personal')) === chosen, 'theme reaches Individual');
  await switchTo('team:main'); const firstFrame = page.frameLocator('iframe[data-workspace="team:main"]');
  await wait(async () => (await themeOf('team:main')) === chosen, 'theme reaches Team');
@@ -145,11 +159,11 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await side.locator('[data-project][aria-current=page]').waitFor();
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
  await side.getByRole('button', { name: 'Reviews', exact: true }).click(); await side.locator('[data-page=ws-reviews][aria-current=page]').waitFor();
- console.log('PASS Team: the same sidebar lists its places, theme follows the sidebar, no rail of its own');
+ console.log('PASS Team: the same sidebar lists its places, theme follows Settings, no rail of its own');
  // The same Settings, with the same Appearance, from Individual and from Universal; the theme is the window's and the sidebar follows it.
  const sections = page.getByTestId('settings-sections');
  await switchTo('personal'); await side.locator('[data-page=settings]').click(); await sections.waitFor();
- for (const label of ['Appearance', 'Alerts', 'Task defaults', 'Routing rules', 'Runners', 'Agents', 'This computer', 'Phones', 'GitHub', 'MCP services', 'Individual memory']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
+ for (const label of ['Appearance', 'Alerts', 'Project history', 'Task defaults', 'Routing rules', 'Runners', 'Agents', 'This computer', 'Phones', 'GitHub', 'MCP services', 'Individual memory']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
  assert.equal(await sections.getByRole('button', { name: 'Labels', exact: true }).count(), 0, 'Labels are Team\'s, not Individual\'s');
  await sections.getByRole('button', { name: 'Appearance', exact: true }).click();
  await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Dark', exact: true }).click();
@@ -239,7 +253,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await idleAction.count(), 0, 'an unanswered question replaces idle attention');
  const capture = async name => {
    for (const theme of ['light', 'dark']) {
-     if (await page.locator('html').getAttribute('data-theme') !== theme) await side.getByRole('button', { name: /(light|dark) theme/i }).click();
+     if (await page.locator('html').getAttribute('data-theme') !== theme) await setTheme(theme);
      for (const [size, width, height] of [['desktop', 1440, 900], ['mobile', 375, 812]]) {
        await page.setViewportSize({ width, height });
        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ' has no horizontal overflow');

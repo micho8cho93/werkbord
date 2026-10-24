@@ -494,6 +494,8 @@ type ProjectBranch struct {
 type ActivityKind string
 
 const (
+	ActProjectArchived   ActivityKind = "project.archived"
+	ActProjectRestored   ActivityKind = "project.restored"
 	ActTicketCreated     ActivityKind = "ticket.created"
 	ActTicketArchived    ActivityKind = "ticket.archived"
 	ActTicketRestored    ActivityKind = "ticket.restored"

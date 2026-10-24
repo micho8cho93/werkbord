@@ -38,7 +38,7 @@ const HOSTED = FRAMED && new URLSearchParams(location.search).get('hosted') === 
 const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'Members']];
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
 const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'project-settings']);
-const SETTINGS_PARTS = new Set(['computer', 'phones', 'memory']);
+const SETTINGS_PARTS = new Set(['computer', 'phones', 'memory', 'history']);
 
 const state = {
   token: null, me: null, tab: 'workspace', projectId: null, ticketId: null, secret: null, error: '', info: '',
@@ -176,7 +176,6 @@ function navigation(counts) {
         h('span', { class: 'project-dot', 'aria-hidden': 'true' }), h('span', { class: 'nav-label' }, p.project.name), badgeOn(p.toReview)))) : '',
     h('div', { class: 'rail-foot' },
       h('nav', { class: 'rail-settings', 'aria-label': 'Settings' }, h('button', { name: 'nav-settings', type: 'button', 'aria-label': 'Settings', 'aria-current': settingsTab() ? 'page' : null, onclick: () => go('settings') }, icon('settings'), h('span', {}, 'Settings'))),
-      themeButton(),
       h('div', { class: 'profile' }, initial(state.me.member.name), h('div', { class: 'grow' }, h('strong', {}, state.me.member.name), h('span', { class: 'muted small' }, state.me.member.role)),
         state.desktop ? '' : h('button', { class: 'link small', onclick: signOut }, 'Sign out'))));
 }
@@ -674,6 +673,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && st
 window.addEventListener('online', () => { if (state.token) { stopSync(); render(); } });
 
 const ACTIVITY = {
+  'project.archived': 'archived the project', 'project.restored': 'restored the project',
   'ticket.archived': 'archived', 'ticket.restored': 'restored', 'ticket.created': 'created', 'ticket.claimed': 'claimed', 'ticket.released': 'released', 'ticket.reassigned': 'reassigned',
   'ticket.work_submitted': 'submitted work on', 'ticket.pull_request_created': 'opened a pull request for', 'ticket.review_requested': 'asked for a review of',
   'ticket.changes_requested': 'asked for changes to', 'ticket.completed': 'completed', 'ticket.reopened': 'reopened', 'ticket.moved': 'moved',
@@ -797,16 +797,26 @@ function membersPanels(members) {
 }
 
 // ---- projects ----
+function projectHistoryPanel() {
+  const projects = state.ov.projects.filter(({ project }) => project.archived);
+  return h('section', { class: 'panel' }, h('h2', {}, 'Project history'),
+    h('p', { class: 'muted' }, 'Archived projects keep tickets, completed work, activity and memory. Restore a project to continue where the team left off.'),
+    projects.length ? projects.map(({ project: p }) => h('div', { class: 'row' },
+      h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.id, 'overview') }, p.name),
+        h('p', { class: 'muted' }, (p.archived ? 'Archived' : 'Active') + ' · ' + new Date(p.updatedAt).toLocaleDateString())),
+      can('projects.manage') ? h('button', { class: 'plain', onclick: () => (p.archived || confirm('Archive ' + p.name + '? Its tickets and memory will be kept in Project history.')) && act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Restore project' : 'Archive project') : '')) : h('p', { class: 'muted' }, 'No archived projects yet. Archive a project in Project settings to keep it here.'));
+}
+
 
 async function projectsView() {
-  const projects = state.ov.projects;
+  const projects = state.ov.projects.filter(({ project }) => !project.archived);
   const rows = projects.map((p) => h('div', { class: 'row' },
     h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.project.id, 'board') }, p.project.name),
       p.project.description ? h('div', { class: 'muted' }, p.project.description) : '',
       p.project.repository ? h('div', { class: 'muted' }, p.project.repository) : ''),
     p.project.archived ? h('span', { class: 'badge' }, 'archived') : '',
     h('span', { class: 'badge' }, p.member ? p.role : 'not on it')));
-  const panels = [h('div', { class: 'panel' }, h('h2', {}, 'Projects (' + projects.length + ')'),
+  const panels = [projectHistoryPanel(), h('div', { class: 'panel' }, h('h2', {}, 'Projects (' + projects.length + ')'),
     rows.length ? rows : h('p', { class: 'muted' }, can('projects.view_all') ? 'No projects yet.' : 'You are not on any project yet. Ask for an invite code.'))];
   const code = h('input', { name: 'join-code', required: true, maxlength: 200, autocomplete: 'off', placeholder: 'wbi_…' });
   panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Join a project with a code'),
