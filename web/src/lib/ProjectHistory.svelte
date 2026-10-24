@@ -29,8 +29,8 @@
   onMount(load);
 </script>
 <section class="pn">
-  <h3>Project history</h3>
-  <p class="muted">Every project keeps its identity, tasks, completed work and memory, even after archiving or deletion. Restore it to continue where you left off.</p>
+  <h3 class="band">Project history</h3>
+  <p class="muted">Archived and deleted projects keep their tasks, completed work and memory. Restore one to carry on.</p>
   <div class="seg" role="group" aria-label="Project history filter">
     <button aria-pressed={filter === 'all'} onclick={() => filter = 'all'}>All projects</button>
     <button aria-pressed={filter === 'archived'} onclick={() => filter = 'archived'}>Archived</button>
@@ -40,19 +40,20 @@
   {#if message}<p role="status">{message}</p>{/if}
   {#if loading}<p class="muted" role="status">Loading project history…</p>
   {:else}
-    <ul>{#each shown as p (p.id)}
-      <li><div class="what"><strong>{p.name}</strong><span class="muted">{p.deletedAt ? 'Deleted' : p.archivedAt ? 'Archived' : 'Active'} · {new Date(p.deletedAt || p.archivedAt || p.createdAt).toLocaleDateString()}</span><span class="muted path">{p.repoPath || 'Work project'}</span>
-        {#if p.lifecycle?.length}<details><summary>Activity ({p.lifecycle.length})</summary>{#each p.lifecycle as entry, i (i)}<p class="muted">{entry.state === 'active' ? 'Restored' : entry.state === 'deleted' ? 'Deleted' : 'Archived'} · {new Date(entry.at).toLocaleString()}</p>{/each}</details>{/if}</div>
-      {#if p.archivedAt || p.deletedAt}<button class="btn" disabled={!!busy} onclick={() => restore(p)}>{busy === p.id ? 'Restoring…' : 'Restore project'}</button>
-      {:else}<a class="btn" href={projectHref(p.id, 'overview')}>Open project</a>{/if}</li>
+    <ul class="card-list">{#each shown as p (p.id)}
+      <li class="card-row">
+        <header><h4 class="title">{p.name}</h4><span class="tag">{p.deletedAt ? 'Deleted' : p.archivedAt ? 'Archived' : 'Active'} · {new Date(p.deletedAt || p.archivedAt || p.createdAt).toLocaleDateString()}</span></header>
+        <span class="muted path">{p.repoPath || 'Work project'}</span>
+        {#if p.lifecycle?.length}<details><summary>Activity ({p.lifecycle.length})</summary>{#each p.lifecycle as entry, i (i)}<p class="muted">{entry.state === 'active' ? 'Restored' : entry.state === 'deleted' ? 'Deleted' : 'Archived'} · {new Date(entry.at).toLocaleString()}</p>{/each}</details>{/if}
+        <div class="actions">
+          {#if p.archivedAt || p.deletedAt}<button class="btn" disabled={!!busy} onclick={() => restore(p)}>{busy === p.id ? 'Restoring…' : 'Restore project'}</button>
+          {:else}<a class="btn" href={projectHref(p.id, 'overview')}>Open project</a>{/if}
+        </div>
+      </li>
     {:else}<li class="muted">No {filter === 'all' ? '' : filter + ' '}projects yet.</li>{/each}</ul>
   {/if}
 </section>
 <style>
-  h3 { font-size: 15px; }
-  p { max-width: 70ch; }
-  ul { list-style: none; margin: 16px 0 0; padding: 0; }
-  li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
-  .what { display: grid; gap: 3px; min-width: 0; }
+  p { max-width: 70ch; margin: 0; }
   .path { overflow-wrap: anywhere; font-size: 12px; }
 </style>

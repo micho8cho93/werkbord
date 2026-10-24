@@ -40,20 +40,37 @@
 </script>
 <div class="library">
   <header><h1>Data library</h1><button class="btn" disabled={busy} onclick={() => attempt++}>Reload library</button></header>
-  <p>Collections kept after deleting a workspace remain here. Inspect their records or use them in a new workspace. All data stays on this computer.</p>
+  <p class="intro">Everything your workspaces keep, stored on this computer. Collections left behind by a deleted workspace stay here to inspect or reuse.</p>
   {#if notice}<p role="status">{notice}</p>{/if}
   {#if problem}<p role="alert">{problem}</p>{/if}
   {#if busy}<p role="status">Loading personal data…</p>{:else}
-    {#if workspaces.length}<h2>Saved workspaces</h2><p>Includes workspaces with no display locations.</p><div class="rows">{#each workspaces as w (w.id)}<button class="btn" onclick={() => onopen(w)}>{w.name}</button>{/each}</div>{/if}
-    <h2>Personal collections</h2>
-    {#each collections as c (c.id)}<section class="row" aria-label={c.name}><div><h3>{c.name}</h3><p>{usages[c.id]?.recordCount ?? 'Unknown'} records · {usages[c.id]?.referenceCount === 0 ? 'Retained data — no workspace' : `${usages[c.id]?.referenceCount} workspace references`}</p></div><div class="rows"><button class="btn" onclick={() => recover(c, false)}>Inspect records</button><button class="btn" onclick={() => recover(c, true)}>Use in new workspace</button></div></section>{:else}<p>No personal collections are saved.</p>{/each}
+    {#if workspaces.length}
+      <section class="pn" aria-label="Saved workspaces">
+        <h2 class="band">Saved workspaces</h2>
+        <ul class="card-list">{#each workspaces as w (w.id)}<li class="card-row"><header><h3 class="title">{w.name}</h3></header><div class="actions"><button class="btn" onclick={() => onopen(w)}>Open</button></div></li>{/each}</ul>
+      </section>
+    {/if}
+    <section class="pn" aria-label="Personal collections">
+      <h2 class="band">Personal collections</h2>
+      <ul class="card-list">
+        {#each collections as c (c.id)}
+          <li class="card-row" aria-label={c.name}>
+            <header><h3 class="title">{c.name}</h3><span class="tag">{usages[c.id]?.referenceCount === 0 ? 'Retained data — no workspace' : `${usages[c.id]?.referenceCount} workspace references`}</span></header>
+            <p class="count">{usages[c.id]?.recordCount ?? 'Unknown'} records</p>
+            <div class="actions"><button class="btn" onclick={() => recover(c, false)}>Inspect records</button><button class="btn" onclick={() => recover(c, true)}>Use in new workspace</button></div>
+          </li>
+        {:else}<li class="muted">No personal collections are saved.</li>{/each}
+      </ul>
+    </section>
   {/if}
-  {#if session}<h2>Collection records</h2><WorkspaceRenderer {session} />{/if}
+  {#if session}<section class="pn" aria-label="Collection records"><h2 class="band">Collection records</h2><WorkspaceRenderer {session} /></section>{/if}
 </div>
 <style>
-  .library { max-width: 1120px; margin-inline: auto; padding: 24px; }
-  header, .row, .rows { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; } header, .row { justify-content: space-between; }
-  h1 { font-size: 20px; margin: 0; } h2 { margin: 24px 0 12px; font-family: inherit; font-size: 18px; text-transform: none; letter-spacing: normal; } h3 { font-size: 14px; margin: 0; }
-  p { color: var(--text-2); line-height: 1.6; max-width: 72ch; } .row { padding-block: 16px; border-bottom: 1px solid var(--border); } .row p { margin-bottom: 0; }
+  .library { display: grid; gap: 20px; max-width: 1120px; margin-inline: auto; padding: 24px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .card-row > header { justify-content: flex-start; }
+  h1 { font-size: 20px; margin: 0; }
+  p { margin: 0; color: var(--text-2); line-height: 1.6; max-width: 72ch; }
+  .count { font-size: 13px; }
   @media (max-width: 600px) { .library { padding: 16px; } button { min-height: 44px; } }
 </style>

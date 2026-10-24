@@ -42,7 +42,7 @@
   }
   .group + .group,
   .owner + .group {
-    margin-top: 16px;
+    margin-top: 24px;
   }
   .owner {
     margin: 22px 8px 6px;
@@ -60,22 +60,27 @@
     padding-top: 0;
     border-top: 0;
   }
+  /* A group heading names what is under it; it is not something to press. The sections are indented beneath it on a rule. */
   h2 {
-    margin: 0 8px 4px;
-    color: var(--text-2);
+    margin: 0 8px 6px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid color-mix(in srgb, var(--text) 55%, var(--border));
+    color: var(--text);
     font-family: var(--mono);
     font-size: 11.5px;
-    font-weight: 500;
+    font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
   .item {
     display: block;
-    width: 100%;
-    min-height: 30px;
-    padding: 0 8px;
+    width: calc(100% - 16px);
+    min-height: 32px;
+    margin: 0 8px 0 16px;
+    padding: 0 10px;
     border: 0;
-    border-radius: var(--radius-sm);
+    border-left: 2px solid var(--border);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     background: none;
     color: var(--text-2);
     font: inherit;
@@ -83,10 +88,15 @@
     text-align: left;
     cursor: pointer;
   }
-  .item:hover,
-  .item[aria-current='page'] {
+  .item:hover {
     background: var(--surface-2);
     color: var(--text);
+  }
+  .item[aria-current='page'] {
+    border-left-color: var(--accent);
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 600;
   }
   .item:focus-visible {
     outline: 2px solid var(--accent);

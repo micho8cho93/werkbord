@@ -509,6 +509,15 @@ device made it; choosing one puts it on that position. Nothing is listed under t
 the Assistant on the phone, and once the workspace is confirmed it is in that list at once (and is the computer's too),
 ready to be put on a button or removed from one later.
 
+### Where a workspace made on a phone appears
+
+Salie asks where a new workspace should be shown (Individual, a Team by name, Universal, or several) before proposing it,
+from a phone as much as from the computer. A phone cannot see the Teams the computer has connected, so the desktop window
+tells the controller their ids and names (`PUT /api/personal/v1/display-contexts`, owner only, a phone is not reviewed
+for it, held in memory and repeated every few seconds while the window is open). Salie reads them with
+`list_display_locations`; with the window closed no Team is offered and Individual is. The workspace is then listed in
+that Individual or Team generated group on the computer on its next refresh.
+
 ### Staying in step
 
 Workspace, collection and record changes emit `personal.*` invalidation events (an ID and a revision, never content).

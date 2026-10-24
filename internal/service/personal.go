@@ -12,7 +12,10 @@ import (
 // Personal is private local owner data. Only the authenticated loopback owner
 // API and owner assistant proposals wire this service. It is absent from MCP and the
 // desktop/Team bridges; a display location grants no access to another product.
-type Personal struct{ Deps }
+type Personal struct {
+	Deps
+	contexts displayContexts
+}
 
 func personalIDCheck(id, prefix string) error {
 	if !domain.ValidPersonalID(id, prefix) {

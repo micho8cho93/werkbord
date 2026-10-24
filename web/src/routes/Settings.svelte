@@ -287,8 +287,9 @@
   .mcp-direction { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
   .mcp-direction button { white-space: normal; min-height: 44px; }
   .mcp-direction [aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }
-  .section-group + .section-group { margin-top: 20px; }
-  .section-group h2 { margin: 0 12px 6px; font-size: 12px; font-weight: 500; color: var(--text-2); }
+  .section-group + .section-group { margin-top: 24px; }
+  /* A group heading names what is under it and is not pressable; its sections are indented beneath it on a rule. */
+  .section-group h2 { margin: 0 12px 6px; padding-bottom: 6px; border-bottom: 2px solid color-mix(in srgb, var(--text) 55%, var(--border)); font: 700 11.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text); }
   .section-links { display: flex; flex-direction: column; gap: 2px; }
   .settings {
     height: 100%;
@@ -317,8 +318,10 @@
     display: flex;
     align-items: center;
     min-height: 34px;
-    padding: 0 12px;
-    border-radius: var(--radius-sm);
+    margin: 0 12px 0 20px;
+    padding: 0 10px;
+    border-left: 2px solid var(--border);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     color: var(--text-2);
     text-decoration: none;
     font-weight: 500;
@@ -330,9 +333,10 @@
   }
 
   .sections a[aria-current='page'] {
+    border-left-color: var(--accent);
     background: var(--surface-2);
     color: var(--text);
-    box-shadow: var(--press-sh);
+    font-weight: 600;
   }
 
   .content {

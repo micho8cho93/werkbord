@@ -70,8 +70,9 @@
 </script>
 
 <section class="pn memory" aria-labelledby="memory-title">
-  <h3 id="memory-title">Memory</h3>
-  <p class="muted">Private to you, on this computer: decisions, preferences and evidence saved for this project. Nothing here reaches your Team unless you choose to share it under Settings → Individual memory. Agent reports stay unverified until you confirm them. Saved policies remain context; they do not change agent permissions. Do not save passwords or keys.</p>
+  <h3 id="memory-title" class="band">Memory</h3>
+  <p class="muted">What this project remembers: decisions, preferences and facts. Private to you on this computer; share them with a Team under Settings → Individual memory.</p>
+  <details class="about"><summary>Good to know</summary><p class="muted">Agent reports stay unverified until you confirm them. Saved policies are context only and never change what an agent may do. Do not save passwords or keys.</p></details>
   <form class="tools" onsubmit={(event) => { event.preventDefault(); void load(); }}>
     <label class="search">Search memories<input class="input" type="search" maxlength="256" bind:value={query} placeholder="Search words in a memory" /></label>
     <label>Status<select class="input" bind:value={status}><option value="">All records</option><option value="current">Current</option><option value="needs_verification">Unverified</option><option value="historical">History</option><option value="superseded">Superseded</option></select></label>
@@ -92,10 +93,10 @@
   {#if loading}<p class="muted" role="status">Loading memories…</p>
   {:else if records.length === 0}<p class="muted">No memories match this view. Save a decision or preference, or finish a run to collect its evidence.</p>
   {:else}
-    <ul class="records">
+    <ul class="records card-list">
       {#each records as memory (memory.id)}
-        <li>
-          <div class="meta"><strong>{memoryLabel(memory)}</strong><span>{verificationLabel(memory)}</span><span>{memory.type.replaceAll('_', ' ')}</span>{#if memory.pinned}<span>Pinned</span>{/if}</div>
+        <li class="card-row">
+          <header><strong class="title">{memoryLabel(memory)}</strong><span class="tag">{verificationLabel(memory)}</span><span class="tag">{memory.type.replaceAll('_', ' ')}</span>{#if memory.pinned}<span class="tag">Pinned</span>{/if}</header>
           <p class="claim">{memory.summary}</p>
           <div class="actions">
             <button class="btn quiet" disabled={busy} onclick={() => edit(memory)}>Correct</button>
@@ -124,16 +125,13 @@
 
 <style>
   .memory { max-width: 900px; }
-  .tools, .actions, .meta { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+  .tools, .actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
   .tools { margin: 20px 0; gap: 12px; }
   label { display: grid; gap: 6px; }
   .search { flex: 1; min-width: 180px; }
   .editor { display: grid; gap: 12px; padding: 16px 0; border-block: 1px solid var(--border); }
   h4, .claim { margin: 0; }
-  .records { list-style: none; padding: 0; margin: 16px 0 0; }
-  .records > li { padding: 18px 0; border-top: 1px solid var(--border); }
-  .meta { align-items: baseline; color: var(--text-2); font-size: 12px; margin-bottom: 8px; }
-  .meta strong { color: var(--text); }
+  .records { margin-top: 4px; }
   .claim { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 75ch; margin-bottom: 12px; }
   .sources, .confirm { margin-top: 12px; padding: 12px; background: var(--surface-2); overflow-wrap: anywhere; }
   .sources ul { padding-left: 20px; }

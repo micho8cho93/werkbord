@@ -219,7 +219,7 @@ async function api(method, path, data, credential = token) {
     assert.equal((await api('GET', `/projects/${p.id}/tickets/${dragged.id}`)).status, 'done');
     await page.locator('.ticket').getByRole('button', { name: 'Close', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.getByRole('button', { name: 'Archive Done tickets', exact: true }).click();
+    await page.locator('[data-board-item]').filter({ hasText: dragged.title }).getByRole('button', { name: 'Archive', exact: true }).click();
     await page.getByRole('button', { name: /^Archive \(/ }).click();
     await page.locator('.archive-list').getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
     await page.getByText('Keep this context', { exact: true }).waitFor();
@@ -228,7 +228,7 @@ async function api(method, path, data, credential = token) {
     await page.getByRole('button', { name: 'Archive ticket', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Back to board', exact: true }).click();
-    console.log('PASS Team drag-to-claim, archive, restore, Archive Done and retained details');
+    console.log('PASS Team drag-to-claim, archive from the card, restore and retained details');
     // A Workspace Host older than this window has no route for Calendar, Analytics or MCP clients and answers 404 "no such
     // endpoint" to each. The screen says so once, in its own place, and the words do not follow the person to other screens.
     {

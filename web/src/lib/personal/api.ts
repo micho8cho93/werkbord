@@ -24,6 +24,8 @@ export function createPersonalAPI(call: PersonalRequest) {
       } while (after);
       return items;
     },
+    /** The computer tells the controller which Teams it has connected, so that Salie can offer them (from a phone too). Owner only. */
+    setDisplayContexts: async (items: { id: string; name: string }[]) => { await request('PUT', `${base}/display-contexts`, { items }); },
     updateWorkspace: async (id: string, revision: number, workspace: WorkspaceSpec) => workspaceSchema.parse(await request('PUT', `${base}/workspaces/${workspaceID.parse(id)}`, { revision, workspace })),
     previewDeletion: async (id: string, revision: number, mode: 'keep_data' | 'delete_data') => deletionSchema.parse(await request('POST', `${base}/workspaces/${workspaceID.parse(id)}/deletion-preview`, {revision, mode})),
     deleteWorkspace: async (preview: Deletion) => deletionSchema.parse(await request('DELETE', `${base}/workspaces/${workspaceID.parse(preview.workspaceId)}`, {revision: preview.revision, mode: preview.mode, fingerprint: preview.fingerprint, confirmed: true})),

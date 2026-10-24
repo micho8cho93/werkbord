@@ -549,53 +549,72 @@ setInterval(async () => {
 
 // Sharing choices belong to the local controller; this surface holds only its
 // separately authorised workspace-bound journal grant and Team-owned records.
+const MEMORY_STATE = { suggested: 'Waiting for approval', approved: 'Approved, not shared yet', published: 'Shared with the team' };
+const MEMORY_SOURCE = { git: 'From Git activity', user: 'Written by a person', run: 'From an agent run', handoff: 'From a handoff', import: 'Imported' };
+// The repository a project's memory is filed under: host and path, as the controller canonicalises it. A project may have none.
+function memoryRepository(remote) {
+  if (!remote) return '';
+  if (remote.startsWith('git@') && !remote.includes('://')) remote = 'ssh://' + remote.replace(':', '/');
+  let address;
+  try { address = new URL(remote); } catch { return ''; }
+  let host = address.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const defaultPort = { 'https:': '443', 'ssh:': '22', 'git:': '9418' }[address.protocol];
+  if (address.port && address.port !== defaultPort) host = (host.includes(':') ? '[' + host + ']' : host) + ':' + address.port;
+  return host + '/' + address.pathname.replace(/^\//, '').replace(/\/$/, '').replace(/\.git$/, '');
+}
 async function memorySharingPanel() {
   const projects = state.ov.projects.filter(p => p.member && !p.project.archived).map(p => p.project);
-  const box = h('section', { class: 'panel', 'aria-labelledby': 'memory-sharing-h' }, h('h2', { id: 'memory-sharing-h' }, 'Team memory'),
-    h('p', { class: 'muted' }, 'Only explicitly enabled local projects can propose validated Git metadata. Summaries and architectural decisions need a separate project choice and review. Personal preferences, sessions, transcripts, code, credentials, environment variables and paths are never shared automatically.'),
-    h('p', { class: 'muted' }, 'Choose projects, review local proposals, inspect delivery and revoke sharing in Individual → Settings → Individual memory. Copy the workspace and project identities below into that local setting.'),
-    h('p', { class: 'identity' }, state.me.workspace.id),
-    state.device?.sync?.problem ? h('p', { class: 'advice' }, state.device.sync.problem) : '',
-    projects.map(p => h('p', { class: 'identity' }, p.name + ' · ' + p.id + ' · ' + p.repository)));
+  const box = h('section', { class: 'panel memory-panel', 'aria-labelledby': 'memory-sharing-h' }, h('h2', { id: 'memory-sharing-h' }, 'Team memory'),
+    h('p', { class: 'muted' }, 'Short notes about each project that the team has agreed to keep. Nothing is shared until you turn it on for a project in Individual → Settings → Individual memory, and another person approves it.'),
+    state.device?.sync?.problem ? h('p', { class: 'advice' }, state.device.sync.problem) : '');
   if (state.desktop) {
     const token = h('input', { type: 'password', name: 'memory-grant', autocomplete: 'off', required: true });
-    box.append(h('details', {}, h('summary', {}, 'Connect approved local publication'),
-      h('form', { onsubmit: e => { e.preventDefault(); act(async () => { await deviceApi('POST', '/memory/grant', { token: token.value }); token.value = ''; state.info = 'Memory publication connected. Only local project choices permit sharing.'; }); } },
-        field('Workspace-bound memory grant from Individual', token), h('button', { class: 'primary', type: 'submit' }, 'Connect memory publication'))));
+    box.append(h('details', {}, h('summary', {}, 'Connect memory sharing'),
+      h('form', { onsubmit: e => { e.preventDefault(); act(async () => { await deviceApi('POST', '/memory/grant', { token: token.value }); token.value = ''; state.info = 'Memory sharing connected.'; }); } },
+        field('Grant from Individual', token), h('button', { class: 'primary', type: 'submit' }, 'Connect'))));
   }
-  const choose = h('select', { name: 'memory-project', 'aria-label': 'Memory project' }, h('option', { value: '' }, 'Choose a project'), projects.map(p => h('option', { value: p.id }, p.name)));
-  const results = h('div', { 'aria-live': 'polite' });
+  const results = h('div', { class: 'memory-list', 'aria-live': 'polite' });
+  const choose = h('select', { name: 'memory-project', 'aria-label': 'Project' }, projects.map(p => h('option', { value: p.id }, p.name)));
   async function load() {
     results.replaceChildren();
-    const p = projects.find(p => p.id === choose.value); if (!p) return;
-    let remote = p.repository;
-    if (remote.startsWith('git@') && !remote.includes('://')) remote = 'ssh://' + remote.replace(':', '/');
-    const address = new URL(remote);
-    let host = address.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-    const defaultPort = { 'https:': '443', 'ssh:': '22', 'git:': '9418' }[address.protocol];
-    if (address.port && address.port !== defaultPort) host = (host.includes(':') ? '[' + host + ']' : host) + ':' + address.port;
-    const repository = host + '/' + address.pathname.replace(/^\//, '').replace(/\/$/, '').replace(/\.git$/, '');
+    const p = projects.find(p => p.id === choose.value);
+    if (!p) { results.append(h('p', { class: 'muted' }, 'You are not on any project yet.')); return; }
+    const repository = memoryRepository(p.repository);
+    if (!repository) { results.append(h('p', { class: 'muted' }, p.name + ' has no repository connected, so it has no shared memory. Connect one in the project’s settings.')); return; }
     // The service validates the canonical repository binding before returning data.
     const scope = { workspaceId: state.me.workspace.id, kind: 'repository', projectId: p.id, repository };
     let after = '';
-    let count = 0;
+    const records = [];
     do {
       const page = await api('POST', '/memory/query', { schema: 'werkbord.memory/v1', scope, after, published: false });
-      for (const r of page.records) {
-        count++;
-        const command = action => act(async () => { await api('POST', '/memory/' + r.id, {schema: r.schema, scope: r.scope, version: r.version, action}); await load(); });
-        results.append(h('div', { class: 'row' }, h('div', { class: 'grow' }, h('p', {}, r.content.summary), h('p', { class: 'muted' }, r.state + ' · ' + r.content.source.kind)),
-          r.state === 'suggested' && r.authorId !== state.me.member.id ? h('button', { class: 'plain', onclick: () => command('approve') }, 'Approve reviewed memory') : '',
-          r.state === 'approved' ? h('button', { class: 'plain', onclick: () => command('publish') }, 'Publish approved memory') : '',
-          h('button', { class: 'danger', onclick: () => confirm('Revoke this shared memory? Copies already read, exported, backed up or used elsewhere cannot be erased.') && command('delete') }, 'Revoke')));
-      }
+      records.push(...(page.records || []));
       after = page.more ? page.next : '';
-    } while (after && count < 200);
-    if (!count) results.append(h('p', { class: 'muted' }, 'No shared memories for this project.'));
-    if (after) results.append(h('p', { class: 'muted' }, 'Showing the first 200 records. Narrow this project’s memory through its API to inspect further records.'));
+    } while (after && records.length < 200);
+    if (!records.length) { results.append(h('p', { class: 'muted' }, 'Nothing has been proposed for ' + p.name + ' yet.')); return; }
+    const waiting = records.filter(r => r.state === 'suggested').length;
+    results.append(h('p', { class: 'memory-count' }, plural(records.length, 'note') + (waiting ? ' · ' + waiting + ' waiting for approval' : '')));
+    for (const r of records) {
+      const command = action => api('POST', '/memory/' + r.id, { schema: r.schema, scope: r.scope, version: r.version, action }).then(load).catch(e => { state.error = e.message; render(); });
+      const source = MEMORY_SOURCE[r.content?.source?.kind] || 'From this project';
+      results.append(h('article', { class: 'memory-card' },
+        h('header', {}, h('span', { class: 'badge' + (r.state === 'published' ? '' : ' warn') }, MEMORY_STATE[r.state] || r.state), h('span', { class: 'muted small' }, source)),
+        h('p', { class: 'memory-summary' }, r.content?.summary || 'No summary'),
+        h('div', { class: 'actions' },
+          r.state === 'suggested' && r.authorId !== state.me.member.id ? h('button', { class: 'plain small', onclick: () => command('approve') }, 'Approve') : '',
+          r.state === 'approved' ? h('button', { class: 'plain small', onclick: () => command('publish') }, 'Share with team') : '',
+          h('button', { class: 'danger small', onclick: () => confirm('Revoke this shared note? Copies already read, exported or backed up elsewhere cannot be erased.') && command('delete') }, 'Revoke'))));
+    }
+    if (after) results.append(h('p', { class: 'muted' }, 'Showing the first 200 notes.'));
   }
-  choose.addEventListener('change', () => act(load));
-  box.append(field('Inspect proposed and published memories', choose), results,
-    h('p', { class: 'muted' }, 'Publication requires another authorised human’s approval. Revocation removes active access after acknowledgement; copies already read, exported, backed up or used elsewhere may remain. Offline withdrawals wait for reconnection.'));
+  const show = () => load().catch(e => results.replaceChildren(h('p', { class: 'error' }, e.message || 'These notes could not be loaded.')));
+  choose.addEventListener('change', show);
+  box.append(projects.length ? field('Project', choose) : '', results,
+    h('details', {}, h('summary', {}, 'How sharing works'),
+      h('p', { class: 'muted' }, 'Only validated Git metadata from projects you enable can be proposed. Summaries and decisions need their own choice and a review. Sessions, transcripts, code, credentials and paths are never shared. Sharing needs another person’s approval, and revoking removes access once acknowledged; copies already read or backed up may remain.')),
+    projects.length ? h('details', {}, h('summary', {}, 'Identifiers for Individual'),
+      h('p', { class: 'muted' }, 'Copy these into Individual → Settings → Individual memory.'),
+      h('p', { class: 'identity' }, state.me.workspace.id),
+      projects.map(p => h('p', { class: 'identity' }, p.name + ' · ' + p.id + (p.repository ? ' · ' + p.repository : '')))) : '');
+  if (projects.length) show();
   return box;
 }

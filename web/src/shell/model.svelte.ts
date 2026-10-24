@@ -69,7 +69,17 @@ export class Model {
     }
     this.openGenerated(id);
   }
+  private contextsSent = '';
+  private contextsAt = 0;
+  /** Salie, on the phone as on the computer, offers the Teams this window has connected as places for a workspace to appear. */
+  private async publishContexts(): Promise<void> {
+    const teams = (this.view?.items ?? []).filter(i => i.kind === 'team' && i.state === 'ready').map(i => ({ id: i.id, name: i.name }));
+    const signature = JSON.stringify(teams);
+    if (signature === this.contextsSent && Date.now() - this.contextsAt < 30_000) return;
+    try { await shellPersonalAPI.setDisplayContexts(teams); this.contextsSent = signature; this.contextsAt = Date.now(); } catch { /* tried again on the next refresh */ }
+  }
   async refreshGenerated(): Promise<void> {
+    void this.publishContexts();
     try { this.generated = await shellPersonalAPI.workspaces(); this.generatedError = ''; }
     catch (e) { this.generated = []; this.generatedError = (e as Error).message; }
   }

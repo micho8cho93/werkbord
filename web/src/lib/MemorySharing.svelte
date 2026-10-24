@@ -32,6 +32,8 @@
     catch (e) { error = e instanceof Error ? e.message : String(e); }
     finally { busy = false; loading = false; }
   }
+  const nameOf = (g: Grant) => app.projects.find(p => p.id === g.localProjectId)?.name ?? g.repository;
+  const stateWord = (state: string) => ({ awaiting_approval: 'Waiting for your review', private: 'Private', shared: 'Shared with the team', revoked: 'Revoked', revocation_pending: 'Withdrawing', deleted: 'Deleted', superseded: 'Replaced' } as Record<string, string>)[state] ?? state.replaceAll('_', ' ');
   async function change(g: Grant) { await request('PUT', base + '/grants', g); }
   function revoke(p: Publication) {
     return act(() => request('POST', base + '/review', {workspaceId: p.grant.workspaceId, projectId: p.grant.projectId, memoryId: p.memoryId, revoke: true}));
@@ -40,74 +42,95 @@
     token = '';
     const result = await request<{token: string}>('POST', '/api/local-access', {name: 'Memory publication', scope: 'memory-v1', workspaceId: w});
     token = result.token;
-    notice = 'Paste this separate grant into that workspace’s Team memory settings. Use Disconnect below to revoke the connection. Disable publication first and wait for withdrawals before disconnecting.';
+    notice = 'Paste this grant into that workspace’s Team memory settings. To undo it, turn sharing off, wait for the withdrawals, then Disconnect.';
   }
 </script>
 
 <section class="pn sharing" aria-labelledby="sharing-title">
-  <h2 id="sharing-title">Individual memory</h2>
-  <p>Choose each project and destination explicitly. Eligible Git metadata contains only validated commit and pull request identities. Semantic implementation summaries and architectural decisions need a separate choice and a review of the exact text.</p>
-  <p class="muted">Personal preferences, private sessions, transcripts, source code, credentials, environment variables and local paths are never exported automatically. Other knowledge stays private in Individual.</p>
+  <h2 id="sharing-title" class="band">Individual memory</h2>
+  <p class="intro">Choose which projects share short notes with a Team. Nothing leaves this computer until you turn it on for a project, and a note about decisions is only shared after you approve its exact words.</p>
+  <details class="about"><summary>What is shared</summary>
+    <p class="muted">Git metadata means validated commit and pull request identities. Summaries and architectural decisions are separate choices. Personal preferences, private sessions, transcripts, source code, credentials, environment variables and local paths are never exported. Turning a project off withdraws its shared notes once the Team acknowledges it; copies already read or backed up may remain.</p>
+  </details>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if notice}<p role="status">{notice}</p>{/if}
   {#if token}<label>Workspace-bound grant <input readonly value={token} onfocus={e => e.currentTarget.select()} /></label>{/if}
   {#if loading}<p class="muted">Loading sharing choices…</p>
   {:else}
-    {#each grants as g (g.workspaceId + ':' + g.projectId)}
-      <div class="sharing-row">
-        <div><strong>{g.repository}</strong><p class="muted identity">{g.workspaceId} · {g.projectId}</p></div>
-        <label class="check"><input type="checkbox" checked={g.enabled} disabled={busy} onchange={e => void act(() => change({...g, enabled: e.currentTarget.checked}))} /> Publish Git metadata</label>
-        <label class="check"><input type="checkbox" checked={g.semantic} disabled={busy || !g.enabled} onchange={e => void act(() => change({...g, semantic: e.currentTarget.checked}))} /> Propose reviewed summaries and decisions</label>
-        <button class="btn" disabled={busy} onclick={() => void act(() => grantToken(g.workspaceId))}>Connect this workspace</button>
-      </div>
-    {:else}<p class="muted">No project is shared yet. Add an authorised repository below.</p>{/each}
-    {#each access as entry (entry.id)}
-      <div class="sharing-row"><span class="identity">Publication connection · {entry.memoryWorkspaceId}</span><button class="btn" disabled={busy} onclick={() => void act(() => requestNoContent('DELETE', '/api/local-access/' + encodeURIComponent(entry.id)))}>Disconnect this grant</button></div>
-    {/each}
-    <details>
-      <summary>Add a sharing destination</summary>
+    <ul class="card-list">
+      {#each grants as g (g.workspaceId + ':' + g.projectId)}
+        {@const mine = records.filter(r => r.grant.workspaceId === g.workspaceId && r.grant.projectId === g.projectId)}
+        <li class="card-row">
+          <header><h3 class="title">{nameOf(g)}</h3><span class="tag">{g.enabled ? 'Sharing on' : 'Sharing off'}</span></header>
+          <p class="muted repo">{g.repository}</p>
+          <div class="choices">
+            <label class="check"><input type="checkbox" checked={g.enabled} disabled={busy} onchange={e => void act(() => change({...g, enabled: e.currentTarget.checked}))} /> Share Git metadata</label>
+            <label class="check"><input type="checkbox" checked={g.semantic} disabled={busy || !g.enabled} onchange={e => void act(() => change({...g, semantic: e.currentTarget.checked}))} /> Propose summaries and decisions for review</label>
+          </div>
+          {#if mine.length}
+            <div class="notes">
+              <p class="kicker">{mine.length} {mine.length === 1 ? 'note' : 'notes'}</p>
+              {#each mine as p (p.memoryId)}
+                <div class="note">
+                  <p class="summary">{p.receipt?.record.content.summary || p.summary || 'Implementation summary or architectural decision'}</p>
+                  <div class="note-foot"><span class="tag">{stateWord(p.state)}</span>
+                    {#if p.state === 'awaiting_approval'}<button class="btn small" disabled={busy} onclick={() => { review = p; summary = ''; }}>Review text</button>{/if}
+                    {#if !['private', 'revoked', 'revocation_pending', 'deleted', 'superseded'].includes(p.state)}<button class="btn small danger" disabled={busy} onclick={() => void revoke(p)}>Revoke</button>{/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}<p class="muted">No notes from this project yet.</p>{/if}
+          <div class="actions"><button class="btn" disabled={busy} onclick={() => void act(() => grantToken(g.workspaceId))}>Connect this workspace</button></div>
+          <details><summary>Identifiers</summary><p class="muted identity">{g.workspaceId} · {g.projectId}</p></details>
+        </li>
+      {:else}<li class="muted">No project is shared yet. Add one below.</li>{/each}
+      {#each access as entry (entry.id)}
+        <li class="card-row">
+          <header><h3 class="title">Connection</h3><span class="tag">Memory publication</span></header>
+          <p class="muted identity">{entry.memoryWorkspaceId}</p>
+          <div class="actions"><button class="btn" disabled={busy} onclick={() => void act(() => requestNoContent('DELETE', '/api/local-access/' + encodeURIComponent(entry.id)))}>Disconnect</button></div>
+        </li>
+      {/each}
+    </ul>
+    {#if review}
+      {@const chosen = review}
+      <form class="card-row" onsubmit={e => { e.preventDefault(); void act(async () => { await request('POST', base + '/review', {workspaceId: chosen.grant.workspaceId, projectId: chosen.grant.projectId, memoryId: chosen.memoryId, version: chosen.revision, summary}); review = null; }); }}>
+        <label>Statement to share for this project <textarea bind:value={summary} maxlength="2048" required rows="4"></textarea></label>
+        <p class="muted">Write only the conclusion or decision you mean to share. Another person on the Team still has to approve it.</p>
+        <div class="actions"><button class="btn primary" disabled={busy}>Approve this text</button><button type="button" class="btn" onclick={() => { review = null; }}>Cancel</button></div>
+      </form>
+    {/if}
+    <details class="add">
+      <summary>Add a project to share</summary>
       <form onsubmit={e => { e.preventDefault(); void act(() => change({workspaceId: workspace, projectId: project, localProjectId: local, repository, enabled: true, semantic: false})); }}>
         <label>Local project <select bind:value={local} required><option value="">Choose a project</option>{#each app.projects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}</select></label>
         <label>Workspace ID <input bind:value={workspace} required /></label>
         <label>Team project ID <input bind:value={project} required /></label>
-        <label>Canonical repository <input bind:value={repository} placeholder="github.com/organisation/repository" required /></label>
-        <button class="btn primary" disabled={busy}>Enable Git metadata publication</button>
+        <label>Repository <input bind:value={repository} placeholder="github.com/organisation/repository" required /></label>
+        <button class="btn primary" disabled={busy}>Turn on sharing</button>
       </form>
     </details>
-    <h3>Proposed and shared memories</h3>
-    <button class="btn" disabled={busy} onclick={() => void act(async () => {})}>Refresh delivery status</button>
-    {#each records as p (p.grant.workspaceId + ':' + p.grant.projectId + ':' + p.memoryId)}
-      <div class="sharing-row">
-        <strong>{p.summary || 'Implementation summary or architectural decision'}</strong>
-        <p class="muted identity">{p.grant.workspaceId} · {p.grant.projectId} · {p.state.replaceAll('_', ' ')}</p>
-        {#if p.receipt}<p>{p.receipt.record.content.summary || 'The shared record was withdrawn.'}</p>{/if}
-        <div class="actions">
-          {#if p.state === 'awaiting_approval'}<button class="btn" disabled={busy} onclick={() => { review = p; summary = ''; }}>Review proposed text</button>{/if}
-          {#if !['private', 'revoked', 'revocation_pending', 'deleted', 'superseded'].includes(p.state)}<button class="btn danger" disabled={busy} onclick={() => void revoke(p)}>Revoke publication</button>{/if}
-        </div>
-      </div>
-    {:else}<p class="muted">No eligible memories in the selected repositories yet.</p>{/each}
-    {#if review}
-      {@const chosen = review}
-      <form onsubmit={e => { e.preventDefault(); void act(async () => { await request('POST', base + '/review', {workspaceId: chosen.grant.workspaceId, projectId: chosen.grant.projectId, memoryId: chosen.memoryId, version: chosen.revision, summary}); review = null; }); }}>
-        <label>Sanitised statement for this project <textarea bind:value={summary} maxlength="2048" required rows="4"></textarea></label>
-        <p class="muted">Write only the implementation conclusion or architectural decision you intend to share. Team still requires another authorised person to approve publication.</p>
-        <div class="actions"><button class="btn primary" disabled={busy}>Approve this exact text for sharing</button><button type="button" class="btn" onclick={() => { review = null; }}>Cancel</button></div>
-      </form>
-    {/if}
+    <div class="actions"><button class="btn" disabled={busy} onclick={() => void act(async () => {})}>Refresh status</button></div>
   {/if}
-  <p class="muted">Disabling a project queues withdrawal of its shared records. Offline changes wait for reconnection. Revocation removes active Team access when acknowledged; it cannot erase copies already read, exported, backed up or incorporated into other work.</p>
 </section>
 
 <style>
-  .sharing { display: grid; gap: 12px; }
+  .sharing { display: grid; gap: 14px; }
   .sharing p { margin: 0; max-width: 75ch; }
+  .intro { line-height: 1.5; }
   .muted { color: var(--text-2); }
-  .identity { overflow-wrap: anywhere; }
-  .sharing-row { display: grid; gap: 8px; padding-block: 14px; border-top: 1px solid var(--border); }
+  .identity, .repo { overflow-wrap: anywhere; font-size: 12.5px; }
+  .choices { display: grid; gap: 8px; }
+  .notes { display: grid; gap: 8px; }
+  .kicker { font: 500 11.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); }
+  .note { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+  .note-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .summary { line-height: 1.5; overflow-wrap: anywhere; }
+  .add { padding-top: 12px; border-top: 1px solid var(--border); }
   form { display: grid; gap: 12px; padding-block: 12px; }
+  form.card-row { padding: 14px 16px; }
   label { display: grid; gap: 5px; }
   label.check { display: flex; align-items: center; gap: 8px; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
   button { justify-self: start; }
 </style>

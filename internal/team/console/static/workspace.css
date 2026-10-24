@@ -131,3 +131,33 @@ button.cc-title:hover { text-decoration: underline; }
 .ticket-dialog .plan-fields legend .muted { text-transform: none; letter-spacing: 0; font-family: var(--sans); }
 .run-card > section { display: grid; gap: 10px; }
 .run-card > section > h3 { margin: 0; font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+/* ---- panels are cards: a strong border, a banded heading, room between them ---- */
+:root { --card-edge: color-mix(in srgb, var(--text) 20%, var(--line)); }
+.main-content .panel { margin: 0 0 20px; padding: 0 18px 18px; border: 1px solid var(--card-edge); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); overflow: hidden; min-width: 0; }
+.main-content .panel > h2 { margin: 0 -18px 16px; padding: 11px 18px; border-bottom: 1px solid var(--card-edge); background: var(--s2); font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--text); }
+.main-content .panel > .row:first-of-type, .main-content .panel > h2 + .row { border-top: 0; padding-top: 0; }
+.settings-content > div > .panel + .panel, .settings-content > .panel + .panel { padding-top: 0; border-top: 1px solid var(--card-edge); }
+.main-content .project-settings > .panel, .main-content .project-settings > div > .panel { margin-bottom: 0; }
+.main-content .panel .panel { margin-bottom: 0; box-shadow: none; }
+
+/* A work item (Reviews, My Work): a card of its own, with its heading, its facts and its actions kept apart. */
+.card.item { gap: 0; padding: 0; margin: 0 0 14px; border: 1px solid var(--card-edge); border-radius: var(--radius-tray); background: var(--panel); box-shadow: var(--card-sh); overflow: hidden; }
+.card.item:first-of-type { padding-top: 0; border-top: 1px solid var(--card-edge); }
+.card.item > * { padding: 12px 16px; min-width: 0; }
+.card.item > * + * { border-top: 1px solid var(--line); }
+.card.item .item-head { display: grid; gap: 6px; background: var(--s2); border-bottom: 0; }
+.card.item .item-head .title { justify-self: start; font-size: 15px; font-weight: 500; text-align: left; }
+.card.item .item-body { display: grid; gap: 8px; }
+.card.item .item-foot { display: grid; gap: 10px; }
+.card.item .item-foot:empty { display: none; }
+.card.item.mine { border-color: color-mix(in srgb, var(--accent) 45%, var(--card-edge)); }
+
+/* ---- Team memory: a note is a small card with its state, its summary and what can be done to it ---- */
+.memory-panel > label, .memory-panel > .field { margin-bottom: 14px; }
+.memory-list { display: grid; gap: 12px; margin-top: 14px; }
+.memory-count { margin: 0; font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.memory-card { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--card-edge); border-radius: var(--radius-sm); background: var(--s2); box-shadow: var(--tray-sh); min-width: 0; }
+.memory-card > header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.memory-summary { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.memory-panel > details { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }

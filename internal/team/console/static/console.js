@@ -1029,22 +1029,24 @@ function workItem(it, extra) {
         h('ul', { class: 'commits' }, k.commits.map((c) => h('li', {}, isHTTPS(L.commitPrefix) ? extLink(L.commitPrefix + c.sha, c.sha.slice(0, 8)) : h('code', {}, c.sha.slice(0, 8)), ' ', c.subject, c.author ? h('span', { class: 'muted' }, ' · ' + c.author) : ''))))
     : '';
   const mine = k.assigneeId === state.me.member.id;
-  return h('article', { class: 'card item' + (mine ? ' mine' : '') },
-    h('div', { class: 'muted small' }, k.key, ' · ', it.project.name, ' · ', statusName(k.status), it.assignedBy ? ' · assigned to you by ' + it.assignedBy : (it.author && !mine ? ' · by ' + it.author : '')),
-    h('button', { class: 'link title', onclick: () => openTicket(it.project.id, k.id) }, k.title),
-    h('div', { class: 'flags' }, mergeBadge(it), pr && pr.state === 'open' && pr.behind > 0 ? h('span', { class: 'badge warn' }, pr.behind + ' behind ' + (pr.baseBranch || 'base')) : '', pr && pr.draft ? h('span', { class: 'badge' }, 'draft') : ''),
-    k.branch ? h('div', {}, 'Branch ', h('code', {}, k.branch), ' ', copy(k.branch, 'Copy')) : '',
-    links.length ? h('div', { class: 'links' }, links.map((l, i) => [i ? ' · ' : '', l])) : '',
-    commits,
-    extra || '',
-    state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
+  const foot = [extra || '', state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
     mine && (k.workMode || 'agent') !== 'human' && ['available', 'in_progress', 'review'].includes(k.status)
       ? (() => {
           const individual = typeof individualActions === 'function' ? individualActions(it.project.id, k.id, true) : '';
           return h('div', { class: 'actions' }, individual, h('button', { class: (individual ? 'plain' : 'primary') + ' small', onclick: () => openInRunner(it) }, 'Open in my runner'),
             h('button', { class: 'plain small', onclick: () => openTicket(it.project.id, k.id) }, 'Open ticket'));
         })()
-      : '');
+      : ''];
+  return h('article', { class: 'card item' + (mine ? ' mine' : '') },
+    h('header', { class: 'item-head' },
+      h('div', { class: 'muted small item-meta' }, k.key, ' · ', it.project.name, ' · ', statusName(k.status), it.assignedBy ? ' · assigned to you by ' + it.assignedBy : (it.author && !mine ? ' · by ' + it.author : '')),
+      h('button', { class: 'link title', onclick: () => openTicket(it.project.id, k.id) }, k.title),
+      h('div', { class: 'flags' }, mergeBadge(it), pr && pr.state === 'open' && pr.behind > 0 ? h('span', { class: 'badge warn' }, pr.behind + ' behind ' + (pr.baseBranch || 'base')) : '', pr && pr.draft ? h('span', { class: 'badge' }, 'draft') : '')),
+    k.branch || links.length || k.commits && k.commits.length ? h('div', { class: 'item-body' },
+      k.branch ? h('div', {}, 'Branch ', h('code', {}, k.branch), ' ', copy(k.branch, 'Copy')) : '',
+      links.length ? h('div', { class: 'links' }, links.map((l, i) => [i ? ' · ' : '', l])) : '',
+      commits) : '',
+    h('div', { class: 'item-foot' }, foot));
 }
 
 // ---- MCP batch proposals and client grants ----
@@ -1173,6 +1175,7 @@ async function mcpClientsView() {
       !g.revokedAt ? h('button', { class: 'danger', onclick: () => confirm('Revoke ' + g.name + '? Its client will no longer be able to connect.') && act(async () => { await api('DELETE', '/mcp/grants/' + g.id); state.info = g.name + ' can no longer connect.'; }) }, 'Revoke') : h('span', { class: 'badge' }, 'Revoked'))) : h('p', { class: 'muted' }, 'No MCP clients have been created.')));
 }
 
+
 // ---- Reviews ----
 
 async function reviewsView() {
@@ -1268,7 +1271,6 @@ function boardTab(d) {
       h('button', { class: 'plain', 'aria-pressed': !state.ownTickets, onclick: () => { state.ownTickets = false; render(); } }, 'All tickets'),
       h('button', { class: 'plain', 'aria-pressed': !!state.ownTickets, onclick: () => { state.ownTickets = true; render(); } }, 'My tickets (' + b.tickets.filter(k => k.assigneeId === state.me.member.id).length + ')')), filterBar(d),
     h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
-    pcan('tickets.reopen') ? h('button', { class: 'plain', disabled: !b.tickets.some(k => k.status === 'done'), onclick: () => act(async () => { const result = await api('POST', '/projects/' + d.id + '/tickets/archive-done'); state.info = plural(result.archived, 'ticket') + ' moved to the archive.'; }) }, 'Archive Done tickets') : '',
     '');
   const cols = b.statuses.map((s) => {
     const items = b.tickets.filter((k) => k.status === s.status && matchesFilter(k));
@@ -1357,7 +1359,9 @@ function card(d, k) {
     canStartAgent ? h('button', { class: 'primary small', 'data-start-agent': k.id, onclick: () => startAgent(k) }, run === 'completed' || run === 'failed' || run === 'canceled' ? 'Start agent again' : 'Start agent') : '',
     ['available', 'in_progress'].includes(k.status) && mine ? h('button', { class: 'plain small', onclick: open }, 'Open work') : '',
     (k.status === 'available' && !k.assigneeId && d.board.member && pcan('tickets.claim'))
-      ? h('button', { class: 'primary small', onclick: () => act(() => api('POST', projectPath(k) + '/claim')) }, 'Claim') : '');
+      ? h('button', { class: 'primary small', onclick: () => act(() => api('POST', projectPath(k) + '/claim')) }, 'Claim') : '',
+    k.status === 'done' && !k.archivedAt && canArchiveTicket(k)
+      ? h('button', { class: 'plain small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: true })) }, 'Archive') : '');
 }
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }

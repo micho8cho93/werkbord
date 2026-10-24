@@ -17,6 +17,7 @@ import (
 
 	"devboard/internal/domain"
 	"devboard/internal/phoneaccess"
+	"devboard/internal/service"
 )
 
 const personalMaxBody = 64 << 10
@@ -68,6 +69,23 @@ func (s *Server) personalRoutes(mux *http.ServeMux) {
 			mux.HandleFunc(method+" "+resource.path+"/{id}", resource.handle)
 		}
 	}
+	// The computer says which Teams it has connected; only the owner does (a phone is not reviewed for this route).
+	mux.HandleFunc("PUT /api/personal/v1/display-contexts", func(w http.ResponseWriter, r *http.Request) {
+		if !s.personalReady(w, r) {
+			return
+		}
+		var in struct {
+			Items []service.DisplayContext `json:"items"`
+		}
+		if !personalDecode(w, r, &in) {
+			return
+		}
+		if err := s.opt.Personal.SetDisplayContexts(in.Items); err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		writeJSON(w, 200, map[string]bool{"saved": true})
+	})
 	mux.HandleFunc("GET /api/personal/v1/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		if !s.personalReady(w, r) {
 			return

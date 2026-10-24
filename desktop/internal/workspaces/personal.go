@@ -21,13 +21,21 @@ var personalPath = regexp.MustCompile(`^/api/personal/v1/(workspaces(?:/pws_[a-z
 
 var personalLifecyclePath = regexp.MustCompile(`^/api/personal/v1/(?:workspaces/pws_[a-z2-7]{16}/(?:deletion-preview|rollback|history|revisions/[1-9][0-9]{0,9})|collections/pcl_[a-z2-7]{16}/usage)$`)
 
+// displayContextsPath is where the shell tells the controller which Teams are connected, so that a phone's assistant can offer
+// them as places for a generated workspace to appear. Display names and identifiers only.
+const displayContextsPath = "/api/personal/v1/display-contexts"
+
 // PersonalWorkspaceCall is a finite owner API transport, never an arbitrary HTTP proxy.
 // The controller retains schema, loopback, owner-token and revision enforcement.
 func (p *Individual) PersonalWorkspaceCall(ctx context.Context, method, path string, body json.RawMessage) (PersonalResponse, error) {
 	var out PersonalResponse
 	lifecycle := personalLifecyclePath.FindStringSubmatch(path)
-	if (!personalPath.MatchString(path) && lifecycle == nil) || len(body) > 64<<10 {
+	contexts := path == displayContextsPath
+	if (!personalPath.MatchString(path) && lifecycle == nil && !contexts) || len(body) > 64<<10 {
 		return out, errors.New("invalid personal workspace request")
+	}
+	if contexts && (method != "PUT" || !json.Valid(body)) {
+		return out, errors.New("invalid personal workspace operation")
 	}
 	entity := strings.Contains(path, "/pws_") || strings.Contains(path, "/pcl_") && !strings.HasSuffix(path, "/records")
 	switch method {
@@ -36,7 +44,7 @@ func (p *Individual) PersonalWorkspaceCall(ctx context.Context, method, path str
 			return out, errors.New("reads take no body")
 		}
 	case "POST", "PUT", "DELETE":
-		if strings.Contains(path, "?") || !json.Valid(body) || lifecycle == nil && (method == "POST") == entity {
+		if strings.Contains(path, "?") || !json.Valid(body) || lifecycle == nil && !contexts && (method == "POST") == entity {
 			return out, errors.New("invalid personal workspace operation")
 		}
 	default:
