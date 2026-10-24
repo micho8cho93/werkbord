@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -16,7 +17,7 @@ func Handles(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "--activate", "--service", "--verify-release", "--team-service":
+	case "--activate", "--service", "--verify-release", "--team-service", "--maintain":
 		return true
 	}
 	return false
@@ -26,6 +27,7 @@ func Handles(args []string) bool {
 // service must report. Output is one line of JSON on out, except for the privileged step, which reports on errOut.
 //
 //	--activate            install the Team service, with no path to the person's own Werkbord, or bring it up to date
+//	--maintain            update a service that holds a workspace: verified backup first, programs only, automatic rollback (macOS)
 //	--service start|stop|uninstall
 //	--verify-release      succeed only when this app passes the platform's release trust check
 //	--team-service ACTION UID   the privileged step, which macOS runs as root after the administrator's authorization; it
@@ -98,6 +100,36 @@ func Run(version string, args []string, out, errOut io.Writer) int {
 			}
 		}
 		return say(true, "the Team service is running")
+	case len(args) == 1 && args[0] == "--maintain":
+		if runtime.GOOS != "darwin" {
+			return say(false, "maintenance of a Team service that holds a workspace is available on macOS only in this release; nothing was changed")
+		}
+		exe, err := os.Executable()
+		if err == nil {
+			err = RequireRelease(releaseRoot(exe))
+		}
+		if err != nil {
+			return say(false, err.Error())
+		}
+		key, err := AccessKey()
+		if err != nil {
+			return say(false, err.Error())
+		}
+		if err := AuthorizeService(ctx, ActionMaintain); err != nil {
+			return say(false, err.Error())
+		}
+		deadline := time.Now().Add(60 * time.Second)
+		for Probe(ctx, key, version) != nil {
+			if time.Now().After(deadline) {
+				return say(false, "the Team service is starting; try again in a moment")
+			}
+			select {
+			case <-ctx.Done():
+				return say(false, ctx.Err().Error())
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+		return say(true, "the Team service was updated and is running; the workspace and its data were not touched")
 	case len(args) == 2 && args[0] == "--service" && (args[1] == ActionStart || args[1] == ActionStop || args[1] == ActionUninstall):
 		exe, err := os.Executable()
 		if err == nil {

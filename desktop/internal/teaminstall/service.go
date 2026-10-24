@@ -126,7 +126,7 @@ func installerRefusal(action, out string) error {
 	if detail == ErrReplacementDeferred.Error() {
 		return ErrReplacementDeferred
 	}
-	what := map[string]string{ActionInstall: "install or update", ActionInstallIsolated: "install or update", ActionStart: "start", ActionStop: "stop", ActionUninstall: "remove"}[action]
+	what := map[string]string{ActionInstall: "install or update", ActionInstallIsolated: "install or update", ActionStart: "start", ActionStop: "stop", ActionUninstall: "remove", ActionMaintain: "update"}[action]
 	if what == "" {
 		what = action
 	}

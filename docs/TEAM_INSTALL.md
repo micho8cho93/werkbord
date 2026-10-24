@@ -45,6 +45,25 @@ Upgrade all hosts in a planned maintenance window when changing schemas or remot
 
 The CLI installer stages the new executable and publishes it after sidecars. An interrupted multi-file replacement may leave the old executable with a new sidecar; the runtime rejects a mismatched hash rather than executing it. Running supervisors use private verified copies. Stop the service, rerun the exact signed installer, verify the whole bundle and restart. This is fail-closed recovery, not an atomic multi-file update. See the gate for tested interruption points.
 
+## Maintenance: updating a service that holds a workspace
+
+The ordinary update refuses a service that holds a workspace and never weakens that. The supported way to bring such a service to the app's version is maintenance, macOS only in this release. Run the release-signed app's executable with `--maintain`:
+
+```sh
+/Applications/Werkbord.app/Contents/MacOS/Werkbord --maintain
+```
+
+It needs the same release signing as an installation (a development or ad-hoc build is refused) and the same macOS administrator authorization, and it must be run by the account that owns the installation. It refuses while a workspace on the computer is being created, joined, left or demoted, and when the running service cannot show an open workspace. In order:
+
+1. The new programs are staged and the staged `werkbord-team` must report this app's version. The service has not been touched.
+2. If the service has no backup directory, `--backup-dir <Werkbord Team>/backups` is added to its launch definition (nothing else in it changes) and the same programs are restarted; if they do not come back with the workspace open, the original definition is restored.
+3. The running service is asked, as this device, to back up the workspace. The backup must match its recorded hash and be opened by the NEW `werkbord-team storage verify-backup`. Otherwise maintenance stops with the old service running.
+4. A note of the versions and the backup is written to `<Werkbord Team>/maintenance/`.
+5. The service stops and only its programs are replaced (the old ones stay as `Helpers.previous`). The data directory, workspace, System-keychain items, access key, owner record, network configuration and hosting state are never written. The service must come back at the new version with the workspace still open and, if it was connected before, connected.
+6. If it does not, the previous programs are restored and started again. A schema migration the new service already made cannot be undone by this; if the previous programs then refuse the database, restore the backup named in the error as described in [TEAM_BACKUP_RECOVERY.md](TEAM_BACKUP_RECOVERY.md).
+
+A keychain item is tied to the program that created it, so a new program signed differently may be unable to open the workspace. Step 5 detects that and rolls back rather than leaving the workspace sealed. Keep the backups directory; maintenance never deletes anything from it.
+
 ## Transition from adjacent key files
 
 Team 3.x supports `WERKBORD_TEAM_KEY_STORAGE=file` only as explicit evaluation/transition compatibility with 2.x vaults. It never falls back from failed OS storage. Existing ciphertext cannot be read by a newly created unrelated Keychain key. There is no automatic vault rewrapping tool in this release.

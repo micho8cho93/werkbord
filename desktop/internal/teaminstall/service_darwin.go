@@ -32,7 +32,7 @@ func stopInstalledService() error {
 
 // AuthorizeService invokes this signed application's fixed installer through macOS's normal administrator dialog.
 func AuthorizeService(ctx context.Context, action string) error {
-	if !ValidAction(action) {
+	if !ValidAction(action) && action != ActionMaintain {
 		return errors.New("no such service action")
 	}
 	exe, err := os.Executable()
@@ -72,6 +72,9 @@ func PrivilegedService(action, uid string) (resultErr error) {
 	u, err := user.LookupId(uid)
 	if err != nil {
 		return err
+	}
+	if action == ActionMaintain {
+		return privilegedMaintain(exe, appRoot, u, n)
 	}
 	if !ValidAction(action) {
 		return errors.New("no such service action")
