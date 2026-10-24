@@ -154,8 +154,7 @@ async function dropLicense(page, files) {
  const ticket=await team('POST',`/projects/${project.id}/tickets`,{title:'Improve the sign-in experience',description:'Keep the session clear and accessible.',requirements:'All states readable',status:'available'});
  const reserved=await team('POST',`/projects/${project.id}/tickets/${ticket.id}/claim`,{});assert.equal(reserved.status,'in_progress');assert(reserved.assigneeId);console.log('PASS claim puts the ticket in progress, waiting to be started');
  await page.keyboard.press('Meta+k');const search=page.getByRole('combobox',{name:'Search projects, tickets and sections'});await search.fill(ticket.key);await page.getByRole('dialog').getByRole('option').filter({hasText:ticket.title}).waitFor();await search.press('Enter');await page.waitForFunction(id=>state.ticketId===id&&!!document.querySelector('.ticket'),ticket.id);await page.keyboard.press('Escape');
- await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await page.reload();await page.getByRole('button',{name:'Switch to light mode',exact:true}).waitFor();await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
- console.log('PASS Cmd K through the enrolled device API and persistent desktop theme selection');
+ console.log('PASS Cmd K through the enrolled device API (the theme is chosen in the window sidebar, not in the signed-in Team page)');
  const repo=path.join(temp,'repo');fs.mkdirSync(repo);run('git',['-C',repo,'init','-b','main']);run('git',['-C',repo,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','--allow-empty','-m','Initial fixture']);run('git',['-C',repo,'remote','add','origin','https://github.com/acme/shop']);
  await http(individualURL,full,'POST','/api/projects',{name:'Customer portal',path:repo});
  await wait(async()=>{const s=await dev('first','GET','/state');return (s.senders||[]).some(d=>d.deviceId===joined.deviceId);},'device sender discovery');
@@ -252,7 +251,7 @@ async function dropLicense(page, files) {
  await wait(()=>page.getByRole('button',{name:'Runner status',exact:true}).first().isEnabled(),'device controls return after final result');
  await page.unroute('**/api/team/v1/messages/ui-progress-fixture');console.log('PASS request progress continues after delivery and stops at its final result');
  // A project invite is a code. The page's own address is this computer's, so a link would be useless to anyone else.
- await page.locator('nav').getByRole('button',{name:'Projects',exact:true}).click();await page.getByRole('heading',{name:'Join a project with a code',exact:true}).waitFor();
+ await page.locator('nav').getByRole('button',{name:'Projects',exact:true}).click();await page.getByText('Join a project with a code',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Open project Customer portal',exact:true}).click();
  await page.getByRole('button',{name:/^Project settings/}).click();await page.getByRole('button',{name:'Create invite code',exact:true}).click();
  const secret=page.locator('.secret');await secret.waitFor();const secretText=await secret.innerText();

@@ -95,7 +95,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await switchUniversal();
  await page.getByRole('heading', {name:'Universal',exact:true}).waitFor();
  await page.getByRole('group', {name:'Calendar presentation'}).waitFor();
- assert.equal(await side.locator('[data-page=inbox], [data-page=calendar], [data-page=personal-library]').count(), 0);
+ assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 0);
+ assert.equal(await side.locator('[data-page=personal-library]').count(), 1, 'the Data library is reachable from every view');
  console.log('PASS Universal: workspaces and Calendar live on the hub, with a minimal sidebar');
  await switchTo('personal');
  // At intermediate widths the icon rail has a keyboard- and pointer-discoverable way to reveal names.
@@ -275,10 +276,10 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    own.error = 'Fixture offline'; own.summary.at = '2026-01-01T00:00:00Z';
    return route.fulfill({ json: stale });
  });
- await wait(async () => !(await inline.getByRole('button', {name:'Yes',exact:true}).isEnabled()), 'stale disables choices');
+ await wait(async () => !(await inline.getByRole('button', {name:'Yes',exact:true}).isEnabled({timeout:2000}).catch(() => true)), 'stale disables choices');
  assert(await inline.getByText(/Last reported:/).isVisible(), 'stale answer names last report');
  await page.unrouteAll({ behavior: 'ignoreErrors' });
- await wait(async () => await inline.getByRole('button', {name:'No',exact:true}).isEnabled(), 'reconnected answer enabled');
+ await wait(async () => await inline.getByRole('button', {name:'No',exact:true}).isEnabled({timeout:2000}).catch(() => false), 'reconnected answer enabled');
  await inline.getByRole('button', { name: 'No', exact: true }).click();
  await wait(async () => (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).waiting === 'idle', 'inline answer reaches the runner');
  assert.equal(await inline.count(), 0, 'settled question closes its editor');

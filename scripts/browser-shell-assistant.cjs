@@ -118,6 +118,8 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...opts });
         await ctx.addInitScript(() => {
             window.__speechStarts = 0;
+            // These flows drive the floating button. Workspaces default to Salie in the sidebar (covered by browser-workspace-ux).
+            try { localStorage.setItem('werkbord.shell.salie-placement', JSON.stringify({ universal: 'floating', workspace: 'floating' })); } catch {}
             window.SpeechRecognition = class {
                 start() {
                     window.__speechStarts++;
