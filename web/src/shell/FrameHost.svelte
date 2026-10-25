@@ -67,6 +67,7 @@
       },
       // The assistant has a frame of its own (AssistantFrame); a workspace's page has nothing to say about it.
       assistant: () => {},
+      runSession: (projectId, runId) => { void model.openRunSession(projectId, runId); },
       personalAssistant: (workspaceId, revision) => {
         const rect = model.assistantButton?.getBoundingClientRect();
         void model.toggleAssistant(rect ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : { x: 24, y: 24, width: 0, height: 0 }, workspaceId, revision);

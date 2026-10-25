@@ -131,3 +131,25 @@ describe('Salie session manager', () => {
     const clean = await manager(); expect(clean.openTabs).toHaveLength(1);
   });
 });
+
+it('deduplicates attached run tabs, restores them and never creates a provider session for them', async () => {
+  const { api } = await import('../api');
+  const { app } = await import('../state.svelte');
+  vi.spyOn(api, 'getRun').mockResolvedValue({id:'run-one',projectId:'project-one',state:'running',version:1} as Awaited<ReturnType<typeof api.getRun>>);
+  vi.spyOn(api, 'runEvents').mockResolvedValue({events:[],hasMore:false});
+  const stop = vi.spyOn(api, 'stopRun');
+  const watch = vi.spyOn(app,'watchRun');
+  const m = await manager();
+  m.openRun('project-one','run-one'); const id = m.activeId;
+  m.openRun('project-one','run-one');
+  expect(m.activeId).toBe(id); expect(m.tabs.filter(t => t.run)).toHaveLength(1);
+  expect(watch).toHaveBeenCalledTimes(1);
+  m.closeTab(id); m.openRun('project-one','run-one'); expect(m.activeId).toBe(id); expect(m.activeTab.closed).toBe(false);
+  m.hide(); m.closed(); expect(stop).not.toHaveBeenCalled();
+  m.save(); m.destroy();
+  const restored = await manager();
+  expect(restored.tabs.filter(t => t.run)).toHaveLength(1);
+  expect(restored.activeTab.run?.runId).toBe('run-one');
+  expect(srv.calls.filter(c => c.method === 'POST' && c.path === '/sessions')).toHaveLength(0);
+  vi.restoreAllMocks();
+});

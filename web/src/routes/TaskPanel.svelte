@@ -11,6 +11,7 @@
   import { agentName, runElapsed, runStatus, timeAgo } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
   import { blockerLine, interactionLabel, isNotable } from '../lib/policy';
+  import { assistant } from '../lib/assistant/sessions.svelte';
   import QuestionCard from '../lib/QuestionCard.svelte';
   import ConnectionBanner from '../lib/ConnectionBanner.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
@@ -525,7 +526,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           <h3 class="visually-hidden">Activity</h3>
           {#if run && status}
             <div class="runbar" data-tone={status.tone}>
-              <RunBadge {run} />
+              <RunBadge {run} /><button class="btn small" onclick={() => assistant.openRun(project.id, run.id)}>Open Session</button>
               <span class="mm">
                 {agentName(app.agents, run.agentId)}{run.model ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.models, run.model)}` : ''}{run.reasoning
                   ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.reasoning, run.reasoning)}`

@@ -25,6 +25,7 @@ export interface MessageLike {
 
 export interface Deps {
   /** The local Individual page may open Salie with a bounded personal workspace ID. */
+  runSession?(projectId: string, runId: string): void;
   personalAssistant?(workspaceId: string, revision?: number): void;
   onboarding?(required: boolean, paused: boolean): void;
   saliePlacement?(value?: SaliePlacements): SaliePlacements;
@@ -35,7 +36,7 @@ export interface Deps {
   /** A frame asks to show the person's own Werkbord at a place inside it. */
   open(id: string, target: string, place: string): void;
   /** Individual's assistant says whether it is open and whether something there needs the person. */
-  assistant(id: string, state: { open: boolean; waiting: number; running: boolean }): void;
+  assistant(id: string, state: { open: boolean; waiting: number; running: boolean; compact?: boolean }): void;
   /** A page says the person chose a theme there. */
   theme(id: string, choice: 'light' | 'dark' | ''): void;
   /** Individual says something happened that the person asked to hear about while they are in another app. */
@@ -117,6 +118,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
       d.reply(frame, { type: 'werkbord.salie-placement', value });
     }
     else if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
+    else if (m.event === 'run_session' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && typeof m.runId === 'string' && /^[\w-]{1,120}$/.test(m.projectId) && /^[\w-]{1,120}$/.test(m.runId)) d.runSession?.(m.projectId, m.runId);
     else if (m.event === 'personal_workspace_assistant' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.workspaceId === 'string' && (m.workspaceId === '' || /^pws_[a-z2-7]{16}$/.test(m.workspaceId))) {
       if (m.revision !== undefined && (!Number.isSafeInteger(m.revision) || (m.revision as number) < 1 || !m.workspaceId)) return;
       if (m.revision === undefined) d.personalAssistant?.(m.workspaceId);
@@ -139,8 +141,8 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     else if (m.event === 'open' && m.target === 'personal' && isPlace(m.place) && String(m.place).startsWith('#') && (!frame.surface || frame.id === 'personal')) d.open(frame.id, 'personal', m.place as string);
     // Only the assistant's own frame, which is the person's own Werkbord, says how the assistant stands. A count and two flags are
     // all that cross: never a word of the conversation.
-    else if (m.event === 'assistant' && frame.surface && frame.id === 'personal' && typeof m.open === 'boolean' && typeof m.running === 'boolean' && Number.isInteger(m.waiting) && (m.waiting as number) >= 0 && (m.waiting as number) <= 99) {
-      d.assistant(frame.id, { open: m.open, waiting: m.waiting as number, running: m.running });
+    else if (m.event === 'assistant' && frame.surface && frame.id === 'personal' && typeof m.open === 'boolean' && typeof m.running === 'boolean' && Number.isSafeInteger(m.waiting) && (m.waiting as number) >= 0) {
+      d.assistant(frame.id, { open: m.open, waiting: m.waiting as number, running: m.running, ...(m.compact === true ? { compact: true } : {}) });
     }
   }
 }

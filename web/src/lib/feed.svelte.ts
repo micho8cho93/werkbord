@@ -23,8 +23,17 @@ export class RunFeed {
   /** Loads the newest page. Safe to call again after a reconnect: events already shown are skipped. */
   async load(): Promise<void> {
     try {
+      const lastSeq = this.builder.lastSeq;
       const page = await api.runEvents(this.projectId, this.runId);
-      if (this.builder.apply(page.events)) this.items = this.builder.items;
+      // Recover every missed page, including gaps larger than the newest page. Deduplicate
+      // against events received while HTTP was in flight through the existing builder.
+      const recovered = [...page.events];
+      let older = page;
+      while (lastSeq && older.hasMore && older.events.length && older.events[0].seq > lastSeq) {
+        older = await api.runEvents(this.projectId, this.runId, older.events[0].seq);
+        recovered.push(...older.events);
+      }
+      if (this.builder.apply(recovered)) this.items = this.builder.items;
       if (this.builder.firstSeq === 0 || this.loading) this.hasMore = page.hasMore;
       this.error = '';
     } catch (err) {

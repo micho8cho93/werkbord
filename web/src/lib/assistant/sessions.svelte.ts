@@ -1,5 +1,9 @@
 // One surface, many independent instances of the existing conversation client. Transcript caches
 // remain in sessionStorage; only provider handles/settings live on the controller.
+import { app } from '../state.svelte';
+import { RunSession, liveRun } from './run-session.svelte';
+import { InteractionQueue, type Interaction } from './interactions';
+import { embedded, surface } from '../embed';
 import { contextualWorkspaceDraft, personalWorkspaceDraft } from '../personal/conversation';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { AssistantStore, type Phase } from './store.svelte';
@@ -10,7 +14,7 @@ import { SessionStreams } from './session-streams';
 const INDEX = 'werkbord.assistant.tabs.v1';
 const LEGACY = 'werkbord.assistant.v1';
 const keyOf = (id: string) => `werkbord.assistant.session.${id}`;
-export interface SalieTab { id: string; title: string; closed: boolean; store: AssistantStore }
+export interface SalieTab { id: string; title: string; closed: boolean; store: AssistantStore; run?: RunSession }
 
 export class AssistantSessions {
   tabs = $state<SalieTab[]>([]);
@@ -19,6 +23,27 @@ export class AssistantSessions {
   phase = $state<Phase>('closed');
   origin = $state<Origin>(FALLBACK_ORIGIN);
   trigger: HTMLElement | null = null;
+  compact = $state(false);
+  private queue = new InteractionQueue();
+  private pending = $derived.by(() => {
+    const requests: Interaction[] = app.questions.map(question => ({ key: `question:${question.projectId}:${question.id}`, kind: 'question', question }));
+    for (const tab of this.tabs) if (!tab.run) for (const item of tab.store.waitingItems) {
+      if (Date.parse(item.expiresAt) <= tab.store.now) continue;
+      requests.push({ key: `proposal:${tab.store.session?.id}:${item.id}`, kind: 'proposal', tabId: tab.id, store: tab.store, item });
+    }
+    return this.queue.reconcile(requests);
+  });
+  get interactions(): Interaction[] { return this.pending; }
+  get activeTab(): SalieTab { return this.tabs.find(t => t.id === this.activeId)!; }
+  openRun(projectId: string, runId: string): void {
+    if (embedded() && !surface) {
+      window.parent.postMessage({ type: 'werkbord.frame', event: 'run_session', projectId, runId }, '*');
+      return;
+    }
+    let tab = this.tabs.find(t => t.run?.projectId === projectId && t.run.runId === runId);
+    if (!tab) { tab = this.add(); tab.run = new RunSession(projectId, runId); }
+    tab.closed = false; tab.run!.attach(); this.activeId = tab.id; this.compact = false; this.show(); this.save();
+  }
   private streams = new SessionStreams();
   private started = false;
   private dispose: (() => void) | undefined;
@@ -27,8 +52,8 @@ export class AssistantSessions {
   get active(): AssistantStore { return this.tabs.find(t => t.id === this.activeId)!.store; }
   get openTabs(): SalieTab[] { return this.tabs.filter(t => !t.closed); }
   get closedTabs(): SalieTab[] { return this.tabs.filter(t => t.closed); }
-  get running(): boolean { return this.tabs.some(t => t.store.running || t.store.session?.running); }
-  get waiting(): number { return this.tabs.reduce((n, t) => n + t.store.waiting, 0); }
+  get running(): boolean { return this.tabs.some(t => t.run ? !!t.run.run && liveRun(t.run.run) : t.store.running || t.store.session?.running); }
+  get waiting(): number { return this.interactions.length; }
   get isOpen(): boolean { return this.mounted && this.phase !== 'closing' && this.phase !== 'closed'; }
   get draft(): string { return this.active.draft; }
   set draft(value: string) { this.active.draft = value; }
@@ -39,19 +64,19 @@ export class AssistantSessions {
     const tab = { id, title, closed, store: new AssistantStore(keyOf(id), this.streams.connect) };
     this.tabs.push(tab);
     this.activeId = id;
-    return tab;
+    return this.tabs.at(-1)!;
   }
   newTab(): void {
     const tab = this.add();
     tab.store.init(true);
-    void tab.store.prepare();
+    if (!tab.run) void tab.store.prepare();
     this.save();
   }
   select(id: string): void {
     const tab = this.tabs.find(t => t.id === id && !t.closed);
     if (!tab) return;
     this.activeId = id;
-    void tab.store.prepare();
+    if (!tab.run) void tab.store.prepare();
     this.save();
   }
   closeTab(id: string): void {
@@ -78,7 +103,7 @@ export class AssistantSessions {
     this.save();
   }
   title(tab: SalieTab): string {
-    return tab.title || this.firstMessage(tab) || 'New conversation';
+    return tab.title || (tab.run ? `${tab.run.run?.agentId ?? 'Agent'} · ${tab.run.project?.name ?? tab.run.projectId}` : this.firstMessage(tab)) || 'New conversation';
   }
   private firstMessage(tab: SalieTab): string {
     const first = tab.store.transcript.items.find(i => i.kind === 'user');
@@ -94,6 +119,7 @@ export class AssistantSessions {
         for (const t of saved.tabs) {
           if (!t || typeof t.id !== 'string' || !/^[\w-]{1,80}$/.test(t.id) || this.tabs.some(x => x.id === t.id)) continue;
           const tab = this.add(t.id, typeof t.title === 'string' ? t.title.slice(0, 100) : '', t.closed === true);
+          if (t.run && typeof t.run.projectId === 'string' && typeof t.run.runId === 'string') tab.run = new RunSession(t.run.projectId, t.run.runId);
           if (typeof t.draft === 'string') tab.store.draft = t.draft.slice(0, 120_000);
           if (validChoice(t.choice)) tab.store.choice = t.choice;
         }
@@ -108,7 +134,7 @@ export class AssistantSessions {
         }
       }
     } catch { /* Storage unavailable or malformed: retain a usable empty tab. */ }
-    for (const tab of this.tabs) tab.store.init(true);
+    for (const tab of this.tabs) { if (tab.run) tab.run.attach(); else tab.store.init(true); }
     const wake = () => { for (const tab of this.tabs) tab.store.wake(); };
     const visible = () => { if (!document.hidden) wake(); };
     const pagehide = () => this.save();
@@ -119,7 +145,9 @@ export class AssistantSessions {
       for (const tab of this.tabs) { tab.store.now = Date.now(); tab.store.expireFiles(); }
     }, 15_000);
     const unlisten = onAssistantRequest(req => {
-      if (req.action === 'close') this.hide();
+      if (req.action === 'close') { this.compact = false; this.hide(); }
+      else if (req.action === 'compact') this.compact = !this.compact;
+      else if (req.run) this.openRun(req.run.projectId, req.run.runId);
       else {
         if (req.personalWorkspace !== undefined) {
           this.draft = req.personalPrompt ? contextualWorkspaceDraft(req.personalWorkspace, req.personalPrompt) : personalWorkspaceDraft(req.personalWorkspace);
@@ -130,7 +158,7 @@ export class AssistantSessions {
       }
     });
     const stopEffects = $effect.root(() => {
-      $effect(() => { reportAssistant({ open: this.mounted, waiting: this.waiting, running: this.running }); });
+      $effect(() => { reportAssistant({ open: this.mounted, waiting: this.waiting, running: this.running, compact: this.compact }); });
       $effect(() => { this.saveIndex(); });
     });
     this.dispose = () => {
@@ -143,7 +171,7 @@ export class AssistantSessions {
   private saveIndex(): void {
     try {
       sessionStorage.setItem(INDEX, JSON.stringify({ v: 1, activeId: this.activeId, tabs: this.tabs.map(t => ({
-        id: t.id, title: t.title || this.firstMessage(t), closed: t.closed, choice: t.store.choice, draft: t.store.draft,
+        id: t.id, title: t.title || this.firstMessage(t), closed: t.closed, run: t.run ? { projectId: t.run.projectId, runId: t.run.runId } : undefined, choice: t.store.choice, draft: t.store.draft,
       })) }));
     } catch { /* Private mode/full storage must not prevent conversation use. */ }
   }
@@ -154,9 +182,10 @@ export class AssistantSessions {
   show(origin?: Origin, trigger?: HTMLElement | null): void {
     if (origin) this.origin = origin;
     if (trigger !== undefined) this.trigger = trigger;
+    this.compact = false;
     this.mounted = true;
     this.phase = 'opening';
-    void this.active.prepare();
+    if (!this.activeTab.run) void this.active.prepare();
   }
   hide(): void { if (this.mounted && this.phase !== 'closed') this.phase = 'closing'; }
   toggle(origin?: Origin, trigger?: HTMLElement | null): void { if (this.isOpen) this.hide(); else this.show(origin, trigger); }
@@ -171,7 +200,7 @@ export class AssistantSessions {
   /** Page teardown/test cleanup, never used when hiding Salie or closing a tab. */
   destroy(): void {
     this.save(); this.dispose?.();
-    for (const tab of this.tabs) tab.store.disconnect();
+    for (const tab of this.tabs) { tab.store.disconnect(); tab.run?.disconnect(); }
   }
 }
 function validChoice(c: unknown): c is Choice {

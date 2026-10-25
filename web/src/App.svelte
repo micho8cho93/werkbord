@@ -3,6 +3,7 @@
   import WorkflowMonitor from './lib/mobile/WorkflowMonitor.svelte';
   import Icon, { type IconName } from './lib/Icon.svelte';
   import Mark from './lib/Mark.svelte';
+  import PendingInteraction from './lib/assistant/PendingInteraction.svelte';
   import Assistant from './lib/assistant/Assistant.svelte';
   import AssistantButton from './lib/assistant/AssistantButton.svelte';
   import { assistant } from './lib/assistant/sessions.svelte';
@@ -334,12 +335,17 @@
     <Toasts />
   </div>
   <!-- In the desktop window the assistant is the shell's own frame over the whole window (lib/assistant/AssistantSurface). -->
-  {#if !framed}<Assistant />{/if}
+  {#if !framed}<Assistant />
+{#if !framed && deck && assistant.waiting > 0 && !assistant.isOpen && !assistant.compact}
+  <button class="btn small mobile-attention" onclick={() => assistant.compact = true}>Needs you · {assistant.waiting}</button>
+{/if}
+{#if !framed && assistant.compact && !assistant.isOpen}<PendingInteraction />{/if}{/if}
   <!-- Outside the shell, which is inert while the assistant is open: the phone's two places stay reachable over it. -->
   {#if deck && router.view !== 'onboarding'}<PhoneNav />{/if}
 {/if}
 
 <style>
+  .mobile-attention { position: fixed; right: 16px; bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom)); z-index: 65; color: var(--warn-text); background: var(--surface); }
   .setup-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
   .skip-main {
     position: fixed;

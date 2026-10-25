@@ -785,3 +785,13 @@ for ownership, retention, backup limitations and the full endpoint contract.
 Salie offers Lowest cost (the default for new unconfigured conversations), Max reasoning, Highest intelligence and Manual in one collapsing picker. The first message supplies the task for classification. An automatic decision is persisted and stays fixed across follow-ups and controller restarts; a manual override remains explicit. The selected provider, model, reasoning and classifier/rules source are visible from the picker. Existing explicit choices remain manual.
 
 Settings → Agents controls the eligible agents and explicit metered fallback permission. The classifier uses an isolated supported CLI provider with no application operations, under the same billing policy. New coding-only ACP integrations are not automatically Salie providers: see [CLI agents and automatic model selection](AGENT_INTEGRATIONS.md) for capabilities, billing estimates, fallback behaviour and verification limits.
+
+## Attached task sessions and the attention queue
+
+Open Session on a running task attaches a tab to its exact project and run ID. Reopening focuses that tab; closing the tab or Salie only hides it. The console reads the existing structured run event history and live event stream, including tool activity, diagnostics and questions. It never starts another agent or converts the provider protocol to a PTY. Reconnection pages back through any missing activity before merging events by sequence number.
+
+Instructions, answers, finish and stop use the existing project-scoped controller APIs and runner ownership. Ended runs retain their history but cannot receive live input. Approval questions use the same human-operated QuestionCard as task views; Salie cannot approve coding-agent permissions.
+
+One attention queue combines pending run questions across projects with confirmation proposals across Salie tabs, including hidden tabs. Requests retain their source identities, session stores and authority. The queue preserves its unanswered head through new arrivals and reconnects, deduplicates replay, and removes resolved, expired or withdrawn requests. The floating button shows the combined count and a quiet Needs you bubble; its compact card renders one request at a time. Closing the card keeps requests pending. Routine output does not open it.
+
+The desktop shell keeps the assistant frame alive independently of its full-window surface. Only the authenticated Individual workspace frame may request a run tab, using bounded opaque project/run IDs. The compact card remains inside that same authenticated assistant frame: answers and proposal contents are not relayed through the shell.

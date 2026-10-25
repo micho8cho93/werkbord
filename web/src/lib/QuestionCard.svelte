@@ -39,7 +39,7 @@
       text = next?.text ?? ''; uncertain = next?.uncertain ?? ''; error = '';
     }
   });
-  function persist() { draftStored = writeDraft(draftKey, { text, uncertain }); }
+  function persist(key = draftKey) { draftStored = writeDraft(key, { text, uncertain }); }
   $effect(() => { void text; void uncertain; untrack(persist); });
   /** The choice being sent, so its button can say so. */
   let sending = $state('');
@@ -56,13 +56,14 @@
   const multiline = $derived(question.kind === 'clarification' || question.kind === 'instruction');
 
   async function answer(value: string) {
+    const answeringDraftKey = draftKey;
     value = value.trim();
     if (!value || busy || disabled || (uncertain && value !== uncertain)) return;
     busy = true;
     sending = value;
     error = '';
     uncertain = value;
-    persist();
+    persist(answeringDraftKey);
     try {
       const settled = await answerWith(question, value);
       if (settled.state === 'answered') receipt = answeredNotice(settled, value);
@@ -70,18 +71,18 @@
       if (settled.state === 'answered') notify(answeredNotice(settled, value));
       text = '';
       uncertain = '';
-      writeDraft(draftKey, null);
+      writeDraft(answeringDraftKey, null);
     } catch (err) {
       const failure = describeAnswerFailure(err);
       if (failure.settled) {
         // Someone else answered, or the agent moved on: say so, and stop offering it.
-        text = ''; uncertain = ''; writeDraft(draftKey, null);
+        text = ''; uncertain = ''; writeDraft(answeringDraftKey, null);
         onSettled(question);
         notify(failure.message);
       } else {
         if (!uncertainMutation(err)) uncertain = '';
         error = failure.message;
-        persist();
+        persist(answeringDraftKey);
       }
     } finally {
       busy = false;
@@ -97,7 +98,7 @@
   }
 </script>
 
-<svelte:window onpagehide={persist} />
+<svelte:window onpagehide={() => persist()} />
 
 <div class="ask" transition:surface|global={{ y: 0, duration: 140 }} use:acknowledge={{ value: receipt, success: !!receipt }} data-kind={question.kind} role="group" aria-label="{kindLabel(question.kind)}: {question.prompt}">
   {#if receipt}<p role="status">{receipt}</p>{:else}

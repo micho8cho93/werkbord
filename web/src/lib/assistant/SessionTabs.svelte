@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { runStatus, agentName } from '../format';
+  import { app } from '../state.svelte';
   import { tick } from 'svelte';
   import Icon from '../Icon.svelte';
   import { embedded, openSettingsInShell } from '../embed';
@@ -28,7 +30,11 @@
   $effect(() => { const id = assistant.activeId; void tick().then(() => { if (assistant.activeId === id) revealActive(); }); });
   function rename(tab: SalieTab) { editing = tab.id; name = assistant.title(tab); }
   function finish() { assistant.rename(editing, name); editing = ''; }
-  function status(tab: SalieTab) { return tab.store.waiting ? 'Waiting for confirmation' : tab.store.running || tab.store.session?.running ? 'Running' : 'Idle'; }
+  function status(tab: SalieTab) { if (tab.run) return tab.run.run ? runStatus(tab.run.run).label : 'Loading'; return tab.store.waiting ? 'Waiting for confirmation' : tab.store.running || tab.store.session?.running ? 'Running' : 'Idle'; }
+  function detail(tab: SalieTab) {
+    if (tab.run) return `${agentName(app.agents, tab.run.run?.agentId ?? 'Agent')}${tab.run.run?.model ? ` · ${tab.run.run.model}` : ''} · ${status(tab)}`;
+    return `${tab.store.provider?.name ?? 'Salie'} · ${modeLabel(tab.store.choice?.mode ?? 'lowest_cost')}`;
+  }
   function keydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && (menu || editing)) {
       event.preventDefault(); event.stopPropagation(); menu = false; editing = ''; plus?.focus();
@@ -50,10 +56,10 @@
   <div class="tabs" role="tablist" aria-label="Salie conversations">
     {#each assistant.openTabs as tab (tab.id)}
       <div class="tab" class:active={tab.id === assistant.activeId}>
-        <button id="salie-tab-{tab.id}" role="tab" aria-selected={tab.id===assistant.activeId} tabindex={tab.id===assistant.activeId?0:-1} aria-controls="salie-panel" title="{assistant.title(tab)} · {tab.store.provider?.name ?? 'Salie'} · {modeLabel(tab.store.choice?.mode ?? 'lowest_cost')} · {status(tab)}" onclick={()=>assistant.select(tab.id)} onkeydown={e=>move(e,tab.id)} ondblclick={()=>rename(tab)}>
+        <button id="salie-tab-{tab.id}" role="tab" aria-selected={tab.id===assistant.activeId} tabindex={tab.id===assistant.activeId?0:-1} aria-controls="salie-panel" title="{assistant.title(tab)} · {detail(tab)} · {status(tab)}" onclick={()=>assistant.select(tab.id)} onkeydown={e=>move(e,tab.id)} ondblclick={()=>rename(tab)}>
           <Icon name="assistant" size={14} />
-          <span class="identity"><span class="title">{assistant.title(tab)}</span><span class="detail">{tab.store.provider?.name ?? 'Salie'} · {modeLabel(tab.store.choice?.mode ?? 'lowest_cost')}</span></span>
-          <span class="status" class:running={tab.store.running || tab.store.session?.running} class:waiting={tab.store.waiting>0} aria-label={status(tab)}></span>
+          <span class="identity"><span class="title">{assistant.title(tab)}</span><span class="detail">{detail(tab)}</span></span>
+          <span class="status" class:running={tab.run ? tab.run.run?.state === 'running' : tab.store.running || tab.store.session?.running} class:waiting={tab.run ? tab.run.questions.length > 0 : tab.store.waiting>0} aria-label={status(tab)}></span>
         </button>
         <button class="dismiss" aria-label="Close {assistant.title(tab)} tab" title="Close tab; conversation keeps running" onclick={()=>assistant.closeTab(tab.id)}><Icon name="close" size={12} /></button>
       </div>

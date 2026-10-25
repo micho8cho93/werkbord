@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
+  import RunSession from './RunSession.svelte';
   import SessionContent from './SessionContent.svelte';
   import ModelPicker from './ModelPicker.svelte';
   import SessionTabs from './SessionTabs.svelte';
@@ -148,7 +149,7 @@
       <header class="top">
         <div class="who">
           <h1 id="asst-title">Assistant</h1>
-          {#key assistant.activeId}<ModelPicker assistant={assistant.active} />{/key}
+          {#if !assistant.activeTab.run}{#key assistant.activeId}<ModelPicker assistant={assistant.active} />{/key}{/if}
         </div>
         <div class="acts">
           <button class="btn quiet close" class:phone-nav={phone.on} type="button" onclick={() => assistant.hide()} aria-label="Close assistant" title="Close ({isMac ? '' : 'Esc'})" data-testid="assistant-close">
@@ -160,7 +161,7 @@
       <SessionTabs />
       <div class="session-panel" id="salie-panel" role="tabpanel" aria-labelledby="salie-tab-{assistant.activeId}">
       {#key assistant.activeId}
-        <SessionContent store={assistant.active} />
+        <svelte:boundary>{#if assistant.activeTab.run}<RunSession session={assistant.activeTab.run} />{:else}<SessionContent store={assistant.active} />{/if}</svelte:boundary>
       {/key}
       </div>
     </div>

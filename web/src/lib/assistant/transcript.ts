@@ -43,6 +43,7 @@ export interface ReplyItem {
 export type ConfirmState = 'waiting' | 'working' | 'confirmed' | 'declined' | 'expired' | 'failed' | 'uncertain' | 'gone';
 
 export interface ConfirmItem {
+  createdAt?: string;
   kind: 'confirm';
   /** The action's id. */
   id: string;
@@ -162,7 +163,7 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
     case 'confirmation_required': {
       const p = e.proposal;
       if (!p || t.items.some((i) => i.kind === 'confirm' && i.id === p.actionId)) break;
-      t.items.push({ kind: 'confirm', id: p.actionId, operation: p.operation, summary: p.summary, args: p.args, expiresAt: p.expiresAt, state: 'waiting' });
+      t.items.push({ kind: 'confirm', id: p.actionId, createdAt: e.at, operation: p.operation, summary: p.summary, args: p.args, expiresAt: p.expiresAt, state: 'waiting' });
       break;
     }
     case 'confirmation_resolved': {
@@ -215,7 +216,7 @@ export function adoptPending(t: Transcript, pending: PendingAction[]): void {
     if (have) {
       have.args = p.args ?? have.args;
       if (have.state === 'gone' || have.state === 'working' || have.state === 'uncertain') have.state = 'waiting';
-    } else t.items.push({ kind: 'confirm', id: p.id, operation: p.operation, summary: p.summary, args: p.args, expiresAt: p.expiresAt, state: 'waiting' });
+    } else t.items.push({ kind: 'confirm', id: p.id, createdAt: p.createdAt, operation: p.operation, summary: p.summary, args: p.args, expiresAt: p.expiresAt, state: 'waiting' });
   }
 }
 
@@ -329,7 +330,7 @@ export function restore(raw: string | null | undefined): Saved | null {
           status: ['working', 'done', 'failed', 'cancelled'].includes(r.status) ? r.status : 'done', error: r.error });
       } else if (x.kind === 'confirm' && typeof x.summary === 'string') {
         const c = x as unknown as ConfirmItem;
-        items.push({ kind: 'confirm', id: c.id, operation: String(c.operation ?? ''), summary: c.summary, expiresAt: String(c.expiresAt ?? ''), state: c.state ?? 'gone', outcome: c.outcome });
+        items.push({ kind: 'confirm', id: c.id, createdAt: typeof c.createdAt === 'string' ? c.createdAt : undefined, operation: String(c.operation ?? ''), summary: c.summary, expiresAt: String(c.expiresAt ?? ''), state: c.state ?? 'gone', outcome: c.outcome });
       } else if (x.kind === 'notice' && typeof x.text === 'string') items.push({ kind: 'notice', id: x.id, text: x.text });
     }
     return { v: 1, sessionId: s.sessionId, lastSeq: s.lastSeq, items };

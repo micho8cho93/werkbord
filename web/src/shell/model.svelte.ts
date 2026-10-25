@@ -115,9 +115,9 @@ export class Model {
   setupRequired = $state(false);
   setupPaused = $state(false);
   /** How Individual's assistant stands, as it last said: open over everything, something waiting for the person, a reply on the way. */
-  assistant = $state({ open: false, waiting: 0, running: false });
+  assistant = $state<{open: boolean; waiting: number; running: boolean; compact?: boolean}>({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
-  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; rect: Anchor; personalWorkspace?: string; personalRevision?: number; personalPrompt?: string } | null>(null);
+  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle' | 'compact'; run?: {projectId: string; runId: string}; rect: Anchor; personalWorkspace?: string; personalRevision?: number; personalPrompt?: string } | null>(null);
   /** The launcher used most recently; preference changes can remove either launcher. */
   private lastAssistantButton: HTMLElement | undefined;
   assistantSidebarButton: HTMLElement | undefined;
@@ -191,6 +191,23 @@ export class Model {
    * nothing underneath is touched: whatever was showing is still there, covered, when it closes. The frame is told where the button
    * is (in the window's coordinates, which are the frame's) so that it grows out of it and collapses back into it.
    */
+  async prepareAssistant(): Promise<void> {
+    if (this.assistantFrame) return;
+    const target = await ask(a => a.LoadWorkspace('personal'));
+    this.assistantFrame = { url: surfaceUrl(target.url), origin: target.origin };
+  }
+  async openRunSession(projectId: string, runId: string): Promise<void> {
+    try { await this.prepareAssistant(); }
+    catch (e) { this.error = (e as Error).message; return; }
+    this.assistantShown = true;
+    this.assistantOpening = true;
+    clearTimeout(this.assistantWatch);
+    this.assistantWatch = setTimeout(() => {
+      this.assistantOpening = false;
+      if (!this.assistant.open) this.assistantShown = false;
+    }, 5000);
+    this.assistantAsk = { action: 'open', run: { projectId, runId }, rect: { x: 24, y: 24, width: 0, height: 0 } };
+  }
   async toggleAssistant(rect: Anchor, personalWorkspace?: string, personalRevision?: number, personalPrompt?: string): Promise<void> {
     if (this.setupRequired && !this.setupPaused) { await this.open('personal', '#/onboarding'); return; }
     if (this.assistantShown && personalWorkspace === undefined) {
@@ -219,7 +236,7 @@ export class Model {
   }
 
   /** The assistant's page says how it stands. When it has closed, the frame is put away and focus goes back to the button. */
-  setAssistant(s: { open: boolean; waiting: number; running: boolean }): void {
+  setAssistant(s: { open: boolean; waiting: number; running: boolean; compact?: boolean }): void {
     const was = this.assistant.open;
     this.assistant = s;
     if (s.open) {

@@ -56,6 +56,7 @@ export interface AttachmentInfo {
 
 /** A change the assistant proposed, waiting for the person. */
 export interface PendingAction {
+  createdAt?: string;
   id: string;
   operation: string;
   summary: string;

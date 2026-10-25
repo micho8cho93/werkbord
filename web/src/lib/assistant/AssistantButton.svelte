@@ -9,7 +9,7 @@
   let el: HTMLButtonElement | undefined = $state();
 
   const waiting = $derived(assistant.waiting);
-  const label = $derived(waiting > 0 ? `Assistant, ${waiting} ${waiting === 1 ? 'change is' : 'changes are'} waiting for you` : assistant.running ? 'Assistant, working' : 'Assistant');
+  const label = $derived(waiting > 0 ? `Assistant, ${waiting} ${waiting === 1 ? 'request is' : 'requests are'} waiting for you` : assistant.running ? 'Assistant, working' : 'Assistant');
 
   function press() {
     if (el) assistant.toggle(originOf(el.getBoundingClientRect()), el);
@@ -25,8 +25,10 @@
     <span class="live" aria-hidden="true"></span>
   {/if}
 </button>
+{#if waiting && !assistant.isOpen}<button class="btn small bubble" onclick={() => assistant.compact = !assistant.compact}>Needs you · {waiting}</button>{/if}
 
 <style>
+  .bubble { color: var(--warn-text); }
   .ab {
     position: relative;
     display: flex;

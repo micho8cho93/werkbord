@@ -113,7 +113,7 @@ describe('the assistant report', () => {
     await handle(all, say({ open: true, waiting: 1, running: false }, individual, frames[0].origin), d); // the workspace page is not the assistant
     await handle(all, say({ open: true, waiting: 1, running: false }, team, frames[1].origin), d);
     await handle(all, say({ open: true, waiting: 1, running: false }, assistantWindow, 'https://evil.example'), d);
-    for (const bad of [{ open: 'yes', waiting: 1, running: false }, { open: true, waiting: -1, running: false }, { open: true, waiting: 1.5, running: false }, { open: true, waiting: 100, running: false }, { open: true, waiting: '3', running: false }, { open: true, waiting: 1 }]) {
+    for (const bad of [{ open: 'yes', waiting: 1, running: false }, { open: true, waiting: -1, running: false }, { open: true, waiting: 1.5, running: false }, { open: true, waiting: Number.MAX_SAFE_INTEGER + 1, running: false }, { open: true, waiting: '3', running: false }, { open: true, waiting: 1 }]) {
       await handle(all, say(bad), d);
     }
     expect(d.assistant).not.toHaveBeenCalled();
@@ -208,3 +208,20 @@ it('opens a personal workspace draft only from the ordinary Individual frame', a
   for(const invalid of [0,-1,1.5,'4',null]) await handle(refs,say(invalid),d);
   expect(personalAssistant).not.toHaveBeenCalled();
  });
+
+it('opens an attached session only from the authenticated Individual workspace frame', async () => {
+  const d = {...deps(), runSession: vi.fn()};
+  const request = {event:'run_session',projectId:'prj_a',runId:'run_a'};
+  for (const frame of [frames[1],hosted,surface]) await handle([frame],say(frame.window!,frame.origin,request),d);
+  await handle(frames,say(individual,'https://other.example',request),d);
+  for (const bad of [null,'','../x','a/b','a'.repeat(121)]) await handle(frames,say(individual,frames[0].origin,{...request,runId:bad}),d);
+  expect(d.runSession).not.toHaveBeenCalled();
+  await handle(frames,say(individual,frames[0].origin,request),d);
+  expect(d.runSession).toHaveBeenCalledExactlyOnceWith('prj_a','run_a');
+});
+
+it('preserves the actual combined pending count above 99', async () => {
+  const d = deps();
+  await handle([surface],say(assistantWindow,surface.origin,{event:'assistant',open:false,waiting:123,running:false,compact:true}),d);
+  expect(d.assistant).toHaveBeenCalledExactlyOnceWith('personal',{open:false,waiting:123,running:false,compact:true});
+});

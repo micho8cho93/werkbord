@@ -104,7 +104,8 @@ export const surface: boolean = (() => {
 // else crosses: no conversation, no text, no token.
 
 export interface AssistantRequest {
-  action: 'open' | 'close' | 'toggle';
+  action: 'open' | 'close' | 'toggle' | 'compact';
+  run?: { projectId: string; runId: string };
   /** Only an opaque personal workspace ID (or empty for creation), never model text. */
   personalWorkspace?: string;
   personalRevision?: number;
@@ -117,15 +118,16 @@ const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFi
 
 /** Parses a message from the shell. Only the parent window is believed, and only what is exactly this shape. */
 export function parseAssistantRequest(data: unknown): AssistantRequest | null {
-  const m = data as { type?: unknown; action?: unknown; personalWorkspace?: unknown; personalRevision?: unknown; personalPrompt?: unknown; origin?: { x?: unknown; y?: unknown } } | null;
+  const m = data as { type?: unknown; action?: unknown; run?: {projectId?: unknown; runId?: unknown}; personalWorkspace?: unknown; personalRevision?: unknown; personalPrompt?: unknown; origin?: { x?: unknown; y?: unknown } } | null;
   if (!m || m.type !== 'werkbord.assistant') return null;
-  if (m.action !== 'open' && m.action !== 'close' && m.action !== 'toggle') return null;
+  if (m.action !== 'open' && m.action !== 'close' && m.action !== 'toggle' && m.action !== 'compact') return null;
   if (m.personalWorkspace !== undefined && (m.action !== 'open' || typeof m.personalWorkspace !== 'string' || (m.personalWorkspace !== '' && !/^pws_[a-z2-7]{16}$/.test(m.personalWorkspace)))) return null;
   if (m.personalRevision !== undefined && (!m.personalWorkspace || !Number.isSafeInteger(m.personalRevision) || (m.personalRevision as number) < 1)) return null;
   if (m.personalPrompt !== undefined && (!m.personalWorkspace || m.action !== 'open' || typeof m.personalPrompt !== 'string' || m.personalPrompt.length > 2000)) return null;
+  if (m.run !== undefined && (m.action !== 'open' || !m.run || typeof m.run.projectId !== 'string' || typeof m.run.runId !== 'string' || !/^[\w-]{1,120}$/.test(m.run.projectId) || !/^[\w-]{1,120}$/.test(m.run.runId))) return null;
   const o = m.origin;
   const context = m.personalWorkspace === undefined ? {} : { personalWorkspace: m.personalWorkspace as string };
-  return { ...context, ...(m.personalPrompt === undefined ? {} : {personalPrompt: m.personalPrompt as string}), ...(m.personalRevision === undefined ? {} : { personalRevision: m.personalRevision as number }), action: m.action, origin: o && finite(o.x) && finite(o.y) ? { x: o.x, y: o.y } : undefined };
+  return { ...(m.run ? {run: m.run as {projectId: string; runId: string}} : {}), ...context, ...(m.personalPrompt === undefined ? {} : {personalPrompt: m.personalPrompt as string}), ...(m.personalRevision === undefined ? {} : { personalRevision: m.personalRevision as number }), action: m.action, origin: o && finite(o.x) && finite(o.y) ? { x: o.x, y: o.y } : undefined };
 }
 
 /** Calls handler when the shell that framed this page asks the assistant to open or close. */
@@ -141,6 +143,7 @@ export function onAssistantRequest(handler: (r: AssistantRequest) => void): () =
 }
 
 export interface AssistantReport {
+  compact?: boolean;
   open: boolean;
   waiting: number;
   running: boolean;
@@ -149,5 +152,5 @@ export interface AssistantReport {
 /** Tells the shell how the assistant stands, so its sidebar button can show it. Does nothing outside the desktop app. */
 export function reportAssistant(r: AssistantReport): void {
   if (!isEmbedded()) return;
-  window.parent.postMessage({ type: 'werkbord.frame', event: 'assistant', open: r.open, waiting: Math.max(0, Math.min(99, Math.floor(r.waiting))), running: r.running }, '*');
+  window.parent.postMessage({ type: 'werkbord.frame', event: 'assistant', open: r.open, compact: r.compact === true, waiting: Math.max(0, Math.floor(r.waiting)), running: r.running }, '*');
 }

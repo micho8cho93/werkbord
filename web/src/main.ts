@@ -26,6 +26,7 @@ async function boot() {
     document.documentElement.classList.add('asst-surface');
     onTheme((choice: 'light' | 'dark') => theme.set(choice));
     void detectDesktop();
+    app.start();
     assistant.init();
     mount(AssistantSurface, { target: document.getElementById('app')! });
   } else {

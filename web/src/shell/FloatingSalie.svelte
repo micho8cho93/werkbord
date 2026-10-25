@@ -44,7 +44,7 @@
     !reachable
       ? 'Salie, unavailable: Cannot reach Werkbord'
       : model.assistant.waiting > 0
-        ? `Salie, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'change is' : 'changes are'} waiting for you`
+        ? `Salie, ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'request is' : 'requests are'} waiting for you`
         : model.assistant.running
           ? 'Salie, working'
           : 'Salie',
@@ -92,7 +92,10 @@
   function click(): void {
     // The click that ends a drag is the button being put down, not pressed.
     if (held) { held = false; return; }
-    open();
+    if (model.assistant.waiting > 0 && !model.assistantShown) {
+      const r = button?.getBoundingClientRect();
+      model.assistantAsk = { action: 'compact', rect: r ? {x:r.left,y:r.top,width:r.width,height:r.height} : {x:24,y:24,width:0,height:0} };
+    } else open();
   }
   function keys(e: KeyboardEvent): void {
     const step = e.shiftKey ? 48 : 16;
@@ -144,7 +147,11 @@
   {#if model.assistant.waiting > 0}<span class="num" aria-hidden="true">{model.assistant.waiting}</span>{/if}
 </button>
 
+{#if model.assistant.waiting > 0 && !model.assistantShown && !model.assistant.compact}
+  <button class="btn small attention" style:left="{Math.max(12, Math.min(width - 180, spot.x - 60))}px" style:top="{Math.max(12, spot.y - 44)}px" onclick={click}>Needs you · {model.assistant.waiting}</button>
+{/if}
 <style>
+  .attention { position: fixed; z-index: 61; color: var(--warn-text); background: var(--surface); }
   .salie {
     position: fixed;
     z-index: 60;

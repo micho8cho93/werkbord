@@ -15,6 +15,14 @@
   import { theme } from '../lib/theme.svelte';
 
   let el: HTMLIFrameElement | undefined = $state();
+  let preparing = false;
+  $effect(() => {
+    if (!model.assistantFrame && model.view?.items.some(i => i.id === 'personal' && i.state === 'ready') && !preparing) {
+      preparing = true;
+      void model.prepareAssistant().catch(() => {}).finally(() => { preparing = false; });
+    }
+  });
+  const compact = $derived(!model.assistantShown && model.assistant.compact === true && model.assistant.waiting > 0);
   let loaded = $state(false);
 
   const refs = (): FrameRef[] => (model.assistantFrame ? [{ id: 'personal', surface: true, origin: model.assistantFrame.origin, window: el?.contentWindow ?? null }] : []);
@@ -72,10 +80,11 @@
     untrack(async () => {
       model.assistantAsk = null;
       await tick();
-      if (request.action !== 'close') el?.contentWindow?.focus();
+      if (request.action === 'open') el?.contentWindow?.focus();
       send({
         type: 'werkbord.assistant',
         action: request.action,
+        ...(request.run ? { run: request.run } : {}),
         ...(request.personalPrompt === undefined ? {} : {personalPrompt:request.personalPrompt}),
         ...(request.personalWorkspace === undefined ? {} : { personalWorkspace: request.personalWorkspace, ...(request.personalRevision === undefined ? {} : { personalRevision: request.personalRevision }) }),
         origin: { x: request.rect.x + request.rect.width / 2, y: request.rect.y + request.rect.height / 2 },
@@ -90,13 +99,16 @@
   <iframe
     bind:this={el}
     class="assistant-frame"
-    class:shown={model.assistantShown}
+    class:shown={model.assistantShown || compact}
+    class:compact
+    style:left={compact ? `${Math.max(12, Math.min(window.innerWidth - 384, (model.assistantFloatingButton?.getBoundingClientRect().left ?? window.innerWidth - 400) - 150))}px` : undefined}
+    style:top={compact ? `${Math.max(12, Math.min(window.innerHeight - 520, (model.assistantFloatingButton?.getBoundingClientRect().top ?? window.innerHeight) - 510))}px` : undefined}
     title="Assistant"
     src={model.assistantFrame.url}
     referrerpolicy="no-referrer"
     sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
     allow="microphone"
-    aria-hidden={!model.assistantShown}
+    aria-hidden={!model.assistantShown && !compact}
     data-testid="assistant-frame"
     onload={() => {
       loaded = true;
@@ -118,6 +130,7 @@
     visibility: hidden;
     pointer-events: none;
   }
+  .assistant-frame.compact { inset: auto; width: min(380px, calc(100vw - 24px)); height: min(500px, calc(100dvh - 90px)); border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .assistant-frame.shown {
     visibility: visible;
     pointer-events: auto;

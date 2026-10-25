@@ -2,6 +2,8 @@
   import '../../../../internal/uipresentation/static/board.css';
   import '../../../../internal/uipresentation/static/board-drag.js';
   import { runReportStale } from '../format';
+  import { assistant } from '../assistant/sessions.svelte';
+  import { liveRun } from '../assistant/run-session.svelte';
   import { api } from '../api';
   import { cardStatus, quickChoices, type CardStatus } from '../board';
   import { agentLabel, priorityLabel, type Resolved } from '../execution';
@@ -185,6 +187,9 @@
       {#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}
     </div>
   {/if}
+{#if run && liveRun(run)}
+  <div class="acts"><button class="btn small session-action" onclick={e => { e.stopPropagation(); assistant.openRun(task.projectId, run.id); }}>Open Session</button></div>
+{/if}
 </li>
 
 <style>
