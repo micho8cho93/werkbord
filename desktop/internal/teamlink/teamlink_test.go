@@ -217,3 +217,30 @@ func TestOnlyTheAppsOwnInstallerIsRunAndOnlyWithFixedArguments(t *testing.T) {
 		t.Fatal("an answer that is not JSON was believed")
 	}
 }
+
+func TestThePremiumKeyGoesToOneWorkspacesDeviceServiceByItsSlot(t *testing.T) {
+	var path, auth string
+	var body map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path, auth = r.Method+" "+r.URL.Path, r.Header.Get("Authorization")
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"id":"pk_a"}`))
+	}))
+	defer srv.Close()
+	l, err := New(srv.URL, writeKey(t, 0o600, key), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.DeliverPremium(bg, "team:ws_ab12cd34ef56", "wbpremium-k"); err != nil {
+		t.Fatal(err)
+	}
+	if path != "POST /w/ws_ab12cd34ef56/api/device/v1/premium" || auth != "Bearer "+key || body["key"] != "wbpremium-k" {
+		t.Fatalf("%q %q %v", path, auth, body)
+	}
+	for _, bad := range []string{"personal", "team:../x", "team:", ""} {
+		if err := l.DeliverPremium(bg, bad, "k"); err == nil {
+			t.Errorf("%q was accepted as a workspace", bad)
+		}
+	}
+}

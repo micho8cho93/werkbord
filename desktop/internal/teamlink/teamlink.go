@@ -200,6 +200,17 @@ func (l *Link) ForgetWorkspace(ctx context.Context, id string) error {
 	return l.call(ctx, http.MethodDelete, "/api/device/v1/workspaces/"+url.PathEscape(slot), nil, nil)
 }
 
+// DeliverPremium gives one Team workspace's service the person's Premium unlock key. The service checks it, keeps it for this
+// person on this computer, and gives it to its team, which checks it again and keeps only its ID. It is what lets a team of more
+// than two people include them.
+func (l *Link) DeliverPremium(ctx context.Context, id, key string) error {
+	slot, ok := SlotOf(id)
+	if !ok {
+		return errors.New("not a Team workspace")
+	}
+	return l.call(ctx, http.MethodPost, "/w/"+slot+"/api/device/v1/premium", map[string]string{"key": key}, nil)
+}
+
 // DeliverGrant hands one Team workspace's service a narrow execution grant for the person's Werkbord. It is the only thing of
 // Werkbord's the service ever receives.
 func (l *Link) DeliverGrant(ctx context.Context, id, token, base string) error {

@@ -82,6 +82,7 @@
       style: (_id, choice) => look.set(choice),
       notify: (_id, alert) => void alerts.tell(alert),
       settings: (id, place) => model.openSettingsAt(id, place),
+      plan: () => model.openSettings('general/plan'),
     });
   }
 

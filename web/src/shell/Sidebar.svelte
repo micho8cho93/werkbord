@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Icon, { type IconName } from '../lib/Icon.svelte';
   import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
   import Mark from '../lib/Mark.svelte';
@@ -6,7 +7,10 @@
   import { salie } from './salie.svelte';
   import { counts } from './aggregate';
   import { model } from './model.svelte';
+  import { plan } from './plan.svelte';
   import { activeKey, entries, listed } from './nav';
+
+  onMount(() => void plan.refresh());
 
   // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), the open workspace's own
   // places (its home, projects and so on) with Create with Salie and the workspaces Salie has made, and last, pinned to the
@@ -122,10 +126,37 @@
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
     {@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}
     {@render item('Settings', 'settings', model.page === 'settings', () => model.openSettings(), 'settings')}
+    <button class="plan" class:on={plan.premium} type="button" onclick={() => model.openSettings('general/plan')} data-testid="plan-chip" aria-label={plan.premium ? 'Plan: Premium' : 'Plan: Free. See Premium'}>
+      <span class="label">{plan.premium ? 'Premium' : 'Free plan'}</span><span class="pill"><span class="full">{plan.premium ? 'Active' : 'Upgrade'}</span><span class="short">Free</span></span>
+    </button>
   </div>
 </nav>
 
 <style>
+  .plan {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 4px 0;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .collapsed .plan { justify-content: center; margin: 6px 0 0; padding: 6px 0; }
+  .collapsed .plan .label { display: none; }
+  .collapsed .plan.on { display: none; }
+  .plan .short { display: none; }
+  .collapsed .plan .short { display: inline; }
+  .collapsed .plan .full { display: none; }
+  .collapsed .plan .pill { margin: 0; padding: 0 6px; font-size: 12px; }
+  .plan:hover { background: var(--surface-2); }
+  .plan:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .plan .pill { margin-left: auto; padding: 0 8px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); font-size: 12px; font-weight: 600; }
   .salie-nav { flex: none; }
   .salie-working { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-left: auto; flex: none; }
   .side {

@@ -10,7 +10,7 @@ import type { Item, Kind } from './types';
 /** Which part of Werkbord Settings is for: Universal, Individual, or one Team workspace (its id). */
 export type Scope = { kind: 'universal' } | { kind: 'personal' } | { kind: 'team'; id: string };
 
-export type Native = 'appearance' | 'alerts';
+export type Native = 'appearance' | 'alerts' | 'plan';
 
 export type Where =
   | { native: Native }
@@ -67,6 +67,7 @@ export function general(): Group {
     sections: [
       { id: 'general/appearance', label: 'Appearance', where: { native: 'appearance' } },
       { id: 'general/alerts', label: 'Alerts', where: { native: 'alerts' } },
+      { id: 'general/plan', label: 'Plan', where: { native: 'plan' } },
     ],
   };
 }

@@ -22,6 +22,12 @@ describe('what Settings lists', () => {
     expect(labels({ kind: 'team', id: 'team:a' })).not.toContain('Individual memory');
   });
 
+  it('has Plan among the window’s own settings in every scope: Free or Premium is about this person, not a workspace', () => {
+    for (const scope of [{ kind: 'personal' }, { kind: 'universal' }, { kind: 'team', id: 'team:a' }] as const) {
+      expect(sectionsOf(groupsFor(scope, items)).filter((s) => s.label === 'Plan')).toEqual([{ id: 'general/plan', label: 'Plan', where: { native: 'plan' } }]);
+    }
+  });
+
   it('always has the window’s own settings first, so Appearance and Alerts are the same everywhere', () => {
     for (const scope of [{ kind: 'personal' }, { kind: 'universal' }, { kind: 'team', id: 'team:b' }] as const) {
       expect(groupsFor(scope, items)[0]).toEqual(general());

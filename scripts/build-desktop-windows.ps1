@@ -87,13 +87,16 @@ try {
     Copy-Item (Join-Path $root 'third_party/rqlite') (Join-Path $licenses 'rqlite') -Recurse
     Copy-Item (Join-Path $root 'third_party/go') (Join-Path $licenses 'go') -Recurse
 
+    # The public key that checks Premium unlock keys. Without it the build can check none, so everyone on it is on the Free plan.
+    $premiumFlag = ''
+    if ($env:PREMIUM_ISSUER_PUBLIC_KEY -match '^[A-Za-z0-9_-]{43}$') { $premiumFlag = " -X devboard/internal/entitlement.issuerPublicKey=$($env:PREMIUM_ISSUER_PUBLIC_KEY)" }
     $team = Join-Path $helpers 'werkbord-team.exe'
-    $teamLdFlags = "-s -w -X main.version=v$Version"
+    $teamLdFlags = "-s -w -X main.version=v$Version$premiumFlag"
     Invoke-Native 'go' @('build', '-trimpath', '-ldflags', $teamLdFlags, '-o', $team, './cmd/werkbord-team')
 
     Push-Location $desktop
     try {
-        $windowLdFlags = "-s -w -X main.version=v$Version -X devboard/desktop/internal/teaminstall.releaseBuild=v$Version -X devboard/desktop/internal/teaminstall.signingThumbprint=$thumbprint"
+        $windowLdFlags = "-s -w -X main.version=v$Version -X devboard/desktop/internal/teaminstall.releaseBuild=v$Version -X devboard/desktop/internal/teaminstall.signingThumbprint=$thumbprint$premiumFlag"
         Invoke-Native 'go' @('run', 'github.com/wailsapp/wails/v2/cmd/wails@v2.17.0', 'build', '-platform', 'windows/amd64', '-skipfrontend', '-skipbindings', '-nosyncgo', '-m', '-tags', 'desktop,production', '-webview2', 'embed', '-o', 'Werkbord.exe', '-ldflags', $windowLdFlags)
     } finally { Pop-Location }
     Copy-Item (Join-Path $desktop 'build/bin/Werkbord.exe') (Join-Path $bin 'Werkbord.exe')

@@ -17,6 +17,7 @@
   import AssistantFrame from './AssistantFrame.svelte';
   import SettingsNav from './SettingsNav.svelte';
   import SettingsNative from './SettingsNative.svelte';
+  import SettingsPlan from './SettingsPlan.svelte';
   import HelpButton from './HelpButton.svelte';
   import { model, type Page } from './model.svelte';
   import { onApp } from './native';
@@ -87,7 +88,7 @@
         {:else if hostedGone}
           <div class="page-area"><WorkspaceProblem /></div>
         {:else if native && 'native' in native}
-          <div class="page-area"><SettingsNative section={native.native} /></div>
+          <div class="page-area">{#if native.native === 'plan'}<SettingsPlan />{:else}<SettingsNative section={native.native} />{/if}</div>
         {:else if model.page !== 'workspace' && !hostedWorkspace}
           <div class="page-area">
             {#if model.page === 'calendar'}<Calendar overview={model.overview} />

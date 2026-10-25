@@ -56,17 +56,31 @@ The host stores only the key's **ID** (`member_premium`, once per team), never t
 
 ## Where a key goes
 
-1. The person gives the key to their app (Settings → Plan, next stage); it is kept for them on their computer.
+1. The person pastes the key into the app (Settings → Plan; the sidebar's plan chip leads there). The app checks it and keeps it in its own
+   per-user configuration directory (`werkbord-desktop/premium.key`, mode 0600, `desktop/internal/premium`), and shows only its ID and
+   label, never the text. A build without the issuer's public key says so instead of calling every key wrong.
 2. Their computer's device service (`POST /api/device/v1/premium`) checks it, keeps it (`premiumKey` in its state, which
    leaving a workspace does not clear) and shows it as `premium: {id, holder}` in its state, never the key.
-3. It gives the key to the team it belongs to (`PUT /api/team/v1/me/premium`) whenever that team does not have it, every cycle
+3. The app gives the key to each Team workspace's device service when it is unlocked and whenever a workspace is opened, created or
+   joined. That service gives it to the team it belongs to (`PUT /api/team/v1/me/premium`) whenever that team does not have it, every cycle
    the device syncs, and to a team it is joining (`premiumKey` in the enrollment request, which the device signs).
 4. The team's host checks it with the same public key and records the ID. `GET /api/team/v1/plan` says what the host knows:
    `{enforced, freeLimit, people, premium, ownerPremium, readOnly}`.
 
+## What a person sees
+
+- **Settings → Plan** (the window's own settings, the same everywhere): Free and Premium side by side, the current plan, and one field for
+  the unlock key. "Get Premium" appears only when `buyURL` in `desktop/internal/shell/premium.go` is set; until Premium is on sale the page
+  says so.
+- **The sidebar's plan chip** (Free plan · Upgrade, or Premium · Active) opens it.
+- **In a Team page**: the people page says how full the Free plan is (`2 of 2 people`); a member without a key in a team of more than two
+  sees a banner and, when a change is refused with 402, a prompt ("Teams of 3 or more need Premium") whose button asks the window to open
+  Plan (frame event `plan`, accepted only from a Team's own page, carrying nothing).
+
 ## Test seams
 
-A service built without `EnforcePlan` has no limits (service tests). `config.Config.Unmetered` switches the rules off for a
+A service built without `EnforcePlan` has no limits (service tests). `scripts/test-plan-browser.cjs` (`make test-plan-browser`) is the
+end-to-end check: a real Team service stamped with a throwaway issuer, real keys, and the console in a browser. `config.Config.Unmetered` switches the rules off for a
 production wiring, and the browser scripts that build their own `werkbord-team` set it with `-X main.testPremium=1`. It is never
 read from the environment or a file, no release or packaging script sets it, and an architecture test keeps it out of them.
 

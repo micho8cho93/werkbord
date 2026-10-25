@@ -137,6 +137,17 @@ export interface Overview {
   at: string;
 }
 
+/** What the app says about this person's plan. The key itself never reaches a page: only its ID and the label its issuer gave it. */
+export interface PremiumStatus {
+  active: boolean;
+  id?: string;
+  holder?: string;
+  /** This build carries the public key that checks unlock keys; a development build does not. */
+  canCheck: boolean;
+  /** Where to get Premium; empty until it is on sale. */
+  buyUrl: string;
+}
+
 /** The app's page-callable surface, as the shell uses it. */
 export interface App {
   PersonalWorkspaceCall(method: string, path: string, body: unknown): Promise<{status: number; body: unknown}>;
@@ -155,6 +166,8 @@ export interface App {
   PendingInvitation(): Promise<string>;
   Relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   OpenExternal(url: string): Promise<void>;
+  Premium(): Promise<PremiumStatus>;
+  UnlockPremium(key: string): Promise<PremiumStatus>;
   Info(): Promise<{ version: string; platform: string }>;
   AlertStatus(): Promise<string>;
   Alert(title: string, body: string, urgent: boolean): Promise<boolean>;

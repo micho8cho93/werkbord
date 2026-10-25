@@ -36,6 +36,8 @@ type Team interface {
 	AddWorkspace(ctx context.Context) (string, error)
 	ForgetWorkspace(ctx context.Context, id string) error
 	DeliverGrant(ctx context.Context, id, token, base string) error
+	// DeliverPremium gives a workspace's service the person's Premium unlock key.
+	DeliverPremium(ctx context.Context, id, key string) error
 }
 
 // TeamInstaller is Team's own installer (teamlink.Installer).
@@ -144,6 +146,7 @@ func (s *Shell) OpenWorkspace(id string) (workspaces.Target, error) {
 	if _, err := s.o.Workspaces.Select(ctx, id); err != nil {
 		return workspaces.Target{}, err
 	}
+	s.givePremium(ctx, id)
 	return s.o.Workspaces.Target(ctx, id, "")
 }
 
@@ -152,6 +155,7 @@ func (s *Shell) OpenWorkspace(id string) (workspaces.Target, error) {
 func (s *Shell) LoadWorkspace(id string) (workspaces.Target, error) {
 	ctx, cancel := s.timeout(8 * time.Second)
 	defer cancel()
+	s.givePremium(ctx, id)
 	return s.o.Workspaces.Target(ctx, id, "")
 }
 
@@ -183,6 +187,8 @@ func (s *Shell) AddTeam() (workspaces.Target, error) {
 		// The new slot is not accessible until it exists in the next listing; open it anyway: it is the one being set up.
 		s.o.Log.Debug("new workspace not selectable yet", "err", err)
 	}
+	// A person on Premium brings their key to the workspace they are about to create or join: a team of more than two needs it.
+	s.givePremium(ctx, id)
 	return s.o.Workspaces.Target(ctx, id, join)
 }
 

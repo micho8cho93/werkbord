@@ -151,6 +151,8 @@ type Options struct {
 	Grants        Grants
 	Invites       *Invites
 	ShellPage     string
+	// Premium is the person's unlock key. Nil in a test that has none.
+	Premium Premium
 }
 
 // Shell is the app, as the loading screen, the menu and the web app see it.

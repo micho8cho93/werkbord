@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"devboard/desktop/internal/premium"
 	"devboard/desktop/internal/shell"
 	"devboard/desktop/internal/teamlink"
 	"devboard/desktop/internal/workspaces"
@@ -26,6 +27,7 @@ type workspaceParts struct {
 	team       *teamlink.Link
 	installer  *teamlink.Installer
 	invites    *shell.Invites
+	premium    *premium.Store
 }
 
 // shellState is where the shell remembers which workspace was open and where in each: its own small file, in the
@@ -83,7 +85,12 @@ func newWorkspaceParts(l *launcher.Launcher, log *slog.Logger) (*workspaceParts,
 	reg := workspaces.NewRegistry(workspaces.OpenState(shellStatePath()), log, individual, team.Source)
 	exe, _ := os.Executable()
 	inst := &teamlink.Installer{Program: exe, Run: runProgram}
-	return &workspaceParts{registry: reg, individual: individual, team: team, installer: inst, invites: &shell.Invites{}}, nil
+	// The person's Premium unlock key lives here, in the app's own configuration directory; it can be pointed elsewhere for tests.
+	keyPath := premium.Path()
+	if v := os.Getenv("WERKBORD_DESKTOP_PREMIUM_KEY_FILE"); v != "" {
+		keyPath = v
+	}
+	return &workspaceParts{registry: reg, individual: individual, team: team, installer: inst, invites: &shell.Invites{}, premium: premium.New(keyPath)}, nil
 }
 
 // hasShell says whether this build carries the shell page.

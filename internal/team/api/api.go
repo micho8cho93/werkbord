@@ -358,7 +358,8 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="werkbord-team"`)
 		httpkit.WriteError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid token")
 	case errors.Is(err, domain.ErrPremiumRequired):
-		httpkit.WriteError(w, http.StatusPaymentRequired, "premium_required", err.Error())
+		// The code says what it is; the message is for the person, so it does not repeat it.
+		httpkit.WriteError(w, http.StatusPaymentRequired, "premium_required", strings.TrimPrefix(err.Error(), "premium required: "))
 	case errors.Is(err, domain.ErrForbidden):
 		httpkit.WriteError(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, domain.ErrNotFound):

@@ -66,6 +66,7 @@ func (r *fakeRegistry) Remember(id, place string) error {
 func (r *fakeRegistry) Forget(id string) { r.rec("Forget " + id) }
 
 type fakeTeam struct {
+	premiums []string // "<id> <key>"
 	mu       sync.Mutex
 	added    string
 	addErr   error
@@ -89,6 +90,12 @@ func (t *fakeTeam) StatusOf(err error) teamlink.Status {
 func (t *fakeTeam) AddWorkspace(context.Context) (string, error) { return t.added, t.addErr }
 func (t *fakeTeam) ForgetWorkspace(_ context.Context, id string) error {
 	t.forgot = append(t.forgot, id)
+	return nil
+}
+func (t *fakeTeam) DeliverPremium(_ context.Context, id, key string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.premiums = append(t.premiums, id+" "+key)
 	return nil
 }
 func (t *fakeTeam) DeliverGrant(_ context.Context, id, token, base string) error {

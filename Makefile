@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser test-plan-browser
 
 all: check build build-team
 
@@ -266,6 +266,10 @@ test-planning-browser: web web-embed web-shell
 clean:
 	rm -rf bin web/dist dist
 	find internal/webui/dist -mindepth 1 ! -name .gitkeep -delete
+
+## test-plan-browser: the Free and Premium plan in the Team console, against a real Team service that really checks unlock keys (no OS install, no database program)
+test-plan-browser:
+	node scripts/test-plan-browser.cjs
 
 ## test-team-desktop-browser: Team's own console, device service and database, with real APIs and a disposable Individual (no OS install)
 test-team-desktop-browser: web web-embed rqlite

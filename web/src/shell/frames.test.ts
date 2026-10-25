@@ -52,6 +52,17 @@ describe('what a frame may say about the window', () => {
     await handle(frames, say(individual, frames[0].origin, { ...alert, title: 'Needs\u0007 you', urgent: true }), d);
     expect(d.notify).toHaveBeenCalledExactlyOnceWith('personal', { key: 'seq-12', title: 'Needs you', body: 'Shop · Fix login', urgent: true });
   });
+  it('lets only a Team’s own page send the person to Plan, and carries nothing with it', async () => {
+    const d = { ...deps(), plan: vi.fn() };
+    // Not Individual, not a page shown for Settings or Help, not the assistant, and not from another origin.
+    await handle(frames, say(individual, frames[0].origin, { event: 'plan' }), d);
+    await handle([{ ...frames[1], hosted: true }], say(team, frames[1].origin, { event: 'plan' }), d);
+    await handle([surface], say(assistantWindow, surface.origin, { event: 'plan' }), d);
+    await handle(frames, say(team, 'https://evil.example', { event: 'plan' }), d);
+    expect(d.plan).not.toHaveBeenCalled();
+    await handle(frames, say(team, frames[1].origin, { event: 'plan', place: '?tab=x', key: 'wbpremium-x' }), d);
+    expect(d.plan).toHaveBeenCalledExactlyOnceWith('team:main');
+  });
   it('lets a workspace’s page ask for Settings only at a place of its own settings', async () => {
     const d = deps();
     for (const place of ['#/control', '#/settings//x', 'https://evil.example', '?tab=settings']) await handle(frames, say(individual, frames[0].origin, { event: 'settings', place }), d);

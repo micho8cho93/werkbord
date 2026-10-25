@@ -45,6 +45,8 @@ export interface Deps {
   notify(id: string, alert: Alert): void;
   /** A page asks for Settings at a place inside it, rather than showing settings of its own. */
   settings(id: string, place: string): void;
+  /** A Team page says the person needs Premium for what they were doing: show Settings at Plan. */
+  plan?(id: string): void;
 }
 
 export interface Alert {
@@ -136,6 +138,9 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
       const body = plain(m.body, 200);
       if (title && body !== undefined) d.notify(frame.id, { key: m.key, title, body, urgent: m.urgent === true });
     }
+    // A Team page that refused a change because the team needs Premium (or is read-only for this person) sends the person to Plan,
+    // where the unlock key is entered. It carries nothing: the shell opens its own page.
+    else if (m.event === 'plan' && frame.id.startsWith('team:') && !frame.hosted && !frame.surface) d.plan?.(frame.id);
     // Individual's `#/settings…` and Team's `?tab=…` that lead to what Settings lists. Not from a frame that is itself showing Settings.
     else if (m.event === 'settings' && isPlace(m.place) && !frame.hosted && !frame.surface && (frame.id === 'personal' ? String(m.place).startsWith('#/settings') : String(m.place).startsWith('?tab='))) d.settings(frame.id, m.place as string);
     else if (m.event === 'open' && isPlace(m.place) && typeof m.target === 'string' && m.target.startsWith('team:') && frame.surface && frame.id === 'personal' && String(m.place).startsWith('?')) d.open(frame.id, m.target, m.place as string);

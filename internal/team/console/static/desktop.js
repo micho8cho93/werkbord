@@ -116,8 +116,9 @@ async function membersView() {
   const members = await api('GET', '/members');
   // The directory uses reported device presence only; it never probes a member's runner.
   const content = membersPanels(members);
+  const note = planNote();
   if (can('members.manage') && state.desktop) content.append(h('aside', { class: 'member-tools' }, await invitationsPanel(members)));
-  return content;
+  return note ? h('div', { class: 'stack' }, note, content) : content;
 }
 
 let createdInvitation = null;
@@ -566,4 +567,41 @@ async function memorySharingPanel() {
       projects.map(p => h('p', { class: 'identity' }, p.name + ' · ' + p.id + (p.repository ? ' · ' + p.repository : '')))) : '');
   if (projects.length) show();
   return box;
+}
+
+// ---- the plan (docs/PLANS.md) ----
+// A team of two people is free; a team of more than that needs every member on Premium. The Workspace Host decides: this only says
+// what it said. The unlock key is entered in the Werkbord window's Settings, under Plan, which this page asks the window to open.
+
+function askForPlan() {
+  if (FRAMED) window.parent.postMessage({ type: 'werkbord.frame', event: 'plan' }, '*');
+  else { state.upgrade = ''; state.info = 'Open Werkbord on this computer and enter your unlock key in Settings, under Plan.'; render(); }
+}
+
+// Shown above the page when this member can read the team and not change it.
+function planBanner() {
+  const p = state.plan;
+  if (!p || !p.enforced || !p.readOnly) return '';
+  return h('div', { class: 'plan-banner', role: 'status', 'data-testid': 'plan-read-only' },
+    h('span', {}, 'This team has ' + p.people + ' people, so everyone in it needs Premium. You can read it, but not change it, until you unlock Premium.'),
+    h('button', { class: 'primary', type: 'button', onclick: askForPlan }, 'Unlock Premium'));
+}
+
+// One line on the people page: how full the Free plan is, while the team is still on it.
+function planNote() {
+  const p = state.plan;
+  if (!p || !p.enforced || p.ownerPremium || p.people > p.freeLimit) return null;
+  return h('p', { class: 'muted plan-note', 'data-testid': 'plan-note' }, p.people + ' of ' + p.freeLimit + ' people on the Free plan. To add another person, the team’s owner and that person need Premium.');
+}
+
+// The answer to a change the plan refused: what it said, and a way to the place the key is entered.
+function upgradeDialog() {
+  if (!state.upgrade) return '';
+  const close = () => { state.upgrade = ''; render(); };
+  return h('dialog', { class: 'upgrade-dialog', 'aria-labelledby': 'upgrade-title', onclose: () => { if (state.upgrade) close(); }, 'data-testid': 'upgrade-dialog' },
+    h('h2', { id: 'upgrade-title' }, 'Teams of 3 or more need Premium'),
+    h('p', {}, state.upgrade.charAt(0).toUpperCase() + state.upgrade.slice(1)),
+    h('p', { class: 'muted' }, 'Nothing is lost if you stay on Free: this team keeps working, and so does everything you do on your own.'),
+    h('div', { class: 'actions' }, h('button', { class: 'plain', type: 'button', onclick: close }, 'Not now'),
+      h('button', { class: 'primary', type: 'button', onclick: () => { askForPlan(); close(); } }, FRAMED ? 'Enter unlock key' : 'How to unlock')));
 }

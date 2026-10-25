@@ -255,6 +255,7 @@ async function api(method, path, body, opts) {
     const err = new Error(outdated ? HOST_OUTDATED : data.error ? data.error.message : 'Werkbord Team could not complete this request. Check the current state before repeating an action.');
     err.status = res.status;
     if (outdated) err.code = 'host_outdated';
+    if (res.status === 402 && data.error && data.error.code === 'premium_required') err.code = 'premium_required';
     err.issues = data.issues || [];
     throw err;
   }
@@ -285,7 +286,8 @@ async function act(fn) {
   app.setAttribute('aria-busy', 'true');
   try { await fn(); } catch (e) {
     state.validationIssues = e.issues || [];
-    state.error = state.validationIssues.length ? 'Fix the highlighted planning issues.' : e.message;
+    if (e.code === 'premium_required') { state.upgrade = e.message; state.error = ''; }
+    else state.error = state.validationIssues.length ? 'Fix the highlighted planning issues.' : e.message;
   }
   finally { actionBusy = false; controls.forEach(el => { el.disabled = false; }); app.removeAttribute('aria-busy'); }
   await render();
@@ -486,7 +488,8 @@ async function renderNow() {
   if (typeof desktopGate === 'function' && await desktopGate()) { closeSearch(false); app.classList.remove('signed-in'); return; }
   if (!state.token) { closeSearch(false); stopSync(); app.classList.remove('signed-in'); app.replaceChildren(state.invite ? joinScreen() : signIn()); return; }
   try {
-    [state.me, state.ov] = await Promise.all([api('GET', '/me'), api('GET', '/overview')]);
+    // The plan is asked for too, but a Workspace Host from before the plan existed has no such route: that is no plan to show.
+    [state.me, state.ov, state.plan] = await Promise.all([api('GET', '/me'), api('GET', '/overview'), api('GET', '/plan').catch(() => null)]);
   } catch (e) {
     if (state.desktop) { closeSearch(false); state.error = e.message; app.replaceChildren(desktopConnecting()); scheduleDesktopRefresh(); return; }
     if (e instanceof TypeError) { // the network, not the token: keep what is on screen and keep trying
@@ -552,10 +555,12 @@ async function renderNow() {
       projectScreen || (HOSTED && settingsTab()) ? '' : h('header', { class: 'top page-head' }, h('h1', { id: 'main-title', tabindex: '-1' }, title),
         state.tab === 'workspace' ? h('span', { class: 'workspace-context' }, state.me.workspace.name) : '', searchButton()),
       h('div', { class: 'main-content', 'data-scroll-key': 'main' },
+        planBanner(),
         state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
         state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
-        secretBox(), settingsTab() ? settingsLayout(body) : body))));
-  for (const dlg of app.querySelectorAll('dialog.ticket-dialog')) if (!dlg.open) dlg.showModal();
+        secretBox(), settingsTab() ? settingsLayout(body) : body)),
+    upgradeDialog()));
+  for (const dlg of app.querySelectorAll('dialog.ticket-dialog, dialog.upgrade-dialog')) if (!dlg.open) dlg.showModal();
   restore(app, keep, previousScope === screenScope());
   if (animateSaved) motion?.layout(app, motionBefore, '[data-board-item], [data-plan-item]', true);
   motion?.charts(app, renderedScope === screenScope() ? chartsBefore : undefined);
