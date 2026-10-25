@@ -7,8 +7,7 @@
   import { modeLabel, selectionApi, type CatalogAgent } from '../selection';
   import { connectedAgents, nativeCLILaunchers } from './connected-agents';
   import { assistant, type SalieTab } from './sessions.svelte';
-  // The Phase 1 controller advertises no supported native interactive CLI transport.
-  // Keep the catalogue in Settings; never render a launch action without a launcher.
+
   let menu = $state(false);
   let connected = $state<CatalogAgent[]>([]);
   let refresh = 0;
@@ -22,6 +21,18 @@
       if (version === refresh && menu) connected = connectedAgents(catalog, settings.agents).filter(a => nativeCLILaunchers.has(a.id));
     } catch { /* Fail closed. Settings remains reachable when detection is unavailable. */ }
   }
+  let launching = $state<CatalogAgent | null>(null);
+  let projectId = $state('');
+  let launchError = $state('');
+  let launchBusy = $state(false);
+  const repositories = $derived(app.projects.filter(p => p.repoPath && !p.archivedAt && !p.deletedAt));
+  async function launch() {
+    if (!launching || !projectId || launchBusy) return;
+    launchBusy = true; launchError = '';
+    try { await assistant.newTerminal(projectId, launching.id, launching.interactive!.device); launching = null; }
+    catch (e) { launchError = e instanceof Error ? e.message : String(e); }
+    finally { launchBusy = false; }
+  }
   let editing = $state('');
   let name = $state('');
   let container: HTMLDivElement;
@@ -30,8 +41,9 @@
   $effect(() => { const id = assistant.activeId; void tick().then(() => { if (assistant.activeId === id) revealActive(); }); });
   function rename(tab: SalieTab) { editing = tab.id; name = assistant.title(tab); }
   function finish() { assistant.rename(editing, name); editing = ''; }
-  function status(tab: SalieTab) { if (tab.run) return tab.run.run ? runStatus(tab.run.run).label : 'Loading'; return tab.store.waiting ? 'Waiting for confirmation' : tab.store.running || tab.store.session?.running ? 'Running' : 'Idle'; }
+  function status(tab: SalieTab) { if (tab.terminal) return tab.terminal.state; if (tab.run) return tab.run.run ? runStatus(tab.run.run).label : 'Loading'; return tab.store.waiting ? 'Waiting for confirmation' : tab.store.running || tab.store.session?.running ? 'Running' : 'Idle'; }
   function detail(tab: SalieTab) {
+    if (tab.terminal) return `${agentName(app.agents, tab.terminal.agentId)} · Terminal`;
     if (tab.run) return `${agentName(app.agents, tab.run.run?.agentId ?? 'Agent')}${tab.run.run?.model ? ` · ${tab.run.run.model}` : ''} · ${status(tab)}`;
     return `${tab.store.provider?.name ?? 'Salie'} · ${modeLabel(tab.store.choice?.mode ?? 'lowest_cost')}`;
   }
@@ -59,7 +71,7 @@
         <button id="salie-tab-{tab.id}" role="tab" aria-selected={tab.id===assistant.activeId} tabindex={tab.id===assistant.activeId?0:-1} aria-controls="salie-panel" title="{assistant.title(tab)} · {detail(tab)} · {status(tab)}" onclick={()=>assistant.select(tab.id)} onkeydown={e=>move(e,tab.id)} ondblclick={()=>rename(tab)}>
           <Icon name="assistant" size={14} />
           <span class="identity"><span class="title">{assistant.title(tab)}</span><span class="detail">{detail(tab)}</span></span>
-          <span class="status" class:running={tab.run ? tab.run.run?.state === 'running' : tab.store.running || tab.store.session?.running} class:waiting={tab.run ? tab.run.questions.length > 0 : tab.store.waiting>0} aria-label={status(tab)}></span>
+          <span class="status" class:running={tab.terminal ? tab.terminal.state === 'running' : tab.run ? tab.run.run?.state === 'running' : tab.store.running || tab.store.session?.running} class:waiting={tab.run ? tab.run.questions.length > 0 : tab.store.waiting>0} aria-label={status(tab)}></span>
         </button>
         <button class="dismiss" aria-label="Close {assistant.title(tab)} tab" title="Close tab; conversation keeps running" onclick={()=>assistant.closeTab(tab.id)}><Icon name="close" size={12} /></button>
       </div>
@@ -74,7 +86,7 @@
         {#if connected.length}
           <span class="group">Coding Agents</span>
           {#each connected as agent (agent.id)}
-            <button onclick={()=>{nativeCLILaunchers.get(agent.id)?.(agent.interactive!.device);menu=false;}}>{agent.name}</button>
+            <button onclick={()=>{launching=agent;projectId=repositories[0]?.id ?? '';launchError='';menu=false;}}>{agent.name}</button>
           {/each}
         {/if}
         <a href="#/settings?agents" onclick={manage}>Manage Coding Agents →</a>
@@ -90,6 +102,20 @@
     {/if}
   </div>
 </div>
+{#if launching}
+  <form class="launch" onsubmit={e => { e.preventDefault(); void launch(); }}>
+    <label>{launching.name} · Repository
+      <select class="select" bind:value={projectId} disabled={launchBusy}>
+        {#each repositories as project (project.id)}<option value={project.id}>{project.name}</option>{/each}
+      </select>
+    </label>
+    <span>Runs on this device with your CLI permissions.</span>
+    <button class="btn primary small" disabled={launchBusy || !projectId} type="submit">{launchBusy ? 'Opening…' : 'Open terminal'}</button>
+    <button class="btn quiet small" disabled={launchBusy} type="button" onclick={() => launching=null}>Cancel</button>
+    {#if !repositories.length}<p>Add a local repository in Projects to open a terminal.</p>{/if}
+    {#if launchError}<p role="alert">{launchError}</p>{/if}
+  </form>
+{/if}
 {#if editing}
   <form class="rename" onsubmit={e=>{e.preventDefault();finish();}}>
     <label>Conversation title <input class="input" maxlength="100" bind:value={name} /></label>
@@ -97,6 +123,7 @@
   </form>
 {/if}
 <style>
+  .launch{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px}.launch label{display:flex;align-items:center;gap:8px}.launch span{color:var(--text-2)}.launch p{width:100%;margin:0}
   .tabs-bar{display:flex;align-items:stretch;gap:4px;padding:0 12px;border-bottom:1px solid var(--border);flex:none;min-width:0}
   .tabs{display:flex;overflow-x:auto;min-width:0;flex:1;scrollbar-width:thin}
   .tab{display:flex;flex:0 1 190px;min-width:132px;border-bottom:2px solid transparent;align-items:center}

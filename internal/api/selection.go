@@ -50,14 +50,13 @@ func (s *Server) handleAgentCatalog(w http.ResponseWriter, r *http.Request) {
 		for _, a := range s.opt.Agents.Detect(r.Context()) {
 			e := entries[a.ID]
 			salie := a.ID == "claude-code" || a.ID == "codex" || a.ID == "gemini-cli" || a.ID == "opencode"
-			out = append(out, item{Agent: a, Command: e.Command, Setup: e.Setup, Adapter: e.Adapter, Assistant: salie, Coding: true, Interactive: nativeInteractiveCLIStatus(a.SignIn)})
+			out = append(out, item{Agent: a, Command: e.Command, Setup: e.Setup, Adapter: e.Adapter, Assistant: salie, Coding: true, Interactive: s.nativeInteractiveCLIStatus(r, a)})
 		}
 	}
 	writeJSON(w, 200, map[string]any{"agents": out})
 }
 
-// No native terminal launch transport exists in Phase 1. Fail closed independently of
-// installed ACP runtimes, assistant providers, automatic selection or billing declarations.
+// Native support is independent of installed ACP runtimes and restricted chat providers.
 type interactiveCLIStatus struct {
 	Supported      bool   `json:"supported"`
 	Authorized     bool   `json:"authorized"`
@@ -65,13 +64,19 @@ type interactiveCLIStatus struct {
 	Authentication string `json:"authentication"`
 }
 
-func nativeInteractiveCLIStatus(signIn domain.SignIn) interactiveCLIStatus {
+func (s *Server) nativeInteractiveCLIStatus(r *http.Request, a domain.Agent) interactiveCLIStatus {
+	signIn := a.SignIn
 	status := interactiveCLIStatus{Device: "local", Authentication: "unknown"}
 	if signIn == domain.SignedIn {
 		status.Authentication = "verified"
 	}
 	if signIn == domain.SignedOut {
 		status.Authentication = "signed_out"
+	}
+	if s.opt.AuthRequired && s.opt.Terminals != nil && s.opt.Terminals.AuthorizedDevice(r.Context()) && fromThisComputer(r) && agentcatalog.NativeTerminal(a.ID) {
+		status.Supported = true
+		status.Authorized = true
+		status.Device = s.opt.Terminals.Device()
 	}
 	return status
 }

@@ -153,3 +153,37 @@ it('deduplicates attached run tabs, restores them and never creates a provider s
   expect(srv.calls.filter(c => c.method === 'POST' && c.path === '/sessions')).toHaveLength(0);
   vi.restoreAllMocks();
 });
+
+describe('native terminal tabs', () => {
+  it('creates without a task or conversation and preserves the process session across closing and reopening', async () => {
+    const { terminalApi } = await import('./terminal');
+    const session = { id: 'terminal-a', projectId: 'repo-a', agentId: 'codex', device: 'local', repository: 'Repo', state: 'running' as const, createdAt: '2026-10-25T00:00:00Z' };
+    const create = vi.spyOn(terminalApi, 'create').mockResolvedValue(session);
+    vi.spyOn(terminalApi, 'list').mockResolvedValue([]);
+    const stop = vi.spyOn(terminalApi, 'stop');
+    const m = await manager();
+    await m.newTerminal('repo-a', 'codex', 'local');
+    const id = m.activeId;
+    expect(create).toHaveBeenCalledWith('repo-a', 'codex', 'local');
+    expect(m.activeTab.terminal?.id).toBe('terminal-a');
+    expect(m.activeTab.store.session).toBeNull();
+    m.show(); m.opened(); m.hide(); m.closed(); m.closeTab(id); m.reopen(id);
+    expect(m.activeTab.terminal?.id).toBe('terminal-a');
+    expect(stop).not.toHaveBeenCalled();
+    expect(m.running).toBe(true);
+    vi.restoreAllMocks();
+  });
+  it('discovers sessions after losing browser storage without relaunching them', async () => {
+    const { terminalApi } = await import('./terminal');
+    const session = { id: 'terminal-existing', projectId: 'repo-a', agentId: 'claude-code', device: 'local', repository: 'Repo', state: 'interrupted' as const, createdAt: '2026-10-25T00:00:00Z' };
+    vi.spyOn(terminalApi, 'list').mockResolvedValue([session]);
+    const create = vi.spyOn(terminalApi, 'create');
+    const m = await manager();
+    await srv.until(() => m.closedTabs.some(t => t.terminal?.id === session.id));
+    const tab = m.closedTabs.find(t => t.terminal?.id === session.id)!;
+    m.reopen(tab.id);
+    expect(m.activeTab.terminal?.state).toBe('interrupted');
+    expect(create).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+});

@@ -42,12 +42,14 @@ import (
 	"devboard/internal/service"
 	"devboard/internal/store"
 	"devboard/internal/store/sqlite"
+	"devboard/internal/terminal"
 	"devboard/internal/update"
 	"devboard/internal/webui"
 )
 
 // Controller is the long-running daemon.
 type Controller struct {
+	terminals     *terminal.Manager
 	stopScheduler context.CancelFunc
 	schedulerDone chan struct{}
 	cfg           config.Config
@@ -250,7 +252,16 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("MCP client grants: %w", err)
 	}
+	commands := map[string]string{}
+	for _, id := range []string{"claude-code", "codex"} {
+		commands[id] = c.cfg.Agents[id].Command
+	}
+	c.terminals, err = terminal.New(terminal.Options{Projects: projects, Settings: settings, Agents: agents, Commands: commands, Device: runnerRec.ID, StatePath: filepath.Join(c.cfg.DataDir, "terminals.json")})
+	if err != nil {
+		return fmt.Errorf("terminals: %w", err)
+	}
 	apiOpts := api.Options{
+		Terminals:    c.terminals,
 		Personal:     personal,
 		Memory:       c.knowledge,
 		Recommender:  recommender,
@@ -288,6 +299,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
 	privateOpts.Memory = nil
+	privateOpts.Terminals = nil
 	// Personal data is served here to an enrolled phone and to no one else, and only on the routes a phone has been
 	// reviewed for (api/phone.go): the owner's token never opens it from the network (api.personalReady).
 	privateOpts.PersonalPhonesOnly = true
@@ -449,6 +461,10 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 // database is still there to record how their runs ended, then the event
 // broker and the database.
 func (c *Controller) teardown(ctx ...context.Context) error {
+	if c.terminals != nil {
+		c.terminals.Close()
+		c.terminals = nil
+	}
 	var err error
 	// The assistant's turns run provider processes and record their end in the database: stop them while it is still there.
 	if c.assistant != nil {

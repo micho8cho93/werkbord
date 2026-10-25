@@ -21,11 +21,13 @@ import (
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store"
+	"devboard/internal/terminal"
 	"devboard/internal/update"
 )
 
 // Options configures a Server.
 type Options struct {
+	Terminals   *terminal.Manager // local owner only; never copied to network listeners
 	Personal    *service.Personal // owner-only loopback persistence; nil on network listeners
 	Distributed *service.Runners
 	Scheduler   *service.Scheduler
@@ -122,6 +124,7 @@ func New(opt Options) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	s.personalRoutes(mux)
+	s.terminalRoutes(mux)
 
 	// Everything that belongs to a project is reached through that project: the
 	// project in the path is checked against the thing asked for, and a mismatch

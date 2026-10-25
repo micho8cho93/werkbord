@@ -11,6 +11,5 @@ export function connectedAgents(catalog: CatalogAgent[], preferences: Record<str
   });
 }
 
-// Intentionally empty until a reviewed native interactive transport is implemented. A server
-// capability alone must never expose a button this frontend cannot actually launch.
-export const nativeCLILaunchers = new Map<string, (device: string) => void>();
+// Only these native entry points have a matching reviewed frontend launch flow.
+export const nativeCLILaunchers = new Set(['claude-code', 'codex']);

@@ -1,5 +1,6 @@
 // One surface, many independent instances of the existing conversation client. Transcript caches
 // remain in sessionStorage; only provider handles/settings live on the controller.
+import { terminalApi, type TerminalSession } from './terminal';
 import { app } from '../state.svelte';
 import { RunSession, liveRun } from './run-session.svelte';
 import { InteractionQueue, type Interaction } from './interactions';
@@ -14,7 +15,7 @@ import { SessionStreams } from './session-streams';
 const INDEX = 'werkbord.assistant.tabs.v1';
 const LEGACY = 'werkbord.assistant.v1';
 const keyOf = (id: string) => `werkbord.assistant.session.${id}`;
-export interface SalieTab { id: string; title: string; closed: boolean; store: AssistantStore; run?: RunSession }
+export interface SalieTab { id: string; title: string; closed: boolean; store: AssistantStore; run?: RunSession; terminal?: TerminalSession }
 
 export class AssistantSessions {
   tabs = $state<SalieTab[]>([]);
@@ -27,7 +28,7 @@ export class AssistantSessions {
   private queue = new InteractionQueue();
   private pending = $derived.by(() => {
     const requests: Interaction[] = app.questions.map(question => ({ key: `question:${question.projectId}:${question.id}`, kind: 'question', question }));
-    for (const tab of this.tabs) if (!tab.run) for (const item of tab.store.waitingItems) {
+    for (const tab of this.tabs) if (!tab.run && !tab.terminal) for (const item of tab.store.waitingItems) {
       if (Date.parse(item.expiresAt) <= tab.store.now) continue;
       requests.push({ key: `proposal:${tab.store.session?.id}:${item.id}`, kind: 'proposal', tabId: tab.id, store: tab.store, item });
     }
@@ -52,7 +53,7 @@ export class AssistantSessions {
   get active(): AssistantStore { return this.tabs.find(t => t.id === this.activeId)!.store; }
   get openTabs(): SalieTab[] { return this.tabs.filter(t => !t.closed); }
   get closedTabs(): SalieTab[] { return this.tabs.filter(t => t.closed); }
-  get running(): boolean { return this.tabs.some(t => t.run ? !!t.run.run && liveRun(t.run.run) : t.store.running || t.store.session?.running); }
+  get running(): boolean { return this.tabs.some(t => t.terminal ? t.terminal.state === 'running' : t.run ? !!t.run.run && liveRun(t.run.run) : t.store.running || t.store.session?.running); }
   get waiting(): number { return this.interactions.length; }
   get isOpen(): boolean { return this.mounted && this.phase !== 'closing' && this.phase !== 'closed'; }
   get draft(): string { return this.active.draft; }
@@ -66,17 +67,33 @@ export class AssistantSessions {
     this.activeId = id;
     return this.tabs.at(-1)!;
   }
+  async newTerminal(projectId: string, agentId: string, device: string): Promise<void> {
+    const session = await terminalApi.create(projectId, agentId, device);
+    const tab = this.add(); tab.terminal = session; this.save();
+  }
+  private async discoverTerminals(): Promise<void> {
+    try {
+      const sessions = await terminalApi.list();
+      for (const session of sessions) {
+        const tab = this.tabs.find(t => t.terminal?.id === session.id);
+        if (tab) tab.terminal = session;
+        else { const active = this.activeId; const added = this.add(); added.closed = true; added.terminal = session; this.activeId = active; }
+      }
+      for (const tab of this.tabs) if (tab.terminal && !sessions.some(s => s.id === tab.terminal!.id)) tab.terminal.state = 'interrupted';
+      this.save();
+    } catch { /* The terminal view reports connection loss without guessing process state. */ }
+  }
   newTab(): void {
     const tab = this.add();
     tab.store.init(true);
-    if (!tab.run) void tab.store.prepare();
+    if (!tab.run && !tab.terminal) void tab.store.prepare();
     this.save();
   }
   select(id: string): void {
     const tab = this.tabs.find(t => t.id === id && !t.closed);
     if (!tab) return;
     this.activeId = id;
-    if (!tab.run) void tab.store.prepare();
+    if (!tab.run && !tab.terminal) void tab.store.prepare();
     this.save();
   }
   closeTab(id: string): void {
@@ -103,7 +120,7 @@ export class AssistantSessions {
     this.save();
   }
   title(tab: SalieTab): string {
-    return tab.title || (tab.run ? `${tab.run.run?.agentId ?? 'Agent'} · ${tab.run.project?.name ?? tab.run.projectId}` : this.firstMessage(tab)) || 'New conversation';
+    return tab.title || (tab.terminal ? `${tab.terminal.agentId} · ${tab.terminal.repository}` : tab.run ? `${tab.run.run?.agentId ?? 'Agent'} · ${tab.run.project?.name ?? tab.run.projectId}` : this.firstMessage(tab)) || 'New conversation';
   }
   private firstMessage(tab: SalieTab): string {
     const first = tab.store.transcript.items.find(i => i.kind === 'user');
@@ -120,6 +137,7 @@ export class AssistantSessions {
           if (!t || typeof t.id !== 'string' || !/^[\w-]{1,80}$/.test(t.id) || this.tabs.some(x => x.id === t.id)) continue;
           const tab = this.add(t.id, typeof t.title === 'string' ? t.title.slice(0, 100) : '', t.closed === true);
           if (t.run && typeof t.run.projectId === 'string' && typeof t.run.runId === 'string') tab.run = new RunSession(t.run.projectId, t.run.runId);
+          if (t.terminal && typeof t.terminal.id === 'string' && typeof t.terminal.projectId === 'string') tab.terminal = t.terminal;
           if (typeof t.draft === 'string') tab.store.draft = t.draft.slice(0, 120_000);
           if (validChoice(t.choice)) tab.store.choice = t.choice;
         }
@@ -134,7 +152,8 @@ export class AssistantSessions {
         }
       }
     } catch { /* Storage unavailable or malformed: retain a usable empty tab. */ }
-    for (const tab of this.tabs) { if (tab.run) tab.run.attach(); else tab.store.init(true); }
+    for (const tab of this.tabs) { if (tab.run) tab.run.attach(); else if (!tab.terminal) tab.store.init(true); }
+    void this.discoverTerminals();
     const wake = () => { for (const tab of this.tabs) tab.store.wake(); };
     const visible = () => { if (!document.hidden) wake(); };
     const pagehide = () => this.save();
@@ -171,7 +190,7 @@ export class AssistantSessions {
   private saveIndex(): void {
     try {
       sessionStorage.setItem(INDEX, JSON.stringify({ v: 1, activeId: this.activeId, tabs: this.tabs.map(t => ({
-        id: t.id, title: t.title || this.firstMessage(t), closed: t.closed, run: t.run ? { projectId: t.run.projectId, runId: t.run.runId } : undefined, choice: t.store.choice, draft: t.store.draft,
+        id: t.id, title: t.title || this.firstMessage(t), closed: t.closed, terminal: t.terminal, run: t.run ? { projectId: t.run.projectId, runId: t.run.runId } : undefined, choice: t.store.choice, draft: t.store.draft,
       })) }));
     } catch { /* Private mode/full storage must not prevent conversation use. */ }
   }
@@ -185,7 +204,7 @@ export class AssistantSessions {
     this.compact = false;
     this.mounted = true;
     this.phase = 'opening';
-    if (!this.activeTab.run) void this.active.prepare();
+    if (!this.activeTab.run && !this.activeTab.terminal) void this.active.prepare();
   }
   hide(): void { if (this.mounted && this.phase !== 'closed') this.phase = 'closing'; }
   toggle(origin?: Origin, trigger?: HTMLElement | null): void { if (this.isOpen) this.hide(); else this.show(origin, trigger); }

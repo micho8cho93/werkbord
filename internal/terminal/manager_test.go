@@ -1,0 +1,314 @@
+//go:build darwin || linux
+
+package terminal
+
+import (
+	"context"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"devboard/internal/agent"
+	"devboard/internal/agent/fake"
+	"devboard/internal/domain"
+	"devboard/internal/gitrepo"
+	"devboard/internal/service"
+	"devboard/internal/store"
+	"devboard/internal/store/sqlite"
+	"golang.org/x/sys/unix"
+)
+
+func fixture(t *testing.T) (*Manager, string) {
+	t.Helper()
+	ctx := context.Background()
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git: %v %s", err, out)
+	}
+	db, err := sqlite.Open(ctx, filepath.Join(dir, "db"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	deps := service.Deps{Store: db}
+	projects := &service.Projects{Deps: deps, Git: &gitrepo.CLI{}}
+	project, err := projects.Register(ctx, repo, "Native repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := &service.Settings{Deps: deps}
+	_, err = settings.SetSelection(ctx, domain.SelectionSettings{Agents: map[string]domain.AgentSelectionPreference{"codex": {DirectCLI: true, Billing: "auto"}, "claude-code": {DirectCLI: true, Billing: "auto"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	local, e := settings.RegisterRunner(ctx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	registry := agent.NewRegistry()
+	for _, id := range []string{"codex", "claude-code"} {
+		if err := registry.Register(&fake.Adapter{Name: id, Info: domain.Agent{ID: id, Installed: true, Available: true, SignIn: domain.SignedIn}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cli := filepath.Join(dir, "native-cli")
+	// A real PTY fixture requires all three descriptors to be terminals; no pipe can pass.
+	script := "#!/bin/sh\n[ -t 0 ] && [ -t 1 ] && [ -t 2 ] || exit 17\nprintf '\\033[32mREADY\\033[0m\\n'\nwhile IFS= read -r line; do\n case \"$line\" in exit) exit 0;; size) stty size;; *) printf 'REPLY:%s\\n' \"$line\";; esac\ndone\n"
+	if err = os.WriteFile(cli, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	m, err := New(Options{Projects: projects, Settings: settings, Agents: registry, Commands: map[string]string{"codex": cli, "claude-code": cli}, Device: local.ID, StatePath: filepath.Join(dir, "terminals.json")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(m.Close)
+	return m, project.ID
+}
+func create(t *testing.T, m *Manager, project, id string) Metadata {
+	t.Helper()
+	s, e := m.Create(context.Background(), project, id, m.Device(), 80, 24)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return s
+}
+func collect(t *testing.T, m *Manager, s Metadata, after uint64, want string) (string, uint64) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	var b strings.Builder
+	for {
+		out, e := m.Output(ctx, s.ProjectID, s.ID, after)
+		if e != nil {
+			t.Fatalf("waiting for %q: %v; output %q", want, e, b.String())
+		}
+		after = out.Next
+		b.Write(out.Data)
+		if strings.Contains(b.String(), want) {
+			return b.String(), after
+		}
+	}
+}
+func TestNativePTYIsolationReconnectionAndLifecycle(t *testing.T) {
+	m, p := fixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	a, e := m.Create(ctx, p, "claude-code", m.Device(), 80, 24)
+	if e != nil {
+		t.Fatal(e)
+	}
+	cancel()
+	b := create(t, m, p, "codex")
+	first, offset := collect(t, m, a, 0, "READY")
+	if !strings.Contains(first, "\x1b[32m") {
+		t.Fatal("ANSI was lost")
+	}
+	_, otherOffset := collect(t, m, b, 0, "READY")
+	if e = m.Input(p, a.ID, []byte("alpha\n")); e != nil {
+		t.Fatal(e)
+	}
+	_, offset = collect(t, m, a, offset, "REPLY:alpha")
+	pollCtx, detach := context.WithCancel(context.Background())
+	detach()
+	if _, err := m.Output(pollCtx, p, a.ID, offset); !errors.Is(err, context.Canceled) {
+		t.Fatalf("detach: %v", err)
+	}
+	if e = m.Input(p, b.ID, []byte("beta\n")); e != nil {
+		t.Fatal(e)
+	}
+	out, _ := collect(t, m, b, otherOffset, "REPLY:beta")
+	if strings.Contains(out, "alpha") {
+		t.Fatal("cross-session output")
+	}
+	// Reattachment from offset zero replays raw output; disconnect never stopped the process.
+	replay, e := m.Output(context.Background(), p, a.ID, 0)
+	if e != nil || replay.Metadata.State != "running" || !strings.Contains(string(replay.Data), "REPLY:alpha") {
+		t.Fatalf("replay: %+v %v", replay, e)
+	}
+	if e = m.Resize(p, a.ID, 111, 37); e != nil {
+		t.Fatal(e)
+	}
+	if e = m.Input(p, a.ID, []byte("size\n")); e != nil {
+		t.Fatal(e)
+	}
+	_, offset = collect(t, m, a, offset, "37 111")
+	if e = m.Input("other-project", a.ID, []byte("injection\n")); !errors.Is(e, domain.ErrNotFound) {
+		t.Fatalf("cross project input: %v", e)
+	}
+	if _, e = m.Output(context.Background(), "other-project", a.ID, 0); !errors.Is(e, domain.ErrNotFound) {
+		t.Fatalf("cross project attach: %v", e)
+	}
+	if e = m.Stop(p, a.ID); e != nil {
+		t.Fatal(e)
+	}
+	if e = m.Input(p, a.ID, []byte("late\n")); !errors.Is(e, domain.ErrConflict) {
+		t.Fatalf("input after stop: %v", e)
+	}
+	if e = m.Input(p, b.ID, []byte("exit\n")); e != nil {
+		t.Fatal(e)
+	}
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		ended, _ := m.Output(context.Background(), p, b.ID, 0)
+		if ended.Metadata.State == "exited" {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("natural exit not recorded")
+}
+func TestTerminalValidationAndLimits(t *testing.T) {
+	m, p := fixture(t)
+	for _, in := range []struct {
+		project, agent, device string
+		c, r                   int
+	}{{p, "amp-acp", m.Device(), 80, 24}, {p, "/bin/sh", m.Device(), 80, 24}, {p, "codex", "remote", 80, 24}, {"missing", "codex", m.Device(), 80, 24}, {p, "codex", m.Device(), 0, 24}} {
+		if _, e := m.Create(context.Background(), in.project, in.agent, in.device, in.c, in.r); e == nil {
+			t.Fatalf("accepted %+v", in)
+		}
+	}
+	for i := 0; i < MaxSessions; i++ {
+		create(t, m, p, "codex")
+	}
+	if _, e := m.Create(context.Background(), p, "codex", m.Device(), 80, 24); !errors.Is(e, domain.ErrConflict) {
+		t.Fatalf("limit: %v", e)
+	}
+	s := m.List()[0]
+	if e := m.Input(p, s.ID, make([]byte, MaxInput+1)); !errors.Is(e, domain.ErrInvalid) {
+		t.Fatal(e)
+	}
+	if e := m.Resize(p, s.ID, 501, 24); !errors.Is(e, domain.ErrInvalid) {
+		t.Fatal(e)
+	}
+}
+func TestRestartMarksMissingSessionsInterrupted(t *testing.T) {
+	m, p := fixture(t)
+	s := create(t, m, p, "codex")
+	// Snapshot persisted ownership, then stop service. Restore snapshot to model an interrupted device.
+	b, e := os.ReadFile(m.opt.StatePath)
+	if e != nil {
+		t.Fatal(e)
+	}
+	m.Close()
+	if e = os.WriteFile(m.opt.StatePath, b, 0600); e != nil {
+		t.Fatal(e)
+	}
+	next, e := New(m.opt)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer next.Close()
+	out, e := next.Output(context.Background(), p, s.ID, 0)
+	if e != nil || out.Metadata.State != "interrupted" {
+		t.Fatalf("restart: %+v %v", out, e)
+	}
+	if e = next.Input(p, s.ID, []byte("must not relaunch")); !errors.Is(e, domain.ErrConflict) {
+		t.Fatal(e)
+	}
+}
+func TestOutputOverflowSignalsReset(t *testing.T) {
+	m, p := fixture(t)
+	s := create(t, m, p, "codex")
+	collect(t, m, s, 0, "READY")
+	m.mu.Lock()
+	live := m.sessions[s.ID]
+	live.base = 100
+	live.buffer = []byte("new output")
+	m.mu.Unlock()
+	out, e := m.Output(context.Background(), p, s.ID, 0)
+	if e != nil || !out.Reset || out.Next != 110 || string(out.Data) != "new output" {
+		t.Fatalf("overflow: %+v %v", out, e)
+	}
+}
+
+func TestTerminalLaunchRequiresCurrentDevicePreferenceAndSignIn(t *testing.T) {
+	m, p := fixture(t)
+	ctx := context.Background()
+	adapter, err := m.opt.Agents.Get("codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	detected := adapter.(*fake.Adapter)
+	for _, info := range []domain.Agent{
+		{ID: "codex", Installed: true, Available: true, SignIn: domain.SignedOut},
+		{ID: "codex", Installed: true, Available: true, SignIn: domain.SignInUnknown},
+		{ID: "codex", Installed: false, Available: true, SignIn: domain.SignedIn},
+		{ID: "codex", Installed: true, Available: false, SignIn: domain.SignedIn},
+	} {
+		detected.Info = info
+		if _, e := m.Create(ctx, p, "codex", m.Device(), 80, 24); !errors.Is(e, domain.ErrForbidden) {
+			t.Fatalf("accepted %+v: %v", info, e)
+		}
+	}
+	detected.Info = domain.Agent{ID: "codex", Installed: true, Available: true, SignIn: domain.SignedIn}
+	prefs, e := m.opt.Settings.Selection(ctx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	pref := prefs.Agents["codex"]
+	pref.DirectCLI = false
+	prefs.Agents["codex"] = pref
+	if _, e = m.opt.Settings.SetSelection(ctx, prefs); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = m.Create(ctx, p, "codex", m.Device(), 80, 24); !errors.Is(e, domain.ErrForbidden) {
+		t.Fatalf("accepted disabled direct CLI: %v", e)
+	}
+	pref.DirectCLI = true
+	prefs.Agents["codex"] = pref
+	if _, e = m.opt.Settings.SetSelection(ctx, prefs); e != nil {
+		t.Fatal(e)
+	}
+	if e = m.opt.Settings.Store.Update(ctx, func(tx store.Tx) error {
+		r, e := tx.Runners().Get(ctx, m.Device())
+		if e != nil {
+			return e
+		}
+		r.Disabled = true
+		return tx.Runners().Save(ctx, r)
+	}); e != nil {
+		t.Fatal(e)
+	}
+	if m.AuthorizedDevice(ctx) {
+		t.Fatal("disabled local device advertised")
+	}
+	if _, e = m.Create(ctx, p, "codex", m.Device(), 80, 24); !errors.Is(e, domain.ErrForbidden) {
+		t.Fatalf("accepted disabled device: %v", e)
+	}
+}
+func TestTerminalRejectsRedirectedRepository(t *testing.T) {
+	m, p := fixture(t)
+	project, e := m.opt.Projects.Get(context.Background(), p)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.Rename(project.RepoPath, project.RepoPath+"-original"); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.Symlink(t.TempDir(), project.RepoPath); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = m.Create(context.Background(), p, "codex", m.Device(), 80, 24); !errors.Is(e, domain.ErrForbidden) {
+		t.Fatalf("accepted redirected path: %v", e)
+	}
+}
+
+func TestPTYDescriptorCannotBeInheritedByAnotherSession(t *testing.T) {
+	m, p := fixture(t)
+	s := create(t, m, p, "codex")
+	conn, e := m.sessions[s.ID].p.terminal.SyscallConn()
+	if e != nil {
+		t.Fatal(e)
+	}
+	flags := 0
+	if e = conn.Control(func(fd uintptr) { flags, e = unix.FcntlInt(fd, unix.F_GETFD, 0) }); e != nil {
+		t.Fatal(e)
+	}
+	if flags&unix.FD_CLOEXEC == 0 {
+		t.Fatal("PTY master is inheritable by another process")
+	}
+}

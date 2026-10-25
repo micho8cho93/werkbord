@@ -2,6 +2,7 @@
   import { onDestroy, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
   import RunSession from './RunSession.svelte';
+  import TerminalSession from './TerminalSession.svelte';
   import SessionContent from './SessionContent.svelte';
   import ModelPicker from './ModelPicker.svelte';
   import SessionTabs from './SessionTabs.svelte';
@@ -120,7 +121,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (!assistant.mounted || e.defaultPrevented) return;
+    if (!assistant.mounted || e.defaultPrevented || (e.target instanceof Element && e.target.closest('.xterm'))) return;
     if (e.key === 'Tab') return trap(e);
     if (e.key !== 'Escape') return;
     e.preventDefault();
@@ -149,7 +150,7 @@
       <header class="top">
         <div class="who">
           <h1 id="asst-title">Assistant</h1>
-          {#if !assistant.activeTab.run}{#key assistant.activeId}<ModelPicker assistant={assistant.active} />{/key}{/if}
+          {#if !assistant.activeTab.run && !assistant.activeTab.terminal}{#key assistant.activeId}<ModelPicker assistant={assistant.active} />{/key}{/if}
         </div>
         <div class="acts">
           <button class="btn quiet close" class:phone-nav={phone.on} type="button" onclick={() => assistant.hide()} aria-label="Close assistant" title="Close ({isMac ? '' : 'Esc'})" data-testid="assistant-close">
@@ -161,7 +162,7 @@
       <SessionTabs />
       <div class="session-panel" id="salie-panel" role="tabpanel" aria-labelledby="salie-tab-{assistant.activeId}">
       {#key assistant.activeId}
-        <svelte:boundary>{#if assistant.activeTab.run}<RunSession session={assistant.activeTab.run} />{:else}<SessionContent store={assistant.active} />{/if}</svelte:boundary>
+        <svelte:boundary>{#if assistant.activeTab.terminal}{#key assistant.activeTab.terminal.id}<TerminalSession session={assistant.activeTab.terminal} />{/key}{:else if assistant.activeTab.run}<RunSession session={assistant.activeTab.run} />{:else}<SessionContent store={assistant.active} />{/if}</svelte:boundary>
       {/key}
       </div>
     </div>

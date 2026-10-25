@@ -30,6 +30,7 @@ import (
 	"devboard/internal/runner"
 	"devboard/internal/service"
 	"devboard/internal/store/sqlite"
+	"devboard/internal/terminal"
 	"devboard/internal/webui"
 )
 
@@ -81,7 +82,13 @@ func main() {
 	deps := service.Deps{Store: db, Bus: broker}
 	g := &gitrepo.CLI{}
 	agents := agent.NewRegistry()
-	agents.Register(&fake.Adapter{Name: "codex", Info: domain.Agent{ID: "codex", Name: "Codex", Available: false}})
+	if os.Getenv("WERKBORD_BROWSER_TERMINALS") == "1" {
+		for _, id := range []string{"codex", "claude-code"} {
+			agents.Register(&fake.Adapter{Name: id, Info: domain.Agent{ID: id, Name: id, Installed: true, Available: true, SignIn: domain.SignedIn}})
+		}
+	} else {
+		agents.Register(&fake.Adapter{Name: "codex", Info: domain.Agent{ID: "codex", Name: "Codex", Available: false}})
+	}
 	if os.Getenv("WERKBORD_BROWSER_EXECUTION") == "1" {
 		agents.Register(fixtureAdapter{})
 	}
@@ -138,7 +145,20 @@ func main() {
 	}
 	ops := appops.New(appops.Config{Backend: appops.NewBackend(appops.Services{Projects: projects, Tasks: tasks}), Store: db})
 	mcpServer := mcpaccess.New(grants, ops, projects, tasks)
-	handler := api.New(api.Options{Personal: &service.Personal{Deps: deps}, MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	var terminals *terminal.Manager
+	if os.Getenv("WERKBORD_BROWSER_TERMINALS") == "1" {
+		commands := map[string]string{}
+		if cli := os.Getenv("WERKBORD_BROWSER_TERMINAL_CLI"); cli != "" {
+			commands["codex"] = cli
+			commands["claude-code"] = cli
+		}
+		terminals, err = terminal.New(terminal.Options{Projects: projects, Settings: settings, Agents: agents, Commands: commands, Device: local.ID, StatePath: filepath.Join(dir, "terminals.json")})
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer terminals.Close()
+	}
+	handler := api.New(api.Options{Terminals: terminals, Personal: &service.Personal{Deps: deps}, MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

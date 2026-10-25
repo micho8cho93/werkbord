@@ -25,11 +25,12 @@ describe('connected interactive coding agents', () => {
     expect(connectedAgents([{...agent,interactive:{...agent.interactive!,authentication:'unknown'}}],prefs)).toHaveLength(1);
     expect(connectedAgents([{...agent,interactive:{...agent.interactive!,authentication:'signed_out'}}],prefs)).toEqual([]);
   });
-  it('reflects new settings immediately and has no nonfunctional Phase 1 launchers', () => {
+  it('reflects new settings immediately and only enables reviewed native launchers', () => {
     const settings = {codex:{...preference}};
     expect(connectedAgents([agent],settings)).toHaveLength(1);
     settings.codex.directCLI = false;
     expect(connectedAgents([agent],settings)).toHaveLength(0);
-    expect(nativeCLILaunchers.size).toBe(0);
+    expect([...nativeCLILaunchers]).toEqual(['claude-code', 'codex']);
+    expect(nativeCLILaunchers.has('amp-acp')).toBe(false);
   });
 });

@@ -795,3 +795,7 @@ Instructions, answers, finish and stop use the existing project-scoped controlle
 One attention queue combines pending run questions across projects with confirmation proposals across Salie tabs, including hidden tabs. Requests retain their source identities, session stores and authority. The queue preserves its unanswered head through new arrivals and reconnects, deduplicates replay, and removes resolved, expired or withdrawn requests. The floating button shows the combined count and a quiet Needs you bubble; its compact card renders one request at a time. Closing the card keeps requests pending. Routine output does not open it.
 
 The desktop shell keeps the assistant frame alive independently of its full-window surface. Only the authenticated Individual workspace frame may request a run tab, using bounded opaque project/run IDs. The compact card remains inside that same authenticated assistant frame: answers and proposal contents are not relayed through the shell.
+
+## Native terminal tabs (Phase 3)
+
+Salie can open persistent native Claude Code and Codex terminals directly from New tab, independent of task execution and restricted assistant conversations. See [Native terminal sessions](NATIVE_TERMINALS.md) for execution boundaries, reconnection, PTY support, authentication and limits.
