@@ -32,10 +32,14 @@
     send(keyOf(id, hosted), f?.target.origin, message);
   };
 
-  /** Tells a workspace the theme the person chose in the sidebar, which is where it is chosen. Nothing is sent until they choose. */
+  /**
+   * Tells a workspace the theme and the style the person chose in Settings, which is where they are chosen. The style is told
+   * even when it is Paper: a workspace on another origin keeps its own copy, and one that was closed when the person went back to
+   * Paper would otherwise open still showing the style it had before.
+   */
   function tell(id: string, hosted: boolean): void {
-    if (theme.choice) sendTo(id, hosted, { type: 'werkbord.theme', theme: theme.choice });
-    if (look.choice !== 'paper') sendTo(id, hosted, { type: 'werkbord.style', style: look.choice });
+    if (theme.chosen) sendTo(id, hosted, { type: 'werkbord.theme', theme: theme.choice });
+    sendTo(id, hosted, { type: 'werkbord.style', style: look.choice });
   }
 
   /** Asks an open workspace to go to a place inside itself. */
@@ -87,10 +91,11 @@
     if (model.frames.personal?.ready) sendTo('personal', false, { type: 'werkbord.salie-placement', value });
   });
 
-  // Changing the theme in the sidebar changes it in every workspace that is open.
+  // Changing the theme in Settings changes it in every workspace that is open, and so does going back to Device: a workspace that
+  // was told Dark follows the device again. Nothing is sent before the person has chosen.
   $effect(() => {
     const choice = theme.choice;
-    if (!choice) return;
+    if (!theme.chosen) return;
     for (const { id, hosted } of frameList) sendTo(id, hosted, { type: 'werkbord.theme', theme: choice });
   });
 

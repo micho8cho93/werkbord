@@ -159,6 +159,17 @@ function updateThemeButton(button) {
   button.title = 'Switch to ' + label.toLowerCase();
   button.replaceChildren(icon(teamTheme.dark ? 'sun' : 'moon'), h('span', {}, label));
 }
+// The style (Paper, Graphite, Classic) is chosen next to the theme wherever this page offers the theme. In the desktop window it is
+// chosen in the window's own Settings and told to this page, so only a browser tab shows this.
+const STYLE_CHOICES = [['paper', 'Paper'], ['graphite', 'Graphite'], ['classic', 'Classic']];
+function styleChoice() {
+  return h('div', { class: 'style-choice', role: 'group', 'aria-label': 'Style', 'data-style-choice': true },
+    h('span', { class: 'muted small' }, 'Style'),
+    STYLE_CHOICES.map(([id, label]) => h('button', { type: 'button', class: 'plain small', 'data-style-id': id, 'aria-pressed': teamStyle.current === id ? 'true' : 'false', onclick: () => teamStyle.set(id) }, label)));
+}
+window.addEventListener('teamstylechange', () => {
+  document.querySelectorAll('[data-style-choice] [data-style-id]').forEach(b => b.setAttribute('aria-pressed', b.dataset.styleId === teamStyle.current ? 'true' : 'false'));
+});
 window.addEventListener('teamthemechange', () => {
   document.querySelectorAll('[data-theme-toggle]').forEach(updateThemeButton);
   document.querySelectorAll('.brand img').forEach(img => { img.src = teamTheme.dark ? 'mark-dark.svg' : 'mark.svg'; });
@@ -1847,7 +1858,7 @@ window.addEventListener('message', e => {
   if (!FRAMED || e.source !== window.parent) return;
   const m = e.data;
   if (m && m.type === 'werkbord.style') { teamStyle.set(m.style); return; }
-  if (!m || m.type !== 'werkbord.theme' || (m.theme !== 'light' && m.theme !== 'dark')) return;
+  if (!m || m.type !== 'werkbord.theme' || (m.theme !== 'light' && m.theme !== 'dark' && m.theme !== '')) return;
   teamTheme.set(m.theme);
 });
 // The desktop app's shell can ask this page, framed beside a person's other workspaces, to open a place in it (a ticket that

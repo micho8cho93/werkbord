@@ -65,7 +65,7 @@
 
   // The page is told which theme the person chose in the sidebar, as every workspace is, as soon as it can listen.
   function tell(): void {
-    if (theme.choice) send({ type: 'werkbord.theme', theme: theme.choice });
+    if (theme.chosen) send({ type: 'werkbord.theme', theme: theme.choice });
     send({ type: 'werkbord.style', style: look.choice });
   }
   $effect(() => {

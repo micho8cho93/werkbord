@@ -67,8 +67,13 @@ the sidebar's choice is the window's and is told to every workspace (`werkbord.s
   the same tokens in light, in OS dark and in a chosen dark; `contrast.test.ts` checks the three agree and every text pairing in all six.
 - Classic keeps the old materials and colours but takes the new structure (task card anatomy, type and radius scales). Components
   that were redrawn flat keep their old look under `:root[data-style='classic']` (stat tiles, panels, Settings headings).
-- The Team console follows the style (`console.css`, `theme.js`, stored as `werkbord-team.style`) with Paper, Graphite and Classic;
-  it has no picker of its own, so a browser tab changes style only through the desktop window or storage.
+- The Team console follows the style (`console.css`, `theme.js`, stored as `werkbord-team.style`) with Paper, Graphite and Classic.
+  In a browser tab it offers the choice in its Settings, beside the light/dark button; in the desktop window the window's
+  Settings choose it and tell the page.
+- Both choices can be changed at any time, from wherever Settings is: the window's Settings (every workspace, open or not yet
+  opened, follows: the window tells a workspace its style each time the workspace says it is ready, Paper included, and tells
+  an open one the moment it changes; going back to "Device" for the theme reaches open workspaces too), the Settings page in a
+  browser or on a phone ("Alerts and display"), and the Team console's Settings.
 
 ## Type
 

@@ -16,7 +16,7 @@ export function followShell(): () => void {
   const stopNavigation = onNavigate((href: string) => {
     if (href.startsWith('#')) location.hash = href;
   });
-  const stopTheme = onTheme((choice: 'light' | 'dark') => theme.set(choice, true));
+  const stopTheme = onTheme((choice) => theme.set(choice, true));
   const stopStyle = onStyle((choice) => look.set(choice, true));
   const stopLinks = followShellLinks();
   return () => { stopPlanning(); stopReporting(); stopNavigation(); stopTheme(); stopStyle(); stopLinks(); };

@@ -317,6 +317,8 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .theme-toggle { display: inline-flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 10px; border: 0; border-radius: 5px; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
 .theme-toggle:hover { background: var(--bg); color: var(--text); }
+.style-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 4px 0 8px; }
+.style-choice button[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
 .rail .theme-toggle { width: 100%; text-align: left; margin-top: 4px; }
 .gate header .theme-toggle { margin-left: auto; }
 .search-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 6px 10px; margin-left: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; flex: none; }

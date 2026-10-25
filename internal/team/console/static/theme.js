@@ -36,6 +36,7 @@ window.teamTheme = (() => {
         current = next;
         try { if (next === 'paper') localStorage.removeItem(styleKey); else localStorage.setItem(styleKey, next); } catch (_) {}
         show();
+        window.dispatchEvent(new Event('teamstylechange'));
       },
     };
   })();
@@ -45,8 +46,9 @@ window.teamTheme = (() => {
       this.set(dark() ? 'light' : 'dark');
     },
     set(next) {
-      choice = next;
-      try { localStorage.setItem(key, choice); } catch (_) {}
+      // '' is "follow the device": the window's Settings can hand a workspace back to it.
+      choice = next === 'light' || next === 'dark' ? next : '';
+      try { if (choice) localStorage.setItem(key, choice); else localStorage.removeItem(key); } catch (_) {}
       apply();
     },
   };

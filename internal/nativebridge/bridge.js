@@ -134,15 +134,16 @@ export function openWorkspace(target, place, w = globalThis.window) {
 }
 
 /**
- * Calls handler('light' | 'dark') when the shell that framed this page says which theme the person chose (the window's one
- * sidebar is where it is chosen). Only the parent window is believed, and only those two words.
+ * Calls handler('light' | 'dark' | '') when the shell that framed this page says which theme the person chose (the window's one
+ * sidebar is where it is chosen); '' is "follow the device", so choosing Device in Settings reaches an open page too. Only the
+ * parent window is believed, and only those three values.
  */
 export function onTheme(handler, w = globalThis.window) {
   if (!isEmbedded(w)) return () => {};
   const listener = (event) => {
     if (event.source !== w.parent) return;
     const m = event.data;
-    if (!m || m.type !== 'werkbord.theme' || (m.theme !== 'light' && m.theme !== 'dark')) return;
+    if (!m || m.type !== 'werkbord.theme' || (m.theme !== 'light' && m.theme !== 'dark' && m.theme !== '')) return;
     handler(m.theme);
   };
   w.addEventListener('message', listener);

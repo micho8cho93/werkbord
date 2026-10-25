@@ -10,7 +10,7 @@ export function onNavigate(handler: (href: string) => void, w?: unknown): () => 
 export function reportFrame(place: () => string, w?: unknown): () => void;
 /** Asks the shell to show the person's own Werkbord at a place inside it. False outside the desktop app. */
 export function openWorkspace(target: 'personal', place: string, w?: unknown): boolean;
-/** Calls handler with the theme the person chose in the shell's sidebar. Returns a function that stops listening. */
-export function onTheme(handler: (theme: 'light' | 'dark') => void, w?: unknown): () => void;
+/** Calls handler with the theme the person chose in the shell's sidebar ('' is "follow the device"). Returns a function that stops listening. */
+export function onTheme(handler: (theme: 'light' | 'dark' | '') => void, w?: unknown): () => void;
 /** Calls handler with the style the person chose in the shell's sidebar. Returns a function that stops listening. */
 export function onStyle(handler: (style: 'paper' | 'graphite' | 'classic') => void, w?: unknown): () => void;

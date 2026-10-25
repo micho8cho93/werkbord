@@ -24,8 +24,8 @@ async function boot() {
     // sidebar button. It needs the sign-in, the theme the person chose, and to know it is in the app (for its file dialog); the board,
     // its live updates and the service worker are the workspace page's business.
     document.documentElement.classList.add('asst-surface');
-    onTheme((choice: 'light' | 'dark') => theme.set(choice));
-    onStyle((choice: 'paper' | 'graphite' | 'classic') => look.set(choice, true));
+    onTheme((choice) => theme.set(choice));
+    onStyle((choice) => look.set(choice, true));
     void detectDesktop();
     app.start();
     assistant.init();
