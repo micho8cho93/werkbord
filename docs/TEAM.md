@@ -773,4 +773,4 @@ A read-only `GET .../handoff` supplies private refreshes without recording repea
 ## Cross-repository Initiatives
 
 [Initiatives](INITIATIVES.md) link existing projects, tickets and approved shared context around an objective,
-with permission-checked progress, blockers and Sally context. Work stays on each member’s Individual runner.
+with permission-checked progress, blockers and Salie context. Work stays on each member’s Individual runner.

@@ -83,7 +83,7 @@ const ok = text => console.log('PASS ' + text);
     await card.getByRole('heading',{name:fixture.name,exact:true}).waitFor();
     assert.equal((await api(base,'GET','/workspaces')).items.length,saved.length);
     await card.getByRole('button',{name:'Confirm',exact:true}).click();
-    await until(async () => (await api(base,'GET','/workspaces')).items.length===saved.length+1,'Sally proposal not saved');
+    await until(async () => (await api(base,'GET','/workspaces')).items.length===saved.length+1,'Salie proposal not saved');
     const w = (await api(base,'GET','/workspaces')).items.find(w => w.name===fixture.name);
     const cid = w.collectionIds[0];
     await page.getByTestId('assistant-close').click();
@@ -147,7 +147,7 @@ const ok = text => console.log('PASS ' + text);
       }
     }
     await page.setViewportSize({width:1440,height:1000});
-    ok(fixture.name+' through Sally approval, records, rendering, themes and responsive layout');
+    ok(fixture.name+' through Salie approval, records, rendering, themes and responsive layout');
   }
   await stop(controller);
   controller = start(binary,[],root,env); await ready(base+'/api/health',controller);

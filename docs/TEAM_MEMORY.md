@@ -266,7 +266,7 @@ cannot access human memory endpoints. Existing quorum requirements apply.
 Verification and freshness remain distinct: a human-verified relationship can
 be `uncertain` when current source evidence is unavailable, or `stale` after
 revision/binding changes or after 24 hours. A relationship is never proof of
-compatibility failure, correctness, merge or deployment. Sally's approved-memory
+compatibility failure, correctness, merge or deployment. Salie's approved-memory
 projection labels links as suggestions and preserves the constituent scopes for
 its additional assistant-grant checks. Project settings in the Team console
 provide an explicit load action for the visible approved links.

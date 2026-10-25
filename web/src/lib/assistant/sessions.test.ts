@@ -30,7 +30,7 @@ async function manager() {
 }
 const reply = (m: AssistantSessions, id: string) => m.tabs.find(t => t.id === id)!.store.transcript.items.find(i => i.kind === 'reply') as ReplyItem;
 
-describe('Sally session manager', () => {
+describe('Salie session manager', () => {
   it('keeps five streams, settings, cursors, drafts and confirmations independent while switching and hiding', async () => {
     const m = await manager();
     const sessions: {tab: string; session: string; turn: string}[] = [];

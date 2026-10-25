@@ -5,7 +5,7 @@ const agent: CatalogAgent = {id:'codex',name:'Codex',installed:true,available:tr
   interactive:{supported:true,authorized:true,device:'local',authentication:'verified'}};
 const preference: AgentPreference = {enabled:false,billing:'excluded',directCLI:true};
 describe('connected interactive coding agents', () => {
-  it('separates direct CLI eligibility from automatic selection, billing, ACP and Sally provider support', () => {
+  it('separates direct CLI eligibility from automatic selection, billing, ACP and Salie provider support', () => {
     expect(connectedAgents([agent],{codex:preference})).toEqual([agent]);
     expect(connectedAgents([{...agent,assistant:false}],{codex:preference})).toHaveLength(1);
     expect(connectedAgents([agent],{codex:{...preference,directCLI:false,enabled:true,billing:'subscription'}})).toEqual([]);

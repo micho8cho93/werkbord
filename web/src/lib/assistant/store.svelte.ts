@@ -1,4 +1,4 @@
-// One conversation client per Sally tab, managed by sessions.svelte.ts. It is NOT tied to the screen that shows it, so
+// One conversation client per Salie tab, managed by sessions.svelte.ts. It is NOT tied to the screen that shows it, so
 // closing the screen, or going to another view, changes nothing about a reply that is streaming, a change that is waiting for
 // the person, or a file that is waiting to be sent. Those live here and on the server; the screen only looks at them.
 //

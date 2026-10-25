@@ -33,16 +33,16 @@ are coordination advice between linked tickets, with cycle checks including exis
 execution gates or schedule work. Activity includes the latest 100 project events filtered to linked tickets;
 coordination edits record actor, kind and timestamp. Missing reports never imply completed work.
 
-## Sally and execution
+## Salie and execution
 
 The desktop's approved Team bridge includes fresh Initiative context in `retrieve_memory` when `requestType`
 is `initiative`, `changes` or `next`. The projection contains only coordination metadata, is bounded by the
 existing context budget, and labels suggestions as advisory. Every constituent project is attached as a related
-scope so the assistant's own project selection can only narrow the member's access. Sally retrieves project
+scope so the assistant's own project selection can only narrow the member's access. Salie retrieves project
 memory separately for policies, decisions and approved repository relationships. Sources and timestamps should
 be cited; stale observations call for revalidation.
 
-Sally can suggest missing tickets through the existing ticket proposal and human confirmation. Coordinated
+Salie can suggest missing tickets through the existing ticket proposal and human confirmation. Coordinated
 review uses each project's existing review workflow. Team never executes an Initiative, contacts an agent,
 collects Git/agent credentials, pushes or merges. Each owner still claims work and uses an explicitly approved
 Individual runner and local execution policy. An agent's completion does not complete the Team ticket.

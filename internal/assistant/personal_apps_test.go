@@ -14,7 +14,7 @@ import (
 
 // These five configurations are also used by the browser's scripted provider.
 // They exercise the real conversational approval path, not a model quality eval.
-func TestSallyComposableAppsCreateInteractReopenEditDelete(t *testing.T) {
+func TestSalieComposableAppsCreateInteractReopenEditDelete(t *testing.T) {
 	raw, err := os.ReadFile("testdata/personal_apps.json")
 	if err != nil {
 		t.Fatal(err)

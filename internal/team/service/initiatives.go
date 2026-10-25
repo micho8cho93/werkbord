@@ -437,6 +437,6 @@ func (s *Service) initiativeView(ctx context.Context, tx store.Tx, a Actor, i do
 	if v.OpenPRs > 0 {
 		v.NextActions = append(v.NextActions, "Prepare a coordinated review through the existing project review workflow; keep each project's reviewers.")
 	}
-	v.NextActions = append(v.NextActions, "Use Sally's existing ticket proposal and confirmation to propose missing work. Claim tickets normally; execution remains on the ticket owner's approved Individual runner.")
+	v.NextActions = append(v.NextActions, "Use Salie's existing ticket proposal and confirmation to propose missing work. Claim tickets normally; execution remains on the ticket owner's approved Individual runner.")
 	return v, nil
 }

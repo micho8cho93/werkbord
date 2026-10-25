@@ -158,7 +158,7 @@
       </header>
 
       <SessionTabs />
-      <div class="session-panel" id="sally-panel" role="tabpanel" aria-labelledby="sally-tab-{assistant.activeId}">
+      <div class="session-panel" id="salie-panel" role="tabpanel" aria-labelledby="salie-tab-{assistant.activeId}">
       {#key assistant.activeId}
         <SessionContent store={assistant.active} />
       {/key}

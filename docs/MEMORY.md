@@ -690,7 +690,7 @@ identical observations deduplicate. This deliberately misses dependencies that
 cannot be established without guessing. No background scan of other machines or
 registry lookup is introduced.
 
-Sally's existing memory operation includes endpoint-checked relationships and
+Salie's existing memory operation includes endpoint-checked relationships and
 rechecks its own project grants before presenting them. Links suggest checking
 compatibility or coordinating changes, never prove breakage and never authorise
 Git actions. Relationships remain private unless a person separately reviews a

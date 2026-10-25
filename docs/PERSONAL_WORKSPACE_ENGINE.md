@@ -4,7 +4,7 @@
 
 The existing path is domain → Personal service → PersonalRepo → the controller's
 SQLite database. Strict owner HTTP routes and a finite desktop bridge expose it.
-Sally uses record-free proposals, current revisions, atomic approval and durable
+Salie uses record-free proposals, current revisions, atomic approval and durable
 history. The Svelte renderer compiles a validated JSON tree to a separate OpenUI
 registry. Shared collections already update multiple views together. Existing
 forms, filters, typed sorting, calendar, Kanban, rich documents, nested pages,
@@ -26,11 +26,11 @@ Implementation order:
 2. View-scoped literal CRUD steps, selection and conditions. Execute all steps in
    one transaction guarded by workspace, collection and record revisions. Always
    review the exact action before execution. Generated controls cannot approve
-   Sally proposals or mutate native projects/tasks.
+   Salie proposals or mutate native projects/tasks.
 3. Single-record status rules and scheduled rules with persisted occurrence
    watermarks. Reuse the controller's existing scheduler maintenance lifecycle.
    Resolve declared Individual projects/tasks through existing owner storage,
-   rechecking references on reads. Contextual assistance opens an editable Sally
+   rechecking references on reads. Contextual assistance opens an editable Salie
    draft; generated text is never treated as approval.
 4. Read-only countdown, timeline and hierarchical relationship projections over
    those same records. Keep native tokens, responsive layouts and existing pages.
@@ -38,7 +38,7 @@ Implementation order:
 Validation includes domain grammar and formula failures, atomic rollback and
 stale revisions, schedule idempotency, permission/transport boundaries, browser
 interactions, durable reopen, and all five requested use cases through the real
-Sally engine with a scripted provider (no model credentials needed).
+Salie engine with a scripted provider (no model credentials needed).
 
 ## Shipped phases
 
@@ -95,7 +95,7 @@ preserve the selection and explain how to reload before retrying.
 `when` conditions use typed equality and all must match. `visibleWhen` hides a
 view unless at least one record matches; it is presentation, never permission.
 Normal direct record CRUD continues to use the existing owner endpoints. Generated
-action reviews cannot confirm Sally proposals, and vice versa.
+action reviews cannot confirm Salie proposals, and vice versa.
 
 ### 3. Automation, internal data and contextual AI
 
@@ -121,12 +121,12 @@ saves and open drafts remain protected from an in-flight refresh.
 project, rechecking existence on every read. Counts use current stored tasks;
 a task binding displays up to 100 task titles/states with full-project counts.
 A missing project fails only that component with a recovery message. Refresh is
-explicit, and proposal previews explain that reads resolve after saving. Sally
+explicit, and proposal previews explain that reads resolve after saving. Salie
 can add or revise these declarations through the existing reviewed proposal path.
 No destination in display metadata grants read authority. The existing desktop
 Team projects bridge remains separate and retains its membership checks.
 
-A contextual action has `prompt` and `steps: []`. Clicking opens an editable Sally
+A contextual action has `prompt` and `steps: []`. Clicking opens an editable Salie
 draft for the exact workspace; it never sends a message automatically. The draft
 and prompt travel only through the existing trusted desktop assistant frame, or
 the local Individual assistant. Generated prompt text cannot approve operations.
@@ -141,7 +141,7 @@ all returned saved content remains an escaped, untrusted operation result.
 The desktop owner's finite personal transport permits only the new action POST
 and declared binding GET shapes. Existing phone grants are unchanged; those two
 new routes are not part of an enrolled phone's grant. Core project/task writes
-continue through Werkbord's existing native screens and Sally's protected tools.
+continue through Werkbord's existing native screens and Salie's protected tools.
 
 ### 4. Visual composition
 
@@ -163,15 +163,15 @@ missing results, numeric schema compatibility, atomic action rollback/replay,
 owner/transport boundaries, bounded AI reads, reminder occurrence deduplication
 across service restart and actual scheduler dispatch without a frontend.
 
-`go test ./internal/assistant -run TestSallyComposableAppsCreateInteractReopenEditDelete -v`
-uses the real Sally engine and a scripted provider to create, approve, interact
+`go test ./internal/assistant -run TestSalieComposableAppsCreateInteractReopenEditDelete -v`
+uses the real Salie engine and a scripted provider to create, approve, interact
 with, reopen, revise and delete all five tools. The launch case connects an
 existing native task. Fixtures live in
 `internal/assistant/testdata/personal_apps.json`; their values are illustrative.
 This is a deterministic integration test, not evidence of live model quality.
 
 `node scripts/browser-personal-engine.cjs` uses disposable SQLite and the same
-scripted provider for all five creations through the real Sally UI. It checks
+scripted provider for all five creations through the real Salie UI. It checks
 approval, direct CRM entry, action review, Kanban/metric updates, scoring edits,
 form/calendar/doc rendering, all light/dark desktop/phone-width layouts, controller
 restart, unchanged saved record IDs/values and reviewed deletion. Screenshots go

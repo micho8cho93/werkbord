@@ -1,5 +1,5 @@
-// Sally Sessions Phase 1: real API/engine and disposable SQLite, with a scripted provider.
-// Run: node scripts/browser-sally-sessions.cjs
+// Salie Sessions Phase 1: real API/engine and disposable SQLite, with a scripted provider.
+// Run: node scripts/browser-salie-sessions.cjs
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const cp = require('node:child_process'), net = require('node:net');
 const { once } = require('node:events');
@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const { chromium } = require(path.join(root, 'web/node_modules/playwright'));
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'werkbord-personal-'));
-const artifacts = process.env.BROWSER_ARTIFACT_DIR || path.join(root, 'output/playwright/sally-sessions');
+const artifacts = process.env.BROWSER_ARTIFACT_DIR || path.join(root, 'output/playwright/salie-sessions');
 fs.mkdirSync(artifacts, { recursive: true });
 const token = 'disposable-browser-credential';
 const children = [];
@@ -77,7 +77,7 @@ const ok = text => console.log('PASS ' + text);
   const newTab = async () => {
     await page.getByRole('button', { name: 'New tab', exact: true }).click();
     assert.equal(await page.getByRole('dialog', { name: 'New tab', exact: true }).getByText('Coding Agents', {exact:true}).count(), 0);
-    await page.getByRole('button', { name: 'New Sally Conversation', exact: true }).click();
+    await page.getByRole('button', { name: 'New Salie Conversation', exact: true }).click();
     await box.waitFor();
   };
   for (let i=0;i<5;i++) {

@@ -153,7 +153,7 @@ it more general and stays free of Team's concepts.
 ## What Team has
 
 Team also coordinates cross-repository [Initiatives](INITIATIVES.md) under `internal/team/`: reference-only
-objectives, explicit dependencies, permission-checked current progress and advisory next actions. Sally reads
+objectives, explicit dependencies, permission-checked current progress and advisory next actions. Salie reads
 them through the existing desktop Team bridge; no execution or credential boundary changes.
 
 

@@ -2,7 +2,7 @@
 
 The additive composable engine (4.80) extends the historical phase contracts below.
 See [engine architecture, capabilities and validation](PERSONAL_WORKSPACE_ENGINE.md)
-for calculations, forms, atomic actions, record rules, contextual Sally operations
+for calculations, forms, atomic actions, record rules, contextual Salie operations
 and rendered Individual read bindings. Those contracts supersede earlier statements
 that formulas, actions and external binding rendering are unavailable.
 

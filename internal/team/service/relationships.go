@@ -8,7 +8,7 @@ import (
 )
 
 // Relationships uses the same transaction, principal and full-scope checks as
-// Sally memory search. Hidden edges never become traversal vertices or cursors.
+// Salie memory search. Hidden edges never become traversal vertices or cursors.
 func (s *Service) Relationships(ctx context.Context, a Actor, project string, depth int) ([]integration.RelationshipResult, error) {
 	out := []integration.RelationshipResult{}
 	if a.MCPGrantID != "" {

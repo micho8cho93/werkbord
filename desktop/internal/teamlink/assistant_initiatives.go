@@ -10,7 +10,7 @@ import (
 )
 
 // A closed metadata projection, fetched afresh through the approved Team bridge.
-// Related scopes also enforce Sally's narrower session project selection.
+// Related scopes also enforce Salie's narrower session project selection.
 func (l *Link) assistantInitiatives(ctx context.Context, base string, in BoardArgs) ([]map[string]any, error) {
 	var views []struct {
 		Initiative struct {

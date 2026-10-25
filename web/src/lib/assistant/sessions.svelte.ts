@@ -10,10 +10,10 @@ import { SessionStreams } from './session-streams';
 const INDEX = 'werkbord.assistant.tabs.v1';
 const LEGACY = 'werkbord.assistant.v1';
 const keyOf = (id: string) => `werkbord.assistant.session.${id}`;
-export interface SallyTab { id: string; title: string; closed: boolean; store: AssistantStore }
+export interface SalieTab { id: string; title: string; closed: boolean; store: AssistantStore }
 
 export class AssistantSessions {
-  tabs = $state<SallyTab[]>([]);
+  tabs = $state<SalieTab[]>([]);
   activeId = $state('');
   mounted = $state(false);
   phase = $state<Phase>('closed');
@@ -25,8 +25,8 @@ export class AssistantSessions {
 
   constructor() { this.add(); }
   get active(): AssistantStore { return this.tabs.find(t => t.id === this.activeId)!.store; }
-  get openTabs(): SallyTab[] { return this.tabs.filter(t => !t.closed); }
-  get closedTabs(): SallyTab[] { return this.tabs.filter(t => t.closed); }
+  get openTabs(): SalieTab[] { return this.tabs.filter(t => !t.closed); }
+  get closedTabs(): SalieTab[] { return this.tabs.filter(t => t.closed); }
   get running(): boolean { return this.tabs.some(t => t.store.running || t.store.session?.running); }
   get waiting(): number { return this.tabs.reduce((n, t) => n + t.store.waiting, 0); }
   get isOpen(): boolean { return this.mounted && this.phase !== 'closing' && this.phase !== 'closed'; }
@@ -35,7 +35,7 @@ export class AssistantSessions {
   get personalEditing() { return this.active.personalEditing; }
   set personalEditing(value: AssistantStore['personalEditing']) { this.active.personalEditing = value; }
 
-  private add(id = crypto.randomUUID(), title = '', closed = false): SallyTab {
+  private add(id = crypto.randomUUID(), title = '', closed = false): SalieTab {
     const tab = { id, title, closed, store: new AssistantStore(keyOf(id), this.streams.connect) };
     this.tabs.push(tab);
     this.activeId = id;
@@ -77,10 +77,10 @@ export class AssistantSessions {
     if (tab) tab.title = title.trim().slice(0, 100);
     this.save();
   }
-  title(tab: SallyTab): string {
+  title(tab: SalieTab): string {
     return tab.title || this.firstMessage(tab) || 'New conversation';
   }
-  private firstMessage(tab: SallyTab): string {
+  private firstMessage(tab: SalieTab): string {
     const first = tab.store.transcript.items.find(i => i.kind === 'user');
     return first?.kind === 'user' ? first.text.slice(0, 80) : '';
   }
@@ -168,7 +168,7 @@ export class AssistantSessions {
     this.save();
     queueMicrotask(() => trigger?.focus?.({ preventScroll: true }));
   }
-  /** Page teardown/test cleanup, never used when hiding Sally or closing a tab. */
+  /** Page teardown/test cleanup, never used when hiding Salie or closing a tab. */
   destroy(): void {
     this.save(); this.dispose?.();
     for (const tab of this.tabs) tab.store.disconnect();

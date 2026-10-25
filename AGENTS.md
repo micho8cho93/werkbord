@@ -3,6 +3,10 @@
 This is the canonical instruction file for every coding agent working in this repository (Codex, Claude Code, and
 others). `CLAUDE.md` only points here, so there is one policy and it cannot drift. Keep new rules in this file.
 
+## Product naming
+
+The assistant is named **Salie**. Use this spelling consistently in interfaces, code, tests, filenames and documentation.
+
 ## Versioning and Git Tag Policy
 
 Werkbord is **one product with one version and one release**. The Mac app, the `werkbord` controller and command line,

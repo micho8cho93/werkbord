@@ -335,11 +335,11 @@ keeps none ([What is kept](#what-is-kept-and-what-is-not)).
   used at any time. A model your plan cannot use ends the turn with *That model is not available to your account* and offers *Choose
   another model* and *Try again*. Moving to the other provider starts a fresh conversation with it, and the screen says so. Files you
   had agreed to share with the first are taken back, because the agreement was for that provider.
-- **New tab** (*+*) opens a compact menu with **New Sally Conversation** and **Manage Coding Agents**.
+- **New tab** (*+*) opens a compact menu with **New Salie Conversation** and **Manage Coding Agents**.
   Each conversation has an independent provider, model, reasoning, selection objective, draft, stream cursor and confirmations.
   Switch tabs with a click or the arrow keys. Double-click a tab, or choose **Rename current tab** from the menu, to name it.
   Closing a tab hides it without stopping its turn or dropping confirmations. The menu lists closed tabs for reopening.
-  Closing the whole Sally surface also leaves every conversation running; sidebar status includes closed tabs.
+  Closing the whole Salie surface also leaves every conversation running; sidebar status includes closed tabs.
 
 **When there is nothing to talk to**, it says why, in words, and offers what can be done:
 
@@ -371,12 +371,12 @@ reconnect the transport using per-session cursors without cancelling turns.
 The tab manager keeps its index, names, drafts and per-tab choices in `sessionStorage`, alongside
 separate bounded transcript caches. The previous single-conversation cache is migrated on first load.
 Open and closed tabs restore on reload using their existing server session IDs and provider handles;
-no transcript endpoint or server transcript storage is added. This restores Sally within the current
+no transcript endpoint or server transcript storage is added. This restores Salie within the current
 browser tab or desktop webview lifetime, not after clearing browser session storage. The provider's
 own retention and the existing bounded server event replay still apply.
 
 Native interactive coding tabs are not implemented in Phase 1. Their eligibility is separate from
-ACP coding runs, restricted Sally providers, installation and automatic model selection. The catalogue
+ACP coding runs, restricted Salie providers, installation and automatic model selection. The catalogue
 reports native launch support and device authorisation as false until a reviewed native transport exists;
 the frontend also requires an implemented launcher. Thus **+** exposes no nonfunctional CLI buttons.
 Settings → Agents retains the complete catalogue, detection refresh and setup/login links. Direct CLI

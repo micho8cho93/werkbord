@@ -4,7 +4,7 @@
   import { embedded, openSettingsInShell } from '../embed';
   import { modeLabel, selectionApi, type CatalogAgent } from '../selection';
   import { connectedAgents, nativeCLILaunchers } from './connected-agents';
-  import { assistant, type SallyTab } from './sessions.svelte';
+  import { assistant, type SalieTab } from './sessions.svelte';
   // The Phase 1 controller advertises no supported native interactive CLI transport.
   // Keep the catalogue in Settings; never render a launch action without a launcher.
   let menu = $state(false);
@@ -24,11 +24,11 @@
   let name = $state('');
   let container: HTMLDivElement;
   let plus: HTMLButtonElement;
-  function revealActive() { document.getElementById(`sally-tab-${assistant.activeId}`)?.scrollIntoView({block:'nearest',inline:'nearest'}); }
+  function revealActive() { document.getElementById(`salie-tab-${assistant.activeId}`)?.scrollIntoView({block:'nearest',inline:'nearest'}); }
   $effect(() => { const id = assistant.activeId; void tick().then(() => { if (assistant.activeId === id) revealActive(); }); });
-  function rename(tab: SallyTab) { editing = tab.id; name = assistant.title(tab); }
+  function rename(tab: SalieTab) { editing = tab.id; name = assistant.title(tab); }
   function finish() { assistant.rename(editing, name); editing = ''; }
-  function status(tab: SallyTab) { return tab.store.waiting ? 'Waiting for confirmation' : tab.store.running || tab.store.session?.running ? 'Running' : 'Idle'; }
+  function status(tab: SalieTab) { return tab.store.waiting ? 'Waiting for confirmation' : tab.store.running || tab.store.session?.running ? 'Running' : 'Idle'; }
   function keydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && (menu || editing)) {
       event.preventDefault(); event.stopPropagation(); menu = false; editing = ''; plus?.focus();
@@ -38,7 +38,7 @@
     const tabs = assistant.openTabs;
     const i = tabs.findIndex(t => t.id === id);
     const next = event.key === 'ArrowRight' ? tabs[(i + 1) % tabs.length] : event.key === 'ArrowLeft' ? tabs[(i + tabs.length - 1) % tabs.length] : event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs.at(-1) : undefined;
-    if (next) { event.preventDefault(); assistant.select(next.id); document.getElementById(`sally-tab-${next.id}`)?.focus(); }
+    if (next) { event.preventDefault(); assistant.select(next.id); document.getElementById(`salie-tab-${next.id}`)?.focus(); }
   }
   function manage(event: MouseEvent) {
     menu = false; assistant.hide();
@@ -47,12 +47,12 @@
 </script>
 <svelte:window onresize={revealActive} onkeydowncapture={keydown} onpointerdown={e=>{if(container&&!container.contains(e.target as Node))menu=false;}} />
 <div class="tabs-bar" bind:this={container}>
-  <div class="tabs" role="tablist" aria-label="Sally conversations">
+  <div class="tabs" role="tablist" aria-label="Salie conversations">
     {#each assistant.openTabs as tab (tab.id)}
       <div class="tab" class:active={tab.id === assistant.activeId}>
-        <button id="sally-tab-{tab.id}" role="tab" aria-selected={tab.id===assistant.activeId} tabindex={tab.id===assistant.activeId?0:-1} aria-controls="sally-panel" title="{assistant.title(tab)} · {tab.store.provider?.name ?? 'Sally'} · {modeLabel(tab.store.choice?.mode ?? 'lowest_cost')} · {status(tab)}" onclick={()=>assistant.select(tab.id)} onkeydown={e=>move(e,tab.id)} ondblclick={()=>rename(tab)}>
+        <button id="salie-tab-{tab.id}" role="tab" aria-selected={tab.id===assistant.activeId} tabindex={tab.id===assistant.activeId?0:-1} aria-controls="salie-panel" title="{assistant.title(tab)} · {tab.store.provider?.name ?? 'Salie'} · {modeLabel(tab.store.choice?.mode ?? 'lowest_cost')} · {status(tab)}" onclick={()=>assistant.select(tab.id)} onkeydown={e=>move(e,tab.id)} ondblclick={()=>rename(tab)}>
           <Icon name="assistant" size={14} />
-          <span class="identity"><span class="title">{assistant.title(tab)}</span><span class="detail">{tab.store.provider?.name ?? 'Sally'} · {modeLabel(tab.store.choice?.mode ?? 'lowest_cost')}</span></span>
+          <span class="identity"><span class="title">{assistant.title(tab)}</span><span class="detail">{tab.store.provider?.name ?? 'Salie'} · {modeLabel(tab.store.choice?.mode ?? 'lowest_cost')}</span></span>
           <span class="status" class:running={tab.store.running || tab.store.session?.running} class:waiting={tab.store.waiting>0} aria-label={status(tab)}></span>
         </button>
         <button class="dismiss" aria-label="Close {assistant.title(tab)} tab" title="Close tab; conversation keeps running" onclick={()=>assistant.closeTab(tab.id)}><Icon name="close" size={12} /></button>
@@ -63,8 +63,8 @@
     <button class="new" bind:this={plus} aria-label="New tab" aria-expanded={menu} aria-haspopup="dialog" onclick={toggleMenu} data-testid="assistant-new"><Icon name="plus" size={16}/></button>
     {#if menu}
       <div class="menu" role="dialog" aria-label="New tab">
-        <span class="group">Sally</span>
-        <button onclick={()=>{assistant.newTab();menu=false;}}>New Sally Conversation</button>
+        <span class="group">Salie</span>
+        <button onclick={()=>{assistant.newTab();menu=false;}}>New Salie Conversation</button>
         {#if connected.length}
           <span class="group">Coding Agents</span>
           {#each connected as agent (agent.id)}
