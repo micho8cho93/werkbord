@@ -14,7 +14,11 @@
 //   Reviews    work waiting for a review
 //   Git        what the team's Werkbords have reported about the Git state
 //   Activity   what happened
-//   Members    the people in your organization
+//   People     the people in your organization
+//
+// Where the person is has two levels. The window's sidebar (or, outside it, the rail) lists the major parts: the team, and each of
+// its projects. Inside a major part one row of tabs lists its own sub-areas: a project has Board, Git, People…, the team has
+// Workspace, Projects, People. Both rows are drawn by tabNav, so they look and behave the same.
 'use strict';
 
 const app = document.getElementById('app');
@@ -35,9 +39,11 @@ const FRAMED = window.parent !== window;
 // moves about.
 const HOSTED = FRAMED && new URLSearchParams(location.search).get('hosted') === '1';
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'Members']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'People'], ['people', 'Project people']];
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups']];
-const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'project-settings']);
+const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'people', 'project-settings']);
+// The team's own sub-areas, in the order of their tabs. They are the team as a major part; a project's are PROJECT_TABS.
+const WORKSPACE_TABS = ['workspace', 'projects', 'initiatives', 'members'];
 const SETTINGS_PARTS = new Set(['computer', 'phones', 'memory', 'history']);
 
 const state = {
@@ -555,6 +561,7 @@ async function renderNow() {
       projectScreen || (HOSTED && settingsTab()) ? '' : h('header', { class: 'top page-head' }, h('h1', { id: 'main-title', tabindex: '-1' }, title),
         state.tab === 'workspace' ? h('span', { class: 'workspace-context' }, state.me.workspace.name) : '', searchButton()),
       h('div', { class: 'main-content', 'data-scroll-key': 'main' },
+        workspaceTabs(),
         planBanner(),
         state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
         state.info ? h('p', { class: 'ok', role: 'status' }, state.info) : '',
@@ -911,7 +918,7 @@ async function loadProject() {
   if (state.tab === 'activity' || state.tab === 'board') {
     d.progressReports = await Promise.all(board.tickets.filter(k => k.assigneeId === state.me.member.id).map(async k => ({ ticket: k, progress: await api('GET', '/projects/' + id + '/tickets/' + k.id + '/progress').catch(() => []) })));
   }
-  if (state.tab === 'project-settings') {
+  if (state.tab === 'people') {
     d.people = board.people;
     d.invites = board.can.includes('invites.manage') ? await api('GET', '/projects/' + id + '/invites') : [];
     d.everyone = board.can.includes('members.manage') ? await api('GET', '/members') : [];
@@ -946,9 +953,9 @@ async function projectScopedView() {
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
-  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
+  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0], ['people', 'People', 0]]);
   const calendarLacking = ['calendar', 'timeline'].includes(state.tab) && d.timeline === null ? await hostOutdatedView() : null;
-  const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
+  const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
   const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': state.tab === 'project-settings' ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
   const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = true; render(); } }, 'New ticket') : '';
   let view = content;
@@ -968,7 +975,7 @@ async function projectScopedView() {
 
 }
 
-// Everything about the project itself, in one place: what it is, who is on it, how it relates to other repositories, and archiving it.
+// The project itself: what it is, how it relates to other repositories, and archiving it. Who is on it is its People tab.
 function projectSettingsTab(d) {
   const p = d.board.project;
   const details = h('section', { class: 'panel', 'aria-labelledby': 'project-details-h' }, h('h2', { id: 'project-details-h' }, 'Details'),
@@ -978,14 +985,33 @@ function projectSettingsTab(d) {
   const archive = can('projects.manage') ? h('section', { class: 'panel', 'aria-labelledby': 'project-archive-h' }, h('h2', { id: 'project-archive-h' }, p.archived ? 'Unarchive project' : 'Archive project'),
     h('p', { class: 'muted' }, p.archived ? 'Put this project back among the active ones. Its tickets are as they were.' : 'An archived project leaves the sidebar and cannot take new tickets. Nothing is deleted: you can unarchive it.'),
     h('button', { class: 'danger', onclick: () => (p.archived || confirm('Archive ' + p.name + '? It leaves the sidebar and takes no new tickets until you unarchive it.')) && act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project')) : '';
-  return h('div', { class: 'project-settings' }, details, peopleTab(d), h('section', { class: 'panel' }, relationshipSettings(p)), archive);
+  return h('div', { class: 'project-settings' }, details, h('section', { class: 'panel' }, relationshipSettings(p)), archive);
 }
 
-// A project's own sections, where the window's sidebar (which lists the project) does not: Board, Git, Activity, People.
-function projectTabs(projectId, choices) {
-  return h('nav', { class: 'project-tabs', 'aria-label': 'Project sections' }, choices.map(([id, title, count]) =>
-    h('button', { name: 'project-tab-' + id, type: 'button', 'aria-current': state.tab === id || (id === 'calendar' && state.tab === 'timeline') ? 'page' : null, onclick: () => openProject(projectId, id) }, title,
+// One row of tabs for the sub-areas of a major part. The sidebar lists the major parts; this is the only other navigation, and the
+// project and the team both use it. choices are [id, title, count]; `prefix` names each button for tests and scripts.
+function tabNav(label, prefix, choices, isCurrent, open) {
+  return h('nav', { class: 'sub-tabs', 'aria-label': label }, choices.map(([id, title, count]) =>
+    h('button', { name: prefix + id, type: 'button', 'aria-current': isCurrent(id) ? 'page' : null, onclick: () => open(id) }, title,
       count > 0 ? h('span', { class: 'count' + (id === 'repository' ? ' bad' : ' quiet') }, String(count)) : '')));
+}
+
+// A project's own sections, where the window's sidebar (which lists the project) does not: Board, Git, Runs, People.
+function projectTabs(projectId, choices) {
+  return tabNav('Project sections', 'project-tab-', choices, (id) => state.tab === id || (id === 'calendar' && state.tab === 'timeline'), (id) => openProject(projectId, id));
+}
+
+// One choice among a few, as a row of buttons that say which is on: a way of looking at the page, not a place to go (that is tabNav).
+// choices are [id, title]; `cls` is the row's class, and `small` the buttons' size.
+function choiceGroup(label, choices, isOn, pick, cls = 'inline', small = true) {
+  return h('div', { class: cls, role: 'group', 'aria-label': label }, choices.map(([id, title]) =>
+    h('button', { type: 'button', class: 'plain' + (small ? ' small' : ''), 'aria-pressed': isOn(id), onclick: () => pick(id) }, title)));
+}
+
+// The team's own sub-areas, under its entry in the window's sidebar. Outside the window the rail lists them, so there is no second row.
+function workspaceTabs() {
+  if (!FRAMED || !WORKSPACE_TABS.includes(state.tab)) return '';
+  return tabNav('Workspace sections', 'workspace-tab-', WORKSPACE_TABS.map((id) => [id, TABS.find(([t]) => t === id)[1], 0]), (id) => state.tab === id, (id) => go(id));
 }
 
 function projectOverviewTab(d) {
@@ -999,7 +1025,8 @@ function projectOverviewTab(d) {
       mentionRows(d.mentions, 'No unread mentions in this project.')));
 }
 function calendarTab(d) {
-  const toggle = h('div', { class: 'actions calendar-switch', role: 'group', 'aria-label': 'Calendar presentation' }, ['calendar', 'timeline'].map(mode => h('button', { class: 'plain small', 'aria-pressed': state.calendarMode === mode || state.tab === 'timeline' && mode === 'timeline', onclick: () => { state.calendarMode = mode; if (state.tab === 'timeline') state.tab = 'calendar'; render(); } }, mode === 'calendar' ? 'Calendar' : 'Timeline')));
+  const toggle = choiceGroup('Calendar presentation', [['calendar', 'Calendar'], ['timeline', 'Timeline']], mode => state.calendarMode === mode || state.tab === 'timeline' && mode === 'timeline',
+    mode => { state.calendarMode = mode; if (state.tab === 'timeline') state.tab = 'calendar'; render(); }, 'actions calendar-switch');
   if (state.calendarMode === 'timeline' || state.tab === 'timeline') return h('div', {}, toggle, timelineTab(d));
   const anchor = state.calendarAnchor || TL.localToday(Date.now());
   const day = new Date(anchor + 'T12:00:00'); day.setDate(day.getDate() - (day.getDay() + 6) % 7);
@@ -1285,8 +1312,7 @@ function filterBar(d) {
   const picker = labels.length ? h('details', { class: 'label-filter' }, h('summary', {}, state.filter.labels.length ? plural(state.filter.labels.length, 'label') : 'Labels'),
     h('div', { class: 'label-menu' }, labels.map((l) => h('label', { class: 'check' },
       h('input', { type: 'checkbox', checked: state.filter.labels.includes(l.id), onchange: (e) => { state.filter.labels = e.target.checked ? [...state.filter.labels, l.id] : state.filter.labels.filter((x) => x !== l.id); refresh(); } }), ' ', labelChip(l))),
-      state.filter.labels.length > 1 ? h('div', { class: 'inline' }, h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.filter.match === 'any', onclick: () => { state.filter.match = 'any'; refresh(); } }, 'Any'),
-        h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.filter.match === 'all', onclick: () => { state.filter.match = 'all'; refresh(); } }, 'All')) : '')) : '';
+      state.filter.labels.length > 1 ? choiceGroup('Tickets must have', [['any', 'Any'], ['all', 'All']], m => state.filter.match === m, m => { state.filter.match = m; refresh(); }) : '')) : '';
   // A label deleted meanwhile cannot hide every ticket.
   state.filter.labels = state.filter.labels.filter((id) => labels.some((l) => l.id === id));
   return h('div', { class: 'filter-bar', role: 'group', 'aria-label': 'Filter by label' }, picker,
@@ -1296,9 +1322,7 @@ function filterBar(d) {
 function boardTab(d) {
   const b = d.board;
   const toolbar = h('div', { class: 'actions board-tools' },
-    h('div', { class: 'actions', role: 'group', 'aria-label': 'Whose tickets' },
-      h('button', { class: 'plain', 'aria-pressed': !state.ownTickets, onclick: () => { state.ownTickets = false; render(); } }, 'All tickets'),
-      h('button', { class: 'plain', 'aria-pressed': !!state.ownTickets, onclick: () => { state.ownTickets = true; render(); } }, 'My tickets (' + b.tickets.filter(k => k.assigneeId === state.me.member.id).length + ')')), filterBar(d),
+    choiceGroup('Whose tickets', [['all', 'All tickets'], ['own', 'My tickets (' + b.tickets.filter(k => k.assigneeId === state.me.member.id).length + ')']], w => (w === 'own') === !!state.ownTickets, w => { state.ownTickets = w === 'own'; render(); }, 'actions', false), filterBar(d),
     h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
     '');
   const cols = b.statuses.map((s) => {
@@ -1821,7 +1845,7 @@ function peopleTab(d) {
         live ? h('button', { class: 'danger', onclick: () => act(() => api('DELETE', '/projects/' + pid + '/invites/' + i.id)) }, 'Revoke') : '');
     });
     panels.push(h('div', { class: 'panel' }, h('h2', {}, 'Invite people'),
-      h('p', { class: 'muted' }, 'The code lets someone who is already in this workspace join this project. To bring in a new person or computer, invite them from Members first. Send the code privately; it cannot be shown again.'),
+      h('p', { class: 'muted' }, 'The code lets someone who is already in this workspace join this project. To bring in a new person or computer, invite them from People first. Send the code privately; it cannot be shown again.'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => {
           const r = await api('POST', '/projects/' + pid + '/invites', { role: role.value, maxUses: Number(uses.value) || 1, expiresInHours: Number(hours.value) || 168 });
           state.secret = { kind: 'invite', name: d.board.project.name + ' (' + r.invite.role + ')', token: r.code }; }); } },
@@ -1834,7 +1858,7 @@ function peopleTab(d) {
 function readLocation() {
  const q = new URLSearchParams(location.search);
  const tab = q.get('tab');
- state.tab = tab === 'people' ? 'project-settings' : [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'project-settings' ? tab : 'workspace';
+ state.tab = [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'project-settings' ? tab : 'workspace';
  if (FRAMED && !HOSTED && ADMIN_TABS.some(x => x[0] === state.tab)) state.tab = 'workspace'; // the window's own Settings shows these
  state.settingsPart = SETTINGS_PARTS.has(q.get('part')) ? q.get('part') : '';
  state.projectId = q.get('project') || null;
@@ -2007,7 +2031,7 @@ function timelineTab(d) {
   const open = (k) => () => openTicket(d.id, k.id);
 
   const tools = h('div', { class: 'actions board-tools tl-tools' },
-    h('div', { class: 'inline', role: 'group', 'aria-label': 'Zoom' }, ['day', 'week', 'month', 'quarter'].map((z) => h('button', { type: 'button', class: 'plain small', 'aria-pressed': state.tlZoom === z, onclick: () => { state.tlZoom = z; render(); } }, z[0].toUpperCase() + z.slice(1)))),
+    choiceGroup('Zoom', ['day', 'week', 'month', 'quarter'].map((z) => [z, z[0].toUpperCase() + z.slice(1)]), z => state.tlZoom === z, z => { state.tlZoom = z; render(); }),
     h('label', { class: 'inline' }, 'Group ', h('select', { name: 'tl-group', 'aria-label': 'Group work by', onchange: (e) => { state.tlGroup = e.target.value; render(); } },
       [['none', 'Nothing'], ['label', 'Label'], ['status', 'Status']].map(([id, name]) => h('option', { value: id, selected: state.tlGroup === id }, name)))),
     h('button', { type: 'button', class: 'plain small', onclick: () => { centerTimeline(); } }, 'Today'),

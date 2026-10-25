@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BlockEmpty from './BlockEmpty.svelte';
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
   import SnapshotStamp from './SnapshotStamp.svelte';
 
@@ -27,7 +28,7 @@
   {#if props.title}<h3>{props.title}</h3>{/if}
   <SnapshotStamp asOf={props.asOf} />
   {#if total <= 0}
-    <p class="empty">No non-zero values are available in this snapshot.</p>
+    <BlockEmpty>No non-zero values are available in this snapshot.</BlockEmpty>
   {:else}
     <div class="pie-layout">
       <svg viewBox="0 0 120 120" role="img" aria-label={`${props.title ?? 'Pie chart'}. ${description}`}>
@@ -58,6 +59,5 @@
   .label { overflow-wrap: anywhere; }
   .legend strong, .percent { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .percent { min-width: 4.5ch; color: var(--text-2); text-align: right; }
-  .empty { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); font-size: 12px; }
   @media (max-width: 420px) { .pie-layout { grid-template-columns: minmax(92px, 116px) minmax(0, 1fr); gap: 10px; } }
 </style>

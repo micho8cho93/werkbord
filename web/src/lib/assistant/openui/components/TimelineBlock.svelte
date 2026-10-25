@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BlockEmpty from './BlockEmpty.svelte';
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
   import SnapshotStamp from './SnapshotStamp.svelte';
 
@@ -35,9 +36,9 @@
   {#if props.title}<h3>{props.title}</h3>{/if}
   <SnapshotStamp asOf={props.asOf} />
   {#if (props.items ?? []).length === 0}
-    <p class="empty">No scheduled tasks are in this view.</p>
+    <BlockEmpty>No scheduled tasks are in this view.</BlockEmpty>
   {:else if prepared.rows.length === 0}
-    <p class="empty">No complete planned date ranges are recorded. The task list below keeps the available details.</p>
+    <BlockEmpty>No complete planned date ranges are recorded. The task list below keeps the available details.</BlockEmpty>
   {/if}
   {#if prepared.rows.length > 0}
     <div class="scale" aria-hidden="true"><span>{prepared.start}</span><span>{prepared.end}</span></div>
@@ -82,7 +83,6 @@
   .undated ul { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; }
   .undated li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 12px; font-size: 12px; }
   .undated li span { color: var(--text-2); }
-  .empty { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); font-size: 12px; line-height: 1.45; }
   @media (max-width: 520px) {
     .scale { padding-left: 0; }
     .row { grid-template-columns: minmax(0, 1fr); gap: 4px; }

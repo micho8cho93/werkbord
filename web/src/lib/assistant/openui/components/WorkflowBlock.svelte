@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BlockEmpty from './BlockEmpty.svelte';
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
   import SnapshotStamp from './SnapshotStamp.svelte';
 
@@ -14,7 +15,7 @@
   {#if props.title}<h3>{props.title}</h3>{/if}
   <SnapshotStamp asOf={props.asOf} />
   {#if items.length === 0}
-    <p class="empty">No task relationships are recorded in this view.</p>
+    <BlockEmpty>No task relationships are recorded in this view.</BlockEmpty>
   {:else}
     <ol class="nodes">
       {#each items as item, i (`${item.id ?? item.title}-${i}`)}
@@ -50,6 +51,5 @@
   .run, .depends { margin: 3px 0 0; overflow-wrap: anywhere; }
   .blocker { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 5px 0 0; color: var(--block); font-size: 12px; line-height: 1.4; }
   .blocker strong { font-weight: 600; }
-  .note, .empty { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
-  .empty { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .note { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
 </style>

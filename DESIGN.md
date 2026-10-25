@@ -188,10 +188,12 @@ the route. Workspace and Data library content can widen to 1800px; Devices & Hos
 ### Team console
 
 Team uses the same paper, ink, Geist, icon strokes and action colours, with its own coordination sections:
-Workspace · Projects · Reviews · Members · Analytics. Desktop has a 232px rail (248px above
+Workspace · Projects · Reviews · People · Analytics. Desktop has a 232px rail (248px above
 1800px), project shortcuts and Settings at the foot. Changing projects keeps the current project section. Inside the
-desktop app the window's sidebar replaces the rail. A project's Overview, Board, Calendar, Git and Runs are tabs above
-its content; Project members appear in the project header; membership and invitation management live under Project settings. Calendar shows planned dates and shared schedule requests;
+desktop app the window's sidebar replaces the rail. Location has two levels: the sidebar lists the major parts (Personal, each team, each project), and inside one its own pages carry
+one row of tabs for its sub-areas, never a sidebar entry. A project's Overview, Board, Calendar, Git, Runs and People are tabs above
+its content (People is who is on the project, with roles and invitations; Project settings keeps the rest); a team's Workspace,
+Projects, Initiatives and People are the same row above its pages. Both rows are drawn by one function. Calendar shows planned dates and shared schedule requests;
 Timeline is its alternate presentation. Settings contains This computer, MCP clients, Labels, Devices, Workspace Hosts,
 Connectivity, Backups and License, subject to the person's permissions;
 the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.

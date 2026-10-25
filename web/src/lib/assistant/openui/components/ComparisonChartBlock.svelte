@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BlockEmpty from './BlockEmpty.svelte';
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
   import SnapshotStamp from './SnapshotStamp.svelte';
 
@@ -21,7 +22,7 @@
   {#if props.title}<h3>{props.title}</h3>{/if}
   <SnapshotStamp asOf={props.asOf} />
   {#if rows.length === 0}
-    <p class="empty">No paired values are available in this snapshot.</p>
+    <BlockEmpty>No paired values are available in this snapshot.</BlockEmpty>
   {:else}
     <div class="controls">
       <label class="criterion"><span>Category</span><select aria-label="Compare category" bind:value={selectedCategory}><option value="">All categories</option>{#each rows as row, i (`${row.category}-${i}`)}<option value={row.category}>{row.category}</option>{/each}</select></label>
@@ -43,7 +44,7 @@
       {/each}
     </div>
     <p class="totals" role="status">Totals{selectedCategory ? ` for ${selectedCategory}` : ''}: {#if showFirst}<span>{props.firstLabel ?? 'First'} {firstTotal}{props.unit ? ` ${props.unit}` : ''}</span>{/if}{#if showFirst && showSecond}<span aria-hidden="true"> · </span>{/if}{#if showSecond}<span>{props.secondLabel ?? 'Second'} {secondTotal}{props.unit ? ` ${props.unit}` : ''}</span>{/if}</p>
-    {:else}<p class="empty">Select at least one series to compare.</p>{/if}
+    {:else}<BlockEmpty>Select at least one series to compare.</BlockEmpty>{/if}
   {/if}
   {#if props.note}<p class="note">{props.note}</p>{/if}
 </section>
@@ -72,9 +73,8 @@
   .bar.first { background: var(--accent); }
   .bar.second { background: var(--ok); }
   .value { min-width: 2ch; color: var(--text-2); text-align: right; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
-  .note, .empty, .totals { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
+  .note, .totals { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
   .totals span { color: var(--text); font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .empty { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   @media (max-width: 600px) {
     select { width: 100%; min-height: 44px; font-size: 16px; }
     .criterion { width: 100%; }

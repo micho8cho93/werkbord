@@ -2,7 +2,7 @@
   import Icon from '../Icon.svelte';
   import { app } from '../state.svelte';
   import { agentCards, agentSessions, matchesFilter, type AgentFilter } from './agents';
-  import Segmented from './Segmented.svelte';
+  import Segmented from '../Segmented.svelte';
   import SessionRow from './SessionRow.svelte';
 
   // Each agent as a card: whether it is working, waiting for you or idle, and what it is doing, with the controls of its session (open,

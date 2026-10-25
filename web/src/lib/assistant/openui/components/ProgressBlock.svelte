@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BlockEmpty from './BlockEmpty.svelte';
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
   import SnapshotStamp from './SnapshotStamp.svelte';
 
@@ -13,7 +14,7 @@
   {#if hasTotal}
     <progress aria-label={props.label ?? 'Progress'} max={total} value={value}>{value} of {total}</progress>
   {:else}
-    <p class="empty">No total is recorded for this view.</p>
+    <BlockEmpty>No total is recorded for this view.</BlockEmpty>
   {/if}
   {#if props.detail}<p class="detail">{props.detail}</p>{/if}
   <SnapshotStamp asOf={props.asOf} />
@@ -28,5 +29,5 @@
   progress::-webkit-progress-bar { background: var(--surface-2); }
   progress::-webkit-progress-value { background: var(--accent); }
   progress::-moz-progress-bar { background: var(--accent); }
-  .detail, .empty { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
+  .detail { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
 </style>

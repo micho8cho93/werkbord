@@ -4,7 +4,7 @@
   import { globalHref } from '../router.svelte';
   import { app } from '../state.svelte';
   import { matchesRunner, runnerCard, type RunnerFilter } from './runners';
-  import Segmented from './Segmented.svelte';
+  import Segmented from '../Segmented.svelte';
 
   // One connection card per runner. Computer access links to the existing Settings
   // controls; enrolled phones can inspect availability without seeing management actions.

@@ -8,7 +8,7 @@
   import { counts } from './aggregate';
   import { model } from './model.svelte';
   import { plan } from './plan.svelte';
-  import { activeKey, entries, listed, sectionColour, sectionItems, sectionPlaces } from './nav';
+  import { activeKey, entries, listed, sectionColour, sectionItems } from './nav';
   import { reviewCount } from './reviews';
   import type { Item } from './types';
 
@@ -16,7 +16,7 @@
 
   // The window's one sidebar. Top to bottom: Salie, Home, Calendar, Reviews and Analytics (what spans everything, each one page with
   // its own choice of where to look), then a section for Personal and one
-  // for each team the person belongs to, each with its own projects and places, then Create with Salie, and last, pinned to the
+  // for each team the person belongs to, each with its own projects, then Create with Salie, and last, pinned to the
   // bottom whatever else is shown, the things about this computer: Devices & Hosting, the Data library, Settings and the plan.
   // There is no switcher and no mode: a project is reached from the section it belongs to.
   const sections = $derived(sectionItems(model.view?.items));
@@ -105,7 +105,7 @@
         <button class="fold" type="button" aria-expanded={!folded} aria-label="{folded ? 'Show' : 'Hide'} {nameOf(i)}" onclick={() => model.toggleSection(i.id)} data-testid="fold-{i.id}">
           <Icon name={folded ? 'right' : 'down'} size={12} />
         </button>
-        <button class="open" type="button" title={nameOf(i)} aria-current={here === 'home' ? 'page' : undefined} onclick={() => model.goTo(i.id, usable(i) ? home : undefined)} data-open={i.id} data-page="ws-home">
+        <button class="open" type="button" title={nameOf(i)} aria-current={here && !here.startsWith('project:') ? 'page' : undefined} onclick={() => model.goTo(i.id, usable(i) ? home : undefined)} data-open={i.id} data-page="ws-home">
           <span class="swatch" aria-hidden="true"></span><span class="label">{nameOf(i)}</span>
           {#if !usable(i)}<span class="meta">{i.state === 'unavailable' ? 'not running' : i.state}</span>
           {:else if needsOf(i)}<span class="num" aria-label="{needsOf(i)} waiting for you">{needsOf(i)}</span>{/if}
@@ -122,11 +122,6 @@
             <Icon name="plus" size={14} /><span class="label">New personal project</span>
           </button>
         {/if}
-        {#each sectionPlaces(kind) as e (e.key)}
-          <button class="nav proj place" type="button" aria-current={here === e.key ? 'page' : undefined} onclick={() => model.goTo(i.id, e.place)} data-page="ws-{e.key}">
-            <Icon name={e.icon} size={14} /><span class="label">{e.title}</span>
-          </button>
-        {/each}
         {#each generatedIn(i) as workspace (workspace.id)}
           {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
         {/each}
@@ -306,11 +301,8 @@
     font-size: 12px;
     font-weight: 500;
   }
-  .proj.place { gap: 8px; }
-  .proj.place :global(svg) { flex: none; color: var(--text-2); }
   .collapsed .fold, .collapsed .meta { display: none; }
   .collapsed .open { justify-content: center; padding: 0; }
-  .collapsed .proj.place { display: none; }
   .collapsed .section { margin-top: 6px; padding-top: 6px; }
   .group {
     display: flex;

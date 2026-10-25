@@ -86,8 +86,8 @@ async function api(method, path, data) {
     await input.fill('keyboard'); await dialog.getByRole('button', {name: 'Try again'}).waitFor();
     await dialog.getByRole('button', {name: 'Try again'}).click(); await finished('keyboard');
     await dialog.getByRole('option').filter({has: page.getByText(ticket.key, {exact: true})}).waitFor();
-    await input.fill('Members'); await finished('Members'); await input.press('Enter');
-    await page.getByRole('heading', {name: 'Members', exact: true}).waitFor();
+    await input.fill('People'); await finished('People'); await input.press('Enter');
+    await page.getByRole('heading', {name: 'People', exact: true}).waitFor();
     const filter = page.getByRole('searchbox', {name: 'Find a member'}); await filter.fill(member.member.name);
     assert.equal(await page.locator('.member-row:visible').count(), 1);
     await filter.fill('missing colleague'); await page.getByText('No members found.', {exact: true}).waitFor();
@@ -96,7 +96,7 @@ async function api(method, path, data) {
     const memberCtx = await browser.newContext({viewport: {width: 390, height: 844}});
     const memberPage = await memberCtx.newPage(); memberPage.on('pageerror', e => errors.push(e.message));
     await memberPage.goto(base + '/?tab=members#token=' + member.token);
-    await memberPage.getByRole('heading', {name: 'Members', exact: true}).waitFor();
+    await memberPage.getByRole('heading', {name: 'People', exact: true}).waitFor();
     assert(await memberPage.locator('.member-row').count() >= 2, 'plain member sees the company directory');
     assert.equal(await memberPage.getByRole('button', {name: 'Remove', exact: true}).count(), 0);
     assert.equal(await memberPage.getByRole('button', {name: 'Add', exact: true}).count(), 0);

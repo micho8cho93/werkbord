@@ -63,7 +63,7 @@ it('opens approved workspace links, including revision reload hints, as shell pa
   for(const place of [`#/personal?id=${id}&revision=0`, `#/personal?id=${id}&url=evil`, '#/personal?id=../bad']) expect(generatedWorkspaceID(place)).toBeUndefined();
 });
 
-import { destinations, matching, sectionColour, sectionItems, sectionPlaces } from './nav';
+import { destinations, matching, sectionColour, sectionItems, subAreas } from './nav';
 import type { Item, Overview } from './types';
 
 const item = (id: string, kind: Item['kind'], name: string, state: Item['state'] = 'ready'): Item => ({ id, kind, name, state, source: 'x' });
@@ -75,10 +75,10 @@ describe('the sections of the sidebar', () => {
     expect(sectionItems(items).map((i) => i.id)).toEqual(['personal', 'team:a', 'team:b']);
   });
 
-  it('gives a section only what belongs to its workspace alone: Reviews and Analytics are the sidebar’s, not each section’s', () => {
-    expect(sectionPlaces('personal')).toEqual([]);
-    expect(sectionPlaces('team').map((e) => e.key)).toEqual(['members']);
-    expect(sectionPlaces('team').find((e) => e.key === 'members')?.title).toBe('People');
+  it('lists no sub-area in the sidebar: Projects and People are tabs inside the workspace, and only the palette names them', () => {
+    expect(subAreas('personal').map((e) => e.key)).toEqual(['projects']);
+    expect(subAreas('team').map((e) => e.key)).toEqual(['projects', 'members']);
+    expect(subAreas('team').find((e) => e.key === 'members')?.title).toBe('People');
   });
 
   it('colours Personal blue and a team the same way every time', () => {

@@ -52,7 +52,7 @@ The console (the page Team serves at its address) is organised around one questi
 | **Reviews** | What needs a decision? | Tickets in review, those asked of you first: author, branch, pull request, commits, mergeability, and links to the pull request, branch and comparison on the Git host. Record that you merged, mark done, or request changes. Team does not reproduce a code-review interface; the diff is on the Git host. |
 | **Git** | What is the Git state? | What members' Werkbords reported: branches, pull requests, and what needs attention. The existing `?tab=repository` address is unchanged. |
 | **Activity** | What happened? | The project's history. |
-| **Members** | Who is in my organization? | The workspace-wide directory, searchable by name, email or role; member management and invitations for administrators. |
+| **People** | Who is in my organization? | The workspace-wide directory, searchable by name, email or role; member management and invitations for administrators. |
 
 The tab badges show what waits (available tickets, your tickets, reviews for you, repository problems). The console
 shows a banner when its live connection drops and refreshes everything by itself when it returns (see
@@ -422,7 +422,7 @@ anyone else. Only the code's hash is stored; listings never show it. An invite c
 
 - Someone who is already in the workspace uses `POST /invites/join` from their enrolled device: in the console, **Projects >
   Join a project with a code**.
-- A person who is new to the workspace first joins it with an invitation from **Settings → Members**, which also sets up their computer;
+- A person who is new to the workspace first joins it with an invitation from **People**, which also sets up their computer;
   after that the code works. `POST /invites/redeem` (a new member and token from a bare code) is answered only to the
   computer the host runs on: from another computer it is refused with `403 device_required` and an explanation.
   Where it is allowed, if anything fails (the name is taken, say) the use is not counted.

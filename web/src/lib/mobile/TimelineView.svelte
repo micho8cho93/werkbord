@@ -17,7 +17,7 @@
     type Zoom,
   } from '../timeline';
   import { addDays } from '../calendar';
-  import Segmented from './Segmented.svelte';
+  import Segmented from '../Segmented.svelte';
   import { localParts } from './calendar';
   import { cal } from './calstate.svelte';
   import type { Task } from '../types';

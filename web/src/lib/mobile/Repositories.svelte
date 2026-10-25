@@ -9,7 +9,7 @@
   import { app } from '../state.svelte';
   import RepoCard from './RepoCard.svelte';
   import { branchesNeedingYou, latestCommits, openPullRequests, type RepoSource, type RepoView } from './repositories';
-  import Segmented from './Segmented.svelte';
+  import Segmented from '../Segmented.svelte';
 
   // The Git Control Center from the phone, four ways: how every repository stands, the open pull requests, the branches that want you
   // and the latest commits. Each row opens the Control Center itself (the branch, the repository), where the diffs and every action are,

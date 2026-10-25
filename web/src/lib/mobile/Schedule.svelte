@@ -11,7 +11,7 @@
   import { calendarItems, type CalItem } from './calendar';
   import MonthView from './MonthView.svelte';
   import { cal, type CalMode } from './calstate.svelte';
-  import Segmented from './Segmented.svelte';
+  import Segmented from '../Segmented.svelte';
   import TimelineView from './TimelineView.svelte';
   import WeekView from './WeekView.svelte';
   import { projectsLoaded, tasksOf, warmProjects } from './work.svelte';

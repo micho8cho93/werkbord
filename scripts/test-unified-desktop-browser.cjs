@@ -163,7 +163,10 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await firstFrame.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Git', exact: true }).waitFor();
  await side.locator('[data-project][aria-current=page]').waitFor();
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
- await side.locator('[data-section="team:main"]').getByRole('button', { name: 'People', exact: true }).click(); await side.locator('[data-page=ws-members][aria-current=page]').waitFor();
+ // People is a tab of the team, not an entry of the sidebar: the team's entry stays marked while the person is in it.
+ assert.equal(await side.locator('[data-section="team:main"] [data-page=ws-members]').count(), 0, 'the sidebar does not list People');
+ await firstFrame.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'People', exact: true }).click();
+ await firstFrame.getByRole('heading', { name: /^People on this project/ }).waitFor();
  console.log('PASS Team: the same sidebar lists its places, theme follows Settings, no rail of its own');
  // The style (Paper, Graphite, Classic) is chosen in the window's Settings beside the theme and reaches every workspace: an open one
  // at once, and one that was closed when the person went back to Paper when it is opened again. A workspace is on another origin and

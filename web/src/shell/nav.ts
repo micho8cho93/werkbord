@@ -1,10 +1,14 @@
-// What the window's one sidebar lists: a section for Personal and one for each team, each with its own projects and places, and
-// which entry a workspace's current place belongs to.
+// What the window's one sidebar lists: a section for Personal and one for each team, each with its projects, and which entry a
+// workspace's current place belongs to.
+// Where the person is has two levels. The sidebar lists the major parts (a workspace, and each project in it); inside a major part
+// its own pages carry one row of tabs for its sub-areas (a project's Board and Git, a team's Projects and People). A sub-area is
+// never a sidebar entry.
 // Pure: the sidebar is built from this, and the workspace's own pages carry no navigation of their own when they are shown
 // here. A place is what the workspace itself reports (a fragment for Personal, a query for a team); the shell never reads
 // anything else of it.
 
 import type { IconName } from '../lib/Icon.svelte';
+import { decode } from '../lib/location';
 import type { Item, Kind, Overview, Project } from './types';
 
 export type NavKey = '' | 'home' | 'projects' | 'reviews' | 'members' | 'analytics' | `project:${string}`;
@@ -36,14 +40,6 @@ export function entries(kind: Kind): NavEntry[] {
 }
 
 const TEAM_PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'project-settings', 'people']);
-
-function decode(s: string): string {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return '';
-  }
-}
 
 /** The entry a workspace's current place belongs to; '' when it is somewhere the sidebar does not list. */
 export function activeKey(kind: Kind, place: string | undefined): NavKey {
@@ -112,12 +108,9 @@ export function sectionItems(items: readonly Item[] | undefined): Item[] {
   return [...shown.filter((i) => i.kind === 'personal'), ...shown.filter((i) => i.kind === 'team')];
 }
 
-/**
- * The places a section lists after its projects: only what belongs to that workspace alone, which is People for a team. Reviews and
- * Analytics span Personal and every team, so each is one entry of the sidebar's own with a place to choose where to look.
- */
-export function sectionPlaces(kind: Kind): NavEntry[] {
-  return entries(kind).filter((e) => e.key === 'members');
+/** The sub-areas of a workspace that only the palette names (the workspace shows them as tabs): Projects, and People for a team. */
+export function subAreas(kind: Kind): NavEntry[] {
+  return entries(kind).filter((e) => e.key === 'projects' || e.key === 'members');
 }
 
 /** Something the go-to palette can take the person to. */
@@ -147,7 +140,7 @@ export function destinations(items: readonly Item[] | undefined, overview: Overv
     out.push({ id: `ws:${i.id}`, title: where, hint: kind === 'personal' ? 'Your own work' : 'Team', go: { workspace: i.id, place: home.place } });
     const summary = overview?.entries.find((e) => e.workspace.id === i.id)?.summary;
     for (const p of listed(summary?.projects)) out.push({ id: `project:${i.id}:${p.id}`, title: p.name, hint: `${where} · project`, go: { workspace: i.id, place: p.href } });
-    for (const e of sectionPlaces(kind)) out.push({ id: `place:${i.id}:${e.key}`, title: e.title, hint: where, go: { workspace: i.id, place: e.place } });
+    for (const e of subAreas(kind)) out.push({ id: `place:${i.id}:${e.key}`, title: e.title, hint: where, go: { workspace: i.id, place: e.place } });
   }
   out.push(
     { id: 'page:workspaces', title: 'Devices & Hosting', hint: 'This computer, hosts and runners', go: { page: 'workspaces' } },

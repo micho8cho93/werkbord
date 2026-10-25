@@ -1,7 +1,7 @@
 <script lang="ts">
   import { layout } from '../motion';
   import { app } from '../state.svelte';
-  import Segmented from './Segmented.svelte';
+  import Segmented from '../Segmented.svelte';
   import { upcomingNote, workGroups, type WorkTab } from './work';
   import WorkRow from './WorkRow.svelte';
   import { projectsLoaded, tasksOf, warmProjects } from './work.svelte';

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BlockEmpty from './BlockEmpty.svelte';
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
   import SnapshotStamp from './SnapshotStamp.svelte';
 
@@ -17,7 +18,7 @@
   {#if props.title}<h3>{props.title}</h3>{/if}
   <SnapshotStamp asOf={props.asOf} />
   {#if rows.length === 0}
-    <p class="empty">No chart values are available in this snapshot.</p>
+    <BlockEmpty>No chart values are available in this snapshot.</BlockEmpty>
   {:else}
     <div class="bars" role="group" aria-label={`${props.title ?? 'Bar chart'}. Select a category to inspect its value. ${description}`}>
       {#each rows as row, i (`${row.category}-${i}`)}
@@ -46,8 +47,7 @@
   .track { display: block; height: 10px; min-width: 0; overflow: hidden; border-radius: 2px; background: var(--surface-2); }
   .bar { display: block; height: 100%; min-width: 0; border-radius: inherit; background: var(--accent); }
   .value { min-width: 2ch; color: var(--text-2); text-align: right; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
-  .note, .empty, .selection { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
+  .note, .selection { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
   .selection strong { color: var(--text); font-weight: 600; }
-  .empty { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   @media (max-width: 600px) { .bar-row { min-height: 44px; grid-template-columns: minmax(62px, 1fr) minmax(44px, 2fr) auto; } }
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BlockEmpty from './BlockEmpty.svelte';
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
   import SnapshotStamp from './SnapshotStamp.svelte';
 
@@ -53,9 +54,9 @@
   </div>
   <SnapshotStamp asOf={props.asOf} />
   {#if rows.length === 0}
-    <p class="empty">No records are available in this snapshot.</p>
+    <BlockEmpty>No records are available in this snapshot.</BlockEmpty>
   {:else if visibleRows.length === 0}
-    <p class="empty">No rows match the current filters. Clear a filter to see more rows.</p>
+    <BlockEmpty>No rows match the current filters. Clear a filter to see more rows.</BlockEmpty>
   {:else}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex (The table region must be keyboard reachable when it overflows on phones.) -->
     <div class="table-scroll" role="region" aria-label={props.caption ?? 'Data table'} tabindex="0">
@@ -97,7 +98,6 @@
   .sort::after { bottom: 0; border-top: 4px solid currentColor; }
   .sort[data-active='true'] { opacity: 1; color: var(--accent); }
   .sort[data-active='true'][data-direction='asc']::after, .sort[data-active='true'][data-direction='desc']::before { opacity: .22; }
-  .empty { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; }
   @media (max-width: 600px) {
     .filters, .filter { flex: 1 1 100%; align-items: stretch; flex-direction: column; }
     input, select { width: 100%; min-height: 44px; }

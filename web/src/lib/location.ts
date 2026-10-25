@@ -94,7 +94,8 @@ const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) 
 const RENAMED: Record<string, ProjectSection> = { activity: 'runs' };
 const section = (v: string): ProjectSection | '' => (isSection(v) ? v : (RENAMED[v] ?? ''));
 
-function decode(s: string): string {
+/** A path part decoded, or '' when it is not valid percent-encoding. */
+export function decode(s: string): string {
   try {
     return decodeURIComponent(s);
   } catch {

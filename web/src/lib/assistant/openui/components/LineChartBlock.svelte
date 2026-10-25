@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BlockEmpty from './BlockEmpty.svelte';
   import type { ComponentRenderProps } from '@openuidev/svelte-lang';
   import SnapshotStamp from './SnapshotStamp.svelte';
   import { validOpenUIDate } from '../state';
@@ -39,7 +40,7 @@
     </div>
   {/if}
   {#if points.length === 0}
-    <p class="empty">{data.length === 0 ? 'No dated values are available in this snapshot.' : 'No recorded values match this date range.'}</p>
+    <BlockEmpty>{data.length === 0 ? 'No dated values are available in this snapshot.' : 'No recorded values match this date range.'}</BlockEmpty>
   {:else}
     <div class="plot" role="img" aria-label={`${props.title ?? 'Line chart'}. ${description}`}>
       <svg viewBox="0 0 600 168" preserveAspectRatio="none" aria-hidden="true">
@@ -81,7 +82,6 @@
   .data ul { max-height: 220px; overflow: auto; list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
   .data li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 2px; border-bottom: 1px solid var(--border); font-size: 12px; }
   .data strong { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .note, .empty { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
-  .empty { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .note { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
   @media (max-width: 600px) { .date-filter label, .date-filter input { width: 100%; } .date-filter input { min-height: 44px; font-size: 16px; } }
 </style>

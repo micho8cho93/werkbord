@@ -38,9 +38,9 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  console.log('PASS create, real host/database bootstrap and focused workspace');
  await shot(page,'desktop');await shot(page,'mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  const adminLabels=['This computer','MCP clients','Labels','Devices','Workspace Hosts','Connectivity','Backups'];
- const destinations = ['Workspace','Projects','Initiatives','Reviews','Members','Analytics',...adminLabels];
+ const destinations = ['Workspace','Projects','Initiatives','Reviews','People','Analytics',...adminLabels];
  for(const label of destinations){
-  const tabFor={ 'Workspace':'workspace', 'This computer':'settings', 'MCP clients':'mcp', 'Workspace Hosts':'hosts' }[label] || label.toLowerCase().replaceAll(' ','');
+  const tabFor={ 'Workspace':'workspace', 'People':'members', 'This computer':'settings', 'MCP clients':'mcp', 'Workspace Hosts':'hosts' }[label] || label.toLowerCase().replaceAll(' ','');
   const nav=adminLabels.includes(label)?page.getByRole('navigation',{name:'Team administration',exact:true}):page.getByRole('navigation',{name:'Werkbord Team',exact:true});
   if(adminLabels.includes(label))await page.getByRole('navigation',{name:'Settings',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();
   const destination=nav.getByRole('button',{name:label,exact:true});await destination.click();await page.waitForFunction(expected=>state.tab===expected,tabFor);
@@ -72,7 +72,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  const plan=await dev('first','GET','/removal');assert.equal(plan.canRemoveData,false);
  let ds;await wait(async()=>{ds=await team('GET','/devices');return ds[0]?.capabilities.includes('runner');},'automatic local runner registration');assert.equal(ds.length,1);assert(ds[0].capabilities.includes('runner'));assert(ds[0].capabilities.includes('workspace_host'));
  const owner=(await team('GET','/me')).member;
- await page.getByRole('navigation',{name:'Werkbord Team',exact:true}).getByRole('button',{name:'Members',exact:true}).click();
+ await page.getByRole('navigation',{name:'Werkbord Team',exact:true}).getByRole('button',{name:'People',exact:true}).click();
  await wait(async()=> (await team('GET','/members')).find(m=>m.id===owner.id)?.connections?.runnersConnected===1,'first runner presence');
  await page.evaluate(()=>render());
  await page.locator('[data-member-id="'+owner.id+'"]').getByText('1 runner connected',{exact:true}).waitFor();

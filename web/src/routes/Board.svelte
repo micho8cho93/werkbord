@@ -7,7 +7,7 @@
   import Archive from '../lib/board/Archive.svelte';
   import TaskCard from '../lib/board/TaskCard.svelte';
   import { phone } from '../lib/mobile/phone.svelte';
-  import Segmented from '../lib/mobile/Segmented.svelte';
+  import Segmented from '../lib/Segmented.svelte';
   import { agentLabel, resolveFor, type Resolved } from '../lib/execution';
   import { setFilter } from '../lib/filters.svelte';
   import { filterActive, matches, noFilter } from '../lib/labels';

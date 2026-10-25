@@ -249,7 +249,7 @@ const clientId = () => 'browser-' + stamp + '-' + (++counter);
     await boPage.goto(`${base}/?tab=overview&project=${project.id}`);
     await boPage.locator('.overview-mentions .mention-row').waitFor();
     assert.equal(await boPage.locator('.overview-mentions .mention-row').count(), 1);
-    assert.equal((await boPage.locator('.project-tabs button[name="project-tab-overview"] .count').innerText()).trim(), '1', 'the Overview tab counts the project\'s unread mentions');
+    assert.equal((await boPage.locator('.sub-tabs button[name="project-tab-overview"] .count').innerText()).trim(), '1', 'the Overview tab counts the project\'s unread mentions');
     for (const scheme of ['light', 'dark']) {
         await boPage.emulateMedia({ colorScheme: scheme });
         await boPage.screenshot({ path: path.join(artifacts, `comments-overview-desktop-${scheme}.png`) });

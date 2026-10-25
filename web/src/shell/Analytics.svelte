@@ -10,6 +10,11 @@
   import StatTile from '../lib/charts/StatTile.svelte';
   import { analyticsDuration, measuredCost, measuredNumber, percent } from '../lib/analytics';
   import { activityOf, mergeActivity, projectsWithin, RANGES, reads, runsAvailable, runsOf, wheres } from './analytics';
+  import FilterBar from './FilterBar.svelte';
+  import Notice from './Notice.svelte';
+  import PageFrame from './PageFrame.svelte';
+  import WherePicker from './WherePicker.svelte';
+  import Segmented from '../lib/Segmented.svelte';
   import { model } from './model.svelte';
   import { ask } from './native';
 
@@ -32,10 +37,7 @@
   const targets = $derived(reads(where, project, items));
   const nameOf = (id: string): string => (id === 'personal' ? 'Personal' : (items?.find((i) => i.id === id)?.name ?? id));
 
-  // A place or project that is no longer there (a team left, a project removed) is dropped, not kept as a ghost filter.
-  $effect(() => {
-    if (!places.some((p) => p.id === where)) where = 'all';
-  });
+  // A project that is no longer there (removed) is dropped, not kept as a ghost filter; the place is dropped by the picker.
   $effect(() => {
     if (projectKey && !project) projectKey = '';
   });
@@ -96,18 +98,9 @@
   ] : []);
 </script>
 
-<section class="analytics" aria-labelledby="analytics-h">
-  <header>
-    <h1 id="analytics-h">Analytics</h1>
-    <p class="lede">How work is going, across Personal and your teams. Choose where to look and for how long.</p>
-  </header>
-
-  <div class="filters" aria-busy={loading}>
-    <label class="pick"><span>Where</span>
-      <select bind:value={where} aria-label="Analytics place" data-testid="analytics-where">
-        {#each places as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
-      </select>
-    </label>
+<PageFrame id="analytics-h" title="Analytics" lede="How work is going, across Personal and your teams. Choose where to look and for how long.">
+  <FilterBar busy={loading}>
+    <WherePicker bind:where label="Analytics place" testid="analytics-where" />
     <label class="pick"><span>Project</span>
       <select bind:value={projectKey} aria-label="Analytics project" data-testid="analytics-project">
         <option value="">All projects</option>
@@ -119,14 +112,12 @@
         {#each RANGES as d (d)}<option value={d}>Last {d} days</option>{/each}
       </select>
     </label>
-    <div class="tabs" role="group" aria-label="Analytics view">
-      {#each views as v (v)}<button type="button" aria-pressed={view === v} onclick={() => (view = v)}>{v}</button>{/each}
-    </div>
+    <Segmented compact options={views.map((v) => ({ id: v, label: v }))} value={view} onchange={(v) => (view = v)} label="Analytics view" />
     {#if loading}<span class="muted" role="status">Updating…</span>{/if}
-  </div>
+  </FilterBar>
 
   {#each failed as f (f.workspace)}
-    <p class="notice" role="status">{nameOf(f.workspace)} could not be read: {f.message} Its figures are left out.</p>
+    <Notice>{nameOf(f.workspace)} could not be read: {f.message} Its figures are left out.</Notice>
   {/each}
 
   {#if !loaded}
@@ -196,24 +187,15 @@
       </div>
     {/if}
   {/if}
-</section>
+</PageFrame>
 
 <style>
-  .analytics { display: flex; flex-direction: column; gap: 16px; padding: 24px clamp(16px, 3vw, 40px) 32px; height: 100%; overflow: auto; }
-  .analytics > :global(*) { flex: none; }
-  h1 { margin: 0; }
-  .lede { margin: 4px 0 0; color: var(--text-2); }
-  .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-tray, var(--radius)); background: var(--surface); }
   .series { margin-bottom: 10px; }
-  .tabs { display: inline-flex; margin-left: auto; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
-  .tabs button { height: 30px; padding: 0 14px; border: 0; border-radius: 4px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
-  .tabs button[aria-pressed='true'] { background: var(--surface); box-shadow: 0 0 0 1px var(--border); color: var(--text); }
   .stamp { margin: 0; }
   .muted { color: var(--text-2); font-size: 12px; line-height: 1.6; }
   .tail { margin-top: 10px; text-align: center; }
   p { margin: 0; }
   .empty { color: var(--text-2); }
-  .notice { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); font-size: 13px; }
   .statistics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 0; }
   .board { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
   .facts { margin: 0; }
@@ -222,5 +204,4 @@
   dt { color: var(--text-2); font-size: 12px; }
   dd { margin: 0; font-family: var(--mono); font-size: 12px; text-align: right; }
   @media (max-width: 1100px) { .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .board { grid-template-columns: 1fr; } }
-  @media (max-width: 899px) { .analytics { height: auto; overflow: visible; padding: 16px 16px 24px; } .tabs { margin-left: 0; } }
 </style>
