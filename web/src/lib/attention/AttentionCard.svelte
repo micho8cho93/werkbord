@@ -132,7 +132,7 @@
     flex-wrap: wrap;
     gap: 4px 8px;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--text-2);
@@ -163,7 +163,7 @@
   .title,
   .row-title {
     font-weight: 500;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.3;
     color: var(--text);
     text-decoration: none;

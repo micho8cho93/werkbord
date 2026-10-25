@@ -101,26 +101,21 @@
   .error { margin: 0; color: var(--danger-text); }
   .top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
   .lede { margin: 4px 0 0; color: var(--text-2); }
-  .tally { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .tally { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; padding: 0; list-style: none; }
   .tally li {
     --kind: var(--accent);
     display: flex;
     align-items: baseline;
     gap: 4px 6px;
-    padding: 9px 14px;
-    border: 1px solid color-mix(in srgb, var(--kind) 55%, var(--border));
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--kind) 9%, var(--surface));
-    box-shadow: var(--card-sh);
-    font-size: 12px;
+    font-size: 13px;
   }
   .tally li[data-kind='team'] { --kind: var(--block); }
-  .swatch { align-self: center; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--kind, var(--accent)); }
+  .swatch { align-self: center; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--kind, var(--accent)); }
   .who { font-weight: 600; font-size: 13px; }
-  .n { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+  .n { font-family: var(--mono); font-size: 14px; font-weight: 600; }
   .cap { color: var(--text-2); margin-right: 6px; }
 
-  .places-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .places-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
   .places-heading h2 { margin: 0; }
   .shelf { max-height: min(28vh, 240px); overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; margin: -6px; padding: 6px; list-style: none; flex: none; }
   .tile {
@@ -132,32 +127,30 @@
     width: 100%;
     min-height: 58px;
     padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--kind) 40%, var(--border));
+    border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: linear-gradient(135deg, color-mix(in srgb, var(--kind) 10%, var(--surface)), var(--surface) 70%);
+    background: var(--surface);
     box-shadow: var(--card-sh);
     color: var(--text);
     font: inherit;
     text-align: left;
     cursor: pointer;
-    transition: transform 0.14s var(--ease), border-color 0.14s, box-shadow 0.14s;
+    transition: border-color 0.14s, background 0.14s;
   }
   .tile[data-kind='team'] { --kind: var(--block); }
-  .tile[data-kind='generated'] { --kind: var(--ok); }
-  .tile[data-kind='library'] { --kind: var(--warn); }
-  .tile:hover { transform: translateY(-2px); border-color: var(--kind); box-shadow: var(--card-sh), 0 0 0 3px color-mix(in srgb, var(--kind) 16%, transparent); }
+  .tile[data-kind='generated'],
+  .tile[data-kind='library'] { --kind: var(--text-2); }
+  .tile:hover { border-color: color-mix(in srgb, var(--text-2) 50%, var(--border)); background: var(--surface-2); }
   .tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .gi { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: color-mix(in srgb, var(--kind) 16%, var(--surface)); color: var(--text); }
+  .gi { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); }
   .tx { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
-  .tx strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
-  .tx small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 11.5px; }
-  .num { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--amber); color: #0a0a0a; font-family: var(--mono); font-size: 11.5px; line-height: 20px; text-align: center; }
+  .tx strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
+  .tx small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 12px; }
+  .num { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--amber); color: #0a0a0a; font-family: var(--mono); font-size: 12px; line-height: 20px; text-align: center; }
 
   .deck { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 4fr) minmax(0, 7fr); gap: 14px; }
-  .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius-tray); background: var(--surface); box-shadow: var(--card-sh); overflow: hidden; }
-  .panel > h2 { display: flex; align-items: center; gap: 8px; margin: 0; padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
-  .panel > h2::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--amber); }
-  .plan > h2::before { background: var(--accent); }
+  .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); overflow: hidden; }
+  .panel > h2 { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 13px; }
   .body { flex: 1; min-height: 0; padding: 14px; overflow-y: auto; }
   .body.flush { display: flex; flex-direction: column; overflow: hidden; }
 

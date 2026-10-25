@@ -12,7 +12,7 @@
   import { handle, type FrameRef } from './frames';
   import { generatedWorkspaceID } from './nav';
   import { model } from './model.svelte';
-  import { theme } from '../lib/theme.svelte';
+  import { look, theme } from '../lib/theme.svelte';
 
   let el: HTMLIFrameElement | undefined = $state();
   let preparing = false;
@@ -66,9 +66,11 @@
   // The page is told which theme the person chose in the sidebar, as every workspace is, as soon as it can listen.
   function tell(): void {
     if (theme.choice) send({ type: 'werkbord.theme', theme: theme.choice });
+    send({ type: 'werkbord.style', style: look.choice });
   }
   $effect(() => {
     void theme.choice;
+    void look.choice;
     if (loaded) untrack(tell);
   });
 

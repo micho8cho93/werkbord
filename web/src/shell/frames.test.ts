@@ -35,6 +35,12 @@ describe('what a frame may say about the window', () => {
     for (const theme of ['blue', 1, null, undefined]) await handle(frames, say(individual, frames[0].origin, { event: 'theme', theme }), d);
     expect(vi.mocked(d.theme).mock.calls).toEqual([['personal', 'dark'], ['personal', 'light'], ['personal', '']]);
   });
+  it('may say which style the person chose, and nothing else about it', async () => {
+    const d = { ...deps(), style: vi.fn() };
+    for (const style of ['paper', 'graphite', 'classic']) await handle(frames, say(individual, frames[0].origin, { event: 'style', style }), d);
+    for (const style of ['', 'neon', 1, null, undefined]) await handle(frames, say(individual, frames[0].origin, { event: 'style', style }), d);
+    expect(vi.mocked(d.style).mock.calls).toEqual([['personal', 'paper'], ['personal', 'graphite'], ['personal', 'classic']]);
+  });
   it('lets Individual say something happened, in plain short words, and no one else', async () => {
     const d = deps();
     const alert = { event: 'notify', key: 'seq-12', title: 'Needs you', body: 'Shop · Fix login' };

@@ -21,5 +21,5 @@
   .arc { fill: none; stroke-width: 14; stroke-linecap: round; }
   .mid { position: absolute; display: grid; justify-items: center; gap: 2px; text-align: center; }
   strong { font-size: 26px; font-weight: 600; }
-  span { max-width: 90px; color: var(--text-2); font-size: 11.5px; line-height: 1.3; }
+  span { max-width: 90px; color: var(--text-2); font-size: 12px; line-height: 1.3; }
 </style>

@@ -126,26 +126,26 @@
   .board { display: grid; gap: 12px; min-width: 0; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); }
   :global(.card) .board { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
   .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-  h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; }
   .search input { min-height: 34px; width: 210px; max-width: 100%; padding: 6px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
   .search input:focus-visible, .adder input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 6px; align-items: start; }
   .column { display: grid; gap: 8px; align-content: start; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); box-shadow: var(--tray-sh); }
   .column.over { border-color: var(--accent); box-shadow: 0 0 0 2px var(--tint), var(--tray-sh); }
   header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  h4 { margin: 0; font-size: 12.5px; font-weight: 650; letter-spacing: 0.01em; overflow-wrap: anywhere; }
+  h4 { margin: 0; font-size: 13px; font-weight: 650; letter-spacing: 0.01em; overflow-wrap: anywhere; }
   .count { min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--text-2); font-size: 12px; text-align: center; border: 1px solid var(--border); }
   ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
   .card { display: grid; gap: 6px; padding: 10px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--card-sh); }
   .card[draggable='true'] { cursor: grab; }
   .card.dragging { opacity: 0.45; }
-  .card-title { font-size: 13.5px; font-weight: 550; overflow-wrap: anywhere; }
+  .card-title { font-size: 14px; font-weight: 550; overflow-wrap: anywhere; }
   dl { display: grid; gap: 3px; margin: 0; font-size: 12px; color: var(--text-2); }
   dl div { display: flex; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
   dt::after { content: ':'; }
   dd { margin: 0; overflow-wrap: anywhere; }
   dd a { color: var(--accent); }
-  .chip { padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: 11.5px; }
+  .chip { padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: 12px; }
   .actions { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
   .gap { flex: 1; }
   .mini { display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 4px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; }
@@ -153,9 +153,9 @@
   .mini:hover:not(:disabled) { border-color: var(--border); background: var(--surface-2); color: var(--text); }
   .mini:disabled { opacity: 0.35; cursor: default; }
   .mini:focus-visible, .add:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; }
-  .blank { padding: 8px; color: var(--text-2); font-size: 12.5px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
-  .add { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font: inherit; font-size: 12.5px; cursor: pointer; }
+  .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+  .blank { padding: 8px; color: var(--text-2); font-size: 13px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
+  .add { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; }
   .add:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .adder { display: grid; gap: 6px; }
   .adder input { min-width: 0; min-height: 34px; padding: 6px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }

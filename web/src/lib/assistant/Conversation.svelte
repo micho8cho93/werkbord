@@ -203,7 +203,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
-    font-size: 13.5px;
+    font-size: 14px;
   }
   .all .count {
     margin-right: auto;
@@ -227,7 +227,7 @@
     min-height: 100%;
     margin: 0 auto;
     padding: 24px 16px 12px;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.55;
   }
   .hello {
@@ -246,7 +246,7 @@
   }
   .hi {
     font-family: var(--font);
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 600;
     letter-spacing: -0.01em;
     text-transform: none;
@@ -313,7 +313,7 @@
     padding: 0;
     list-style: none;
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .sent li {
     display: inline-flex;
@@ -325,7 +325,7 @@
     max-width: 90%;
     text-align: center;
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .latest {
     position: absolute;
@@ -338,7 +338,7 @@
     flex: none;
     padding: 6px 16px;
     text-align: center;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--warn-text);
     background: color-mix(in srgb, var(--amber) 14%, transparent);
   }
@@ -360,7 +360,7 @@
   }
   .t {
     font-family: var(--font);
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
     letter-spacing: -0.01em;
     text-transform: none;
@@ -390,7 +390,7 @@
     font-size: 13px;
   }
   .provs .how {
-    font-size: 12.5px;
+    font-size: 13px;
     overflow-wrap: anywhere;
   }
   .dots {

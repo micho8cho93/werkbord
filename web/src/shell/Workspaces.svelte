@@ -168,7 +168,7 @@
   }
   .kind {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
   }
   .standing {
@@ -220,7 +220,7 @@
     padding: 6px 10px;
     border-left: 1px solid var(--amber);
     background: var(--surface-2);
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .actions {
     display: flex;

@@ -111,8 +111,8 @@
     font-size: 14px;
     overflow-wrap: anywhere;
   }
-  .task-title { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
-  .destination { color: var(--text-2); font-size: 12.5px; }
+  .task-title { font-size: 16px; font-weight: 650; overflow-wrap: anywhere; }
+  .destination { color: var(--text-2); font-size: 13px; }
   .preview-detail { display: grid; gap: 3px; }
   .preview-detail > span { color: var(--text-2); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
   .preview-detail > p { font-size: 13px; overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -124,7 +124,7 @@
   }
   .fine,
   .result {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--text-2);
   }
   .result {
@@ -139,7 +139,7 @@
     color: var(--danger-text);
     align-items: flex-start;
   }
-  .task-link { width: fit-content; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--accent); text-decoration: none; cursor: pointer; }
+  .task-link { width: fit-content; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--accent); text-decoration: none; cursor: pointer; }
   .task-link:hover { text-decoration: none; filter: brightness(1.15); }
   .task-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 </style>

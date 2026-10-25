@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { theme } from '../lib/theme.svelte';
+  import { look, STYLES, theme } from '../lib/theme.svelte';
   import { alerts } from './alerts.svelte';
   import { model } from './model.svelte';
   import SaliePlacement from '../lib/SaliePlacement.svelte';
@@ -31,6 +31,17 @@
         <button type="button" aria-pressed={theme.choice === ''} onclick={() => theme.set('')}>Device</button>
         <button type="button" aria-pressed={theme.choice === 'light'} onclick={() => theme.set('light')}>Light</button>
         <button type="button" aria-pressed={theme.choice === 'dark'} onclick={() => theme.set('dark')}>Dark</button>
+      </div>
+    </section>
+    <section class="pn" aria-labelledby="style-h">
+      <div class="head">
+        <h3 id="style-h">Style</h3>
+        <p class="muted">How the window and every workspace in it are drawn. {STYLES.find(s => s.id === look.choice)?.about}</p>
+      </div>
+      <div class="seg" role="group" aria-label="Style">
+        {#each STYLES as s (s.id)}
+          <button type="button" aria-pressed={look.choice === s.id} onclick={() => look.set(s.id)}>{s.label}</button>
+        {/each}
       </div>
     </section>
     <section class="pn" aria-labelledby="salie-placement-h">

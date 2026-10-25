@@ -342,7 +342,7 @@
 
   .compact label {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     letter-spacing: 0.12em;
     text-transform: uppercase;

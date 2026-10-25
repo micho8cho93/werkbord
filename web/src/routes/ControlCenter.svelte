@@ -251,7 +251,7 @@
   }
 
   .segs .n {
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
   }
 
@@ -300,7 +300,7 @@
 
   .clear-title {
     font-weight: 600;
-    font-size: 15px;
+    font-size: 16px;
     margin-bottom: 2px;
   }
 

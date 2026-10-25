@@ -295,9 +295,9 @@
   .tool-list, .resource-list { list-style:none; padding:0; margin:8px 0 0; display:grid; }
   .tool-list li, .resource-list li { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:start; gap:12px; padding:10px 0; border-top:1px solid var(--border); }
   .tool-list p, .resource-list p { color:var(--text-2); margin:4px 0; font-size:12px; max-width:70ch; overflow-wrap:anywhere; }
-  .tool-list label { display:grid; gap:4px; font-size:11.5px; color:var(--text-2); }
+  .tool-list label { display:grid; gap:4px; font-size:12px; color:var(--text-2); }
   .small-select { min-width:150px; }
-  .hint { font-size:11.5px; color:var(--text-2); }
+  .hint { font-size:12px; color:var(--text-2); }
   .uri { display:block; overflow-wrap:anywhere; margin-top:3px; }
   .resource-result { display:grid; gap:8px; padding:10px; background:var(--surface-2); border-radius:var(--radius-sm); }
   pre { max-height:300px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.5 var(--font-mono); }

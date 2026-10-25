@@ -32,7 +32,7 @@
   .glyph { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--tint); color: var(--accent); }
   .text { display: grid; gap: 2px; flex: 1; min-width: 0; }
   .text strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-  .text span { color: var(--text-2); font-size: 12.5px; }
+  .text span { color: var(--text-2); font-size: 13px; }
   .go { flex: none; color: var(--text-2); }
   @media (max-width: 600px) { .shortcut { min-height: 56px; } }
 </style>

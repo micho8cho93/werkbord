@@ -23,7 +23,7 @@
 </section>
 <style>
   .handoff { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); min-width: 0; }
-  h3 { font-size: 15px; } h4 { font-size: 13px; font-weight: 600; }
+  h3 { font-size: 16px; } h4 { font-size: 13px; font-weight: 600; }
   p, li { white-space: pre-wrap; overflow-wrap: anywhere; }
   ul { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 4px; }
   summary { cursor: pointer; min-height: 32px; }

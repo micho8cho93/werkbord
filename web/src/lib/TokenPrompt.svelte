@@ -66,7 +66,7 @@
   .wm {
     font-family: var(--mono);
     font-weight: 600;
-    font-size: 18px;
+    font-size: 20px;
     letter-spacing: -0.06em;
   }
 

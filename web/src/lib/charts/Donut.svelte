@@ -54,7 +54,7 @@
   .arc.dim { opacity: 0.3; }
   .arc.lift { stroke-width: 20; }
   .big { fill: var(--text); font: 600 22px var(--mono); }
-  .cap { fill: var(--text-2); font: 11.5px var(--font); }
+  .cap { fill: var(--text-2); font: 12px var(--font); }
   .legend { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
   .legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 44px; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; font-size: 13px; transition: opacity 0.15s, background 0.15s; }
   .legend li:hover { background: var(--surface-2); }

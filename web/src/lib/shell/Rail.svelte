@@ -112,7 +112,7 @@
   .wm {
     font-family: var(--mono);
     font-weight: 600;
-    font-size: 17px;
+    font-size: 16px;
     letter-spacing: -0.06em;
     line-height: 1;
   }
@@ -160,7 +160,7 @@
 
   .n {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
   }
 
@@ -194,7 +194,7 @@
     gap: 10px;
     font-family: var(--mono);
     font-weight: 500;
-    font-size: 11.5px;
+    font-size: 12px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--text-2);

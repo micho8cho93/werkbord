@@ -111,12 +111,12 @@
   .item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .item strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
   .taste { color: var(--text-2); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-  .when { color: var(--text-2); font-size: 11.5px; }
+  .when { color: var(--text-2); font-size: 12px; }
   .none { padding: 14px 6px; color: var(--text-2); font-size: 13px; }
   .page { min-width: 0; }
   .list-toggle { display: none; margin-bottom: 10px; }
   .empty { display: grid; justify-items: start; gap: 8px; padding: 30px 4px; }
-  .empty h4 { margin: 0; font-size: 18px; }
+  .empty h4 { margin: 0; font-size: 20px; }
   .empty p { margin: 0; color: var(--text-2); }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media (max-width: 760px) {

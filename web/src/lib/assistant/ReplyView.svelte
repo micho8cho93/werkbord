@@ -177,7 +177,7 @@
     border-radius: var(--radius-sm);
     background: var(--surface-2);
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: 13px;
     overflow-wrap: anywhere;
   }
   .openui-action-error {
@@ -187,7 +187,7 @@
     border-radius: var(--radius-sm);
     color: var(--danger-text);
     background: var(--surface);
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .openui-fallback p { margin: 0 0 6px; }
   .openui-fallback summary { width: fit-content; cursor: pointer; }
@@ -197,11 +197,11 @@
     margin: 8px 0 0;
     overflow: auto;
     color: var(--text);
-    font: 11.5px/1.5 var(--mono);
+    font: 12px/1.5 var(--mono);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  .activity-steps { margin: 8px 0 0; padding-left: 18px; color: var(--text-2); font-size: 12.5px; }
+  .activity-steps { margin: 8px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13px; }
   .progress {
     border: 0; padding: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; min-height: 24px;
 
@@ -215,14 +215,14 @@
   @media (pointer: coarse) { .progress { min-height: 44px; } }
   .note {
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .suggestions {
     display: grid;
     gap: 10px;
   }
   .looked {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--text-2);
   }
   .memory-sources { overflow-wrap: anywhere; }

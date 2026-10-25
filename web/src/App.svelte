@@ -497,7 +497,7 @@
     padding: 0 4px;
     color: var(--text);
     text-decoration: none;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 500;
     border-bottom: 1px solid var(--border);
   }
@@ -547,7 +547,7 @@
     }
 
     .ghead h1 {
-      font-size: 22px;
+      font-size: 20px;
     }
 
     .phone-mark {
@@ -565,7 +565,7 @@
     .phone-more-location {
       display: block;
       margin: 12px 16px 0;
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 600;
     }
 
@@ -604,7 +604,7 @@
       align-items: center;
       justify-content: center;
       gap: 4px;
-      font-size: 11.5px;
+      font-size: 12px;
       font-weight: 500;
       color: var(--text-2);
       text-decoration: none;
@@ -640,7 +640,7 @@
       left: calc(100% - 4px);
       min-width: 18px;
       height: 18px;
-      font-size: 11.5px;
+      font-size: 12px;
       padding: 0 5px;
     }
   }

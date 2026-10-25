@@ -25,13 +25,13 @@
     white-space: normal;
     gap: 6px;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
     overflow-wrap: anywhere;
   }
   .report { display: grid; gap: 3px; min-width: 0; }
   .label { min-width: 0; overflow-wrap: anywhere; }
-  .note { font-size: 11.5px; color: var(--text-2); overflow-wrap: anywhere; }
+  .note { font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
   .dot {
     flex: 0 0 7px;
     width: 7px;

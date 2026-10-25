@@ -46,7 +46,7 @@
   }
 
   h3 {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .mark {
@@ -55,7 +55,7 @@
     height: 20px;
     display: inline-grid;
     place-items: center;
-    border-radius: 5px;
+    border-radius: 6px;
     background: var(--surface-2);
     box-shadow: var(--tray-sh);
     color: var(--text-2);
@@ -83,7 +83,7 @@
 
   .summary {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
     overflow-wrap: anywhere;
   }

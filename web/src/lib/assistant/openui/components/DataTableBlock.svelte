@@ -84,7 +84,7 @@
   input, select { width: min(100%, 220px); min-height: 36px; padding: 6px 9px; color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font: inherit; }
   input:focus-visible, select:focus-visible, button:focus-visible, .table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .table-scroll { max-width: 100%; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { min-width: 96px; padding: 0; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
   th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); font-weight: 600; }
   th button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 42px; padding: 7px 10px; border: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
@@ -97,7 +97,7 @@
   .sort::after { bottom: 0; border-top: 4px solid currentColor; }
   .sort[data-active='true'] { opacity: 1; color: var(--accent); }
   .sort[data-active='true'][data-direction='asc']::after, .sort[data-active='true'][data-direction='desc']::before { opacity: .22; }
-  .empty { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); font-size: 12.5px; }
+  .empty { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; }
   @media (max-width: 600px) {
     .filters, .filter { flex: 1 1 100%; align-items: stretch; flex-direction: column; }
     input, select { width: 100%; min-height: 44px; }

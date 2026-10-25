@@ -31,11 +31,11 @@
 </li>
 
 <style>
-  .file { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 26px; align-items: center; gap: 6px; max-width: 100%; min-height: 32px; padding: 0 4px 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12.5px; overflow: hidden; }
+  .file { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 26px; align-items: center; gap: 6px; max-width: 100%; min-height: 32px; padding: 0 4px 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 13px; overflow: hidden; }
   .icon { display: grid; place-items: center; width: 16px; height: 18px; color: var(--text-2); }
   .fn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sz { min-width: 0; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
-  .file[data-state='error'], .file[data-state='expired'] { border-radius: 8px; }
+  .file[data-state='error'], .file[data-state='expired'] { border-radius: 10px; }
   .file[data-state='error'] .sz, .file[data-state='expired'] .sz { grid-row: 2; grid-column: 2 / 4; padding-bottom: 6px; color: var(--danger-text); }
   .x { grid-column: 4; grid-row: 1; display: inline-grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 50%; background: none; color: var(--text-2); }
   .x:hover { background: var(--surface-2); color: var(--text); }

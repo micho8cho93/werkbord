@@ -212,7 +212,7 @@
   }
 
   h3 {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   form {
@@ -229,7 +229,7 @@
 
   .opt {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 400;
   }
 
@@ -260,7 +260,7 @@
       flex: none;
       width: 36px;
       height: 36px;
-      border-radius: 9px;
+      border-radius: 10px;
       background: var(--surface-2);
       box-shadow: var(--tray-sh);
       color: var(--text-2);

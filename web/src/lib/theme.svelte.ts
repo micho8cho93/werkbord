@@ -51,3 +51,49 @@ class Theme {
 }
 
 export const theme = new Theme();
+
+// The style is a second choice beside light or dark: how the interface is drawn, not which of its two colour modes shows.
+// Paper is the default (flat, warm paper, cobalt and amber); Graphite is neutral grey with a near-black primary; Classic keeps
+// the earlier raised buttons and cards. Remembered per device (public/theme.js applies it before the first paint), and in the
+// desktop window it is the window's, chosen in one place and told to every workspace, as the theme is.
+
+const STYLE_KEY = 'werkbord.style';
+export type StyleChoice = 'paper' | 'graphite' | 'classic';
+export const STYLES: readonly { id: StyleChoice; label: string; about: string }[] = [
+  { id: 'paper', label: 'Paper', about: 'Flat and calm, on warm paper. The default.' },
+  { id: 'graphite', label: 'Graphite', about: 'Neutral greys with a near-black primary.' },
+  { id: 'classic', label: 'Classic', about: 'The earlier raised buttons and cards.' },
+];
+
+export function isStyle(value: unknown): value is StyleChoice {
+  return value === 'paper' || value === 'graphite' || value === 'classic';
+}
+
+function storedStyle(): StyleChoice {
+  try {
+    const s = localStorage.getItem(STYLE_KEY);
+    return s === 'graphite' || s === 'classic' ? s : 'paper';
+  } catch {
+    return 'paper';
+  }
+}
+
+class Look {
+  choice = $state<StyleChoice>(storedStyle());
+
+  /** fromShell: the window's sidebar chose it and told this page, which has nobody to tell. */
+  set(choice: StyleChoice, fromShell = false): void {
+    this.choice = choice;
+    if (!fromShell && isEmbedded()) window.parent.postMessage({ type: 'werkbord.frame', event: 'style', style: choice }, '*');
+    if (choice === 'paper') delete document.documentElement.dataset.style;
+    else document.documentElement.dataset.style = choice;
+    try {
+      if (choice === 'paper') localStorage.removeItem(STYLE_KEY);
+      else localStorage.setItem(STYLE_KEY, choice);
+    } catch {
+      // Not remembered in private mode; it still applies to this page.
+    }
+  }
+}
+
+export const look = new Look();

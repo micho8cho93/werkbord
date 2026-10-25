@@ -12,3 +12,5 @@ export function reportFrame(place: () => string, w?: unknown): () => void;
 export function openWorkspace(target: 'personal', place: string, w?: unknown): boolean;
 /** Calls handler with the theme the person chose in the shell's sidebar. Returns a function that stops listening. */
 export function onTheme(handler: (theme: 'light' | 'dark') => void, w?: unknown): () => void;
+/** Calls handler with the style the person chose in the shell's sidebar. Returns a function that stops listening. */
+export function onStyle(handler: (style: 'paper' | 'graphite' | 'classic') => void, w?: unknown): () => void;

@@ -21,7 +21,7 @@
   import PhonesPanel from '../lib/phones/PhonesPanel.svelte';
   import { desktop } from '../lib/desktop.svelte';
   import { app } from '../lib/state.svelte';
-  import { theme } from '../lib/theme.svelte';
+  import { look, STYLES, theme } from '../lib/theme.svelte';
   import type { ExecutionConfig, Health, Runner } from '../lib/types';
 
   // Everything that is set once and changed rarely, one section at a time: each has its own
@@ -234,6 +234,17 @@
       </section>
       <section class="pn">
         <div class="head">
+          <h3>Style</h3>
+          <p class="muted">{STYLES.find(s => s.id === look.choice)?.about} Kept on this device.</p>
+        </div>
+        <div class="seg" role="group" aria-label="Style">
+          {#each STYLES as s (s.id)}
+            <button aria-pressed={look.choice === s.id} onclick={() => look.set(s.id)}>{s.label}</button>
+          {/each}
+        </div>
+      </section>
+      <section class="pn">
+        <div class="head">
           <h3>Clock</h3>
           <p class="muted">How times are written everywhere: {formatTime(app.now)} now. Follows your device unless you choose. Kept on this device.</p>
         </div>
@@ -289,7 +300,8 @@
   .mcp-direction [aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }
   .section-group + .section-group { margin-top: 24px; }
   /* A group heading names what is under it and is not pressable; its sections are indented beneath it on a rule. */
-  .section-group h2 { margin: 0 12px 6px; padding-bottom: 6px; border-bottom: 2px solid color-mix(in srgb, var(--text) 55%, var(--border)); font: 700 11.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text); }
+  .section-group h2 { margin: 0 12px 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font: 600 13px var(--font); letter-spacing: 0; text-transform: none; color: var(--text); }
+  :global(:root[data-style='classic']) .section-group h2 { border-bottom: 2px solid color-mix(in srgb, var(--text) 55%, var(--border)); font: 700 12px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; }
   .section-links { display: flex; flex-direction: column; gap: 2px; }
   .settings {
     height: 100%;
@@ -358,7 +370,7 @@
   }
 
   h3 {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .row {

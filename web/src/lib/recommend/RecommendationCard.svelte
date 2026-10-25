@@ -126,10 +126,10 @@
     margin-left: auto;
     letter-spacing: 0.04em;
     text-transform: none;
-    font-size: 11.5px;
+    font-size: 12px;
   }
   .title {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     overflow-wrap: anywhere;
   }
@@ -153,7 +153,7 @@
     color: var(--danger-text);
   }
   .why {
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .why summary {
     cursor: pointer;
@@ -192,7 +192,7 @@
     border-radius: 4px;
     background: var(--surface-2);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 18px;
     color: var(--text-2);
     white-space: nowrap;

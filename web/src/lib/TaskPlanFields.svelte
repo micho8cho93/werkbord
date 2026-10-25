@@ -70,7 +70,7 @@
 
   .opt {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 400;
     color: var(--text-2);
     margin-left: 4px;
@@ -106,5 +106,5 @@
   }
 
   .dates .input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
-  .field-error { color: var(--danger-text); font-size: 11.5px; line-height: 1.35; }
+  .field-error { color: var(--danger-text); font-size: 12px; line-height: 1.35; }
 </style>

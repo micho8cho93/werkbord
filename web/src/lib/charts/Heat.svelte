@@ -25,13 +25,13 @@
 <style>
   .heat { display: grid; gap: 6px; margin: 0; }
   .head, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-  .head span { color: var(--text-2); font: 11.5px var(--mono); text-align: center; }
-  .cell { display: flex; align-items: flex-start; justify-content: flex-start; min-height: 24px; padding: 3px 5px; border-radius: 5px; background: color-mix(in srgb, var(--tone) var(--mix), var(--surface-2)); }
-  .cell small { color: var(--text-2); font: 11.5px var(--mono); line-height: 1.2; }
+  .head span { color: var(--text-2); font: 12px var(--mono); text-align: center; }
+  .cell { display: flex; align-items: flex-start; justify-content: flex-start; min-height: 24px; padding: 3px 5px; border-radius: 6px; background: color-mix(in srgb, var(--tone) var(--mix), var(--surface-2)); }
+  .cell small { color: var(--text-2); font: 12px var(--mono); line-height: 1.2; }
   .cell[data-level='1'] small, .cell[data-level='2'] small, .cell[data-level='3'] small { color: var(--text); }
   .cell[data-level='3'] small { color: light-dark(var(--text), var(--accent-text)); }
   .cell[data-level='4'] small { color: var(--accent-text); }
-  figcaption { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px; color: var(--text-2); font-size: 11.5px; }
+  figcaption { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px; color: var(--text-2); font-size: 12px; }
   figcaption span { margin: 0 4px; }
   i { width: 12px; height: 12px; border-radius: 3px; background: color-mix(in srgb, var(--tone) var(--mix), var(--surface-2)); }
 </style>

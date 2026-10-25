@@ -172,7 +172,7 @@
   .full { color: var(--warn-text); font-weight: 600; }
 
   /* The text itself is made by ProseMirror, outside this component's scope. */
-  .page :global(.doc-content) { outline: none; max-width: 76ch; min-height: 280px; margin: 0 auto; font-size: 15px; line-height: 1.7; color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
+  .page :global(.doc-content) { outline: none; max-width: 76ch; min-height: 280px; margin: 0 auto; font-size: 16px; line-height: 1.7; color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
   .page :global(.doc-content > *:first-child) { margin-top: 0; }
   .page :global(p) { margin: 0 0 0.85em; }
   /* The app's own h2 is a small mono label: a document's headings are headings. */

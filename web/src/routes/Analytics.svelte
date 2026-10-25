@@ -244,7 +244,7 @@
   .tabs { display: inline-flex; align-self: flex-start; max-width: 100%; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); box-shadow: var(--tray-sh); overflow-x: auto; }
   .tabs button { flex: none; height: 30px; padding: 0 14px; border: 0; border-radius: 4px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
   .tabs button:hover { color: var(--text); }
-  .tabs button[aria-selected="true"] { background: var(--btn-bg); box-shadow: var(--btn-sh); color: var(--text); }
+  .tabs button[aria-selected="true"] { background: var(--btn-bg); box-shadow: var(--btn-sh), 0 0 0 1px var(--border); color: var(--text); }
   #analytics-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
   .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-tray); background: var(--surface); box-shadow: var(--card-sh); }
   .stamp { margin: 0; }
@@ -260,8 +260,8 @@
   .assess { display: grid; gap: 18px; justify-items: stretch; }
   .funnel { display: grid; gap: 12px; }
   .step { display: grid; grid-template-columns: minmax(150px, 22%) minmax(0, 1fr) 56px; align-items: center; gap: 14px; font-size: 13px; }
-  .meter { height: 12px; border-radius: 7px; background: var(--surface-2); box-shadow: var(--tray-sh); overflow: hidden; }
-  .fill { display: block; height: 100%; border-radius: 7px; background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 55%, var(--surface)), var(--tone)); }
+  .meter { height: 12px; border-radius: 6px; background: var(--surface-2); box-shadow: var(--tray-sh); overflow: hidden; }
+  .fill { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 55%, var(--surface)), var(--tone)); }
   .step strong { text-align: right; font-weight: 600; }
   dt { color: var(--text-2); font-size: 12px; }
   dd { margin: 6px 0 0; font-family: var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

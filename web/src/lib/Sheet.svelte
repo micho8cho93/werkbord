@@ -121,7 +121,7 @@
 
   header h2 {
     font-family: var(--font);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     text-transform: none;
     letter-spacing: -0.01em;

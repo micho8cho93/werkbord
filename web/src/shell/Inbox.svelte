@@ -126,7 +126,7 @@
   }
   .group { margin-top: 24px; }
   h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; }
-  .count { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; }
+  .count { color: var(--text-2); font-family: var(--mono); font-size: 12px; }
   ul {
     list-style: none;
     margin: 0;
@@ -181,7 +181,7 @@
   .tally li[data-kind='team'] { --kind: var(--block); }
   .swatch { align-self: center; width: 10px; height: 10px; border-radius: 3px; background: var(--kind); }
   .who { font-weight: 600; font-size: 13px; }
-  .n { font-family: var(--mono); font-size: 15px; font-weight: 600; text-align: right; }
+  .n { font-family: var(--mono); font-size: 16px; font-weight: 600; text-align: right; }
   .cap { color: var(--text-2); margin-right: 6px; }
   .action { min-height: 44px; white-space: nowrap; }
   .sev {
@@ -212,7 +212,7 @@
     line-height: 1.5;
     max-width: 70ch;
   }
-  .context { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--text-2); font-size: 11.5px; }
+  .context { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--text-2); font-size: 12px; }
   .alert {
     margin: 0 0 8px;
     padding: 10px 14px;
@@ -224,6 +224,18 @@
   .empty {
     color: var(--text-2);
   }
+  /* Paper and Graphite: rows are plain list rows and the tally is hairline tiles. The coloured edge, tinted fills and shadows
+     stay in Classic. */
+  :global(:root:not([data-style='classic'])) .row { box-shadow: none; min-height: 56px; }
+  :global(:root:not([data-style='classic'])) .tally li {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: none;
+  }
+  :global(:root:not([data-style='classic'])) .tally li + li { border-top: 1px solid var(--border); }
+  :global(:root:not([data-style='classic'])) .swatch { width: 8px; height: 8px; border-radius: 50%; }
+  :global(:root:not([data-style='classic'])) .n { font-family: var(--font); }
+  :global(:root:not([data-style='classic'])) ul { box-shadow: none; }
   @media (max-width: 720px) {
     .row { grid-template-columns: 10px minmax(0, 1fr); align-items: start; }
     .sev { margin-top: 6px; }

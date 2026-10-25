@@ -21,7 +21,7 @@
     background: color-mix(in srgb, var(--kind) 12%, var(--surface));
     color: var(--text);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     letter-spacing: 0.02em;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -30,6 +30,15 @@
   }
   .tag[data-kind='team'] {
     --kind: var(--block);
+  }
+  /* Paper and Graphite: the workspace is a dot and a name, not a tinted pill. Classic keeps the pill. */
+  :global(:root:not([data-style='classic'])) .tag {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font-family: var(--font);
+    letter-spacing: 0;
   }
   .dot {
     flex: none;

@@ -64,8 +64,8 @@
 
 <style>
   .field { display: grid; min-width: 0; gap: 5px; }
-  label { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 3px 10px; color: var(--text); font-size: 12.5px; font-weight: 500; }
-  .required { color: var(--text-2); font-size: 11.5px; font-weight: 400; }
+  label { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 3px 10px; color: var(--text); font-size: 13px; font-weight: 500; }
+  .required { color: var(--text-2); font-size: 12px; font-weight: 400; }
   select { width: 100%; min-width: 0; min-height: 40px; padding: 8px 30px 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; }
   select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   select[aria-invalid='true'] { border-color: var(--danger); }

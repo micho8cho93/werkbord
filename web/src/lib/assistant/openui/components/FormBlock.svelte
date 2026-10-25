@@ -36,7 +36,7 @@
   .generated-form { display: grid; min-width: 0; gap: 10px; padding: 0; border: 0; background: transparent; }
   fieldset { display: grid; min-width: 0; gap: 8px; margin: 0; padding: 0; border: 0; }
   legend { width: 100%; padding: 0; color: var(--text); font-size: 14px; font-weight: 600; }
-  .description { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
+  .description { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.45; }
   .fields { display: grid; min-width: 0; gap: 12px; }
   @media (max-width: 600px) { .generated-form { padding: 12px; } }
 </style>

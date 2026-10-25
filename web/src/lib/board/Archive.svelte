@@ -28,7 +28,7 @@
 <style>
   .archive { padding: 0 24px 24px; min-height: 0; display: flex; flex-direction: column; gap: 20px; }
   .heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-  h2 { font-size: 18px; } .field { display: grid; gap: 4px; min-width: min(280px, 100%); }
+  h2 { font-size: 20px; } .field { display: grid; gap: 4px; min-width: min(280px, 100%); }
   .tasks { list-style: none; padding: 0; margin: 0; overflow-y: auto; scrollbar-gutter: stable; }
   li { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border); }
   li div { min-width: 0; } a { font-weight: 500; overflow-wrap: anywhere; } p { font-size: 12px; }

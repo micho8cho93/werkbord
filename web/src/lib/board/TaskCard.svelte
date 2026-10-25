@@ -80,6 +80,18 @@
   const canStart = $derived(agentWork && task.state !== 'done' && (!run || ['completed', 'failed', 'stopped'].includes(run.state)) && task.state !== 'review');
   const plan = $derived(spanOf(task));
   const href = $derived(taskHref(task.projectId, task.id));
+  // What the card asks of the person has full buttons. What they could do but need not (start, run again, archive) is one quiet
+  // text control in the footer, so a column of cards reads as titles and states, not a row of buttons.
+  const attention = $derived(!!question || run?.state === 'blocked' || status.tone === 'idle' || task.state === 'review' || (task.state === 'doing' && run?.state === 'completed'));
+  const demand = $derived(
+    task.state === 'done' ? 'archive'
+    : attention ? ''
+    : canStart && task.state === 'backlog' && waitingFor.length === 0 ? 'start'
+    : canStart && run?.state === 'failed' ? 'again'
+    : '',
+  );
+  const showAgent = $derived(agentWork && !!(run || effective.agent));
+  const hasMeta = $derived(showAgent || effective.priority !== 'normal' || !!plan);
 
   let busy = $state('');
 
@@ -139,9 +151,9 @@
   <button type="button" data-drag-handle draggable="false" disabled={pending} aria-label="Move task: {task.title}" title="Drag to a column, or use Left and Right arrows"><svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="3" r="1"/><circle cx="8" cy="3" r="1"/><circle cx="4" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="4" cy="13" r="1"/><circle cx="8" cy="13" r="1"/></svg></button>
   <a class="title" {href} draggable={!pending}>{task.title}</a>
   <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : `${stale ? 'Last reported: ' : ''}${status.text}${run?.pendingRequests?.includes('stop') ? ' · stop requested' : run?.pendingRequests?.includes('finish') ? ' · finish requested' : ''}`}</p>
-  {#if task.description}<p class="work-detail">{task.description.length > 180 ? task.description.slice(0, 177) + '…' : task.description}</p>{/if}
-  {#if plan}<p class="work-detail">Planned {spanTitle(plan, new Date(app.now).getFullYear())}</p>{/if}
-  {#if status.detail}<p class="well detail">{status.detail}</p>{/if}
+  <!-- A work project has no run to describe, so what the task is about is the one other line it has. -->
+  {#if !agentWork && task.description}<p class="work-detail one">{task.description}</p>{/if}
+  {#if status.detail}<p class="detail">{status.detail}</p>{/if}
 
   {#if question}
     <div class="acts">
@@ -168,23 +180,23 @@
     <div class="acts">
       <button class="btn small primary" disabled={pending} onclick={() => onmove(task, 'review')}><Icon name="right" size={14} />Move to Review</button>
     </div>
-  {:else if canStart && task.state === 'backlog' && waitingFor.length === 0}
-    <div class="acts">
-      <button class="btn small" disabled={pending} onclick={() => onstart(task)} aria-label="{run ? 'Run an agent again on' : 'Start an agent on'} “{task.title}”"><Icon name="play" size={12} />{run ? 'Run again' : 'Start agent'}</button>
-    </div>
-  {:else if canStart && run?.state === 'failed'}
-    <div class="acts"><button class="btn small" disabled={pending} onclick={() => onstart(task)} aria-label="Run an agent again on “{task.title}”"><Icon name="play" size={12} />Run again</button></div>
   {/if}
 
-  {#if task.state === 'done'}
-    <div class="acts"><button class="btn small open" disabled={!!busy || pending} onclick={archive}>{busy === 'archive' ? 'Archiving…' : 'Archive'}</button></div>
-  {/if}
   <!-- The agent chip says something only when an agent was chosen or has run: "any agent" is every card's default. -->
-  {#if (agentWork && (run || effective.agent)) || effective.priority !== 'normal'}
-    <div class="mt">
-      {#if agentWork && (run || effective.agent)}<span class="chip">{agent}</span>{/if}
-
-      {#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}
+  {#if hasMeta || demand}
+    <div class="foot">
+      <p class="meta">
+        {#if showAgent}<span>{agent}</span>{/if}
+        {#if plan}<span>Planned {spanTitle(plan, new Date(app.now).getFullYear())}</span>{/if}
+        {#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}
+      </p>
+      {#if demand === 'start'}
+        <button class="btn small quiet demand" disabled={pending} onclick={() => onstart(task)} aria-label="{run ? 'Run an agent again on' : 'Start an agent on'} “{task.title}”"><Icon name="play" size={12} />{run ? 'Run again' : 'Start agent'}</button>
+      {:else if demand === 'again'}
+        <button class="btn small quiet demand" disabled={pending} onclick={() => onstart(task)} aria-label="Run an agent again on “{task.title}”"><Icon name="play" size={12} />Run again</button>
+      {:else if demand === 'archive'}
+        <button class="btn small quiet demand" disabled={!!busy || pending} onclick={archive}>{busy === 'archive' ? 'Archiving…' : 'Archive'}</button>
+      {/if}
     </div>
   {/if}
 {#if run && liveRun(run)}
@@ -201,12 +213,12 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 9px;
-    padding: 12px;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
     cursor: grab;
     transition:
       border-color 0.15s,
-      box-shadow 0.15s,
       opacity 0.15s;
   }
 
@@ -218,37 +230,37 @@
     border-color: color-mix(in srgb, var(--text-2) 45%, var(--border));
   }
 
-  .live {
-    border-color: var(--accent);
-    box-shadow:
-      var(--card-sh),
-      var(--live-ring);
+  /* A state is a thin edge, not a ring or a coloured border: running is cobalt, waiting on you is amber. */
+  .live::before,
+  .task[data-tone='ask']::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 10px;
+    bottom: 10px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--accent);
   }
 
-  .live:hover {
-    border-color: var(--accent);
-  }
-
-  .task[data-tone='ask'] {
-    border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+  .task[data-tone='ask']::before {
+    background: var(--amber);
   }
 
   .selected,
   .selected:hover {
     border-color: var(--text);
-    box-shadow:
-      var(--card-sh),
-      0 0 0 1px var(--text);
   }
 
   .settled {
-    opacity: 0.72;
+    opacity: 0.7;
   }
 
   .title {
+    padding-right: 18px;
     font-weight: 500;
     font-size: 14px;
-    line-height: 1.3;
+    line-height: 1.35;
     color: var(--text);
     text-decoration: none;
     overflow-wrap: anywhere;
@@ -271,13 +283,30 @@
     outline-offset: 2px;
   }
 
+  /* The grip is there when the card is pointed at, focused or selected, and always on a touch screen. */
+  [data-drag-handle] {
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .task:hover [data-drag-handle],
+  .task:focus-within [data-drag-handle],
+  .selected [data-drag-handle] {
+    opacity: 1;
+  }
+
   .st {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-2);
     min-width: 0;
+  }
+
+  .st .dot {
+    width: 7px;
+    height: 7px;
   }
 
   .st .dot.hollow[data-tone='neutral'] {
@@ -293,10 +322,26 @@
     box-shadow: inset 0 0 0 2px var(--accent);
   }
 
+  .detail,
+  .work-detail {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-2);
+    overflow-wrap: anywhere;
+  }
+
   .detail {
     display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .work-detail.one {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -306,38 +351,55 @@
     z-index: 1;
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
+    margin-top: 2px;
   }
 
-  .mt {
+  .foot {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    min-height: 0;
   }
 
-  .prio {
-    font-family: var(--mono);
-    font-size: 11.5px;
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    min-width: 0;
+    font-size: 12px;
     color: var(--text-2);
+  }
+
+  .meta span + span::before {
+    content: '·';
+    margin: 0 6px;
   }
 
   .prio[data-p='high'] {
     color: var(--danger-text);
   }
 
+  /* What can be done but need not be: a quiet text control at the end of the footer. */
+  .demand {
+    margin-left: auto;
+    margin-right: -6px;
+    padding: 0 8px;
+  }
+
   /* The answer is the point of the card: a thumb must not miss it. */
   @media (max-width: 899px), (pointer: coarse) {
-    .acts :global(.btn) {
+    .acts :global(.btn),
+    .demand {
       min-height: 44px;
     }
   }
 
   @media (pointer: coarse) {
     .task {
-    --work-border: var(--border);
-    --work-surface: var(--surface);
-    --work-muted: var(--text-2);
       padding: 14px;
       cursor: default;
     }
@@ -347,7 +409,11 @@
     }
 
     .st {
-      font-size: 13px;
+      font-size: 14px;
+    }
+
+    [data-drag-handle] {
+      opacity: 1;
     }
   }
 </style>

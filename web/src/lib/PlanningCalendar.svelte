@@ -110,17 +110,17 @@
   [data-status='done'] { --tone: var(--ok); }
   .event { display: block; width: 100%; padding: 10px; margin: 0 0 10px; overflow-wrap: anywhere; box-shadow: 0 2px 4px #0000000c; }
   .event strong { display: block; font-weight: 500; }
-  small { display: block; font-size: 11.5px; color: var(--text); opacity: .85; margin-top: 4px; }
-  .status { display: block; font-size: 11.5px; text-transform: capitalize; margin-bottom: 5px; font-weight: 600; }
+  small { display: block; font-size: 12px; color: var(--text); opacity: .85; margin-top: 4px; }
+  .status { display: block; font-size: 12px; text-transform: capitalize; margin-bottom: 5px; font-weight: 600; }
   .event:hover, .range:hover { border-color: var(--tone); background: color-mix(in srgb, var(--tone) 25%, var(--surface)); }
   .axis { display: flex; position: sticky; top: 0; z-index: 4; height: 42px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
   .axis > span { position: sticky; left: 0; z-index: 5; width: 260px; flex: none; padding: 12px; border-right: 1px solid var(--border); background: var(--surface-2); font-size: 12px; font-weight: 600; }
   .dates { position: relative; }
-  time { position: absolute; height: 100%; padding: 12px 6px; border-left: 1px solid var(--border); white-space: nowrap; font-size: 11.5px; color: var(--text-2); }
+  time { position: absolute; height: 100%; padding: 12px 6px; border-left: 1px solid var(--border); white-space: nowrap; font-size: 12px; color: var(--text-2); }
   time.major { color: var(--text); font-weight: 600; }
   .trow { display: flex; border-bottom: 1px solid var(--border); min-height: 64px; }
   .name { position: sticky; left: 0; z-index: 3; width: 260px; flex: none; border: 0; border-right: 1px solid var(--border); padding: 10px 12px; background: var(--surface); color: var(--text); text-align: left; overflow-wrap: anywhere; font-size: 13px; cursor: pointer; }
-  .name-status { display: block; margin-top: 4px; text-transform: capitalize; font-size: 11.5px; color: var(--text-2); }
+  .name-status { display: block; margin-top: 4px; text-transform: capitalize; font-size: 12px; color: var(--text-2); }
   .name:hover { background: var(--surface-2); }
   .track { position: relative; flex: none; background: var(--bg); }
   .line { position: absolute; top: 0; bottom: 0; border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent); }
@@ -128,6 +128,21 @@
   .range { position: absolute; top: 8px; bottom: 8px; padding: 4px 12px; overflow: hidden; white-space: nowrap; }
   .range-title { display: block; overflow: hidden; text-overflow: ellipsis; }
   .range .status { margin: 3px 0 0; font-weight: 400; }
+  /* Paper and Graphite: an event is a hairline card with a thin edge in its tone, not a tinted block with a shadow. */
+  :global(:root:not([data-style='classic'])) .event,
+  :global(:root:not([data-style='classic'])) .range {
+    border: 1px solid var(--border);
+    box-shadow: inset 3px 0 0 var(--tone);
+    background: var(--surface);
+  }
+  :global(:root:not([data-style='classic'])) .range { background: color-mix(in srgb, var(--tone) 7%, var(--surface)); }
+  :global(:root:not([data-style='classic'])) .event { margin-bottom: 8px; }
+  :global(:root:not([data-style='classic'])) .event:hover,
+  :global(:root:not([data-style='classic'])) .range:hover { border-color: var(--border); background: var(--surface-2); }
+  :global(:root:not([data-style='classic'])) .day { background: var(--surface); }
+  :global(:root:not([data-style='classic'])) .track { background: var(--surface); }
+  :global(:root:not([data-style='classic'])) .status { font-weight: 500; color: var(--text-2); }
+  :global(:root:not([data-style='classic'])) small { opacity: 1; color: var(--text-2); }
   @media (max-width: 1000px) { .dense .week { grid-template-columns: repeat(7, minmax(150px, 1fr)); } }
   @media (max-width: 899px) { .planning-calendar { padding: 16px; min-height: 480px; } .tools button { min-height: 44px; } }
 </style>

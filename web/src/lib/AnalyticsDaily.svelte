@@ -36,8 +36,8 @@
   <div class="legend"><span class="key created"></span>Created <span class="key completed"></span>Moved to Done <span class="unit">UTC days · peak {peak} {peak === 1 ? 'task' : 'tasks'}</span></div>
   <svg {width} height={H} viewBox="0 0 {width} {H}" role="img" aria-label="Daily task counts. Hover a day, or use the arrow keys, to read it.">
     <defs>
-      <linearGradient id="{readoutId}-c" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" /><stop offset="1" stop-color="color-mix(in srgb, var(--accent) 62%, var(--surface))" /></linearGradient>
-      <linearGradient id="{readoutId}-d" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--ok)" /><stop offset="1" stop-color="color-mix(in srgb, var(--ok) 62%, var(--surface))" /></linearGradient>
+      <linearGradient id="{readoutId}-c" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" /><stop offset="1" stop-color="color-mix(in srgb, var(--accent) var(--bar-fade, 62%), var(--surface))" /></linearGradient>
+      <linearGradient id="{readoutId}-d" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--ok)" /><stop offset="1" stop-color="color-mix(in srgb, var(--ok) var(--bar-fade, 62%), var(--surface))" /></linearGradient>
     </defs>
     {#each axis.ticks as t (t)}
       <line x1={L} x2={width - R} y1={base - h(t)} y2={base - h(t)} stroke="var(--border)" stroke-dasharray={t === 0 ? undefined : '2 4'} />
@@ -62,7 +62,7 @@
   .readout { position: absolute; top: 24px; right: 0; z-index: 1; max-width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); box-shadow: var(--card-sh); font-size: 12px; pointer-events: none; animation: chart-readout 120ms ease-out; }
   @keyframes chart-readout { from { opacity: 0; } }
   svg { display: block; max-width: 100%; overflow: visible; }
-  text { fill: var(--text-2); font: 11.5px var(--mono); }
+  text { fill: var(--text-2); font: 12px var(--mono); }
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--text-2); }
   .key { width: 10px; height: 10px; border-radius: 3px; }
   .created { background: var(--accent); } .completed { background: var(--ok); }

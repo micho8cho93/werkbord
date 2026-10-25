@@ -24,7 +24,7 @@
   section { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); min-width: 0; }
   :global(.card) section { padding: 0; border: 0; background: none; }
   .heading, li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-  h3 { margin: 0; font-size: 15px; }
+  h3 { margin: 0; font-size: 16px; }
   p, li { color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
   ul { list-style: none; margin: 0; padding: 0; }
   li { padding-block: 8px; border-top: 1px solid var(--border); }

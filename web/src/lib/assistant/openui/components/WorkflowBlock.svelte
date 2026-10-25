@@ -45,8 +45,8 @@
   .node[data-state='done'] .connector { border-color: var(--ok); background: var(--ok); }
   .body { min-width: 0; }
   .title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 9px; }
-  .title-row strong { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
-  .task-state, .run, .depends { color: var(--text-2); font-size: 11.5px; }
+  .title-row strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+  .task-state, .run, .depends { color: var(--text-2); font-size: 12px; }
   .run, .depends { margin: 3px 0 0; overflow-wrap: anywhere; }
   .blocker { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 5px 0 0; color: var(--block); font-size: 12px; line-height: 1.4; }
   .blocker strong { font-weight: 600; }

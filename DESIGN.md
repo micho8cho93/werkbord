@@ -6,6 +6,10 @@ identity sheet "Werkbord · Identity — Quiet technical · v1" made into code. 
 
 ## Character
 
+Three styles share one set of tokens (below, [Styles](#styles)): **Paper**, the default, flat on warm paper; **Graphite**, the
+same flat layer on neutral greys with a near-black primary; **Classic**, the raised buttons and cards the app had before 4.84.
+This sheet describes Paper and says where the others differ.
+
 Quiet technical. Paper and ink, one action colour, one attention colour. The tool disappears into the work:
 density over decoration, every state readable at a glance, nothing hidden that you need weekly.
 
@@ -42,24 +46,49 @@ ready/done = green `#2F8F55`, failed = red `#C2413B`. Use the `*-text` variants 
 Theme follows the OS unless the person picks one (sun/moon in the rail, stored per device as
 `werkbord.theme`; `public/theme.js` applies it before first paint because the CSP forbids inline scripts).
 
+### Styles
+
+A second choice beside light or dark: `data-style` on `<html>`, absent for Paper, `graphite` or `classic` otherwise. Chosen in
+Settings (Style), stored per device as `werkbord.style`, applied before first paint by the same `theme.js`. In the desktop window
+the sidebar's choice is the window's and is told to every workspace (`werkbord.style`, frame event `style`), as the theme is.
+
+- The `:root` tokens above are Classic's. Paper and Graphite add one flat layer on `:root:not([data-style='classic'])`: no gradient
+  faces, shadow tokens are `0 0 0 0 transparent` (never `none`, they sit in comma lists), `--radius` 10px, `--radius-sm` 6px, solid
+  chart bars. One shadow stays, `--win-sh`, for what floats (menus, dialogs, toasts).
+- Graphite overrides the palette only (light: paper `#FAFAFA`, tray `#F2F2F3`, line `#E2E2E5`, cobalt `#2F4FD0`; dark: `#0A0A0B`,
+  `#1B1B1E`, `#28282C`, `#8DA2FF`) and makes the primary button ink (`--pri-fill`, `--pri-text`). Its three palette selectors (light,
+  OS dark, explicit dark) must set the same tokens; `contrast.test.ts` checks that, and every primary label per style and mode.
+- Classic keeps the old materials and colours but takes the new structure (task card anatomy, type and radius scales). Components
+  that were redrawn flat keep their old look under `:root[data-style='classic']` (stat tiles, panels, Settings headings).
+- The Team console follows the style (`console.css`, `theme.js`, stored as `werkbord-team.style`) with Paper, Graphite and Classic;
+  it has no picker of its own, so a browser tab changes style only through the desktop window or storage.
+
 ## Type
 
 Geist for the interface (400/500/600), Geist Mono for machine text: paths, branches, IDs, counts, times,
-commands, keys, and the uppercase section labels (`.lab`, 11.5px, `letter-spacing: .14em`). Both are bundled
-(`@fontsource-variable/*`), never loaded from a CDN. Page titles 20px/600; card titles 14px/500; body 13–14px.
+commands, keys, and (Classic only) the uppercase section labels (`.lab`, 12px, `letter-spacing: .14em`; in Paper and Graphite
+section labels are sentence case, 12px/500, in Geist). Both are bundled (`@fontsource-variable/*`), never loaded from a CDN.
+The scale has six steps: 12 / 13 / 14 / 16 / 20 / 24px. Page titles 20px/600; card titles 14px/500; body 13–14px.
 The wordmark is `werkbord`, lowercase, Geist Mono 600, tracking −6%.
 
-**The legibility floor:** no text is smaller than 11.5px, and all text is at least 4.5:1 against what is behind it (3:1
+**The legibility floor:** no text is smaller than 12px, and all text is at least 4.5:1 against what is behind it (3:1
 for large text) in both themes. Status words on paper use the `*-text` tokens; the bare `--ok`, `--warn` and `--danger`
 are for dots, borders and fills. A dimmed state (a zero count) lowers the dot, not the words. `web/src/lib/contrast.test.ts`
 checks the tokens and `scripts/measure-legibility.cjs` every rendered screen ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)).
 
 ## Material
 
-- Raised: buttons (`.btn`, `.btn.primary`), cards (`.card`), keys (`.key`). Gradient face, light top edge, soft drop.
-- Inset: trays (`.tray`: board columns, wells), form fields (`.input`, `.select`), the current nav item.
-- Corners stay at 4–8px (trays 9px). Counts are pills: cobalt `.num`, amber raised `.num.pend` for what waits.
-- Machine text sits in a `.well` (tray, mono 11.5px).
+Paper and Graphite are flat: surfaces are separated by a hairline (`--border`), not a shadow, and lists use dividers instead of
+nested cards.
+
+- Buttons (`.btn`) are outlined on `--surface`; the primary is filled (cobalt in Paper, ink in Graphite). Fields are bordered on
+  `--surface`. Trays (board columns, wells) are `--surface-2`.
+- Corners come from three radii: 4px (chips, keys), 6px (buttons, fields), 10px (cards, panels, trays), and a pill for counts.
+  Counts: cobalt `.num`, amber `.num.pend` for what waits, the only loud colour on a page.
+- State is a thin left edge or a dot (cobalt = running, amber = needs you), not a coloured border or glow.
+- Machine text sits in a `.well` (tray, mono 12px).
+
+Classic keeps the earlier material: raised buttons and cards (gradient face, light top edge, soft drop), inset trays and fields.
 
 ## Mark and icons
 
@@ -75,9 +104,11 @@ of the app; `app-icons.test.ts` enforces both. No emoji or font-glyph icons; Sal
 
 ### Button tones
 
-A row of buttons should read as a row of different things before a word is read. Every tone is the same raised button with one
-quiet difference: the colour of its edge and label, and a faint glow of that colour when pointed at. No button underlines its
-label. A lone button needs none.
+A row of buttons should read as a row of different things before a word is read. In **Classic** every tone is the same raised button
+with one quiet difference: the colour of its edge and label, and a faint glow when pointed at. In **Paper and Graphite** there are
+four looks: filled (`primary`), outlined (default; `add`, `open`, `ok`, `warn` fall back to it), outlined with a red edge and label
+(`danger`) and plain text (`quiet`). The classes stay, so a label can still say which it is, and Classic can still draw them apart.
+No button underlines its label. A lone button needs none.
 
 | Class | Leans toward | Examples |
 | --- | --- | --- |

@@ -195,8 +195,8 @@
   .files { display: grid; gap: 12px; min-width: 0; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); }
   :global(.card) .files { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
   .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  h3 { margin: 0; font-size: 15px; font-weight: 600; }
-  .about, .note { margin: 0; color: var(--text-2); font-size: 12.5px; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .about, .note { margin: 0; color: var(--text-2); font-size: 13px; }
   .problem { margin: 0; color: var(--danger-text); font-size: 13px; }
   .pick { cursor: pointer; }
   .pick:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -215,22 +215,22 @@
   .text strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
   .sub { color: var(--text-2); font-size: 12px; }
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }
-  .chip { padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 11.5px; }
+  .chip { padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
   .none { padding: 16px 6px; color: var(--text-2); font-size: 13px; }
   .viewer { display: grid; gap: 10px; min-width: 0; align-content: start; }
   header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
   .heading { min-width: 0; }
-  h4 { margin: 0; font-size: 18px; font-weight: 650; overflow-wrap: anywhere; }
-  .heading p { margin: 3px 0 0; color: var(--text-2); font-size: 12.5px; overflow-wrap: anywhere; }
+  h4 { margin: 0; font-size: 20px; font-weight: 650; overflow-wrap: anywhere; }
+  .heading p { margin: 3px 0 0; color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-  .confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; }
+  .confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
   .notes { margin: 0; padding: 8px 12px; border-left: 3px solid var(--border); color: var(--text-2); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
   .stage { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); overflow: hidden; }
   .stage iframe { display: block; width: 100%; height: min(78vh, 900px); border: 0; background: #fff; }
   .stage img { display: block; max-width: 100%; max-height: 78vh; margin: 0 auto; object-fit: contain; }
   .stage video { display: block; width: 100%; max-height: 78vh; background: #000; }
   .stage audio { display: block; width: 100%; padding: 16px; box-sizing: border-box; }
-  .stage pre { margin: 0; max-height: 78vh; overflow: auto; padding: 14px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .stage pre { margin: 0; max-height: 78vh; overflow: auto; padding: 14px 16px; font-family: var(--mono); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
   .stage :global(.rich) { border: 0; border-radius: 0; background: var(--surface); }
   .blank { display: grid; place-items: center; align-content: center; gap: 4px; min-height: 180px; padding: 24px; color: var(--text-2); text-align: center; }
   .blank p { margin: 0; font-size: 13px; }

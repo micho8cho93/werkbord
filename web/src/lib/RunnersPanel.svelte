@@ -118,10 +118,10 @@
 <style>
   .runners { padding: 16px; display: grid; gap: 16px; }
   .heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  h3 { font-size: 15px; font-weight: 600; } h4 { margin: 0; }
+  h3 { font-size: 16px; font-weight: 600; } h4 { margin: 0; }
   p { margin: 4px 0; font-size: 13px; }
   .runner { padding-top: 16px; border-top: 1px solid var(--border); display: grid; gap: 6px; }
-  .state { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--text-2); } .state[data-online='true'] { color: var(--ok-text); }
+  .state { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-2); } .state[data-online='true'] { color: var(--ok-text); }
   .pairing, .controls { display: grid; gap: 12px; } .pairing { padding-block: 12px; }
   summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-2); padding-block: 6px; } summary:hover { color: var(--text); }
   .controls { padding-top: 12px; } label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; }

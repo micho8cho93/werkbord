@@ -242,7 +242,7 @@
     height: 48px;
     border: 0;
     background: transparent;
-    font-size: 15px;
+    font-size: 16px;
     color: var(--text);
     outline: none;
   }
@@ -266,7 +266,7 @@
   .group {
     padding: 10px 10px 4px;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -321,7 +321,7 @@
     margin-left: auto;
     padding-left: 12px;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
     min-width: 0;
     overflow: hidden;
@@ -352,7 +352,7 @@
     padding: 8px 14px;
     border-top: 1px solid var(--border);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
     background: var(--bg);
   }

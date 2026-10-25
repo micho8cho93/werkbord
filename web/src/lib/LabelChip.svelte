@@ -32,6 +32,6 @@
   .small {
     min-height: 17px;
     padding: 0 6px;
-    font-size: 11.5px;
+    font-size: 12px;
   }
 </style>

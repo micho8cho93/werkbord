@@ -187,7 +187,7 @@
   }
 
   .more {
-    font-size: 12.5px;
+    font-size: 13px;
     text-decoration: none;
     align-self: flex-start;
   }
@@ -224,7 +224,7 @@
     min-height: 26px;
     border-top: 0;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--text-2);
@@ -238,14 +238,14 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
   }
 
   .big {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 600;
     letter-spacing: -0.01em;
   }

@@ -27,8 +27,8 @@
 
 <style>
   .stack { display: grid; gap: 14px; }
-  .bar { display: flex; gap: 3px; height: 22px; padding: 3px; border-radius: 8px; background: var(--surface-2); box-shadow: var(--tray-sh); }
-  .seg { min-width: 4px; border-radius: 5px; }
+  .bar { display: flex; gap: 3px; height: 22px; padding: 3px; border-radius: 10px; background: var(--surface-2); box-shadow: var(--tray-sh); }
+  .seg { min-width: 4px; border-radius: 6px; }
   ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
   li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 44px; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
   li:hover { background: var(--surface-2); }

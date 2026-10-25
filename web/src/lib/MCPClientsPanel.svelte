@@ -267,7 +267,7 @@
   .grant-form { display:grid; gap:14px; padding:16px 0; margin:12px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
   .grant-form > label { display:grid; gap:5px; font-size:12px; color:var(--text-2); }
   .grant-form .input { width:100%; }
-  fieldset { margin:0; padding:10px 12px; min-width:0; border:1px solid var(--border); border-radius:8px; }
+  fieldset { margin:0; padding:10px 12px; min-width:0; border:1px solid var(--border); border-radius:10px; }
   legend { padding:0 5px; color:var(--text-2); font-size:12px; }
   .choices { display:grid; gap:6px; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); }
   .check { display:flex; align-items:flex-start; gap:8px; min-height:30px; font-size:13px; }
@@ -275,15 +275,15 @@
   .operation span { display:grid; gap:3px; }
   .operation small, .items small { color:var(--text-2); line-height:1.4; }
   .row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .issued { display:grid; justify-items:start; gap:8px; padding:12px; margin:12px 0; border:1px solid var(--accent); border-radius:8px; }
-  .token { max-width:100%; overflow-wrap:anywhere; padding:8px; background:var(--surface-2); border-radius:5px; }
+  .issued { display:grid; justify-items:start; gap:8px; padding:12px; margin:12px 0; border:1px solid var(--accent); border-radius:10px; }
+  .token { max-width:100%; overflow-wrap:anywhere; padding:8px; background:var(--surface-2); border-radius:6px; }
   .list-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:20px 0 8px; }
   .items { list-style:none; padding:0; margin:0; display:grid; }
   .items li { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:12px 0; border-top:1px solid var(--border); }
   .items p { margin:5px 0; font-size:13px; }
   .proposals p { color:var(--text-1); }
   .proposal-body { display:grid; gap:8px; width:100%; min-width:0; }
-  .plan-preview { display:grid; gap:10px; padding:12px; margin:8px 0; border:1px solid var(--border); border-radius:8px; background:var(--surface-1); }
+  .plan-preview { display:grid; gap:10px; padding:12px; margin:8px 0; border:1px solid var(--border); border-radius:10px; background:var(--surface-1); }
   .plan-preview h5 { margin:0; font-size:13px; }
   .plan-preview h5 small { display:block; margin-top:4px; font-weight:400; color:var(--text-2); }
   .plan-tasks { display:grid; gap:10px; }

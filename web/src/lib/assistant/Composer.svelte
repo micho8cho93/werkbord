@@ -379,7 +379,7 @@
     resize: none;
     background: none;
     line-height: 1.45;
-    font-size: 15px;
+    font-size: 16px;
   }
   .tool,
   .go {
@@ -453,7 +453,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 12px 14px;
-    font-size: 13.5px;
+    font-size: 14px;
   }
   .ask ul {
     margin: 0;

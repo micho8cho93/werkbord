@@ -44,12 +44,12 @@
 <style>
   p {
     margin: 0 0 10px;
-    font-size: 13.5px;
+    font-size: 14px;
   }
   .fine,
   .note {
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .error {
     color: var(--danger-text);

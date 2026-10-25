@@ -180,7 +180,7 @@
   }
 
   h3 {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   label {

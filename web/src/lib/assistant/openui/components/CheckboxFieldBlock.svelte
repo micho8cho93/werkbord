@@ -37,7 +37,7 @@
 </label>
 
 <style>
-  .check { display: flex; align-items: center; gap: 9px; min-height: 40px; color: var(--text); font-size: 12.5px; cursor: pointer; }
+  .check { display: flex; align-items: center; gap: 9px; min-height: 40px; color: var(--text); font-size: 13px; cursor: pointer; }
   input { width: 18px; height: 18px; flex: 0 0 18px; accent-color: var(--accent); }
   input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   input:disabled + span { opacity: .68; }

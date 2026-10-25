@@ -79,7 +79,7 @@
   .plot:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   svg { display: block; max-width: 100%; overflow: visible; }
   .grid { stroke: var(--border); stroke-dasharray: 2 4; }
-  .tick { fill: var(--text-2); font: 11.5px var(--mono); }
+  .tick { fill: var(--text-2); font: 12px var(--mono); }
   .area.created { fill: color-mix(in srgb, var(--accent) 13%, transparent); }
   .area.done { fill: color-mix(in srgb, var(--ok) 20%, transparent); }
   .gap { fill: color-mix(in srgb, var(--amber) 22%, transparent); }

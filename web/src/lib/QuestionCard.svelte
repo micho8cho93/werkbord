@@ -202,7 +202,7 @@
 
   .kind {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -217,7 +217,7 @@
   .prompt {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.35;
   }

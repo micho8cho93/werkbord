@@ -69,6 +69,26 @@
     color-scheme: dark;
 }
 
+/*
+ * Styles, as in the individual app: Paper (the default, no attribute) is flat — hairline edges, one quiet shadow for what floats,
+ * no gradients; Graphite is the same flat layer on neutral greys with a near-black primary; Classic keeps the raised buttons
+ * and cards above. Chosen in the desktop window's sidebar and told to this page, or kept per device (theme.js).
+ */
+:root:not([data-style='classic']) {
+  --btn-bg: var(--panel); --btn-sh: 0 0 0 0 transparent;
+  --pri-bg: var(--accent); --pri-bd: var(--accent); --pri-sh: 0 0 0 0 transparent;
+  --card-sh: 0 0 0 0 transparent; --press-sh: 0 0 0 0 transparent;
+  --tray-sh: inset 0 0 0 1px var(--line);
+}
+:root[data-style='graphite'] {
+  --bg: #fafafa; --panel: #ffffff; --s2: #f2f2f3; --line: #e2e2e5; --text: #0a0a0a; --muted: #55555c; --accent: #2f4fd0;
+}
+:root[data-style='graphite'][data-theme='dark'] {
+  --bg: #0a0a0b; --panel: #131315; --s2: #1b1b1e; --line: #28282c; --text: #f4f4f5; --muted: #a1a1a8; --accent: #8da2ff;
+}
+:root[data-style='graphite'] button.primary { --pri-bg: #18181b; --pri-bd: #18181b; color: #fafafa; }
+:root[data-style='graphite'][data-theme='dark'] button.primary { --pri-bg: #f4f4f5; --pri-bd: #f4f4f5; color: #0a0a0a; }
+
 * { box-sizing: border-box; }
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 ::selection { background: var(--accent); color: var(--accent-text); }

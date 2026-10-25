@@ -10,7 +10,7 @@
   .text {
     margin: 0;
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.55;
     overflow-wrap: anywhere;
     white-space: pre-wrap;

@@ -325,7 +325,7 @@
 
 <style>
   .step-intro { display: grid; gap: 8px; padding-block: 12px; }
-  .step-intro h2 { font-family: var(--font); font-size: 22px; font-weight: 600; text-transform: none; letter-spacing: -0.02em; color: var(--text); }
+  .step-intro h2 { font-family: var(--font); font-size: 20px; font-weight: 600; text-transform: none; letter-spacing: -0.02em; color: var(--text); }
   .step-intro p { max-width: 68ch; }
   .summary-list { list-style: none; margin: 0; padding: 0; }
   .summary-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); }

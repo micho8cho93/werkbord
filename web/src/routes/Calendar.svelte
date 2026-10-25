@@ -384,7 +384,7 @@
 <style>
   .planned { display: grid; grid-template-columns: 52px repeat(var(--days), minmax(0, 1fr)); border-bottom: 1px solid var(--border); font-size: 12px; }
   .planned > div { padding: 6px; border-left: 1px solid var(--border); }
-  .planned-label { color: var(--text-2); padding: 6px 2px; font-size: 11.5px; }
+  .planned-label { color: var(--text-2); padding: 6px 2px; font-size: 12px; }
   .planned .planned-task { display: block; overflow-wrap: anywhere; text-decoration: none; color: var(--text); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); padding: 6px; font: inherit; font-size: 12px; text-align: left; margin-bottom: 4px; }
   .cal {
     height: 100%;
@@ -425,7 +425,7 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--accent);
   }
 
@@ -440,7 +440,7 @@
   }
 
   .zone .mono {
-    font-size: 11.5px;
+    font-size: 12px;
   }
 
   .body {
@@ -476,7 +476,7 @@
     align-items: center;
     gap: 2px;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -485,7 +485,7 @@
   .dh i {
     font-style: normal;
     font-family: var(--font);
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--text);
     letter-spacing: 0;
@@ -531,7 +531,7 @@
     position: absolute;
     right: 8px;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
   }
 
@@ -562,7 +562,7 @@
     position: absolute;
     left: 3px;
     right: 3px;
-    border-radius: 5px;
+    border-radius: 6px;
     background: color-mix(in srgb, var(--accent) 16%, transparent);
     border: 1px dashed var(--accent);
     pointer-events: none;
@@ -574,7 +574,7 @@
     z-index: 2;
     display: block;
     padding: 4px 22px 4px 8px;
-    border-radius: 5px;
+    border-radius: 6px;
     background: var(--surface);
     border: 1px solid var(--border);
     box-shadow: var(--card-sh);
@@ -617,7 +617,7 @@
   .ev span {
     display: block;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -709,7 +709,7 @@
     padding: 8px 10px 8px 6px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 7px;
+    border-radius: 6px;
     box-shadow: var(--card-sh);
     cursor: grab;
   }
@@ -768,7 +768,7 @@
   }
 
   .empty-s {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--text-2);
   }
 
@@ -776,7 +776,7 @@
     margin-top: auto;
     padding: 12px;
     border: 1px solid var(--border);
-    border-radius: 7px;
+    border-radius: 6px;
     background: var(--surface);
     box-shadow: var(--card-sh);
   }

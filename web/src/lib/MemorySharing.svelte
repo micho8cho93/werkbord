@@ -120,10 +120,10 @@
   .sharing p { margin: 0; max-width: 75ch; }
   .intro { line-height: 1.5; }
   .muted { color: var(--text-2); }
-  .identity, .repo { overflow-wrap: anywhere; font-size: 12.5px; }
+  .identity, .repo { overflow-wrap: anywhere; font-size: 13px; }
   .choices { display: grid; gap: 8px; }
   .notes { display: grid; gap: 8px; }
-  .kicker { font: 500 11.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); }
+  .kicker { font: 500 12px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); }
   .note { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
   .note-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .summary { line-height: 1.5; overflow-wrap: anywhere; }

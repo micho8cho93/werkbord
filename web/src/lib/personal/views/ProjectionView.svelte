@@ -37,7 +37,7 @@
 <style>
   .projection { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); min-width: 0; }
   :global(.card) .projection { border: 0; padding: 0; background: none; }
-  h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
   .metric { font-family: var(--mono); font-size: 24px; font-variant-numeric: tabular-nums; }
   p, time { margin: 0; color: var(--text-2); font-size: 12px; }
   .date-row { display: grid; gap: 6px; padding-block: 10px; border-top: 1px solid var(--border); font-size: 13px; overflow-wrap: anywhere; }

@@ -148,3 +148,19 @@ export function onTheme(handler, w = globalThis.window) {
   w.addEventListener('message', listener);
   return () => w.removeEventListener('message', listener);
 }
+
+/**
+ * Calls handler('paper' | 'graphite' | 'classic') when the shell that framed this page says which style the person chose (the
+ * window's one sidebar is where it is chosen). Only the parent window is believed, and only those three words.
+ */
+export function onStyle(handler, w = globalThis.window) {
+  if (!isEmbedded(w)) return () => {};
+  const listener = (event) => {
+    if (event.source !== w.parent) return;
+    const m = event.data;
+    if (!m || m.type !== 'werkbord.style' || (m.style !== 'paper' && m.style !== 'graphite' && m.style !== 'classic')) return;
+    handler(m.style);
+  };
+  w.addEventListener('message', listener);
+  return () => w.removeEventListener('message', listener);
+}

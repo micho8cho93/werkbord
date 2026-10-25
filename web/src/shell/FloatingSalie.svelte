@@ -195,7 +195,7 @@
     background: var(--amber);
     color: #0a0a0a;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 20px;
     text-align: center;
   }

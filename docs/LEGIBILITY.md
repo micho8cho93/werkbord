@@ -4,8 +4,9 @@ Two numbers hold for every piece of text in the Individual app, in both themes a
 
 - **Contrast** is at least 4.5:1 against what is behind it (3:1 for text of 24px, or 18.66px and bold). Status words on paper
   use the `*-text` tokens, never the bare `--ok` / `--warn` / `--danger`, which are for dots and fills.
-- **Size** is at least **11.5px**. The smallest text in the system (section labels, counts, machine text, the phone tab bar) is
-  11.5px; body text is 13–14px.
+- **Size** is at least **11.5px**. Since 4.84 the web app's type scale is 12 / 13 / 14 / 16 / 20 / 24px, so its smallest text
+  (section labels, counts, machine text) is 12px, and the 11.5px floor below is what the measurements and the phone UI still hold to;
+  body text is 13–14px.
 
 Two checks keep them there: `web/src/lib/contrast.test.ts` (the tokens in `app.css` against the grounds text sits on, part of
 `npx vitest run`) and `scripts/measure-legibility.cjs` (every visible text node of the rendered screens).

@@ -1842,10 +1842,11 @@ window.addEventListener('keydown', e => {
 function openInIndividual(place) {
   if (FRAMED && /^#\/[A-Za-z0-9/_-]{0,200}$/.test(place)) window.parent.postMessage({ type: 'werkbord.frame', event: 'open', target: 'personal', place }, '*');
 }
-// The theme is chosen in the window's sidebar and told to this page; only the window that framed it is believed.
+// The theme and the style are chosen in the window's sidebar and told to this page; only the window that framed it is believed.
 window.addEventListener('message', e => {
   if (!FRAMED || e.source !== window.parent) return;
   const m = e.data;
+  if (m && m.type === 'werkbord.style') { teamStyle.set(m.style); return; }
   if (!m || m.type !== 'werkbord.theme' || (m.theme !== 'light' && m.theme !== 'dark')) return;
   teamTheme.set(m.theme);
 });

@@ -197,7 +197,7 @@
   .wm {
     font-family: var(--mono);
     font-weight: 600;
-    font-size: 17px;
+    font-size: 16px;
     letter-spacing: -0.06em;
     line-height: 1;
   }
@@ -242,7 +242,7 @@
     white-space: nowrap;
     color: var(--text-2);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
@@ -323,11 +323,11 @@
   .num {
     min-width: 18px;
     padding: 0 5px;
-    border-radius: 9px;
+    border-radius: 10px;
     background: var(--warn);
     color: var(--on-accent, #fff);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 18px;
     text-align: center;
   }
@@ -336,7 +336,7 @@
     top: 1px;
     right: 1px;
     min-width: 14px;
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 14px;
     padding: 0 3px;
   }

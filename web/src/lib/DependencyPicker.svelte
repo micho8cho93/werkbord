@@ -55,7 +55,7 @@
 
   .opt {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 400;
     color: var(--text-2);
     margin-left: 4px;
@@ -88,7 +88,7 @@
 
   .tag {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
   }
 
@@ -98,5 +98,5 @@
   }
 
   .group.invalid { border-left: 2px solid var(--danger); padding-left: 8px; }
-  .field-error { margin: 0; color: var(--danger-text); font-size: 11.5px; }
+  .field-error { margin: 0; color: var(--danger-text); font-size: 12px; }
 </style>

@@ -38,7 +38,7 @@
   </div>
 </section>
 <style>
-  .rules { padding: 16px; } h3 { font-size: 15px; display: flex; align-items: center; gap: 8px; } p { margin-block: 12px; font-size: 13px; color: var(--text-2); }
+  .rules { padding: 16px; } h3 { font-size: 16px; display: flex; align-items: center; gap: 8px; } p { margin-block: 12px; font-size: 13px; color: var(--text-2); }
   .rule { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; border-top: 1px solid var(--border); padding-block: 16px; }
   label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; } .check,.actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   @media(max-width:480px) { .rule { grid-template-columns: 1fr; } }

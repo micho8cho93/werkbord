@@ -261,7 +261,7 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--text-2);
@@ -278,7 +278,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
   }
 
   .num-col {

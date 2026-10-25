@@ -73,7 +73,7 @@
   .replay { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 13px; }
   .help { max-width: 1040px; margin: 0 auto; }
   .intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 340px); gap: 28px; align-items: end; padding: 4px 0 18px; }
-  h2 { margin: 0; font-size: 22px; font-weight: 600; }
+  h2 { margin: 0; font-size: 20px; font-weight: 600; }
   .lede { max-width: 66ch; margin: 7px 0 0; color: var(--text-2); font-size: 14px; line-height: 1.55; }
   .search-field { display: grid; gap: 6px; color: var(--text-2); font-size: 12px; }
   .search-field input { width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 14px; }
@@ -90,7 +90,7 @@
   .example strong, .recovery strong { display: block; margin-bottom: 3px; color: var(--text); font-weight: 600; }
   .guide-body ol { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
   .guide-body ol li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; align-items: start; color: var(--text); font-size: 13px; line-height: 1.5; }
-  .step-number { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .step-number { color: var(--text-2); font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
   .recovery { padding-top: 10px; border-top: 1px solid var(--border); }
   .guide-link { display: inline-flex; align-items: center; gap: 5px; justify-self: start; min-height: 36px; color: var(--accent); font-size: 13px; font-weight: 500; text-decoration-thickness: 1px; text-underline-offset: 3px; }
   .guide-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }

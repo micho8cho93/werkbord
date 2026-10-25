@@ -8,7 +8,7 @@
   import { generatedWorkspaceID } from './nav';
   import { model } from './model.svelte';
   import { alerts } from './alerts.svelte';
-  import { theme } from '../lib/theme.svelte';
+  import { look, theme } from '../lib/theme.svelte';
   import { salie } from './salie.svelte';
 
   let { shown }: { shown: boolean } = $props();
@@ -35,6 +35,7 @@
   /** Tells a workspace the theme the person chose in the sidebar, which is where it is chosen. Nothing is sent until they choose. */
   function tell(id: string, hosted: boolean): void {
     if (theme.choice) sendTo(id, hosted, { type: 'werkbord.theme', theme: theme.choice });
+    if (look.choice !== 'paper') sendTo(id, hosted, { type: 'werkbord.style', style: look.choice });
   }
 
   /** Asks an open workspace to go to a place inside itself. */
@@ -74,6 +75,7 @@
       },
       // The theme is chosen in one place for the whole window: a page that offers its own tells the sidebar, which tells the rest.
       theme: (_id, choice) => theme.set(choice),
+      style: (_id, choice) => look.set(choice),
       notify: (_id, alert) => void alerts.tell(alert),
       settings: (id, place) => model.openSettingsAt(id, place),
     });
@@ -90,6 +92,13 @@
     const choice = theme.choice;
     if (!choice) return;
     for (const { id, hosted } of frameList) sendTo(id, hosted, { type: 'werkbord.theme', theme: choice });
+  });
+
+  // The style is chosen in the sidebar the same way, and told to every workspace that is open. Paper is told too, so a workspace
+  // that was showing another style goes back to it.
+  $effect(() => {
+    const choice = look.choice;
+    for (const { id, hosted } of frameList) sendTo(id, hosted, { type: 'werkbord.style', style: choice });
   });
 
   // A place asked for while the page was still loading is followed once it says it is ready; one asked for after is followed now.

@@ -93,6 +93,6 @@
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    font-size: 11.5px;
+    font-size: 12px;
   }
 </style>

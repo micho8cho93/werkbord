@@ -67,7 +67,7 @@
     border-bottom: 2px solid color-mix(in srgb, var(--text) 55%, var(--border));
     color: var(--text);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;

@@ -63,20 +63,20 @@
 <style>
   .timeline { display: grid; gap: 8px; min-width: 0; }
   h3 { margin: 0; font-size: 13px; font-weight: 600; }
-  .scale { display: flex; justify-content: space-between; gap: 8px; padding-left: min(30%, 190px); color: var(--text-2); font: 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+  .scale { display: flex; justify-content: space-between; gap: 8px; padding-left: min(30%, 190px); color: var(--text-2); font: 12px var(--mono); font-variant-numeric: tabular-nums; }
   .rows { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
   .row { display: grid; grid-template-columns: minmax(110px, 30%) minmax(100px, 1fr); align-items: center; gap: 5px 12px; padding: 6px 0; border-top: 1px solid var(--border); }
   .task { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; min-width: 0; }
   .task strong { min-width: 0; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
-  .state { color: var(--text-2); font-size: 11.5px; }
+  .state { color: var(--text-2); font-size: 12px; }
   .lane { position: relative; grid-column: 2; height: 16px; min-width: 0; border-bottom: 1px solid var(--border); background-image: linear-gradient(to right, transparent calc(50% - .5px), var(--border) 50%, transparent calc(50% + .5px)); }
   .bar { position: absolute; top: 3px; left: var(--left); width: var(--width); height: 8px; min-width: 5px; border-radius: 2px; background: var(--accent); }
   .row[data-state='done'] .bar { background: var(--ok); }
   .row[data-state='review'] .bar { background: var(--warn); }
   .bar.milestone { top: 3px; width: 9px; min-width: 9px; height: 9px; transform: translateX(-50%) rotate(45deg); border-radius: 1px; background: var(--warn); }
-  .dates { display: flex; justify-content: space-between; grid-column: 2; gap: 8px; color: var(--text-2); font: 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+  .dates { display: flex; justify-content: space-between; grid-column: 2; gap: 8px; color: var(--text-2); font: 12px var(--mono); font-variant-numeric: tabular-nums; }
   .dates span { overflow-wrap: anywhere; }
-  .dependencies, .note { grid-column: 1 / -1; margin: 0; color: var(--text-2); font-size: 11.5px; line-height: 1.4; overflow-wrap: anywhere; }
+  .dependencies, .note { grid-column: 1 / -1; margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
   .undated { padding-top: 8px; border-top: 1px solid var(--border); }
   h4 { margin: 0 0 5px; font-size: 12px; font-weight: 600; }
   .undated ul { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; }

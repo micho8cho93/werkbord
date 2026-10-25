@@ -214,12 +214,12 @@
   .none { padding: 12px 6px; color: var(--text-2); font-size: 13px; }
   .main { display: grid; gap: 12px; min-width: 0; align-content: start; }
   .list-toggle { display: none; justify-self: start; }
-  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--text-2); font-size: 12.5px; }
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--text-2); font-size: 13px; }
   .crumbs button { padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; cursor: pointer; text-decoration: none; }
   .crumbs button:hover { color: var(--accent); }
   .here { color: var(--text); font-weight: 600; }
   .parent { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
-  .parent select { min-height: 28px; max-width: 220px; padding: 2px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 12.5px; }
+  .parent select { min-height: 28px; max-width: 220px; padding: 2px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
   .missing { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--tint); font-size: 13px; }
   .related { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
   .related h4 { margin: 0; color: var(--text-2); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
@@ -227,7 +227,7 @@
   .related button { padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
   .related button:hover { border-color: var(--accent); }
   .empty { display: grid; justify-items: start; gap: 8px; padding: 30px 4px; }
-  .empty h4 { margin: 0; font-size: 18px; }
+  .empty h4 { margin: 0; font-size: 20px; }
   .empty p { margin: 0; color: var(--text-2); }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media (max-width: 760px) {

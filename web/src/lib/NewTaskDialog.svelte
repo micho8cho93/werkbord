@@ -191,7 +191,7 @@
 
   .opt {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 400;
     color: var(--text-2);
     margin-left: 4px;
@@ -199,7 +199,7 @@
 
   .big {
     min-height: 40px;
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .exec {
@@ -221,7 +221,7 @@
     align-items: center;
     gap: 4px;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
   }
 

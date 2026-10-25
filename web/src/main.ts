@@ -5,8 +5,8 @@ import { enrollFromURL } from './lib/phones/enroll.svelte';
 import { assistant } from './lib/assistant/sessions.svelte';
 import { detectDesktop, openLinksInBrowser } from './lib/desktop.svelte';
 import { embedded, followShell, surface } from './lib/embed';
-import { onTheme } from '../../internal/nativebridge/bridge.js';
-import { theme } from './lib/theme.svelte';
+import { onStyle, onTheme } from '../../internal/nativebridge/bridge.js';
+import { look, theme } from './lib/theme.svelte';
 import AssistantSurface from './lib/assistant/AssistantSurface.svelte';
 import { app } from './lib/state.svelte';
 import '@fontsource-variable/geist';
@@ -25,6 +25,7 @@ async function boot() {
     // its live updates and the service worker are the workspace page's business.
     document.documentElement.classList.add('asst-surface');
     onTheme((choice: 'light' | 'dark') => theme.set(choice));
+    onStyle((choice: 'paper' | 'graphite' | 'classic') => look.set(choice, true));
     void detectDesktop();
     app.start();
     assistant.init();

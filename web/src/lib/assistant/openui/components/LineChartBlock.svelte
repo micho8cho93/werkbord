@@ -68,14 +68,14 @@
   .date-filter label { display: grid; gap: 4px; color: var(--text-2); font-size: 12px; }
   .date-filter input { width: 150px; min-height: 36px; padding: 5px 7px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; }
   .date-filter input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .date-filter p { margin: 0; color: var(--text-2); font-size: 11.5px; }
+  .date-filter p { margin: 0; color: var(--text-2); font-size: 12px; }
   .plot { min-width: 0; padding: 8px 10px 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
   svg { display: block; width: 100%; height: clamp(120px, 28vw, 180px); overflow: visible; }
   .guide { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 4; }
   .axis { stroke: var(--border); stroke-width: 1; }
   .line { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
   .point { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
-  .axis-labels { display: flex; justify-content: space-between; gap: 8px; color: var(--text-2); font: 11.5px var(--mono); }
+  .axis-labels { display: flex; justify-content: space-between; gap: 8px; color: var(--text-2); font: 12px var(--mono); }
   .axis-labels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .data summary { width: fit-content; min-height: 36px; display: flex; align-items: center; cursor: pointer; color: var(--text-2); font-size: 12px; }
   .data ul { max-height: 220px; overflow: auto; list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }

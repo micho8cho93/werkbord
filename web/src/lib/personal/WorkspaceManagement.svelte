@@ -114,7 +114,7 @@
   .management { flex-basis: 100%; display: grid; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   form { display: grid; gap: 14px; } form > label { display: grid; gap: 6px; }
   fieldset, .actions { display: flex; flex-wrap: wrap; gap: 12px; } fieldset { border: 1px solid var(--border); }
-  h2, h3, p { margin: 0; } h2 { font-family: inherit; font-size: 18px; text-transform: none; letter-spacing: normal; } h3 { font-size: 14px; } p { color: var(--text-2); line-height: 1.6; max-width: 72ch; }
+  h2, h3, p { margin: 0; } h2 { font-family: inherit; font-size: 20px; text-transform: none; letter-spacing: normal; } h3 { font-size: 14px; } p { color: var(--text-2); line-height: 1.6; max-width: 72ch; }
   .collection { padding-block: 10px; border-top: 1px solid var(--border); }
   button { justify-self: start; } @media (max-width: 600px) { button { min-height: 44px; } }
 </style>

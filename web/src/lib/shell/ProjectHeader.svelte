@@ -143,7 +143,7 @@
 
   .path {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
     overflow: hidden;
     text-overflow: ellipsis;

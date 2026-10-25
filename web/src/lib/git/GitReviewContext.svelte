@@ -58,6 +58,6 @@
   .review-context p { margin: 0; }
   .result { font-weight: 500; }
   .tests,
-  .test-notes { color: var(--text-2); font-size: 12.5px; }
+  .test-notes { color: var(--text-2); font-size: 13px; }
   .test-notes { margin: 0; padding-left: 1.2rem; }
 </style>

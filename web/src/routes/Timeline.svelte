@@ -426,7 +426,7 @@
   .sev {
     flex: none;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     text-transform: uppercase;
     color: var(--warn-text);
   }
@@ -512,7 +512,7 @@
     padding-left: 4px;
     border-left: 1px solid var(--border);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-2);
     white-space: nowrap;
   }
@@ -604,7 +604,7 @@
     display: inline-grid;
     place-items: center;
     border-radius: 50%;
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     color: #fff;
     background: var(--warn);
@@ -660,7 +660,7 @@
     align-items: center;
     padding: 0 12px;
     border: 1px solid var(--text-2);
-    border-radius: 5px;
+    border-radius: 6px;
     background: var(--surface-2);
     color: var(--text);
     font-size: 12px;

@@ -66,12 +66,12 @@
   .category { font-size: 12px; overflow-wrap: anywhere; }
   .pair { display: grid; gap: 4px; min-width: 0; }
   .measure { display: grid; grid-template-columns: minmax(48px, .7fr) minmax(30px, 1fr) auto; align-items: center; gap: 7px; }
-  .series-name { overflow-wrap: anywhere; color: var(--text-2); font-size: 11.5px; }
+  .series-name { overflow-wrap: anywhere; color: var(--text-2); font-size: 12px; }
   .track { display: block; height: 8px; min-width: 0; overflow: hidden; border-radius: 2px; background: var(--surface-2); }
   .bar { display: block; height: 100%; border-radius: inherit; }
   .bar.first { background: var(--accent); }
   .bar.second { background: var(--ok); }
-  .value { min-width: 2ch; color: var(--text-2); text-align: right; font: 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+  .value { min-width: 2ch; color: var(--text-2); text-align: right; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
   .note, .empty, .totals { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
   .totals span { color: var(--text); font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .empty { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }

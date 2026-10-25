@@ -5,8 +5,8 @@
  * window's sidebar and told to the page. Outside the app, or in the app's old single-window mode, nothing here does anything.
  */
 
-import { isEmbedded, isWorkspaceHref, onNavigate, onTheme, reportFrame } from '../../../internal/nativebridge/bridge.js';
-import { theme } from './theme.svelte';
+import { isEmbedded, isWorkspaceHref, onNavigate, onStyle, onTheme, reportFrame } from '../../../internal/nativebridge/bridge.js';
+import { look, theme } from './theme.svelte';
 import { followPlanning } from './planningBridge';
 
 /** Follows the shell's requests to go to a place in this page. Returns a function that stops following. */
@@ -17,8 +17,9 @@ export function followShell(): () => void {
     if (href.startsWith('#')) location.hash = href;
   });
   const stopTheme = onTheme((choice: 'light' | 'dark') => theme.set(choice, true));
+  const stopStyle = onStyle((choice) => look.set(choice, true));
   const stopLinks = followShellLinks();
-  return () => { stopPlanning(); stopReporting(); stopNavigation(); stopTheme(); stopLinks(); };
+  return () => { stopPlanning(); stopReporting(); stopNavigation(); stopTheme(); stopStyle(); stopLinks(); };
 }
 
 /** Whether a desktop shell frames this page. */

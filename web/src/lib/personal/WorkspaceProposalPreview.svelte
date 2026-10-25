@@ -83,7 +83,7 @@
   .workspace-preview { display: grid; gap: 12px; min-width: 0; padding-block: 12px; border-block: 1px solid var(--border); }
   h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; overflow-wrap: anywhere; }
   h4 { margin-block: 12px 6px; font-size: 13px; }
-  p, li, summary { margin: 0; font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; }
+  p, li, summary { margin: 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
   p { color: var(--text-2); }
   summary { cursor: pointer; }
   summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

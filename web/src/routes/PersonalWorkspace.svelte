@@ -141,7 +141,7 @@
   .head-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
   h1 { margin: 0; font-size: 24px; font-weight: 600; overflow-wrap: anywhere; }
   header p, .hint { margin: 6px 0 0; color: var(--text-2); font-size: 12px; }
-  h2 { margin: 0; font-size: 18px; }
+  h2 { margin: 0; font-size: 20px; }
   .example, .recovery { display: grid; justify-items: start; gap: 14px; max-width: 65ch; padding: 24px 0; }
   .example p, .recovery p { margin: 0; color: var(--text-2); line-height: 1.6; }
   .phone-top { margin: -6px 0 4px; }

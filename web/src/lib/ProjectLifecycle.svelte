@@ -31,7 +31,7 @@
   {#if error}<p role="alert" class="error">{error}</p>{/if}
 </section>
 <style>
-  h3 { font-size: 15px; }
+  h3 { font-size: 16px; }
   p { max-width: 70ch; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 </style>

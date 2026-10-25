@@ -746,7 +746,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     background: var(--surface);
     color: var(--accent);
     font: inherit;
-    font-size: 12.5px;
+    font-size: 13px;
     cursor: pointer;
     transform: translateY(-200%);
     opacity: 0;
@@ -760,7 +760,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   .side :global(h3) {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.14em;
@@ -823,7 +823,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   .brief { color: var(--text-2); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
   .full-brief, .next-action { font-size: 12px; }
   .full-brief > summary { min-height: 32px; display: flex; align-items: center; width: fit-content; color: var(--accent); cursor: pointer; }
-  .full-brief > p { max-height: min(45vh, 24rem); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); font-size: 12.5px; }
+  .full-brief > p { max-height: min(45vh, 24rem); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); font-size: 13px; }
   .next-action { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; color: var(--text-2); }
   .next-action > span { color: var(--text); font-weight: 600; }
 
@@ -831,7 +831,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     min-height: 44px;
     display: flex;
     align-items: center;
-    font-size: 12.5px;
+    font-size: 13px;
   }
 
   .review-evidence[open] {
@@ -897,7 +897,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   }
 
   .note {
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--text-2);
     overflow-wrap: anywhere;
   }
@@ -986,7 +986,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   .field .muted {
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 400;
   }
 
@@ -1025,7 +1025,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     background: var(--bg);
   }
 
-  .message-help { flex-basis: 100%; font-size: 11.5px; }
+  .message-help { flex-basis: 100%; font-size: 12px; }
 
   .composer.blocked {
     border-top-color: color-mix(in srgb, var(--block) 50%, var(--border));
@@ -1090,7 +1090,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   }
 
   .side :global(.usage) {
-    font-size: 12.5px;
+    font-size: 13px;
   }
 
   .runs {
@@ -1112,7 +1112,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     border-radius: var(--radius-sm);
     background: transparent;
     text-align: left;
-    font-size: 12.5px;
+    font-size: 13px;
   }
 
   .run-pick:hover {

@@ -88,7 +88,7 @@
   .snippets { display: grid; gap: 12px; min-width: 0; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); }
   :global(.card) .snippets { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
   .top, .tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-  h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; }
   .search input { min-height: 34px; width: 240px; max-width: 100%; padding: 6px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
   .search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .groups { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -98,14 +98,14 @@
   ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
   .snippet { display: grid; gap: 8px; align-content: start; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); }
   header { display: flex; align-items: center; gap: 8px; }
-  header strong { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
-  .lang { padding: 1px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-family: var(--mono); font-size: 11.5px; }
-  pre { margin: 0; max-height: 220px; overflow: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-family: var(--mono); font-size: 12.5px; line-height: 1.55; tab-size: 2; white-space: pre; }
+  header strong { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+  .lang { padding: 1px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-family: var(--mono); font-size: 12px; }
+  pre { margin: 0; max-height: 220px; overflow: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-family: var(--mono); font-size: 13px; line-height: 1.55; tab-size: 2; white-space: pre; }
   pre:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   dl { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; color: var(--text-2); font-size: 12px; }
   dl div { display: flex; gap: 5px; } dt::after { content: ':'; } dd { margin: 0; overflow-wrap: anywhere; } dd a { color: var(--accent); }
   footer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-  .confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; }
+  .confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
   .none { grid-column: 1 / -1; padding: 18px 0; color: var(--text-2); font-size: 13px; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media (max-width: 600px) { .search input { width: 100%; min-height: 44px; font-size: 16px; } .snippet :global(.btn) { min-height: 44px; } .group { min-height: 36px; } }

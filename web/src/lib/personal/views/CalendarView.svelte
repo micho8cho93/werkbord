@@ -128,7 +128,7 @@
   .cal { display: grid; gap: 12px; min-width: 0; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); }
   :global(.card) .cal { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
   .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-  h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; }
   .nav { display: flex; align-items: center; gap: 6px; }
   .month { min-width: 9.5em; text-align: center; font-size: 14px; }
   .grid { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
@@ -142,23 +142,23 @@
   .day.out .num { color: var(--text-2); opacity: 0.7; }
   .day.selected { box-shadow: inset 0 0 0 2px var(--accent); }
   .day.over { background: var(--tint); }
-  .num { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 4px; border: 0; border-radius: 999px; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
+  .num { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 4px; border: 0; border-radius: 999px; background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
   .day.today .num { background: var(--accent); color: var(--accent-text); font-weight: 650; }
   .num:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   ul { margin: 0; padding: 0; list-style: none; }
   .day ul { display: grid; gap: 2px; margin-top: 3px; }
-  .chip { display: block; width: 100%; padding: 1px 6px; border: 0; border-radius: 4px; background: var(--tint); color: var(--accent); font: inherit; font-size: 11.5px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .chip { display: block; width: 100%; padding: 1px 6px; border: 0; border-radius: 4px; background: var(--tint); color: var(--accent); font: inherit; font-size: 12px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
   .chip[draggable='true'] { cursor: grab; }
-  .more { padding-left: 6px; color: var(--text-2); font-size: 11.5px; }
+  .more { padding-left: 6px; color: var(--text-2); font-size: 12px; }
   .dot { display: none; position: absolute; right: 5px; top: 5px; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--tint); color: var(--accent); font-size: 11px; text-align: center; }
   .agenda { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
   .agenda-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  h4 { margin: 0; font-size: 13.5px; }
+  h4 { margin: 0; font-size: 14px; }
   .agenda li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
   .agenda li:last-child { border-bottom: 0; }
   .agenda li strong { flex: 1; min-width: 120px; font-weight: 550; overflow-wrap: anywhere; }
   .when { min-width: 4.5em; color: var(--text-2); font-size: 12px; }
-  .none, .undated { color: var(--text-2); font-size: 12.5px; margin: 0; }
+  .none, .undated { color: var(--text-2); font-size: 13px; margin: 0; }
   .adder { display: flex; flex-wrap: wrap; gap: 6px; }
   .adder input { flex: 1 1 200px; min-width: 0; min-height: 34px; padding: 6px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
   .adder input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

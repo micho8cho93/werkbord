@@ -98,9 +98,9 @@
   .tour:not(.anchored) { bottom: 16px; right: 16px; }
   .tour.framed:not(.anchored) { bottom: 60px; }
   @media (max-width: 640px) { .tour:not(.anchored) { left: 12px; right: 12px; width: auto; bottom: calc(12px + env(safe-area-inset-bottom)); } }
-  .ring { position: fixed; z-index: 59; border-radius: 8px; box-shadow: 0 0 0 2px var(--accent, currentColor); pointer-events: none; }
+  .ring { position: fixed; z-index: 59; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent, currentColor); pointer-events: none; }
   .count { font-size: 12px; color: var(--text-2); margin: 0; }
-  h3 { margin: 0; font-size: 15px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text); }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text); }
   .body { margin: 0; color: var(--text-2); font-size: 13px; }
   .row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
   .grow { flex: 1; }

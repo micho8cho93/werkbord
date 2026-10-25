@@ -22,7 +22,7 @@
   }
   h1 {
     margin: 0 0 12px;
-    font-size: 22px;
+    font-size: 20px;
     letter-spacing: -0.01em;
   }
   p {

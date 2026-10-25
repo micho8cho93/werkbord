@@ -23,7 +23,7 @@
 <style>
   .table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .table-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
   caption { padding: 8px 10px; color: var(--text-2); text-align: left; font-size: 12px; }
   th, td { min-width: 92px; padding: 8px 10px; border-top: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
   th { background: var(--surface-2); font-weight: 600; }

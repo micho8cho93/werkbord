@@ -130,7 +130,7 @@
   :global(.card) .collection { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
   .form-view :global(.record-editor) { border: 0; padding: 0; background: none; }
   .view-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-  h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+  h3 { margin: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
   .filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
   .filters label { display: grid; gap: 5px; min-width: 0; color: var(--text-2); font-size: 12px; }
   .search { flex: 1 1 180px; }

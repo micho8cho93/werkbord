@@ -541,9 +541,8 @@
     margin: 0 4px 8px 0;
     padding: 6px 8px;
     border: 1px dashed var(--accent);
-    border-radius: 6px;
-    font-family: var(--mono);
-    font-size: 11.5px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
     color: var(--accent);
     text-align: center;
   }
@@ -580,10 +579,18 @@
   .none {
     padding: 18px 8px;
     text-align: center;
-    font-family: var(--mono);
-    font-size: 11.5px;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.5;
     color: var(--text-2);
+  }
+
+  /* The count beside a column's name is a number, not a badge. */
+  .ch :global(.chip) {
+    height: auto;
+    padding: 0;
+    background: none;
+    font-size: 12px;
+    font-weight: 400;
   }
 
   .more {

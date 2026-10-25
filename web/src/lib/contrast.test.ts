@@ -18,6 +18,11 @@ function block(selector: string): Record<string, string> {
 
 const light = block(':root');
 const dark = { ...light, ...block(":root[data-theme='dark']") };
+// Graphite replaces the neutrals and the accent; status colours and amber come from the base tokens in each mode.
+const graphiteLight = { ...light, ...block(":root[data-style='graphite']") };
+const graphiteDark = { ...dark, ...block(":root[data-style='graphite'][data-theme='dark']") };
+// The same dark palette is written again for a device that is dark without the person having chosen; the two must not drift apart.
+const graphiteDarkByDevice = block(":root[data-style='graphite']:not([data-theme='light'])");
 
 const channel = (v: number) => {
   const c = v / 255;
@@ -35,6 +40,8 @@ const GROUND = ['bg', 'surface', 'surface-2'];
 describe.each([
   ['light', light],
   ['dark', dark],
+  ['graphite light', graphiteLight],
+  ['graphite dark', graphiteDark],
 ])('%s tokens', (_name, tokens) => {
   it('read from app.css', () => {
     expect(tokens.text).toMatch(/^#/);
@@ -52,4 +59,21 @@ describe('what a status word must not use on paper', () => {
     expect(ratio(light.ok, light['surface-2'])).toBeLessThan(4.5);
     expect(ratio(light['ok-text'], light['surface-2'])).toBeGreaterThanOrEqual(4.5);
   });
+});
+
+describe('the styles', () => {
+  it('Graphite writes its dark palette the same way for a device that is dark and for a chosen dark', () => {
+    const chosen = block(":root[data-style='graphite'][data-theme='dark']");
+    expect(Object.keys(chosen).length).toBeGreaterThan(5);
+    expect(graphiteDarkByDevice).toEqual(chosen);
+  });
+  it('Graphite sets the same tokens in light and in dark, so neither mode inherits the other\'s', () => {
+    expect(Object.keys(block(":root[data-style='graphite']")).sort()).toEqual(Object.keys(block(":root[data-style='graphite'][data-theme='dark']")).sort());
+  });
+  for (const [name, tokens] of [['Paper', light], ['Paper dark', dark], ['Graphite', graphiteLight], ['Graphite dark', graphiteDark]] as const)
+    it(`${name}: the label on the primary button reads on its fill`, () => {
+      const fill = tokens['pri-fill'] ?? tokens.accent;
+      const label = tokens['pri-text'] ?? tokens['accent-text'];
+      expect(ratio(label, fill)).toBeGreaterThanOrEqual(4.5);
+    });
 });

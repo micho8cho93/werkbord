@@ -91,5 +91,5 @@
   .spacer { flex: 1; }
   .status.bad, .why { color: var(--danger-text); }
   .confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--text); }
-  @media (max-width: 600px) { .title { font-size: 22px; } .meta :global(.btn) { min-height: 44px; } }
+  @media (max-width: 600px) { .title { font-size: 20px; } .meta :global(.btn) { min-height: 44px; } }
 </style>
