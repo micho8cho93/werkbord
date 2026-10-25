@@ -193,7 +193,7 @@ Workspace · Projects · Reviews · People · Analytics. Desktop has a 232px rai
 desktop app the window's sidebar replaces the rail. Location has two levels: the sidebar lists the major parts (Personal, each team, each project), and inside one its own pages carry
 one row of tabs for its sub-areas, never a sidebar entry. A project's Overview, Board, Calendar, Git, Runs and People are tabs above
 its content (People is who is on the project, with roles and invitations; Project settings keeps the rest); a team's Workspace,
-Projects, Initiatives and People are the same row above its pages. Both rows are drawn by one function. Calendar shows planned dates and shared schedule requests;
+Projects, Initiatives and People, and Personal's Workspace and Projects, are the same row above its pages. Both rows are drawn by one function. Calendar shows planned dates and shared schedule requests;
 Timeline is its alternate presentation. Settings contains This computer, MCP clients, Labels, Devices, Workspace Hosts,
 Connectivity, Backups and License, subject to the person's permissions;
 the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.

@@ -19,6 +19,7 @@
   import Sheet from './lib/Sheet.svelte';
   import ScheduleWatch from './lib/ScheduleWatch.svelte';
   import ProjectHeader from './lib/shell/ProjectHeader.svelte';
+  import TabRow from './lib/shell/TabRow.svelte';
   import Rail from './lib/shell/Rail.svelte';
   import Toasts from './lib/shell/Toasts.svelte';
   import { app } from './lib/state.svelte';
@@ -56,6 +57,7 @@
 
   // Inside the desktop app the window's own sidebar is the navigation: this page shows only the work.
   const framed = embedded();
+  const WORKSPACE_TABS = [{ id: 'control', label: 'Workspace' }, { id: 'projects', label: 'Projects' }] as const;
   const loaded = $derived(app.projects.length > 0 || app.overview !== null);
   const inside = $derived(inProject(router.view));
   /** The project the page is in, or, on a global page, the one last used: what the phone's tabs point at. */
@@ -216,6 +218,10 @@
             </button>
           </div>
         </header>
+        <!-- The workspace's own sub-areas, under its entry in the window's sidebar: the same row a project and a team have. -->
+        {#if framed && !deck && (router.view === 'control' || router.view === 'projects')}
+          <TabRow label="Workspace sections" current={router.view} tabs={WORKSPACE_TABS.map((t) => ({ ...t, href: globalHref(t.id) }))} />
+        {/if}
       {/if}
 
       {#if deck}<WorkflowMonitor />{/if}

@@ -5,6 +5,7 @@
   import AssistantButton from '../assistant/AssistantButton.svelte';
   import Icon from '../Icon.svelte';
   import { shortPath } from '../projects';
+  import TabRow from './TabRow.svelte';
   import PhoneBack from '../mobile/PhoneBack.svelte';
   import { phone } from '../mobile/phone.svelte';
   import { projectHref, router, tabsFor } from '../router.svelte';
@@ -67,17 +68,15 @@
   </div>
 </header>
 
-<nav class="tabs" class:deck={phone.on} aria-label="{project.name} sections">
-  {#each tabsFor(project.kind) as s (s.id)}
-    <a class="tab" href={projectHref(project.id, s.id)} aria-current={active === s.id ? 'page' : undefined}>
-      {s.label}
-      {#if s.id === 'git' && gitItems > 0}<span class="num pend" aria-label="{gitItems} Git items need attention">{gitItems}</span>{/if}
-    </a>
-  {/each}
-  {#if phone.on}
-    <a class="tab" href={projectHref(project.id, 'defaults')} aria-current={active === 'defaults' ? 'page' : undefined}>Settings</a>
-  {/if}
-</nav>
+<TabRow
+  label="{project.name} sections"
+  tabs={[
+    ...tabsFor(project.kind).map((t) => ({ id: t.id, label: t.label, href: projectHref(project.id, t.id), ...(t.id === 'git' ? { count: gitItems, countLabel: `${gitItems} Git items need attention` } : {}) })),
+    ...(phone.on ? [{ id: 'defaults', label: 'Settings', href: projectHref(project.id, 'defaults') }] : []),
+  ]}
+  current={active}
+  deck={phone.on}
+/>
 </div>
 
 <style>
@@ -169,41 +168,6 @@
     background: var(--surface-2);
   }
 
-  .tabs {
-    flex: none;
-    display: flex;
-    gap: 4px;
-    height: 44px;
-    padding: 0 24px;
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 44px;
-    padding: 0 12px;
-    color: var(--text-2);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 13px;
-    border-bottom: 2px solid transparent;
-    white-space: nowrap;
-    transition: color 0.12s, border-color 0.12s;
-  }
-
-  .tab:hover {
-    color: var(--text);
-  }
-
-  .tab[aria-current='page'] {
-    color: var(--text);
-    border-bottom-color: var(--accent);
-  }
-
   /* Phone: the mark and project name are the heading; the tabs live in the bottom bar. */
   @media (max-width: 899px) {
     .head {
@@ -248,10 +212,6 @@
       display: none;
     }
 
-    .tabs {
-      display: none;
-    }
-
     /* With the Control Deck the bottom bar has only two places, so the project's sections are a compact row of tabs under its name. */
     .head.deck {
       gap: 4px;
@@ -281,11 +241,6 @@
       position: static;
       background: none;
       backdrop-filter: none;
-    }
-
-    .tabs.deck {
-      display: flex;
-      padding: 0 12px;
     }
   }
 </style>
