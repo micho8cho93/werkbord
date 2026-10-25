@@ -256,7 +256,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	for _, id := range []string{"claude-code", "codex"} {
 		commands[id] = c.cfg.Agents[id].Command
 	}
-	c.terminals, err = terminal.New(terminal.Options{Projects: projects, Settings: settings, Agents: agents, Commands: commands, Device: runnerRec.ID, StatePath: filepath.Join(c.cfg.DataDir, "terminals.json")})
+	c.terminals, err = terminal.New(terminal.Options{Projects: projects, Settings: settings, Agents: agents, Commands: commands, Device: runnerRec.ID, StatePath: filepath.Join(c.cfg.DataDir, "terminals.json"), Log: c.log})
 	if err != nil {
 		return fmt.Errorf("terminals: %w", err)
 	}

@@ -33,7 +33,7 @@ All endpoints sit behind the existing host, origin and owner authentication midd
 
 At most eight active terminal processes, 32 concurrent output polls, 64 retained metadata records, 512 KiB of raw output per session and 5,000 frontend scrollback lines are retained. If a client falls behind, `reset` signals an output gap and the renderer clears before replaying the retained suffix. These are service memory/process-count limits, not operating-system CPU or filesystem confinement. CLI output is visible to the authenticated owner as in any terminal; the API never serialises the local user's credential files or environment.
 
-Metadata is stored in a mode-0600 `terminals.json` within the controller's private data directory. Output is not logged to disk by this service. Process ownership metadata is private and never returned by the terminal API.
+Metadata is stored in a mode-0600 `terminals.json` within the controller's private data directory, written, flushed and renamed so a crash leaves the previous file or the new one. A file that is nevertheless unreadable is set aside as `terminals.json.damaged` and the controller starts with no terminals rather than refusing to start; a file with more than 64 records keeps the newest 64, and every record still marked running is reaped first. Output is not logged to disk by this service. Process ownership metadata is private and never returned by the terminal API.
 
 ## Validation
 
@@ -75,8 +75,10 @@ terminal manager cannot be adopted.
 
 Input is sequential, bounded and coalesced behind an in-flight request so network latency does not lose ordinary typing.
 A client identifier and increasing sequence fence duplicate writes. The rendered output cursor marks acknowledged history; replay consumes historical terminal queries without sending their replies again. A lost output response does not acknowledge those bytes. Repeating the last receipt with different bytes or
-sending a stale/out-of-order sequence is refused. Up to 64 input clients are retained per process, with no receipt eviction
-that could permit a replay. Switching views retains the browser's input queue and uncertainty guard. A delivery failure
+sending a stale/out-of-order sequence is refused. Up to 64 input clients are retained per process. A receipt is given up only
+after an hour without use, and only to admit a new client, so many short-lived browser tabs cannot lock a long-lived terminal
+out of input while a duplicated or relayed request still cannot be written twice (HTTP and relay retries last seconds). While
+all 64 receipts are fresh a new client is refused instead of any receipt being evicted. Switching views retains the browser's input queue and uncertainty guard. A delivery failure
 clears pending input, blocks further input and asks the person to check output before explicitly enabling new input with
 a new client identity. Neither reconnection nor wake resends a mutation. Server restart does not replay receipts or input:
 previous processes are interrupted, as in Phase 3.

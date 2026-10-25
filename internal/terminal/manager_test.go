@@ -4,7 +4,9 @@ package terminal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -401,5 +403,127 @@ func TestPhoneGrantPersistenceAssociationAndInputReceipts(t *testing.T) {
 	}
 	if err := reopened.Access(ctx, p, s.ID, "phone-a"); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("repository identity lost: %v", err)
+	}
+}
+
+// Many short-lived browser tabs must not lock a long-lived terminal out of input, and a duplicate must still not be written.
+func TestInputReceiptsAreBoundedWithoutLockingAndNeverEvictedWhileFresh(t *testing.T) {
+	clock := time.Now()
+	m, p := fixture(t)
+	m.now = func() time.Time { return clock }
+	s := create(t, m, p, "codex")
+	_, offset := collect(t, m, s, 0, "READY")
+	client := func(i int) string { return fmt.Sprintf("tab-%02d-xxxxxxxxxxxxxxxx", i) }
+	// The eight-entry queue drains at the terminal's pace; a full queue is the only conflict worth waiting out here.
+	deliver := func(c string, seq uint64, data string) error {
+		var err error
+		for i := 0; i < 300; i++ {
+			if err = m.InputOnce(p, s.ID, c, seq, []byte(data), offset); err == nil || !errors.Is(err, domain.ErrConflict) {
+				return err
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		return err
+	}
+	for i := 0; i < MaxInputClients; i++ {
+		if err := deliver(client(i), 1, "x\n"); err != nil {
+			t.Fatalf("client %d: %v", i, err)
+		}
+	}
+	// Every receipt is fresh: a new client is refused rather than any receipt given up.
+	if err := m.InputOnce(p, s.ID, client(MaxInputClients), 1, []byte("x\n"), offset); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("fresh receipts were not retained: %v", err)
+	}
+	if err := m.InputOnce(p, s.ID, client(0), 1, []byte("x\n"), offset); err != nil {
+		t.Fatalf("duplicate of a retained receipt: %v", err)
+	}
+	// After the idle period a new client takes the longest-idle slot; the others keep theirs.
+	clock = clock.Add(ReceiptIdle + time.Minute)
+	if err := deliver(client(0), 2, "y\n"); err != nil {
+		t.Fatalf("client 0 continues: %v", err)
+	}
+	if err := deliver(client(MaxInputClients), 1, "z\n"); err != nil {
+		t.Fatalf("new client after idle period: %v", err)
+	}
+	m.mu.Lock()
+	kept := len(m.sessions[s.ID].receipts)
+	m.mu.Unlock()
+	if kept != MaxInputClients {
+		t.Fatalf("receipts = %d, want %d", kept, MaxInputClients)
+	}
+	// A refused request gives up nothing: the queue being full must not cost a receipt.
+	clock = clock.Add(ReceiptIdle + time.Minute)
+	m.mu.Lock()
+	live := m.sessions[s.ID]
+	live.State = "stopped"
+	m.mu.Unlock()
+	if err := m.InputOnce(p, s.ID, client(MaxInputClients+1), 1, []byte("q\n"), offset); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("stopped session accepted input: %v", err)
+	}
+	m.mu.Lock()
+	kept = len(live.receipts)
+	live.State = "running" // so that Close still ends the process
+	m.mu.Unlock()
+	if kept != MaxInputClients {
+		t.Fatalf("a refused request evicted a receipt: %d", kept)
+	}
+}
+
+// A file cut short by a crash must not stop the controller; it is set aside and the service starts with no terminals.
+func TestDamagedStateIsSetAsideInsteadOfStoppingTheController(t *testing.T) {
+	m, p := fixture(t)
+	create(t, m, p, "codex")
+	m.Close()
+	for name, damaged := range map[string][]byte{"empty": {}, "cut short": []byte(`[{"id":"abc","state":"run`), "wrong shape": []byte(`{"id":1}`)} {
+		if err := os.WriteFile(m.opt.StatePath, damaged, 0600); err != nil {
+			t.Fatal(err)
+		}
+		next, err := New(m.opt)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got := next.List(); len(got) != 0 {
+			t.Fatalf("%s: sessions %v", name, got)
+		}
+		kept, err := os.ReadFile(m.opt.StatePath + ".damaged")
+		if err != nil || string(kept) != string(damaged) {
+			t.Fatalf("%s: damaged file not kept: %q %v", name, kept, err)
+		}
+		if info, err := os.Stat(m.opt.StatePath); err != nil || info.Mode().Perm() != 0600 {
+			t.Fatalf("%s: state not rewritten privately: %v %v", name, info, err)
+		}
+		next.Close()
+	}
+}
+
+// More records than the limit keep the newest; none of them is allowed to fail the start.
+func TestOversizedStateKeepsNewestRecords(t *testing.T) {
+	m, _ := fixture(t)
+	m.Close()
+	now := time.Now().UTC()
+	records := []record{}
+	for i := 0; i < MaxRecords+6; i++ {
+		records = append(records, record{Metadata: Metadata{ID: fmt.Sprintf("id-%03d", i), ProjectID: "p", State: "exited", CreatedAt: now.Add(time.Duration(i) * time.Second)}})
+	}
+	b, err := json.Marshal(records)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(m.opt.StatePath, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	next, err := New(m.opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer next.Close()
+	got := next.List()
+	if len(got) != MaxRecords {
+		t.Fatalf("kept %d", len(got))
+	}
+	for _, s := range got {
+		if s.ID < "id-006" {
+			t.Fatalf("kept an older record %s", s.ID)
+		}
 	}
 }
