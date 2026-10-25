@@ -167,6 +167,8 @@ export interface SetupView {
 
 /** The app's page-callable surface, as the shell uses it. */
 export interface App {
+  PreviewProjectMove(source: string, destination: string, project: string): Promise<ProjectMovePreview>;
+  ConfirmProjectMove(token: string): Promise<ProjectMoveResult>;
   PersonalWorkspaceCall(method: string, path: string, body: unknown): Promise<{status: number; body: unknown}>;
   PersonalTeamProjects(workspaceId: string, teamId: string): Promise<{projects: {id: string; name: string}[]; at: string}>;
   Workspaces(): Promise<WorkspaceView>;
@@ -198,3 +200,9 @@ export interface App {
   TestAlert(): Promise<boolean>;
   OpenAlertSettings(): Promise<void>;
 }
+
+export interface ProjectMovePreview {
+  token: string; source: string; destination: string;
+  snapshot: { source: string; name: string; repository: string; tickets: {title: string; description: string}[] };
+}
+export interface ProjectMoveResult { id: string; archived: boolean; warning?: string; cancelled?: boolean }

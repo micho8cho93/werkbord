@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MoveProject from './MoveProject.svelte';
   import { onMount } from 'svelte';
   import Icon, { type IconName } from '../lib/Icon.svelte';
   import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
@@ -13,6 +14,7 @@
   import type { Item } from './types';
 
   onMount(() => void plan.refresh());
+  let moving = $state<{source: string; project: string; name: string} | null>(null);
 
   // The window's one sidebar. Top to bottom: Salie, Home, Calendar, Reviews and Analytics (what spans everything, each one page with
   // its own choice of where to look), then a section for Personal and one
@@ -113,9 +115,9 @@
       </div>
       {#if usable(i) && !folded}
         {#each listed(summaryOf(i.id)?.projects) as p (p.id)}
-          <button class="nav proj" type="button" aria-current={here === `project:${p.id}` ? 'page' : undefined} onclick={() => model.goTo(i.id, p.href)} title={p.name} data-project={p.id}>
+          <div class="project-row"><button class="nav proj" type="button" aria-current={here === `project:${p.id}` ? 'page' : undefined} onclick={() => model.goTo(i.id, p.href)} title={p.name} data-project={p.id}>
             <span class="sq" aria-hidden="true"></span><span class="label">{p.name}</span>
-          </button>
+          </button><button class="move-project" type="button" title="Move {p.name}…" aria-label="Move {p.name}…" onclick={() => moving = {source: i.id, project: p.id, name: p.name}}><Icon name="right" size={14} /></button></div>
         {/each}
         {#if kind === 'personal'}
           <button class="nav proj add" type="button" onclick={() => model.goTo(i.id, '#/projects')} title="New personal project" data-page="add-project">
@@ -142,8 +144,16 @@
     </button>
   </div>
 </nav>
+{#if moving}<MoveProject {...moving} onclose={() => moving = null} />{/if}
 
 <style>
+  .project-row { display: flex; align-items: center; min-width: 0; }
+  .project-row .proj { flex: 1; min-width: 0; }
+  .move-project { display: inline-flex; justify-content: center; align-items: center; flex: none; width: 28px; height: 32px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); cursor: pointer; }
+  .move-project:hover { background: var(--surface-2); color: var(--text); }
+  .move-project:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .collapsed .project-row { display: none; }
+
   .plan {
     display: flex;
     align-items: center;

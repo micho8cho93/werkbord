@@ -273,6 +273,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/assistant/audit", s.handleAssistantAudit)
 	mux.HandleFunc("GET /api/assistant/audit/verify", s.handleAssistantAuditVerify)
 
+	mux.HandleFunc("GET /api/project-transfer/{pid}", s.handleExportTransfer)
+	mux.HandleFunc("POST /api/project-transfer", s.handleImportTransfer)
+	mux.HandleFunc("POST /api/project-transfer/{pid}/archive", s.handleArchiveTransfer)
 	mux.HandleFunc("GET /api/projects", s.handleListProjects)
 	mux.HandleFunc("POST /api/projects", s.handleRegisterProject)
 	mux.HandleFunc("PUT /api/projects/{pid}/lifecycle", s.handleProjectLifecycle)

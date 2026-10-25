@@ -116,7 +116,7 @@ pushed.
 | 3 | **Done in 5.0.0-preview.1.** **Unified shell.** Project registry, new sidebar, Home and Calendar across everything, ⌘K go-to, the switcher removed, "Individual" → "Personal" in the interface (mocks 01–03). | One platform you can see | **5.0.0-preview.1** |
 | 3.1 | **Reviews and Analytics are one entry each** (5.1.0-preview.1): the sidebar lists them once, and each page chooses where to look (Personal, all, one team) instead of one copy per workspace. | |
 | 4 | **Done in 5.3.0-preview.1.** **Create and join flow.** The one dialog (create, or join with a link), the single runner-connect choice (the app still asks once in a native dialog), a join that waits for an administrator. A new person already starts in Personal: the registry opens Personal unless the last workspace is a team they can still open. | Mock 04 | 5.3.0 |
-| 5 | **Cross-links.** Move a project personal ↔ team with a review of exactly what leaves the computer; Salie reading team projects read-only; Home polish. | | 5.2.0 |
+| 5 | **Cross-links.** *5a, project moves, done in 5.4.0-preview.1:* move a project personal ↔ team with a review of exactly what leaves the computer ([contract and limits](PROJECT_MOVES.md)). Salie reading team projects read-only and remaining Home polish are pending. | | 5.4.0 |
 | 6 | **Docs, naming and acceptance.** `STRUCTURE`, `ARCHITECTURE` §22, `UNIFICATION`, `README`, the website and release acceptance rewritten around one product with two plans. | | 5.2.1 |
 
 Stage 1 first, because it removes the most code, makes the cap real before anything user-visible changes, and leaves the tree
@@ -136,7 +136,7 @@ simpler for the rest.
 - **The live licence register.** The repository's Supabase licensing files are deleted in stage 1. The hosted Supabase project is
   not touched without your explicit say-so.
 - **Move a project (stage 5)** is the least defined. A promoted project sends text only (name, repository reference, tickets);
-  runs, history and agent output stay local. It needs its own design pass before building.
+  runs, history and agent output stay local. The design and implemented limits are recorded in [PROJECT_MOVES.md](PROJECT_MOVES.md).
 
 ## Not in this change
 

@@ -14,7 +14,8 @@
     footer,
     width = '34rem',
     side = false,
-  }: { title: string; onclose: () => void; children: Snippet; footer?: Snippet; width?: string; side?: boolean } = $props();
+    layer = 50,
+  }: { title: string; onclose: () => void; children: Snippet; footer?: Snippet; width?: string; side?: boolean; layer?: number } = $props();
 
   let panel: HTMLDivElement | undefined = $state();
   let trapping = false;
@@ -73,8 +74,8 @@
 
 <svelte:window onkeydown={onkey} onfocusin={onfocus} />
 
-<div class="backdrop" class:side transition:surface={{ y: 0, duration: 140 }} role="presentation" onclick={onclose}></div>
-<div class="sheet" class:side transition:surface={{ x: side ? 20 : 0, y: side ? 0 : 16 }} role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel} style:--w={width}>
+<div style:--sheet-layer={layer} class="backdrop" class:side transition:surface={{ y: 0, duration: 140 }} role="presentation" onclick={onclose}></div>
+<div style:--sheet-layer={layer} class="sheet" class:side transition:surface={{ x: side ? 20 : 0, y: side ? 0 : 16 }} role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel} style:--w={width}>
   <header>
     <h2>{title}</h2>
     <button class="btn quiet small icon" onclick={onclose} aria-label="Close"><Icon name="close" /></button>
@@ -89,14 +90,14 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: var(--sheet-layer, 50);
     background: var(--scrim);
     backdrop-filter: blur(2px);
   }
 
   .sheet {
     position: fixed;
-    z-index: 51;
+    z-index: calc(var(--sheet-layer, 50) + 1);
     left: 0;
     right: 0;
     bottom: 0;

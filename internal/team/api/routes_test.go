@@ -31,6 +31,8 @@ var publicRoutes = map[string]bool{
 // projectRoutes are scoped to one project: a person who is not on it must not be
 // able to tell it exists. Path parameters: {id} project, {tid} ticket.
 var projectRoutes = []string{
+	// Reviewed text-only project transfer and conditional archive; no local path, credential or execution fields.
+	"GET /project-transfer/{id}", "POST /project-transfer/{id}/archive",
 	"GET /projects/{id}/initiatives", // read-only full-scope coordination summaries
 	// Bounded memory metadata and retrieval; no execution, credentials or file access.
 	"GET /projects/{id}/relationships", // published full-scope-authorised relationship metadata only
@@ -68,6 +70,7 @@ var workspaceRoutes = []string{
 	"GET /me", "GET /plan", "PUT /me/premium", // the plan: read it, and give the team a Premium unlock key (checked; only its ID is kept)
 	"GET /roles", "GET /workspace", "PATCH /workspace",
 	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token", "PUT /members/{id}/role",
+	"POST /project-transfer", // atomic text-only project import
 	"GET /projects", "POST /projects",
 	// The workspace's shared labels: names and colours. Every member lists them; only labels.manage changes them.
 	"GET /labels", "POST /labels", "PATCH /labels/{id}", "DELETE /labels/{id}",
