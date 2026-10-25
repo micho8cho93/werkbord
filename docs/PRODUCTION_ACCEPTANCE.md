@@ -2,8 +2,19 @@
 
 Production admission remains **BLOCKED**. This receipt records actual operational
 checks following the local hardening implementation. It does not approve a new
-release. The source candidate remains `4.89.0-preview.1` until committed and
-frozen; the published Mac baseline tested below is `4.83.5-preview.1`.
+release. Candidate `4.89.0-preview.1` was committed, tagged, verified and pushed
+for testing at `7474b76afa77c86f2d309fc6eea2f0055cf8dc13`. Its release run
+`40211454930` passed repository checks and native network/database cluster tests,
+then stopped on stale Salie browser assertions before signing. The tag is
+unchanged. A patch candidate will carry the browser corrections; the published
+Mac baseline tested below is `4.83.5-preview.1`.
+
+The corrected patch candidate is `4.89.1-preview.1`. Its browser checks read the
+active theme, active conversation's cache and current pending-request popup,
+while retaining exact approval/duplicate-execution and shell-message checks.
+The standalone screen and shell suites both passed locally. The combined
+`make test-assistant-browser` target also passed after the version increment;
+workflow policy checks and all five release-hardening tests passed.
 
 ## Release controls configured and read back
 
@@ -55,7 +66,7 @@ previous published update baseline, not acceptance of the proposed new binary.
 Retained receipts: `mac-published-baseline.json`, `mac-baseline-apple.txt` and
 `mac-baseline-sparkle.txt` in the evidence directory.
 
-**Pending:** commit/freeze the new source, build/sign/notarize its exact artifacts,
+**Pending:** freeze the corrected source, build/sign/notarize its exact artifacts,
 verify them, and accept installation and baseline-to-candidate Sparkle updating
 on clean hardware. Only this development Mac is currently available, as confirmed
 by the owner. Local VMs cannot satisfy independent hardware acceptance.
@@ -113,7 +124,22 @@ Retained receipts include `live-licensing-lifecycle.json`,
 `live-revisions-offline-test.txt`, `licensing-endpoint-denial.json`,
 `licensing-primary-metadata.json` and `licensing-closed.png`.
 
-**Pending:** encrypted primary and independent copies, key/register checks on
+The encrypted licensing/release keys, encrypted register, public trust metadata
+and frozen recovery source were gathered into the private archive
+`Werkbord Recovery Kit 2026-10-25.tar.gz` on the owner's Desktop. Its SHA-256 is
+`c90a16986769169278cc02344727fec02cef0e16efdb5fc4d9a6ed60657bc01a`.
+The owner intends to email/upload this archive personally and retrieve a fresh
+copy from Google Drive. No independent upload/retrieval has been verified.
+Passphrases and plaintext private keys are excluded from this archive.
+
+The existing licensing organization's recovery-project quote was $0/month. The
+owner authorized that isolated project, but Supabase rejected creation because
+the account already has its two active free projects. No project was created,
+no charge was incurred, and no existing project was paused or changed. Local
+Docker/Postgres services are unavailable, so an empty recovery destination
+remains required before the live restore drill.
+
+**Pending:** independent copies, key/register checks on
 retrieved independent copies, actual restoration into an empty recovery
 destination, hosting/account recovery continuity, and live prepared-operation
 cancellation/disablement acceptance where not already evidenced. Never restore

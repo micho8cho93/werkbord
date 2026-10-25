@@ -163,7 +163,9 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await button.waitFor();
         assert.equal(await button.getAttribute('aria-haspopup'), 'dialog');
         assert.equal(await button.getAttribute('aria-expanded'), 'false');
-        assert.equal(await surfaceEl.count(), 0, 'nothing is loaded for the assistant until it is opened');
+        await surfaceEl.waitFor({ state: 'attached' });
+        assert.equal(await surfaceEl.isVisible(), false, 'the prepared assistant remains hidden until opened');
+        assert.equal(await surfaceEl.getAttribute('aria-hidden'), 'true');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-button.png') });
         const home = await button.boundingBox();
         assert.ok(Math.abs(home.x + home.width / 2 - 720) < 2, 'Salie starts centred');
@@ -171,7 +173,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Dragging across an iframe keeps capture and never opens the assistant.
         await page.mouse.move(home.x + 26, home.y + 26); await page.mouse.down();
         await page.mouse.move(1300, 240, { steps: 16 }); await page.mouse.up();
-        assert.equal(await surfaceEl.count(), 0, 'dragging does not open Salie');
+        assert.equal(await surfaceEl.isVisible(), false, 'dragging does not open Salie');
         const moved = await button.boundingBox();
         assert.ok(Math.abs(moved.x + 26 - 1300) < 2);
         await page.reload(); await button.waitFor();
@@ -295,16 +297,19 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await assistantFrame.locator('section.confirm').waitFor();
         await assistantFrame.getByTestId('assistant-close').click(); // closed from inside the page, with its own button
         await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
-        await page.waitForFunction(() => /1 change is waiting for you/.test(document.querySelector('[data-page=assistant]')?.getAttribute('aria-label') || ''));
+        await page.waitForFunction(() => /1 request is waiting for you/.test(document.querySelector('[data-page=assistant]')?.getAttribute('aria-label') || ''));
         assert.equal(await button.locator('.num').innerText(), '1');
         const crossed = (await page.evaluate(() => window.__frameMessages)).filter(m => /assistant/.test(m));
         assert.ok(crossed.length > 0, 'the page did report');
         for (const m of crossed) assert.ok(!/add a ticket|Create the ticket|From the assistant/.test(m), 'no conversation crossed: ' + m);
-        assert.ok(crossed.every(m => /^\{"type":"werkbord.frame","event":"assistant","open":(true|false),"waiting":\d+,"running":(true|false)\}$/.test(m)), 'only a count and two flags cross: ' + crossed.at(-1));
+        assert.ok(crossed.every(m => /^\{"type":"werkbord.frame","event":"assistant","open":(true|false),"compact":(true|false),"waiting":\d+,"running":(true|false)\}$/.test(m)), 'only a count and three display flags cross: ' + crossed.at(-1));
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-badge.png') });
-        ok('a change waiting for you shows on the floating button; only a count and two flags ever cross to the shell');
+        ok('a change waiting for you shows on the floating button; only a count and three display flags ever cross to the shell');
 
         await button.click();
+        await assistantFrame.getByRole('complementary', { name: 'Salie pending request' }).waitFor();
+        await assistantFrame.getByRole('button', { name: 'Open conversation', exact: true }).click();
+        await assistantFrame.getByTestId('assistant').waitFor();
         await assistantFrame.locator('section.confirm[data-state="waiting"]').waitFor();
         ok('and is still waiting when it is opened again, from the same frame');
         await assistantFrame.locator('section.confirm[data-state="waiting"]').getByRole('button', { name: 'Not now', exact: true }).click();

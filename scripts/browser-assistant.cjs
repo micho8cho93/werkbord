@@ -52,6 +52,28 @@ async function api(base, method, p, data) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const ok = msg => console.log('PASS ' + msg);
 
+// The palette is selectable. Motion and generated content must follow the active
+// theme rather than the RGB values of a retired palette.
+async function themeColors(page) {
+    return page.evaluate(() => {
+        const probe = document.createElement('span');
+        probe.hidden = true;
+        document.body.append(probe);
+        try {
+            return Object.fromEntries(['--bg', '--surface', '--surface-2', '--text', '--text-2'].map(name => {
+                probe.style.color = `var(${name})`;
+                return [name, getComputedStyle(probe).color];
+            }));
+        } finally { probe.remove(); }
+    });
+}
+function assertColorNear(actual, expected, message) {
+    const channels = color => color.match(/[\d.]+/g)?.map(Number);
+    const a = channels(actual), b = channels(expected);
+    assert.ok(a && b && a.length === b.length && a.every((value, i) => Math.abs(value - b[i]) <= 3),
+        `${message}: ${actual}, expected ${expected}`);
+}
+
 // ---- measuring the surface as it moves ----
 
 /** Starts recording the surface, frame by frame, from the moment it appears (or while it closes). Returns a function that ends it. */
@@ -167,6 +189,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.evaluate(() => { window.__main = document.querySelector('main'); });
             const hashBefore = await page.evaluate(() => location.hash);
 
+            const theme = await themeColors(page);
             const from = await center(button);
             const stopRec = await record(page, 1800);
             await button.click();
@@ -183,8 +206,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.ok(circles.at(-1).circle.r > 900, 'it ends covering the window, r=' + circles.at(-1).circle.r);
             const first = samples.find(s => s.bg), last = samples.at(-1);
             assert.notEqual(first.bg, last.bg, 'the background changes while it opens');
-            assert.match(first.bg, /rgb\(25[0-5], 25[0-5], 25[0-5]\)|rgb\(24[0-9]/, 'it starts as the sidebar’s colour (white): ' + first.bg);
-            assert.equal(last.bg, 'rgb(245, 245, 242)', 'it ends as the assistant’s own paper');
+            assertColorNear(first.bg, theme['--surface'], 'it starts as the current sidebar button surface');
+            assert.equal(last.bg, theme['--bg'], 'it ends as the current theme’s paper');
             assert.ok(Number(first.opacity) < 0.5 && Number(samples.at(-1).opacity) > 0.99, `the content arrives after the surface starts to open (${first.opacity} → ${samples.at(-1).opacity}, ${samples.length} samples, phases ${[...new Set(samples.map(x => x.phase))]})`);
             ok('opens out of the button: circle grows from its centre to cover the window, background settles (light)');
             await page.screenshot({ path: path.join(artifacts, 'assistant-empty-light.png') });
@@ -220,13 +243,14 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.goto(base + '/#token=' + token);
             await page.goto(base + '/#/projects');
             await page.getByTestId('assistant-button').first().waitFor();
+            const theme = await themeColors(page);
             const stopRec = await record(page, 1800);
             await page.getByTestId('assistant-button').first().click();
             const s = await stopRec();
             const first = s.find(x => x.bg), last = s.at(-1);
             assert.equal(first.bg === last.bg, false);
-            assert.equal(last.bg, 'rgb(11, 11, 12)', 'dark paper');
-            assert.match(first.bg, /rgb\(2[0-9], 2[0-9], 2[0-9]\)|rgb\(1[0-9], 1[0-9], 1[0-9]\)/, 'starts as the dark sidebar colour: ' + first.bg);
+            assert.equal(last.bg, theme['--bg'], 'current dark paper');
+            assertColorNear(first.bg, theme['--surface'], 'starts as the current dark sidebar button surface');
             await page.screenshot({ path: path.join(artifacts, 'assistant-empty-dark.png') });
             await sendText(page, 'openui dashboard');
             const generated = lastReply(page).locator('.openui');
@@ -237,7 +261,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
                 label: getComputedStyle(el.querySelector('.label')).color,
                 value: getComputedStyle(el.querySelector('.value')).color,
             }));
-            assert.deepEqual(metricColors, { background: 'rgb(29, 29, 31)', label: 'rgb(163, 163, 157)', value: 'rgb(240, 240, 236)' });
+            assert.deepEqual(metricColors, { background: theme['--surface-2'], label: theme['--text-2'], value: theme['--text'] });
             await page.screenshot({ path: path.join(artifacts, 'assistant-openui-dark.png') });
             ok('works in the dark theme: same movement, dark colours');
             await ctx.close();
@@ -248,6 +272,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const { ctx, page } = await newPage({ reducedMotion: 'reduce', colorScheme: 'light' });
             await page.goto(base + '/#token=' + token);
             await page.goto(base + '/#/projects');
+            const theme = await themeColors(page);
             await page.getByTestId('assistant-button').first().waitFor();
             const stopRec = await record(page, 500);
             await page.getByTestId('assistant-button').first().click();
@@ -255,7 +280,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.ok(s.length > 0);
             assert.ok(s.every(x => x.gone || x.clip === 'none'), 'never clipped, never a circle');
             assert.ok(s.every(x => x.gone || x.anims === 0), 'no animation at all');
-            assert.equal(s.find(x => x.bg).bg, 'rgb(245, 245, 242)', 'it is simply there, in its own colour');
+            assert.equal(s.find(x => x.bg).bg, theme['--bg'], 'it is simply there, in the active theme’s colour');
             await page.getByTestId('assistant-close').click();
             await surface(page).waitFor({ state: 'detached', timeout: 1500 });
             ok('under reduced motion nothing moves: it is simply there, then simply gone');
@@ -429,7 +454,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');
             await closeAssistant(page);
             const btn = page.getByTestId('assistant-button').first();
-            assert.match(await btn.getAttribute('aria-label'), /1 change is waiting for you/);
+            assert.match(await btn.getAttribute('aria-label'), /1 request is waiting for you/);
             assert.equal(await btn.locator('.num').innerText(), '1');
             assert.equal(requests.filter(r => /\/actions\//.test(r)).length, 0, 'closing the screen decided nothing');
             await page.goto(base + `/#/p/${project.id}/board`); // go to a different view altogether
@@ -473,12 +498,16 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await plan.getByLabel('First planned day').fill('2026-10-26');
             await plan.getByLabel('Include documentation tasks').check();
             await sleep(500); // the tab-only transcript cache debounces writes
-            const cachedPlanState = await page.evaluate(() => JSON.parse(sessionStorage.getItem('werkbord.assistant.v1') || 'null')?.items.filter(item => item.kind === 'reply').at(-1)?.uiState);
+            const planState = () => {
+                const index = JSON.parse(sessionStorage.getItem('werkbord.assistant.tabs.v1') || 'null');
+                return JSON.parse(sessionStorage.getItem(`werkbord.assistant.session.${index?.activeId}`) || 'null')?.items.filter(item => item.kind === 'reply').at(-1)?.uiState;
+            };
+            const cachedPlanState = await page.evaluate(planState);
             assert.equal(cachedPlanState?.['sprint-plan']?.title?.value, 'Launch board task', 'the tab cache keeps edited text');
             assert.equal(cachedPlanState?.['sprint-plan']?.includeDocs?.value, true, 'the tab cache keeps the selected checkbox');
             await page.reload();
             await openAssistant(page);
-            const restoredPlanState = await page.evaluate(() => JSON.parse(sessionStorage.getItem('werkbord.assistant.v1') || 'null')?.items.filter(item => item.kind === 'reply').at(-1)?.uiState);
+            const restoredPlanState = await page.evaluate(planState);
             assert.equal(restoredPlanState?.['sprint-plan']?.title?.value, 'Launch board task', 'the edited form state is restored from the tab cache');
             plan = page.locator('article.reply').last().getByTestId('openui-form');
             assert.equal(await plan.getByLabel('Task title').inputValue(), 'Launch board task');
