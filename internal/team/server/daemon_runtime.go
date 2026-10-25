@@ -224,6 +224,7 @@ func (d *Daemon) reconcileDevice(ctx context.Context) error {
 	d.lastSync = time.Now()
 	d.role = string(me.Member.Role)
 	d.mu.Unlock()
+	d.presentPremium(ctx, host)
 	if err := host.Heartbeat(ctx, d.profile()); err != nil {
 		return err
 	}

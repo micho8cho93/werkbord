@@ -82,7 +82,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return flag.ErrHelp
 	}
 	cfg := config.Load()
-	cfg.Premium = testPremium == "1"
+	cfg.Unmetered = testPremium == "1"
 	switch args[0] {
 	case "phone-relay":
 		return cmdPhoneRelay(ctx, cfg, args[1:], stderr)

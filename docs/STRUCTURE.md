@@ -88,6 +88,7 @@ A package is **shared** when both products use it and it holds no behaviour of e
 | `internal/mcpbridge` | Stdio MCP client forwarding tools, resources and prompts to the configured Streamable HTTP endpoint. Holds no product identity or board behavior. | `cmd/werkbord`, `cmd/werkbord-team` |
 | `internal/uipresentation` | Product-neutral static board card grammar; products supply tokens, data, permissions and actions. | Both web frontends |
 | `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |
+| `internal/entitlement` | The Free plan's team size and the offline check of a Premium unlock key: pure functions over a public key stamped into the build. No workspace, role, storage or process. See [PLANS.md](PLANS.md). | Team service, vendor tool; the desktop app (next stage) |
 | `internal/logging` | `slog` logger construction | both |
 | `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (individual, Tailscale); `internal/team/infra/overlaynet` (Team's own private network) |
 | `internal/deviceid` | A device's ID, public key and the checks on them. No private key. | Team |
@@ -180,7 +181,7 @@ certificate authority, signed invitations, enrollment over TLS, discovery hosts 
 default-deny policy, revocation in two layers, and the authority handed to more than one Workspace Host. Werkbord operates none
 of it. See [TEAM_NETWORK.md](TEAM_NETWORK.md) and [the decision](adr/0002-customer-owned-network.md).
 
-Not built yet: a payment backend and the Premium unlock key ([PLANS.md](PLANS.md)), HTTPS (put Team behind a TLS proxy), ownership transfer,
+Not built yet: a payment backend ([PLANS.md](PLANS.md)), HTTPS (put Team behind a TLS proxy), ownership transfer,
 comments and chat (Team coordinates; it is not a messenger), a Windows installer.
 
 ## Running and building

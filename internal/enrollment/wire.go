@@ -63,6 +63,9 @@ type JoinRequest struct {
 	// SealingPublicKey is, for a device that will be a Workspace Host, the public key
 	// workspace secrets are sealed to when they are handed to it (X25519, base64 raw URL).
 	SealingPublicKey string `json:"sealingPublicKey,omitempty"`
+	// PremiumKey is the person's Premium unlock key, when they have one. A workspace over the Free plan's size needs it from
+	// whoever joins; the workspace checks it and keeps only its ID. It is part of what the device signs.
+	PremiumKey string `json:"premiumKey,omitempty"`
 	// Proof is the device's signature over JoinStatement.
 	Proof string `json:"proof"`
 }
@@ -168,8 +171,13 @@ func digest(s string) string {
 // a proof for another. Fields are length-prefixed, so no two different requests have
 // the same bytes.
 func JoinStatement(workspaceID string, r JoinRequest, exporter []byte) []byte {
-	return lp(nil, joinDomain, workspaceID, r.InviteID, r.DeviceID, r.DeviceName, r.MemberName,
+	b := lp(nil, joinDomain, workspaceID, r.InviteID, r.DeviceID, r.DeviceName, r.MemberName,
 		r.DevicePublicKey, digest(r.NetworkPublicKey), digest(r.SealingPublicKey), string(exporter))
+	if r.PremiumKey != "" {
+		// Added only when there is one, so a request without a key is signed exactly as it always was.
+		b = lp(b, digest(r.PremiumKey))
+	}
+	return b
 }
 
 // PollStatement is what the device signs to ask after an enrollment.

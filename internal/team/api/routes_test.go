@@ -64,8 +64,9 @@ var workspaceRoutes = []string{
 	// Closed memory DTOs only; exact body scopes are authorized inside each transaction.
 	"POST /memory/delivery", // bounded signed projection events and durable receipts; no file/process access
 	"POST /memory/proposals", "POST /memory/query", "POST /memory/{mid}",
-	"GET /analytics", // read-only aggregate limited to projects with ticket and activity access
-	"GET /me", "GET /roles", "GET /workspace", "PATCH /workspace",
+	"GET /analytics",                          // read-only aggregate limited to projects with ticket and activity access
+	"GET /me", "GET /plan", "PUT /me/premium", // the plan: read it, and give the team a Premium unlock key (checked; only its ID is kept)
+	"GET /roles", "GET /workspace", "PATCH /workspace",
 	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token", "PUT /members/{id}/role",
 	"GET /projects", "POST /projects",
 	// The workspace's shared labels: names and colours. Every member lists them; only labels.manage changes them.

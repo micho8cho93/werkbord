@@ -73,6 +73,14 @@ fi
 need WINDOWS_SIGNING_CERTIFICATE_PASSWORD WINDOWS_SIGNING_CERTIFICATE_PASSWORD windows || true
 fi
 
+# Not a secret, and not required: a build without the Premium issuer's public key is a Free-only build, which is a legitimate
+# release, but it is most often a forgotten variable, so say so.
+if [ -z "${PREMIUM_ISSUER_PUBLIC_KEY:-}" ]; then
+  echo "::warning::release: PREMIUM_ISSUER_PUBLIC_KEY is not set, so this build can check no Premium unlock key and everyone on it is on the Free plan. Make the pair with 'go run ./cmd/werkbord-team/vendor keygen' and set the repository variable to the public half. See docs/PLANS.md." >&2
+elif [ ${#PREMIUM_ISSUER_PUBLIC_KEY} -ne 43 ]; then
+  bad "PREMIUM_ISSUER_PUBLIC_KEY must be a 32-byte Ed25519 public key encoded as raw URL base64 (43 characters, no padding)"
+fi
+
 if [ -n "$missing" ] || [ -n "$wrong" ]; then
   [ -z "$missing" ] || echo "::error::release: missing secrets: $missing. Nothing was built. See $guide." >&2
   [ -z "$wrong" ] || echo "::error::release: secrets that look wrong: $wrong. See $guide." >&2

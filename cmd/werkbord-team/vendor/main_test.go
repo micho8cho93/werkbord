@@ -5,10 +5,14 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"devboard/internal/entitlement"
 )
 
 func TestOfflineSignerUsesExplicitInputAndNeverOverwrites(t *testing.T) {
@@ -50,5 +54,47 @@ func TestOfflineSignerUsesExplicitInputAndNeverOverwrites(t *testing.T) {
 		if err := run(args, bytes.NewReader(secret)); err == nil {
 			t.Errorf("%v was accepted", args)
 		}
+	}
+}
+
+func TestKeygenAndPremiumMakeAKeyTheBuildCanCheck(t *testing.T) {
+	dir := t.TempDir()
+	priv, pub := filepath.Join(dir, "issuer.pem"), filepath.Join(dir, "issuer.pub")
+	if err := run([]string{"keygen", "--private-out", priv, "--public-out", pub}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{priv, pub} {
+		if info, err := os.Stat(p); err != nil || info.Mode().Perm() != 0600 {
+			t.Fatalf("%s must be owner-only: %v", p, err)
+		}
+	}
+	if err := run([]string{"keygen", "--private-out", priv, "--public-out", filepath.Join(dir, "other.pub")}, nil); err == nil {
+		t.Fatal("an existing private key was overwritten")
+	}
+	pemBytes, _ := os.ReadFile(priv)
+	rawPub, _ := os.ReadFile(pub)
+	issuer, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(rawPub)))
+	if err != nil || len(issuer) != ed25519.PublicKeySize {
+		t.Fatalf("the public key is 43 characters of raw URL base64: %v", err)
+	}
+	out := filepath.Join(dir, "unlock.txt")
+	if err := run([]string{"premium", "--out", out, "--id", "pk_one", "--holder", "Ada"}, bytes.NewReader(pemBytes)); err != nil {
+		t.Fatal(err)
+	}
+	text, _ := os.ReadFile(out)
+	c, err := entitlement.Verify(string(text), ed25519.PublicKey(issuer))
+	if err != nil || c.ID != "pk_one" || c.Holder != "Ada" {
+		t.Fatalf("the key does not check: %+v, %v", c, err)
+	}
+	if err := run([]string{"premium", "--out", out}, bytes.NewReader(pemBytes)); err == nil {
+		t.Fatal("an existing key file was overwritten")
+	}
+	second := filepath.Join(dir, "second.txt")
+	if err := run([]string{"premium", "--out", second}, bytes.NewReader(pemBytes)); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(second)
+	if c, err := entitlement.Verify(string(b), ed25519.PublicKey(issuer)); err != nil || !strings.HasPrefix(c.ID, "pk_") {
+		t.Fatalf("a key made without an ID gets a random one: %+v, %v", c, err)
 	}
 }

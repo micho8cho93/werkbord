@@ -200,9 +200,21 @@ func (d *Daemon) joinWorkspace(w http.ResponseWriter, r *http.Request) {
 		Link       string `json:"link"`
 		Name       string `json:"name"`
 		DeviceName string `json:"deviceName"`
+		// Premium is the person's unlock key, when the window has one to give: a team over the Free plan's size needs it.
+		Premium string `json:"premium"`
 	}
 	if !daemonDecode(w, r, &in) {
 		return
+	}
+	if in.Premium != "" {
+		if _, err := d.o.VerifyKey(in.Premium); err != nil {
+			daemonFail(w, err)
+			return
+		}
+		if err := d.state.SetPremiumKey(strings.TrimSpace(in.Premium)); err != nil {
+			daemonFail(w, err)
+			return
+		}
 	}
 	inv, err := enrollment.Parse(in.Link, time.Now())
 	if err != nil {
@@ -249,7 +261,7 @@ func (d *Daemon) joinWorkspace(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		res, err := enrollment.Join(ctx, inv, enrollment.JoinParams{Signer: keys, MemberName: in.Name, DeviceName: in.DeviceName, NetworkPublicKeyPEM: string(pub), SealingPublicKey: keys.SealingPublicKey()})
+		res, err := enrollment.Join(ctx, inv, enrollment.JoinParams{Signer: keys, MemberName: in.Name, DeviceName: in.DeviceName, NetworkPublicKeyPEM: string(pub), SealingPublicKey: keys.SealingPublicKey(), PremiumKey: d.state.PremiumKey()})
 		if err != nil && !errors.Is(err, enrollment.ErrPending) {
 			return invitationProblem(inv, err, time.Now())
 		}
@@ -595,4 +607,58 @@ func (d *Daemon) revokeLeavingDevice(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// premiumView is what this computer says about its person's Premium unlock key: nothing when there is none or this build cannot
+// check it, otherwise the key's ID and the label its issuer gave it.
+func (d *Daemon) premiumView() map[string]any {
+	key := d.state.PremiumKey()
+	if key == "" {
+		return nil
+	}
+	c, err := d.o.VerifyKey(key)
+	if err != nil {
+		return nil
+	}
+	return map[string]any{"id": c.ID, "holder": c.Holder}
+}
+
+// setPremium takes the unlock key the window was given. It is checked here, kept for this person on this computer, and given to
+// the workspace this computer belongs to, which checks it again and keeps only its ID.
+func (d *Daemon) setPremium(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Key string `json:"key"`
+	}
+	if !daemonDecode(w, r, &in) {
+		return
+	}
+	key := strings.TrimSpace(in.Key)
+	c, err := d.o.VerifyKey(key)
+	if err != nil {
+		daemonFail(w, err)
+		return
+	}
+	if err := d.state.SetPremiumKey(key); err != nil {
+		daemonFail(w, err)
+		return
+	}
+	d.notify()
+	httpkit.WriteJSON(w, 200, map[string]any{"id": c.ID, "holder": c.Holder})
+}
+
+// presentPremium gives the workspace the person's key if the workspace does not have one for them yet. An older Workspace Host
+// that does not know the plan answers with a refusal, which is not a problem to report: it asks for nothing.
+func (d *Daemon) presentPremium(ctx context.Context, host *hostclient.Client) {
+	key := d.state.PremiumKey()
+	if key == "" {
+		return
+	}
+	var plan struct {
+		Enforced bool `json:"enforced"`
+		Premium  bool `json:"premium"`
+	}
+	if err := host.Do(ctx, "GET", "/plan", nil, &plan); err != nil || !plan.Enforced || plan.Premium {
+		return
+	}
+	_ = host.Do(ctx, "PUT", "/me/premium", map[string]string{"key": key}, nil)
 }

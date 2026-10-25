@@ -100,6 +100,9 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/team/v1/memory/query", s.handleMemoryRead)
 	api.HandleFunc("POST /api/team/v1/memory/{mid}", s.handleMemoryChange)
 	api.HandleFunc("GET /api/team/v1/me", s.handleMe)
+	// the plan: what it says about this member and team, and how a member gives their Premium unlock key to the team
+	api.HandleFunc("GET /api/team/v1/plan", s.handlePlan)
+	api.HandleFunc("PUT /api/team/v1/me/premium", s.handlePresentPremium)
 	api.HandleFunc("GET /api/team/v1/roles", s.handleRoles)
 	api.HandleFunc("GET /api/team/v1/workspace", s.handleWorkspace)
 	api.HandleFunc("PATCH /api/team/v1/workspace", s.handleRenameWorkspace)
@@ -228,7 +231,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		s.handleRedeemInvite(w, r)
 	})
-	mux.Handle("/api/team/v1/", s.authenticate(api))
+	mux.Handle("/api/team/v1/", s.authenticate(s.planRoutes(api)))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		httpkit.WriteError(w, http.StatusNotFound, "not_found", "no such endpoint")
@@ -385,4 +388,49 @@ func (s *Server) decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 		return false
 	}
 	return true
+}
+
+// planExempt lists the mutating routes a read-only member may still use: a member without Premium in a team over the Free plan's
+// size (docs/PLANS.md). They keep the team running or safe, or are how the member stops being read-only; none of them changes the
+// team's coordination. A route that is not listed is refused for such a member, so a new route is closed until someone decides
+// otherwise here (routes_test.go lists them too).
+var planExempt = map[string]bool{
+	"PUT /api/team/v1/me/premium":                     true, // presenting a key
+	"POST /api/team/v1/device/heartbeat":              true, // a device saying it is up
+	"POST /api/team/v1/device/messages/{id}/ack":      true,
+	"POST /api/team/v1/notifications/{nid}/read":      true, // the member's own marker
+	"DELETE /api/team/v1/members/{id}":                true, // containment: each is still limited by the caller's permissions
+	"POST /api/team/v1/members/{id}/token":            true,
+	"PUT /api/team/v1/members/{id}/role":              true,
+	"POST /api/team/v1/devices/{id}/revoke":           true,
+	"PUT /api/team/v1/devices/{id}/network":           true, // the private network and the hosts that keep the workspace available
+	"PUT /api/team/v1/devices/{id}/capabilities":      true,
+	"PUT /api/team/v1/devices/{id}/name":              true,
+	"POST /api/team/v1/devices/{id}/provision":        true,
+	"DELETE /api/team/v1/devices/{id}/replica":        true,
+	"PUT /api/team/v1/network/approval":               true,
+	"POST /api/team/v1/network/certificate":           true,
+	"POST /api/team/v1/network/checks":                true,
+	"POST /api/team/v1/network/provision/ack":         true,
+	"POST /api/team/v1/storage/backup":                true,
+	"POST /api/team/v1/enrollment-invitations":        true, // new people are held to the plan where they join
+	"DELETE /api/team/v1/enrollment-invitations/{id}": true,
+	"POST /api/team/v1/enrollments/{id}/approve":      true,
+	"POST /api/team/v1/enrollments/{id}/deny":         true,
+}
+
+// planRoutes marks the requests a read-only member may make (reads, and the routes in planExempt) so that the service, which
+// refuses every other change from such a member, lets them through.
+func (s *Server) planRoutes(api *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			r = r.WithContext(service.PlanExempt(r.Context()))
+		default:
+			if _, pattern := api.Handler(r); planExempt[pattern] {
+				r = r.WithContext(service.PlanExempt(r.Context()))
+			}
+		}
+		api.ServeHTTP(w, r)
+	})
 }

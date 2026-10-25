@@ -428,8 +428,24 @@ func (e *enrollAuthority) Enroll(ctx context.Context, req enrollment.AuthorityJo
 		if err := s.checkFinalizable(ctx, tx, en, inv); err != nil {
 			return enrollment.Reject(err.Error())
 		}
+		// A key the joiner brought is checked now, and the plan's answer to adding one more person is given now, to the one
+		// person who can act on it, rather than after an administrator has spent time approving.
+		keyID, err := s.verifyKey(req.PremiumKey)
+		if err != nil {
+			return enrollment.Reject(planMessage(err))
+		}
+		if s.plan != nil && inv.ForMemberID == "" {
+			if err := admit(ctx, tx, inv.WorkspaceID, joiner{keyID: keyID, require: true}); err != nil {
+				return enrollment.Reject(planMessage(err))
+			}
+		}
 		if err := tx.InsertEnrollment(ctx, en); err != nil {
 			return notFoundBecause("recording the request of device %s: %v", req.DeviceID, err)
+		}
+		if keyID != "" {
+			if err := tx.SetEnrollmentPremium(ctx, inv.WorkspaceID, en.ID, keyID); err != nil {
+				return err
+			}
 		}
 		if inv.RequireApproval {
 			resp = enrollment.Response{State: enrollment.StatePending, EnrollmentID: en.ID, Message: "an administrator has to approve this device"}
@@ -503,10 +519,20 @@ func translate(err error) error {
 	switch {
 	case errors.As(err, &rej), errors.Is(err, enrollment.ErrNotFound):
 		return err
+	case errors.Is(err, domain.ErrPremiumRequired):
+		return enrollment.Reject(planMessage(err))
 	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrConflict), errors.Is(err, domain.ErrInvalid):
 		return enrollment.Reject(strings.TrimPrefix(err.Error(), "conflict: "))
 	}
 	return err
+}
+
+// planMessage is what the plan said, in words for the person it concerns.
+func planMessage(err error) string {
+	for _, prefix := range []string{"premium required: ", "invalid: "} {
+		err = errors.New(strings.TrimPrefix(err.Error(), prefix))
+	}
+	return err.Error()
 }
 
 // checkFinalizable says whether the enrollment could be completed: that what the joiner
@@ -539,10 +565,19 @@ func (s *Service) finalize(ctx context.Context, tx store.Tx, net NetworkAuthorit
 	if err != nil {
 		return enrollment.Response{}, err
 	}
+	keyID, err := tx.EnrollmentPremium(ctx, e.WorkspaceID, e.ID)
+	if err != nil {
+		return enrollment.Response{}, err
+	}
 	var m domain.Member
 	if inv.ForMemberID != "" {
 		if m, err = tx.Member(ctx, e.WorkspaceID, inv.ForMemberID); err != nil {
 			return enrollment.Response{}, err
+		}
+		if keyID != "" {
+			if err := tx.SetMemberPremium(ctx, e.WorkspaceID, m.ID, keyID, now); err != nil {
+				return enrollment.Response{}, err
+			}
 		}
 	} else {
 		m = domain.Member{ID: domain.NewID(domain.PrefixMember), WorkspaceID: e.WorkspaceID, Name: e.MemberName, Role: inv.Role, CreatedAt: now}
@@ -550,7 +585,7 @@ func (s *Service) finalize(ctx context.Context, tx store.Tx, net NetworkAuthorit
 		// devices' credentials are how they reach the API. The token stored here is one
 		// nobody was given, so it cannot be used; an administrator can issue a real one.
 		_, unusable := domain.NewToken()
-		if err := tx.InsertMember(ctx, m, unusable); err != nil {
+		if err := tx.InsertMember(withJoiner(ctx, keyID, true), m, unusable); err != nil {
 			return enrollment.Response{}, err
 		}
 	}

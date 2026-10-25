@@ -50,3 +50,20 @@ func TestSavedEnrollmentRetainsSignatureAndShapeChecks(t *testing.T) {
 		t.Fatal("nil key accepted")
 	}
 }
+
+func TestThePremiumKeyIsSignedOnlyWhenThereIsOne(t *testing.T) {
+	r := JoinRequest{InviteID: "i", DeviceID: "d", DeviceName: "n", MemberName: "m", DevicePublicKey: "k", NetworkPublicKey: "net", SealingPublicKey: "s"}
+	legacy := lp(nil, joinDomain, "w", r.InviteID, r.DeviceID, r.DeviceName, r.MemberName, r.DevicePublicKey, digest(r.NetworkPublicKey), digest(r.SealingPublicKey), "ex")
+	if string(JoinStatement("w", r, []byte("ex"))) != string(legacy) {
+		t.Fatal("a request with no key must be signed exactly as before, so an older Workspace Host still accepts it")
+	}
+	r.PremiumKey = "wbpremium-x"
+	with := JoinStatement("w", r, []byte("ex"))
+	if string(with) == string(legacy) {
+		t.Fatal("the key is not part of what the device signs")
+	}
+	r.PremiumKey = "wbpremium-y"
+	if string(JoinStatement("w", r, []byte("ex"))) == string(with) {
+		t.Fatal("a different key signs the same")
+	}
+}

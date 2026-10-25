@@ -154,6 +154,7 @@ jobs:
       NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
       NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
       SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+      PREMIUM_ISSUER_PUBLIC_KEY: ${{ vars.PREMIUM_ISSUER_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -263,6 +264,7 @@ jobs:
     permissions:
       contents: read
     env:
+      PREMIUM_ISSUER_PUBLIC_KEY: ${{ vars.PREMIUM_ISSUER_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:

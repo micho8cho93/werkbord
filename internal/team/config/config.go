@@ -64,10 +64,10 @@ type Config struct {
 	PhoneConnectorEndpoint string
 
 	// Production is set by the commands that serve real workspaces (Load, and the device service): they listen only on
-	// loopback and hold a team to the plan's size (entitlement.TeamLimit). Premium says the plan has no size limit; it is
-	// never read from the environment or a file, and nothing in production sets it until the unlock key exists.
+	// loopback and hold a team to the plan rules (docs/PLANS.md). Unmetered switches the plan rules off, for tests only: it is
+	// never read from the environment or a file, and only the test scripts' own builds set it (cmd/werkbord-team testPremium).
 	Production bool
-	Premium    bool
+	Unmetered  bool
 	KeyStorage string
 	// SecureStorageID stays stable while the daemon atomically stages a new workspace directory.
 	SecureStorageID string

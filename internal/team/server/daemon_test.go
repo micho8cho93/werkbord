@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"devboard/internal/deviceid"
+	"devboard/internal/entitlement"
 	"devboard/internal/team/config"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/hostclient"
@@ -185,7 +188,7 @@ func TestCreateTeamRunsInDaemonAndTheLastHostCannotBeRemoved(t *testing.T) {
 	cfg.RunNode = false // Tests have no right to install a network interface or OS service.
 	cfg.Addr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
 	cfg.BootstrapAddr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
-	d, err := NewDaemon(DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Premium: true, Log: quiet(), Version: "test"})
+	d, err := NewDaemon(DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Unmetered: true, Log: quiet(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +311,7 @@ func TestTeamDesktopBrowserFixture(t *testing.T) {
 		cfg.RunNode = false
 		cfg.Addr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
 		cfg.BootstrapAddr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
-		d, err := NewDaemon(DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Premium: true, Log: quiet(), Version: "browser-fixture", RunnerConfigPath: filepath.Join(dir, "runner-config.json")})
+		d, err := NewDaemon(DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Unmetered: true, Log: quiet(), Version: "browser-fixture", RunnerConfigPath: filepath.Join(dir, "runner-config.json")})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -395,7 +398,7 @@ func TestUnifiedDesktopBrowserFixture(t *testing.T) {
 		cfg.Addr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
 		cfg.BootstrapAddr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
 		cfg.EmbedOrigins = []string{os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")}
-		return DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Premium: true, Log: quiet(), Version: "browser-fixture"}
+		return DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Unmetered: true, Log: quiet(), Version: "browser-fixture"}
 	}
 	hub, err := NewHub(options())
 	if err != nil {
@@ -447,4 +450,55 @@ func TestUnifiedDesktopBrowserFixture(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("unified browser harness did not finish")
+}
+
+func TestThePersonsPremiumKeyIsCheckedKeptAndShown(t *testing.T) {
+	pub, key, _ := ed25519.GenerateKey(rand.Reader)
+	c := config.Default()
+	c.DataDir = t.TempDir()
+	d, err := NewDaemon(DaemonOptions{Config: c, Log: quiet(), Version: "test", VerifyKey: func(text string) (entitlement.Claims, error) { return entitlement.Verify(text, pub) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.ctx = context.Background()
+	state := func() map[string]any {
+		var v map[string]any
+		w := daemonCall(d, "GET", "/api/device/v1/state", "")
+		if err := json.Unmarshal(w.Body.Bytes(), &v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	if state()["premium"] != nil {
+		t.Fatal("a computer with no key says it is Premium")
+	}
+	if w := daemonCall(d, "POST", "/api/device/v1/premium", `{"key":"wbpremium-nonsense"}`); w.Code != 409 {
+		t.Fatalf("a key that does not check: %d %s", w.Code, w.Body)
+	}
+	if state()["premium"] != nil || d.state.PremiumKey() != "" {
+		t.Fatal("a refused key was kept")
+	}
+	text, err := entitlement.Issue(entitlement.Claims{ID: "pk_daemon", Holder: "Ada", IssuedAt: time.Now()}, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]string{"key": "  " + text + "\n"})
+	if w := daemonCall(d, "POST", "/api/device/v1/premium", string(body)); w.Code != 200 {
+		t.Fatalf("a good key: %d %s", w.Code, w.Body)
+	}
+	p, _ := state()["premium"].(map[string]any)
+	if p["id"] != "pk_daemon" || p["holder"] != "Ada" || strings.Contains(fmt.Sprint(state()), text) {
+		t.Fatalf("the state says %v; it names the key's ID and holder and never the key", p)
+	}
+	if d.state.PremiumKey() != text {
+		t.Fatal("the key was not kept for this person")
+	}
+	// A new daemon on the same data still has it: leaving or joining a workspace does not forget a person's key.
+	again, err := NewDaemon(DaemonOptions{Config: c, Log: quiet(), Version: "test", VerifyKey: func(text string) (entitlement.Claims, error) { return entitlement.Verify(text, pub) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.premiumView() == nil {
+		t.Fatal("the key did not survive a restart")
+	}
 }

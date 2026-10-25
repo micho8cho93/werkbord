@@ -26,6 +26,7 @@ import (
 type Service struct {
 	db   store.Store
 	base store.Store
+	plan PlanVerifier
 	now  func() time.Time
 	hub  *hub
 	// net is what makes the workspace's private network's certificates and
@@ -213,6 +214,13 @@ func (s *Service) ListMembers(ctx context.Context, a Actor) ([]domain.Member, er
 		out, err = tx.Members(ctx, a.Workspace.ID)
 		if err != nil {
 			return err
+		}
+		premiums, err := tx.MemberPremiums(ctx, a.Workspace.ID)
+		if err != nil {
+			return err
+		}
+		for i := range out {
+			out[i].Premium = premiums[out[i].ID] != ""
 		}
 		devices, err := tx.Devices(ctx, a.Workspace.ID, "")
 		if err != nil {

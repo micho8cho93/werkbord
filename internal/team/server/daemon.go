@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"devboard/internal/deviceid"
+	"devboard/internal/entitlement"
 	"devboard/internal/envelope"
 	"devboard/internal/httpkit"
 	"devboard/internal/team/config"
@@ -37,10 +38,12 @@ type DaemonOptions struct {
 	// LocalKey is supplied by the native service installer; empty uses a key in device state (CLI/dev).
 	LocalKey         string
 	RunnerConfigPath string
-	// Premium says the plan has no team size limit. Nothing sets it in production until the unlock key exists.
-	Premium bool
-	Version string
-	Log     *slog.Logger
+	// Unmetered switches the plan rules off. For tests only.
+	Unmetered bool
+	// VerifyKey checks a Premium unlock key; the build's own check (entitlement.VerifyKey) when nil. For tests, which have no stamped key.
+	VerifyKey func(string) (entitlement.Claims, error)
+	Version   string
+	Log       *slog.Logger
 	// Slot names this workspace among the workspaces on this computer ("main" for the first and, on an installation
 	// from before several were possible, the only one). HostingGuard and NetworkGuard are supplied by the Hub so that
 	// workspaces on one computer cannot take the same host ports or private-network addresses. Both may be nil.
@@ -78,8 +81,11 @@ type Daemon struct {
 }
 
 func NewDaemon(o DaemonOptions) (*Daemon, error) {
+	if o.VerifyKey == nil {
+		o.VerifyKey = entitlement.VerifyKey
+	}
 	o.Config.Production = true
-	o.Config.Premium = o.Premium
+	o.Config.Unmetered = o.Unmetered
 	if o.LocalAddr == "" {
 		o.LocalAddr = "127.0.0.1:7431"
 	}
@@ -177,6 +183,7 @@ func (d *Daemon) Handler() http.Handler {
 	mux.HandleFunc("GET /api/device/v1/state", d.localState)
 	mux.HandleFunc("GET /api/device/v1/summary", d.workspaceSummary)
 	mux.HandleFunc("POST /api/device/v1/create", d.createWorkspace)
+	mux.HandleFunc("POST /api/device/v1/premium", d.setPremium)
 	mux.HandleFunc("POST /api/device/v1/invitation", d.inspectInvitation)
 	mux.HandleFunc("POST /api/device/v1/join", d.joinWorkspace)
 	mux.HandleFunc("POST /api/device/v1/join/cancel", d.cancelJoin)
@@ -337,7 +344,7 @@ func (d *Daemon) stateView() map[string]any {
 		key, _ := deviceid.ParsePublicKey(s.PublicKey)
 		senders = append(senders, map[string]any{"deviceId": s.DeviceID, "name": s.Name, "publicKey": s.PublicKey, "identity": deviceid.Fingerprint(key), "approved": s.Approved()})
 	}
-	out := map[string]any{"daemon": true, "version": d.o.Version, "operation": op, "error": problem, "settings": d.state.Settings(), "senders": senders, "opened": d.state.OpenedTasks(), "approvals": d.state.Approvals(), "runner": map[string]any{"connected": runnerOK && time.Since(runnerCheck) < time.Minute, "configured": bridge != nil}, "sync": synced}
+	out := map[string]any{"daemon": true, "version": d.o.Version, "premium": d.premiumView(), "operation": op, "error": problem, "settings": d.state.Settings(), "senders": senders, "opened": d.state.OpenedTasks(), "approvals": d.state.Approvals(), "runner": map[string]any{"connected": runnerOK && time.Since(runnerCheck) < time.Minute, "configured": bridge != nil}, "sync": synced}
 	if d.o.Slot != "" {
 		out["slot"] = d.o.Slot
 	}

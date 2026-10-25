@@ -113,7 +113,17 @@ func unusable() error {
 // and is single-use unless its creator said otherwise. If anything fails (the
 // name is taken, say) the use is not counted.
 func (s *Service) RedeemInvite(ctx context.Context, code, name, email string) (Joined, error) {
-	name, err := domain.CleanName("member", name)
+	return s.RedeemInviteWith(ctx, code, name, email, "")
+}
+
+// RedeemInviteWith is RedeemInvite for a person who brings a Premium unlock key, which a team over the Free plan's size needs.
+func (s *Service) RedeemInviteWith(ctx context.Context, code, name, email, premiumKey string) (Joined, error) {
+	keyID, err := s.verifyKey(premiumKey)
+	if err != nil {
+		return Joined{}, err
+	}
+	ctx = withJoiner(ctx, keyID, true)
+	name, err = domain.CleanName("member", name)
 	if err != nil {
 		return Joined{}, err
 	}

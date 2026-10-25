@@ -13,9 +13,9 @@ import (
 	"devboard/internal/team/server"
 )
 
-// testPremium is set to "1" only by the test scripts that build this executable (-ldflags "-X main.testPremium=1") to run
-// teams larger than the Free plan's two people. No release script sets it (internal/archtest checks); the unlock key replaces
-// it. Empty in every shipped build.
+// testPremium is set to "1" only by the test scripts that build this executable (-ldflags "-X main.testPremium=1"), to run
+// teams larger than the Free plan's two people without unlock keys: it switches the plan rules off. No release script sets it
+// (internal/archtest checks). Empty in every shipped build.
 var testPremium string
 
 func cmdDaemon(ctx context.Context, cfg config.Config, args []string, stderr io.Writer) error {
@@ -47,7 +47,7 @@ func cmdDaemon(ctx context.Context, cfg config.Config, args []string, stderr io.
 	}
 	// One local service for every Team workspace on this computer; the first is where a single-workspace installation
 	// always kept its data, so an upgrade moves nothing.
-	hub, err := server.NewHub(server.DaemonOptions{Config: cfg, LocalAddr: *local, LocalKey: key, RunnerConfigPath: *runner, Premium: cfg.Premium, Version: version, Log: log})
+	hub, err := server.NewHub(server.DaemonOptions{Config: cfg, LocalAddr: *local, LocalKey: key, RunnerConfigPath: *runner, Unmetered: cfg.Unmetered, Version: version, Log: log})
 	if err != nil {
 		return err
 	}

@@ -137,6 +137,9 @@ type filedata struct {
 	Outcomes   []Outcome            `json:"outcomes"`
 	Replays    map[string]time.Time `json:"replays"`
 	LocalKey   string               `json:"localKey"`
+	// PremiumKey is the person's Premium unlock key, as they pasted it into the app. It is theirs and belongs to no workspace, so
+	// leaving a workspace keeps it. The workspaces a person belongs to are given it (and keep only its ID).
+	PremiumKey string `json:"premiumKey,omitempty"`
 }
 
 // State is the daemon's memory on this computer.
@@ -292,6 +295,20 @@ func (s *State) LocalKey() string {
 // CheckLocalKey compares a presented key in constant time.
 func (s *State) CheckLocalKey(k string) bool {
 	return subtle.ConstantTimeCompare([]byte(k), []byte(s.LocalKey())) == 1
+}
+
+// ---- the person's Premium unlock key ----
+
+// PremiumKey is the unlock key the person gave this computer, or "".
+func (s *State) PremiumKey() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.d.PremiumKey
+}
+
+// SetPremiumKey keeps the key. The caller has already checked it.
+func (s *State) SetPremiumKey(key string) error {
+	return s.update(func(d *filedata) error { d.PremiumKey = key; return nil })
 }
 
 // ---- settings ----

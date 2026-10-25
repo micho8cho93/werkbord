@@ -53,6 +53,9 @@ type Member struct {
 	Role        Role               `json:"role"`
 	CreatedAt   time.Time          `json:"createdAt"`
 	Connections *MemberConnections `json:"connections,omitempty"`
+	// Premium says the member has presented a valid Premium unlock key to this workspace. It is filled in by the service when
+	// members are listed; the key's ID stays in the store.
+	Premium bool `json:"premium,omitempty"`
 }
 
 // Can reports whether the member's role allows p.

@@ -40,6 +40,8 @@ type JoinParams struct {
 	// SealingPublicKey is set by a device that will be a Workspace Host: the public key
 	// (X25519, base64 raw URL) workspace secrets are sealed to when handed to it.
 	SealingPublicKey string
+	// PremiumKey is the person's Premium unlock key, if they have one, for a workspace that needs it from whoever joins.
+	PremiumKey string
 	// ExpectFingerprint, if set, is a workspace fingerprint the person learned some way
 	// other than from this invitation. Join refuses an invitation for any other key.
 	ExpectFingerprint string
@@ -93,7 +95,7 @@ func Join(ctx context.Context, inv Invitation, p JoinParams) (*Result, error) {
 		InviteID: inv.ID, Credential: inv.Credential, MemberName: p.MemberName,
 		DeviceID: p.Signer.DeviceID(), DeviceName: p.DeviceName,
 		DevicePublicKey:  base64.RawURLEncoding.EncodeToString(p.Signer.PublicKey()),
-		NetworkPublicKey: p.NetworkPublicKeyPEM, SealingPublicKey: p.SealingPublicKey,
+		NetworkPublicKey: p.NetworkPublicKeyPEM, SealingPublicKey: p.SealingPublicKey, PremiumKey: p.PremiumKey,
 	}
 	resp, endpoint, err := c.firstEndpoint(ctx, func(ctx context.Context, ep string) (Response, error) {
 		return c.send(ctx, ep, http.MethodPost, PathJoin, func(ex []byte) (any, error) {

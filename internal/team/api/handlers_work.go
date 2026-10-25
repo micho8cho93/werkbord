@@ -319,11 +319,13 @@ func (s *Server) handleRedeemInvite(w http.ResponseWriter, r *http.Request) {
 		Code  string `json:"code"`
 		Name  string `json:"name"`
 		Email string `json:"email"`
+		// Premium is the person's unlock key, for a team that is over the Free plan's size.
+		Premium string `json:"premium"`
 	}
 	if !s.decode(w, r, &in) {
 		return
 	}
-	j, err := s.opt.Service.RedeemInvite(r.Context(), in.Code, in.Name, in.Email)
+	j, err := s.opt.Service.RedeemInviteWith(r.Context(), in.Code, in.Name, in.Email, in.Premium)
 	s.respond(w, r, http.StatusCreated, j, err)
 }
 
@@ -336,4 +338,21 @@ func (s *Server) handleJoinInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	j, err := s.opt.Service.JoinWithInvite(r.Context(), actorOf(r), in.Code)
 	s.respond(w, r, http.StatusOK, j, err)
+}
+
+func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
+	st, err := s.opt.Service.PlanState(r.Context(), actorOf(r))
+	s.respond(w, r, http.StatusOK, st, err)
+}
+
+// handlePresentPremium gives the team the signed-in member's Premium unlock key. The key is checked and only its ID is kept.
+func (s *Server) handlePresentPremium(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Key string `json:"key"`
+	}
+	if !s.decode(w, r, &in) {
+		return
+	}
+	st, err := s.opt.Service.PresentPremium(r.Context(), actorOf(r), in.Key)
+	s.respond(w, r, http.StatusOK, st, err)
 }

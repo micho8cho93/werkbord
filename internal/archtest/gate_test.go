@@ -8,14 +8,14 @@ import (
 	"testing"
 )
 
-func TestProductionTeamAlwaysHoldsTheFreePlanSizeAndDeviceAuthentication(t *testing.T) {
+func TestProductionTeamAlwaysHoldsTheFreePlanAndDeviceAuthentication(t *testing.T) {
 	root := moduleRoot(t)
 	for path, need := range map[string][]string{
 		"internal/team/config/config.go":         {"c.Production = true", `c.KeyStorage = "os"`},
-		"internal/team/server/server.go":         {"RequireDeviceProof: true", "configureTeamSize(svc, cfg)"},
-		"internal/team/server/storage_create.go": {"configureTeamSize(w.Service, cfg)"},
+		"internal/team/server/server.go":         {"RequireDeviceProof: true", "configurePlan(svc, cfg)"},
+		"internal/team/server/storage_create.go": {"configurePlan(w.Service, cfg)"},
 		"internal/team/server/daemon.go":         {"o.Config.Production = true"},
-		"internal/team/server/teamsize.go":       {"svc.EnforceTeamSize(entitlement.TeamLimit(cfg.Premium))"},
+		"internal/team/server/plan.go":           {"svc.EnforcePlan("},
 		"internal/team/infra/overlay/overlay.go": {`root = root.add("sshd", tree{}.add("enabled", false))`},
 	} {
 		b, err := os.ReadFile(filepath.Join(root, path))
