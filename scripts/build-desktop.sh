@@ -164,15 +164,9 @@ fi
 # ---- the Team service the app carries ----
 # TEAM_PAYLOAD=0 leaves it out, for the tests that are about signing and updating and not about Team. A release always has it.
 TEAM_PAYLOAD=${TEAM_PAYLOAD:-1}
-ISSUER=${LICENSE_ISSUER_PUBLIC_KEY:-}
-if [ -n "$ISSUER" ]; then
-  [ ${#ISSUER} -eq 43 ] || die "the license issuer's public key must encode 32 bytes"
-  case "$ISSUER" in *[!A-Za-z0-9_-]*) die "the license issuer's public key must use raw URL base64" ;; esac
-fi
 SIGNING_TEAM=""
 if [ -n "$RELEASE" ]; then
   [ "$TEAM_PAYLOAD" != 0 ] || die "a release carries Team's service"
-  [ -n "$ISSUER" ] || die "a release requires LICENSE_ISSUER_PUBLIC_KEY (the public key that checks Team licenses); no test issuer is shipped"
   # The Team service refuses to install unless the app was signed by this Apple Developer team (desktop/internal/teaminstall/release.go).
   SIGNING_TEAM=$(printf '%s' "$IDENTITY" | sed -n 's/^Developer ID Application: .* (\([A-Z0-9]\{10\}\))$/\1/p')
   [ -n "$SIGNING_TEAM" ] || die "cannot read the Apple Developer team from the identity \"$IDENTITY\" (expected \"Developer ID Application: Name (TEAMID)\")"
@@ -236,7 +230,7 @@ fi
 chmod 755 "$APP/Contents/Helpers/werkbord" "$APP/Contents/MacOS/Werkbord"
 rm -f $HELPERS $WINDOWS
 
-# The Team service the app carries and installs when a person adds a Team (docs/ARCHITECTURE.md#distribution-licensing-and-updates). It is part of this
+# The Team service the app carries and installs when a person adds a Team (docs/ARCHITECTURE.md#distribution-plans-and-updates). It is part of this
 # release: built here, from this commit, at this version, and signed with the same Developer ID, including the rebuilt, patched Nebula binary. Nothing is installed or started until a person asks.
 if [ "$TEAM_PAYLOAD" != 0 ]; then
   H="$APP/Contents/Helpers"
@@ -275,7 +269,7 @@ if [ "$TEAM_PAYLOAD" != 0 ]; then
   for a in $ARCHS; do
     c=$(carch "$a")
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0" \
-      go build -trimpath -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION -X main.licenseIssuer=$ISSUER -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$NETWORK_SHA" \
+      go build -trimpath -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$NETWORK_SHA" \
       -o "$STAGE/team-$a" ./cmd/werkbord-team
     TEAMS="$TEAMS $STAGE/team-$a"
   done

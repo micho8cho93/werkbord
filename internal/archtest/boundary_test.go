@@ -48,6 +48,7 @@ var teamAllowed = []string{
 	teamCmd,
 	teamTree, // and below
 	module + "/internal/httpkit",
+	module + "/internal/entitlement",  // the Free plan's team size and, later, the offline check of an unlock key: no workspace, role or storage
 	module + "/internal/mcpcontract",  // product-neutral MCP protocol framing and project/operation scope contract
 	module + "/internal/mcpplan",      // product-neutral batch plan requests and temporary task identifiers
 	module + "/internal/mcpbridge",    // product-neutral stdio client bridge; credentials and operations stay with each product
@@ -211,7 +212,7 @@ func allowedForTeam(p string) bool {
 }
 
 // Rule 1: the controller links no Team code. It runs a person's agents and commands as them, so nothing that holds Team's
-// network, database, keys or license machinery (some of it runs as root, in a service of its own) belongs in its build.
+// network, database or key machinery (some of it runs as root, in a service of its own) belongs in its build.
 func TestTheControllerDoesNotLinkTeam(t *testing.T) {
 	closure := goList(t, "-deps", "./cmd/werkbord")
 	for _, p := range closure {

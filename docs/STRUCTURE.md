@@ -19,14 +19,13 @@ Werkbord is **one product with one version and one release** (`cmd/werkbord/VERS
 Everything in the desktop app has the one version, Team's service included. The controller and the Team service are separate
 executables and separate processes on purpose, not for packaging: the Team service runs as a privileged system service
 (it creates the private network interface), while the controller runs agents as the person, so the two never share a process or
-a credential. Individual is free; each Team workspace carries an offline license. Adding a Team is an explicit action. Individual
-works without a license, a Team service or a vendor login. How the window, the Team service and the installer fit together:
+a credential. Everything is free for one person and for a team of two; a team of three or more needs Premium, an unlock key held by each member ([PLANS.md](PLANS.md)). There is no licence and no vendor login. Adding a Team is an explicit action. Personal work
+needs no Team service. How the window, the Team service and the installer fit together:
 [ARCHITECTURE.md §22](ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped).
 
-Team defaults to customer-owned Nebula, administrator-approved enrollment, device-signed remote API requests and offline signed
-license enforcement. There is no Team Tailscale account or vendor runtime requirement. Customers operate their Workspace and
+Team defaults to customer-owned Nebula, administrator-approved enrollment and device-signed remote API requests. There is no Team Tailscale account or vendor runtime requirement. Customers operate their Workspace and
 Connectivity Hosts, backups and local runners. Individual's tsnet support is separate. See [TEAM_SECURITY.md](TEAM_SECURITY.md),
-[TEAM_INSTALL.md](TEAM_INSTALL.md), [TEAM_LICENSE.md](TEAM_LICENSE.md) and the [release gate](TEAM_SECURITY_GATE.md).
+[TEAM_INSTALL.md](TEAM_INSTALL.md), [PLANS.md](PLANS.md) and the [release gate](TEAM_SECURITY_GATE.md).
 
 > **Naming.** Werkbord was called Dev Board. Since Werkbord 1.0 the executable is `werkbord`, and everything a person
 > sees or types says so. What existing installs depend on keeps working, indefinitely and without nagging: the `devboard`
@@ -143,7 +142,7 @@ All of it goes under `internal/team/`, and the program under `cmd/werkbord-team/
 | `internal/team/infra/…` | Team's own **infrastructure**, imported only by `server` and `cmd/werkbord-team`: `pki` (the workspace's keys and the network's certificates, sealed), `overlay` (the node description, the default-deny policy, rendering), `nebula` (the supervisor of the one pinned network program, and its pin), `rqlite` (the supervisor of the one pinned database program, its pin and its admin client), `overlaynet` (the network as a `transport.Transport`). Never handles a request. See [TEAM_NETWORK.md](TEAM_NETWORK.md) and [TEAM_STORAGE.md](TEAM_STORAGE.md). |
 | `internal/team/store/replicated` | Team's storage on a cluster of Workspace Hosts: a `store.Store` over rqlite (a use case runs on the host's own copy and its writes are one guarded rqlite transaction), the host's copy, backups and restore, and the move of an existing `team.db`. The only code that talks to the database; imported only by `server` and `cmd/werkbord-team`. See [ADR 0003](adr/0003-replicated-workspace-storage.md). |
 
-Billing, licensing, SSO, audit logs, and anything else only the paid product has belong here too. The `workspace`,
+Team size and, later, SSO, audit logs and anything else only Premium has belong here too (the rule itself is the shared `internal/entitlement`). The `workspace`,
 `project`, `ticket`, `invite` and `activity` concepts all live in `internal/team/domain`; the ticket workflow is
 `internal/team/service/tickets.go`, repository awareness is `internal/team/service/repostate.go`. Do **not**
 add a `teamMode` flag, a Team-only branch, or a Team import to one of Individual's packages, and do not add Team screens or
@@ -181,7 +180,7 @@ certificate authority, signed invitations, enrollment over TLS, discovery hosts 
 default-deny policy, revocation in two layers, and the authority handed to more than one Workspace Host. Werkbord operates none
 of it. See [TEAM_NETWORK.md](TEAM_NETWORK.md) and [the decision](adr/0002-customer-owned-network.md).
 
-Not built yet: a payment backend, automatic seat enforcement, HTTPS (put Team behind a TLS proxy), ownership transfer,
+Not built yet: a payment backend and the Premium unlock key ([PLANS.md](PLANS.md)), HTTPS (put Team behind a TLS proxy), ownership transfer,
 comments and chat (Team coordinates; it is not a messenger), a Windows installer.
 
 ## Running and building
@@ -259,7 +258,7 @@ Beyond those, `internal/archtest` also keeps the production foundation honest (s
 15. no code that runs in Team's network contains a URL that leads anywhere but this computer: Werkbord operates no service
     Team could be pointed at;
 16. every setting Team reads is its own (`WERKBORD_TEAM_*`) and none names a service, an account or a URL;
-17. coordination records contain no device/authority private signing key. The service verifies licenses using only a vendor public key; the separate offline issuer is under `cmd/werkbord-team/vendor` and is never packaged with customers.
+17. coordination records contain no device/authority private signing key. The offline release signer under `cmd/werkbord-team/vendor` is never packaged with customers.
 
 The assistant has its own (`internal/archtest/assistant_test.go`, [ASSISTANT.md](ASSISTANT.md)):
 
@@ -273,7 +272,7 @@ The assistant has its own (`internal/archtest/assistant_test.go`, [ASSISTANT.md]
 22. the assistant's permissions are the reviewed list: none of them is about starting or stopping a run, Git, a setting,
     a repository, or deleting core data. Owner-only personal workspace deletion is a reviewed personal proposal, with mandatory human confirmation and transactional collection-dependency checks (see PERSONAL_WORKSPACES.md).
 
-The gate also fixes the production license/authentication wiring in architecture tests and restricts the native Keychain wrapper to reviewed Security/memory calls. Typed local license-file/public-key configuration is permitted; no online license/vendor URL is introduced. Runner operations stay the reviewed semantic bridge, never a general remote administration API.
+The gate also fixes the production team-size and authentication wiring in architecture tests and restricts the native Keychain wrapper to reviewed Security/memory calls. There is one build: no release script, build tag or linker flag selects an edition (`TestThereIsOneBuildAndNoEditionIsSelectedAtBuildTime`). Runner operations stay the reviewed semantic bridge, never a general remote administration API.
 
 The Go module is shared, so `go.mod` lists every dependency of every executable; what counts is what each executable is built
 from, which is what these checks inspect.

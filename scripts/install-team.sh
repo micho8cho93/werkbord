@@ -160,5 +160,5 @@ case ":$PATH:" in
 esac
 say ""
 say "Next:"
-say "  WERKBORD_TEAM_LICENSE_FILE=/secure/team-license.json werkbord-team workspace create --name \"Your team\" --owner \"Your name\""
+say "  werkbord-team workspace create --name \"Your team\" --owner \"Your name\""
 say "  werkbord-team serve"

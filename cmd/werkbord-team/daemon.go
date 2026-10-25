@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"flag"
 	"io"
@@ -14,8 +13,10 @@ import (
 	"devboard/internal/team/server"
 )
 
-// licenseIssuer is stamped into both the service and the app at release time. Never a private key.
-var licenseIssuer string
+// testPremium is set to "1" only by the test scripts that build this executable (-ldflags "-X main.testPremium=1") to run
+// teams larger than the Free plan's two people. No release script sets it (internal/archtest checks); the unlock key replaces
+// it. Empty in every shipped build.
+var testPremium string
 
 func cmdDaemon(ctx context.Context, cfg config.Config, args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("daemon", flag.ContinueOnError)
@@ -40,14 +41,13 @@ func cmdDaemon(ctx context.Context, cfg config.Config, args []string, stderr io.
 			return flag.ErrHelp
 		}
 	}
-	pub, _ := base64.RawURLEncoding.DecodeString(licenseIssuer)
 	log, err := logging.New(stderr, cfg.LogLevel, cfg.LogFormat)
 	if err != nil {
 		return err
 	}
 	// One local service for every Team workspace on this computer; the first is where a single-workspace installation
 	// always kept its data, so an upgrade moves nothing.
-	hub, err := server.NewHub(server.DaemonOptions{Config: cfg, LocalAddr: *local, LocalKey: key, RunnerConfigPath: *runner, LicenseKey: pub, Version: version, Log: log})
+	hub, err := server.NewHub(server.DaemonOptions{Config: cfg, LocalAddr: *local, LocalKey: key, RunnerConfigPath: *runner, Premium: cfg.Premium, Version: version, Log: log})
 	if err != nil {
 		return err
 	}

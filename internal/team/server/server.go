@@ -65,7 +65,7 @@ func RunWith(ctx context.Context, cfg config.Config, log *slog.Logger, version s
 		return err
 	}
 	svc := service.New(st.DB())
-	configureLicense(svc, cfg)
+	configureTeamSize(svc, cfg)
 	st.Attach(svc, nil)
 	st.Start(ctx)
 	defer func() {

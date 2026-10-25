@@ -3,9 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -23,7 +20,6 @@ import (
 	"devboard/internal/team/domain"
 	"devboard/internal/team/hostclient"
 	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/license"
 	"devboard/internal/team/service"
 )
 
@@ -84,10 +80,6 @@ func TestDeviceAPIRequiresLocalAuthenticationAndSameOrigin(t *testing.T) {
 	w = daemonCall(d, "PUT", "/api/device/v1/settings", `{"remoteStart":"auto","werkbordBase":"http://192.168.1.1:7420"}`)
 	if w.Code != 409 || d.state.Settings().RemoteStart != "ask" {
 		t.Fatal("a network controller changed local execution policy")
-	}
-	w = daemonCall(d, "POST", "/api/device/v1/create", `{"name":"Team","owner":"Ada"}`)
-	if w.Code != 409 {
-		t.Fatal("a workspace was created without an active license")
 	}
 	c := d.o.Config
 	if _, err := NewDaemon(DaemonOptions{Config: c, LocalAddr: "0.0.0.0:7431"}); err == nil {
@@ -193,16 +185,9 @@ func TestCreateTeamRunsInDaemonAndTheLastHostCannotBeRemoved(t *testing.T) {
 	cfg.RunNode = false // Tests have no right to install a network interface or OS service.
 	cfg.Addr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
 	cfg.BootstrapAddr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
-	pub, key, _ := ed25519.GenerateKey(rand.Reader)
-	d, err := NewDaemon(DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), LicenseKey: pub, Log: quiet(), Version: "test"})
+	d, err := NewDaemon(DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Premium: true, Log: quiet(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)
-	}
-	claims, _ := json.Marshal(license.Claims{Product: "werkbord-team", ID: "lic_test", Customer: "Test", Seats: 5, IssuedAt: time.Now().Add(-time.Hour), ExpiresAt: time.Now().Add(time.Hour)})
-	doc := `{"claims":` + string(claims) + `,"signature":"` + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, license.SigningBytes(claims))) + `"}`
-	input, _ := json.Marshal(map[string]string{"document": doc})
-	if w := daemonCall(d, "POST", "/api/device/v1/license", string(input)); w.Code != 200 {
-		t.Fatal(w.Body)
 	}
 	run := func(d *Daemon) (context.CancelFunc, <-chan error) {
 		ctx, cancel := context.WithCancel(bg)
@@ -318,25 +303,12 @@ func TestTeamDesktopBrowserFixture(t *testing.T) {
 	if dir == "" {
 		t.Skip("browser harness only")
 	}
-	pub, key, _ := ed25519.GenerateKey(rand.Reader)
-	claims, _ := json.MarshalIndent(license.Claims{Product: "werkbord-team", ID: "lic_fixture", Customer: "Browser test", Seats: 10, IssuedAt: time.Now().Add(-time.Hour), ExpiresAt: time.Now().Add(time.Hour)}, "", "  ")
-	doc := []byte(`{"claims":` + string(claims) + `,"signature":"` + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, license.SigningBytes(claims))) + `"}`)
-	if err := os.WriteFile(filepath.Join(dir, "license.json"), doc, 0600); err != nil {
-		t.Fatal(err)
-	}
-	perpetual, err := license.Issue(license.Claims{Schema: license.Schema, Product: "werkbord-team", Edition: license.EditionTeam, ID: "lic_fixture_perpetual", Customer: "Browser test", Seats: 10, IssuedAt: time.Now().Add(-time.Hour)}, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "perpetual-license.json"), perpetual, 0600); err != nil {
-		t.Fatal(err)
-	}
 	makeDaemon := func() *Daemon {
 		cfg := storageCfg(t)
 		cfg.RunNode = false
 		cfg.Addr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
 		cfg.BootstrapAddr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
-		d, err := NewDaemon(DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), LicenseKey: pub, Log: quiet(), Version: "browser-fixture", RunnerConfigPath: filepath.Join(dir, "runner-config.json")})
+		d, err := NewDaemon(DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Premium: true, Log: quiet(), Version: "browser-fixture", RunnerConfigPath: filepath.Join(dir, "runner-config.json")})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -417,17 +389,13 @@ func TestUnifiedDesktopBrowserFixture(t *testing.T) {
 	if dir == "" {
 		t.Skip("browser harness only")
 	}
-	pub, key, _ := ed25519.GenerateKey(rand.Reader)
-	claims, _ := json.Marshal(license.Claims{Product: "werkbord-team", ID: "lic_fixture", Customer: "Shell fixture", Seats: 10, IssuedAt: time.Now().Add(-time.Hour), ExpiresAt: time.Now().Add(time.Hour)})
-	doc := []byte(`{"claims":` + string(claims) + `,"signature":"` + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, license.SigningBytes(claims))) + `"}`)
-	_ = os.WriteFile(filepath.Join(dir, "license.json"), doc, 0600)
 	options := func() DaemonOptions {
 		cfg := storageCfg(t)
 		cfg.RunNode = false
 		cfg.Addr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
 		cfg.BootstrapAddr = fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))
 		cfg.EmbedOrigins = []string{os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")}
-		return DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), LicenseKey: pub, Log: quiet(), Version: "browser-fixture"}
+		return DaemonOptions{Config: cfg, LocalAddr: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t)), Premium: true, Log: quiet(), Version: "browser-fixture"}
 	}
 	hub, err := NewHub(options())
 	if err != nil {

@@ -7,8 +7,6 @@ let invitationLink = '';
 let activeRequest = null;
 let runnerStatus = null;
 let requestRefresh = null;
-// Keep the selected file outside the rendered form: live refreshes replace its DOM.
-let selectedLicenseFile = null;
 
 async function deviceApi(method, path, body) {
   const res = await fetch(BASE + '/api/device/v1' + path, { method, headers: { Authorization: 'Bearer ' + state.token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
@@ -54,11 +52,10 @@ function setupBack() { return h('button', { class: 'link', type: 'button', oncli
 function onboardingScreen() {
   const error = state.error || state.device?.error;
   if (setupView === 'create') {
-    if (!state.device.license) return setupShell(setupBack(), h('h1', {}, 'Activate Werkbord Team'), h('p', { class: 'muted' }, 'Import the license supplied with your Team purchase. It is verified on this computer; no networking account is needed.'), error ? h('p', { class: 'error', role: 'alert' }, error) : '', licenseImport(), alwaysOnHelp());
     const name = h('input', { name: 'setup-team', required: true, maxlength: 80, autocomplete: 'organization', placeholder: 'Your team name' });
     const owner = h('input', { name: 'setup-owner', required: true, maxlength: 80, autocomplete: 'name' });
     const email = h('input', { name: 'setup-email', type: 'email', maxlength: 254, autocomplete: 'email' });
-    return setupShell(setupBack(), h('h1', {}, 'Create your workspace'), h('p', { class: 'muted' }, 'This computer becomes your first Workspace Host. You will be the owner. Invite your teammates after setup.'),
+    return setupShell(setupBack(), h('h1', {}, 'Create your workspace'), h('p', { class: 'muted' }, 'This computer becomes your first Workspace Host. You will be the owner. Invite your teammates after setup.'), h('p', { class: 'muted' }, 'The Free plan allows a team of two people: you and a partner. A team of three or more needs Premium.'),
       error ? h('p', { class: 'error', role: 'alert' }, error) : '',
       h('form', { onsubmit: e => { e.preventDefault(); act(() => deviceApi('POST', '/create', { name: name.value, owner: owner.value, email: email.value })); } }, field('Team name', name), field('Your name', owner), field('Email (optional)', email), h('button', { class: 'primary' }, 'Create workspace')), alwaysOnHelp());
   }
@@ -86,47 +83,6 @@ function desktopConnecting(serviceRunning = true) {
     h('p', { class: 'muted', role: 'status' }, serviceRunning ? 'Your Team service is running. Keep a Workspace Host online so your workspace stays available.' : 'Check the connection. If the Team service is stopped, start it to reconnect.'),
     state.error ? h('p', { class: 'error', role: 'alert' }, state.error) : '',
     h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => render() }, 'Try again'), !serviceRunning && nativeApp() ? h('button', { class: 'plain', onclick: () => act(() => nativeApp().Service('start')) }, 'Start Team service') : ''), alwaysOnHelp());
-}
-
-function licenseImport() {
-  const selected = h('p', { class: 'muted license-selection', role: 'status' });
-  const activate = h('button', { class: 'primary', type: 'submit' }, 'Activate license');
-  const update = () => {
-    selected.textContent = selectedLicenseFile ? 'Selected: ' + selectedLicenseFile.name : 'No license file selected.';
-    activate.disabled = !selectedLicenseFile;
-    const transfer = new DataTransfer();
-    if (selectedLicenseFile) transfer.items.add(selectedLicenseFile);
-    file.files = transfer.files;
-  };
-  const choose = files => {
-    if (actionBusy || !files?.length) return;
-    selectedLicenseFile = files.length === 1 ? files[0] : null;
-    state.error = files.length > 1 ? 'Choose one license file at a time.' : selectedLicenseFile.size > 16384 ? 'This license file is too large. Choose a license file up to 16 KiB.' : '';
-    if (state.error) selectedLicenseFile = null;
-    update();
-    render();
-  };
-  const file = h('input', { type: 'file', accept: '.json,.werkbord-license,application/json', name: 'license-file', 'aria-describedby': 'license-file-help', onchange: e => choose(e.currentTarget.files) });
-  update();
-  return h('form', { class: 'license-import',
-    ondragover: e => {
-      if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
-      e.preventDefault(); e.dataTransfer.dropEffect = actionBusy ? 'none' : 'copy';
-      if (!actionBusy) e.currentTarget.classList.add('license-drop-over');
-    },
-    ondragleave: e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('license-drop-over'); },
-    ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('license-drop-over'); choose(e.dataTransfer?.files); },
-    onsubmit: e => { e.preventDefault(); act(async () => {
-      const licenseFile = selectedLicenseFile;
-      if (!licenseFile) throw new Error('Choose or drop your license file.');
-      const document = await licenseFile.text();
-      try { JSON.parse(document); } catch (_) { throw new Error('Choose a valid Werkbord Team license JSON file.'); }
-      await deviceApi('POST', '/license', { document });
-      selectedLicenseFile = null;
-      state.device = await deviceApi('GET', '/state');
-      state.info = 'Your Team license is active.';
-    }); }
-  }, field('License file', file, h('span', { id: 'license-file-help', class: 'muted' }, 'Drop your license here or choose a file.')), selected, activate);
 }
 
 function alwaysOnHelp() {
@@ -182,7 +138,6 @@ async function administrationView(tab) {
     case 'hosts': return devicesView(true);
     case 'connectivity': return connectivityView();
     case 'backups': return backupsView();
-    case 'license': return licenseView();
     case 'settings': return settingsView();
     case 'mcp': return mcpClientsView();
     case 'labels': return labelsView();
@@ -272,13 +227,6 @@ async function backupsView() {
     h('p', { class: 'muted' }, b?.configured ? 'This host takes backups automatically. Replication keeps Team available; backups protect against accidental changes and disk loss. Keep an additional copy on a separate disk.' : 'Backups have not been configured on this host. Use the desktop service to enable automatic backups.'),
     b?.configured ? h('p', { class: 'muted' }, 'Backup folder: ' + b.destination + ' · ' + b.count + ' retained') : '',
     can('devices.manage') ? h('button', { class: 'primary', onclick: () => act(async () => { await api('POST', '/storage/backup'); state.info = 'Your backup was taken and checked.'; }) }, 'Back up now') : '');
-}
-
-function licenseView() {
-  if (!state.desktop) return h('section', { class: 'panel' }, h('h2', {}, 'Team license'), h('p', { class: 'muted' }, 'Open Werkbord on this computer to manage its Team license.'));
-  const l = state.device.license;
-  return h('section', { class: 'panel' }, h('h2', {}, 'Werkbord Team license'), l ? [h('p', { class: 'ok' }, 'Active for ' + l.customer), h('p', { class: 'muted' }, l.seats + ' seats · ' + (l.expiresAt ? 'expires ' + new Date(l.expiresAt).toLocaleDateString() : 'no runtime expiry'))] : h('p', { class: 'muted' }, state.me.member.role === 'owner' ? state.device.licenseError : 'This workspace’s owner manages the Team license.'),
-    state.me.member.role === 'owner' ? licenseImport() : h('p', { class: 'muted' }, 'The workspace owner manages its license.'));
 }
 
 let nativeTransport;

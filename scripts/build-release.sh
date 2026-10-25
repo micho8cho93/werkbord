@@ -51,7 +51,6 @@ BUNDLE_RQLITE=${BUNDLE_RQLITE:-yes}
 PLATFORMS=${PLATFORMS:-"darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64"}
 
 if [ "$PRODUCT" = werkbord-team ] && [ "$BUNDLE_NEBULA" != no ]; then
-  [ -n "${LICENSE_ISSUER_PUBLIC_KEY:-}" ] || { echo "Team distribution requires LICENSE_ISSUER_PUBLIC_KEY" >&2; exit 1; }
   [ -n "${WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE:-}" ] || { echo "Team distribution requires an offline release signing key file" >&2; exit 1; }
 fi
 if command -v sha256sum >/dev/null 2>&1; then
@@ -116,7 +115,7 @@ for p in $PLATFORMS; do
   extra_flags=$(scripts/release-build-flags.sh)
   cgo=0
   if [ "$PRODUCT" = werkbord-team ]; then
-    extra_flags="$extra_flags -X main.licenseIssuer=${LICENSE_ISSUER_PUBLIC_KEY:-} -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$database_pin -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$network_pin"
+    extra_flags="$extra_flags -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$database_pin -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$network_pin"
     if [ "$os" = darwin ] && [ "$(uname -s)" = Darwin ]; then
       cgo=1
       case "$arch" in arm64) c_arch=arm64 ;; amd64) c_arch=x86_64 ;; esac

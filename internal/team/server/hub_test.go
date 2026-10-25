@@ -167,7 +167,7 @@ func TestTheHubNeedsTheDevicesOwnCredentialAndRefusesOtherPages(t *testing.T) {
 func TestADeviceInstalledBeforeSeveralWorkspacesKeepsItsDataInTheFirstSlot(t *testing.T) {
 	c := config.Default()
 	c.DataDir = t.TempDir()
-	// An earlier single-workspace installation: its license and local state sit directly in the data directory.
+	// An earlier single-workspace installation: its identity and local state sit directly in the data directory.
 	if err := os.WriteFile(filepath.Join(c.DataDir, "license.json"), []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +371,7 @@ func TestAPersonJoinsTwoWorkspacesAndLeavingOneLeavesTheOtherAlone(t *testing.T)
 	if len(got) != 2 || !got[0].Enrolled || !got[1].Enrolled || got[0].Workspace.ID == got[1].Workspace.ID {
 		t.Fatalf("list = %+v", got)
 	}
-	// Each workspace has its own device identity, vault and license directory: nothing is shared but the window's credential.
+	// Each workspace has its own device identity, vault and directory: nothing is shared but the window's credential.
 	a, b := h.slots[MainSlot].d, h.slots[second].d
 	if a.mat.Host.DeviceID() == b.mat.Host.DeviceID() {
 		t.Fatal("one device identity is used in two workspaces")
@@ -382,12 +382,12 @@ func TestAPersonJoinsTwoWorkspacesAndLeavingOneLeavesTheOtherAlone(t *testing.T)
 	if a.mat.Meta.Authority || b.mat.Meta.Authority {
 		t.Fatal("joining made a member a Workspace Host")
 	}
-	// A license imported for one workspace's slot is not another's.
-	if err := writeDaemonFile(filepath.Join(a.o.Config.DataDir, "license.json"), []byte("{}")); err != nil {
+	// A file written into one workspace's slot is not in another's.
+	if err := writeDaemonFile(filepath.Join(a.o.Config.DataDir, "slot-marker.json"), []byte("{}")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(b.o.Config.DataDir, "license.json")); !os.IsNotExist(err) {
-		t.Fatal("a license reached another workspace")
+	if _, err := os.Stat(filepath.Join(b.o.Config.DataDir, "slot-marker.json")); !os.IsNotExist(err) {
+		t.Fatal("a file written for one workspace reached another")
 	}
 	// The workspaces overlap in neither network nor hosting, so both are accepted. Leaving B (here, the step after
 	// the workspace has revoked the device) leaves A running, and its slot can then be forgotten.

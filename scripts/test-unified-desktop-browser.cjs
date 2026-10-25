@@ -25,8 +25,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const team = (method, route, body) => api(m.first, m.firstKey, method, '/api/team/v1' + route, body);
  const other = (method, route, body) => api(m.other, m.otherKey, method, '/api/device/v1' + route, body);
  const otherTeam = (method, route, body) => api(m.other, m.otherKey, method, '/api/team/v1' + route, body);
- const license = fs.readFileSync(path.join(temp, 'license.json'), 'utf8');
- for (const device of [dev, other]) { await device('POST', '/license', { document: license }); await device('POST', '/create', { name: device === dev ? 'Northstar Studio' : 'Second workspace', owner: 'Ada' }); }
+ for (const device of [dev, other]) { await device('POST', '/create', { name: device === dev ? 'Northstar Studio' : 'Second workspace', owner: 'Ada' }); }
  await wait(async () => (await dev('GET', '/state')).connected && (await other('GET', '/state')).connected, 'two independent hosts');
  const invite = await otherTeam('POST', '/enrollment-invitations', { label: 'Second membership', role: 'member', capabilities: [], requireApproval: true, expiresInHours: 1 });
  const slot = (await dev('POST', '/workspaces', {})).slot;
@@ -222,7 +221,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  // Settings is one screen of the window, whichever part of Werkbord it is opened from; Team's sections are shown by Team's own page.
  await switchTo('team:main'); await side.locator('[data-page=settings]').click();
  await sections.waitFor();
- for (const label of ['Appearance', 'Alerts', 'Labels', 'This computer', 'Workspace Hosts', 'Phones', 'MCP clients', 'Team memory', 'Backups', 'License']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
+ for (const label of ['Appearance', 'Alerts', 'Labels', 'This computer', 'Workspace Hosts', 'Phones', 'MCP clients', 'Team memory', 'Backups']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
  for (const label of ['Task defaults', 'Routing rules', 'Individual memory', 'GitHub']) assert.equal(await sections.getByRole('button', { name: label, exact: true }).count(), 0, label + ' is Individual\'s, not Team\'s');
  const hostedMain = page.frameLocator('iframe[data-hosted="team:main"]');
  await sections.getByRole('button', { name: 'This computer', exact: true }).click();

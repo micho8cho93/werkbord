@@ -36,7 +36,7 @@ const FRAMED = window.parent !== window;
 const HOSTED = FRAMED && new URLSearchParams(location.search).get('hosted') === '1';
 
 const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'Members']];
-const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups'], ['license', 'License']];
+const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups']];
 const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'project-settings']);
 const SETTINGS_PARTS = new Set(['computer', 'phones', 'memory', 'history']);
 
@@ -513,7 +513,7 @@ async function renderNow() {
       case 'members': body = await membersView(); break;
       case 'analytics': body = await analyticsView(); break;
       case 'plans': body = await mcpPlansView(); break;
-      case 'devices': case 'hosts': case 'connectivity': case 'backups': case 'license': case 'settings': case 'mcp': case 'labels': body = await administrationView(state.tab); break;
+      case 'devices': case 'hosts': case 'connectivity': case 'backups': case 'settings': case 'mcp': case 'labels': body = await administrationView(state.tab); break;
       default: body = await projectScopedView();
     }
   } catch (e) {

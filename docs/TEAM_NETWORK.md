@@ -52,7 +52,6 @@ Team still starts no developer process anywhere ([STRUCTURE.md](STRUCTURE.md)).
 On the machine that will be the first Workspace Host:
 
 ```bash
-export WERKBORD_TEAM_LICENSE_FILE=/customer/licenses/team.json
 werkbord-team workspace create --name "Acme" --owner "Ada" \
     --endpoint team.example.org          # a name or address at which this machine can be reached from outside
 werkbord-team serve

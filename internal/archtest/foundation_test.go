@@ -31,6 +31,7 @@ var sharedPackages = []string{
 	module + "/internal/deviceid/localidentity",
 	module + "/internal/envelope",
 	module + "/internal/enrollment",
+	module + "/internal/entitlement",
 }
 
 func isShared(p string) bool {

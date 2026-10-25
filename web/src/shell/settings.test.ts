@@ -62,6 +62,6 @@ describe('which section a page’s link to settings means', () => {
     expect(sectionForPlace(groups, 'team:a', '?tab=devices')?.id).toBe('team:a/devices');
     expect(sectionForPlace(groups, 'team:b', '?tab=settings&part=phones')?.id).toBe('team:b/phones');
     expect(sectionForPlace(groups, 'team:a', '?tab=settings')?.id).toBe('team:a/computer');
-    expect(sectionForPlace(groups, 'team:a', '?tab=license')?.id).toBe('team:a/license');
+    expect(sectionForPlace(groups, 'team:a', '?tab=backups')?.id).toBe('team:a/backups');
   });
 });

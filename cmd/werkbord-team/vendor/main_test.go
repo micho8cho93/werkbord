@@ -9,45 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
-
-	"devboard/internal/team/license"
 )
 
-func TestOfflineIssuerUsesExplicitInputAndNeverOverwrites(t *testing.T) {
+func TestOfflineSignerUsesExplicitInputAndNeverOverwrites(t *testing.T) {
 	pub, key, _ := ed25519.GenerateKey(rand.Reader)
 	der, _ := x509.MarshalPKCS8PrivateKey(key)
 	secret := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 	dir := t.TempDir()
-	input := filepath.Join(dir, "claims.json")
-	output := filepath.Join(dir, "license.json")
-	raw, _ := license.CanonicalClaims(license.Claims{Schema: 2, Product: "werkbord-team", ID: "lic_fixture", Customer: "org_fixture", Edition: "team", Seats: 5, IssuedAt: time.Now().Add(-time.Hour)})
-	if err := os.WriteFile(input, raw, 0600); err != nil {
-		t.Fatal(err)
-	}
-	args := []string{"license", "--input", input, "--out", output}
-	if err := run(args, bytes.NewReader(secret)); err != nil {
-		t.Fatal(err)
-	}
-	signed, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := license.Verify(signed, pub, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(signed, secret) || bytes.Contains(signed, der) {
-		t.Fatal("private key leaked")
-	}
-	if info, _ := os.Stat(output); info.Mode().Perm() != 0600 {
-		t.Fatal("output is not private")
-	}
-	if err := run(args, bytes.NewReader(secret)); err == nil {
-		t.Fatal("existing license overwritten")
-	}
-	if err := run([]string{"license", "--input", input, "--out", filepath.Join(dir, "bad")}, bytes.NewReader([]byte("bad"))); err == nil {
-		t.Fatal("malformed key accepted")
-	}
 	manifest := filepath.Join(dir, "checksums.txt")
 	_ = os.WriteFile(manifest, []byte("public fixture hashes\n"), 0600)
 	sigPath := filepath.Join(dir, "sig")
@@ -62,10 +30,20 @@ func TestOfflineIssuerUsesExplicitInputAndNeverOverwrites(t *testing.T) {
 	if ed25519.Verify(pub, bytes.Replace(message, []byte("v9.0.0"), []byte("v9.0.1"), 1), sig) {
 		t.Fatal("tag substitution accepted")
 	}
+	if info, _ := os.Stat(sigPath); info.Mode().Perm() != 0600 {
+		t.Fatal("output is not private")
+	}
+	if err := run([]string{"release", "--input", manifest, "--out", sigPath, "--tag", "werkbord-v9.0.0"}, bytes.NewReader(secret)); err == nil {
+		t.Fatal("existing signature overwritten")
+	}
+	if err := run([]string{"release", "--input", manifest, "--out", filepath.Join(dir, "bad"), "--tag", "werkbord-v9.0.0"}, bytes.NewReader([]byte("bad"))); err == nil {
+		t.Fatal("malformed key accepted")
+	}
 	// The retired Team tag series and the desktop-manifest commands are gone.
 	for _, args := range [][]string{
 		{"release", "--input", manifest, "--out", filepath.Join(dir, "sig2"), "--tag", "werkbord-team-v9.0.0"},
 		{"release", "--input", manifest, "--out", filepath.Join(dir, "sig3")},
+		{"license", "--input", manifest, "--out", filepath.Join(dir, "sig5")},
 		{"desktop-release", "--input", manifest, "--out", filepath.Join(dir, "sig4"), "--tag", "werkbord-v9.0.0"},
 		{"verify-desktop-release", "--contents", dir, "--version", "v9.0.0", "--public-key", "x"},
 	} {

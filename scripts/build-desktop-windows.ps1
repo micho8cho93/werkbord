@@ -12,9 +12,6 @@ function Invoke-Native {
 }
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be a stable semantic version.' }
-if ([string]::IsNullOrWhiteSpace($env:LICENSE_ISSUER_PUBLIC_KEY) -or $env:LICENSE_ISSUER_PUBLIC_KEY -notmatch '^[A-Za-z0-9_-]{43}$') {
-    throw 'LICENSE_ISSUER_PUBLIC_KEY must be the 32-byte raw URL base64 public key.'
-}
 if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_PFX) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD)) {
     throw 'The Windows Authenticode certificate and password are required for a stable release.'
 }
@@ -91,7 +88,7 @@ try {
     Copy-Item (Join-Path $root 'third_party/go') (Join-Path $licenses 'go') -Recurse
 
     $team = Join-Path $helpers 'werkbord-team.exe'
-    $teamLdFlags = "-s -w -X main.version=v$Version -X main.licenseIssuer=$env:LICENSE_ISSUER_PUBLIC_KEY"
+    $teamLdFlags = "-s -w -X main.version=v$Version"
     Invoke-Native 'go' @('build', '-trimpath', '-ldflags', $teamLdFlags, '-o', $team, './cmd/werkbord-team')
 
     Push-Location $desktop

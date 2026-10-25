@@ -564,11 +564,10 @@ for later (it expires in minutes), or ask someone else's device (both devices mu
 
 ## Running it
 
-Team 3.0 requires a vendor-signed offline license and authenticated installation artifacts. Read [TEAM_INSTALL.md](TEAM_INSTALL.md) and [TEAM_LICENSE.md](TEAM_LICENSE.md) first. Werkbord operates no customer runtime infrastructure; you operate the workspace/connectivity hosts, backups and local runners. The formal boundaries and gate evidence are in [TEAM_SECURITY.md](TEAM_SECURITY.md) and [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md).
+Team needs authenticated installation artifacts and holds a team to its plan's size. Read [TEAM_INSTALL.md](TEAM_INSTALL.md) and [PLANS.md](PLANS.md) first. Werkbord operates no customer runtime infrastructure; you operate the workspace/connectivity hosts, backups and local runners. The formal boundaries and gate evidence are in [TEAM_SECURITY.md](TEAM_SECURITY.md) and [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md).
 
 ```bash
 make build-team                                              # or install a release: scripts/install-team.sh
-export WERKBORD_TEAM_LICENSE_FILE=/customer/licenses/team.json
 werkbord-team workspace create --name "Acme" --owner "Ada"   # creates the workspace; prints the owner's token, ONCE
 werkbord-team serve                                          # http://127.0.0.1:7430
 ```
@@ -731,8 +730,7 @@ The full review (every surface, the evidence for each, and the risks that remain
   text, a comment can become context a reader pastes into their own agent: treat it as a description, not as authority.
 - The Team service talks to your own Werkbord only on a loopback address, never follows redirects, and uses only the narrow local
   grant the member connected, never a flag or the controller's full token.
-- Canonical vendor-signed licenses are verified offline and replicated with workspace data. Seats and expiry are
-  enforced in mutations; owner-only renewal remains possible after expiry. See [TEAM_LICENSE.md](TEAM_LICENSE.md).
+- A team's size is checked in the same transaction that adds a person: two on the Free plan, no limit on Premium. See [PLANS.md](PLANS.md).
 - A ticket's text is written by a teammate and becomes the task text of the reader's own agent. The handoff says so,
   naming the author and telling the agent to treat it as a description of work and not as authority over the computer,
   and the member starts the run themselves, under their own Werkbord's execution policy.

@@ -63,11 +63,12 @@ type Config struct {
 	PhoneRelayEndpoint     string
 	PhoneConnectorEndpoint string
 
-	// Production commands require an offline license; the key is supplied only by the executable's build.
-	LicenseRequired bool
-	LicenseKey      []byte
-	LicenseFile     string
-	KeyStorage      string
+	// Production is set by the commands that serve real workspaces (Load, and the device service): they listen only on
+	// loopback and hold a team to the plan's size (entitlement.TeamLimit). Premium says the plan has no size limit; it is
+	// never read from the environment or a file, and nothing in production sets it until the unlock key exists.
+	Production bool
+	Premium    bool
+	KeyStorage string
 	// SecureStorageID stays stable while the daemon atomically stages a new workspace directory.
 	SecureStorageID string
 	Addr            string
@@ -135,7 +136,7 @@ func defaultDataDir() string {
 // Load returns the defaults overlaid with the environment.
 func Load() Config {
 	c := Default()
-	c.LicenseRequired = true
+	c.Production = true
 	c.KeyStorage = "os"
 	set := func(key string, dst *string) {
 		if v := os.Getenv(key); v != "" {
@@ -145,7 +146,6 @@ func Load() Config {
 	set("WERKBORD_TEAM_PHONE_RELAY_URL", &c.PhoneRelayEndpoint)
 	set("WERKBORD_TEAM_PHONE_CONNECTOR_URL", &c.PhoneConnectorEndpoint)
 	set("WERKBORD_TEAM_ADDR", &c.Addr)
-	set("WERKBORD_TEAM_LICENSE_FILE", &c.LicenseFile)
 	set("WERKBORD_TEAM_KEY_STORAGE", &c.KeyStorage)
 	set("WERKBORD_TEAM_DATA_DIR", &c.DataDir)
 	set("WERKBORD_TEAM_LOG_LEVEL", &c.LogLevel)
@@ -241,7 +241,7 @@ func (c Config) Validate() error {
 	if _, _, err := net.SplitHostPort(c.Addr); err != nil {
 		return fmt.Errorf("addr %q: %w", c.Addr, err)
 	}
-	if c.LicenseRequired && !c.IsLoopback() {
+	if c.Production && !c.IsLoopback() {
 		return fmt.Errorf("the local API must listen on loopback; other devices use the separately bound Nebula API")
 	}
 	if c.DataDir == "" {
@@ -316,13 +316,6 @@ func (c Config) BootstrapPort() int {
 
 // DBPath is the SQLite database of a workspace that keeps its data in one file.
 func (c Config) DBPath() string { return filepath.Join(c.DataDir, "team.db") }
-
-func (c Config) LicensePath() string {
-	if c.LicenseFile != "" {
-		return c.LicenseFile
-	}
-	return filepath.Join(c.DataDir, "license.json")
-}
 
 // StorageMarkerPath is the file that says where this host keeps the workspace's data.
 func (c Config) StorageMarkerPath() string { return filepath.Join(c.DataDir, "storage.json") }

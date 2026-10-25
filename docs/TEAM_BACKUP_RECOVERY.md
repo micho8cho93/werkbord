@@ -16,7 +16,7 @@ Protect these distinct recovery materials:
 
 | Material | Recovery requirement |
 | --- | --- |
-| Verified database plus its checksum/position record | Restores coordination state, including signed license and revocations as of that backup |
+| Verified database plus its checksum/position record | Restores coordination state, including revocations as of that backup |
 | Workspace Host `pki/` and configuration | Sealed workspace root, Nebula CA, device identity and cluster credentials; needed to retain network identity |
 | Authority/device unlock material | System/login Keychain recovery or externally held passphrase; a `pki/` directory alone cannot be unsealed |
 | Local device state | Sender pins, replay state, local runner mappings and approvals; never roll it back while live messages can still be accepted |

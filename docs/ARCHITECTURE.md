@@ -1105,23 +1105,22 @@ still requires exact-context local approval before any run starts. Leaving a
 Team removes its local bridge/authority through the existing leave procedure;
 it does not stop runs already accepted by Individual or affect another slot.
 
-### Distribution, licensing and updates
+### Distribution, plans and updates
 
 One primary macOS installer carries everything: the app, the controller, and Team's service with its installer. Everything in the app has the one version. The preview suffix remains until production distribution acceptance. Both CLI installers and historical `devboard`/`DEVBOARD_*` behavior remain.
 
 The bundle contains the shell, the Individual helper, and Team's service (`werkbord-team`), its pinned network and database
-programs and licenses, and its installer, which is the app's own executable in an installer mode
+programs and their notices, and its installer, which is the app's own executable in an installer mode
 (`desktop/internal/teaminstall`). It installs no privileged service on launch.
-Individual works for free without a license, Team infrastructure or vendor login.
+Personal work needs no Team infrastructure or vendor login.
 **Add a Team** uses an explicit native dialog and administrator authorization to
-activate Team. Each workspace has a separate enrolled identity and signed license;
+activate Team. Each workspace has a separate enrolled identity;
 up to sixteen teams are supported by the existing isolated slots.
 
-Seats remain live members of a workspace, including its owner. Additional devices
-enroll under that member and consume no additional seats. The Team backend checks
-signatures and seats transactionally; frontend controls never unlock authority.
-Renewal remains owner-authorized, offline and possible after runtime expiration.
-Support expiry does not disable the runtime. See [TEAM_LICENSE.md](TEAM_LICENSE.md).
+There is no licence. Free and Premium are one build told apart only by an unlock key ([PLANS.md](PLANS.md)). A team has at most
+two people on the Free plan; Premium has no limit. The people counted are the live members of a workspace, including its owner;
+additional devices enroll under that member and count for nothing. The Team backend checks the size transactionally where a
+person is added; frontend controls never unlock authority.
 
 #### Compatibility
 
@@ -1137,7 +1136,7 @@ in Help → Diagnostics.
 
 `make desktop-package` builds an ad hoc development DMG with both components, building Team's service from this tree.
 `make test-unified-installer` mounts it and checks versions, checksums, signatures, compatibility and that a development build
-is refused as a release. These tests never install a service or use the user's production licenses.
+is refused as a release. These tests never install a service or use the user's real installation.
 
 A production build is the one release workflow (`.github/workflows/release.yml`, [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)). It
 builds the Team service, the database program and the pinned network program into the app itself, from the same commit and
@@ -1175,7 +1174,7 @@ and cannot be waived by that answer. The shell words the same request as an upda
 when the installed service is older, and shows the installer's reply unchanged.
 
 Stopping/removing Team never removes Individual data. Service removal requires safely
-leaving every slot, and retains local identities, signed licenses, archives and
+leaving every slot, and retains local identities, archives and
 owner metadata. Old app bundles and backups are not automatically cleaned up.
 
 #### Validation
@@ -1198,7 +1197,7 @@ Live customer networks, real agent-provider accounts, macOS privileged install /
 Keychain authorization, sleep/wake and signed/notarized release distribution
 remain production acceptance checks. The app does not add automatic NAT
 traversal, remote arbitrary commands, recurring schedules, live pause or automatic
-runner failover. Team setup uses the app's own installer and a valid customer license; release publication is a separate task.
+runner failover. Team setup uses the app's own installer; release publication is a separate task.
 
 - `make test-unified-installer`: mounts the development disk image and checks versions, signatures and that a development build is refused as a release.
 - `make test-desktop-sign`, `make test-desktop-update`: how the app is signed and how it updates itself, against fakes of Apple's tools and a real Sparkle.

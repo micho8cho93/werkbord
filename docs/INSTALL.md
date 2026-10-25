@@ -1,11 +1,11 @@
 # Installing Werkbord
 
-The primary macOS installer is one Werkbord app. It carries the controller (Individual) and Team's service, with one version. Individual starts without a license, vendor account, Team network or privileged Team service. **Add a Team** explicitly installs Team's service, with an administrator's authorization; joining a licensed workspace consumes one member seat, however many devices you use. The command-line installers remain supported.
+The primary macOS installer is one Werkbord app. It carries the controller (Individual) and Team's service, with one version. Personal work starts without a vendor account, Team network or privileged Team service. **Add a Team** explicitly installs Team's service, with an administrator's authorization; joining a team counts as one person however many devices you use, and a team of up to two people is free ([PLANS.md](PLANS.md)). The command-line installers remain supported.
 
-See [ARCHITECTURE.md §22](ARCHITECTURE.md#distribution-licensing-and-updates). Source/development disk images are ad hoc builds for testing, not notarized production releases.
+See [ARCHITECTURE.md §22](ARCHITECTURE.md#distribution-plans-and-updates). Source/development disk images are ad hoc builds for testing, not notarized production releases.
 
 
-This document covers individual Werkbord and its separate tsnet support. Werkbord Team uses customer-owned Nebula and has its own [signed installation/update instructions](TEAM_INSTALL.md), [offline licenses](TEAM_LICENSE.md) and [production security gate](TEAM_SECURITY_GATE.md).
+This document covers individual Werkbord and its separate tsnet support. Werkbord Team uses customer-owned Nebula and has its own [signed installation/update instructions](TEAM_INSTALL.md), [plans](PLANS.md) and [production security gate](TEAM_SECURITY_GATE.md).
 
 ```bash
 WERKBORD_RELEASE_PUBLIC_KEY_FILE=/trusted/werkbord-release.pub sh /trusted/install.sh

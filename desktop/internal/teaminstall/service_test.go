@@ -84,10 +84,10 @@ func TestInstallingAFileDoesNotFollowAnExistingDestinationSymlink(t *testing.T) 
 	}
 }
 
-func TestLicenseIssuerNeverAppearsInServiceArguments(t *testing.T) {
+func TestNoRuntimeOverrideAppearsInServiceArguments(t *testing.T) {
 	b, _ := LaunchDaemon(SystemDir, "/Users/test/config.json")
-	if strings.Contains(string(b), "issuer") || strings.Contains(string(b), "--shell") || strings.Contains(string(b), "--command") {
-		t.Fatal("service acquired generic execution or runtime license override")
+	if strings.Contains(string(b), "premium") || strings.Contains(string(b), "--shell") || strings.Contains(string(b), "--command") {
+		t.Fatal("service acquired generic execution or a runtime override")
 	}
 }
 

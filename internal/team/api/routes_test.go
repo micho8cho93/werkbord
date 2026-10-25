@@ -65,7 +65,6 @@ var workspaceRoutes = []string{
 	"POST /memory/delivery", // bounded signed projection events and durable receipts; no file/process access
 	"POST /memory/proposals", "POST /memory/query", "POST /memory/{mid}",
 	"GET /analytics", // read-only aggregate limited to projects with ticket and activity access
-	"PUT /license",   // installs only an owner-approved, vendor-signed offline entitlement
 	"GET /me", "GET /roles", "GET /workspace", "PATCH /workspace",
 	"GET /members", "POST /members", "DELETE /members/{id}", "POST /members/{id}/token", "PUT /members/{id}/role",
 	"GET /projects", "POST /projects",

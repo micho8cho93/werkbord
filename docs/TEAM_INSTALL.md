@@ -21,17 +21,15 @@ The installer authenticates `checksums-team.txt.sig` with Ed25519, binds it to T
 If a customer requires a separately managed CLI deployment, its archive must be built and signed on the reviewed offline release workstation:
 
 ```sh
-LICENSE_ISSUER_PUBLIC_KEY=<license-public-key-in-raw-url-base64> \
 WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE=/secure/separate-release-key.pem \
   make dist PRODUCT=werkbord-team
 ```
 
-Do not attach those standalone archives to the public unified desktop release. Distribute them only through the reviewed customer-controlled channel with `checksums-team.txt` and `checksums-team.txt.sig`. `BUNDLE_NEBULA=no` is only an unsigned archive-format fixture, not a production distribution. Production vendor license/release verification keys still require maintainer provisioning; this repository does not silently trust a generated test key.
+Do not attach those standalone archives to the public unified desktop release. Distribute them only through the reviewed customer-controlled channel with `checksums-team.txt` and `checksums-team.txt.sig`. `BUNDLE_NEBULA=no` is only an unsigned archive-format fixture, not a production distribution. The production release verification key still requires maintainer provisioning; this repository does not silently trust a generated test key.
 
-For a CLI workspace, configure its signed license and secure storage, then create it:
+For a CLI workspace, configure its secure storage, then create it (a team of up to two people is free; see [PLANS.md](PLANS.md)):
 
 ```sh
-export WERKBORD_TEAM_LICENSE_FILE=/customer/licenses/team.json
 # Linux / unsupported OS storage: owner-only, high-entropy passphrase file
 # outside the workspace data/backups. macOS normally uses Keychain.
 export WERKBORD_TEAM_PKI_PASSPHRASE_FILE=/customer/secure/team-unlock

@@ -17,7 +17,6 @@ LDFLAGS      = -X main.version=$(WERKBORD_VERSION) $(shell scripts/release-build
 TEAM_LDFLAGS = -X main.version=$(WERKBORD_VERSION)
 BIN      := bin/werkbord
 TEAM_BIN := bin/werkbord-team
-LICENSING_BIN := bin/werkbord-licensing
 
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check \
@@ -54,12 +53,6 @@ build-team:
 		$(GO) build -trimpath -ldflags "$(TEAM_LDFLAGS) $$flags" -o $(TEAM_BIN) ./cmd/werkbord-team
 werkbord-team: build-team
 
-# Vendor-only tooling: never bundled in a customer app or release asset.
-.PHONY: build-licensing
-build-licensing:
-	cd cmd/werkbord-team/licensing/ui && $(NPM) ci && $(NPM) run build
-	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(LICENSING_BIN) ./cmd/werkbord-team/licensing
-
 ## install-team: put the Team executable in $(PREFIX)/bin (default ~/.local), from source
 PREFIX ?= $(HOME)/.local
 install-team: build-team
@@ -93,9 +86,6 @@ test: web/node_modules
 	WERKBORD_SKIP_RQLITE=1 $(GO) test -timeout 30m ./...
 	cd web && $(NPM) test
 	node --test scripts/seed-browser-fixture.test.cjs scripts/team-mentions.test.cjs
-	node --experimental-strip-types --test supabase/functions/licensing-artifact/verify.test.mjs
-	node --experimental-strip-types --test supabase/functions/licensing-artifact/handler.test.mjs
-	cd cmd/werkbord-team/licensing/ui && $(NPM) ci && $(NPM) test && $(NPM) run build
 	node --test relay/e2e/e2e.test.mjs relay/connector/test/lanes.test.mjs
 	cd relay/connector && node build.mjs && node --check dist/sw.js && node --check dist/connect/connect.js
 
@@ -238,7 +228,7 @@ test-install: web web-embed
 test-install-team:
 	scripts/test-install-team.sh
 
-## test-team-signed-release: native real sidecars, offline signature tools and licensed create/serve in an isolated prefix
+## test-team-signed-release: native real sidecars, offline signature tools and create/serve in an isolated prefix
 test-team-signed-release:
 	scripts/test-team-signed-release.sh
 

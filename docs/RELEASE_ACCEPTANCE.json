@@ -3,7 +3,6 @@
   "version": null,
   "requirements": {
     "keyCustody": {"status": "pending", "evidence": "docs/PRODUCTION_ACCEPTANCE.md", "notes": "GitHub review/tag protections and the verified release public key are configured; encrypted primary keys exist. Independent key recovery remains pending."},
-    "licensingRecovery": {"status": "pending", "evidence": "docs/PRODUCTION_ACCEPTANCE.md", "notes": "Live owner-MFA issuance/retry/expansion/closure and offline verification passed; independent backup verification and empty-destination restoration remain pending."},
     "dependencyReview": {"status": "pending", "evidence": null},
     "cleanMacLifecycle": {"status": "pending", "evidence": "docs/PRODUCTION_ACCEPTANCE.md", "notes": "Published 4.83.5-preview.1 trust/feed baseline verified only. New exact candidate, installation and update on clean hardware remain pending."},
     "cleanLinuxLifecycle": {"status": "pending", "evidence": null},

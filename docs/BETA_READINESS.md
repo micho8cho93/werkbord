@@ -32,10 +32,9 @@ do not establish desktop startup or physical-device acceptance.
 
 ## Trust and release review
 
-Keep license, release, Apple and Sparkle keys separate. License issuance now uses
-the protected Supabase operator signer; customers verify offline. Review hosted
-custody and independent recovery using LICENSE_OPERATIONS.md. Do not restore the
-obsolete requirement that the active licensing signer must be local-only.
+Keep release, Apple and Sparkle keys separate. There is no licence signer any more:
+team licensing was removed (see [PLANS.md](PLANS.md)), and the hosted licensing
+sections below are kept only as a record of what was inspected before it was.
 
 The unified checksum manifest is signed over UTF-8
 `werkbord/release/v1`, NUL, the exact tag, NUL, and the manifest's exact bytes.
@@ -145,7 +144,6 @@ passes:
 | Requirement | Required observations |
 | --- | --- |
 | Key custody | Distinct keys, independent backups, retrieval, rotation/incident plan; CI environment/tag/reviewer protections |
-| Licensing | Owner login/MFA, issuer checks, disabled/deleted-session denial, idempotent issuance, encrypted key/register recovery into an empty destination, offline customer use during signer outage |
 | Clean Mac | Browser-downloaded candidate on Apple Silicon and Intel; boot before login, locked/unlocked Keychain, create/join, restart, identity-changing update, interruption, removal and authority recovery; no adjacent-key fallback |
 | Independent Team | Three independently failing Workspace Hosts and two useful Connectivity Hosts; leader/follower loss, 1/2 partition, quorum loss/return, stale host, acknowledged-write/hash reconciliation |
 | Real network | Actual TUN lateral-access probes, forced relay-only path, connectivity-host loss and alternative recovery |

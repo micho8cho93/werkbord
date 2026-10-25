@@ -25,7 +25,7 @@ import (
 )
 
 // A person can belong to several Team workspaces, and a computer can be a device in each of them. The device
-// service keeps them apart: every workspace is a slot with a data directory, device identity, sealed keys, license,
+// service keeps them apart: every workspace is a slot with a data directory, device identity, sealed keys,
 // private network and local state of its own, run by a Daemon that knows nothing of the others. The Hub owns the one
 // local listener and the registry of slots, and routes a request to the slot it names.
 //
@@ -343,7 +343,6 @@ type SlotSummary struct {
 	Connected      bool   `json:"connected"`
 	RunnerOnline   bool   `json:"runnerConnected"`
 	HostingBlocked string `json:"hostingBlocked,omitempty"`
-	License        bool   `json:"licensed"`
 	Archived       bool   `json:"archived,omitempty"`
 }
 
@@ -381,7 +380,6 @@ func summarize(id string, v map[string]any) SlotSummary {
 	s.WorkspaceHost, _ = v["workspaceHost"].(bool)
 	s.Connected, _ = v["connected"].(bool)
 	s.HostingBlocked, _ = v["hostingBlocked"].(string)
-	_, s.License = v["license"]
 	if r, ok := v["runner"].(map[string]any); ok {
 		s.RunnerOnline, _ = r["connected"].(bool)
 	}

@@ -78,7 +78,6 @@ func (d authorizedStore) Update(ctx context.Context, fn func(store.Tx) error) er
 }
 
 // ConsumeAPINonce records a verified mutating request across all hosts and restarts.
-// Expired licenses can still be renewed through this authentication path.
 func (s *Service) ConsumeAPINonce(ctx context.Context, a Actor, nonce string, expires time.Time) error {
 	return s.base.Update(ctx, func(tx store.Tx) error {
 		if err := checkSession(AuthenticatedContext(ctx, a), tx); err != nil {

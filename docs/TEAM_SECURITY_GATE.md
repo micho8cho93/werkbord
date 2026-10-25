@@ -50,7 +50,7 @@ The preview remains a GitHub prerelease, never latest, and is not offered by the
 
 ## 1. Architecture implemented
 
-Customers operate Workspace Hosts, Connectivity Hosts, backups and local runners. Team has no vendor runtime registry, CA, relay, licensing endpoint or customer-data service. Individual Werkbord's existing tsnet support remains separate and passes the build/test isolation check with Team removed.
+Customers operate Workspace Hosts, Connectivity Hosts, backups and local runners. Team has no vendor runtime registry, CA, relay or customer-data service. Individual Werkbord's existing tsnet support remains separate and passes the build/test isolation check with Team removed.
 
 Production CLI creation defaults to the customer's Nebula network and administrator-approved enrollment. The local administration API binds literal loopback; the remote API has a separate Nebula listener. Enrollment uses pinned TLS 1.3, a TLS-exporter-bound device proof, signed single-use invitations and recipient-encrypted provisioning. Nebula uses a separate Ed25519 CA and X25519 node keys. Receiving firewalls default to deny, allow member API access, and reserve database/Raft traffic for Workspace Hosts. Ordinary runners have no inbound TCP rule and poll their mailbox. Nebula's optional SSH debugger is explicitly disabled.
 
@@ -64,7 +64,7 @@ Mac services use separate Keychain wrapping keys for ordinary device material an
 
 The runner verifies envelopes using sender keys approved and pinned locally. A Workspace Host cannot substitute a pin. The local bridge retains closed semantic operations: open a held ticket, start a locally approved task, cancel a mapped run, answer an existing question and fetch mapped status. Phase 2 local start approvals bind exact task context and policy and are consumed with the run identifier by Individual in the run-creation transaction. No arbitrary shell, process, filesystem, HTTP proxy, SSH, PTY or Git command is exposed.
 
-The offline vendor utility is separate source under `cmd/werkbord-team/vendor`, excluded from customer packages. It receives PKCS#8 private key material on stdin and writes a new owner-only license or release signature. License and release keys are distinct. CLI installers authenticate a product/tag-bound Ed25519 checksum manifest using an independently provisioned public PEM before extracting or executing a package. Online generic CI no longer publishes unsigned Team CLI archives. Mac DMGs retain the separate Apple Developer ID/notarization trust path.
+The offline vendor utility is separate source under `cmd/werkbord-team/vendor`, excluded from customer packages. It receives PKCS#8 private key material on stdin and writes a new owner-only release signature. CLI installers authenticate a product/tag-bound Ed25519 checksum manifest using an independently provisioned public PEM before extracting or executing a package. Online generic CI no longer publishes unsigned Team CLI archives. Mac DMGs retain the separate Apple Developer ID/notarization trust path.
 
 ## 2. Findings fixed and deviations
 
@@ -74,8 +74,7 @@ The offline vendor utility is separate source under `cmd/werkbord-team/vendor`, 
 | Remote bearer theft alone authorized actions | Device signatures required in production; remote legacy member tokens refused |
 | Cached membership could revive revoked access | Fresh authorization reads and in-transaction/long-poll checks |
 | API proofs could be replayed across hosts/restarts | Replicated expiring nonce records; live entries never evicted |
-| Licensing existed only in desktop onboarding | CLI/server/daemon enforcement, replicated documents and guarded member insertion |
-| License expiry could block incident containment | Narrow revocation/removal/demotion/credential-replacement recovery path |
+| The Free plan's team size was a desktop-only notion | CLI/server/daemon enforcement in the guarded member insertion (see [PLANS.md](PLANS.md)); containment (revocation, removal, demotion, credential replacement) is never blocked by it |
 | Editable macOS rqlite build record trusted executable bytes | Trusted build embeds the exact sidecar hash; verify before even `-version` |
 | Downloaded checksums had no independent authenticity | Separate offline Ed25519 release signatures, product/tag binding and independent trust key |
 | Host-to-runner incoming TCP was unnecessary | Remove it; delivery uses polling and local signature verification |
@@ -109,7 +108,7 @@ Architecture tests enforce Team imports, the closed bridge/actions/routes, sidec
 
 Same-UID/root compromise, unlocked process memory, debugger/core dumps and full disk images can expose secrets. Key clearing is best effort. Authority wrapping keys do not remove that trust assumption. Dedicated protected Workspace Hosts and separately secured recovery material are necessary.
 
-Nebula blocklist propagation is asynchronous; device API revocation uses current quorum state. Clock skew and clock rollback affect offline license/message windows. Restoring old membership, replay or approval state can reopen a live acceptance window; stop remote delivery, expire windows and reapply revocations before reconnecting.
+Nebula blocklist propagation is asynchronous; device API revocation uses current quorum state. Clock skew and clock rollback affect message windows. Restoring old membership, replay or approval state can reopen a live acceptance window; stop remote delivery, expire windows and reapply revocations before reconnecting.
 
 Backups are plaintext SQLite unless the customer encrypts them externally. Integrity/checksum records detect corruption but are not signatures against an attacker replacing both files. Replication is not backup. Losing all authority unlock material requires a new workspace/network.
 
@@ -117,7 +116,7 @@ The CLI update stages sidecars and publishes the executable last; this is not an
 
 There is no complete application DoS defense. High-entropy credentials, bounded requests/replay storage, timeouts and role checks do not substitute for capacity planning or rate limits. Full host authority can falsify legitimate task context; local automatic-start mode expands trust. Default `ask`/`off` policy is appropriate for a hostile-host model.
 
-Offline licenses cannot be instantly revoked by the vendor without adding a vendor runtime dependency. Customers controlling clocks or modifying the program can bypass offline enforcement. Support entitlement expiry does not shut down an installed valid runtime.
+A person who modifies their own copy of the program can bypass the plan's team size; nothing offline prevents that and Werkbord adds no vendor runtime dependency to try ([PLANS.md](PLANS.md)).
 
 ## 5. Unsupported failures
 

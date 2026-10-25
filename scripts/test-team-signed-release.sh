@@ -17,20 +17,8 @@ os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$(uname -m)" in arm64|aarch64) arch=arm64 ;; x86_64|amd64) arch=amd64 ;; *) die "unsupported architecture" ;; esac
 version=v$(scripts/product.sh werkbord-team version)
 tag=werkbord-$version
-openssl genpkey -algorithm ED25519 -out "$WORK/license.pem" >/dev/null 2>&1
-openssl pkey -in "$WORK/license.pem" -pubout -outform DER -out "$WORK/license-public.der" >/dev/null 2>&1
 openssl genpkey -algorithm ED25519 -out "$WORK/release.pem" >/dev/null 2>&1
 openssl pkey -in "$WORK/release.pem" -pubout -out "$WORK/release.pub" >/dev/null 2>&1
-LICENSE_ISSUER_PUBLIC_KEY=$(python3 - "$WORK/license-public.der" <<'PY'
-import base64, pathlib, sys
-print(base64.urlsafe_b64encode(pathlib.Path(sys.argv[1]).read_bytes()[-32:]).decode().rstrip('='))
-PY
-)
-export LICENSE_ISSUER_PUBLIC_KEY
-cat > "$WORK/claims.json" <<'JSON'
-{"schema":2,"product":"werkbord-team","id":"lic_release_fixture","customer":"org_fixture","edition":"team","seats":3,"issuedAt":"2026-01-01T00:00:00Z"}
-JSON
-go run ./cmd/werkbord-team/vendor license --input "$WORK/claims.json" --out "$WORK/license.json" < "$WORK/license.pem"
 PLATFORMS="$os/$arch" WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE="$WORK/release.pem" \
   scripts/build-release.sh werkbord-team "$version" "$WORK/releases/$tag"
 cat > "$WORK/serve.py" <<'PY'
@@ -75,7 +63,7 @@ PY
 # The four ports were allocated together; nothing is bound to a production port.
 # shellcheck disable=SC2086
 set -- $ports
-export WERKBORD_TEAM_DATA_DIR="$WORK/workspace" WERKBORD_TEAM_LICENSE_FILE="$WORK/license.json"
+export WERKBORD_TEAM_DATA_DIR="$WORK/workspace"
 export WERKBORD_TEAM_PKI_PASSPHRASE_FILE="$WORK/unlock" WERKBORD_TEAM_NETWORK_NODE=off
 export WERKBORD_TEAM_ADDR="127.0.0.1:$1" WERKBORD_TEAM_BOOTSTRAP_ADDR="127.0.0.1:$4"
 "$bin" workspace create --name Gate --owner Owner --endpoint 127.0.0.1 --storage-port "$2" --storage-raft-port "$3" > "$WORK/created.txt"
@@ -104,4 +92,4 @@ if WERKBORD_TEAM_DATA_DIR="$WORK/refused" "$bin" workspace create --name Replace
   die "replaced sidecar was accepted"
 fi
 [ ! -e "$WORK/was-executed" ] || die "unverified sidecar was executed"
-printf 'PASS real vendor-tool signatures, native signed bundle install, licensed default-Nebula workspace create/serve, admin approval and pre-execution sidecar rejection\n'
+printf 'PASS real vendor-tool signatures, native signed bundle install, default-Nebula workspace create/serve, admin approval and pre-execution sidecar rejection\n'

@@ -35,7 +35,7 @@ describe('which entry the current place belongs to', () => {
     expect(activeKey('team', '?tab=reviews')).toBe('reviews');
     expect(activeKey('team', '?tab=members')).toBe('members');
     expect(activeKey('team', '?tab=analytics')).toBe('analytics');
-    for (const tab of ['settings', 'labels', 'devices', 'hosts', 'connectivity', 'backups', 'license']) expect(activeKey('team', `?tab=${tab}`)).toBe('');
+    for (const tab of ['settings', 'labels', 'devices', 'hosts', 'connectivity', 'backups']) expect(activeKey('team', `?tab=${tab}`)).toBe('');
     for (const tab of ['board', 'timeline', 'repository', 'activity', 'project-settings', 'people']) expect(activeKey('team', `?tab=${tab}&project=tpj_1`)).toBe('project:tpj_1');
     expect(activeKey('team', '?tab=board&project=tpj_1&ticket=t1')).toBe('project:tpj_1');
     expect(activeKey('team', '?tab=board')).toBe('');

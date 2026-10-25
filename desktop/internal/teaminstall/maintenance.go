@@ -48,7 +48,7 @@ func CheckReplacement(data string) error {
 }
 
 // Removal is limited to installed programs and the launch definition. Local
-// identities, licenses, recovery generations and all product data stay in place.
+// identities, recovery generations and all product data stay in place.
 func removeEmptyService(root, plist string) error {
 	if err := CheckReplacement(filepath.Join(root, "data")); err != nil {
 		return err

@@ -1,7 +1,7 @@
 // Command werkbord-team runs Werkbord Team: the shared workspace where a team's
 // members and projects are coordinated.
 //
-//	werkbord-team workspace create   start a licensed workspace and its customer-owned Nebula network
+//	werkbord-team workspace create   start a workspace and its customer-owned Nebula network
 //	werkbord-team serve              run the server in the foreground
 //	werkbord-team network …          the private network: status, invitations, approvals, a host's node
 //	werkbord-team device …           join as a host, list and revoke devices
@@ -19,7 +19,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,14 +28,12 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"devboard/internal/logging"
 	"devboard/internal/mcpbridge"
 	"devboard/internal/team/config"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/license"
 	"devboard/internal/team/server"
 )
 
@@ -55,7 +52,6 @@ commands:
   host               promote a device to Workspace Host (keys and a copy of the data), collect them on it, remove a host
   storage            where the workspace's data is kept: status, backup, restore, move it into a cluster
   migrate            apply database migrations and exit
-  license import     replace the workspace's signed offline license (owner only)
   mcp                connect an MCP host over stdio (set WERKBORD_TEAM_MCP_TOKEN to its scoped credential)
   version            print the version
 
@@ -86,7 +82,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return flag.ErrHelp
 	}
 	cfg := config.Load()
-	cfg.LicenseKey, _ = base64.RawURLEncoding.DecodeString(licenseIssuer)
+	cfg.Premium = testPremium == "1"
 	switch args[0] {
 	case "phone-relay":
 		return cmdPhoneRelay(ctx, cfg, args[1:], stderr)
@@ -106,8 +102,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return cmdHost(ctx, cfg, args[1:], stdout, stderr)
 	case "storage":
 		return cmdStorage(ctx, cfg, args[1:], stdout, stderr)
-	case "license":
-		return cmdLicense(ctx, cfg, args[1:], stdout, stderr)
 	case "mcp":
 		return cmdMCP(ctx, cfg, args[1:], stderr)
 	case "version", "--version", "-v":
@@ -220,15 +214,6 @@ func cmdWorkspace(ctx context.Context, cfg config.Config, args []string, stdout,
 	}
 	if !*withNetwork && !cfg.IsLoopback() {
 		return errors.New("a workspace without Nebula must listen on loopback for evaluation")
-	}
-	if cfg.LicenseRequired {
-		raw, err := readLicenseFile(cfg.LicensePath())
-		if err != nil {
-			return errors.New("supply a signed offline license with WERKBORD_TEAM_LICENSE_FILE before creating a workspace")
-		}
-		if _, err := license.Verify(raw, cfg.LicenseKey, time.Now()); err != nil {
-			return err
-		}
 	}
 	if *withNetwork {
 		if err := cfg.Validate(); err != nil {

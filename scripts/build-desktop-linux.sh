@@ -12,9 +12,6 @@ case "$ARCH" in amd64|arm64) ;; *) die "unsupported Linux architecture: $ARCH" ;
 DEB_VERSION=$("$(dirname "$0")/debian-version.sh" "$VERSION") || die "invalid build version"
 [ "$(uname -s)" = Linux ] || die "build on native Linux"
 [ "$(go env GOARCH)" = "$ARCH" ] || die "use a native $ARCH runner"
-ISSUER=${LICENSE_ISSUER_PUBLIC_KEY:-}
-[ ${#ISSUER} -eq 43 ] || die "LICENSE_ISSUER_PUBLIC_KEY must be a 32-byte raw URL base64 public key"
-case "$ISSUER" in *[!A-Za-z0-9_-]*) die "LICENSE_ISSUER_PUBLIC_KEY must use raw URL base64" ;; esac
 
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
@@ -66,7 +63,7 @@ RQLITE_VERSION=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/team/infra/
 RQLITE_COMMIT=$(sed -n 's/^const SourceCommit = "\(.*\)"$/\1/p' internal/team/infra/rqlite/manifest.go)
 printf '{"version":"v%s","commit":"%s","sha256":"%s"}\n' "$RQLITE_VERSION" "$RQLITE_COMMIT" "$DATABASE_SHA" > "$APP/Resources/rqlited.build"
 CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
-  -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION -X main.licenseIssuer=$ISSUER -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$(sha256sum "$APP/Helpers/nebula" | cut -d' ' -f1)" \
+  -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$(sha256sum "$APP/Helpers/nebula" | cut -d' ' -f1)" \
   -o "$APP/Helpers/werkbord-team" ./cmd/werkbord-team
 cp -R third_party/nebula third_party/rqlite third_party/go "$APP/Resources/licenses/"
 

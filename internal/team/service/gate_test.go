@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -12,15 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"devboard/internal/entitlement"
 	"devboard/internal/team/domain"
 	"devboard/internal/team/infra/rqlite"
 	"devboard/internal/team/infra/rqlite/rqlitetest"
-	"devboard/internal/team/license"
 	"devboard/internal/team/store"
 	"devboard/internal/team/store/replicated"
 )
 
-func isolatedLicenseWorld(t *testing.T) *world {
+func isolatedWorld(t *testing.T) *world {
 	if sharedCluster == nil {
 		return newWorld(t)
 	}
@@ -34,20 +32,10 @@ func isolatedLicenseWorld(t *testing.T) *world {
 	return &world{t: t, db: db, svc: New(db), path: filepath.Join(dir, "replica.db")}
 }
 
-func signedLicense(t *testing.T, key ed25519.PrivateKey, seats int, issued, expires time.Time) []byte {
-	t.Helper()
-	b, err := license.Issue(license.Claims{Schema: license.Schema, Product: "werkbord-team", Edition: license.EditionTeam, ID: "lic_test", Customer: "org_test", Seats: seats, IssuedAt: issued, ExpiresAt: expires}, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
-
-func TestLicenseSeatsAreAtomicAndEveryMemberInsertionIsGuarded(t *testing.T) {
-	w := isolatedLicenseWorld(t)
-	pub, key, _ := ed25519.GenerateKey(rand.Reader)
-	w.svc.EnforceLicense(pub, signedLicense(t, key, 3, time.Now().Add(-time.Hour), time.Time{}))
-	owner, _ := w.workspace("Licensed", "Owner")
+func TestTeamSizeIsAtomicAndEveryMemberInsertionIsGuarded(t *testing.T) {
+	w := isolatedWorld(t)
+	w.svc.EnforceTeamSize(3)
+	owner, _ := w.workspace("Sized", "Owner")
 	p := w.project(owner, "P")
 	invite, err := w.svc.CreateInvite(bg, owner, p.ID, InviteInput{Role: domain.ProjectContributor, MaxUses: 10})
 	if err != nil {
@@ -68,7 +56,7 @@ func TestLicenseSeatsAreAtomicAndEveryMemberInsertionIsGuarded(t *testing.T) {
 			}
 			if err == nil {
 				successes.Add(1)
-			} else if !errors.Is(err, domain.ErrForbidden) {
+			} else if !errors.Is(err, domain.ErrPremiumRequired) {
 				errs <- err
 			}
 		}(i)
@@ -84,69 +72,46 @@ func TestLicenseSeatsAreAtomicAndEveryMemberInsertionIsGuarded(t *testing.T) {
 	_ = w.db.View(bg, func(tx store.Tx) error {
 		ms, err := tx.Members(bg, owner.Workspace.ID)
 		if err == nil && len(ms) != 3 {
-			t.Fatalf("seat overflow: %d", len(ms))
+			t.Fatalf("size overflow: %d", len(ms))
 		}
 		return err
 	})
-	if _, err := w.svc.InstallLicense(bg, owner, signedLicense(t, key, 2, time.Now().Add(-time.Hour), time.Time{})); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatal("seat downgrade accepted", err)
-	}
 }
 
-func TestLicenseExpiryRenewalAndExistingDatabaseMigration(t *testing.T) {
-	w := isolatedLicenseWorld(t)
-	owner, _ := w.workspace("Existing", "Owner")
-	member, _ := w.member(owner, "Member")
-	pub, key, _ := ed25519.GenerateKey(rand.Reader)
-	at := time.Now().UTC().Truncate(time.Second)
-	w.svc.now = func() time.Time { return at }
-	w.svc.EnforceLicense(pub, signedLicense(t, key, 2, at.Add(-time.Hour), at.Add(time.Hour)))
-	if _, err := w.svc.CreateProject(bg, owner, ProjectInput{Name: "Migrate"}); err != nil {
-		t.Fatal(err)
+func TestTheFreePlanIsAPairAndPremiumHasNoLimit(t *testing.T) {
+	free := isolatedWorld(t)
+	free.svc.EnforceTeamSize(entitlement.TeamLimit(false))
+	owner, _ := free.workspace("Pair", "Owner")
+	if _, err := free.svc.AddMember(bg, owner, "Partner", "", domain.RoleMember); err != nil {
+		t.Fatal("the second person is the Free plan's partner", err)
 	}
-	recordsErr := w.db.View(bg, func(tx store.Tx) error {
-		rs, err := tx.LicenseRecords(bg)
-		if err == nil && len(rs) != 1 {
-			t.Fatal("legacy license was not replicated")
+	_, err := free.svc.AddMember(bg, owner, "Third person", "", domain.RoleMember)
+	if !errors.Is(err, domain.ErrPremiumRequired) {
+		t.Fatal("a third person was added on the Free plan", err)
+	}
+	if errors.Is(err, domain.ErrForbidden) {
+		t.Fatal("a plan limit must not read as a permission failure")
+	}
+
+	premium := isolatedWorld(t)
+	premium.svc.EnforceTeamSize(entitlement.TeamLimit(true))
+	big, _ := premium.workspace("Team", "Owner")
+	for i := range 6 {
+		if _, err := premium.svc.AddMember(bg, big, fmt.Sprintf("Member%d", i), "", domain.RoleMember); err != nil {
+			t.Fatal("Premium refused a member", err)
 		}
-		return err
-	})
-	if recordsErr != nil {
-		t.Fatal(recordsErr)
-	}
-	at = at.Add(2 * time.Hour)
-	if _, err := w.svc.CreateProject(bg, owner, ProjectInput{Name: "Expired"}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatal("expired license permitted a write", err)
-	}
-	renewal := signedLicense(t, key, 3, at.Add(-time.Hour), time.Time{})
-	if _, err := w.svc.InstallLicense(bg, member, renewal); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatal("member renewed license", err)
-	}
-	if _, err := w.svc.InstallLicense(AuthenticatedContext(bg, owner), owner, renewal); err != nil {
-		t.Fatal("owner cannot recover expired license", err)
-	}
-	if _, err := w.svc.AddMember(bg, owner, "Third", "", domain.RoleMember); err != nil {
-		t.Fatal(err)
-	}
-	// A restart uses the replicated document, with no license file or vendor connection.
-	restarted := New(w.db)
-	restarted.now = w.svc.now
-	restarted.EnforceLicense(pub, nil)
-	if _, err := restarted.CreateProject(bg, owner, ProjectInput{Name: "Offline restart"}); err != nil {
-		t.Fatal(err)
 	}
 }
 
-func TestAdditionalIndividualDevicesDoNotConsumeLicensedSeats(t *testing.T) {
-	w := isolatedLicenseWorld(t)
-	pub, key, _ := ed25519.GenerateKey(rand.Reader)
-	w.svc.EnforceLicense(pub, signedLicense(t, key, 2, time.Now().Add(-time.Hour), time.Time{}))
-	owner, _ := w.workspace("Licensed", "Owner")
+func TestAdditionalIndividualDevicesDoNotCountAsPeople(t *testing.T) {
+	w := isolatedWorld(t)
+	w.svc.EnforceTeamSize(2)
+	owner, _ := w.workspace("Devices", "Owner")
 	member, _ := w.member(owner, "Member")
 	w.mustRegister(member, laptop(t, "first-personal-device"), domain.CapabilityRunner)
 	w.mustRegister(member, laptop(t, "second-personal-device"), domain.CapabilityRunner)
-	if _, err := w.svc.AddMember(bg, owner, "Third person", "", domain.RoleMember); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatal("additional devices bypassed person seat limit", err)
+	if _, err := w.svc.AddMember(bg, owner, "Third person", "", domain.RoleMember); !errors.Is(err, domain.ErrPremiumRequired) {
+		t.Fatal("additional devices bypassed the person limit", err)
 	}
 }
 
@@ -188,8 +153,8 @@ func TestRevocationAndRoleChangeInvalidateAnAlreadyAuthenticatedSession(t *testi
 	}
 }
 
-func TestExpiredLicenseStillAllowsContainmentWithoutGrantingAuthority(t *testing.T) {
-	w := isolatedLicenseWorld(t)
+func TestATeamOverTheLimitKeepsWorkingAndCanStillContainAccess(t *testing.T) {
+	w := isolatedWorld(t)
 	owner, _ := w.workspace("Containment", "Owner")
 	member, token := w.member(owner, "Member")
 	admin := w.admin(owner, "Admin")
@@ -198,37 +163,31 @@ func TestExpiredLicenseStillAllowsContainmentWithoutGrantingAuthority(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	pub, key, _ := ed25519.GenerateKey(rand.Reader)
-	at := time.Now().UTC().Truncate(time.Second)
-	w.svc.now = func() time.Time { return at }
-	w.svc.EnforceLicense(pub, signedLicense(t, key, 3, at.Add(-time.Hour), at.Add(time.Hour)))
-	if _, err := w.svc.CreateProject(bg, owner, ProjectInput{Name: "Before expiry"}); err != nil {
-		t.Fatal(err)
-	}
-	at = at.Add(2 * time.Hour)
+	// Three people already, then the Free limit is applied (an older team, or a restart on a free build).
+	w.svc.EnforceTeamSize(entitlement.FreeTeamLimit)
 	ctx := AuthenticatedContext(bg, owner)
-	if _, err := w.svc.CreateProject(ctx, owner, ProjectInput{Name: "Expired"}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatal("expired license allowed coordination writes", err)
+	if _, err := w.svc.AddMember(ctx, owner, "Fourth", "", domain.RoleMember); !errors.Is(err, domain.ErrPremiumRequired) {
+		t.Fatal("a team over the limit grew", err)
 	}
-	if _, err := w.svc.SetMemberRole(ctx, owner, member.Member.ID, domain.RoleAdmin); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatal("expired license granted authority", err)
+	if _, err := w.svc.CreateProject(ctx, owner, ProjectInput{Name: "Still coordinating"}); err != nil {
+		t.Fatal("a team over the limit lost its other writes", err)
 	}
 	if _, err := w.svc.RevokeDevice(ctx, owner, dev.ID); err != nil {
-		t.Fatal("license blocked device containment", err)
+		t.Fatal("the limit blocked device containment", err)
 	}
 	if _, err := w.svc.Authenticate(bg, credential); !errors.Is(err, domain.ErrUnauthenticated) {
 		t.Fatal("revoked device still authenticated", err)
 	}
 	if _, err := w.svc.ReissueToken(ctx, owner, member.Member.ID); err != nil {
-		t.Fatal("license blocked replacement of a leaked member credential", err)
+		t.Fatal("the limit blocked replacement of a leaked member credential", err)
 	}
 	if _, err := w.svc.Authenticate(bg, token); !errors.Is(err, domain.ErrUnauthenticated) {
 		t.Fatal("old member credential still authenticated", err)
 	}
 	if _, err := w.svc.SetMemberRole(ctx, owner, admin.Member.ID, domain.RoleMember); err != nil {
-		t.Fatal("license blocked admin demotion", err)
+		t.Fatal("the limit blocked admin demotion", err)
 	}
 	if err := w.svc.RemoveMember(ctx, owner, member.Member.ID); err != nil {
-		t.Fatal("license blocked member containment", err)
+		t.Fatal("the limit blocked member removal", err)
 	}
 }

@@ -14,7 +14,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -100,7 +99,6 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/team/v1/memory/proposals", s.handleMemoryPropose)
 	api.HandleFunc("POST /api/team/v1/memory/query", s.handleMemoryRead)
 	api.HandleFunc("POST /api/team/v1/memory/{mid}", s.handleMemoryChange)
-	api.HandleFunc("PUT /api/team/v1/license", s.handleInstallLicense)
 	api.HandleFunc("GET /api/team/v1/me", s.handleMe)
 	api.HandleFunc("GET /api/team/v1/roles", s.handleRoles)
 	api.HandleFunc("GET /api/team/v1/workspace", s.handleWorkspace)
@@ -316,21 +314,6 @@ func loopbackRequest(r *http.Request) bool {
 	return err == nil && addr.Addr().IsLoopback() && r.Header.Get("Forwarded") == "" && r.Header.Get("X-Forwarded-For") == "" && r.Header.Get("X-Real-IP") == ""
 }
 
-func (s *Server) handleInstallLicense(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Document json.RawMessage `json:"document"`
-	}
-	if !s.decode(w, r, &in) {
-		return
-	}
-	c, err := s.opt.Service.InstallLicense(r.Context(), actorOf(r), in.Document)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	httpkit.WriteJSON(w, http.StatusOK, c)
-}
-
 func actorOf(r *http.Request) service.Actor {
 	a, _ := r.Context().Value(ctxKey{}).(service.Actor)
 	return a
@@ -371,6 +354,8 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, domain.ErrUnauthenticated):
 		w.Header().Set("WWW-Authenticate", `Bearer realm="werkbord-team"`)
 		httpkit.WriteError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid token")
+	case errors.Is(err, domain.ErrPremiumRequired):
+		httpkit.WriteError(w, http.StatusPaymentRequired, "premium_required", err.Error())
 	case errors.Is(err, domain.ErrForbidden):
 		httpkit.WriteError(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, domain.ErrNotFound):

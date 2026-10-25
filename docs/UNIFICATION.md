@@ -7,8 +7,7 @@ no longer the approach. From `werkbord-v4.0.0-preview.1`:
 - there is **one version** (`cmd/werkbord/VERSION`), **one tag series** (`werkbord-vX.Y.Z`) and **one release** with one
   Mac app, at all times unified ([VERSIONING.md](VERSIONING.md));
 - Werkbord Team is a part of Werkbord, not a second product. It keeps the pieces that are different in kind, not in
-  packaging: the privileged service that creates the private network interface, the Workspace Host (Nebula, rqlite) and
-  the offline license check;
+  packaging: the privileged service that creates the private network interface and the Workspace Host (Nebula, rqlite);
 - the **trust rules stay**: Team never executes anything, never holds Git or agent credentials, and never reaches into a
   member's machine; no private signing key is ever linked into Team; nothing in Team points at a Werkbord-operated
   service. Those are about trust, not packaging, and `internal/archtest` keeps enforcing them.

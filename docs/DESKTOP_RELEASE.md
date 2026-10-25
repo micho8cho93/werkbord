@@ -145,7 +145,6 @@ Secrets live in an **environment**, which only the macOS build job uses and whic
 | `APPLE_NOTARY_KEY` | the **whole text** of `AuthKey_XXXXXXXXXX.p8`, including the `-----BEGIN PRIVATE KEY-----` lines |
 | `APPLE_NOTARY_KEY_ID` | the Key ID (step 4) |
 | `APPLE_NOTARY_ISSUER` | the Issuer ID (step 4) |
-| `TEAM_LICENSE_ISSUER_PUBLIC_KEY` | the vendor's 32-byte Ed25519 **public** key for Team licenses, raw URL base64 (43 characters, no padding). The app carries Team's installer, which checks every license with it. The private half stays with the offline license issuer and is never uploaded |
 | `WINDOWS_SIGNING_CERTIFICATE_PFX_BASE64` | one-line base64 encoding of the Authenticode code-signing PFX for the Windows installer and Werkbord executables |
 | `WINDOWS_SIGNING_CERTIFICATE_PASSWORD` | the PFX export password |
 
@@ -160,7 +159,7 @@ in PKCS#12 format. On a Mac, encode it without line breaks with `base64 -i werkb
 the PFX password as the two Windows environment secrets. Never commit the PFX or paste it into chat. The release job writes it
 to a temporary file, signs and verifies the artifacts, then removes the file and imported certificate.
 
-The Linux and Windows jobs also need `TEAM_LICENSE_ISSUER_PUBLIC_KEY`. Windows arm64 is not included because the pinned Team
+Windows arm64 is not included because the pinned Team
 network and database payloads do not support that target. Check inputs without building anything: the dry run (step 7) starts
 with `scripts/check-release-secrets.sh`, which reports missing or malformed values without printing them.
 

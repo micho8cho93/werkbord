@@ -7,9 +7,9 @@ browser connects to it. There is no hosted backend and no Werkbord account.
 Werkbord is one product with one version and one release. It has two parts: **Individual Werkbord** (the `werkbord`
 program), and **Werkbord Team**, a workspace that coordinates a team's members and projects without ever running anything
 on anyone's computer. The desktop app shows both in one window and installs Team's local service when you add a Team: see
-[docs/STRUCTURE.md](docs/STRUCTURE.md), [docs/TEAM.md](docs/TEAM.md) and, for how the window, Team service and installer fit together, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped). Individual is free and requires no Team license or network. Team installation is explicit, and each workspace enforces its own offline license. The controller CLI is included in the unified release; Team Host setup is provided by the desktop app, not a standalone Host archive.
+[docs/STRUCTURE.md](docs/STRUCTURE.md), [docs/TEAM.md](docs/TEAM.md) and, for how the window, Team service and installer fit together, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped). Werkbord is free for one person and for a team of two; a team of three or more needs Premium ([docs/PLANS.md](docs/PLANS.md)). There is no licence. Team installation is explicit. The controller CLI is included in the unified release; Team Host setup is provided by the desktop app, not a standalone Host archive.
 
-Team uses customer-owned Nebula networking by default and needs no Tailscale account or vendor runtime service. Customers run their Workspace Hosts, Connectivity Hosts, backups and local runners. Team requires a verified offline license and authenticated release artifacts; see [Team installation](docs/TEAM_INSTALL.md), [threat model](docs/TEAM_SECURITY.md), and the [production gate report](docs/TEAM_SECURITY_GATE.md). Individual Werkbord's tsnet support remains separate.
+Team uses customer-owned Nebula networking by default and needs no Tailscale account or vendor runtime service. Customers run their Workspace Hosts, Connectivity Hosts, backups and local runners. Team requires authenticated release artifacts; see [Team installation](docs/TEAM_INSTALL.md), [threat model](docs/TEAM_SECURITY.md), and the [production gate report](docs/TEAM_SECURITY_GATE.md). Individual Werkbord's tsnet support remains separate.
 
 ## Install
 
@@ -199,7 +199,7 @@ Other commands: `werkbord project list`, `werkbord token`, `werkbord migrate`,
 `werkbord version`. Run
 `werkbord <command> -h` for flags.
 
-Werkbord Team's service is its own program (a Workspace Host without the Mac app uses it directly): `make build-team`, with a build-time license verification public key and a valid offline license. macOS hosts also need the C toolchain for Keychain and the pinned rqlite source build.
+Werkbord Team's service is its own program (a Workspace Host without the Mac app uses it directly): `make build-team`, which needs nothing but the build. macOS hosts also need the C toolchain for Keychain and the pinned rqlite source build.
 See [docs/TEAM.md](docs/TEAM.md).
 
 The Mac app, which carries Team's service and installer too (it needs the Xcode command line tools, for the system's web view):

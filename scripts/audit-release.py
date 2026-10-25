@@ -67,7 +67,7 @@ def inventory(out):
             components.append({"type": "library", "name": dependency["Path"], "version": dependency.get("Version", "local"),
                                "purl": "pkg:golang/"+dependency["Path"]+"@"+dependency.get("Version", "local"),
                                "properties": [{"name": "werkbord:module", "value": module}, {"name": "werkbord:dependency", "value": "transitive" if dependency.get("Indirect") else "direct"}]})
-    for manifest in ("web/package-lock.json", "cmd/werkbord-team/licensing/ui/package-lock.json", "relay/worker/package-lock.json"):
+    for manifest in ("web/package-lock.json", "relay/worker/package-lock.json"):
         path = ROOT / manifest
         if not path.exists():
             evidence.append({"inventory": manifest, "status": "missing"})
@@ -176,7 +176,7 @@ def main():
             (out / (label+"-vuln.json")).write_text(raw)
             (out / (label+"-vuln.stderr.txt")).write_text(err)
             results.append({"check": label, "exit": code, "nativeDesktopTags": module == "desktop" and options.native_desktop})
-        for module in ("web", "cmd/werkbord-team/licensing/ui", "relay/worker"):
+        for module in ("web", "relay/worker"):
             code, raw, err = capture(["npm", "audit", "--json"], ROOT / module)
             name = module.replace("/", "-")
             (out / (name+"-audit.json")).write_text(raw)

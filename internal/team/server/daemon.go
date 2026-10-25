@@ -2,9 +2,7 @@ package server
 
 import (
 	"context"
-	"crypto/ed25519"
 	"crypto/subtle"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,7 +26,6 @@ import (
 	"devboard/internal/team/domain"
 	"devboard/internal/team/hostclient"
 	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/license"
 	"devboard/internal/team/localwerkbord"
 	"devboard/internal/team/runnerlink"
 )
@@ -40,9 +37,10 @@ type DaemonOptions struct {
 	// LocalKey is supplied by the native service installer; empty uses a key in device state (CLI/dev).
 	LocalKey         string
 	RunnerConfigPath string
-	LicenseKey       ed25519.PublicKey
-	Version          string
-	Log              *slog.Logger
+	// Premium says the plan has no team size limit. Nothing sets it in production until the unlock key exists.
+	Premium bool
+	Version string
+	Log     *slog.Logger
 	// Slot names this workspace among the workspaces on this computer ("main" for the first and, on an installation
 	// from before several were possible, the only one). HostingGuard and NetworkGuard are supplied by the Hub so that
 	// workspaces on one computer cannot take the same host ports or private-network addresses. Both may be nil.
@@ -80,8 +78,8 @@ type Daemon struct {
 }
 
 func NewDaemon(o DaemonOptions) (*Daemon, error) {
-	o.Config.LicenseRequired = true
-	o.Config.LicenseKey = append([]byte(nil), o.LicenseKey...)
+	o.Config.Production = true
+	o.Config.Premium = o.Premium
 	if o.LocalAddr == "" {
 		o.LocalAddr = "127.0.0.1:7431"
 	}
@@ -110,7 +108,6 @@ func (d *Daemon) workspaceConfig() config.Config {
 	c := d.o.Config
 	c.DataDir = filepath.Join(c.DataDir, "workspace")
 	c.SecureStorageID = c.DataDir
-	c.LicenseFile = filepath.Join(d.o.Config.DataDir, "license.json")
 	if c.BackupDir == "" {
 		c.BackupDir = filepath.Join(d.o.Config.DataDir, "backups")
 	}
@@ -183,7 +180,6 @@ func (d *Daemon) Handler() http.Handler {
 	mux.HandleFunc("POST /api/device/v1/invitation", d.inspectInvitation)
 	mux.HandleFunc("POST /api/device/v1/join", d.joinWorkspace)
 	mux.HandleFunc("POST /api/device/v1/join/cancel", d.cancelJoin)
-	mux.HandleFunc("POST /api/device/v1/license", d.importLicense)
 	mux.HandleFunc("PUT /api/device/v1/settings", d.saveSettings)
 	mux.HandleFunc("POST /api/device/v1/execution/preview", d.previewExecution)
 	mux.HandleFunc("POST /api/device/v1/execution/approve", d.approveExecution)
@@ -327,60 +323,6 @@ func (d *Daemon) workspaceRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (d *Daemon) licenseClaims() (license.Claims, error) {
-	f, err := os.Open(filepath.Join(d.o.Config.DataDir, "license.json"))
-	if err != nil {
-		return license.Claims{}, err
-	}
-	defer f.Close()
-	b, err := readBounded(f, 16384)
-	if err != nil {
-		return license.Claims{}, err
-	}
-	return license.Verify(b, d.o.LicenseKey, time.Now())
-}
-
-func (d *Daemon) importLicense(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		License  json.RawMessage `json:"license"`
-		Document string          `json:"document"`
-	}
-	if !daemonDecode(w, r, &in) {
-		return
-	}
-	if in.Document != "" {
-		in.License = json.RawMessage(in.Document)
-	}
-	c, err := license.Verify(in.License, d.o.LicenseKey, time.Now())
-	if err != nil {
-		daemonFail(w, err)
-		return
-	}
-	d.mu.RLock()
-	host := d.host
-	d.mu.RUnlock()
-	if host != nil {
-		me, err := host.Me(r.Context())
-		if err != nil {
-			daemonFail(w, err)
-			return
-		}
-		if me.Member.Role != domain.RoleOwner {
-			daemonFail(w, errors.New("the workspace owner manages its license"))
-			return
-		}
-		if err := host.Do(r.Context(), "PUT", "/license", map[string]any{"document": in.License}, nil); err != nil {
-			daemonFail(w, err)
-			return
-		}
-	}
-	if err := writeDaemonFile(filepath.Join(d.o.Config.DataDir, "license.json"), in.License); err != nil {
-		daemonFail(w, err)
-		return
-	}
-	httpkit.WriteJSON(w, 200, c)
-}
-
 func (d *Daemon) localState(w http.ResponseWriter, r *http.Request) {
 	httpkit.WriteJSON(w, 200, d.stateView())
 }
@@ -398,11 +340,6 @@ func (d *Daemon) stateView() map[string]any {
 	out := map[string]any{"daemon": true, "version": d.o.Version, "operation": op, "error": problem, "settings": d.state.Settings(), "senders": senders, "opened": d.state.OpenedTasks(), "approvals": d.state.Approvals(), "runner": map[string]any{"connected": runnerOK && time.Since(runnerCheck) < time.Minute, "configured": bridge != nil}, "sync": synced}
 	if d.o.Slot != "" {
 		out["slot"] = d.o.Slot
-	}
-	if c, err := d.licenseClaims(); err == nil {
-		out["license"] = c
-	} else {
-		out["licenseError"] = "Import an active Werkbord Team license to create a workspace."
 	}
 	if mat != nil {
 		out["workspace"] = map[string]any{"id": mat.Meta.WorkspaceID, "name": mat.Meta.WorkspaceName}

@@ -13,7 +13,6 @@ package service
 
 import (
 	"context"
-	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"time"
@@ -25,11 +24,10 @@ import (
 
 // Service is the Team application.
 type Service struct {
-	db         store.Store
-	base       store.Store
-	licenseKey ed25519.PublicKey
-	now        func() time.Time
-	hub        *hub
+	db   store.Store
+	base store.Store
+	now  func() time.Time
+	hub  *hub
 	// net is what makes the workspace's private network's certificates and
 	// configuration; nil when this host has none (SetNetwork).
 	net NetworkAuthority

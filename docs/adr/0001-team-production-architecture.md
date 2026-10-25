@@ -101,8 +101,12 @@ written against the contract.
 
 ### 8. Licensing is offline
 
-A licence is a document signed by the vendor's key, verified by the product against a public key it ships with. It needs no
-call home, so an expired internet connection never stops a team. (Not built yet; this fixes the shape.)
+> **Superseded.** There is no licence any more: Free and Premium are told apart by a per-person unlock key, and a team's size is
+> a rule in the workspace transaction ([PLANS.md](../PLANS.md)). What stands from this decision is the shape: nothing is checked
+> against a vendor server, so a lost internet connection never stops a team.
+
+A licence was a document signed by the vendor's key, verified by the product against a public key it ships with. It needed no
+call home, so an expired internet connection never stopped a team.
 
 ## What phase 1 built
 

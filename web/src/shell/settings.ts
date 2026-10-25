@@ -56,7 +56,7 @@ function team(id: string): Group[] {
       sections: [at('computer', 'This computer', 'settings&part=computer'), at('devices', 'Devices', 'devices'), at('hosts', 'Workspace Hosts', 'hosts'), at('connectivity', 'Connectivity', 'connectivity')],
     },
     { label: 'Connections', sections: [at('phones', 'Phones', 'settings&part=phones'), at('mcp', 'MCP clients', 'mcp'), at('memory', 'Team memory', 'settings&part=memory')] },
-    { label: 'Workspace', sections: [at('backups', 'Backups', 'backups'), at('license', 'License', 'license')] },
+    { label: 'Workspace', sections: [at('backups', 'Backups', 'backups')] },
   ];
 }
 

@@ -65,13 +65,9 @@ func (d *Daemon) createWorkspace(w http.ResponseWriter, r *http.Request) {
 	if !daemonDecode(w, r, &in) {
 		return
 	}
-	// The first Workspace Host is a host: it takes this computer's host ports. Say so before asking for a license.
+	// The first Workspace Host is a host: it takes this computer's host ports. Say so before anything is started.
 	if err := d.hostingAllowed(); err != nil {
 		daemonFail(w, err)
-		return
-	}
-	if _, err := d.licenseClaims(); err != nil {
-		daemonFail(w, errors.New("import an active Team license before creating your workspace"))
 		return
 	}
 	err := d.launchOperation("Creating your workspace", func(ctx context.Context) error {

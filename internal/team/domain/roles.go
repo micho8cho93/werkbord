@@ -18,7 +18,7 @@ type Role string
 const (
 	// RoleOwner created the workspace and can do everything in it. A workspace
 	// has exactly one, and it alone holds the workspace's ownership: appointing
-	// and removing admins, and whatever licence the workspace runs under.
+	// and removing admins.
 	RoleOwner Role = "owner"
 	// RoleAdmin administers the workspace: its members, projects and devices. An
 	// admin cannot appoint or remove other admins, cannot touch the owner, and has
@@ -57,8 +57,8 @@ const (
 
 	// PermAdminsManage appoints and removes admins, and acts on their accounts. Only the owner has it.
 	PermAdminsManage Permission = "admins.manage"
-	// PermOwnership is the workspace's ownership authority: the one that holds its
-	// licence and, in time, may hand it on. Only the owner has it.
+	// PermOwnership is the workspace's ownership authority: the one that, in time, may
+	// hand it on. Only the owner has it.
 	PermOwnership Permission = "workspace.ownership"
 
 	// PermDevicesOwn registers, renames and revokes one's own devices.

@@ -28,11 +28,6 @@
 .request-status { padding: 10px 0; }
 input, textarea { caret-color: var(--accent); }
 .setup-panel form { margin-top: 20px; }
-.license-import { display: grid; gap: 10px; min-width: 0; padding: 16px; border: 1px dashed var(--line); border-radius: 6px; }
-.license-import label, .license-import input { min-width: 0; }
-.license-import > button { justify-self: start; }
-.license-import p { margin: 0; overflow-wrap: anywhere; }
-.license-import.license-drop-over { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 650px) {
   .desktop-gate { margin-top: 16px; }
   .setup-panel { padding: 20px; }
