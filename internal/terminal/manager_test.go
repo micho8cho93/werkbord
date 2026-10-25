@@ -312,3 +312,94 @@ func TestPTYDescriptorCannotBeInheritedByAnotherSession(t *testing.T) {
 		t.Fatal("PTY master is inheritable by another process")
 	}
 }
+
+func TestPhoneGrantPersistenceAssociationAndInputReceipts(t *testing.T) {
+	m, p := fixture(t)
+	s := create(t, m, p, "codex")
+	ctx := context.Background()
+	_, offset := collect(t, m, s, 0, "READY")
+	probe, err := m.OutputNow(ctx, p, s.ID, offset)
+	if err != nil || len(probe.Data) != 0 || probe.Next != offset || probe.Metadata.State != "running" {
+		t.Fatalf("idle reconnect probe: %+v %v", probe, err)
+	}
+	if err := m.Access(ctx, p, s.ID, "phone-a"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("default access: %v", err)
+	}
+	if err := m.Grant(p, s.ID, "phone-a", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Access(ctx, p, s.ID, "phone-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Access(ctx, p, s.ID, "phone-b"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("other phone: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := m.InputOnce(p, s.ID, "phone-client-1234", 1, []byte("once\n"), offset); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.InputOnce(p, s.ID, "phone-client-1234", 2, []byte("sentinel\n"), offset); err != nil {
+		t.Fatal(err)
+	}
+	replay, err := m.Output(ctx, p, s.ID, 0)
+	if err != nil || !replay.Replay || replay.Next != offset {
+		t.Fatalf("acknowledged history: %+v %v", replay, err)
+	}
+	text, _ := collect(t, m, s, offset, "REPLY:sentinel")
+	if strings.Count(text, "REPLY:once") != 1 {
+		t.Fatalf("duplicate PTY write: %q", text)
+	}
+	if err := m.InputOnce(p, s.ID, "phone-client-1234", 1, []byte("once\n"), offset); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("stale receipt: %v", err)
+	}
+	// Persisted grants survive reopening metadata after the first manager has shut down.
+	if err := m.Stop(p, s.ID); err != nil {
+		t.Fatal(err)
+	}
+	m.Close()
+	reopened, err := New(m.opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if err := reopened.Access(ctx, p, s.ID, "phone-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.Grant(p, s.ID, "phone-a", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.Access(ctx, p, s.ID, "phone-a"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("grant removal: %v", err)
+	}
+	if err := reopened.Grant(p, s.ID, "phone-a", true); err != nil {
+		t.Fatal(err)
+	}
+	for _, disabled := range []bool{true, false} {
+		if err := m.opt.Settings.Store.Update(ctx, func(tx store.Tx) error {
+			r, e := tx.Runners().Get(ctx, m.Device())
+			if e != nil {
+				return e
+			}
+			r.Disabled = disabled
+			return tx.Runners().Save(ctx, r)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		err := reopened.Access(ctx, p, s.ID, "phone-a")
+		if disabled && !errors.Is(err, domain.ErrForbidden) || !disabled && err != nil {
+			t.Fatalf("runner disabled=%v: %v", disabled, err)
+		}
+	}
+	// A repository that disappears or changes identity no longer authorises even its previous session.
+	project, err := m.opt.Projects.Get(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(project.RepoPath, ".git"), filepath.Join(project.RepoPath, "old-git")); err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.Access(ctx, p, s.ID, "phone-a"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("repository identity lost: %v", err)
+	}
+}

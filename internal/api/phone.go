@@ -135,6 +135,12 @@ var phoneRoutes = []phoneRoute{
 	{method: "PUT", pattern: "/api/personal/v1/collections/{}/records/{}", anyBody: true},
 	{method: "DELETE", pattern: "/api/personal/v1/collections/{}/records/{}", anyBody: true},
 
+	// Terminal attachment only: creation and grant management remain local-owner only.
+	{method: "GET", pattern: "/api/terminals"},
+	{method: "GET", pattern: "/api/projects/{}/terminals/{}/output"},
+	{method: "POST", pattern: "/api/projects/{}/terminals/{}/input", fields: []string{"data", "client", "sequence", "rendered"}},
+	{method: "POST", pattern: "/api/projects/{}/terminals/{}/resize", fields: []string{"cols", "rows"}},
+	{method: "POST", pattern: "/api/projects/{}/terminals/{}/stop"},
 	// the Assistant, all of it, as on the desktop.
 	{method: "GET", pattern: "/api/assistant/providers"},
 	{method: "GET", pattern: "/api/assistant/sessions"},

@@ -299,7 +299,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// the token even when loopback has been opened without one.
 	privateOpts := apiOpts
 	privateOpts.Memory = nil
-	privateOpts.Terminals = nil
+	// Terminal handlers still require an enrolled phone with a per-session grant.
+	privateOpts.Terminals = c.terminals
 	// Personal data is served here to an enrolled phone and to no one else, and only on the routes a phone has been
 	// reviewed for (api/phone.go): the owner's token never opens it from the network (api.personalReady).
 	privateOpts.PersonalPhonesOnly = true

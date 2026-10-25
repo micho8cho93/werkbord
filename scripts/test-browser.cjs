@@ -94,7 +94,7 @@ async function cleanup() {
     if (process.env.BROWSER_TEAM_ONLY === '1') { run(process.execPath, ['scripts/browser-team.cjs'], testEnv); return; }
     if (process.env.BROWSER_COMMENTS_ONLY === '1') { run(process.execPath, ['scripts/browser-team-comments.cjs'], testEnv); return; }
     if (process.env.BROWSER_DECK_ONLY === '1') { run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
-    if (process.env.BROWSER_PHONE_ONLY === '1') { run(process.execPath, ['scripts/browser-phone.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
+    if (process.env.BROWSER_PHONE_ONLY === '1') { run(process.execPath, ['scripts/browser-salie-terminals.cjs'], testEnv); run(process.execPath, ['scripts/browser-phone.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck.cjs'], testEnv); run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv); return; }
     if (process.env.BROWSER_MOTION_ONLY === '1') { run(process.execPath, ['scripts/browser-motion.cjs'], testEnv); return; }
     if (process.env.BROWSER_UX_ONLY === '1') { run(process.execPath, ['scripts/browser-workspace-ux.cjs'], testEnv); return; }
     if (process.env.BROWSER_BRIDGE_ONLY === '1') {
@@ -109,6 +109,7 @@ async function cleanup() {
       return;
     }
     run(process.execPath, ['scripts/browser-individual.cjs'], testEnv);
+    run(process.execPath, ['scripts/browser-salie-terminals.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-phone.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-deck.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-deck-onboarding.cjs'], testEnv);

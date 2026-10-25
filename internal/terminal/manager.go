@@ -4,6 +4,7 @@ package terminal
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -33,20 +34,26 @@ type Metadata struct {
 	Device     string    `json:"device"`
 	Repository string    `json:"repository"`
 	State      string    `json:"state"`
+	Phones     []string  `json:"phones,omitempty"`
 	CreatedAt  time.Time `json:"createdAt"`
 }
 type record struct {
 	Metadata
-	Process agent.ProcessInfo `json:"process"`
+	Root      string            `json:"root"`
+	CommonDir string            `json:"commonDir"`
+	Process   agent.ProcessInfo `json:"process"`
 }
 type session struct {
 	record
-	p       *process
-	buffer  []byte
-	base    uint64
-	changed chan struct{}
-	done    chan struct{}
-	input   chan []byte
+	p             *process
+	buffer        []byte
+	base          uint64
+	changed       chan struct{}
+	done          chan struct{}
+	input         chan []byte
+	receipts      map[string]inputReceipt
+	answered      uint64
+	grantRevision uint64
 }
 type Options struct {
 	Projects *service.Projects
@@ -227,7 +234,7 @@ func (m *Manager) Create(ctx context.Context, projectID, agentID, device string,
 	if err != nil {
 		return Metadata{}, err
 	}
-	s := &session{record: record{Metadata: Metadata{ID: id, ProjectID: projectID, AgentID: agentID, Device: device, Repository: project.Name, State: "running", CreatedAt: time.Now().UTC()}, Process: p.info()}, p: p, changed: make(chan struct{}), done: make(chan struct{}), input: make(chan []byte, 8)}
+	s := &session{record: record{Metadata: Metadata{ID: id, ProjectID: projectID, AgentID: agentID, Device: device, Repository: project.Name, State: "running", CreatedAt: time.Now().UTC()}, Root: root, CommonDir: project.Repository.CommonDir, Process: p.info()}, p: p, changed: make(chan struct{}), done: make(chan struct{}), input: make(chan []byte, 8)}
 	m.sessions[id] = s
 	if err = m.persist(); err != nil {
 		p.kill()
@@ -373,17 +380,28 @@ type Output struct {
 	Data     []byte   `json:"data"`
 	Next     uint64   `json:"next"`
 	Reset    bool     `json:"reset"`
+	Replay   bool     `json:"replay"`
 }
 
 // Output is a bounded long poll. Offsets count raw PTY bytes; []byte is transported as base64.
 func (m *Manager) Output(ctx context.Context, project, id string, after uint64) (Output, error) {
+	return m.output(ctx, project, id, after, 20*time.Second)
+}
+
+// OutputNow probes current state without waiting for new bytes after a reconnect.
+func (m *Manager) OutputNow(ctx context.Context, project, id string, after uint64) (Output, error) {
+	return m.output(ctx, project, id, after, 0)
+}
+func (m *Manager) output(ctx context.Context, project, id string, after uint64, wait time.Duration) (Output, error) {
 	select {
 	case m.readers <- struct{}{}:
 		defer func() { <-m.readers }()
 	default:
 		return Output{}, domain.ErrConflict
 	}
-	timer := time.NewTimer(20 * time.Second)
+	var revision uint64
+	first := true
+	timer := time.NewTimer(wait)
 	defer timer.Stop()
 	for {
 		m.mu.Lock()
@@ -392,15 +410,23 @@ func (m *Manager) Output(ctx context.Context, project, id string, after uint64) 
 			m.mu.Unlock()
 			return Output{}, err
 		}
+		if first {
+			revision = s.grantRevision
+			first = false
+		}
 		end := s.base + uint64(len(s.buffer))
 		reset := after < s.base || after > end
 		if reset {
 			after = s.base
 		}
-		if after < end || s.State != "running" {
+		if after < end || s.State != "running" || revision != s.grantRevision {
 			next := min(end, after+65536)
+			replay := after < s.answered
+			if replay {
+				next = min(next, s.answered)
+			}
 			data := append([]byte(nil), s.buffer[after-s.base:next-s.base]...)
-			out := Output{Metadata: s.Metadata, Data: data, Next: next, Reset: reset}
+			out := Output{Metadata: s.Metadata, Data: data, Next: next, Reset: reset, Replay: replay}
 			m.mu.Unlock()
 			return out, nil
 		}
@@ -437,5 +463,114 @@ func (m *Manager) Close() {
 	m.mu.Unlock()
 	for _, d := range done {
 		<-d
+	}
+}
+
+// Access revalidates the execution device and registered repository on every attachment/control request.
+func (m *Manager) Access(ctx context.Context, project, id, phone string) error {
+	if !m.AuthorizedDevice(ctx) {
+		return domain.ErrForbidden
+	}
+	m.mu.Lock()
+	s, err := m.get(project, id)
+	if err != nil {
+		m.mu.Unlock()
+		return err
+	}
+	root, common, device := s.Root, s.CommonDir, s.Device
+	allowed := phone == ""
+	for _, grant := range s.Phones {
+		if grant == phone {
+			allowed = true
+		}
+	}
+	m.mu.Unlock()
+	if !allowed || device != m.opt.Device {
+		return domain.ErrForbidden
+	}
+	p, err := m.opt.Projects.Get(ctx, project)
+	if err != nil {
+		return err
+	}
+	if p.Inactive() || p.Repository == nil || p.RepoPath != root || p.Repository.CommonDir != common {
+		return domain.ErrForbidden
+	}
+	repo, err := (&gitrepo.CLI{}).Inspect(ctx, root)
+	if err != nil || repo.RootPath != root || repo.CommonDir != common {
+		return domain.ErrForbidden
+	}
+	return nil
+}
+
+// Grant is called only by the authenticated local owner, for one enrolled phone and session.
+func (m *Manager) Grant(project, id, phone string, enabled bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, err := m.get(project, id)
+	if err != nil {
+		return err
+	}
+	before := append([]string(nil), s.Phones...)
+	grants := []string{}
+	for _, p := range s.Phones {
+		if p != phone {
+			grants = append(grants, p)
+		}
+	}
+	if enabled {
+		grants = append(grants, phone)
+	}
+	s.Phones = grants
+	if err := m.persist(); err != nil {
+		s.Phones = before
+		return err
+	}
+	s.grantRevision++
+	m.notify(s)
+	return nil
+}
+
+type inputReceipt struct {
+	Sequence uint64
+	Hash     [32]byte
+	Rendered uint64
+}
+
+// InputOnce fences duplicate and out-of-order requests without ever replaying uncertain input.
+func (m *Manager) InputOnce(project, id, client string, sequence uint64, data []byte, rendered uint64) error {
+	if len(client) < 16 || len(client) > 80 || sequence == 0 || len(data) == 0 || len(data) > MaxInput {
+		return domain.ErrInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, err := m.get(project, id)
+	if err != nil {
+		return err
+	}
+	if s.receipts == nil {
+		s.receipts = map[string]inputReceipt{}
+	}
+	cursor := rendered
+	if cursor > s.base+uint64(len(s.buffer)) {
+		return domain.ErrInvalid
+	}
+	previous, exists := s.receipts[client]
+	hash := sha256.Sum256(data)
+	if exists && sequence == previous.Sequence && hash == previous.Hash && cursor == previous.Rendered {
+		return nil
+	}
+	if sequence != previous.Sequence+1 || !exists && len(s.receipts) >= 64 {
+		return domain.ErrConflict
+	}
+	if s.State != "running" {
+		return domain.ErrConflict
+	}
+	select {
+	case s.input <- append([]byte(nil), data...):
+		s.receipts[client] = inputReceipt{sequence, hash, cursor}
+		s.answered = max(s.answered, cursor)
+		return nil
+	default:
+		return domain.ErrConflict
 	}
 }

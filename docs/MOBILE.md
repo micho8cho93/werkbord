@@ -143,10 +143,10 @@ opens the same editor the board uses for the dates. Nothing is moved by dragging
 
 ## The Assistant
 
-The Assistant is unchanged: same conversation engine, providers, model picker, tools, dictation, streaming and confirmation cards. A phone that
+The Assistant retains its conversation engine, providers, model picker, tools, dictation, streaming and confirmation cards. Its compact Session selector switches between Salie conversations, opened task sessions and explicitly authorised native CLI terminals. A phone that
 has been enrolled may use it over the private network (it is the only thing there that can), through every assistant route the desktop uses. On a phone
 its surface stops where the bar begins (and takes the room when the on-screen keyboard is up), its Close button gives way to the bar, and the
-bar's two places are part of its focus order. Nothing was added to what it may do.
+bar's two places are part of its focus order. Native terminal control requires a separate local-owner grant for each phone and session; it grants no administrative permissions. See [Native terminal sessions](NATIVE_TERMINALS.md#mobile-session-access-phase-4) for controls, reconnect behaviour and execution limits.
 
 ## Individual and Team
 
@@ -239,3 +239,10 @@ physical-phone usability.
 ### Workflow next actions (4.50)
 
 Find Bugs, Security Audit and Dependency Check buttons start with draft output. Saved findings appear in execution details under Next actions, with Review finding links to the human-owned tasks. Each execution retains its links even when a repeated scan deduplicates a finding to an existing task. Reviewing never starts a run. Report-only output remains available in settings.
+
+### Native mobile sessions (Phase 4)
+
+`make test-phone-browser` and `make test-browser` include `scripts/browser-salie-terminals.cjs`: independent phone enrolment,
+per-session grants, real PTY input/control bytes, desktop/phone UI closure, session switching, network loss/recovery,
+uncertain-input blocking, task sessions, Salie conversations, termination and revocation. It checks 320px and 430px portrait
+and 844px landscape in both themes. Physical phone keyboards remain a manual validation step.

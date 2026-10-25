@@ -2,6 +2,7 @@
   import { runStatus, agentName } from '../format';
   import { app } from '../state.svelte';
   import { tick } from 'svelte';
+ import { isPhone } from '../phones/capability';
   import Icon from '../Icon.svelte';
   import { embedded, openSettingsInShell } from '../embed';
   import { modeLabel, selectionApi, type CatalogAgent } from '../selection';
@@ -16,6 +17,8 @@
     const version = ++refresh;
     connected = [];
     if (!menu) return;
+    await assistant.discoverTerminals();
+    if (isPhone()) return;
     try {
       const [catalog, settings] = await Promise.all([selectionApi.catalog(), selectionApi.settings()]);
       if (version === refresh && menu) connected = connectedAgents(catalog, settings.agents).filter(a => nativeCLILaunchers.has(a.id));
@@ -65,6 +68,11 @@
 </script>
 <svelte:window onresize={revealActive} onkeydowncapture={keydown} onpointerdown={e=>{if(container&&!container.contains(e.target as Node))menu=false;}} />
 <div class="tabs-bar" bind:this={container}>
+  <label class="mobile-selector">Session
+    <select class="select" aria-label="Assistant session" value={assistant.activeId} onchange={e=>assistant.reopen(e.currentTarget.value)}>
+      {#each assistant.tabs as tab (tab.id)}<option value={tab.id}>{assistant.title(tab)} · {tab.terminal ? 'Terminal' : tab.run ? 'Task' : 'Salie'} · {status(tab)}</option>{/each}
+    </select>
+  </label>
   <div class="tabs" role="tablist" aria-label="Salie conversations">
     {#each assistant.openTabs as tab (tab.id)}
       <div class="tab" class:active={tab.id === assistant.activeId}>
@@ -89,7 +97,7 @@
             <button onclick={()=>{launching=agent;projectId=repositories[0]?.id ?? '';launchError='';menu=false;}}>{agent.name}</button>
           {/each}
         {/if}
-        <a href="#/settings?agents" onclick={manage}>Manage Coding Agents →</a>
+        {#if !isPhone()}<a href="#/settings?agents" onclick={manage}>Manage Coding Agents →</a>{/if}
         <div class="separator"></div>
         <button onclick={()=>{rename(assistant.openTabs.find(t=>t.id===assistant.activeId)!);menu=false;}}>Rename current tab</button>
         {#if assistant.closedTabs.length}
@@ -123,6 +131,7 @@
   </form>
 {/if}
 <style>
+  .mobile-selector{display:none}
   .launch{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px}.launch label{display:flex;align-items:center;gap:8px}.launch span{color:var(--text-2)}.launch p{width:100%;margin:0}
   .tabs-bar{display:flex;align-items:stretch;gap:4px;padding:0 12px;border-bottom:1px solid var(--border);flex:none;min-width:0}
   .tabs{display:flex;overflow-x:auto;min-width:0;flex:1;scrollbar-width:thin}
@@ -133,14 +142,14 @@
   button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   .tab>[role='tab']{display:flex;align-items:center;gap:7px;min-width:0;flex:1;text-align:left;padding:8px}
   .tab>[role='tab'] :global(svg){flex:none}
-  .identity{display:grid;min-width:0;gap:2px;flex:1}.title{font-size:12px;color:var(--text)}.detail{font-size:11px}
+  .identity{display:grid;min-width:0;gap:2px;flex:1}.title{font-size:12px;color:var(--text)}.detail{font-size:11.5px}
   .title,.detail{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dismiss{padding:6px;display:flex;align-items:center;align-self:stretch}
   .status{width:5px;height:5px;border-radius:50%;background:var(--text-2);flex:none}.status.running{background:var(--accent)}.status.waiting{background:var(--warn)}
   .tab-menu{position:relative;display:flex}.new{min-width:36px;display:grid;place-items:center}
   .menu{position:absolute;right:0;top:100%;z-index:5;width:260px;max-height:60vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px}
   .menu button,.menu a{display:block;padding:9px 10px;text-align:left;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-  .menu a{font-size:12px;color:var(--text-2);box-sizing:border-box}.group{display:block;font-size:11px;color:var(--text-2);padding:8px 10px 4px}.separator{border-top:1px solid var(--border);margin:5px 0}
+  .menu a{font-size:12px;color:var(--text-2);box-sizing:border-box}.group{display:block;font-size:11.5px;color:var(--text-2);padding:8px 10px 4px}.separator{border-top:1px solid var(--border);margin:5px 0}
   .rename{display:flex;align-items:center;gap:8px;padding:8px 16px;flex:none}.rename label{display:flex;align-items:center;gap:8px;font-size:12px;min-width:0}.rename input{min-width:0}
-  @media(max-width:640px){.tab{min-width:150px}.new,.dismiss{min-width:44px}.menu button,.menu a{min-height:44px}.rename{flex-wrap:wrap}}
+  @media(max-width:899px){.tabs{display:none}.mobile-selector{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-size:12px}.mobile-selector select{min-width:0;width:100%;min-height:44px;font-size:16px}.tabs-bar{padding:4px 8px}.menu{max-width:calc(100vw - 24px)}.tab{min-width:150px}.new,.dismiss{min-width:44px}.menu button,.menu a{min-height:44px}.rename{flex-wrap:wrap}}
 </style>

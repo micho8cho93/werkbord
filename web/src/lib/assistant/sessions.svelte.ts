@@ -71,7 +71,7 @@ export class AssistantSessions {
     const session = await terminalApi.create(projectId, agentId, device);
     const tab = this.add(); tab.terminal = session; this.save();
   }
-  private async discoverTerminals(): Promise<void> {
+  async discoverTerminals(): Promise<void> {
     try {
       const sessions = await terminalApi.list();
       for (const session of sessions) {
@@ -154,7 +154,7 @@ export class AssistantSessions {
     } catch { /* Storage unavailable or malformed: retain a usable empty tab. */ }
     for (const tab of this.tabs) { if (tab.run) tab.run.attach(); else if (!tab.terminal) tab.store.init(true); }
     void this.discoverTerminals();
-    const wake = () => { for (const tab of this.tabs) tab.store.wake(); };
+    const wake = () => { void this.discoverTerminals(); for (const tab of this.tabs) tab.store.wake(); };
     const visible = () => { if (!document.hidden) wake(); };
     const pagehide = () => this.save();
     document.addEventListener('visibilitychange', visible);
@@ -202,6 +202,7 @@ export class AssistantSessions {
     if (origin) this.origin = origin;
     if (trigger !== undefined) this.trigger = trigger;
     this.compact = false;
+    void this.discoverTerminals();
     this.mounted = true;
     this.phase = 'opening';
     if (!this.activeTab.run && !this.activeTab.terminal) void this.active.prepare();

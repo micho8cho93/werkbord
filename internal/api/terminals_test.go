@@ -20,7 +20,7 @@ import (
 
 func TestTerminalOwnerAuthorizationAndClosedCommandSurface(t *testing.T) {
 	var m *terminal.Manager
-	var projectID, programToken, phoneToken string
+	var projectID, programToken, phoneToken, phoneID string
 	ts := newTestServer(t, func(o *Options) {
 		ctx := context.Background()
 		p, e := o.Projects.Register(ctx, gitRepo(t), "Native")
@@ -62,7 +62,7 @@ func TestTerminalOwnerAuthorizationAndClosedCommandSurface(t *testing.T) {
 			t.Fatal(e)
 		}
 		entry, token, e := o.Phones.Enroll(code, "Phone")
-		_ = entry
+		phoneID = entry.ID
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -124,6 +124,12 @@ func TestTerminalOwnerAuthorizationAndClosedCommandSurface(t *testing.T) {
 	for _, route := range routes {
 		for _, token := range []string{"", "wrong", programToken, phoneToken} {
 			status, b := call(t, route.method, ts.URL+route.path, token, route.body)
+			if token == phoneToken && route.path == "/api/terminals" {
+				if status != 200 || string(b) != "[]\n" {
+					t.Fatalf("ungranted list: %d %s", status, b)
+				}
+				continue
+			}
 			if status != 401 && status != 403 {
 				t.Fatalf("%s %s token %q: %d %s", route.method, route.path, token, status, b)
 			}
@@ -134,6 +140,56 @@ func TestTerminalOwnerAuthorizationAndClosedCommandSurface(t *testing.T) {
 	}
 	if code, _ := call(t, "GET", ts.URL+"/api/projects/other/terminals/"+session.ID+"/output?after=0", "terminal-owner", ""); code != 404 {
 		t.Fatalf("cross project output: %d", code)
+	}
+
+	// Owner explicitly enables one existing session for one enrolled phone.
+	grant := `{"phoneId":"` + phoneID + `","enabled":true}`
+	if code, b := call(t, "PUT", ts.URL+path+"/phone", phoneToken, grant); code != 403 {
+		t.Fatalf("phone self grant: %d %s", code, b)
+	}
+	if code, b := call(t, "PUT", ts.URL+path+"/phone", "terminal-owner", grant); code != 200 {
+		t.Fatalf("owner grant: %d %s", code, b)
+	}
+	if code, b := call(t, "GET", ts.URL+"/api/terminals", phoneToken, ""); code != 200 || !strings.Contains(string(b), session.ID) {
+		t.Fatalf("granted list: %d %s", code, b)
+	}
+	for _, in := range []struct {
+		body string
+		want int
+	}{
+		{`{"data":"unique\n","client":"phone-client-0001","sequence":1}`, 200},
+		{`{"data":"unique\n","client":"phone-client-0001","sequence":1}`, 200},
+		{`{"data":"different\n","client":"phone-client-0001","sequence":1}`, 409},
+		{`{"data":"out of order\n","client":"phone-client-0001","sequence":3}`, 409},
+		{`{"data":"without receipt"}`, 400},
+	} {
+		if code, b := call(t, "POST", ts.URL+path+"/input", phoneToken, in.body); code != in.want {
+			t.Fatalf("input: %d %s", code, b)
+		}
+	}
+	if code, b := call(t, "GET", ts.URL+path+"/output?after=0", phoneToken, ""); code != 200 || strings.Contains(string(b), phoneID) {
+		t.Fatalf("output: %d %s", code, b)
+	}
+	if code, _ := call(t, "POST", ts.URL+"/api/projects/other/terminals/"+session.ID+"/input", phoneToken, `{"data":"attack","client":"phone-client-0001","sequence":2}`); code != 404 {
+		t.Fatal(code)
+	}
+	if code, _ := call(t, "POST", ts.URL+path+"/resize", phoneToken, `{"cols":40,"rows":12}`); code != 200 {
+		t.Fatal(code)
+	}
+	if code, _ := call(t, "PUT", ts.URL+path+"/phone", "terminal-owner", `{"phoneId":"`+phoneID+`","enabled":false}`); code != 200 {
+		t.Fatal(code)
+	}
+	if code, _ := call(t, "POST", ts.URL+path+"/stop", phoneToken, `{}`); code != 403 {
+		t.Fatalf("removed grant still controls: %d", code)
+	}
+	call(t, "PUT", ts.URL+path+"/phone", "terminal-owner", grant)
+	if code, _ := call(t, "DELETE", ts.URL+"/api/phones/"+phoneID, "terminal-owner", ""); code != 204 {
+		t.Fatal(code)
+	}
+	for _, route := range routes {
+		if code, _ := call(t, route.method, ts.URL+route.path, phoneToken, route.body); code != 401 {
+			t.Fatalf("revoked phone: %s %d", route.path, code)
+		}
 	}
 	// A disconnected output request cannot stop a session.
 	ctx, cancel := context.WithCancel(context.Background())

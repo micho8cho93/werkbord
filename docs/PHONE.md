@@ -133,3 +133,11 @@ more scan after "Add to Home Screen", which then shows as a second phone: revoke
 If the phone cannot open the address, check that the Tailscale app on the phone is signed in to the same account
 and connected, and that the address is the `…ts.net` name shown in Settings (or the `100.x` address, if MagicDNS
 is off).
+
+## Native terminal grants
+
+Enrolment alone grants no standalone terminal control. At the execution computer, open the terminal in Assistant and use
+**Phone access** to enable this phone for that session. The phone can then select it in Assistant, view output, send native
+CLI input, resize it and explicitly terminate it through the existing Tailscale or encrypted-relay connection. Creating
+terminals and managing grants remain local-owner operations. Revoking the phone ends its open requests and relay access
+immediately. See [Native terminal sessions](NATIVE_TERMINALS.md#mobile-session-access-phase-4).

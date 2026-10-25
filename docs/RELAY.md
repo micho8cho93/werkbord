@@ -258,3 +258,11 @@ origins are needed. Trust the connector operator with every lane paired there. I
 
 The local authenticated device API exposes `GET /api/device/v1/phones` (status and grant IDs), `POST /api/device/v1/phones`
 (issue a link), and `DELETE /api/device/v1/phones/{id}` (revoke). These endpoints are never reachable through the phone tunnel.
+
+## Individual native terminals (Phase 4)
+
+Authorised terminal output and bounded input/resize/stop requests use the existing encrypted HTTP tunnel. There is no
+terminal WebSocket upgrade: output is cursor-based, bounded HTTP long polling, and input carries duplicate-write receipts.
+The same enrolled-device and per-session grants apply through the relay and Tailscale. Disconnects reattach output only;
+uncertain input is never resent automatically. The relay's end-to-end encryption, framing, keys and revocation are unchanged.
+Separately paired task runners expose no terminal capability; Team carries no terminal execution or shell access.
