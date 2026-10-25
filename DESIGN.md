@@ -6,8 +6,8 @@ identity sheet "Werkbord · Identity — Quiet technical · v1" made into code. 
 
 ## Character
 
-Three styles share one set of tokens (below, [Styles](#styles)): **Paper**, the default, flat on warm paper; **Graphite**, the
-same flat layer on neutral greys with a near-black primary; **Classic**, the raised buttons and cards the app had before 4.84.
+Three styles share one set of tokens (below, [Styles](#styles)): **Paper**, the default, flat on warm ivory; **Graphite**, the
+same flat layer on cool blue-greys with an ink primary and a teal accent; **Classic**, the raised buttons and cards the app had before 4.84.
 This sheet describes Paper and says where the others differ.
 
 Quiet technical. Paper and ink, one action colour, one attention colour. The tool disappears into the work:
@@ -28,6 +28,9 @@ opening a Team ticket in a person's Werkbord creates a local task for the handof
 from the active board.
 
 ## Tokens (`web/src/app.css`)
+
+The table is **Classic's** palette (and the base every style builds on). Paper and Graphite replace the neutrals and the accent; see
+[Styles](#styles).
 
 | Role | Light | Dark |
 | --- | --- | --- |
@@ -55,9 +58,13 @@ the sidebar's choice is the window's and is told to every workspace (`werkbord.s
 - The `:root` tokens above are Classic's. Paper and Graphite add one flat layer on `:root:not([data-style='classic'])`: no gradient
   faces, shadow tokens are `0 0 0 0 transparent` (never `none`, they sit in comma lists), `--radius` 10px, `--radius-sm` 6px, solid
   chart bars. One shadow stays, `--win-sh`, for what floats (menus, dialogs, toasts).
-- Graphite overrides the palette only (light: paper `#FAFAFA`, tray `#F2F2F3`, line `#E2E2E5`, cobalt `#2F4FD0`; dark: `#0A0A0B`,
-  `#1B1B1E`, `#28282C`, `#8DA2FF`) and makes the primary button ink (`--pri-fill`, `--pri-text`). Its three palette selectors (light,
-  OS dark, explicit dark) must set the same tokens; `contrast.test.ts` checks that, and every primary label per style and mode.
+- Each style has its own palette in light and in dark, so switching style changes the whole page (`app.css`, "The palettes"):
+  Classic is the token table above; **Paper** is warm ivory and sand with brown ink (light: paper `#F6F1E7`, surface `#FFFDF8`, tray
+  `#ECE4D4`, line `#DCD2BD`, ink `#1C1710`; dark espresso: `#15120E`, `#1E1A15`, `#28231C`, `#3A3329`, `#F2ECE0`) with cobalt for
+  action; **Graphite** is cool blue-grey (light: `#F1F4F7`, `#FFFFFF`, `#E6EBF0`, `#D3DAE3`, `#0E1620`; dark slate: `#0D1218`, `#141B23`,
+  `#1C2530`, `#2B3643`, `#E8EEF4`) with an ink primary (`--pri-fill`, `--pri-text`) and a teal accent (`#0A6280`, dark `#5CC8E0`).
+  Amber and the status colours are shared. Paper has no attribute, so its selectors exclude the other two. Every style writes
+  the same tokens in light, in OS dark and in a chosen dark; `contrast.test.ts` checks the three agree and every text pairing in all six.
 - Classic keeps the old materials and colours but takes the new structure (task card anatomy, type and radius scales). Components
   that were redrawn flat keep their old look under `:root[data-style='classic']` (stat tiles, panels, Settings headings).
 - The Team console follows the style (`console.css`, `theme.js`, stored as `werkbord-team.style`) with Paper, Graphite and Classic;

@@ -53,16 +53,16 @@ class Theme {
 export const theme = new Theme();
 
 // The style is a second choice beside light or dark: how the interface is drawn, not which of its two colour modes shows.
-// Paper is the default (flat, warm paper, cobalt and amber); Graphite is neutral grey with a near-black primary; Classic keeps
-// the earlier raised buttons and cards. Remembered per device (public/theme.js applies it before the first paint), and in the
+// Paper is the default (flat, warm ivory, cobalt and amber); Graphite is cool blue-grey with an ink primary and a teal accent;
+// Classic keeps the earlier raised buttons and cards. Each has its own palette in light and in dark. Remembered per device (public/theme.js applies it before the first paint), and in the
 // desktop window it is the window's, chosen in one place and told to every workspace, as the theme is.
 
 const STYLE_KEY = 'werkbord.style';
 export type StyleChoice = 'paper' | 'graphite' | 'classic';
 export const STYLES: readonly { id: StyleChoice; label: string; about: string }[] = [
-  { id: 'paper', label: 'Paper', about: 'Flat and calm, on warm paper. The default.' },
-  { id: 'graphite', label: 'Graphite', about: 'Neutral greys with a near-black primary.' },
-  { id: 'classic', label: 'Classic', about: 'The earlier raised buttons and cards.' },
+  { id: 'paper', label: 'Paper', about: 'Flat and calm, on warm ivory with brown ink. The default.' },
+  { id: 'graphite', label: 'Graphite', about: 'Cool blue-greys, an ink primary and a teal accent.' },
+  { id: 'classic', label: 'Classic', about: 'The earlier raised buttons and cards, on cool paper.' },
 ];
 
 export function isStyle(value: unknown): value is StyleChoice {

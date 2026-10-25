@@ -18,7 +18,12 @@ function block(selector: string): Record<string, string> {
 
 const light = block(':root');
 const dark = { ...light, ...block(":root[data-theme='dark']") };
-// Graphite replaces the neutrals and the accent; status colours and amber come from the base tokens in each mode.
+// Paper and Graphite each replace the neutrals and the accent; status colours and amber come from the base tokens in each mode.
+// The base tokens above are Classic's.
+const PAPER = ":root:not([data-style='classic']):not([data-style='graphite'])";
+const paperLight = { ...light, ...block(PAPER) };
+const paperDark = { ...dark, ...block(PAPER + "[data-theme='dark']") };
+const paperDarkByDevice = block(PAPER + ":not([data-theme='light'])");
 const graphiteLight = { ...light, ...block(":root[data-style='graphite']") };
 const graphiteDark = { ...dark, ...block(":root[data-style='graphite'][data-theme='dark']") };
 // The same dark palette is written again for a device that is dark without the person having chosen; the two must not drift apart.
@@ -38,8 +43,10 @@ const TEXT = ['text', 'text-2', 'accent', 'ok-text', 'warn-text', 'danger-text']
 const GROUND = ['bg', 'surface', 'surface-2'];
 
 describe.each([
-  ['light', light],
-  ['dark', dark],
+  ['classic light', light],
+  ['classic dark', dark],
+  ['paper light', paperLight],
+  ['paper dark', paperDark],
   ['graphite light', graphiteLight],
   ['graphite dark', graphiteDark],
 ])('%s tokens', (_name, tokens) => {
@@ -70,7 +77,22 @@ describe('the styles', () => {
   it('Graphite sets the same tokens in light and in dark, so neither mode inherits the other\'s', () => {
     expect(Object.keys(block(":root[data-style='graphite']")).sort()).toEqual(Object.keys(block(":root[data-style='graphite'][data-theme='dark']")).sort());
   });
-  for (const [name, tokens] of [['Paper', light], ['Paper dark', dark], ['Graphite', graphiteLight], ['Graphite dark', graphiteDark]] as const)
+  it('Paper writes its dark palette the same way for a device that is dark and for a chosen dark', () => {
+    const chosen = block(PAPER + "[data-theme='dark']");
+    expect(Object.keys(chosen).length).toBeGreaterThan(5);
+    expect(paperDarkByDevice).toEqual(chosen);
+  });
+  it('Paper sets the same tokens in light and in dark', () => {
+    expect(Object.keys(block(PAPER)).sort()).toEqual(Object.keys(block(PAPER + "[data-theme='dark']")).sort());
+  });
+  it('the three styles do not share a page colour in either mode, so switching style is seen at once', () => {
+    for (const mode of [[light, paperLight, graphiteLight], [dark, paperDark, graphiteDark]]) {
+      const grounds = mode.map((t) => t.bg);
+      expect(new Set(grounds).size).toBe(3);
+      expect(new Set(mode.map((t) => t.accent)).size).toBeGreaterThanOrEqual(2);
+    }
+  });
+  for (const [name, tokens] of [['Classic', light], ['Classic dark', dark], ['Paper', paperLight], ['Paper dark', paperDark], ['Graphite', graphiteLight], ['Graphite dark', graphiteDark]] as const)
     it(`${name}: the label on the primary button reads on its fill`, () => {
       const fill = tokens['pri-fill'] ?? tokens.accent;
       const label = tokens['pri-text'] ?? tokens['accent-text'];
