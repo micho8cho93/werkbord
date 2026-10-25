@@ -267,3 +267,55 @@ func TestAnalyticsReadsOneTeamsReportThroughThePersonsOwnCredential(t *testing.T
 		t.Fatal("a workspace that is not a team's was read as one")
 	}
 }
+
+func TestCreatingAndJoiningGoToTheSlotsOwnDeviceAPI(t *testing.T) {
+	var got []string
+	var body map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Method+" "+r.URL.Path)
+		body = nil
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/invitation"):
+			_, _ = w.Write([]byte(`{"name":"Acme","identity":"x","expiresAt":"2026-12-01T10:00:00Z"}`))
+		case strings.HasSuffix(r.URL.Path, "/state"):
+			_, _ = w.Write([]byte(`{"operation":"Creating your workspace","pending":true,"workspace":{"id":"w","name":"Acme"}}`))
+		case r.Method == "POST":
+			w.WriteHeader(202)
+			_, _ = w.Write([]byte(`{"started":true}`))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+	l, err := New(srv.URL, writeKey(t, 0o600, key), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const id = "team:ws_ab12cd34ef56"
+	inv, err := l.InspectInvitation(bg, "werkbord://join/abc")
+	if err != nil || inv.Name != "Acme" || inv.ExpiresAt.Year() != 2026 || body["link"] != "werkbord://join/abc" {
+		t.Fatalf("%+v %v %v", inv, err, body)
+	}
+	if err := l.CreateWorkspace(bg, id, "Smith & Co", "Sam"); err != nil || body["name"] != "Smith & Co" || body["owner"] != "Sam" || got[len(got)-1] != "POST /w/ws_ab12cd34ef56/api/device/v1/create" {
+		t.Fatalf("%v %v %v", err, got, body)
+	}
+	if err := l.JoinWorkspace(bg, id, "werkbord://join/abc", "Sam", "Office Mac", "wbp_k"); err != nil || body["deviceName"] != "Office Mac" || body["premium"] != "wbp_k" || got[len(got)-1] != "POST /w/ws_ab12cd34ef56/api/device/v1/join" {
+		t.Fatalf("%v %v %v", err, got, body)
+	}
+	st, err := l.SetupOf(bg, id)
+	if err != nil || st.Operation != "Creating your workspace" || !st.Pending || st.Enrolled || st.Workspace != "Acme" {
+		t.Fatalf("%+v %v", st, err)
+	}
+	if err := l.CancelJoin(bg, id); err != nil || got[len(got)-1] != "POST /w/ws_ab12cd34ef56/api/device/v1/join/cancel" {
+		t.Fatalf("%v %v", err, got)
+	}
+	for _, bad := range []string{"personal", "team:../x", "team:a/b", ""} {
+		if l.CreateWorkspace(bg, bad, "x", "y") == nil || l.JoinWorkspace(bg, bad, "l", "n", "d", "") == nil || l.CancelJoin(bg, bad) == nil {
+			t.Errorf("%q was used", bad)
+		}
+		if _, err := l.SetupOf(bg, bad); err == nil {
+			t.Errorf("%q was read", bad)
+		}
+	}
+}

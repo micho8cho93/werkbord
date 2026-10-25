@@ -38,6 +38,12 @@ type Team interface {
 	DeliverGrant(ctx context.Context, id, token, base string) error
 	// DeliverPremium gives a workspace's service the person's Premium unlock key.
 	DeliverPremium(ctx context.Context, id, key string) error
+	// The one create-and-join flow (teamsetup.go): read an invitation, start creating or joining in a new slot, say how far it got.
+	InspectInvitation(ctx context.Context, link string) (teamlink.Invitation, error)
+	CreateWorkspace(ctx context.Context, id, name, owner string) error
+	JoinWorkspace(ctx context.Context, id, link, name, device, premium string) error
+	SetupOf(ctx context.Context, id string) (teamlink.SetupState, error)
+	CancelJoin(ctx context.Context, id string) error
 }
 
 // TeamInstaller is Team's own installer (teamlink.Installer).
@@ -169,28 +175,6 @@ func (s *Shell) Overview() workspaces.Overview {
 // RememberPlace records where in a workspace the person is, so the next run opens there. The place is a link inside the
 // workspace; anything else is refused.
 func (s *Shell) RememberPlace(id, place string) error { return s.o.Workspaces.Remember(id, place) }
-
-// AddTeam gives the person a place to create a Team workspace or join one, and says where to load it. It never installs
-// anything: if Team's service is not running it says so, and the shell offers ActivateTeam, which asks first.
-func (s *Shell) AddTeam() (workspaces.Target, error) {
-	ctx, cancel := s.timeout(30 * time.Second)
-	defer cancel()
-	id, err := s.o.Team.AddWorkspace(ctx)
-	if err != nil {
-		return workspaces.Target{}, s.teamError(err)
-	}
-	join := ""
-	if s.o.Invites != nil {
-		join = s.o.Invites.Take()
-	}
-	if _, err := s.o.Workspaces.Select(ctx, id); err != nil {
-		// The new slot is not accessible until it exists in the next listing; open it anyway: it is the one being set up.
-		s.o.Log.Debug("new workspace not selectable yet", "err", err)
-	}
-	// A person on Premium brings their key to the workspace they are about to create or join: a team of more than two needs it.
-	s.givePremium(ctx, id)
-	return s.o.Workspaces.Target(ctx, id, join)
-}
 
 func (s *Shell) teamError(err error) error {
 	st := s.o.Team.StatusOf(err)

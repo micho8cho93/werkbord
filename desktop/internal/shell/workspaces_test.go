@@ -76,6 +76,14 @@ type fakeTeam struct {
 	grants    []string // "<id> <token> <base>"
 	grantErr  error
 	status    map[error]string
+
+	// The create-and-join flow.
+	created, joined, canceled []string // "<id> <what was sent>"
+	createErr, joinErr        error
+	invitation                teamlink.Invitation
+	inviteErr                 error
+	setup                     teamlink.SetupState
+	setupErr                  error
 }
 
 func (t *fakeTeam) StatusOf(err error) teamlink.Status {
@@ -104,6 +112,28 @@ func (t *fakeTeam) DeliverPremium(_ context.Context, id, key string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.premiums = append(t.premiums, id+" "+key)
+	return nil
+}
+func (t *fakeTeam) InspectInvitation(_ context.Context, link string) (teamlink.Invitation, error) {
+	return t.invitation, t.inviteErr
+}
+func (t *fakeTeam) CreateWorkspace(_ context.Context, id, name, owner string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.created = append(t.created, id+" "+name+" "+owner)
+	return t.createErr
+}
+func (t *fakeTeam) JoinWorkspace(_ context.Context, id, link, name, device, premium string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.joined = append(t.joined, strings.Join([]string{id, link, name, device, premium}, "|"))
+	return t.joinErr
+}
+func (t *fakeTeam) SetupOf(context.Context, string) (teamlink.SetupState, error) {
+	return t.setup, t.setupErr
+}
+func (t *fakeTeam) CancelJoin(_ context.Context, id string) error {
+	t.canceled = append(t.canceled, id)
 	return nil
 }
 func (t *fakeTeam) DeliverGrant(_ context.Context, id, token, base string) error {
@@ -248,39 +278,133 @@ func TestTheSwitcherSaysWhatIsWrongWithTeamsServiceAndWhetherItsInstallerIsHere(
 
 // ---- adding, activating, leaving ----
 
-func TestAddingATeamOpensItsSetupAndHandsOverTheInvitationOnce(t *testing.T) {
+func TestCreatingATeamMakesItsPlaceStartsItAndInstallsNothing(t *testing.T) {
 	r := newRig(t)
-	if !r.inv.Receive("werkbord://join/abc") {
-		t.Fatal("a real invitation was refused")
+	id, err := r.CreateTeam("  Smith & Co ", "Sam")
+	if err != nil || id.ID != "team:ws_3" || len(r.tm.created) != 1 || r.tm.created[0] != "team:ws_3 Smith & Co Sam" {
+		t.Fatalf("%+v %v %v", id, err, r.tm.created)
 	}
-	r.reg.items = append(r.reg.items, teamItem("ws_3", "New Team workspace", workspace.StateSetup))
-	tgt, err := r.AddTeam()
-	if err != nil || tgt.ID != "team:ws_3" {
-		t.Fatalf("%+v %v", tgt, err)
+	// Nothing was installed, started, asked or connected to do it: that is each its own, asked, step.
+	if r.ins.activate != 0 || len(r.ins.services) != 0 || len(r.ui.asked) != 0 || len(r.gr.names) != 0 {
+		t.Fatal("creating a team did something else")
 	}
-	var target string
-	for _, c := range r.reg.calls {
-		if strings.HasPrefix(c, "Target") {
-			target = c
+	for _, bad := range [][2]string{{"", "Sam"}, {"Acme", " "}, {strings.Repeat("a", 81), "Sam"}, {"A\nB", "Sam"}} {
+		if _, err := r.CreateTeam(bad[0], bad[1]); err == nil {
+			t.Errorf("%q was taken", bad)
 		}
 	}
-	if target != "Target team:ws_3 werkbord://join/abc" {
-		t.Fatalf("the invitation went to %q", target)
+	if len(r.tm.created) != 1 {
+		t.Fatal("a refused name still created a team")
 	}
-	if r.inv.Peek() {
-		t.Fatal("the invitation was not used up")
-	}
-	// Nothing was installed to do it.
-	if r.ins.activate != 0 || len(r.ui.asked) != 0 {
-		t.Fatal("adding a Team installed something")
-	}
-	// With Team's service not running the person is told, and nothing is installed behind their back.
+	// Team's service not running: the person is told, nothing is installed behind their back.
 	r.tm.addErr = workspaces.ErrNotRunning
-	if _, err := r.AddTeam(); err == nil || !strings.Contains(err.Error(), "not set up") {
+	if _, err := r.CreateTeam("Acme", "Sam"); err == nil || !strings.Contains(err.Error(), "not set up") || r.ins.activate != 0 {
 		t.Fatalf("%v", err)
 	}
-	if r.ins.activate != 0 {
-		t.Fatal("a failed add activated Team")
+}
+
+func TestATeamThatCannotBeStartedLeavesNoPlaceBehind(t *testing.T) {
+	r := newRig(t)
+	r.tm.createErr = errors.New("this computer already hosts another Team workspace")
+	if _, err := r.CreateTeam("Acme", "Sam"); err == nil || !strings.Contains(err.Error(), "already hosts") {
+		t.Fatalf("%v", err)
+	}
+	if !reflect.DeepEqual(r.tm.forgot, []string{"team:ws_3"}) {
+		t.Fatalf("the empty place stayed: %v", r.tm.forgot)
+	}
+	r.tm.forgot = nil
+	r.tm.joinErr = errors.New("the workspace did not accept this invitation")
+	if _, err := r.JoinTeam("werkbord://join/abc", "Sam", "Office Mac"); err == nil || !reflect.DeepEqual(r.tm.forgot, []string{"team:ws_3"}) {
+		t.Fatalf("%v %v", err, r.tm.forgot)
+	}
+}
+
+func TestJoiningTakesOnlyAnInvitationAndCarriesTheKeyForTheHostToCheck(t *testing.T) {
+	r := newRig(t)
+	r.Shell.o.Premium = &fakePremium{key: "wbpremium-k"}
+	if _, err := r.JoinTeam("https://evil.example/", "Sam", "Mac"); err == nil || len(r.tm.joined) != 0 {
+		t.Fatalf("a web address was taken for an invitation: %v", err)
+	}
+	if _, err := r.JoinTeam("werkbord://join/abc", "", "Mac"); err == nil {
+		t.Fatal("a missing name was taken")
+	}
+	got, err := r.JoinTeam(" werkbord://join/abc\n", "Sam", "Office Mac")
+	if err != nil || got.ID != "team:ws_3" || len(r.tm.joined) != 1 || r.tm.joined[0] != "team:ws_3|werkbord://join/abc|Sam|Office Mac|wbpremium-k" {
+		t.Fatalf("%+v %v %v", got, err, r.tm.joined)
+	}
+	if len(r.ui.asked) != 0 || len(r.gr.names) != 0 {
+		t.Fatal("joining connected a runner")
+	}
+}
+
+func TestAnInvitationIsReadOnThisComputerBeforeItIsUsed(t *testing.T) {
+	r := newRig(t)
+	r.tm.invitation = teamlink.Invitation{Name: "Acme"}
+	inv, err := r.CheckInvitation(" werkbord://join/abc ")
+	if err != nil || inv.Name != "Acme" || len(r.tm.joined) != 0 || r.tm.added != "team:ws_3" {
+		t.Fatalf("%+v %v", inv, err)
+	}
+	if _, err := r.CheckInvitation("javascript:alert(1)"); err == nil {
+		t.Fatal("something that is not an invitation was sent to the service")
+	}
+	r.tm.inviteErr = errors.New("this invitation ended on 1 Jan")
+	if _, err := r.CheckInvitation("werkbord://join/abc"); err == nil || !strings.Contains(err.Error(), "ended") {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestSetupSaysWhatIsHappeningAndWaitsForAnAdministratorWithoutBlocking(t *testing.T) {
+	r := newRig(t)
+	r.tm.setup = teamlink.SetupState{Operation: "Creating your workspace"}
+	if v, err := r.TeamSetupState("team:ws_3"); err != nil || v.Working != "Creating your workspace" || v.Done || v.Waiting {
+		t.Fatalf("%+v %v", v, err)
+	}
+	r.tm.setup = teamlink.SetupState{Pending: true, Workspace: "Acme"}
+	if v, _ := r.TeamSetupState("team:ws_3"); !v.Waiting || v.Done || v.Name != "Acme" {
+		t.Fatalf("%+v", v)
+	}
+	// Enrolled but not yet loaded by the service (it does not name the team yet): not done, or a runner could not be connected.
+	r.tm.setup = teamlink.SetupState{Enrolled: true}
+	if v, _ := r.TeamSetupState("team:ws_3"); v.Done || v.Waiting {
+		t.Fatalf("%+v", v)
+	}
+	r.tm.setup = teamlink.SetupState{Enrolled: true, Workspace: "Acme"}
+	if v, _ := r.TeamSetupState("team:ws_3"); !v.Done || v.Waiting {
+		t.Fatalf("%+v", v)
+	}
+	r.tm.setup = teamlink.SetupState{Error: "no route"}
+	if v, _ := r.TeamSetupState("team:ws_3"); v.Error != "no route" || v.Done || v.Exists {
+		t.Fatalf("%+v", v)
+	}
+	// A team that exists but cannot be reached says so: it is not an empty place to clear.
+	r.tm.setup = teamlink.SetupState{Error: "overlaps", Enrolled: true}
+	if v, _ := r.TeamSetupState("team:ws_3"); v.Error != "overlaps" || v.Done || !v.Exists {
+		t.Fatalf("%+v", v)
+	}
+}
+
+func TestCancellingWithdrawsAWaitingJoinAndNeverTouchesATeamThatExists(t *testing.T) {
+	r := newRig(t)
+	r.tm.setup = teamlink.SetupState{Pending: true}
+	if err := r.CancelTeamSetup("team:ws_3"); err != nil || !reflect.DeepEqual(r.tm.canceled, []string{"team:ws_3"}) || !reflect.DeepEqual(r.tm.forgot, []string{"team:ws_3"}) {
+		t.Fatalf("%v %v %v", err, r.tm.canceled, r.tm.forgot)
+	}
+	r.tm.canceled, r.tm.forgot = nil, nil
+	for _, st := range []teamlink.SetupState{{Enrolled: true}, {Operation: "Creating your workspace"}} {
+		r.tm.setup = st
+		if err := r.CancelTeamSetup("team:ws_3"); err == nil {
+			t.Errorf("%+v was cancelled", st)
+		}
+	}
+	if len(r.tm.canceled)+len(r.tm.forgot) != 0 {
+		t.Fatal("a team that exists, or is being made, was removed")
+	}
+}
+
+func TestTheDialogStartsWithNamesFromThisComputer(t *testing.T) {
+	d := newRig(t).TeamDefaults()
+	if strings.HasSuffix(d.Device, ".local") || strings.ContainsAny(d.Name+d.Device, "\n\r") {
+		t.Fatalf("%+v", d)
 	}
 }
 
@@ -411,13 +535,13 @@ func TestOnlyATeamWorkspaceCanBeRemovedFromTheList(t *testing.T) {
 func TestAPageMayAskOnlyWhatItsKindOfWorkspaceMayAndTheKindIsTheAppsKnowledge(t *testing.T) {
 	r := newRig(t, "Connect runner")
 	// A Individual page cannot ask for what is a Team workspace's, even if it knows the name.
-	for _, m := range []string{"ConnectRunner", "TeamService", "PendingInvitation", "AddTeam", "ActivateTeam", "ForgetWorkspace", "OpenWorkspace", "Workspaces", "Overview", "Relay", "Connect", "Reload", "Diagnostics", "ShowDiagnostics", "OpenLogs", "OpenInBrowser", "CheckForUpdates"} {
+	for _, m := range []string{"ConnectRunner", "TeamService", "PendingInvitation", "CreateTeam", "JoinTeam", "CheckInvitation", "TeamSetupState", "CancelTeamSetup", "ActivateTeam", "ForgetWorkspace", "OpenWorkspace", "Workspaces", "Overview", "Relay", "Connect", "Reload", "Diagnostics", "ShowDiagnostics", "OpenLogs", "OpenInBrowser", "CheckForUpdates"} {
 		if _, err := r.Relay("personal", m, nil); err == nil {
 			t.Errorf("a Individual page asked for %s", m)
 		}
 	}
 	// A Team page cannot choose a folder or update the app.
-	for _, m := range []string{"AnswerQuestion", "ChooseDirectory", "ChooseFiles", "RequestUpdate", "UpdateStatus", "Workspaces", "AddTeam", "ActivateTeam", "ForgetWorkspace", "Relay", "Reload"} {
+	for _, m := range []string{"AnswerQuestion", "ChooseDirectory", "ChooseFiles", "RequestUpdate", "UpdateStatus", "Workspaces", "CreateTeam", "JoinTeam", "CheckInvitation", "TeamSetupState", "CancelTeamSetup", "ActivateTeam", "ForgetWorkspace", "Relay", "Reload"} {
 		if _, err := r.Relay("team:main", m, args(false)); err == nil {
 			t.Errorf("a Team page asked for %s", m)
 		}

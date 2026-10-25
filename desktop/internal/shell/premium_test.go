@@ -100,7 +100,7 @@ func TestOpeningATeamGivesItTheKeyAndTheOwnWerkbordNothing(t *testing.T) {
 	if got := strings.Join(r.tm.premiums, "|"); got != "team:main wbpremium-k|team:ws_2 wbpremium-k" {
 		t.Fatalf("delivered to %q", got)
 	}
-	if _, err := r.AddTeam(); err != nil {
+	if _, err := r.CreateTeam("Acme", "Sam"); err != nil {
 		t.Fatal(err)
 	}
 	if last := r.tm.premiums[len(r.tm.premiums)-1]; last != "team:ws_3 wbpremium-k" {

@@ -211,7 +211,7 @@ func TestChoosingFilesGivesBackNamesAndContentsAndRefusesWhatIsNotAPlainSmallFil
 // Wails makes every exported method of the struct it binds callable from a page the controller
 // served. This list is that surface: a new method is a decision, made here, not an accident.
 func TestThePageFacingSurfaceIsExactlyWhatIsListed(t *testing.T) {
-	want := []string{"ActivateTeam", "AddTeam", "Alert", "AlertStatus", "Analytics", "AssistantWorkspaceCall", "AssistantWorkspaces", "CheckForUpdates", "ChooseDirectory", "Connect", "Diagnostics", "ForgetWorkspace", "Info", "LoadWorkspace", "OpenAlertSettings", "OpenExternal", "OpenInBrowser", "OpenLogs", "OpenWorkspace", "Overview", "PendingInvitation", "PersonalTeamProjects", "PersonalWorkspaceCall", "Premium", "Relay", "Reload", "RememberPlace", "RequestUpdate", "ShowDiagnostics", "TeamService", "TestAlert", "UnlockPremium", "UpdateStatus", "Workspaces"}
+	want := []string{"ActivateTeam", "Alert", "AlertStatus", "Analytics", "AssistantWorkspaceCall", "AssistantWorkspaces", "CancelTeamSetup", "CheckForUpdates", "CheckInvitation", "ChooseDirectory", "Connect", "CreateTeam", "Diagnostics", "ForgetWorkspace", "Info", "JoinTeam", "LoadWorkspace", "OpenAlertSettings", "OpenExternal", "OpenInBrowser", "OpenLogs", "OpenWorkspace", "Overview", "PendingInvitation", "PersonalTeamProjects", "PersonalWorkspaceCall", "Premium", "Relay", "Reload", "RememberPlace", "RequestUpdate", "ShowDiagnostics", "TeamDefaults", "TeamService", "TeamSetupState", "TestAlert", "UnlockPremium", "UpdateStatus", "Workspaces"}
 	var got []string
 	typ := reflect.TypeOf(&Shell{})
 	for i := 0; i < typ.NumMethod(); i++ {

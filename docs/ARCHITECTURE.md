@@ -1006,6 +1006,17 @@ Choosing a place asks the workspace to show it (`werkbord.navigate`, a place ins
 is no connection-status indicator anywhere. Where the shell needs to say whether a page is a workspace's or the window's own it
 keeps one flag (`model.universal`); it is not a mode the person sets.
 
+**New team or join…** opens one dialog, the only way to make or join a team. *Create a team* asks for a name; *Join with a link*
+asks for the invitation (an invitation the app was opened with is filled in and read first), shows which team it is for, and asks
+for the person's name and a name for this computer. Both end in one choice, "Connect this computer to the team". The window
+asks the app (`CreateTeam`, `JoinTeam`, `CheckInvitation`, `TeamSetupState`, `CancelTeamSetup`), which makes a place for the team
+on this computer and has Team's service create the team or enrol this computer through the same device API the Team console's
+first-run screens used. Creating or joining runs in the service and the dialog only follows it, so closing the dialog loses
+nothing; a join that waits for an administrator is withdrawn from the dialog or finishes by itself when approved. If Team's service
+is not set up the same button asks first, in the app's own dialog (administrator password once). The checkbox is the person's
+wish, not a grant: the grant is still minted only after the app asks in a native dialog a page cannot press (`ConnectRunner`),
+once, when the team has loaded. A wish made while waiting for an administrator is kept on this computer until then.
+
 The workspaces themselves keep their design and their pages, but inside the window they carry no navigation of their own:
 Individual does not show its rail, and Team does not show its rail; a project's own sections stay with the project
 (Individual's Overview, Board, Calendar, Git and Runs in its header; Team's Board, Git, Activity and People as tabs above

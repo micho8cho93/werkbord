@@ -148,6 +148,23 @@ export interface PremiumStatus {
   buyUrl: string;
 }
 
+/** What an invitation link says about itself, read on this computer. */
+export interface Invitation {
+  name: string;
+  expiresAt: string;
+}
+
+/** How far a team being created or joined has got. */
+export interface SetupView {
+  working: string;
+  error?: string;
+  done: boolean;
+  waiting: boolean;
+  /** The team is on this computer already; a failure is then about reaching it. */
+  exists?: boolean;
+  name?: string;
+}
+
 /** The app's page-callable surface, as the shell uses it. */
 export interface App {
   PersonalWorkspaceCall(method: string, path: string, body: unknown): Promise<{status: number; body: unknown}>;
@@ -159,7 +176,12 @@ export interface App {
   AssistantWorkspaceCall(session: string, request: string, proposal: string, id: string, method: string, args: unknown): Promise<unknown>;
   Overview(): Promise<Overview>;
   RememberPlace(id: string, place: string): Promise<void>;
-  AddTeam(): Promise<Target>;
+  TeamDefaults(): Promise<{ name: string; device: string }>;
+  CheckInvitation(link: string): Promise<Invitation>;
+  CreateTeam(name: string, owner: string): Promise<{ id: string }>;
+  JoinTeam(link: string, name: string, device: string): Promise<{ id: string }>;
+  TeamSetupState(id: string): Promise<SetupView>;
+  CancelTeamSetup(id: string): Promise<void>;
   ActivateTeam(): Promise<TeamStatus>;
   TeamService(action: 'start' | 'stop' | 'uninstall'): Promise<void>;
   ForgetWorkspace(id: string): Promise<void>;

@@ -286,3 +286,146 @@ describe('one sidebar, no switcher', () => {
     expect(model.generatedFor('team:main').map((w) => w.id)).toEqual(['pws_c']);
   });
 });
+
+describe('the one create-and-join flow', () => {
+  const setupTarget = { id: 'team:ws_3', kind: 'team' as const, name: 'Smith & Co', state: 'ready' as const, source: 'Team' };
+  const store: Record<string, string> = {};
+  const fresh = (items: WorkspaceView['items'] = [individual]) => {
+  vi.stubGlobal('localStorage', { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; }, removeItem: (k: string) => { delete store[k]; } });
+    const model = new Model();
+    model.view = view(items);
+    native.app.Workspaces = async () => model.view as WorkspaceView;
+    native.app.Overview = async () => ({ entries: [], at: '' });
+    native.app.OpenWorkspace = async (id: string) => ({ id, kind: 'team', url: 'http://127.0.0.1:7431', origin: 'http://127.0.0.1:7431' });
+    delete store['werkbord.shell.runner-wanted'];
+    return model;
+  };
+
+  it('creates, waits for the service, connects the runner once when asked, and opens the team', async () => {
+    const model = fresh();
+    const calls: string[] = [];
+    native.app.CreateTeam = async (name: string, owner: string) => { calls.push(`create ${name}/${owner}`); return { id: 'team:ws_3' }; };
+    let polls = 0;
+    native.app.TeamSetupState = async () => ({ working: polls++ ? '' : 'Creating your workspace', done: polls > 1, waiting: false, name: 'Smith & Co' });
+    native.app.Relay = async (id: string, method: string) => { calls.push(`${method} ${id}`); return null; };
+    await model.createTeam('Smith & Co', 'Sam', true);
+    expect(model.setup?.id).toBe('team:ws_3');
+    model.view = view([individual, setupTarget]);
+    await vi.waitFor(() => expect(model.setup).toBeNull(), { timeout: 5000 });
+    expect(calls).toEqual(['create Smith & Co/Sam', 'ConnectRunner team:ws_3']);
+    expect(model.current).toBe('team:ws_3');
+    expect(model.addOpen).toBe(false);
+    expect(model.notice).toContain('Smith & Co is ready');
+    expect(model.notice).toContain('runner is connected');
+  });
+
+  it('does not connect a runner the person did not ask for', async () => {
+    const model = fresh();
+    const calls: string[] = [];
+    native.app.CreateTeam = async () => ({ id: 'team:ws_3' });
+    native.app.TeamSetupState = async () => ({ working: '', done: true, waiting: false, name: 'Acme' });
+    native.app.Relay = async (_id: string, method: string) => { calls.push(method); return null; };
+    await model.createTeam('Acme', 'Sam', false);
+    await vi.waitFor(() => expect(model.setup).toBeNull());
+    expect(calls).toEqual([]);
+  });
+
+  it('shows the app’s reason when it cannot start, and leaves nothing running', async () => {
+    const model = fresh();
+    native.app.CreateTeam = async () => { throw new Error('this computer already hosts another Team workspace'); };
+    await model.createTeam('Acme', 'Sam', true);
+    expect(model.error).toContain('already hosts');
+    expect(model.setup).toBeNull();
+    expect(model.busy).toBe('');
+  });
+
+  it('asks the app to set Team up first, and stops if the person says no', async () => {
+    const model = fresh();
+    model.view = { ...view([individual]), team: { state: 'not_installed', detail: '' } };
+    let created = 0;
+    native.app.ActivateTeam = async () => { throw new Error('Team was not set up'); };
+    native.app.CreateTeam = async () => { created++; return { id: 'team:ws_3' }; };
+    await model.createTeam('Acme', 'Sam', true);
+    expect(created).toBe(0);
+    expect(model.setup).toBeNull();
+  });
+
+  it('waits for an administrator without blocking, and finishes and connects the runner once the person is let in', async () => {
+    const model = fresh();
+    model.waitingPause = 5;
+    const calls: string[] = [];
+    let approved = false;
+    native.app.JoinTeam = async () => ({ id: 'team:ws_3' });
+    native.app.TeamSetupState = async () => approved ? { working: '', done: true, waiting: false, name: 'Acme' } : { working: '', done: false, waiting: true };
+    native.app.Relay = async (id: string, method: string) => { calls.push(`${method} ${id}`); return null; };
+    await model.joinTeam('werkbord://join/abc', 'Sam', 'Office Mac', true, 'Acme');
+    await vi.waitFor(() => expect(model.setup?.waiting).toBe(true));
+    expect(JSON.parse(store['werkbord.shell.runner-wanted'])).toEqual(['team:ws_3']);
+    // The sidebar lists a join that waits as connecting. Nothing is asked of the runner, and the dialog does not finish.
+    model.view = view([individual, { ...setupTarget, state: 'connecting' }]);
+    await model.refresh();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(calls).toEqual([]);
+    expect(model.setup?.waiting).toBe(true);
+    // Approved: the dialog finishes, the runner is asked about once, and the wish is spent.
+    approved = true;
+    model.view = view([individual, setupTarget]);
+    await vi.waitFor(() => expect(model.setup).toBeNull());
+    expect(calls).toEqual(['ConnectRunner team:ws_3']);
+    expect(store['werkbord.shell.runner-wanted']).toBeUndefined();
+  });
+
+  it('asks about the runner once for a join that was waiting when the window was closed and reopened', async () => {
+    const model = fresh();
+    const calls: string[] = [];
+    store['werkbord.shell.runner-wanted'] = JSON.stringify(['team:ws_3', 'team:gone']);
+    native.app.Relay = async (id: string, method: string) => { calls.push(`${method} ${id}`); return null; };
+    model.view = view([individual, { ...setupTarget, state: 'connecting' }]);
+    await model.refresh();
+    expect(calls).toEqual([]);
+    expect(JSON.parse(store['werkbord.shell.runner-wanted'])).toEqual(['team:ws_3']);
+    model.view = view([individual, setupTarget]);
+    await model.refresh();
+    await model.refresh();
+    expect(calls).toEqual(['ConnectRunner team:ws_3']);
+    expect(store['werkbord.shell.runner-wanted']).toBeUndefined();
+  });
+
+  it('withdraws a waiting join and forgets the wish', async () => {
+    const model = fresh();
+    const calls: string[] = [];
+    native.app.JoinTeam = async () => ({ id: 'team:ws_3' });
+    native.app.TeamSetupState = async () => ({ working: '', done: false, waiting: true });
+    model.waitingPause = 5;
+    native.app.CancelTeamSetup = async (id: string) => { calls.push(id); };
+    await model.joinTeam('werkbord://join/abc', 'Sam', 'Mac', true);
+    await vi.waitFor(() => expect(model.setup?.waiting).toBe(true));
+    await model.cancelSetup();
+    expect(calls).toEqual(['team:ws_3']);
+    expect(model.setup).toBeNull();
+    expect(store['werkbord.shell.runner-wanted']).toBeUndefined();
+  });
+
+  it('shows a failure from the service and lets the person start over', async () => {
+    const model = fresh();
+    native.app.JoinTeam = async () => ({ id: 'team:ws_3' });
+    native.app.TeamSetupState = async () => ({ working: '', done: false, waiting: false, error: 'the workspace did not accept this invitation' });
+    await model.joinTeam('werkbord://join/abc', 'Sam', 'Mac', false);
+    await vi.waitFor(() => expect(model.setup?.error).toContain('did not accept'));
+  });
+
+  it('leaves a team that exists but could not connect alone, and closes the dialog', async () => {
+    const model = fresh();
+    const cancelled: string[] = [];
+    native.app.JoinTeam = async () => ({ id: 'team:ws_3' });
+    native.app.TeamSetupState = async () => ({ working: '', done: false, waiting: false, exists: true, error: 'its private network overlaps another team’s' });
+    native.app.CancelTeamSetup = async (id: string) => { cancelled.push(id); };
+    model.addOpen = true;
+    await model.joinTeam('werkbord://join/abc', 'Sam', 'Mac', true);
+    await vi.waitFor(() => expect(model.setup?.exists).toBe(true));
+    await model.cancelSetup();
+    expect(cancelled).toEqual([]);
+    expect(model.setup).toBeNull();
+    expect(model.addOpen).toBe(false);
+  });
+});

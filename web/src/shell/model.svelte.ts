@@ -9,7 +9,8 @@ import type { Workspace } from '../lib/personal/schema';
 import { ask } from './native';
 import { surfaceUrl } from './frames';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
-import type { Overview, Target, WorkspaceView } from './types';
+import type { App, Overview, Target, WorkspaceView } from './types';
+import { readWanted, writeWanted, type TeamSetupProgress } from './teamsetup';
 
 export type Page = 'workspace' | 'calendar' | 'inbox' | 'reviews' | 'analytics' | 'workspaces' | 'settings' | 'help' | 'generated' | 'personal-library';
 
@@ -338,6 +339,7 @@ export class Model {
       const view = await ask((a) => a.Workspaces());
       const previous = this.view;
       this.view = view;
+      this.settleSetup(view);
       for (const id of Object.keys(this.frames)) {
         const item = view.items.find(i => i.id === id);
         const old = previous?.items.find(i => i.id === id);
@@ -468,23 +470,140 @@ export class Model {
     if (p === 'calendar' || p === 'inbox' || p === 'reviews' || p === 'analytics' || p === 'workspaces') void this.refreshOverview();
   }
 
-  /** Adds a Team: gives the person a place to create one or join one, and opens it. */
-  async addTeam(): Promise<void> {
-    this.busy = 'Opening Team…';
+  /** The new-team dialog's work, once it has started: kept here so that closing the dialog does not lose it. */
+  setup = $state<TeamSetupProgress | null>(null);
+  private setupRun = 0;
+  /** How long to wait between looks at a join that waits for an administrator (a test shortens it). */
+  waitingPause = 5000;
+
+  /** Starts creating a team hosted on this computer. Team's service is set up first, with the person's say-so, when it is not. */
+  async createTeam(name: string, owner: string, connect: boolean): Promise<void> {
+    await this.startSetup('create', connect, (a) => a.CreateTeam(name, owner), name.trim());
+  }
+
+  /** Starts joining the team an invitation is for. */
+  async joinTeam(link: string, name: string, device: string, connect: boolean, team = ''): Promise<void> {
+    await this.startSetup('join', connect, (a) => a.JoinTeam(link, name, device), team);
+  }
+
+  private teamReady(): boolean {
+    return !this.view || this.view.team.state === 'ready';
+  }
+
+  private async startSetup(kind: 'create' | 'join', connect: boolean, start: (a: App) => Promise<{ id: string }>, team: string): Promise<void> {
     this.error = '';
+    if (!this.teamReady()) {
+      await this.activateTeam();
+      if (!this.teamReady()) return; // the person said no, or the installer refused: it has said why
+    }
+    this.busy = kind === 'create' ? 'Creating your team…' : 'Joining the team…';
     try {
-      const target = await ask((a) => a.AddTeam());
-      this.frames[target.id] = { target, ready: false, pending: undefined };
-      this.places[target.id] = target.place || '';
-      await this.refresh();
-      this.current = target.id;
-      this.universal = false;
-      this.page = 'workspace';
-      this.addOpen = false;
+      const { id } = await ask(start);
+      this.setup = { id, kind, connect, working: this.busy, waiting: false, exists: false, error: '', name: team };
+      void this.followSetup(id);
     } catch (e) {
       this.error = (e as Error).message;
     } finally {
       this.busy = '';
+    }
+  }
+
+  /** Watches the service make the team, until it is done, waits for an administrator, or fails. */
+  private async followSetup(id: string): Promise<void> {
+    const run = ++this.setupRun;
+    const give = Date.now() + 5 * 60_000;
+    while (run === this.setupRun && this.setup?.id === id) {
+      let v;
+      try {
+        v = await ask((a) => a.TeamSetupState(id));
+      } catch (e) {
+        if (run === this.setupRun && this.setup) this.setup.error = (e as Error).message;
+        return;
+      }
+      if (run !== this.setupRun || !this.setup) return;
+      // An administrator has to approve this computer, which can take days: remember the wish to connect the runner for then.
+      if (v.waiting && this.setup.connect) writeWanted([...readWanted().filter((w) => w !== id), id]);
+      this.setup.name = v.name || this.setup.name;
+      this.setup.working = v.working;
+      this.setup.waiting = v.waiting;
+      this.setup.exists = !!v.exists;
+      if (v.error) {
+        this.setup.error = v.error;
+        return;
+      }
+      if (v.done) return void (await this.finishSetup(id));
+      if (v.waiting) {
+        // An administrator has to approve this computer, which can take days: keep looking, slowly, for as long as the window is open.
+        await this.refresh();
+        await new Promise((r) => setTimeout(r, this.waitingPause));
+        continue;
+      }
+      if (Date.now() > give) {
+        this.setup.error = 'Team is taking longer than expected. It carries on in the background: the team appears in the sidebar when it is ready.';
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+
+  private finishing: string[] = [];
+
+  private async finishSetup(id: string): Promise<void> {
+    const s = this.setup;
+    if (!s || s.id !== id || this.finishing.includes(id)) return;
+    this.finishing.push(id);
+    writeWanted(readWanted().filter((w) => w !== id)); // asked once, here, and not again from the list
+    await this.refresh();
+    let notice = s.kind === 'create' ? `${s.name || 'Your team'} is ready.` : `You joined ${s.name || 'the team'}.`;
+    if (s.connect) {
+      try {
+        await ask((a) => a.Relay(id, 'ConnectRunner', []));
+        notice += ' Your own runner is connected.';
+      } catch (e) {
+        notice += ` Your runner was not connected (${(e as Error).message}); you can connect it from the team’s page.`;
+      }
+    }
+    this.setup = null;
+    this.addOpen = false;
+    this.notice = notice;
+    this.finishing = this.finishing.filter((f) => f !== id);
+    await this.open(id);
+    await this.refreshOverview();
+  }
+
+  /** Leaves what the dialog was doing: a join that waits is withdrawn and a failed one cleared; work in progress is left to finish. */
+  async cancelSetup(): Promise<void> {
+    const s = this.setup;
+    this.setupRun++;
+    this.setup = null;
+    if (!s) return;
+    writeWanted(readWanted().filter((w) => w !== s.id));
+    if (s.exists) this.addOpen = false; // the team stays; it is left from its own page
+    if (s.working || s.exists) return;
+    try {
+      await ask((a) => a.CancelTeamSetup(s.id));
+    } catch (e) {
+      this.error = (e as Error).message;
+    }
+    await this.refresh();
+  }
+
+  /**
+   * A person who asked to connect their runner before an administrator let them in is asked once, when the team is connected. While the
+   * dialog's own watcher is following that team (setup), the watcher does it; this is for a window that was closed and reopened since.
+   */
+  private settleSetup(view: WorkspaceView): void {
+    const wanted = readWanted();
+    if (!wanted.length) return;
+    const following = this.setup?.id;
+    const ready = wanted.filter((id) => id !== following && view.items.some((i) => i.id === id && i.state === 'ready'));
+    const gone = wanted.filter((id) => id !== following && !view.items.some((i) => i.id === id));
+    if (!ready.length && !gone.length) return;
+    writeWanted(wanted.filter((id) => !ready.includes(id) && !gone.includes(id)));
+    for (const id of ready) {
+      void ask((a) => a.Relay(id, 'ConnectRunner', []))
+        .then(() => this.refreshOverview())
+        .catch((e: Error) => { this.notice = `Your runner was not connected (${e.message}); you can connect it from the team’s page.`; });
     }
   }
 

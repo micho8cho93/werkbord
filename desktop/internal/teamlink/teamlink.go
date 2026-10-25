@@ -185,6 +185,79 @@ func (l *Link) AddWorkspace(ctx context.Context) (string, error) {
 	return "team:" + out.Slot, nil
 }
 
+// Invitation is what an invitation link says before it is used: which team it is for, and until when.
+type Invitation struct {
+	Name      string    `json:"name"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// InspectInvitation has the service read an invitation link, offline, and say which team it is for. It changes nothing.
+func (l *Link) InspectInvitation(ctx context.Context, link string) (Invitation, error) {
+	var out Invitation
+	err := l.call(ctx, http.MethodPost, "/api/device/v1/invitation", map[string]string{"link": link}, &out)
+	return out, err
+}
+
+// SetupState is how far one workspace slot has got in being created or joined.
+type SetupState struct {
+	// Operation is what the service is doing now ("" when nothing); Error is why the last attempt failed.
+	Operation string `json:"operation"`
+	Error     string `json:"error"`
+	// Enrolled: the slot holds a workspace. Pending: a join waits for an administrator to approve this computer.
+	Enrolled  bool   `json:"enrolled"`
+	Pending   bool   `json:"pending"`
+	Workspace string `json:"workspace"`
+}
+
+// SetupOf reads how far a slot has got.
+func (l *Link) SetupOf(ctx context.Context, id string) (SetupState, error) {
+	slot, ok := SlotOf(id)
+	if !ok {
+		return SetupState{}, errors.New("not a Team workspace")
+	}
+	var raw struct {
+		Operation string `json:"operation"`
+		Error     string `json:"error"`
+		Enrolled  bool   `json:"enrolled"`
+		Pending   bool   `json:"pending"`
+		Workspace struct {
+			Name string `json:"name"`
+		} `json:"workspace"`
+	}
+	if err := l.call(ctx, http.MethodGet, "/w/"+slot+"/api/device/v1/state", nil, &raw); err != nil {
+		return SetupState{}, err
+	}
+	return SetupState{Operation: raw.Operation, Error: raw.Error, Enrolled: raw.Enrolled, Pending: raw.Pending, Workspace: raw.Workspace.Name}, nil
+}
+
+// CreateWorkspace has the service make a new team on this computer in the slot. It answers once the work has started; SetupOf
+// says when it is done.
+func (l *Link) CreateWorkspace(ctx context.Context, id, name, owner string) error {
+	slot, ok := SlotOf(id)
+	if !ok {
+		return errors.New("not a Team workspace")
+	}
+	return l.call(ctx, http.MethodPost, "/w/"+slot+"/api/device/v1/create", map[string]string{"name": name, "owner": owner}, nil)
+}
+
+// JoinWorkspace has the service enrol this computer in the team an invitation is for. premium is the person's unlock key, or "".
+func (l *Link) JoinWorkspace(ctx context.Context, id, link, name, device, premium string) error {
+	slot, ok := SlotOf(id)
+	if !ok {
+		return errors.New("not a Team workspace")
+	}
+	return l.call(ctx, http.MethodPost, "/w/"+slot+"/api/device/v1/join", map[string]string{"link": link, "name": name, "deviceName": device, "premium": premium}, nil)
+}
+
+// CancelJoin withdraws an enrolment that waits for an administrator.
+func (l *Link) CancelJoin(ctx context.Context, id string) error {
+	slot, ok := SlotOf(id)
+	if !ok {
+		return errors.New("not a Team workspace")
+	}
+	return l.call(ctx, http.MethodPost, "/w/"+slot+"/api/device/v1/join/cancel", map[string]string{}, nil)
+}
+
 // SlotOf is the slot a workspace identity names.
 func SlotOf(id string) (string, bool) {
 	slot, ok := strings.CutPrefix(id, "team:")

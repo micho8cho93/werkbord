@@ -80,8 +80,29 @@ func TestWorkspaceShellBrowserFixture(t *testing.T) {
 			out, err = sh.OpenWorkspace(id)
 		case "LoadWorkspace":
 			out, err = sh.LoadWorkspace(id)
-		case "AddTeam":
-			out, err = sh.AddTeam()
+		case "TeamDefaults":
+			out = sh.TeamDefaults()
+		case "CheckInvitation":
+			out, err = sh.CheckInvitation(id)
+		case "CreateTeam":
+			var owner string
+			if len(in.Args) > 1 {
+				_ = json.Unmarshal(in.Args[1], &owner)
+			}
+			out, err = sh.CreateTeam(id, owner)
+		case "JoinTeam":
+			var name, device string
+			if len(in.Args) > 2 {
+				_ = json.Unmarshal(in.Args[1], &name)
+				_ = json.Unmarshal(in.Args[2], &device)
+			}
+			out, err = sh.JoinTeam(id, name, device)
+		case "TeamSetupState":
+			out, err = sh.TeamSetupState(id)
+		case "CancelTeamSetup":
+			err = sh.CancelTeamSetup(id)
+		case "PendingInvitation":
+			out = sh.PendingInvitation()
 		case "ForgetWorkspace":
 			err = sh.ForgetWorkspace(id)
 		case "RememberPlace":
