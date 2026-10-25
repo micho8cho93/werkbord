@@ -55,7 +55,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const switchUniversal = async () => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="universal"]').click(); };
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
  const switchTo = async (id) => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
- const setTheme = async theme => {
+ // Chooses one button of a group in the window's Settings, Appearance, and goes back to where the person was.
+ const chooseInAppearance = async (group, button) => {
    const size = page.viewportSize();
    await page.setViewportSize({ width: 1440, height: 1000 });
    const universal = (await page.getByTestId('workspace-switcher').getAttribute('aria-label')).includes('Showing Universal');
@@ -63,12 +64,14 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    const place = await active.count() ? await active.getAttribute('data-page') : null, project = await active.count() ? await active.getAttribute('data-project') : null;
    await side.locator('[data-page=settings]').click();
    await page.getByTestId('settings-sections').getByRole('button', { name: 'Appearance', exact: true }).click();
-   await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true }).click();
+   await page.getByRole('group', { name: group }).getByRole('button', { name: button, exact: true }).click();
    if (universal) await switchUniversal();
    else if (project) await side.locator('[data-project="' + project + '"]').click();
    else if (place && place !== 'settings') await side.locator('[data-page="' + place + '"]').click();
    if (size) await page.setViewportSize(size);
  };
+ const setTheme = theme => chooseInAppearance('Theme', theme === 'dark' ? 'Dark' : 'Light');
+ const setStyle = label => chooseInAppearance('Style', label);
 
  const assertUniversalStartup = async (window) => {
    await wait(async () => await window.locator('iframe[data-workspace=personal]').count() === 1, 'background Individual setup check');
@@ -166,6 +169,38 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
  await side.getByRole('button', { name: 'Reviews', exact: true }).click(); await side.locator('[data-page=ws-reviews][aria-current=page]').waitFor();
  console.log('PASS Team: the same sidebar lists its places, theme follows Settings, no rail of its own');
+ // The style (Paper, Graphite, Classic) is chosen in the window's Settings beside the theme and reaches every workspace: an open one
+ // at once, and one that was closed when the person went back to Paper when it is opened again. A workspace is on another origin and
+ // keeps its own copy of the style, so the window has to say Paper too, not only the other two.
+ const styleOf = id => page.frameLocator('iframe[data-workspace="' + id + '"]').locator('html').getAttribute('data-style');
+ const attribute = { Paper: null, Graphite: 'graphite', Classic: 'classic' };
+ const workspaces = ['personal', 'team:main'];
+ const reaches = async label => {
+   for (const id of workspaces) await wait(async () => (await styleOf(id)) === attribute[label], label + ' reaches ' + id);
+   assert.equal(await page.locator('html').getAttribute('data-style'), attribute[label], 'the window shows ' + label);
+ };
+ await reaches('Paper');
+ for (const label of ['Graphite', 'Classic', 'Graphite', 'Paper']) { await setStyle(label); await reaches(label); }
+ // Closed while the person goes back to Paper: a frame on about:blank cannot hear the window, and keeps Graphite in its own storage.
+ await setStyle('Graphite'); await reaches('Graphite');
+ const frameOf = async id => (await page.locator('iframe[data-workspace="' + id + '"]').elementHandle()).contentFrame();
+ const sources = {};
+ for (const id of workspaces) {
+   const element = page.locator('iframe[data-workspace="' + id + '"]'); sources[id] = await element.getAttribute('src');
+   await element.evaluate(f => { f.src = 'about:blank'; }); await (await frameOf(id)).waitForURL(u => u.protocol === 'about:');
+ }
+ await setStyle('Paper'); assert.equal(await page.locator('html').getAttribute('data-style'), null);
+ for (const id of workspaces) {
+   await page.locator('iframe[data-workspace="' + id + '"]').evaluate((f, src) => { f.src = src; }, sources[id]);
+   const frame = await frameOf(id); await frame.waitForURL(u => u.protocol.startsWith('http')); await frame.waitForLoadState('load');
+ }
+ await reaches('Paper');
+ // Device is a choice too: a workspace that was told Dark follows the device again, which is light in this browser.
+ await setTheme('dark'); for (const id of workspaces) await wait(async () => (await themeOf(id)) === 'dark', 'Dark reaches ' + id);
+ await chooseInAppearance('Theme', 'Device');
+ for (const id of workspaces) await wait(async () => (await themeOf(id)) !== 'dark', 'Device reaches ' + id);
+ await setTheme('dark');
+ console.log('PASS style: each style chosen in Settings reaches Individual and Team, Paper too after a Team frame was closed on Graphite; Device reaches both');
  // The same Settings, with the same Appearance, from Individual and from Universal; the theme is the window's and the sidebar follows it.
  const sections = page.getByTestId('settings-sections');
  await switchTo('personal'); await side.locator('[data-page=settings]').click(); await sections.waitFor();
