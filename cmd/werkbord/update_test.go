@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"devboard/internal/releaseverify"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -23,6 +26,15 @@ import (
 	"devboard/internal/remote"
 	"devboard/internal/update"
 )
+
+var releaseFixtureKey = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{43}, 32))
+
+func init() {
+	releaseverify.PublicKey = base64.RawURLEncoding.EncodeToString(releaseFixtureKey.Public().(ed25519.PublicKey))
+}
+func releaseFixtureSignature(tag, manifest string) []byte {
+	return ed25519.Sign(releaseFixtureKey, append([]byte("werkbord/release/v1\x00"+tag+"\x00"), []byte(manifest)...))
+}
 
 // publishRelease serves a releases page whose one release is a "devboard" that
 // prints its own version, like the real one does for `werkbord version`.
@@ -45,6 +57,7 @@ func publishRelease(t *testing.T, tag string, tamper bool) *httptest.Server {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/tag/"+tag, http.StatusFound) })
+	mux.HandleFunc("/download/"+tag+"/checksums.txt.sig", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(releaseFixtureSignature(tag, sums)) })
 	mux.HandleFunc("/download/"+tag+"/checksums.txt", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, sums) })
 	mux.HandleFunc("/download/"+tag+"/"+asset, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(archive) })
 	ts := httptest.NewServer(mux)
@@ -150,6 +163,9 @@ func publishLiar(t *testing.T) *httptest.Server {
 	asset := update.AssetName("v1.2.0", runtime.GOOS, runtime.GOARCH)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/tag/v1.2.0", http.StatusFound) })
+	mux.HandleFunc("/download/v1.2.0/checksums.txt.sig", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(releaseFixtureSignature("v1.2.0", hex.EncodeToString(h[:])+"  "+asset+"\n"))
+	})
 	mux.HandleFunc("/download/v1.2.0/checksums.txt", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, hex.EncodeToString(h[:])+"  "+asset+"\n")
 	})

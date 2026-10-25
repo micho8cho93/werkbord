@@ -13,7 +13,7 @@ PRODUCT ?= werkbord
 
 # Recursive (=), so the version is only worked out by a target that uses it. Both executables report the same one.
 WERKBORD_VERSION = $(shell scripts/product.sh werkbord build-version)
-LDFLAGS      = -X main.version=$(WERKBORD_VERSION)
+LDFLAGS      = -X main.version=$(WERKBORD_VERSION) $(shell scripts/release-build-flags.sh)
 TEAM_LDFLAGS = -X main.version=$(WERKBORD_VERSION)
 BIN      := bin/werkbord
 TEAM_BIN := bin/werkbord-team
@@ -72,7 +72,8 @@ install-team: build-team
 nebula:
 	scripts/fetch-nebula.sh
 test-nebula: nebula
-	WERKBORD_SKIP_RQLITE=1 WERKBORD_REQUIRE_NEBULA=1 $(GO) test -timeout 30m ./internal/team/infra/... ./internal/team/server/...
+	@flags=$$(scripts/team-build-flags.sh) || exit 1; \
+		WERKBORD_SKIP_RQLITE=1 WERKBORD_REQUIRE_NEBULA=1 $(GO) test -ldflags "$$flags" -timeout 30m ./internal/team/infra/... ./internal/team/server/...
 
 ## rqlite: fetch (Linux) or build from the pinned source (macOS) the pinned rqlite release into .cache/rqlite (checked against
 ## internal/team/infra/rqlite/manifest.go);
@@ -83,11 +84,12 @@ rqlite:
 	scripts/fetch-rqlite.sh
 test-rqlite: rqlite
 	@flags=$$(scripts/team-build-flags.sh) || exit 1; \
-		WERKBORD_REQUIRE_RQLITE=1 $(GO) test -ldflags "$$flags" -p 1 -timeout 60m ./internal/team/infra/rqlite/... ./internal/team/store/replicated/... ./internal/team/server/... && \
+		WERKBORD_REQUIRE_RQLITE=1 $(GO) test -ldflags "$$flags" -p 1 -timeout 60m ./internal/team/infra/rqlite/... ./internal/team/store/replicated/... ./internal/team/server/... ./cmd/werkbord-team/... && \
 		WERKBORD_REQUIRE_RQLITE=1 WERKBORD_TEST_STORE=rqlite $(GO) test -ldflags "$$flags" -timeout 60m ./internal/team/service/
 
 ## test: Go tests (both products and the shared packages) and the individual product's web unit tests
 test: web/node_modules
+	python3 scripts/test-release-hardening.py
 	WERKBORD_SKIP_RQLITE=1 $(GO) test -timeout 30m ./...
 	cd web && $(NPM) test
 	node --test scripts/seed-browser-fixture.test.cjs scripts/team-mentions.test.cjs

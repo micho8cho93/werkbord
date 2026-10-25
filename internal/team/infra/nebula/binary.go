@@ -84,6 +84,9 @@ func locate(dirs []string, binDir string, art Artifact) (verified, error) {
 	if err != nil {
 		return verified{}, err
 	}
+	if art.BinarySHA256 == "" {
+		return verified{}, fmt.Errorf("%w: source-built network programs require a hash embedded by the trusted build (use make build-team or make test-nebula)", ErrBinaryMismatch)
+	}
 	if !sameHash(sum, art.BinarySHA256) {
 		return verified{}, fmt.Errorf("%w: %s has SHA-256 %s", ErrBinaryMismatch, found, sum)
 	}

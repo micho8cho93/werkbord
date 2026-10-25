@@ -9,13 +9,16 @@ ARCH=$1
 VERSION=$2
 OUT=$3
 case "$ARCH" in amd64|arm64) ;; *) die "unsupported Linux architecture: $ARCH" ;; esac
-printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || die "version must be a stable semantic version"
+DEB_VERSION=$("$(dirname "$0")/debian-version.sh" "$VERSION") || die "invalid build version"
+[ "$(uname -s)" = Linux ] || die "build on native Linux"
+[ "$(go env GOARCH)" = "$ARCH" ] || die "use a native $ARCH runner"
 ISSUER=${LICENSE_ISSUER_PUBLIC_KEY:-}
 [ ${#ISSUER} -eq 43 ] || die "LICENSE_ISSUER_PUBLIC_KEY must be a 32-byte raw URL base64 public key"
 case "$ISSUER" in *[!A-Za-z0-9_-]*) die "LICENSE_ISSUER_PUBLIC_KEY must use raw URL base64" ;; esac
 
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
+RELEASE_FLAGS=$(scripts/release-build-flags.sh)
 command -v dpkg-deb >/dev/null 2>&1 || die "dpkg-deb is required"
 command -v tar >/dev/null 2>&1 || die "tar is required"
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required"
@@ -45,14 +48,14 @@ mkdir -p "$APP/bin" "$APP/Helpers" "$APP/Resources/licenses"
 echo "build-desktop-linux: building Werkbord $VERSION for linux/$ARCH"
 (
   cd desktop
-  CGO_ENABLED=1 go run github.com/wailsapp/wails/v2/cmd/wails@v2.16.0 build \
+  CGO_ENABLED=1 go run github.com/wailsapp/wails/v2/cmd/wails@v2.17.0 build \
     -platform "linux/$ARCH" -skipfrontend -skipbindings -nosyncgo -m \
     -tags desktop,production,webkit2_41 -o Werkbord \
-    -ldflags "-s -w -X main.version=v$VERSION -X devboard/desktop/internal/teaminstall.releaseBuild=v$VERSION"
+    -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION -X devboard/desktop/internal/teaminstall.releaseBuild=v$VERSION"
 )
 cp desktop/build/bin/Werkbord "$APP/bin/Werkbord"
 
-CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath -ldflags "-s -w -X main.version=v$VERSION" -o "$APP/Helpers/werkbord" ./cmd/werkbord
+CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION" -o "$APP/Helpers/werkbord" ./cmd/werkbord
 NEBULA=$(scripts/fetch-nebula.sh linux "$ARCH")
 RQLITE=$(scripts/fetch-rqlite.sh linux "$ARCH")
 cp "$NEBULA/nebula" "$APP/Helpers/nebula"
@@ -63,7 +66,7 @@ RQLITE_VERSION=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/team/infra/
 RQLITE_COMMIT=$(sed -n 's/^const SourceCommit = "\(.*\)"$/\1/p' internal/team/infra/rqlite/manifest.go)
 printf '{"version":"v%s","commit":"%s","sha256":"%s"}\n' "$RQLITE_VERSION" "$RQLITE_COMMIT" "$DATABASE_SHA" > "$APP/Resources/rqlited.build"
 CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
-  -ldflags "-s -w -X main.version=v$VERSION -X main.licenseIssuer=$ISSUER" \
+  -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION -X main.licenseIssuer=$ISSUER -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$(sha256sum "$APP/Helpers/nebula" | cut -d' ' -f1)" \
   -o "$APP/Helpers/werkbord-team" ./cmd/werkbord-team
 cp -R third_party/nebula third_party/rqlite third_party/go "$APP/Resources/licenses/"
 
@@ -72,6 +75,10 @@ for path in "$APP/bin/Werkbord" "$APP/Helpers/werkbord" "$APP/Helpers/werkbord-t
 done
 [ "$("$APP/Helpers/werkbord" version)" = "v$VERSION" ] || die "the controller does not report v$VERSION"
 [ "$("$APP/Helpers/werkbord-team" version)" = "v$VERSION" ] || die "Team's service does not report v$VERSION"
+
+python3 scripts/audit-release.py --out "$STAGE/inventory" || die "dependency inventory failed"
+mkdir -p "$APP/Resources/licenses/dependencies"
+cp "$STAGE/inventory/notices/THIRD_PARTY_LICENSES.txt" "$STAGE/inventory/notices/INDEX.json" "$STAGE/inventory/source-sbom.cdx.json" "$APP/Resources/licenses/dependencies/"
 
 SHARE="$STAGE/share"
 mkdir -p "$SHARE"
@@ -103,11 +110,11 @@ cp "$SHARE/werkbord.desktop" "$PKG/usr/share/applications/werkbord.desktop"
 cp "$SHARE/werkbord.png" "$PKG/usr/share/icons/hicolor/1024x1024/apps/werkbord.png"
 cat > "$PKG/DEBIAN/control" <<EOF
 Package: werkbord
-Version: $VERSION
+Version: $DEB_VERSION
 Section: devel
 Priority: optional
 Architecture: $ARCH
-Depends: libgtk-3-0, libwebkit2gtk-4.1-0, policykit-1, systemd
+Depends: libgtk-3-0t64 | libgtk-3-0, libwebkit2gtk-4.1-0, pkexec, systemd
 Maintainer: Werkbord
 Description: Unified Individual and Team workspace app
  Werkbord runs coding work locally and provides the Team workspace app.

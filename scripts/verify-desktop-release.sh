@@ -88,6 +88,26 @@ have=$(shasum -a 256 "$WORK/$dmg" | awk '{print $1}')
 [ -n "$want" ] && [ "$want" = "$have" ] || die "the disk image's sha256 is $have, the release says ${want:-nothing}"
 step "ok  sha256 matches ($have)"
 
+# Authenticate remote downloads before mounting/extracting or probing executable versions.
+# file:/// is only the explicit local build/fixture path used before candidate signing.
+case "$BASE" in
+  file:///*) ;;
+  *)
+    for file in checksums.txt checksums.txt.sig; do
+      $CURL -fsSL $RETRY -o "$WORK/$file" "$BASE/$tag/$file" || die "signed release manifest is missing"
+    done
+    key=${WERKBORD_RELEASE_PUBLIC_KEY_FILE:-}
+    if [ -z "$key" ]; then
+      key="$WORK/trusted-public.pem"
+      python3 "$root/scripts/write-release-public-key.py" "$key" || die "independently configured release public key is required"
+    fi
+    "$root/scripts/verify-release-manifest.sh" "$tag" "$WORK/checksums.txt" "$WORK/checksums.txt.sig" "$key" || die "publisher authentication failed"
+    signed=$(awk -v f="$dmg" '$2==f {print $1}' "$WORK/checksums.txt")
+    [ -n "$signed" ] && [ "$signed" = "$have" ] || die "disk image does not match the authenticated manifest"
+    step "ok  tag-bound publisher signature authenticates the disk image"
+    ;;
+esac
+
 # 2. As a browser leaves it: quarantined.
 xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");Safari;" "$WORK/$dmg"
 "$CODESIGN" --verify --strict "$WORK/$dmg" 2>"$WORK/err" || { cat "$WORK/err" >&2; die "the disk image's signature does not verify"; }

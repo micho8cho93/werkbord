@@ -22,6 +22,8 @@ trap 'rm -rf "$work"' EXIT INT TERM
 git clone -q --depth 1 --branch "v$version" https://github.com/rqlite/rqlite.git "$work/src" || { echo "gen-rqlite-notices: cannot fetch rqlite v$version" >&2; exit 1; }
 [ "$(git -C "$work/src" rev-parse HEAD)" = "$commit" ] || { echo "gen-rqlite-notices: tag v$version is not the pinned commit" >&2; exit 1; }
 cd "$work/src"
+GOTOOLCHAIN=go1.27.3 go mod edit -go=1.27.3
+export GOTOOLCHAIN=go1.27.3
 
 out="$ROOT/third_party/rqlite/THIRD_PARTY_LICENSES.txt"
 {

@@ -10,7 +10,7 @@
 #   Contents/Helpers/werkbord      the controller and command line, the same program the release
 #                                  archives and the installer carry, with the web app embedded
 #   Contents/Helpers/werkbord-team  the Team service, which the app installs (with an administrator's say-so) when a person adds a Team
-#   Contents/Helpers/nebula        the pinned private-network program Team supervises, with its upstream signature, never re-signed
+#   Contents/Helpers/nebula        the private-network program built from pinned source and signed by Werkbord
 #   Contents/Helpers/rqlited       the pinned database program Team supervises, built from its pinned source
 #   Contents/Resources/icon.icns   made from desktop/build/appicon.png
 #
@@ -81,6 +81,7 @@ if [ -n "$RELEASE" ]; then NOTARIZE=1; REQUIRE=--require; fi
 [ "$(uname -s)" = Darwin ] || die "the desktop app is built on macOS (it needs the system's web view and frameworks)"
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
+RELEASE_FLAGS=$(scripts/release-build-flags.sh)
 CODESIGN=${CODESIGN:-codesign}
 HDIUTIL=${HDIUTIL:-hdiutil}
 for tool in go sips iconutil plutil "$CODESIGN"; do
@@ -211,14 +212,14 @@ sign_code() {
 HELPERS=""; WINDOWS=""
 for a in $ARCHS; do
   c=$(carch "$a")
-  CGO_ENABLED=0 GOOS=darwin GOARCH=$a go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
+  CGO_ENABLED=0 GOOS=darwin GOARCH=$a go build -trimpath -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION" \
     -o "$STAGE/helper-$a" ./cmd/werkbord
   (
     cd desktop
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a \
     CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" \
     CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0 -framework UniformTypeIdentifiers" \
-      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w -X main.version=$VERSION -X devboard/desktop/internal/teaminstall.signingTeam=$SIGNING_TEAM -X devboard/desktop/internal/teaminstall.releaseBuild=$VERSION" \
+      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION -X devboard/desktop/internal/teaminstall.signingTeam=$SIGNING_TEAM -X devboard/desktop/internal/teaminstall.releaseBuild=$VERSION" \
       -o "$STAGE/window-$a" .
   )
   HELPERS="$HELPERS $STAGE/helper-$a"; WINDOWS="$WINDOWS $STAGE/window-$a"
@@ -236,14 +237,23 @@ chmod 755 "$APP/Contents/Helpers/werkbord" "$APP/Contents/MacOS/Werkbord"
 rm -f $HELPERS $WINDOWS
 
 # The Team service the app carries and installs when a person adds a Team (docs/ARCHITECTURE.md#distribution-licensing-and-updates). It is part of this
-# release: built here, from this commit, at this version, and signed with the same Developer ID, except Nebula, which keeps its
-# upstream signature and is checked against its pin. Nothing is installed or started until a person asks.
+# release: built here, from this commit, at this version, and signed with the same Developer ID, including the rebuilt, patched Nebula binary. Nothing is installed or started until a person asks.
 if [ "$TEAM_PAYLOAD" != 0 ]; then
   H="$APP/Contents/Helpers"
   mkdir -p "$APP/Contents/Resources/licenses"
   # Fetch verifies the upstream hash/source commit BEFORE anything is combined or signed.
-  NEBULA=$(scripts/fetch-nebula.sh darwin arm64)
-  cp "$NEBULA/nebula" "$H/nebula"
+  NETWORKS=""
+  for a in $ARCHS; do
+    NEBULA=$(scripts/fetch-nebula.sh darwin "$a")
+    cp "$NEBULA/nebula" "$STAGE/network-$a"
+    NETWORKS="$NETWORKS $STAGE/network-$a"
+  done
+  if [ "$ARCH" = universal ]; then
+    # shellcheck disable=SC2086
+    lipo -create -output "$H/nebula" $NETWORKS
+  else cp "$STAGE/network-$ARCH" "$H/nebula"; fi
+  sign_code "$H/nebula"
+  NETWORK_SHA=$(shasum -a 256 "$H/nebula" | cut -d' ' -f1)
   DATABASES=""
   for a in $ARCHS; do
     RQLITE=$(scripts/fetch-rqlite.sh darwin "$a")
@@ -265,7 +275,7 @@ if [ "$TEAM_PAYLOAD" != 0 ]; then
   for a in $ARCHS; do
     c=$(carch "$a")
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0" \
-      go build -trimpath -ldflags "-s -w -X main.version=$VERSION -X main.licenseIssuer=$ISSUER -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA" \
+      go build -trimpath -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION -X main.licenseIssuer=$ISSUER -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$NETWORK_SHA" \
       -o "$STAGE/team-$a" ./cmd/werkbord-team
     TEAMS="$TEAMS $STAGE/team-$a"
   done
@@ -305,6 +315,9 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 # that would make it ask the internet on its own, or install something unattended, is off.
 if [ -n "$WITH_SPARKLE" ]; then
   SPARKLE_HOME=$(scripts/fetch-sparkle.sh) || die "Sparkle is not available (scripts/fetch-sparkle.sh)"
+  [ -f "$SPARKLE_HOME/LICENSE" ] || die "the bundled Sparkle license is missing"
+  mkdir -p "$APP/Contents/Resources/licenses/sparkle"
+  cp "$SPARKLE_HOME/LICENSE" "$APP/Contents/Resources/licenses/sparkle/LICENSE"
   mkdir -p "$APP/Contents/Frameworks"
   ditto "$SPARKLE_HOME/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
   # The XPC services are for sandboxed apps (an app that cannot start a process or write where it wants). This one is not
@@ -350,8 +363,7 @@ sign_bundle() {
     sign_code "$fw"
   fi
   sign_code "$app/Contents/Helpers/werkbord"
-  # Team's service is ours to sign. rqlited was signed when it was built (its hash is in the service), and Nebula keeps the
-  # signature its makers gave it: neither is signed here.
+  # Team's service is ours to sign. Both rebuilt helpers were signed before their hashes were embedded; neither is signed again.
   [ ! -f "$app/Contents/Helpers/werkbord-team" ] || sign_code "$app/Contents/Helpers/werkbord-team"
   sign_code "$app" "$ENTITLEMENTS"
 }
@@ -365,6 +377,12 @@ check_bundle() {
   # shellcheck disable=SC2086
   CODESIGN="$CODESIGN" scripts/check-desktop-signature.sh $mode "$1" >/dev/null || die "the signature of $1 is not what a build with this identity must have"
 }
+
+# Resolved graph SBOM and collected notices are part of the sealed app.
+python3 scripts/audit-release.py --out "$STAGE/inventory" || die "dependency inventory failed"
+mkdir -p "$APP/Contents/Resources/licenses/dependencies"
+cp "$STAGE/inventory/notices/THIRD_PARTY_LICENSES.txt" "$STAGE/inventory/notices/INDEX.json" "$APP/Contents/Resources/licenses/dependencies/"
+cp "$STAGE/inventory/source-sbom.cdx.json" "$APP/Contents/Resources/licenses/dependencies/"
 
 # 5. Sign, and check what was signed.
 sign_bundle "$APP"

@@ -2,7 +2,7 @@
 
 This is the security model for Team 3.0. It describes the implementation and its assumptions, not a guarantee against every attack. The gate evidence and release blockers are in [TEAM_SECURITY_GATE.md](TEAM_SECURITY_GATE.md).
 
-Werkbord operates **no customer runtime infrastructure**: no workspace server, registry, licensing endpoint, CA, relay, rendezvous service, backup service or runner. Customers operate their Workspace Hosts, Connectivity Hosts when reliable remote access is needed, backups and local runners. Customer keys and workspace records stay on those machines. Vendor release and license signing are separate offline operations.
+Werkbord operates **no customer runtime infrastructure**: no workspace server, registry, licensing endpoint, CA, relay, rendezvous service, backup service or runner. Customers operate their Workspace Hosts, Connectivity Hosts when reliable remote access is needed, backups and local runners. Customer keys and workspace records stay on those machines. Customer license verification remains offline. Vendor license issuance uses the protected Supabase operator signer with independent encrypted recovery; release signing is a separate offline operation. See PRODUCTION_LICENSING.md and BETA_READINESS.md.
 
 ## Assets and trust boundaries
 

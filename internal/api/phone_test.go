@@ -415,7 +415,7 @@ var reviewedPhoneRoutes = []string{
 	"GET /api/personal/v1/capabilities", "GET /api/personal/v1/workspaces", "GET /api/personal/v1/workspaces/{}", "GET /api/personal/v1/collections", "GET /api/personal/v1/collections/{}",
 	"GET /api/personal/v1/collections/{}/records", "GET /api/personal/v1/collections/{}/records/{}", "POST /api/personal/v1/collections/{}/records",
 	"PUT /api/personal/v1/collections/{}/records/{}", "DELETE /api/personal/v1/collections/{}/records/{}",
-	"GET /api/assistant/providers", "GET /api/assistant/sessions", "POST /api/assistant/sessions", "GET /api/assistant/sessions/{}", "PATCH /api/assistant/sessions/{}",
+	"GET /api/assistant/providers", "POST /api/assistant/events", "GET /api/assistant/sessions", "POST /api/assistant/sessions", "GET /api/assistant/sessions/{}", "PATCH /api/assistant/sessions/{}",
 	"DELETE /api/assistant/sessions/{}", "POST /api/assistant/sessions/{}/messages", "POST /api/assistant/sessions/{}/attachments", "DELETE /api/assistant/sessions/{}/attachments/{}",
 	"POST /api/assistant/sessions/{}/cancel", "GET /api/assistant/sessions/{}/events", "POST /api/assistant/sessions/{}/actions/{}",
 	"POST /api/assistant/sessions/{}/workspaces", "GET /api/assistant/sessions/{}/workspace-requests/{}", "POST /api/assistant/sessions/{}/workspace-requests/{}",

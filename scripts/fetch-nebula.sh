@@ -35,6 +35,10 @@ field() { printf '%s' "$line" | sed -n "s/.*$1: \"\\([^\"]*\\)\".*/\\1/p"; }
 archive=$(field Archive); archive_sha=$(field ArchiveSHA256); binary_sha=$(field BinarySHA256)
 wintun_sha=$(field WintunSHA256); wintun_path=$(field WintunArchiveMember); wintun_license=$(field WintunLicenseMember)
 [ -n "$archive" ] && [ -n "$archive_sha" ] && [ -n "$binary_sha" ] || die "the pin for $os/$arch is incomplete"
+case "$line" in *"Source: true"*)
+  [ -z "${NEBULA_DIR:-}" ] || die "source builds cannot trust a supplied executable"
+  exec python3 scripts/build-infrastructure.py nebula "$os" "$arch"
+  ;; esac
 
 binary=nebula
 if [ "$os" = windows ]; then binary=nebula.exe; fi

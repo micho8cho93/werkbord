@@ -31,7 +31,7 @@ type asst struct {
 
 // newAsst is a controller that requires its token, has local access, a fake agent runtime, and the assistant on a fake
 // provider.
-func newAsst(t *testing.T, withAssistant bool) *asst {
+func newAsst(t *testing.T, withAssistant bool, extra ...func(*Options)) *asst {
 	t.Helper()
 	st, err := localaccess.Open(filepath.Join(t.TempDir(), "local-access.json"))
 	if err != nil {
@@ -41,7 +41,7 @@ func newAsst(t *testing.T, withAssistant bool) *asst {
 	a.scoped = &scoped{owner: ownerToken, store: st}
 	testAuthToken = ownerToken
 	t.Cleanup(func() { testAuthToken = "" })
-	a.scoped.runsServer = newRunsServer(t, func(o *Options) {
+	a.scoped.runsServer = newRunsServer(t, append([]func(*Options){func(o *Options) {
 		o.AuthRequired, o.Token, o.LocalAccess = true, ownerToken, st
 		a.opts = o
 		if !withAssistant {
@@ -60,7 +60,7 @@ func newAsst(t *testing.T, withAssistant bool) *asst {
 		a.eng = assistant.New(assistant.Config{Providers: reg, Ops: ops, Store: o.Store, WorkDir: t.TempDir(), Backoff: func(int) time.Duration { return time.Millisecond }})
 		o.Assistant = a.eng
 		t.Cleanup(func() { _ = a.eng.Shutdown(context.Background()) })
-	})
+	}}, extra...)...)
 	return a
 }
 

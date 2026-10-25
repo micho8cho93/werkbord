@@ -30,7 +30,7 @@ var supervisorSurface = []string{
 	"method Supervisor.Reload", "method Supervisor.StartNebula", "method Supervisor.Status", "method Supervisor.Stop",
 	"method ErrUnsupportedPlatform.Error",
 	"type Artifact", "type ErrUnsupportedPlatform", "type NebulaConfig", "type Options", "type State", "type Status", "type Supervisor",
-	"const BinaryName", "const ReleaseURL", "const Version",
+	"const BinaryName", "const ReleaseURL", "const Version", "const SourceCommit",
 	"const StateFailed", "const StateRestarting", "const StateRunning", "const StateStarting", "const StateStopped",
 	"var ErrBinaryMismatch", "var ErrBinaryNotFound",
 }

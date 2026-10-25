@@ -68,15 +68,9 @@ find "$target" -type f ! -name '*.png' ! -name '*.icns' ! -name '*.plist' ! -nam
   done > "$list"
 [ -s "$list" ] || die "found no code in $target"
 
-# Team's network program keeps its upstream signature and is held to its pin: check it separately, then leave this one known
-# immutable binary out of the publisher equality below.
-NEBULA="$target/Contents/Helpers/nebula"
-if [ -f "$target/Contents/Helpers/werkbord-team" ]; then
-  CODESIGN="$CODESIGN" "$root/scripts/check-team-payload.sh" "--$mode" "$target" >/dev/null
-fi
+# Source-built infrastructure is signed by the same publisher and pinned by the service.
 team=""
 while IFS= read -r f; do
-  [ "$f" != "$NEBULA" ] || continue
   info=$("$CODESIGN" -dvv "$f" 2>&1) || die "$f is not signed"
   if [ "$mode" = adhoc ]; then
     case $info in *Signature=adhoc*) ;; *) die "$f is not signed ad hoc like the rest of the bundle" ;; esac
@@ -90,6 +84,12 @@ while IFS= read -r f; do
   case $t in ""|"not set") die "$f has no Team ID" ;; esac
   if [ -z "$team" ]; then team=$t; elif [ "$team" != "$t" ]; then die "$f is signed by team $t, the rest by $team"; fi
 done < "$list"
+
+# Probe metadata only after every executable has passed the publisher/runtime policy.
+if [ -f "$target/Contents/Helpers/werkbord-team" ]; then
+  CODESIGN="$CODESIGN" "$root/scripts/check-team-payload.sh" "--$mode" "$target" >/dev/null
+fi
+
 
 if [ "$mode" = distribution ]; then
   # The entitlements the app carries are exactly the ones the repository's file says.

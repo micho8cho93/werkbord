@@ -47,7 +47,8 @@ const shows = (locator, value) => until(async () => (await locator.inputValue().
   cp.execFileSync('go', ['build', '-o', binary, './scripts/browser-fixture'], { cwd: root, stdio: 'inherit' });
   const apiPort = await freePort(), webPort = await freePort();
   const base = `http://127.0.0.1:${apiPort}`, web = `http://127.0.0.1:${webPort}`;
-  const controller = start(binary, [], root, { WERKBORD_BROWSER_ADDR: `127.0.0.1:${apiPort}`, WERKBORD_BROWSER_DIR: temp });
+  const controller = start(binary, [], root, { WERKBORD_BROWSER_ADDR: `127.0.0.1:${apiPort}`, WERKBORD_BROWSER_DIR: temp,
+    WERKBORD_BROWSER_TERMINALS: '1', WERKBORD_BROWSER_TERMINAL_CLI: '/usr/bin/false' });
   await ready(base + '/api/health', controller);
   const call = async (method, url, data, status) => {
     const res = await fetch(base + '/api/personal/v1' + url, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: data === undefined ? undefined : JSON.stringify(data) });
@@ -75,7 +76,7 @@ const shows = (locator, value) => until(async () => (await locator.inputValue().
   const page = await context.newPage(); lastPage = page;
   const errors = [], outside = [];
   page.on('pageerror', e => errors.push(e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('console', m => { if (m.type() === 'error') errors.push(`${m.location().url}: ${m.text()}`); });
   page.on('request', r => { const u = new URL(r.url()); if (!['127.0.0.1', 'localhost'].includes(u.hostname) && u.protocol.startsWith('http')) outside.push(r.url()); });
   page.setDefaultTimeout(10000);
   const open = async w => { await page.goto(`${web}/#/personal?id=${w.id}`); await page.reload(); };
@@ -93,6 +94,7 @@ const shows = (locator, value) => until(async () => (await locator.inputValue().
   await title.fill('Launch plan');
   await page.keyboard.press('Enter');
   const text = region.getByRole('textbox', { name: 'Document text' });
+  await text.click();
   // Real key presses: the Markdown shortcuts work as they are typed.
   await page.keyboard.type('# Goals');
   await page.keyboard.press('Enter');

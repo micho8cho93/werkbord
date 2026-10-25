@@ -78,9 +78,11 @@ if [ "$source_build" = yes ]; then
     printf 'fetch-rqlite: rqlite for %s/%s is built from source, and can only be built on that platform (this is %s/%s)\n' "$os" "$arch" "$(go env GOOS)" "$(go env GOARCH)" >&2
     exit 3
   fi
-  echo "fetch-rqlite: building rqlite $version from source for $os/$arch (the project publishes no binary for it)" >&2
+  echo "fetch-rqlite: building patched rqlite $version from pinned source for $os/$arch" >&2
   git -c advice.detachedHead=false clone -q --depth 1 --branch "$tag" https://github.com/rqlite/rqlite.git "$tmp/src" || die "could not fetch rqlite $tag"
   [ "$(git -C "$tmp/src" rev-parse HEAD)" = "$commit" ] || die "tag $tag is at $(git -C "$tmp/src" rev-parse HEAD), but the pin is $commit: not using it"
+  (cd "$tmp/src" && GOTOOLCHAIN=go1.27.3 go mod edit -go=1.27.3) >&2 || die "could not apply reviewed dependency patches"
+  export GOTOOLCHAIN=go1.27.3
   pkg="github.com/rqlite/rqlite/v${version%%.*}/cmd"
   if [ "$cross_mac" = yes ]; then
     case "$arch" in arm64) c_arch=arm64 ;; amd64) c_arch=x86_64 ;; *) die "unsupported Mac architecture" ;; esac
@@ -91,6 +93,7 @@ if [ "$source_build" = yes ]; then
     (cd "$tmp/src" && CGO_ENABLED=1 go build -trimpath -ldflags "-w -s -X $pkg.Version=$tag -X $pkg.Commit=$commit" -o "$tmp/x/rqlited" ./cmd/rqlited) || die "the build failed"
   fi
   chmod 0755 "$tmp/x/rqlited"
+  cp "$tmp/src/go.mod" "$tmp/src/go.sum" "$tmp/x/"
   fresh_source=yes
   if [ "$arch" = "$(go env GOARCH)" ]; then
     got=$("$tmp/x/rqlited" -version 2>&1 | grep -m1 "^rqlited")

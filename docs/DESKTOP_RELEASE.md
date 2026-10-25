@@ -1,5 +1,13 @@
 # Releasing the Mac app: what only the owner can do
 
+Current policy: [BETA_READINESS.md](BETA_READINESS.md) adds independently
+authenticated controller/Linux manifests, offline exact-byte candidate approval,
+and pending operational evidence. Configure the public release key and the
+protected `release-approval` environment before using the release workflow.
+Windows is deferred independently of Mac/Linux. Linux publication is opt-in after
+its own acceptance; no platform is made production-ready by packaging alone.
+Older setup examples below retain historical version numbers.
+
 Everything an agent could build is built and tested ([DESKTOP.md](DESKTOP.md)). What is left needs **your** Apple account
 and **your** GitHub settings, and an agent cannot do it for you: Apple has to know who you are, and the secrets have to be
 yours. This is the whole list, in order, with what each step unlocks. Nothing here can be skipped silently: a release

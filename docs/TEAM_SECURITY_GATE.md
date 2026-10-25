@@ -2,6 +2,32 @@
 
 Production admission: BLOCKED
 
+## Current hardening status (2026-10-25)
+
+The dated report below is historical evidence, not acceptance of the current
+unified candidate. See [BETA_READINESS.md](BETA_READINESS.md) and
+[RELEASE_ACCEPTANCE.json](RELEASE_ACCEPTANCE.json) for current platform scope and
+uncompleted owner/independent acceptance. Mac first; Linux is opt-in only after
+its acceptance; Windows downloads remain deferred. Valid licensed Team evaluation
+is available on disposable workspaces while production admission stays blocked.
+
+The current implementation upgrades Go to 1.27.3, x/net to 0.60.0, Wails to
+2.17.0 and Vite to 8.3.5. rqlite is repinned to 10.6.5; shipping Unix infrastructure
+is rebuilt from reviewed source with patched dependencies and runtime build-time
+hash pins. New source/binary scan receipts must accompany each actual release.
+The earlier zero-source-findings report and optional-SSH-only Nebula assessment
+cannot be reused as current artifact evidence. rqlite's new upstream backup/query
+advisories are part of the required review.
+
+Hosted Supabase license signing intentionally supersedes local-only issuer
+custody. MFA/live-session controls, independently encrypted key/register recovery,
+owner activation and operational hosting acceptance remain required. Distinct
+release signing keys and independently provisioned public trust anchors remain.
+Exact-byte offline manifest signatures and a protected release-review environment
+supplement the existing version-specific documentation gate; no approval has
+been granted by these implementation changes.
+
+
 Review date: 2026-10-08. Product versions: Team **3.0.0**, individual Werkbord **1.4.0-preview.3**. This is an implementation and evidence report. **Production admission remains blocked** by the deployment, key-custody and dependency decisions below. Passing local tests is not a claim of complete security.
 
 ## macOS public preview scope (2026-10-14)
@@ -184,7 +210,7 @@ No human-operated clean install, clean Mac install, real boot/unlock service tes
 
 ## 8. Production blockers and required acceptance
 
-1. Provision separate production license/release keys with offline custody, independent public-key distribution, backup and rotation procedures. Verify both signatures using the actual release trust anchors. Publish no fixture issuer.
+1. Accept the implemented hosted license-signing custody and independent encrypted recovery, with owner MFA/live-session/hosting evidence. Provision separate offline release-signing custody, independent public-key distribution and backup/rotation procedures. Verify actual trust anchors. Publish no fixture issuer.
 2. Build the exact reviewed production artifacts; require Developer ID/notarization for Mac. Decide how Apple CI signing credentials are protected against release-infrastructure compromise, or move that signing path offline. The CLI offline signature does not currently authenticate the Mac DMG.
 3. Resolve the shipped Nebula optional-SSH advisory findings through a patched pinned artifact or an explicit reviewed security exception backed by the disabled-listener tests. Scan every shipping OS/architecture artifact and retain the evidence.
 4. On clean Mac and Linux machines, verify downloaded signatures/pins/notices, install/create/join, upgrade and interrupted-upgrade recovery. For the root Mac service test boot before login, locked/unlocked Keychain, app identity changes on update, restart, uninstall safety and authority recovery. No adjacent-key fallback is acceptable.

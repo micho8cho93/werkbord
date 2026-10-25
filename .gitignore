@@ -18,3 +18,6 @@
 /supabase/.temp/
 /supabase/.branches/
 /.playwright-cli/
+
+# Python tooling caches
+__pycache__/

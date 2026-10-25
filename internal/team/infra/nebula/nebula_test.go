@@ -43,7 +43,8 @@ func TestThePinIsWellFormedAndMatchesWhatUpstreamPublished(t *testing.T) {
 	}
 	for _, p := range Platforms() {
 		goos, goarch, _ := strings.Cut(p, "/")
-		a, err := ArtifactFor(goos, goarch)
+		_, err := ArtifactFor(goos, goarch)
+		a := artifacts[p]
 		if err != nil {
 			t.Fatal(err)
 		}

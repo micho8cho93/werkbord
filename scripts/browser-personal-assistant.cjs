@@ -115,6 +115,7 @@ const ok = text => console.log('PASS ' + text);
   await page.getByRole('button', { name: 'Edit with Salie', exact: true }).click();
   await page.getByTestId('assistant-picker').click();
   const picker = page.getByTestId('assistant-picker-panel');
+  await picker.getByLabel('Model selection', { exact: true }).selectOption('manual');
   await picker.getByLabel('Model', { exact: true }).selectOption('sonnet');
   await page.keyboard.press('Escape');
   await send(`Reopen ${wid}. Add a section for urgent tasks and move the progress chart to the top.`);

@@ -26,6 +26,7 @@
 # a program with cgo is built from the pinned source on a Mac only, so a macOS archive made anywhere else goes without it and
 # says so (that archive is not a production Workspace Host distribution). BUNDLE_RQLITE=no is evaluation only.
 set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 PRODUCT=${1:-}
 VERSION=${2:-}
@@ -65,6 +66,10 @@ OUT=$(cd "$OUT" && pwd)
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT INT TERM
 
+if [ "$PRODUCT" = werkbord ]; then
+  python3 scripts/audit-release.py --out "$STAGE/inventory"
+fi
+
 for p in $PLATFORMS; do
   os=${p%/*}
   arch=${p#*/}
@@ -74,11 +79,19 @@ for p in $PLATFORMS; do
   mkdir -p "$dir"
   echo "building $PRODUCT $VERSION for $os/$arch"
   database_pin=""
+  network_pin=""
   cp "$README" "$dir/README.md"
   members="$bin README.md"
+  if [ "$PRODUCT" = werkbord ]; then
+    mkdir -p "$dir/licenses/dependencies" "$dir/licenses/go"
+    cp "$STAGE/inventory/notices/THIRD_PARTY_LICENSES.txt" "$STAGE/inventory/notices/INDEX.json" "$STAGE/inventory/source-sbom.cdx.json" "$dir/licenses/dependencies/"
+    cp third_party/go/LICENSE "$dir/licenses/go/LICENSE"
+    members="$members licenses"
+  fi
   if [ "$PRODUCT" = werkbord-team ] && [ "$os" != windows ] && [ "$BUNDLE_NEBULA" != no ]; then
     nebula_dir=$(scripts/fetch-nebula.sh "$os" "$arch") || { echo "build-release: cannot get the pinned Nebula for $os/$arch" >&2; exit 1; }
     mkdir -p "$dir/libexec/werkbord-team" "$dir/licenses/nebula" "$dir/licenses/go"
+    network_pin=$(sidecar_sha "$nebula_dir/nebula")
     cp "$nebula_dir/nebula" "$dir/libexec/werkbord-team/nebula"
     chmod 755 "$dir/libexec/werkbord-team/nebula"
     cp third_party/nebula/LICENSE third_party/nebula/THIRD_PARTY_LICENSES.txt "$dir/licenses/nebula/"
@@ -100,10 +113,10 @@ for p in $PLATFORMS; do
       esac
     fi
   fi
-  extra_flags=""
+  extra_flags=$(scripts/release-build-flags.sh)
   cgo=0
   if [ "$PRODUCT" = werkbord-team ]; then
-    extra_flags="-X main.licenseIssuer=${LICENSE_ISSUER_PUBLIC_KEY:-} -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$database_pin"
+    extra_flags="$extra_flags -X main.licenseIssuer=${LICENSE_ISSUER_PUBLIC_KEY:-} -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$database_pin -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$network_pin"
     if [ "$os" = darwin ] && [ "$(uname -s)" = Darwin ]; then
       cgo=1
       case "$arch" in arm64) c_arch=arm64 ;; amd64) c_arch=x86_64 ;; esac
@@ -113,7 +126,7 @@ for p in $PLATFORMS; do
   CGO_ENABLED=$cgo GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$VERSION $extra_flags" -o "$dir/$bin" "./$CMD"
   name="${ASSET}_${VERSION#v}_${os}_${arch}"
   if [ "$os" = windows ]; then
-    (cd "$dir" && zip -q "$OUT/$name.zip" "$bin" README.md)
+    (cd "$dir" && if [ -d licenses ]; then zip -qr "$OUT/$name.zip" "$bin" README.md licenses; else zip -q "$OUT/$name.zip" "$bin" README.md; fi)
   else
     # shellcheck disable=SC2086 # the members have no spaces
     tar -czf "$OUT/$name.tar.gz" -C "$dir" $members
@@ -125,11 +138,12 @@ for p in $PLATFORMS; do
     [ "$os" = windows ] && oldbin=$LEGACY.exe
     cp "$dir/$bin" "$old/$oldbin"
     cp "$README" "$old/README.md"
+    [ ! -d "$dir/licenses" ] || cp -R "$dir/licenses" "$old/licenses"
     oldname="${LEGACY}_${VERSION#v}_${os}_${arch}"
     if [ "$os" = windows ]; then
-      (cd "$old" && zip -q "$OUT/$oldname.zip" "$oldbin" README.md)
+      (cd "$old" && zip -qr "$OUT/$oldname.zip" "$oldbin" README.md licenses)
     else
-      tar -czf "$OUT/$oldname.tar.gz" -C "$old" "$oldbin" README.md
+      tar -czf "$OUT/$oldname.tar.gz" -C "$old" "$oldbin" README.md licenses
     fi
   fi
 done
@@ -150,5 +164,9 @@ fi
 if [ "$PRODUCT" = werkbord-team ] && [ -n "${WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE:-}" ]; then
   cd - >/dev/null
   go run ./cmd/werkbord-team/vendor release --input "$OUT/$LIST" --out "$OUT/$LIST.sig" --tag "werkbord-$VERSION" < "$WERKBORD_TEAM_RELEASE_SIGNING_KEY_FILE"
+fi
+if [ "$PRODUCT" = werkbord ] && [ -n "${WERKBORD_RELEASE_SIGNING_KEY_FILE:-}" ]; then
+  cd "$ROOT"
+  go run ./scripts/release-manifest sign --input "$OUT/$LIST" --signature "$OUT/$LIST.sig" --tag "werkbord-$VERSION" < "$WERKBORD_RELEASE_SIGNING_KEY_FILE"
 fi
 echo "wrote release files to $OUT"

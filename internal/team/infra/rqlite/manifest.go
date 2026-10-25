@@ -24,14 +24,14 @@ import (
 // reviewed change to this file (docs/TEAM_STORAGE.md, "Bumping the pinned rqlite"): the
 // version, the commit, every hash below and third_party/rqlite/ change together. A binary
 // that does not match is refused; "latest" is never fetched at runtime.
-const Version = "10.5.2"
+const Version = "10.6.5"
 
 // Tag is the release's tag and the version string the program reports.
 const Tag = "v" + Version
 
 // SourceCommit is the commit the release was built from (and the tag points at). A
 // platform with no published binary is built from exactly this commit.
-const SourceCommit = "a73dd2e63acb72080f5eb20881a03bb06a464f89"
+const SourceCommit = "efd3e6e1d58ba948016bd8487838b65dffe1671a"
 
 // distributionBinarySHA256 is set by the macOS packager after it verifies the pinned source build,
 // combines architectures and signs it. The service then pins that exact signed artifact, not a mutable build record.
@@ -68,9 +68,9 @@ type Artifact struct {
 // artifacts are the platforms Team's installer supports. rqlite publishes only
 // Windows x64, so the unified Windows desktop package runs an x64 Team service.
 var artifacts = map[string]Artifact{
-	"linux/amd64":   {Archive: "rqlite-v10.5.2-linux-amd64.tar.gz", ArchiveSHA256: "1a04a7c2c542e8e1c1347bd31af0fa9ef7043febb3c4d1806d36bc1702c6fa0f", BinarySHA256: "7c52a50e1ae99debcf5ce59fe0410c2e939aa5ec30b1ebb8e736ea6d9273d426"},
-	"linux/arm64":   {Archive: "rqlite-v10.5.2-linux-arm64.tar.gz", ArchiveSHA256: "44b4bd7ca39720dee3b916f9ef59da117c07ddc008704ac25e56385e56951b8a", BinarySHA256: "84b089fcfd5c1f38564d816cd9c619f0538d9bd60cb03ee47009531827895573"},
-	"windows/amd64": {Archive: "rqlite-v10.5.2-win64.zip", ArchiveSHA256: "90f4bf34d5e4b4259e55c70c53d85527269b2d636b73676163580046ca222126", BinarySHA256: "06bff286685358374e0af310ce5f51b40bf50afc654b5cfb301a5dbe62781f41"},
+	"linux/amd64":   {Source: true},
+	"linux/arm64":   {Source: true},
+	"windows/amd64": {Archive: "rqlite-v10.6.5-win64.zip", ArchiveSHA256: "d77a453c71d5544c89ae8a66a425339bd7a64e8e05f3366e9069f820457101b2", BinarySHA256: "a4255263d93d2391f856fbd30ba3680d24301505f2f17fda5deef391722a96d7"},
 	"darwin/amd64":  {Source: true},
 	"darwin/arm64":  {Source: true},
 }
@@ -88,7 +88,7 @@ func ArtifactFor(goos, goarch string) (Artifact, error) {
 	if !ok {
 		return Artifact{}, ErrUnsupportedPlatform{goos, goarch}
 	}
-	if goos == "darwin" && distributionBinarySHA256 != "" {
+	if a.Source && distributionBinarySHA256 != "" {
 		b, err := hex.DecodeString(distributionBinarySHA256)
 		if err != nil || len(b) != 32 {
 			return Artifact{}, fmt.Errorf("invalid distribution database pin")

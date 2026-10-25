@@ -33,6 +33,11 @@ contains() { case "$1" in *"$2"*) return 0 ;; esac; return 1; }
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) echo "unsupported test machine"; exit 1 ;; esac
 
+openssl genpkey -algorithm ED25519 -out "$WORK/release-key.pem" >/dev/null 2>&1
+openssl pkey -in "$WORK/release-key.pem" -pubout -out "$WORK/release-key.pub" >/dev/null 2>&1
+export WERKBORD_RELEASE_PUBLIC_KEY_FILE="$WORK/release-key.pub"
+export RELEASE_PUBLIC_KEY=$(openssl pkey -pubin -in "$WORK/release-key.pub" -outform DER | tail -c 32 | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+
 # ---- two releases, and a tampered one (named by their product tag, as GitHub has them) ----
 mkdir -p "$WORK/releases"
 for v in v9.0.1 v9.0.2; do
@@ -54,6 +59,12 @@ PLATFORMS="$os/$arch" scripts/build-release.sh werkbord v9.0.0 "$WORK/build-v9.0
 mkdir -p "$WORK/releases/werkbord-v9.0.0"
 cp "$WORK/build-v9.0.0"/devboard_* "$WORK/releases/werkbord-v9.0.0/"
 grep devboard_ "$WORK/build-v9.0.0/checksums.txt" > "$WORK/releases/werkbord-v9.0.0/checksums.txt"
+for release_dir in "$WORK"/releases/*; do
+  tag=${release_dir##*/}
+  printf 'werkbord/release/v1\000%s\000' "$tag" > "$WORK/to-sign"
+  cat "$release_dir/checksums.txt" >> "$WORK/to-sign"
+  openssl pkeyutl -sign -inkey "$WORK/release-key.pem" -rawin -in "$WORK/to-sign" -out "$release_dir/checksums.txt.sig"
+done
 ok "built the test releases"
 
 # ---- a releases page, laid out like GitHub's ----
@@ -128,7 +139,7 @@ newhome 3
 if out=$(WERKBORD_ARCH=riscv64 $SH scripts/install.sh 2>&1); then bad "an unsupported architecture was accepted"; fi
 contains "$out" "no release is built for riscv64" || bad "unsupported arch message" "$out"
 if out=$(WERKBORD_OS=Windows_NT $SH scripts/install.sh 2>&1); then bad "Windows was accepted by the shell installer"; fi
-contains "$out" "install.ps1" || bad "it should point Windows users at install.ps1" "$out"
+contains "$out" "Windows beta downloads are deferred" || bad "it should explain deferred Windows availability" "$out"
 if out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=latest $SH scripts/install.sh 2>&1); then bad "a version that is not one was accepted"; fi
 if out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=v9.9.9 $SH scripts/install.sh 2>&1); then bad "a release that does not exist was installed"; fi
 if out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=werkbord-team-v0.1.0 $SH scripts/install.sh 2>&1); then bad "a Werkbord Team release was installed as the individual product"; fi

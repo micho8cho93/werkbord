@@ -35,7 +35,7 @@ func verifySignedBy(team, appRoot string) error {
 	if err != nil {
 		return err
 	}
-	// Nebula keeps its upstream signature and is checked against its pin, so only the code Werkbord signs is tested here.
+	// The app and service establish publisher identity; the service embeds the exact hashes of its rebuilt helpers.
 	for _, path := range []string{appRoot, filepath.Join(appRoot, "Contents", "Helpers", "werkbord-team")} {
 		if err := codesignRequirement(requirement, path); err != nil {
 			return fmt.Errorf("%s was not signed by the Werkbord release team", filepath.Base(path))

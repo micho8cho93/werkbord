@@ -37,7 +37,9 @@ Editing presentation must preserve tags, publication dates, prerelease status, a
 and latest selection. Only stable unified Werkbord releases may become latest. The `werkbord-preview-feed` release (the update feed
 preview apps read, docs/DESKTOP.md) is not a product release and has no display number.
 
-The current release scope is macOS only; Linux and Windows publication is deferred.
+The first beta invitation scope is macOS. Linux publication is opt-in only after
+its separate acceptance; Windows publication remains deferred. See
+[BETA_READINESS.md](BETA_READINESS.md).
 Stable unified releases are published only after the signed, notarized universal macOS app
 and public download and signed update-feed checks succeed. The GUI app carries the Team
 service and installer; do not attach standalone Team Host CLI archives. A pushed tag
@@ -118,3 +120,4 @@ is not proof that a release is installable.
 | Individual | `werkbord-v4.83.3-preview.1` | — | Unpublished; signed and notarized, but no display sequence was reserved for the tag; superseded by 4.83.4-preview.1 |
 | Individual | `werkbord-v4.83.4-preview.1` | — | Unpublished; two release browser steps timed out on a loaded runner (the assistant attachment step, then the phone task step), each passing on another run; superseded by 4.83.5-preview.1 |
 | Individual | `werkbord-v4.83.5-preview.1` | `0.21.0-preview.1` | Reserved public signed macOS preview; refined Team layouts (Analytics, Reviews, Projects, Workspace, repository-only project headers, per-card Archive), configurable Salie placement, expanded CLI agent catalogue, and backup-verified maintenance for an enrolled Team service (`Werkbord --maintain`); Team production admission remains blocked |
+| Individual | `werkbord-v4.89.0-preview.1` | `0.22.0-preview.1` | Reserved candidate validation; patched source-built infrastructure and dependencies, authenticated release manifests, protected exact-byte candidate review and opt-in Linux preview packaging. Mac first, Linux disabled pending acceptance, Windows deferred. Production admission remains blocked; no publication approval is implied. |

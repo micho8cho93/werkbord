@@ -138,7 +138,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     try {
         await page.goto(shellOrigin + '/shell/shell/index.html');
         await page.getByTestId('hub-generated-' + savedWorkspace.id).waitFor();
-        await ordered(['workspaces', 'settings']);
+        await ordered(['workspaces', 'personal-library', 'settings']);
         assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 48);
         await page.screenshot({path:path.join(artifacts,'universal-default.png')});
         await page.getByTestId('sidebar-label-toggle').click();
@@ -162,7 +162,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
 
         await switchTo(page,'personal');
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();
-        await ordered(['ws-home','ws-projects','project','add-project','ws-analytics','create-generated', 'generated-' + savedWorkspace.id,...footer]);
+        await ordered(['theme','ws-home','ws-projects','project','add-project','ws-analytics','create-generated', 'generated-' + savedWorkspace.id,...footer]);
         await openSaved();
         assert.equal(await generated.getAttribute('aria-current'), 'page');
         assert.equal(await generated.getAttribute('aria-label'), spec.name);
@@ -183,7 +183,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const teamFrame = page.frameLocator('iframe[data-workspace="team:main"]');
         await teamFrame.locator('#draft').fill('My unfinished Team draft');
         await side.locator('[data-page=ws-analytics]').click();
-        await ordered(['ws-home','ws-projects','ws-reviews','ws-members','ws-analytics','create-generated', 'generated-'+savedWorkspace.id,...footer]);
+        await ordered(['theme','ws-home','ws-projects','ws-reviews','ws-members','ws-analytics','create-generated', 'generated-'+savedWorkspace.id,...footer]);
         const teamHandle = await page.locator('iframe[data-workspace="team:main"]').elementHandle();
         await openSaved();
         await page.getByText('Team projects · Northstar · read-only',{exact:true}).click();

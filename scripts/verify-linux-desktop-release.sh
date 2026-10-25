@@ -10,7 +10,7 @@ case "$tag" in werkbord-v[0-9]*.[0-9]*.[0-9]*) ;; *) die "invalid release tag: $
 case "$arch" in amd64|arm64) ;; *) die "unsupported Linux architecture: $arch" ;; esac
 version=${tag#werkbord-v}
 base=${WERKBORD_RELEASE_BASE:-https://github.com/micho8cho93/werkbord/releases/download}
-for tool in curl sha256sum dpkg-deb tar; do command -v "$tool" >/dev/null 2>&1 || die "$tool is required"; done
+for tool in curl sha256sum dpkg-deb tar openssl; do command -v "$tool" >/dev/null 2>&1 || die "$tool is required"; done
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT INT TERM
@@ -20,7 +20,19 @@ for file in "$stem.deb" "$stem.deb.sha256" "$stem.tar.gz" "$stem.tar.gz.sha256";
   # shellcheck disable=SC2086
   curl -fsSL $retry -o "$work/$file" "$base/$tag/$file" || die "the public release does not serve $file"
 done
+for file in checksums.txt checksums.txt.sig; do
+  # shellcheck disable=SC2086
+  curl -fsSL $retry -o "$work/$file" "$base/$tag/$file" || die "signed release manifest missing"
+done
+key=${WERKBORD_RELEASE_PUBLIC_KEY_FILE:-"$(dirname "$0")/keys/werkbord-release.pub"}
+"$(dirname "$0")/verify-release-manifest.sh" "$tag" "$work/checksums.txt" "$work/checksums.txt.sig" "$key" || die "publisher authentication failed"
+for file in "$stem.deb" "$stem.tar.gz"; do
+  line=$(awk -v f="$file" '$2==f {print}' "$work/checksums.txt")
+  [ -n "$line" ] || die "signed manifest does not list $file"
+  (cd "$work" && printf '%s\n' "$line" | sha256sum -c -) || die "signed artifact hash mismatch"
+done
 (cd "$work" && cat "$stem.deb.sha256" "$stem.tar.gz.sha256" | sha256sum -c -) || die "a Linux package hash does not match its published sidecar"
+[ "$(dpkg-deb -f "$work/$stem.deb" Version)" = "$("$(dirname "$0")/debian-version.sh" "$version")" ] || die "wrong Debian package version"
 [ "$(dpkg-deb -f "$work/$stem.deb" Architecture)" = "$arch" ] || die "the Debian package architecture is wrong"
 tar -tzf "$work/$stem.tar.gz" | grep -F "$stem/app/bin/Werkbord" >/dev/null || die "the portable archive has no desktop executable"
 tar -tzf "$work/$stem.tar.gz" | grep -F "$stem/app/Helpers/werkbord-team" >/dev/null || die "the portable archive has no Team service"

@@ -191,7 +191,10 @@ const workspace = (name, collectionId) => {
     await page.getByTestId('deck-create-workspace').click();
     const box = page.getByRole('textbox', { name: 'Message to the assistant' });
     await box.waitFor();
-    assert.match(await box.inputValue(), /to-do/i, 'the phone starts from the same creation request as the computer');
+    const creationRequest = await box.inputValue();
+    assert.match(creationRequest, /create a new generative workspace/i, 'the phone starts from the shared creation request');
+    assert.match(creationRequest, /ask me where it should appear/i, 'placement remains a person’s choice');
+    await box.fill(creationRequest + 'A weekly to-do list with deadlines and priorities.');
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     const proposal = page.locator('.confirm[data-state="waiting"]');
     await proposal.getByRole('button', { name: 'Confirm', exact: true }).waitFor();
@@ -212,6 +215,8 @@ const workspace = (name, collectionId) => {
     ok('the new workspace can be put on a button straight from that list');
     assert.deepEqual(errors, [], 'no browser exceptions');
   } catch (err) {
+    console.error(await page.locator('body').ariaSnapshot());
+    console.error('Fixture diagnostics:',controller.diagnostics);
     await shot('failure').catch(() => {});
     throw err;
   } finally {

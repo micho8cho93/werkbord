@@ -8,10 +8,10 @@ See [ARCHITECTURE.md §22](ARCHITECTURE.md#distribution-licensing-and-updates). 
 This document covers individual Werkbord and its separate tsnet support. Werkbord Team uses customer-owned Nebula and has its own [signed installation/update instructions](TEAM_INSTALL.md), [offline licenses](TEAM_LICENSE.md) and [production security gate](TEAM_SECURITY_GATE.md).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.sh | sh
+WERKBORD_RELEASE_PUBLIC_KEY_FILE=/trusted/werkbord-release.pub sh /trusted/install.sh
 ```
 
-macOS and Linux, Intel and ARM. No account, no Docker, no root, no hosted database.
+Obtain both the installer and verification PEM through an independently trusted channel. A mutable `curl | sh` command does not establish publisher trust. macOS and Linux, Intel and ARM; no customer account, Docker or hosted database. Linux native desktop packages and Windows availability follow [BETA_READINESS.md](BETA_READINESS.md).
 
 This is the installer for a terminal, a server or Linux. On a Mac, the [desktop app](DESKTOP.md) is the other way in:
 it installs the same program in the same place, with the same data directory and login service, so the two are one
@@ -19,8 +19,7 @@ installation. Installing one and using the other does not make a second.
 
 ## What it does
 
-1. **Downloads** the release for your computer and **checks it** against the `checksums.txt` published with
-   it. A download that does not match is not installed, and neither is an executable that does not report the
+1. **Downloads** the release for your computer and **authenticates** the tag-bound Ed25519 signature of `checksums.txt` using the separately trusted release key, then checks the archive hash. A download that does not match is not installed, and neither is an executable that does not report the
    version it claims.
 2. **Installs** one file, `~/.local/bin/werkbord` (`WERKBORD_INSTALL_DIR` changes it). It is written beside its
    destination and renamed into place, so an upgrade over a running Werkbord is atomic.
@@ -153,17 +152,9 @@ and its login service are the ones above, so `werkbord uninstall` (or `rm ~/.loc
 `werkbord status` prints the data directory. If phone access was on, Werkbord's device also appears in your
 Tailscale admin console under Machines, where you can remove it.
 
-## Windows (experimental)
+## Windows
 
-```powershell
-irm https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.ps1 | iex
-```
-
-It installs `werkbord.exe` under `%LOCALAPPDATA%\Programs\Werkbord`, adds it to your PATH and runs setup, with a
-scheduled task for the service. The controller, board, Git views, repository health, GitHub and phone access are
-the same. **Coding agents do not run natively on Windows yet** (the runtime uses Unix process control): to run
-agents there, install inside WSL with the Linux installer. The Windows installer and service code are written but
-have not been run on a Windows machine.
+Windows beta downloads are deferred pending trusted code signing and clean-device acceptance. Source/build support remains in the repository. PowerShell or curl does not make an unsigned executable a trusted publisher; no security-disable workaround is recommended.
 
 ## Building a release
 

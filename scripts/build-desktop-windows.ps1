@@ -97,7 +97,7 @@ try {
     Push-Location $desktop
     try {
         $windowLdFlags = "-s -w -X main.version=v$Version -X devboard/desktop/internal/teaminstall.releaseBuild=v$Version -X devboard/desktop/internal/teaminstall.signingThumbprint=$thumbprint"
-        Invoke-Native 'go' @('run', 'github.com/wailsapp/wails/v2/cmd/wails@v2.16.0', 'build', '-platform', 'windows/amd64', '-skipfrontend', '-skipbindings', '-nosyncgo', '-m', '-tags', 'desktop,production', '-webview2', 'embed', '-o', 'Werkbord.exe', '-ldflags', $windowLdFlags)
+        Invoke-Native 'go' @('run', 'github.com/wailsapp/wails/v2/cmd/wails@v2.17.0', 'build', '-platform', 'windows/amd64', '-skipfrontend', '-skipbindings', '-nosyncgo', '-m', '-tags', 'desktop,production', '-webview2', 'embed', '-o', 'Werkbord.exe', '-ldflags', $windowLdFlags)
     } finally { Pop-Location }
     Copy-Item (Join-Path $desktop 'build/bin/Werkbord.exe') (Join-Path $bin 'Werkbord.exe')
 

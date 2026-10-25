@@ -111,8 +111,9 @@ const ok = text => console.log('PASS ' + text);
   await page.reload();
   await page.getByRole('heading',{name:'To-dos',exact:true}).waitFor();
   await page.getByRole('button',{name:'Data library',exact:true}).click();
-  await page.getByRole('heading',{name:'Saved workspaces',exact:true}).waitFor();
-  await page.getByRole('listitem').filter({hasText:'Personal to-dos'}).getByRole('button',{name:'Open',exact:true}).click();
+  const savedWorkspaces = page.getByRole('region',{name:'Saved workspaces',exact:true});
+  await savedWorkspaces.waitFor();
+  await savedWorkspaces.getByRole('listitem').filter({hasText:'Personal to-dos'}).getByRole('button',{name:'Open',exact:true}).click();
   await page.getByRole('heading',{name:'To-dos',exact:true}).waitFor();
   ok('Removing every display location keeps the definition and records; restart and library reopen persist');
 

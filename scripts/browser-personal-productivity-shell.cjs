@@ -9,7 +9,7 @@ const { chromium } = require(path.join(root, 'web/node_modules/playwright'));
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'werkbord-productivity-shell-'));
 const output = path.join(root, 'output/playwright/personal-productivity-shell');
 const token = 'disposable-browser-credential';
-let controller, server, browser;
+let controller, server, browser, lastPage;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1'); await once(s, 'listening'); const p = s.address().port; await new Promise(resolve => s.close(resolve)); return p; }
 (async () => {
@@ -63,6 +63,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     server.listen(shellPort, '127.0.0.1'); await once(server, 'listening');
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    lastPage = page;
     await page.addInitScript(() => {
         localStorage.setItem('werkbord.theme', 'light');
         if (window.parent === window) window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => {
@@ -92,6 +93,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
         },
     });
     await page.goto(shell + '/shell/shell/index.html');
+    await page.getByTestId('hub-workspace-personal').click();
     const side = page.locator('.group.generated');
     await side.getByRole('button', { name: 'Writing desk', exact: true }).click();
     await page.getByRole('heading', { name: 'Writing desk', exact: true }).waitFor();
@@ -102,6 +104,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     await docs.getByTestId('document-new').click();
     await docs.getByRole('textbox', { name: 'Title', exact: true }).fill('Shell note');
     await page.keyboard.press('Enter');
+    await docs.getByRole('textbox', { name: 'Document text' }).click();
     await page.keyboard.type('## Heading');
     await page.keyboard.press('Enter');
     await page.keyboard.type('Plain and **strong** words.');
@@ -122,11 +125,12 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     ok('the Projects shortcut opens Projects in the workspace on show');
     await side.getByRole('button', { name: 'Writing desk', exact: true }).click();
     await page.locator('[data-shortcut="calendar"]').click();
-    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Calendar' }).first().waitFor();
+    await page.getByRole('heading', { name: 'Calendar', exact: true }).waitFor();
     ok('the Calendar shortcut opens the window’s calendar');
 
     // The file catalogue works here too: the files stay in the window's own storage.
-    await side.getByRole('button', { name: 'Writing desk', exact: true }).click();
+    await page.getByTestId('back-to-universal').click();
+    await page.getByTestId('hub-generated-' + hub.id).click();
     const files = page.getByRole('region', { name: 'Material', exact: true });
     await files.getByTestId('files-add').setInputFiles([{ name: 'Brochure.md', mimeType: 'text/markdown', buffer: Buffer.from('# Brochure\n\nSome **copy**.') }]);
     await files.locator('.stage strong', { hasText: 'copy' }).waitFor();
@@ -135,7 +139,14 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     assert.deepEqual(errors, []); assert.deepEqual(remote, []);
     void hub;
     console.log('Screenshots: ' + output);
-})().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
+})().catch(async error => {
+    console.error(error);
+    if (lastPage) {
+        console.error(await lastPage.locator('body').ariaSnapshot());
+        await lastPage.screenshot({ path: path.join(output, 'failure.png'), fullPage: true });
+    }
+    process.exitCode = 1;
+}).finally(async () => {
     if (browser) await browser.close();
     if (server) await new Promise(resolve => server.close(resolve));
     if (controller && controller.exitCode === null) { controller.kill('SIGTERM'); await Promise.race([once(controller, 'exit'), sleep(4000)]); }

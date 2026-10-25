@@ -20,9 +20,7 @@ open the DMG, drag **Werkbord** to **Applications**, then open it. If macOS bloc
 This universal preview is ad-hoc signed, not notarized, and has no Sparkle app updater. It is for testing;
 replace it with the signed app when available. See [Apple’s instructions](https://support.apple.com/en-us/102445).
 
-The current stable release includes the signed and notarized macOS app. Linux and Windows desktop packages are being prepared
-for the next unified release; publication is gated on Windows Authenticode signing and the reviewed Team production gate
-([release setup](docs/DESKTOP_RELEASE.md), [production gate](docs/TEAM_SECURITY_GATE.md)).
+The beta starts with the signed and notarized universal macOS preview. Team is available with a valid workspace license for disposable evaluation; production admission remains blocked. Debian/Ubuntu packages follow after their own acceptance. Windows downloads are deferred until signing and clean-device checks are ready. See [beta distribution and acceptance](docs/BETA_READINESS.md).
 
 1. Download **[`Werkbord.dmg`](https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg)** (the same
    file as `Werkbord_<version>_darwin_universal.dmg` on the [latest release](https://github.com/micho8cho93/werkbord/releases/latest)).
@@ -44,19 +42,19 @@ browser on this computer and from your phone. See [docs/DESKTOP.md](docs/DESKTOP
 macOS or Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.sh | sh
+WERKBORD_RELEASE_PUBLIC_KEY_FILE=/trusted/werkbord-release.pub sh /trusted/install.sh
 ```
 
 **Both ways install the same Werkbord**: the same `werkbord` program in `~/.local/bin`, the same data directory,
 database and token, the same login service and the same controller. Install one and then use the other and you have
-one installation, not two; `werkbord update` updates what the app uses, and the app's **Update now** runs it.
+one installation, not two; the controller updater replaces the controller, and the app uses its signed Sparkle feed to replace the desktop bundle.
 
 The installer downloads the release for your computer, checks it against its published
-checksum, and runs `werkbord setup`: it creates the data directory and database, installs a background service
+signed checksum manifest using an independently provisioned release public key, and runs `werkbord setup`: it creates the data directory and database, installs a background service
 that starts when you log in, registers this computer as your first runner, joins your own private network so a
 phone can reach it (signing you in through the browser if needed), and opens Werkbord in your browser. There
 you connect GitHub (optional), see which coding agents it found, and pick repositories. It needs no account of
-Werkbord's own, no Docker, no root and no hosted database. On Windows (experimental) use `install.ps1`; see
+Werkbord's own, no Docker, no root and no hosted database. Windows beta downloads are deferred; see
 [docs/INSTALL.md](docs/INSTALL.md) for every option, upgrades, and what is installed where.
 
 Afterwards: `werkbord status`, `open`, `doctor`, `start`, `stop`, `restart`, `update`.

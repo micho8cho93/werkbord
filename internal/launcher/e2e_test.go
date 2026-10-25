@@ -4,9 +4,13 @@ package launcher
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"devboard/internal/releaseverify"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -23,6 +27,12 @@ import (
 
 	"devboard/internal/update"
 )
+
+var launcherReleaseKey = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{44}, 32))
+
+func init() {
+	releaseverify.PublicKey = base64.RawURLEncoding.EncodeToString(launcherReleaseKey.Public().(ed25519.PublicKey))
+}
 
 // These tests run the real thing: the werkbord program is built from this source tree
 // (twice, as 1.0.0 and 1.1.0), and the launcher starts, finds and updates real
@@ -41,7 +51,7 @@ func moduleDir(t *testing.T) string {
 
 func build(t *testing.T, version, out string) {
 	t.Helper()
-	cmd := exec.Command("go", "build", "-o", out, "-ldflags", "-X main.version="+version, "./cmd/werkbord")
+	cmd := exec.Command("go", "build", "-o", out, "-ldflags", "-X main.version="+version+" -X devboard/internal/releaseverify.PublicKey="+base64.RawURLEncoding.EncodeToString(launcherReleaseKey.Public().(ed25519.PublicKey)), "./cmd/werkbord")
 	cmd.Dir = moduleDir(t)
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if b, err := cmd.CombinedOutput(); err != nil {
@@ -81,6 +91,9 @@ func releaseServer(t *testing.T, tag, binary string) *httptest.Server {
 	sum := sha256.Sum256(archive)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/tag/"+tag, http.StatusFound) })
+	manifest := fmt.Sprintf("%s  %s\n", hex.EncodeToString(sum[:]), asset)
+	signature := ed25519.Sign(launcherReleaseKey, append([]byte("werkbord/release/v1\x00"+tag+"\x00"), []byte(manifest)...))
+	mux.HandleFunc("/download/"+tag+"/checksums.txt.sig", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(signature) })
 	mux.HandleFunc("/download/"+tag+"/checksums.txt", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%s  %s\n", hex.EncodeToString(sum[:]), asset)
 	})

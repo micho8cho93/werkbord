@@ -1,6 +1,6 @@
 name: release
 
-# One tag produces one unified macOS-only release. Linux and Windows publication is deferred.
+# One unified release. Mac first; Linux is opt-in after acceptance. Windows publication stays deferred.
 # Stable releases require the signed, notarized universal Mac app and public download checks. Only the desktop app
 # carries the Team installer/service; this workflow never publishes standalone Team Host archives.
 on:
@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+env:
+  RELEASE_PUBLIC_KEY: ${{ vars.RELEASE_PUBLIC_KEY }}
+
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -20,12 +23,14 @@ jobs:
     outputs:
       desktop: ${{ steps.plan.outputs.desktop }}
       stable: ${{ steps.plan.outputs.stable }}
+      linux: ${{ steps.plan.outputs.linux }}
     steps:
       - name: Decide which release jobs apply
         id: plan
         env:
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
+          LINUX_BETA_ENABLED: ${{ vars.LINUX_BETA_ENABLED }}
         run: |
           desktop=false
           stable=false
@@ -40,6 +45,9 @@ jobs:
           fi
           echo "desktop=$desktop" >> "$GITHUB_OUTPUT"
           echo "stable=$stable" >> "$GITHUB_OUTPUT"
+          linux=false
+          if [ "${LINUX_BETA_ENABLED:-false}" = true ]; then linux=true; fi
+          echo "linux=$linux" >> "$GITHUB_OUTPUT"
 
   release-build:
     needs: plan
@@ -71,6 +79,10 @@ jobs:
       - name: Require reviewed Team production approval for stable releases
         if: ${{ github.event_name == 'push' && needs.plan.outputs.stable == 'true' }}
         run: scripts/check-team-production-gate.sh "${GITHUB_REF_NAME#werkbord-v}"
+      - name: Require independently configured release verification key
+        run: |
+          test "${#RELEASE_PUBLIC_KEY}" -eq 43
+          scripts/release-build-flags.sh
       - name: Run the repository checks
         run: make check
       - name: Run Team's pinned native network tests
@@ -87,8 +99,38 @@ jobs:
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/unified" make test-unified-desktop-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/onboarding" make test-onboarding-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/assistant" make test-assistant-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/personal" make test-personal-browser
+          node scripts/browser-salie-sessions.cjs
+      - name: Source, frontend and build dependency audit (no acceptance inferred)
+        run: |
+          python3 scripts/audit-release.py --out output/release-audit --scan
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          # This step runs only after every named validation above succeeds.
+          commands = ['make check', 'make test-nebula', 'make test-rqlite',
+                      'make test-browser', 'make test-team-desktop-browser',
+                      'make test-unified-desktop-browser', 'make test-onboarding-browser',
+                      'make test-assistant-browser', 'make test-personal-browser',
+                      'node scripts/browser-salie-sessions.cjs']
+          receipt = {'schema': 1, 'sourceCommit': os.environ['GITHUB_SHA'],
+                     'workflowRun': os.environ['GITHUB_RUN_ID'],
+                     'checks': [{'command': command, 'result': 'passed'} for command in commands],
+                     'operationalAcceptance': 'pending; CI fixtures cannot establish independent acceptance'}
+          Path('output/release-audit/validation.json').write_text(json.dumps(receipt, sort_keys=True, indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-audit
+          path: output/release-audit/*
+          if-no-files-found: error
       - name: Build the controller archives for the unified release
-        run: make dist PRODUCT=werkbord PLATFORMS="darwin/arm64 darwin/amd64"
+        env:
+          LINUX: ${{ needs.plan.outputs.linux }}
+        run: |
+          platforms="darwin/arm64 darwin/amd64"
+          if [ "$LINUX" = true ]; then platforms="$platforms linux/amd64 linux/arm64"; fi
+          make dist PRODUCT=werkbord PLATFORMS="$platforms"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: controller-release
@@ -157,6 +199,21 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: scripts/build-desktop.sh --package --release dist/desktop
+      - name: Scan the actual universal binaries and native desktop source
+        env:
+          CGO_LDFLAGS: -framework UniformTypeIdentifiers
+        run: |
+          python3 scripts/audit-release.py --out output/native-audit --scan --native-desktop \
+            --artifact dist/desktop/Werkbord.app/Contents/MacOS/Werkbord \
+            --artifact dist/desktop/Werkbord.app/Contents/Helpers/werkbord \
+            --artifact dist/desktop/Werkbord.app/Contents/Helpers/werkbord-team \
+            --artifact dist/desktop/Werkbord.app/Contents/Helpers/nebula \
+            --artifact dist/desktop/Werkbord.app/Contents/Helpers/rqlited
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-audit
+          path: output/native-audit/*
+          if-no-files-found: error
       - name: Sign the Sparkle update archive and feed
         run: |
           mkdir -p dist/feed
@@ -194,8 +251,127 @@ jobs:
           scripts/ci-keychain.sh delete || true
           rm -rf "$RUNNER_TEMP/notary"
 
+  linux-desktop-build:
+    needs: [plan, release-build]
+    if: needs.plan.outputs.linux == 'true'
+    strategy:
+      matrix:
+        include:
+          - {os: ubuntu-24.04, arch: amd64}
+          - {os: ubuntu-24.04-arm, arch: arm64}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      LICENSE_ISSUER_PUBLIC_KEY: ${{ vars.TEAM_LICENSE_ISSUER_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Linux native dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev dpkg-dev pkg-config pkexec xvfb
+      - name: Build the preview-compatible unified Debian package
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: scripts/build-desktop-linux.sh "$ARCH" "${GITHUB_REF_NAME#werkbord-v}" dist/linux
+      - name: Inspect package and install on this disposable runner
+        run: |
+          sudo apt-get install -y ./dist/linux/*.deb
+          ldd /opt/werkbord/bin/Werkbord > /tmp/werkbord-libraries.txt
+          ! grep -q 'not found' /tmp/werkbord-libraries.txt
+          /opt/werkbord/Helpers/werkbord version
+          /opt/werkbord/Helpers/werkbord-team version
+          sudo apt-get remove -y werkbord
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/linux/*
+          if-no-files-found: error
+
+  assemble-candidate:
+    needs: [plan, release-build, desktop-build, linux-desktop-build]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.release-build.result == 'success' && needs.desktop-build.result == 'success' && (needs.linux-desktop-build.result == 'success' || needs.linux-desktop-build.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: controller-release
+          path: candidate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: desktop-release
+          path: candidate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: desktop-appcast
+          path: candidate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: needs.plan.outputs.linux == 'true'
+        with:
+          pattern: linux-*
+          path: candidate
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-audit
+          path: audits/source
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: native-audit
+          path: audits/native
+      - name: Freeze source identity, artifact hashes and operational evidence
+        env:
+          LINUX: ${{ needs.plan.outputs.linux }}
+        run: |
+          cp candidate/Werkbord_*_darwin_universal.dmg candidate/Werkbord.dmg
+          tar -czf candidate/release-audit.tar.gz -C audits .
+          extra=""
+          if [ "$LINUX" = true ]; then extra=--linux; fi
+          python3 scripts/release-candidate.py create --dir candidate --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" $extra
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: unsigned-candidate
+          path: candidate/*
+          if-no-files-found: error
+
+  release-approval:
+    needs: assemble-candidate
+    runs-on: ubuntu-latest
+    environment: release-approval
+    permissions:
+      contents: read
+    env:
+      RELEASE_MANIFEST_SIGNATURE: ${{ vars.RELEASE_MANIFEST_SIGNATURE }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: unsigned-candidate
+          path: candidate
+      - name: Authenticate the owner's offline signature of these exact bytes
+        run: python3 scripts/release-candidate.py verify --dir candidate --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: approved-candidate
+          path: candidate/*
+          if-no-files-found: error
+
   desktop-draft:
-    needs: [plan, release-build, desktop-build]
+    needs: [plan, release-build, desktop-build, release-approval]
     if: github.event_name == 'push' && needs.plan.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -204,18 +380,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: controller-release
-          path: assets/controller
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: desktop-release
-          path: assets/macos
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: desktop-appcast
-          path: assets/feed
+          name: approved-candidate
+          path: assets/approved
       - name: Assemble one release and reserve its display sequence
         env:
           GH_TOKEN: ${{ github.token }}
@@ -232,7 +400,7 @@ jobs:
             *) scripts/check-team-production-gate.sh "$version" ;;
           esac
           mkdir release-assets
-          for dir in assets/controller assets/macos assets/feed; do
+          for dir in assets/approved; do
             cp "$dir"/* release-assets/
           done
           cp release-assets/Werkbord_"$version"_darwin_universal.dmg release-assets/Werkbord.dmg
@@ -259,7 +427,7 @@ jobs:
           - **macOS:** universal Apple Silicon and Intel disk image, signed and notarized.
           Download Werkbord.dmg, open it and drag Werkbord to Applications. macOS may show its normal first-open confirmation; no security settings need to be disabled.
 
-          Linux and Windows downloads are deferred for this release.
+          Linux packages are included only after their separate beta acceptance. Windows downloads remain deferred.
 
           macOS controller command-line archives and their checksum manifest are included for existing terminal and service workflows. This release has no standalone Team Host archive.
           EOF
@@ -270,7 +438,7 @@ jobs:
 
           This is an evaluation preview. Team production admission remains blocked. Evaluate Team using disposable workspaces and backups; clean-Mac privileged service and Keychain lifecycle, dependency findings, independent-host networking/failover and replacement-host recovery still need production acceptance. See docs/TEAM_SECURITY_GATE.md at this tag for the complete review.
 
-          The preview is not marked latest and is not distributed through the stable update feed. Preview apps update from the preview feed (the `werkbord-preview-feed` release), which this release replaces once its downloads and signed feed have been verified. Linux and Windows downloads are deferred.
+          The preview is not marked latest and is not distributed through the stable update feed. Preview apps update from the preview feed (the `werkbord-preview-feed` release), which this release replaces once its downloads and signed feed have been verified. Linux packages are opt-in after acceptance; Windows downloads remain deferred.
           EOF
           fi
           gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord Individual — Release $sequence$qualifier" --notes-file release-notes.md --draft --prerelease="$prerelease" --latest=false --verify-tag
@@ -324,9 +492,26 @@ jobs:
           WERKBORD_FEED_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/appcast.xml
         run: scripts/verify-appcast.sh "$GITHUB_REF_NAME"
 
+  linux-public-verify:
+    needs: [plan, desktop-publish]
+    if: needs.plan.outputs.linux == 'true' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify published package authenticity for both architectures
+        run: |
+          python3 scripts/write-release-public-key.py /tmp/release-public.pem
+          export WERKBORD_RELEASE_PUBLIC_KEY_FILE=/tmp/release-public.pem
+          scripts/verify-linux-desktop-release.sh "$GITHUB_REF_NAME" amd64
+          scripts/verify-linux-desktop-release.sh "$GITHUB_REF_NAME" arm64
+
   stable-latest:
-    needs: [plan, macos-public-verify, desktop-feed-public-verify]
-    if: github.event_name == 'push' && needs.plan.outputs.stable == 'true'
+    needs: [plan, macos-public-verify, desktop-feed-public-verify, linux-public-verify]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.plan.outputs.stable == 'true' && needs.macos-public-verify.result == 'success' && needs.desktop-feed-public-verify.result == 'success' && (needs.linux-public-verify.result == 'success' || needs.linux-public-verify.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -341,8 +526,8 @@ jobs:
   # Preview apps cannot use the stable feed (GitHub's /releases/latest never points at a pre-release), so they read the
   # werkbord-preview-feed release instead. Every verified release becomes its content, last, like the stable feed.
   preview-feed:
-    needs: [plan, macos-public-verify, desktop-feed-public-verify]
-    if: github.event_name == 'push' && needs.plan.outputs.desktop == 'true'
+    needs: [plan, macos-public-verify, desktop-feed-public-verify, linux-public-verify]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.plan.outputs.desktop == 'true' && needs.macos-public-verify.result == 'success' && needs.desktop-feed-public-verify.result == 'success' && (needs.linux-public-verify.result == 'success' || needs.linux-public-verify.result == 'skipped') }}
     runs-on: ubuntu-latest
     concurrency:
       group: preview-feed

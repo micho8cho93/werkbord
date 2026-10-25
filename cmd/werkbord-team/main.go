@@ -11,8 +11,8 @@
 //	werkbord-team mcp                bridge an MCP host's stdio connection to the Team metadata endpoint
 //	werkbord-team version            print the version
 //
-// Team is a separate product from the individual Werkbord (cmd/werkbord): its own
-// executable, version, data directory and database. It coordinates; it never
+// Team is a separate executable/process within the one versioned Werkbord product.
+// It has its own data directory and database. It coordinates; it never
 // runs anyone's agents or commands. Every member keeps using their own Werkbord
 // runner with their own credentials (docs/STRUCTURE.md).
 package main
@@ -111,6 +111,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	case "mcp":
 		return cmdMCP(ctx, cfg, args[1:], stderr)
 	case "version", "--version", "-v":
+		if len(args) == 2 && args[1] == "--json" {
+			return writeBuildInfo(stdout)
+		}
 		fmt.Fprintln(stdout, version)
 		return nil
 	case "help", "-h", "--help":

@@ -143,6 +143,9 @@ var phoneRoutes = []phoneRoute{
 	{method: "POST", pattern: "/api/projects/{}/terminals/{}/stop"},
 	// the Assistant, all of it, as on the desktop.
 	{method: "GET", pattern: "/api/assistant/providers"},
+	// The same session events as the individual GET stream, multiplexed to stay
+	// within the browser's connection limit. No commands or permission changes.
+	{method: "POST", pattern: "/api/assistant/events", fields: []string{"sessions"}},
 	{method: "GET", pattern: "/api/assistant/sessions"},
 	{method: "POST", pattern: "/api/assistant/sessions", anyBody: true},
 	{method: "GET", pattern: "/api/assistant/sessions/{}"},

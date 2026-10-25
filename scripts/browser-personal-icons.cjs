@@ -86,9 +86,14 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     page.on('request', request => { if (!new URL(request.url()).hostname.match(/^(127\.0\.0\.1|localhost)$/)) remote.push(request.url()); });
     page.setDefaultTimeout(10000);
     await page.goto(shell + '/shell/shell/index.html');
+    await page.getByTestId('hub-generated-' + workspaces[0].id).waitFor();
+    const shelf = page.getByRole('list', { name: 'Places to go', exact: true });
+    assert.deepEqual((await shelf.locator('svg[data-workspace-icon]').evaluateAll(icons => icons.map(icon => icon.dataset.workspaceIcon))).sort(), [...occupied].filter(icon => icon !== hidden.icon).sort());
+    await shelf.screenshot({ path: path.join(output, 'icon-preview.png') });
+    await page.getByTestId('hub-workspace-personal').click();
     const group = page.locator('.group.generated');
     await group.getByRole('button', { name: workspaces[0].name, exact: true }).waitFor();
-    assert.deepEqual((await group.locator('svg[data-workspace-icon]').evaluateAll(icons => icons.map(icon => icon.dataset.workspaceIcon))).sort(), [...occupied].filter(icon => icon !== hidden.icon).sort());
+    assert.deepEqual((await group.locator('svg[data-workspace-icon]').evaluateAll(icons => icons.map(icon => icon.dataset.workspaceIcon))).sort(), workspaces.slice(0, 2).map(workspace => workspace.icon).sort());
     await group.getByRole('button', { name: workspaces[0].name, exact: true }).click();
     await page.getByRole('heading', { name: workspaces[0].name, exact: true }).waitFor();
     for (const [label, width, height] of [['desktop', 1440, 1000], ['intermediate', 760, 1000], ['mobile', 390, 844]]) {
@@ -97,7 +102,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
         await page.screenshot({ path: path.join(output, label + '.png'), fullPage: true });
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await group.screenshot({ path: path.join(output, 'icon-preview.png') });
+    await group.screenshot({ path: path.join(output, 'sidebar-icons.png') });
     await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
     await page.screenshot({ path: path.join(output, 'dark.png'), fullPage: true });
     await page.evaluate(() => document.documentElement.dataset.theme = 'light');

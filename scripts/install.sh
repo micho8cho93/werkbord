@@ -1,7 +1,8 @@
 #!/bin/sh
 # Werkbord installer for macOS and Linux.
 #
-#   curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/install.sh | sh
+#   sh /trusted/installer/install.sh
+# Obtain the script and verification PEM independently; a mutable curl|sh command is not a trust anchor.
 #
 # It downloads the release for this computer, checks it against the release's
 # published checksums, puts it in ~/.local/bin as `werkbord` (with `devboard`, its
@@ -11,8 +12,8 @@
 # browser. It needs no account, no Docker and no root; it installs nothing but one
 # executable (and the service definition setup writes in your home directory).
 #
-# Pass options to setup after `sh -s --`, e.g.:
-#   curl -fsSL .../install.sh | sh -s -- --no-network
+# Pass options to setup using the independently obtained installer, e.g.:
+#   sh /trusted/installer/install.sh --no-network
 #
 # Environment (each also read under its old DEVBOARD_ name):
 #   WERKBORD_VERSION      install this release (e.g. v1.2.3, or its tag werkbord-v1.2.3) instead of the latest
@@ -40,9 +41,7 @@ os=$(opt OS); os=${os:-$(uname -s)}
 case "$os" in
   Darwin|darwin) os=darwin ;;
   Linux|linux) os=linux ;;
-  MINGW*|MSYS*|CYGWIN*|Windows*) fail "this is the macOS and Linux installer. On Windows run, in PowerShell:
-  irm https://raw.githubusercontent.com/$REPO/main/scripts/install.ps1 | iex
-(or run this installer inside WSL, which is where coding agents run best)." ;;
+  MINGW*|MSYS*|CYGWIN*|Windows*) fail "Windows beta downloads are deferred pending signing and clean-machine acceptance." ;;
   *) fail "no release is built for $os. Build from source instead: https://github.com/$REPO" ;;
 esac
 
@@ -100,11 +99,22 @@ case "$tag" in
   *) fail "\"$tag\" is not a release version (expected something like v1.2.3)" ;;
 esac
 
+printf '%s' "$tag" | grep -Eq '^(werkbord-v|v)[0-9]+\.[0-9]+\.[0-9]+(-preview\.[1-9][0-9]*)?$' || fail "invalid release identity"
+
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/werkbord-install.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
 say "Installing Werkbord $version for $os/$arch"
 fetch "$BASE/download/$tag/checksums.txt" "$tmp/checksums.txt" || fail "could not download the checksums for $tag"
+# Authenticate BEFORE extraction, version probes, setup, or upgrade execution.
+key=$(opt RELEASE_PUBLIC_KEY_FILE)
+key=${key:-"$(dirname "$0")/keys/werkbord-release.pub"}
+[ -f "$key" ] || fail "an independently trusted release PEM is required; set WERKBORD_RELEASE_PUBLIC_KEY_FILE (DEVBOARD_RELEASE_PUBLIC_KEY_FILE also works)"
+command -v openssl >/dev/null 2>&1 || fail "OpenSSL with Ed25519 support is required"
+fetch "$BASE/download/$tag/checksums.txt.sig" "$tmp/checksums.txt.sig" || fail "release manifest signature is missing; nothing was installed"
+printf 'werkbord/release/v1\000%s\000' "$tag" > "$tmp/signed-manifest"
+cat "$tmp/checksums.txt" >> "$tmp/signed-manifest"
+openssl pkeyutl -verify -pubin -inkey "$key" -rawin -in "$tmp/signed-manifest" -sigfile "$tmp/checksums.txt.sig" >/dev/null 2>&1 || fail "release manifest signature rejected; nothing was installed"
 sumof() { awk -v f="$1" '{ n=$2; sub(/^\*/, "", n); if (n == f) print $1 }' "$tmp/checksums.txt"; }
 # Releases are werkbord_…; a release from before the rename has only devboard_….
 asset="werkbord_${version#v}_${os}_${arch}.tar.gz"

@@ -98,7 +98,8 @@ if release
   required = %w[plan release-build desktop-build desktop-draft desktop-publish macos-public-verify desktop-feed-public-verify stable-latest preview-feed]
   required.each { |name| check(jobs.key?(name), "release.yml has no job #{name}") }
 
-  %w[linux-desktop-build windows-desktop-build linux-public-verify windows-public-verify].each { |name| check(!jobs.key?(name), "macOS-only release must not include #{name}") }
+  %w[windows-desktop-build windows-public-verify].each { |name| check(!jobs.key?(name), "Windows beta publication remains deferred: #{name}") }
+  %w[linux-desktop-build linux-public-verify assemble-candidate release-approval].each { |name| check(jobs.key?(name), "missing gated release job #{name}") }
 
   plan_script = jobs.dig("plan", "steps", 0, "run")
   [["push", "werkbord-v4.28.4", "true", "true"],
@@ -138,14 +139,14 @@ if release
     gate_condition = release_build["steps"].dig(gate_index || 0, "if").to_s
     check(gate_condition.include?("github.event_name == 'push'") && gate_condition.include?("needs.plan.outputs.stable == 'true'"), "the Team production gate applies only to stable tag pushes")
     check(steps.include?("make check") && steps.include?("make test-nebula") && steps.include?("make test-rqlite") && steps.include?("make test-browser") && steps.include?("make test-unified-desktop-browser") && steps.include?("make test-assistant-browser"), "release-build runs repository, native network and real-cluster checks")
-    check(steps.include?('make dist PRODUCT=werkbord PLATFORMS=\"darwin/arm64 darwin/amd64\"'), "controller publication includes only macOS architectures")
+    check(steps.include?('darwin/arm64 darwin/amd64') && steps.include?('if [ \"$LINUX\" = true ]') && steps.include?('linux/amd64 linux/arm64'), "Linux controller publication is explicitly gated")
     check(!steps.include?("gh release"), "release-build does not create a public release before platform builds finish")
     check(!JSON.generate(release).include?("make dist PRODUCT=werkbord-team"), "standalone Team Host archives are never built for publication")
   end
 
   stable_draft = jobs["desktop-draft"]
   if stable_draft
-    check(needs(stable_draft).sort == %w[desktop-build plan release-build].sort, "stable draft waits for the Mac desktop build and controller checks")
+    check(needs(stable_draft).sort == %w[desktop-build plan release-build release-approval].sort, "stable draft waits for the Mac desktop build and controller checks")
     check(stable_draft["if"].to_s.include?("desktop"), "a desktop tag can create the public release draft")
     check(perms(stable_draft, release) == { "contents" => "write" }, "desktop-draft is the release asset publisher")
     steps = JSON.generate(stable_draft["steps"])
@@ -168,20 +169,28 @@ if release
   end
   check(JSON.generate(jobs["macos-public-verify"]).include?("verify-desktop-release.sh"), "Mac public verification checks the signed and notarized app")
   latest = jobs["stable-latest"]
-  check(needs(latest).sort == %w[plan desktop-feed-public-verify macos-public-verify].sort, "latest promotion waits for all public checks")
+  check(needs(latest).sort == %w[plan desktop-feed-public-verify macos-public-verify linux-public-verify].sort, "latest promotion waits for all public checks")
   check(JSON.generate(latest["steps"]).include?("--latest --verify-tag"), "only the final job promotes the verified stable release")
   check(latest["if"].to_s.include?("push") && latest["if"].to_s.include?("needs.plan.outputs.stable == 'true'"), "previews and manual dry runs never promote a release")
 
   # Preview apps read the preview feed (scripts/desktop-feed-url.sh), because /releases/latest never points at a pre-release.
   # It is published last, after the same public checks as the stable feed, by every desktop release, and only on a tag push.
   preview = jobs["preview-feed"]
-  check(needs(preview).sort == %w[plan desktop-feed-public-verify macos-public-verify].sort, "the preview feed waits for all public checks, as latest promotion does")
+  check(needs(preview).sort == %w[plan desktop-feed-public-verify macos-public-verify linux-public-verify].sort, "the preview feed waits for all public checks, as latest promotion does")
   check(preview["if"].to_s.include?("push") && preview["if"].to_s.include?("needs.plan.outputs.desktop == 'true'"), "the preview feed is published by tag pushes of desktop releases, never by a manual dry run")
   preview_steps = JSON.generate(preview["steps"])
   check(preview_steps.include?("scripts/publish-preview-feed.sh"), "the preview feed is published by scripts/publish-preview-feed.sh")
   check(!preview_steps.include?("--latest") && !preview_steps.include?("release edit"), "the preview feed job never promotes a release to latest")
   check(preview.dig("concurrency", "group") == "preview-feed" && preview.dig("concurrency", "cancel-in-progress") == false, "two releases cannot write the preview feed at once, and a running publication is never cancelled")
   check(!JSON.generate(jobs["stable-latest"]).include?("preview-feed"), "the stable feed and the preview feed are separate jobs")
+
+  check(jobs["release-approval"]["environment"] == "release-approval", "offline signature review uses the protected review environment")
+  %w[assemble-candidate release-approval].each { |name| check(perms(jobs[name],release) == {"contents" => "read"}, "candidate review cannot publish or hold write authority") }
+  check(JSON.generate(jobs["release-approval"]).include?("release-candidate.py verify") && JSON.generate(jobs["release-approval"]).include?("RELEASE_MANIFEST_SIGNATURE"), "exact-byte offline signature is verified before publication")
+  check(JSON.generate(jobs["desktop-draft"]).include?("approved-candidate"), "publisher consumes only authenticated candidate assets")
+  check(jobs["linux-desktop-build"]["if"].include?("needs.plan.outputs.linux == 'true'"), "Linux remains opt-in until owner acceptance")
+  [latest, preview].each { |job| check(job["if"].include?("needs.linux-public-verify.result == 'success'") && job["if"].include?("needs.macos-public-verify.result == 'success'"), "a failed platform verifier cannot promote either feed") }
+  check(JSON.generate(release_build).include?("make test-personal-browser") && JSON.generate(release_build).include?("browser-salie-sessions.cjs"), "new workspace and session browser regressions are required")
 
   # Every action is pinned to a full commit SHA, including artifact transport.
   jobs.each do |name, job|

@@ -21,9 +21,12 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"devboard/internal/releaseverify"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -50,6 +53,8 @@ type Source struct {
 	// or WERKBORD_RELEASE_URL (DEVBOARD_RELEASE_URL) if set (for a mirror, or a test).
 	Base string
 	HTTP *http.Client
+	// PublicKey is supplied by trusted callers/tests, never fetched from the release. Nil uses the build stamp.
+	PublicKey ed25519.PublicKey
 }
 
 func (s Source) base() string {
@@ -288,6 +293,21 @@ func (s Source) Download(ctx context.Context, tag, goos, goarch, dir string) (st
 	var sums strings.Builder
 	if err := s.get(ctx, base+"checksums.txt", maxChecksums, &sums); err != nil {
 		return "", fmt.Errorf("download the checksums: %w", err)
+	}
+	key := s.PublicKey
+	if key == nil {
+		var err error
+		key, err = releaseverify.ConfiguredKey()
+		if err != nil {
+			return "", err
+		}
+	}
+	var signature bytes.Buffer
+	if err := s.get(ctx, base+"checksums.txt.sig", 64, &signature); err != nil {
+		return "", fmt.Errorf("download release signature: %w", err)
+	}
+	if _, err := releaseverify.Verify(key, tag, []byte(sums.String()), signature.Bytes()); err != nil {
+		return "", err
 	}
 	want, ok := checksumFor(sums.String(), asset)
 	if !ok {

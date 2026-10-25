@@ -6,7 +6,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"devboard/internal/releaseverify"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -15,11 +18,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
 var bg = context.Background()
+var fixtureKey = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{42}, 32))
+
+func init() {
+	releaseverify.PublicKey = base64.RawURLEncoding.EncodeToString(fixtureKey.Public().(ed25519.PublicKey))
+}
 
 func tarGz(t *testing.T, files map[string]string) []byte {
 	t.Helper()
@@ -47,6 +56,9 @@ func releaseServer(t *testing.T, tag string, assets map[string][]byte, checksums
 		http.Redirect(w, r, "/tag/"+tag, http.StatusFound)
 	})
 	mux.HandleFunc("/download/"+tag+"/checksums.txt", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, checksums) })
+	message := append([]byte("werkbord/release/v1\x00"+tag+"\x00"), []byte(checksums)...)
+	signature := ed25519.Sign(fixtureKey, message)
+	mux.HandleFunc("/download/"+tag+"/checksums.txt.sig", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(signature) })
 	for name, body := range assets {
 		body := body
 		mux.HandleFunc("/download/"+tag+"/"+name, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(body) })
@@ -402,5 +414,53 @@ func TestDisabledCheckerLeavesNothingOnTheWire(t *testing.T) {
 	st := c.Status(bg, true)
 	if !st.Disabled || st.Available || st.Latest != "" || asked {
 		t.Fatalf("disabled checker: %+v, asked=%v", st, asked)
+	}
+}
+
+func TestUnauthenticatedManifestCannotEvenFetchAnExecutable(t *testing.T) {
+	manifest := strings.Repeat("0", 64) + "  werkbord_4.89.0_linux_amd64.tar.gz\n"
+	for _, mode := range []string{"missing", "wrong-key", "wrong-tag", "untrusted-build"} {
+		t.Run(mode, func(t *testing.T) {
+			var fetched atomic.Bool
+			tag := "werkbord-v4.89.0"
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case strings.HasSuffix(r.URL.Path, "/checksums.txt"):
+					_, _ = w.Write([]byte(manifest))
+				case strings.HasSuffix(r.URL.Path, "/checksums.txt.sig"):
+					if mode == "missing" {
+						http.NotFound(w, r)
+						return
+					}
+					key := fixtureKey
+					if mode == "wrong-key" {
+						key = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{1}, 32))
+					}
+					identity := tag
+					if mode == "wrong-tag" {
+						identity = "werkbord-v4.89.1"
+					}
+					_, _ = w.Write(ed25519.Sign(key, append([]byte("werkbord/release/v1\x00"+identity+"\x00"), []byte(manifest)...)))
+				default:
+					fetched.Store(true)
+				}
+			}))
+			defer server.Close()
+			source := Source{Base: server.URL}
+			if mode == "untrusted-build" {
+				source.PublicKey = ed25519.PublicKey{}
+			}
+			dir := t.TempDir()
+			if _, err := source.Download(bg, tag, "linux", "amd64", dir); err == nil {
+				t.Fatal("unauthenticated manifest authorized a download")
+			}
+			if fetched.Load() {
+				t.Fatal("executable was fetched before publisher authentication")
+			}
+			entries, _ := os.ReadDir(dir)
+			if len(entries) != 0 {
+				t.Fatal("failed authentication left an executable behind")
+			}
+		})
 	}
 }

@@ -565,6 +565,7 @@ function memoryRepository(remote) {
 async function memorySharingPanel() {
   const projects = state.ov.projects.filter(p => p.member && !p.project.archived).map(p => p.project);
   const box = h('section', { class: 'panel memory-panel', 'aria-labelledby': 'memory-sharing-h' }, h('h2', { id: 'memory-sharing-h' }, 'Team memory'),
+    h('p', { class: 'muted' }, 'This workspace stores up to 10,000 memory revisions. Changes and publication steps consume revisions; a curator can remove obsolete memories when capacity is reached.'),
     h('p', { class: 'muted' }, 'Short notes about each project that the team has agreed to keep. Nothing is shared until you turn it on for a project in Individual → Settings → Individual memory, and another person approves it.'),
     state.device?.sync?.problem ? h('p', { class: 'advice' }, state.device.sync.problem) : '');
   if (state.desktop) {

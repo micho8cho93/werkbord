@@ -12,6 +12,7 @@
 package nebula
 
 import (
+	"encoding/hex"
 	"fmt"
 	"runtime"
 	"strings"
@@ -23,6 +24,12 @@ import (
 // A binary that does not match is refused; "latest" is never fetched at runtime.
 const Version = "1.11.2"
 
+// SourceCommit is the reviewed upstream source; Unix distributions rebuild with patched dependencies.
+const SourceCommit = "4dbeff889cf609aff44282cf64867fde6b06097a"
+
+// Set only by the trusted build, after rebuilding/signing. Never read from runtime configuration.
+var distributionBinarySHA256 string
+
 // ReleaseURL is where the pinned release is published. It is used only by
 // scripts/fetch-nebula.sh at build time, never by the running server (which has no
 // code that downloads anything), and every download is checked against the hashes
@@ -31,6 +38,8 @@ const ReleaseURL = "https://github.com/slackhq/nebula/releases/download/v" + Ver
 
 // Artifact pins one platform's release.
 type Artifact struct {
+	// Source requires a trusted build-time pin; upstream hashes below retain provenance only.
+	Source bool
 	// Archive is the release asset's name, and ArchiveSHA256 its SHA-256, as
 	// published in the release's SHASUM256.txt and checked again when pinned.
 	Archive       string
@@ -49,10 +58,10 @@ type Artifact struct {
 // Nebula's upstream Wintun API DLL beside the verified executable.
 var artifacts = map[string]Artifact{
 	// One universal binary serves both Mac architectures.
-	"darwin/amd64":  {Archive: "nebula-darwin.zip", ArchiveSHA256: "ae23ebd29e570d72f28d71e608261d454fb87b1a19b4ca21c2aa26bb4698da88", BinarySHA256: "b2eec15124d83774e5831baeabfca6283f90c950143e21334ed2522c793e9038"},
-	"darwin/arm64":  {Archive: "nebula-darwin.zip", ArchiveSHA256: "ae23ebd29e570d72f28d71e608261d454fb87b1a19b4ca21c2aa26bb4698da88", BinarySHA256: "b2eec15124d83774e5831baeabfca6283f90c950143e21334ed2522c793e9038"},
-	"linux/amd64":   {Archive: "nebula-linux-amd64.tar.gz", ArchiveSHA256: "6140d33f2ec21ce7f6b655b5bc820e93a684d97e51d0ddcf907324b5b28aac1e", BinarySHA256: "9cda43821d200211fbc264f2ac4df48973c6efde2ad0984be769699a55c2f0d5"},
-	"linux/arm64":   {Archive: "nebula-linux-arm64.tar.gz", ArchiveSHA256: "85d10e7bc2d121193c1392a1a919172ded7c413f46e602138281cfa9fa1b0231", BinarySHA256: "e59c1cbaeaec58936ef4b94265d3b0827a504e98575133094940b2e63e009c38"},
+	"darwin/amd64":  {Source: true, Archive: "nebula-darwin.zip", ArchiveSHA256: "ae23ebd29e570d72f28d71e608261d454fb87b1a19b4ca21c2aa26bb4698da88", BinarySHA256: "b2eec15124d83774e5831baeabfca6283f90c950143e21334ed2522c793e9038"},
+	"darwin/arm64":  {Source: true, Archive: "nebula-darwin.zip", ArchiveSHA256: "ae23ebd29e570d72f28d71e608261d454fb87b1a19b4ca21c2aa26bb4698da88", BinarySHA256: "b2eec15124d83774e5831baeabfca6283f90c950143e21334ed2522c793e9038"},
+	"linux/amd64":   {Source: true, Archive: "nebula-linux-amd64.tar.gz", ArchiveSHA256: "6140d33f2ec21ce7f6b655b5bc820e93a684d97e51d0ddcf907324b5b28aac1e", BinarySHA256: "9cda43821d200211fbc264f2ac4df48973c6efde2ad0984be769699a55c2f0d5"},
+	"linux/arm64":   {Source: true, Archive: "nebula-linux-arm64.tar.gz", ArchiveSHA256: "85d10e7bc2d121193c1392a1a919172ded7c413f46e602138281cfa9fa1b0231", BinarySHA256: "e59c1cbaeaec58936ef4b94265d3b0827a504e98575133094940b2e63e009c38"},
 	"windows/amd64": {Archive: "nebula-windows-amd64.zip", ArchiveSHA256: "adbb2201c86fcce7bf68a1d4ebbeb7570b32fdb73ce9044296ea47a17ad596d7", BinarySHA256: "3fc950cd530966f52dded2038661c837afa8d8bc09cb590f39e8a195e2aa2274", WintunSHA256: "e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce", WintunArchiveMember: "dist/windows/wintun/bin/amd64/wintun.dll", WintunLicenseMember: "dist/windows/wintun/LICENSE.txt"},
 }
 
@@ -68,6 +77,15 @@ func ArtifactFor(goos, goarch string) (Artifact, error) {
 	a, ok := artifacts[goos+"/"+goarch]
 	if !ok {
 		return Artifact{}, ErrUnsupportedPlatform{goos, goarch}
+	}
+	if a.Source {
+		a.BinarySHA256 = distributionBinarySHA256
+		if a.BinarySHA256 != "" {
+			b, err := hex.DecodeString(a.BinarySHA256)
+			if err != nil || len(b) != 32 {
+				return Artifact{}, fmt.Errorf("invalid distribution network pin")
+			}
+		}
 	}
 	return a, nil
 }
