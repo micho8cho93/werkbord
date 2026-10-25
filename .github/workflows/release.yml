@@ -420,7 +420,11 @@ jobs:
 
           ---
 
-          Werkbord $version is the unified Individual and Team desktop app. It includes the Individual controller and the local Team workspace service and setup flow.
+          Werkbord $version is one app with Personal and Team projects, under Free and Premium plans. It includes the local controller and the optional Team coordination service in one release.
+
+          Free includes all Personal work and teams of up to two people. Teams of three or more need Premium for every member. Premium uses a per-person key checked offline; a one-time purchase is planned but is not yet on sale. Both plans use the same download.
+
+          This preview includes the unified sidebar, Home, Calendar, Reviews and Analytics, the single create/join flow, and reviewed project moves between Personal and Team. Moves copy text, save the destination atomically and archive the original with its history. Runs, files, credentials and agent output stay at the source. Salie's planned Team read-only policy and remaining Home polish are still pending.
 
           ### Desktop downloads
 
