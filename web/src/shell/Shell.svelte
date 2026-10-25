@@ -9,6 +9,8 @@
   import FrameHost from './FrameHost.svelte';
   import WorkspaceProblem from './WorkspaceProblem.svelte';
   import Calendar from './Calendar.svelte';
+  import Analytics from './Analytics.svelte';
+  import Reviews from './Reviews.svelte';
   import FloatingSalie from './FloatingSalie.svelte';
   import { salie } from './salie.svelte';
   import Hub from './Hub.svelte';
@@ -24,7 +26,7 @@
 
   // The window: one sidebar (Home and Calendar, then Personal and each team with their projects) beside the workspace's own
   // pages, which carry no navigation of their own here.
-  const pages: Page[] = ['workspace', 'calendar', 'inbox', 'workspaces', 'settings', 'help'];
+  const pages: Page[] = ['workspace', 'calendar', 'inbox', 'reviews', 'analytics', 'workspaces', 'settings', 'help'];
   let mainEl: HTMLElement | undefined;
   // The person's own Werkbord cannot be shown (too old, or not running): say so instead of a blank frame.
   const problem = $derived(model.current === 'personal' && model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
@@ -80,7 +82,7 @@
     <main id="shell-main" tabindex="-1" bind:this={mainEl} class:with-nav={model.page === 'settings'}>
       {#if model.page === 'settings'}<SettingsNav />{/if}
       <div class="stage">
-        {#if model.universal && ['workspaces', 'personal-library', 'generated', 'calendar'].includes(model.page)}
+        {#if model.universal && ['workspaces', 'personal-library', 'generated', 'calendar', 'reviews', 'analytics'].includes(model.page)}
           <div class="crumb"><button class="btn small quiet" type="button" onclick={() => model.go('inbox')} data-testid="back-to-universal"><Icon name="left" size={14} />Home</button></div>
         {/if}
         <FrameHost shown={(model.page === 'workspace' && !problem) || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
@@ -93,6 +95,8 @@
         {:else if model.page !== 'workspace' && !hostedWorkspace}
           <div class="page-area">
             {#if model.page === 'calendar'}<Calendar overview={model.overview} />
+            {:else if model.page === 'reviews'}<Reviews />
+            {:else if model.page === 'analytics'}<Analytics />
             {:else if model.page === 'inbox'}<Hub overview={model.overview} />
             {:else if model.page === 'personal-library'}<PersonalLibrary api={shellPersonalAPI} onopen={async w => { await model.refreshGenerated(); model.openGenerated(w.id, true); }} />
             {:else if model.page === 'generated'}<GeneratedWorkspace id={model.generatedID} />

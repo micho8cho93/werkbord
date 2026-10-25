@@ -9,11 +9,13 @@
   import { model } from './model.svelte';
   import { plan } from './plan.svelte';
   import { activeKey, entries, listed, sectionColour, sectionItems, sectionPlaces } from './nav';
+  import { reviewCount } from './reviews';
   import type { Item } from './types';
 
   onMount(() => void plan.refresh());
 
-  // The window's one sidebar. Top to bottom: Salie, Home and Calendar (what spans everything), then a section for Personal and one
+  // The window's one sidebar. Top to bottom: Salie, Home, Calendar, Reviews and Analytics (what spans everything, each one page with
+  // its own choice of where to look), then a section for Personal and one
   // for each team the person belongs to, each with its own projects and places, then Create with Salie, and last, pinned to the
   // bottom whatever else is shown, the things about this computer: Devices & Hosting, the Data library, Settings and the plan.
   // There is no switcher and no mode: a project is reached from the section it belongs to.
@@ -23,7 +25,7 @@
   const nameOf = (i: Item): string => (i.kind === 'personal' ? 'Personal' : i.name);
   // The place in a workspace the person is at now, as the section it belongs to: only for the workspace that is on show.
   const hereIn = (i: Item): string => (model.page === 'workspace' && model.current === i.id ? activeKey(i.kind, model.places[i.id]) : '');
-  const reviewsOf = (i: Item): number => (i.kind === 'team' ? (summaryOf(i.id)?.attention.filter((a) => a.kind === 'review').length ?? 0) : 0);
+  const reviews = $derived(reviewCount(model.overview));
   const needsOf = (i: Item): number => (summaryOf(i.id)?.attention ?? []).filter((a) => a.severity !== 'info').length;
   // A workspace that cannot be shown (not running, too old) has nowhere to go to inside it: its header opens the page that says why.
   const usable = (i: Item): boolean => !!model.frames[i.id] || i.state === 'ready';
@@ -84,6 +86,8 @@
   <div class="group" aria-label="Everything">
     {@render item('Home', 'control', model.page === 'inbox', () => model.go('inbox'), 'inbox', needs)}
     {@render item('Calendar', 'calendar', model.page === 'calendar', () => model.go('calendar'), 'calendar')}
+    {@render item('Reviews', 'merge', model.page === 'reviews', () => model.go('reviews'), 'reviews', reviews)}
+    {@render item('Analytics', 'analytics', model.page === 'analytics', () => model.go('analytics'), 'analytics')}
     {#each model.generatedFor('universal') as workspace (workspace.id)}
       {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
     {/each}
@@ -121,7 +125,6 @@
         {#each sectionPlaces(kind) as e (e.key)}
           <button class="nav proj place" type="button" aria-current={here === e.key ? 'page' : undefined} onclick={() => model.goTo(i.id, e.place)} data-page="ws-{e.key}">
             <Icon name={e.icon} size={14} /><span class="label">{e.title}</span>
-            {#if e.key === 'reviews' && reviewsOf(i)}<span class="num" aria-label="{reviewsOf(i)} waiting for you">{reviewsOf(i)}</span>{/if}
           </button>
         {/each}
         {#each generatedIn(i) as workspace (workspace.id)}

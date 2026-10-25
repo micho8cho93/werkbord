@@ -996,10 +996,10 @@ Team backend imports. Team continues serving its existing console, including
 
 The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name (which goes Home); **Salie**
 (the sidebar button; the floating button is the other way in, and the person chooses either or both); **Home**, which gathers what
-needs you from Personal and every team, each in its own colour (Personal blue, a team another hue), and **Calendar**; then **a
-section for Personal and one for each team the person belongs to**, each listing its own projects and places (Personal: its projects,
-New personal project, Analytics; a team: its projects, Reviews, People, Analytics) and the saved workspaces Salie made for it, and
-foldable (remembered on this computer); and last, pinned, New team or join…, Devices & Hosting, the Data library, Settings and the
+needs you from Personal and every team, each in its own colour (Personal blue, a team another hue), and **Calendar**,
+**Reviews** and **Analytics**; then **a section for Personal and one for each team the person belongs to**, each listing what
+belongs to that workspace alone (its projects, and for Personal New personal project, for a team People) and the saved workspaces
+Salie made for it, and foldable (remembered on this computer); and last, pinned, New team or join…, Devices & Hosting, the Data library, Settings and the
 plan chip (Free or Premium; [PLANS.md](PLANS.md)). **Go to…** (⌘K, or the Workspace menu) reaches any project, place or page by typing.
 Choosing a place asks the workspace to show it (`werkbord.navigate`, a place inside the page); the workspace says where it is
 (`werkbord.frame`/`place`) and the sidebar marks that entry. The projects are the ones each workspace reports in its summary. There

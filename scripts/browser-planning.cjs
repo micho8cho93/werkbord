@@ -161,8 +161,8 @@ let browser, server, debugPage;
     window.go={main:{App:{Workspaces:async()=>({items,selected:'personal',problems:[],team:{state:'ready'},teamInstaller:false,invitation:false}),OpenWorkspace:load,LoadWorkspace:load,Overview:async()=>fetch('/fixture-overview').then(r=>r.json()),RememberPlace:async()=>{},Relay:async()=>({version:'fixture',platform:'darwin'}),Info:async()=>({version:'fixture',platform:'darwin'})}}};window.runtime={EventsOn:()=>()=>{}};
   },{items,personalURL,teamURL,token,teamToken});
   await page.goto('http://127.0.0.1:'+server.address().port+'/shell/index.html');
-  const side=page.getByRole('navigation',{name:'Werkbord',exact:true});await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();await side.locator('[data-section=personal]').getByRole('button',{name:'Analytics',exact:true}).waitFor();
-  const addTop=await side.getByRole('button',{name:'New personal project',exact:true}).boundingBox(),analyticTop=await side.locator('[data-section=personal]').getByRole('button',{name:'Analytics',exact:true}).boundingBox();assert(analyticTop.y>addTop.y && analyticTop.y-addTop.y<50,'Analytics follows Add project');
+  const side=page.getByRole('navigation',{name:'Werkbord',exact:true});await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
+  const addTop=await side.getByRole('button',{name:'New personal project',exact:true}).boundingBox(),analyticTop=await side.getByRole('button',{name:'Analytics',exact:true}).boundingBox();assert(analyticTop.y<addTop.y,'Analytics is in the sidebar\'s own group, above the sections');
   await page.locator('nav[aria-label="Werkbord"] [data-page=inbox]').click();await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
   await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
   for (const [workspace,id,getter] of [['personal',task.id,getTask]]) {

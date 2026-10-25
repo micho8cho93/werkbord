@@ -112,9 +112,12 @@ export function sectionItems(items: readonly Item[] | undefined): Item[] {
   return [...shown.filter((i) => i.kind === 'personal'), ...shown.filter((i) => i.kind === 'team')];
 }
 
-/** The places a section lists after its projects: People, Reviews and Analytics for a team; Analytics for Personal. */
+/**
+ * The places a section lists after its projects: only what belongs to that workspace alone, which is People for a team. Reviews and
+ * Analytics span Personal and every team, so each is one entry of the sidebar's own with a place to choose where to look.
+ */
 export function sectionPlaces(kind: Kind): NavEntry[] {
-  return entries(kind).filter((e) => e.key !== 'home' && e.key !== 'projects');
+  return entries(kind).filter((e) => e.key === 'members');
 }
 
 /** Something the go-to palette can take the person to. */
@@ -124,7 +127,7 @@ export interface Destination {
   /** Where it is, in words: "Acme · project", "Personal". */
   hint: string;
   go:
-    | { page: 'inbox' | 'calendar' | 'workspaces' | 'personal-library' | 'settings' }
+    | { page: 'inbox' | 'calendar' | 'reviews' | 'analytics' | 'workspaces' | 'personal-library' | 'settings' }
     | { workspace: string; place: string }
     | { addTeam: true };
 }
@@ -134,6 +137,8 @@ export function destinations(items: readonly Item[] | undefined, overview: Overv
   const out: Destination[] = [
     { id: 'page:inbox', title: 'Home', hint: 'Everything that needs you', go: { page: 'inbox' } },
     { id: 'page:calendar', title: 'Calendar', hint: 'Across Personal and your teams', go: { page: 'calendar' } },
+    { id: 'page:reviews', title: 'Reviews', hint: 'Work waiting on a review', go: { page: 'reviews' } },
+    { id: 'page:analytics', title: 'Analytics', hint: 'How work is going, by place and period', go: { page: 'analytics' } },
   ];
   for (const i of sectionItems(items)) {
     const where = i.kind === 'personal' ? 'Personal' : i.name;

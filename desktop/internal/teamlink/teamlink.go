@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -198,6 +199,24 @@ func (l *Link) ForgetWorkspace(ctx context.Context, id string) error {
 		return errors.New("not a Team workspace")
 	}
 	return l.call(ctx, http.MethodDelete, "/api/device/v1/workspaces/"+url.PathEscape(slot), nil, nil)
+}
+
+// Analytics reads a team's coordination analytics through this person's own credential: what the team's own page shows them, and no
+// more (the service decides which projects they may see). project may be "" for every project they can see.
+func (l *Link) Analytics(ctx context.Context, id, project string, days int) (json.RawMessage, error) {
+	slot, ok := SlotOf(id)
+	if !ok {
+		return nil, errors.New("not a Team workspace")
+	}
+	q := url.Values{"days": {strconv.Itoa(days)}}
+	if project != "" {
+		q.Set("project", project)
+	}
+	var out json.RawMessage
+	if err := l.call(ctx, http.MethodGet, "/w/"+slot+"/api/team/v1/analytics?"+q.Encode(), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // DeliverPremium gives one Team workspace's service the person's Premium unlock key. The service checks it, keeps it for this

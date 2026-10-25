@@ -143,7 +143,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.goto(shellOrigin + '/shell/shell/index.html');
         await page.getByTestId('hub-generated-' + savedWorkspace.id).waitFor();
         // Home has the same sidebar as everywhere: its saved workspace, Personal and the team each in their own section.
-        await ordered('', ['theme', 'inbox', 'calendar', saved, 'create-generated', 'project', 'add-project', 'ws-analytics', saved, 'ws-reviews', 'ws-members', 'ws-analytics', saved, ...footer]);
+        await ordered('', ['theme', 'inbox', 'calendar', 'reviews', 'analytics', saved, 'create-generated', 'project', 'add-project', saved, 'ws-members', saved, ...footer]);
         assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 208);
         await page.screenshot({path:path.join(artifacts,'home-default.png')});
         await page.getByTestId('sidebar-label-toggle').click();
@@ -167,13 +167,14 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
 
         await switchTo(page,'personal');
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();
-        await ordered('[data-section=personal]', ['project', 'add-project', 'ws-analytics', saved]);
+        await ordered('[data-section=personal]', ['project', 'add-project', saved]);
         await openSaved();
         assert.equal(await generated.getAttribute('aria-current'), 'page');
         assert.equal(await generated.getAttribute('aria-label'), spec.name);
         assert.equal(await generated.locator('svg[data-workspace-icon]').getAttribute('data-workspace-icon'), savedWorkspace.icon);
-        await side.locator('[data-page=ws-analytics]').click();
-        await page.frameLocator('iframe[data-workspace=personal]').getByRole('heading',{name:'Analytics',exact:true}).waitFor();
+        // Personal's own place inside its page: its projects. (Reviews and Analytics are the window's, for every workspace.)
+        await side.locator('[data-page=add-project]').click();
+        await page.locator('iframe[data-workspace=personal]').waitFor({state:'visible'});
         const individualHandle = await page.locator('iframe[data-workspace=personal]').elementHandle();
         const individualFrame = await individualHandle.contentFrame();
         await individualFrame.evaluate(()=>window.__personalSentinel='retained');
@@ -187,15 +188,15 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await switchTo(page,'team:main');
         const teamFrame = page.frameLocator('iframe[data-workspace="team:main"]');
         await teamFrame.locator('#draft').fill('My unfinished Team draft');
-        await side.locator('[data-page=ws-analytics]').click();
-        await ordered('[data-section="team:main"]', ['ws-reviews', 'ws-members', 'ws-analytics', saved]);
+        await side.locator('[data-page=ws-members]').click();
+        await ordered('[data-section="team:main"]', ['ws-members', saved]);
         const teamHandle = await page.locator('iframe[data-workspace="team:main"]').elementHandle();
         await openSaved();
         await page.getByText('Team projects · Northstar · read-only',{exact:true}).click();
         await page.getByText('Permitted Team project',{exact:true}).waitFor();
         await page.screenshot({path:path.join(artifacts,'team.png')});
         assert.equal(await page.locator('iframe[data-workspace="team:main"]').isVisible(),false);
-        await side.locator('[data-page=ws-analytics]').click();
+        await side.locator('[data-page=ws-members]').click();
         assert.equal(await teamFrame.locator('#draft').inputValue(),'My unfinished Team draft');
         assert.equal(await page.locator('iframe[data-workspace="team:main"]').evaluate((el, previous)=>el===previous,teamHandle),true);
         assert.equal(await individualFrame.evaluate(()=>window.__personalSentinel),'retained');
@@ -285,7 +286,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.getByRole('checkbox',{name:'I confirm this deletion and the personal data choices above.',exact:true}).check();
         await page.getByRole('button',{name:'Confirm deletion',exact:true}).click();
         await page.getByRole('heading',{name:'Data library',exact:true}).waitFor();
-        await side.locator('[data-page=ws-analytics]').click();
+        await side.locator('[data-page=ws-members]').click();
         await page.locator('iframe[data-workspace="team:main"]').waitFor({state:'visible'});
         assert.equal(await generated.count(),0);
         assert.deepEqual(await api(ind,'GET','/api/personal/v1/collections/'+collection.id+'/records/'+record.id),persisted);

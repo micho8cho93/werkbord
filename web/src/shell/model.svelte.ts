@@ -11,7 +11,7 @@ import { surfaceUrl } from './frames';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
 import type { Overview, Target, WorkspaceView } from './types';
 
-export type Page = 'workspace' | 'calendar' | 'inbox' | 'workspaces' | 'settings' | 'help' | 'generated' | 'personal-library';
+export type Page = 'workspace' | 'calendar' | 'inbox' | 'reviews' | 'analytics' | 'workspaces' | 'settings' | 'help' | 'generated' | 'personal-library';
 
 /** Where the assistant grows out of: the button that opened it, in the window's coordinates. */
 export interface Anchor {
@@ -462,10 +462,10 @@ export class Model {
   go(p: Page): void {
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
-    if (['calendar', 'inbox'].includes(p)) this.universal = true;
+    if (['calendar', 'inbox', 'reviews', 'analytics'].includes(p)) this.universal = true;
     this.leaveAssistant();
     this.page = p;
-    if (p === 'calendar' || p === 'inbox' || p === 'workspaces') void this.refreshOverview();
+    if (p === 'calendar' || p === 'inbox' || p === 'reviews' || p === 'analytics' || p === 'workspaces') void this.refreshOverview();
   }
 
   /** Adds a Team: gives the person a place to create one or join one, and opens it. */

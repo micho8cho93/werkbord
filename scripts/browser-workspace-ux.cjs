@@ -186,7 +186,7 @@ let browser, shellServer;
  await shellPage.goto(`http://127.0.0.1:${shellServer.address().port}/shell/index.html`);
  const side=shellPage.getByRole('navigation',{name:'Werkbord',exact:true});
  await shellPage.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
- await side.locator('[data-section=personal]').getByRole('button',{name:'Analytics',exact:true}).waitFor();
+ await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
  await shellPage.getByTestId('sidebar-salie').waitFor();
  assert.equal(await shellPage.getByTestId('salie-button').count(),0,'Personal defaults to sidebar Salie');
  assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);

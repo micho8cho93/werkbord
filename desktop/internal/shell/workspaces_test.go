@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -66,14 +67,15 @@ func (r *fakeRegistry) Remember(id, place string) error {
 func (r *fakeRegistry) Forget(id string) { r.rec("Forget " + id) }
 
 type fakeTeam struct {
-	premiums []string // "<id> <key>"
-	mu       sync.Mutex
-	added    string
-	addErr   error
-	forgot   []string
-	grants   []string // "<id> <token> <base>"
-	grantErr error
-	status   map[error]string
+	analytics []string // "<id> <project> <days>"
+	premiums  []string // "<id> <key>"
+	mu        sync.Mutex
+	added     string
+	addErr    error
+	forgot    []string
+	grants    []string // "<id> <token> <base>"
+	grantErr  error
+	status    map[error]string
 }
 
 func (t *fakeTeam) StatusOf(err error) teamlink.Status {
@@ -91,6 +93,12 @@ func (t *fakeTeam) AddWorkspace(context.Context) (string, error) { return t.adde
 func (t *fakeTeam) ForgetWorkspace(_ context.Context, id string) error {
 	t.forgot = append(t.forgot, id)
 	return nil
+}
+func (t *fakeTeam) Analytics(_ context.Context, id, project string, days int) (json.RawMessage, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.analytics = append(t.analytics, fmt.Sprintf("%s %s %d", id, project, days))
+	return json.RawMessage(`{"created":3}`), nil
 }
 func (t *fakeTeam) DeliverPremium(_ context.Context, id, key string) error {
 	t.mu.Lock()
@@ -131,10 +139,15 @@ func (i *fakeInstaller) Service(_ context.Context, a string) (teamlink.Result, e
 }
 
 type fakeGrants struct {
+	reads []string // "<project> <days>"
 	names []string
 	err   error
 }
 
+func (g *fakeGrants) Analytics(_ context.Context, project string, days int) (json.RawMessage, error) {
+	g.reads = append(g.reads, fmt.Sprintf("%s %d", project, days))
+	return json.RawMessage(`{"created":5}`), nil
+}
 func (g *fakeGrants) MintExecutionGrant(_ context.Context, name string) (string, string, error) {
 	g.names = append(g.names, name)
 	if g.err != nil && !strings.Contains(g.err.Error(), "earlier") {

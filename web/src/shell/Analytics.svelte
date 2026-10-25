@@ -1,0 +1,226 @@
+<script lang="ts">
+  import { onMount, untrack } from 'svelte';
+  import AnalyticsBars from '../lib/AnalyticsBars.svelte';
+  import AnalyticsDaily from '../lib/AnalyticsDaily.svelte';
+  import Donut from '../lib/charts/Donut.svelte';
+  import Heat from '../lib/charts/Heat.svelte';
+  import LineProgress from '../lib/charts/LineProgress.svelte';
+  import Panel from '../lib/charts/Panel.svelte';
+  import Ring from '../lib/charts/Ring.svelte';
+  import StatTile from '../lib/charts/StatTile.svelte';
+  import { analyticsDuration, measuredCost, measuredNumber, percent } from '../lib/analytics';
+  import { activityOf, mergeActivity, projectsWithin, RANGES, reads, runsAvailable, runsOf, wheres } from './analytics';
+  import { model } from './model.svelte';
+  import { ask } from './native';
+
+  // One Analytics page for the whole window. Choose where to look (Personal and every team, Personal alone, or one team), a project
+  // within that, and a period; what each workspace reports about the work itself is merged into one picture. What an agent did (runs,
+  // tokens, cost) is reported by Personal alone and has a view of its own.
+
+  const views = ['Work', 'Runs and usage'] as const;
+  type View = (typeof views)[number];
+  let view = $state<View>('Work');
+  let where = $state('all');
+  let projectKey = $state('');
+  let days = $state<number>(30);
+  let series = $state('both');
+
+  const items = $derived(model.view?.items);
+  const places = $derived(wheres(items));
+  const projects = $derived(projectsWithin(where, items, model.overview));
+  const project = $derived(projects.find((p) => `${p.workspace}|${p.id}` === projectKey));
+  const targets = $derived(reads(where, project, items));
+  const nameOf = (id: string): string => (id === 'personal' ? 'Personal' : (items?.find((i) => i.id === id)?.name ?? id));
+
+  // A place or project that is no longer there (a team left, a project removed) is dropped, not kept as a ghost filter.
+  $effect(() => {
+    if (!places.some((p) => p.id === where)) where = 'all';
+  });
+  $effect(() => {
+    if (projectKey && !project) projectKey = '';
+  });
+
+  let parts = $state<{ workspace: string; raw: unknown }[]>([]);
+  let failed = $state<{ workspace: string; message: string }[]>([]);
+  let loading = $state(true);
+  let loaded = $state(false);
+  let requestId = 0;
+
+  async function load(): Promise<void> {
+    const id = ++requestId;
+    const wanted = untrack(() => ({ targets, days }));
+    loading = true;
+    const results = await Promise.all(
+      wanted.targets.map(async (t) => {
+        try {
+          return { workspace: t.workspace, raw: await ask((a) => a.Analytics(t.workspace, t.project, wanted.days)) };
+        } catch (e) {
+          return { workspace: t.workspace, message: e instanceof Error ? e.message : String(e) };
+        }
+      }),
+    );
+    if (id !== requestId) return;
+    parts = results.filter((r): r is { workspace: string; raw: unknown } => 'raw' in r);
+    failed = results.filter((r): r is { workspace: string; message: string } => 'message' in r);
+    loading = false;
+    loaded = true;
+  }
+
+  $effect(() => {
+    void [where, projectKey, days, places.length];
+    const timer = setTimeout(() => void load(), 120);
+    return () => clearTimeout(timer);
+  });
+  onMount(() => {
+    const timer = setInterval(() => { if (!document.hidden) void load(); }, 30000);
+    return () => clearInterval(timer);
+  });
+
+  const activity = $derived(parts.length ? mergeActivity(parts.map((p) => activityOf(p.raw))) : null);
+  const personal = $derived(parts.find((p) => p.workspace === 'personal'));
+  const runs = $derived(personal ? runsOf(personal.raw) : null);
+  const canRuns = $derived(runsAvailable(targets));
+  const chartScope = $derived(`${where}/${projectKey}/${days}`);
+  const hasThroughput = $derived(!!activity?.days.some((d) => d.created || d.completed));
+  const doneShare = $derived(activity && activity.created > 0 ? activity.completed / activity.created : null);
+  const heat = $derived(activity?.days.map((d) => ({ date: d.date, value: d.created + d.completed })) ?? []);
+  const describe = $derived(
+    project ? `${project.name} · ${nameOf(project.workspace)}` : where === 'all' ? 'Personal and all teams' : where === 'personal' ? 'Personal only' : nameOf(where),
+  );
+  const outcomes: [string, string, string][] = [['completed', 'Normal exit', 'var(--ok)'], ['failed', 'Failed', 'var(--danger)'], ['stopped', 'Stopped', 'var(--accent)'], ['blocked', 'Blocked', 'var(--accent)'], ['waiting_for_user', 'Waiting', 'var(--warn)'], ['running', 'Running', 'var(--accent)']];
+  const outcomeSlices = $derived(runs ? outcomes.map(([state, label, tone]) => ({ label, value: (runs.totals.outcomes as Record<string, number | undefined>)[state] ?? 0, tone })) : []);
+  const usage = $derived(runs ? [
+    { label: 'Input tokens', value: runs.totals.inputTokens, detail: `${runs.totals.inputRuns}/${runs.totals.attempts} runs reported input` },
+    { label: 'Output tokens', value: runs.totals.outputTokens, detail: `${runs.totals.outputRuns}/${runs.totals.attempts} runs reported output` },
+    { label: 'Reported API cost', value: runs.totals.actualCostUsd, formatted: measuredCost(runs.totals.actualCostUsd), detail: `${runs.totals.actualCostRuns}/${runs.totals.attempts} runs reported cost`, tone: 'var(--warn)' },
+  ] : []);
+</script>
+
+<section class="analytics" aria-labelledby="analytics-h">
+  <header>
+    <h1 id="analytics-h">Analytics</h1>
+    <p class="lede">How work is going, across Personal and your teams. Choose where to look and for how long.</p>
+  </header>
+
+  <div class="filters" aria-busy={loading}>
+    <label class="pick"><span>Where</span>
+      <select bind:value={where} aria-label="Analytics place" data-testid="analytics-where">
+        {#each places as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
+      </select>
+    </label>
+    <label class="pick"><span>Project</span>
+      <select bind:value={projectKey} aria-label="Analytics project" data-testid="analytics-project">
+        <option value="">All projects</option>
+        {#each projects as p (p.workspace + p.id)}<option value={`${p.workspace}|${p.id}`}>{where === 'all' ? `${p.name} · ${nameOf(p.workspace)}` : p.name}</option>{/each}
+      </select>
+    </label>
+    <label class="pick"><span>Period</span>
+      <select bind:value={days} aria-label="Analytics period" data-testid="analytics-days">
+        {#each RANGES as d (d)}<option value={d}>Last {d} days</option>{/each}
+      </select>
+    </label>
+    <div class="tabs" role="group" aria-label="Analytics view">
+      {#each views as v (v)}<button type="button" aria-pressed={view === v} onclick={() => (view = v)}>{v}</button>{/each}
+    </div>
+    {#if loading}<span class="muted" role="status">Updating…</span>{/if}
+  </div>
+
+  {#each failed as f (f.workspace)}
+    <p class="notice" role="status">{nameOf(f.workspace)} could not be read: {f.message} Its figures are left out.</p>
+  {/each}
+
+  {#if !loaded}
+    <p class="empty" role="status">Loading analytics…</p>
+  {:else if !activity}
+    <p class="empty">Nothing could be read. Check that Personal and your teams are connected.</p>
+  {:else}
+    <p class="muted stamp">{describe} · the last {days} days{activity.end ? ` · as of ${new Date(activity.end).toLocaleString()}` : ''}</p>
+    {#if activity.partial}
+      <p class="notice" role="status">Partial history. A bounded read omitted older records, or retention removed some evidence, so counts may be lower than the full history.</p>
+    {/if}
+
+    {#if view === 'Work'}
+      <dl class="statistics">
+        <StatTile label="Tasks created" value={activity.created} tone="var(--accent)" spark={activity.days.map((d) => d.created)} sparkLabel="Tasks created per day" />
+        <StatTile label="Moved to Done" value={activity.completed} tone="var(--ok)" spark={activity.days.map((d) => d.completed)} sparkLabel="Tasks moved to Done per day" />
+        <StatTile label={activity.medianSeconds === null ? 'Average task duration' : 'Median task duration'} value={analyticsDuration(activity.medianSeconds ?? activity.averageSeconds)} hint={activity.medianSeconds === null ? 'A median is shown for one workspace at a time' : `Average ${analyticsDuration(activity.averageSeconds)}`} tone="var(--block)" />
+        <StatTile label="Duration samples" value={activity.durationSamples} hint="Tasks the duration is drawn from" tone="var(--warn)" />
+      </dl>
+      {#if hasThroughput}
+        <div class="board">
+          <Panel id="throughput-title" title="Created and completed over time" caption="Tasks per day, by UTC day" tone="var(--accent)" span={7}>
+            <div class="series"><label class="pick"><span>Show</span><select bind:value={series} aria-label="Activity chart series"><option value="both">Created and Done</option><option value="created">Created</option><option value="completed">Moved to Done</option></select></label></div>
+            <AnalyticsDaily days={activity.days} {series} scope={chartScope} />
+          </Panel>
+          <Panel title="Progress so far" caption="Running totals within this period; the band shows their difference" tone="var(--ok)" span={5}><LineProgress days={activity.days} {series} /></Panel>
+          <Panel title="Done against created" caption="Tasks moved to Done for each one created" tone="var(--ok)" span={3}>
+            <Ring value={doneShare} tone="var(--ok)" caption={doneShare === null ? 'nothing created' : 'Done / created'} label="Moves to Done divided by tasks created in this period" />
+            <p class="muted tail">{activity.completed} done · {activity.created} created{activity.completed > activity.created ? '. More were finished than started: some were created before this period.' : '.'}</p>
+          </Panel>
+          <Panel title="Busiest days" caption="Created plus moved to Done, a square for each day" tone="var(--block)" span={5}><Heat days={heat} tone="var(--block)" label="Activity for each day of the period" /></Panel>
+          <Panel title="Work categories" caption="Labels with the same name are counted together across workspaces" tone="var(--warn)" span={4}>
+            <AnalyticsBars shares={false} scope={chartScope} label="Task activity by category" rows={activity.categories.map((c) => ({ label: c.name, value: c.completed, detail: `${c.created} created · ${c.completed} moved to Done`, tone: 'var(--warn)' }))} />
+            {#if !activity.categories.length}<p class="muted">No task activity matches these categories.</p>{/if}
+          </Panel>
+        </div>
+      {:else}
+        <p class="empty">No task activity in this period. Try a longer period or another place.</p>
+      {/if}
+    {:else if !canRuns || !runs}
+      <p class="notice" role="status" data-testid="analytics-runs-personal-only">
+        Runs, tokens and cost are reported by Personal only: a team records coordination, not what anyone’s agents did. Choose Personal, or Personal and all teams, to see them.
+      </p>
+    {:else}
+      <dl class="statistics">
+        <StatTile label="Run attempts" value={runs.totals.attempts} tone="var(--accent)" />
+        <StatTile label="Retries" value={runs.totals.retries} hint={percent(runs.totals.retries, runs.totals.attempts) === null ? '' : `${percent(runs.totals.retries, runs.totals.attempts)}% of attempts`} tone="var(--warn)" />
+        <StatTile label="Failed runs" value={(runs.totals.outcomes as Record<string, number | undefined>).failed ?? 0} tone="var(--danger)" />
+        <StatTile label="Reported API cost" value={measuredCost(runs.totals.actualCostUsd)} tone="var(--warn)" />
+      </dl>
+      <p class="muted">These are Personal’s alone, whatever place is chosen: runs started in the period, and what their agents reported. Missing reports stay unknown, and a normal exit does not verify that a task is complete.</p>
+      <div class="board">
+        <Panel title="Run outcomes" caption="Where each attempt ended up" tone="var(--accent)" span={5}>
+          {#if runs.totals.attempts}<Donut slices={outcomeSlices} centre={String(runs.totals.attempts)} caption={runs.totals.attempts === 1 ? 'run' : 'runs'} label="Run outcomes by count" />{:else}<p class="empty">No runs in this period.</p>{/if}
+        </Panel>
+        <Panel title="Tokens and cost" caption="What agents reported; unknown is shown as unknown" tone="var(--warn)" span={7}>
+          <AnalyticsBars shares={false} scope={chartScope} label="Token usage and cost" rows={usage} />
+          <p class="muted tail">{measuredNumber(runs.totals.limitEvents)} usage-limit notices · {runs.totals.partialRuns} partial reports</p>
+        </Panel>
+        <Panel title="Attempts by agent" caption="Which runtime did the work" tone="var(--accent)" span={6}>
+          <AnalyticsBars shares={false} scope={chartScope} label="Attempts by agent provider" rows={runs.providers.map((p) => ({ label: p.name || 'Not recorded', value: p.attempts, tone: 'var(--accent)' }))} />
+          {#if !runs.providers.length}<p class="muted">No attempts to group.</p>{/if}
+        </Panel>
+        <Panel title="Your decisions" caption="Assessed runs you accepted or rejected, and verified merges" tone="var(--ok)" span={6}>
+          <dl class="facts"><div><dt>Accepted</dt><dd>{runs.accepted}</dd></div><div><dt>Rejected</dt><dd>{runs.rejected}</dd></div><div><dt>Controller-verified merges</dt><dd>{runs.verifiedMerges}</dd></div><div><dt>Currently blocked / stopped</dt><dd>{runs.blocked} / {runs.stopped}</dd></div></dl>
+        </Panel>
+      </div>
+    {/if}
+  {/if}
+</section>
+
+<style>
+  .analytics { display: flex; flex-direction: column; gap: 16px; padding: 24px clamp(16px, 3vw, 40px) 32px; height: 100%; overflow: auto; }
+  .analytics > :global(*) { flex: none; }
+  h1 { margin: 0; }
+  .lede { margin: 4px 0 0; color: var(--text-2); }
+  .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-tray, var(--radius)); background: var(--surface); }
+  .series { margin-bottom: 10px; }
+  .tabs { display: inline-flex; margin-left: auto; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
+  .tabs button { height: 30px; padding: 0 14px; border: 0; border-radius: 4px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .tabs button[aria-pressed='true'] { background: var(--surface); box-shadow: 0 0 0 1px var(--border); color: var(--text); }
+  .stamp { margin: 0; }
+  .muted { color: var(--text-2); font-size: 12px; line-height: 1.6; }
+  .tail { margin-top: 10px; text-align: center; }
+  p { margin: 0; }
+  .empty { color: var(--text-2); }
+  .notice { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); font-size: 13px; }
+  .statistics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 0; }
+  .board { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+  .facts { margin: 0; }
+  .facts div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .facts div:last-child { border-bottom: 0; }
+  dt { color: var(--text-2); font-size: 12px; }
+  dd { margin: 0; font-family: var(--mono); font-size: 12px; text-align: right; }
+  @media (max-width: 1100px) { .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .board { grid-template-columns: 1fr; } }
+  @media (max-width: 899px) { .analytics { height: auto; overflow: visible; padding: 16px 16px 24px; } .tabs { margin-left: 0; } }
+</style>

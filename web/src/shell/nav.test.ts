@@ -75,9 +75,9 @@ describe('the sections of the sidebar', () => {
     expect(sectionItems(items).map((i) => i.id)).toEqual(['personal', 'team:a', 'team:b']);
   });
 
-  it('gives each section the places after its projects, and no Home or Projects entry twice', () => {
-    expect(sectionPlaces('personal').map((e) => e.key)).toEqual(['analytics']);
-    expect(sectionPlaces('team').map((e) => e.key)).toEqual(['reviews', 'members', 'analytics']);
+  it('gives a section only what belongs to its workspace alone: Reviews and Analytics are the sidebar’s, not each section’s', () => {
+    expect(sectionPlaces('personal')).toEqual([]);
+    expect(sectionPlaces('team').map((e) => e.key)).toEqual(['members']);
     expect(sectionPlaces('team').find((e) => e.key === 'members')?.title).toBe('People');
   });
 
@@ -101,6 +101,9 @@ describe('the go-to palette', () => {
     expect(all.find((d) => d.id === 'project:team:main:w')).toMatchObject({ title: 'web-app', hint: 'Acme · project', go: { workspace: 'team:main', place: '?tab=board&project=w' } });
     expect(all.find((d) => d.id === 'project:personal:p1')?.hint).toBe('Personal · project');
     expect(all.find((d) => d.id === 'place:team:main:members')?.go).toEqual({ workspace: 'team:main', place: '?tab=members' });
+    expect(all.find((d) => d.id === 'page:reviews')?.go).toEqual({ page: 'reviews' });
+    expect(all.find((d) => d.id === 'page:analytics')?.go).toEqual({ page: 'analytics' });
+    expect(all.some((d) => d.id.startsWith('place:') && /reviews|analytics/.test(d.id))).toBe(false);
     expect(all.at(-1)).toMatchObject({ id: 'add-team', go: { addTeam: true } });
   });
 
@@ -108,6 +111,7 @@ describe('the go-to palette', () => {
     expect(matching(all, '').length).toBe(all.length);
     expect(matching(all, 'web').map((d) => d.title)).toEqual(['web-app']);
     expect(matching(all, 'acme people').map((d) => d.id)).toEqual(['place:team:main:members']);
+    expect(matching(all, 'analy')[0].id).toBe('page:analytics');
     expect(matching(all, 'zzz')).toEqual([]);
     // "acme" names the team's own entry before its projects, which only match by their hint.
     expect(matching(all, 'acme')[0].id).toBe('ws:team:main');

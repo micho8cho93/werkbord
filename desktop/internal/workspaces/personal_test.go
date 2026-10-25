@@ -3,6 +3,7 @@ package workspaces
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -107,5 +108,29 @@ func TestPersonalRuntimeTransportAllowsOnlyFiniteActionAndBindingMethods(t *test
 	}
 	if calls != 2 {
 		t.Fatal(calls)
+	}
+}
+
+func TestAnalyticsReadsThePersonsOwnReportWithTheirOwnToken(t *testing.T) {
+	var got, auth, method string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, auth, method = r.URL.RequestURI(), r.Header.Get("Authorization"), r.Method
+		_, _ = w.Write([]byte(`{"created":7,"days":[]}`))
+	}))
+	defer server.Close()
+	p := NewIndividual(func(context.Context) (Access, error) { return Access{Base: server.URL, Token: "owner-only"}, nil })
+	out, err := p.Analytics(context.Background(), "prj_abc", 7)
+	if err != nil || string(out) != `{"created":7,"days":[]}` {
+		t.Fatalf("%s %v", out, err)
+	}
+	if method != "GET" || got != "/api/analytics?days=7&project=prj_abc" || auth != "Bearer owner-only" {
+		t.Fatalf("%s %s %s", method, got, auth)
+	}
+	if _, err := p.Analytics(context.Background(), "", 30); err != nil || got != "/api/analytics?days=30" {
+		t.Fatalf("no project: %v %s", err, got)
+	}
+	down := NewIndividual(func(context.Context) (Access, error) { return Access{}, errors.New("no installation") })
+	if _, err := down.Analytics(context.Background(), "", 30); err == nil {
+		t.Fatal("a Werkbord that is not there answered")
 	}
 }

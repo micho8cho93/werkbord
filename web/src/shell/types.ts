@@ -166,6 +166,8 @@ export interface App {
   PendingInvitation(): Promise<string>;
   Relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   OpenExternal(url: string): Promise<void>;
+  /** One workspace's analytics report, as it reports it, for the window's one Analytics page. */
+  Analytics(id: string, project: string, days: number): Promise<unknown>;
   Premium(): Promise<PremiumStatus>;
   UnlockPremium(key: string): Promise<PremiumStatus>;
   Info(): Promise<{ version: string; platform: string }>;

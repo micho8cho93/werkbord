@@ -244,3 +244,26 @@ func TestThePremiumKeyGoesToOneWorkspacesDeviceServiceByItsSlot(t *testing.T) {
 		}
 	}
 }
+
+func TestAnalyticsReadsOneTeamsReportThroughThePersonsOwnCredential(t *testing.T) {
+	var path, auth, method string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path, auth, method = r.URL.RequestURI(), r.Header.Get("Authorization"), r.Method
+		_, _ = w.Write([]byte(`{"created":4,"completed":2}`))
+	}))
+	defer srv.Close()
+	l, err := New(srv.URL, writeKey(t, 0o600, key), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := l.Analytics(bg, "team:ws_ab12cd34ef56", "p_web", 90)
+	if err != nil || string(out) != `{"created":4,"completed":2}` {
+		t.Fatalf("%s %v", out, err)
+	}
+	if method != "GET" || path != "/w/ws_ab12cd34ef56/api/team/v1/analytics?days=90&project=p_web" || auth != "Bearer "+key {
+		t.Fatalf("%s %s %s", method, path, auth)
+	}
+	if _, err := l.Analytics(bg, "personal", "", 30); err == nil {
+		t.Fatal("a workspace that is not a team's was read as one")
+	}
+}

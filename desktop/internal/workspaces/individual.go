@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -252,4 +253,26 @@ func (p *Individual) AnswerQuestion(ctx context.Context, project, question, answ
 		Status int             `json:"status"`
 		Body   json.RawMessage `json:"body"`
 	}{res.StatusCode, raw})
+}
+
+// Analytics reads the person's own analytics report (the same endpoint their page reads), for the window's one Analytics page. It is a
+// read: no credential, address or path is chosen by the caller, only a project and a number of days the shell has already checked.
+func (p *Individual) Analytics(ctx context.Context, project string, days int) (json.RawMessage, error) {
+	a, err := p.Access(ctx)
+	if err != nil {
+		return nil, err
+	}
+	base, err := CheckBase(a.Base)
+	if err != nil {
+		return nil, err
+	}
+	q := url.Values{"days": {strconv.Itoa(days)}}
+	if project != "" {
+		q.Set("project", project)
+	}
+	var out json.RawMessage
+	if err := p.send(ctx, base, a.Token, http.MethodGet, "/api/analytics?"+q.Encode(), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

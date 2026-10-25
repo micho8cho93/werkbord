@@ -26,6 +26,8 @@ func buildMenu(sh *shell.Shell, ui *wailsUI, withShell bool) *menu.Menu {
 		ws.AddText("Home", keys.CmdOrCtrl("1"), go2("inbox"))
 		ws.AddText("Personal", keys.CmdOrCtrl("2"), go2("personal"))
 		ws.AddText("Calendar", keys.CmdOrCtrl("3"), go2("calendar"))
+		ws.AddText("Reviews", keys.CmdOrCtrl("4"), go2("reviews"))
+		ws.AddText("Analytics", keys.CmdOrCtrl("5"), go2("analytics"))
 		ws.AddSeparator()
 		ws.AddText("Go to…", keys.CmdOrCtrl("k"), go2("goto"))
 		ws.AddText("Devices & Hosting", keys.CmdOrCtrl("0"), go2("workspaces"))
