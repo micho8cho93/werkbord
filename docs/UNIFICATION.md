@@ -1,4 +1,18 @@
-# Unification: one product, one version, one release
+# Unification: one product, two plans, one release
+
+The current product has **Personal and Team projects** in one sidebar, with **Free and Premium** plans in the same build.
+Free includes Personal and teams of two; teams of 3 or more need an offline Premium key for every member. There is no per-team
+licence, vendor account or separate installer. [Plans](PLANS.md), [structure](STRUCTURE.md) and
+[platform acceptance](unified-platform/ACCEPTANCE.md) describe the current behaviour.
+
+Home, Calendar, Reviews and Analytics span connected workspaces. **New team or join…** uses one flow with an explicit runner
+choice. **Move project** reviews text, imports it atomically and archives the source with its history. Salie's Team read-only
+policy and remaining Home polish are still pending. The broader rollout is recorded in [the platform plan](unified-platform/PLAN.md).
+
+## Historical packaging unification
+
+The stages below record the earlier 4.0–4.5 packaging work. References to licences, the former Individual name and removed build
+scripts describe that historical state; licences were subsequently removed in 4.90 and Free/Premium introduced in 4.91–4.92.
 
 Werkbord used to be two products in one repository (Individual and Team), each with its own version, tag, release,
 installer and app. Phases 3 and 4 put both behind one window and one installer but kept them separate underneath. That is
@@ -34,5 +48,5 @@ Each stage is its own commit (with its version bump and tag), and `make check` p
 | 5 | **Compatibility and isolation.** `compatibility.json`, `components.txt` and `check-unified-desktop.sh` are gone; the build checks that the controller and Team's service report the one version, and Help → Diagnostics shows it. Individual's version-number floor (`MinimumVersion`, the "Update Werkbord…" button and `UpdateIndividual`) is gone: nobody has a controller that old, and the launcher already upgrades the program. The app's update guard no longer defers on an enrolled Team workspace (the app never replaces the root service on its own, so an app update does not touch it); it still waits for working agents. **Kept on purpose:** Team's "outdated" state and **Update Team**, because an installed root service really can be older than the app, and what decides it is whether the service answers the listing, not a table of versions. `verify-isolation` (the copy-without-Team build) and its CI step are gone; the architecture tests are reframed as trust rules (`internal/archtest`): the controller links no Team code and holds no Team credential or API, Team links none of the code that executes, and the desktop app links neither. `werkbord-team` stays its own executable, so "Team's build cannot link `os/exec`" holds exactly as before, at package level. | done in `4.4.0-preview.1` |
 | 6 | **Docs and naming.** `UNIFIED_DESKTOP`, `UNIFIED_DISTRIBUTION` are now section 22 of `ARCHITECTURE.md`, and `PHASE4_READINESS` is retired (git history keeps it). `PRODUCTS.md` is `STRUCTURE.md`, rewritten around one product, its executables and its trust boundaries. "Personal" is "Individual" in the code, the scripts and the docs, except where it is a value other programs speak: the workspace kind and id `"personal"` on the wire (an installed Team service's console still says it) and in the shell's saved state stay as they are, with a comment saying why. | done in `4.5.0-preview.1` |
 
-All six stages are done. This document stays as the record of the decisions and of what was removed and why; the current shape is in
+All six historical packaging stages are done. This does not mark all stages of the later platform plan complete. This document stays as the record of the decisions and of what was removed and why; the current shape is in
 [STRUCTURE.md](STRUCTURE.md), [VERSIONING.md](VERSIONING.md) and [ARCHITECTURE.md](ARCHITECTURE.md) §22.

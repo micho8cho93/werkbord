@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-REQUIRED = ("keyCustody", "dependencyReview", "cleanMacLifecycle", "independentTeamNetwork", "replacementHostRecovery", "soak", "independentSecurityReview")
+REQUIRED = ("unifiedPlatform", "keyCustody", "dependencyReview", "cleanMacLifecycle", "independentTeamNetwork", "replacementHostRecovery", "soak", "independentSecurityReview")
 
 
 def digest(path):

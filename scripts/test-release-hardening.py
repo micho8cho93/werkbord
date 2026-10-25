@@ -2,6 +2,7 @@
 """Security regressions for exact-byte candidate review and preview package ordering."""
 import base64
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -67,6 +68,29 @@ class CandidateTests(unittest.TestCase):
         (fixtures / "docs/RELEASE_ACCEPTANCE.json").write_text('{"version":null,"requirements":{}}')
         with patch.object(candidate,"ROOT",fixtures), self.assertRaisesRegex(ValueError,"acceptance evidence"):
             candidate.create(self.assets,"werkbord-v4.89.0",self.commit,False)
+
+    def test_stable_requires_unified_platform_evidence(self):
+        for path in self.assets.iterdir():
+            if "-preview.1" in path.name:
+                path.rename(path.with_name(path.name.replace("-preview.1", "")))
+        fixtures = self.work / "fixture-root"
+        (fixtures / "docs").mkdir(parents=True)
+        requirements = {name: {"status": "accepted", "evidence": "disposable test evidence"}
+                        for name in candidate.REQUIRED if name != "unifiedPlatform"}
+        ledger = {"version": "4.89.0", "requirements": requirements}
+        def write_ledger():
+            (fixtures / "docs/RELEASE_ACCEPTANCE.json").write_text(json.dumps(ledger))
+        with patch.object(candidate, "ROOT", fixtures):
+            write_ledger()
+            with self.assertRaisesRegex(ValueError, "acceptance evidence"):
+                candidate.create(self.assets, "werkbord-v4.89.0", self.commit, False)
+            requirements["unifiedPlatform"] = {"status": "pending", "evidence": "checklist only"}
+            write_ledger()
+            with self.assertRaisesRegex(ValueError, "acceptance evidence"):
+                candidate.create(self.assets, "werkbord-v4.89.0", self.commit, False)
+            requirements["unifiedPlatform"] = {"status": "accepted", "evidence": "disposable test evidence"}
+            write_ledger()
+            candidate.create(self.assets, "werkbord-v4.89.0", self.commit, False)
 
     def test_preview_version_preserves_debian_order(self):
         script = ROOT / "scripts/debian-version.sh"

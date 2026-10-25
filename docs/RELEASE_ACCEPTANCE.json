@@ -2,13 +2,46 @@
   "schema": 1,
   "version": null,
   "requirements": {
-    "keyCustody": {"status": "pending", "evidence": "docs/PRODUCTION_ACCEPTANCE.md", "notes": "GitHub review/tag protections and the verified release public key are configured; encrypted primary keys exist. Independent key recovery remains pending."},
-    "dependencyReview": {"status": "pending", "evidence": null},
-    "cleanMacLifecycle": {"status": "pending", "evidence": "docs/PRODUCTION_ACCEPTANCE.md", "notes": "Published 4.83.5-preview.1 trust/feed baseline verified only. New exact candidate, installation and update on clean hardware remain pending."},
-    "cleanLinuxLifecycle": {"status": "pending", "evidence": null},
-    "independentTeamNetwork": {"status": "pending", "evidence": "docs/PRODUCTION_ACCEPTANCE.md", "notes": "Owner confirms only this development Mac is available; independent hosts and real TUN/forced-relay acceptance remain pending."},
-    "replacementHostRecovery": {"status": "pending", "evidence": "docs/PRODUCTION_ACCEPTANCE.md", "notes": "Replacement host and independently retrieved authority material are not available."},
-    "soak": {"status": "pending", "evidence": null},
-    "independentSecurityReview": {"status": "pending", "evidence": null}
+    "keyCustody": {
+      "status": "pending",
+      "evidence": "docs/PRODUCTION_ACCEPTANCE.md",
+      "notes": "Release, Apple, Sparkle, Premium issuer and workspace-authority recovery must be evidenced independently. Historical hosted-licensing receipts do not establish current plan-key or release-key recovery."
+    },
+    "dependencyReview": {
+      "status": "pending",
+      "evidence": null
+    },
+    "cleanMacLifecycle": {
+      "status": "pending",
+      "evidence": "docs/PRODUCTION_ACCEPTANCE.md",
+      "notes": "Published 4.83.5-preview.1 trust/feed baseline verified only. New exact candidate, installation and update on clean hardware remain pending."
+    },
+    "cleanLinuxLifecycle": {
+      "status": "pending",
+      "evidence": null
+    },
+    "independentTeamNetwork": {
+      "status": "pending",
+      "evidence": "docs/PRODUCTION_ACCEPTANCE.md",
+      "notes": "Owner confirms only this development Mac is available; independent hosts and real TUN/forced-relay acceptance remain pending."
+    },
+    "replacementHostRecovery": {
+      "status": "pending",
+      "evidence": "docs/PRODUCTION_ACCEPTANCE.md",
+      "notes": "Replacement host and independently retrieved authority material are not available."
+    },
+    "soak": {
+      "status": "pending",
+      "evidence": null
+    },
+    "independentSecurityReview": {
+      "status": "pending",
+      "evidence": null
+    },
+    "unifiedPlatform": {
+      "status": "pending",
+      "evidence": "docs/unified-platform/ACCEPTANCE.md",
+      "notes": "One build with Personal/Team projects and Free/Premium plans. Exact-candidate admission, read-only transitions, unified navigation, create/join and project-move checks remain required; stage 5 Salie read-only policy and Home polish remain unfinished."
+    }
   }
 }

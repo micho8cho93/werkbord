@@ -2,30 +2,48 @@
 
 A local-first remote control for coding agents. The controller runs on your computer and
 owns the board, calendar and database. Your machines execute agents with their own repositories and credentials. Your phone, tablet or
-browser connects to it. There is no hosted backend and no Werkbord account.
+browser connects to it. There is no Werkbord-hosted backend and no Werkbord account.
 
-Werkbord is one product with one version and one release. It has two parts: **Individual Werkbord** (the `werkbord`
-program), and **Werkbord Team**, a workspace that coordinates a team's members and projects without ever running anything
-on anyone's computer. The desktop app shows both in one window and installs Team's local service when you add a Team: see
-[docs/STRUCTURE.md](docs/STRUCTURE.md), [docs/TEAM.md](docs/TEAM.md) and, for how the window, Team service and installer fit together, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped). Werkbord is free for one person and for a team of two; a team of three or more needs Premium ([docs/PLANS.md](docs/PLANS.md)). There is no licence. Team installation is explicit. The controller CLI is included in the unified release; Team Host setup is provided by the desktop app, not a standalone Host archive.
+Werkbord is **one product, one app and one release**, with **Personal** projects on your computer and **Team** projects
+shared with people you work with. One sidebar groups both; Home, Calendar, Reviews and Analytics let you look across them.
+Use ⌘K to go to a project or page. Your local controller runs agents with your own repositories and credentials; the separate
+Team service coordinates people and tickets. Team never runs developer processes or holds your Git or agent credentials.
 
-Team uses customer-owned Nebula networking by default and needs no Tailscale account or vendor runtime service. Customers run their Workspace Hosts, Connectivity Hosts, backups and local runners. Team requires authenticated release artifacts; see [Team installation](docs/TEAM_INSTALL.md), [threat model](docs/TEAM_SECURITY.md), and the [production gate report](docs/TEAM_SECURITY_GATE.md). Individual Werkbord's tsnet support remains separate.
+| | Free | Premium |
+| --- | --- | --- |
+| Personal projects, agents, Git and Salie | Included | Included |
+| Teams | Up to 2 people per team, owner included | Teams of any size; every member needs Premium |
+| Unlock | No key needed | A per-person key, verified offline; one-time purchase, not yet on sale |
+
+Both plans use the same download. There is no vendor account, hosted Werkbord backend, subscription or per-team licence.
+A member without Premium in a team of 3 or more keeps read-only access. Extra devices do not count as people.
+See [plans](docs/PLANS.md) for admission rules and local key storage.
+
+**New team or join…** opens one create/join flow. Connecting your runner is an explicit native choice; every run still follows
+local approval rules. Team uses customer-owned Nebula networking and administrator-approved enrolment. Personal phone access
+uses the controller's separate Tailscale connection. Customers operate their own Team hosts, private network and backups.
+
+**Move project** beside a sidebar project reviews the name, remote repository reference and ticket text before a native
+confirmation. The destination is saved atomically, then the original is archived with its history. Runs, files, credentials,
+agent output, assignments and schedules stay at the source. Team → Personal makes a work board without attaching a checkout.
+See [project moves](docs/unified-platform/PROJECT_MOVES.md).
+
+[Structure and trust boundaries](docs/STRUCTURE.md) · [Team](docs/TEAM.md) ·
+[the desktop architecture](docs/ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped) ·
+[release acceptance](docs/unified-platform/ACCEPTANCE.md). Production admission remains blocked pending independent acceptance.
 
 ## Install
 
 ### Most people: the Mac app
 
-**Testing before Apple Developer approval:** download the [unsigned Mac preview](https://github.com/micho8cho93/werkbord/releases/download/werkbord-v1.3.1-preview.1/Werkbord-preview.dmg),
-open the DMG, drag **Werkbord** to **Applications**, then open it. If macOS blocks it, go to **System Settings → Privacy & Security → Open Anyway** after the first launch attempt.
-This universal preview is ad-hoc signed, not notarized, and has no Sparkle app updater. It is for testing;
-replace it with the signed app when available. See [Apple’s instructions](https://support.apple.com/en-us/102445).
+Use the signed and notarised universal macOS preview from the [releases page](https://github.com/micho8cho93/werkbord/releases).
+Previews are evaluation builds and are not marked latest. The same app includes Personal and optional Team setup; evaluate Team
+in disposable workspaces with customer-controlled backups. Linux packages remain opt-in after their own acceptance; Windows
+downloads remain deferred. See [beta distribution and acceptance](docs/BETA_READINESS.md).
 
-The beta starts with the signed and notarized universal macOS preview. Team is available with a valid workspace license for disposable evaluation; production admission remains blocked. Debian/Ubuntu packages follow after their own acceptance. Windows downloads are deferred until signing and clean-device checks are ready. See [beta distribution and acceptance](docs/BETA_READINESS.md).
-
-1. Download **[`Werkbord.dmg`](https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg)** (the same
-   file as `Werkbord_<version>_darwin_universal.dmg` on the [latest release](https://github.com/micho8cho93/werkbord/releases/latest)).
-   It is one file for every Mac, Apple Silicon and Intel, for macOS 13 or later. From a terminal:
-   `curl -fL -o Werkbord.dmg https://github.com/micho8cho93/werkbord/releases/latest/download/Werkbord.dmg`.
+1. Download **Werkbord.dmg** from the chosen preview on the [releases page](https://github.com/micho8cho93/werkbord/releases) (also named
+   `Werkbord_<version>_darwin_universal.dmg`).
+   It is one file for every Mac, Apple Silicon and Intel, for macOS 13 or later. Choose the preview explicitly rather than using the latest-release shortcut.
 2. Open it, drag **Werkbord** onto **Applications**, and open it from there.
 
 That is all: no Terminal. The app then keeps itself up to date when you ask it to (**Werkbord → Check for Updates…**, or
@@ -77,10 +95,10 @@ run is an interactive session in its own Git worktree: watch what the agent does
 questions and approve its actions from your phone, send follow-up messages, and finish or stop
 it. The selected runner owns the processes, so a closed browser does not interrupt anything.
 
-**Projects are the scope.** Each repository is a project with its own board, Calendar, Git view, activity and
-runs, and inside one you see that project and nothing else. Switch with the project switcher (the
-project name at the top on a phone; Ctrl/⌘ K anywhere). The **Needs you** is the one view across
-all projects: what needs you, wherever it is.
+**Projects are the scope.** Each repository or work board is a project. The desktop sidebar lists Personal projects and a
+section for each connected team. Home gathers what needs you; Calendar, Reviews and Analytics each have one entry and a choice
+of scope. Standalone browser and phone pages retain their own navigation. Internal workspace IDs and saved visibility fields
+keep their existing names for compatibility.
 
 **Flexible work organization.** Put your own labels (names and colours you choose, shared by all projects) on any
 task, filter the Board by them, say who does the work (a person, an agent or both: separate from labels), and see the
@@ -89,14 +107,14 @@ dependencies and never reschedules anything. A *work project* has a board and a 
 for work that is not code. Team has the same, with labels shared by the workspace and managed by its owner and
 admins. See [docs/PLANNING.md](docs/PLANNING.md).
 
-**Assistant.** A conversation with your own Claude Code, Codex, Gemini CLI or OpenCode, signed in as you already are, about your board: press
-*Assistant* in the sidebar (or the icon at the top on a phone) and a full-window conversation opens out of the button. It can
+**Salie.** A conversation with your own Claude Code, Codex, Gemini CLI or OpenCode, signed in as you already are, about your board: open
+**Salie** from the sidebar or the floating button (both open the same conversation) and a full-window conversation opens out of the button. It can
 look up tickets, schedules, blockers and what agents are waiting on, and *propose* a new ticket, a change to one, or an answer to
 an agent's question. Nothing happens until you confirm it on the screen, every operation is audited, and it has no operation that
 runs, stops or configures anything. You choose the provider, model and thinking level, and can change them mid-conversation. You can
 show it a text file (asked first, kept in memory for at most half an hour, shown once) and dictate with your browser's own speech
 recognition (told first where the audio may go; not Claude or ChatGPT voice). Closing it stops nothing: a reply keeps streaming and
-a waiting change keeps waiting. No API key, no account of its own, no chat history. See [docs/ASSISTANT.md](docs/ASSISTANT.md).
+a waiting change keeps waiting. It uses your existing provider sign-in, with conversation state kept locally. See [docs/ASSISTANT.md](docs/ASSISTANT.md).
 
 **Orchestration.** Schedule the same Board tasks in a day/week Calendar, queue work by order and priority,
 and add dependencies. The controller runs schedules from SQLite while your browser is closed, with explicit
@@ -146,7 +164,7 @@ revocable *local access token* instead of yours (`werkbord access list`, `revoke
 VPN, a tunnel or certificates, and without any server of Werkbord's own. Nothing is exposed to the Internet. See
 [docs/PHONE.md](docs/PHONE.md).
 
-**Versions.** Each milestone is a minor version, tagged `vMAJOR.MINOR.PATCH` (this one is v0.7.0). See
+**Versions.** Everything uses `cmd/werkbord/VERSION` and the `werkbord-vMAJOR.MINOR.PATCH` tag series (with `-preview.N` for previews). See
 [docs/VERSIONING.md](docs/VERSIONING.md).
 
 **Interaction policy.** Each task says how its agent may deal with you: *Ask me when needed* (the
@@ -165,7 +183,7 @@ optional: it is how Werkbord uses your own GitHub identity, and everything local
 
 To build from source:
 
-- Go 1.27.1+ (no C toolchain needed: SQLite is pure Go; Tailscale is embedded as a Go library)
+- Go 1.27.3+ (no C toolchain needed: SQLite is pure Go; Tailscale is embedded as a Go library)
 - Node 20+ and npm, to build the web app
 
 ## Build and run
@@ -222,14 +240,14 @@ make dev-web
 Then open http://127.0.0.1:5173. The controller still requires its token, so the app asks
 for it once: paste the output of `werkbord token`.
 
-Checks (Go tests, `go vet`, `gofmt`, `svelte-check`, ESLint, both builds; this covers both products and the
-architecture tests that keep them separate):
+Checks (Go tests, `go vet`, `gofmt`, `svelte-check`, ESLint, both builds; this covers Personal, Team and the
+architecture tests that enforce their trust boundaries):
 
 ```bash
 make check
 ```
 
-Every implementation commit bumps the changed product's `VERSION` file and gets a product tag
+Every implementation commit bumps the one `cmd/werkbord/VERSION` file and gets a unified tag
 (`werkbord-vX.Y.Z`, one version for the whole release): see [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## Using it from your phone
@@ -325,7 +343,7 @@ when nothing would be lost).
 ## Layout
 
 ```
-cmd/werkbord          CLI: setup, service commands, doctor, update; and the controller (`serve`). Individual Werkbord.
+cmd/werkbord          CLI: setup, service commands, doctor, update; and the controller (`serve`). Personal controller.
 desktop/              the Mac app: a native window (Wails) around the web app; its own Go module (docs/DESKTOP.md)
 cmd/werkbord-team     the Team service and command line (docs/STRUCTURE.md)
 internal/team         everything specific to Team: domain, store, service, api, console (nothing else may import it)

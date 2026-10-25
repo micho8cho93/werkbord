@@ -118,7 +118,7 @@ Authorization asks *"may this member do X?"*, never *"is this member an Owner?"*
 | `project_members.manage` — change who is on a project | ✓ | ✓ | |
 | `labels.manage` — define, rename, recolour and delete the workspace's shared labels (every member sees and may use them) | ✓ | ✓ | |
 | `admins.manage` — appoint admins, and act on their accounts | ✓ | | |
-| `workspace.ownership` — the workspace's ownership authority (its licence, in time) | ✓ | | |
+| `workspace.ownership` — the workspace's ownership authority | ✓ | | |
 | `devices.own` — register, rename and revoke your own devices | ✓ | ✓ | ✓ |
 | `devices.view_all` — see every device in the workspace | ✓ | ✓ | |
 | `devices.manage` — give a device a host capability; revoke any device | ✓ | ✓ | |
@@ -626,7 +626,7 @@ A workspace also has sealed `<data dir>/pki/` material. macOS production uses Ke
 
 ## API
 
-Remote protocol gate: device bearer credentials require `Werkbord-Device-Proof` v1, bound to the full request and identity. Mutations consume a replicated nonce. Member tokens are local-loopback compatibility only. The owner can import a signed renewal with `PUT /api/team/v1/license`, including after runtime expiry. Unsupported proof/envelope versions and unknown network-description fields fail closed; do not assume an older remote client works against this major version.
+Remote protocol gate: device bearer credentials require `Werkbord-Device-Proof` v1, bound to the full request and identity. Mutations consume a replicated nonce. Member tokens are local-loopback compatibility only. Every member can present their own Premium proof with `PUT /api/team/v1/me/premium`; the host checks it offline. There is no workspace-licence renewal or expiry. Unsupported proof/envelope versions and unknown network-description fields fail closed; do not assume an older remote client works against this major version.
 
 JSON under `/api/team/v1`. Every route except `/health` needs `Authorization: Bearer <token>`. The token identifies
 the member, and so the workspace: no URL names one. Errors are `{"error": {"code": "...", "message": "..."}}` with

@@ -1,7 +1,8 @@
 # One platform: Personal and Team projects, Free and Premium
 
-Status: **plan, not started.** Nothing in this document has been implemented. It records the decisions made on 2026-10-25 and
-the order of work. Mockups of the result are in this folder (`01`–`06`, PNG).
+Status: **implemented through stage 5a, with stage 6 documentation and acceptance policy in 5.4.1-preview.1.** Stage 5's Salie
+Team read-only policy and remaining Home polish are still pending. Independent production acceptance remains blocked. The table
+below records the actual versions; early planned version numbers have been superseded. Mockups are in this folder (`01`–`06`, PNG).
 
 ## What changes
 
@@ -117,7 +118,7 @@ pushed.
 | 3.1 | **Reviews and Analytics are one entry each** (5.1.0-preview.1): the sidebar lists them once, and each page chooses where to look (Personal, all, one team) instead of one copy per workspace. | |
 | 4 | **Done in 5.3.0-preview.1.** **Create and join flow.** The one dialog (create, or join with a link), the single runner-connect choice (the app still asks once in a native dialog), a join that waits for an administrator. A new person already starts in Personal: the registry opens Personal unless the last workspace is a team they can still open. | Mock 04 | 5.3.0 |
 | 5 | **Cross-links.** *5a, project moves, done in 5.4.0-preview.1:* move a project personal ↔ team with a review of exactly what leaves the computer ([contract and limits](PROJECT_MOVES.md)). Salie reading team projects read-only and remaining Home polish are pending. | | 5.4.0 |
-| 6 | **Docs, naming and acceptance.** `STRUCTURE`, `ARCHITECTURE` §22, `UNIFICATION`, `README`, the website and release acceptance rewritten around one product with two plans. | | 5.2.1 |
+| 6 | **Done in 5.4.1-preview.1. Docs, naming and acceptance.** `STRUCTURE`, `ARCHITECTURE` §22, `UNIFICATION`, `README`, the website and release acceptance describe one product with two plans. The [acceptance matrix](ACCEPTANCE.md) separates implemented features, unfinished stage 5 work and pending independent production evidence. | Documentation and release gate updated; no production approval | 5.4.1 |
 
 Stage 1 first, because it removes the most code, makes the cap real before anything user-visible changes, and leaves the tree
 simpler for the rest.

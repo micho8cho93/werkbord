@@ -1,4 +1,18 @@
-# Production acceptance progress — 2026-10-25
+# Production acceptance: one product, Free and Premium
+
+Current source target: **5.4.1-preview.1**. Production admission remains **BLOCKED**. Personal/Team are project kinds; Free/Premium
+are plans in one build and one release. A Premium key is plan proof, never a release signature or production approval.
+
+The current functional acceptance matrix is [unified-platform/ACCEPTANCE.md](unified-platform/ACCEPTANCE.md). The JSON ledger
+[RELEASE_ACCEPTANCE.json](RELEASE_ACCEPTANCE.json) keeps every independent requirement pending and is not bound to an accepted
+build. No clean-device, independent-host, recovery, soak or security-review result is inferred from local tests. Before stable
+publication, bind evidence to the exact candidate version and bytes, including the unified-platform checks.
+
+Release, Apple, Sparkle, Premium issuer and customer workspace-authority recovery are separate responsibilities. The retired
+hosted licensing register is no longer a product runtime dependency or a requirement for accepting Free/Premium. Its historical
+receipts below are preserved for audit; they do not validate Premium keys or prove recovery for the current product.
+
+## Historical operational receipts — 2026-10-25
 
 Production admission remains **BLOCKED**. This receipt records actual operational
 checks following the local hardening implementation. It does not approve a new
@@ -71,7 +85,7 @@ verify them, and accept installation and baseline-to-candidate Sparkle updating
 on clean hardware. Only this development Mac is currently available, as confirmed
 by the owner. Local VMs cannot satisfy independent hardware acceptance.
 
-## Live hosted licensing
+## Historical hosted licensing (removed from the product in 4.90)
 
 The owner signed into the existing hosted console and completed MFA privately.
 Using that actual session, a disposable, short-lived three-seat license was

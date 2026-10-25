@@ -988,17 +988,17 @@ and the Team service stay independent services, because that boundary is what ke
 switcher: one sidebar shows both.
 
 Build with `make desktop` or run with `make desktop-dev`. `make web-shell` builds
-the desktop Svelte entry separately from the Individual PWA. The shell shares
+the desktop Svelte entry separately from the Personal PWA. The shell shares
 Geist, tokens, icons, mark, theme and dialog components with the PWA. It has no
 Team backend imports. Team continues serving its existing console, including
-`?tab=…&project=…&ticket=…` routes. Individual keeps its `#/p/…` routes, CLI,
+`?tab=…&project=…&ticket=…` routes. Personal keeps its `#/p/…` routes, CLI,
 `devboard` aliases and every `DEVBOARD_*` variable.
 
 The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name (which goes Home); **Salie**
 (the sidebar button; the floating button is the other way in, and the person chooses either or both); **Home**, which gathers what
 needs you from Personal and every team, each in its own colour (Personal blue, a team another hue), and **Calendar**,
 **Reviews** and **Analytics**; then **a section for Personal and one for each team the person belongs to**, each listing what
-belongs to that workspace alone (its projects, and for Personal New personal project, for a team People) and the saved workspaces
+belongs to that workspace alone (its projects, and for Personal New personal project) and the saved workspaces
 Salie made for it, and foldable (remembered on this computer); and last, pinned, New team or join…, Devices & Hosting, the Data library, Settings and the
 plan chip (Free or Premium; [PLANS.md](PLANS.md)). **Go to…** (⌘K, or the Workspace menu) reaches any project, place or page by typing.
 Choosing a place asks the workspace to show it (`werkbord.navigate`, a place inside the page); the workspace says where it is
@@ -1018,24 +1018,26 @@ wish, not a grant: the grant is still minted only after the app asks in a native
 once, when the team has loaded. A wish made while waiting for an administrator is kept on this computer until then.
 
 The workspaces themselves keep their design and their pages, but inside the window they carry no navigation of their own:
-Individual does not show its rail, and Team does not show its rail; a project's own sections stay with the project
-(Individual's Overview, Board, Calendar, Git and Runs in its header; Team's Board, Git, Activity and People as tabs above
+Personal does not show its rail, and Team does not show its rail; a project's own sections stay with the project
+(Personal's Overview, Board, Calendar, Git and Runs in its header; Team's Board, Git, Activity and People as tabs above
 the project). The theme is chosen in the sidebar and told to the open workspaces (`werkbord.theme`, `light` or `dark`),
-so a Team opened later starts in the same theme. Outside the desktop app (Individual in a browser or as a phone app,
+so a Team opened later starts in the same theme. Outside the desktop app (Personal in a browser or as a phone app,
 Team's own console) both pages keep their own sidebars exactly as they were, apart from the status indicator, which is gone
 there too.
 
-Under the product name the sidebar has an **Assistant** button. The assistant is a page of Individual ([ASSISTANT.md](ASSISTANT.md#the-screen)),
-because that page holds the controller token and is on the controller's origin, so the button asks Individual's frame to open or
-close it (`werkbord.assistant`, `open`/`close`/`toggle`, with where the button is in the frame's own coordinates) and the frame reports
-only `werkbord.frame`/`assistant` (`open`, a count of changes waiting, whether a reply is running) for the button's badge. The shell
-brings Individual forward if another workspace or one of its own pages is showing, and puts that back when the assistant closes;
-choosing another place in the sidebar closes it first. No conversation, text or file crosses the frame boundary, a Team frame cannot
-send the report, and the shell accepts only that exact shape (`web/src/shell/frames.ts`).
+**Salie** has two entry points: the sidebar button and the floating button, with a user preference for either or both.
+Both open the same dedicated Personal assistant frame (`?surface=assistant`), above the window. Existing workspace frames stay
+mounted underneath. Closing Salie hides its frame; it does not interrupt a reply or discard a pending proposal. The shell
+accepts bounded state reports for its badges and exact bridge requests from that assistant frame. It checks the frame's window
+and origin; ordinary Team frames cannot call the assistant bridge. Conversations and attachments remain on the controller's origin.
+
+The stage 5 goal of Personal write / Team read-only is **not yet enforced**: the reviewed `create_ticket` bridge remains available
+after a stored proposal is approved, bound to the controller's live request. Documentation and acceptance must retain this
+limitation until the bridge policy changes. See [platform acceptance](unified-platform/ACCEPTANCE.md).
 
 On narrow windows the sidebar folds to icons below about 1110px of window width so a workspace keeps its full layout;
-the person's choice is remembered per device. Individual's runners are under Workspaces and devices → Runners.
-Creating and joining a Team reuse Team's first-host and administrator-approved enrollment screens. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
+the person's choice is remembered per device. Personal’s runners are under Devices & Hosting → Runners.
+Creating and joining use the single shell dialog and Team’s administrator-approved enrolment APIs. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
 The app carries Team’s service and its installer (the app’s own executable in an installer mode). There is no separate
 Team app. No Team installation or activation happens on startup.
 
@@ -1043,34 +1045,48 @@ The app and the programs it installs are one release, but they are not always th
 controller is brought up to the app's version by the launcher, which refuses while agents are working and restores the previous
 program if the new one does not start. Team's service is a root-owned installation that the app never replaces on its own: if
 it is older than the app and cannot answer what the window asks (it does not know the listing), the window says so instead of
-showing a blank page and offers **Update Team** (Workspaces and devices), which replaces it, with an administrator's
+showing a blank page and offers **Update Team** (Devices & Hosting), which replaces it, with an administrator's
 authorization, unless it belongs to a workspace (that takes coordinated administrator maintenance). What decides is whether
 the service answers, never a table of version numbers.
 
-Workspaces (Needs you) and Calendar read a bounded neutral summary from each
-accessible service. Links open the relevant workspace and project in the same
-window. Shared reviews/PRs, member management, agent controls on Team
-tickets and all existing project views remain in their workspace's existing
-screens. The shell never sends an aggregate or Individual data to Team.
+Home and Calendar read a bounded neutral summary from each accessible service. Reviews and Analytics each have one shell entry
+with a scope picker. Links open the owning workspace and project in the same window. Member management, agent controls and
+project views remain in their engine's existing screens. Aggregation does not copy Personal content into Team.
 
-#### From a Team ticket to Individual
+#### Moving a project between Personal and Team
 
-Once the person connects their Individual runner to a Team workspace (an explicit native action, below), the Team
-service on their computer copies every ticket they hold in that workspace's projects into Individual as a backlog task,
+The sidebar's **Move project** arrow opens a destination choice and a review of the exact project name, credential-free remote
+reference and unarchived ticket text. Team requirements become part of the reviewed description. Native memory retains that
+snapshot for 15 minutes; confirmation takes only its opaque token and always asks in a native dialog. No frame or Salie relay
+exposes project moves.
+
+The shell calls each engine's fixed authenticated routes (`project-transfer` under its own API prefix). A stable ID based on
+provenance and text makes import safe to retry. Each import commits the whole board in one transaction. Only then does the
+source compare the reviewed revision/text in its archive transaction. A changed source stays active, and an uncertain archive
+is reported as a saved destination with an unconfirmed source archive, never a completed move.
+
+Tasks start in Backlog / Available as human work. Runs, agent output, files, execution settings, comments, labels, dates,
+assignments, schedules and history stay at the source. Team → Personal creates a work board without a checkout. Personal runs
+and automatic schedules must stop before moving. These routes grant no execution authority and preserve the two engines'
+trust boundary. The complete limits and recovery behaviour are in [PROJECT_MOVES.md](unified-platform/PROJECT_MOVES.md).
+
+#### From a Team ticket to Personal
+
+Once the person connects their Personal runner to a Team workspace (an explicit native action, below), the Team
+service on their computer copies every ticket they hold in that workspace's projects into Personal as a backlog task,
 using the synchronization described in [INTEGRATION.md](INTEGRATION.md): text only, idempotent by
-provenance, never starting a run. Projects can be turned off under Team Settings → Tickets in Individual. A claim made
+provenance, never starting a run. Projects can be turned off under Team Settings → Tickets in Personal. A claim made
 through the console wakes the synchronization at once. The ticket then shows **Open in Werkbord**, which switches the
-window to Individual at that task (a frame may only ask the shell to show Individual at a `#/…` place), ready for the
-person to start it with Individual's own approvals. When no local project has the ticket's repository, Individual's
+window to Personal at that task (a frame may only ask the shell to show Personal at a `#/…` place), ready for the
+person to start it with Personal's own approvals. When no local project has the ticket's repository, Personal's
 Needs you lists it under "Team tickets waiting for a repository" with **Choose folder…** (refused unless the folder
 is a clone of that repository) and, for GitHub repositories, **Clone from GitHub**; the ticket is imported as soon as
 the repository is added.
 
-The last accessible workspace and its internal route are saved in the user's
-`werkbord-desktop/shell.json` configuration file (mode 0600); otherwise Individual
-opens. No credential or workspace content is saved there. Open workspace frames
+Workspace places are saved in the user’s `werkbord-desktop/shell.json` configuration file (mode 0600). The window starts on
+Home; Personal is selected in the background for setup checks, and saved places remain available when explicitly opened. No credential or workspace content is saved there. Open workspace frames
 remain mounted while switching; removed, leaving or unavailable workspaces are
-removed from the UI. Individual runner failure does not prevent the Team UI opening.
+removed from the UI. Personal runner failure does not prevent the Team UI opening.
 
 #### Devices and hosts
 
@@ -1097,7 +1113,7 @@ hosting choices. Reachability reports are observations, not guarantees.
 
 #### Authority and lifecycle
 
-The desktop window is a user-scoped frontend and launcher. The Individual
+The desktop window is a user-scoped frontend and launcher. The Personal
 controller executes agents as the user; Team's privileged network/database
 service owns only its infrastructure. Neither CLI nor service is replaced.
 Closing/hiding/quitting the window cancels only desktop reads, never an agent,
@@ -1112,28 +1128,30 @@ kind. Frames cannot request the workspace registry, aggregates or another
 workspace's native operations. URLs are literal loopback, without proxy or
 redirects. Summary and navigation inputs are bounded and validated.
 
-Connecting an Individual runner is a separate explicit native action. The desktop
+Connecting an Personal runner is a separate explicit native action. The desktop
 mints only an `execution-local-v1` revocable grant and delivers it to the selected
 Team slot; it never delivers the controller credential. Grant names include the
-slot identity so teams with the same display name remain independent. Individual
+slot identity so teams with the same display name remain independent. Personal
 still requires exact-context local approval before any run starts. Leaving a
 Team removes its local bridge/authority through the existing leave procedure;
-it does not stop runs already accepted by Individual or affect another slot.
+it does not stop runs already accepted by Personal or affect another slot.
 
 ### Distribution, plans and updates
 
 One primary macOS installer carries everything: the app, the controller, and Team's service with its installer. Everything in the app has the one version. The preview suffix remains until production distribution acceptance. Both CLI installers and historical `devboard`/`DEVBOARD_*` behavior remain.
 
-The bundle contains the shell, the Individual helper, and Team's service (`werkbord-team`), its pinned network and database
+The bundle contains the shell, the Personal helper, and Team's service (`werkbord-team`), its pinned network and database
 programs and their notices, and its installer, which is the app's own executable in an installer mode
 (`desktop/internal/teaminstall`). It installs no privileged service on launch.
 Personal work needs no Team infrastructure or vendor login.
-**Add a Team** uses an explicit native dialog and administrator authorization to
+**New team or join…** uses an explicit native dialog and administrator authorization to
 activate Team. Each workspace has a separate enrolled identity;
 up to sixteen teams are supported by the existing isolated slots.
 
 There is no licence. Free and Premium are one build told apart only by an unlock key ([PLANS.md](PLANS.md)). A team has at most
-two people on the Free plan; Premium has no limit. The people counted are the live members of a workspace, including its owner;
+two people on the Free plan; larger teams need Premium for every member, including the owner. A member without proof in a team
+of 3 or more is read-only, while safety and infrastructure operations remain available. The app checks a per-person unlock key
+offline and presents it to the host; the host verifies admission and records proof. A one-time purchase is planned but not yet on sale. The people counted are the live members of a workspace, including its owner;
 additional devices enroll under that member and count for nothing. The Team backend checks the size transactionally where a
 person is added; frontend controls never unlock authority.
 
@@ -1142,7 +1160,7 @@ person is added; frontend controls never unlock authority.
 Everything in the app has the one version, and the build checks that the controller and Team's service report it. There is no
 compatibility table: the contracts are the protocols (`workspace-summary-v1` and `execution-local-v1` for the controller;
 `device-v1`, `team-v1` and the multi-workspace listing for Team; `integration-v1` and `execution-v1` for synchronization),
-and clients reject schemas they do not know. Storage is separate, never merged: Individual's SQLite, and Team's SQLite or
+and clients reject schemas they do not know. Storage is separate, never merged: Personal's SQLite, and Team's SQLite or
 rqlite. A Team service installed by an earlier version of the app is the one place the versions can differ at run time; if it
 cannot answer the listing, the window offers **Update Team** (see the window section above). The version appears
 in Help → Diagnostics.
@@ -1169,7 +1187,7 @@ No standalone Team Host archives are attached to the public unified desktop rele
 
 #### Updates and removal
 
-Individual replacement uses its existing checksummed/signed trust paths, active-run
+Personal replacement uses its existing checksummed/signed trust paths, active-run
 and runner-journal refusal, database snapshot, executable backup and restart
 verification. Sparkle now also rechecks current safety at relaunch. Updates defer
 while local agent work is active. (The app never replaces the root-owned Team service on its own, so updating the app does not touch it.)
@@ -1188,7 +1206,7 @@ so in plain words if it does; the root-run check over the data on disk still dec
 and cannot be waived by that answer. The shell words the same request as an update
 when the installed service is older, and shows the installer's reply unchanged.
 
-Stopping/removing Team never removes Individual data. Service removal requires safely
+Stopping/removing Team never removes Personal data. Service removal requires safely
 leaving every slot, and retains local identities, archives and
 owner metadata. Old app bundles and backups are not automatically cleaned up.
 
@@ -1200,7 +1218,7 @@ owner metadata. Old app bundles and backups are not automatically cleaned up.
 - `make test-rqlite`: pinned real clusters, promotion/demotion, lost quorum,
   failover, backup/restore and service behavior with replicated storage.
 - `make test-unified-desktop-browser`: built Svelte components, real Go shell,
-  Individual controller and multi-workspace Hub, real separate databases and
+  Personal controller and multi-workspace Hub, real separate databases and
   signed enrollment. Covers different membership permissions, explicit grant,
   Team ticket execution, switching without interruption, saved project/ticket
   routes, desktop restart, frontend-close survival, hosting offers and isolated

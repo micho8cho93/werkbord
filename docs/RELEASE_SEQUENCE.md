@@ -4,14 +4,14 @@
 > Individual and Team sequences below are history; continue the **Individual** sequence for the unified releases and
 > reserve no more Team numbers.
 
-GitHub release titles use a separate display sequence for each product, beginning at
-`0.1.0` for its first published release. This is a presentation convention, not the
+GitHub release titles use one display sequence for Werkbord, continuing the historical Individual sequence below. The original
+per-product sequences began at `0.1.0`; those published records stay unchanged. This is a presentation convention, not the
 application's semantic version. Product tags, committed VERSION files, archive names,
 embedded versions, checksums, update feeds and installer version checks keep their
 original build versions. Never renumber a Git tag to match a display number.
 
-Titles use `Werkbord Individual — Release <sequence>` or
-`Werkbord Team — Release <sequence>`. Previews include `-preview.N`; additional
+New titles use `Werkbord — Release <sequence>`. Historical `Werkbord Individual` and `Werkbord Team` titles remain records of
+their publication; neither names a current separate product. Previews include `-preview.N`; additional
 qualifiers such as `unsigned Mac desktop` can follow the title.
 
 Before publishing, reserve the display number in the table below. Keep patch releases

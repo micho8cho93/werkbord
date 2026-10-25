@@ -7,10 +7,11 @@ policy; dated reports in TEAM_SECURITY_GATE.md remain historical evidence.
 
 The first invitation wave is 3–5 Mac users, using the signed/notarized universal
 DMG and the existing preview feed. Team use is limited to disposable evaluation
-workspaces and customer-controlled backups. A valid imported Team license enables
-the workspace's Team functionality, subject to seats, dates and member/project
-permissions. Production admission is a publication/acceptance gate, not a runtime
-license switch. Individual remains free and needs no vendor account.
+workspaces and customer-controlled backups. The same build offers Personal and Team projects under Free and Premium. Free includes teams of up to two people; larger teams
+need a per-person offline Premium key for every member. Members without proof retain read-only access. Existing member/project
+permissions and local run approvals still apply. Production admission is an independent publication gate; a Premium key does
+not establish production readiness. Personal is fully available on Free and needs no vendor account. See [PLANS.md](PLANS.md)
+and [the unified platform acceptance matrix](unified-platform/ACCEPTANCE.md).
 
 Windows beta downloads are deferred. Building from source remains possible, but
 an unsigned EXE, PowerShell or curl command is not a trusted Windows publisher.
@@ -32,7 +33,7 @@ do not establish desktop startup or physical-device acceptance.
 
 ## Trust and release review
 
-Keep release, Apple and Sparkle keys separate. There is no licence signer any more:
+Keep release, Apple, Sparkle and Premium issuer keys separate. Premium keys unlock a plan, never authenticate a release. There is no licence signer any more:
 team licensing was removed (see [PLANS.md](PLANS.md)), and the hosted licensing
 sections below are kept only as a record of what was inspected before it was.
 

@@ -1,6 +1,9 @@
 # Installing and updating Team
 
-For ordinary use, install the unified Werkbord desktop app, which carries Team's native installer and service for macOS, Linux and Windows. It activates only when explicitly requested. Individual remains free, and each workspace retains backend-authoritative offline licensing. See [unified distribution](ARCHITECTURE.md#distribution-licensing-and-updates).
+For ordinary use, install the one Werkbord desktop app. **New team or join…** opens setup; installing the privileged Team service
+is explicit and needs administrator authorisation on macOS. Personal needs no Team service. Free includes teams of two;
+teams of 3 or more need Premium for every member, checked offline by the host. Linux packages are opt-in after acceptance and
+Windows publication is deferred. See [plans](PLANS.md) and [distribution](ARCHITECTURE.md#distribution-plans-and-updates).
 
 Werkbord is one release with one version. The app is signed and notarized like everything else in it, and the Team service refuses to install unless the app was signed by the release's Apple Developer team. Joined devices and Workspace Hosts defer native service replacement until administrator maintenance; installing a newer app does not move their databases. Until the host is updated, a window newer than it works with what the host knows: a screen the host has no route for (Calendar, Analytics, MCP clients, comments and dates all came after Team 3.x) says "needs a newer Workspace Host" with the host's version, in place of the host's own "no such endpoint", and the rest of the window keeps working.
 
@@ -66,4 +69,4 @@ A keychain item is tied to the program that created it, so a new program signed 
 
 Team 3.x supports `WERKBORD_TEAM_KEY_STORAGE=file` only as explicit evaluation/transition compatibility with 2.x vaults. It never falls back from failed OS storage. Existing ciphertext cannot be read by a newly created unrelated Keychain key. There is no automatic vault rewrapping tool in this release.
 
-Keep the old host stopped and retain an encrypted offline recovery copy. Start with the explicit old key mode only to maintain access during a controlled migration, then enroll a fresh, securely stored replacement host and remove the old one via quorum-aware membership changes. Re-enroll ordinary devices into new securely stored installations while clearing the old local trust/approval state. Keep the authority unlock material apart from database backups. The next major removes adjacent-key/legacy license transition support. If authority material was exposed, rebuild a new workspace/network instead of treating storage migration as key rotation.
+Keep the old host stopped and retain an encrypted offline recovery copy. Start with the explicit old key mode only to maintain access during a controlled migration, then enroll a fresh, securely stored replacement host and remove the old one via quorum-aware membership changes. Re-enroll ordinary devices into new securely stored installations while clearing the old local trust/approval state. Keep the authority unlock material apart from database backups. The next major removes adjacent-key transition support. If authority material was exposed, rebuild a new workspace/network instead of treating storage migration as key rotation.

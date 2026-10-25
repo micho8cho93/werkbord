@@ -151,6 +151,7 @@ if release
     check(perms(stable_draft, release) == { "contents" => "write" }, "desktop-draft is the release asset publisher")
     steps = JSON.generate(stable_draft["steps"])
     check(steps.include?("Release sequence:") && steps.include?("docs/RELEASE_SEQUENCE.md") && steps.include?("Original build version:") && steps.include?("$version") && steps.include?("$sequence") && steps.include?("--prerelease"), "release notes use the reserved display sequence and tag-derived build version")
+    check(stable_draft["steps"].any? { |step| step["run"].to_s.include?('--title "Werkbord — Release $sequence$qualifier"') } && !steps.include?("Werkbord Individual — Release") && !steps.include?("Werkbord Team — Release"), "new releases use the one Werkbord product name")
     check(steps.include?("--draft") && steps.include?("--latest=false"), "stable release is drafted without becoming latest")
     check(!steps.include?("assets/linux") && !steps.include?("assets/windows"), "the release gathers only macOS assets")
     check(steps.include?("Standalone Team Host archives must not be published"), "the release rejects standalone Team Host archives")

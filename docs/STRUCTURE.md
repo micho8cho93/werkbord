@@ -1,17 +1,21 @@
 # Structure: one product, its executables and its trust boundaries
 
 Werkbord is **one product with one version and one release** (`cmd/werkbord/VERSION`, tag `werkbord-vX.Y.Z`; see
-[VERSIONING.md](VERSIONING.md)). It is built from one repository as three things that are shipped together:
+[VERSIONING.md](VERSIONING.md)). Personal and Team are project kinds, and Free and Premium are plans. Neither is a separate edition or download.
+Premium is per person, checked offline; in teams of 3 or more every member needs it, and members without proof are read-only.
+Personal stays fully available on Free. See [PLANS.md](PLANS.md).
+
+The one release contains three executables with different trust responsibilities:
 
 | | **The controller** | **The Team service** | **The desktop app** |
 | --- | --- | --- | --- |
-| What it is | A local-first control plane for your own coding agents: board, runs, Git, runners (Individual) | A workspace that coordinates a team: members, projects, who is on what | A native window around both, and the installer for the Team service |
+| What it is | A local-first control plane for your own coding agents: board, runs, Git, runners (Personal) | A workspace that coordinates a team: members, projects, who is on what | A native window around both, and the installer for the Team service |
 | Executable | `werkbord` (and `devboard`, its name before the rename) | `werkbord-team` | `Werkbord.app` (module `desktop/`) |
 | Main package | `cmd/werkbord` | `cmd/werkbord-team` | `desktop/` |
 | Code lives in | the shared `internal/` packages and `web/` | `internal/team/…` only | `desktop/` and `web/src/shell/` |
-| Release assets | controller archives for existing terminal workflows | bundled in the unified desktop app; no standalone Host archive | macOS DMG, Linux packages, Windows installer |
+| Release assets | controller archives for existing terminal workflows | bundled in the unified desktop app; no standalone Host archive | macOS DMG; Linux packages opt-in after acceptance; Windows publication deferred |
 | Installer | `scripts/install.sh`, `scripts/install.ps1`; the desktop app | the app's native service installer | platform package or app installer |
-| Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory (root-owned for the Mac service) | `werkbord-desktop` (window state only) |
+| Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory (root-owned for the Mac service) | `werkbord-desktop` (window preferences and per-user Premium key) |
 | Settings | `WERKBORD_*` (and the older `DEVBOARD_*`) | `WERKBORD_TEAM_*` | — |
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` (device API `7431`) | — |
 | Build | `make build` | `make build-team` | `make desktop` |
@@ -24,11 +28,11 @@ needs no Team service. How the window, the Team service and the installer fit to
 [ARCHITECTURE.md §22](ARCHITECTURE.md#22-one-app-the-window-the-team-service-and-how-they-are-shipped).
 
 Team defaults to customer-owned Nebula, administrator-approved enrollment and device-signed remote API requests. There is no Team Tailscale account or vendor runtime requirement. Customers operate their Workspace and
-Connectivity Hosts, backups and local runners. Individual's tsnet support is separate. See [TEAM_SECURITY.md](TEAM_SECURITY.md),
+Connectivity Hosts, backups and local runners. Personal's tsnet support is separate. See [TEAM_SECURITY.md](TEAM_SECURITY.md),
 [TEAM_INSTALL.md](TEAM_INSTALL.md), [PLANS.md](PLANS.md) and the [release gate](TEAM_SECURITY_GATE.md).
 
-> **Words in the interface.** What this page and the code call *Individual* (the controller, `kind: personal` on the wire) is **Personal**
-> in the window: a project is Personal or a team's. "Universal" is gone; its page is **Home**. The wire values `"personal"` and the saved
+> **Words in the interface.** The controller’s projects are **Personal**, and shared projects belong to a **Team**. Existing
+> source names such as `Individual` and wire `kind: personal` remain compatible: a project is Personal or a team's. "Universal" is gone; its page is **Home**. The wire values `"personal"` and the saved
 > workspaces' `visibility.universal`/`individual` fields keep their names because other programs and stored data speak them.
 >
 > **Naming.** Werkbord was called Dev Board. Since Werkbord 1.0 the executable is `werkbord`, and everything a person
@@ -47,7 +51,7 @@ Connectivity Hosts, backups and local runners. Individual's tsnet support is sep
 Every developer keeps using their own machine, their own Werkbord runner, their own Git credentials, their own
 GitHub credentials, and their own agent and model credentials. Team never starts developer processes or holds Git, agent or model credentials,
 and never opens an arbitrary path into another member’s computer. Only a person’s signed semantic requests to their own
-locally trusted devices can cross the narrow local runner bridge, subject to the individual controller’s policies. Team records who is on the team and what they are working on; each person's own Werkbord does the work.
+locally trusted devices can cross the narrow local runner bridge, subject to the Personal controller’s policies. Team records who is on the team and what they are working on; each person's own Werkbord does the work.
 
 This is enforced, not just intended (see [Enforcement](#enforcement)): Team's build cannot link the code that runs
 agents, commands or Git, and its own code cannot import `os/exec`.
@@ -58,7 +62,7 @@ The repository is one Go module. The usual monorepo split (`apps/` and `packages
 (`cmd/` for programs, `internal/` for packages), and the existing code keeps its places:
 
 ```
-cmd/werkbord/            APP    the controller and command line (Individual)
+cmd/werkbord/            APP    the controller and command line (Personal)
 desktop/                 APP    the Mac app: a native window around web/, and Team's installer (its own Go module; DESKTOP.md)
 cmd/werkbord-team/       APP    the Team service and command line
 
@@ -71,59 +75,59 @@ internal/integration/    SHARED versioned task/status DTOs and canonical reposit
 internal/planning/       SHARED label names and colours, work modes, planned dates and the analysis of dependencies
 internal/logging/        SHARED the structured logger
 internal/team/           TEAM-ONLY everything specific to Team (below)
-internal/appops/         INDIVIDUAL the application operations a model (the assistant, later MCP) may use: permission, proposal, confirmation, audit
-internal/assistant/      INDIVIDUAL the conversational assistant's engine, and its providers (Claude Code, Codex, Gemini CLI, OpenCode) under provider/
-internal/<everything else>/       Individual's code (domain, store, service, api, runner, agent, gitrepo, …)
-web/                     Individual's web app (Svelte PWA)
+internal/appops/         PERSONAL the application operations a model (the assistant, later MCP) may use: permission, proposal, confirmation, audit
+internal/assistant/      PERSONAL the conversational assistant's engine, and its providers (Claude Code, Codex, Gemini CLI, OpenCode) under provider/
+internal/<everything else>/       Personal's code (domain, store, service, api, runner, agent, gitrepo, …)
+web/                     Personal's web app (Svelte PWA)
 ```
 
 ### Shared packages
 
-A package is **shared** when both products use it and it holds no behaviour of either: it is plumbing. Today:
+A package is **shared** when both engines use it and it holds no behaviour of either: it is plumbing. Today:
 
 | Package | What it is | Used by |
 | --- | --- | --- |
-| `internal/integration` | Versioned task/status DTOs and canonical repository identity validation; no product behavior | Individual metadata API, Team user connector |
-| `internal/planning` | What a label may be called and coloured, the three work modes (human, agent, hybrid), planned date ranges, and the analysis that finds invalid and conflicting dependencies. Pure functions: no storage, workspace, role or process. See [PLANNING.md](PLANNING.md). | `internal/domain`, `internal/service` (individual); `internal/team/domain`, `internal/team/service` (Team) |
-| `internal/sqlitekit` | Opens a SQLite file (one writer, a pool of readers, WAL), runs versioned migrations, copies the database before an upgrade, inspects it read-only. Knows no schema. | `internal/store/sqlite` (individual), `internal/team/store` (Team) |
-| `internal/httpkit` | `WriteJSON`/`WriteError` and the error envelope, strict `DecodeJSON`, and the `LogRequests`, `RecoverPanics` and `SecurityHeaders` middleware. Holds no route. | `internal/api` (individual), `internal/team/api` (Team) |
-| `internal/mcpcontract` | MCP Streamable HTTP framing, bounded tool request/response handling, and validated project/operation scopes. Holds no credentials, board operations or product permissions. Uses the official MCP Go SDK. | Individual MCP server, Team MCP server, `internal/mcpbridge` |
-| `internal/mcpplan` | The neutral batch-plan wire shape, temporary task IDs, and validation of single-project requests. Holds no board data or authorization. | Individual appops, Team MCP service |
+| `internal/integration` | Versioned task/status DTOs, the text-only project-transfer contract and canonical repository identity validation; no product behavior | Personal metadata API, Team user connector |
+| `internal/planning` | What a label may be called and coloured, the three work modes (human, agent, hybrid), planned date ranges, and the analysis that finds invalid and conflicting dependencies. Pure functions: no storage, workspace, role or process. See [PLANNING.md](PLANNING.md). | `internal/domain`, `internal/service` (Personal); `internal/team/domain`, `internal/team/service` (Team) |
+| `internal/sqlitekit` | Opens a SQLite file (one writer, a pool of readers, WAL), runs versioned migrations, copies the database before an upgrade, inspects it read-only. Knows no schema. | `internal/store/sqlite` (Personal), `internal/team/store` (Team) |
+| `internal/httpkit` | `WriteJSON`/`WriteError` and the error envelope, strict `DecodeJSON`, and the `LogRequests`, `RecoverPanics` and `SecurityHeaders` middleware. Holds no route. | `internal/api` (Personal), `internal/team/api` (Team) |
+| `internal/mcpcontract` | MCP Streamable HTTP framing, bounded tool request/response handling, and validated project/operation scopes. Holds no credentials, board operations or product permissions. Uses the official MCP Go SDK. | Personal MCP server, Team MCP server, `internal/mcpbridge` |
+| `internal/mcpplan` | The neutral batch-plan wire shape, temporary task IDs, and validation of single-project requests. Holds no board data or authorization. | Personal appops, Team MCP service |
 | `internal/mcpbridge` | Stdio MCP client forwarding tools, resources and prompts to the configured Streamable HTTP endpoint. Holds no product identity or board behavior. | `cmd/werkbord`, `cmd/werkbord-team` |
 | `internal/uipresentation` | Product-neutral static board card grammar; products supply tokens, data, permissions and actions. | Both web frontends |
 | `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |
 | `internal/entitlement` | The Free plan's team size and the offline check of a Premium unlock key: pure functions over a public key stamped into the build. No workspace, role, storage or process. See [PLANS.md](PLANS.md). | Team service, vendor tool, the desktop app |
 | `internal/logging` | `slog` logger construction | both |
-| `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (individual, Tailscale); `internal/team/infra/overlaynet` (Team's own private network) |
+| `internal/transport` | The contract for a private network node (start, stop, local node, listen, dial, peers, connection metadata). Names no network. `memtransport` and `transporttest` are its in-memory implementation and conformance suite. | `internal/netprivate` (Personal, Tailscale); `internal/team/infra/overlaynet` (Team's own private network) |
 | `internal/deviceid` | A device's ID, public key and the checks on them. No private key. | Team |
-| `internal/deviceid/localidentity` | A device's own identity: the private key and its storage. **Team never imports it** (rule 11). | Individual's runner (when wired) |
-| `internal/envelope` | Signed cross-device messages: the format, the semantic actions, signing, verification, expiry and replay checks. | Team (verifies); Individual (will sign and act) |
-| `internal/enrollment` | How a device joins a customer's workspace: the signed invitation (`werkbord://join/…`), the enrollment protocol over TLS 1.3 pinned to the workspace's key, its server and client, and what the joining device installs. Holds no private key (a signer is passed in) and names no network. | Team (serves it, and joins as a host); Individual (will join member devices; not yet) |
+| `internal/deviceid/localidentity` | A device's own identity: the private key and its storage. **Team never imports it** (rule 11). | Personal's runner (when wired) |
+| `internal/envelope` | Signed cross-device messages: the format, the semantic actions, signing, verification, expiry and replay checks. | Team (verifies); Personal (will sign and act) |
+| `internal/enrollment` | How a device joins a customer's workspace: the signed invitation (`werkbord://join/…`), the enrollment protocol over TLS 1.3 pinned to the workspace's key, its server and client, and what the joining device installs. Holds no private key (a signer is passed in) and names no network. | Team (serves it, and joins as a host); Personal (will join member devices; not yet) |
 
-Each was extracted from Individual (which now uses it too) rather than copied into Team, so there is one
+Each was extracted from Personal (which now uses it too) rather than copied into Team, so there is one
 SQLite open path and one set of security headers.
 
-Everything else under `internal/` outside `internal/team` is **Individual's**: `domain`, `store`,
+Everything else under `internal/` outside `internal/team` is **Personal's**: `domain`, `store`,
 `service`, `api`, `controller`, `appops`, `assistant`, and especially the machinery that executes things — `runner`, `remote`,
 `runnerwire`, `agent`, `gitrepo`, `github`, `daemon`, `netprivate`. The assistant (`appops`, `assistant`) runs the person's own
 coding agent runtime and is never part of Team ([ASSISTANT.md](ASSISTANT.md)). Team may not import any of it. If Team needs something from one
 of those, the answer is to move the non-product-specific part into a shared package (as `sqlitekit` and `httpkit` were),
 not to reach across.
 
-The same goes for the web: the PWA in `web/` is Individual's app. `web/src/shell/` is a separately built product-neutral desktop frontend, never embedded in the PWA; it displays Team-owned screens without importing their code. Team has its own small
+The same goes for the web: the PWA in `web/` is Personal's app. `web/src/shell/` is a separately built product-neutral desktop frontend, never embedded in the PWA; it displays Team-owned screens without importing their code. Team has its own small
 console (`internal/team/console`). When Team needs real UI reuse, extract the components both use into a shared web
 package (for example `web-ui/`) that `web/` and a Team web app both depend on; do not put Team screens in `web/`.
 
 `internal/relay` and its `e2e`, `access`, `client`, `tunnel` and `server` packages are shared protocol plumbing:
 opaque client bindings, pairing keys, ciphertext framing and bounded HTTP transport. They hold no product routes or
-workspace authority. Individual supplies its phone handler; Team supplies its separate read-only summary grant under
+workspace authority. Personal supplies its phone handler; Team supplies its separate read-only summary grant under
 `internal/team/server/daemon_phone.go` and its phone view under `internal/team/phone/`. The company relay is the
 `werkbord-team phone-relay` command. See [TEAM_PHONE_SECURITY.md](TEAM_PHONE_SECURITY.md).
 
 ### Dependency direction
 
 ```
-cmd/werkbord ──▶ individual packages ──▶ shared ◀── internal/team ◀── cmd/werkbord-team
+cmd/werkbord ──▶ Personal packages ──▶ shared ◀── internal/team ◀── cmd/werkbord-team
 ```
 
 - The controller **never** depends on Team: no package outside `internal/team` and `cmd/werkbord-team` may
@@ -147,11 +151,11 @@ All of it goes under `internal/team/`, and the program under `cmd/werkbord-team/
 | `internal/team/infra/…` | Team's own **infrastructure**, imported only by `server` and `cmd/werkbord-team`: `pki` (the workspace's keys and the network's certificates, sealed), `overlay` (the node description, the default-deny policy, rendering), `nebula` (the supervisor of the one pinned network program, and its pin), `rqlite` (the supervisor of the one pinned database program, its pin and its admin client), `overlaynet` (the network as a `transport.Transport`). Never handles a request. See [TEAM_NETWORK.md](TEAM_NETWORK.md) and [TEAM_STORAGE.md](TEAM_STORAGE.md). |
 | `internal/team/store/replicated` | Team's storage on a cluster of Workspace Hosts: a `store.Store` over rqlite (a use case runs on the host's own copy and its writes are one guarded rqlite transaction), the host's copy, backups and restore, and the move of an existing `team.db`. The only code that talks to the database; imported only by `server` and `cmd/werkbord-team`. See [ADR 0003](adr/0003-replicated-workspace-storage.md). |
 
-Team size and, later, SSO, audit logs and anything else only Premium has belong here too (the rule itself is the shared `internal/entitlement`). The `workspace`,
+Team size enforcement and host-verified Premium proof belong here too (the rule itself is the shared `internal/entitlement`). The `workspace`,
 `project`, `ticket`, `invite` and `activity` concepts all live in `internal/team/domain`; the ticket workflow is
 `internal/team/service/tickets.go`, repository awareness is `internal/team/service/repostate.go`. Do **not**
-add a `teamMode` flag, a Team-only branch, or a Team import to one of Individual's packages, and do not add Team screens or
-API routes to `web/` or `internal/api`. If one of Individual's packages needs to change so Team can reuse it, the change makes
+add a `teamMode` flag, a Team-only branch, or a Team import to one of Personal's packages, and do not add Team screens or
+API routes to `web/` or `internal/api`. If one of Personal's packages needs to change so Team can reuse it, the change makes
 it more general and stays free of Team's concepts.
 
 ## What Team has
@@ -190,7 +194,7 @@ comments and chat (Team coordinates; it is not a messenger), a Windows installer
 
 ## Running and building
 
-Individual Werkbord (needs Go and Node, for the web app):
+Personal Werkbord (needs Go and Node, for the web app):
 
 ```bash
 make build                 # bin/werkbord, with the web app embedded
@@ -213,7 +217,7 @@ Tests:
 
 ```bash
 make check                 # everything: Go tests, vet, gofmt, svelte-check, ESLint, builds, the boundary tests
-make test-werkbord         # Individual's tests, and the web app's
+make test-werkbord         # Personal's tests, and the web app's
 make test-team             # Team's tests
 make test-install test-install-team   # each installer against a local release server
 ```
@@ -290,3 +294,14 @@ from, which is what these checks inspect.
   `internal/archtest/boundary_test.go`; migrate the controller onto it if it already had a copy.
 
 Every implementation commit bumps the one version and tags it: [VERSIONING.md](VERSIONING.md) and [AGENTS.md](../AGENTS.md).
+
+## Moving between Personal and Team
+
+The desktop shell coordinates an explicit text-only project move through each engine's authenticated API. A review names
+every copied field, native confirmation authorises it, the destination imports atomically and a revision check guards source
+archiving. Team never calls the controller to perform a project move; the controller never calls Team. Original history stays
+at its source. Project moves create no execution grant or checkout. [Contract and limits](unified-platform/PROJECT_MOVES.md).
+
+The current completion state and the independent checks still needed before a stable release are in
+[platform acceptance](unified-platform/ACCEPTANCE.md). Salie's proposed Team read-only policy is still pending; the existing
+approved `create_ticket` bridge must not be described as read-only.

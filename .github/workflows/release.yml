@@ -441,7 +441,7 @@ jobs:
           The preview is not marked latest and is not distributed through the stable update feed. Preview apps update from the preview feed (the `werkbord-preview-feed` release), which this release replaces once its downloads and signed feed have been verified. Linux packages are opt-in after acceptance; Windows downloads remain deferred.
           EOF
           fi
-          gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord Individual — Release $sequence$qualifier" --notes-file release-notes.md --draft --prerelease="$prerelease" --latest=false --verify-tag
+          gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord — Release $sequence$qualifier" --notes-file release-notes.md --draft --prerelease="$prerelease" --latest=false --verify-tag
 
   desktop-publish:
     needs: desktop-draft
