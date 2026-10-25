@@ -71,7 +71,7 @@
 
 <section class="pn memory" aria-labelledby="memory-title">
   <h3 id="memory-title" class="band">Memory</h3>
-  <p class="muted">What this project remembers: decisions, preferences and facts. Private to you on this computer; share them with a Team under Settings → Individual memory.</p>
+  <p class="muted">What this project remembers: decisions, preferences and facts. Private to you on this computer; share them with a Team under Settings → Personal memory.</p>
   <details class="about"><summary>Good to know</summary><p class="muted">Agent reports stay unverified until you confirm them. Saved policies are context only and never change what an agent may do. Do not save passwords or keys.</p></details>
   <form class="tools" onsubmit={(event) => { event.preventDefault(); void load(); }}>
     <label class="search">Search memories<input class="input" type="search" maxlength="256" bind:value={query} placeholder="Search words in a memory" /></label>

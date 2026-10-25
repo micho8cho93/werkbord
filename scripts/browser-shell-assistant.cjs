@@ -134,8 +134,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');
         await page.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor();
-        await page.getByTestId('workspace-switcher').click();
-        await page.getByTestId('switcher-menu').locator('[data-workspace=personal]').click();
+        await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
         await page.locator('iframe[data-workspace=personal]').waitFor();
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();
         return { ctx, page };
@@ -181,8 +180,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         ok('the floating Salie button starts at the bottom centre, drags and remembers its position');
 
         // Go to a different workspace and leave something half-written there.
-        await page.getByTestId('workspace-switcher').click();
-        await page.getByTestId('switcher-menu').locator('[data-workspace="team:main"]').click();
+        await page.locator('nav[aria-label="Werkbord"] [data-open="team:main"]').click();
         const teamFrame = page.frameLocator('iframe[data-workspace="team:main"]');
         await teamFrame.locator('#draft').fill('a half-written note');
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
@@ -255,12 +253,10 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await button.getAttribute('aria-expanded'), 'false');
         assert.equal(await page.locator('.shell').getAttribute('inert'), null);
         // And the window under it can be used again.
-        await page.getByTestId('workspace-switcher').click();
-        await page.getByTestId('switcher-menu').locator('[data-workspace="universal"]').click();
-        await page.getByRole('heading', { name: 'Universal', exact: true }).waitFor();
+        await page.locator('nav[aria-label="Werkbord"] [data-page=inbox]').click();
+        await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
         await page.getByRole('group', { name: 'Calendar presentation' }).waitFor();
-        await page.getByTestId('workspace-switcher').click();
-        await page.getByTestId('switcher-menu').locator('[data-workspace="team:main"]').click();
+        await page.locator('nav[aria-label="Werkbord"] [data-open="team:main"]').click();
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
         ok('closing collapses toward the button and leaves the window as it was');
         // Repositioning changes both the reveal and collapse anchors, including at the default bottom centre.
@@ -381,8 +377,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         }
 
         // The page of the Individual workspace has no assistant of its own in the window: there is exactly one conversation.
-        await page.getByTestId('workspace-switcher').click();
-        await page.getByTestId('switcher-menu').locator('[data-workspace="personal"]').click();
+        await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
         const personal = page.frameLocator('iframe[data-workspace=personal]');
         await personal.locator('main').waitFor();
         assert.equal(await personal.getByTestId('assistant-button').count(), 0);

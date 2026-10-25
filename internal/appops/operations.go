@@ -992,7 +992,7 @@ func planTaskPlan(ctx context.Context, e *env, args map[string]any) (*plan, erro
 	}
 	for _, change := range request.Tasks {
 		if change.Requirements != nil {
-			return nil, fmt.Errorf("%w: task requirements are not supported on Individual boards", domain.ErrInvalid)
+			return nil, fmt.Errorf("%w: task requirements are not supported on Personal boards", domain.ErrInvalid)
 		}
 	}
 	backend, ok := e.b.(TaskPlanBackend)

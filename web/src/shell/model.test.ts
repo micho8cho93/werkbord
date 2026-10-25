@@ -234,3 +234,55 @@ it('reopens a hidden saved workspace from the library without creating a display
   expect(model.visibleGenerated).toEqual([]);
   expect(model.generated[0].visibility).toEqual(saved.visibility);
 });
+
+describe('one sidebar, no switcher', () => {
+  const target = (id: string) => ({ id, kind: id === 'personal' ? 'personal' as const : 'team' as const, url: 'http://127.0.0.1:1/', origin: 'http://127.0.0.1:1' });
+
+  it('goes to a place in the workspace that is open without asking the app again, and opens any other', async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    model.frames.personal = { target: target('personal'), ready: true };
+    model.current = 'personal';
+    const opened: string[] = [];
+    native.app.OpenWorkspace = async (id: string) => { opened.push(id); return target(id); };
+    native.app.Workspaces = async () => view([individual, team]);
+    await model.goTo('personal', '#/p/prj_1');
+    expect(opened).toEqual([]);
+    expect(model.frames.personal.pending).toBe('#/p/prj_1');
+    expect(model.page).toBe('workspace');
+    expect(model.universal).toBe(false);
+    await model.goTo('team:main', '?tab=members');
+    expect(opened).toEqual(['team:main']);
+    expect(model.current).toBe('team:main');
+    expect(model.frames['team:main'].pending).toBe('?tab=members');
+  });
+
+  it('folds a section and remembers it, and unfolds it again', () => {
+    const kept = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v), removeItem: (k: string) => void kept.delete(k) });
+    try {
+      const model = new Model();
+      model.toggleSection('team:main');
+      expect(model.folded).toEqual(['team:main']);
+      expect(JSON.parse(kept.get('werkbord.shell.sections') ?? '[]')).toEqual(['team:main']);
+      expect(new Model().folded).toEqual(['team:main']);
+      model.toggleSection('team:main');
+      expect(model.folded).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('opens and closes the go-to palette, and shows Salie’s saved workspaces in the section they were made for', () => {
+    const model = new Model();
+    model.togglePalette();
+    expect(model.paletteOpen).toBe(true);
+    model.closePalette();
+    expect(model.paletteOpen).toBe(false);
+    const saved = (id: string, visibility: { universal: boolean; individual: boolean; teamWorkspaceIds?: string[] }) => ({ id, name: id, icon: 'auto', visibility }) as never;
+    model.generated = [saved('pws_a', { universal: true, individual: false }), saved('pws_b', { universal: false, individual: true }), saved('pws_c', { universal: false, individual: false, teamWorkspaceIds: ['team:main'] })];
+    expect(model.generatedFor('universal').map((w) => w.id)).toEqual(['pws_a']);
+    expect(model.generatedFor('personal').map((w) => w.id)).toEqual(['pws_b']);
+    expect(model.generatedFor('team:main').map((w) => w.id)).toEqual(['pws_c']);
+  });
+});

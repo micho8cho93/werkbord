@@ -55,7 +55,7 @@
       <li class="card" data-workspace={i.id} data-state={i.state}>
         <header>
           <h2>{i.name}</h2>
-          <span class="kind">{i.kind === 'personal' ? 'Individual · this computer' : i.role ? `Team · ${i.role}` : 'Team'}</span>
+          <span class="kind">{i.kind === 'personal' ? 'Personal · this computer' : i.role ? `Team · ${i.role}` : 'Team'}</span>
         </header>
         <p class="standing" data-state={i.state}>{e ? standing(e) : i.detail || i.state}</p>
 
@@ -96,7 +96,7 @@
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=backups')}>Backups</button>
             <button class="btn warn" type="button" onclick={() => model.open(i.id, '?tab=settings')}>Settings and leaving</button>
             {#if i.state !== 'leaving' && !roles.includes('runner')}
-              <button class="btn add" type="button" onclick={() => model.connectRunner(i.id)} disabled={!!model.busy} data-testid="connect-runner">Connect my Individual runner</button>
+              <button class="btn add" type="button" onclick={() => model.connectRunner(i.id)} disabled={!!model.busy} data-testid="connect-runner">Connect my runner</button>
             {/if}
           {/if}
           {#if i.kind === 'team' && (i.state === 'setup' || i.state === 'leaving' || (i.state === 'connecting' && !i.role))}
@@ -107,7 +107,7 @@
     {/each}
   </ul>
 
-  <p class="foot"><button class="btn add" type="button" onclick={() => (model.addOpen = true)} data-testid="add-team-page">Add a Team…</button></p>
+  <p class="foot"><button class="btn add" type="button" onclick={() => (model.addOpen = true)} data-testid="add-team-page">New team or join…</button></p>
 </section>
 
 <style>

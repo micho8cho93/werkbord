@@ -5,7 +5,7 @@
   import { shellPersonalAPI } from './personal';
   import GeneratedWorkspace from './GeneratedWorkspace.svelte';
   import Sidebar from './Sidebar.svelte';
-  import Switcher from './Switcher.svelte';
+  import Palette from './Palette.svelte';
   import FrameHost from './FrameHost.svelte';
   import WorkspaceProblem from './WorkspaceProblem.svelte';
   import Calendar from './Calendar.svelte';
@@ -22,8 +22,8 @@
   import { model, type Page } from './model.svelte';
   import { onApp } from './native';
 
-  // The window: one sidebar (switching workspace, what spans every workspace, and the navigation of the workspace on show)
-  // beside the workspace's own pages, which carry no navigation of their own here.
+  // The window: one sidebar (Home and Calendar, then Personal and each team with their projects) beside the workspace's own
+  // pages, which carry no navigation of their own here.
   const pages: Page[] = ['workspace', 'calendar', 'inbox', 'workspaces', 'settings', 'help'];
   let mainEl: HTMLElement | undefined;
   // The person's own Werkbord cannot be shown (too old, or not running): say so instead of a blank frame.
@@ -42,7 +42,7 @@
 
   function go(where: unknown): void {
     if (where === 'personal') void model.open('personal');
-    else if (where === 'switch') model.toggleSwitcher();
+    else if (where === 'switch' || where === 'goto') model.togglePalette();
     else if (where === 'invitation' || where === 'add-team') model.addOpen = true;
     else if (pages.includes(where as Page)) model.go(where as Page);
   }
@@ -52,9 +52,10 @@
     return () => { unsubscribe(); model.stop(); };
   });
   function key(e: KeyboardEvent): void {
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
+    // ⌘K goes to a project, a place or a page; ⌘⇧K still does, for whoever learnt it when it switched workspace.
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      model.toggleSwitcher();
+      model.togglePalette();
     }
   }
 </script>
@@ -80,7 +81,7 @@
       {#if model.page === 'settings'}<SettingsNav />{/if}
       <div class="stage">
         {#if model.universal && ['workspaces', 'personal-library', 'generated', 'calendar'].includes(model.page)}
-          <div class="crumb"><button class="btn small quiet" type="button" onclick={() => model.go('inbox')} data-testid="back-to-universal"><Icon name="left" size={14} />Universal</button></div>
+          <div class="crumb"><button class="btn small quiet" type="button" onclick={() => model.go('inbox')} data-testid="back-to-universal"><Icon name="left" size={14} />Home</button></div>
         {/if}
         <FrameHost shown={(model.page === 'workspace' && !problem) || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
         {#if model.page === 'workspace' && problem}
@@ -102,7 +103,7 @@
       <HelpButton />
     </main>
   </div>
-  {#if model.switcher}<Switcher onadd={() => (model.addOpen = true)} />{/if}
+  {#if model.paletteOpen}<Palette />{/if}
   {#if model.addOpen}<AddTeam />{/if}
 </div>
 <AssistantFrame />

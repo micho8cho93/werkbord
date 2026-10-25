@@ -102,8 +102,8 @@ const ok = text => console.log('PASS ' + text);
   ok('Name/icon changes and definition rollback create revisions without altering records');
 
   await manage('Name, icon & locations');
-  await page.getByRole('checkbox',{name:'Universal',exact:true}).uncheck();
-  await page.getByRole('checkbox',{name:'Individual',exact:true}).uncheck();
+  await page.getByRole('checkbox',{name:'Home',exact:true}).uncheck();
+  await page.getByRole('checkbox',{name:'Personal',exact:true}).uncheck();
   await page.getByRole('button',{name:'Save changes',exact:true}).click();
   await until(async()=>!(await api(base,'GET',`/workspaces/${wid}`)).visibility.individual,'Hidden location not saved');
   assert.deepEqual(await api(base,'GET',`/collections/${cid}/records/${record.id}`),record);

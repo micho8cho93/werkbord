@@ -60,7 +60,7 @@ func personalWorkspaceInput() *Schema {
 		"icon":            Str("Use auto on creation or to request a new icon. The controller chooses a fitting, unused Lucide icon from the workspace name and views. On edits preserve the exact saved lucide-* identifier unless a new icon is requested. Older icon tokens remain readable for compatibility.", 32),
 		"uiSchemaVersion": Int("Always 1.", 1, 1),
 		"definition":      Object(map[string]*Schema{"views": List("Bound views.", view, 32), "layout": node(1)}, "views", "layout"),
-		"visibility":      Object(map[string]*Schema{"universal": Bool("Show in Universal."), "individual": Bool("Show in Individual."), "teamWorkspaceIds": List("Selected context IDs, display only; grants no Team access.", Str("Context ID supplied by person.", 125), 64)}, "universal", "individual"),
+		"visibility":      Object(map[string]*Schema{"universal": Bool("Show on Home."), "individual": Bool("Show in Personal."), "teamWorkspaceIds": List("Selected context IDs, display only; grants no Team access.", Str("Context ID supplied by person.", 125), 64)}, "universal", "individual"),
 		"readBindings":    List("Read-only local owner projects/tasks, rendered by binding layout nodes. Never Team access. Preserve existing bindings unless explicitly changed.", Object(map[string]*Schema{"id": Str("Binding ID.", 64), "kind": Enum("Read kind.", "individual.project", "individual.tasks"), "projectId": Str("Project ID.", 80)}, "id", "kind", "projectId"), 16),
 		"collectionIds":   List("All collections in binding order.", Str("Collection ID or creation alias.", 80), 32),
 	}, "name", "icon", "uiSchemaVersion", "definition", "visibility", "collectionIds")
@@ -232,7 +232,7 @@ func personalOperations(personal *service.Personal) []*operation {
 				return map[string]any{"items": summaries, "nextAfter": next}, nil
 			}},
 		{Spec: Spec{Name: "list_display_locations", Title: "Where a workspace can appear", Kind: KindRead, Permission: PermPersonalRead,
-			Description: "List the places a generated workspace can be shown: Universal, Individual, and the Team contexts the person's computer has connected (id and name). Use the ids exactly as returned in visibility.teamWorkspaceIds. Display only: grants no Team access. An empty teams list means no Team is connected right now.", Input: Object(map[string]*Schema{})},
+			Description: "List the places a generated workspace can be shown: Home, Personal, and the team contexts the person's computer has connected (id and name). Use the ids exactly as returned in visibility.teamWorkspaceIds. Display only: grants no Team access. An empty teams list means no Team is connected right now.", Input: Object(map[string]*Schema{})},
 			run: func(ctx context.Context, e *env, args map[string]any) (any, error) {
 				teams := []map[string]string{}
 				for _, c := range personal.DisplayContexts() {

@@ -9,7 +9,7 @@
   import { model } from './model.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
   import type { Overview } from './types';
-  // `embedded` is the Universal hub's panel: it fills the panel and leaves the title to the hub.
+  // `embedded` is Home's panel: it fills the panel and leaves the title to the hub.
   let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
   let timeline = $state(false);
   const rows = $derived((overview?.entries ?? []).flatMap(e => [

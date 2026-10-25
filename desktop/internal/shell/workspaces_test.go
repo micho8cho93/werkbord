@@ -154,7 +154,7 @@ type rig struct {
 }
 
 func individualItem() workspaces.Item {
-	return workspaces.Item{Entry: workspace.Entry{ID: "personal", Kind: workspace.KindIndividual, Name: "Universal", State: workspace.StateReady}, Source: "Werkbord"}
+	return workspaces.Item{Entry: workspace.Entry{ID: "personal", Kind: workspace.KindIndividual, Name: "Personal", State: workspace.StateReady}, Source: "Werkbord"}
 }
 func teamItem(slot, name string, st workspace.State) workspaces.Item {
 	return workspaces.Item{Entry: workspace.Entry{ID: "team:" + slot, Kind: workspace.KindTeam, Name: name, State: st}, Source: "Team"}

@@ -25,7 +25,7 @@ func (h *Handler) startAuthorized(ctx context.Context, workspace string, p envel
 	}
 	bridge, ok := h.Bridge.(executionBridge)
 	if !ok {
-		return refuse("update and reconnect this device's Individual controller")
+		return refuse("update and reconnect Werkbord on this device")
 	}
 	host, ok := h.Handoffs.(contextHost)
 	if !ok {

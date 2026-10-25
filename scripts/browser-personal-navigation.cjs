@@ -121,48 +121,53 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const errors = [];
     let current = null;
     async function switchTo(page, id) {
-        await page.getByTestId('workspace-switcher').click();
-        await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click();
+        // There is one sidebar with a section for each workspace: Home is its own entry, and a workspace opens from its header.
+        await page.locator('nav[aria-label="Werkbord"] ' + (id === 'universal' ? '[data-page=inbox]' : '[data-open="' + id + '"]')).click();
     }
     const page = await browser.newPage({viewport: {width: 1440, height: 900}}); current = page;
     await page.addInitScript(() => { window.__received = []; addEventListener('message', e => window.__received.push(e.data)); });
     page.setDefaultTimeout(15000); page.on('pageerror', e => errors.push(e.message));
     const side = page.getByRole('navigation', {name: 'Werkbord', exact: true});
-    const generated = side.locator('[data-page="generated-' + savedWorkspace.id + '"]');
+    // The saved workspace is listed in each section it was made for; the first is enough to open it.
+    const generated = side.locator('[data-page="generated-' + savedWorkspace.id + '"]').first();
     const openSaved = async () => { if (await generated.count()) await generated.click(); else { const back = page.getByTestId('back-to-universal'); if (await back.count()) await back.click(); await page.getByTestId('hub-generated-' + savedWorkspace.id).click(); } await page.locator('.saved-workspace').waitFor(); await page.getByText('Shared across every location', {exact:true}).first().waitFor(); };
-    const ordered = async expected => {
-        const actual = await side.locator('button.nav').evaluateAll(els => els.map(e => e.dataset.page || (e.dataset.project ? 'project' : 'theme')));
+    // The sidebar is Home and Calendar, then a section for Personal and one for each team, then what is about this computer. A
+    // button without a page is Salie's ('theme' here).
+    const ordered = async (scope, expected) => {
+        const actual = await side.locator((scope ? scope + ' ' : '') + 'button.nav').evaluateAll(els => els.map(e => e.dataset.page || (e.dataset.project ? 'project' : 'theme')));
         assert.deepEqual(actual, expected);
     };
-    const footer = ['workspaces', 'personal-library', 'settings'];
+    const saved = 'generated-' + savedWorkspace.id;
+    const footer = ['add-team', 'workspaces', 'personal-library', 'settings'];
     try {
         await page.goto(shellOrigin + '/shell/shell/index.html');
         await page.getByTestId('hub-generated-' + savedWorkspace.id).waitFor();
-        await ordered(['workspaces', 'personal-library', 'settings']);
+        // Home has the same sidebar as everywhere: its saved workspace, Personal and the team each in their own section.
+        await ordered('', ['theme', 'inbox', 'calendar', saved, 'create-generated', 'project', 'add-project', 'ws-analytics', saved, 'ws-reviews', 'ws-members', 'ws-analytics', saved, ...footer]);
+        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 208);
+        await page.screenshot({path:path.join(artifacts,'home-default.png')});
+        await page.getByTestId('sidebar-label-toggle').click();
         assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 48);
-        await page.screenshot({path:path.join(artifacts,'universal-default.png')});
         await page.getByTestId('sidebar-label-toggle').click();
         assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 208);
         await page.getByTestId('hub-library').click();
         await page.getByRole('heading', {name: 'Data library', exact: true}).waitFor();
         await page.getByTestId('back-to-universal').click();
         await page.getByTestId('hub-generated-' + savedWorkspace.id).waitFor();
-        await page.screenshot({path:path.join(artifacts,'universal.png')});
-        // Universal re-entry folds even at intermediate widths, regardless of a previous label expansion.
+        await page.screenshot({path:path.join(artifacts,'home.png')});
+        // At intermediate widths the sidebar is a rail of icons until the person asks for the labels.
         await page.setViewportSize({width: 1000, height: 800});
-        await page.getByTestId('sidebar-label-toggle').click();
-        await switchTo(page,'personal'); await switchTo(page,'universal');
         assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 48);
-        await page.screenshot({path:path.join(artifacts,'universal-window.png')});
+        await page.screenshot({path:path.join(artifacts,'home-window.png')});
         await page.setViewportSize({width: 390, height: 844});
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-        await page.screenshot({path:path.join(artifacts,'universal-narrow.png'), fullPage:true});
+        await page.screenshot({path:path.join(artifacts,'home-narrow.png'), fullPage:true});
         await page.setViewportSize({width:1440,height:900});
-        ok('Universal starts folded, keeps only machine destinations and reaches saved workspaces, calendar and the library on its page');
+        ok('Home has the one sidebar, with a section for Personal and each team, and reaches saved workspaces, calendar and the library on its page');
 
         await switchTo(page,'personal');
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();
-        await ordered(['theme','ws-home','ws-projects','project','add-project','ws-analytics','create-generated', 'generated-' + savedWorkspace.id,...footer]);
+        await ordered('[data-section=personal]', ['project', 'add-project', 'ws-analytics', saved]);
         await openSaved();
         assert.equal(await generated.getAttribute('aria-current'), 'page');
         assert.equal(await generated.getAttribute('aria-label'), spec.name);
@@ -177,13 +182,13 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await page.locator('iframe[data-workspace=personal]').isVisible(), false);
         assert.equal(await individualFrame.evaluate(()=>location.hash),place);
         await page.screenshot({path:path.join(artifacts,'individual.png')});
-        ok('Individual entries append after Analytics and preserve its live frame and route');
+        ok('Personal entries append after Analytics and preserve its live frame and route');
 
         await switchTo(page,'team:main');
         const teamFrame = page.frameLocator('iframe[data-workspace="team:main"]');
         await teamFrame.locator('#draft').fill('My unfinished Team draft');
         await side.locator('[data-page=ws-analytics]').click();
-        await ordered(['theme','ws-home','ws-projects','ws-reviews','ws-members','ws-analytics','create-generated', 'generated-'+savedWorkspace.id,...footer]);
+        await ordered('[data-section="team:main"]', ['ws-reviews', 'ws-members', 'ws-analytics', saved]);
         const teamHandle = await page.locator('iframe[data-workspace="team:main"]').elementHandle();
         await openSaved();
         await page.getByText('Team projects · Northstar · read-only',{exact:true}).click();

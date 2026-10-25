@@ -98,7 +98,7 @@ func reportOf(r domain.Run, runners []domain.Runner) *workspace.ExecutionReport 
 func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 	out := workspace.Summary{
 		Schema:    workspace.Schema,
-		Workspace: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Individual", State: workspace.StateReady, DeviceRoles: []string{"runner"}},
+		Workspace: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Personal", State: workspace.StateReady, DeviceRoles: []string{"runner"}},
 		Projects:  []workspace.Project{},
 		Work:      []workspace.Item{},
 		Attention: []workspace.Attention{},

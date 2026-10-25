@@ -44,7 +44,7 @@
   <form id="workflow-settings" onsubmit={save}>
     {#if onboarding}<p>By default, a tap asks which repository to use. You can also save repositories here. Agent and Model inherit your existing execution settings. Saving does not run it.</p>{/if}
     {#if !onboarding}<p>{definition?.description}</p>
-    <p class="muted">Runs on Individual through your existing runner and permissions. Changes are reviewed through the task.</p>{/if}
+    <p class="muted">Runs on your own computer through your existing runner and permissions. Changes are reviewed through the task.</p>{/if}
     <label>Repository target <select class="select" bind:value={target} disabled={busy}>
       <option value="ask">Ask every time</option><option value="selected">Selected repositories</option>{#if !onboarding}<option value="current">Current project (resolved when run)</option><option value="all">All accessible repositories</option>{/if}
     </select></label>

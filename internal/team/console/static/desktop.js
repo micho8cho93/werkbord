@@ -515,13 +515,13 @@ async function memorySharingPanel() {
   const projects = state.ov.projects.filter(p => p.member && !p.project.archived).map(p => p.project);
   const box = h('section', { class: 'panel memory-panel', 'aria-labelledby': 'memory-sharing-h' }, h('h2', { id: 'memory-sharing-h' }, 'Team memory'),
     h('p', { class: 'muted' }, 'This workspace stores up to 10,000 memory revisions. Changes and publication steps consume revisions; a curator can remove obsolete memories when capacity is reached.'),
-    h('p', { class: 'muted' }, 'Short notes about each project that the team has agreed to keep. Nothing is shared until you turn it on for a project in Individual → Settings → Individual memory, and another person approves it.'),
+    h('p', { class: 'muted' }, 'Short notes about each project that the team has agreed to keep. Nothing is shared until you turn it on for a project in Personal → Settings → Personal memory, and another person approves it.'),
     state.device?.sync?.problem ? h('p', { class: 'advice' }, state.device.sync.problem) : '');
   if (state.desktop) {
     const token = h('input', { type: 'password', name: 'memory-grant', autocomplete: 'off', required: true });
     box.append(h('details', {}, h('summary', {}, 'Connect memory sharing'),
       h('form', { onsubmit: e => { e.preventDefault(); act(async () => { await deviceApi('POST', '/memory/grant', { token: token.value }); token.value = ''; state.info = 'Memory sharing connected.'; }); } },
-        field('Grant from Individual', token), h('button', { class: 'primary', type: 'submit' }, 'Connect'))));
+        field('Grant from Personal', token), h('button', { class: 'primary', type: 'submit' }, 'Connect'))));
   }
   const results = h('div', { class: 'memory-list', 'aria-live': 'polite' });
   const choose = h('select', { name: 'memory-project', 'aria-label': 'Project' }, projects.map(p => h('option', { value: p.id }, p.name)));
@@ -561,8 +561,8 @@ async function memorySharingPanel() {
   box.append(projects.length ? field('Project', choose) : '', results,
     h('details', {}, h('summary', {}, 'How sharing works'),
       h('p', { class: 'muted' }, 'Only validated Git metadata from projects you enable can be proposed. Summaries and decisions need their own choice and a review. Sessions, transcripts, code, credentials and paths are never shared. Sharing needs another person’s approval, and revoking removes access once acknowledged; copies already read or backed up may remain.')),
-    projects.length ? h('details', {}, h('summary', {}, 'Identifiers for Individual'),
-      h('p', { class: 'muted' }, 'Copy these into Individual → Settings → Individual memory.'),
+    projects.length ? h('details', {}, h('summary', {}, 'Identifiers for Personal'),
+      h('p', { class: 'muted' }, 'Copy these into Personal → Settings → Personal memory.'),
       h('p', { class: 'identity' }, state.me.workspace.id),
       projects.map(p => h('p', { class: 'identity' }, p.name + ' · ' + p.id + (p.repository ? ' · ' + p.repository : '')))) : '');
   if (projects.length) show();

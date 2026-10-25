@@ -1,4 +1,4 @@
-// The shell's state: which workspaces there are, which is open, which pages have been opened and what needs the person.
+// The shell's state: which workspaces there are (Personal, and each team), which is open, which pages have been opened and what needs the person.
 // Opening a workspace creates (once) a frame for it and keeps it, hidden when it is not the one shown, so that going to
 // another workspace and back stops nothing in it. The model never starts, stops, approves or revokes anything in any
 // workspace: those are asked of the app, by name, one at a time, in dialogs the person answers.
@@ -13,7 +13,7 @@ import type { Overview, Target, WorkspaceView } from './types';
 
 export type Page = 'workspace' | 'calendar' | 'inbox' | 'workspaces' | 'settings' | 'help' | 'generated' | 'personal-library';
 
-/** Where the switcher opens: under the workspace name at the top of the sidebar, in the window's coordinates. */
+/** Where the assistant grows out of: the button that opened it, in the window's coordinates. */
 export interface Anchor {
   x: number;
   y: number;
@@ -22,6 +22,17 @@ export interface Anchor {
 }
 
 const COLLAPSED_KEY = 'werkbord.shell.sidebar';
+const SECTIONS_KEY = 'werkbord.shell.sections';
+
+/** The sections of the sidebar the person folded (a section is a workspace's id): remembered on this computer. */
+function readFolded(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(SECTIONS_KEY) ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 64) : [];
+  } catch {
+    return [];
+  }
+}
 
 function readCollapsed(): boolean {
   try {
@@ -45,14 +56,20 @@ export class Model {
   view = $state<WorkspaceView | null>(null);
   overview = $state<Overview | null>(null);
   page = $state<Page>('inbox');
+  /**
+   * A page of the window's own (Home, Calendar, Devices & Hosting, the Data library) is on show rather than a workspace's page. It
+   * is not a mode the person chooses: there is one sidebar, and this only says which kind of place they are in.
+   */
   universal = $state(true);
   generated = $state<Workspace[]>([]);
   generatedID = $state('');
   generatedError = $state('');
-  get visibleGenerated(): Workspace[] { return generatedEntries(this.generated, this.universal, this.current); }
+  /** The saved workspaces Salie made that belong to a place: Home (`universal`), Personal (`personal`) or a team (its id). */
+  generatedFor(context: string): Workspace[] { return generatedEntries(this.generated, context === 'universal', context); }
+  get visibleGenerated(): Workspace[] { return this.generatedFor(this.universal ? 'universal' : this.current); }
   openGenerated(id: string, fromLibrary = false): void {
     if (!(fromLibrary ? this.generated : this.visibleGenerated).some(w => w.id === id)) return;
-    this.leaveAssistant(); this.generatedID = id; this.page = 'generated'; this.closeSwitcher();
+    this.leaveAssistant(); this.generatedID = id; this.page = 'generated';
   }
   async followGenerated(id: string): Promise<void> {
     await this.refreshGenerated();
@@ -101,15 +118,13 @@ export class Model {
   error = $state('');
   notice = $state('');
   busy = $state('');
-  /** The open switcher, and where it opens; null when closed. */
-  switcher = $state<Anchor | null>(null);
-  /** The button the switcher opens under: the workspace name at the top of the sidebar. */
-  switcherButton: HTMLElement | undefined;
+  /** The go-to palette (⌘K) is open. */
+  paletteOpen = $state(false);
   /** Where each open workspace says it is, as a place inside it: what the sidebar marks as current. */
   places = $state<Record<string, string>>({});
   sidebarCollapsed = $state(readCollapsed());
-  /** Universal is its own hub, so its sidebar starts folded to icons each time it is entered; this is whether the person opened it. */
-  universalSidebarOpen = $state(false);
+  /** The sidebar sections the person folded. */
+  folded = $state<string[]>(readFolded());
   addOpen = $state(false);
   loaded = $state(false);
   setupRequired = $state(false);
@@ -139,28 +154,29 @@ export class Model {
 
   private timers: ReturnType<typeof setInterval>[] = [];
 
-  get switcherOpen(): boolean {
-    return this.switcher !== null;
+  openPalette(): void {
+    this.paletteOpen = true;
   }
 
-  /** Opens the switcher under the workspace name in the sidebar (for the button and for the keyboard). */
-  openSwitcher(): void {
-    const r = this.switcherButton?.getBoundingClientRect();
-    this.switcher = r ? { x: r.left, y: r.top, width: r.width, height: r.height } : { x: 8, y: 8, width: 0, height: 32 };
+  closePalette(): void {
+    this.paletteOpen = false;
   }
 
-  /** Closes the switcher; focus goes back to the name it opened under when the person pressed Escape. */
-  closeSwitcher(focus = false): void {
-    this.switcher = null;
-    if (focus) this.switcherButton?.focus();
+  togglePalette(): void {
+    this.paletteOpen = !this.paletteOpen;
   }
 
-  toggleSwitcher(): void {
-    if (this.switcher) this.closeSwitcher(true);
-    else this.openSwitcher();
+  /** Folds or unfolds a sidebar section. */
+  toggleSection(id: string): void {
+    this.folded = this.folded.includes(id) ? this.folded.filter((x) => x !== id) : [...this.folded, id];
+    try {
+      localStorage.setItem(SECTIONS_KEY, JSON.stringify(this.folded));
+    } catch {
+      // Remembering is a convenience; the section still folds.
+    }
   }
 
-  /** Which part of Werkbord Settings is for: the whole of it, Individual, or the Team on show. */
+  /** Which part of Werkbord Settings is for: the whole of it, Personal, or the team on show. */
   get scope(): Scope {
     return scopeOf(this.universal, this.current, this.view?.items.find((i) => i.id === this.current)?.kind);
   }
@@ -268,14 +284,18 @@ export class Model {
     frame.pending = place;
     this.places[this.current] = place;
     this.page = 'workspace';
-    this.closeSwitcher();
+  }
+
+  /**
+   * Shows a place in a workspace, whichever one is open now: the sidebar's way of reaching a project or a team's people. A workspace
+   * that already has a page keeps it (nothing in it restarts); otherwise it is opened.
+   */
+  async goTo(id: string, place?: string): Promise<void> {
+    if (place && id === this.current && this.frames[id]) return this.visit(place);
+    return this.open(id, place);
   }
 
   toggleSidebar(): void {
-    if (this.universal) {
-      this.universalSidebarOpen = !this.universalSidebarOpen;
-      return;
-    }
     this.sidebarCollapsed = !this.sidebarCollapsed;
     try {
       localStorage.setItem(COLLAPSED_KEY, this.sidebarCollapsed ? 'collapsed' : 'expanded');
@@ -284,7 +304,7 @@ export class Model {
     }
   }
 
-  /** Starts every window on the Universal hub; workspace places remain available when explicitly opened. */
+  /** Starts every window on Home; workspace places remain available when explicitly opened. */
   async start(): Promise<void> {
     await this.refresh();
     this.page = 'inbox';
@@ -292,7 +312,7 @@ export class Model {
     this.loaded = true;
     void this.refreshOverview();
     void this.refreshGenerated();
-    // Load Individual in the background so first-use setup can identify itself before ordinary navigation.
+    // Load Personal in the background so first-use setup can identify itself before ordinary navigation.
     if (this.view?.items.some(i => i.id === 'personal' && i.state === 'ready')) {
       try {
         const target = await ask(a => a.LoadWorkspace('personal'));
@@ -365,7 +385,6 @@ export class Model {
       delete this.places.individual;
       this.current = id;
       this.page = 'workspace';
-      this.closeSwitcher();
       return;
     }
     try {
@@ -380,7 +399,6 @@ export class Model {
     }
     this.current = id;
     this.page = 'workspace';
-    this.closeSwitcher();
     void this.refresh();
     } catch (e) { this.error = (e as Error).message; }
   }
@@ -417,7 +435,6 @@ export class Model {
     this.leaveAssistant();
     if (section) this.settingsSection = section;
     this.page = 'settings';
-    this.closeSwitcher();
     const where = this.settingsShown.where;
     if ('workspace' in where) void this.host(where.workspace, where.place);
   }
@@ -438,7 +455,6 @@ export class Model {
   openHelp(): void {
     this.leaveAssistant();
     this.page = 'help';
-    this.closeSwitcher();
     void this.host('personal', '#/help');
   }
 
@@ -447,10 +463,8 @@ export class Model {
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
     if (['calendar', 'inbox'].includes(p)) this.universal = true;
-    if (p === 'inbox') this.universalSidebarOpen = false;
     this.leaveAssistant();
     this.page = p;
-    this.closeSwitcher();
     if (p === 'calendar' || p === 'inbox' || p === 'workspaces') void this.refreshOverview();
   }
 
@@ -466,7 +480,6 @@ export class Model {
       this.current = target.id;
       this.universal = false;
       this.page = 'workspace';
-      this.closeSwitcher();
       this.addOpen = false;
     } catch (e) {
       this.error = (e as Error).message;
@@ -508,7 +521,7 @@ export class Model {
     this.error = '';
     try {
       await ask((a) => a.Relay(id, 'ConnectRunner', []));
-      this.notice = 'Your Individual runner is connected to this workspace.';
+      this.notice = 'Your own runner is connected to this team.';
     } catch (e) {
       this.error = (e as Error).message;
     }

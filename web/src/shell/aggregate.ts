@@ -58,7 +58,7 @@ export function tallyByKind(groups: ReturnType<typeof attentionGroups>): { kind:
     const rows = groups.flatMap((g) => g.rows.map((r) => ({ r, id: g.id }))).filter((x) => x.r.workspace.kind === kind);
     return {
       kind,
-      label: kind === 'personal' ? 'Individual' : 'Team',
+      label: kind === 'personal' ? 'Personal' : 'Teams',
       actions: rows.filter((x) => x.id !== 'warnings').length,
       warnings: rows.filter((x) => x.id === 'warnings').length,
     };

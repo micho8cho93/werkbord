@@ -48,17 +48,16 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  browser = await chromium.launch({ headless: true }); const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
  await context.addInitScript(() => { if (window.parent !== window) return; window.runtime = { EventsOn: (event, cb) => { if (event === 'shell:go') window.__shellGo = cb; return () => {}; } }; window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => { const r = await fetch('/fixture/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Method: method, Args: args }) }); const d = await r.json(); if (!r.ok) throw Error(d.error); return d; } }) } }; });
  const page = await context.newPage(); testPage = page; page.setDefaultTimeout(90000); const errors = []; page.on('pageerror', e => errors.push(e.message));
- // Switching is the workspace name at the top of the window's one sidebar, which is also where every workspace is navigated.
+ // There is one sidebar: Home and Calendar, then a section for Personal and one for each team. A workspace opens from its header.
  let current = 'personal';
- const switcher = async () => { await page.getByTestId('workspace-switcher').click(); await page.getByTestId('switcher-menu').waitFor(); };
- const switchUniversal = async () => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="universal"]').click(); };
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
- const switchTo = async (id) => { await switcher(); await page.getByTestId('switcher-menu').locator('[data-workspace="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
+ const switchUniversal = async () => { await side.locator('[data-page=inbox]').click(); };
+ const switchTo = async (id) => { await side.locator('[data-open="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
  // Chooses one button of a group in the window's Settings, Appearance, and goes back to where the person was.
  const chooseInAppearance = async (group, button) => {
    const size = page.viewportSize();
    await page.setViewportSize({ width: 1440, height: 1000 });
-   const universal = (await page.getByTestId('workspace-switcher').getAttribute('aria-label')).includes('Showing Universal');
+   const universal = (await side.locator('[data-page=inbox][aria-current=page]').count()) > 0;
    const active = side.locator('[aria-current=page]').first();
    const place = await active.count() ? await active.getAttribute('data-page') : null, project = await active.count() ? await active.getAttribute('data-project') : null;
    await side.locator('[data-page=settings]').click();
@@ -79,7 +78,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    assert.equal(await window.locator('iframe[data-workspace^="team:"]').count(), 0, 'startup does not restore a Team workspace');
  };
 
- await page.goto(origin + '/shell/shell/index.html'); await page.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor();
+ await page.goto(origin + '/shell/shell/index.html'); await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
  await assertUniversalStartup(page);
  const shellSkip = page.getByRole('link', { name: 'Skip to main content', exact: true }); await page.keyboard.press('Tab'); assert.equal(await shellSkip.evaluate(el => el === document.activeElement), true, 'shell skip link is first in the page focus order');
  assert((await shellSkip.boundingBox()).y >= 0, 'shell skip link is visible when focused'); await page.keyboard.press('Enter');
@@ -93,13 +92,13 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').getByText('Live', { exact: true }).count(), 0, 'no live status indicator in Individual');
  console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
- // Universal carries cross-workspace destinations on its hub and keeps the shared sidebar minimal.
+ // Home carries the cross-workspace pages (Needs you, Calendar); the sidebar is the same one everywhere.
  await switchUniversal();
- await page.getByRole('heading', {name:'Universal',exact:true}).waitFor();
+ await page.getByRole('heading', {name:'Home',exact:true}).waitFor();
  await page.getByRole('group', {name:'Calendar presentation'}).waitFor();
- assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 0);
+ assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 2, 'Home and Calendar are in the sidebar');
  assert.equal(await side.locator('[data-page=personal-library]').count(), 1, 'the Data library is reachable from every view');
- console.log('PASS Universal: workspaces and Calendar live on the hub, with a minimal sidebar');
+ console.log('PASS Home: Needs you and Calendar live on the hub, beside the one sidebar');
  await switchTo('personal');
  // At intermediate widths the icon rail has a keyboard- and pointer-discoverable way to reveal names.
  await page.setViewportSize({ width: 1024, height: 768 });
@@ -125,7 +124,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await railToggle.getAttribute('aria-expanded'), 'false', 'pointer activation collapses the labeled rail');
  console.log('PASS shell rail expands its accessible labels and long project name by keyboard or pointer at 1024px');
  await page.setViewportSize({ width: 1440, height: 1000 });
- // In workspace mode the sidebar shows workspace destinations; native Universal destinations remain routable.
+ // Every section's places stay in the sidebar, and the window's own pages remain routable.
  const many = await api(origin, '', 'POST', '/fixture/call', { Method: 'Workspaces', Args: [] });
  await page.route('**/fixture/call', async route => { try {
    const body = route.request().postDataJSON();
@@ -139,16 +138,14 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    return await route.continue();
  } catch (e) { if (!/already handled|closed/i.test(String(e))) throw e; } });
  await wait(async () => (await side.locator('[data-page=ws-home]').innerText()).includes('1'), 'Workspace retains its count');
- assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 0, 'workspace mode keeps cross-workspace destinations out of the sidebar');
+ assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 2, 'Home and Calendar are in the sidebar from every place');
  for (const destination of ['calendar', 'inbox']) {
    await page.evaluate(destination => window.__shellGo(destination), destination);
-   await page.getByRole('heading', { name: destination === 'calendar' ? 'Calendar' : 'Workspaces', exact: true }).waitFor();
+   await page.getByRole('heading', { name: destination === 'calendar' ? 'Calendar' : 'Home', exact: true }).waitFor();
  }
  await page.unrouteAll({ behavior: 'ignoreErrors' });
- await switcher();
- const restoredSwitcher = page.getByTestId('switcher-menu');
- await restoredSwitcher.locator('[data-workspace="team:main"]').waitFor();
- await restoredSwitcher.locator('[data-workspace="personal"]').click();
+ await side.locator('[data-open="team:main"]').waitFor();
+ await side.locator('[data-open="personal"]').click();
  await page.locator('iframe[data-workspace="personal"]').waitFor({ state: 'visible' });
  // The theme is chosen in Settings and reaches the workspace that is open.
  assert.equal(await side.getByRole('button', { name: /(light|dark) theme/i }).count(), 0);
@@ -166,7 +163,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await firstFrame.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Git', exact: true }).waitFor();
  await side.locator('[data-project][aria-current=page]').waitFor();
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
- await side.getByRole('button', { name: 'Reviews', exact: true }).click(); await side.locator('[data-page=ws-reviews][aria-current=page]').waitFor();
+ await side.locator('[data-section="team:main"]').getByRole('button', { name: 'Reviews', exact: true }).click(); await side.locator('[data-page=ws-reviews][aria-current=page]').waitFor();
  console.log('PASS Team: the same sidebar lists its places, theme follows Settings, no rail of its own');
  // The style (Paper, Graphite, Classic) is chosen in the window's Settings beside the theme and reaches every workspace: an open one
  // at once, and one that was closed when the person went back to Paper when it is opened again. A workspace is on another origin and
@@ -214,7 +211,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.frameLocator('iframe[data-hosted="personal"]').getByRole('button', { name: 'Add a phone', exact: true }).waitFor();
  assert.equal(await page.frameLocator('iframe[data-hosted="personal"]').locator('.sections').isVisible(), false, 'Individual\'s own list of sections is not shown inside the window\'s Settings');
  await switchUniversal(); await side.locator('[data-page=settings]').click(); await sections.waitFor();
- for (const owner of ['Individual', 'Northstar Studio']) await sections.locator('[data-owner="' + owner + '"]').waitFor();
+ for (const owner of ['Personal', 'Northstar Studio']) await sections.locator('[data-owner="' + owner + '"]').waitFor();
  await page.getByTestId('help-button').click(); await page.frameLocator('iframe[data-hosted="personal"]').getByRole('heading', { name: 'Find the next step' }).waitFor();
  assert.equal(await page.getByTestId('help-button').count(), 0, 'Help does not offer itself while it is open');
  console.log('PASS Settings and Help: one screen from Universal, Individual and Team; theme follows Settings');
@@ -273,7 +270,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const importedTask = (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/tasks`)).tasks.find(t => t.id === active.taskId);
  assert(importedTask, 'the execution belongs to an imported local task');
  await switchUniversal();
- await switchUniversal(); await page.getByRole('heading',{name:'Universal',exact:true}).waitFor();
+ await switchUniversal(); await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
  const idleAction = page.getByRole('button', { name: 'Review turn: ' + importedTask.title + ' is waiting for your next message', exact: true });
  await idleAction.waitFor();
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/input`, { text: 'ask' });
@@ -298,7 +295,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await inline.waitFor();
  const questionRow = page.getByTestId('attention-item').filter({ hasText: 'Answering this question' });
  assert.equal(await page.getByText('Commit the fixture work?', { exact: true }).count(), 1, 'expanded shell Inbox states the question only in its answer card');
- assert(await questionRow.innerText().then(text => text.includes('Individual') && text.includes('Customer portal') && text.includes(importedTask.title)), 'expanded question keeps workspace, project and task provenance');
+ assert(await questionRow.innerText().then(text => text.includes('Personal') && text.includes('Customer portal') && text.includes(importedTask.title)), 'expanded question keeps workspace, project and task provenance');
  assert.equal(await inline.locator(':focus').count(), 0, 'no choice is focused on expansion');
  await capture('attention-expanded');
  const realOverview = await api(origin, '', 'POST', '/fixture/call', { Method: 'Overview', Args: [] });
@@ -320,7 +317,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await capture('workspaces');
  console.log('PASS inline Individual answer, no focused choice, stale disabling, reconnect, delivery and responsive Workspaces attention');
  await page.setViewportSize({ width: 480, height: 844 });
- await page.getByRole('heading',{name:'Universal',exact:true}).waitFor();
+ await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
  const calendarEvent = page.getByRole('button', { name: /Review the customer portal navigation/ }).first(); await calendarEvent.waitFor();
  await page.screenshot({ path: path.join(artifacts, 'calendar-mobile.png'), fullPage: true }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
  const eventWidth = await calendarEvent.evaluate(e => e.getBoundingClientRect().width); assert(eventWidth > 100, 'Calendar keeps a readable event target');
@@ -347,7 +344,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    // Persistence is acknowledged before the sheet's exit transition removes its DOM.
    // Require both the saved title above and actual editor removal, without assuming they share a frame.
    await editor.waitFor({ state: 'detached' });
-   assert(await page.getByRole('heading',{name:'Universal',exact:true}).isVisible()); assert.equal(await editor.count(),0,'editor closes after acknowledged save');
+   assert(await page.getByRole('heading',{name:'Home',exact:true}).isVisible()); assert.equal(await editor.count(),0,'editor closes after acknowledged save');
  }
  // Scheduled events retain their time of day and still carry a shared request, distinct from planned dates.
  const beforeSchedule=(await team('GET',`/projects/${project.id}/schedules`)).find(s=>s.ticketId===scheduled.id);
@@ -365,11 +362,11 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.setViewportSize({ width: 1440, height: 1000 });
  console.log('PASS workspaces and devices page in desktop/mobile shell');
  console.log('PASS persistent frames, member restrictions, hosting offer and background run through switching');
- await page.reload(); await page.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor(); await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
+ await page.reload(); await page.getByRole('heading', { name: 'Home', exact: true }).waitFor(); await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  await page.close(); assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'closing frontend leaves runner alive');
- const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor();
+ const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'Home', exact: true }).waitFor();
  await assertUniversalStartup(reopened);
- await reopened.getByTestId('workspace-switcher').click(); await reopened.getByTestId('switcher-menu').locator('[data-workspace="team:main"]').click(); await reopened.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
+ await reopened.locator('nav[aria-label="Werkbord"] [data-open="team:main"]').click(); await reopened.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/stop`, {});
  // Leaving the second team removes only that membership and keeps Individual + first team.
  const state = await secondDev('GET', '/state'); const caps = await otherTeam('GET', '/devices'); const device = caps.find(d => d.id === state.deviceId); assert(!device.capabilities.includes('workspace_host'));

@@ -3,7 +3,7 @@
   import { ask } from './native';
   import { model } from './model.svelte';
 
-  // Adding a Team is two ordinary things: a place to create one or join one (Team's own screens do the rest), and, the first
+  // Adding a team is two ordinary things: a place to create one or join one (the team's own screens do the rest), and, the first
   // time on this Mac, Team's service, which needs the person's say-so and an administrator password. Nothing here installs
   // anything: it asks the app, and the app asks the person.
   const team = $derived(model.view?.team);
@@ -12,7 +12,7 @@
   const releases = 'https://github.com/micho8cho93/werkbord/releases';
 </script>
 
-<Sheet title="Add a Team" onclose={() => (model.addOpen = false)}>
+<Sheet title="New team or join" onclose={() => (model.addOpen = false)}>
 <div data-testid="add-team-dialog">
   {#if model.view?.invitation}<p class="note">You opened a Team invitation. It will be used to join.</p>{/if}
 
@@ -30,9 +30,9 @@
       <button class="btn" type="button" onclick={() => (model.addOpen = false)}>Not now</button>
     </div>
   {:else}
-    <p>Create a Team for your organization, or join one with an invitation from its administrator. You can belong to several.</p>
+    <p>Create a team, or join one with an invitation from its administrator. You can belong to several. A team of up to two people is free; a team of three or more needs Premium.</p>
     <div class="actions">
-      <button class="btn primary" type="button" onclick={() => model.addTeam()} disabled={!!model.busy} data-testid="add-team-continue">Create or join a Team</button>
+      <button class="btn primary" type="button" onclick={() => model.addTeam()} disabled={!!model.busy} data-testid="add-team-continue">Create or join a team</button>
       <button class="btn" type="button" onclick={() => (model.addOpen = false)}>Cancel</button>
     </div>
   {/if}

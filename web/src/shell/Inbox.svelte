@@ -18,7 +18,7 @@
     return !!e?.summary && !e.error && e.workspace.state === 'ready' && now - Date.parse(e.summary.at) < 30000;
   }
   async function answerWith(q: Question, answer: string): Promise<Question> {
-    if (!available('personal')) throw new Error('Individual is offline or stale. Reconnect before answering.');
+    if (!available('personal')) throw new Error('Personal is offline or stale. Reconnect before answering.');
     const result = await ask(a => a.Relay('personal', 'AnswerQuestion', [{ projectId: q.projectId, questionId: q.id, answer }])) as {
       status: number; body: Question & { error?: {code: string; message: string}; question?: Question };
     };
@@ -33,7 +33,7 @@
 
   // What waits for the person or that they should know about, from every workspace: an agent's question, work that is blocked
   // or failed, a review someone asked for, and warnings about the machines a Team depends on. Worst first.
-  // `embedded` is the Universal hub's panel: no title or tally of its own (the hub shows them), no page padding.
+  // `embedded` is Home's panel: no title or tally of its own (the hub shows them), no page padding.
   let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
 
   const groups = $derived(overview ? attentionGroups(overview) : []);

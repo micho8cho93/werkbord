@@ -61,7 +61,7 @@
   {:else if preview?.workspace && proposal.success}
     <h3><WorkspaceIcon icon={preview.workspace.icon} name={preview.workspace.name} size={18} />{preview.workspace.name}</h3>
     {#if previous}<p>Editing {previous.name} · revision {proposal.data.revision} · {previous.id}</p>{:else}<p>New workspace · {proposal.data.collections.some(c => c.revision > 0) ? 'reuses saved personal data' : 'collections start empty'}</p>{/if}
-    <p>Show in: {[preview.workspace.visibility.universal ? 'Universal' : '', preview.workspace.visibility.individual ? 'Individual' : '', ...(preview.workspace.visibility.teamWorkspaceIds ?? [])].filter(Boolean).join(', ')}</p>
+    <p>Show in: {[preview.workspace.visibility.universal ? 'Home' : '', preview.workspace.visibility.individual ? 'Personal' : '', ...(preview.workspace.visibility.teamWorkspaceIds ?? [])].filter(Boolean).join(', ')}</p>
     {#if previous}<details><summary>Previous definition and locations</summary><pre>{JSON.stringify(previous, null, 2)}</pre></details>{/if}
     <details><summary>Review fields and record controls</summary>
       {#each proposal.data.collections as c (c.id)}

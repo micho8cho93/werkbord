@@ -47,7 +47,7 @@
 </script>
 
 <section class="pn sharing" aria-labelledby="sharing-title">
-  <h2 id="sharing-title" class="band">Individual memory</h2>
+  <h2 id="sharing-title" class="band">Personal memory</h2>
   <p class="intro">Choose which projects share short notes with a Team. Nothing leaves this computer until you turn it on for a project, and a note about decisions is only shared after you approve its exact words.</p>
   <details class="about"><summary>What is shared</summary>
     <p class="muted">Git metadata means validated commit and pull request identities. Summaries and architectural decisions are separate choices. Personal preferences, private sessions, transcripts, source code, credentials, environment variables and local paths are never exported. Turning a project off withdraws its shared notes once the Team acknowledges it; copies already read or backed up may remain.</p>

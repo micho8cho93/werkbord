@@ -76,7 +76,7 @@
       <div class="icon-choice"><WorkspaceIcon {icon} name={name} size={24} /><span>Workspace icon</span><button class="btn add" type="button" disabled={busy} onclick={chooseIcon}>New icon</button></div>
       <p>A Lucide icon matched to this workspace. New icon picks the closest available match that another workspace is not using.</p>
       <fieldset disabled={busy}><legend>Show in</legend>
-        <label><input type="checkbox" bind:checked={universal} /> Universal</label><label><input type="checkbox" bind:checked={individual} /> Individual</label>
+        <label><input type="checkbox" bind:checked={universal} /> Home</label><label><input type="checkbox" bind:checked={individual} /> Personal</label>
         {#each teams as team (team.id)}<label><input type="checkbox" bind:group={selectedTeams} value={team.id} /> {team.name}</label>{/each}
         {#each selectedTeams.filter(id => !teams.some(t => t.id === id)) as id (id)}<label><input type="checkbox" bind:group={selectedTeams} value={id} /> Unavailable Team ({id})</label>{/each}
       </fieldset>

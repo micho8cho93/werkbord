@@ -981,9 +981,11 @@ See [EXECUTION_COORDINATION.md](EXECUTION_COORDINATION.md).
 
 ### The window and its workspaces
 
-Werkbord on a Mac is one window with the Individual workspace (the person's own Werkbord) and any number of Team workspaces. Each
-workspace keeps its own backend, database, credentials and design, isolated from the others; the window is a user-scoped
-frontend and launcher around them. The Individual controller and the Team service stay independent services.
+Werkbord on a Mac is one window with the person's **Personal** projects (their own Werkbord, on this computer) and any number of
+**teams**. A project is one or the other: Personal, or a team's. Each keeps its own backend, database, credentials and design, isolated
+from the others; the window is a user-scoped frontend and launcher around them. The controller (which runs the person's own agents)
+and the Team service stay independent services, because that boundary is what keeps credentials safe. There is no mode to choose and no
+switcher: one sidebar shows both.
 
 Build with `make desktop` or run with `make desktop-dev`. `make web-shell` builds
 the desktop Svelte entry separately from the Individual PWA. The shell shares
@@ -992,15 +994,17 @@ Team backend imports. Team continues serving its existing console, including
 `?tab=…&project=…&ticket=…` routes. Individual keeps its `#/p/…` routes, CLI,
 `devboard` aliases and every `DEVBOARD_*` variable.
 
-The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name with the open
-workspace under it (**werkbord / Individual ▾**, **werkbord / <workspace> ▾**), which opens the switcher (Individual,
-each enrolled Team workspace, and Add a Team; ⌘⇧K opens the same menu); **Everywhere**, what spans every workspace
-(Workspaces, which gathers what needs you from every workspace with Individual in blue and each Team in violet, and Calendar); the open workspace's own places, listed under its name (Individual: Needs you,
-Projects and each project, Add project; Team: Workspace, Projects and each project, Reviews, Members); and last Workspaces
-and devices, the Settings of the workspace that is open, and the theme. Choosing a place asks the workspace to show it
-(`werkbord.navigate`, a place inside the page); the workspace says where it is (`werkbord.frame`/`place`) and the sidebar
-marks that entry. The projects are the ones each workspace reports in its summary. There is no connection-status
-indicator anywhere.
+The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name (which goes Home); **Salie**
+(the sidebar button; the floating button is the other way in, and the person chooses either or both); **Home**, which gathers what
+needs you from Personal and every team, each in its own colour (Personal blue, a team another hue), and **Calendar**; then **a
+section for Personal and one for each team the person belongs to**, each listing its own projects and places (Personal: its projects,
+New personal project, Analytics; a team: its projects, Reviews, People, Analytics) and the saved workspaces Salie made for it, and
+foldable (remembered on this computer); and last, pinned, New team or join…, Devices & Hosting, the Data library, Settings and the
+plan chip (Free or Premium; [PLANS.md](PLANS.md)). **Go to…** (⌘K, or the Workspace menu) reaches any project, place or page by typing.
+Choosing a place asks the workspace to show it (`werkbord.navigate`, a place inside the page); the workspace says where it is
+(`werkbord.frame`/`place`) and the sidebar marks that entry. The projects are the ones each workspace reports in its summary. There
+is no connection-status indicator anywhere. Where the shell needs to say whether a page is a workspace's or the window's own it
+keeps one flag (`model.universal`); it is not a mode the person sets.
 
 The workspaces themselves keep their design and their pages, but inside the window they carry no navigation of their own:
 Individual does not show its rail, and Team does not show its rail; a project's own sections stay with the project

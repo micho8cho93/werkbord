@@ -1,13 +1,13 @@
 // What Settings lists, for the part of Werkbord the person is in. Pure: the Settings page is built from this.
 //
 // Settings is one screen whichever place the person comes from. The same groups appear everywhere, and a section appears only
-// where it changes something of that place: Individual's task defaults are not Team's, Team's labels and hosts are not
-// Individual's. Universal lists everything, a workspace at a time. A section is either the shell's own (Appearance, Alerts) or a
+// where it changes something of that place: Personal's task defaults are not a team's, a team's labels and hosts are not
+// Personal's. Home lists everything, a workspace at a time. A section is either the shell's own (Appearance, Alerts) or a
 // page of the workspace it belongs to, shown here without that page's own navigation.
 
 import type { Item, Kind } from './types';
 
-/** Which part of Werkbord Settings is for: Universal, Individual, or one Team workspace (its id). */
+/** Which part of Werkbord Settings is for: Home (everything), Personal, or one team (its id). */
 export type Scope = { kind: 'universal' } | { kind: 'personal' } | { kind: 'team'; id: string };
 
 export type Native = 'appearance' | 'alerts' | 'plan';
@@ -27,7 +27,7 @@ export interface Section {
 export interface Group {
   /** Shown above the sections; the same words in every scope. */
   label: string;
-  /** Which workspace a group of Universal belongs to, when there is more than one to tell apart. */
+  /** Which workspace a group of Home's list belongs to, when there is more than one to tell apart. */
   owner?: string;
   sections: Section[];
 }
@@ -42,7 +42,7 @@ function personal(): Group[] {
   return [
     { label: 'Work', sections: [at('defaults', 'Task defaults', ''), at('history', 'Project history', '?history'), at('routing', 'Routing rules', '?routing'), at('time', 'Time format', '?time')] },
     { label: 'Machines', sections: [at('runners', 'Runners', '?runners'), at('agents', 'Agents', '?agents'), at('computer', 'This computer', '?computer')] },
-    { label: 'Connections', sections: [at('phones', 'Phones', '?phones'), at('github', 'GitHub', '?github'), at('mcp', 'MCP services', '?mcp'), at('memory', 'Individual memory', '?memory')] },
+    { label: 'Connections', sections: [at('phones', 'Phones', '?phones'), at('github', 'GitHub', '?github'), at('mcp', 'MCP services', '?mcp'), at('memory', 'Personal memory', '?memory')] },
   ];
 }
 
@@ -82,7 +82,7 @@ export function groupsFor(scope: Scope, items: readonly Item[] | undefined): Gro
   if (scope.kind === 'personal') return [general(), ...personal()];
   if (scope.kind === 'team') return [general(), ...team(scope.id)];
   const out: Group[] = [general()];
-  out.push(...personal().map((g) => ({ ...g, owner: 'Individual' })));
+  out.push(...personal().map((g) => ({ ...g, owner: 'Personal' })));
   for (const t of teamsOf(items)) out.push(...team(t.id).map((g) => ({ ...g, owner: t.name })));
   return out;
 }

@@ -5,7 +5,7 @@
 </script>
 
 <div class="placements">
-  {#each [{ key: 'universal', label: 'Universal' }, { key: 'workspace', label: 'Individual and Team' }] as scope (scope.key)}
+  {#each [{ key: 'universal', label: 'Home and the window’s own pages' }, { key: 'workspace', label: 'Personal and team projects' }] as scope (scope.key)}
     <fieldset>
       <legend>{scope.label}</legend>
       <div class="seg" role="group" aria-label="Salie placement in {scope.label}">

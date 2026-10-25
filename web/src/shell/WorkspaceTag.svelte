@@ -3,9 +3,9 @@
   let { workspace }: { workspace: Entry } = $props();
 </script>
 
-<!-- Individual is blue, a Team is violet, wherever a workspace is named across the window. -->
+<!-- Personal is blue, a team is violet, wherever a workspace is named across the window. -->
 <span class="tag" data-kind={workspace.kind} title={workspace.kind === 'personal' ? 'Your own Werkbord on this computer' : 'A Team workspace'}>
-  <span class="dot" aria-hidden="true"></span>{workspace.kind === 'personal' ? 'Individual' : workspace.name}
+  <span class="dot" aria-hidden="true"></span>{workspace.kind === 'personal' ? 'Personal' : workspace.name}
 </span>
 
 <style>

@@ -36,7 +36,7 @@
   const GROUPS = [
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'history', label: 'Project history' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
-    { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Individual memory' }] },
+    { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Personal memory' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
   // A phone's own settings are its sign-in and its display; the rest is changed at the computer.

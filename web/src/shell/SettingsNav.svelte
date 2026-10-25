@@ -2,7 +2,7 @@
   import { model } from './model.svelte';
 
   // The sections of Settings for where the person is: the same groups everywhere, and in each only what changes something there.
-  // Universal lists everything, a workspace at a time. On a narrow window the list becomes a menu.
+  // Home lists everything, a workspace at a time. On a narrow window the list becomes a menu.
   const groups = $derived(model.settingsGroups);
   const shown = $derived(model.settingsShown);
   const many = $derived(new Set(groups.map((g) => g.owner).filter(Boolean)).size > 1);

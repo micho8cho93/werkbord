@@ -168,16 +168,16 @@ returns anything the page does not already hold, and nothing acts without a nati
 
 ## Settings, Help and alerts
 
-**Settings is one screen of the window**, the same from Universal, Individual and any Team. It lists the same groups (General, Work,
+**Settings is one screen of the window**, the same from Home, Personal and any team. It lists the same groups (General, Work,
 Machines, Connections, and Workspace for a Team) and in each only what changes something of the part of Werkbord you are in:
-Individual has Task defaults, Routing rules, Runners, Agents, GitHub and Individual memory; a Team has Labels, Devices, Workspace
-Hosts, Connectivity, Team memory, Backups and License; both have This computer, Phones and MCP; Universal lists everything, a
-workspace at a time. Appearance (the theme, for the whole window) and Alerts are the window's own. Every other section is the
+Personal has Task defaults, Routing rules, Runners, Agents, GitHub and Personal memory; a team has Labels, Devices, Workspace
+Hosts, Connectivity, Team memory and Backups; both have This computer, Phones and MCP; Home lists everything, a
+workspace at a time. Plan (Free or Premium, and the unlock key) is the window's own, like Appearance and Alerts. Appearance (the theme, for the whole window) and Alerts are the window's own. Every other section is the
 owning workspace's page, shown in a frame of its own (`?hosted=1`, `web/src/shell/FrameHost.svelte`) without that page's own
 navigation, so showing a workspace's settings never moves the workspace you are in. A page's link to settings (`#/settings?phones`,
 `?tab=devices`) asks the window for that section (`frames.ts`, event `settings`). `web/src/shell/settings.ts` is the list.
 
-**Help** is the button in the bottom right corner of the window and opens Individual's guides and shortcuts, hosted the same way.
+**Help** is the button in the bottom right corner of the window and opens Personal's guides and shortcuts, hosted the same way.
 
 **Alerts.** A web view has no notifications, so the window shows them: when Individual says a question needs you, a run is blocked or
 failed, or work is ready for review, and the app is behind another one, the Mac shows a notification and bounces the Dock icon (a

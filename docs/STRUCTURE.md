@@ -27,6 +27,10 @@ Team defaults to customer-owned Nebula, administrator-approved enrollment and de
 Connectivity Hosts, backups and local runners. Individual's tsnet support is separate. See [TEAM_SECURITY.md](TEAM_SECURITY.md),
 [TEAM_INSTALL.md](TEAM_INSTALL.md), [PLANS.md](PLANS.md) and the [release gate](TEAM_SECURITY_GATE.md).
 
+> **Words in the interface.** What this page and the code call *Individual* (the controller, `kind: personal` on the wire) is **Personal**
+> in the window: a project is Personal or a team's. "Universal" is gone; its page is **Home**. The wire values `"personal"` and the saved
+> workspaces' `visibility.universal`/`individual` fields keep their names because other programs and stored data speak them.
+>
 > **Naming.** Werkbord was called Dev Board. Since Werkbord 1.0 the executable is `werkbord`, and everything a person
 > sees or types says so. What existing installs depend on keeps working, indefinitely and without nagging: the `devboard`
 > command (installed beside `werkbord`), every `DEVBOARD_*` variable (read after its `WERKBORD_*` name), the data

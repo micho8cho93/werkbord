@@ -100,7 +100,7 @@ func (d *Daemon) importExecutionTask(ctx context.Context, bridge *localwerkbord.
 		}
 	}
 	if pid == "" {
-		return "", "", errors.New("register this repository in your Individual controller first")
+		return "", "", errors.New("register this repository in Werkbord on this computer first")
 	}
 	title := []rune(hf.Ticket.Key + ": " + hf.Ticket.Title)
 	if len(title) > 200 {

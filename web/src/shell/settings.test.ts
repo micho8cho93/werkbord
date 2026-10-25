@@ -14,12 +14,12 @@ describe('what Settings lists', () => {
     expect(personal).toEqual(['General', 'Work', 'Machines', 'Connections']);
     expect(acme).toEqual(['General', 'Work', 'Machines', 'Connections', 'Workspace']);
     expect(labels({ kind: 'personal' })).toContain('Task defaults');
-    expect(labels({ kind: 'personal' })).toContain('Individual memory');
+    expect(labels({ kind: 'personal' })).toContain('Personal memory');
     expect(labels({ kind: 'personal' })).not.toContain('Labels');
     expect(labels({ kind: 'team', id: 'team:a' })).toContain('Team memory');
     expect(labels({ kind: 'team', id: 'team:a' })).toContain('Workspace Hosts');
     expect(labels({ kind: 'team', id: 'team:a' })).not.toContain('Task defaults');
-    expect(labels({ kind: 'team', id: 'team:a' })).not.toContain('Individual memory');
+    expect(labels({ kind: 'team', id: 'team:a' })).not.toContain('Personal memory');
   });
 
   it('has Plan among the window’s own settings in every scope: Free or Premium is about this person, not a workspace', () => {
@@ -34,9 +34,9 @@ describe('what Settings lists', () => {
     }
   });
 
-  it('lists everything in Universal, a workspace at a time, with no section twice', () => {
+  it('lists everything on Home, a workspace at a time, with no section twice', () => {
     const groups = groupsFor({ kind: 'universal' }, items);
-    expect(groups.map((g) => g.owner).filter(Boolean).filter((o, i, a) => a.indexOf(o) === i)).toEqual(['Individual', 'Acme', 'Beta']);
+    expect(groups.map((g) => g.owner).filter(Boolean).filter((o, i, a) => a.indexOf(o) === i)).toEqual(['Personal', 'Acme', 'Beta']);
     const ids = sectionsOf(groups).map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toContain('team:a/hosts');

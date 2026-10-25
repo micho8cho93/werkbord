@@ -8,23 +8,26 @@
   import { counts } from './aggregate';
   import { model } from './model.svelte';
   import { plan } from './plan.svelte';
-  import { activeKey, entries, listed } from './nav';
+  import { activeKey, entries, listed, sectionColour, sectionItems, sectionPlaces } from './nav';
+  import type { Item } from './types';
 
   onMount(() => void plan.refresh());
 
-  // The window's one sidebar. Top to bottom: which workspace is open (and the switcher to change it), the open workspace's own
-  // places (its home, projects and so on) with Create with Salie and the workspaces Salie has made, and last, pinned to the
-  // bottom whatever else is shown, the things about this computer: Devices & Hosting, the Data library and Settings.
-  const active = $derived(model.view?.items.find((i) => i.id === model.current));
-  const kind = $derived(active?.kind ?? 'personal');
-  const name = $derived(model.universal ? 'Universal' : kind === 'personal' ? 'Individual' : active?.name ?? 'Individual');
-  // A workspace that cannot be shown (not running, too old) has nowhere to go to: the page says why instead.
-  const usable = $derived(!!model.frames[model.current] || active?.state === 'ready');
-  const summary = $derived(model.overview?.entries.find((e) => e.workspace.id === model.current)?.summary);
-  const projects = $derived(listed(summary?.projects));
-  const here = $derived(model.page === 'workspace' ? activeKey(kind, model.places[model.current]) : '');
+  // The window's one sidebar. Top to bottom: Salie, Home and Calendar (what spans everything), then a section for Personal and one
+  // for each team the person belongs to, each with its own projects and places, then Create with Salie, and last, pinned to the
+  // bottom whatever else is shown, the things about this computer: Devices & Hosting, the Data library, Settings and the plan.
+  // There is no switcher and no mode: a project is reached from the section it belongs to.
+  const sections = $derived(sectionItems(model.view?.items));
   const needs = $derived(model.overview ? counts(model.overview).needsYou : 0);
-  const reviews = $derived(kind === 'team' ? (summary?.attention.filter((a) => a.kind === 'review').length ?? 0) : 0);
+  const summaryOf = (id: string) => model.overview?.entries.find((e) => e.workspace.id === id)?.summary;
+  const nameOf = (i: Item): string => (i.kind === 'personal' ? 'Personal' : i.name);
+  // The place in a workspace the person is at now, as the section it belongs to: only for the workspace that is on show.
+  const hereIn = (i: Item): string => (model.page === 'workspace' && model.current === i.id ? activeKey(i.kind, model.places[i.id]) : '');
+  const reviewsOf = (i: Item): number => (i.kind === 'team' ? (summaryOf(i.id)?.attention.filter((a) => a.kind === 'review').length ?? 0) : 0);
+  const needsOf = (i: Item): number => (summaryOf(i.id)?.attention ?? []).filter((a) => a.severity !== 'info').length;
+  // A workspace that cannot be shown (not running, too old) has nowhere to go to inside it: its header opens the page that says why.
+  const usable = (i: Item): boolean => !!model.frames[i.id] || i.state === 'ready';
+  const generatedIn = (i: Item) => model.generatedFor(i.id);
 
   // A narrow window keeps room for the workspace's pages (they change to a phone layout under about 900px): the sidebar
   // folds to icons.
@@ -38,15 +41,9 @@
   // At intermediate window widths the rail starts with icons to leave room for work, but the
   // person can reveal the labels and project list without needing to guess what an icon means.
   let labelsOpen = $state(false);
-  const collapsed = $derived(model.universal ? !model.universalSidebarOpen : narrow ? !labelsOpen : model.sidebarCollapsed);
+  const collapsed = $derived(narrow ? !labelsOpen : model.sidebarCollapsed);
   const sidebarToggleLabel = $derived(collapsed ? (narrow ? 'Show sidebar labels' : 'Expand sidebar') : (narrow ? 'Hide sidebar labels' : 'Collapse sidebar'));
 
-  // Each time Universal is entered its sidebar starts folded: the page is the hub, the sidebar only switches and reaches the machine.
-  $effect(() => {
-    if (model.universal) model.universalSidebarOpen = false;
-  });
-
-  let switchButton: HTMLButtonElement | undefined = $state();
   let salieButton: HTMLButtonElement | undefined = $state();
   const sidebarSalie = $derived(salie.placements[model.universal ? 'universal' : 'workspace'] !== 'floating');
   $effect(() => {
@@ -54,10 +51,6 @@
     model.assistantSidebarButton = button;
     return () => { if (model.assistantSidebarButton === button) model.assistantSidebarButton = undefined; };
   });
-  $effect(() => {
-    model.switcherButton = switchButton;
-  });
-
 </script>
 
 {#snippet item(title: string, icon: IconName | string, current: boolean, go: () => void, id: string, count = 0)}
@@ -68,13 +61,12 @@
 {/snippet}
 
 <nav class="side" class:collapsed aria-label="Werkbord">
-  <button class="toggle" type="button" onclick={() => { if (model.universal || !narrow) model.toggleSidebar(); else labelsOpen = !labelsOpen; }} aria-label={sidebarToggleLabel} title={sidebarToggleLabel} aria-expanded={!collapsed} data-testid="sidebar-label-toggle">
+  <button class="toggle" type="button" onclick={() => { if (!narrow) model.toggleSidebar(); else labelsOpen = !labelsOpen; }} aria-label={sidebarToggleLabel} title={sidebarToggleLabel} aria-expanded={!collapsed} data-testid="sidebar-label-toggle">
     <Icon name={collapsed ? 'right' : 'left'} size={14} />
   </button>
 
-  <button bind:this={switchButton} class="switch" type="button" aria-haspopup="menu" aria-expanded={!!model.switcher} aria-label="Switch workspace. Showing {name}" title={name} onclick={() => model.toggleSwitcher()} data-testid="workspace-switcher">
+  <button class="brand-row" type="button" aria-label="werkbord. Go to Home" title="Home" onclick={() => model.go('inbox')} data-testid="brand">
     <span class="brand"><Mark height={20} /><span class="wm">werkbord</span></span>
-    <span class="mode"><span class="mode-name">{name}</span><Icon name="down" size={14} /></span>
   </button>
 
   <div class="top">
@@ -88,41 +80,62 @@
       {#if model.assistant.waiting}<span class="num" aria-label="{model.assistant.waiting} waiting for you">{model.assistant.waiting}</span>{:else if model.assistant.running}<span class="salie-working" role="status" aria-label="Salie is working"></span>{/if}
     </button>
   {/if}
-  {#if !model.universal}
-  <div class="group" aria-label={name}>
-    <div class="lbl" title={name}>{name}</div>
-    {#if usable}
-      {#each entries(kind) as e (e.key)}
-        {@render item(e.title, e.icon, here === e.key, () => model.visit(e.place), 'ws-' + e.key, e.key === 'reviews' ? reviews : e.key === 'home' ? needs : 0)}
-        {#if e.key === 'projects'}
-          {#each projects as p (p.id)}
-            <button class="nav proj" type="button" aria-current={here === `project:${p.id}` ? 'page' : undefined} onclick={() => model.visit(p.href)} title={p.name} data-project={p.id}>
-              <span class="sq" aria-hidden="true"></span><span class="label">{p.name}</span>
-            </button>
-          {/each}
-          {#if kind === 'personal'}
-            <button class="nav proj add" type="button" onclick={() => model.visit('#/projects')} title="Add a project" data-page="add-project">
-              <Icon name="plus" size={14} /><span class="label">Add project</span>
-            </button>
-            {@render item('Analytics', 'analytics', here === 'analytics', () => model.visit('#/analytics'), 'ws-analytics')}
-          {/if}
-        {/if}
-      {/each}
-    {:else}
-      {@render item('Workspace', 'control', model.page === 'inbox', () => model.go('inbox'), 'inbox', needs)}
-    {/if}
-  </div>
 
-  <div class="group generated">
-    {@render item('Create with Salie', 'plus', false, () => { void model.customizeGenerated(); }, 'create-generated')}
-    {#each model.visibleGenerated as workspace (workspace.id)}
+  <div class="group" aria-label="Everything">
+    {@render item('Home', 'control', model.page === 'inbox', () => model.go('inbox'), 'inbox', needs)}
+    {@render item('Calendar', 'calendar', model.page === 'calendar', () => model.go('calendar'), 'calendar')}
+    {#each model.generatedFor('universal') as workspace (workspace.id)}
       {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
     {/each}
+    {@render item('Create with Salie', 'plus', false, () => { void model.customizeGenerated(); }, 'create-generated')}
     {#if model.generatedError}<button class="nav" title={model.generatedError} aria-label="Saved workspaces unavailable. Retry" onclick={() => model.refreshGenerated()}><Icon name="reply" /><span class="label">Retry saved workspaces</span></button>{/if}
   </div>
-  {/if}
+
+  {#each sections as i (i.id)}
+    {@const kind = i.kind}
+    {@const folded = model.folded.includes(i.id)}
+    {@const here = hereIn(i)}
+    {@const home = entries(kind)[0].place}
+    <div class="group section" data-section={i.id} data-kind={kind} style:--sc={sectionColour(kind, i.id)} role="group" aria-label={nameOf(i)}>
+      <div class="shead">
+        <button class="fold" type="button" aria-expanded={!folded} aria-label="{folded ? 'Show' : 'Hide'} {nameOf(i)}" onclick={() => model.toggleSection(i.id)} data-testid="fold-{i.id}">
+          <Icon name={folded ? 'right' : 'down'} size={12} />
+        </button>
+        <button class="open" type="button" title={nameOf(i)} aria-current={here === 'home' ? 'page' : undefined} onclick={() => model.goTo(i.id, usable(i) ? home : undefined)} data-open={i.id} data-page="ws-home">
+          <span class="swatch" aria-hidden="true"></span><span class="label">{nameOf(i)}</span>
+          {#if !usable(i)}<span class="meta">{i.state === 'unavailable' ? 'not running' : i.state}</span>
+          {:else if needsOf(i)}<span class="num" aria-label="{needsOf(i)} waiting for you">{needsOf(i)}</span>{/if}
+        </button>
+      </div>
+      {#if usable(i) && !folded}
+        {#each listed(summaryOf(i.id)?.projects) as p (p.id)}
+          <button class="nav proj" type="button" aria-current={here === `project:${p.id}` ? 'page' : undefined} onclick={() => model.goTo(i.id, p.href)} title={p.name} data-project={p.id}>
+            <span class="sq" aria-hidden="true"></span><span class="label">{p.name}</span>
+          </button>
+        {/each}
+        {#if kind === 'personal'}
+          <button class="nav proj add" type="button" onclick={() => model.goTo(i.id, '#/projects')} title="New personal project" data-page="add-project">
+            <Icon name="plus" size={14} /><span class="label">New personal project</span>
+          </button>
+        {/if}
+        {#each sectionPlaces(kind) as e (e.key)}
+          <button class="nav proj place" type="button" aria-current={here === e.key ? 'page' : undefined} onclick={() => model.goTo(i.id, e.place)} data-page="ws-{e.key}">
+            <Icon name={e.icon} size={14} /><span class="label">{e.title}</span>
+            {#if e.key === 'reviews' && reviewsOf(i)}<span class="num" aria-label="{reviewsOf(i)} waiting for you">{reviewsOf(i)}</span>{/if}
+          </button>
+        {/each}
+        {#each generatedIn(i) as workspace (workspace.id)}
+          {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
+        {/each}
+      {/if}
+    </div>
+  {/each}
+
   </div>
   <div class="group bottom">
+    <button class="nav" type="button" onclick={() => (model.addOpen = true)} title="New team or join…" data-testid="add-team" data-page="add-team">
+      <Icon name="plus" /><span class="label">New team or join…</span>
+    </button>
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
     {@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}
     {@render item('Settings', 'settings', model.page === 'settings', () => model.openSettings(), 'settings')}
@@ -202,11 +215,8 @@
   .collapsed .toggle {
     align-self: center;
   }
-  .switch {
+  .brand-row {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
     width: 100%;
     padding: 6px 8px;
     border: 0;
@@ -217,8 +227,7 @@
     text-align: left;
     cursor: pointer;
   }
-  .brand,
-  .mode {
+  .brand {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -232,58 +241,84 @@
     letter-spacing: -0.06em;
     line-height: 1;
   }
-  .mode {
-    gap: 6px;
-    color: var(--text-2);
-    font-size: 13px;
-    font-weight: 500;
-  }
-  .mode-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .collapsed .switch {
-    align-items: center;
+  .collapsed .brand-row {
+    justify-content: center;
     padding: 6px 0;
   }
-  .collapsed .wm,
-  .collapsed .mode {
+  .collapsed .wm {
     display: none;
   }
+  /* A section: Personal, or one team. Its header names it in its colour; its projects and places sit under it. */
+  .section {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+  .shead {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .fold {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 28px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+  .open {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    min-height: 30px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+  .swatch {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    border-radius: 3px;
+    background: var(--sc, var(--accent));
+  }
+  .meta {
+    color: var(--text-2);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .proj.place { gap: 8px; }
+  .proj.place :global(svg) { flex: none; color: var(--text-2); }
+  .collapsed .fold, .collapsed .meta { display: none; }
+  .collapsed .open { justify-content: center; padding: 0; }
+  .collapsed .proj.place { display: none; }
+  .collapsed .section { margin-top: 6px; padding-top: 6px; }
   .group {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
-  .generated { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
-  .generated :global(svg) { flex: none; }
   .bottom {
     flex: none;
     margin-top: 6px;
     padding-top: 6px;
     border-top: 1px solid var(--border);
-  }
-  .lbl {
-    min-height: 14px;
-    padding: 14px 8px 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--text-2);
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-  .collapsed .lbl {
-    height: 1px;
-    min-height: 0;
-    margin: 6px 4px;
-    padding: 0;
-    background: var(--border);
-    font-size: 0;
   }
   .nav {
     display: flex;
@@ -308,15 +343,19 @@
   }
   .nav:hover,
   .toggle:hover,
-  .switch:hover,
-  .switch[aria-expanded='true'],
+  .brand-row:hover,
+  .open:hover,
+  .fold:hover,
+  .open[aria-current='page'],
   .nav[aria-current='page'] {
     background: var(--surface-2);
     color: var(--text);
   }
   .nav:focus-visible,
   .toggle:focus-visible,
-  .switch:focus-visible {
+  .brand-row:focus-visible,
+  .open:focus-visible,
+  .fold:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
   }

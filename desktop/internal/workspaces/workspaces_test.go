@@ -62,7 +62,7 @@ func (f *fake) Summary(ctx context.Context, l workspace.Listed) (workspace.Summa
 }
 
 func individualListed(state workspace.State) workspace.Listed {
-	return workspace.Listed{Entry: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Universal", State: state}, Root: "/", SummaryPath: "/api/workspace/v1/summary"}
+	return workspace.Listed{Entry: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Personal", State: state}, Root: "/", SummaryPath: "/api/workspace/v1/summary"}
 }
 
 func team(slot, name string, state workspace.State) workspace.Listed {
@@ -241,10 +241,10 @@ func TestOneWorkspaceThatDoesNotAnswerNeverHidesTheOthers(t *testing.T) {
 func TestADuplicateWorkspaceIdIsKeptFromTheFirstSourceOnly(t *testing.T) {
 	p := &fake{name: "Werkbord", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
 	evil := &fake{name: "Impostor", listed: []workspace.Listed{individualListed(workspace.StateReady)}}
-	evil.listed[0].Entry.Name = "Universal (impostor)"
+	evil.listed[0].Entry.Name = "Personal (impostor)"
 	r := NewRegistry(OpenState(""), nil, p, evil)
 	v := r.Refresh(bg)
-	if len(v.Items) != 1 || v.Items[0].Name != "Universal" || v.Items[0].Source != "Werkbord" {
+	if len(v.Items) != 1 || v.Items[0].Name != "Personal" || v.Items[0].Source != "Werkbord" {
 		t.Fatalf("%+v", v.Items)
 	}
 }

@@ -7,8 +7,8 @@
   import { model } from './model.svelte';
   import type { Item, Overview } from './types';
 
-  // Universal is a hub of its own: everything that spans the whole of Werkbord on one page, with no sidebar to go through. At
-  // the top, how much waits in each kind of workspace; then a shelf of every place to go (Individual, each Team, the workspaces
+  // Home is everything that spans the whole of Werkbord on one page. At the top, how much waits in Personal and in your teams;
+  // then a shelf of every place to go (Personal, each team, the workspaces
   // Salie made, the Data library); then what needs you beside the calendar. The panels scroll inside themselves, so the page
   // itself uses the whole window and does not scroll on a screen that is large enough.
   let { overview }: { overview: Overview | null } = $props();
@@ -29,8 +29,8 @@
 <section class="hub" aria-labelledby="hub-h">
   <header class="top">
     <div class="title">
-      <h1 id="hub-h">Universal</h1>
-      <p class="lede">{!overview ? 'Loading your workspaces…' : waiting ? `${waiting} ${waiting === 1 ? 'thing waits' : 'things wait'} for you across your workspaces.` : 'Nothing is waiting for you across your workspaces.'}</p>
+      <h1 id="hub-h">Home</h1>
+      <p class="lede">{!overview ? 'Loading Personal and your teams…' : waiting ? `${waiting} ${waiting === 1 ? 'thing waits' : 'things wait'} for you across Personal and your teams.` : 'Nothing is waiting for you across Personal and your teams.'}</p>
     </div>
     {#if overview}
       <ul class="tally" aria-label="Waiting by kind of workspace">
@@ -46,13 +46,13 @@
     {/if}
   </header>
 
-  <div class="places-heading"><h2>Workspaces</h2><button class="btn small add" type="button" onclick={() => { void model.customizeGenerated(); }}><Icon name="plus" size={14} />Create with Salie</button></div>
+  <div class="places-heading"><h2>Places</h2><button class="btn small add" type="button" onclick={() => { void model.customizeGenerated(); }}><Icon name="plus" size={14} />Create with Salie</button></div>
   <ul class="shelf" aria-label="Places to go">
     {#each places as i (i.id)}
       <li>
         <button class="tile" type="button" data-kind={i.kind} onclick={() => model.open(i.id)} data-testid="hub-workspace-{i.id}">
           <span class="swatch" aria-hidden="true"></span>
-          <span class="tx"><strong>{i.kind === 'personal' ? 'Individual' : i.name}</strong><small>{detail(i)}</small></span>
+          <span class="tx"><strong>{i.kind === 'personal' ? 'Personal' : i.name}</strong><small>{detail(i)}</small></span>
           {#if needs(i)}<span class="num" aria-label="{needs(i)} waiting for you">{needs(i)}</span>{/if}
         </button>
       </li>
