@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
-  import Composer from './Composer.svelte';
-  import Conversation from './Conversation.svelte';
+  import SessionContent from './SessionContent.svelte';
   import ModelPicker from './ModelPicker.svelte';
+  import SessionTabs from './SessionTabs.svelte';
   import { phone } from '../mobile/phone.svelte';
-  import { assistant } from './store.svelte';
+  import { assistant } from './sessions.svelte';
   import { colourOf, plan, prefersReducedMotion, Reveal } from './transition';
 
   // The assistant's whole-window surface. It opens out of the button that was pressed and closes back into it. The workspace
@@ -17,7 +17,6 @@
   let fxEdge: HTMLDivElement | undefined = $state();
   let fxBloom: HTMLDivElement | undefined = $state();
   let reveal: Reveal | null = null;
-  let armed = $state(false);
   let announcement = $state('');
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -127,19 +126,6 @@
     assistant.hide();
   }
 
-  // Starting over asks twice, when it would cost something.
-  let armedTimer: ReturnType<typeof setTimeout> | undefined;
-  const costs = $derived(assistant.running || assistant.waiting > 0);
-  function startOver() {
-    if (costs && !armed) {
-      armed = true;
-      clearTimeout(armedTimer);
-      armedTimer = setTimeout(() => (armed = false), 5000);
-      return;
-    }
-    armed = false;
-    void assistant.startOver();
-  }
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -162,25 +148,21 @@
       <header class="top">
         <div class="who">
           <h1 id="asst-title">Assistant</h1>
-          <ModelPicker />
+          {#key assistant.activeId}<ModelPicker assistant={assistant.active} />{/key}
         </div>
         <div class="acts">
-          {#if assistant.hasConversation || assistant.session}
-            <button class="btn quiet small" class:armed type="button" onclick={startOver} aria-label={armed ? 'Confirm starting over' : 'Start a new conversation'} data-testid="assistant-new">
-              <Icon name="plus" size={14} /><span class="wide">{armed ? (assistant.waiting > 0 ? 'Drops what is waiting' : 'Stops the reply') + '. Sure?' : 'New'}</span>
-            </button>
-          {/if}
           <button class="btn quiet close" class:phone-nav={phone.on} type="button" onclick={() => assistant.hide()} aria-label="Close assistant" title="Close ({isMac ? '' : 'Esc'})" data-testid="assistant-close">
             <Icon name="close" size={16} /><span class="wide">Close</span><kbd class="key wide">Esc</kbd>
           </button>
         </div>
       </header>
 
-      <Conversation />
-
-      {#if assistant.status === 'ready' || assistant.hasConversation}
-        <Composer />
-      {/if}
+      <SessionTabs />
+      <div class="session-panel" id="sally-panel" role="tabpanel" aria-labelledby="sally-tab-{assistant.activeId}">
+      {#key assistant.activeId}
+        <SessionContent store={assistant.active} />
+      {/key}
+      </div>
     </div>
     <p class="visually-hidden" role="status" aria-live="polite" data-testid="assistant-announce">{announcement}</p>
   </div>
@@ -205,6 +187,7 @@
   .surface[data-nav='on'] {
     --asst-nav: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   }
+  .session-panel { display:flex; flex-direction:column; min-height:0; flex:1; }
   .inner {
     display: flex;
     flex-direction: column;
@@ -302,15 +285,9 @@
   .close.phone-nav {
     display: none;
   }
-  .btn.armed {
-    color: #fff;
-  }
   @media (max-width: 640px) {
     .wide {
       display: none;
-    }
-    .btn.armed .wide {
-      display: inline;
     }
     .close {
       width: 44px;

@@ -1,4 +1,4 @@
-// The assistant, as the page holds it. One instance for the whole page: it is NOT tied to the screen that shows it, so
+// One conversation client per Sally tab, managed by sessions.svelte.ts. It is NOT tied to the screen that shows it, so
 // closing the screen, or going to another view, changes nothing about a reply that is streaming, a change that is waiting for
 // the person, or a file that is waiting to be sent. Those live here and on the server; the screen only looks at them.
 //
@@ -15,7 +15,7 @@ import { openUISystemPrompt } from './openui/library';
 import { persistedOpenUIState } from './openui/state';
 import { connectWorkspaces, answerWorkspace } from './workspaces';
 import { modelName, pickChoice, reasoningLevels, summary, type Choice } from './choice';
-import { Connection, type Link } from './stream';
+import { Connection, type Link, type StreamConnection, type ConnectionOptions } from './stream';
 import { FALLBACK_ORIGIN, type Origin } from './transition';
 import {
   activeReply,
@@ -90,6 +90,7 @@ let counter = 0;
 const uid = (p: string) => `${p}${Date.now().toString(36)}${(counter++).toString(36)}`;
 
 export class AssistantStore {
+  constructor(private storageKey = SESSION_KEY, private streamFactory: (options: ConnectionOptions) => StreamConnection = options => new Connection(options)) {}
   // ---- the screen ----
   mounted = $state(false);
   phase = $state<Phase>('closed');
@@ -122,12 +123,15 @@ export class AssistantStore {
   /** The clock the screen reads, so a file's time running out shows without anyone touching anything. */
   now = $state(Date.now());
 
-  private conn: Connection | null = null;
+  private conn: StreamConnection | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private pendingDeltas: AssistantEvent[] = [];
   private deltaFrame: number | ReturnType<typeof setTimeout> | undefined;
   private deltaFrameIsTimeout = false;
   private started = false;
+  private preparing: Promise<void> | undefined;
+  private resumeTimer: ReturnType<typeof setTimeout> | undefined;
+  private disposed = false;
 
   // ---- derived ----
   get isOpen(): boolean {
@@ -162,14 +166,15 @@ export class AssistantStore {
   // ---- start up ----
 
   /** Called once when the page starts. Picks up a conversation this tab already had, and listens to the desktop shell. */
-  init(): void {
+  init(managed = false): void {
     if (this.started) return;
     this.started = true;
-    const saved = restore(readStore('session', SESSION_KEY));
+    const saved = restore(readStore('session', this.storageKey));
     if (saved) {
       this.transcript = { items: saved.items, lastSeq: saved.lastSeq };
       void this.resume(saved.sessionId);
     }
+    if (managed) return;
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) this.wake();
@@ -201,7 +206,7 @@ export class AssistantStore {
     });
   }
 
-  private wake(): void {
+  wake(): void {
     if (!this.session) return;
     this.conn?.nudge();
   }
@@ -245,6 +250,12 @@ export class AssistantStore {
 
   /** Finds out what can be used on this computer. Safe to call again: "Check again" does. */
   async prepare(force = false): Promise<void> {
+    if (this.preparing) return this.preparing;
+    this.preparing = this.prepareOnce(force);
+    try { await this.preparing; } finally { this.preparing = undefined; }
+  }
+
+  private async prepareOnce(force: boolean): Promise<void> {
     if (this.status === 'loading') return;
     if (this.status === 'ready' && !force) {
       void this.refreshProviders();
@@ -255,7 +266,7 @@ export class AssistantStore {
       const r = await assistantApi.providers();
       this.providers = r.providers;
       this.policy = r.attachments;
-      this.choice = this.session ? this.choiceOf(this.session) : pickChoice(r.providers, this.savedChoice());
+      this.choice = this.session ? this.choiceOf(this.session) : pickChoice(r.providers, this.choice ?? this.savedChoice());
       this.status = this.choice ? 'ready' : 'no-provider';
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
@@ -270,7 +281,7 @@ export class AssistantStore {
       this.providers = r.providers;
       this.policy = r.attachments;
       if (!this.choice && !this.session) {
-        this.choice = pickChoice(r.providers, this.savedChoice());
+        this.choice = pickChoice(r.providers, this.choice ?? this.savedChoice());
         if (!this.choice) this.status = 'no-provider';
       }
     } catch {
@@ -294,15 +305,17 @@ export class AssistantStore {
   // ---- the conversation ----
 
   private async resume(id: string): Promise<void> {
+    if (this.disposed) return;
     try {
       const v = await assistantApi.get(id);
+      if (this.disposed) return;
       this.adopt(v);
       this.connect(v.id);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) this.lost('That conversation is over (Werkbord was restarted, or it was removed). Your next message starts a new one.');
       else if (e instanceof ApiError && (e.status === 401 || e.status === 403)) this.status = 'unauthorized';
       else if (e instanceof ApiError && e.status === 503) this.status = 'disabled';
-      else setTimeout(() => void this.resume(id), 4000); // the controller is not answering yet: try again, the transcript waits
+      else if (!this.disposed) this.resumeTimer = setTimeout(() => void this.resume(id), 4000); // the controller is not answering yet: try again, the transcript waits
     }
   }
 
@@ -330,7 +343,7 @@ export class AssistantStore {
 
   private connect(id: string): void {
     this.conn?.stop();
-    this.conn = new Connection({
+    this.conn = this.streamFactory({
       sessionId: id,
       after: () => this.transcript.lastSeq,
       onEvent: (e) => this.onEvent(e),
@@ -340,6 +353,7 @@ export class AssistantStore {
         else if (l === 'unavailable') this.status = 'disabled';
         else if (l === 'unauthorized') this.status = 'unauthorized';
       },
+      onSnapshot: (view) => this.adopt(view),
       onOpen: async () => {
         const v = await assistantApi.get(id);
         this.adopt(v);
@@ -349,6 +363,9 @@ export class AssistantStore {
   }
 
   private onEvent(e: AssistantEvent): void {
+    // Streams are session-scoped on the server; reject a misrouted event before it can
+    // change this session's cursor, approvals, workspace bridge or transcript.
+    if (e.sessionId !== this.session?.id) return;
     if (e.type === 'workspace_request') answerWorkspace(e);
     if (e.type === 'delta') {
       e.clientReceivedAt = performance.now();
@@ -728,7 +745,7 @@ export class AssistantStore {
     }
   }
 
-  private expireFiles(): void {
+  expireFiles(): void {
     for (const s of this.staged) if (s.state === 'ready' && s.expiresAt && s.expiresAt <= this.now) s.state = 'expired';
   }
 
@@ -760,7 +777,7 @@ export class AssistantStore {
     this.personalEditing = undefined;
     this.problem = '';
     this.link = 'idle';
-    writeStore('session', SESSION_KEY, null);
+    writeStore('session', this.storageKey, null);
   }
 
   // ---- keeping it for the life of the tab ----
@@ -770,13 +787,23 @@ export class AssistantStore {
     this.saveTimer = setTimeout(() => this.saveNow(), 400);
   }
 
-  private saveNow(): void {
+  saveNow(): void {
+    this.flushDeltas();
     clearTimeout(this.saveTimer);
     if (!this.session) {
-      if (this.transcript.items.length === 0) writeStore('session', SESSION_KEY, null);
+      if (this.transcript.items.length === 0) writeStore('session', this.storageKey, null);
       return;
     }
-    writeStore('session', SESSION_KEY, serialize(this.session.id, this.transcript));
+    writeStore('session', this.storageKey, serialize(this.session.id, this.transcript));
+  }
+
+  disconnect(): void {
+    this.disposed = true;
+    clearTimeout(this.resumeTimer);
+    this.flushDeltas();
+    clearTimeout(this.saveTimer);
+    this.conn?.stop();
+    this.conn = null;
   }
 
   /** Test seam: the connection, to prove it is not torn down when the screen closes. */
@@ -784,5 +811,3 @@ export class AssistantStore {
     return this.conn !== null;
   }
 }
-
-export const assistant = new AssistantStore();

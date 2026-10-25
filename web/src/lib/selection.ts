@@ -10,9 +10,9 @@ export const SELECTION_MODES: {value: SelectionMode; label: string; description:
 export function effectiveMode(c: Pick<ExecutionConfig,'mode'|'agent'>): SelectionMode { return c.mode ?? (c.agent ? 'manual' : 'lowest_cost'); }
 export function modeLabel(mode: SelectionMode): string { return SELECTION_MODES.find(x=>x.value===mode)?.label ?? 'Lowest cost'; }
 export interface ModelEconomics { input?:number; output?:number; intelligence?:number }
-export interface AgentPreference { enabled:boolean; billing:'auto'|'subscription'|'metered'|'excluded'; models?:Record<string,ModelEconomics> }
+export interface AgentPreference { enabled:boolean; directCLI?:boolean; cliSignedIn?:boolean; billing:'auto'|'subscription'|'metered'|'excluded'; models?:Record<string,ModelEconomics> }
 export interface SelectionSettings { allowMetered:boolean; agents:Record<string,AgentPreference> }
-export interface CatalogAgent extends Agent { command:string; setup:string; adapter:boolean; assistant:boolean; coding:boolean }
+export interface CatalogAgent extends Agent { command:string; setup:string; adapter:boolean; assistant:boolean; coding:boolean; interactive?:{supported:boolean; authorized:boolean; device:string; authentication:'verified'|'signed_out'|'unknown'} }
 export interface SelectionDecision { agent:string; model:string; reasoning:string; runner?:string; mode:SelectionMode; method:string; reason:string }
 export const selectionApi = {
  settings:()=>request<SelectionSettings>('GET','/api/settings/selection'),

@@ -208,3 +208,32 @@ func TestGuidedSetupStepsAndToursAreRememberedAndSurviveCompletion(t *testing.T)
 		t.Fatalf("reset all tours = %+v", ob)
 	}
 }
+
+func TestDirectCLIPreferencesPersistIndependentlyOfAutomaticSelection(t *testing.T) {
+	f := newFixture(t)
+	s := &Settings{Deps: f.deps, Catalog: catalog{"codex": {}}}
+	want := domain.SelectionSettings{Agents: map[string]domain.AgentSelectionPreference{
+		"codex": {Enabled: false, Billing: "excluded", DirectCLI: true, CLISignedIn: true},
+	}}
+	if _, err := s.SetSelection(bg, want); err != nil {
+		t.Fatal(err)
+	}
+	reloaded := &Settings{Deps: f.deps, Catalog: s.Catalog}
+	got, err := reloaded.Selection(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := got.Agents["codex"]
+	if !p.DirectCLI || !p.CLISignedIn || p.Enabled || p.Billing != "excluded" {
+		t.Fatalf("direct CLI choices changed automatic selection: %+v", p)
+	}
+	p.DirectCLI = false
+	got.Agents["codex"] = p
+	if _, err := s.SetSelection(bg, got); err != nil {
+		t.Fatal(err)
+	}
+	got, err = reloaded.Selection(bg)
+	if err != nil || got.Agents["codex"].DirectCLI {
+		t.Fatalf("disable was not persisted: %+v, %v", got, err)
+	}
+}

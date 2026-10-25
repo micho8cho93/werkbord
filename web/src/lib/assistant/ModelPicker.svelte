@@ -2,7 +2,8 @@
   import Icon from '../Icon.svelte';
  import { SELECTION_MODES, modeLabel, type SelectionMode } from '../selection';
   import { modelName, reasoningLevels, withModel } from './choice';
-  import { assistant } from './store.svelte';
+  import type { AssistantStore } from './store.svelte';
+  let { assistant }: { assistant: AssistantStore } = $props();
 
   // Which assistant answers: the provider, the model and how hard it thinks. It can be changed at any time, so that someone whose
   // plan cannot use a model can pick one that works. Another provider starts a fresh conversation with it, and this says so first.

@@ -3,7 +3,7 @@
 // what has been seen, and say plainly what state the connection is in.
 
 import { getToken } from '../api';
-import type { AssistantEvent } from './types';
+import type { AssistantEvent, SessionView } from './types';
 
 export interface SSEMessage {
   id?: string;
@@ -68,7 +68,10 @@ export class SSEParser {
 /** How the connection to the conversation is doing, in words a person could be told. */
 export type Link = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'unauthorized' | 'gone' | 'unavailable';
 
+export interface StreamConnection { start(): void; stop(): void; nudge(): void }
 export interface ConnectionOptions {
+  request?: () => { url: string; body: unknown };
+  onSnapshot?: (view: SessionView) => void;
   sessionId: string;
   /** The last event already applied; asked for again on every (re)connect. */
   after: () => number;
@@ -140,7 +143,12 @@ export class Connection {
       const after = this.o.after();
       if (after > 0) headers['Last-Event-ID'] = String(after);
       arm();
-      const res = await f(`/api/assistant/sessions/${encodeURIComponent(this.o.sessionId)}/events`, { headers, signal: ctl.signal, cache: 'no-store' });
+      const request = this.o.request?.();
+      if (request) headers['Content-Type'] = 'application/json';
+      const res = await f(request?.url ?? `/api/assistant/sessions/${encodeURIComponent(this.o.sessionId)}/events`, {
+        headers, signal: ctl.signal, cache: 'no-store',
+        ...(request ? { method: 'POST', body: JSON.stringify(request.body) } : {}),
+      });
       if (res.status === 401 || res.status === 403) {
         this.o.onLink('unauthorized');
         return 'fatal';

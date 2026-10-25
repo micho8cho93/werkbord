@@ -9,7 +9,7 @@
   import { globalHref, taskHref } from '../location';
   import { app } from '../state.svelte';
   import { activeRunners, connectionWord, deckCounts, deckKeys, workspaceHref, type DeckKey } from './deck';
-  import { assistant } from '../assistant/store.svelte';
+  import { assistant } from '../assistant/sessions.svelte';
   import { personalAPI } from '../personal/api';
   import { personalWorkspaceDraft } from '../personal/conversation';
   import type { Workspace } from '../personal/schema';

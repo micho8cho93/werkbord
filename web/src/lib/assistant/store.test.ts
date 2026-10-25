@@ -344,8 +344,8 @@ describe('choosing the provider, model and level', () => {
     const a = await page();
     await talk(a);
     await a.configure({ model: 'opus', reasoning: 'high' });
-    expect(srv.called('PATCH', '/sessions/ast_1')[0].body).toEqual({ provider: undefined, model: 'opus', reasoning: 'high' });
-    expect(a.choice).toEqual({ provider: 'claude-code', model: 'opus', reasoning: 'high' });
+    expect(srv.called('PATCH', '/sessions/ast_1')[0].body).toEqual({ provider: undefined, mode: 'manual', model: 'opus', reasoning: 'high' });
+    expect(a.choice).toEqual({ provider: 'claude-code', mode: 'manual', model: 'opus', reasoning: 'high' });
     expect(JSON.parse(local.getItem('werkbord.assistant.choice')!)).toMatchObject({ model: 'opus' });
     expect(a.transcript.items.some((i) => i.kind === 'notice')).toBe(false);
   });
@@ -357,8 +357,8 @@ describe('choosing the provider, model and level', () => {
     await a.allowFiles();
     expect(a.readyFiles).toHaveLength(1);
     await a.configure({ provider: 'codex' });
-    expect(srv.called('PATCH', '/sessions/ast_1')[0].body).toEqual({ provider: 'codex', model: '', reasoning: '' });
-    expect(a.choice).toEqual({ provider: 'codex', model: '', reasoning: '' });
+    expect(srv.called('PATCH', '/sessions/ast_1')[0].body).toEqual({ provider: 'codex', mode: 'manual', model: '', reasoning: '' });
+    expect(a.choice).toEqual({ provider: 'codex', mode: 'manual', model: '', reasoning: '' });
     const note = a.transcript.items.find((i) => i.kind === 'notice') as { text: string };
     expect(note.text).toMatch(/Now using Codex/);
     expect(note.text).toMatch(/does not remember what came before/);

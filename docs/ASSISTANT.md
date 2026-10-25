@@ -335,8 +335,11 @@ keeps none ([What is kept](#what-is-kept-and-what-is-not)).
   used at any time. A model your plan cannot use ends the turn with *That model is not available to your account* and offers *Choose
   another model* and *Try again*. Moving to the other provider starts a fresh conversation with it, and the screen says so. Files you
   had agreed to share with the first are taken back, because the agreement was for that provider.
-- **Starting over** (*New*) ends the conversation. If a reply is running or a change is waiting, it asks twice and says what it will
-  drop.
+- **New tab** (*+*) opens a compact menu with **New Sally Conversation** and **Manage Coding Agents**.
+  Each conversation has an independent provider, model, reasoning, selection objective, draft, stream cursor and confirmations.
+  Switch tabs with a click or the arrow keys. Double-click a tab, or choose **Rename current tab** from the menu, to name it.
+  Closing a tab hides it without stopping its turn or dropping confirmations. The menu lists closed tabs for reopening.
+  Closing the whole Sally surface also leaves every conversation running; sidebar status includes closed tabs.
 
 **When there is nothing to talk to**, it says why, in words, and offers what can be done:
 
@@ -352,13 +355,34 @@ keeps none ([What is kept](#what-is-kept-and-what-is-not)).
 | Empty | *What can I help with?* and three questions to start from | |
 
 **Coming back.** The page keeps what is on screen in the tab (`sessionStorage`, which goes with the tab, is never sent anywhere, and is
-cleared by *New*): capped to the last 40 items, without file contents. After a reload the conversation is back; the reply that was
+cleared when the browser tab is discarded): capped to the last 40 items per conversation, without file contents. After a reload the conversation is back; the reply that was
 streaming goes on from the last event the page saw (the server remembers 1024 recent events and says when it cannot); a change that
 is still waiting is found from the server even if the tab forgot it; one that was answered or timed out meanwhile is shown as no
 longer waiting. If the controller was restarted its events count from 1 again, and the page counts with it (it compares the
 server's last event number on every connection, so the next reply is not thrown away as "already seen"). If the controller no
 longer has the conversation, the screen says so and the next message starts a new one. The stream is read with `fetch`, because
 `EventSource` cannot send the token and the server refuses it in a URL.
+
+A single authenticated multiplexed event transport carries separate logical subscriptions and cursors
+for every session, including closed tabs. This avoids HTTP/1 browser connection exhaustion with five
+or more conversations. Snapshots reconcile each session before its events replay; membership changes
+reconnect the transport using per-session cursors without cancelling turns.
+
+The tab manager keeps its index, names, drafts and per-tab choices in `sessionStorage`, alongside
+separate bounded transcript caches. The previous single-conversation cache is migrated on first load.
+Open and closed tabs restore on reload using their existing server session IDs and provider handles;
+no transcript endpoint or server transcript storage is added. This restores Sally within the current
+browser tab or desktop webview lifetime, not after clearing browser session storage. The provider's
+own retention and the existing bounded server event replay still apply.
+
+Native interactive coding tabs are not implemented in Phase 1. Their eligibility is separate from
+ACP coding runs, restricted Sally providers, installation and automatic model selection. The catalogue
+reports native launch support and device authorisation as false until a reviewed native transport exists;
+the frontend also requires an implemented launcher. Thus **+** exposes no nonfunctional CLI buttons.
+Settings → Agents retains the complete catalogue, detection refresh and setup/login links. Direct CLI
+opt-in and an explicit sign-in declaration are saved separately from automatic selection and billing.
+Known signed-out status overrides a declaration; unknown authentication stays labelled as unknown or
+user-confirmed. The menu rechecks detection/settings on every opening, without an application restart.
 
 **For people who cannot see it.** The surface is a dialog with a name, Tab stays inside it, Esc closes it (the chooser first), every
 control has a name, text is at least 16 px in the box on a phone (so it does not zoom), tap targets are at least 44 px, and what
@@ -497,7 +521,7 @@ Per file waiting to be sent: its name, size, content and time limit, **in memory
 most the retention period. The audit records that it was authorized, shown or dropped, without its content.
 
 In the browser tab: what is on screen, so a reload comes back to it (`sessionStorage`: the last 40 items, no file contents, gone with
-the tab or with *New*), and, in `localStorage`, which provider/model/level you chose last and whether you have read the dictation
+the browser tab), and, in `localStorage`, which provider/model/level you chose last and whether you have read the dictation
 notice. Nothing else of a conversation is kept anywhere by Werkbord.
 
 Per proposed change (`assistant_actions`): the operation, the exact arguments and their digest, the summary shown, who
@@ -533,6 +557,7 @@ answers `503` if `assistant.disabled` is set.
 | --- | --- |
 | `GET /api/assistant/providers` | what is installed, signed in, and which models and reasoning levels it offers; capabilities; and the attachment limits (`attachments`) |
 | `POST /api/assistant/sessions` `{provider, model?, reasoning?}` | start a conversation (fails at once, with what to do, if the provider is not ready) |
+| `POST /api/assistant/events` `{sessions:[{id,after}]}` | multiplexed SSE snapshots/replay/live events, independent cursor per session, owner/phone authentication unchanged |
 | `GET /api/assistant/sessions`, `GET …/{id}` | conversations, with the changes waiting, the files waiting (never their content) and the last event number |
 | `PATCH …/{id}` `{provider?, model?, reasoning?}` | change provider, model or reasoning level for the next turn (see below) |
 | `DELETE …/{id}` | stop it, drop what it left waiting, forget it (the audit stays) |

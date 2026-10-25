@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getFormName, getGetFieldValue, getIsStreaming, getSetFieldValue, type ComponentRenderProps, useSetDefaultValue } from '@openuidev/svelte-lang';
-  import { assistant } from '../../store.svelte';
+  import { currentSession } from '../../session-context';
+  const assistant = currentSession();
   import { validOpenUIFieldName } from '../state';
 
   let { props }: ComponentRenderProps<{ name: string; label: string; checked?: boolean }> = $props();

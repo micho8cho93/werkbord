@@ -120,11 +120,32 @@ export class FakeServer {
     if (forced) return this.err(forced[1], 'forced', 'forced failure');
 
     const p = url.pathname.replace('/api/assistant', '');
+    if (method === 'POST' && p === '/events') {
+      const cursors = (body as {sessions:{id:string;after:number}[]}).sessions;
+      let controller!: ReadableStreamDefaultController<Uint8Array>;
+      const response = new ReadableStream<Uint8Array>({start:c => {controller=c;}});
+      const enqueue = (frame:unknown) => { try { controller.enqueue(this.enc.encode(`data: ${JSON.stringify(frame)}\n\n`)); } catch { /* closed */ } };
+      for (const cursor of cursors) {
+        const session = this.sessions.get(cursor.id);
+        enqueue({type:session?'session_snapshot':'session_missing',sessionId:cursor.id,session});
+      }
+      const st: Stream = {
+        push: event => { if (cursors.some(c => c.id===event.sessionId)) enqueue(event); },
+        drop: () => {try {controller.close();} catch { /* closed */ }},
+      };
+      init.signal?.addEventListener('abort', () => {
+        try { controller.error(new DOMException('aborted','AbortError')); } catch { /* closed */ }
+        this.streams = this.streams.filter(s=>s!==st);
+      });
+      for (const cursor of cursors) for (const event of this.history) if(event.sessionId===cursor.id && event.seq>cursor.after) enqueue(event);
+      this.streams.push(st); this.notify();
+      return new Response(response,{status:200,headers:{'Content-Type':'text/event-stream'}});
+    }
     if (method === 'GET' && p === '/providers') return this.json(200, { providers: this.providers, attachments: this.policy });
     if (method === 'POST' && p === '/sessions') {
-      const b = body as { provider: string; model?: string; reasoning?: string };
+      const b = body as { provider: string; model?: string; reasoning?: string; mode?: SessionView['mode'] };
       const id = 'ast_' + this.nextId++;
-      const v: SessionView = { id, provider: b.provider, model: b.model, reasoning: b.reasoning, state: 'idle', turns: 0, running: false, lastEvent: this.lastEvent, pending: [], attachments: [] };
+      const v: SessionView = { id, mode:b.mode, provider: b.provider, model: b.model, reasoning: b.reasoning, state: 'idle', turns: 0, running: false, lastEvent: this.lastEvent, pending: [], attachments: [] };
       this.sessions.set(id, v);
       return this.json(201, v);
     }
@@ -140,12 +161,13 @@ export class FakeServer {
       return new Response(null, { status: 204 });
     }
     if (!sub && method === 'PATCH') {
-      const b = body as { provider?: string; model?: string; reasoning?: string };
+      const b = body as { provider?: string; model?: string; reasoning?: string; mode?: SessionView['mode'] };
       if (b.provider && b.provider !== s.provider) {
         s.provider = b.provider;
         this.attachments = [];
         s.attachments = [];
       }
+      if (b.mode !== undefined) s.mode = b.mode;
       if (b.model !== undefined) s.model = b.model;
       if (b.reasoning !== undefined) s.reasoning = b.reasoning;
       return this.json(200, s);

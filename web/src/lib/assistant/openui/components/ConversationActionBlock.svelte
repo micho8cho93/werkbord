@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getFormName, getFormValidation, getIsStreaming, getTriggerAction, type ComponentRenderProps } from '@openuidev/svelte-lang';
-  import { assistant } from '../../store.svelte';
+  import { currentSession } from '../../session-context';
+  const assistant = currentSession();
 
   let { props }: ComponentRenderProps<{ label: string }> = $props();
   const formName = getFormName();

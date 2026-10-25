@@ -9,7 +9,7 @@
   import { app } from '../lib/state.svelte';
   import { embedded } from '../lib/embed';
   import { contextualWorkspaceDraft, personalWorkspaceDraft } from '../lib/personal/conversation';
-  import { assistant } from '../lib/assistant/store.svelte';
+  import { assistant } from '../lib/assistant/sessions.svelte';
   import { z } from 'zod/v4';
   import WorkspaceRenderer from '../lib/personal/WorkspaceRenderer.svelte';
   import { WorkspaceSession } from '../lib/personal/session.svelte';

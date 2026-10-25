@@ -3,7 +3,8 @@
   import { embedded } from '../embed';
   import DeletionPreview from '../personal/DeletionPreview.svelte';
   import WorkspaceProposalPreview from '../personal/WorkspaceProposalPreview.svelte';
-  import { assistant } from './store.svelte';
+  import { currentSession } from './session-context';
+  const assistant = currentSession();
   import type { ConfirmItem } from './transcript';
   import { clock, operationTitle } from './words';
   import { taskHref } from '../router.svelte';

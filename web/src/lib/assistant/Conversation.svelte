@@ -7,7 +7,8 @@
   import ReplyView from './ReplyView.svelte';
   import RecommendationList from '../recommend/RecommendationList.svelte';
   import { lastProject } from '../recommend/recommend';
-  import { assistant } from './store.svelte';
+  import { currentSession } from './session-context';
+  const assistant = currentSession();
   import { size } from './words';
 
   // What is on the screen between the heading and the box: the conversation, or, where there cannot be one yet, why not.

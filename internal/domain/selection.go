@@ -27,9 +27,13 @@ func (r Resolved) SelectionMode() SelectionMode {
 
 // AgentSelectionPreference is an explicit inclusion and billing declaration. Unknown billing never implies free usage.
 type AgentSelectionPreference struct {
-	Enabled bool                      `json:"enabled"`
-	Billing string                    `json:"billing"` // auto, subscription, metered, excluded
-	Models  map[string]ModelEconomics `json:"models,omitempty"`
+	// DirectCLI is independent of automatic model selection and restricted assistant support.
+	DirectCLI bool `json:"directCLI,omitempty"`
+	// CLISignedIn is an explicit owner declaration, never a detected authentication claim.
+	CLISignedIn bool                      `json:"cliSignedIn,omitempty"`
+	Enabled     bool                      `json:"enabled"`
+	Billing     string                    `json:"billing"` // auto, subscription, metered, excluded
+	Models      map[string]ModelEconomics `json:"models,omitempty"`
 }
 type ModelEconomics struct {
 	// Prices are USD per million tokens, supplied by the owner, not invented by the classifier.

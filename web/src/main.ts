@@ -2,7 +2,7 @@ import { mount } from 'svelte';
 import App from './App.svelte';
 import { adoptTokenFromURL } from './lib/api';
 import { enrollFromURL } from './lib/phones/enroll.svelte';
-import { assistant } from './lib/assistant/store.svelte';
+import { assistant } from './lib/assistant/sessions.svelte';
 import { detectDesktop, openLinksInBrowser } from './lib/desktop.svelte';
 import { embedded, followShell, surface } from './lib/embed';
 import { onTheme } from '../../internal/nativebridge/bridge.js';

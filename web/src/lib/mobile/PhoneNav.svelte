@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { assistant } from '../assistant/store.svelte';
+  import { assistant } from '../assistant/sessions.svelte';
   import { originOf } from '../assistant/transition';
   import Icon from '../Icon.svelte';
   import { globalHref } from '../router.svelte';

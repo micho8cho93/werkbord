@@ -347,6 +347,7 @@ func TestTheAssistantBelongsToTheOwnerAlone(t *testing.T) {
 	a := newAsst(t, true)
 	sid := a.newSession(t)
 	routes := []struct{ method, path string }{
+		{"POST", "/api/assistant/events"},
 		{"GET", "/api/assistant/providers"}, {"GET", "/api/assistant/sessions"}, {"POST", "/api/assistant/sessions"},
 		{"GET", "/api/assistant/sessions/" + sid}, {"PATCH", "/api/assistant/sessions/" + sid}, {"DELETE", "/api/assistant/sessions/" + sid},
 		{"POST", "/api/assistant/sessions/" + sid + "/messages"}, {"POST", "/api/assistant/sessions/" + sid + "/cancel"},

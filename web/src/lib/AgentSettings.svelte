@@ -48,6 +48,9 @@
      {#if a.setup}<p class="hint">{a.setup}</p>{/if}
      {#if a.docsUrl}<a href={a.docsUrl} target="_blank" rel="noopener noreferrer">Installation and CLI documentation</a>{/if}
      <label>Billing <select class="select" value={pref(a.id).billing} onchange={e=>change(a.id,{billing:e.currentTarget.value as AgentPreference['billing']})}><option value="auto">Detect from CLI (unknown access stays ineligible)</option><option value="subscription">Included in my subscription</option><option value="metered">Metered API usage</option><option value="excluded">Exclude from automatic selection</option></select></label>
+     <label><input type="checkbox" checked={pref(a.id).directCLI===true} onchange={e=>change(a.id,{directCLI:e.currentTarget.checked})} /> Enable direct CLI availability on this device</label>
+     <label><input type="checkbox" checked={pref(a.id).cliSignedIn===true} onchange={e=>change(a.id,{cliSignedIn:e.currentTarget.checked})} /> I have signed in to this CLI on this device</label>
+     <p class="hint">Authentication: {a.signIn==='signed_in'?'signed in (reported by CLI)':a.signIn==='signed_out'?'signed out (reported by CLI)':pref(a.id).cliSignedIn?'confirmed by you; not independently verified':'unknown; use the CLI’s login guidance'}. Native interactive tabs are not available yet. These choices do not enable automatic selection or grant execution permission.</p>
      <p class="hint">Confirm subscription billing only when this CLI uses your included allowance. Werkbord cannot verify remaining allowance for every provider.</p>
      {#if probing===a.id}<p role="status">Asking the CLI for its model controls…</p>{/if}
      {#if options[a.id]}

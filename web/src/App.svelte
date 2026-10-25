@@ -5,7 +5,7 @@
   import Mark from './lib/Mark.svelte';
   import Assistant from './lib/assistant/Assistant.svelte';
   import AssistantButton from './lib/assistant/AssistantButton.svelte';
-  import { assistant } from './lib/assistant/store.svelte';
+  import { assistant } from './lib/assistant/sessions.svelte';
   import { embedded, hosted } from './lib/embed';
   import NeedsInputBanner from './lib/NeedsInputBanner.svelte';
   import { isPhone } from './lib/phones/capability';

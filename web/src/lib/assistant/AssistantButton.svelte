@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
-  import { assistant } from './store.svelte';
+  import { assistant } from './sessions.svelte';
   import { originOf } from './transition';
 
   // The assistant opens and closes from this button, which can sit in a rail, a page toolbar, or a phone heading. Its badge says

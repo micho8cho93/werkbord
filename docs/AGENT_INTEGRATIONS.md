@@ -102,3 +102,24 @@ classifier fallback, session persistence and the browser dropdown flow are cover
 local tests and disposable fixtures. The catalogue is documentation-verified; this
 does not claim a paid-account end-to-end run against all 25 vendors. Existing trust
 boundary tests remain in force, and Team does not run models or hold credentials.
+
+## Sally Sessions Phase 1: direct CLI availability
+
+Settings → Agents separately stores direct CLI opt-in and an optional owner declaration that the CLI
+has been signed in on this device. The existing detection result remains authoritative when it reports
+signed out. Unknown authentication is not relabelled as a verified connection. Neither setting enables
+automatic model selection, installs tools, collects credentials or authorises execution.
+
+The catalogue exposes an independent native interactive capability with device, authentication,
+support and authorisation fields. Phase 1 reports support/authorisation false because the native
+interactive terminal is deferred to Phase 3. Sally's + menu requires every eligibility gate plus a real
+frontend launcher; it therefore shows no coding launch entries yet, only the Sally conversation action
+and a Settings link. Settings and detection are fetched each time the menu opens, so future eligible
+launchers will not depend on restarting the application. The complete catalogue stays in Settings.
+
+Verification: `sessions.test.ts` covers five isolated streams, per-tab settings/drafts/confirmations,
+close/reopen, legacy migration and reload restoration. `connected-agents.test.ts` checks every eligibility
+gate. `selection_interactive_test.go` locks down Phase 1's absent execution capability, and
+`TestDirectCLIPreferencesPersistIndependentlyOfAutomaticSelection` covers settings persistence.
+`node scripts/browser-sally-sessions.cjs` exercises the real controller API and assistant engine with a
+scripted provider and disposable SQLite, including five running sessions and desktop/mobile captures.

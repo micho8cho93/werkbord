@@ -1,7 +1,8 @@
 <script lang="ts">
   import { getFormName, getGetFieldValue, getIsStreaming, getSetFieldValue, getFormValidation, parseStructuredRules, useSetDefaultValue, type ComponentRenderProps } from '@openuidev/svelte-lang';
   import { onDestroy } from 'svelte';
-  import { assistant } from '../../store.svelte';
+  import { currentSession } from '../../session-context';
+  const assistant = currentSession();
   import { validOpenUIFieldName } from '../state';
 
   type Option = { value: string; label: string };

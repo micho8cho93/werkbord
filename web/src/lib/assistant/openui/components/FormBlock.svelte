@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createFormValidation, getIsStreaming, setFormNameContext, setFormValidationContext, type ComponentRenderProps } from '@openuidev/svelte-lang';
   import type { Snippet } from 'svelte';
-  import { assistant } from '../../store.svelte';
+  import { currentSession } from '../../session-context';
+  const assistant = currentSession();
   import { validOpenUIFormName } from '../state';
 
   let { props, renderNode }: ComponentRenderProps<{ name: string; title: string; description?: string; children?: unknown[] }> & { renderNode: Snippet<[unknown]> } = $props();

@@ -4,7 +4,8 @@
   import { MARK_MOTIONS } from '../mark-motion';
   import { formatDateTime } from '../clock.svelte';
   import { Renderer, type ActionEvent, type ParseResult } from '@openuidev/svelte-lang';
-  import { assistant } from './store.svelte';
+  import { currentSession } from './session-context';
+  const assistant = currentSession();
   import Markdown from './Markdown.svelte';
   import { openUILibrary } from './openui/library';
   import { emptyReplyPartsCache, growingReplyParts } from './openui/reply';

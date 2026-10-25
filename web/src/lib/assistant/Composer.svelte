@@ -4,7 +4,8 @@
   import { desktop } from '../desktop.svelte';
   import { chooseFiles } from './nativefiles';
   import { detect, Dictation, disclosure, joinSpoken, recognisesLocally, type DictationPhase } from './dictation';
-  import { assistant } from './store.svelte';
+  import { currentSession } from './session-context';
+  const assistant = currentSession();
   import { retentionNote, size } from './words';
   import AttachmentChip from './AttachmentChip.svelte';
 
