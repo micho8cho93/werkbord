@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"werkbord/internal/agentkit"
 	"werkbord/internal/appops"
 	"werkbord/internal/assistant"
 	"werkbord/internal/assistant/provider"
@@ -23,11 +24,7 @@ import (
 // newAssistant builds the conversational assistant on the controller's own services. It uses the installed CLI providers
 // already on this computer, with their existing sign-in: no account or model of its own. What
 // it can do to the board is only what appops offers, through the same domain services the app uses.
-func newAssistant(cfg config.Config, db store.Store, log *slog.Logger, svc assistantServices) (*assistant.Engine, error) {
-	reg, err := newAssistantProviders(cfg)
-	if err != nil {
-		return nil, err
-	}
+func newAssistant(cfg config.Config, reg *provider.Registry, db store.Store, log *slog.Logger, svc assistantServices) (*assistant.Engine, error) {
 	ops := svc.ops
 	if ops == nil {
 		ops = newApplicationOperations(db, log, svc)
@@ -124,13 +121,13 @@ func auditRetention(a config.AssistantConfig) time.Duration {
 	return time.Duration(a.AuditRetentionDays) * 24 * time.Hour
 }
 
-func newAssistantProviders(cfg config.Config) (*provider.Registry, error) {
+func newAssistantProviders(cfg config.Config, probe *agentkit.Prober) (*provider.Registry, error) {
 	cl, cx := cfg.Agents[config.AgentClaudeCode], cfg.Agents[config.AgentCodex]
 	gm, oc := cfg.Agents[config.AgentGeminiCLI], cfg.Agents[config.AgentOpenCode]
 	reg := provider.NewRegistry()
 	for _, p := range []provider.Provider{
-		claudeprov.New(claudeprov.Config{Command: cl.Command, Model: cl.Model, Models: providerModels(cl.Models), Reasoning: cl.Reasoning}),
-		codexprov.New(codexprov.Config{Command: cx.Command, Model: cx.Model, Models: providerModels(cx.Models)}),
+		claudeprov.New(claudeprov.Config{Command: cl.Command, Model: cl.Model, Models: providerModels(cl.Models), Reasoning: cl.Reasoning, Prober: probe}),
+		codexprov.New(codexprov.Config{Command: cx.Command, Model: cx.Model, Models: providerModels(cx.Models), Prober: probe}),
 		gemini.New(gemini.Config{Command: gm.Command, Models: providerModels(gm.Models), Reasoning: gm.Reasoning}),
 		opencode.New(opencode.Config{Command: oc.Command, Models: providerModels(oc.Models), Reasoning: oc.Reasoning}),
 	} {

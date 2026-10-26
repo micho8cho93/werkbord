@@ -16,8 +16,7 @@ import (
 	"werkbord/internal/service"
 )
 
-func newModelSelector(cfg config.Config, agents *agent.Registry, settings *service.Settings, runners *service.Runners) *modelroute.Router {
-	providers, _ := newAssistantProviders(cfg)
+func newModelSelector(cfg config.Config, agents *agent.Registry, providers *provider.Registry, settings *service.Settings, runners *service.Runners) *modelroute.Router {
 	router := &modelroute.Router{Settings: settings.Selection}
 	assistantCandidates := func(ctx context.Context, req domain.SelectionRequest) ([]modelroute.Candidate, error) {
 		out := []modelroute.Candidate{}
