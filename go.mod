@@ -3,7 +3,6 @@ module devboard
 go 1.27.3
 
 require (
-	filippo.io/age v1.3.2
 	github.com/caelis-labs/acp-go-sdk v1.5.0
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
@@ -14,7 +13,6 @@ require (
 	golang.org/x/crypto v0.57.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.46.0
 	golang.org/x/text v0.42.0
 	modernc.org/sqlite v1.60.1
 	tailscale.com v1.104.0
@@ -26,7 +24,6 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/bigmod v0.1.0 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
-	filippo.io/hpke v0.4.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/DefinedNet/netlink v1.3.2-dn.1 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
@@ -135,6 +132,7 @@ require (
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
