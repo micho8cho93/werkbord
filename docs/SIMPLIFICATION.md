@@ -6,6 +6,9 @@ Personal phones use the relay; Tailscale remains an optional connection for remo
 4A is implemented in `8b02876`, with `make check` and the real Team desktop browser suite passing.
 Validation also found and fixed certificate timestamp precision and overlay test port reservation (`2932cdd`):
 the enrollment failures passed 20 repetitions under the race detector and the overlay suite passed five repetitions.
+4B is implemented in `8c296d4`, with `make check`, standalone Team and unified desktop browser suites passing.
+Phase 5's automated beta gate is complete; results, the size comparison and the scope of historical data imports
+are recorded in [SIMPLIFICATION_VALIDATION.md](SIMPLIFICATION_VALIDATION.md).
 
 ## 4A: shared presentation
 
