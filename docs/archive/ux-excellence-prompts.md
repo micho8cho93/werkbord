@@ -8,7 +8,7 @@ per session. Finish and inspect each pass before starting the next. These prompt
 
 ```text
 Work in /Users/Michel/Desktop/werkbord. Read AGENTS.md, PRODUCT.md, DESIGN.md,
-docs/ux-excellence-plan.md and docs/ux-simplification-audit.md before editing.
+docs/archive/ux-excellence-plan.md and docs/archive/ux-simplification-audit.md before editing.
 Use the applicable Impeccable workflow, preserving Werkbord's quiet technical identity
 and Operate-mode task clarity. This is refinement of the existing product.
 
@@ -16,7 +16,7 @@ Make no Go or Team source changes. The unified cmd/werkbord/VERSION metadata upd
 is the required exception. Use existing APIs and the Individual shell relay only.
 Never start, stop, install, seed or reconfigure the real controller. Never push.
 Full checks may build Go and run disposable Team fixtures without changing source.
-Use only the isolated fixture procedure in docs/ux-excellence-prompts.md.
+Use only the isolated fixture procedure in docs/archive/ux-excellence-prompts.md.
 
 Verify each reported defect on the current fixture before fixing it. Preserve weekly
 navigation, deep links, shortcuts, inline answers, source provenance, stale/offline
@@ -103,7 +103,7 @@ wait "$UX_PASS_PID"
 ## Prompt 1 — attention, counts and work vocabulary
 
 ```text
-Execute workstream 1 of docs/ux-excellence-plan.md.
+Execute workstream 1 of docs/archive/ux-excellence-plan.md.
 
 Inspect current attention derivation and render mixed question/review state in the
 Individual app and shell before editing. Replace remaining user-facing “needs input”
@@ -126,7 +126,7 @@ Complete the shared verification/documentation/version/tag workflow for this pas
 ## Prompt 2 — keyboard, touch and accessibility
 
 ```text
-Execute workstream 2 of docs/ux-excellence-plan.md after checking Prompt 1's evidence.
+Execute workstream 2 of docs/archive/ux-excellence-plan.md after checking Prompt 1's evidence.
 
 Reproduce remaining interaction defects in LabelManager, Sheet and navigation.
 Give compact coarse-pointer controls, including swatches, at least 44x44px hit areas
@@ -149,7 +149,7 @@ and no clipped essential actions at zoom. Complete the shared release workflow.
 ## Prompt 3 — make Review immediately actionable
 
 ```text
-Execute workstream 3 of docs/ux-excellence-plan.md.
+Execute workstream 3 of docs/archive/ux-excellence-plan.md.
 
 Inspect TaskPanel, result/handoff components and MergeSheet on the seeded Review task.
 At 375x812 lead with the task title and Review changes, visible without expanding
@@ -171,7 +171,7 @@ actually observed. Complete the shared verification and release workflow.
 ## Prompt 4 — phone navigation hierarchy
 
 ```text
-Execute workstream 4 of docs/ux-excellence-plan.md.
+Execute workstream 4 of docs/archive/ux-excellence-plan.md.
 
 Record baseline phone navigation for Runs, Overview, project settings and a Git
 subsection. Prototype a compact secondary chooser for Git/Settings against the
@@ -195,7 +195,7 @@ then complete the shared release workflow.
 ## Prompt 5 — recovery, drafts and uncertain delivery
 
 ```text
-Execute workstream 5 of docs/ux-excellence-plan.md.
+Execute workstream 5 of docs/archive/ux-excellence-plan.md.
 
 Use controlled browser responses to reproduce Git health enabled-success,
 enabled-failure, explicitly disabled and unknown/unreachable states. Inspect current
@@ -270,7 +270,7 @@ skill's isolation and critique-storage instructions. Distinguish direct observat
 source inferences, false positives and untested cases; no fabricated live inspection.
 
 After scoring, compare every heuristic against the 30/40 baseline and preserve the
-earlier 26/40 historical comparison. Update docs/ux-simplification-audit.md, DESIGN.md
+earlier 26/40 historical comparison. Update docs/archive/ux-simplification-audit.md, DESIGN.md
 and the local critique snapshot. Claim 40/40 only if a fresh review supports ten 4s;
 otherwise publish the honest score with bounded remaining fixes/evidence needs.
 Do not polish indefinitely to force the target or award points for completed prompts.

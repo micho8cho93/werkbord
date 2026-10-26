@@ -171,7 +171,7 @@ VPN, a tunnel or certificates, and without any server of Werkbord's own. Nothing
 default), *Work autonomously*, or *Work autonomously — stop if blocked*. See below.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-The [V0–V2 stabilization audit](docs/audit/V2_STABILIZATION.md) records integration validation, recovery guarantees,
+The [V0–V2 stabilization audit](docs/archive/audit/V2_STABILIZATION.md) records integration validation, recovery guarantees,
 release notes and the remaining limits before V3.
 
 ## Requirements

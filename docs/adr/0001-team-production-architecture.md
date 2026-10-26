@@ -2,7 +2,7 @@
 
 - **Status:** accepted. Phase 1 (the foundation), phase 2 (the customer-owned network: [ADR 0002](0002-customer-owned-network.md)) and phase 3 (the replicated workspace storage: [ADR 0003](0003-replicated-workspace-storage.md)) are implemented; the runner message path is not.
 - **Applies to:** Werkbord Team. The individual product shares the packages named below and is otherwise unchanged.
-- **Read with:** [PRODUCTS.md](../PRODUCTS.md), [TEAM.md](../TEAM.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md).
+- **Read with:** [STRUCTURE.md](../STRUCTURE.md), [TEAM.md](../TEAM.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md).
 
 ## Context
 
@@ -12,7 +12,7 @@ one copy, the network is someone else's problem, and "who is this device" has no
 
 The constraints that shape the answer are Werkbord's, not technical fashion:
 
-1. A Team workspace **coordinates; it never executes** (PRODUCTS.md). That does not change.
+1. A Team workspace **coordinates; it never executes** (STRUCTURE.md). That does not change.
 2. The customer's projects, tickets, code, prompts, credentials and runtime data must not travel through anything Werkbord
    operates, and Werkbord must not be required to be *up* for a customer's team to work.
 3. No third-party account may be required (so not Tailscale's, not a cloud provider's).

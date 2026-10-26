@@ -11,7 +11,7 @@ conduct and report a separate assistive-technology session. Record actual device
 text scale, familiarity with Werkbord and agent experience, with consent. Use anonymous P1–P5 identifiers.
 Do not substitute viewport emulation for a physical phone or DOM assertions for VoiceOver/NVDA observations.
 
-Build/start/seed using only docs/ux-excellence-prompts.md's guarded procedure. Confirm health version
+Build/start/seed using only docs/archive/ux-excellence-prompts.md's guarded procedure. Confirm health version
 `browser-fixture` before each session. Reset to a fresh seed between people and destructive tasks. Use the IDs in
 that session's projects.json. Give people only the fixture address and disposable sign-in; never a real controller.
 Keep a committed Review task, an unanswered question and Venue search's work tasks. Controlled browser response

@@ -25,7 +25,7 @@ parity fix, a guard, a retry policy). None needs an architectural rewrite.
 - Read every file on the execution, scheduling, runner, Git, handoff, usage, auth, store, update and install paths
   (about 60 files).
 - Wrote repro tests in a scratch copy of the repo for the nine claims that mattered most. They are in
-  `docs/audit/repros/` (saved as `.go.txt` so the Go toolchain ignores them). Seven reproduce a defect (R1–R5, R8, R9);
+  `docs/archive/audit/repros/` (saved as `.go.txt` so the Go toolchain ignores them). Seven reproduce a defect (R1–R5, R8, R9);
   R6 and R7 are measurements. Every repro logs its result; none asserts. Convert each into a failing-first regression
   test as part of its fix.
 - `go test ./...` passes. `go test -race` passes for `remote`, `runner`, `service`, `events` and `controller`.
@@ -395,9 +395,9 @@ Each area you asked about, with what was checked and what was found.
 
 | File | Target package | Contents |
 | --- | --- | --- |
-| `docs/audit/repros/service_repros_test.go.txt` | `internal/service` | R1 `TestPoC_SecondQuestionWhileBlockedWedgesSync` (C1), R8 `TestPoC_RemoteBlockedRunEmitsNoBlockedOrStartedEvent` (M1), R9 `TestPoC_UsageUpdatesRelogWholePrompt` (M17) |
-| `docs/audit/repros/runner_repros_test.go.txt` | `internal/runner` | R2 `TestPoC_UnreachableRemoteSilentlyStallsSchedule` (H3), R3 `TestPoC_MissingWorktreeDirBlocksTaskForever` (M6), R4 `TestPoC_HandoffContextLeaksUntrackedSecrets` (M3), R6 `TestPoC_PlanCostGrowsWithQueuedTasks` (H4) |
-| `docs/audit/repros/remote_repros_test.go.txt` | `internal/remote` | R5 `TestPoC_RunnerJournalLossRelaunchesAcceptedJob` (H1) |
-| `docs/audit/repros/sqlite_repros_test.go.txt` | `internal/store/sqlite` | R7 `TestPoC_RunHistoryReadCost` (scale evidence) |
+| `docs/archive/audit/repros/service_repros_test.go.txt` | `internal/service` | R1 `TestPoC_SecondQuestionWhileBlockedWedgesSync` (C1), R8 `TestPoC_RemoteBlockedRunEmitsNoBlockedOrStartedEvent` (M1), R9 `TestPoC_UsageUpdatesRelogWholePrompt` (M17) |
+| `docs/archive/audit/repros/runner_repros_test.go.txt` | `internal/runner` | R2 `TestPoC_UnreachableRemoteSilentlyStallsSchedule` (H3), R3 `TestPoC_MissingWorktreeDirBlocksTaskForever` (M6), R4 `TestPoC_HandoffContextLeaksUntrackedSecrets` (M3), R6 `TestPoC_PlanCostGrowsWithQueuedTasks` (H4) |
+| `docs/archive/audit/repros/remote_repros_test.go.txt` | `internal/remote` | R5 `TestPoC_RunnerJournalLossRelaunchesAcceptedJob` (H1) |
+| `docs/archive/audit/repros/sqlite_repros_test.go.txt` | `internal/store/sqlite` | R7 `TestPoC_RunHistoryReadCost` (scale evidence) |
 
 To use one: rename it to `*_test.go` in the target package. Each repro relies on that package's existing test helpers, such as `newRunnerTest`, `newEnv` and `workerFixture`.
