@@ -11,16 +11,12 @@ package claude
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
-	"regexp"
-	"strings"
-	"sync"
 	"time"
 
 	"werkbord/internal/agent"
+	"werkbord/internal/agentkit"
 	"werkbord/internal/domain"
 )
 
@@ -43,19 +39,15 @@ type Config struct {
 	// which lets the agent edit files in its worktree without asking while
 	// commands and everything else still go to the user as questions.
 	PermissionMode string
+	// Prober answers what the CLI says about itself. The controller shares one with the assistant's provider, so Claude
+	// Code is asked once for both; nil gives the adapter one of its own.
+	Prober *agentkit.Prober
 }
 
 // Adapter implements agent.Adapter for Claude Code.
 type Adapter struct {
-	cfg Config
-
-	mu       sync.Mutex
-	detected domain.Agent
-	detectAt time.Time
-
-	effortMu sync.Mutex
-	effort   []string // reasoning levels the installed CLI says --effort takes; nil if it has no such flag
-	effortAt time.Time
+	cfg   Config
+	probe *agentkit.Prober
 }
 
 var _ agent.Adapter = (*Adapter)(nil)
@@ -68,120 +60,29 @@ func New(cfg Config) *Adapter {
 	if cfg.PermissionMode == "" {
 		cfg.PermissionMode = "acceptEdits"
 	}
-	return &Adapter{cfg: cfg}
+	probe := cfg.Prober
+	if probe == nil {
+		probe = agentkit.NewProber()
+	}
+	return &Adapter{cfg: cfg, probe: probe}
 }
 
 // ID implements agent.Adapter.
 func (a *Adapter) ID() string { return ID }
 
-const detectTTL = 30 * time.Second
-
 // settle is how long Start watches a new process for dying at once.
 var settle = 300 * time.Millisecond
 
-var versionRE = regexp.MustCompile(`\d+\.\d+\.\d+\S*`)
-
-// Detect implements agent.Adapter. It looks for the executable, asks it for its
-// version and whether it is signed in, and remembers the answer briefly.
+// Detect implements agent.Adapter. It looks for the executable, asks it for its version and whether it is signed in
+// (agentkit does the asking and remembers the answer briefly), and reports what it found.
 func (a *Adapter) Detect(ctx context.Context) domain.Agent {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if !a.detectAt.IsZero() && time.Since(a.detectAt) < detectTTL {
-		return a.detected
-	}
-	a.detected, a.detectAt = a.detect(ctx), time.Now()
-	return a.detected
+	return agent.FromFacts(a.probe.Claude(ctx, a.cfg.Command))
 }
 
-// docsURL is where Claude Code's own installation instructions live.
-const docsURL = "https://docs.anthropic.com/en/docs/claude-code/setup"
-
-func (a *Adapter) detect(ctx context.Context) domain.Agent {
-	info := domain.Agent{ID: ID, Name: "Claude Code", DocsURL: docsURL}
-	path, err := exec.LookPath(a.cfg.Command)
-	if err != nil {
-		info.Detail = fmt.Sprintf("%q was not found on PATH", a.cfg.Command)
-		info.Guidance = "Install Claude Code (https://claude.ai/install.sh, or `npm install -g @anthropic-ai/claude-code`), then run `claude` once to sign in."
-		return info
-	}
-	out, err := run(ctx, path, "--version")
-	if err != nil {
-		info.Detail = "could not run `" + a.cfg.Command + " --version`: " + err.Error()
-		info.Guidance = "Reinstall Claude Code: " + docsURL
-		return info
-	}
-	info.Installed = true
-	info.Version = versionRE.FindString(out)
-
-	// Signed in? Older versions have no `auth status`; then assume yes and let a
-	// real failure show up when a session starts.
-	info.SignIn = domain.SignInUnknown
-	if out, err := run(ctx, path, "auth", "status"); err == nil {
-		var st struct {
-			LoggedIn *bool `json:"loggedIn"`
-		}
-		if json.Unmarshal([]byte(out), &st) == nil && st.LoggedIn != nil {
-			if *st.LoggedIn {
-				info.SignIn = domain.SignedIn
-			} else {
-				info.SignIn = domain.SignedOut
-				info.Detail = "not signed in: run `" + a.cfg.Command + " auth login`"
-				info.Guidance = "Run `" + a.cfg.Command + " auth login` in a terminal and follow the prompts. Werkbord uses your own Claude account and never asks for a key."
-				return info
-			}
-		}
-	}
-	info.Available = true
-	return info
-}
-
-// effortRE finds the reasoning levels in the CLI's own help for --effort, e.g.
-// "--effort <level>  Effort level for the current session (low, medium, high)".
-var effortRE = regexp.MustCompile(`(?s)--effort\s+<[^>]+>.*?\(([a-z, ]+)\)`)
-
-// effortLevels asks the installed CLI which levels --effort takes: the CLI
-// knows, and its list changes. nil means it has no such flag (an older version).
-// It costs a process, so it is only asked when someone wants the options, and
-// remembered for as long as a detection is.
+// effortLevels is the reasoning levels the installed CLI says --effort takes: the CLI knows, and its list changes. nil
+// means it has no such flag (an older version).
 func (a *Adapter) effortLevels(ctx context.Context) []string {
-	a.effortMu.Lock()
-	defer a.effortMu.Unlock()
-	if !a.effortAt.IsZero() && time.Since(a.effortAt) < detectTTL {
-		return a.effort
-	}
-	a.effort, a.effortAt = a.askEffortLevels(ctx), time.Now()
-	return a.effort
-}
-
-func (a *Adapter) askEffortLevels(ctx context.Context) []string {
-	path, err := exec.LookPath(a.cfg.Command)
-	if err != nil {
-		return nil
-	}
-	out, err := run(ctx, path, "--help")
-	if err != nil && out == "" {
-		return nil
-	}
-	m := effortRE.FindStringSubmatch(out)
-	if m == nil {
-		return nil
-	}
-	var levels []string
-	for _, l := range strings.Split(m[1], ",") {
-		if l = strings.TrimSpace(l); l != "" {
-			levels = append(levels, l)
-		}
-	}
-	return levels
-}
-
-func run(ctx context.Context, path string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = agent.SanitizedEnv(os.Environ())
-	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
+	return agentkit.EffortLevels(a.probe.Help(ctx, a.cfg.Command))
 }
 
 // Start implements agent.Adapter.

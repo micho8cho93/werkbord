@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 
+	"werkbord/internal/agentkit"
 	"werkbord/internal/domain"
 )
 
@@ -98,6 +99,15 @@ type Provider interface {
 	// Run performs one turn, calling emit for each event in order, and returns when the turn is over. Cancelling ctx
 	// cancels the turn: the provider's process is stopped, and every process it started with it. emit must not block.
 	Run(ctx context.Context, t Turn, emit func(Event)) (Result, error)
+}
+
+// InfoFromFacts turns what agentkit found out about an agent's command line into an Info. The caller adds Capabilities and
+// any checks of its own.
+func InfoFromFacts(f agentkit.Facts) Info {
+	return Info{
+		ID: f.ID, Name: f.Name, Installed: f.Installed, SignedIn: f.SignedIn, Available: f.Available(), Version: f.Version,
+		UsesAPIKey: f.UsesAPIKey, Auth: f.Auth, Detail: f.Detail, Guidance: f.Guidance,
+	}
 }
 
 // Info is what is known about a provider on this computer.

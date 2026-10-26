@@ -11,17 +11,11 @@ package claude
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"regexp"
 	"strings"
-	"sync"
-	"time"
 
-	"werkbord/internal/agent"
+	"werkbord/internal/agentkit"
 	"werkbord/internal/assistant/provider"
 	"werkbord/internal/assistant/provider/cli"
 )
@@ -38,16 +32,15 @@ type Config struct {
 	// Models replaces the built-in aliases; Reasoning the levels the CLI reports.
 	Models    []provider.Model
 	Reasoning []string
+	// Prober answers what the CLI says about itself. The controller shares one with the coding-agent adapter, so Claude
+	// Code is asked once for both; nil gives the provider one of its own.
+	Prober *agentkit.Prober
 }
 
 // Provider implements provider.Provider.
 type Provider struct {
-	cfg Config
-
-	mu       sync.Mutex
-	detected provider.Info
-	detectAt time.Time
-	help     string // the CLI's own --help, which says which options it has
+	cfg   Config
+	probe *agentkit.Prober
 }
 
 var _ provider.Provider = (*Provider)(nil)
@@ -57,76 +50,39 @@ func New(cfg Config) *Provider {
 	if cfg.Command == "" {
 		cfg.Command = "claude"
 	}
-	return &Provider{cfg: cfg}
+	probe := cfg.Prober
+	if probe == nil {
+		probe = agentkit.NewProber()
+	}
+	return &Provider{cfg: cfg, probe: probe}
 }
 
 // ID implements provider.Provider.
 func (p *Provider) ID() string { return ID }
 
-const detectTTL = 30 * time.Second
-
-var versionRE = regexp.MustCompile(`\d+\.\d+\.\d+\S*`)
-
-const docsURL = "https://docs.anthropic.com/en/docs/claude-code/setup"
-
 // Options the assistant cannot do without. An older Claude Code that lacks one is reported as unusable, with the
 // reason, rather than run with fewer protections.
 var required = []string{"--tools", "--system-prompt", "--include-partial-messages", "--session-id", "--resume"}
 
-// Detect implements provider.Provider.
+// Detect implements provider.Provider. agentkit finds the command, its version and whether it is signed in (and shares
+// the answer with the coding-agent adapter); the provider adds the options it cannot run without.
 func (p *Provider) Detect(ctx context.Context) provider.Info {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if !p.detectAt.IsZero() && time.Since(p.detectAt) < detectTTL {
-		return p.detected
-	}
-	p.detected, p.detectAt = p.detect(ctx), time.Now()
-	return p.detected
-}
-
-func (p *Provider) detect(ctx context.Context) provider.Info {
-	info := provider.Info{ID: ID, Name: "Claude Code"}
-	path, err := exec.LookPath(p.cfg.Command)
-	if err != nil {
-		info.Detail = fmt.Sprintf("%q was not found on PATH", p.cfg.Command)
-		info.Guidance = "Install Claude Code (" + docsURL + "), then run `claude auth login`."
+	facts := p.probe.Claude(ctx, p.cfg.Command)
+	info := provider.InfoFromFacts(facts)
+	if !facts.Installed {
 		info.Capabilities = p.capabilities("")
 		return info
 	}
-	out, err := output(ctx, path, "--version")
-	if err != nil {
-		info.Detail = "could not run `" + p.cfg.Command + " --version`: " + err.Error()
-		info.Guidance = "Reinstall Claude Code: " + docsURL
-		info.Capabilities = p.capabilities("")
-		return info
-	}
-	info.Installed, info.Version = true, versionRE.FindString(out)
-	p.help, _ = output(ctx, path, "--help")
-	info.Capabilities = p.capabilities(p.help)
-
+	help := p.probe.Help(ctx, p.cfg.Command)
+	info.Capabilities = p.capabilities(help)
 	for _, flag := range required {
-		if !strings.Contains(p.help, flag) {
+		if !strings.Contains(help, flag) {
+			info.Available, info.SignedIn, info.Auth, info.UsesAPIKey = false, nil, "", false
 			info.Detail = "this version of Claude Code has no " + flag + ", which the assistant needs to run it without tools"
 			info.Guidance = "Update Claude Code (`claude update`)."
 			return info
 		}
 	}
-	if out, err := output(ctx, path, "auth", "status"); err == nil {
-		var st struct {
-			LoggedIn     *bool  `json:"loggedIn"`
-			AuthMethod   string `json:"authMethod"`
-			APIKeySource string `json:"apiKeySource"`
-		}
-		if json.Unmarshal([]byte(out), &st) == nil && st.LoggedIn != nil {
-			info.SignedIn, info.Auth, info.UsesAPIKey = st.LoggedIn, st.AuthMethod, st.APIKeySource != ""
-			if !*st.LoggedIn {
-				info.Detail = "not signed in"
-				info.Guidance = "Run `" + filepath.Base(p.cfg.Command) + " auth login` in a terminal and follow the prompts. Werkbord uses your own Claude account and never asks for a key."
-				return info
-			}
-		}
-	}
-	info.Available = true
 	return info
 }
 
@@ -145,23 +101,14 @@ func (p *Provider) capabilities(help string) provider.Capabilities {
 // Models implements provider.Provider. Claude Code cannot list its models, so the list is the person's own or its
 // aliases (which always mean the latest of a family and so do not go stale); a full model name can still be typed in.
 func (p *Provider) Models(ctx context.Context) provider.Models {
-	m := provider.Models{ProviderID: ID, Custom: true, Source: "builtin", Models: []provider.Model{
-		{ID: "sonnet", Name: "Sonnet", Description: "Claude Sonnet, latest"},
-		{ID: "opus", Name: "Opus", Description: "Claude Opus, latest"},
-		{ID: "haiku", Name: "Haiku", Description: "Claude Haiku, latest"},
-	}}
+	m := provider.Models{ProviderID: ID, Custom: true, Source: "builtin"}
+	for _, a := range agentkit.ClaudeModels() {
+		m.Models = append(m.Models, provider.Model{ID: a.ID, Name: a.Name, Description: a.Description})
+	}
 	if len(p.cfg.Models) > 0 {
 		m.Models, m.Source = p.cfg.Models, "configured"
 	}
-	p.mu.Lock()
-	help := p.help
-	p.mu.Unlock()
-	if help == "" {
-		if path, err := exec.LookPath(p.cfg.Command); err == nil {
-			help, _ = output(ctx, path, "--help")
-		}
-	}
-	m.Reasoning = effortLevels(help)
+	m.Reasoning = agentkit.EffortLevels(p.probe.Help(ctx, p.cfg.Command))
 	if len(p.cfg.Reasoning) > 0 {
 		m.Reasoning = p.cfg.Reasoning
 	}
@@ -169,31 +116,6 @@ func (p *Provider) Models(ctx context.Context) provider.Models {
 		m.Note = "This version of Claude Code does not list reasoning levels."
 	}
 	return m
-}
-
-var effortRE = regexp.MustCompile(`(?s)--effort\s+<[^>]+>.*?\(([a-z, ]+)\)`)
-
-func effortLevels(help string) []string {
-	m := effortRE.FindStringSubmatch(help)
-	if m == nil {
-		return nil
-	}
-	var out []string
-	for _, l := range strings.Split(m[1], ",") {
-		if l = strings.TrimSpace(l); l != "" {
-			out = append(out, l)
-		}
-	}
-	return out
-}
-
-func output(ctx context.Context, path string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = agent.SanitizedEnv(os.Environ())
-	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
 }
 
 // args builds the command line for a turn. Options that only some versions have are used when the CLI says it has
@@ -243,9 +165,7 @@ func (p *Provider) Run(ctx context.Context, t provider.Turn, emit func(provider.
 	if err != nil {
 		return provider.Result{}, provider.Errorf(provider.KindNotInstalled, false, "%q was not found on PATH", p.cfg.Command)
 	}
-	p.mu.Lock()
-	help := p.help
-	p.mu.Unlock()
+	help := p.probe.Help(ctx, p.cfg.Command)
 
 	ref, fresh := t.Ref, t.Ref == ""
 	if fresh {

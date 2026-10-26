@@ -4,18 +4,19 @@ import (
 	"context"
 
 	"werkbord/internal/agent"
+	"werkbord/internal/agentkit"
 	"werkbord/internal/domain"
 )
 
 var _ agent.Optioner = (*Adapter)(nil)
 
-// builtinModels are Claude Code's own aliases. An alias always means the latest
-// model of that family, so the list does not go stale the way model names do;
-// a full model name can still be typed in.
-var builtinModels = []domain.AgentOption{
-	{ID: "sonnet", Name: "Sonnet", Description: "Claude Sonnet, latest"},
-	{ID: "opus", Name: "Opus", Description: "Claude Opus, latest"},
-	{ID: "haiku", Name: "Haiku", Description: "Claude Haiku, latest"},
+// builtinModels are Claude Code's own aliases (see agentkit.ClaudeModels).
+func builtinModels() []domain.AgentOption {
+	var out []domain.AgentOption
+	for _, m := range agentkit.ClaudeModels() {
+		out = append(out, domain.AgentOption{ID: m.ID, Name: m.Name, Description: m.Description})
+	}
+	return out
 }
 
 // supportsEffort reports whether the installed CLI takes --effort.
@@ -28,7 +29,7 @@ func (a *Adapter) supportsEffort(ctx context.Context) bool {
 // the ones the installed CLI reports for --effort.
 func (a *Adapter) Options(ctx context.Context) domain.AgentOptions {
 	opts := domain.AgentOptions{AgentID: ID, CustomModels: true, ModelsSource: domain.OptionsBuiltIn, ReasoningSource: domain.OptionsBuiltIn}
-	opts.Models = builtinModels
+	opts.Models = builtinModels()
 	if len(a.cfg.Models) > 0 {
 		opts.Models, opts.ModelsSource = a.cfg.Models, domain.OptionsConfigured
 	}
