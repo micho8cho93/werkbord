@@ -12,13 +12,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"werkbord/internal/agent"
+	"werkbord/internal/agentkit"
 	"werkbord/internal/domain"
 )
 
@@ -44,15 +43,15 @@ type Config struct {
 	// Sandbox is what commands may touch: "read-only", "workspace-write" (the
 	// default: the worktree, no network) or "danger-full-access".
 	Sandbox string
+	// Prober answers what the CLI says about itself. The controller shares one with the assistant's provider, so Codex
+	// is asked once for both; nil gives the adapter one of its own.
+	Prober *agentkit.Prober
 }
 
 // Adapter implements agent.Adapter for Codex.
 type Adapter struct {
-	cfg Config
-
-	mu       sync.Mutex
-	detected domain.Agent
-	detectAt time.Time
+	cfg   Config
+	probe *agentkit.Prober
 
 	optMu   sync.Mutex
 	optCach domain.AgentOptions
@@ -72,71 +71,20 @@ func New(cfg Config) *Adapter {
 	if cfg.Sandbox == "" {
 		cfg.Sandbox = "workspace-write"
 	}
-	return &Adapter{cfg: cfg}
+	probe := cfg.Prober
+	if probe == nil {
+		probe = agentkit.NewProber()
+	}
+	return &Adapter{cfg: cfg, probe: probe}
 }
 
 // ID implements agent.Adapter.
 func (a *Adapter) ID() string { return ID }
 
-const detectTTL = 30 * time.Second
-
-var versionRE = regexp.MustCompile(`\d+\.\d+\.\d+\S*`)
-
-// Detect implements agent.Adapter.
+// Detect implements agent.Adapter. agentkit finds the executable, its version and whether it is signed in, and
+// remembers the answer briefly (and shares it with the assistant's provider).
 func (a *Adapter) Detect(ctx context.Context) domain.Agent {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if !a.detectAt.IsZero() && time.Since(a.detectAt) < detectTTL {
-		return a.detected
-	}
-	a.detected, a.detectAt = a.detect(ctx), time.Now()
-	return a.detected
-}
-
-// docsURL is where Codex's own installation instructions live.
-const docsURL = "https://github.com/openai/codex"
-
-func (a *Adapter) detect(ctx context.Context) domain.Agent {
-	info := domain.Agent{ID: ID, Name: "Codex", DocsURL: docsURL}
-	path, err := exec.LookPath(a.cfg.Command)
-	if err != nil {
-		info.Detail = fmt.Sprintf("%q was not found on PATH", a.cfg.Command)
-		info.Guidance = "Install Codex (`npm install -g @openai/codex` or `brew install --cask codex`), then run `codex login` to sign in with your ChatGPT account."
-		return info
-	}
-	out, err := run(ctx, path, "--version")
-	if err != nil {
-		info.Detail = "could not run `" + a.cfg.Command + " --version`: " + err.Error()
-		info.Guidance = "Reinstall Codex: " + docsURL
-		return info
-	}
-	info.Installed = true
-	info.Version = versionRE.FindString(out)
-
-	// `login status` exits non-zero when nobody is signed in. Any other failure
-	// (an older version without the command) is not evidence of anything.
-	info.SignIn = domain.SignInUnknown
-	out, err = run(ctx, path, "login", "status")
-	switch {
-	case err != nil && strings.Contains(strings.ToLower(out), "not logged in"):
-		info.SignIn = domain.SignedOut
-		info.Detail = "not signed in: run `" + a.cfg.Command + " login`"
-		info.Guidance = "Run `" + a.cfg.Command + " login` in a terminal and follow the prompts. Werkbord uses your own Codex sign-in and never asks for a key."
-		return info
-	case err == nil && strings.Contains(strings.ToLower(out), "logged in"):
-		info.SignIn = domain.SignedIn
-	}
-	info.Available = true
-	return info
-}
-
-func run(ctx context.Context, path string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = agent.SanitizedEnv(os.Environ())
-	out, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
+	return agent.FromFacts(a.probe.Codex(ctx, a.cfg.Command))
 }
 
 // failDrainWait is how long a failed start waits for a dead server's stderr.

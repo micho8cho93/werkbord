@@ -13,16 +13,12 @@ package codex
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"werkbord/internal/agent"
+	"werkbord/internal/agentkit"
 	"werkbord/internal/assistant/provider"
 )
 
@@ -37,15 +33,17 @@ type Config struct {
 	Model string
 	// Models replaces what Codex reports about itself.
 	Models []provider.Model
+	// Prober answers what the CLI says about itself. The controller shares one with the coding-agent adapter, so Codex
+	// is asked once for both; nil gives the provider one of its own.
+	Prober *agentkit.Prober
 }
 
 // Provider implements provider.Provider.
 type Provider struct {
-	cfg Config
+	cfg   Config
+	probe *agentkit.Prober
 
-	mu       sync.Mutex
-	detected provider.Info
-	detectAt time.Time
+	featMu   sync.Mutex
 	features []string // the features to turn off that this Codex has
 	featAt   time.Time
 
@@ -61,7 +59,11 @@ func New(cfg Config) *Provider {
 	if cfg.Command == "" {
 		cfg.Command = "codex"
 	}
-	return &Provider{cfg: cfg}
+	probe := cfg.Prober
+	if probe == nil {
+		probe = agentkit.NewProber()
+	}
+	return &Provider{cfg: cfg, probe: probe}
 }
 
 // ID implements provider.Provider.
@@ -69,30 +71,13 @@ func (p *Provider) ID() string { return ID }
 
 func (p *Provider) UsesOperationTools() bool { return true }
 
-const (
-	detectTTL = 30 * time.Second
-	modelsTTL = 5 * time.Minute
-	docsURL   = "https://developers.openai.com/codex/cli"
-)
-
-var versionRE = regexp.MustCompile(`\d+\.\d+\.\d+\S*`)
+const modelsTTL = 5 * time.Minute
 
 // toolFeatures are the Codex features that give the model something to act with. Only the ones this Codex has are
 // passed: it exits on a feature it does not know.
 var toolFeatures = []string{
 	"shell_tool", "apps", "plugins", "hooks", "memories", "goals", "code_mode_host", "browser_use", "browser_use_external",
 	"computer_use", "multi_agent", "multi_agent_v2", "image_generation", "skill_search", "tool_suggest", "sleep_tool", "in_app_browser",
-}
-
-// Detect implements provider.Provider.
-func (p *Provider) Detect(ctx context.Context) provider.Info {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if !p.detectAt.IsZero() && time.Since(p.detectAt) < detectTTL {
-		return p.detected
-	}
-	p.detected, p.detectAt = p.detect(ctx), time.Now()
-	return p.detected
 }
 
 func capabilities() provider.Capabilities {
@@ -107,52 +92,35 @@ func capabilities() provider.Capabilities {
 	}
 }
 
-func (p *Provider) detect(ctx context.Context) provider.Info {
-	info := provider.Info{ID: ID, Name: "Codex", Capabilities: capabilities()}
-	path, err := exec.LookPath(p.cfg.Command)
-	if err != nil {
-		info.Detail = fmt.Sprintf("%q was not found on PATH", p.cfg.Command)
-		info.Guidance = "Install Codex (" + docsURL + "), then run `codex login`."
+// Detect implements provider.Provider. agentkit finds the command, its version and whether it is signed in (and shares
+// the answer with the coding-agent adapter); the provider adds the app-server it cannot run without, and does not go on
+// when it cannot see a sign-in.
+func (p *Provider) Detect(ctx context.Context) provider.Info {
+	facts := p.probe.Codex(ctx, p.cfg.Command).SignedOutIfUnknown()
+	info := provider.InfoFromFacts(facts)
+	info.Capabilities = capabilities()
+	if !facts.Installed {
 		return info
 	}
-	out, err := output(ctx, path, "--version")
-	if err != nil {
-		info.Detail = "could not run `" + p.cfg.Command + " --version`: " + err.Error()
-		info.Guidance = "Reinstall Codex: " + docsURL
+	if path, err := exec.LookPath(p.cfg.Command); err != nil {
 		return info
-	}
-	info.Installed, info.Version = true, versionRE.FindString(out)
-	if out, err := output(ctx, path, "app-server", "--help"); err != nil || !strings.Contains(out, "app-server") {
+	} else if out, err := agentkit.RunCombined(ctx, path, "app-server", "--help"); err != nil || !strings.Contains(out, "app-server") {
+		info.Available, info.SignedIn, info.Auth, info.UsesAPIKey = false, nil, "", false
 		info.Detail = "this version of Codex has no app-server, which the assistant needs"
 		info.Guidance = "Update Codex."
 		return info
 	}
-	// `codex login status` says "Logged in using ChatGPT" and exits 0 when signed in.
-	status, serr := output(ctx, path, "login", "status")
-	signed := serr == nil && strings.Contains(strings.ToLower(status), "logged in")
-	info.SignedIn = &signed
-	if signed {
-		if _, after, ok := strings.Cut(status, "using "); ok {
-			info.Auth = strings.TrimSpace(after)
-			info.UsesAPIKey = strings.Contains(strings.ToLower(info.Auth), "api key")
-		}
-	} else {
-		info.Detail = "not signed in"
-		info.Guidance = "Run `" + filepath.Base(p.cfg.Command) + " login` in a terminal and follow the prompts. Werkbord uses your own ChatGPT account and never asks for a key."
-		return info
-	}
-	info.Available = true
 	return info
 }
 
 // disabledFeatures lists the tool features this Codex has, from `codex features list`.
 func (p *Provider) disabledFeatures(ctx context.Context, path string) []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.features != nil && time.Since(p.featAt) < detectTTL {
+	p.featMu.Lock()
+	defer p.featMu.Unlock()
+	if p.features != nil && time.Since(p.featAt) < agentkit.TTL {
 		return p.features
 	}
-	out, _ := output(ctx, path, "features", "list")
+	out, _ := agentkit.RunCombined(ctx, path, "features", "list")
 	have := map[string]bool{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Fields(l)
@@ -168,15 +136,6 @@ func (p *Provider) disabledFeatures(ctx context.Context, path string) []string {
 	}
 	p.featAt = time.Now()
 	return p.features
-}
-
-func output(ctx context.Context, path string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = agent.SanitizedEnv(os.Environ())
-	out, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
 }
 
 // serverArgs is the command line of every app-server the assistant starts.

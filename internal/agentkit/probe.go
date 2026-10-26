@@ -174,3 +174,20 @@ func signedOut(f *Facts, command, login, who string) {
 	f.Detail = "not signed in: run `" + filepath.Base(command) + " " + login + "`"
 	f.Guidance = "Run `" + filepath.Base(command) + " " + login + "` in a terminal and follow the prompts. Werkbord uses your own " + who + " and never asks for a key."
 }
+
+// SignedOutIfUnknown is for a caller that cannot go on without a sign-in it can see: an agent whose CLI has no status
+// command (an older version) is then reported as not signed in, with the way to sign in, instead of assumed usable.
+func (f Facts) SignedOutIfUnknown() Facts {
+	if !f.Installed || f.SignedIn != nil {
+		return f
+	}
+	no := false
+	f.SignedIn = &no
+	switch f.ID {
+	case codex.id:
+		signedOut(&f, f.Command, "login", "ChatGPT account")
+	default:
+		signedOut(&f, f.Command, "auth login", "Claude account")
+	}
+	return f
+}
