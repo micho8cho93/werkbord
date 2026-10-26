@@ -60,11 +60,13 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    const universal = (await side.locator('[data-page=inbox][aria-current=page]').count()) > 0;
    const active = side.locator('[aria-current=page]').first();
    const place = await active.count() ? await active.getAttribute('data-page') : null, project = await active.count() ? await active.getAttribute('data-project') : null;
+   const workspace = await active.count() ? await active.getAttribute('data-open') : null;
    await side.locator('[data-page=settings]').click();
    await page.getByTestId('settings-sections').getByRole('button', { name: 'Appearance', exact: true }).click();
    await page.getByRole('group', { name: group }).getByRole('button', { name: button, exact: true }).click();
    if (universal) await switchUniversal();
    else if (project) await side.locator('[data-project="' + project + '"]').click();
+   else if (workspace) await side.locator('[data-open="' + workspace + '"]').click();
    else if (place && place !== 'settings') await side.locator('[data-page="' + place + '"]').click();
    if (size) await page.setViewportSize(size);
  };
@@ -84,11 +86,12 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert((await shellSkip.boundingBox()).y >= 0, 'shell skip link is visible when focused'); await page.keyboard.press('Enter');
  assert.equal(await page.locator('#shell-main').evaluate(el => el === document.activeElement), true, 'shell skip link moves focus to its main work region');
  await switchTo('personal');
+ await side.locator('[data-section="personal"] [data-project]').filter({hasText:'Customer portal'}).click();
  for (const section of ['Overview', 'Board', 'Git', 'Runs']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
  // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');
  await side.locator('[data-project][aria-current=page]').waitFor(); // the sidebar marks the project Individual is showing
- for (const entry of ['Workspace', 'Projects', 'Customer portal', 'Settings', 'Devices & Hosting']) await side.getByRole('button', { name: entry }).first().waitFor();
+ for (const entry of ['Home', 'Calendar', 'Personal', 'Customer portal', 'Settings', 'Devices & Hosting']) await side.getByRole('button', { name: entry }).first().waitFor();
  assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').getByText('Live', { exact: true }).count(), 0, 'no live status indicator in Individual');
  console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
@@ -137,7 +140,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    }
    return await route.continue();
  } catch (e) { if (!/already handled|closed/i.test(String(e))) throw e; } });
- await wait(async () => (await side.locator('[data-page=ws-home]').innerText()).includes('1'), 'Workspace retains its count');
+ await wait(async () => (await side.locator('[data-open="personal"]').innerText()).includes('1'), 'Workspace retains its count');
  assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 2, 'Home and Calendar are in the sidebar from every place');
  for (const destination of ['calendar', 'inbox']) {
    await page.evaluate(destination => window.__shellGo(destination), destination);
@@ -157,9 +160,9 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const openTeamTicket = async () => { await switchTo('team:main'); await side.locator('[data-project="' + project.id + '"]').click(); await firstFrame.getByRole('button', { name: ticket.title, exact: true }).first().click(); };
  await wait(async () => (await themeOf('team:main')) === chosen, 'theme reaches Team');
  assert.equal(await firstFrame.locator('aside.rail').count(), 0, 'Team shows no rail of its own in the window');
- for (const entry of ['Workspace', 'Projects', 'Reviews', 'Members', 'Settings']) await side.getByRole('button', { name: entry, exact: true }).first().waitFor();
+ for (const entry of ['Home', 'Calendar', 'Reviews', 'Analytics', 'Settings']) await side.getByRole('button', { name: entry, exact: true }).first().waitFor();
  // A project is opened from the sidebar; its own sections are tabs above it, and the sidebar marks it.
- await side.getByRole('button', { name: 'Customer portal' }).click();
+ await side.locator('[data-section="team:main"] [data-project="' + project.id + '"]').click();
  await firstFrame.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Git', exact: true }).waitFor();
  await side.locator('[data-project][aria-current=page]').waitFor();
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
@@ -203,7 +206,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  // The same Settings, with the same Appearance, from Individual and from Universal; the theme is the window's and the sidebar follows it.
  const sections = page.getByTestId('settings-sections');
  await switchTo('personal'); await side.locator('[data-page=settings]').click(); await sections.waitFor();
- for (const label of ['Appearance', 'Alerts', 'Project history', 'Task defaults', 'Routing rules', 'Runners', 'Agents', 'This computer', 'Phones', 'GitHub', 'MCP services', 'Individual memory']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
+ for (const label of ['Appearance', 'Alerts', 'Project history', 'Task defaults', 'Routing rules', 'Runners', 'Agents', 'This computer', 'Phones', 'GitHub', 'MCP services', 'Personal memory']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
  assert.equal(await sections.getByRole('button', { name: 'Labels', exact: true }).count(), 0, 'Labels are Team\'s, not Individual\'s');
  await sections.getByRole('button', { name: 'Appearance', exact: true }).click();
  await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Dark', exact: true }).click();
@@ -222,7 +225,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await switchTo('team:main'); await side.locator('[data-page=settings]').click();
  await sections.waitFor();
  for (const label of ['Appearance', 'Alerts', 'Labels', 'This computer', 'Workspace Hosts', 'Phones', 'MCP clients', 'Team memory', 'Backups']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
- for (const label of ['Task defaults', 'Routing rules', 'Individual memory', 'GitHub']) assert.equal(await sections.getByRole('button', { name: label, exact: true }).count(), 0, label + ' is Individual\'s, not Team\'s');
+ for (const label of ['Task defaults', 'Routing rules', 'Personal memory', 'GitHub']) assert.equal(await sections.getByRole('button', { name: label, exact: true }).count(), 0, label + ' is Individual\'s, not Team\'s');
  const hostedMain = page.frameLocator('iframe[data-hosted="team:main"]');
  await sections.getByRole('button', { name: 'This computer', exact: true }).click();
  assert.equal(await hostedMain.locator('.settings-sections').count(), 0, 'Team\'s own list of sections is not shown inside the window\'s Settings');
@@ -245,7 +248,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const invoice = await team('POST', `/projects/${billing.id}/tickets`, { title: 'Retry failed invoices', status: 'available' }); await team('POST', `/projects/${billing.id}/tickets/${invoice.id}/claim`, {});
  await wait(async () => (await api(individualURL, 'disposable-browser-credential', 'GET', '/api/integration/waiting')).items.length === 1, 'ticket waiting for its repository');
  await page.frameLocator('iframe[data-workspace=personal]').getByRole('link', { name: 'Close panel', exact: true }).click();
- await side.locator('[data-page=ws-home]').click();
+ await side.locator('[data-open="personal"]').click();
  await page.frameLocator('iframe[data-workspace=personal]').getByTestId('waiting-repository').filter({ hasText: invoice.key }).waitFor();
  const billingRepo = path.join(temp, 'billing'); fs.mkdirSync(billingRepo); run('git', ['-C', billingRepo, 'init', '-b', 'main']); run('git', ['-C', billingRepo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture']); run('git', ['-C', billingRepo, 'remote', 'add', 'origin', 'git@github.com:acme/billing.git']);
  await assert.rejects(api(individualURL, 'disposable-browser-credential', 'POST', '/api/integration/waiting/link', { path: repo, repository: 'https://github.com/acme/billing' }), /not a clone/);
@@ -365,7 +368,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.setViewportSize({ width: 1440, height: 1000 });
  console.log('PASS workspaces and devices page in desktop/mobile shell');
  console.log('PASS persistent frames, member restrictions, hosting offer and background run through switching');
- await page.reload(); await page.getByRole('heading', { name: 'Home', exact: true }).waitFor(); await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
+ await page.reload(); await page.getByRole('heading', { name: 'Home', exact: true }).waitFor(); await openTeamTicket(); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  await page.close(); assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'closing frontend leaves runner alive');
  const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'Home', exact: true }).waitFor();
  await assertUniversalStartup(reopened);

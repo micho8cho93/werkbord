@@ -48,6 +48,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     const items = [{ id: 'personal', kind: 'personal', name: 'Individual', state: 'ready' }, { id: 'team:main', kind: 'team', name: 'Demo Team', state: 'ready', role: 'owner' }];
     const source = id => ({ id, kind: id === 'personal' ? 'personal' : 'team', url: base + '/#token=' + token, origin: base, place: '' });
     const calls = {
+        Premium: () => ({ active: false, canCheck: false, buyUrl: '' }),
         Info: () => ({ version: 'fixture', platform: 'darwin' }),
         Workspaces: () => ({ items, selected: 'personal', problems: null, team: { state: 'ready' }, teamInstaller: false, invitation: false }),
         Overview: () => ({ entries: items.map(workspace => ({ workspace, summary: { schema: 'workspace-summary/v1', workspace, projects: [], work: [], attention: [], schedule: [], at: new Date().toISOString() } })), at: new Date().toISOString() }),
@@ -91,7 +92,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     assert.deepEqual((await shelf.locator('svg[data-workspace-icon]').evaluateAll(icons => icons.map(icon => icon.dataset.workspaceIcon))).sort(), [...occupied].filter(icon => icon !== hidden.icon).sort());
     await shelf.screenshot({ path: path.join(output, 'icon-preview.png') });
     await page.getByTestId('hub-workspace-personal').click();
-    const group = page.locator('.group.generated');
+    const group = page.locator('[data-section="personal"]');
     await group.getByRole('button', { name: workspaces[0].name, exact: true }).waitFor();
     assert.deepEqual((await group.locator('svg[data-workspace-icon]').evaluateAll(icons => icons.map(icon => icon.dataset.workspaceIcon))).sort(), workspaces.slice(0, 2).map(workspace => workspace.icon).sort());
     await group.getByRole('button', { name: workspaces[0].name, exact: true }).click();

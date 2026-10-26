@@ -12,18 +12,21 @@ async function call(base, credential, method, route, body) {
 }
 const personal = (method, route, body) => call(individual, token, method, '/api' + route, body);
 const coord = (method, route, body) => call(team, teamToken, method, '/api/team/v1' + route, body);
-let browser;
+let browser, activePage;
 (async () => {
  browser = await chromium.launch({headless:true});
- const page = await browser.newPage({viewport:{width:1440,height:1000}});
+ const page = await browser.newPage({viewport:{width:1440,height:1000}}); activePage=page;
  const errors=[]; page.on('pageerror', e => errors.push(e.message));
  const repo=fs.realpathSync(process.env.WERKBORD_BROWSER_REPO);
  const p = (await personal('GET','/projects')).projects.find(p=>p.repoPath===repo) || await personal('POST','/projects',{name:'Control audit',path:repo});
  await personal('POST','/onboarding/complete',{});
  await page.goto(individual+'/#token='+token);
+ await page.waitForURL(url => !url.hash.includes('token='));
  await page.goto(individual+'/#/settings?runners');
  const runners = page.locator('.pn.runners');
- const machine = runners.locator('.runner').first();
+ const local = (await personal('GET','/runners')).runners.find(r => r.kind === 'local');
+ assert(local && local.online && !local.disabled, 'the local fixture runner is connected and accepts work');
+ const machine = runners.locator('.runner').filter({hasText:' · Werkbord computer'});
  await machine.getByText('Connected',{exact:true}).waitFor();
  assert(!/\d+\s*[\/]\s*\d+/.test(await machine.locator('.state').innerText()),'runner connection is not a capacity fraction');
  await machine.locator('summary').click();
@@ -106,4 +109,11 @@ let browser;
  await member.getByText('Runner connection unknown',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);
  console.log('PASS Team member connection rendering, stale/legacy states, both themes and phone/desktop widths');
-})().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();});
+})().catch(async e=>{
+ console.error(e); process.exitCode=1;
+ if(activePage){
+  const dir=process.env.BROWSER_ARTIFACT_DIR;
+  if(dir) await activePage.screenshot({path:path.join(dir,'controls-failure.png'),fullPage:true}).catch(()=>{});
+  console.error('Control page:',await activePage.locator('body').innerText().catch(()=>'<unavailable>'));
+ }
+}).finally(async()=>{if(browser)await browser.close();});

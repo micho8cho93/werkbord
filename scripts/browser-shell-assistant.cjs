@@ -53,6 +53,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const teamTickets = [], workspaceRequests = new Map();
     const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/board` }] : [], work: [], attention: [], schedule: [], at: new Date().toISOString() });
     const calls = {
+        Premium: () => ({ active: false, canCheck: false, buyUrl: '' }),
         PersonalWorkspaceCall: async (method, path, body) => {
             const res = await fetch(ind + path, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: body === null ? undefined : JSON.stringify(body) });
             const raw = await res.text(); return {status: res.status, body: raw ? JSON.parse(raw) : null};
@@ -133,7 +134,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         page.setDefaultTimeout(15000);
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');
-        await page.getByRole('heading', { name: 'Workspaces', exact: true }).waitFor();
+        await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
         await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
         await page.locator('iframe[data-workspace=personal]').waitFor();
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();

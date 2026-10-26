@@ -36,6 +36,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     const items = [{ id: 'personal', kind: 'personal', name: 'Individual', state: 'ready' }, { id: 'team:main', kind: 'team', name: 'Demo Team', state: 'ready', role: 'owner' }];
     const source = id => ({ id, kind: id === 'personal' ? 'personal' : 'team', url: base + '/#token=' + token, origin: base, place: '' });
     const calls = {
+        Premium: () => ({ active: false, canCheck: false, buyUrl: '' }),
         Info: () => ({ version: 'fixture', platform: 'darwin' }),
         Workspaces: () => ({ items, selected: 'personal', problems: null, team: { state: 'ready' }, teamInstaller: false, invitation: false }),
         Overview: () => ({ entries: items.map(workspace => ({ workspace, summary: { schema: 'workspace-summary/v1', workspace, projects: [], work: [], attention: [], schedule: [], at: new Date().toISOString() } })), at: new Date().toISOString() }),
@@ -94,7 +95,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     });
     await page.goto(shell + '/shell/shell/index.html');
     await page.getByTestId('hub-workspace-personal').click();
-    const side = page.locator('.group.generated');
+    const side = page.locator('[data-section="personal"]');
     await side.getByRole('button', { name: 'Writing desk', exact: true }).click();
     await page.getByRole('heading', { name: 'Writing desk', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Customize with Salie', exact: true }).waitFor();
@@ -121,7 +122,8 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     ok('the Data library shortcut opens the window’s library');
     await side.getByRole('button', { name: 'Writing desk', exact: true }).click();
     await page.locator('[data-shortcut="projects"]').click();
-    await page.locator('nav [aria-current="page"]').filter({ hasText: 'Projects' }).first().waitFor();
+    await page.frameLocator('iframe[data-workspace=personal]').getByRole('heading', { name: 'Projects', exact: true }).waitFor();
+    await page.locator('nav[aria-label="Werkbord"] [data-open=personal][aria-current=page]').waitFor();
     ok('the Projects shortcut opens Projects in the workspace on show');
     await side.getByRole('button', { name: 'Writing desk', exact: true }).click();
     await page.locator('[data-shortcut="calendar"]').click();

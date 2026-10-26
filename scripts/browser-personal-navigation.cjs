@@ -54,6 +54,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const record = await api(ind, 'POST', '/api/personal/v1/collections/' + collection.id + '/records', {values: {title: 'Shared across every location', done: false, priority: 'High'}});
     const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/board` }] : [], work: [], attention: [], schedule: [], at: new Date().toISOString() });
     const calls = {
+        Premium: () => ({ active: false, canCheck: false, buyUrl: '' }),
         PersonalWorkspaceCall: async (method, path, body) => {
             personalCalls.push({method, path});
             const res = await fetch(ind + path, {method, headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'}, body: body === null ? undefined : JSON.stringify(body)});
@@ -137,19 +138,25 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const actual = await side.locator((scope ? scope + ' ' : '') + 'button.nav').evaluateAll(els => els.map(e => e.dataset.page || (e.dataset.project ? 'project' : 'theme')));
         assert.deepEqual(actual, expected);
     };
+    const sidebarWidth = async expected => {
+        await page.waitForFunction(expected => document.querySelector('nav[aria-label="Werkbord"]').getBoundingClientRect().width === expected, expected);
+        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), expected);
+    };
     const saved = 'generated-' + savedWorkspace.id;
+    const teamGenerated = side.locator('[data-section="team:main"] [data-page="' + saved + '"]');
     const footer = ['add-team', 'workspaces', 'personal-library', 'settings'];
     try {
         await page.goto(shellOrigin + '/shell/shell/index.html');
         await page.getByTestId('hub-generated-' + savedWorkspace.id).waitFor();
         // Home has the same sidebar as everywhere: its saved workspace, Personal and the team each in their own section.
-        await ordered('', ['theme', 'inbox', 'calendar', 'reviews', 'analytics', saved, 'create-generated', 'project', 'add-project', saved, saved, ...footer]);
-        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 208);
+        await ordered('', ['inbox', 'calendar', 'reviews', 'analytics', saved, 'create-generated', 'project', 'add-project', saved, saved, ...footer]);
+        await page.getByTestId('salie-button').waitFor();
+        await sidebarWidth(208);
         await page.screenshot({path:path.join(artifacts,'home-default.png')});
         await page.getByTestId('sidebar-label-toggle').click();
-        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 48);
+        await sidebarWidth(48);
         await page.getByTestId('sidebar-label-toggle').click();
-        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 208);
+        await sidebarWidth(208);
         await page.getByTestId('hub-library').click();
         await page.getByRole('heading', {name: 'Data library', exact: true}).waitFor();
         await page.getByTestId('back-to-universal').click();
@@ -157,7 +164,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.screenshot({path:path.join(artifacts,'home.png')});
         // At intermediate widths the sidebar is a rail of icons until the person asks for the labels.
         await page.setViewportSize({width: 1000, height: 800});
-        assert.equal(await side.evaluate(el => el.getBoundingClientRect().width), 48);
+        await sidebarWidth(48);
         await page.screenshot({path:path.join(artifacts,'home-window.png')});
         await page.setViewportSize({width: 390, height: 844});
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -177,6 +184,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.locator('iframe[data-workspace=personal]').waitFor({state:'visible'});
         const individualHandle = await page.locator('iframe[data-workspace=personal]').elementHandle();
         const individualFrame = await individualHandle.contentFrame();
+        await individualFrame.waitForURL('**/#/projects');
         await individualFrame.evaluate(()=>window.__personalSentinel='retained');
         const place = await individualFrame.evaluate(()=>location.hash);
         await openSaved();
@@ -270,7 +278,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.getByLabel('Manage workspace',{exact:true}).click();
         await page.getByRole('button',{name:'Remove from this location',exact:true}).click();
         await page.locator('iframe[data-workspace="team:main"]').waitFor({state:'visible'});
-        assert.equal(await generated.count(),0);
+        assert.equal(await teamGenerated.count(),0);
         assert.equal(await teamFrame.locator('#draft').inputValue(),'My unfinished Team draft');
         await switchTo(page,'universal'); await openSaved();
         await page.getByLabel('Manage workspace',{exact:true}).click();
@@ -279,7 +287,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.getByRole('button',{name:'Save changes',exact:true}).click();
         await page.getByRole('heading',{name:'My planning',exact:true}).waitFor();
         await switchTo(page,'team:main'); await openSaved();
-        assert.equal(await generated.count(),1);
+        assert.equal(await teamGenerated.count(),1);
         await page.getByLabel('Manage workspace',{exact:true}).click();
         await page.getByRole('button',{name:'Delete workspace…',exact:true}).click();
         await page.getByRole('button',{name:'Delete workspace only',exact:true}).click();
