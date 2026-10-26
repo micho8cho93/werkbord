@@ -260,7 +260,6 @@ type recState struct {
 	rules    *recRules
 	cands    []candidate
 	withheld []RecWithheld
-	notes    []string
 }
 
 func (s *recState) withhold(intent, variant string, c RecConstraint) {

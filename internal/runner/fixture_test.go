@@ -245,14 +245,6 @@ func (e *env) log(runID string) []domain.Event {
 	return out
 }
 
-func logTypes(evs []domain.Event) []domain.EventType {
-	out := make([]domain.EventType, len(evs))
-	for i, e := range evs {
-		out[i] = e.Type
-	}
-	return out
-}
-
 // agentTypes is the run's agent.* events only: the activity timeline.
 func (e *env) agentTypes(runID string) []domain.EventType {
 	var out []domain.EventType

@@ -124,12 +124,6 @@ func TestAHostsCheckOfItselfProvesNothingAboutTheOutside(t *testing.T) {
 	}
 }
 
-func get2(t *testing.T, url, token string) (string, int) {
-	t.Helper()
-	s, c := get(t, url, token)
-	return c, s
-}
-
 // ---- nothing Werkbord operates is needed ----
 
 var hostnameRE = regexp.MustCompile(`(?i)\b[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)*\.(com|net|org|io|dev|app|cloud|co|ai|sh|xyz|info)\b`)

@@ -24,9 +24,5 @@ func migrate(ctx context.Context, db *sql.DB, ms []Migration) (applied int, err 
 	return sqlitekit.Migrate(ctx, db, ms, productName)
 }
 
-func schemaVersion(ctx context.Context, db *sql.DB) (int, error) {
-	return sqlitekit.SchemaVersion(ctx, db)
-}
-
 // productName is what a database from a newer build tells the user to upgrade.
 const productName = "devboard"

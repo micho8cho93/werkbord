@@ -26,7 +26,7 @@ import (
 const rqliteDir = "internal/team/infra/rqlite"
 
 var rqliteSurface = []string{
-	"func ArtifactFor", "func Initialized", "func New", "func NewAdmin", "func NewCredentials", "func Platforms", "func ThisPlatform", "func Validate",
+	"func ArtifactFor", "func New", "func NewAdmin", "func NewCredentials", "func Platforms", "func ThisPlatform",
 	"method Supervisor.Admin", "method Supervisor.BecomeVoter", "method Supervisor.Check", "method Supervisor.Config", "method Supervisor.Readdress", "method Supervisor.Start", "method Supervisor.Status", "method Supervisor.Stop", "method Supervisor.WaitReady",
 	"method Admin.Alive", "method Admin.Health", "method Admin.Leader", "method Admin.Nodes", "method Admin.Ready", "method Admin.Remove", "method Admin.StepDown",
 	"method Credentials.Valid", "method NodeConfig.Validate", "method ErrUnsupportedPlatform.Error",

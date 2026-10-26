@@ -7,7 +7,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"math/big"
 	"net"
 	"strings"
@@ -175,17 +174,4 @@ func (t *Trust) IssueServerCertificate(hosts []string, now time.Time) (ServerCer
 		ServerCert: enrollment.ServerCert{ChainDER: [][]byte{der, t.rootDER}, Key: priv},
 		NotAfter:   tmpl.NotAfter,
 	}, nil
-}
-
-// HostsOf returns the host parts of "host:port" endpoints, for IssueServerCertificate.
-func HostsOf(endpoints []string) ([]string, error) {
-	var out []string
-	for _, e := range endpoints {
-		h, _, err := net.SplitHostPort(e)
-		if err != nil {
-			return nil, fmt.Errorf("pki: endpoint %q is not host:port", e)
-		}
-		out = append(out, h)
-	}
-	return out, nil
 }

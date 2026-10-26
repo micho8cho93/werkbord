@@ -193,9 +193,6 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 	return nil
 }
 
-// Validate checks a configuration the way Start does, without starting anything.
-func Validate(cfg NodeConfig) error { return prepare(cfg, false) }
-
 // Check finds the database program, verifies it against the pin and has it report its version, without starting a node:
 // what a command that is about to need the program does first, so that it fails before it has changed anything. dataDir is
 // the directory the supervisor keeps its verified copy in (it is made private).

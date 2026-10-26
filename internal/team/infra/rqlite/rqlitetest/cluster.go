@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"sort"
 	"sync"
 	"syscall"
 	"time"
@@ -424,9 +423,6 @@ func (n *Node) Kill() {
 // Admin is a client for this node.
 func (n *Node) Admin() *rqlite.Admin { return rqlite.NewAdmin(n.HTTP, n.c.Creds) }
 
-// RaftAddr is the address the other nodes use for this one.
-func (n *Node) RaftAddr() netip.AddrPort { return n.RaftAdv }
-
 // Config is the configuration the node runs with.
 func (n *Node) Config() rqlite.NodeConfig { return n.cfg }
 
@@ -496,14 +492,4 @@ func (c *Cluster) WaitLeader(timeout time.Duration, among ...*Node) *Node {
 	}
 	c.tb.Fatalf("no leader among the given nodes within %s", timeout)
 	return nil
-}
-
-// IDs lists the nodes' IDs, sorted.
-func (c *Cluster) IDs() []string {
-	var out []string
-	for _, n := range c.Nodes() {
-		out = append(out, n.ID)
-	}
-	sort.Strings(out)
-	return out
 }

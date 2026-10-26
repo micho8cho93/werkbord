@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -637,10 +636,4 @@ func freeAddr(addr string) bool {
 	}
 	_ = l.Close()
 	return true
-}
-
-// cleanExec runs a command and returns its trimmed output.
-func cleanExec(ctx context.Context, name string, args ...string) (string, error) {
-	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
-	return strings.TrimSpace(string(out)), err
 }

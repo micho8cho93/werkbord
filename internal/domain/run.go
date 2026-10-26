@@ -68,15 +68,6 @@ func (s RunState) CanTransitionTo(next RunState) bool {
 	return false
 }
 
-// ParseRunState validates a state received from outside the process.
-func ParseRunState(s string) (RunState, error) {
-	st := RunState(s)
-	if !st.Valid() {
-		return "", fmt.Errorf("%w: unknown run state %q", ErrInvalid, s)
-	}
-	return st, nil
-}
-
 // WaitingKind says what a run in RunWaitingForUser is waiting for.
 type WaitingKind string
 

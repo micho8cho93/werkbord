@@ -49,14 +49,6 @@ func sameHash(a, b string) bool {
 	return a != "" && subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
-// buildRecord is what scripts/fetch-rqlite.sh leaves beside a program it built from the
-// pinned source.
-type buildRecord struct {
-	Version string `json:"version"`
-	Commit  string `json:"commit"`
-	SHA256  string `json:"sha256"`
-}
-
 // verified is a copy of the pinned program, checked, in a directory only the
 // supervisor's user can write.
 type verified struct {

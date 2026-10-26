@@ -458,16 +458,6 @@ func TestAPhoneMayDoExactlyWhatWasReviewed(t *testing.T) {
 	}
 }
 
-func registeredLoosely(registered map[string]bool, route string) bool {
-	norm := regexp.MustCompile(`\{[a-z]*\}`).ReplaceAllString(route, "{}")
-	for r := range registered {
-		if regexp.MustCompile(`\{[a-z]*\}`).ReplaceAllString(r, "{}") == norm {
-			return true
-		}
-	}
-	return false
-}
-
 func registeredRoutes(t *testing.T) map[string]bool {
 	t.Helper()
 	src, err := os.ReadFile("server.go")

@@ -16,7 +16,6 @@ import (
 	"crypto/hkdf"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -291,6 +290,3 @@ func (s *Session) Open(frame []byte) ([]byte, error) {
 	s.recvN, s.recvAny = c, true
 	return pt, nil
 }
-
-// Equal reports whether two byte strings are equal in constant time.
-func Equal(a, b []byte) bool { return subtle.ConstantTimeCompare(a, b) == 1 }

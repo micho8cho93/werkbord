@@ -9,7 +9,6 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -979,8 +978,6 @@ func (st *Storage) Backup(ctx context.Context) (domain.BackupStatus, error) {
 	}
 	return br.now(ctx)
 }
-
-func portString(p int) string { return strconv.Itoa(p) }
 
 // whenThereIsALeader runs a membership change, trying again for a while if the cluster has no leader at that moment (one is
 // being elected, as it is just after a node joined). A change refused for want of a leader was not applied, so asking again is safe.

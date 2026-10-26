@@ -3,7 +3,6 @@ package enrollment
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/subtle"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
@@ -277,9 +276,4 @@ func (l *limiter) allow(key string) bool {
 		}
 	}
 	return true
-}
-
-// ConstantTimeEqual compares two strings without leaking where they differ.
-func ConstantTimeEqual(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

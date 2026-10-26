@@ -593,11 +593,6 @@ func TestACleanWorktreeOfADoneTaskIsHousekeeping(t *testing.T) {
 
 // ---- Git operations ----
 
-func conflictOn(t *testing.T, dir, base string) {
-	t.Helper()
-	commitIn(t, dir, "clash.txt", "from "+base+"\n", "commit "+base)
-}
-
 func TestAnInterruptedMergeWithConflictsInAnAgentWorktreeIsFound(t *testing.T) {
 	f := newHealth(t)
 	a := f.pushed(t, "feature", 1)

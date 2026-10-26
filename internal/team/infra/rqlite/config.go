@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -195,13 +194,6 @@ func (c NodeConfig) Validate() error {
 func (c NodeConfig) nodeDir() string  { return filepath.Join(c.DataDir, "node") }
 func (c NodeConfig) binDir() string   { return filepath.Join(c.DataDir, "bin") }
 func (c NodeConfig) authPath() string { return filepath.Join(c.DataDir, "auth.json") }
-
-// Initialized reports whether a node has run in dataDir before: whether it has Raft state, and
-// so already belongs to a cluster (possibly of one) and ignores any request to join one.
-func Initialized(dataDir string) bool {
-	_, err := os.Stat(filepath.Join(dataDir, "node", "raft.db"))
-	return err == nil
-}
 
 // args are the program's command line for the configuration. Every value is a constant, a
 // number, or an address and a name this package validated: nothing a member wrote reaches it.

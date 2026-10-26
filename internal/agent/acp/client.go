@@ -36,15 +36,14 @@ type permission struct {
 }
 
 type terminal struct {
-	id        acp.TerminalId
-	proc      *stdio.Process
-	cancel    context.CancelFunc
-	output    tailBuffer
-	done      chan struct{}
-	exitCode  *uint32
-	signal    *string
-	mu        sync.Mutex
-	truncated bool
+	id       acp.TerminalId
+	proc     *stdio.Process
+	cancel   context.CancelFunc
+	output   tailBuffer
+	done     chan struct{}
+	exitCode *uint32
+	signal   *string
+	mu       sync.Mutex
 }
 
 type runClient struct {
