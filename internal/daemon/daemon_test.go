@@ -480,7 +480,7 @@ func TestDescribeReadsLinuxSystemdUnit(t *testing.T) {
 
 func TestDescribeReadsWindowsScheduledTask(t *testing.T) {
 	home := t.TempDir()
-	const xml = `<?xml version="1.0" encoding="UTF-16"?><Task><Actions><Exec><Command>cmd.exe</Command><Arguments>/c "set "WERKBORD_DATA_DIR=C:\Users\me\Data" &amp;&amp; set "WERKBORD_DATA_DIR=C:\Users\me\Data" &amp;&amp; "C:\Users\me\My Tools\werkbord.exe" serve"</Arguments></Exec></Actions></Task>`
+	const xml = `<?xml version="1.0" encoding="UTF-16"?><Task><Actions><Exec><Command>cmd.exe</Command><Arguments>/c "set "WERKBORD_DATA_DIR=C:\Users\me\Data" &amp;&amp; "C:\Users\me\My Tools\werkbord.exe" serve"</Arguments></Exec></Actions></Task>`
 	r := &recorder{answer: func(call string) (string, error) {
 		if strings.HasSuffix(call, "/XML") {
 			return xml, nil

@@ -74,12 +74,12 @@ run_app() { # <label> <prefix words…>: the app as that kind of Mac runs it
   label=$1; shift
   H2="$WORK/home-app-$label"; mkdir -p "$H2"
   PORT2=$(free_port)
-  env2() { HOME="$H2" WERKBORD_DATA_DIR="$H2/data" WERKBORD_DATA_DIR="" WERKBORD_ADDR="127.0.0.1:$PORT2" WERKBORD_ADDR="" "$@"; }
+  env2() { HOME="$H2" WERKBORD_DATA_DIR="$H2/data" WERKBORD_ADDR="127.0.0.1:$PORT2" "$@"; }
   # A controller of its own (no login service) for the app to find and join: the app must not make one here.
   env2 "$@" "$APP/Contents/Helpers/werkbord" setup --no-service --no-open --no-network >/dev/null 2>&1 || bad "$label: could not set up the controller for the app"
   pid_before=$(cat "$H2/data/controller.pid")
   # The app itself is the background job (not a shell function around it), so that $! is its own process.
-  HOME="$H2" WERKBORD_DATA_DIR="$H2/data" WERKBORD_DATA_DIR="" WERKBORD_ADDR="127.0.0.1:$PORT2" WERKBORD_ADDR="" \
+  HOME="$H2" WERKBORD_DATA_DIR="$H2/data" WERKBORD_ADDR="127.0.0.1:$PORT2" \
     "$@" "$APP/Contents/MacOS/Werkbord" >"$WORK/app-$label.out" 2>&1 &
   APP_PID=$!
   n=0
@@ -390,9 +390,9 @@ OUT2="$WORK/out-team"
 SPARKLE=0 TEAM_PAYLOAD=1 ARCH=universal CODESIGN="$SHIM" CODESIGN_IDENTITY="$ID" CODESIGN_TIMESTAMP=none CODESIGN_KEYCHAIN="$WORK/some.keychain-db" \
   scripts/build-desktop.sh "$OUT2" >"$WORK/build2.log" 2>&1 || { cat "$WORK/build2.log" >&2; bad "the build that carries Team's service failed"; }
 signed=$(grep '^SIGN' "$LOG" | awk '{ n = split($2, p, "/"); print p[n] }' | tr '\n' ' ')
-# rqlited first and once: the Team service is built with the hash of exactly those bytes, so signing it again would make another
-# file. Nebula is never signed: it keeps its makers' signature and is held to its pin.
-[ "$signed" = "rqlited werkbord werkbord-team Werkbord.app " ] || bad "the Team service's pieces are not signed as they must be" "got: $signed"
+# nebula, then rqlited, each first and once: the Team service is built with the hash of exactly those bytes, so signing either again
+# would make another file. Both are built here from pinned source, so Werkbord signs them with its own Developer ID.
+[ "$signed" = "nebula rqlited werkbord werkbord-team Werkbord.app " ] || bad "the Team service's pieces are not signed as they must be" "got: $signed"
 ok "signed: the database program first and once, then the programs, then the app; the network program never"
 T="$OUT2/Werkbord.app"
 want=$(sed -n 's/.*"sha256":"\([a-f0-9]*\)".*/\1/p' "$T/Contents/Resources/rqlited.build")
@@ -420,7 +420,7 @@ echo "5. the hardened program and app run"
 # 5a. a controller, started by the hardened program, in a home of its own
 H="$WORK/home-run"; mkdir -p "$H"
 PORT=$(free_port)
-envrun() { HOME="$H" WERKBORD_DATA_DIR="$H/data" WERKBORD_DATA_DIR="" WERKBORD_ADDR="127.0.0.1:$PORT" WERKBORD_ADDR="" "$@"; }
+envrun() { HOME="$H" WERKBORD_DATA_DIR="$H/data" WERKBORD_ADDR="127.0.0.1:$PORT" "$@"; }
 envrun "$APP/Contents/Helpers/werkbord" setup --no-service --no-open --no-network >"$WORK/setup.log" 2>&1 || { cat "$WORK/setup.log" >&2; bad "the hardened program could not set Werkbord up"; }
 code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/api/health" || true)
 [ "$code" = 200 ] || bad "the controller started by the hardened program does not answer (HTTP $code)" "$(cat "$WORK/setup.log")"
