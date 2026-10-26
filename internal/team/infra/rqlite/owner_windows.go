@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"devboard/internal/fssecure"
 	"golang.org/x/sys/windows"
+	"werkbord/internal/fssecure"
 )
 
 func checkOwnedPrivate(path string, dir bool) error {

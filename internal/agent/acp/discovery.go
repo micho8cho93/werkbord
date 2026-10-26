@@ -2,14 +2,14 @@ package acp
 
 import (
 	"context"
-	agentapi "devboard/internal/agent"
-	"devboard/internal/domain"
 	"fmt"
 	acp "github.com/caelis-labs/acp-go-sdk"
 	"github.com/caelis-labs/acp-go-sdk/transport/stdio"
 	"io"
 	"os"
 	"time"
+	agentapi "werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 // A discovery session never sends a prompt, grants a permission or advertises filesystem/terminal access.

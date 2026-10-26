@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // These tests run the health system over real temporary repositories: real

@@ -17,13 +17,13 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/entitlement"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/service"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/entitlement"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/service"
 )
 
 func daemonCall(d *Daemon, method, path, body string) *httptest.ResponseRecorder {

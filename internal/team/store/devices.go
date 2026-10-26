@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 const deviceCols = `id, workspace_id, member_id, name, public_key, host_status, connectivity_status, last_seen_at, revoked_at, created_at, updated_at`

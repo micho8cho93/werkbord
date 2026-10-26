@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 
-	"devboard/internal/launcher"
+	"werkbord/internal/launcher"
 )
 
 // launcherOptions says where the controller's program comes from.

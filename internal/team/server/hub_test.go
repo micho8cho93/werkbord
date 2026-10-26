@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/service"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/service"
 )
 
 func testHub(t *testing.T) *Hub {

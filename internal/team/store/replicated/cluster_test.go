@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/rqlite"
-	"devboard/internal/team/infra/rqlite/rqlitetest"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/store"
 )
 
 // These tests run the replicated store on real rqlite clusters (the pinned program, as Team ships it),

@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/infra/rqlite"
-	"devboard/internal/team/store/replicated"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/infra/rqlite"
+	"werkbord/internal/team/store/replicated"
 )
 
 // Moving a workspace that Team kept in one SQLite file (team.db) into a cluster, and back.

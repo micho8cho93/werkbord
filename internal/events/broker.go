@@ -10,7 +10,7 @@ package events
 import (
 	"sync"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Publisher fans committed events out to live subscribers.

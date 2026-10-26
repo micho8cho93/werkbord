@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // Relationships uses the same transaction, principal and full-scope checks as

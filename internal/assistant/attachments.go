@@ -10,8 +10,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"devboard/internal/appops"
-	"devboard/internal/domain"
+	"werkbord/internal/appops"
+	"werkbord/internal/domain"
 )
 
 // Attachments are text the person chooses to show the assistant with a message: notes, a spec, a CSV, a log. They are

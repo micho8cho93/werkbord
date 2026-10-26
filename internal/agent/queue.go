@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // defaultQueueLimit is how many undelivered output events an adapter keeps

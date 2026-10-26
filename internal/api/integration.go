@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"devboard/internal/integration"
+	"werkbord/internal/integration"
 )
 
 func (s *Server) handleIntegrationProjects(w http.ResponseWriter, r *http.Request) {

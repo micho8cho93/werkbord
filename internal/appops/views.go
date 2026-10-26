@@ -3,8 +3,8 @@ package appops
 import (
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // What an operation hands back is a view, not a domain struct. A view carries what the caller needs to talk about the

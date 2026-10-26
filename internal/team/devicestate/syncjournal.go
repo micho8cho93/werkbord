@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/integration"
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/domain"
 )
 
 const MaxPendingProgress = 256

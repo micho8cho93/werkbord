@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 type eventRepo struct{ q queryer }

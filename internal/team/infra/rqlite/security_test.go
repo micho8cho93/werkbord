@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/infra/rqlite"
-	"devboard/internal/team/infra/rqlite/rqlitetest"
 	_ "modernc.org/sqlite"
+	"werkbord/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
 )
 
 // Wire constants are from the pinned upstream cluster/proto/message.proto and

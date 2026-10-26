@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
 )
 
 func TestUnsupportedNetworkProtocolAndTrailingDataFailClosed(t *testing.T) {

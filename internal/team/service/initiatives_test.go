@@ -1,11 +1,11 @@
 package service
 
 import (
-	"devboard/internal/team/domain"
 	"encoding/json"
 	"strings"
 	"testing"
 	"time"
+	"werkbord/internal/team/domain"
 )
 
 func TestInitiativeCoordinatesExistingWorkAndRevokesWholeScope(t *testing.T) {

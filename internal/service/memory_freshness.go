@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/integration"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 const (

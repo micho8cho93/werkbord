@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"devboard/internal/domain"
-	"devboard/internal/runnerwire"
+	"werkbord/internal/domain"
+	"werkbord/internal/runnerwire"
 )
 
 // refreshDistributed is called under the project lock before a review or merge.

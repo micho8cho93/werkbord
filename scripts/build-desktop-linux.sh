@@ -48,7 +48,7 @@ echo "build-desktop-linux: building Werkbord $VERSION for linux/$ARCH"
   CGO_ENABLED=1 go run github.com/wailsapp/wails/v2/cmd/wails@v2.17.0 build \
     -platform "linux/$ARCH" -skipfrontend -skipbindings -nosyncgo -m \
     -tags desktop,production,webkit2_41 -o Werkbord \
-    -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION -X devboard/desktop/internal/teaminstall.releaseBuild=v$VERSION"
+    -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION -X werkbord/desktop/internal/teaminstall.releaseBuild=v$VERSION"
 )
 cp desktop/build/bin/Werkbord "$APP/bin/Werkbord"
 
@@ -63,7 +63,7 @@ RQLITE_VERSION=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/team/infra/
 RQLITE_COMMIT=$(sed -n 's/^const SourceCommit = "\(.*\)"$/\1/p' internal/team/infra/rqlite/manifest.go)
 printf '{"version":"v%s","commit":"%s","sha256":"%s"}\n' "$RQLITE_VERSION" "$RQLITE_COMMIT" "$DATABASE_SHA" > "$APP/Resources/rqlited.build"
 CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
-  -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$(sha256sum "$APP/Helpers/nebula" | cut -d' ' -f1)" \
+  -ldflags "-s -w $RELEASE_FLAGS -X main.version=v$VERSION -X werkbord/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X werkbord/internal/team/infra/nebula.distributionBinarySHA256=$(sha256sum "$APP/Helpers/nebula" | cut -d' ' -f1)" \
   -o "$APP/Helpers/werkbord-team" ./cmd/werkbord-team
 cp -R third_party/nebula third_party/rqlite third_party/go "$APP/Resources/licenses/"
 

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	"devboard/internal/assistant/provider/cli"
+	"werkbord/internal/assistant/provider/cli"
 )
 
 // message is one JSON-RPC line, in either direction.

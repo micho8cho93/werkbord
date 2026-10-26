@@ -5,9 +5,9 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
-	"devboard/internal/workspace"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
+	"werkbord/internal/workspace"
 )
 
 // WorkspaceSummary is this computer's Individual workspace in the words the desktop shell uses for every workspace

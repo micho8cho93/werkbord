@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // shell launches `sh -c script` as a session whose stdout lines are collected.

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // These tests pin the rules the database itself enforces about worktrees. They

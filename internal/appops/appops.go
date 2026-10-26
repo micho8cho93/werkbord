@@ -32,9 +32,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 // Kind says whether an operation only looks or changes something.

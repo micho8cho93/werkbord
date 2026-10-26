@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"devboard/internal/domain"
-	"devboard/internal/netprivate"
-	"devboard/internal/phoneaccess"
-	"devboard/internal/terminal"
+	"werkbord/internal/domain"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/phoneaccess"
+	"werkbord/internal/terminal"
 )
 
 // Native terminals remain local-owner only unless that owner grants one phone one session.

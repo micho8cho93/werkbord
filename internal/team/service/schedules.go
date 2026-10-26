@@ -3,17 +3,17 @@ package service
 import (
 	"context"
 	"crypto/sha256"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 
-	"devboard/internal/planning"
+	"werkbord/internal/planning"
 )
 
 type ScheduleInput struct {

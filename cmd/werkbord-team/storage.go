@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"devboard/internal/logging"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/server"
-	"devboard/internal/team/store/replicated"
+	"werkbord/internal/logging"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/server"
+	"werkbord/internal/team/store/replicated"
 )
 
 // Where the workspace's data is kept, and what to do about it. Commands that ask the workspace (status, backup) are

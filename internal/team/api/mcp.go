@@ -3,10 +3,10 @@ package api
 import (
 	"net/http"
 
-	"devboard/internal/httpkit"
-	"devboard/internal/mcpcontract"
-	"devboard/internal/mcpplan"
-	"devboard/internal/team/service"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/mcpcontract"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/team/service"
 )
 
 func (s *Server) handleMCPOperations(w http.ResponseWriter, r *http.Request) {

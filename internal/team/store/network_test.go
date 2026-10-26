@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 func seedNetwork(t *testing.T, db *DB) (ada, bo string) {

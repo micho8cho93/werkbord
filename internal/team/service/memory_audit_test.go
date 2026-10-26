@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/integration"
+	"werkbord/internal/integration"
 )
 
 // TestAuditTeamMemoryScale reports Team memory latency as a workspace accumulates

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/team/store"
+	"werkbord/internal/team/store"
 )
 
 func TestSplittingAScript(t *testing.T) {

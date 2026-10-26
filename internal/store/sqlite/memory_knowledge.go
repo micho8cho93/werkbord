@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func (r memoryRepo) KnowledgeRuns(ctx context.Context, owner, after string, limit int) ([]domain.Run, error) {

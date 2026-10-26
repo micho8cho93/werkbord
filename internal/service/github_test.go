@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/github"
-	"devboard/internal/github/ghtest"
-	"devboard/internal/gitrepo"
+	"werkbord/internal/domain"
+	"werkbord/internal/github"
+	"werkbord/internal/github/ghtest"
+	"werkbord/internal/gitrepo"
 )
 
 func gitIn(t *testing.T, dir string, args ...string) {

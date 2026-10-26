@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/appops"
+	"werkbord/internal/appops"
 )
 
 // The memory and suggestion guidance is a fixed per-turn token cost, so it is sent

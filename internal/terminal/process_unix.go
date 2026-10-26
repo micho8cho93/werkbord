@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"devboard/internal/agent"
 	"github.com/creack/pty"
 	"golang.org/x/sys/unix"
+	"werkbord/internal/agent"
 )
 
 const supported = true

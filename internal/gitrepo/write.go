@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Operator changes a repository. Each method is one narrow, guarded Git

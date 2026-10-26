@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
 	"fmt"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 // ApproveMemoryShare approves an immutable manually sanitized projection, never

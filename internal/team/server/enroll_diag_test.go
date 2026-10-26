@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/team/service"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/team/service"
 )
 
 type syncBuffer struct {

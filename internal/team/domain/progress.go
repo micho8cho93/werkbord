@@ -1,8 +1,8 @@
 package domain
 
 import (
-	"devboard/internal/integration"
 	"time"
+	"werkbord/internal/integration"
 )
 
 // Progress is an ordered observation from the holding member's enrolled device.

@@ -2,11 +2,11 @@ package localwerkbord
 
 import (
 	"context"
-	"devboard/internal/integration"
 	"encoding/json"
 	"errors"
 	"net/url"
 	"time"
+	"werkbord/internal/integration"
 )
 
 // ApprovedMemory reads only the local owner's explicit sharing projections. The

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func TestRetainedWorkspaceReconciliationIsReportedWithoutRestartingExecution(t *testing.T) {

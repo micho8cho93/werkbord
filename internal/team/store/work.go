@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // Queries that span a whole workspace: what a member's "My Work", "Reviews" and

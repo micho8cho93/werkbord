@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"devboard/internal/connections"
-	"devboard/internal/domain"
+	"werkbord/internal/connections"
+	"werkbord/internal/domain"
 )
 
 func (s *Server) connectionsReady(w http.ResponseWriter) bool {

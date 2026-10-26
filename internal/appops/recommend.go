@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // Recommendations is what recommend_next_actions returns: the rules' answer for one project, never a model's.

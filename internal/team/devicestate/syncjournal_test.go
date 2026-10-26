@@ -2,12 +2,12 @@ package devicestate
 
 import (
 	"context"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
 	"errors"
 	"path/filepath"
 	"testing"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 func TestSyncJournalBoundedAtomicRetriesAndWorkspaceIsolation(t *testing.T) {

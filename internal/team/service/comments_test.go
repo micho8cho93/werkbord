@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // ---- helpers: a conversation between Ada (the project's owner), Bo and Cy (members) and Di (a reviewer) ----

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {

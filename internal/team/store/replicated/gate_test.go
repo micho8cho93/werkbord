@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
 )
 
 func TestSeededRandomHostRestartsPreserveCommittedHistory(t *testing.T) {

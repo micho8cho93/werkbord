@@ -8,8 +8,8 @@ import (
 	"io"
 	"time"
 
-	"devboard/internal/config"
-	"devboard/internal/localaccess"
+	"werkbord/internal/config"
+	"werkbord/internal/localaccess"
 )
 
 // `werkbord access` shows which programs on this computer have been given a narrow way into Werkbord (not the

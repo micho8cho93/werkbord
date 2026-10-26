@@ -1,8 +1,8 @@
 package api
 
 import (
-	"devboard/internal/team/service"
 	"net/http"
+	"werkbord/internal/team/service"
 )
 
 func (s *Server) handleSchedules(w http.ResponseWriter, r *http.Request) {

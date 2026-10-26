@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/cli"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/cli"
 )
 
 // line is the part of Claude Code's stream-json output that the assistant reads.

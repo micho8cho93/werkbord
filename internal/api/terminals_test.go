@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/agent/fake"
-	"devboard/internal/domain"
-	"devboard/internal/localaccess"
-	"devboard/internal/phoneaccess"
-	"devboard/internal/terminal"
+	"werkbord/internal/agent/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/localaccess"
+	"werkbord/internal/phoneaccess"
+	"werkbord/internal/terminal"
 )
 
 func TestTerminalOwnerAuthorizationAndClosedCommandSurface(t *testing.T) {

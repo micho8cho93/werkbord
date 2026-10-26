@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/agent/fake"
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/agent/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // These tests are about what a run is started with. The hierarchy itself is

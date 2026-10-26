@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/gitrepo"
-	"devboard/internal/runnerwire"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/runnerwire"
 )
 
 // Retained worktrees can be committed after execution ends. Report their Git

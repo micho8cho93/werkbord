@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/assistant"
-	"devboard/internal/assistant/provider/fake"
-	"devboard/internal/phoneaccess"
+	"werkbord/internal/assistant"
+	"werkbord/internal/assistant/provider/fake"
+	"werkbord/internal/phoneaccess"
 )
 
 func TestPhoneReceivesAssistantMultiplexCompletionAndRevocationClosesStream(t *testing.T) {

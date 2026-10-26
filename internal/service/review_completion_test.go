@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/runnerwire"
-	"devboard/internal/store"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/store"
 )
 
 func TestCompletionReviewEvidence(t *testing.T) {

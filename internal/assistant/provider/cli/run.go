@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/agent"
+	"werkbord/internal/agent"
 )
 
 // Spec is the command to run.

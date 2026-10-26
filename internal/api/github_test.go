@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/github"
-	"devboard/internal/github/ghtest"
-	"devboard/internal/service"
+	"werkbord/internal/github"
+	"werkbord/internal/github/ghtest"
+	"werkbord/internal/service"
 )
 
 func newGitHubServer(t *testing.T) (url string, gh *ghtest.Fake) {

@@ -1,10 +1,10 @@
 package api
 
 import (
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
 	"fmt"
 	"net/http"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 func (s *Server) handleMemoryPropose(w http.ResponseWriter, r *http.Request) {

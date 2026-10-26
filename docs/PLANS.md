@@ -28,7 +28,7 @@ app once is all there is; it works offline, forever.
 
   The private key never enters a customer build, the public page or Git. The 43 characters of `issuer.pub` become the repository variable
   `PREMIUM_ISSUER_PUBLIC_KEY`, which the build stamps into both executables
-  (`-X devboard/internal/entitlement.issuerPublicKey=…`, in `scripts/release-build-flags.sh` and `team-build-flags.sh`).
+  (`-X werkbord/internal/entitlement.issuerPublicKey=…`, in `scripts/release-build-flags.sh` and `team-build-flags.sh`).
   A build without it can check no key, so everyone on it is on the Free plan; the release check warns about that.
 - **A leaked key** is the known weakness of anything offline. A key is used once per team, so one key cannot fill a team, and a
   signed blocklist inside app releases is the later remedy.

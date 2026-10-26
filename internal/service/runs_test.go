@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/store"
 )
 
 // runFixture is a project with one task and a subscription to everything published.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // Comments on tickets, the people they mention, and the notification each mention makes. See migration 0021.

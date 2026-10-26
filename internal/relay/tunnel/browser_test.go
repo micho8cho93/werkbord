@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/relay/access"
-	"devboard/internal/relay/client"
-	"devboard/internal/relay/relaytest"
-	"devboard/internal/relay/tunnel"
+	"werkbord/internal/relay/access"
+	"werkbord/internal/relay/client"
+	"werkbord/internal/relay/relaytest"
+	"werkbord/internal/relay/tunnel"
 )
 
 // These tests run the connector's own code (relay/connector/src/link.js, the code the service worker runs) under Node

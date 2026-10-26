@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/runnerwire"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/runnerwire"
 )
 
 func runGit(t *testing.T, root string, args ...string) string {

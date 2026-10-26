@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant/provider/fake"
-	"devboard/internal/domain"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant/provider/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 // Scripted model output exercises the real engine/protocol, SQLite, proposals,

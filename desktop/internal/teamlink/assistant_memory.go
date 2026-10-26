@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/integration"
+	"werkbord/internal/integration"
 )
 
 // Only this reviewed projection crosses the assistant bridge. Authentication and

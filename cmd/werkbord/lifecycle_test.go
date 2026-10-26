@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/config"
-	"devboard/internal/controller"
+	"werkbord/internal/config"
+	"werkbord/internal/controller"
 )
 
 func TestServiceLifecycleManagesTheOneController(t *testing.T) {

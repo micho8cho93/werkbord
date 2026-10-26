@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // How a workspace knows its own health. Each device reports about itself, with its own credential, every little while

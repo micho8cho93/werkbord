@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/fake"
-	"devboard/internal/domain"
-	"devboard/internal/localaccess"
-	"devboard/internal/service"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/localaccess"
+	"werkbord/internal/service"
 )
 
 type asst struct {

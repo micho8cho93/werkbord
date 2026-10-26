@@ -17,12 +17,12 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/agentcatalog"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/agent"
+	"werkbord/internal/agentcatalog"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 const BufferSize = 512 << 10

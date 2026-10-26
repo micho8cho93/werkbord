@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 func TestMemberDirectoryReportsConnectionsWithoutDeviceAccess(t *testing.T) {

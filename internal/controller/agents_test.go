@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agentcatalog"
-	"devboard/internal/config"
-	"devboard/internal/domain"
+	"werkbord/internal/agentcatalog"
+	"werkbord/internal/config"
+	"werkbord/internal/domain"
 )
 
 // fakeClaude is a shell script that speaks enough of Claude Code's stream-json

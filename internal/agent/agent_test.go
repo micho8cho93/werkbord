@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 type fakeAdapter struct{ id string }

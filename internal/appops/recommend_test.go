@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 // recFx is the operations' fixture with a Recommender behind them. The projects here have no repository on disk, so what is

@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid/localidentity"
-	"devboard/internal/team/authproof"
-	"devboard/internal/team/server"
-	"devboard/internal/team/service"
-	"devboard/internal/team/store"
+	"werkbord/internal/deviceid/localidentity"
+	"werkbord/internal/team/authproof"
+	"werkbord/internal/team/server"
+	"werkbord/internal/team/service"
+	"werkbord/internal/team/store"
 )
 
 // A person who is refused for a reason that is not their token must be told the reason: a member token used from another

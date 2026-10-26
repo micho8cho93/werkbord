@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/config"
-	"devboard/internal/netprivate"
+	"werkbord/internal/config"
+	"werkbord/internal/netprivate"
 )
 
 // fakeNode is a private network node that listens on loopback instead of a tailnet.

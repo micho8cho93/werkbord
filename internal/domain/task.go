@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"devboard/internal/planning"
+	"werkbord/internal/planning"
 )
 
 // TaskState is a task's position in the workflow. It is deliberately separate

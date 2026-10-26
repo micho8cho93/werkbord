@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/desktop/internal/premium"
+	"werkbord/desktop/internal/premium"
 )
 
 type fakePremium struct {

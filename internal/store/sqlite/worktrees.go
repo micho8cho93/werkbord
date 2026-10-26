@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 type worktreeRepo struct{ q queryer }

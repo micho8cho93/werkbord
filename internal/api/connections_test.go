@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"devboard/internal/connections"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/connections"
+	"werkbord/internal/store/sqlite"
 )
 
 func TestUpstreamMCPControlsAreAvailableOnlyOnTheControllerListener(t *testing.T) {

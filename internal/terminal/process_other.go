@@ -3,8 +3,8 @@
 package terminal
 
 import (
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 const supported = false

@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"devboard/internal/domain"
-	"devboard/internal/update"
+	"werkbord/internal/domain"
+	"werkbord/internal/update"
 )
 
 // settingsReady answers 503 and returns false when settings are not enabled.

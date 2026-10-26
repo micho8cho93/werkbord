@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/store"
 	"fmt"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // Icon assignment is done before preview, and again atomically for direct API writes.

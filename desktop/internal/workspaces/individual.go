@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/workspace"
+	"werkbord/internal/workspace"
 )
 
 // Access is where the person's own Werkbord is and the credential this computer uses for it: what the launcher found.

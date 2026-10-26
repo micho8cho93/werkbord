@@ -2,8 +2,8 @@ package store
 
 import (
 	"context"
-	"devboard/internal/team/domain"
 	"encoding/json"
+	"werkbord/internal/team/domain"
 )
 
 func (t *sqlTx) Progress(ctx context.Context, w, p, k, d string) (domain.ProgressRecord, error) {

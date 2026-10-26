@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"embed"
 
-	"devboard/internal/sqlitekit"
+	"werkbord/internal/sqlitekit"
 )
 
 //go:embed migrations/*.sql

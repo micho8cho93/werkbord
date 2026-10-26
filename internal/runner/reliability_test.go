@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/runnerwire"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/service"
 )
 
 // PoC-2: an unreachable remote silently stalls every scheduled task, with one fetch per tick.

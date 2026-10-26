@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // The Git facts on a ticket are reported, not discovered. Team holds no Git or

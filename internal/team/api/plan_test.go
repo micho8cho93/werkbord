@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/server"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/server"
 )
 
 // A server that applies the plan rules, with a key check that needs no signatures (the key format has its own tests).

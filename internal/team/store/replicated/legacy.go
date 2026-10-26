@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/store"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/store"
 )
 
 // A workspace that Team kept in one SQLite file (team.db, before replication) moves into a cluster like this:

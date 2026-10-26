@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func knowledgeFixture(t *testing.T) (*fixture, *Knowledge, *domain.Project) {

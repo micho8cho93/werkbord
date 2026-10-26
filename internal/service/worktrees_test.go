@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // pathGit treats any path as a repository rooted there, with its Git

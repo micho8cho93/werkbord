@@ -12,9 +12,9 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/controller"
-	"devboard/internal/service"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/controller"
+	"werkbord/internal/service"
+	"werkbord/internal/store/sqlite"
 )
 
 func interruptionFlags(name string, args []string, out io.Writer) (bool, error) {

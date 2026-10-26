@@ -18,8 +18,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"devboard/internal/relay"
-	"devboard/internal/relay/e2e"
+	"werkbord/internal/relay"
+	"werkbord/internal/relay/e2e"
 )
 
 // ErrRejected: the relay refused this runner's join key. Retrying cannot help.

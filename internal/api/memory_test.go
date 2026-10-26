@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 func TestMemoryAPIHumanControlsAndScope(t *testing.T) {

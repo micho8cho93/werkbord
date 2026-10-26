@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/github"
+	"werkbord/internal/domain"
+	"werkbord/internal/github"
 )
 
 // GitHubSetup is the optional GitHub side of onboarding: connecting the user's

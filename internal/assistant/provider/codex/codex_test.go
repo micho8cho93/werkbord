@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/assistant/provider"
+	"werkbord/internal/assistant/provider"
 )
 
 func TestMain(m *testing.M) {

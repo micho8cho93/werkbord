@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 var bg = context.Background()

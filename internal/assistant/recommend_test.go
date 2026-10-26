@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/fake"
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // recommendFixture is the engine with a Recommender behind the operations, a project whose own words are an attack, and a

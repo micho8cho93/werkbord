@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 // shellAdapter is an agent that is a real shell script, run through the same

@@ -213,7 +213,7 @@ for a in $ARCHS; do
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a \
     CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" \
     CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0 -framework UniformTypeIdentifiers" \
-      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION -X devboard/desktop/internal/teaminstall.signingTeam=$SIGNING_TEAM -X devboard/desktop/internal/teaminstall.releaseBuild=$VERSION" \
+      go build -trimpath -tags "$GO_TAGS" -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION -X werkbord/desktop/internal/teaminstall.signingTeam=$SIGNING_TEAM -X werkbord/desktop/internal/teaminstall.releaseBuild=$VERSION" \
       -o "$STAGE/window-$a" .
   )
   HELPERS="$HELPERS $STAGE/helper-$a"; WINDOWS="$WINDOWS $STAGE/window-$a"
@@ -269,7 +269,7 @@ if [ "$TEAM_PAYLOAD" != 0 ]; then
   for a in $ARCHS; do
     c=$(carch "$a")
     CGO_ENABLED=1 GOOS=darwin GOARCH=$a CGO_CFLAGS="-arch $c -mmacosx-version-min=13.0" CGO_LDFLAGS="-arch $c -mmacosx-version-min=13.0" \
-      go build -trimpath -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$NETWORK_SHA" \
+      go build -trimpath -ldflags "-s -w $RELEASE_FLAGS -X main.version=$VERSION -X werkbord/internal/team/infra/rqlite.distributionBinarySHA256=$DATABASE_SHA -X werkbord/internal/team/infra/nebula.distributionBinarySHA256=$NETWORK_SHA" \
       -o "$STAGE/team-$a" ./cmd/werkbord-team
     TEAMS="$TEAMS $STAGE/team-$a"
   done

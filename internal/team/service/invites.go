@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // InviteInput is what creating an invite takes.

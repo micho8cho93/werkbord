@@ -3,8 +3,8 @@ package claude
 import (
 	"context"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 var _ agent.Optioner = (*Adapter)(nil)

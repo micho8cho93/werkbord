@@ -8,4 +8,4 @@ case "$premium" in *[!A-Za-z0-9_-]*) echo 'invalid Premium issuer public key enc
 database=$(scripts/fetch-rqlite.sh)
 network=$(scripts/fetch-nebula.sh)
 sha() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
-printf '%s\n' "-X devboard/internal/entitlement.issuerPublicKey=$premium -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$(sha "$database/rqlited") -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$(sha "$network/nebula")"
+printf '%s\n' "-X werkbord/internal/entitlement.issuerPublicKey=$premium -X werkbord/internal/team/infra/rqlite.distributionBinarySHA256=$(sha "$database/rqlited") -X werkbord/internal/team/infra/nebula.distributionBinarySHA256=$(sha "$network/nebula")"

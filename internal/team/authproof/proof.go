@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"time"
 
-	"devboard/internal/envelope"
+	"werkbord/internal/envelope"
 )
 
 const Header = "Werkbord-Device-Proof"

@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"devboard/internal/appops"
-	"devboard/internal/mcpaccess"
-	"devboard/internal/mcpgrant"
-	"devboard/internal/service"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/appops"
+	"werkbord/internal/mcpaccess"
+	"werkbord/internal/mcpgrant"
+	"werkbord/internal/service"
+	"werkbord/internal/store/sqlite"
 )
 
 func TestPrivateListenerServesScopedMCPButNotGrantAdministration(t *testing.T) {

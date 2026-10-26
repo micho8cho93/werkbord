@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/deviceid"
+	"werkbord/internal/deviceid"
 )
 
 var idEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)

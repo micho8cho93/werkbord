@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
 )
 
 // The commands for a workspace whose data is in a cluster, through the real commands and over real HTTP, against the pinned

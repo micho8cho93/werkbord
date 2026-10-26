@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 func TestTicketArchivePermissionsHistoryAndRestore(t *testing.T) {

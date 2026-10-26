@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	agentapi "devboard/internal/agent"
-	"devboard/internal/domain"
+	agentapi "werkbord/internal/agent"
+	"werkbord/internal/domain"
 
 	acp "github.com/caelis-labs/acp-go-sdk"
 	"github.com/caelis-labs/acp-go-sdk/transport/stdio"

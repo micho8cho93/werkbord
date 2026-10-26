@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/infra/rqlite"
-	"devboard/internal/team/infra/rqlite/rqlitetest"
-	"devboard/internal/team/store"
-	"devboard/internal/team/store/replicated"
+	"werkbord/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/store"
+	"werkbord/internal/team/store/replicated"
 )
 
 // The service's tests run on a single SQLite file, as they always have. With WERKBORD_TEST_STORE=rqlite they run on a real

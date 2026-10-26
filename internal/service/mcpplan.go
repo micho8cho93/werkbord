@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/mcpplan"
-	"devboard/internal/planning"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/planning"
+	"werkbord/internal/store"
 )
 
 type appliedPlanRecord struct {

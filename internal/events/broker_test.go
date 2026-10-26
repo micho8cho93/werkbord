@@ -3,7 +3,7 @@ package events
 import (
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func TestPublishReachesAllSubscribers(t *testing.T) {

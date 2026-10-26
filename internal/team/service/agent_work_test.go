@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/integration"
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
 )
 
 // runner is a member's own Werkbord, as Team sees it: an enrolled device that reports on a ticket it holds.

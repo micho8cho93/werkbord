@@ -5,7 +5,7 @@ package main
 import (
 	"log/slog"
 
-	"devboard/desktop/internal/shell"
+	"werkbord/desktop/internal/shell"
 )
 
 // The app updates itself on macOS only (docs/DESKTOP.md).

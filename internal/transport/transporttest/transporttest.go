@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/transport"
+	"werkbord/internal/transport"
 )
 
 // Pair returns two stopped transports on the same private network. Cleanup of

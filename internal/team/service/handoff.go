@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // HandoffSchema names the handoff format. A reader that does not know the

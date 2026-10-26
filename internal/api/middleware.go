@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	"devboard/internal/localaccess"
-	"devboard/internal/phoneaccess"
+	"werkbord/internal/localaccess"
+	"werkbord/internal/phoneaccess"
 )
 
 // checkHost defends against DNS rebinding when the API is unauthenticated:

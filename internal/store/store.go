@@ -11,8 +11,8 @@ import (
 	"context"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
 )
 
 // Store is the root persistence handle owned by the controller.

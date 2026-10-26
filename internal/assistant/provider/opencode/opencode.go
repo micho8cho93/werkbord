@@ -2,8 +2,8 @@
 package opencode
 
 import (
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/acpcli"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/acpcli"
 )
 
 const ID = "opencode"

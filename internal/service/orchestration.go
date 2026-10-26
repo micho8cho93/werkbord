@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/store"
 )
 
 func configureOrchestration(ctx context.Context, tx store.Tx, task *domain.Task, o domain.Orchestration) error {

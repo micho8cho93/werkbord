@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/httpkit"
-	"devboard/internal/workspace"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/workspace"
 )
 
 // A person can belong to several Team workspaces, and a computer can be a device in each of them. The device

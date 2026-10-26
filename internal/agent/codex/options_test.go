@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 func ids(opts []domain.AgentOption) []string {

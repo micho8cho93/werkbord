@@ -15,7 +15,7 @@ import (
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 
-	"devboard/internal/sqlitekit"
+	"werkbord/internal/sqlitekit"
 )
 
 // replica is this host's copy of the cluster's database: a SQLite file that is the cluster's data as of

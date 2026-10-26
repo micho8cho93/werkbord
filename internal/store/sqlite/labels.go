@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"devboard/internal/domain"
-	"devboard/internal/planning"
+	"werkbord/internal/domain"
+	"werkbord/internal/planning"
 )
 
 type labelRepo struct{ q queryer }

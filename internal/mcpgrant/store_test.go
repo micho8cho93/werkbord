@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/mcpcontract"
+	"werkbord/internal/mcpcontract"
 )
 
 func TestCreatePersistsOnlyHashAndRevocationTakesEffect(t *testing.T) {

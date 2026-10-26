@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 func memoryPrincipal(a Actor) store.MemoryPrincipal {

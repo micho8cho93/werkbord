@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"devboard/internal/envelope"
-	"devboard/internal/httpkit"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
+	"werkbord/internal/envelope"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

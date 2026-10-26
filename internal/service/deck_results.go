@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	"devboard/internal/domain"
-	"devboard/internal/planning"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/store"
 )
 
 // Only registered deck tasks with draft output can materialise findings. The

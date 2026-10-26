@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"sync"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // DisplayContext is a Team the person's computer has connected, by the name the shell shows it under. It exists so that the

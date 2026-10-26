@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // AgentCatalog is what the services need to know about the agents: which exist,

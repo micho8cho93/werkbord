@@ -10,13 +10,13 @@ import (
 	"strings"
 	"sync"
 
-	"devboard/internal/httpkit"
-	"devboard/internal/relay/access"
-	relayclient "devboard/internal/relay/client"
-	"devboard/internal/relay/e2e"
-	"devboard/internal/relay/tunnel"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/phone"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/relay/access"
+	relayclient "werkbord/internal/relay/client"
+	"werkbord/internal/relay/e2e"
+	"werkbord/internal/relay/tunnel"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/phone"
 )
 
 const phoneBlocked = "Ask your admin to turn on phone access"

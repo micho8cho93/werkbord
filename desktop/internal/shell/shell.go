@@ -32,9 +32,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"devboard/internal/config"
-	"devboard/internal/launcher"
-	"devboard/internal/update"
+	"werkbord/internal/config"
+	"werkbord/internal/launcher"
+	"werkbord/internal/update"
 )
 
 // Launcher is what the shell needs of the launcher (internal/launcher), which does the work.

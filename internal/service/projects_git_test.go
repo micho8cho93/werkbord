@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
 )
 
 // These tests run the real Git CLI: the bugs they cover live in how project

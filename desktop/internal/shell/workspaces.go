@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"devboard/desktop/internal/teamlink"
-	"devboard/desktop/internal/workspaces"
-	"devboard/internal/workspace"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/desktop/internal/workspaces"
+	"werkbord/internal/workspace"
 )
 
 // Everything in this file is what the app's own window (the shell page, which the app ships) may ask. The pages of a workspace

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"devboard/internal/localaccess"
+	"werkbord/internal/localaccess"
 )
 
 // Local access: a narrow way in for another program on this computer.

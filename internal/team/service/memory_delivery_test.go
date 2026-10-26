@@ -1,9 +1,9 @@
 package service
 
 import (
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
 	"testing"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 func TestMemoryDeliveryRechecksAuthorityOrderAndImmutableIdentity(t *testing.T) {

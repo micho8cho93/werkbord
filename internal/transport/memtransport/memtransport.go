@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/transport"
+	"werkbord/internal/transport"
 )
 
 // Network is a set of nodes that can reach one another.

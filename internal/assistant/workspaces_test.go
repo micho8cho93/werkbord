@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant/provider/fake"
-	"devboard/internal/domain"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant/provider/fake"
+	"werkbord/internal/domain"
 )
 
 func TestWorkspaceProblemCodesKeepPermissionAndValidationOutcomesDefinite(t *testing.T) {

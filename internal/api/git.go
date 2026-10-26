@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // The Git Control Center's endpoints. They are thin: they decode, call

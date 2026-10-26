@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // The authenticated folder browser lists directory names, never file contents.

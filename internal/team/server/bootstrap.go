@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/service"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/service"
 )
 
 // NetworkOptions are the choices made when a workspace gets its private network.

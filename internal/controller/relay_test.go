@@ -12,10 +12,10 @@ import (
 
 	"github.com/coder/websocket"
 
-	"devboard/internal/relay"
-	"devboard/internal/relay/e2e"
-	"devboard/internal/relay/relaytest"
-	"devboard/internal/relay/tunnel"
+	"werkbord/internal/relay"
+	"werkbord/internal/relay/e2e"
+	"werkbord/internal/relay/relaytest"
+	"werkbord/internal/relay/tunnel"
 )
 
 // phoneLine is a phone as the connector is: a relay connection, an end-to-end session, and the tunnel over it.

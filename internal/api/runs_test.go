@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/agent/fake"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/runner"
-	"devboard/internal/service"
+	"werkbord/internal/agent"
+	"werkbord/internal/agent/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/runner"
+	"werkbord/internal/service"
 )
 
 // runsServer is a server with a fake agent and a repository that has a commit.

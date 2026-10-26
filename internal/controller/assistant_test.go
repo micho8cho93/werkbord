@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/config"
+	"werkbord/internal/appops"
+	"werkbord/internal/config"
 )
 
 func TestTheAssistantIsServedToThePersonOnThisComputerAndToEnrolledPhonesOnThePrivateNetwork(t *testing.T) {

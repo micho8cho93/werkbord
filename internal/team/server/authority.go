@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/service"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/service"
 )
 
 // authority is service.NetworkAuthority made of this host's key vault: it signs

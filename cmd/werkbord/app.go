@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/browser"
-	"devboard/internal/config"
-	"devboard/internal/daemon"
-	"devboard/internal/netprivate"
+	"werkbord/internal/browser"
+	"werkbord/internal/config"
+	"werkbord/internal/daemon"
+	"werkbord/internal/netprivate"
 )
 
 // app is what the service commands need from the outside world. Everything that

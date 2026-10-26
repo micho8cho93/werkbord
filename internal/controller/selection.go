@@ -2,18 +2,18 @@ package controller
 
 import (
 	"context"
-	"devboard/internal/agent"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/config"
-	"devboard/internal/domain"
-	"devboard/internal/modelroute"
-	"devboard/internal/service"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"werkbord/internal/agent"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/config"
+	"werkbord/internal/domain"
+	"werkbord/internal/modelroute"
+	"werkbord/internal/service"
 )
 
 func newModelSelector(cfg config.Config, agents *agent.Registry, settings *service.Settings, runners *service.Runners) *modelroute.Router {

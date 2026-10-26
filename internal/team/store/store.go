@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/domain"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/domain"
 )
 
 //go:embed migrations/*.sql

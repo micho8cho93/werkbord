@@ -15,9 +15,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"devboard/internal/domain"
-	"devboard/internal/phoneaccess"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/phoneaccess"
+	"werkbord/internal/service"
 )
 
 // A record can hold a long document (domain.PersonalMaxRecordBytes), and JSON escaping can double what it takes on the wire.

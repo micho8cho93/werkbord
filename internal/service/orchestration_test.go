@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func schedulingFixture(t *testing.T) (*fixture, *Scheduler, string, time.Time) {

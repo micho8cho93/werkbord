@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
-	"devboard/internal/workspace"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
+	"werkbord/internal/workspace"
 )
 
 // The cross-project views: the workspace overview, "My Work" and "Reviews". They

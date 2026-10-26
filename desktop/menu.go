@@ -4,7 +4,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 
-	"devboard/desktop/internal/shell"
+	"werkbord/desktop/internal/shell"
 )
 
 const projectURL = "https://github.com/micho8cho93/werkbord"

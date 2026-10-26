@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"sync"
 
-	"devboard/internal/workspace"
+	"werkbord/internal/workspace"
 )
 
 // State is what the shell remembers between runs, and only that: which workspace was open, and where in each workspace the

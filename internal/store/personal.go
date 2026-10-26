@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // PersonalRepo belongs exclusively to the current Individual controller owner.

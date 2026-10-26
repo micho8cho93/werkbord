@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Reader answers questions about a repository without changing it. Everything

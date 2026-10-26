@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/planning"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/planning"
+	"werkbord/internal/store"
 )
 
 // Tasks manages tasks on project boards.

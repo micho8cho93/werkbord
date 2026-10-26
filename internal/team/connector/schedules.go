@@ -2,13 +2,13 @@ package connector
 
 import (
 	"context"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/localwerkbord"
-	"devboard/internal/team/service"
 	"errors"
 	"strings"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/localwerkbord"
+	"werkbord/internal/team/service"
 )
 
 type ExecutionLocal interface {

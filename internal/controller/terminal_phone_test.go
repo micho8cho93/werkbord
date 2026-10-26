@@ -13,10 +13,10 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/config"
-	"devboard/internal/relay"
-	"devboard/internal/relay/relaytest"
-	"devboard/internal/terminal"
+	"werkbord/internal/config"
+	"werkbord/internal/relay"
+	"werkbord/internal/relay/relaytest"
+	"werkbord/internal/terminal"
 )
 
 // Uses the real controller, PTY and encrypted HTTP tunnel, with no terminal WebSocket upgrade.

@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"devboard/internal/relay"
 	"github.com/coder/websocket"
+	"werkbord/internal/relay"
 )
 
 // Open retains only join-key hashes across restarts. Rooms are bounded to 1024.

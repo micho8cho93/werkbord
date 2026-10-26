@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func gitOut(t *testing.T, dir string, args ...string) string {

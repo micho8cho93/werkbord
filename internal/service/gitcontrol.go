@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/github"
-	"devboard/internal/gitrepo"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/github"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/store"
 )
 
 // GitControl is the Git Control Center: what a person orchestrating many coding

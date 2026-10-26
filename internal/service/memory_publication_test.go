@@ -2,13 +2,13 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/store"
 	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func publicationFixture(t *testing.T) (*fixture, *Memory, domain.PublicationGrant, domain.MemoryScope) {

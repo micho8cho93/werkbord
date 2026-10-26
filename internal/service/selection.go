@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/store"
 	"errors"
 	"fmt"
 	"math"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 const selectionSettingsKey = "agent_selection"

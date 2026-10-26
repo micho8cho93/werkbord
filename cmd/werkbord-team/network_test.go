@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/enrollment"
+	"werkbord/internal/enrollment"
 )
 
 func freePort(t *testing.T) int {

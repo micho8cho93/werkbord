@@ -22,12 +22,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/integration"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/integration"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 // Options configures a Manager. Everything without a default is required.

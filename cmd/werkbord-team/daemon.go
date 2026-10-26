@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"devboard/internal/logging"
-	"devboard/internal/team/config"
-	"devboard/internal/team/server"
+	"werkbord/internal/logging"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/server"
 )
 
 // testPremium is set to "1" only by the test scripts that build this executable (-ldflags "-X main.testPremium=1"), to run

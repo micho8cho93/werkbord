@@ -2,9 +2,9 @@ package shell
 
 import (
 	"context"
-	"devboard/internal/update"
 	"errors"
 	"testing"
+	"werkbord/internal/update"
 )
 
 func TestBusyAgentsAndHostsBlockAppUpdateAndRelaunch(t *testing.T) {

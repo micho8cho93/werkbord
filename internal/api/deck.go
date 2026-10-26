@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"devboard/internal/phoneaccess"
-	"devboard/internal/service"
+	"werkbord/internal/phoneaccess"
+	"werkbord/internal/service"
 )
 
 func deckOwner(r *http.Request) string {

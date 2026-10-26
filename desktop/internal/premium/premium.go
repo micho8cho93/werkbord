@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"devboard/internal/entitlement"
+	"werkbord/internal/entitlement"
 )
 
 // Status is what the app tells the person about their plan.

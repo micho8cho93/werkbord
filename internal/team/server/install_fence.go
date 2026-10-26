@@ -1,12 +1,12 @@
 package server
 
 import (
-	"devboard/internal/httpkit"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
+	"werkbord/internal/httpkit"
 )
 
 // Native service replacement prepares a root-owned marker before stopping the

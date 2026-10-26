@@ -1,8 +1,8 @@
 package domain
 
 import (
-	"devboard/internal/integration"
 	"strings"
+	"werkbord/internal/integration"
 )
 
 // RepositoryKey is the validated canonical identity shared with local task exchange.

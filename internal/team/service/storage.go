@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sort"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // The workspace's data is held by its Workspace Hosts. This file is the workspace's side of that: what an

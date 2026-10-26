@@ -1,10 +1,10 @@
 package service
 
 import (
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
 	"testing"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 func TestRelationshipGraphApprovalAndAccessRevocation(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/service"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/service"
 )
 
 // FirstHostParams are what a person gives to start a workspace on their own computer: its name and who they are.

@@ -2,12 +2,12 @@ package server
 
 import (
 	"context"
-	"devboard/internal/team/connector"
-	"devboard/internal/team/localwerkbord"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
+	"werkbord/internal/team/connector"
+	"werkbord/internal/team/localwerkbord"
 )
 
 // A separately minted memory grant is delivered by the local owner, never

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Inspector reads metadata from a local repository without modifying it.

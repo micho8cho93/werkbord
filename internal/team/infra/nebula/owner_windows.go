@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"devboard/internal/fssecure"
 	"golang.org/x/sys/windows"
+	"werkbord/internal/fssecure"
 )
 
 // checkOwnedPrivate treats a Windows DACL as the privacy boundary. A file or

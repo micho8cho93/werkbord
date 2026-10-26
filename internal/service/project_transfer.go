@@ -7,10 +7,10 @@ import (
 	"errors"
 	"fmt"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/planning"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/planning"
+	"werkbord/internal/store"
 )
 
 func personalTransfer(ctx context.Context, tx store.Tx, id string) (integration.ProjectTransfer, error) {

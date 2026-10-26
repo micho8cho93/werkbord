@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/assistant/provider"
+	"werkbord/internal/assistant/provider"
 )
 
 // violationGrace is how long a turn that broke the rules gets to acknowledge being interrupted before it is killed.

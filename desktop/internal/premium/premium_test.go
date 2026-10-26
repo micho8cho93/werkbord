@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/entitlement"
+	"werkbord/internal/entitlement"
 )
 
 func fixture(t *testing.T) (*Store, ed25519.PrivateKey, string) {

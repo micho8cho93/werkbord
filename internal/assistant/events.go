@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/domain"
+	"werkbord/internal/appops"
+	"werkbord/internal/domain"
 )
 
 // EventType says what happened in a conversation.

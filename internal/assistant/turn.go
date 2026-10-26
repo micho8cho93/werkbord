@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // turnError is a failure that is ready to be told to the person.

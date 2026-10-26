@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/netprivate"
-	"devboard/internal/phoneaccess"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/phoneaccess"
 )
 
 // Phone access: a phone that is enrolled has a credential of its own.

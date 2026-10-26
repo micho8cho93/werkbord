@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/config"
+	"werkbord/internal/team/config"
 )
 
 // A server shuts down promptly even while members have change requests open: the

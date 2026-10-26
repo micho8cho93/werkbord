@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"devboard/internal/appops"
-	"devboard/internal/connections"
+	"werkbord/internal/appops"
+	"werkbord/internal/connections"
 )
 
 // connectionOperations injects only owner-approved assistant tools. It adapts them to appops so reads are audited

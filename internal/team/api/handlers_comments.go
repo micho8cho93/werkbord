@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
 )
 
 // Comments on tickets and the notifications their mentions make. As everywhere here, a handler decodes, calls one service

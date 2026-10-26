@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/appops"
+	"werkbord/internal/appops"
 )
 
 // feed runs a reply through a filter in the given pieces.

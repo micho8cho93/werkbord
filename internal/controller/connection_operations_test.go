@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/connections"
-	"devboard/internal/domain"
-	"devboard/internal/store"
-	"devboard/internal/store/sqlite"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"werkbord/internal/appops"
+	"werkbord/internal/connections"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
+	"werkbord/internal/store/sqlite"
 )
 
 type connectionTestSecrets map[string]string

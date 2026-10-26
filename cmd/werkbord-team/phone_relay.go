@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	relayserver "devboard/internal/relay/server"
-	"devboard/internal/team/config"
+	relayserver "werkbord/internal/relay/server"
+	"werkbord/internal/team/config"
 )
 
 func cmdPhoneRelay(ctx context.Context, cfg config.Config, args []string, stderr io.Writer) error {

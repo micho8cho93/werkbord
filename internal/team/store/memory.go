@@ -10,8 +10,8 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 // MemoryPrincipal carries identity only. Roles and repository bindings are read

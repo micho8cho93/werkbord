@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"devboard/internal/domain"
-	"devboard/internal/netprivate"
-	"devboard/internal/runnerwire"
+	"werkbord/internal/domain"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/runnerwire"
 )
 
 func (s *Server) handlePairRunner(w http.ResponseWriter, r *http.Request) {

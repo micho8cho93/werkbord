@@ -30,7 +30,7 @@ import (
 	"strings"
 	"sync"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Adapter drives one kind of agent.

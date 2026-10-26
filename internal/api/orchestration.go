@@ -3,9 +3,9 @@ package api
 import (
 	"net/http"
 
-	"devboard/internal/domain"
-	"devboard/internal/runner"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/runner"
+	"werkbord/internal/service"
 )
 
 func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {

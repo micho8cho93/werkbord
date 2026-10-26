@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // MemoryRequest carries semantic scope only. The model cannot choose an owner,

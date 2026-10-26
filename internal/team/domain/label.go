@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/planning"
+	"werkbord/internal/planning"
 )
 
 // Label is a name and a colour the workspace chose and shares: "Design", "Q4 launch", "Waiting on legal". Any

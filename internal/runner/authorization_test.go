@@ -1,14 +1,14 @@
 package runner
 
 import (
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/service"
-	"devboard/internal/store"
 	"errors"
 	"sync"
 	"testing"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 func authorize(t *testing.T, e *env, task *domain.Task, id string, mutate func(*integration.ExecutionRequest)) integration.ExecutionDispatch {

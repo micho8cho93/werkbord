@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/envelope"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/envelope"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // The mailbox: how one of a person's devices asks another of their own to do something.

@@ -3,9 +3,6 @@ package service
 import (
 	"context"
 	"crypto/sha256"
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,6 +10,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // waitsFor makes a ticket wait for others, the way the ticket form does.

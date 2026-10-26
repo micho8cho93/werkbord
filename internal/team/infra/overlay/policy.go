@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"devboard/internal/team/infra/pki"
+	"werkbord/internal/team/infra/pki"
 )
 
 // The network's policy is default-deny in both directions, and is enforced by each

@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"devboard/desktop/internal/teamlink"
+	"werkbord/desktop/internal/teamlink"
 )
 
 // The one create-and-join flow. The window's "New team or join…" dialog asks for a name (or an invitation link), and these

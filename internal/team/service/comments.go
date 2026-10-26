@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // Comments on tickets, and the notifications their mentions make.

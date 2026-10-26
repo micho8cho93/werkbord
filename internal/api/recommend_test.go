@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 func suggestionServer(o *Options) {

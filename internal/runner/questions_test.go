@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 // These tests drive the whole question/answer lifecycle through the Manager

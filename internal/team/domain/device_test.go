@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid"
+	"werkbord/internal/deviceid"
 )
 
 func goodDevice() Device {

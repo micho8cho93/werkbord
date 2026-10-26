@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/infra/pki"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/pki"
 )
 
 // The pinned program is needed by the tests that run a real node. Tests do not

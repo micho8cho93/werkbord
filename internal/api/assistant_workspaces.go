@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"devboard/internal/appops"
+	"werkbord/internal/appops"
 )
 
 func (s *Server) handleAssistantWorkspaces(w http.ResponseWriter, r *http.Request) {

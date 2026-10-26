@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/planning"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/store"
 )
 
 func TestPlanningUpgradeKeepsEveryExistingTaskAsItWas(t *testing.T) {

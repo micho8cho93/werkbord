@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/workspace"
+	"werkbord/internal/domain"
+	"werkbord/internal/workspace"
 )
 
 func TestTheIndividualWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {

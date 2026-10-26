@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sync"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 // Adapter is a scriptable agent.Adapter.

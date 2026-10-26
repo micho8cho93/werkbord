@@ -1,8 +1,8 @@
 package api
 
 import (
-	"devboard/internal/team/domain"
 	"net/http"
+	"werkbord/internal/team/domain"
 )
 
 func (s *Server) handleReportProgress(w http.ResponseWriter, r *http.Request) {

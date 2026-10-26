@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 func TestCoordinationAnalyticsAggregation(t *testing.T) {

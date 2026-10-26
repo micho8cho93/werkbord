@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/github/ghtest"
+	"werkbord/internal/domain"
+	"werkbord/internal/github/ghtest"
 )
 
 var bg = context.Background()

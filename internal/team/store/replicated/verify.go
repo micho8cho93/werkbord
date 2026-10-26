@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // A Digest is a fingerprint of a database's contents: how many rows each table has and a hash of every row.

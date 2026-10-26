@@ -8,7 +8,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"devboard/desktop/internal/shell"
+	"werkbord/desktop/internal/shell"
 )
 
 // wailsUI is the window system, as the shell sees it.

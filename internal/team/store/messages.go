@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 const messageCols = `id, workspace_id, from_device_id, to_device_id, member_id, action, envelope, state, result, created_at, expires_at, decided_at`

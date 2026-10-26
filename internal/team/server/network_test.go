@@ -17,13 +17,13 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid/localidentity"
-	"devboard/internal/enrollment"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/service"
-	"devboard/internal/team/store"
+	"werkbord/internal/deviceid/localidentity"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/service"
+	"werkbord/internal/team/store"
 )
 
 // These are the end-to-end tests of the customer-owned network: a real workspace on a

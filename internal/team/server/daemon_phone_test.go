@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/relay"
-	"devboard/internal/relay/e2e"
-	"devboard/internal/relay/relaytest"
-	"devboard/internal/relay/tunnel"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/service"
 	"github.com/coder/websocket"
+	"werkbord/internal/relay"
+	"werkbord/internal/relay/e2e"
+	"werkbord/internal/relay/relaytest"
+	"werkbord/internal/relay/tunnel"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/service"
 )
 
 type encryptedPhone struct {

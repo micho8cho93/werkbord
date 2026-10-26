@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func policy(i domain.InteractionPolicy) domain.ExecutionPolicy {

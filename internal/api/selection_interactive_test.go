@@ -1,9 +1,9 @@
 package api
 
 import (
-	"devboard/internal/domain"
 	"net/http/httptest"
 	"testing"
+	"werkbord/internal/domain"
 )
 
 func TestNativeInteractiveCLIFailsClosedWithoutTerminalTransport(t *testing.T) {

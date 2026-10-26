@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/planning"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/service"
 )
 
 func TestNoAgentIsStartedOnHumanWorkOrOnAWorkProject(t *testing.T) {

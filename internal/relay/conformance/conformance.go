@@ -15,7 +15,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"devboard/internal/relay"
+	"werkbord/internal/relay"
 )
 
 type env struct {

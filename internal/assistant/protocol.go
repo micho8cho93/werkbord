@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/appops"
+	"werkbord/internal/appops"
 )
 
 // The assistant supports text calls for providers without application-owned function tools. Runtime execution

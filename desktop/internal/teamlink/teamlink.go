@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/desktop/internal/workspaces"
+	"werkbord/desktop/internal/workspaces"
 )
 
 // Where Team's service listens and where the app's own credential for it is kept (the credential Team's own window has always used).

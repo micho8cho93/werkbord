@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
-	"devboard/internal/workspace"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
+	"werkbord/internal/workspace"
 )
 
 func ticketItem(id, pid, key, title string, st domain.TicketStatus) service.WorkItem {

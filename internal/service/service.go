@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/store"
 )
 
 // Deps are the shared dependencies of all services.

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // ---- project revision ----

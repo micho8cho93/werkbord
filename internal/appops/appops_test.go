@@ -14,12 +14,12 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/mcpplan"
-	"devboard/internal/service"
-	"devboard/internal/store"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
+	"werkbord/internal/store/sqlite"
 )
 
 var bg = context.Background()

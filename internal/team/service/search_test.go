@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 func TestSearchStaysWithinCurrentProjectMembershipAndWorkspace(t *testing.T) {

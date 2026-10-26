@@ -3,8 +3,8 @@ package runner
 import (
 	"context"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // Every target uses the normal durable task/run machinery. Retries skip runs

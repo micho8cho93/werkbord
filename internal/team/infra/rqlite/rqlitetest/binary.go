@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"devboard/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/rqlite"
 )
 
 // BinaryDir finds the pinned program. Tests do not download or build it on their own: `make rqlite`

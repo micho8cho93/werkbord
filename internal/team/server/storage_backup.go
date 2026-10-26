@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store/replicated"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store/replicated"
 )
 
 // Replication is not a backup. A Workspace Host that is given a directory (WERKBORD_TEAM_BACKUP_DIR: a disk or a

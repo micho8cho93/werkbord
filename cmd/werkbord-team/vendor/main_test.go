@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/entitlement"
+	"werkbord/internal/entitlement"
 )
 
 func TestOfflineSignerUsesExplicitInputAndNeverOverwrites(t *testing.T) {

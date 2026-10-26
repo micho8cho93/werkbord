@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/planning"
-	"devboard/internal/sqlitekit"
+	"werkbord/internal/planning"
+	"werkbord/internal/sqlitekit"
 )
 
 // migrationNamed is the position of the named migration in Team's list.

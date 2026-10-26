@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func (s *Runs) SetUsage(ctx context.Context, id string, u domain.Usage) (*domain.Run, error) {

@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"strings"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 // Memory is a private, in-process local service bound to one individual owner.

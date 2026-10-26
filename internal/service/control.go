@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // ControlCenter answers the one question that is deliberately not scoped to a

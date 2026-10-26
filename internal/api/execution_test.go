@@ -1,11 +1,11 @@
 package api
 
 import (
-	"devboard/internal/localaccess"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"werkbord/internal/localaccess"
 )
 
 func TestExecutionScopesCannotMintOrBroadenAuthorization(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid"
+	"werkbord/internal/deviceid"
 )
 
 var t0 = time.Date(2026, 10, 6, 12, 0, 0, 123456789, time.UTC)

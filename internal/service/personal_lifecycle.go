@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func (s *Personal) CollectionUsage(ctx context.Context, id string) (*domain.PersonalCollectionUsage, error) {

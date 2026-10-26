@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/transport"
-	"devboard/internal/transport/transporttest"
+	"werkbord/internal/transport"
+	"werkbord/internal/transport/transporttest"
 )
 
 // node is a stand-in for the supervised network program.

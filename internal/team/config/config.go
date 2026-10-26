@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/httpkit"
+	"werkbord/internal/httpkit"
 )
 
 // DefaultAddr listens on this computer only. A team server is reached by other

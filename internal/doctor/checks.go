@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/config"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/netprivate"
-	"devboard/internal/service"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/agent"
+	"werkbord/internal/config"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/service"
+	"werkbord/internal/store/sqlite"
 )
 
 // Env is what the checks look at. A field that is nil is a thing that cannot be

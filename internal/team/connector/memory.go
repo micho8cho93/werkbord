@@ -2,10 +2,10 @@ package connector
 
 import (
 	"context"
-	"devboard/internal/integration"
 	"encoding/json"
 	"errors"
 	"time"
+	"werkbord/internal/integration"
 )
 
 type MemoryLocal interface {

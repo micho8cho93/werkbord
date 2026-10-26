@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/nebula"
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/infra/pki"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/nebula"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/pki"
 )
 
 // NodeSource is where a host's network node learns what it should be: its place on the

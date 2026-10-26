@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 const mcpGrantCols = `id, workspace_id, member_id, name, projects_json, operations_json, token_hash, created_at, revoked_at`

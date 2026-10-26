@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // personalCreationKey is stable across model retries, sessions and controller restarts.

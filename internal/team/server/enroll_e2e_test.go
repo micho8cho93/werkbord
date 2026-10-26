@@ -19,15 +19,15 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/envelope"
-	"devboard/internal/team/authproof"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/nebula"
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/service"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/envelope"
+	"werkbord/internal/team/authproof"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/nebula"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/service"
 )
 
 func (h *host) invite(created service.Created, in service.EnrollInviteInput) service.EnrollInviteResult {

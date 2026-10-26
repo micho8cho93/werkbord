@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/runnerwire"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/store"
 )
 
 func integrationSourceKey(source string) string {

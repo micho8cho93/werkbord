@@ -1,9 +1,9 @@
 package api
 
 import (
-	"devboard/internal/integration"
 	"net/http"
 	"time"
+	"werkbord/internal/integration"
 )
 
 func (s *Server) handleExecutionPreview(w http.ResponseWriter, r *http.Request) {

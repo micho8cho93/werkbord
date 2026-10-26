@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/server"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/server"
 )
 
 // This file is the whole V2 story in one test, over real HTTP:

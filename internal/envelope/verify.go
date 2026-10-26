@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/deviceid"
+	"werkbord/internal/deviceid"
 )
 
 func encodeSig(sig []byte) string { return base64.RawURLEncoding.EncodeToString(sig) }

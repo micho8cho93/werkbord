@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/workspace"
+	"werkbord/internal/workspace"
 )
 
 // The desktop shell reads Individual's summary with the controller's own credential, in the neutral words, and no program

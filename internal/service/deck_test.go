@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/planning"
-	"devboard/internal/store"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/store"
+	"werkbord/internal/store/sqlite"
 )
 
 func TestDeckPersistsAcrossRestartAndSeparatesOwners(t *testing.T) {

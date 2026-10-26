@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/github"
+	"werkbord/internal/domain"
+	"werkbord/internal/github"
 )
 
 // CreateRepoRequest is what the user confirmed for a new repository.

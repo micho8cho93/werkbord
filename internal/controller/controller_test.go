@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/config"
+	"werkbord/internal/config"
 )
 
 // defaultConfig is the shipped configuration, relocated to a temporary

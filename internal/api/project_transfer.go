@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"devboard/internal/integration"
+	"werkbord/internal/integration"
 )
 
 func (s *Server) handleExportTransfer(w http.ResponseWriter, r *http.Request) {

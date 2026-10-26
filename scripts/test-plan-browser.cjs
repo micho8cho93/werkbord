@@ -31,7 +31,7 @@ async function main() {
   const ownerKey = mint('pk_owner'), thirdKey = mint('pk_third');
 
   const bin = path.join(temp, 'werkbord-team');
-  run('go', ['build', '-trimpath', '-ldflags', `-X devboard/internal/entitlement.issuerPublicKey=${issuer}`, '-o', bin, './cmd/werkbord-team']);
+  run('go', ['build', '-trimpath', '-ldflags', `-X werkbord/internal/entitlement.issuerPublicKey=${issuer}`, '-o', bin, './cmd/werkbord-team']);
   const addr = '127.0.0.1:' + await port(), base = 'http://' + addr;
   const env = { WERKBORD_TEAM_DATA_DIR: path.join(temp, 'data'), WERKBORD_TEAM_ADDR: addr, WERKBORD_TEAM_STORAGE: 'single-file', WERKBORD_TEAM_KEY_STORAGE: 'file', WERKBORD_TEAM_NETWORK_NODE: 'off' };
   const created = run(bin, ['workspace', 'create', '--network=false', '--name', 'Plan E2E', '--owner', 'Ada'], env);

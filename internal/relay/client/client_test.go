@@ -12,9 +12,9 @@ import (
 
 	"github.com/coder/websocket"
 
-	"devboard/internal/relay"
-	"devboard/internal/relay/e2e"
-	"devboard/internal/relay/relaytest"
+	"werkbord/internal/relay"
+	"werkbord/internal/relay/e2e"
+	"werkbord/internal/relay/relaytest"
 )
 
 type secrets struct {

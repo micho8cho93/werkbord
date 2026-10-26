@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/transport"
+	"werkbord/internal/transport"
 )
 
 // PeerBackend is what a Backend needs beyond Start/Status/Listen/Close to be a

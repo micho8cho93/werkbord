@@ -27,10 +27,10 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // Config is what an Engine needs.

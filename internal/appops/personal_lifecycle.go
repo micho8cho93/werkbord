@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // Keep the deletion authority confined to personal data, with the same reviewed

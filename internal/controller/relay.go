@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/api"
-	"devboard/internal/config"
-	"devboard/internal/netprivate"
-	"devboard/internal/phoneaccess"
-	"devboard/internal/relay/access"
-	relayclient "devboard/internal/relay/client"
-	"devboard/internal/relay/tunnel"
+	"werkbord/internal/api"
+	"werkbord/internal/config"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/phoneaccess"
+	"werkbord/internal/relay/access"
+	relayclient "werkbord/internal/relay/client"
+	"werkbord/internal/relay/tunnel"
 )
 
 // relayControl is the controller's connection to the relay: it keeps one outbound connection up, answers the requests

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 func TestProjectMoveAtomicRetryAndArchiveReview(t *testing.T) {

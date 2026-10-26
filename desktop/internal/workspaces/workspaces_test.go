@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/workspace"
+	"werkbord/internal/workspace"
 )
 
 var bg = context.Background()

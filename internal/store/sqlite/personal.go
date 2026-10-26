@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 type personalRepo struct{ q queryer }

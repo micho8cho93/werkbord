@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 func executionKey(id string) string { return "execution:authorization:" + id }

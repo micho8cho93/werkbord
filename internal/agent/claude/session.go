@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 // session speaks Claude Code's stream-json protocol over the agent's stdio.

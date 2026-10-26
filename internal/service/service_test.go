@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/gitrepo"
-	"devboard/internal/store"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/store"
+	"werkbord/internal/store/sqlite"
 )
 
 // fakeGit treats any path under /repos/ as a repository rooted at that path.

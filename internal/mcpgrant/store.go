@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/mcpcontract"
+	"werkbord/internal/mcpcontract"
 )
 
 const TokenPrefix = "wbm_"

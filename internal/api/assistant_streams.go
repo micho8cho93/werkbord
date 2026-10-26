@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"devboard/internal/assistant"
-	"devboard/internal/domain"
+	"werkbord/internal/assistant"
+	"werkbord/internal/domain"
 )
 
 // One HTTP stream carries independent, session-scoped subscriptions. This avoids the

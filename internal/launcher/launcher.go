@@ -42,9 +42,9 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/config"
-	"devboard/internal/daemon"
-	"devboard/internal/update"
+	"werkbord/internal/config"
+	"werkbord/internal/daemon"
+	"werkbord/internal/update"
 )
 
 // Phase says which part of getting ready the launcher is in, for a progress display.

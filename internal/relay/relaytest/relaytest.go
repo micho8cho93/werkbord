@@ -2,8 +2,8 @@
 package relaytest
 
 import (
-	"devboard/internal/relay/server"
 	"net/http/httptest"
+	"werkbord/internal/relay/server"
 )
 
 type Server struct {

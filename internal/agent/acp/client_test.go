@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	agentapi "devboard/internal/agent"
-	"devboard/internal/domain"
 	acpsdk "github.com/caelis-labs/acp-go-sdk"
+	agentapi "werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 func testClient(t *testing.T) (*runClient, string, *session) {

@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/httpkit"
-	"devboard/internal/planning"
-	"devboard/internal/runner"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/planning"
+	"werkbord/internal/runner"
+	"werkbord/internal/service"
 )
 
 const maxBodyBytes = 1 << 20

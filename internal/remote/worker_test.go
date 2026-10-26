@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/agent/fake"
-	"devboard/internal/api"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/runnerwire"
-	"devboard/internal/service"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/agent"
+	"werkbord/internal/agent/fake"
+	"werkbord/internal/api"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/service"
+	"werkbord/internal/store/sqlite"
 )
 
 var testCtx = context.Background()

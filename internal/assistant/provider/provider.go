@@ -17,7 +17,7 @@ import (
 	"errors"
 	"fmt"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Turn is one exchange with the provider.

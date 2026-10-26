@@ -20,8 +20,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"devboard/desktop/internal/bundleplace"
-	"devboard/desktop/internal/shell"
+	"werkbord/desktop/internal/bundleplace"
+	"werkbord/desktop/internal/shell"
 )
 
 // nativeUpdater is Sparkle, as the shell sees it (shell.Updater). The Objective-C half is updater_darwin.m.

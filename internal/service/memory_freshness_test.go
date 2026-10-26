@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/github"
-	"devboard/internal/gitrepo"
-	"devboard/internal/store"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/domain"
+	"werkbord/internal/github"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/store"
+	"werkbord/internal/store/sqlite"
 )
 
 func freshnessService(f *gcFixture) *MemoryFreshness {

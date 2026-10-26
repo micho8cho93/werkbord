@@ -19,8 +19,8 @@ import (
 	nebulaoverlay "github.com/slackhq/nebula/overlay"
 	"github.com/slackhq/nebula/service"
 
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/infra/pki"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/pki"
 )
 
 // These tests run the policy this package generates through Nebula's own firewall,

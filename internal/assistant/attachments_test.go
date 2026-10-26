@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/assistant/provider/fake"
-	"devboard/internal/domain"
+	"werkbord/internal/assistant/provider/fake"
+	"werkbord/internal/domain"
 )
 
 func (f *efx) attach(sid, name, content string) *AttachmentInfo {

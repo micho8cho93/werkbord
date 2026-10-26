@@ -1,10 +1,10 @@
 package api
 
 import (
-	"devboard/internal/domain"
 	"encoding/json"
 	"fmt"
 	"testing"
+	"werkbord/internal/domain"
 )
 
 func TestPersonalLifecycleAPIConfirmationProtectionAndHistory(t *testing.T) {

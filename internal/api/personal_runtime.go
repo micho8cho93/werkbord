@@ -1,8 +1,8 @@
 package api
 
 import (
-	"devboard/internal/service"
 	"net/http"
+	"werkbord/internal/service"
 )
 
 func (s *Server) handlePersonalAction(w http.ResponseWriter, r *http.Request) {

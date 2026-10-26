@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func requireGit(t *testing.T) {

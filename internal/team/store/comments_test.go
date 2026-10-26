@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/domain"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/domain"
 )
 
 // conv is a workspace with a project, two tickets and three people on the project (Ada, Bo, Cy), in a real database.

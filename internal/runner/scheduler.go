@@ -2,10 +2,10 @@ package runner
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 // ScheduleOnce executes a snapshot's runnable tasks. Start rechecks every gate

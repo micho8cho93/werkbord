@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Repo names a GitHub repository.

@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/runnerwire"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/store"
 )
 
 // Runners is controller-owned. A lease expiring changes availability, never

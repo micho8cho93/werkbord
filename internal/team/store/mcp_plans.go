@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 const mcpTaskPlanColumns = `id, workspace_id, member_id, grant_id, project_id, idempotency_key, request_digest,

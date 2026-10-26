@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"devboard/internal/relay/relaytest"
+	"werkbord/internal/relay/relaytest"
 )
 
 func TestInProcessRelay(t *testing.T) {

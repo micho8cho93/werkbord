@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	assistantprovider "devboard/internal/assistant/provider"
+	assistantprovider "werkbord/internal/assistant/provider"
 )
 
 func TestAssistantACPProvidersStreamWithExecutionCapabilitiesDisabled(t *testing.T) {

@@ -2,11 +2,11 @@ package sqlite
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/integration"
 	"encoding/json"
 	"fmt"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
 )
 
 func (r memoryRepo) ApproveShare(ctx context.Context, owner string, s integration.MemoryShare) error {

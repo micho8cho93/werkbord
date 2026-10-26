@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // Personal is private local owner data. Only the authenticated loopback owner

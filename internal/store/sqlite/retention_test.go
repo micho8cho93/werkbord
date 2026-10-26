@@ -2,10 +2,10 @@ package sqlite
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/store"
 	"testing"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func TestRetentionKeepsActiveEvidenceAndSetsReplayFloor(t *testing.T) {

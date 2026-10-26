@@ -1,12 +1,12 @@
 package controller
 
 import (
-	"devboard/internal/appops"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"werkbord/internal/appops"
 )
 
 func TestPersonalDataIsWiredOnlyOnTheOwnerLoopbackListener(t *testing.T) {

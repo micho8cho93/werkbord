@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"devboard/desktop/internal/premium"
-	"devboard/desktop/internal/shell"
-	"devboard/desktop/internal/teamlink"
-	"devboard/desktop/internal/workspaces"
-	"devboard/internal/launcher"
+	"werkbord/desktop/internal/premium"
+	"werkbord/desktop/internal/shell"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/desktop/internal/workspaces"
+	"werkbord/internal/launcher"
 )
 
 // The window's own page, which shows every workspace. It is built from the web app's design system and components (web/, make

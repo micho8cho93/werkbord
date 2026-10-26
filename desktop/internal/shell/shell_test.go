@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"devboard/internal/config"
-	"devboard/internal/launcher"
-	"devboard/internal/update"
+	"werkbord/internal/config"
+	"werkbord/internal/launcher"
+	"werkbord/internal/update"
 )
 
 // fakeLauncher is the launcher, answering from a script and recording what it is asked.

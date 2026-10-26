@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/runnerwire"
-	"devboard/internal/store"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/store"
 )
 
 func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *domain.Run, j *runnerwire.Job, ob runnerwire.Observation) error {

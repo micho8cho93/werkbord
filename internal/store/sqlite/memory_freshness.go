@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func (r memoryRepo) FreshnessScopes(ctx context.Context, after *domain.MemoryScope, limit int) ([]domain.MemoryScope, error) {

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/desktop/internal/workspaces"
+	"werkbord/desktop/internal/workspaces"
 )
 
 var bg = context.Background()

@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/envelope"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/localwerkbord"
-	"devboard/internal/team/runnerlink"
+	"werkbord/internal/envelope"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/localwerkbord"
+	"werkbord/internal/team/runnerlink"
 )
 
 // deviceLoop supervises this device, never a member's developer processes.

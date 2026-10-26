@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 type AnalyticsData struct {

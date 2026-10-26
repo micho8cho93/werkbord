@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/deviceid/localidentity"
-	"devboard/internal/enrollment"
-	"devboard/internal/team/domain"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/deviceid/localidentity"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/team/domain"
 )
 
 // fakeAuthority stands in for the infrastructure that makes certificates, so that

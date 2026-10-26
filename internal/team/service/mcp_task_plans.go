@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/mcpplan"
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 const (

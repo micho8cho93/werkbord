@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/infra/pki"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/pki"
 )
 
 // These tests run the program Werkbord ships, as it is shipped (pinned, verified,

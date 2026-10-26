@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/store"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/store"
 )
 
 // oldDatabase makes a database at an earlier schema version with one project in it.

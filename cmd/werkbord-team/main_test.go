@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/logging"
-	"devboard/internal/team/config"
-	"devboard/internal/team/server"
-	"devboard/internal/team/store"
+	"werkbord/internal/logging"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/server"
+	"werkbord/internal/team/store"
 )
 
 func runCLI(t *testing.T, env map[string]string, args ...string) (string, string, error) {

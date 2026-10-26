@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/assistant/provider"
+	"werkbord/internal/agent"
+	"werkbord/internal/assistant/provider"
 
 	acp "github.com/caelis-labs/acp-go-sdk"
 	"github.com/caelis-labs/acp-go-sdk/transport/stdio"

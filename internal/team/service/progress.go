@@ -8,10 +8,10 @@ import (
 	"errors"
 	"fmt"
 
-	"devboard/internal/integration"
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/integration"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // ReportProgress stores execution observations independently of board/review

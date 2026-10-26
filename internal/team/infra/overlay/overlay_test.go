@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/infra/pki"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/pki"
 )
 
 func spec() overlay.NodeSpec {

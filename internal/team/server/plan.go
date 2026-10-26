@@ -1,9 +1,9 @@
 package server
 
 import (
-	"devboard/internal/entitlement"
-	"devboard/internal/team/config"
-	"devboard/internal/team/service"
+	"werkbord/internal/entitlement"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/service"
 )
 
 // configurePlan holds a production workspace to the plan rules (docs/PLANS.md): a team of up to two people is free, and a

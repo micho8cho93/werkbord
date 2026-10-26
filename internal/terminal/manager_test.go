@@ -14,14 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/agent/fake"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/service"
-	"devboard/internal/store"
-	"devboard/internal/store/sqlite"
 	"golang.org/x/sys/unix"
+	"werkbord/internal/agent"
+	"werkbord/internal/agent/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
+	"werkbord/internal/store/sqlite"
 )
 
 func fixture(t *testing.T) (*Manager, string) {

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/mcpplan"
-	"devboard/internal/planning"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/planning"
+	"werkbord/internal/service"
 )
 
 // Assistant-visible operation names use the Individual product term "task". The stable tool and JSON names remain

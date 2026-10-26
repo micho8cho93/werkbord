@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/mcpplan"
-	"devboard/internal/planning"
+	"werkbord/internal/domain"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/planning"
 )
 
 func TestMCPTaskPlanPreviewApplyAndIdempotency(t *testing.T) {

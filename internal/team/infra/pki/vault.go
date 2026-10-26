@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"devboard/internal/enrollment"
+	"werkbord/internal/enrollment"
 )
 
 // File names in a vault directory.

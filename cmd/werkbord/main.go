@@ -29,11 +29,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"devboard/internal/config"
-	"devboard/internal/controller"
-	"devboard/internal/logging"
-	"devboard/internal/mcpbridge"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/config"
+	"werkbord/internal/controller"
+	"werkbord/internal/logging"
+	"werkbord/internal/mcpbridge"
+	"werkbord/internal/store/sqlite"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".

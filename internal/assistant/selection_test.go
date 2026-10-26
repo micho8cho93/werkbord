@@ -2,8 +2,8 @@ package assistant
 
 import (
 	"context"
-	"devboard/internal/domain"
 	"testing"
+	"werkbord/internal/domain"
 )
 
 func TestAutomaticConversationClassifiesOnceAndKeepsItsDecision(t *testing.T) {

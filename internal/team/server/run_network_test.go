@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/service"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/service"
 )
 
 // The server, as `werkbord-team serve` runs it, on a host that has a private network: the API on its address, the

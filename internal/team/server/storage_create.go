@@ -11,12 +11,12 @@ import (
 	"os"
 	"time"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/infra/rqlite"
-	"devboard/internal/team/service"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/infra/rqlite"
+	"werkbord/internal/team/service"
+	"werkbord/internal/team/store"
 )
 
 // Workspace is a host's workspace as it runs: its storage and the service built on it.

@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/gitrepo"
-	"devboard/internal/service"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/service"
+	"werkbord/internal/store/sqlite"
 )
 
 // gitAPI is a server with the Git Control Center, a project whose repository has

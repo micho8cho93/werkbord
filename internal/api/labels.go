@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 var errVersionRequired = fmt.Errorf("%w: version is required", domain.ErrInvalid)

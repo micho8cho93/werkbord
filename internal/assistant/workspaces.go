@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/domain"
+	"werkbord/internal/appops"
+	"werkbord/internal/domain"
 )
 
 // WorkspaceRequest is a semantic request to the person's connected desktop window. No service URL or credential

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func ms(t time.Time) int64 { return t.UnixMilli() }

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 func TestProjectMoveAtomicRetryPermissionAndArchiveReview(t *testing.T) {

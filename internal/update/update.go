@@ -26,7 +26,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"devboard/internal/releaseverify"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -42,6 +41,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"werkbord/internal/releaseverify"
 )
 
 // DefaultBase is where releases are published.

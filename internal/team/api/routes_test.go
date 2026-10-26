@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/server"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/server"
 )
 
 // The security audit of Team's HTTP surface, as tests.

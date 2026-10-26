@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // The ticket workflow:

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/store/sqlite"
 )
 
 // signInWhenOpened makes the fake private network sign in once the browser has been

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/workspace"
+	"werkbord/internal/workspace"
 )
 
 // Frame is where a workspace's own interface is, as the window should load it. The URL may carry a credential in its

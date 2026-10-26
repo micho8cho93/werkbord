@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/localaccess"
+	"werkbord/internal/domain"
+	"werkbord/internal/localaccess"
 )
 
 // A scoped server: a controller that requires its token, with a store of local access tokens.

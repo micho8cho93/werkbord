@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/service"
 )
 
 // workspace is the worktree a run will work in.

@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/deviceid/localidentity"
-	"devboard/internal/envelope"
-	"devboard/internal/team/devicestate"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/localwerkbord"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/deviceid/localidentity"
+	"werkbord/internal/envelope"
+	"werkbord/internal/team/devicestate"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/localwerkbord"
 )
 
 var bg = context.Background()

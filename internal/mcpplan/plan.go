@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"devboard/internal/planning"
+	"werkbord/internal/planning"
 )
 
 const (

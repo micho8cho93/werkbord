@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 func savePhoneDeck(t *testing.T, p *phoned, token string) service.DeckLayout {

@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/integration"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 // Projects registers and describes local repositories.

@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 func Capabilities(ctx context.Context, registry *agent.Registry, dir string) domain.RunnerCapabilities {

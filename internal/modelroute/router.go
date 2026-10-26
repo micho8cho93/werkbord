@@ -5,12 +5,12 @@ package modelroute
 
 import (
 	"context"
-	"devboard/internal/domain"
 	"fmt"
 	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
+	"werkbord/internal/domain"
 )
 
 type Candidate struct {

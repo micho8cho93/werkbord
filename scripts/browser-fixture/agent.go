@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 type fixtureAdapter struct{}

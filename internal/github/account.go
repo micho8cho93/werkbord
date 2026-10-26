@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // The pieces of the GitHub integration that onboarding needs: who is signed

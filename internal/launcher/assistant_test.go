@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"devboard/internal/config"
+	"werkbord/internal/config"
 )
 
 func TestAssistantWorkspaceRequestUsesTheControllerTokenAndOnlyValidIDs(t *testing.T) {

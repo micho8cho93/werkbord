@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/agent"
-	"devboard/internal/agent/fake"
-	"devboard/internal/config"
-	"devboard/internal/domain"
-	"devboard/internal/netprivate"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/agent"
+	"werkbord/internal/agent/fake"
+	"werkbord/internal/config"
+	"werkbord/internal/domain"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/store/sqlite"
 )
 
 var bg = context.Background()

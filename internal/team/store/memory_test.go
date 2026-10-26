@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 func TestSharedMemoryQueriesCommitAtomicallyAndKeepExactScope(t *testing.T) {

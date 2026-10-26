@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/desktop/internal/teamlink"
-	"devboard/internal/workspace"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/internal/workspace"
 )
 
 type assistantTeam struct {

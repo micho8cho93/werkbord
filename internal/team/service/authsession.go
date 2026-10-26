@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 type sessionKey struct{}

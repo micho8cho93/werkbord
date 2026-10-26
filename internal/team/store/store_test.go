@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/domain"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/domain"
 )
 
 func TestMigrationsAreContiguousAndOpenIsRepeatable(t *testing.T) {

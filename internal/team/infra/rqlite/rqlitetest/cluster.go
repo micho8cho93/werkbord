@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"devboard/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/rqlite"
 )
 
 // TB is the part of testing.TB the harness uses, so that a TestMain, which has no *testing.T, can start a cluster too

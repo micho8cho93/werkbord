@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // Replication is not a backup: a write that deletes the wrong thing is replicated to every host in a moment.

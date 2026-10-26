@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // Upgrade live legacy identities together before serving requests. Existing

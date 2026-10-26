@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/netprivate"
-	"devboard/internal/phoneaccess"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/phoneaccess"
 )
 
 // `werkbord phones` shows the phones that have been enrolled, takes one away, and enrolls another. A phone is enrolled by

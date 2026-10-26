@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
 )
 
 func (tm *team) label(a Actor, name, color string) domain.Label {

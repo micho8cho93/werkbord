@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/workspace"
+	"werkbord/internal/workspace"
 )
 
 // Registry is the list of workspaces on this computer and the person's choice among them.

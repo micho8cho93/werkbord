@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/domain"
-	"devboard/internal/runner"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/domain"
+	"werkbord/internal/runner"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 // The assistant in the browser fixture. It is the real engine, the real operations and the real API, with the real command lines

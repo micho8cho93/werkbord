@@ -1,9 +1,9 @@
 package codex
 
 import (
-	"devboard/internal/agent"
 	"encoding/json"
 	"testing"
+	"werkbord/internal/agent"
 )
 
 func TestTokenUsageSnapshotKeepsZeroAndUnknownSeparate(t *testing.T) {

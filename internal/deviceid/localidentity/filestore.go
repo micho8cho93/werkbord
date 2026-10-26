@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"time"
 
-	"devboard/internal/deviceid"
+	"werkbord/internal/deviceid"
 )
 
 // FileName is the identity's file in a FileStore's directory.

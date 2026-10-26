@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/relay/e2e"
+	"werkbord/internal/relay/e2e"
 )
 
 func open(t *testing.T) (*Store, string) {

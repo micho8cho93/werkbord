@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"devboard/internal/integration"
+	"werkbord/internal/integration"
 )
 
 // ProjectTransfer is shell-only: no frame or assistant relay exposes it.

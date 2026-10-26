@@ -1,8 +1,8 @@
 package domain
 
 import (
-	"devboard/internal/integration"
 	"time"
+	"werkbord/internal/integration"
 )
 
 // MemoryEvidence is a signed member's bounded snapshot from their own Git

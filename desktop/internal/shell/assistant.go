@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/desktop/internal/teamlink"
-	"devboard/internal/workspace"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/internal/workspace"
 )
 
 type workspaceCallResult struct {

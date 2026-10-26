@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/team/domain"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/team/domain"
 )
 
 var t0 = time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)

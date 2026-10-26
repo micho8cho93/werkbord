@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store/sqlite"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
+	"werkbord/internal/domain"
+	"werkbord/internal/store/sqlite"
 )
 
 type memorySecrets struct {

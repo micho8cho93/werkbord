@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/claude"
-	"devboard/internal/assistant/provider/codex"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/claude"
+	"werkbord/internal/assistant/provider/codex"
 )
 
 var liveOpenUIFence = regexp.MustCompile("(?s)```openui-lang\\s*\\n(.*?)\\n```")

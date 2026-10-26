@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"devboard/internal/netprivate"
+	"werkbord/internal/netprivate"
 )
 
 // NetworkController is what the API needs from the private network.

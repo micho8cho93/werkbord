@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 type projectRepo struct{ q queryer }

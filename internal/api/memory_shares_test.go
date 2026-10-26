@@ -1,15 +1,15 @@
 package api
 
 import (
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/localaccess"
-	"devboard/internal/service"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/localaccess"
+	"werkbord/internal/service"
 )
 
 func TestOnlySeparateWorkspaceBoundRevocableGrantReadsApprovedMemoryShares(t *testing.T) {

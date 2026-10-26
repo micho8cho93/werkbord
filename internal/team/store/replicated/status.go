@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // Status reports the storage as it is now, honestly: how many hosts hold the workspace and vote, whether a

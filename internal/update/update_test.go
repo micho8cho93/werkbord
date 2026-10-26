@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"devboard/internal/releaseverify"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -21,6 +20,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"werkbord/internal/releaseverify"
 )
 
 var bg = context.Background()

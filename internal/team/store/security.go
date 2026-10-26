@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 type SecurityQueries interface {

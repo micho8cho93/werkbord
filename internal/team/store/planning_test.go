@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/planning"
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/domain"
 )
 
 // A workspace from before labels, modes and dependencies is upgraded without any of its tickets changing.

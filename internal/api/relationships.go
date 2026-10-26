@@ -1,10 +1,10 @@
 package api
 
 import (
-	"devboard/internal/domain"
-	"devboard/internal/integration"
 	"net/http"
 	"strconv"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
 )
 
 func (s *Server) handleRelationships(w http.ResponseWriter, r *http.Request) {

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/rqlite/rqlitetest"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/store"
 )
 
 // The guarantees Team's use cases rely on (the contract in store.Store), checked on a real cluster with

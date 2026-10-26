@@ -4,13 +4,13 @@
 // requirement of building, testing or releasing the controller and the command line: `go build ./...`
 // at the repository root does not see this directory. It is still part of the individual product, and
 // uses the same internal packages (config, daemon, update, launcher) through the replace below: the
-// import path devboard/desktop is inside devboard/, which is what lets it reach devboard/internal/….
-module devboard/desktop
+// import path werkbord/desktop is inside werkbord/, which is what lets it reach werkbord/internal/….
+module werkbord/desktop
 
 go 1.27.3
 
 require (
-	devboard v0.0.0
+	werkbord v0.0.0
 	github.com/wailsapp/wails/v2 v2.17.0
 	golang.org/x/sys v0.48.0
 )
@@ -45,4 +45,4 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 )
 
-replace devboard => ../
+replace werkbord => ../

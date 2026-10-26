@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/github"
-	"devboard/internal/gitrepo"
+	"werkbord/internal/domain"
+	"werkbord/internal/github"
+	"werkbord/internal/gitrepo"
 )
 
 // These tests run the real git executable on temporary repositories, with real

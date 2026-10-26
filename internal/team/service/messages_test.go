@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid/localidentity"
-	"devboard/internal/envelope"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/deviceid/localidentity"
+	"werkbord/internal/envelope"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // A person with two devices: a phone, which asks, and a Mac, a runner, which is asked.

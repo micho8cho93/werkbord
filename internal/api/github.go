@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"devboard/internal/service"
+	"werkbord/internal/service"
 )
 
 func (s *Server) githubReady(w http.ResponseWriter) bool {

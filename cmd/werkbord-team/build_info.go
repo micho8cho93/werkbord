@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"io"
 
-	"devboard/internal/team/infra/nebula"
-	"devboard/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/nebula"
+	"werkbord/internal/team/infra/rqlite"
 )
 
 // writeBuildInfo emits only public build metadata. It never initializes a

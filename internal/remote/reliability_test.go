@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/agent/fake"
-	"devboard/internal/domain"
-	"devboard/internal/runnerwire"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/agent"
+	"werkbord/internal/agent/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 type startupEventsAdapter struct{ *fake.Adapter }

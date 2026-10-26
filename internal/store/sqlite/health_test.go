@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func finding(projectID, key string, sev domain.HealthSeverity) *domain.HealthFinding {

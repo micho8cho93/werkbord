@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/agent/claude"
-	"devboard/internal/agent/codex"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/agent/claude"
+	"werkbord/internal/agent/codex"
+	"werkbord/internal/domain"
 )
 
 func requireLive(t *testing.T) {

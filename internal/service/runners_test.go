@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/runnerwire"
-	"devboard/internal/store"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/store"
 )
 
 type runnerTest struct {

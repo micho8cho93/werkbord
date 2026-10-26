@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"devboard/internal/sqlitekit"
+	"werkbord/internal/sqlitekit"
 )
 
 // The board used to start at Backlog, and a claimed ticket waited in Available. Now it starts at Available and a claimed ticket

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 const Protocol = 1

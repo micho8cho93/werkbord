@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func TestRemoteContinuationUsesPublishedWorkInsteadOfOlderLocalWorktree(t *testing.T) {

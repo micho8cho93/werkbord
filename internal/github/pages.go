@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Creating a repository and publishing it with GitHub Pages, both through the

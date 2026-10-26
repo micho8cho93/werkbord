@@ -2,8 +2,8 @@ package store
 
 import (
 	"context"
-	"devboard/internal/team/domain"
 	"encoding/json"
+	"werkbord/internal/team/domain"
 )
 
 func (t *sqlTx) Initiatives(ctx context.Context, workspace string) ([]domain.Initiative, error) {

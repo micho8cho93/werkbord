@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/controller"
-	"devboard/internal/daemon"
-	"devboard/internal/remote"
-	"devboard/internal/runnerwire"
-	"devboard/internal/store/sqlite"
-	"devboard/internal/update"
+	"werkbord/internal/controller"
+	"werkbord/internal/daemon"
+	"werkbord/internal/remote"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/store/sqlite"
+	"werkbord/internal/update"
 )
 
 // cmdUpdate installs a newer release over this executable, restarts the

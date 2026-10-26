@@ -2,8 +2,8 @@
 package gemini
 
 import (
-	"devboard/internal/agent/acp"
-	"devboard/internal/domain"
+	"werkbord/internal/agent/acp"
+	"werkbord/internal/domain"
 )
 
 const ID = "gemini-cli"

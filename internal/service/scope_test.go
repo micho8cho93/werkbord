@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // twoProjects is two projects, each with a task and a running run.

@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/fake"
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/service"
-	"devboard/internal/store"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
+	"werkbord/internal/store/sqlite"
 )
 
 var bg = context.Background()

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"devboard/internal/domain"
-	"devboard/internal/planning"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/service"
 )
 
 type Workspace struct {

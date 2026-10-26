@@ -6,11 +6,11 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/team/connector"
-	"devboard/internal/team/devicestate"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/localwerkbord"
+	"werkbord/internal/team/connector"
+	"werkbord/internal/team/devicestate"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/localwerkbord"
 )
 
 // syncView is where synchronization with the person's own Werkbord stands, for this computer's screens.

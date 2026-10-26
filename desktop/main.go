@@ -21,9 +21,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
-	"devboard/desktop/internal/shell"
-	"devboard/desktop/internal/teaminstall"
-	"devboard/internal/launcher"
+	"werkbord/desktop/internal/shell"
+	"werkbord/desktop/internal/teaminstall"
+	"werkbord/internal/launcher"
 )
 
 // The loading/error page and bundled neutral workspace shell.

@@ -10,15 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/envelope"
-	"devboard/internal/httpkit"
-	"devboard/internal/team/devicestate"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/localwerkbord"
-	"devboard/internal/team/runnerlink"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/envelope"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/team/devicestate"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/localwerkbord"
+	"werkbord/internal/team/runnerlink"
 )
 
 func (d *Daemon) saveSettings(w http.ResponseWriter, r *http.Request) {

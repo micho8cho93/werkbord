@@ -1,12 +1,12 @@
 package server
 
 import (
-	"devboard/internal/team/config"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"werkbord/internal/team/config"
 )
 
 func TestInstallFenceBlocksEnrollmentUntilVerified(t *testing.T) {

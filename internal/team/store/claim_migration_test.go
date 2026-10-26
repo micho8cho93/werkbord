@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"devboard/internal/sqlitekit"
+	"werkbord/internal/sqlitekit"
 )
 
 // The ownership CHECK rebuild runs with foreign keys ON on both SQLite and

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 type catalog map[string]domain.AgentOptions

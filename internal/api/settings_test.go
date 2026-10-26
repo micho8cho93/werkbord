@@ -3,7 +3,7 @@ package api
 import (
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 type optionsBody struct {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // report records a pull request (and a commit) on a ticket the actor holds.

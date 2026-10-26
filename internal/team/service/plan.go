@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/entitlement"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/entitlement"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // The plan rules (docs/PLANS.md). A team of up to entitlement.FreeTeamLimit people is free. A team of more than that needs

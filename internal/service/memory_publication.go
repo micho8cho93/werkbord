@@ -2,9 +2,6 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +9,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 // publicationContent is the export allowlist. No summary, details, branch,

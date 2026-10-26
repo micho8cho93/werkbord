@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 // Knowledge extracts only structured fields. No model, transcript mining or

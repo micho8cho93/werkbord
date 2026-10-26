@@ -6,10 +6,10 @@ import (
 	"errors"
 	"time"
 
-	"devboard/desktop/internal/teamlink"
-	"devboard/desktop/internal/workspaces"
-	"devboard/internal/domain"
-	"devboard/internal/workspace"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/desktop/internal/workspaces"
+	"werkbord/internal/domain"
+	"werkbord/internal/workspace"
 )
 
 // PersonalWorkspaceCall is shell-only. No workspace/assistant frame relay exposes it.

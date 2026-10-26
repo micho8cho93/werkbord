@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/assistant/provider"
+	"werkbord/internal/assistant/provider"
 )
 
 // Step is what one turn does.

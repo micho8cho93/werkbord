@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // Store is Team's storage as the service layer sees it. An implementation runs a

@@ -6,7 +6,7 @@ import (
 )
 
 // issuerPublicKey is the public half of the key that signs unlock keys, as unpadded URL base64 (43 characters). The release
-// build stamps it (-X devboard/internal/entitlement.issuerPublicKey=...); a build without it can check no key, so everyone on it
+// build stamps it (-X werkbord/internal/entitlement.issuerPublicKey=...); a build without it can check no key, so everyone on it
 // is on the Free plan. It is a public key: nothing private is ever linked into a build.
 var issuerPublicKey string
 

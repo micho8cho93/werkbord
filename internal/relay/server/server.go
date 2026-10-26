@@ -14,7 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"devboard/internal/relay"
+	"werkbord/internal/relay"
 )
 
 var (

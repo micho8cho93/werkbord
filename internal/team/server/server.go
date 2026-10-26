@@ -11,12 +11,12 @@ import (
 	"net/http"
 	"time"
 
-	"devboard/internal/team/api"
-	"devboard/internal/team/config"
-	"devboard/internal/team/console"
-	teammcp "devboard/internal/team/mcp"
-	"devboard/internal/team/service"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/api"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/console"
+	teammcp "werkbord/internal/team/mcp"
+	"werkbord/internal/team/service"
+	"werkbord/internal/team/store"
 )
 
 // Open opens Team's database and builds its service: wherever the workspace's data is (in one file, or in a cluster of

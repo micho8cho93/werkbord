@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/integration"
-	"devboard/internal/workspace"
+	"werkbord/internal/integration"
+	"werkbord/internal/workspace"
 )
 
 type projectMoves struct {

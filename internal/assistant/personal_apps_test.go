@@ -6,10 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant/provider/fake"
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant/provider/fake"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // These five configurations are also used by the browser's scripted provider.

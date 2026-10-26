@@ -3,7 +3,7 @@ package sqlite
 import (
 	"context"
 
-	"devboard/internal/sqlitekit"
+	"werkbord/internal/sqlitekit"
 )
 
 // backupPrefix names the pre-upgrade copies: devboard-v<version>-<time>.db.

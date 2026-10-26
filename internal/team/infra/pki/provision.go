@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/enrollment"
+	"werkbord/internal/enrollment"
 )
 
 // Secrets are what a Workspace Host holds that no other device does: the workspace's

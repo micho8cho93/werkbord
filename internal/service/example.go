@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // The example project of the guided setup: a one-page site that says the person

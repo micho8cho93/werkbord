@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/deviceid/localidentity"
-	"devboard/internal/envelope"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/deviceid/localidentity"
+	"werkbord/internal/envelope"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // laptop makes a device identity, as the device would on its own computer.

@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/events"
-	"devboard/internal/gitrepo"
-	"devboard/internal/service"
-	"devboard/internal/store/sqlite"
-	"devboard/internal/update"
+	"werkbord/internal/agent"
+	"werkbord/internal/events"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/service"
+	"werkbord/internal/store/sqlite"
+	"werkbord/internal/update"
 )
 
 func newTestServer(t *testing.T, mutate func(*Options)) *httptest.Server {

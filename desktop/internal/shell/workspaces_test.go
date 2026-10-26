@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"devboard/desktop/internal/teamlink"
-	"devboard/desktop/internal/workspaces"
-	"devboard/internal/workspace"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/desktop/internal/workspaces"
+	"werkbord/internal/workspace"
 )
 
 // ---- fakes of what the shell is given ----

@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"devboard/internal/httpkit"
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
 )
 
 // The collaborative workflow: the project board, tickets and their lifecycle,

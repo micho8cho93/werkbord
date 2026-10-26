@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // A database from before migration 0028 bounds a record at 32 KiB. Opening it widens the bound to 64 KiB and keeps every

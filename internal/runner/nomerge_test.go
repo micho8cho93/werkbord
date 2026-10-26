@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func headOf(t *testing.T, dir, rev string) string {

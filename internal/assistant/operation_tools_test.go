@@ -2,13 +2,13 @@ package assistant
 
 import (
 	"context"
-	"devboard/internal/appops"
 	"encoding/json"
 	"strings"
 	"testing"
+	"werkbord/internal/appops"
 
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/fake"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/fake"
 )
 
 type operationProvider struct {

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"strings"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // TicketMatch carries only what the search list needs, without ticket bodies or

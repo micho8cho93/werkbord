@@ -2,9 +2,9 @@ package sqlite
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/integration"
 	"encoding/json"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
 )
 
 func (r memoryRepo) PublicationGrants(ctx context.Context, owner string) ([]domain.PublicationGrant, error) {

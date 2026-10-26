@@ -2,15 +2,15 @@ package connector
 
 import (
 	"context"
-	"devboard/internal/integration"
-	"devboard/internal/team/devicestate"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/localwerkbord"
-	"devboard/internal/team/service"
 	"path/filepath"
 	"testing"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/devicestate"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/localwerkbord"
+	"werkbord/internal/team/service"
 )
 
 type localStub struct {

@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/envelope"
-	"devboard/internal/integration"
+	"werkbord/internal/envelope"
+	"werkbord/internal/integration"
 )
 
 // RemoteStart says whether this computer's runner may be asked to start work from another of its owner's devices.

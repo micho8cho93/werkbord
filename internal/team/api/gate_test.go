@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid/localidentity"
-	"devboard/internal/integration"
-	"devboard/internal/team/authproof"
-	"devboard/internal/team/server"
-	"devboard/internal/team/service"
-	"devboard/internal/team/store"
+	"werkbord/internal/deviceid/localidentity"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/authproof"
+	"werkbord/internal/team/server"
+	"werkbord/internal/team/service"
+	"werkbord/internal/team/store"
 )
 
 func TestRemoteAuthenticationRequiresDeviceProofAndReplaySurvivesHandlerRestart(t *testing.T) {

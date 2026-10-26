@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 // ID is the adapter's stable key, stored on runs.

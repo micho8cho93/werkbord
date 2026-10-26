@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/rqlite/rqlitetest"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/store"
 )
 
 // Comments, the people they mention and what each mention tells its recipient are ordinary rows of the replicated store: the

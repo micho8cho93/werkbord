@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 const relationshipMemoryType = "repository_relationship"

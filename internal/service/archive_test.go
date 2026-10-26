@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func TestArchivePreservesHistoryAndDisarmsAutomation(t *testing.T) {

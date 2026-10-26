@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/assistant/provider"
+	"werkbord/internal/assistant/provider"
 )
 
 func TestOpenCodeModelsKeepConfiguredProviderQualifiedIDs(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"devboard/internal/relay"
-	"devboard/internal/relay/e2e"
+	"werkbord/internal/relay"
+	"werkbord/internal/relay/e2e"
 )
 
 // Sender is how the server answers: relay/client.Client implements it.

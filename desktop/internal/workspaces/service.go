@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"devboard/internal/workspace"
+	"werkbord/internal/workspace"
 )
 
 // Service is a program on this computer that holds several workspaces behind one loopback address and one credential, and

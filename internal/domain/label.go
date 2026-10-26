@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"devboard/internal/planning"
+	"werkbord/internal/planning"
 )
 
 // PrefixLabel marks a label's ID.

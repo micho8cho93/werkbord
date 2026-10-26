@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // fakeStorage stands in for the cluster, so that these tests are about the workspace's rules for hosts and not about

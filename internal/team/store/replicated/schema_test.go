@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/rqlite/rqlitetest"
-	"devboard/internal/team/store"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/store"
 )
 
 // A future version of Team brings a migration. Hosts that start together apply it once; a host that is still an older Team

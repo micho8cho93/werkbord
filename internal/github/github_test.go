@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // fakeGH writes an executable that stands in for gh. The script body decides

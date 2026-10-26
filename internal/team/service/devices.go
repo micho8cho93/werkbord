@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/envelope"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/envelope"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // The device registry: which machines take part in the workspace, who owns each,

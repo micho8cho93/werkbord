@@ -10,8 +10,8 @@ import (
 	"io/fs"
 	"net/http"
 
-	"devboard/internal/nativebridge"
-	"devboard/internal/uipresentation"
+	"werkbord/internal/nativebridge"
+	"werkbord/internal/uipresentation"
 )
 
 //go:embed static

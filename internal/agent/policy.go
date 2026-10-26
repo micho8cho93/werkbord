@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // This file is where an execution policy becomes agent behaviour. It is the one

@@ -2,10 +2,10 @@ package store
 
 import (
 	"context"
-	"devboard/internal/integration"
 	"fmt"
 	"testing"
 	"time"
+	"werkbord/internal/integration"
 )
 
 func TestMemoryReconciliationBoundedAndCompactsHistory(t *testing.T) {

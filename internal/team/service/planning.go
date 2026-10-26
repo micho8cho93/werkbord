@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // Labels, who does a ticket, planned dates, and the order tickets depend on.

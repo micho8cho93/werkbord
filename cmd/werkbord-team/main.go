@@ -29,12 +29,12 @@ import (
 	"strings"
 	"syscall"
 
-	"devboard/internal/logging"
-	"devboard/internal/mcpbridge"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/server"
+	"werkbord/internal/logging"
+	"werkbord/internal/mcpbridge"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/server"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".

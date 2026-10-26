@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
 )
 
 // branchExists is whether a local branch exists, for assertions about deletion.

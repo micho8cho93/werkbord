@@ -20,15 +20,15 @@ import (
 	"syscall"
 	"time"
 
-	"devboard/internal/browser"
-	"devboard/internal/config"
-	"devboard/internal/controller"
-	"devboard/internal/daemon"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/netprivate"
-	"devboard/internal/remote"
-	"devboard/internal/runnerwire"
+	"werkbord/internal/browser"
+	"werkbord/internal/config"
+	"werkbord/internal/controller"
+	"werkbord/internal/daemon"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/remote"
+	"werkbord/internal/runnerwire"
 )
 
 func runnerDir(cfg config.Config) string { return filepath.Join(cfg.DataDir, "runner") }

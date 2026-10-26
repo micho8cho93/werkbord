@@ -2,7 +2,6 @@ package launcher
 
 import (
 	"context"
-	"devboard/internal/domain"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"werkbord/internal/domain"
 )
 
 // UpdateSafety is a read-only preflight for swapping the desktop shell. The CLI

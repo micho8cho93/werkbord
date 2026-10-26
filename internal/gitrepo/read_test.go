@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func TestListRefsAndUpstreamTracking(t *testing.T) {

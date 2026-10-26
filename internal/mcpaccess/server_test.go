@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"devboard/internal/appops"
-	"devboard/internal/mcpcontract"
-	"devboard/internal/mcpgrant"
-	"devboard/internal/service"
-	"devboard/internal/store/sqlite"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"werkbord/internal/appops"
+	"werkbord/internal/mcpcontract"
+	"werkbord/internal/mcpgrant"
+	"werkbord/internal/service"
+	"werkbord/internal/store/sqlite"
 )
 
 type bearerRoundTripper struct {

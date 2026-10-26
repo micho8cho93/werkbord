@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // scriptedGit answers the nth Inspect call with heads[n-1], i.e. the state of

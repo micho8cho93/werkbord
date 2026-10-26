@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 
-	"devboard/internal/config"
-	"devboard/internal/domain"
-	"devboard/internal/netprivate"
-	"devboard/internal/service"
+	"werkbord/internal/config"
+	"werkbord/internal/domain"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/service"
 )
 
 // networkControl is the controller's private network: the manager that runs it,

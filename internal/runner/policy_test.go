@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 // These tests are about what an execution policy does to a run: which questions

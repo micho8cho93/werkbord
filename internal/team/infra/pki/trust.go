@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/enrollment"
+	"werkbord/internal/enrollment"
 )
 
 // Lifetimes. The workspace's root certificate is long-lived because its identity is

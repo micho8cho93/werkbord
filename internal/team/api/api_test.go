@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/server"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/server"
 )
 
 type client struct {

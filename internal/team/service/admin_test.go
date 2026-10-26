@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"devboard/internal/team/domain"
+	"werkbord/internal/team/domain"
 )
 
 // admin adds an admin as the owner and returns them, signed in.

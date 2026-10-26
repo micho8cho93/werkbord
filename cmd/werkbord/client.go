@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"devboard/internal/phoneaccess"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,10 +10,11 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	"werkbord/internal/phoneaccess"
 
-	"devboard/internal/config"
-	"devboard/internal/doctor"
-	"devboard/internal/service"
+	"werkbord/internal/config"
+	"werkbord/internal/doctor"
+	"werkbord/internal/service"
 )
 
 // client is a minimal HTTP client for the local controller API.

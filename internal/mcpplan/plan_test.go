@@ -3,7 +3,7 @@ package mcpplan
 import (
 	"testing"
 
-	"devboard/internal/planning"
+	"werkbord/internal/planning"
 )
 
 func TestCleanTaskPlanAndTemporaryDependencies(t *testing.T) {

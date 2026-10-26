@@ -31,8 +31,8 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 // DefaultBase is where Werkbord listens on this computer unless it was told otherwise.

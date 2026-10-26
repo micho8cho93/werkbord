@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
 )
 
 const labelCols = `id, workspace_id, name, color, description, version, created_at, updated_at`

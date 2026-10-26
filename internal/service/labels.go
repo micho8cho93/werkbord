@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"devboard/internal/domain"
-	"devboard/internal/planning"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/planning"
+	"werkbord/internal/store"
 )
 
 // Labels manages the reusable labels. A label is defined once and put on tasks in any project; this

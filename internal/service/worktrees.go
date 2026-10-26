@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // Worktrees records the worktrees the controller owns. It is the safety layer

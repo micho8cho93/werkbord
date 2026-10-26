@@ -19,14 +19,14 @@ import (
 
 	qrcode "github.com/skip2/go-qrcode"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/logging"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/infra/overlay"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/server"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/logging"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/server"
 )
 
 // The commands for the workspace's private network. Those that run on the administrator's

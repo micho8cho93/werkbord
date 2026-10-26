@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/runnerwire"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/service"
 )
 
 func (m *Manager) startRemote(ctx context.Context, in StartInput, task *domain.Task, project *service.ProjectDetail, selected *domain.Runner, resolved domain.Resolved) (*domain.Run, error) {

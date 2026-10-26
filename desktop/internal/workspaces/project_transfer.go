@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"devboard/internal/integration"
-	"devboard/internal/workspace"
+	"werkbord/internal/integration"
+	"werkbord/internal/workspace"
 )
 
 // ProjectTransfer uses only the owner's loopback controller and fixed semantic routes.

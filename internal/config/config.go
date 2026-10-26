@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agentcatalog"
-	"devboard/internal/domain"
-	"devboard/internal/httpkit"
+	"werkbord/internal/agentcatalog"
+	"werkbord/internal/domain"
+	"werkbord/internal/httpkit"
 )
 
 // DefaultAddr is loopback-only on purpose; see docs/ARCHITECTURE.md, Security.

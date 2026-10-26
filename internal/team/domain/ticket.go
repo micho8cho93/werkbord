@@ -3,7 +3,6 @@ package domain
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"devboard/internal/planning"
 	"encoding/hex"
 	"fmt"
 	"net/url"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+	"werkbord/internal/planning"
 )
 
 // More ID prefixes.

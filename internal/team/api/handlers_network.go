@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"devboard/internal/httpkit"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
 	qrcode "github.com/skip2/go-qrcode"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
 )
 
 // The private network and the devices on it. Everything here is metadata the workspace

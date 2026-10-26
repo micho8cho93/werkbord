@@ -2,9 +2,9 @@ package server
 
 import (
 	"context"
-	"devboard/internal/team/service"
 	"log/slog"
 	"time"
+	"werkbord/internal/team/service"
 )
 
 // Reads independently calculate freshness, so failed ticks and unavailable

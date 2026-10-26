@@ -10,10 +10,10 @@ import (
 	"strings"
 	"unicode"
 
-	"devboard/internal/domain"
-	"devboard/internal/github"
-	"devboard/internal/gitrepo"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/github"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/store"
 )
 
 // Action names, as they appear in results and events.

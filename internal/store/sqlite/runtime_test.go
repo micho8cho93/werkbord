@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func mustRun(t *testing.T, db *DB, r *domain.Run) *domain.Run {

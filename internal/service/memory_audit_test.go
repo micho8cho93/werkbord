@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/github"
-	"devboard/internal/store"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/github"
+	"werkbord/internal/store"
+	"werkbord/internal/store/sqlite"
 )
 
 // countingGH counts authenticated GitHub reads, which are network calls.

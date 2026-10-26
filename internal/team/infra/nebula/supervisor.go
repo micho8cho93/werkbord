@@ -15,7 +15,7 @@ import (
 
 	"github.com/slackhq/nebula/cert"
 
-	"devboard/internal/team/infra/overlay"
+	"werkbord/internal/team/infra/overlay"
 )
 
 // State is where the supervised node is.

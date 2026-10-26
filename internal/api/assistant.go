@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant"
-	"devboard/internal/domain"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant"
+	"werkbord/internal/domain"
 )
 
 // The assistant API. It belongs to the person at this computer and nobody else: it takes the controller's own token

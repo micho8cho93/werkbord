@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"devboard/internal/team/store"
+	"werkbord/internal/team/store"
 )
 
 // recorder is the SQL a use case runs through while it is run against the local copy: everything runs on

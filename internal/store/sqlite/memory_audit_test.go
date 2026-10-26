@@ -8,8 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // A deleted memory's text must not remain readable in the database file after the

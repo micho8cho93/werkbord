@@ -2,11 +2,11 @@ package api
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/service"
 	"fmt"
 	"testing"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 func TestOrchestrationAPIAndProjectScope(t *testing.T) {

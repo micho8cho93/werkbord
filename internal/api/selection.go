@@ -1,9 +1,9 @@
 package api
 
 import (
-	"devboard/internal/agentcatalog"
-	"devboard/internal/domain"
 	"net/http"
+	"werkbord/internal/agentcatalog"
+	"werkbord/internal/domain"
 )
 
 func (s *Server) handleSelectionSettings(w http.ResponseWriter, r *http.Request) {

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 type settingsRepo struct{ q queryer }

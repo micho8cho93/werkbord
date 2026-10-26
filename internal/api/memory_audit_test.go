@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/localaccess"
+	"werkbord/internal/localaccess"
 )
 
 // Every Individual memory, relationship, recommendation and publication route is

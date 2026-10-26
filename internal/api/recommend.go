@@ -3,9 +3,9 @@ package api
 import (
 	"net/http"
 
-	"devboard/internal/domain"
-	"devboard/internal/phoneaccess"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/phoneaccess"
+	"werkbord/internal/service"
 )
 
 // Suggested next steps for a project. A suggestion is advice with its evidence: it carries ways to open screens that already

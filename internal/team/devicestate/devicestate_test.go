@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/envelope"
+	"werkbord/internal/envelope"
 )
 
 func open(t *testing.T) (*State, string) {

@@ -16,13 +16,13 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/overlaynet"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/service"
-	"devboard/internal/transport"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/overlaynet"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/service"
+	"werkbord/internal/transport"
 )
 
 // The customer-owned private network, as a running part of the server.

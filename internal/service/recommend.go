@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 // Recommender answers "what would be a good next step here?" for one project.

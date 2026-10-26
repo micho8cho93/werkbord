@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/appops"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/claude"
-	"devboard/internal/assistant/provider/codex"
-	"devboard/internal/domain"
+	"werkbord/internal/appops"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/claude"
+	"werkbord/internal/assistant/provider/codex"
+	"werkbord/internal/domain"
 )
 
 // TestLiveTheAssistantAsksForAnOperationInTheWayTheEngineReads checks, against the real command lines, that a model given the

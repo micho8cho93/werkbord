@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/relay"
-	"devboard/internal/relay/conformance"
-	"devboard/internal/relay/server"
 	"github.com/coder/websocket"
+	"werkbord/internal/relay"
+	"werkbord/internal/relay/conformance"
+	"werkbord/internal/relay/server"
 )
 
 func TestCompanyRelayUsesWorkerProtocol(t *testing.T) {

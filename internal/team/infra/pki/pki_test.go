@@ -14,8 +14,8 @@ import (
 
 	"github.com/slackhq/nebula/cert"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/enrollment"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/enrollment"
 )
 
 var now = time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)

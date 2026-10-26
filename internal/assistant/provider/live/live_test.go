@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/claude"
-	"devboard/internal/assistant/provider/codex"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/claude"
+	"werkbord/internal/assistant/provider/codex"
 )
 
 func providers() []provider.Provider {

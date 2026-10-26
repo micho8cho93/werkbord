@@ -26,10 +26,10 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/envelope"
-	"devboard/internal/team/authproof"
-	"devboard/internal/team/domain"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/envelope"
+	"werkbord/internal/team/authproof"
+	"werkbord/internal/team/domain"
 )
 
 // APIPrefix is where the Team API is.

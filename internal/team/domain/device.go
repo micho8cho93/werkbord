@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"devboard/internal/deviceid"
+	"werkbord/internal/deviceid"
 )
 
 // Capability is something a *device* does for a workspace. It belongs to the

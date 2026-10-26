@@ -1,13 +1,13 @@
 package service
 
 import (
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 func memoryGitProject(t *testing.T) (*team, *time.Time) {

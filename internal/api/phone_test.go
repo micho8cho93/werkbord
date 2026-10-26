@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/netprivate"
-	"devboard/internal/phoneaccess"
-	"devboard/internal/service"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/phoneaccess"
+	"werkbord/internal/service"
 )
 
 // A controller that requires its token, with a store of phones.

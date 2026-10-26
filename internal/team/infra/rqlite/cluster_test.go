@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/infra/rqlite"
-	"devboard/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
 )
 
 // These tests run the program Werkbord ships, as it is shipped (pinned, verified, unmodified), and

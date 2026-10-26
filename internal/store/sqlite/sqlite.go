@@ -14,8 +14,8 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"devboard/internal/sqlitekit"
-	"devboard/internal/store"
+	"werkbord/internal/sqlitekit"
+	"werkbord/internal/store"
 )
 
 // DB is a store.Store backed by a SQLite file.

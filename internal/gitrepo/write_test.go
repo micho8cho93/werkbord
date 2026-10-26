@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func TestPushNewBranchThenFastForward(t *testing.T) {

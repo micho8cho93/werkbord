@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/store"
 	"encoding/json"
 	"errors"
 	"testing"
 	"time"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func TestPersonalActionsAreAtomicAndScoped(t *testing.T) {

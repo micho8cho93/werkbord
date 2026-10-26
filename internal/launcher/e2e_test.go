@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"devboard/internal/releaseverify"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -24,8 +23,9 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"werkbord/internal/releaseverify"
 
-	"devboard/internal/update"
+	"werkbord/internal/update"
 )
 
 var launcherReleaseKey = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{44}, 32))
@@ -51,7 +51,7 @@ func moduleDir(t *testing.T) string {
 
 func build(t *testing.T, version, out string) {
 	t.Helper()
-	cmd := exec.Command("go", "build", "-o", out, "-ldflags", "-X main.version="+version+" -X devboard/internal/releaseverify.PublicKey="+base64.RawURLEncoding.EncodeToString(launcherReleaseKey.Public().(ed25519.PublicKey)), "./cmd/werkbord")
+	cmd := exec.Command("go", "build", "-o", out, "-ldflags", "-X main.version="+version+" -X werkbord/internal/releaseverify.PublicKey="+base64.RawURLEncoding.EncodeToString(launcherReleaseKey.Public().(ed25519.PublicKey)), "./cmd/werkbord")
 	cmd.Dir = moduleDir(t)
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if b, err := cmd.CombinedOutput(); err != nil {

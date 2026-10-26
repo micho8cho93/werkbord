@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/runnerwire"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/runnerwire"
 )
 
 func git(ctx context.Context, root string, args ...string) (string, error) {

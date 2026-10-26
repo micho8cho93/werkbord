@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // The three steps of answering are accept (record), deliver (the runtime's

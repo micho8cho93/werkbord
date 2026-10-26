@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"devboard/internal/httpkit"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
 )
 
 func (s *Server) handleListLabels(w http.ResponseWriter, r *http.Request) {

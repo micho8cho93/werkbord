@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/service"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
+	"werkbord/internal/store"
 )
 
 func personalFixture(t *testing.T) (*fx, *service.Personal, Principal) {

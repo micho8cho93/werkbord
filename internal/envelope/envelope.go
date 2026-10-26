@@ -30,7 +30,7 @@ import (
 	"fmt"
 	"time"
 
-	"devboard/internal/deviceid"
+	"werkbord/internal/deviceid"
 )
 
 // Protocol and Version identify the format. A verifier refuses any other.

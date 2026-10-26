@@ -114,7 +114,7 @@ for p in $PLATFORMS; do
   extra_flags=$(scripts/release-build-flags.sh)
   cgo=0
   if [ "$PRODUCT" = werkbord-team ]; then
-    extra_flags="$extra_flags -X devboard/internal/team/infra/rqlite.distributionBinarySHA256=$database_pin -X devboard/internal/team/infra/nebula.distributionBinarySHA256=$network_pin"
+    extra_flags="$extra_flags -X werkbord/internal/team/infra/rqlite.distributionBinarySHA256=$database_pin -X werkbord/internal/team/infra/nebula.distributionBinarySHA256=$network_pin"
     if [ "$os" = darwin ] && [ "$(uname -s)" = Darwin ]; then
       cgo=1
       case "$arch" in arm64) c_arch=arm64 ;; amd64) c_arch=x86_64 ;; esac

@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"strings"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // Deck preferences belong to a controller owner or one enrolled phone. They never

@@ -17,11 +17,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/machine"
-	"devboard/internal/runnerwire"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/machine"
+	"werkbord/internal/runnerwire"
 )
 
 type Identity struct {

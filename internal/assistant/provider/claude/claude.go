@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/assistant/provider"
-	"devboard/internal/assistant/provider/cli"
+	"werkbord/internal/agent"
+	"werkbord/internal/assistant/provider"
+	"werkbord/internal/assistant/provider/cli"
 )
 
 // ID is the provider's key, the same one the coding-agent adapter uses.

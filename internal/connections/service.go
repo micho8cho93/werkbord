@@ -21,14 +21,14 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/browser"
-	"devboard/internal/domain"
-	"devboard/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"github.com/zalando/go-keyring"
 	"golang.org/x/oauth2"
+	"werkbord/internal/browser"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 const (

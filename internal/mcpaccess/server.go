@@ -12,13 +12,13 @@ import (
 	"io"
 	"net/http"
 
-	"devboard/internal/appops"
-	"devboard/internal/domain"
-	"devboard/internal/mcpcontract"
-	"devboard/internal/mcpgrant"
-	"devboard/internal/mcpplan"
-	"devboard/internal/planning"
-	"devboard/internal/service"
+	"werkbord/internal/appops"
+	"werkbord/internal/domain"
+	"werkbord/internal/mcpcontract"
+	"werkbord/internal/mcpgrant"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/planning"
+	"werkbord/internal/service"
 )
 
 type Server struct {

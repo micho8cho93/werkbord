@@ -371,7 +371,7 @@ it asks).
 ### Where the code is
 
 ```
-desktop/                 the app: its own Go module (devboard/desktop), so cgo and WebKit are never needed by `make check` or Linux CI
+desktop/                 the app: its own Go module (werkbord/desktop), so cgo and WebKit are never needed by `make check` or Linux CI
   main.go ui.go menu.go    the window, the menu bar, the Wails glue (macOS only)
   updater_darwin.{go,m,h}  Sparkle, loaded at run time, and the "Check for Updates…" menu item (cgo; never part of the controller's build)
   updater_testenv_darwin.go, updater_test_darwin.go   the test build only (-tags updatertest): see Testing

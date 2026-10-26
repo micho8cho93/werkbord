@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/agent/fake"
-	"devboard/internal/domain"
+	"werkbord/internal/agent/fake"
+	"werkbord/internal/domain"
 )
 
 // The console and floating card use these same project-scoped APIs. Merely inspecting

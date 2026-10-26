@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/runnerwire"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/runnerwire"
 )
 
 // PoC-1: a second question from an already-blocked remote run wedges the whole runner sync.

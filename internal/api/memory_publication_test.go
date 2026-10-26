@@ -1,12 +1,12 @@
 package api
 
 import (
-	"devboard/internal/domain"
-	"devboard/internal/localaccess"
-	"devboard/internal/service"
 	"encoding/json"
 	"path/filepath"
 	"testing"
+	"werkbord/internal/domain"
+	"werkbord/internal/localaccess"
+	"werkbord/internal/service"
 )
 
 func TestMemoryPublicationGrantCannotReadOrApprovePrivateData(t *testing.T) {

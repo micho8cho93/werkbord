@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/store"
 )
 
 // gitEvents lists the git.* events recorded so far: the audit trail. An action

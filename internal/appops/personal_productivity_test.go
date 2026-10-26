@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Salie can propose, and a person can confirm, a workspace built from the productivity views: the tool's own schema must

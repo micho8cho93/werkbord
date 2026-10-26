@@ -2,17 +2,17 @@ package main
 
 import (
 	"context"
-	"devboard/internal/integration"
-	"devboard/internal/team/connector"
-	"devboard/internal/team/devicestate"
-	"devboard/internal/team/localwerkbord"
-	"devboard/internal/team/service"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/connector"
+	"werkbord/internal/team/devicestate"
+	"werkbord/internal/team/localwerkbord"
+	"werkbord/internal/team/service"
 )
 
 type lostDispatch struct {

@@ -13,7 +13,7 @@ import (
 	"io"
 	"os"
 
-	"devboard/internal/releaseverify"
+	"werkbord/internal/releaseverify"
 )
 
 func run(args []string) error {

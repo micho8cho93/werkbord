@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"devboard/internal/team/infra/nebula"
-	"devboard/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/nebula"
+	"werkbord/internal/team/infra/rqlite"
 )
 
 func TestPublicBuildMetadataReportsTheActualRuntimeTrustAnchors(t *testing.T) {

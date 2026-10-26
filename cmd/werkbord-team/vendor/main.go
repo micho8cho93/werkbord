@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/entitlement"
+	"werkbord/internal/entitlement"
 )
 
 const usage = `usage:

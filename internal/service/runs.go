@@ -7,8 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 // Runs owns the state of runs and their questions: every change to a run is a

@@ -1,9 +1,9 @@
 package api
 
 import (
-	"devboard/internal/domain"
-	"devboard/internal/integration"
 	"net/http"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
 )
 
 func (s *Server) handlePublicationGrants(w http.ResponseWriter, r *http.Request) {

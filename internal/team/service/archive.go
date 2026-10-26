@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // ArchiveTicket closes work in the coordination board, preserving its reports.

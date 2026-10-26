@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"time"
 
-	"devboard/desktop/internal/teamlink"
-	"devboard/internal/workspace"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/internal/workspace"
 )
 
 var analyticsProject = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)

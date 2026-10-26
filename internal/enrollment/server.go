@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/httpkit"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/httpkit"
 )
 
 // Authority is the workspace's side of enrollment: what decides whether a device

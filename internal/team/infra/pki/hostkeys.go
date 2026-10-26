@@ -15,7 +15,7 @@ import (
 	"github.com/slackhq/nebula/cert"
 	"golang.org/x/crypto/curve25519"
 
-	"devboard/internal/deviceid"
+	"werkbord/internal/deviceid"
 )
 
 // HostKeys are the keys a host machine has of its own: three, for three purposes,

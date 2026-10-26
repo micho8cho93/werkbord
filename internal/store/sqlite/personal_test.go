@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func seedPersonal(t *testing.T, db *DB) (*domain.PersonalCollection, *domain.PersonalWorkspace, *domain.PersonalRecord) {

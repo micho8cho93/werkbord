@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Tunables, variables so tests can shorten them.

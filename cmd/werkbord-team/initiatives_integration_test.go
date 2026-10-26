@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/deviceid"
-	localdomain "devboard/internal/domain"
-	"devboard/internal/runner"
-	"devboard/internal/team/devicestate"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/server"
-	"devboard/internal/team/service"
+	"werkbord/internal/deviceid"
+	localdomain "werkbord/internal/domain"
+	"werkbord/internal/runner"
+	"werkbord/internal/team/devicestate"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/server"
+	"werkbord/internal/team/service"
 )
 
 // Real Git repositories, independent Individual APIs/databases/runners, two

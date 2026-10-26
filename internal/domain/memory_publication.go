@@ -1,8 +1,8 @@
 package domain
 
 import (
-	"devboard/internal/integration"
 	"fmt"
+	"werkbord/internal/integration"
 )
 
 var ErrPublicationQueueFull = fmt.Errorf("%w: publication queue is full; waiting for workspace acknowledgements", ErrConflict)

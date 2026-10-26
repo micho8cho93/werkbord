@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 func memoryProposal(a Actor, p string) integration.MemoryProposal {

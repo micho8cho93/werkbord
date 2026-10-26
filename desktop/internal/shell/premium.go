@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"devboard/desktop/internal/premium"
-	"devboard/desktop/internal/teamlink"
-	"devboard/internal/workspace"
+	"werkbord/desktop/internal/premium"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/internal/workspace"
 )
 
 // Premium is the person's unlock key on this computer (desktop/internal/premium).

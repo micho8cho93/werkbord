@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/service"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/service"
 )
 
 // How a live run is being ended, if it is. The first request wins, except that

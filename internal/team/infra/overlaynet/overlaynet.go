@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/transport"
+	"werkbord/internal/transport"
 )
 
 // State is what a Node reports.

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 func personalFixtureCall(name string, args any) string {

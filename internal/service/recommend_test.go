@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/integration"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
 )
 
 // These tests run the Recommender against real Git repositories, the real stores and the real memory gate. The rules

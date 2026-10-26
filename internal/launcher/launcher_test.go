@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/config"
-	"devboard/internal/controller"
-	"devboard/internal/daemon"
-	"devboard/internal/update"
+	"werkbord/internal/config"
+	"werkbord/internal/controller"
+	"werkbord/internal/daemon"
+	"werkbord/internal/update"
 )
 
 var bg = context.Background()

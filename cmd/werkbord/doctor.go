@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/config"
-	"devboard/internal/controller"
-	"devboard/internal/daemon"
-	"devboard/internal/doctor"
-	"devboard/internal/github"
-	"devboard/internal/gitrepo"
-	"devboard/internal/service"
+	"werkbord/internal/config"
+	"werkbord/internal/controller"
+	"werkbord/internal/daemon"
+	"werkbord/internal/doctor"
+	"werkbord/internal/github"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/service"
 )
 
 // cmdDoctor checks everything. The controller's own checks run inside it, so they

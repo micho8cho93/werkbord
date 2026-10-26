@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"devboard/internal/mcpcontract"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/mcpcontract"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 const MCPTokenPrefix = "wbtm_"

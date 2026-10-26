@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/integration"
-	"devboard/internal/store"
 	"strings"
 	"testing"
+	"werkbord/internal/domain"
+	"werkbord/internal/integration"
+	"werkbord/internal/store"
 )
 
 func TestRepositoryRelationshipsLifecycleAndDiscovery(t *testing.T) {

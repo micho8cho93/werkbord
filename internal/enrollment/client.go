@@ -15,7 +15,7 @@ import (
 	"net/http"
 	"time"
 
-	"devboard/internal/httpkit"
+	"werkbord/internal/httpkit"
 )
 
 // Signer is the joining device's application identity. The device holds the private

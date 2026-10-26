@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/doctor"
+	"werkbord/internal/doctor"
 )
 
 func (e *testEnv) doctorReport() doctor.Report {

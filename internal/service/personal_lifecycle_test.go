@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
-	"devboard/internal/domain"
-	"devboard/internal/store"
 	"errors"
 	"testing"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func reviewed(p *domain.PersonalDeletion) domain.PersonalDeleteRequest {

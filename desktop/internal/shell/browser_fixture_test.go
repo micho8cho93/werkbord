@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/desktop/internal/teamlink"
-	"devboard/desktop/internal/workspaces"
+	"werkbord/desktop/internal/teamlink"
+	"werkbord/desktop/internal/workspaces"
 )
 
 // Browser-only transport for the real Shell. No fixture route ships in the app.

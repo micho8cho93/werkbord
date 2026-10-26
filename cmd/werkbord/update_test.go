@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"devboard/internal/releaseverify"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -21,10 +20,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"werkbord/internal/releaseverify"
 
-	"devboard/internal/daemon"
-	"devboard/internal/remote"
-	"devboard/internal/update"
+	"werkbord/internal/daemon"
+	"werkbord/internal/remote"
+	"werkbord/internal/update"
 )
 
 var releaseFixtureKey = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{43}, 32))

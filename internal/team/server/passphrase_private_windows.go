@@ -6,7 +6,7 @@ import (
 	"errors"
 	"os"
 
-	"devboard/internal/fssecure"
+	"werkbord/internal/fssecure"
 )
 
 func securePassphraseFile(path string, _ os.FileInfo) error {

@@ -2,13 +2,13 @@ package service
 
 import (
 	"context"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
 	"errors"
 	"fmt"
 	"sort"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // InitiativeView is a fresh, permission-checked projection, never an execution plan.

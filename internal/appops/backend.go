@@ -3,9 +3,9 @@ package appops
 import (
 	"context"
 
-	"devboard/internal/domain"
-	"devboard/internal/mcpplan"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/service"
 )
 
 // Backend is everything the operations may use, and nothing else. It is the existing domain services, not a store:

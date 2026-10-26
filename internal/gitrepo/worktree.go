@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/domain"
+	"werkbord/internal/domain"
 )
 
 // Worktrees creates and removes the linked worktrees agents run in.

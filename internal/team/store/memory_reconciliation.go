@@ -3,12 +3,12 @@ package store
 import (
 	"context"
 	"database/sql"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
 	"encoding/json"
 	"errors"
 	"strings"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 const MemoryEvidenceTTL = 24 * time.Hour

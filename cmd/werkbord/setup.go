@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/config"
-	"devboard/internal/daemon"
-	"devboard/internal/netprivate"
-	"devboard/internal/store/sqlite"
+	"werkbord/internal/config"
+	"werkbord/internal/daemon"
+	"werkbord/internal/netprivate"
+	"werkbord/internal/store/sqlite"
 )
 
 // envOn reports whether WERKBORD_<name> asks for something: "1", "true" or "yes".

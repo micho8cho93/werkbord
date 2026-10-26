@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"devboard/internal/integration"
-	"devboard/internal/team/domain"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"time"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/domain"
 )
 
 func (t *sqlTx) DeliverMemory(ctx context.Context, a MemoryPrincipal, e integration.MemoryEvent, id string, now time.Time) (integration.MemoryReceipt, error) {

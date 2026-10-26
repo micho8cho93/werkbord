@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/planning"
+	"werkbord/internal/domain"
+	"werkbord/internal/planning"
 )
 
 func labelsOf(f *fixture) *Labels { return &Labels{Deps: f.deps} }

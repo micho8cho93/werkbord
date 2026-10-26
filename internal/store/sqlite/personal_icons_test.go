@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"devboard/internal/domain"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/store"
 )
 
 func TestPersonalLibraryIconUpgradePreservesRecordsAndHistory(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"devboard/internal/integration"
-	"devboard/internal/workspace"
+	"werkbord/internal/integration"
+	"werkbord/internal/workspace"
 )
 
 type movePersonal struct {

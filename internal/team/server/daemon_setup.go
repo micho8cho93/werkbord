@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/enrollment"
-	"devboard/internal/httpkit"
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/hostclient"
-	"devboard/internal/team/infra/pki"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/hostclient"
+	"werkbord/internal/team/infra/pki"
 )
 
 func readBounded(r io.Reader, n int64) ([]byte, error) {

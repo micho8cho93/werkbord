@@ -10,8 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
 )
 
 // session speaks Codex's app-server protocol: JSON-RPC 2.0 messages, one per

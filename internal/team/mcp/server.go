@@ -12,11 +12,11 @@ import (
 	"net/http"
 	"strings"
 
-	"devboard/internal/mcpcontract"
-	"devboard/internal/mcpplan"
-	"devboard/internal/planning"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
+	"werkbord/internal/mcpcontract"
+	"werkbord/internal/mcpplan"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
 )
 
 type Server struct{ service *service.Service }

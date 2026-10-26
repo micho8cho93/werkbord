@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/enrollment"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/store"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/enrollment"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/store"
 )
 
 // Joining the workspace.

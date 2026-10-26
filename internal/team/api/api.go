@@ -24,13 +24,13 @@ import (
 	"strings"
 	"time"
 
-	"devboard/internal/deviceid"
-	"devboard/internal/httpkit"
-	"devboard/internal/planning"
-	"devboard/internal/team/authproof"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/mcp"
-	"devboard/internal/team/service"
+	"werkbord/internal/deviceid"
+	"werkbord/internal/httpkit"
+	"werkbord/internal/planning"
+	"werkbord/internal/team/authproof"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/mcp"
+	"werkbord/internal/team/service"
 )
 
 const maxBodyBytes = 64 << 10

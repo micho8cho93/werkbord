@@ -1,9 +1,9 @@
 package claude
 
 import (
-	"devboard/internal/agent"
 	"encoding/json"
 	"testing"
+	"werkbord/internal/agent"
 )
 
 func TestCumulativeModelUsageAndCostAreEstimates(t *testing.T) {

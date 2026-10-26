@@ -13,7 +13,7 @@ import "C"
 import (
 	"unsafe"
 
-	"devboard/desktop/internal/shell"
+	"werkbord/desktop/internal/shell"
 )
 
 // nativeAlerter shows alerts as the Mac does (alerts_darwin.m): a notification and a bounce of the Dock icon.

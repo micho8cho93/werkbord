@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/transport"
-	"devboard/internal/transport/transporttest"
+	"werkbord/internal/transport"
+	"werkbord/internal/transport/transporttest"
 )
 
 // The embedded Tailscale node, behind the product-neutral contract, passes the

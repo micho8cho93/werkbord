@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/events"
-	"devboard/internal/gitrepo"
-	"devboard/internal/store"
+	"werkbord/internal/domain"
+	"werkbord/internal/events"
+	"werkbord/internal/gitrepo"
+	"werkbord/internal/store"
 )
 
 // GitHealth works out what Git state needs a person's attention and remembers

@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"devboard/internal/relay"
-	"devboard/internal/relay/e2e"
+	"werkbord/internal/relay"
+	"werkbord/internal/relay/e2e"
 )
 
 // PendingTTL is how long a QR code's secret is good for, matching the enrollment code's life.

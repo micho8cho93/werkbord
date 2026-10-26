@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/domain"
-	"devboard/internal/runnerwire"
-	"devboard/internal/service"
+	"werkbord/internal/domain"
+	"werkbord/internal/runnerwire"
+	"werkbord/internal/service"
 )
 
 func TestManagerRoutesWithoutStartingControllerProcessAndRetainsOwnership(t *testing.T) {

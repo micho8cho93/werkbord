@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/team/config"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/infra/pki"
-	"devboard/internal/team/infra/rqlite"
-	"devboard/internal/team/infra/rqlite/rqlitetest"
-	"devboard/internal/team/service"
-	"devboard/internal/team/store/replicated"
+	"werkbord/internal/team/config"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/team/infra/rqlite"
+	"werkbord/internal/team/infra/rqlite/rqlitetest"
+	"werkbord/internal/team/service"
+	"werkbord/internal/team/store/replicated"
 )
 
 // These tests run a Workspace Host's storage as Team ships it: the pinned database program, supervised, with the replicated

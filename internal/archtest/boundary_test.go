@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	module        = "devboard"
+	module        = "werkbord"
 	individualCmd = module + "/cmd/werkbord"
 	teamCmd       = module + "/cmd/werkbord-team"
 	teamTree      = module + "/internal/team"
@@ -363,8 +363,8 @@ func TestTheDesktopAppIsASeparateModuleOfTheIndividualProduct(t *testing.T) {
 	if err != nil {
 		t.Fatalf("desktop/ must be a module of its own: %v", err)
 	}
-	if !regexp.MustCompile(`(?m)^module devboard/desktop$`).Match(mod) {
-		t.Errorf("desktop/go.mod must declare module devboard/desktop: that path is inside devboard/, which is what lets it use devboard/internal/…")
+	if !regexp.MustCompile(`(?m)^module werkbord/desktop$`).Match(mod) {
+		t.Errorf("desktop/go.mod must declare module werkbord/desktop: that path is inside werkbord/, which is what lets it use werkbord/internal/…")
 	}
 	root, err := os.ReadFile(filepath.Join(moduleRoot(t), "go.mod"))
 	if err != nil {

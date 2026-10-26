@@ -4,10 +4,10 @@ import (
 	"errors"
 	"net/http"
 
-	"devboard/internal/appops"
-	"devboard/internal/domain"
-	"devboard/internal/mcpcontract"
-	"devboard/internal/mcpplan"
+	"werkbord/internal/appops"
+	"werkbord/internal/domain"
+	"werkbord/internal/mcpcontract"
+	"werkbord/internal/mcpplan"
 )
 
 func (s *Server) mcpReady(w http.ResponseWriter) bool {

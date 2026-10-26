@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"devboard/internal/enrollment"
+	"werkbord/internal/enrollment"
 )
 
 // ---- a workspace, built from the standard library only (this package must not import Team) ----

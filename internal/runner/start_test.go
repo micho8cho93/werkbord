@@ -9,9 +9,9 @@ import (
 	"sync"
 	"testing"
 
-	"devboard/internal/agent"
-	"devboard/internal/domain"
-	"devboard/internal/gitrepo"
+	"werkbord/internal/agent"
+	"werkbord/internal/domain"
+	"werkbord/internal/gitrepo"
 )
 
 func TestStartRunsTheAgentInAFreshWorktree(t *testing.T) {

@@ -2,15 +2,15 @@ package runnerlink
 
 import (
 	"context"
-	"devboard/internal/envelope"
-	"devboard/internal/integration"
-	"devboard/internal/team/devicestate"
-	"devboard/internal/team/domain"
-	"devboard/internal/team/service"
 	"encoding/json"
 	"errors"
 	"testing"
 	"time"
+	"werkbord/internal/envelope"
+	"werkbord/internal/integration"
+	"werkbord/internal/team/devicestate"
+	"werkbord/internal/team/domain"
+	"werkbord/internal/team/service"
 )
 
 type authorizedBridge struct {
