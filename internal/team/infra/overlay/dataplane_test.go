@@ -30,11 +30,12 @@ import (
 // Render writes it, and then try to reach each other.
 
 type live struct {
-	name   string
-	groups []string
-	addr   netip.Addr
-	port   int
-	svc    *service.Service
+	name     string
+	groups   []string
+	addr     netip.Addr
+	port     int
+	reserved net.PacketConn
+	svc      *service.Service
 }
 
 type labNet struct {
@@ -56,20 +57,18 @@ func newLab(t *testing.T) *labNet {
 	return &labNet{t: t, ca: ca, caPEM: caPEM, nodes: map[string]*live{}, next: 1, dir: t.TempDir()}
 }
 
-func freePort(t *testing.T) int {
-	t.Helper()
-	c, err := net.ListenPacket("udp4", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-	return c.LocalAddr().(*net.UDPAddr).Port
-}
-
 // reserve allocates identities first, so that every node can be told where every other is.
 func (l *labNet) reserve(name string, groups ...string) *live {
+	l.t.Helper()
 	l.next++
-	n := &live{name: name, groups: groups, addr: netip.AddrFrom4([4]byte{10, 88, 0, byte(l.next)}), port: freePort(l.t)}
+	// Keep each wildcard UDP port reserved until its node starts. Closing a probe
+	// immediately allowed a later node in this same lab to choose the same port.
+	c, err := net.ListenPacket("udp4", "0.0.0.0:0")
+	if err != nil {
+		l.t.Fatal(err)
+	}
+	l.t.Cleanup(func() { _ = c.Close() })
+	n := &live{name: name, groups: groups, addr: netip.AddrFrom4([4]byte{10, 88, 0, byte(l.next)}), port: c.LocalAddr().(*net.UDPAddr).Port, reserved: c}
 	l.nodes[name] = n
 	return n
 }
@@ -126,6 +125,9 @@ func (l *labNet) start(n *live, discovery []*live, edit func(map[string]any)) {
 	c.Settings["static_host_map"] = static
 	if edit != nil {
 		edit(c.Settings)
+	}
+	if err := n.reserved.Close(); err != nil {
+		l.t.Fatal(err)
 	}
 	ctrl, err := nebula.Main(&c, false, "lab", slog.New(slog.DiscardHandler), nebulaoverlay.NewUserDeviceFromConfig)
 	if err != nil {

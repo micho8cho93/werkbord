@@ -192,6 +192,35 @@ func nodeKey(t *testing.T) []byte {
 	return pub
 }
 
+func TestFreshAuthorityAcceptsTheServicesMillisecondClock(t *testing.T) {
+	created := now.Add(987654321 * time.Nanosecond)
+	ca, err := NewNetworkCA("Acme", prefix(), created)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued, err := ca.Issue(NodeRequest{Name: "dev_aaaaaaaaaaaaaaaa", Addr: netip.MustParseAddr("10.201.0.2"), Groups: []string{GroupMember}, PublicKeyPEM: nodeKey(t)}, created.Truncate(time.Millisecond))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := ca.CertificatePEM()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NetworkCAFromPEM(encoded, ca.PrivateKeyPEM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, authority := range []*NetworkCA{ca, reopened} {
+		info, err := authority.VerifyNode(issued.CertPEM, created)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.NotBefore.Before(authority.cert.NotBefore()) {
+			t.Fatal("node validity begins before the authority's")
+		}
+	}
+}
+
 func TestTheAuthorityIssuesCertificatesThatNebulaVerifies(t *testing.T) {
 	ca, err := NewNetworkCA("Acme", prefix(), now)
 	if err != nil {

@@ -61,6 +61,9 @@ type NetworkCA struct {
 // address range (e.g. 10.201.0.0/16). The range is part of the authority's
 // certificate, so it can only ever sign addresses inside it.
 func NewNetworkCA(workspaceName string, prefix netip.Prefix, now time.Time) (*NetworkCA, error) {
+	// Nebula certificates encode whole Unix seconds. Keep the in-memory authority
+	// at that same precision, including when a service supplies a millisecond clock.
+	now = now.UTC().Truncate(time.Second)
 	if err := CheckNetworkRange(prefix); err != nil {
 		return nil, err
 	}
@@ -200,12 +203,16 @@ func (ca *NetworkCA) Issue(req NodeRequest, now time.Time) (Issued, error) {
 	if notAfter.After(ca.cert.NotAfter()) {
 		notAfter = ca.cert.NotAfter()
 	}
+	notBefore := now.Add(-clockSkew).UTC().Truncate(time.Second)
+	if notBefore.Before(ca.cert.NotBefore()) {
+		notBefore = ca.cert.NotBefore()
+	}
 	tbs := &cert.TBSCertificate{
 		Version:   cert.Version2,
 		Name:      req.Name,
 		Networks:  []netip.Prefix{netip.PrefixFrom(req.Addr, ca.prefix.Bits())},
 		Groups:    req.Groups,
-		NotBefore: now.Add(-clockSkew),
+		NotBefore: notBefore,
 		NotAfter:  notAfter,
 		PublicKey: pub,
 		Curve:     cert.Curve_CURVE25519,
