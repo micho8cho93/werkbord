@@ -20,9 +20,13 @@ let browser, activePage;
  const repo=fs.realpathSync(process.env.WERKBORD_BROWSER_REPO);
  const p = (await personal('GET','/projects')).projects.find(p=>p.repoPath===repo) || await personal('POST','/projects',{name:'Control audit',path:repo});
  await personal('POST','/onboarding/complete',{});
- await page.goto(individual+'/#token='+token);
- await page.waitForURL(url => !url.hash.includes('token='));
+ // Start on the route under test. A token-link bootstrap first resolves its
+ // default project; navigating during that startup can race its replacement URL.
+ await page.addInitScript(({origin,token}) => {
+  if(location.origin === origin) localStorage.setItem('devboard.token',token);
+ }, {origin:new URL(individual).origin,token});
  await page.goto(individual+'/#/settings?runners');
+ await page.waitForURL(url => url.hash === '#/settings?runners');
  const runners = page.locator('.pn.runners');
  const local = (await personal('GET','/runners')).runners.find(r => r.kind === 'local');
  assert(local && local.online && !local.disabled, 'the local fixture runner is connected and accepts work');
@@ -114,6 +118,7 @@ let browser, activePage;
  if(activePage){
   const dir=process.env.BROWSER_ARTIFACT_DIR;
   if(dir) await activePage.screenshot({path:path.join(dir,'controls-failure.png'),fullPage:true}).catch(()=>{});
+  console.error('Control URL:',activePage.url());
   console.error('Control page:',await activePage.locator('body').innerText().catch(()=>'<unavailable>'));
  }
 }).finally(async()=>{if(browser)await browser.close();});
