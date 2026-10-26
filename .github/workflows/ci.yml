@@ -9,7 +9,7 @@ jobs:
   check:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-24.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -54,7 +54,7 @@ jobs:
       - name: Installers, against a local release server
         run: make test-install test-install-team
       - name: Race and concurrency checks
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         env:
           # The tests that start real database clusters run in their own step, one package at a time, and not under the race detector.
           WERKBORD_SKIP_RQLITE: "1"
@@ -62,7 +62,7 @@ jobs:
         # ten-minute limit per package stopped internal/service while it was still making progress.
         run: go test -race -timeout 30m ./...
       - name: Disposable desktop/mobile browsers and Individual → Team workflow
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           cd web && npx playwright install --with-deps chromium webkit && cd ..
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
@@ -73,7 +73,7 @@ jobs:
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/personal" make test-personal-browser
           node scripts/browser-salie-sessions.cjs
       - name: Browser diagnostics
-        if: failure() && matrix.os == 'ubuntu-latest'
+        if: failure() && matrix.os == 'ubuntu-24.04'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: browser-diagnostics
@@ -82,7 +82,7 @@ jobs:
             ${{ runner.temp }}/werkbord-browser/**/*.png
           if-no-files-found: ignore
       - name: Every release platform builds, for both products
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           make web web-embed
           for p in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
