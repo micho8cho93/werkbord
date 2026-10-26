@@ -168,7 +168,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
  // People is a tab of the team, not an entry of the sidebar: the team's entry stays marked while the person is in it.
  assert.equal(await side.locator('[data-section="team:main"] [data-page=ws-members]').count(), 0, 'the sidebar does not list People');
- await firstFrame.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'People', exact: true }).click();
+ await firstFrame.getByRole('button', { name: /^Project settings/ }).click();
  await firstFrame.getByRole('heading', { name: /^People on this project/ }).waitFor();
  console.log('PASS Team: the same sidebar lists its places, theme follows Settings, no rail of its own');
  // The style (Paper, Graphite, Classic) is chosen in the window's Settings beside the theme and reaches every workspace: an open one
