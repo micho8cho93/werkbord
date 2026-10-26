@@ -21,7 +21,7 @@ See [plans](docs/PLANS.md) for admission rules and local key storage.
 
 **New team or join…** opens one create/join flow. Connecting your runner is an explicit native choice; every run still follows
 local approval rules. Team uses customer-owned Nebula networking and administrator-approved enrolment. Personal phone access
-uses the controller's separate Tailscale connection. Customers operate their own Team hosts, private network and backups.
+uses the encrypted relay; Tailscale is only for adding your other computers as runners. Customers operate their own Team hosts, private network and backups.
 
 **Move project** beside a sidebar project reviews the name, remote repository reference and ticket text before a native
 confirmation. The destination is saved atomically, then the original is archived with its history. Runs, files, credentials,
@@ -69,8 +69,8 @@ one installation, not two; the controller updater replaces the controller, and t
 
 The installer downloads the release for your computer, checks it against its published
 signed checksum manifest using an independently provisioned release public key, and runs `werkbord setup`: it creates the data directory and database, installs a background service
-that starts when you log in, registers this computer as your first runner, joins your own private network so a
-phone can reach it (signing you in through the browser if needed), and opens Werkbord in your browser. There
+that starts when you log in, registers this computer as your first runner, connects to the relay so a
+phone can reach it (nothing to install or sign in to), and opens Werkbord in your browser. There
 you connect GitHub (optional), see which coding agents it found, and pick repositories. It needs no account of
 Werkbord's own, no Docker, no root and no hosted database. Windows beta downloads are deferred; see
 [docs/INSTALL.md](docs/INSTALL.md) for every option, upgrades, and what is installed where.
@@ -160,9 +160,9 @@ an existing local checkout or clones one using your own sign-in.
 **Other programs.** A program on your computer that only needs to hand Werkbord a task or see what is running is given a narrow,
 revocable *local access token* instead of yours (`werkbord access list`, `revoke`): [docs/LOCAL_ACCESS.md](docs/LOCAL_ACCESS.md).
 
-**Phone access.** Werkbord embeds a Tailscale node, so your phone reaches the controller without you setting up a
-VPN, a tunnel or certificates, and without any server of Werkbord's own. Nothing is exposed to the Internet. See
-[docs/PHONE.md](docs/PHONE.md).
+**Phone access.** Your computer and your phone both connect out to a small relay that only passes along bytes they have
+encrypted for each other, so your phone reaches the controller with nothing installed on it and nothing exposed to the
+Internet. See [docs/PHONE.md](docs/PHONE.md) and [docs/RELAY.md](docs/RELAY.md).
 
 **Versions.** Everything uses `cmd/werkbord/VERSION` and the `werkbord-vMAJOR.MINOR.PATCH` tag series (with `-preview.N` for previews). See
 [docs/VERSIONING.md](docs/VERSIONING.md).
@@ -247,19 +247,19 @@ architecture tests that enforce their trust boundaries):
 make check
 ```
 
-Every implementation commit bumps the one `cmd/werkbord/VERSION` file and gets a unified tag
-(`werkbord-vX.Y.Z`, one version for the whole release): see [docs/VERSIONING.md](docs/VERSIONING.md).
+A release bumps the one `cmd/werkbord/VERSION` file and gets a unified tag
+(`werkbord-vX.Y.Z`, one version for the whole release); ordinary commits do neither: see [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## Using it from your phone
 
-`werkbord setup` (run by the installer) turns on phone access: Werkbord joins your own Tailscale network from
-inside the controller and serves the app there, over HTTPS when your tailnet has certificates turned on. Sign in
-to Tailscale once when it asks (a free account is enough), install the Tailscale app on your phone with the same
-account, and scan the QR code from `werkbord phones add --qr`, or from Settings → Phones, to open Werkbord on it already signed in. Each phone has a sign-in of its own that you can revoke.
-Then "Add to Home Screen". Details, the security model and troubleshooting: [docs/PHONE.md](docs/PHONE.md).
+`werkbord setup` (run by the installer) connects your computer to the relay by itself. Scan the QR code from
+`werkbord phones add --qr`, or from Settings → Phones, with your phone's camera: it opens Werkbord on the phone already signed
+in, with nothing to install and no account. Each phone has a sign-in of its own that you can revoke. Then "Add to Home
+Screen". Details, the security model and troubleshooting: [docs/PHONE.md](docs/PHONE.md).
 
-The controller on this computer still listens on `127.0.0.1` only; the private network is a second door that
-only your devices can reach, and it demands the access token like any other. Nothing is exposed to the Internet.
+The controller on this computer still listens on `127.0.0.1` only; the relay is a second, outbound-only door that demands a
+phone's own sign-in. Nothing is exposed to the Internet. (Your *other computers* join as runners over a separate private
+network, Tailscale, that is off until `werkbord network on`: [docs/RUNNERS.md](docs/RUNNERS.md).)
 
 Browser notifications are optional and can be enabled in Needs you. They are generated
 by the connected browser for questions, blocked or failed runs, completed work and important
@@ -281,7 +281,7 @@ then flags.
 | `token` | `WERKBORD_TOKEN` | — | generated when needed |
 | `requireToken` | `WERKBORD_REQUIRE_TOKEN` | `--require-token` | `true`. `false` (or `--require-token=false`) allows tokenless access on `127.0.0.1` only, and logs a warning; off loopback the token is always required. Anything but `true`/`false` in the environment is an error |
 | `allowedHosts` | — | — | `[]` |
-| `network.enabled` | `WERKBORD_NETWORK` | — | unset: the app decides (`werkbord setup` turns it on). `true` always joins the private network, `false` never does |
+| `network.enabled` | `WERKBORD_NETWORK` | — | unset: off until `werkbord network on`. The private network (Tailscale) is only for other computers joining as runners. `true` always joins it, `false` never does |
 | `network.hostname` | `WERKBORD_NETWORK_HOSTNAME` | — | `werkbord-<this computer's name>` |
 | `network.controlUrl` | `WERKBORD_NETWORK_CONTROL_URL` | — | Tailscale's. A self-hosted Headscale URL, if you run one |
 | `noUpdateCheck` | `WERKBORD_NO_UPDATE_CHECK` | — | `false`. `true` stops the controller from ever asking GitHub whether a newer release exists (what `GET /api/update` and the "update available" banner use); the controller's other network use (Git remotes, GitHub through your own `gh`, the private network) is something you asked for; this one is not, which is why it can be turned off |
@@ -360,7 +360,7 @@ internal/github       GitHub boundary: the user's own `gh` CLI, for pull request
 internal/agent        agent adapter boundary, process handling, execution-policy rules; claude/ and codex/ adapters
 internal/runner       owns agent processes: start, stream, input, stop, recovery
 internal/controller   wiring and lifecycle
-internal/netprivate   the embedded Tailscale node: private address, sign-in state, QR codes
+internal/netprivate   the embedded Tailscale node for other computers joining as runners (private address, sign-in state), and QR codes
 internal/daemon       the background service: launchd, systemd, Task Scheduler, or a detached process
 internal/doctor       `werkbord doctor`'s checks (never prints a secret)
 internal/update       finds, checksums and installs a newer release; says whether one exists (GET /api/update)

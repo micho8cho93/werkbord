@@ -295,8 +295,9 @@ func (m *Manager) newServer(h http.Handler) *http.Server {
 
 type privateRequestKey struct{}
 
-// IsPrivateRequest reports whether ctx belongs to a request served by this
-// manager's private-network listener.
+// IsPrivateRequest reports whether ctx belongs to a request that arrived by a private door: this manager's private-network
+// listener (which serves only what a remote runner calls), or the relay's tunnel (WithPrivateRequest), which is how phones
+// come in.
 func IsPrivateRequest(ctx context.Context) bool {
 	isPrivate, _ := ctx.Value(privateRequestKey{}).(bool)
 	return isPrivate
@@ -310,8 +311,8 @@ func hostOnly(hostport string) string {
 }
 
 // WithPrivateRequest marks ctx as belonging to a request that arrived by a door that is for phones, though not through
-// this manager's listener: the relay's tunnel (internal/relay/tunnel). It is the same trust as the private network's: the
-// request still needs a sign-in, and a phone's is checked against the same list of what a phone may do.
+// this manager's listener: the relay's tunnel (internal/relay/tunnel). The request still needs a sign-in, and a phone's is
+// checked against the fixed list of what a phone may do (internal/api/phone.go).
 func WithPrivateRequest(ctx context.Context) context.Context {
 	return context.WithValue(ctx, privateRequestKey{}, true)
 }

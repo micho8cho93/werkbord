@@ -144,7 +144,7 @@ opens the same editor the board uses for the dates. Nothing is moved by dragging
 ## The Assistant
 
 The Assistant retains its conversation engine, providers, model picker, tools, dictation, streaming and confirmation cards. Its compact Session selector switches between Salie conversations, opened task sessions and explicitly authorised native CLI terminals. A phone that
-has been enrolled may use it over the private network (it is the only thing there that can), through every assistant route the desktop uses. On a phone
+has been enrolled may use it through the relay (an enrolled phone is the only thing that can), through every assistant route the desktop uses. On a phone
 its surface stops where the bar begins (and takes the room when the on-screen keyboard is up), its Close button gives way to the bar, and the
 bar's two places are part of its focus order. Native terminal control requires a separate local-owner grant for each phone and session; it grants no administrative permissions. See [Native terminal sessions](NATIVE_TERMINALS.md#mobile-session-access-phase-4) for controls, reconnect behaviour and execution limits.
 

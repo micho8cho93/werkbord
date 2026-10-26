@@ -14,7 +14,7 @@ controller.
         +------------------+------------------+
         |                  |                  |
    Werkbord.app        a browser           your phone
-   (this page)      127.0.0.1:7420     Tailscale, see PHONE.md
+   (this page)      127.0.0.1:7420     the relay, see PHONE.md
 ```
 
 Nothing about the controller, its database, its token, its address or phone access changed to make this, and none of
@@ -46,7 +46,7 @@ stops your controller, your agents or your schedules.** To stop Werkbord itself,
 agents are working) or `werkbord uninstall` to remove the login service.
 
 Phone access is set up from **Settings → Phone access** (the app does not open a browser sign-in page for you the way
-`werkbord setup` does in a terminal). Links that leave Werkbord (GitHub's sign-in, Tailscale's, pull requests) open in
+`werkbord setup` does in a terminal). Links that leave Werkbord (GitHub's sign-in, Tailscale's sign-in for runners, pull requests) open in
 your normal browser.
 
 The menu bar has **Werkbord → Check for Updates…** (under *About Werkbord*), **View → Open in Browser** (the same controller,
@@ -448,8 +448,8 @@ Apple's notary service and Gatekeeper are fakes that behave as Apple does in eac
   Windows app offers to install Microsoft Edge WebView2 Runtime if it is missing.
 - The Intel half of the app was run only under Rosetta on an Apple Silicon Mac (the signing test runs the signed app both ways); it has not been
   run on an Intel Mac.
-- The first connection does not turn on phone access (Tailscale sign-in needs your attention in a browser): turn it on
-  in Settings.
+- Phone access needs nothing turned on: the controller connects to the relay by itself. Adding another computer as a runner
+  needs the private network (`werkbord network on`, a Tailscale sign-in in a browser).
 - Closing the window hides the app (Wails's `HideWindowOnClose`) and relies on macOS un-hiding a hidden app when its Dock
   icon is clicked. That was checked as far as the hidden state (the window leaves the screen, the controller is
   untouched) but not with a real click on the Dock icon.

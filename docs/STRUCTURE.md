@@ -16,7 +16,7 @@ The one release contains three executables with different trust responsibilities
 | Release assets | controller archives for existing terminal workflows | bundled in the unified desktop app; no standalone Host archive | macOS DMG; Linux packages opt-in after acceptance; Windows publication deferred |
 | Installer | `scripts/install.sh`, `scripts/install.ps1`; the desktop app | the app's native service installer | platform package or app installer |
 | Data directory | `werkbord` in your user config directory | `werkbord-team` in your user config directory (root-owned for the Mac service) | `werkbord-desktop` (window preferences and per-user Premium key) |
-| Settings | `WERKBORD_*` (and the older `WERKBORD_*`) | `WERKBORD_TEAM_*` | — |
+| Settings | `WERKBORD_*` | `WERKBORD_TEAM_*` | — |
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` (device API `7431`) | — |
 | Build | `make build` | `make build-team` | `make desktop` |
 

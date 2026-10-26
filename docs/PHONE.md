@@ -1,41 +1,32 @@
 # Phone access
 
-Werkbord's controller runs on your computer. To use it from your phone it has to be reachable from there, and
-Werkbord runs no servers of its own to do that. Instead it embeds a [Tailscale](https://tailscale.com) node
-(`tailscale.com/tsnet`, as a library, in the controller process).
+Werkbord's controller runs on your computer. To use it from your phone it has to be reachable from there, and a phone
+behind a mobile network cannot dial your computer directly. The phone and your computer therefore both make an **outbound**
+connection to a small **relay** (a Cloudflare Worker, [RELAY.md](RELAY.md)), which only passes along bytes the two ends
+have encrypted for each other. Nothing is installed on the phone and nothing needs signing in to: the phone's own camera
+opens a plain link.
 
 ## What you do
 
-1. Run `werkbord setup` (the installer does). When it asks, sign in to Tailscale in the browser it opens. A free
-   account is enough; sign in with Google, GitHub, Microsoft or Apple.
-2. Install the **Tailscale app on your phone** and sign in with the **same account**. This is the one thing Dev
-   Board cannot do for you.
-3. Scan the QR code (`werkbord phones add --qr`, `werkbord open --qr`, or Settings → Phones → Add a phone) with your
+1. Run `werkbord setup` (the installer does). Your computer connects to the relay by itself.
+2. Scan the QR code (`werkbord phones add --qr`, `werkbord open --qr`, or Settings → Phones → Add a phone) with your
    phone's camera. It opens Werkbord in the phone's browser, already signed in. Then "Add to Home Screen".
 
 The phone is signed in until you revoke it: no second scan, no token to type. The code in the QR works for one phone, for
-five minutes.
+five minutes. You never deal with ports, tunnels, VPNs, certificates or accounts.
 
-You never deal with ports, tunnels, VPN configuration, certificates or NAT traversal.
-
-**Without Tailscale.** The relay is built in (`docs/RELAY.md`: a small Cloudflare Worker and a static page; yours can replace it), so
-steps 1 and 2 are not needed: the QR code is a plain `https://` link, the phone's camera opens it in its
-browser, and the app comes from your computer through the relay, end-to-end encrypted. The phone shows "your computer is
-offline" when the computer is asleep and "temporarily unavailable" when the relay is at its limit. The two ways can be set up
-together; the QR code uses the relay while it is connected.
+The phone shows "your computer is offline" when the computer is asleep and "temporarily unavailable" when the relay is at
+its limit. A relay of your own can replace the built-in one ([RELAY.md](RELAY.md)).
 
 ## What it is
 
 - The controller keeps listening on `127.0.0.1` for this computer, as before.
-- Werkbord's embedded node joins **your own tailnet** as a device named `werkbord-<this computer>` and serves the
-  same app and API **only on that tailnet**. It runs in userspace: no root, no TUN device, no system Tailscale,
-  and it does not touch the Tailscale you may already have installed.
-- Its identity (keys) is in `<data dir>/tailscale/`, so it keeps the same address across restarts.
-- When your tailnet has MagicDNS and HTTPS certificates turned on, the app is served at
-  `https://werkbord-<name>.<tailnet>.ts.net/` with a real certificate (Tailscale provides it) and `http://` redirects
-  there. Without them it is served over plain `http://` to the name or the `100.x` address: still encrypted by
-  the tailnet, but a phone browser will not install it as an app or allow notifications from an `http://` page.
-  Settings says so and links to the admin console switch (DNS → HTTPS Certificates).
+- It also keeps one outbound connection to the relay. Phones reach the same app and API through it, **end-to-end encrypted**
+  between the phone and your computer: the relay sees ciphertext and holds no key.
+- A request that arrives this way is marked as coming through the phone door, and only a phone's own sign-in is accepted
+  on it (below).
+- The private network (Tailscale) is **not** used for phones. It exists only so that your other computers can join as
+  runners ([RUNNERS.md](RUNNERS.md)), is off until `werkbord network on`, and serves nothing but what a runner calls.
 
 ## Phones: what one can do, and how to revoke it
 
@@ -67,7 +58,7 @@ fixed workflow buttons targeting a registered Individual repository. The dedicat
 runner selection, repository registration, general settings or arbitrary commands. Workflow starts use ordinary tasks/runs
 and the same agent permission checks. See [MOBILE.md](MOBILE.md).
 
-A phone also reads **suggested next steps** (`GET /api/projects/{}/recommendations`) for the Control Deck. The private network does
+A phone also reads **suggested next steps** (`GET /api/projects/{}/recommendations`) for the Control Deck. The phone door does
 not serve Individual memory (and a phone is never given it, wherever it connects from), so the answer there has the words of saved memory taken out (a constraint says that a saved policy
 applied, and which record, not what it said), and a phone's *Useful / Not useful / Dismiss* is kept on the phone only: the
 feedback route is not on its list. See [RECOMMENDATIONS.md](RECOMMENDATIONS.md).
@@ -76,68 +67,53 @@ A phone also opens the owner's generated personal workspaces and works with thei
 
 The list is fixed and reviewed (`internal/api/phone.go`); a test fails when it changes without the change being read.
 
-**How a phone is let in.** The QR code holds `<address>/#enroll=<code>`. The code is 256 random bits, used once, void after five
-minutes, kept only as a hash, and a wrong, expired or used code all get the same answer. The browser never sends the part after
-`#` to a server; the page spends the code, is given the phone's token once, keeps it in the browser's storage and removes the
-code from the address. The phone's name comes from the browser ("iPhone (Safari)"); it can be changed on the phone and in
-Settings. Enrollment is tried at most ten times a minute.
+**How a phone is let in.** The QR code is a plain `https://` link to the connector page. After the `#` it carries a
+pairing: where the relay is, which room, the key for it, your computer's public key, a one-time secret and a single-use
+enrollment code. The browser never sends the part after `#` to a server; the page uses it to open the encrypted channel,
+spends the code, is given the phone's token once, keeps it in the browser's storage and removes the pairing from the
+address. The code is 256 random bits, used once, void after five minutes, kept only as a hash, and a wrong, expired or used
+code all get the same answer. The phone's name comes from the browser ("iPhone (Safari)"); it can be changed on the phone
+and in Settings. Enrollment is tried at most ten times a minute.
 
-A phone's token is accepted only from the private network's listener and from this computer, never from any other address.
+A phone's token is accepted only through the relay and from this computer, never from any other address.
 
 **Known limit (iOS).** Safari and a home-screen web app do not share storage on iPhone. A phone enrolled in Safari may need one
 more scan after "Add to Home Screen", which then shows as a second phone: revoke the first.
 
 ## Security
 
-- **Nothing is exposed to the Internet.** The node only accepts connections from devices in your tailnet. Werkbord never
-  uses Tailscale Funnel, which is the feature that publishes to the Internet.
-- **Reaching the tailnet is not authentication.** A sign-in is required on every API request over the private network,
-  **even if you have set `requireToken=false` for loopback**; the private door never inherits an open one. A phone's is its own
-  (above). The QR code carries a single-use enrollment code in the URL *fragment* (`#enroll=…`), never your controller token.
-  It is worth a minute to whoever scans it first, so do not post a screenshot of it.
-- Your controller token still works over the private network, for another computer on your tailnet that you sign in with
-  `werkbord token --url`. The Assistant is not served to it there; it is served to enrolled phones.
-- Everyone who can reach the device on your tailnet can see the sign-in page; only someone with a phone's sign-in (or your token)
-  can use the API. If your tailnet is shared, use Tailscale ACLs to limit who can reach the Werkbord device.
-- Werkbord has no account, relay or coordination server of its own. The third party is Tailscale's coordination
-  service, which your device talks to for sign-in and to find your phone; traffic between your devices is
-  end-to-end encrypted (relayed by Tailscale's DERP servers only when a direct connection is impossible).
-- Tailscale's client normally uploads diagnostic logs to Tailscale. Werkbord turns that **off**
-  (`TS_NO_LOGS_NO_SUPPORT`) unless you set that variable yourself.
-- The sign-in link shown to you is a one-time credential for your account: it is shown in the terminal and the
-  app, never logged, never in `werkbord doctor` or `status`.
+- **Nothing on your computer is exposed to the Internet.** It only makes outbound connections. The relay cannot read or
+  alter what passes through it, and holds one hash.
+- **Reaching the relay is not authentication.** A phone is let in by its own sign-in on every API request. The QR code
+  carries a single-use enrollment code, never your controller token. It is worth a minute to whoever scans it first, so
+  do not post a screenshot of it.
+- The Assistant is served to enrolled phones, not to the controller's own token on the phone door.
+- Werkbord's built-in relay is a service Werkbord's author runs on a free tier; it sees ciphertext only. Set `relay.url`
+  and `relay.connectorUrl` to your own to remove even that.
+- A phone you revoke loses its relay secret at once and is put off the relay now, not at its next request.
 
 ## Turning it off, and other setups
 
-- Settings → Phone access → **Turn off**, or `werkbord open --phone` to turn it on again. Your choice is
-  remembered; `werkbord setup` will not override it.
-- `network.enabled` in `config.json` (or `WERKBORD_NETWORK=true|false`) pins it on or off whatever the app says,
-  for a server that must always join, or a computer that must never.
-- **Headless computers:** create an auth key in your Tailscale admin console and start the controller with
-  `WERKBORD_TS_AUTHKEY=tskey-…` (or `TS_AUTHKEY`). It is read from the environment only and never stored.
-- **Self-hosted coordination (Headscale):** `network.controlUrl` in `config.json`.
-- A different name: `network.hostname`.
+- `relay.disabled` in `config.json` (or `WERKBORD_RELAY=off`) turns phone access off.
+- `relay.url` and `relay.connectorUrl` (or `WERKBORD_RELAY_URL` and `WERKBORD_CONNECTOR_URL`), both or neither, point at a
+  relay of your own.
 
 ## Troubleshooting
 
-`werkbord doctor` reports the network's state in one line:
+`werkbord doctor` and `werkbord status` report phone access in one line:
 
 | It says | Meaning |
 | --- | --- |
-| off | nobody asked for it, or you turned it off |
-| waiting for you to sign in | open Werkbord → Settings → Phone access → Sign in (or `werkbord open --phone`) |
-| waiting for approval | your tailnet requires an admin to approve new devices |
-| connected at … | working. If it says `http`, see the HTTPS note above |
-| failed: … | `werkbord restart`; if it persists, turn it off and on in Settings |
+| ready through the relay | working |
+| not connected to the relay yet | the computer is offline, or the relay is at its limit; it keeps trying by itself |
+| off: the relay is turned off | `relay.disabled` or `WERKBORD_RELAY=off` is set |
 
-If the phone cannot open the address, check that the Tailscale app on the phone is signed in to the same account
-and connected, and that the address is the `…ts.net` name shown in Settings (or the `100.x` address, if MagicDNS
-is off).
+If the phone cannot open the link, make a new code (`werkbord phones add --qr`): codes work once and for five minutes.
 
 ## Native terminal grants
 
 Enrolment alone grants no standalone terminal control. At the execution computer, open the terminal in Assistant and use
 **Phone access** to enable this phone for that session. The phone can then select it in Assistant, view output, send native
-CLI input, resize it and explicitly terminate it through the existing Tailscale or encrypted-relay connection. Creating
+CLI input, resize it and explicitly terminate it through the encrypted relay connection. Creating
 terminals and managing grants remain local-owner operations. Revoking the phone ends its open requests and relay access
 immediately. See [Native terminal sessions](NATIVE_TERMINALS.md#mobile-session-access-phase-4).

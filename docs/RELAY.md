@@ -1,6 +1,6 @@
 # Relay protocol (phone ↔ runner)
 
-The relay lets a phone reach the controller on your computer without Tailscale. It is a small Cloudflare Worker
+The relay lets a phone reach the controller on your computer without any VPN or app on the phone. It is a small Cloudflare Worker
 (`relay/worker`) that forwards bytes between **one runner** and its **phones**. Everything that matters is encrypted
 end to end between the phone and the runner; the relay sees ciphertext, holds no key and stores one hash.
 
@@ -125,9 +125,9 @@ data. Rotating the `joinKey` is a later change.
 ## The connector: scan and go
 
 A QR code is a plain link, `https://<your-connector>/connect/#wbr1.…`, so the phone's own camera opens it in its default
-browser: **no Tailscale app, no app of any kind**. The pairing sits after the `#`, which a browser never sends to a server; the
-page removes it from the address bar as soon as it has read it. Tailscale stays an option: with both set up, the QR code is the
-relay's while the relay is connected, and the private network's otherwise (`"via"` in the answer of `POST /api/phones/codes`).
+browser: **no app of any kind**. The pairing sits after the `#`, which a browser never sends to a server; the
+page removes it from the address bar as soon as it has read it. The relay is the only way a phone comes in (`"via": "relay"` in
+the answer of `POST /api/phones/codes`); Tailscale is used only by other computers joining as runners.
 
 ```
 phone browser ── https ──▶ connector (Cloudflare Pages: static files, no code of yours runs there)
@@ -140,7 +140,7 @@ service worker (/sw.js) ── wss, end-to-end encrypted ──▶ relay (Worker
 **The app is served by your computer**, through the relay. Pages holds a dozen small static files and no copy of the app, so
 the phone always runs the version your computer runs, and a Pages deploy is never needed when Werkbord updates. The phone's
 service worker (`relay/connector/src/sw.js`) turns each fetch into a request on the tunnel (`internal/relay/tunnel`), which the
-runner answers with the same handler the private network serves. A phone therefore has exactly the access a phone has anywhere
+runner answers with the controller's phone-side handler. A phone therefore has exactly the access a phone has anywhere
 else (`internal/api/phone.go`: a fixed, reviewed list), and the tunnel is not a second way in: it adds nothing the controller
 does not already check, and passes only a few request headers (no `Origin`, `Cookie` or `Host`).
 
@@ -263,6 +263,6 @@ The local authenticated device API exposes `GET /api/device/v1/phones` (status a
 
 Authorised terminal output and bounded input/resize/stop requests use the existing encrypted HTTP tunnel. There is no
 terminal WebSocket upgrade: output is cursor-based, bounded HTTP long polling, and input carries duplicate-write receipts.
-The same enrolled-device and per-session grants apply through the relay and Tailscale. Disconnects reattach output only;
+The same enrolled-device and per-session grants apply through the relay. Disconnects reattach output only;
 uncertain input is never resent automatically. The relay's end-to-end encryption, framing, keys and revocation are unchanged.
 Separately paired task runners expose no terminal capability; Team carries no terminal execution or shell access.

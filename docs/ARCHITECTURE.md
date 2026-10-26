@@ -199,7 +199,7 @@ snapshot is left untouched, so a project never silently starts describing anothe
 
 `werkbord serve` → `controller.Run`:
 
-1. **Load config**: defaults → `<dataDir>/config.json` → `WERKBORD_*` env (or the older `WERKBORD_*`) → flags.
+1. **Load config**: defaults → `<dataDir>/config.json` → `WERKBORD_*` env → flags.
 2. **Lock the data directory** with an exclusive `flock` on `controller.lock`. A second
    controller on the same data dir fails fast. The OS releases the lock if the process dies.
 3. **Open SQLite and migrate** (see §6). A database from a newer build is refused.
@@ -878,20 +878,21 @@ executable if the new one does not come up.
 `local` runner, every time it starts (`Settings.RegisterRunner`), with nothing to configure; a unique index keeps it
 one. Runs do not yet name a runner: multi-runner execution is deferred.
 
-**Private network** (`internal/netprivate`). The controller embeds a Tailscale node (`tsnet`, userspace: no root, no
-TUN, no system Tailscale) when the user has turned phone access on (`settings.network`, or `config.network.enabled`
-which overrides it). A `Manager` brings the node up in the background and keeps a `Status` (`off`, `starting`,
+**Private network** (`internal/netprivate`). Phones do not use it (they come in through the relay, §21 and
+[RELAY.md](RELAY.md)); it is the way another computer joins as a runner. The controller embeds a Tailscale node (`tsnet`,
+userspace: no root, no TUN, no system Tailscale) when the user has turned it on (`werkbord network on`, stored in
+`settings.network`, or `config.network.enabled` which overrides it). A `Manager` brings the node up in the background and keeps a `Status` (`off`, `starting`,
 `needs_login` with the sign-in link, `needs_approval`, `connected` with the address, `error`); once connected it
-serves the app on the tailnet only (443 with Tailscale-issued certificates when the tailnet has HTTPS, else 80).
-The tailnet listeners use a *second* `api.Server` built with `AuthRequired: true`, so the access token is demanded
-there even when loopback was opened with `requireToken=false`. Funnel (public ingress) is never used, Tailscale's
+serves **only what a remote runner calls**, `/api/runner/join` and `/api/runner/sync`, on the tailnet (443 with
+Tailscale-issued certificates when the tailnet has HTTPS, else 80); every other path is a plain 404 there, whatever token
+is presented (`controller.runnerDoor`), so an open loopback is never inherited. Funnel (public ingress) is never used, Tailscale's
 log upload is switched off, and the sign-in link is never logged. The node sits behind a small `Backend`
 interface, so the manager is tested with a fake and, separately, against a real node talking to Tailscale's own
 in-process test control server and DERP relay (sign-in link, completing it, serving, a second node reaching it,
-identity across a restart). `GET /api/network/phone` returns the address only. A phone is enrolled with a single-use code
-(`POST /api/phones/codes`, carried in the URL fragment as `#enroll=…`, spent by `POST /api/phones/enroll`) and is given a
-credential of its own (`internal/phoneaccess`, `wbp_…`, hashes only) that is accepted on a fixed list of routes
-(`internal/api/phone.go`) from the private listener and loopback only, and is revocable per phone ([PHONE.md](PHONE.md)).
+identity across a restart). A phone is enrolled with a single-use code
+(`POST /api/phones/codes` makes the relay's link, with the pairing in its fragment; `POST /api/phones/enroll` spends the code)
+and is given a credential of its own (`internal/phoneaccess`, `wbp_…`, hashes only) that is accepted on a fixed list of routes
+(`internal/api/phone.go`) through the relay and from loopback only, and is revocable per phone ([PHONE.md](PHONE.md)).
 
 **GitHub** (`service.GitHubSetup`, `internal/github`) is optional and goes through the user's own `gh`: status
 (`gh api user`), sign-in (`gh auth login --web`, whose one-time code the app shows), the repositories the user can

@@ -33,14 +33,13 @@ installation. Installing one and using the other does not make a second.
      runs as a detached background process instead and says that it will not restart at login;
    - waits for the controller to answer and shows that **this computer is registered as your first runner**
      (the controller does this itself whenever it starts);
-   - turns on **phone access**: Werkbord joins your own Tailscale network from inside the controller. If you are
-     not signed in to Tailscale yet it opens the sign-in page in your browser and waits (up to three minutes; it
-     carries on without you if you take longer, and Settings shows the same state). See [PHONE.md](PHONE.md);
+   - reports **phone access**: the controller connects to the relay by itself, so there is nothing to install or sign in
+     to. See [PHONE.md](PHONE.md);
    - opens Werkbord in your browser, where setup finishes: GitHub (optional), your coding agents (detected, not
      installed for you), and the repositories to add as projects.
 
 Setup is safe to run again: it replaces the controller with the new binary (never a second one beside it), keeps
-your data and token, and does not turn phone access back on if you turned it off.
+your data and token.
 
 Pass flags to setup after `sh -s --`, or set the variable beside each:
 
@@ -49,8 +48,6 @@ Pass flags to setup after `sh -s --`, or set the variable beside each:
 | `--no-service` | `WERKBORD_NO_SERVICE=1` | run in the background without installing a login service |
 | `--no-start` | `WERKBORD_NO_START=1` | prepare everything, do not start the controller |
 | `--no-open` | `WERKBORD_NO_OPEN=1` | do not open a browser |
-| `--no-network` | `WERKBORD_NO_NETWORK=1` | skip phone access |
-| `--network-wait 5m` | | how long to wait for the Tailscale sign-in |
 | | `WERKBORD_NO_SETUP=1` | (installer only) install the executable and stop |
 | | `WERKBORD_VERSION=v1.2.3` | (installer only) install that release instead of the latest |
 | | `WERKBORD_BASE_URL` | (installer only) where releases are, for a mirror |
@@ -81,7 +78,7 @@ the end of it.
 | `werkbord status` | what is running, where, as which service, phone address, runner, agents; `--json` for scripts. Exits 1 when the controller is not running |
 | `werkbord start` / `stop` / `restart` | manage the service. They manage the controller the service owns and never start a second one beside it: if one is already answering (say, `werkbord serve` in a terminal) `start` says so and `stop` tells you it was not started by the service |
 | `werkbord open` | open the app in your browser, signed in. `--print` prints the link instead; `--phone` brings up phone access if needed and shows the address; `--qr` shows the QR code that signs a phone in (see `werkbord phones`) |
-| `werkbord doctor` | check the controller, database, Git, Codex, Claude, private network, GitHub, runner registration and every configured project. `--json`, `--strict` (warnings fail too). It never prints a secret |
+| `werkbord doctor` | check the controller, database, Git, Codex, Claude, phone access, GitHub, runner registration and every configured project. `--json`, `--strict` (warnings fail too). It never prints a secret |
 | `werkbord update` | install the latest release over this executable and restart the controller; `--check` only looks, `--version vX.Y.Z` picks one |
 | `werkbord uninstall` | remove the login service. Your data stays |
 | `werkbord logs [-n N]` | the end of the controller's log |
@@ -135,8 +132,8 @@ rm -rf "<data dir>"           # your projects, tasks, settings and token: only i
 If you used the desktop app, delete `Werkbord.app` as well. Deleting the app does **not** remove Werkbord: the controller
 and its login service are the ones above, so `werkbord uninstall` (or `rm ~/.local/bin/werkbord`) is what removes them.
 
-`werkbord status` prints the data directory. If phone access was on, Werkbord's device also appears in your
-Tailscale admin console under Machines, where you can remove it.
+`werkbord status` prints the data directory. If you turned the private network on (`werkbord network on`, for other
+computers), Werkbord's device also appears in your Tailscale admin console under Machines, where you can remove it.
 
 ## Windows
 

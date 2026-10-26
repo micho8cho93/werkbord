@@ -7,7 +7,9 @@ operates no hosted orchestration service; V1 connects one user's machines.
 
 ## Pair a machine
 
-1. Connect the controller's private network in Settings.
+1. On the controller's computer run `werkbord network on` and sign in to Tailscale (a free account is enough). This private
+   network is how your other computers reach the controller; it serves nothing but the runner's join and sync calls, and
+   phones never use it.
 2. In Settings → Runners, choose **Add runner**, select the projects this machine may execute,
    and generate a code. Enable cloning only if you want the runner to clone those configured origins.
 3. Install the same Werkbord release on the other machine. The normal installer sets up a local
