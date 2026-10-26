@@ -78,7 +78,10 @@ func TestPhoneTerminalOverEncryptedRelayAndPrivateNetwork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	line, _ := dialPhone(t, pairing)
+	line, closed := dialPhone(t, pairing)
+	if line == nil {
+		t.Fatalf("the phone could not connect: the relay closed it with status %d", closed)
+	}
 	status, b = line.do("POST", "/api/phones/enroll", "", `{"code":"`+code.Code+`","name":"Mini phone"}`)
 	if status != 201 {
 		t.Fatalf("enroll: %d %s", status, b)
@@ -112,7 +115,10 @@ func TestPhoneTerminalOverEncryptedRelayAndPrivateNetwork(t *testing.T) {
 	}()
 	// Drop the entire encrypted link; a fresh handshake and cursor replay attach to the same process.
 	line.c.CloseNow()
-	line, _ = dialPhone(t, pairing)
+	line, closed = dialPhone(t, pairing)
+	if line == nil {
+		t.Fatalf("the phone could not reconnect after its link dropped: the relay closed it with status %d", closed)
+	}
 	if status, b = line.do("GET", path+"/output?after=0", phone.Token, ""); status != 200 {
 		t.Fatalf("reconnect: %d %s", status, b)
 	}
