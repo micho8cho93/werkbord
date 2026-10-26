@@ -21,3 +21,5 @@
 
 # Python tooling caches
 __pycache__/
+
+/cmd/werkbord-team/licensing/ui/build/

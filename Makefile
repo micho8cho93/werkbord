@@ -104,7 +104,7 @@ lint: web/node_modules
 	cd web && $(NPM) run check && $(NPM) run lint
 
 ## check: everything CI should run
-check: web-shell test lint desktop-test test-notarize-desktop test-workflows
+check: web-shell test lint desktop-test test-notarize-desktop test-workflows test-premium-console
 	$(GO) build ./...
 	cd web && $(NPM) run build
 
@@ -301,3 +301,12 @@ test-personal-browser: web web-shell
 	node scripts/browser-personal-icons.cjs
 	node scripts/browser-personal-productivity.cjs
 	node scripts/browser-personal-productivity-shell.cjs
+
+# Vendor-only hosted Premium console, checked independently of customer executables.
+.PHONY: test-premium-console
+cmd/werkbord-team/licensing/ui/node_modules: cmd/werkbord-team/licensing/ui/package.json cmd/werkbord-team/licensing/ui/package-lock.json
+	cd cmd/werkbord-team/licensing/ui && $(NPM) ci
+	@touch $@
+
+test-premium-console: cmd/werkbord-team/licensing/ui/node_modules
+	cd cmd/werkbord-team/licensing/ui && $(NPM) test && $(NPM) run build:hosted

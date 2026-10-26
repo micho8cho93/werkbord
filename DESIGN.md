@@ -479,3 +479,8 @@ Team Analytics follows Individual’s coloured statistic tiles and twelve-column
 Data library places Saved workspaces beside Personal collections, showing four entries per list initially with independent Show all / Show fewer controls. Collection inspection stays below both lists. Universal keeps Devices & Hosting → Data library → Settings pinned in its sidebar, and workspace tiles reserve room for hover lift and focus outlines.
 
 Project identity in Team contains only the repository, when present, above the project title; ticket branches belong in ticket and Git views. Individual and Team preserve saved work modes without a Human / Agent / Hybrid selector in create/edit forms. Done cards carry their own Archive action, and the bulk Archive Done button is removed. Archive preserves details and supports restoration.
+
+
+### Premium operator console (5.5)
+
+The vendor-only licensing page preserves its paper/ink/cobalt and bundled Geist identity, with a searchable person/status register beside the key details and inline issue form. It issues one permanent Premium unlock key per person; no seat, expiry, renewal or workspace terms appear. The plan explanation says teams of up to two are free and teams of three or more need a separate key for every member, including the owner. Operator sign-in, authenticator verification, prepared-request recovery, original-key redelivery and passphrase-encrypted backup stay explicit. Customer activation is Settings → Plan. Narrow layouts stack the header, search, register and details, with full-width search, 16px inputs and visible focus. Signing stays on the protected server; this surface never handles its private key.

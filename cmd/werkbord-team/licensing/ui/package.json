@@ -1,0 +1,17 @@
+{
+  "name": "werkbord-licensing-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild client.js --bundle --minify --format=esm --target=es2022 --supported:template-literal=false --outfile=build/client.js",
+    "build:hosted": "npm run build && node build-hosted.mjs",
+    "test": "node --test premium-key.test.mjs ../../../../supabase/functions/premium-issuer/handler.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
+    "age-encryption": "0.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

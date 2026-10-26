@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// An unlock key is how a person's Werkbord knows it is Premium. It is one string, signed offline by the person who sells
-// Premium and checked here against a public key that is stamped into the build. It never expires, names no seats, no team and
+// An unlock key is how a person's Werkbord knows it is Premium. It is one string, signed by the vendor’s protected issuer (or offline vendor tool)
+// for Premium and checked here against a public key that is stamped into the build. It never expires, names no seats, no team and
 // no customer account, and needs no server: pasting it into the app once is all there is.
 //
 //	wbpremium-<payload>.<signature>        both unpadded URL base64

@@ -34,8 +34,8 @@ do not establish desktop startup or physical-device acceptance.
 ## Trust and release review
 
 Keep release, Apple, Sparkle and Premium issuer keys separate. Premium keys unlock a plan, never authenticate a release. There is no licence signer any more:
-team licensing was removed (see [PLANS.md](PLANS.md)), and the hosted licensing
-sections below are kept only as a record of what was inspected before it was.
+team licensing was removed (see [PLANS.md](PLANS.md)). The historical hosted licensing
+sections below record the old system. The protected server now issues per-person Premium unlock keys through a separate register; current custody and acceptance are in [PREMIUM_OPERATIONS.md](PREMIUM_OPERATIONS.md).
 
 The unified checksum manifest is signed over UTF-8
 `werkbord/release/v1`, NUL, the exact tag, NUL, and the manifest's exact bytes.

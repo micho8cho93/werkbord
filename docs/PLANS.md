@@ -1,7 +1,7 @@
 # Plans: Free and Premium
 
-Werkbord is one product with one build. It has no licences, no seats, no expiry, no renewal, no vendor account and no vendor
-server. There are two plans, and the only thing that tells them apart is whether a person's app holds a valid **unlock key**
+Werkbord is one product with one build. The customer app has no per-team licences, seats, expiry, renewal, vendor account or vendor
+server dependency. There are two plans, and the only thing that tells them apart is whether a person's app holds a valid **unlock key**
 (Premium) or not (Free). Nothing is built, packaged or installed differently for either: there is no Premium build, and no
 release script, build tag or linker flag may select an edition (`internal/archtest` fails if one does).
 
@@ -13,19 +13,20 @@ release script, build tag or linker flag may select an edition (`internal/archte
 
 ## The unlock key
 
-A key is one string, `wbpremium-<payload>.<signature>`, signed offline with an Ed25519 key that only the person who sells
-Premium holds, and checked offline against a public key stamped into the build (`internal/entitlement`). The payload is
+A key is one string, `wbpremium-<payload>.<signature>`, signed with a dedicated Ed25519 key held by the vendor’s protected issuing server (or its offline vendor tool), and checked offline against a public key stamped into the build (`internal/entitlement`). The payload is
 `{schema, product, id, holder?, issuedAt}`: it names no team, no seats and no account, and it never expires. Pasting it into the
 app once is all there is; it works offline, forever.
 
-- **Making keys** is the vendor tool, run offline and never shipped (`cmd/werkbord-team/vendor`):
+- **Making keys** normally uses the protected [Premium operator console](PREMIUM_OPERATIONS.md). Each authorised operator signs in and verifies MFA; the server keeps the signing key and records one permanent key per person. The customer app never contacts that service.
+
+  The offline vendor tool is also available and is never shipped (`cmd/werkbord-team/vendor`):
 
   ```sh
   go run ./cmd/werkbord-team/vendor keygen  --private-out issuer.pem --public-out issuer.pub     # once
   go run ./cmd/werkbord-team/vendor premium --out key.txt --holder "Ada Lovelace" < issuer.pem   # per buyer
   ```
 
-  The private key stays offline. The 43 characters of `issuer.pub` become the repository variable
+  The private key never enters a customer build, the public page or Git. The 43 characters of `issuer.pub` become the repository variable
   `PREMIUM_ISSUER_PUBLIC_KEY`, which the build stamps into both executables
   (`-X devboard/internal/entitlement.issuerPublicKey=…`, in `scripts/release-build-flags.sh` and `team-build-flags.sh`).
   A build without it can check no key, so everyone on it is on the Free plan; the release check warns about that.
@@ -92,10 +93,10 @@ is a fair, low-friction one, not copy protection.
 ## What was removed
 
 Team used to require a vendor-signed offline licence per workspace (seats, dates, a support end, an owner-only renewal, a
-vendor issuing tool and a hosted operator console with a Supabase register). All of it is gone: `internal/team/license`, the
+vendor issuing tool and a hosted operator console with a Supabase register). The customer-facing licence system is gone: `internal/team/license`, the
 licence gate and its API (`PUT /api/team/v1/license`, `POST /api/device/v1/license`), `werkbord-team license import`,
 `WERKBORD_TEAM_LICENSE_FILE`, the console's licence screens, `LICENSE_ISSUER_PUBLIC_KEY` and its release secret, and the
-operator console and its hosted functions. The `workspace_licenses` table of an existing Team database is no longer read or
+old per-workspace issuing UI. The existing hosted operator authentication and historical register are retained for vendor administration; a separate Premium register and protected `premium-issuer` function now issue person-level unlock keys. The `workspace_licenses` table of an existing Team database is no longer read or
 written; it stays in the schema, because migrations only move forward and hosts of different versions can share a database
 during maintenance.
 

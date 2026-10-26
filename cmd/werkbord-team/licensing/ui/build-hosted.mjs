@@ -1,0 +1,10 @@
+import {mkdir, copyFile, writeFile, readFile, rm} from 'node:fs/promises';
+import path from 'node:path';
+const here = import.meta.dirname, out = path.resolve(here, '../../../../dist/licensing');
+await rm(out, {recursive:true, force:true}); await mkdir(out, {recursive:true});
+for (const name of ['client.js','style.css','favicon.svg','geist.woff2','GEIST-LICENSE.txt','config.json']) await copyFile(path.join(here,name === 'client.js' ? 'build/client.js' : name), path.join(out,name));
+let html = await readFile(path.join(here,'index.html'),'utf8');
+const csp = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://czereygxndotenlqndbj.supabase.co; base-uri 'none'; form-action 'self'; upgrade-insecure-requests";
+html = html.replace('<title>', `<meta http-equiv="Content-Security-Policy" content="${csp}"><title>`);
+await writeFile(path.join(out,'index.html'),html); await writeFile(path.join(out,'.nojekyll'),'');
+console.log('Premium operator console built in dist/licensing (public configuration only).');
