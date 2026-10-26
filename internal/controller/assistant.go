@@ -128,8 +128,8 @@ func newAssistantProviders(cfg config.Config, probe *agentkit.Prober) (*provider
 	for _, p := range []provider.Provider{
 		claudeprov.New(claudeprov.Config{Command: cl.Command, Model: cl.Model, Models: providerModels(cl.Models), Reasoning: cl.Reasoning, Prober: probe}),
 		codexprov.New(codexprov.Config{Command: cx.Command, Model: cx.Model, Models: providerModels(cx.Models), Prober: probe}),
-		gemini.New(gemini.Config{Command: gm.Command, Models: providerModels(gm.Models), Reasoning: gm.Reasoning}),
-		opencode.New(opencode.Config{Command: oc.Command, Models: providerModels(oc.Models), Reasoning: oc.Reasoning}),
+		gemini.New(gemini.Config{Command: gm.Command, Models: providerModels(gm.Models), Reasoning: gm.Reasoning, Prober: probe}),
+		opencode.New(opencode.Config{Command: oc.Command, Models: providerModels(oc.Models), Reasoning: oc.Reasoning, Prober: probe}),
 	} {
 		if err := reg.Register(p); err != nil {
 			return nil, err

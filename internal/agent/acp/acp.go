@@ -14,6 +14,7 @@ import (
 	"time"
 
 	agentapi "werkbord/internal/agent"
+	"werkbord/internal/agentkit"
 	"werkbord/internal/domain"
 
 	acp "github.com/caelis-labs/acp-go-sdk"
@@ -32,63 +33,41 @@ type Config struct {
 	Models                     []domain.AgentOption
 	Reasoning                  []string
 	ListModels                 bool
-	Guidance                   string
-	DiscoverOptions            bool
+	// Guidance is how to install and sign in; the documentation link follows it.
+	Guidance        string
+	DiscoverOptions bool
+	// Prober answers what the CLI says about itself. The controller shares one with the assistant's provider for the same
+	// agent; nil gives the adapter one of its own.
+	Prober *agentkit.Prober
 }
 
 type Adapter struct {
-	cfg      Config
-	mu       sync.Mutex
-	detected domain.Agent
-	detectAt time.Time
-	optMu    sync.Mutex
-	options  domain.AgentOptions
-	optAt    time.Time
+	cfg     Config
+	probe   *agentkit.Prober
+	optMu   sync.Mutex
+	options domain.AgentOptions
+	optAt   time.Time
 }
 
 var _ agentapi.Adapter = (*Adapter)(nil)
 
-func New(cfg Config) *Adapter { return &Adapter{cfg: cfg} }
+func New(cfg Config) *Adapter {
+	probe := cfg.Prober
+	if probe == nil {
+		probe = agentkit.NewProber()
+	}
+	return &Adapter{cfg: cfg, probe: probe}
+}
 func (a *Adapter) ID() string { return a.cfg.ID }
 
-var versionRE = regexp.MustCompile(`\d+\.\d+\.\d+[^\s]*`)
 var modelIDRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/\[\]+@-]{0,99}$`)
 
+// Detect finds the agent's command and its version; agentkit asks and remembers the answer. A sign-in cannot be read
+// from an ACP agent's command line (it may use any provider the person set up), so it is never reported.
 func (a *Adapter) Detect(ctx context.Context) domain.Agent {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if !a.detectAt.IsZero() && time.Since(a.detectAt) < 30*time.Second {
-		return a.detected
-	}
-	info := domain.Agent{ID: a.cfg.ID, Name: a.cfg.Name, DocsURL: a.cfg.DocsURL, SignIn: domain.SignInUnknown}
-	path, err := exec.LookPath(a.cfg.Command)
-	if err != nil {
-		info.Detail = fmt.Sprintf("%q was not found on PATH", a.cfg.Command)
-		info.Guidance = a.guidance()
-		a.detected, a.detectAt = info, time.Now()
-		return info
-	}
-	out, err := commandOutput(ctx, path, a.cfg.Command, "--version")
-	if err != nil {
-		info.Detail = "could not run `" + a.cfg.Command + " --version`: " + clip(err.Error(), 240)
-		info.Guidance = "Reinstall or update " + a.cfg.Name + ": " + a.cfg.DocsURL
-		a.detected, a.detectAt = info, time.Now()
-		return info
-	}
-	info.Installed, info.Available = true, true
-	info.Version = versionRE.FindString(out)
-	a.detected, a.detectAt = info, time.Now()
+	info := agentapi.FromFacts(a.probe.ACP(ctx, agentkit.ACPSpec{ID: a.cfg.ID, Name: a.cfg.Name, Command: a.cfg.Command, DocsURL: a.cfg.DocsURL, Setup: a.cfg.Guidance}))
+	info.SignIn = domain.SignInUnknown
 	return info
-}
-
-func (a *Adapter) guidance() string {
-	if a.cfg.Guidance != "" {
-		return a.cfg.Guidance + " " + a.cfg.DocsURL
-	}
-	if a.cfg.ID == "gemini-cli" {
-		return "Install Gemini CLI and complete sign-in from a terminal. Werkbord reuses its existing configuration: " + a.cfg.DocsURL
-	}
-	return "Install OpenCode and run `opencode auth login` for a configured provider. Werkbord reuses its existing configuration: " + a.cfg.DocsURL
 }
 
 func (a *Adapter) Options(ctx context.Context) domain.AgentOptions {

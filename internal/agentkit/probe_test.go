@@ -110,3 +110,22 @@ func TestHelpIsAskedOnceAndEmptyWhenTheCommandIsMissing(t *testing.T) {
 		t.Fatalf("help = %q", h)
 	}
 }
+
+func TestAnACPAgentIsUsableOnceItRuns(t *testing.T) {
+	spec := ACPSpec{ID: "gemini-cli", Name: "Gemini CLI", DocsURL: "https://example.test/docs", Setup: "Install Gemini CLI."}
+	spec.Command = filepath.Join(t.TempDir(), "nothing-here")
+	missing := NewProber().ACP(bg, spec)
+	if missing.Installed || missing.Available() || missing.Problem != NotFound || missing.Guidance != "Install Gemini CLI. https://example.test/docs" {
+		t.Fatalf("missing: %+v", missing)
+	}
+	spec.Command = fake(t, `echo "gemini 0.9.3"`)
+	ok := NewProber().ACP(bg, spec)
+	if !ok.Installed || !ok.Available() || ok.Version != "0.9.3" || ok.SignedIn != nil {
+		t.Fatalf("runs: %+v", ok)
+	}
+	spec.Command = fake(t, `echo "boom" >&2; exit 4`)
+	broken := NewProber().ACP(bg, spec)
+	if broken.Installed || broken.Problem != CannotRun || !strings.Contains(broken.Guidance, "Reinstall or update Gemini CLI") {
+		t.Fatalf("broken: %+v", broken)
+	}
+}

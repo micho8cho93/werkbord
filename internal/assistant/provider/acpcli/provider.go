@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"werkbord/internal/agent"
+	"werkbord/internal/agentkit"
 	"werkbord/internal/assistant/provider"
 
 	acp "github.com/caelis-labs/acp-go-sdk"
@@ -34,59 +35,37 @@ type Config struct {
 	Reasoning      []string
 	CustomModels   bool
 	ListModels     bool
+	// Guidance is how to install and sign in; the documentation link follows it.
+	Guidance string
+	// Prober answers what the CLI says about itself. The controller shares one with the coding-agent adapter for the same
+	// agent; nil gives the provider one of its own.
+	Prober *agentkit.Prober
 }
 
 type Provider struct {
-	cfg      Config
-	mu       sync.Mutex
-	detected provider.Info
-	detectAt time.Time
+	cfg   Config
+	probe *agentkit.Prober
 }
 
 var _ provider.Provider = (*Provider)(nil)
 
-func New(cfg Config) *Provider { return &Provider{cfg: cfg} }
+func New(cfg Config) *Provider {
+	probe := cfg.Prober
+	if probe == nil {
+		probe = agentkit.NewProber()
+	}
+	return &Provider{cfg: cfg, probe: probe}
+}
 
 func (p *Provider) ID() string { return p.cfg.ID }
 
-var versionRE = regexp.MustCompile(`\d+\.\d+\.\d+[^\s]*`)
-
+// Detect finds the agent's command and its version; agentkit asks and remembers the answer. Gemini CLI and OpenCode support
+// local providers, so a missing account cannot be inferred from the command line: the first real request reports expired
+// authentication with provider-specific sign-in instructions.
 func (p *Provider) Detect(ctx context.Context) provider.Info {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if !p.detectAt.IsZero() && time.Since(p.detectAt) < 30*time.Second {
-		return p.detected
-	}
-	info := provider.Info{ID: p.cfg.ID, Name: p.cfg.Name, Capabilities: p.capabilities()}
-	path, err := exec.LookPath(p.cfg.Command)
-	if err != nil {
-		info.Detail = fmt.Sprintf("%q was not found on PATH", p.cfg.Command)
-		info.Guidance = p.installGuidance()
-		p.detected, p.detectAt = info, time.Now()
-		return info
-	}
-	out, err := commandOutput(ctx, path, nil, "--version")
-	if err != nil {
-		info.Detail = "could not run `" + p.cfg.Command + " --version`: " + clip(err.Error(), 240)
-		info.Guidance = "Reinstall or update " + p.cfg.Name + ": " + p.cfg.DocsURL
-		p.detected, p.detectAt = info, time.Now()
-		return info
-	}
-	info.Installed = true
-	info.Version = versionRE.FindString(out)
-	// Gemini CLI and OpenCode support local providers, so a missing account
-	// cannot be inferred from the command line. The first real request reports
-	// expired authentication with provider-specific sign-in instructions.
-	info.Available = true
-	p.detected, p.detectAt = info, time.Now()
+	info := provider.InfoFromFacts(p.probe.ACP(ctx, agentkit.ACPSpec{ID: p.cfg.ID, Name: p.cfg.Name, Command: p.cfg.Command, DocsURL: p.cfg.DocsURL, Setup: p.cfg.Guidance}))
+	info.Capabilities = p.capabilities()
 	return info
-}
-
-func (p *Provider) installGuidance() string {
-	if p.cfg.ID == "gemini-cli" {
-		return "Install Gemini CLI and sign in from a terminal. Werkbord uses its existing authentication: " + p.cfg.DocsURL
-	}
-	return "Install OpenCode, then run `opencode auth login` for the provider you want to use. Werkbord uses OpenCode's existing authentication: " + p.cfg.DocsURL
 }
 
 func (p *Provider) capabilities() provider.Capabilities {

@@ -562,8 +562,8 @@ func newAgents(cfg config.Config, probe *agentkit.Prober) (*agent.Registry, erro
 	for _, a := range []agent.Adapter{
 		claude.New(claude.Config{Command: cl.Command, Model: cl.Model, PermissionMode: cl.PermissionMode, Models: choices(cl.Models), Reasoning: cl.Reasoning, Prober: probe}),
 		codex.New(codex.Config{Command: cx.Command, Model: cx.Model, ApprovalPolicy: cx.ApprovalPolicy, Sandbox: cx.Sandbox, Models: choices(cx.Models), Reasoning: cx.Reasoning, Prober: probe}),
-		gemini.New(gemini.Config{Command: gm.Command, Model: gm.Model, Models: choices(gm.Models), Reasoning: gm.Reasoning}),
-		opencode.New(opencode.Config{Command: oc.Command, Model: oc.Model, Models: choices(oc.Models), Reasoning: oc.Reasoning}),
+		gemini.New(gemini.Config{Command: gm.Command, Model: gm.Model, Models: choices(gm.Models), Reasoning: gm.Reasoning, Prober: probe}),
+		opencode.New(opencode.Config{Command: oc.Command, Model: oc.Model, Models: choices(oc.Models), Reasoning: oc.Reasoning, Prober: probe}),
 	} {
 		if err := r.Register(a); err != nil {
 			return nil, err
@@ -575,7 +575,7 @@ func newAgents(cfg config.Config, probe *agentkit.Prober) (*agent.Registry, erro
 		if command == "" {
 			command = entry.Command
 		}
-		a := acp.New(acp.Config{ID: entry.ID, Name: entry.Name, Command: command, Args: entry.Args, DocsURL: entry.DocsURL, Guidance: entry.Setup, SessionOptions: true, DiscoverOptions: true, Model: c.Model, Models: choices(c.Models), Reasoning: c.Reasoning})
+		a := acp.New(acp.Config{ID: entry.ID, Name: entry.Name, Command: command, Args: entry.Args, DocsURL: entry.DocsURL, Guidance: entry.Setup, SessionOptions: true, DiscoverOptions: true, Model: c.Model, Models: choices(c.Models), Reasoning: c.Reasoning, Prober: probe})
 		if err := r.Register(a); err != nil {
 			return nil, err
 		}

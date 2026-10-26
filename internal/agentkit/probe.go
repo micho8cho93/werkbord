@@ -6,8 +6,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // TTL is how long an answer is remembered. Asking costs a process or two, and a person who has just signed in or
@@ -160,7 +162,7 @@ func locate(ctx context.Context, b base, command string, combined bool) (Facts, 
 	out, err := run(ctx, path, "--version")
 	if err != nil {
 		f.Problem = CannotRun
-		f.Detail = "could not run `" + command + " --version`: " + err.Error()
+		f.Detail = "could not run `" + command + " --version`: " + clip(err.Error(), 240)
 		f.Guidance = b.reinstall
 		return f, "", false
 	}
@@ -190,4 +192,42 @@ func (f Facts) SignedOutIfUnknown() Facts {
 		signedOut(&f, f.Command, "auth login", "Claude account")
 	}
 	return f
+}
+
+// ACPSpec describes an agent that is started in ACP mode. Such an agent may use any provider the person has set up, so
+// nothing about a sign-in can be read from its command line: it is assumed usable once it runs, and the first real
+// request reports an expired authentication with the agent's own instructions.
+type ACPSpec struct {
+	ID, Name, Command, DocsURL string
+	// Setup is how to install and sign in; the documentation link is added after it.
+	Setup string
+}
+
+// ACP asks an ACP-mode agent's command line about itself.
+func (p *Prober) ACP(ctx context.Context, s ACPSpec) Facts {
+	e := p.entry("acp\x00"+s.ID, s.Command)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if !e.at.IsZero() && time.Since(e.at) < TTL {
+		return e.facts
+	}
+	b := base{
+		id: s.ID, name: s.Name, docs: s.DocsURL, defaultCommand: s.Command,
+		install:   strings.TrimSpace(s.Setup + " " + s.DocsURL),
+		reinstall: "Reinstall or update " + s.Name + ": " + s.DocsURL,
+	}
+	f, _, _ := locate(ctx, b, s.Command, true)
+	e.facts, e.at = f, time.Now()
+	return e.facts
+}
+
+// clip shortens a message to n bytes at a rune boundary.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n] + "…"
 }
