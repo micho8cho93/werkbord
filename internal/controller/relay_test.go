@@ -26,7 +26,6 @@ type phoneLine struct {
 	next uint32
 }
 
-// dialPhone connects with a pairing. It returns the close code if the runner puts it off instead.
 func b64(t *testing.T, s string) []byte {
 	t.Helper()
 	b, err := base64.RawURLEncoding.DecodeString(s)
@@ -36,13 +35,18 @@ func b64(t *testing.T, s string) []byte {
 	return b
 }
 
+// dialPhone connects with a pairing. A runner can disappear before the upgrade (HTTP 503) or after it
+// (CloseRunnerGone); both tell a reconnecting phone to wait for the runner and try again.
 func dialPhone(t *testing.T, p relay.Pairing) (*phoneLine, int) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	u, _ := relay.WebSocketURL(p.Relay, p.Room, "phone")
-	c, _, err := websocket.Dial(ctx, u, &websocket.DialOptions{Subprotocols: []string{relay.Subprotocol, relay.AuthPrefix + p.JoinKey}})
+	c, res, err := websocket.Dial(ctx, u, &websocket.DialOptions{Subprotocols: []string{relay.Subprotocol, relay.AuthPrefix + p.JoinKey}})
 	if err != nil {
+		if res != nil && res.StatusCode == http.StatusServiceUnavailable {
+			return nil, relay.CloseRunnerGone
+		}
 		t.Fatal(err)
 	}
 	c.SetReadLimit(relay.MaxFrame * 2)
