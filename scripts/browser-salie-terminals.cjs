@@ -101,7 +101,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
     const option = selector().locator('option').filter({ hasText: new RegExp('^' + agent + ' · Terminal fixture · Terminal') });
     await option.waitFor({ state: 'attached' });
     await selector().selectOption(await option.getAttribute('value'));
-    await phone.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor();
+    await phone.getByTestId('assistant').getByRole('status').filter({ hasText: /^Connected$/ }).waitFor(); // not the deck's own connection chip, which stays mounted while the assistant opens
   }
   await selectTerminal('claude-code');
   assert.equal(await phone.getByRole('tab').count(), 0, 'mobile uses a compact session selector');
@@ -134,7 +134,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   }
   await phone.setViewportSize({width:390,height:600});
   await mobile.setOffline(true); await phone.getByRole('status').filter({hasText:/Disconnected/}).waitFor();
-  await mobile.setOffline(false); await phone.getByRole('status').filter({hasText:/^Connected$/}).waitFor();
+  await mobile.setOffline(false); await phone.getByTestId('assistant').getByRole('status').filter({hasText:/^Connected$/}).waitFor();
   console.log('PASS mobile layout and network recovery'); await selectTerminal('codex'); await selectTerminal('claude-code');
   await phone.reload(); await phone.getByTestId('nav-assistant').click(); await selectTerminal('claude-code');
   // A lost input response must block subsequent input and must never resend the uncertain bytes.
