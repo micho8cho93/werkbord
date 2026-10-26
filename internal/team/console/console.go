@@ -1,14 +1,15 @@
 // Package console serves the Team console: a small web page, with no build step,
 // for the workspace, its members and its projects. It is Team's own front end.
 // The individual product's web app is a different program (web/) and is not
-// changed or served by Team; sharing components between them is planned in
-// docs/STRUCTURE.md.
+// changed or served by Team. Both frontends use internal/uipresentation for
+// shared design tokens, controls and timeline layout (docs/STRUCTURE.md).
 package console
 
 import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"werkbord/internal/nativebridge"
 	"werkbord/internal/uipresentation"
@@ -30,6 +31,10 @@ func Handler() http.Handler {
 			return
 		}
 		w.Header().Set("Cache-Control", "no-cache")
+		if strings.HasPrefix(r.URL.Path, "/ui/") {
+			http.StripPrefix("/ui/", uipresentation.Handler()).ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/motion.js" || r.URL.Path == "/board.css" || r.URL.Path == "/board-drag.js" || r.URL.Path == "/planning.css" || r.URL.Path == "/planning-drag.js" {
 			http.StripPrefix("/", uipresentation.Handler()).ServeHTTP(w, r)
 			return

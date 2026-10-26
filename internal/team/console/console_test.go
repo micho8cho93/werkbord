@@ -11,7 +11,7 @@ import (
 
 func TestTheConsoleIsServedAndReadOnlyForOtherMethods(t *testing.T) {
 	h := Handler()
-	for _, path := range []string{"/", "/console.js", "/console.css", "/board.css", "/board-drag.js", "/motion.js", "/theme.js", "/search.js", "/timeline.js", "/mentions.js", "/comments.js", "/comments.css", "/mark-dark.svg"} {
+	for _, path := range []string{"/", "/console.js", "/console.css", "/board.css", "/board-drag.js", "/motion.js", "/theme.js", "/search.js", "/timeline.js", "/ui/timeline.js", "/ui/tokens.css", "/ui/controls.css", "/mentions.js", "/comments.js", "/comments.css", "/mark-dark.svg"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-cache" {
@@ -86,10 +86,12 @@ func TestTheConsoleNeverBuildsHTMLFromData(t *testing.T) {
 // used if it is #rrggbb, and only through the element's style object, never built into markup.
 func TestTheTimelineAndLabelsNeverBuildMarkupFromData(t *testing.T) {
 	root, _ := fs.Sub(static, "static")
-	timeline, err := fs.ReadFile(root, "timeline.js")
-	if err != nil {
-		t.Fatal(err)
+	rec := httptest.NewRecorder()
+	Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ui/timeline.js", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("shared timeline: %d", rec.Code)
 	}
+	timeline := rec.Body.Bytes()
 	for _, banned := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
 		if strings.Contains(string(timeline), banned) {
 			t.Errorf("timeline.js uses %s", banned)

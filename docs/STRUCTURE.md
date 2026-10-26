@@ -88,7 +88,7 @@ A package is **shared** when both engines use it and it holds no behaviour of ei
 | `internal/mcpcontract` | MCP Streamable HTTP framing, bounded tool request/response handling, and validated project/operation scopes. Holds no credentials, board operations or product permissions. Uses the official MCP Go SDK. | Personal MCP server, Team MCP server, `internal/mcpbridge` |
 | `internal/mcpplan` | The neutral batch-plan wire shape, temporary task IDs, and validation of single-project requests. Holds no board data or authorization. | Personal appops, Team MCP service |
 | `internal/mcpbridge` | Stdio MCP client forwarding tools, resources and prompts to the configured Streamable HTTP endpoint. Holds no product identity or board behavior. | `cmd/werkbord`, `cmd/werkbord-team` |
-| `internal/uipresentation` | Product-neutral static board card grammar; products supply tokens, data, permissions and actions. | Both web frontends |
+| `internal/uipresentation` | Shared design tokens, segmented controls, section tabs, board and timeline layout; products supply data, status names, permissions and actions. | Both web frontends and the desktop shell |
 | `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |
 | `internal/entitlement` | The Free plan's team size and the offline check of a Premium unlock key: pure functions over a public key stamped into the build. No workspace, role, storage or process. See [PLANS.md](PLANS.md). | Team service, vendor tool, the desktop app |
 | `internal/logging` | `slog` logger construction | both |
@@ -109,8 +109,10 @@ of those, the answer is to move the non-product-specific part into a shared pack
 not to reach across.
 
 The same goes for the web: the PWA in `web/` is Personal's app. `web/src/shell/` is a separately built product-neutral desktop frontend, never embedded in the PWA; it displays Team-owned screens without importing their code. Team has its own small
-console (`internal/team/console`). When Team needs real UI reuse, extract the components both use into a shared web
-package (for example `web-ui/`) that `web/` and a Team web app both depend on; do not put Team screens in `web/`.
+console (`internal/team/console`). Both consume the framework-neutral components in `internal/uipresentation/static/`:
+shared tokens, segmented controls, section tabs, board geometry, motion, planning gestures and timeline calculations.
+Personal imports them through its Svelte build; Team embeds and serves them under `ui/` without a Node build step.
+Status vocabulary and data/permission adapters stay in their product. Do not put Team screens in `web/`.
 
 `internal/relay` and its `e2e`, `access`, `client`, `tunnel` and `server` packages are shared protocol plumbing:
 opaque client bindings, pairing keys, ciphertext framing and bounded HTTP transport. They hold no product routes or

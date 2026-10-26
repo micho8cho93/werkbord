@@ -10,7 +10,7 @@
   } = $props();
 </script>
 
-<nav class="tabs" class:deck aria-label={label}>
+<nav class="tabs section-tabs" class:deck aria-label={label}>
   {#each tabs as t (t.id)}
     <a class="tab" href={t.href} aria-current={current === t.id ? 'page' : undefined}>
       {t.label}
@@ -20,40 +20,7 @@
 </nav>
 
 <style>
-  .tabs {
-    flex: none;
-    display: flex;
-    gap: 4px;
-    height: 44px;
-    padding: 0 24px;
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 44px;
-    padding: 0 12px;
-    color: var(--text-2);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 13px;
-    border-bottom: 2px solid transparent;
-    white-space: nowrap;
-    transition: color 0.12s, border-color 0.12s;
-  }
-
-  .tab:hover {
-    color: var(--text);
-  }
-
-  .tab[aria-current='page'] {
-    color: var(--text);
-    border-bottom-color: var(--accent);
-  }
+  .tabs { padding: 0 24px; }
 
   /* Phone: the tabs live in the bottom bar, except with the Control Deck, whose bottom bar has only two places. */
   @media (max-width: 899px) {

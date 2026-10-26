@@ -1,4 +1,4 @@
-// Package uipresentation serves product-neutral board presentation assets.
+// Package uipresentation serves product-neutral tokens, controls and planning assets.
 // Products provide their own data, permissions and transition handlers.
 package uipresentation
 

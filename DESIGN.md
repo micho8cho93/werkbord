@@ -27,7 +27,7 @@ opening a Team ticket in a person's Werkbord creates a local task for the handof
 **schedule** for agent starts, **Review** for inspection, **Done** for completed work, and **Archive** for work removed
 from the active board.
 
-## Tokens (`web/src/app.css`)
+## Tokens (`internal/uipresentation/static/tokens.css`)
 
 The table is **Classic's** palette (and the base every style builds on). Paper and Graphite replace the neutrals and the accent; see
 [Styles](#styles).
@@ -58,7 +58,7 @@ the sidebar's choice is the window's and is told to every workspace (`werkbord.s
 - The `:root` tokens above are Classic's. Paper and Graphite add one flat layer on `:root:not([data-style='classic'])`: no gradient
   faces, shadow tokens are `0 0 0 0 transparent` (never `none`, they sit in comma lists), `--radius` 10px, `--radius-sm` 6px, solid
   chart bars. One shadow stays, `--win-sh`, for what floats (menus, dialogs, toasts).
-- Each style has its own palette in light and in dark, so switching style changes the whole page (`app.css`, "The palettes"):
+- Each style has its own palette in light and in dark, so switching style changes the whole page (`tokens.css`, "The palettes"):
   Classic is the token table above; **Paper** is warm ivory and sand with brown ink (light: paper `#F6F1E7`, surface `#FFFDF8`, tray
   `#ECE4D4`, line `#DCD2BD`, ink `#1C1710`; dark espresso: `#15120E`, `#1E1A15`, `#28231C`, `#3A3329`, `#F2ECE0`) with cobalt for
   action; **Graphite** is cool blue-grey (light: `#F1F4F7`, `#FFFFFF`, `#E6EBF0`, `#D3DAE3`, `#0E1620`; dark slate: `#0D1218`, `#141B23`,
@@ -67,7 +67,7 @@ the sidebar's choice is the window's and is told to every workspace (`werkbord.s
   the same tokens in light, in OS dark and in a chosen dark; `contrast.test.ts` checks the three agree and every text pairing in all six.
 - Classic keeps the old materials and colours but takes the new structure (task card anatomy, type and radius scales). Components
   that were redrawn flat keep their old look under `:root[data-style='classic']` (stat tiles, panels, Settings headings).
-- The Team console follows the style (`console.css`, `theme.js`, stored as `werkbord-team.style`) with Paper, Graphite and Classic.
+- The Team console uses the same `tokens.css` and shared control styles, with `theme.js` storing its choice as `werkbord-team.style`: Paper, Graphite and Classic.
   In a browser tab it offers the choice in its Settings, beside the light/dark button; in the desktop window the window's
   Settings choose it and tell the page.
 - Both choices can be changed at any time, from wherever Settings is: the window's Settings (every workspace, open or not yet

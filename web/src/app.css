@@ -1,3 +1,6 @@
+@import '../../internal/uipresentation/static/tokens.css';
+@import '../../internal/uipresentation/static/controls.css';
+
 /*
  * Werkbord — "Quiet technical · v1".
  *
@@ -8,137 +11,6 @@
  * Theme: the OS decides unless the person picked one (`data-theme` on <html>, set before
  * first paint by index.html and toggled from the rail).
  */
-
-:root {
-  --bg: #f5f5f2;
-  --surface: #ffffff;
-  --surface-2: #ededE8;
-  --border: #dad9d3;
-  --text: #0a0a0a;
-  --text-2: #55554f;
-  --accent: #2447ff;
-  --accent-text: #ffffff;
-  --amber: #f2a93b;
-  --amber-ring: rgba(242, 169, 59, 0.3);
-  --ok: #2f8f55;
-  --warn: #b7791f;
-  --danger: #c2413b;
-  /* A run stopped rather than guess: neither working, nor asking, nor failed. */
-  --block: #7b4fc0;
-  /* Status colours that are also readable as text on paper. */
-  --ok-text: #1f6e3e;
-  --warn-text: #86580e;
-  --danger-text: #a8322c;
-  --tint: #e8ecff;
-  --ground: #e9e9e4;
-  --scrim: rgba(10, 10, 10, 0.32);
-
-  --btn-bg: linear-gradient(#ffffff, #f5f5f2);
-  --btn-bg-hover: linear-gradient(#ffffff, #efefea);
-  --btn-sh: inset 0 1px 0 #ffffff, inset 0 -1px 0 rgba(21, 21, 21, 0.08), 0 1px 1px rgba(21, 21, 21, 0.14), 0 2px 4px -2px rgba(21, 21, 21, 0.1);
-  --pri-bg: linear-gradient(#3856ff, #2447ff);
-  --pri-bd: #1c3ad6;
-  --pri-sh: inset 0 1px 0 rgba(255, 255, 255, 0.26), inset 0 -1px 0 rgba(0, 10, 80, 0.3), 0 1px 1px rgba(0, 10, 80, 0.38), 0 3px 8px -2px rgba(36, 71, 255, 0.32);
-  --pri-press: inset 0 1px 3px rgba(0, 10, 80, 0.5);
-  --card-sh: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 1px rgba(21, 21, 21, 0.09), 0 4px 10px -5px rgba(21, 21, 21, 0.14);
-  --tray-sh: inset 0 1px 3px rgba(21, 21, 21, 0.09), inset 0 0 0 1px rgba(21, 21, 21, 0.04);
-  --press-sh: inset 0 1px 3px rgba(21, 21, 21, 0.12);
-  --win-sh: 0 1px 1px rgba(21, 21, 21, 0.1), 0 18px 40px -18px rgba(21, 21, 21, 0.35), 0 40px 80px -40px rgba(21, 21, 21, 0.25);
-  --key-bg: linear-gradient(#ffffff, #ecece8);
-  --key-sh: 0 1px 0 rgba(21, 21, 21, 0.18), inset 0 1px 0 #ffffff;
-  --live-ring: 0 0 0 3px rgba(36, 71, 255, 0.12);
-
-
-  --radius: 8px;
-  --radius-sm: 5px;
-  --radius-tray: 9px;
-  --shadow: var(--card-sh);
-  --tabbar-h: 64px;
-  --rail-w: 220px;
-  --font: 'Geist Variable', 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
-  color-scheme: light;
-}
-
-/* Dark: the OS asks for it and the person has not chosen light, or the person chose it. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #0b0b0c;
-    --surface: #141415;
-    --surface-2: #1d1d1f;
-    --border: #2a2a2d;
-    --text: #f0f0ec;
-    --text-2: #a3a39d;
-    --accent: #7c93ff;
-    --accent-text: #0a0a0a;
-    --amber: #e0a84a;
-    --amber-ring: rgba(224, 168, 74, 0.28);
-    --ok: #5fb37a;
-    --warn: #e0a84a;
-    --danger: #ef6b64;
-    --block: #b595f2;
-    --ok-text: #5fb37a;
-    --warn-text: #e0a84a;
-    --danger-text: #ef6b64;
-    --tint: #1b2140;
-    --ground: #060607;
-    --scrim: rgba(0, 0, 0, 0.55);
-    --btn-bg: linear-gradient(#28282b, #1d1d1f);
-    --btn-bg-hover: linear-gradient(#2e2e31, #222225);
-    --btn-sh: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 1px 1px rgba(0, 0, 0, 0.55), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
-    --pri-bg: linear-gradient(#8ca0ff, #7089f7);
-    --pri-bd: #5f78e8;
-    --pri-sh: inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(20, 30, 120, 0.35), 0 1px 1px rgba(0, 0, 0, 0.55), 0 3px 8px -2px rgba(124, 147, 255, 0.3);
-    --pri-press: inset 0 1px 3px rgba(20, 30, 120, 0.6);
-    --card-sh: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 1px rgba(0, 0, 0, 0.55), 0 5px 10px -6px rgba(0, 0, 0, 0.75);
-    --tray-sh: inset 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-    --press-sh: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-    --win-sh: 0 1px 1px rgba(0, 0, 0, 0.6), 0 18px 40px -18px rgba(0, 0, 0, 0.7), 0 40px 80px -40px rgba(0, 0, 0, 0.6);
-    --key-bg: linear-gradient(#2e2e31, #1f1f21);
-    --key-sh: 0 1px 0 rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    --live-ring: 0 0 0 3px rgba(124, 147, 255, 0.16);
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme='dark'] {
-  --bg: #0b0b0c;
-  --surface: #141415;
-  --surface-2: #1d1d1f;
-  --border: #2a2a2d;
-  --text: #f0f0ec;
-  --text-2: #a3a39d;
-  --accent: #7c93ff;
-  --accent-text: #0a0a0a;
-  --amber: #e0a84a;
-  --amber-ring: rgba(224, 168, 74, 0.28);
-  --ok: #5fb37a;
-  --warn: #e0a84a;
-  --danger: #ef6b64;
-  --block: #b595f2;
-  --ok-text: #5fb37a;
-  --warn-text: #e0a84a;
-  --danger-text: #ef6b64;
-  --tint: #1b2140;
-  --ground: #060607;
-  --scrim: rgba(0, 0, 0, 0.55);
-  --btn-bg: linear-gradient(#28282b, #1d1d1f);
-  --btn-bg-hover: linear-gradient(#2e2e31, #222225);
-  --btn-sh: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 1px 1px rgba(0, 0, 0, 0.55), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
-  --pri-bg: linear-gradient(#8ca0ff, #7089f7);
-  --pri-bd: #5f78e8;
-  --pri-sh: inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(20, 30, 120, 0.35), 0 1px 1px rgba(0, 0, 0, 0.55), 0 3px 8px -2px rgba(124, 147, 255, 0.3);
-  --pri-press: inset 0 1px 3px rgba(20, 30, 120, 0.6);
-  --card-sh: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 1px rgba(0, 0, 0, 0.55), 0 5px 10px -6px rgba(0, 0, 0, 0.75);
-  --tray-sh: inset 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --press-sh: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-  --win-sh: 0 1px 1px rgba(0, 0, 0, 0.6), 0 18px 40px -18px rgba(0, 0, 0, 0.7), 0 40px 80px -40px rgba(0, 0, 0, 0.6);
-  --key-bg: linear-gradient(#2e2e31, #1f1f21);
-  --key-sh: 0 1px 0 rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --live-ring: 0 0 0 3px rgba(124, 147, 255, 0.16);
-  color-scheme: dark;
-}
 
 *,
 *::before,
@@ -922,41 +794,6 @@ html.asst-open body {
   min-width: 0;
 }
 
-/* Segmented control: one choice among a few, pressed in. */
-.seg {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-2);
-  box-shadow: var(--tray-sh);
-}
-
-.seg button,
-.seg a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-2);
-  font-weight: 500;
-  font-size: 13px;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.seg [aria-pressed='true'],
-.seg [aria-selected='true'],
-.seg [aria-current='page'] {
-  background: var(--btn-bg);
-  box-shadow: var(--btn-sh);
-  color: var(--text);
-}
-
 /* A filter that is a raised button and a picker at once. */
 .pick {
   position: relative;
@@ -1074,26 +911,6 @@ html.asst-open body {
  * Each style is checked in both colour modes (lib/contrast.test.ts).
  */
 
-:root:not([data-style='classic']) {
-  --btn-bg: var(--surface);
-  --btn-bg-hover: var(--surface-2);
-  --btn-sh: 0 0 0 0 transparent;
-  --pri-bg: var(--pri-fill, var(--accent));
-  --pri-bd: var(--pri-fill, var(--accent));
-  --pri-sh: 0 0 0 0 transparent;
-  --pri-press: 0 0 0 0 transparent;
-  --card-sh: 0 0 0 0 transparent;
-  --tray-sh: 0 0 0 0 transparent;
-  --press-sh: 0 0 0 0 transparent;
-  --key-bg: var(--surface-2);
-  --key-sh: 0 0 0 0 transparent;
-  --live-ring: 0 0 0 0 transparent;
-  --win-sh: 0 12px 32px -12px rgba(10, 10, 10, 0.3), 0 1px 2px rgba(10, 10, 10, 0.08);
-  --radius: 10px;
-  --radius-sm: 6px;
-  --radius-tray: 10px;
-  --bar-fade: 100%;
-}
 
 :root:not([data-style='classic']) .btn:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--text-2) 40%, var(--border));
@@ -1209,108 +1026,7 @@ html.asst-open body {
   letter-spacing: 0;
 }
 
-:root:not([data-style='classic']) .seg [aria-pressed='true'],
-:root:not([data-style='classic']) .seg [aria-selected='true'],
-:root:not([data-style='classic']) .seg [aria-current='page'] {
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--border);
-}
 
 :root:not([data-style='classic']) .pick.on {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-}
-
-/* The palettes. Each style is its own, in both colour modes, so that switching style changes the whole page and not just the buttons:
- *   Classic  the tokens at the top of this file: cool paper, cobalt, raised.
- *   Paper    warm ivory and sand with brown ink (dark: espresso), cobalt for action, amber for what waits.
- *   Graphite cool blue-greys, an ink primary and a teal accent (dark: slate).
- * Paper has no attribute, so its selectors exclude the other two. Each style writes the same tokens in light, in OS dark and in a
- * chosen dark; lib/contrast.test.ts keeps them from drifting apart and checks every text pairing in all six. */
-
-:root:not([data-style='classic']):not([data-style='graphite']) {
-  --bg: #f6f1e7;
-  --surface: #fffdf8;
-  --surface-2: #ece4d4;
-  --border: #dcd2bd;
-  --text: #1c1710;
-  --text-2: #5c5346;
-  --accent: #2447ff;
-  --accent-text: #ffffff;
-  --tint: #e6e9fb;
-  --ground: #e8e0cf;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-style='classic']):not([data-style='graphite']):not([data-theme='light']) {
-    --bg: #15120e;
-    --surface: #1e1a15;
-    --surface-2: #28231c;
-    --border: #3a3329;
-    --text: #f2ece0;
-    --text-2: #b0a692;
-    --accent: #8fa3ff;
-    --accent-text: #0a0a0a;
-    --tint: #212548;
-    --ground: #0d0b08;
-  }
-}
-
-:root:not([data-style='classic']):not([data-style='graphite'])[data-theme='dark'] {
-  --bg: #15120e;
-  --surface: #1e1a15;
-  --surface-2: #28231c;
-  --border: #3a3329;
-  --text: #f2ece0;
-  --text-2: #b0a692;
-  --accent: #8fa3ff;
-  --accent-text: #0a0a0a;
-  --tint: #212548;
-  --ground: #0d0b08;
-}
-
-:root[data-style='graphite'] {
-  --bg: #f1f4f7;
-  --surface: #ffffff;
-  --surface-2: #e6ebf0;
-  --border: #d3dae3;
-  --text: #0e1620;
-  --text-2: #4b5866;
-  --accent: #0a6280;
-  --accent-text: #ffffff;
-  --pri-fill: #111a24;
-  --pri-text: #f4f7fa;
-  --tint: #e0eef3;
-  --ground: #e8edf2;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-style='graphite']:not([data-theme='light']) {
-    --bg: #0d1218;
-    --surface: #141b23;
-    --surface-2: #1c2530;
-    --border: #2b3643;
-    --text: #e8eef4;
-    --text-2: #9aa8b8;
-    --accent: #5cc8e0;
-    --accent-text: #08121a;
-    --pri-fill: #eaf0f6;
-    --pri-text: #0d1218;
-    --tint: #12303a;
-    --ground: #080c10;
-  }
-}
-
-:root[data-style='graphite'][data-theme='dark'] {
-  --bg: #0d1218;
-  --surface: #141b23;
-  --surface-2: #1c2530;
-  --border: #2b3643;
-  --text: #e8eef4;
-  --text-2: #9aa8b8;
-  --accent: #5cc8e0;
-  --accent-text: #08121a;
-  --pri-fill: #eaf0f6;
-  --pri-text: #0d1218;
-  --tint: #12303a;
-  --ground: #080c10;
 }

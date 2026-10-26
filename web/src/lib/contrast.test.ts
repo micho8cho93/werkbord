@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-// The design tokens, read from app.css, against the surfaces text sits on: WCAG AA (4.5:1) for every token meant as text.
+// The design tokens, read from shared tokens, against the surfaces text sits on: WCAG AA (4.5:1) for every token meant as text.
 // scripts/measure-legibility.cjs measures the rendered screens; this keeps a token edit from undoing it.
 
 // @ts-expect-error node's own types are not installed in this package; the test runs under node.
 const { readFileSync } = await import('node:fs');
-const css: string = readFileSync(new URL('../app.css', import.meta.url), 'utf8');
+const css: string = readFileSync(new URL('../../../internal/uipresentation/static/tokens.css', import.meta.url), 'utf8');
 
 function block(selector: string): Record<string, string> {
   const start = css.indexOf(selector + ' {');
@@ -50,7 +50,7 @@ describe.each([
   ['graphite light', graphiteLight],
   ['graphite dark', graphiteDark],
 ])('%s tokens', (_name, tokens) => {
-  it('read from app.css', () => {
+  it('read from shared tokens', () => {
     expect(tokens.text).toMatch(/^#/);
     expect(tokens['ok-text']).toMatch(/^#/);
   });

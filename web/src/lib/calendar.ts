@@ -1,14 +1,10 @@
 // The calendar's arithmetic, on wall dates ("2026-10-05") so a time zone is applied only once,
 // where a time is read or written. No framework code, so it can be tested on its own.
 
-const DAY = 86_400_000;
-const at = (d: string) => Date.parse(`${d}T12:00:00Z`);
-const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+import '../../../internal/uipresentation/static/timeline.js';
 
-/** Adds days to a wall date. */
-export function addDays(day: string, n: number): string {
-  return iso(at(day) + n * DAY);
-}
+const at = (d: string) => Date.parse(`${d}T12:00:00Z`);
+export const addDays = globalThis.WerkbordPlanning.addDays;
 
 /** The Monday of the week a day is in. */
 export function weekStart(day: string): string {

@@ -151,6 +151,12 @@ describe('today', () => {
 });
 
 describe('helpers that build the chart', () => {
+  it('rejects colours that cannot safely be used as a label background', () => {
+    const { safeColor } = globalThis.WerkbordPlanning;
+    expect(safeColor('#33aa77')).toBe('#33aa77');
+    for (const value of ['red', 'url(x)', '#12', 'javascript:1', undefined, '#12345g']) expect(safeColor(value)).toBe('#6f6e69');
+  });
+
   const range = { start: '2026-10-01', end: '2026-12-31' };
   it('draws bars only for tasks with dates', () => {
     const bars = barsFor([task('a', { start: '2026-10-05' }), task('b'), task('c', { start: '2026-10-07', milestone: true })], range, 'week');

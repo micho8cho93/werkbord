@@ -1,3 +1,4 @@
+import '../../../internal/uipresentation/static/timeline.js';
 // Labels and work modes: what they look like and how tasks are filtered by them. No framework code,
 // so it can be tested on its own. The controller owns the rules (names, colours, uniqueness); this
 // is only presentation and the same filter the API offers.
@@ -37,17 +38,7 @@ export const LABEL_COLOR_NAMES: Readonly<Record<string, string>> = {
 };
 
 /** A text colour that reads on `bg` (#rrggbb): the one with the better contrast. */
-export function inkFor(bg: string): '#ffffff' | '#14130f' {
-  const m = /^#([0-9a-f]{6})$/i.exec(bg);
-  if (!m) return '#14130f';
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const c = parseInt(m[1].slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  // White text on bg has contrast (1.05)/(lum+0.05); dark text has (lum+0.05)/(0.0065+0.05).
-  return 1.05 / (lum + 0.05) >= (lum + 0.05) / 0.0565 ? '#ffffff' : '#14130f';
-}
+export const inkFor = globalThis.WerkbordPlanning.inkFor;
 
 /** The labels of a task, in the order they were put on, leaving out any this copy does not know yet. */
 export function labelsOf(task: Pick<Task, 'labelIds'>, labels: readonly Label[]): Label[] {

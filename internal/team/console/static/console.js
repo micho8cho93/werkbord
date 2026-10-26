@@ -991,7 +991,7 @@ function projectSettingsTab(d) {
 // One row of tabs for the sub-areas of a major part. The sidebar lists the major parts; this is the only other navigation, and the
 // project and the team both use it. choices are [id, title, count]; `prefix` names each button for tests and scripts.
 function tabNav(label, prefix, choices, isCurrent, open) {
-  return h('nav', { class: 'sub-tabs', 'aria-label': label }, choices.map(([id, title, count]) =>
+  return h('nav', { class: 'sub-tabs section-tabs', 'aria-label': label }, choices.map(([id, title, count]) =>
     h('button', { name: prefix + id, type: 'button', 'aria-current': isCurrent(id) ? 'page' : null, onclick: () => open(id) }, title,
       count > 0 ? h('span', { class: 'count' + (id === 'repository' ? ' bad' : ' quiet') }, String(count)) : '')));
 }
@@ -1004,8 +1004,8 @@ function projectTabs(projectId, choices) {
 // One choice among a few, as a row of buttons that say which is on: a way of looking at the page, not a place to go (that is tabNav).
 // choices are [id, title]; `cls` is the row's class, and `small` the buttons' size.
 function choiceGroup(label, choices, isOn, pick, cls = 'inline', small = true) {
-  return h('div', { class: cls, role: 'group', 'aria-label': label }, choices.map(([id, title]) =>
-    h('button', { type: 'button', class: 'plain' + (small ? ' small' : ''), 'aria-pressed': isOn(id), onclick: () => pick(id) }, title)));
+  return h('div', { class: cls + ' seg', role: 'group', 'aria-label': label }, choices.map(([id, title]) =>
+    h('button', { type: 'button', class: small ? 'small' : '', 'aria-pressed': isOn(id), onclick: () => pick(id) }, title)));
 }
 
 // The team's own sub-areas, under its entry in the window's sidebar. Outside the window the rail lists them, so there is no second row.
