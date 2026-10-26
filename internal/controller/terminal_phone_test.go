@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"werkbord/internal/config"
 	"werkbord/internal/relay"
@@ -115,11 +116,7 @@ func TestPhoneTerminalOverEncryptedRelayAndPrivateNetwork(t *testing.T) {
 	}()
 	// Drop the entire encrypted link; a fresh handshake and cursor replay attach to the same process.
 	line.c.CloseNow()
-	line, closed = dialPhone(t, pairing)
-	if line == nil {
-		_, relayState := get(t, base+"/api/relay", owner)
-		t.Fatalf("the phone could not reconnect after its link dropped: the relay closed it with status %d; the runner's relay state: %s", closed, relayState)
-	}
+	line = redialPhone(t, pairing, base, owner)
 	if status, b = line.do("GET", path+"/output?after=0", phone.Token, ""); status != 200 {
 		t.Fatalf("reconnect: %d %s", status, b)
 	}
@@ -151,4 +148,31 @@ func TestPhoneTerminalOverEncryptedRelayAndPrivateNetwork(t *testing.T) {
 	if err := c.terminals.Input(project.ID, session.ID, []byte("same process\n")); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// redialPhone reconnects the way the connector does. The runner's own link to the relay can drop and come back at any
+// moment (a loaded machine is enough), and the relay then ends every phone with RunnerGone; the phone waits for the
+// runner to be on the relay again and tries once more. Any other refusal is a failure.
+func redialPhone(t *testing.T, pairing relay.Pairing, base, owner string) *phoneLine {
+	t.Helper()
+	var closed int
+	for attempt := 0; attempt < 10; attempt++ {
+		var line *phoneLine
+		line, closed = dialPhone(t, pairing)
+		if line != nil {
+			return line
+		}
+		if closed != relay.CloseRunnerGone {
+			break
+		}
+		t.Logf("the runner went away from the relay as the phone came back (attempt %d); waiting for it", attempt+1)
+		time.Sleep(250 * time.Millisecond)
+		waitFor(t, "the runner to be back on the relay", func() bool {
+			_, b := get(t, base+"/api/relay", owner)
+			return strings.Contains(b, `"connected":true`)
+		})
+	}
+	_, state := get(t, base+"/api/relay", owner)
+	t.Fatalf("the phone could not reconnect after its link dropped: the relay closed it with status %d; the runner's relay state: %s", closed, state)
+	return nil
 }
