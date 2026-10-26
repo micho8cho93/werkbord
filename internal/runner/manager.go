@@ -677,16 +677,6 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// LiveCount reports how many sessions have a process right now.
-func (m *Manager) LiveCount() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return len(m.live)
-}
-
-// IsLive reports whether a run has a process right now.
-func (m *Manager) IsLive(runID string) bool { return m.liveRun(runID) != nil }
-
 // ---- registry ----
 
 // enter registers an in-flight start, or refuses it while shutting down.

@@ -94,13 +94,6 @@ func (e *Engine) requestWorkspace(ctx context.Context, session, proposal, worksp
 	}
 }
 
-func (e *Engine) WorkspaceRequestPending(session, id string) bool {
-	e.wrequests.Lock()
-	defer e.wrequests.Unlock()
-	w, ok := e.wrequests.pending[id]
-	return ok && w.session == session
-}
-
 // WorkspaceRequestStatus is the controller-issued request the desktop verifies before carrying it out.
 // It exists only while an approved assistant operation is waiting for the desktop to answer.
 func (e *Engine) WorkspaceRequestStatus(session, id string) (WorkspaceRequest, bool) {

@@ -64,3 +64,13 @@ func TestManagerRoutesWithoutStartingControllerProcessAndRetainsOwnership(t *tes
 		t.Fatal("offline assignment silently fell back")
 	}
 }
+
+// IsLive reports whether a run has a process on this controller right now.
+func (m *Manager) IsLive(runID string) bool { return m.liveRun(runID) != nil }
+
+// LiveCount reports how many sessions have a process right now.
+func (m *Manager) LiveCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.live)
+}

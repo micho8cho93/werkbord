@@ -7,15 +7,6 @@ import (
 	"devboard/internal/service"
 )
 
-// StartDeckWorkflow retains the single-target interface for existing callers.
-func (m *Manager) StartDeckWorkflow(ctx context.Context, settings *service.Settings, owner, slotID, requestID string) (*domain.Task, *domain.Run, error) {
-	tasks, runs, err := m.StartDeckWorkflows(ctx, settings, owner, slotID, requestID, service.DeckStart{})
-	if err != nil {
-		return nil, nil, err
-	}
-	return tasks[0], runs[0], nil
-}
-
 // Every target uses the normal durable task/run machinery. Retries skip runs
 // already created, including terminal runs, and resume any partially started batch.
 func (m *Manager) StartDeckWorkflows(ctx context.Context, settings *service.Settings, owner, slotID, requestID string, input service.DeckStart) ([]*domain.Task, []*domain.Run, error) {

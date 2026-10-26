@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"devboard/internal/sqlitekit"
 	"devboard/internal/store"
 )
 
@@ -103,7 +104,7 @@ func TestOldBackupsArePruned(t *testing.T) {
 		}
 	}
 	_ = os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("mine"), 0o600) // not ours: never touched
-	pruneBackups(dir)
+	sqlitekit.PruneBackups(dir, backupPrefix)
 	entries, _ := os.ReadDir(dir)
 	var dbs []string
 	for _, e := range entries {

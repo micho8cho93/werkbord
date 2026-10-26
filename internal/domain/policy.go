@@ -58,11 +58,6 @@ type ExecutionPolicy struct {
 	Interaction InteractionPolicy `json:"interaction"`
 }
 
-// DefaultExecutionPolicy is what a task has unless the user chose otherwise.
-func DefaultExecutionPolicy() ExecutionPolicy {
-	return ExecutionPolicy{Interaction: InteractionInteractive}
-}
-
 // Normalized returns p with every unset field at its default.
 func (p ExecutionPolicy) Normalized() ExecutionPolicy {
 	if p.Interaction == "" {
@@ -85,15 +80,6 @@ func policyNames() string {
 		names[i] = string(p)
 	}
 	return strings.Join(names, ", ")
-}
-
-// ParseInteraction validates a policy received from outside the process.
-func ParseInteraction(s string) (InteractionPolicy, error) {
-	p := InteractionPolicy(s)
-	if !p.Valid() {
-		return "", fmt.Errorf("%w: unknown interaction policy %q (use %s)", ErrInvalid, s, policyNames())
-	}
-	return p, nil
 }
 
 // BlockerSource says how the controller learned that a run is blocked.

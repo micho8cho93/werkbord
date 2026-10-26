@@ -15,8 +15,6 @@ const keepBackups = sqlitekit.KeepBackups
 // BackupDir is where pre-upgrade copies of the database at dbPath are kept.
 func BackupDir(dbPath string) string { return sqlitekit.BackupDir(dbPath) }
 
-func pruneBackups(dir string) { sqlitekit.PruneBackups(dir, backupPrefix) }
-
 // Info describes a database file without opening it for writing or migrating it.
 type Info = sqlitekit.Info
 

@@ -101,3 +101,11 @@ func TestCancelledWorkspaceRequestsAreRemovedAndNeverRetried(t *testing.T) {
 		t.Fatal("cancelled request still reachable")
 	}
 }
+
+// WorkspaceRequestPending reports whether the desktop workspace request id is waiting for an answer in session.
+func (e *Engine) WorkspaceRequestPending(session, id string) bool {
+	e.wrequests.Lock()
+	defer e.wrequests.Unlock()
+	w, ok := e.wrequests.pending[id]
+	return ok && w.session == session
+}

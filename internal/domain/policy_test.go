@@ -14,9 +14,6 @@ func TestExecutionPolicyDefaultsToInteractive(t *testing.T) {
 	if err := zero.Validate(); err != nil {
 		t.Fatalf("the zero policy is valid: %v", err)
 	}
-	if DefaultExecutionPolicy().Interaction != InteractionInteractive {
-		t.Fatal("the default is not interactive")
-	}
 }
 
 func TestExecutionPolicyValidation(t *testing.T) {
@@ -24,16 +21,10 @@ func TestExecutionPolicyValidation(t *testing.T) {
 		if err := (ExecutionPolicy{Interaction: p}).Validate(); err != nil {
 			t.Errorf("%s: %v", p, err)
 		}
-		if got, err := ParseInteraction(string(p)); err != nil || got != p {
-			t.Errorf("ParseInteraction(%q) = %q, %v", p, got, err)
-		}
 	}
 	for _, bad := range []string{"AUTONOMOUS", "yolo", "autonomous-stop", " "} {
 		if err := (ExecutionPolicy{Interaction: InteractionPolicy(bad)}).Validate(); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%q accepted: %v", bad, err)
-		}
-		if _, err := ParseInteraction(bad); !errors.Is(err, ErrInvalid) {
-			t.Errorf("ParseInteraction(%q): %v", bad, err)
 		}
 	}
 	if InteractionInteractive.Autonomous() || !InteractionAutonomous.Autonomous() || !InteractionAutonomousStopIfBlocked.Autonomous() {
