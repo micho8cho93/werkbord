@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
-	acpsdk "github.com/caelis-labs/acp-go-sdk"
 	agentapi "werkbord/internal/agent"
 	"werkbord/internal/domain"
+
+	acpsdk "github.com/caelis-labs/acp-go-sdk"
 )
 
 func testClient(t *testing.T) (*runClient, string, *session) {
@@ -181,7 +182,12 @@ streamedTurnDone:
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer stopCancel()
 	if err := sess.Stop(stopCtx); err != nil {
-		t.Fatalf("stop ACP process tree: %v", err)
+		// Stop reports how the agent exited. A fake that is told to stop mid-prompt may leave with a non-zero status,
+		// depending on which of the cancel and the close it sees first; what is being tested is that it stopped in time.
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) {
+			t.Fatalf("stop ACP process tree: %v", err)
+		}
 	}
 	select {
 	case <-stopCtx.Done():
